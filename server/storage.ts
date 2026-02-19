@@ -101,6 +101,22 @@ export interface IStorage {
   createMarketRegime(data: any): Promise<any>;
   getMarketRegimes(): Promise<any[]>;
   recordRegimeHistory(data: any): Promise<any>;
+
+  // Broker configs
+  getBrokerConfigs(): Promise<any[]>;
+  getBrokerConfig(id: number): Promise<any | undefined>;
+  getBrokerConfigByName(name: string): Promise<any | undefined>;
+  getDefaultBrokerConfig(assetType: string): Promise<any | undefined>;
+
+  // Backtest runs
+  createBacktestRun(data: any): Promise<any>;
+  updateBacktestRun(id: number, data: Partial<any>): Promise<void>;
+  getBacktestRuns(options?: { symbol?: string; modelId?: number; status?: string; limit?: number }): Promise<any[]>;
+  getBacktestRun(id: number): Promise<any | undefined>;
+
+  // Backtest trades
+  insertBacktestTrades(trades: any[]): Promise<void>;
+  getBacktestTrades(backtestRunId: number, limit?: number): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1574,6 +1590,176 @@ export class DatabaseStorage implements IStorage {
       client.release();
     }
     return totalInserted;
+  }
+
+  // ============================================================
+  // BROKER CONFIGS
+  // ============================================================
+
+  async getBrokerConfigs(): Promise<any[]> {
+    const result = await pool.query('SELECT * FROM broker_configs ORDER BY asset_type, name');
+    return result.rows;
+  }
+
+  async getBrokerConfig(id: number): Promise<any | undefined> {
+    const result = await pool.query('SELECT * FROM broker_configs WHERE id = $1', [id]);
+    return result.rows[0];
+  }
+
+  async getBrokerConfigByName(name: string): Promise<any | undefined> {
+    const result = await pool.query('SELECT * FROM broker_configs WHERE name = $1', [name]);
+    return result.rows[0];
+  }
+
+  async getDefaultBrokerConfig(assetType: string): Promise<any | undefined> {
+    const result = await pool.query(
+      'SELECT * FROM broker_configs WHERE asset_type = $1 AND is_default = 1 LIMIT 1',
+      [assetType]
+    );
+    return result.rows[0];
+  }
+
+  // ============================================================
+  // BACKTEST RUNS
+  // ============================================================
+
+  async createBacktestRun(data: any): Promise<any> {
+    const result = await pool.query(`
+      INSERT INTO backtest_runs (name, model_id, symbol, broker_config_id, timeframe,
+        train_start_timestamp, train_end_timestamp, test_start_timestamp, test_end_timestamp,
+        split_ratio, initial_capital, position_size, max_positions,
+        stop_loss_ticks, take_profit_ticks, trailing_stop_ticks, max_drawdown_pct,
+        status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      RETURNING *
+    `, [
+      data.name, data.modelId, data.symbol, data.brokerConfigId, data.timeframe || '1m',
+      data.trainStartTimestamp, data.trainEndTimestamp,
+      data.testStartTimestamp, data.testEndTimestamp,
+      data.splitRatio || 0.8, data.initialCapital || 10000,
+      data.positionSize || 1, data.maxPositions || 1,
+      data.stopLossTicks, data.takeProfitTicks, data.trailingStopTicks, data.maxDrawdownPct,
+      'pending'
+    ]);
+    return result.rows[0];
+  }
+
+  async updateBacktestRun(id: number, data: Partial<any>): Promise<void> {
+    const setClauses: string[] = [];
+    const values: any[] = [];
+    let paramIdx = 1;
+
+    const fieldMap: Record<string, string> = {
+      status: 'status', totalTrades: 'total_trades', winRate: 'win_rate',
+      profitFactor: 'profit_factor', sharpeRatio: 'sharpe_ratio', sortinoRatio: 'sortino_ratio',
+      maxDrawdown: 'max_drawdown', totalReturn: 'total_return', totalReturnPct: 'total_return_pct',
+      avgWin: 'avg_win', avgLoss: 'avg_loss', largestWin: 'largest_win', largestLoss: 'largest_loss',
+      avgHoldingTimeMs: 'avg_holding_time_ms', expectancy: 'expectancy',
+      totalCommissions: 'total_commissions', totalSlippage: 'total_slippage',
+      equityCurve: 'equity_curve', errorMessage: 'error_message',
+      startedAt: 'started_at', completedAt: 'completed_at',
+    };
+
+    for (const [jsKey, dbCol] of Object.entries(fieldMap)) {
+      if (data[jsKey] !== undefined) {
+        setClauses.push(`${dbCol} = $${paramIdx++}`);
+        values.push(data[jsKey]);
+      }
+    }
+
+    if (setClauses.length === 0) return;
+    values.push(id);
+    await pool.query(`UPDATE backtest_runs SET ${setClauses.join(', ')} WHERE id = $${paramIdx}`, values);
+  }
+
+  async getBacktestRuns(options?: { symbol?: string; modelId?: number; status?: string; limit?: number }): Promise<any[]> {
+    let query = `SELECT br.*, bc.name as broker_name, bc.broker as broker_label,
+      mm.name as model_name, mm.architecture as model_architecture
+      FROM backtest_runs br
+      LEFT JOIN broker_configs bc ON br.broker_config_id = bc.id
+      LEFT JOIN ml_models mm ON br.model_id = mm.id
+      WHERE 1=1`;
+    const params: any[] = [];
+    let paramCount = 1;
+
+    if (options?.symbol) {
+      query += ` AND br.symbol = $${paramCount++}`;
+      params.push(options.symbol);
+    }
+    if (options?.modelId) {
+      query += ` AND br.model_id = $${paramCount++}`;
+      params.push(options.modelId);
+    }
+    if (options?.status) {
+      query += ` AND br.status = $${paramCount++}`;
+      params.push(options.status);
+    }
+
+    query += ` ORDER BY br.created_at DESC LIMIT $${paramCount}`;
+    params.push(options?.limit || 50);
+
+    const result = await pool.query(query, params);
+    return result.rows;
+  }
+
+  async getBacktestRun(id: number): Promise<any | undefined> {
+    const result = await pool.query(`
+      SELECT br.*, bc.name as broker_name, bc.broker as broker_label,
+        mm.name as model_name, mm.architecture as model_architecture
+      FROM backtest_runs br
+      LEFT JOIN broker_configs bc ON br.broker_config_id = bc.id
+      LEFT JOIN ml_models mm ON br.model_id = mm.id
+      WHERE br.id = $1
+    `, [id]);
+    return result.rows[0];
+  }
+
+  // ============================================================
+  // BACKTEST TRADES
+  // ============================================================
+
+  async insertBacktestTrades(trades: any[]): Promise<void> {
+    if (trades.length === 0) return;
+    
+    const batchSize = 500;
+    for (let i = 0; i < trades.length; i += batchSize) {
+      const batch = trades.slice(i, i + batchSize);
+      const values: any[] = [];
+      const placeholders: string[] = [];
+      let paramIdx = 1;
+
+      for (const t of batch) {
+        placeholders.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5}, $${paramIdx + 6}, $${paramIdx + 7}, $${paramIdx + 8}, $${paramIdx + 9}, $${paramIdx + 10}, $${paramIdx + 11}, $${paramIdx + 12}, $${paramIdx + 13}, $${paramIdx + 14}, $${paramIdx + 15}, $${paramIdx + 16}, $${paramIdx + 17})`);
+        values.push(
+          t.backtestRunId, t.symbol, t.side,
+          t.entryTimestamp, t.exitTimestamp,
+          t.entryPrice, t.exitPrice,
+          t.quantity, t.pnl, t.netPnl,
+          t.commission, t.slippage, t.spreadCost,
+          t.entrySignal, t.exitReason,
+          t.barsHeld, t.maxFavorableExcursion ?? t.maxAdverseExcursion,
+          t.runningPnl
+        );
+        paramIdx += 18;
+      }
+
+      await pool.query(`
+        INSERT INTO backtest_trades (backtest_run_id, symbol, side,
+          entry_timestamp, exit_timestamp, entry_price, exit_price,
+          quantity, pnl, net_pnl, commission, slippage, spread_cost,
+          entry_signal, exit_reason, bars_held, max_favorable_excursion,
+          running_pnl)
+        VALUES ${placeholders.join(', ')}
+      `, values);
+    }
+  }
+
+  async getBacktestTrades(backtestRunId: number, limit?: number): Promise<any[]> {
+    const result = await pool.query(
+      'SELECT * FROM backtest_trades WHERE backtest_run_id = $1 ORDER BY entry_timestamp ASC LIMIT $2',
+      [backtestRunId, limit || 10000]
+    );
+    return result.rows;
   }
 }
 

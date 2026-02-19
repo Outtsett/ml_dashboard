@@ -18,6 +18,8 @@ import { prefetchCriticalData } from "./lib/prefetch";
 const MarketData = lazy(() => import("@/pages/MarketData"));
 const Portfolio = lazy(() => import("@/pages/Portfolio"));
 const MLHub = lazy(() => import("@/pages/MLHub"));
+const Training = lazy(() => import("@/pages/Training"));
+const Backtest = lazy(() => import("@/pages/Backtest"));
 const Databases = lazy(() => import("@/pages/Databases"));
 const Watchlist = lazy(() => import("@/pages/Watchlist"));
 const News = lazy(() => import("@/pages/News"));
@@ -38,6 +40,20 @@ function Router() {
           <ErrorBoundary>
             <Suspense fallback={<MLHubSkeleton />}>
               <MLHub />
+            </Suspense>
+          </ErrorBoundary>
+        </Route>
+        <Route path="/training">
+          <ErrorBoundary>
+            <Suspense fallback={<MLHubSkeleton />}>
+              <Training />
+            </Suspense>
+          </ErrorBoundary>
+        </Route>
+        <Route path="/backtest">
+          <ErrorBoundary>
+            <Suspense fallback={<DataGridSkeleton />}>
+              <Backtest />
             </Suspense>
           </ErrorBoundary>
         </Route>

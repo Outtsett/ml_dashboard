@@ -10,6 +10,7 @@ import mlRouter from "./routes/ml";
 import newsRouter from "./routes/news";
 import databasesRouter from "./routes/databases";
 import chartRouter from "./routes/charts";
+import backtestRouter from "./routes/backtest";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
 
@@ -31,6 +32,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", newsRouter);
   app.use("/api", databasesRouter);
   app.use("/api/charts", chartRouter);
+  app.use("/api", backtestRouter);
 
   return httpServer;
 }

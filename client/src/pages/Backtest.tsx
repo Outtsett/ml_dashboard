@@ -7,33 +7,100 @@ import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { 
-  Play, RotateCcw, BarChart2, Sparkles, Target, TrendingDown, Orbit, 
-  TrendingUp, ArrowUpRight, ArrowDownRight, Shuffle, Layers, DollarSign, Calculator
+import {
+  Play, RotateCcw, BarChart2, Sparkles, Target, TrendingDown, Orbit,
+  TrendingUp, Calculator, Loader2, AlertCircle, CheckCircle2
 } from "lucide-react";
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  LineChart, Line, Legend, ComposedChart, Bar, ReferenceLine, ScatterChart, Scatter
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  ComposedChart, Bar, Legend, Line, ReferenceLine
 } from "recharts";
-import NotImplemented from "@/components/NotImplemented";
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/types";
+import { apiRequest } from "@/lib/queryClient";
 
-type WalkForwardFold = { fold: number; trainStart: string; trainEnd: string; testStart: string; testEnd: string; trainSharpe: number; testSharpe: number; overfit: boolean };
-type TradeBreakdownEntry = { id: number; entryTime: string; exitTime: string; symbol: string; direction: string; entry: number; exit: number; pnl: number; slippage: number; commission: number; netPnl: number };
-type PerformanceMetrics = { totalReturn: number; cagr: number; sharpe: number; sortino: number; calmar: number; maxDrawdown: number; avgDrawdown: number; winRate: number; profitFactor: number; avgWin: number; avgLoss: number; largestWin: number; largestLoss: number; totalTrades: number; avgTradesPerDay: number; avgHoldingTime: string; expectancy: number };
-type SlippageEntry = { day: number; slippage: number; commission: number; netImpact: number };
-type MonteCarloStats = { median: number; percentile5: number; percentile95: number; maxDrawdownMean: number; maxDrawdownWorst: number; winRateMean: number; profitFactorMean: number };
+// ============================================================
+// TYPES
+// ============================================================
+
+interface BrokerConfig {
+  id: number;
+  name: string;
+  broker: string;
+  asset_type: string;
+  commission_type: string;
+  commission_per_side: number;
+  typical_spread_pips: number;
+  default_margin: number;
+}
+
+interface BacktestMetrics {
+  totalTrades: number;
+  winningTrades: number;
+  losingTrades: number;
+  winRate: number;
+  profitFactor: number;
+  sharpeRatio: number;
+  sortinoRatio: number;
+  maxDrawdown: number;
+  maxDrawdownPct: number;
+  totalReturn: number;
+  totalReturnPct: number;
+  avgWin: number;
+  avgLoss: number;
+  largestWin: number;
+  largestLoss: number;
+  avgHoldingTimeBars: number;
+  avgHoldingTimeMs: number;
+  expectancy: number;
+  totalCommissions: number;
+  totalSlippage: number;
+  totalSpreadCost: number;
+  calmarRatio: number;
+}
+
+interface BacktestRunResult {
+  run: any;
+  metrics: BacktestMetrics;
+  tradeCount: number;
+  equityCurvePoints: number;
+  dataSummary: {
+    totalBars: number;
+    trainBars: number;
+    testBars: number;
+    signalCount: number;
+  };
+}
+
+// ============================================================
+// COMPONENT
+// ============================================================
 
 export default function Backtest() {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("results");
-  const [slippageModel, setSlippageModel] = useState(true);
-  const [mcEnabled, setMcEnabled] = useState(false);
-  const [wfEnabled, setWfEnabled] = useState(true);
 
-  const { data: models = [] } = useQuery<{ id: number; name: string; architecture: string }[]>({
+  // Form state
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [selectedSymbol, setSelectedSymbol] = useState<string>("");
+  const [selectedBroker, setSelectedBroker] = useState<string>("");
+  const [timeframe, setTimeframe] = useState("1m");
+  const [splitRatio, setSplitRatio] = useState(0.8);
+  const [initialCapital, setInitialCapital] = useState(10000);
+  const [positionSize, setPositionSize] = useState(1);
+  const [stopLossTicks, setStopLossTicks] = useState<number | undefined>(undefined);
+  const [takeProfitTicks, setTakeProfitTicks] = useState<number | undefined>(undefined);
+  const [minConfidence, setMinConfidence] = useState(0.5);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  // Results state
+  const [lastResult, setLastResult] = useState<BacktestRunResult | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+
+  // Data queries
+  const { data: models = [] } = useQuery<{ id: number; name: string; architecture: string; symbol: string }[]>({
     queryKey: [...QUERY_KEYS.mlModels],
     queryFn: async () => { const res = await fetch("/api/ml/models"); return res.json(); },
   });
@@ -43,13 +110,122 @@ export default function Backtest() {
     queryFn: async () => { const res = await fetch("/api/instruments"); return res.json(); },
   });
 
-  const [walkForwardData] = useState<WalkForwardFold[]>([]);
-  const [monteCarloData] = useState<{ time: number; [key: string]: number }[]>([]);
-  const [monteCarloStats] = useState<MonteCarloStats | null>(null);
-  const [tradeBreakdown] = useState<TradeBreakdownEntry[]>([]);
-  const [performanceMetrics] = useState<PerformanceMetrics | null>(null);
-  const [slippageData] = useState<SlippageEntry[]>([]);
-  const [equityData] = useState<{ date: string; equity: number }[]>([]);
+  const { data: brokers = [] } = useQuery<BrokerConfig[]>({
+    queryKey: ["/api/brokers"],
+    queryFn: async () => { const res = await fetch("/api/brokers"); return res.json(); },
+  });
+
+  const { data: previousRuns = [] } = useQuery<any[]>({
+    queryKey: ["/api/backtest/runs"],
+    queryFn: async () => { const res = await fetch("/api/backtest/runs?limit=20"); return res.json(); },
+  });
+
+  // Trades for the selected run
+  const { data: tradesData } = useQuery<{ trades: any[]; chartMarkers: any[]; count: number }>({
+    queryKey: ["/api/backtest/trades", selectedRunId],
+    queryFn: async () => {
+      const res = await fetch(`/api/backtest/trades/${selectedRunId}`);
+      return res.json();
+    },
+    enabled: !!selectedRunId,
+  });
+
+  // Run backtest mutation
+  const runBacktest = useMutation({
+    mutationFn: async () => {
+      const body: any = {
+        symbol: selectedSymbol,
+        timeframe,
+        splitRatio,
+        initialCapital,
+        positionSize,
+        minConfidence,
+      };
+
+      if (selectedModel === '__last_trained__') {
+        body.useLastTrained = true;
+      } else if (selectedModel && selectedModel !== 'momentum') {
+        body.modelId = parseInt(selectedModel);
+      }
+
+      if (selectedBroker) body.brokerConfigId = parseInt(selectedBroker);
+      if (stopLossTicks) body.stopLossTicks = stopLossTicks;
+      if (takeProfitTicks) body.takeProfitTicks = takeProfitTicks;
+      if (startDate) body.start = startDate;
+      if (endDate) body.end = endDate;
+
+      const res = await apiRequest("POST", "/api/backtest/run", body);
+      return res.json();
+    },
+    onSuccess: (data: BacktestRunResult) => {
+      setLastResult(data);
+      setSelectedRunId(data.run.id);
+      queryClient.invalidateQueries({ queryKey: ["/api/backtest/runs"] });
+    },
+  });
+
+  const handleRun = useCallback(() => {
+    if (!selectedSymbol) return;
+    runBacktest.mutate();
+  }, [selectedSymbol, runBacktest]);
+
+  const handleReset = useCallback(() => {
+    setLastResult(null);
+    setSelectedRunId(null);
+  }, []);
+
+  const handleLoadRun = useCallback((run: any) => {
+    setSelectedRunId(run.id);
+    setLastResult({
+      run,
+      metrics: {
+        totalTrades: run.total_trades ?? 0,
+        winningTrades: 0,
+        losingTrades: 0,
+        winRate: run.win_rate ?? 0,
+        profitFactor: run.profit_factor ?? 0,
+        sharpeRatio: run.sharpe_ratio ?? 0,
+        sortinoRatio: run.sortino_ratio ?? 0,
+        maxDrawdown: run.max_drawdown ?? 0,
+        maxDrawdownPct: 0,
+        totalReturn: run.total_return ?? 0,
+        totalReturnPct: run.total_return_pct ?? 0,
+        avgWin: run.avg_win ?? 0,
+        avgLoss: run.avg_loss ?? 0,
+        largestWin: run.largest_win ?? 0,
+        largestLoss: run.largest_loss ?? 0,
+        avgHoldingTimeBars: 0,
+        avgHoldingTimeMs: run.avg_holding_time_ms ?? 0,
+        expectancy: run.expectancy ?? 0,
+        totalCommissions: run.total_commissions ?? 0,
+        totalSlippage: run.total_slippage ?? 0,
+        totalSpreadCost: 0,
+        calmarRatio: 0,
+      },
+      tradeCount: run.total_trades ?? 0,
+      equityCurvePoints: 0,
+      dataSummary: { totalBars: 0, trainBars: 0, testBars: 0, signalCount: 0 },
+    });
+    setActiveTab("results");
+  }, []);
+
+  // Parse equity curve from run data
+  const equityCurveData = (() => {
+    try {
+      const curve = lastResult?.run?.equity_curve;
+      if (!curve) return [];
+      const parsed = typeof curve === 'string' ? JSON.parse(curve) : curve;
+      return parsed.map((pt: any) => ({
+        time: new Date(pt.timestamp).toLocaleDateString(),
+        equity: pt.equity,
+      }));
+    } catch {
+      return [];
+    }
+  })();
+
+  const metrics = lastResult?.metrics;
+  const trades = tradesData?.trades ?? [];
 
   return (
     <div className="space-y-4 h-[calc(100vh-6rem)] flex flex-col overflow-hidden">
@@ -60,19 +236,40 @@ export default function Backtest() {
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500/30 to-rose-500/30 flex items-center justify-center">
               <Orbit className="h-5 w-5 text-amber-300" />
             </div>
-            <span className="text-sm font-medium text-amber-300/80">Strategy Testing (Not Implemented)</span>
+            {lastResult && (
+              <Badge variant="outline" className="text-[10px] border-emerald-500/50 text-emerald-400">
+                <CheckCircle2 className="h-3 w-3 mr-1" /> Completed
+              </Badge>
+            )}
           </div>
           <h1 className="text-4xl font-display font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Backtesting</h1>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" disabled className="h-10 px-4 rounded-xl bg-black/30 border-white/10 opacity-50 cursor-not-allowed" data-testid="button-reset">
+          <Button variant="outline" onClick={handleReset}
+            className="h-10 px-4 rounded-xl bg-black/30 border-white/10"
+          >
             <RotateCcw className="mr-2 h-4 w-4" /> Reset
           </Button>
-          <Button disabled className="h-10 px-5 rounded-xl bg-gradient-to-r from-amber-600 to-rose-600 text-white opacity-50 cursor-not-allowed font-medium" data-testid="button-run">
-            <Play className="mr-2 h-4 w-4" /> Execute
+          <Button
+            onClick={handleRun}
+            disabled={!selectedSymbol || runBacktest.isPending}
+            className="h-10 px-5 rounded-xl bg-gradient-to-r from-amber-600 to-rose-600 text-white font-medium disabled:opacity-50"
+          >
+            {runBacktest.isPending ? (
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Running...</>
+            ) : (
+              <><Play className="mr-2 h-4 w-4" /> Execute</>
+            )}
           </Button>
         </div>
       </div>
+
+      {runBacktest.isError && (
+        <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 flex items-center gap-2 text-sm text-rose-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {(runBacktest.error as Error)?.message || 'Backtest failed'}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 flex-1 min-h-0 overflow-hidden">
         {/* Configuration Sidebar */}
@@ -84,131 +281,214 @@ export default function Backtest() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 pt-3 text-xs">
+              {/* Model Selection */}
               <div className="space-y-1.5">
                 <Label className="text-[10px] text-muted-foreground">Model</Label>
-                <Select defaultValue={models[0]?.name || ""}>
+                <Select value={selectedModel} onValueChange={setSelectedModel}>
                   <SelectTrigger className="h-8 rounded-lg bg-white/5 border-white/10 text-xs">
-                    <SelectValue placeholder={models.length === 0 ? "No models" : "Select model"} />
+                    <SelectValue placeholder="Select model" />
                   </SelectTrigger>
                   <SelectContent>
-                    {models.length === 0 ? (
-                      <SelectItem value="none" disabled>No trained models</SelectItem>
-                    ) : models.map(m => (
-                      <SelectItem key={m.id} value={m.name}>{m.name} ({m.architecture})</SelectItem>
+                    <SelectItem value="momentum">Momentum (no ML)</SelectItem>
+                    <SelectItem value="__last_trained__">Last Trained (in-memory)</SelectItem>
+                    {models.map(m => (
+                      <SelectItem key={m.id} value={String(m.id)}>
+                        {m.name} ({m.architecture})
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
+              {/* Instrument */}
               <div className="space-y-1.5">
                 <Label className="text-[10px] text-muted-foreground">Instrument</Label>
-                <Select defaultValue={instruments[0]?.symbol || ""}>
+                <Select value={selectedSymbol} onValueChange={setSelectedSymbol}>
                   <SelectTrigger className="h-8 rounded-lg bg-white/5 border-white/10 text-xs">
-                    <SelectValue placeholder={instruments.length === 0 ? "No instruments" : "Select instrument"} />
+                    <SelectValue placeholder="Select instrument" />
                   </SelectTrigger>
                   <SelectContent>
-                    {instruments.length === 0 ? (
-                      <SelectItem value="none" disabled>No instruments</SelectItem>
-                    ) : instruments.slice(0, 10).map(inst => (
-                      <SelectItem key={inst.id} value={inst.symbol}>{inst.symbol} ({inst.name})</SelectItem>
+                    {instruments.map(inst => (
+                      <SelectItem key={inst.id} value={inst.symbol}>
+                        {inst.symbol} — {inst.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
+              {/* Broker */}
               <div className="space-y-1.5">
-                <Label className="text-[10px] text-muted-foreground">Date Range</Label>
+                <Label className="text-[10px] text-muted-foreground">Broker Profile</Label>
+                <Select value={selectedBroker} onValueChange={setSelectedBroker}>
+                  <SelectTrigger className="h-8 rounded-lg bg-white/5 border-white/10 text-xs">
+                    <SelectValue placeholder="Auto-detect" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Auto (by asset type)</SelectItem>
+                    {brokers.map(b => (
+                      <SelectItem key={b.id} value={String(b.id)}>
+                        {b.broker} — {b.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Timeframe */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-muted-foreground">Timeframe</Label>
+                <Select value={timeframe} onValueChange={setTimeframe}>
+                  <SelectTrigger className="h-8 rounded-lg bg-white/5 border-white/10 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {['1m', '5m', '15m', '30m', '1H', '4H', '1D'].map(tf => (
+                      <SelectItem key={tf} value={tf}>{tf}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Date Range */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-muted-foreground">Date Range (optional)</Label>
                 <div className="grid grid-cols-2 gap-1">
-                  <Input type="date" className="h-7 rounded-lg bg-white/5 border-white/10 text-[10px]" placeholder="Start" />
-                  <Input type="date" className="h-7 rounded-lg bg-white/5 border-white/10 text-[10px]" placeholder="End" />
+                  <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                    className="h-7 rounded-lg bg-white/5 border-white/10 text-[10px]" />
+                  <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+                    className="h-7 rounded-lg bg-white/5 border-white/10 text-[10px]" />
                 </div>
               </div>
 
+              {/* Train/Test Split */}
               <div className="space-y-2 pt-2 border-t border-white/5">
                 <Label className="text-[10px] text-muted-foreground flex justify-between">
-                  <span>Risk / Trade</span>
-                  <span className="font-mono text-muted-foreground">--%</span>
+                  <span>Train/Test Split</span>
+                  <span className="font-mono text-primary">{(splitRatio * 100).toFixed(0)}% / {((1 - splitRatio) * 100).toFixed(0)}%</span>
                 </Label>
-                <Slider defaultValue={[0]} max={10} step={0.1} className="py-1" disabled />
+                <Slider value={[splitRatio * 100]} min={50} max={95} step={5}
+                  onValueChange={v => setSplitRatio(v[0] / 100)} className="py-1" />
+              </div>
+
+              {/* Capital & Position */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-muted-foreground">Initial Capital ($)</Label>
+                <Input type="number" value={initialCapital} onChange={e => setInitialCapital(Number(e.target.value))}
+                  className="h-7 rounded-lg bg-white/5 border-white/10 text-xs" />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-muted-foreground">Position Size (lots/contracts)</Label>
+                <Input type="number" value={positionSize} onChange={e => setPositionSize(Number(e.target.value))}
+                  className="h-7 rounded-lg bg-white/5 border-white/10 text-xs" min={0.01} step={0.01} />
+              </div>
+
+              {/* Risk Management */}
+              <div className="space-y-2 pt-2 border-t border-white/5">
+                <Label className="text-[10px] text-muted-foreground flex justify-between">
+                  <span>Stop Loss (Ticks)</span>
+                  <span className="font-mono text-muted-foreground">{stopLossTicks ?? 'Off'}</span>
+                </Label>
+                <Slider value={[stopLossTicks ?? 0]} max={100} step={1}
+                  onValueChange={v => setStopLossTicks(v[0] > 0 ? v[0] : undefined)} className="py-1" />
               </div>
 
               <div className="space-y-2">
                 <Label className="text-[10px] text-muted-foreground flex justify-between">
-                  <span>Stop Loss (Ticks)</span>
-                  <span className="font-mono text-muted-foreground">--</span>
+                  <span>Take Profit (Ticks)</span>
+                  <span className="font-mono text-muted-foreground">{takeProfitTicks ?? 'Off'}</span>
                 </Label>
-                <Slider defaultValue={[0]} max={50} step={1} className="py-1" disabled />
+                <Slider value={[takeProfitTicks ?? 0]} max={200} step={1}
+                  onValueChange={v => setTakeProfitTicks(v[0] > 0 ? v[0] : undefined)} className="py-1" />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] text-muted-foreground flex justify-between">
+                  <span>Min Confidence</span>
+                  <span className="font-mono text-primary">{(minConfidence * 100).toFixed(0)}%</span>
+                </Label>
+                <Slider value={[minConfidence * 100]} min={30} max={95} step={5}
+                  onValueChange={v => setMinConfidence(v[0] / 100)} className="py-1" />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="glass rounded-2xl gradient-border">
-            <CardHeader className="py-2 px-3">
-              <CardTitle className="text-xs font-medium text-accent">Advanced</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 pt-1">
-              <label className="flex items-center justify-between p-2 rounded-lg bg-white/5 cursor-pointer text-xs">
-                <span>Walk-Forward</span>
-                <input type="checkbox" className="accent-primary w-3.5 h-3.5" checked={wfEnabled} onChange={e => setWfEnabled(e.target.checked)} data-testid="checkbox-walkforward" />
-              </label>
-              <label className="flex items-center justify-between p-2 rounded-lg bg-white/5 cursor-pointer text-xs">
-                <span>Monte Carlo</span>
-                <input type="checkbox" className="accent-primary w-3.5 h-3.5" checked={mcEnabled} onChange={e => setMcEnabled(e.target.checked)} data-testid="checkbox-montecarlo" />
-              </label>
-              <label className="flex items-center justify-between p-2 rounded-lg bg-white/5 cursor-pointer text-xs">
-                <span>Slippage Model</span>
-                <input type="checkbox" className="accent-primary w-3.5 h-3.5" checked={slippageModel} onChange={e => setSlippageModel(e.target.checked)} data-testid="checkbox-slippage" />
-              </label>
-            </CardContent>
-          </Card>
+          {/* Previous Runs */}
+          {previousRuns.length > 0 && (
+            <Card className="glass rounded-2xl gradient-border">
+              <CardHeader className="py-2 px-3 border-b border-white/5">
+                <CardTitle className="text-xs font-medium text-accent">Previous Runs</CardTitle>
+              </CardHeader>
+              <ScrollArea className="max-h-48">
+                <CardContent className="space-y-1.5 pt-2">
+                  {previousRuns.map((run: any) => (
+                    <button key={run.id} onClick={() => handleLoadRun(run)}
+                      className={`w-full text-left p-2 rounded-lg text-[10px] transition-colors ${
+                        selectedRunId === run.id ? 'bg-primary/20 border border-primary/30' : 'bg-white/5 hover:bg-white/10'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="font-mono font-bold truncate">{run.name}</span>
+                        <Badge variant="outline" className={`text-[8px] ${
+                          run.status === 'completed' ? 'border-emerald-500/50 text-emerald-400' : 'border-amber-500/50 text-amber-400'
+                        }`}>{run.status}</Badge>
+                      </div>
+                      <div className="flex gap-2 mt-0.5 text-muted-foreground">
+                        <span>{run.symbol}</span>
+                        <span>{run.total_trades ?? 0} trades</span>
+                        {run.total_return_pct != null && (
+                          <span className={run.total_return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                            {run.total_return_pct >= 0 ? '+' : ''}{run.total_return_pct.toFixed(1)}%
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </CardContent>
+              </ScrollArea>
+            </Card>
+          )}
         </div>
 
         {/* Results Area */}
         <div className="lg:col-span-4 flex flex-col gap-3 min-h-0 overflow-hidden">
           {/* Metrics Row */}
           <div className="grid grid-cols-6 gap-2 shrink-0">
-            <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 rounded-xl p-3 border border-emerald-500/20">
-              <div className="text-[10px] text-emerald-300/70 uppercase tracking-wider mb-1">Total Return</div>
-              <div className="text-2xl font-bold text-emerald-300">{performanceMetrics ? `+${performanceMetrics.totalReturn}%` : '--'}</div>
-            </div>
-            <div className="bg-gradient-to-br from-rose-500/10 to-rose-600/5 rounded-xl p-3 border border-rose-500/20">
-              <div className="text-[10px] text-rose-300/70 uppercase tracking-wider mb-1">Max Drawdown</div>
-              <div className="text-2xl font-bold text-rose-300">{performanceMetrics ? `${performanceMetrics.maxDrawdown}%` : '--'}</div>
-            </div>
-            <div className="bg-gradient-to-br from-violet-500/10 to-violet-600/5 rounded-xl p-3 border border-violet-500/20">
-              <div className="text-[10px] text-violet-300/70 uppercase tracking-wider mb-1">Sharpe</div>
-              <div className="text-2xl font-bold text-violet-300">{performanceMetrics ? performanceMetrics.sharpe.toFixed(2) : '--'}</div>
-            </div>
-            <div className="bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 rounded-xl p-3 border border-cyan-500/20">
-              <div className="text-[10px] text-cyan-300/70 uppercase tracking-wider mb-1">Sortino</div>
-              <div className="text-2xl font-bold text-cyan-300">{performanceMetrics ? performanceMetrics.sortino.toFixed(2) : '--'}</div>
-            </div>
-            <div className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 rounded-xl p-3 border border-amber-500/20">
-              <div className="text-[10px] text-amber-300/70 uppercase tracking-wider mb-1">Calmar</div>
-              <div className="text-2xl font-bold text-amber-300">{performanceMetrics ? performanceMetrics.calmar.toFixed(1) : '--'}</div>
-            </div>
-            <div className="bg-gradient-to-br from-fuchsia-500/10 to-fuchsia-600/5 rounded-xl p-3 border border-fuchsia-500/20">
-              <div className="text-[10px] text-fuchsia-300/70 uppercase tracking-wider mb-1">Win Rate</div>
-              <div className="text-2xl font-bold text-fuchsia-300">{performanceMetrics ? `${performanceMetrics.winRate}%` : '--'}</div>
-            </div>
+            <MetricBox label="Total Return" value={metrics ? `${metrics.totalReturn >= 0 ? '+' : ''}$${metrics.totalReturn.toFixed(0)}` : '--'}
+              subValue={metrics ? `${metrics.totalReturnPct >= 0 ? '+' : ''}${metrics.totalReturnPct.toFixed(1)}%` : ''}
+              color="emerald" />
+            <MetricBox label="Max Drawdown" value={metrics ? `$${metrics.maxDrawdown.toFixed(0)}` : '--'} color="rose" />
+            <MetricBox label="Sharpe" value={metrics ? metrics.sharpeRatio.toFixed(2) : '--'} color="violet" />
+            <MetricBox label="Win Rate" value={metrics ? `${(metrics.winRate * 100).toFixed(1)}%` : '--'}
+              subValue={metrics ? `${metrics.totalTrades} trades` : ''} color="cyan" />
+            <MetricBox label="Profit Factor" value={metrics ? (metrics.profitFactor === Infinity ? '∞' : metrics.profitFactor.toFixed(2)) : '--'} color="amber" />
+            <MetricBox label="Expectancy" value={metrics ? `$${metrics.expectancy.toFixed(2)}` : '--'} color="fuchsia" />
           </div>
+
+          {/* Data Summary */}
+          {lastResult?.dataSummary && lastResult.dataSummary.totalBars > 0 && (
+            <div className="flex gap-4 text-[10px] text-muted-foreground shrink-0 px-1">
+              <span>Total bars: <span className="font-mono text-foreground">{lastResult.dataSummary.totalBars.toLocaleString()}</span></span>
+              <span>Train: <span className="font-mono text-primary">{lastResult.dataSummary.trainBars.toLocaleString()}</span></span>
+              <span>Test: <span className="font-mono text-accent">{lastResult.dataSummary.testBars.toLocaleString()}</span></span>
+              <span>Signals: <span className="font-mono text-foreground">{lastResult.dataSummary.signalCount.toLocaleString()}</span></span>
+              {lastResult.run?.broker_label && (
+                <span>Broker: <span className="font-mono text-amber-400">{lastResult.run.broker_label}</span></span>
+              )}
+            </div>
+          )}
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <TabsList className="glass rounded-xl p-1 h-auto shrink-0 w-fit">
-              <TabsTrigger value="results" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20" data-testid="tab-results">
+              <TabsTrigger value="results" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20">
                 <BarChart2 className="h-3 w-3 mr-1.5" /> Results
               </TabsTrigger>
-              <TabsTrigger value="walkforward" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20" data-testid="tab-walkforward">
-                <Layers className="h-3 w-3 mr-1.5" /> Walk-Forward
+              <TabsTrigger value="trades" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20">
+                <Target className="h-3 w-3 mr-1.5" /> Trades {trades.length > 0 && `(${trades.length})`}
               </TabsTrigger>
-              <TabsTrigger value="montecarlo" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20" data-testid="tab-montecarlo">
-                <Shuffle className="h-3 w-3 mr-1.5" /> Monte Carlo
-              </TabsTrigger>
-              <TabsTrigger value="trades" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20" data-testid="tab-trades">
-                <Target className="h-3 w-3 mr-1.5" /> Trades
-              </TabsTrigger>
-              <TabsTrigger value="costs" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20" data-testid="tab-costs">
+              <TabsTrigger value="costs" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20">
                 <Calculator className="h-3 w-3 mr-1.5" /> Costs
               </TabsTrigger>
             </TabsList>
@@ -223,21 +503,34 @@ export default function Backtest() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="flex-1 min-h-0 p-2">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={equityData}>
-                        <defs>
-                          <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="hsl(185, 70%, 55%)" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="hsl(185, 70%, 55%)" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsla(260, 30%, 30%, 0.2)" />
-                        <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" fontSize={10} />
-                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} domain={['auto', 'auto']} />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsla(250, 25%, 14%, 0.95)', borderRadius: '8px' }} />
-                        <Area type="monotone" dataKey="value" stroke="hsl(185, 70%, 55%)" strokeWidth={2} fill="url(#colorEquity)" />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                    {equityCurveData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={equityCurveData}>
+                          <defs>
+                            <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="hsl(185, 70%, 55%)" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="hsl(185, 70%, 55%)" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsla(260, 30%, 30%, 0.2)" />
+                          <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" fontSize={9} interval="preserveStartEnd" />
+                          <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} domain={['auto', 'auto']}
+                            tickFormatter={(v: number) => `$${v.toLocaleString()}`} />
+                          <Tooltip contentStyle={{ backgroundColor: 'hsla(250, 25%, 14%, 0.95)', borderRadius: '8px', fontSize: '11px' }}
+                            formatter={(v: number) => [`$${v.toFixed(2)}`, 'Equity']} />
+                          <ReferenceLine y={initialCapital} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" strokeOpacity={0.5} />
+                          <Area type="monotone" dataKey="equity" stroke="hsl(185, 70%, 55%)" strokeWidth={2} fill="url(#colorEquity)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                        {runBacktest.isPending ? (
+                          <div className="flex items-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> Computing backtest...</div>
+                        ) : (
+                          'Run a backtest to see the equity curve'
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -246,142 +539,30 @@ export default function Backtest() {
                     <CardTitle className="text-xs font-medium text-muted-foreground">Performance Stats</CardTitle>
                   </CardHeader>
                   <ScrollArea className="flex-1">
-                    {performanceMetrics ? (
+                    {metrics ? (
                       <CardContent className="space-y-2 pt-3 text-xs">
-                        <StatRow label="CAGR" value={`${performanceMetrics.cagr}%`} />
-                        <StatRow label="Profit Factor" value={performanceMetrics.profitFactor.toFixed(2)} />
-                        <StatRow label="Expectancy" value={`$${performanceMetrics.expectancy}`} />
-                        <StatRow label="Avg Win" value={`$${performanceMetrics.avgWin}`} positive />
-                        <StatRow label="Avg Loss" value={`$${performanceMetrics.avgLoss}`} negative />
-                        <StatRow label="Largest Win" value={`$${performanceMetrics.largestWin}`} positive />
-                        <StatRow label="Largest Loss" value={`$${performanceMetrics.largestLoss}`} negative />
-                        <StatRow label="Total Trades" value={performanceMetrics.totalTrades.toLocaleString()} />
-                        <StatRow label="Avg Holding" value={performanceMetrics.avgHoldingTime} />
+                        <StatRow label="Sortino" value={metrics.sortinoRatio.toFixed(2)} />
+                        <StatRow label="Calmar" value={metrics.calmarRatio.toFixed(2)} />
+                        <StatRow label="Profit Factor" value={metrics.profitFactor === Infinity ? '∞' : metrics.profitFactor.toFixed(2)} />
+                        <StatRow label="Expectancy" value={`$${metrics.expectancy.toFixed(2)}`} />
+                        <div className="border-t border-white/5 pt-2" />
+                        <StatRow label="Avg Win" value={`$${metrics.avgWin.toFixed(2)}`} positive />
+                        <StatRow label="Avg Loss" value={`$${metrics.avgLoss.toFixed(2)}`} negative />
+                        <StatRow label="Largest Win" value={`$${metrics.largestWin.toFixed(2)}`} positive />
+                        <StatRow label="Largest Loss" value={`$${metrics.largestLoss.toFixed(2)}`} negative />
+                        <div className="border-t border-white/5 pt-2" />
+                        <StatRow label="Win/Loss" value={`${metrics.winningTrades ?? '?'}/${metrics.losingTrades ?? '?'}`} />
+                        <StatRow label="Avg Hold" value={`${metrics.avgHoldingTimeBars?.toFixed(0) ?? '?'} bars`} />
+                        <StatRow label="Commissions" value={`$${metrics.totalCommissions.toFixed(2)}`} />
+                        <StatRow label="Slippage" value={`$${metrics.totalSlippage.toFixed(2)}`} />
+                        <StatRow label="Spread Cost" value={`$${metrics.totalSpreadCost.toFixed(2)}`} />
                       </CardContent>
                     ) : (
-                      <CardContent className="h-full flex items-center justify-center">
-                        <NotImplemented feature="Performance Stats" type="data" description="Run backtest to generate stats" />
+                      <CardContent className="h-full flex items-center justify-center text-sm text-muted-foreground p-6">
+                        Configure parameters and click Execute
                       </CardContent>
                     )}
                   </ScrollArea>
-                </Card>
-              </div>
-            </TabsContent>
-
-            {/* Walk-Forward Tab */}
-            <TabsContent value="walkforward" className="flex-1 min-h-0 overflow-hidden mt-3">
-              <div className="grid grid-cols-2 gap-3 h-full">
-                <Card className="glass rounded-2xl flex flex-col gradient-border">
-                  <CardHeader className="py-2 px-4 border-b border-white/5">
-                    <CardTitle className="text-xs font-medium text-muted-foreground">Walk-Forward Optimization</CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex-1 min-h-0 p-2">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={walkForwardData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsla(260, 30%, 30%, 0.2)" />
-                        <XAxis dataKey="fold" stroke="hsl(var(--muted-foreground))" fontSize={10} />
-                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} domain={[0, 3]} />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsla(250, 25%, 14%, 0.95)', borderRadius: '8px' }} />
-                        <Legend wrapperStyle={{ fontSize: '10px' }} />
-                        <Bar dataKey="trainSharpe" fill="hsl(260, 80%, 70%)" name="Train Sharpe" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="testSharpe" fill="hsl(185, 70%, 55%)" name="Test Sharpe" radius={[4, 4, 0, 0]} />
-                        <ReferenceLine y={1.5} stroke="hsl(45, 90%, 55%)" strokeDasharray="5 5" />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-
-                <Card className="glass rounded-2xl flex flex-col gradient-border">
-                  <CardHeader className="py-2 px-4 border-b border-white/5">
-                    <CardTitle className="text-xs font-medium text-muted-foreground">Fold Details</CardTitle>
-                  </CardHeader>
-                  <ScrollArea className="flex-1">
-                    <CardContent className="space-y-2 pt-3">
-                      {walkForwardData.map(fold => (
-                        <div key={fold.fold} className={`p-2.5 rounded-xl ${fold.overfit ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-white/5'}`} data-testid={`fold-${fold.fold}`}>
-                          <div className="flex justify-between items-center mb-1.5">
-                            <span className="font-mono text-xs font-bold">Fold {fold.fold}</span>
-                            {fold.overfit && <Badge variant="outline" className="text-[9px] border-amber-500/50 text-amber-400">Overfit</Badge>}
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 text-[10px]">
-                            <div>
-                              <span className="text-muted-foreground">Train: </span>
-                              <span className="font-mono">{fold.trainStart} → {fold.trainEnd}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Test: </span>
-                              <span className="font-mono">{fold.testStart} → {fold.testEnd}</span>
-                            </div>
-                          </div>
-                          <div className="flex gap-4 mt-1.5 text-[10px]">
-                            <span>Train: <span className="font-mono text-primary">{fold.trainSharpe}</span></span>
-                            <span>Test: <span className="font-mono text-accent">{fold.testSharpe}</span></span>
-                            <span>Decay: <span className={`font-mono ${(fold.trainSharpe - fold.testSharpe) > 0.5 ? 'text-amber-400' : 'text-green-400'}`}>
-                              {((1 - fold.testSharpe / fold.trainSharpe) * 100).toFixed(0)}%
-                            </span></span>
-                          </div>
-                        </div>
-                      ))}
-                    </CardContent>
-                  </ScrollArea>
-                </Card>
-              </div>
-            </TabsContent>
-
-            {/* Monte Carlo Tab */}
-            <TabsContent value="montecarlo" className="flex-1 min-h-0 overflow-hidden mt-3">
-              <div className="grid grid-cols-3 gap-3 h-full">
-                <Card className="col-span-2 glass rounded-2xl flex flex-col gradient-border">
-                  <CardHeader className="py-2 px-4 border-b border-white/5">
-                    <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-                      <Shuffle className="h-3 w-3 text-primary" /> Monte Carlo Simulation (50 paths)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex-1 min-h-0 p-2">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={monteCarloData.filter((_, i) => i % 5 === 0)}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsla(260, 30%, 30%, 0.2)" />
-                        <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" fontSize={10} />
-                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} domain={['auto', 'auto']} />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsla(250, 25%, 14%, 0.95)', borderRadius: '8px' }} />
-                        {Array.from({ length: 10 }, (_, i) => (
-                          <Line key={i} type="monotone" dataKey={`path${i * 5}`} stroke={`hsla(260, 70%, ${50 + i * 3}%, 0.5)`} strokeWidth={1} dot={false} />
-                        ))}
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-
-                <Card className="glass rounded-2xl flex flex-col gradient-border">
-                  <CardHeader className="py-2 px-4 border-b border-white/5">
-                    <CardTitle className="text-xs font-medium text-muted-foreground">Distribution Stats</CardTitle>
-                  </CardHeader>
-                  {monteCarloStats ? (
-                    <CardContent className="space-y-3 pt-3 text-xs">
-                      <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20">
-                        <p className="text-muted-foreground text-[10px] mb-1">95th Percentile</p>
-                        <p className="font-mono text-xl font-bold text-green-400">${monteCarloStats.percentile95.toLocaleString()}</p>
-                      </div>
-                      <div className="p-3 rounded-xl bg-primary/10 border border-primary/20">
-                        <p className="text-muted-foreground text-[10px] mb-1">Median Outcome</p>
-                        <p className="font-mono text-xl font-bold text-primary">${monteCarloStats.median.toLocaleString()}</p>
-                      </div>
-                      <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20">
-                        <p className="text-muted-foreground text-[10px] mb-1">5th Percentile</p>
-                        <p className="font-mono text-xl font-bold text-rose-400">${monteCarloStats.percentile5.toLocaleString()}</p>
-                      </div>
-                      <div className="space-y-2 pt-2 border-t border-white/5">
-                        <StatRow label="Mean Max DD" value={`${monteCarloStats.maxDrawdownMean}%`} />
-                        <StatRow label="Worst Max DD" value={`${monteCarloStats.maxDrawdownWorst}%`} negative />
-                        <StatRow label="Mean Win Rate" value={`${monteCarloStats.winRateMean}%`} />
-                        <StatRow label="Mean PF" value={monteCarloStats.profitFactorMean.toFixed(2)} />
-                      </div>
-                    </CardContent>
-                  ) : (
-                    <CardContent className="h-full flex items-center justify-center">
-                      <NotImplemented feature="Monte Carlo Stats" type="data" description="Run simulation to generate stats" />
-                    </CardContent>
-                  )}
                 </Card>
               </div>
             </TabsContent>
@@ -390,7 +571,9 @@ export default function Backtest() {
             <TabsContent value="trades" className="flex-1 min-h-0 overflow-hidden mt-3">
               <Card className="h-full glass rounded-2xl flex flex-col gradient-border">
                 <CardHeader className="py-2 px-4 border-b border-white/5 shrink-0">
-                  <CardTitle className="text-xs font-medium text-muted-foreground">Trade-by-Trade Breakdown</CardTitle>
+                  <CardTitle className="text-xs font-medium text-muted-foreground">
+                    Trade-by-Trade Breakdown ({trades.length} trades)
+                  </CardTitle>
                 </CardHeader>
                 <ScrollArea className="flex-1">
                   <table className="w-full text-xs">
@@ -398,42 +581,60 @@ export default function Backtest() {
                       <tr className="border-b border-white/5 text-muted-foreground">
                         <th className="text-left py-2 px-3 font-medium">Entry</th>
                         <th className="text-left py-2 px-3 font-medium">Exit</th>
-                        <th className="text-left py-2 px-3 font-medium">Symbol</th>
                         <th className="text-left py-2 px-3 font-medium">Dir</th>
                         <th className="text-right py-2 px-3 font-medium">Entry $</th>
                         <th className="text-right py-2 px-3 font-medium">Exit $</th>
                         <th className="text-right py-2 px-3 font-medium">Gross P&L</th>
-                        <th className="text-right py-2 px-3 font-medium">Slippage</th>
-                        <th className="text-right py-2 px-3 font-medium">Comm.</th>
+                        <th className="text-right py-2 px-3 font-medium">Costs</th>
                         <th className="text-right py-2 px-3 font-medium">Net P&L</th>
+                        <th className="text-left py-2 px-3 font-medium">Reason</th>
+                        <th className="text-right py-2 px-3 font-medium">Bars</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {tradeBreakdown.map(trade => (
-                        <tr key={trade.id} className="border-b border-white/5 hover:bg-white/5" data-testid={`trade-row-${trade.id}`}>
-                          <td className="py-2 px-3 font-mono text-muted-foreground">{trade.entryTime}</td>
-                          <td className="py-2 px-3 font-mono text-muted-foreground">{trade.exitTime}</td>
-                          <td className="py-2 px-3 font-mono font-bold text-primary">{trade.symbol}</td>
-                          <td className="py-2 px-3">
-                            <Badge variant="outline" className={`text-[9px] rounded-full ${
-                              trade.direction === 'long' ? 'border-green-500/50 text-green-400' : 'border-rose-500/50 text-rose-400'
-                            }`}>
-                              {trade.direction === 'long' ? <TrendingUp className="h-2 w-2 mr-0.5" /> : <TrendingDown className="h-2 w-2 mr-0.5" />}
-                              {trade.direction}
-                            </Badge>
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono">{trade.entry}</td>
-                          <td className="py-2 px-3 text-right font-mono">{trade.exit}</td>
-                          <td className={`py-2 px-3 text-right font-mono ${trade.pnl >= 0 ? 'text-green-400' : 'text-rose-400'}`}>
-                            {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono text-amber-400">-${trade.slippage.toFixed(2)}</td>
-                          <td className="py-2 px-3 text-right font-mono text-muted-foreground">-${trade.commission.toFixed(2)}</td>
-                          <td className={`py-2 px-3 text-right font-mono font-bold ${trade.netPnl >= 0 ? 'text-green-400' : 'text-rose-400'}`}>
-                            {trade.netPnl >= 0 ? '+' : ''}${trade.netPnl.toFixed(2)}
+                      {trades.map((trade: any, idx: number) => {
+                        const netPnl = trade.net_pnl ?? 0;
+                        const grossPnl = trade.pnl ?? 0;
+                        const costs = (trade.commission ?? 0) + (trade.slippage ?? 0) + (trade.spread_cost ?? 0);
+                        return (
+                          <tr key={trade.id || idx} className="border-b border-white/5 hover:bg-white/5">
+                            <td className="py-2 px-3 font-mono text-muted-foreground text-[10px]">
+                              {new Date(Number(trade.entry_timestamp)).toLocaleString()}
+                            </td>
+                            <td className="py-2 px-3 font-mono text-muted-foreground text-[10px]">
+                              {trade.exit_timestamp ? new Date(Number(trade.exit_timestamp)).toLocaleString() : '—'}
+                            </td>
+                            <td className="py-2 px-3">
+                              <Badge variant="outline" className={`text-[9px] rounded-full ${
+                                trade.side === 'long' ? 'border-green-500/50 text-green-400' : 'border-rose-500/50 text-rose-400'
+                              }`}>
+                                {trade.side === 'long' ? <TrendingUp className="h-2 w-2 mr-0.5" /> : <TrendingDown className="h-2 w-2 mr-0.5" />}
+                                {trade.side}
+                              </Badge>
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono">{trade.entry_price?.toFixed(4)}</td>
+                            <td className="py-2 px-3 text-right font-mono">{trade.exit_price?.toFixed(4) ?? '—'}</td>
+                            <td className={`py-2 px-3 text-right font-mono ${grossPnl >= 0 ? 'text-green-400' : 'text-rose-400'}`}>
+                              {grossPnl >= 0 ? '+' : ''}${grossPnl.toFixed(2)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono text-amber-400">
+                              -${costs.toFixed(2)}
+                            </td>
+                            <td className={`py-2 px-3 text-right font-mono font-bold ${netPnl >= 0 ? 'text-green-400' : 'text-rose-400'}`}>
+                              {netPnl >= 0 ? '+' : ''}${netPnl.toFixed(2)}
+                            </td>
+                            <td className="py-2 px-3 text-[10px] text-muted-foreground">{trade.exit_reason}</td>
+                            <td className="py-2 px-3 text-right font-mono text-muted-foreground">{trade.bars_held}</td>
+                          </tr>
+                        );
+                      })}
+                      {trades.length === 0 && (
+                        <tr>
+                          <td colSpan={10} className="py-8 text-center text-muted-foreground">
+                            {runBacktest.isPending ? 'Computing...' : 'No trades to display. Run a backtest first.'}
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </ScrollArea>
@@ -445,21 +646,31 @@ export default function Backtest() {
               <div className="grid grid-cols-2 gap-3 h-full">
                 <Card className="glass rounded-2xl flex flex-col gradient-border">
                   <CardHeader className="py-2 px-4 border-b border-white/5">
-                    <CardTitle className="text-xs font-medium text-muted-foreground">Slippage & Commission Impact</CardTitle>
+                    <CardTitle className="text-xs font-medium text-muted-foreground">P&L Distribution</CardTitle>
                   </CardHeader>
                   <CardContent className="flex-1 min-h-0 p-2">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={slippageData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsla(260, 30%, 30%, 0.2)" />
-                        <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={10} />
-                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsla(250, 25%, 14%, 0.95)', borderRadius: '8px' }} />
-                        <Legend wrapperStyle={{ fontSize: '10px' }} />
-                        <Bar dataKey="slippage" stackId="a" fill="hsl(45, 90%, 55%)" name="Slippage" />
-                        <Bar dataKey="commission" stackId="a" fill="hsl(260, 80%, 70%)" name="Commission" />
-                        <Line type="monotone" dataKey="netImpact" stroke="hsl(0, 70%, 55%)" strokeWidth={2} dot={false} name="Net Impact" />
-                      </ComposedChart>
-                    </ResponsiveContainer>
+                    {trades.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={trades.map((t: any, i: number) => ({
+                          trade: i + 1,
+                          netPnl: t.net_pnl ?? 0,
+                          runningPnl: t.running_pnl ?? 0,
+                        }))}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsla(260, 30%, 30%, 0.2)" />
+                          <XAxis dataKey="trade" stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                          <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                          <Tooltip contentStyle={{ backgroundColor: 'hsla(250, 25%, 14%, 0.95)', borderRadius: '8px', fontSize: '11px' }} />
+                          <Legend wrapperStyle={{ fontSize: '10px' }} />
+                          <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+                          <Bar dataKey="netPnl" name="Trade P&L" fill="hsl(var(--primary))" />
+                          <Line type="monotone" dataKey="runningPnl" name="Cumulative" stroke="hsl(185, 70%, 55%)" strokeWidth={2} dot={false} />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                        Run a backtest to see P&L distribution
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -469,25 +680,43 @@ export default function Backtest() {
                   </CardHeader>
                   <CardContent className="space-y-3 pt-3">
                     <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                      <p className="text-muted-foreground text-[10px] mb-1">Total Slippage</p>
-                      <p className="font-mono text-xl font-bold text-amber-400">--</p>
-                      <p className="text-[10px] text-muted-foreground">Awaiting backtest results</p>
+                      <p className="text-muted-foreground text-[10px] mb-1">Total Commissions</p>
+                      <p className="font-mono text-xl font-bold text-amber-400">
+                        {metrics ? `$${metrics.totalCommissions.toFixed(2)}` : '--'}
+                      </p>
                     </div>
                     <div className="p-3 rounded-xl bg-primary/10 border border-primary/20">
-                      <p className="text-muted-foreground text-[10px] mb-1">Total Commission</p>
-                      <p className="font-mono text-xl font-bold text-primary">--</p>
-                      <p className="text-[10px] text-muted-foreground">Awaiting backtest results</p>
+                      <p className="text-muted-foreground text-[10px] mb-1">Total Slippage</p>
+                      <p className="font-mono text-xl font-bold text-primary">
+                        {metrics ? `$${metrics.totalSlippage.toFixed(2)}` : '--'}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-violet-500/10 border border-violet-500/20">
+                      <p className="text-muted-foreground text-[10px] mb-1">Total Spread Cost</p>
+                      <p className="font-mono text-xl font-bold text-violet-400">
+                        {metrics ? `$${metrics.totalSpreadCost.toFixed(2)}` : '--'}
+                      </p>
                     </div>
                     <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20">
-                      <p className="text-muted-foreground text-[10px] mb-1">Net Cost Impact</p>
-                      <p className="font-mono text-xl font-bold text-rose-400">--</p>
-                      <p className="text-[10px] text-muted-foreground">Awaiting backtest results</p>
+                      <p className="text-muted-foreground text-[10px] mb-1">Total Cost Impact</p>
+                      <p className="font-mono text-xl font-bold text-rose-400">
+                        {metrics ? `$${(metrics.totalCommissions + metrics.totalSlippage + metrics.totalSpreadCost).toFixed(2)}` : '--'}
+                      </p>
+                      {metrics && metrics.totalReturn !== 0 && (
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          {((metrics.totalCommissions + metrics.totalSlippage + metrics.totalSpreadCost) / Math.abs(metrics.totalReturn) * 100).toFixed(1)}% of gross P&L
+                        </p>
+                      )}
                     </div>
-                    <div className="pt-2 border-t border-white/5 space-y-2">
-                      <StatRow label="Avg Slippage" value="--" />
-                      <StatRow label="Slippage Model" value="--" />
-                      <StatRow label="Commission Model" value="--" />
-                    </div>
+                    {lastResult?.run?.broker_label && (
+                      <div className="pt-2 border-t border-white/5 space-y-2 text-xs">
+                        <StatRow label="Broker" value={lastResult.run.broker_label} />
+                        <StatRow label="Profile" value={lastResult.run.broker_name} />
+                        {metrics && (
+                          <StatRow label="Cost/Trade" value={`$${((metrics.totalCommissions + metrics.totalSlippage + metrics.totalSpreadCost) / Math.max(metrics.totalTrades, 1)).toFixed(2)}`} />
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -499,12 +728,26 @@ export default function Backtest() {
   );
 }
 
-function MetricCard({ label, value, color }: { label: string; value: string; color: string }) {
-  const colorMap: Record<string, string> = { primary: "text-primary", accent: "text-accent", green: "text-green-400", rose: "text-rose-400" };
+// ============================================================
+// SUB-COMPONENTS
+// ============================================================
+
+function MetricBox({ label, value, subValue, color }: { label: string; value: string; subValue?: string; color: string }) {
+  const colorMap: Record<string, { bg: string; label: string; text: string }> = {
+    emerald: { bg: 'from-emerald-500/10 to-emerald-600/5 border-emerald-500/20', label: 'text-emerald-300/70', text: 'text-emerald-300' },
+    rose: { bg: 'from-rose-500/10 to-rose-600/5 border-rose-500/20', label: 'text-rose-300/70', text: 'text-rose-300' },
+    violet: { bg: 'from-violet-500/10 to-violet-600/5 border-violet-500/20', label: 'text-violet-300/70', text: 'text-violet-300' },
+    cyan: { bg: 'from-cyan-500/10 to-cyan-600/5 border-cyan-500/20', label: 'text-cyan-300/70', text: 'text-cyan-300' },
+    amber: { bg: 'from-amber-500/10 to-amber-600/5 border-amber-500/20', label: 'text-amber-300/70', text: 'text-amber-300' },
+    fuchsia: { bg: 'from-fuchsia-500/10 to-fuchsia-600/5 border-fuchsia-500/20', label: 'text-fuchsia-300/70', text: 'text-fuchsia-300' },
+  };
+  const c = colorMap[color] ?? colorMap.emerald;
+
   return (
-    <div className="glass rounded-xl p-2.5 gradient-border">
-      <p className="text-[10px] text-muted-foreground mb-0.5">{label}</p>
-      <p className={`text-lg font-display font-bold ${colorMap[color]}`}>{value}</p>
+    <div className={`bg-gradient-to-br ${c.bg} rounded-xl p-3 border`}>
+      <div className={`text-[10px] ${c.label} uppercase tracking-wider mb-1`}>{label}</div>
+      <div className={`text-2xl font-bold ${c.text}`}>{value}</div>
+      {subValue && <div className="text-[10px] text-muted-foreground mt-0.5">{subValue}</div>}
     </div>
   );
 }

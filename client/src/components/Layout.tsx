@@ -1,4 +1,4 @@
-import { Home, LineChart, Database, Settings, Brain, Server, BarChart2, List, Newspaper } from "lucide-react";
+import { Home, LineChart, Database, Settings, Brain, Server, BarChart2, List, Newspaper, GraduationCap, FlaskConical } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { prefetchOnHover } from "@/lib/prefetch";
 
@@ -8,6 +8,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { icon: Database, label: "Market Data", href: "/" },
     { icon: Brain, label: "ML Hub", href: "/ml-hub" },
+    { icon: GraduationCap, label: "Training", href: "/training" },
+    { icon: FlaskConical, label: "Backtest", href: "/backtest" },
     { icon: BarChart2, label: "Portfolio", href: "/portfolio" },
     { icon: List, label: "Watchlist", href: "/watchlist" },
     { icon: Newspaper, label: "News", href: "/news" },

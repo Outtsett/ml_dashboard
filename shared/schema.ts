@@ -460,3 +460,131 @@ export const contrastivePairs = pgTable("contrastive_pairs", {
 export const insertContrastivePairSchema = createInsertSchema(contrastivePairs).omit({ id: true });
 export type InsertContrastivePair = z.infer<typeof insertContrastivePairSchema>;
 export type ContrastivePairRecord = typeof contrastivePairs.$inferSelect;
+
+// ============================================================
+// BROKER CONFIGURATIONS
+// ============================================================
+
+// Broker profiles — cost models for backtesting with real-world trading conditions
+export const brokerConfigs = pgTable("broker_configs", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),        // 'oanda', 'amp_futures'
+  broker: text("broker").notNull(),              // 'Oanda', 'AMP Futures'
+  assetType: text("asset_type").notNull(),       // 'forex', 'futures'
+  commissionType: text("commission_type").notNull(), // 'per_lot', 'per_side', 'per_round_turn', 'spread_only'
+  commissionPerLot: doublePrecision("commission_per_lot").default(0), // Forex: per standard lot
+  commissionPerSide: doublePrecision("commission_per_side").default(0), // Futures: per contract per side
+  commissionPerRoundTurn: doublePrecision("commission_per_round_turn").default(0), // Futures: per contract round trip
+  spreadType: text("spread_type").notNull().default("variable"), // 'fixed', 'variable'
+  typicalSpreadPips: doublePrecision("typical_spread_pips").default(0), // Forex: typical spread in pips
+  slippageModel: text("slippage_model").notNull().default("fixed"), // 'fixed', 'proportional', 'volume_based'
+  slippageTicks: doublePrecision("slippage_ticks").default(0), // Average slippage in ticks
+  marginType: text("margin_type").notNull().default("fixed"), // 'fixed', 'percentage', 'tiered'
+  defaultMargin: doublePrecision("default_margin"),  // Default margin per contract
+  config: text("config"),  // JSON: broker-specific overrides { symbolOverrides: { ES: { margin: 500 } } }
+  isDefault: integer("is_default").default(0),  // 1 if default for this asset type
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  nameIdx: index("broker_configs_name_idx").on(table.name),
+  assetTypeIdx: index("broker_configs_asset_type_idx").on(table.assetType),
+}));
+
+export const insertBrokerConfigSchema = createInsertSchema(brokerConfigs).omit({ id: true, createdAt: true });
+export type InsertBrokerConfig = z.infer<typeof insertBrokerConfigSchema>;
+export type BrokerConfig = typeof brokerConfigs.$inferSelect;
+
+// ============================================================
+// BACKTESTING
+// ============================================================
+
+// Backtest runs — each backtest is a complete simulation with a specific model, instrument, and broker config
+export const backtestRuns = pgTable("backtest_runs", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  modelId: integer("model_id").references(() => mlModels.id, { onDelete: 'set null' }),
+  symbol: text("symbol").notNull(),
+  brokerConfigId: integer("broker_config_id").references(() => brokerConfigs.id),
+  timeframe: text("timeframe").notNull().default("1m"), // '1m', '5m', '15m', '1H', '4H', '1D'
+
+  // Data split configuration
+  trainStartTimestamp: bigint("train_start_timestamp", { mode: "number" }),
+  trainEndTimestamp: bigint("train_end_timestamp", { mode: "number" }),
+  testStartTimestamp: bigint("test_start_timestamp", { mode: "number" }),
+  testEndTimestamp: bigint("test_end_timestamp", { mode: "number" }),
+  splitRatio: doublePrecision("split_ratio").default(0.8), // train portion
+
+  // Position sizing
+  initialCapital: doublePrecision("initial_capital").notNull().default(10000),
+  positionSize: doublePrecision("position_size").notNull().default(1), // Contracts/lots
+  maxPositions: integer("max_positions").notNull().default(1),
+
+  // Risk management
+  stopLossTicks: doublePrecision("stop_loss_ticks"),
+  takeProfitTicks: doublePrecision("take_profit_ticks"),
+  trailingStopTicks: doublePrecision("trailing_stop_ticks"),
+  maxDrawdownPct: doublePrecision("max_drawdown_pct"), // Circuit breaker
+
+  // Results (populated after run)
+  status: text("status").notNull().default("pending"), // 'pending', 'running', 'completed', 'failed'
+  totalTrades: integer("total_trades"),
+  winRate: doublePrecision("win_rate"),
+  profitFactor: doublePrecision("profit_factor"),
+  sharpeRatio: doublePrecision("sharpe_ratio"),
+  sortinoRatio: doublePrecision("sortino_ratio"),
+  maxDrawdown: doublePrecision("max_drawdown"),
+  totalReturn: doublePrecision("total_return"),
+  totalReturnPct: doublePrecision("total_return_pct"),
+  avgWin: doublePrecision("avg_win"),
+  avgLoss: doublePrecision("avg_loss"),
+  largestWin: doublePrecision("largest_win"),
+  largestLoss: doublePrecision("largest_loss"),
+  avgHoldingTimeMs: doublePrecision("avg_holding_time_ms"),
+  expectancy: doublePrecision("expectancy"),
+  totalCommissions: doublePrecision("total_commissions"),
+  totalSlippage: doublePrecision("total_slippage"),
+  equityCurve: text("equity_curve"), // JSON array of { timestamp, equity } points
+
+  errorMessage: text("error_message"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  modelIdIdx: index("backtest_runs_model_id_idx").on(table.modelId),
+  symbolIdx: index("backtest_runs_symbol_idx").on(table.symbol),
+  statusIdx: index("backtest_runs_status_idx").on(table.status),
+}));
+
+export const insertBacktestRunSchema = createInsertSchema(backtestRuns).omit({ id: true, createdAt: true });
+export type InsertBacktestRun = z.infer<typeof insertBacktestRunSchema>;
+export type BacktestRun = typeof backtestRuns.$inferSelect;
+
+// Backtest trades — individual trades within a backtest run (linked to the chart)
+export const backtestTrades = pgTable("backtest_trades", {
+  id: serial("id").primaryKey(),
+  backtestRunId: integer("backtest_run_id").notNull().references(() => backtestRuns.id, { onDelete: 'cascade' }),
+  symbol: text("symbol").notNull(),
+  side: text("side").notNull(), // 'long', 'short'
+  entryTimestamp: bigint("entry_timestamp", { mode: "number" }).notNull(),
+  exitTimestamp: bigint("exit_timestamp", { mode: "number" }),
+  entryPrice: doublePrecision("entry_price").notNull(),
+  exitPrice: doublePrecision("exit_price"),
+  quantity: doublePrecision("quantity").notNull().default(1),
+  pnl: doublePrecision("pnl"),          // Gross P&L
+  netPnl: doublePrecision("net_pnl"),   // After commission + slippage
+  commission: doublePrecision("commission").default(0),
+  slippage: doublePrecision("slippage").default(0),
+  spreadCost: doublePrecision("spread_cost").default(0), // Forex spread cost
+  entrySignal: doublePrecision("entry_signal"),     // Model confidence at entry
+  exitReason: text("exit_reason"), // 'signal', 'stop_loss', 'take_profit', 'trailing_stop', 'end_of_data'
+  barsHeld: integer("bars_held"),
+  maxFavorableExcursion: doublePrecision("max_favorable_excursion"),   // MFE in ticks
+  maxAdverseExcursion: doublePrecision("max_adverse_excursion"),       // MAE in ticks
+  runningPnl: doublePrecision("running_pnl"),  // Cumulative P&L at this trade
+}, (table) => ({
+  backtestRunIdIdx: index("backtest_trades_run_id_idx").on(table.backtestRunId),
+  entryTimestampIdx: index("backtest_trades_entry_ts_idx").on(table.entryTimestamp),
+}));
+
+export const insertBacktestTradeSchema = createInsertSchema(backtestTrades).omit({ id: true });
+export type InsertBacktestTrade = z.infer<typeof insertBacktestTradeSchema>;
+export type BacktestTrade = typeof backtestTrades.$inferSelect;
