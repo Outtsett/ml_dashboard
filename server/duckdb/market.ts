@@ -40,8 +40,8 @@ export async function initMarketDB(): Promise<void> {
   marketConn = marketDb.connect();
 
   // Set performance options
-  await marketQuery("SET threads TO 4");
-  await marketQuery("SET memory_limit = '4GB'");
+  await marketQuery("SET threads TO 24");
+  await marketQuery("SET memory_limit = '80GB'");
 
   // Create tables if they don't exist
   await marketQuery(`
@@ -79,6 +79,45 @@ export async function initMarketDB(): Promise<void> {
       from_close DOUBLE NOT NULL,
       to_close DOUBLE NOT NULL,
       ratio DOUBLE NOT NULL
+    )
+  `);
+
+  await marketQuery(`
+    CREATE TABLE IF NOT EXISTS trades (
+      ts TIMESTAMPTZ,
+      rtype UTINYINT,
+      publisher_id USMALLINT,
+      instrument_id UINTEGER,
+      action VARCHAR,
+      side VARCHAR,
+      depth UTINYINT,
+      price DOUBLE,
+      size UINTEGER,
+      flags UTINYINT,
+      ts_in_delta INTEGER,
+      sequence UINTEGER,
+      symbol VARCHAR
+    )
+  `);
+
+  await marketQuery(`
+    CREATE TABLE IF NOT EXISTS mbp10 (
+      ts_recv TIMESTAMPTZ, ts_event TIMESTAMPTZ,
+      rtype UTINYINT, publisher_id USMALLINT, instrument_id UINTEGER,
+      action VARCHAR, side VARCHAR, depth UTINYINT,
+      price DOUBLE, size UINTEGER, flags UTINYINT,
+      ts_in_delta INTEGER, sequence UINTEGER,
+      bid_px_00 DOUBLE, ask_px_00 DOUBLE, bid_sz_00 UINTEGER, ask_sz_00 UINTEGER, bid_ct_00 USMALLINT, ask_ct_00 USMALLINT,
+      bid_px_01 DOUBLE, ask_px_01 DOUBLE, bid_sz_01 UINTEGER, ask_sz_01 UINTEGER, bid_ct_01 USMALLINT, ask_ct_01 USMALLINT,
+      bid_px_02 DOUBLE, ask_px_02 DOUBLE, bid_sz_02 UINTEGER, ask_sz_02 UINTEGER, bid_ct_02 USMALLINT, ask_ct_02 USMALLINT,
+      bid_px_03 DOUBLE, ask_px_03 DOUBLE, bid_sz_03 UINTEGER, ask_sz_03 UINTEGER, bid_ct_03 USMALLINT, ask_ct_03 USMALLINT,
+      bid_px_04 DOUBLE, ask_px_04 DOUBLE, bid_sz_04 UINTEGER, ask_sz_04 UINTEGER, bid_ct_04 USMALLINT, ask_ct_04 USMALLINT,
+      bid_px_05 DOUBLE, ask_px_05 DOUBLE, bid_sz_05 UINTEGER, ask_sz_05 UINTEGER, bid_ct_05 USMALLINT, ask_ct_05 USMALLINT,
+      bid_px_06 DOUBLE, ask_px_06 DOUBLE, bid_sz_06 UINTEGER, ask_sz_06 UINTEGER, bid_ct_06 USMALLINT, ask_ct_06 USMALLINT,
+      bid_px_07 DOUBLE, ask_px_07 DOUBLE, bid_sz_07 UINTEGER, ask_sz_07 UINTEGER, bid_ct_07 USMALLINT, ask_ct_07 USMALLINT,
+      bid_px_08 DOUBLE, ask_px_08 DOUBLE, bid_sz_08 UINTEGER, ask_sz_08 UINTEGER, bid_ct_08 USMALLINT, ask_ct_08 USMALLINT,
+      bid_px_09 DOUBLE, ask_px_09 DOUBLE, bid_sz_09 UINTEGER, ask_sz_09 UINTEGER, bid_ct_09 USMALLINT, ask_ct_09 USMALLINT,
+      symbol VARCHAR
     )
   `);
 
