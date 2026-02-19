@@ -181,7 +181,7 @@ export default function MarketData() {
   const currentParams = useMemo(() => ({ ...defaultParams, ...labelParams }), [defaultParams, labelParams]);
 
   const previewMutation = useMutation({
-    mutationFn: async (data: { generatorType: string; symbol: string; params: Record<string, unknown>; limit: number; startTimestamp?: number; endTimestamp?: number }) => {
+    mutationFn: async (data: { generatorType: string; symbol: string; params: Record<string, unknown>; limit: number; startTimestamp?: number; endTimestamp?: number; timeframeMinutes?: number }) => {
       const res = await fetch("/api/labels/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -199,10 +199,6 @@ export default function MarketData() {
         }));
         setLabelPreview(markers);
         setShowLabels(true);
-        toast({
-          title: "Labels Generated",
-          description: `${markers.length} labels previewed on chart`,
-        });
       }
     },
     onError: () => {
@@ -213,6 +209,9 @@ export default function MarketData() {
       });
     },
   });
+
+  // Stable ref for the generate function so the effect doesn't re-fire on its own mutation object
+  const generateLabelsRef = useRef<() => void>(() => {});
 
   const isFutures = assetType === "futures";
   const isContinuous = contract === "continuous";
@@ -527,6 +526,34 @@ export default function MarketData() {
   const aggregatedData = useMemo(() => {
     return rawData;
   }, [rawData]);
+
+  // Keep the generate function ref up to date
+  generateLabelsRef.current = () => {
+    if (aggregatedData.length === 0 || previewMutation.isPending) return;
+    const timestamps = aggregatedData.map((d: OhlcvData) => d.timestamp);
+    const startTimestamp = timestamps.length > 0 ? Math.min(...timestamps) : undefined;
+    const endTimestamp = timestamps.length > 0 ? Math.max(...timestamps) : undefined;
+    previewMutation.mutate({
+      generatorType: selectedGenerator,
+      symbol: effectiveSymbol,
+      params: currentParams,
+      limit: 500,
+      startTimestamp,
+      endTimestamp,
+      timeframeMinutes: timeframe,
+    });
+  };
+
+  // Auto-generate labels when generator, symbol, timeframe, or params change (if labels are showing)
+  useEffect(() => {
+    if (!showLabels || aggregatedData.length === 0) return;
+    // Debounce to avoid rapid re-fires when params change quickly
+    const timer = setTimeout(() => {
+      generateLabelsRef.current();
+    }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGenerator, effectiveSymbol, timeframe, currentParams, showLabels, aggregatedData.length]);
 
   // Filter labels to only show those within the visible data range
   const visibleLabels = useMemo(() => {
@@ -863,8 +890,6 @@ export default function MarketData() {
                       onValueChange={(v) => {
                         setSelectedGenerator(v as LabelGeneratorKey);
                         setLabelParams({});
-                        setLabelPreview([]);
-                        setShowLabels(false);
                       }}
                     >
                       <SelectTrigger className="h-8 text-xs bg-black/30 border-white/10" data-testid="select-generator">
@@ -901,21 +926,7 @@ export default function MarketData() {
                   <div className="flex gap-2">
                     <Button
                       size="sm"
-                      onClick={() => {
-                        // Get visible data time range to match labels with chart
-                        const timestamps = aggregatedData.map((d: OhlcvData) => d.timestamp);
-                        const startTimestamp = timestamps.length > 0 ? Math.min(...timestamps) : undefined;
-                        const endTimestamp = timestamps.length > 0 ? Math.max(...timestamps) : undefined;
-                        
-                        previewMutation.mutate({
-                          generatorType: selectedGenerator,
-                          symbol: effectiveSymbol,
-                          params: currentParams,
-                          limit: 500,
-                          startTimestamp,
-                          endTimestamp,
-                        });
-                      }}
+                      onClick={() => generateLabelsRef.current()}
                       disabled={previewMutation.isPending || aggregatedData.length === 0}
                       className="flex-1 h-7 text-[10px] bg-gradient-to-r from-violet-600 to-teal-500"
                       data-testid="button-preview-labels"

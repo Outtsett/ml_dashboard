@@ -670,7 +670,7 @@ router.post("/labels/generate", mlRateLimiter, async (req: Request, res: Respons
 router.post("/labels/preview", mlRateLimiter, async (req: Request, res: Response) => {
   try {
     const labelService = await getLabelService();
-    const { generatorType, symbol, params, limit, startTimestamp, endTimestamp } = req.body;
+    const { generatorType, symbol, params, limit, startTimestamp, endTimestamp, timeframeMinutes } = req.body;
 
     if (!generatorType || !symbol) {
       return res.status(400).json({
@@ -685,6 +685,7 @@ router.post("/labels/preview", mlRateLimiter, async (req: Request, res: Response
       limit: limit || 500,
       startTimestamp,
       endTimestamp,
+      timeframeMinutes: timeframeMinutes || 1,
     });
 
     res.json(result);

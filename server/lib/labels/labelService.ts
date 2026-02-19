@@ -6,8 +6,8 @@
  */
 
 import { db } from '../../db';
-import { generatedLabels, contrastivePairs, ohlcvData as ohlcvDataTable } from '@shared/schema';
-import { eq, desc, sql } from 'drizzle-orm';
+import { generatedLabels, contrastivePairs } from '@shared/schema';
+import { eq, desc } from 'drizzle-orm';
 import {
   LABEL_SQL_GENERATORS,
   LabelGeneratorType,
@@ -84,122 +84,151 @@ async function generateSyntheticOHLCV(symbol: string, count: number = 1000): Pro
   `);
 }
 
-// Load OHLCV data from PostgreSQL into DuckDB table for label generation
-// Uses the same 1-minute aggregation as the chart for consistent timestamps
+// Load OHLCV data from market.duckdb into analytics DuckDB table for label generation
+// Sources real market data from the file-backed DuckDB (source of truth)
 interface LoadOHLCVOptions {
   symbol: string;
   limit?: number;
   startTimestamp?: number; // In milliseconds - filter data from this time
   endTimestamp?: number;   // In milliseconds - filter data up to this time
+  timeframeMinutes?: number; // Timeframe to aggregate to (default 1 = 1-minute)
 }
 
 async function loadOHLCVIntoDuckDB(options: LoadOHLCVOptions): Promise<void> {
-  const { symbol, limit = 50000, startTimestamp, endTimestamp } = options;
+  const { symbol, limit = 50000, startTimestamp, endTimestamp, timeframeMinutes = 1 } = options;
   const { executeDuckDBQuery } = await getDuckDB();
+  const intervalSec = timeframeMinutes * 60;
   
-  console.log(`[LabelService] Loading OHLCV for ${symbol}, range: ${startTimestamp} - ${endTimestamp}`);
+  console.log(`[LabelService] Loading OHLCV from market.duckdb for ${symbol}, tf=${timeframeMinutes}m, range: ${startTimestamp} - ${endTimestamp}`);
   
-  // First, try to drop the existing ohlcv table
+  // Drop existing temp ohlcv table in analytics DuckDB
   try {
     await executeDuckDBQuery('DROP TABLE IF EXISTS ohlcv');
   } catch (e) {
     // Ignore if table doesn't exist
   }
   
-  // Determine asset type for partitioned table query
-  const forexSymbols = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD', 'EURJPY', 'GBPJPY', 'EURGBP', 'AUDJPY', 'EURAUD', 'EURCHF', 'AUDNZD', 'GBPAUD', 'GBPCHF', 'CADJPY'];
-  const assetType = forexSymbols.includes(symbol.toUpperCase()) ? 'forex' : 'futures';
-  const timeframeMs = 60000; // 1 minute
+  // Query real market data from file-backed market.duckdb
+  const { marketQuery } = await import('../../duckdb/market');
   
-  // Build time range filter clause
+  // Build time filter for market.duckdb queries
   let timeFilter = '';
-  const params: any[] = [symbol, assetType];
-  let paramIndex = 3;
-  
+  let stitchedTimeFilter = '';
   if (startTimestamp && endTimestamp) {
-    // Convert seconds to milliseconds if needed (detect by checking magnitude)
     const startMs = startTimestamp < 1e12 ? startTimestamp * 1000 : startTimestamp;
     const endMs = endTimestamp < 1e12 ? endTimestamp * 1000 : endTimestamp;
-    timeFilter = ` AND timestamp >= $${paramIndex} AND timestamp <= $${paramIndex + 1}`;
-    params.push(startMs, endMs);
-    paramIndex += 2;
+    timeFilter = ` AND epoch_ms(ts) >= ${startMs} AND epoch_ms(ts) <= ${endMs}`;
+    stitchedTimeFilter = ` AND epoch_ms(o.ts) >= ${startMs} AND epoch_ms(o.ts) <= ${endMs}`;
   }
   
-  params.push(limit);
-  
-  // Query aggregated 1-minute OHLCV data from ohlcv_partitioned table
-  // This matches the chart's data source for consistent label-to-candle alignment
-  const aggregationQuery = `
+  // First try exact symbol match (works for specific contracts like MNQH5, and forex like EURUSD)
+  let ohlcvRows = await marketQuery<{
+    timestamp: number;
+    symbol: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  }>(`
     SELECT 
-      FLOOR(timestamp / ${timeframeMs})::bigint * ${timeframeMs} as timestamp,
-      symbol,
-      (array_agg(open ORDER BY timestamp ASC))[1] as open,
-      MAX(high) as high,
-      MIN(low) as low,
-      (array_agg(close ORDER BY timestamp DESC))[1] as close,
-      SUM(volume)::int as volume
-    FROM ohlcv_partitioned
-    WHERE symbol = $1 AND asset_type = $2${timeFilter}
-    GROUP BY FLOOR(timestamp / ${timeframeMs})::bigint, symbol
+      CAST(epoch_ms(time_bucket(INTERVAL '${intervalSec} seconds', ts)) AS DOUBLE) as timestamp,
+      '${symbol}' as symbol,
+      first(open ORDER BY ts) as open,
+      max(high) as high,
+      min(low) as low,
+      last(close ORDER BY ts) as close,
+      CAST(sum(volume) AS DOUBLE) as volume
+    FROM ohlcv
+    WHERE symbol = '${symbol}'${timeFilter}
+    GROUP BY time_bucket(INTERVAL '${intervalSec} seconds', ts)
     ORDER BY timestamp DESC
-    LIMIT $${paramIndex}
-  `;
+    LIMIT ${limit}
+  `);
   
-  const { pool } = await import('../../db');
-  const client = await pool.connect();
-  let ohlcvRows: any[] = [];
+  console.log(`[LabelService] Direct symbol query returned ${ohlcvRows.length} rows for ${symbol}`);
   
-  try {
-    const result = await client.query(aggregationQuery, params);
-    ohlcvRows = result.rows;
-    console.log(`[LabelService] Partitioned query returned ${ohlcvRows.length} rows for ${symbol}`);
-  } finally {
-    client.release();
+  // If no rows, check if this is a root symbol with rollover data (continuous contract)
+  if (ohlcvRows.length === 0) {
+    const rolloverCheck = await marketQuery<{ cnt: number }>(`
+      SELECT CAST(COUNT(*) AS DOUBLE) as cnt FROM rollovers WHERE root = '${symbol}'
+    `);
+    
+    if (rolloverCheck.length > 0 && rolloverCheck[0].cnt > 0) {
+      console.log(`[LabelService] Symbol ${symbol} is a root — building continuous contract with Panama adjustment`);
+      
+      // Build continuous contract data with Panama back-adjustment
+      // Same logic as /api/continuous/:baseSymbol in instruments.ts
+      ohlcvRows = await marketQuery<{
+        timestamp: number;
+        symbol: string;
+        open: number;
+        high: number;
+        low: number;
+        close: number;
+        volume: number;
+      }>(`
+        WITH schedule AS (
+          SELECT
+            to_contract as contract,
+            rollover_date as start_date,
+            LEAD(rollover_date) OVER (PARTITION BY root ORDER BY rollover_date) as end_date,
+            cumulative_adjustment as adj
+          FROM rollovers
+          WHERE root = '${symbol}'
+          UNION ALL
+          SELECT
+            from_contract as contract,
+            DATE '1900-01-01' as start_date,
+            rollover_date as end_date,
+            cumulative_adjustment + price_gap as adj
+          FROM rollovers
+          WHERE root = '${symbol}'
+            AND rollover_date = (SELECT MIN(rollover_date) FROM rollovers WHERE root = '${symbol}')
+        ),
+        stitched AS (
+          SELECT
+            o.ts,
+            o.open + s.adj as adj_open,
+            o.high + s.adj as adj_high,
+            o.low + s.adj as adj_low,
+            o.close + s.adj as adj_close,
+            o.volume
+          FROM ohlcv o
+          JOIN schedule s ON o.symbol = s.contract
+            AND CAST(o.ts AS DATE) >= s.start_date
+            AND (s.end_date IS NULL OR CAST(o.ts AS DATE) < s.end_date)
+          WHERE 1=1 ${stitchedTimeFilter}
+        )
+        SELECT
+          CAST(epoch_ms(time_bucket(INTERVAL '${intervalSec} seconds', ts)) AS DOUBLE) as timestamp,
+          '${symbol}' as symbol,
+          first(adj_open ORDER BY ts) as open,
+          max(adj_high) as high,
+          min(adj_low) as low,
+          last(adj_close ORDER BY ts) as close,
+          CAST(sum(volume) AS DOUBLE) as volume
+        FROM stitched
+        GROUP BY time_bucket(INTERVAL '${intervalSec} seconds', ts)
+        ORDER BY timestamp DESC
+        LIMIT ${limit}
+      `);
+      
+      console.log(`[LabelService] Continuous contract query returned ${ohlcvRows.length} rows for ${symbol}`);
+    }
   }
   
   if (ohlcvRows.length === 0) {
-    // Fallback to legacy table if partitioned has no data
-    // Build conditions array for the legacy query
-    const conditions = [eq(ohlcvDataTable.symbol, symbol)];
-    
-    // Add time range filter if provided
-    if (startTimestamp && endTimestamp) {
-      const startMs = startTimestamp < 1e12 ? startTimestamp * 1000 : startTimestamp;
-      const endMs = endTimestamp < 1e12 ? endTimestamp * 1000 : endTimestamp;
-      console.log(`[LabelService] Legacy query time range: ${startMs} - ${endMs}`);
-      conditions.push(sql`${ohlcvDataTable.timestamp} >= ${startMs}`);
-      conditions.push(sql`${ohlcvDataTable.timestamp} <= ${endMs}`);
-    }
-    
-    const legacyRows = await db.select({
-      timestamp: ohlcvDataTable.timestamp,
-      symbol: ohlcvDataTable.symbol,
-      open: ohlcvDataTable.open,
-      high: ohlcvDataTable.high,
-      low: ohlcvDataTable.low,
-      close: ohlcvDataTable.close,
-      volume: ohlcvDataTable.volume,
-    })
-      .from(ohlcvDataTable)
-      .where(sql`${sql.join(conditions, sql` AND `)}`)
-      .orderBy(ohlcvDataTable.timestamp)
-      .limit(limit);
-    
-    console.log(`[LabelService] Legacy query returned ${legacyRows.length} rows for ${symbol}`);
-    
-    if (legacyRows.length === 0) {
-      // Generate synthetic data for preview purposes
-      console.log(`[LabelService] No data found, generating synthetic data`);
-      await generateSyntheticOHLCV(symbol, limit);
-      return;
-    }
-    ohlcvRows = legacyRows;
+    // Fall back to synthetic data only if no market data exists for this symbol
+    console.warn(`[LabelService] No market data found for ${symbol}, generating synthetic data`);
+    await generateSyntheticOHLCV(symbol, limit);
+    return;
   }
   
-  // Sort ascending for proper label generation
+  // Sort ascending for proper label generation (WINDOW functions need chronological order)
   ohlcvRows.sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
   
-  // Create the ohlcv table in DuckDB
+  // Create the ohlcv table in analytics DuckDB
   await executeDuckDBQuery(`
     CREATE TABLE ohlcv (
       timestamp BIGINT,
@@ -217,7 +246,7 @@ async function loadOHLCVIntoDuckDB(options: LoadOHLCVOptions): Promise<void> {
   for (let i = 0; i < ohlcvRows.length; i += batchSize) {
     const batch = ohlcvRows.slice(i, i + batchSize);
     const values = batch.map(row => 
-      `(${row.timestamp}, '${row.symbol}', ${row.open}, ${row.high}, ${row.low}, ${row.close}, ${row.volume})`
+      `(${Number(row.timestamp)}, '${row.symbol}', ${row.open}, ${row.high}, ${row.low}, ${row.close}, ${row.volume})`
     ).join(',\n');
     
     await executeDuckDBQuery(`INSERT INTO ohlcv VALUES ${values}`);
@@ -249,6 +278,7 @@ export interface LabelPreviewRequest {
   limit?: number;
   startTimestamp?: number; // Optional: filter data to this range
   endTimestamp?: number;   // Optional: for matching visible chart data
+  timeframeMinutes?: number; // Optional: aggregate to chart timeframe (default 1)
 }
 
 // ============================================================================
@@ -480,6 +510,7 @@ export async function previewLabels(
       limit: 10000,
       startTimestamp: request.startTimestamp,
       endTimestamp: request.endTimestamp,
+      timeframeMinutes: request.timeframeMinutes,
     });
     
     const labelSQL = generateLabelSQL(
