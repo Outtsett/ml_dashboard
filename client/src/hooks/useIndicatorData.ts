@@ -158,15 +158,20 @@ export function useIndicatorData(
       const rows = dataQuery.data.data as Record<string, number | null>[];
       for (const col of nonMarkerColumns) {
         const displayType = classifyColumn(col);
-        const points: { time: number; value: number }[] = [];
+        const pointMap = new Map<number, number>();
         for (const row of rows) {
           const ts = row.timestamp;
           const val = row[col];
           if (ts != null && val != null && !isNaN(val as number)) {
-            points.push({ time: Math.floor((ts as number) / 1000), value: val as number });
+            // Timestamps from indicator parquets are already in seconds
+            const timeSec = ts as number;
+            pointMap.set(timeSec, val as number);
           }
         }
-        if (points.length > 0) {
+        if (pointMap.size > 0) {
+          const points = Array.from(pointMap.entries())
+            .sort((a, b) => a[0] - b[0])
+            .map(([t, v]) => ({ time: t, value: v }));
           result.push({
             column: col,
             data: points,
@@ -182,15 +187,20 @@ export function useIndicatorData(
     if (patternQuery.data?.data?.length) {
       const rows = patternQuery.data.data as Record<string, number | null>[];
       for (const col of markerColumns) {
-        const points: { time: number; value: number }[] = [];
+        const pointMap = new Map<number, number>();
         for (const row of rows) {
           const ts = row.timestamp;
           const val = row[col];
           if (ts != null && val != null && val !== 0) {
-            points.push({ time: Math.floor((ts as number) / 1000), value: val as number });
+            // Timestamps from pattern parquets are already in seconds
+            const timeSec = ts as number;
+            pointMap.set(timeSec, val as number);
           }
         }
-        if (points.length > 0) {
+        if (pointMap.size > 0) {
+          const points = Array.from(pointMap.entries())
+            .sort((a, b) => a[0] - b[0])
+            .map(([t, v]) => ({ time: t, value: v }));
           result.push({
             column: col,
             data: points,
