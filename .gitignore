@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+.env
+data/market.duckdb
+data/market.duckdb.wal
+*.duckdb
+*.duckdb.wal
+nul
+pythonlibs.zip
+node_modules.zip
+.questdb.pid
+attached_assets/
