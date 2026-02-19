@@ -25,6 +25,7 @@ import {
   Save, X, Trash2, Copy, Check, Info, GitBranch, Shuffle, Clock, Calendar, Boxes, Tag
 } from "lucide-react";
 import LossSurface3D from "@/components/LossSurface3D";
+import { useBreadcrumbs } from "@/hooks/useBreadcrumbs";
 import { 
   unsupervisedModels, 
   getModelById, 
@@ -248,6 +249,15 @@ export default function MLHub() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
   const [selectedSymbol, setSelectedSymbol] = useState("MNQ");
+
+  const tabLabels: Record<string, string> = {
+    models: "Models", training: "Training", backtest: "Backtest",
+    signals: "Signals", trades: "Trades", labels: "Labels", xai: "XAI",
+  };
+  useBreadcrumbs([
+    { label: tabLabels[activeTab] ?? activeTab },
+    { label: selectedSymbol },
+  ]);
   
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [configDialogTab, setConfigDialogTab] = useState<"general" | "model" | "hyperparameters" | "features" | "validation">("general");

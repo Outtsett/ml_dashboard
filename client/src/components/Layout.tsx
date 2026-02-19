@@ -1,9 +1,34 @@
-import { Home, LineChart, Database, Settings, Brain, Server, BarChart2, List, Newspaper, GraduationCap, FlaskConical } from "lucide-react";
+import { Home, LineChart, Database, Settings, Brain, Server, BarChart2, List, Newspaper, GraduationCap, FlaskConical, ChevronRight } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { prefetchOnHover } from "@/lib/prefetch";
+import { useBreadcrumbItems } from "@/hooks/useBreadcrumbs";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem as BreadcrumbSlot,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+
+const routeMeta: Record<string, { label: string; icon: typeof Home }> = {
+  "/": { label: "Market Data", icon: Database },
+  "/ml-hub": { label: "ML Hub", icon: Brain },
+  "/training": { label: "Training", icon: GraduationCap },
+  "/backtest": { label: "Backtest", icon: FlaskConical },
+  "/portfolio": { label: "Portfolio", icon: BarChart2 },
+  "/watchlist": { label: "Watchlist", icon: List },
+  "/news": { label: "News", icon: Newspaper },
+  "/databases": { label: "Databases", icon: Server },
+  "/settings": { label: "Settings", icon: Settings },
+};
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  const subCrumbs = useBreadcrumbItems();
+
+  // Resolve the current page from the route
+  const currentRoute = routeMeta[location] ?? routeMeta["/"];
 
   const navItems = [
     { icon: Database, label: "Market Data", href: "/" },
@@ -96,6 +121,78 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="flex-1 ml-56 min-w-0">
+        {/* Breadcrumb bar */}
+        <div className="border-b border-border bg-card/50 backdrop-blur-sm px-4 py-2 sticky top-0 z-10">
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbSlot>
+                <BreadcrumbLink asChild>
+                  <Link href="/" className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors">
+                    <Home className="h-3.5 w-3.5" />
+                  </Link>
+                </BreadcrumbLink>
+              </BreadcrumbSlot>
+
+              <BreadcrumbSeparator>
+                <ChevronRight className="h-3 w-3 text-muted-foreground/50" />
+              </BreadcrumbSeparator>
+
+              {subCrumbs.length === 0 ? (
+                <BreadcrumbSlot>
+                  <BreadcrumbPage className="flex items-center gap-1.5 text-xs font-medium">
+                    <currentRoute.icon className="h-3.5 w-3.5 text-primary/70" />
+                    {currentRoute.label}
+                  </BreadcrumbPage>
+                </BreadcrumbSlot>
+              ) : (
+                <>
+                  <BreadcrumbSlot>
+                    <BreadcrumbLink asChild>
+                      <Link href={location} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        <currentRoute.icon className="h-3.5 w-3.5" />
+                        {currentRoute.label}
+                      </Link>
+                    </BreadcrumbLink>
+                  </BreadcrumbSlot>
+
+                  {subCrumbs.map((crumb, i) => (
+                    <span key={i} className="contents">
+                      <BreadcrumbSeparator>
+                        <ChevronRight className="h-3 w-3 text-muted-foreground/50" />
+                      </BreadcrumbSeparator>
+                      <BreadcrumbSlot>
+                        {i === subCrumbs.length - 1 ? (
+                          <BreadcrumbPage className="flex items-center gap-1.5 text-xs font-medium">
+                            {crumb.icon && <crumb.icon className="h-3.5 w-3.5 text-primary/70" />}
+                            {crumb.label}
+                          </BreadcrumbPage>
+                        ) : (
+                          <BreadcrumbLink
+                            {...(crumb.href ? { asChild: true } : {})}
+                            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {crumb.href ? (
+                              <Link href={crumb.href}>
+                                {crumb.icon && <crumb.icon className="h-3.5 w-3.5" />}
+                                {crumb.label}
+                              </Link>
+                            ) : (
+                              <>
+                                {crumb.icon && <crumb.icon className="h-3.5 w-3.5" />}
+                                {crumb.label}
+                              </>
+                            )}
+                          </BreadcrumbLink>
+                        )}
+                      </BreadcrumbSlot>
+                    </span>
+                  ))}
+                </>
+              )}
+            </BreadcrumbList>
+          </Breadcrumb>
+        </div>
+
         <div className="p-4 max-w-[1800px] mx-auto">
           {children}
         </div>

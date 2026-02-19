@@ -55,7 +55,7 @@ export default function Signals() {
   const todayPnL = signals.filter(s => s.pnl).reduce((acc, s) => acc + (s.pnl || 0), 0);
 
   return (
-    <div className="space-y-4 h-[calc(100vh-6rem)] flex flex-col overflow-hidden">
+    <div className="space-y-4 h-[calc(100vh-8.5rem)] flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex justify-between items-center shrink-0">
         <div>

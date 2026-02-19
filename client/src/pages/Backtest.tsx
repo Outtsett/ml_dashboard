@@ -19,6 +19,7 @@ import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/types";
 import { apiRequest } from "@/lib/queryClient";
+import { useBreadcrumbs } from "@/hooks/useBreadcrumbs";
 
 // ============================================================
 // TYPES
@@ -94,6 +95,12 @@ export default function Backtest() {
   const [minConfidence, setMinConfidence] = useState(0.5);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  const tabLabels: Record<string, string> = { results: "Results", trades: "Trades", costs: "Costs" };
+  useBreadcrumbs([
+    { label: tabLabels[activeTab] ?? activeTab },
+    ...(selectedSymbol ? [{ label: selectedSymbol }] : []),
+  ]);
 
   // Results state
   const [lastResult, setLastResult] = useState<BacktestRunResult | null>(null);
@@ -228,7 +235,7 @@ export default function Backtest() {
   const trades = tradesData?.trades ?? [];
 
   return (
-    <div className="space-y-4 h-[calc(100vh-6rem)] flex flex-col overflow-hidden">
+    <div className="space-y-4 h-[calc(100vh-8.5rem)] flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex justify-between items-center shrink-0">
         <div>

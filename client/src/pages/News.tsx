@@ -167,7 +167,7 @@ export default function News() {
   };
 
   return (
-    <div className="space-y-5 h-[calc(100vh-6rem)] flex flex-col overflow-hidden">
+    <div className="space-y-5 h-[calc(100vh-8.5rem)] flex flex-col overflow-hidden">
       <div className="flex justify-between items-center shrink-0">
         <div>
           <div className="flex items-center gap-3 mb-2">

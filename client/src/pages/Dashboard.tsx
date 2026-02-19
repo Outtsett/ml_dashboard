@@ -105,7 +105,7 @@ export default function Dashboard() {
   }, [trades]);
 
   return (
-    <div className="space-y-4 h-[calc(100vh-6rem)] flex flex-col overflow-hidden p-1">
+    <div className="space-y-4 h-[calc(100vh-8.5rem)] flex flex-col overflow-hidden p-1">
       <div className="flex justify-between items-center shrink-0">
         <div>
           <div className="flex items-center gap-3 mb-2">

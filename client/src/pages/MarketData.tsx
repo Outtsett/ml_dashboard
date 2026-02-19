@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Database, Loader2, Sparkles, TrendingUp, DollarSign, ArrowRightLeft, Tag, Eye, Play, BarChart3, ChevronsUpDown, Check } from "lucide-react";
+import { Database, Loader2, Sparkles, TrendingUp, DollarSign, ArrowRightLeft, Tag, Eye, Play, BarChart3, ChevronsUpDown, Check, Clock } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +16,7 @@ import { startAutoCleanup, stopAutoCleanup } from "@/lib/cacheManager";
 import { LABEL_GENERATORS, type LabelGeneratorKey } from "@shared/mlTaxonomy";
 import { useIndicatorData } from "@/hooks/useIndicatorData";
 import { IndicatorSelector } from "@/components/IndicatorSelector";
+import { useBreadcrumbs } from "@/hooks/useBreadcrumbs";
 
 const timeframes = [
   { label: "1m", minutes: 1 },
@@ -94,6 +95,14 @@ export default function MarketData() {
   const [cacheStats, setCacheStats] = useState<{ totalBars: number; symbols: number; sizeEstimate: string } | null>(null);
   const [symbolOpen, setSymbolOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
+
+  const tfLabel = timeframes.find(t => t.minutes === timeframe)?.label ?? `${timeframe}m`;
+  useBreadcrumbs([
+    { label: assetType === "futures" ? "Futures" : "Forex", icon: assetType === "futures" ? TrendingUp : DollarSign },
+    { label: symbol },
+    { label: contract === "continuous" ? "Continuous" : contract },
+    { label: tfLabel, icon: Clock },
+  ]);
 
   // Indicator overlays
   const {
@@ -630,7 +639,7 @@ export default function MarketData() {
   };
 
   return (
-    <div className="space-y-4 h-[calc(100vh-6rem)] flex flex-col overflow-hidden">
+    <div className="space-y-4 h-[calc(100vh-8.5rem)] flex flex-col overflow-hidden">
       <div className="flex justify-between items-center shrink-0">
         <div>
           <div className="flex items-center gap-3 mb-2">

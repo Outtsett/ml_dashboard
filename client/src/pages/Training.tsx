@@ -12,6 +12,7 @@ import { Terminal, Pause, Square, Cpu, Brain, Sparkles, Play, AlertTriangle, Tre
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useRef, useCallback } from "react";
 import LossSurface3D from "@/components/LossSurface3D";
+import { useBreadcrumbs } from "@/hooks/useBreadcrumbs";
 
 interface TrainingProgress {
   epoch: number;
@@ -75,6 +76,12 @@ export default function Training() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("training");
   const [selectedSymbol, setSelectedSymbol] = useState("MNQ");
+
+  const tabLabels: Record<string, string> = { training: "Training", features: "Features", models: "Models" };
+  useBreadcrumbs([
+    { label: tabLabels[activeTab] ?? activeTab },
+    { label: selectedSymbol },
+  ]);
   const [epochs, setEpochs] = useState(50);
   const [batchSize, setBatchSize] = useState(32);
   const [lossHistory, setLossHistory] = useState<{epoch: number, loss: number, valLoss: number, accuracy?: number}[]>([]);
@@ -386,7 +393,7 @@ export default function Training() {
   const futuresSymbols = instruments.filter((i: any) => i.assetType === 'futures').map((i: any) => i.symbol);
 
   return (
-    <div className="space-y-4 h-[calc(100vh-6rem)] flex flex-col overflow-hidden">
+    <div className="space-y-4 h-[calc(100vh-8.5rem)] flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex justify-between items-center shrink-0">
         <div>
