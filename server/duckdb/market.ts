@@ -72,13 +72,14 @@ export async function initMarketDB(): Promise<void> {
 
   await marketQuery(`
     CREATE TABLE IF NOT EXISTS rollovers (
-      ts TIMESTAMP NOT NULL,
       root VARCHAR NOT NULL,
+      rollover_date DATE NOT NULL,
       from_contract VARCHAR NOT NULL,
       to_contract VARCHAR NOT NULL,
       from_close DOUBLE NOT NULL,
       to_close DOUBLE NOT NULL,
-      ratio DOUBLE NOT NULL
+      price_gap DOUBLE NOT NULL,
+      cumulative_adjustment DOUBLE NOT NULL
     )
   `);
 

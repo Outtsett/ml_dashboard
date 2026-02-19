@@ -1,0 +1,17 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Force LF for shell scripts
+*.sh text eol=lf
+
+# Force CRLF for Windows batch files
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files
+*.duckdb binary
+*.parquet binary
+*.dbn binary
+*.zst binary
+*.png binary
+*.ico binary

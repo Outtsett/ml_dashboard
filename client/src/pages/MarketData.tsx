@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Database, Loader2, Sparkles, TrendingUp, DollarSign, ArrowRightLeft, Tag, Eye, Play, BarChart3 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Database, Loader2, Sparkles, TrendingUp, DollarSign, ArrowRightLeft, Tag, Eye, Play, BarChart3, ChevronsUpDown, Check } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +14,8 @@ import TradingChart, { LabelMarker } from "@/components/TradingChart";
 import { getCachedBars, cacheBars, clearSymbolCache, getCacheStats } from "@/lib/indexeddb";
 import { startAutoCleanup, stopAutoCleanup } from "@/lib/cacheManager";
 import { LABEL_GENERATORS, type LabelGeneratorKey } from "@shared/mlTaxonomy";
+import { useIndicatorData } from "@/hooks/useIndicatorData";
+import { IndicatorSelector } from "@/components/IndicatorSelector";
 
 const timeframes = [
   { label: "1m", minutes: 1 },
@@ -81,17 +85,41 @@ interface InstrumentInfo {
   exchange?: string;
 }
 
-export default function DataSets() {
+export default function MarketData() {
   const [symbol, setSymbol] = useState("MNQ");
   const [assetType, setAssetType] = useState<"futures" | "forex">("futures");
+  const [contract, setContract] = useState<string>("continuous"); // "continuous" or specific contract like "ESH5"
   const [timeframe, setTimeframe] = useState(1);
   const { toast } = useToast();
   const [cacheStats, setCacheStats] = useState<{ totalBars: number; symbols: number; sizeEstimate: string } | null>(null);
+  const [symbolOpen, setSymbolOpen] = useState(false);
+  const [contractOpen, setContractOpen] = useState(false);
+
+  // Indicator overlays
+  const {
+    catalog,
+    selectedColumns,
+    setSelectedColumns,
+    overlays: indicatorOverlays,
+    isLoading: indicatorsLoading,
+  } = useIndicatorData(symbol, timeframe, assetType === "futures");
 
   const { data: rawInstruments } = useQuery<InstrumentInfo[]>({
     queryKey: ["/api/instruments"],
   });
   const allInstruments = Array.isArray(rawInstruments) ? rawInstruments : [];
+
+  // Fetch all chart symbols (903 individual contracts + forex pairs)
+  interface ChartSymbolInfo {
+    symbol: string;
+    row_count: number;
+    first_bar: string;
+    last_bar: string;
+  }
+  const { data: chartSymbols = [] } = useQuery<ChartSymbolInfo[]>({
+    queryKey: ["/api/charts/symbols"],
+  });
+
   const futuresSymbols = useMemo(() =>
     allInstruments.filter(i => i.assetType === 'futures').sort((a, b) => a.symbol.localeCompare(b.symbol)),
     [allInstruments]
@@ -100,6 +128,25 @@ export default function DataSets() {
     allInstruments.filter(i => i.assetType === 'forex').sort((a, b) => a.symbol.localeCompare(b.symbol)),
     [allInstruments]
   );
+
+  const activeSymbols = assetType === "futures" ? futuresSymbols : forexSymbols;
+
+  // Get individual contracts for the selected futures root symbol
+  const contractsForSymbol = useMemo(() => {
+    if (assetType !== "futures" || !symbol) return [];
+    // Match contracts starting with root symbol followed by month letter + year digits
+    // e.g., ES → ESH0, ESH1, ESM5, etc. (exclude spreads with "-")
+    const re = new RegExp(`^${symbol}[A-Z]\\d{1,2}$`);
+    return chartSymbols
+      .filter(s => re.test(s.symbol))
+      .sort((a, b) => {
+        // Sort by last_bar descending (most recent contracts first)
+        return b.last_bar.localeCompare(a.last_bar);
+      });
+  }, [symbol, assetType, chartSymbols]);
+
+  // The effective symbol to pass to chart queries
+  const effectiveSymbol = contract === "continuous" ? symbol : contract;
 
   // Initialize cache auto-cleanup and fetch initial stats
   useEffect(() => {
@@ -113,7 +160,7 @@ export default function DataSets() {
   // Refresh cache stats when symbol or timeframe changes
   useEffect(() => {
     getCacheStats().then(setCacheStats).catch(() => {});
-  }, [symbol, timeframe]);
+  }, [effectiveSymbol, timeframe]);
 
   // Label preview state
   const [selectedGenerator, setSelectedGenerator] = useState<LabelGeneratorKey>("direction");
@@ -168,6 +215,7 @@ export default function DataSets() {
   });
 
   const isFutures = assetType === "futures";
+  const isContinuous = contract === "continuous";
 
   // State for visible chart data (sliding window - not all data in memory)
   const [visibleData, setVisibleData] = useState<OhlcvData[]>([]);
@@ -183,7 +231,7 @@ export default function DataSets() {
   const cacheNewBars = useCallback(async (bars: OhlcvData[]) => {
     if (bars.length === 0) return;
     const tfString = timeframe.toString();
-    await cacheBars(symbol, tfString, bars.map(b => ({
+    await cacheBars(effectiveSymbol, tfString, bars.map(b => ({
       timestamp: b.timestamp,
       open: b.open,
       high: b.high,
@@ -193,12 +241,12 @@ export default function DataSets() {
     })));
     // Update cache stats after caching
     getCacheStats().then(setCacheStats).catch(() => {});
-  }, [symbol, timeframe]);
+  }, [effectiveSymbol, timeframe]);
 
   // Helper to get bars from cache
   const getBarsFromCache = useCallback(async (startTs: number, endTs: number): Promise<OhlcvData[]> => {
     const tfString = timeframe.toString();
-    const cached = await getCachedBars(symbol, tfString, startTs, endTs);
+    const cached = await getCachedBars(effectiveSymbol, tfString, startTs, endTs);
     return cached.map(b => ({
       symbol: b.symbol,
       timestamp: b.timestamp,
@@ -208,21 +256,17 @@ export default function DataSets() {
       close: b.close,
       volume: b.volume
     }));
-  }, [symbol, timeframe]);
+  }, [effectiveSymbol, timeframe]);
 
   const { data: parquetData, isLoading: isParquetLoading, refetch: refetchParquet } = useQuery({
-    queryKey: ["/api/parquet", symbol, "aggregated", timeframe],
+    queryKey: ["/api/parquet", effectiveSymbol, "aggregated", timeframe],
     queryFn: async () => {
-      // Use server-side aggregation for the requested timeframe
-      const response = await fetch(`/api/parquet/${symbol}/aggregated?timeframe=${timeframe}&limit=2000`);
+      const response = await fetch(`/api/parquet/${effectiveSymbol}/aggregated?timeframe=${timeframe}&limit=2000`);
       if (!response.ok) return [];
       const data = await response.json();
-      // Initialize visible data with initial fetch
       setVisibleData(data);
-      // Always assume there's more historical data unless we got less than requested
       setHasMoreLeft(data.length > 0);
       setHasMoreRight(false);
-      // Cache the bars in IndexedDB
       cacheNewBars(data);
       return data;
     },
@@ -232,69 +276,52 @@ export default function DataSets() {
   // Load more data when user scrolls to edges - with caching
   const handleLoadMore = useCallback(async (direction: 'left' | 'right', timestamp: number) => {
     if (isLoadingMore) return;
-    
+
     setIsLoadingMore(true);
     try {
-      const tfString = timeframe.toString();
       let newData: OhlcvData[] = [];
-      
-      // First try to get from cache (query actual bars, not metadata)
+
       const rangeMs = 2000 * timeframe * 60 * 1000;
       if (direction === 'left') {
         const cached = await getBarsFromCache(timestamp - rangeMs, timestamp - 1);
-        if (cached.length > 100) {
-          newData = cached.slice(-2000);
-        }
+        if (cached.length > 100) newData = cached.slice(-2000);
       } else {
         const cached = await getBarsFromCache(timestamp + 1, timestamp + rangeMs);
-        if (cached.length > 100) {
-          newData = cached.slice(0, 2000);
-        }
+        if (cached.length > 100) newData = cached.slice(0, 2000);
       }
 
-      // If no sufficient cache hit, fetch from server
       if (newData.length === 0) {
-        // Try parquet first, fallback to continuous endpoint for futures
-        let url = isFutures 
-          ? `/api/continuous/${symbol}?timeframe=${timeframe}&limit=2000`
-          : `/api/ohlcv/${symbol}?timeframe=${timeframe}&limit=2000`;
-        
-        if (direction === 'left') {
-          url += `&endTime=${timestamp - 1}`;
-        } else {
-          url += `&startTime=${timestamp + 1}`;
-        }
-        
+        // For continuous futures use continuous endpoint, for individual contracts use parquet
+        let url = (isFutures && isContinuous)
+          ? `/api/continuous/${effectiveSymbol}?timeframe=${timeframe}&limit=2000`
+          : isFutures
+            ? `/api/parquet/${effectiveSymbol}/aggregated?timeframe=${timeframe}&limit=2000`
+            : `/api/ohlcv/${effectiveSymbol}?timeframe=${timeframe}&limit=2000`;
+
+        if (direction === 'left') url += `&endTime=${timestamp - 1}`;
+        else url += `&startTime=${timestamp + 1}`;
+
         const response = await fetch(url);
-        if (!response.ok) {
-          setIsLoadingMore(false);
-          return;
-        }
-        
+        if (!response.ok) { setIsLoadingMore(false); return; }
+
         const result = await response.json();
-        // Handle both formats: { data: [...] } or [...]
         newData = Array.isArray(result) ? result : (result.data || []);
-        
-        // Cache the fetched data
-        if (newData.length > 0) {
-          await cacheNewBars(newData);
-        }
+
+        if (newData.length > 0) await cacheNewBars(newData);
       }
-      
+
       if (newData.length === 0) {
         if (direction === 'left') setHasMoreLeft(false);
         else setHasMoreRight(false);
         setIsLoadingMore(false);
         return;
       }
-      
-      // Merge with visible data using sliding window
+
       setVisibleData(prev => {
-        const combined = direction === 'left' 
+        const combined = direction === 'left'
           ? [...newData, ...prev]
           : [...prev, ...newData];
-        
-        // Deduplicate by timestamp
+
         const seen = new Set<number>();
         const deduped = combined.filter(d => {
           const ts = typeof d.timestamp === 'string' ? parseInt(d.timestamp) : d.timestamp;
@@ -306,22 +333,19 @@ export default function DataSets() {
           const tsB = typeof b.timestamp === 'string' ? parseInt(b.timestamp) : b.timestamp;
           return tsA - tsB;
         });
-        
-        // Apply sliding window - keep only MAX_BARS_IN_MEMORY
+
         if (deduped.length > MAX_BARS_IN_MEMORY) {
           if (direction === 'left') {
-            setHasMoreRight(true); // dropped right-side bars
+            setHasMoreRight(true);
             return deduped.slice(0, MAX_BARS_IN_MEMORY);
           } else {
-            setHasMoreLeft(true); // dropped left-side bars
+            setHasMoreLeft(true);
             return deduped.slice(-MAX_BARS_IN_MEMORY);
           }
         }
-        
         return deduped;
       });
-      
-      // Update hasMore flags
+
       if (newData.length < 2000) {
         if (direction === 'left') setHasMoreLeft(false);
         else setHasMoreRight(false);
@@ -330,7 +354,7 @@ export default function DataSets() {
       console.error('Error loading more data:', error);
     }
     setIsLoadingMore(false);
-  }, [symbol, timeframe, isLoadingMore, isFutures, cacheNewBars, getBarsFromCache]);
+  }, [effectiveSymbol, timeframe, isLoadingMore, isFutures, isContinuous, cacheNewBars, getBarsFromCache]);
 
   const { data: continuousData } = useQuery({
     queryKey: ["/api/continuous", symbol, timeframe],
@@ -338,7 +362,6 @@ export default function DataSets() {
       const response = await fetch(`/api/continuous/${symbol}?timeframe=${timeframe}&limit=500`);
       if (!response.ok) return { data: [], rollovers: [] };
       const result = await response.json();
-      // Initialize visible data from continuous data
       if (result.data && result.data.length > 0) {
         setVisibleData(result.data);
         setHasMoreLeft(true);
@@ -346,7 +369,7 @@ export default function DataSets() {
       }
       return result;
     },
-    enabled: isFutures && (!parquetData || parquetData.length === 0),
+    enabled: isFutures && isContinuous && (!parquetData || parquetData.length === 0),
   });
 
   // Forex data state for infinite scroll
@@ -356,17 +379,14 @@ export default function DataSets() {
   const [forexIsLoadingMore, setForexIsLoadingMore] = useState(false);
 
   const { data: ohlcvData, refetch: refetchForex } = useQuery({
-    queryKey: ["/api/ohlcv", symbol, timeframe],
+    queryKey: ["/api/ohlcv", effectiveSymbol, timeframe],
     queryFn: async () => {
-      // Use server-side aggregation with timeframe in minutes converted to seconds
       const timeframeSec = timeframe * 60;
-      const response = await fetch(`/api/ohlcv/${symbol}?timeframe=${timeframeSec}s&limit=2000`);
+      const response = await fetch(`/api/ohlcv/${effectiveSymbol}?timeframe=${timeframeSec}s&limit=2000`);
       if (!response.ok) return [];
       const data = await response.json();
-      // Initialize forex visible data
       setForexVisibleData(data);
       setForexHasMoreLeft(data.length >= 500);
-      // Cache in IndexedDB
       cacheNewBars(data);
       return data;
     },
@@ -399,7 +419,7 @@ export default function DataSets() {
       // Fetch from server if no sufficient cache hit
       if (newData.length === 0) {
         const timeframeSec = timeframe * 60;
-        let url = `/api/ohlcv/${symbol}?timeframe=${timeframeSec}s&limit=2000`;
+        let url = `/api/ohlcv/${effectiveSymbol}?timeframe=${timeframeSec}s&limit=2000`;
         if (direction === 'left') {
           url += `&endTime=${timestamp}`;
         } else {
@@ -460,7 +480,7 @@ export default function DataSets() {
     } finally {
       setForexIsLoadingMore(false);
     }
-  }, [symbol, timeframe, forexIsLoadingMore, isFutures, cacheNewBars, getBarsFromCache]);
+  }, [effectiveSymbol, timeframe, forexIsLoadingMore, isFutures, cacheNewBars, getBarsFromCache]);
 
   // Reset forex data when symbol or timeframe changes
   useEffect(() => {
@@ -572,6 +592,7 @@ export default function DataSets() {
     await clearSymbolCache(sym);
     setSymbol(sym);
     setAssetType(type);
+    setContract("continuous"); // Reset to continuous when changing root symbol
     // Reset infinite scroll state when changing symbols
     setVisibleData([]);
     setHasMoreLeft(true);
@@ -589,9 +610,9 @@ export default function DataSets() {
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500/30 to-teal-500/30 flex items-center justify-center">
               <Database className="h-5 w-5 text-violet-300" />
             </div>
-            <span className="text-sm font-medium text-violet-300/80">Data Management</span>
+            <span className="text-sm font-medium text-violet-300/80">Market Data</span>
           </div>
-          <h1 className="text-4xl font-display font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Data Sets</h1>
+          <h1 className="text-4xl font-display font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Market Data</h1>
         </div>
         <div className="flex items-center gap-3">
           {cacheStats && (
@@ -608,53 +629,137 @@ export default function DataSets() {
         </div>
       </div>
 
-      <Tabs value={assetType} onValueChange={(v) => {
-        setAssetType(v as "futures" | "forex");
-        setSymbol(v === "futures" ? "ES" : "EURUSD");
-      }} className="shrink-0">
-        <TabsList className="glass rounded-xl p-1 h-auto">
-          <TabsTrigger value="futures" className="rounded-lg px-4 py-1.5 text-xs data-[state=active]:bg-primary/20" data-testid="tab-futures">
-            <TrendingUp className="h-3 w-3 mr-1.5" /> Futures
-          </TabsTrigger>
-          <TabsTrigger value="forex" className="rounded-lg px-4 py-1.5 text-xs data-[state=active]:bg-accent/20" data-testid="tab-forex">
-            <DollarSign className="h-3 w-3 mr-1.5" /> Forex
-          </TabsTrigger>
-        </TabsList>
+      <div className="flex items-center gap-3 shrink-0">
+        <Tabs value={assetType} onValueChange={(v) => {
+          const newType = v as "futures" | "forex";
+          setAssetType(newType);
+          setSymbol(newType === "futures" ? "ES" : "EURUSD");
+        }}>
+          <TabsList className="glass rounded-xl p-1 h-auto">
+            <TabsTrigger value="futures" className="rounded-lg px-4 py-1.5 text-xs data-[state=active]:bg-primary/20" data-testid="tab-futures">
+              <TrendingUp className="h-3 w-3 mr-1.5" /> Futures
+            </TabsTrigger>
+            <TabsTrigger value="forex" className="rounded-lg px-4 py-1.5 text-xs data-[state=active]:bg-accent/20" data-testid="tab-forex">
+              <DollarSign className="h-3 w-3 mr-1.5" /> Forex
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-        <TabsContent value="futures" className="mt-2">
-          <div className="flex flex-wrap gap-1.5">
-            {futuresSymbols.map((f) => (
-              <Button
-                key={f.symbol}
-                variant={symbol === f.symbol ? "default" : "outline"}
-                size="sm"
-                onClick={() => selectSymbol(f.symbol, "futures")}
-                className={`rounded-lg text-xs font-mono h-7 px-2 ${symbol === f.symbol ? 'bg-primary text-white' : 'border-white/10'}`}
-                data-testid={`button-futures-${f.symbol}`}
-              >
-                {f.symbol}
-              </Button>
-            ))}
-          </div>
-        </TabsContent>
+        <Popover open={symbolOpen} onOpenChange={setSymbolOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={symbolOpen}
+              className="w-[280px] justify-between h-9 text-sm font-mono border-white/10 bg-black/30"
+              data-testid="symbol-selector"
+            >
+              <span className="flex items-center gap-2">
+                <span className="text-primary font-semibold">{symbol}</span>
+                {activeSymbols.find(s => s.symbol === symbol)?.name && (
+                  <span className="text-muted-foreground text-xs font-sans truncate">
+                    {activeSymbols.find(s => s.symbol === symbol)?.name}
+                  </span>
+                )}
+              </span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[280px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Search symbol..." />
+              <CommandList>
+                <CommandEmpty>No symbol found.</CommandEmpty>
+                <CommandGroup>
+                  {activeSymbols.map((inst) => (
+                    <CommandItem
+                      key={inst.symbol}
+                      value={`${inst.symbol} ${inst.name}`}
+                      onSelect={() => {
+                        selectSymbol(inst.symbol, assetType);
+                        setSymbolOpen(false);
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <Check className={`h-3 w-3 ${symbol === inst.symbol ? 'opacity-100' : 'opacity-0'}`} />
+                      <span className="font-mono font-semibold text-xs">{inst.symbol}</span>
+                      <span className="text-muted-foreground text-xs truncate">{inst.name}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
 
-        <TabsContent value="forex" className="mt-2">
-          <div className="flex flex-wrap gap-1.5">
-            {forexSymbols.map((f) => (
+        {/* Contract rollover dropdown — only for futures */}
+        {isFutures && contractsForSymbol.length > 0 && (
+          <Popover open={contractOpen} onOpenChange={setContractOpen}>
+            <PopoverTrigger asChild>
               <Button
-                key={f.symbol}
-                variant={symbol === f.symbol ? "default" : "outline"}
-                size="sm"
-                onClick={() => selectSymbol(f.symbol, "forex")}
-                className={`rounded-lg text-xs font-mono h-7 px-2 ${symbol === f.symbol ? 'bg-accent text-white' : 'border-white/10'}`}
-                data-testid={`button-forex-${f.symbol}`}
+                variant="outline"
+                role="combobox"
+                aria-expanded={contractOpen}
+                className="w-[200px] justify-between h-9 text-sm font-mono border-white/10 bg-black/30"
+                data-testid="contract-selector"
               >
-                {f.symbol}
+                <span className="flex items-center gap-2">
+                  <ArrowRightLeft className="h-3 w-3 text-amber-400" />
+                  {contract === "continuous" ? "Continuous" : contract}
+                </span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
-            ))}
-          </div>
-        </TabsContent>
-      </Tabs>
+            </PopoverTrigger>
+            <PopoverContent className="w-[280px] p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Search contract..." />
+                <CommandList>
+                  <CommandEmpty>No contract found.</CommandEmpty>
+                  <CommandGroup heading="View Mode">
+                    <CommandItem
+                      value="continuous back-adjusted"
+                      onSelect={() => {
+                        setContract("continuous");
+                        setContractOpen(false);
+                        setVisibleData([]);
+                        setHasMoreLeft(true);
+                        setHasMoreRight(false);
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <Check className={`h-3 w-3 ${contract === "continuous" ? 'opacity-100' : 'opacity-0'}`} />
+                      <span className="font-semibold text-xs">Continuous</span>
+                      <span className="text-muted-foreground text-[10px]">Back-adjusted</span>
+                    </CommandItem>
+                  </CommandGroup>
+                  <CommandGroup heading={`Individual Contracts (${contractsForSymbol.length})`}>
+                    {contractsForSymbol.map((c) => (
+                      <CommandItem
+                        key={c.symbol}
+                        value={c.symbol}
+                        onSelect={() => {
+                          setContract(c.symbol);
+                          setContractOpen(false);
+                          setVisibleData([]);
+                          setHasMoreLeft(true);
+                          setHasMoreRight(false);
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <Check className={`h-3 w-3 ${contract === c.symbol ? 'opacity-100' : 'opacity-0'}`} />
+                        <span className="font-mono font-semibold text-xs">{c.symbol}</span>
+                        <span className="text-muted-foreground text-[10px] ml-auto">
+                          {Number(c.row_count).toLocaleString()} bars
+                        </span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
 
       {/* Main content: Chart (65%) + Side panels (35%) */}
       <div className="flex gap-3 flex-1 min-h-0 overflow-hidden">
@@ -662,8 +767,13 @@ export default function DataSets() {
         <Card className="flex-[2] glass rounded-2xl gradient-border flex flex-col overflow-hidden">
           <CardHeader className="py-2 px-4 border-b border-white/5 shrink-0">
             <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-              <Sparkles className="h-3 w-3 text-primary" /> 
-              {symbol}
+              <Sparkles className="h-3 w-3 text-primary" />
+              {effectiveSymbol}
+              {contract !== "continuous" && (
+                <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-400 ml-1">
+                  Single Contract
+                </Badge>
+              )}
               <div className="flex items-center gap-1 ml-4">
                 {timeframes.map((tf) => (
                   <Button
@@ -682,12 +792,16 @@ export default function DataSets() {
                   </Button>
                 ))}
               </div>
+              <IndicatorSelector
+                catalog={catalog}
+                selectedColumns={selectedColumns}
+                onSelectionChange={setSelectedColumns}
+                isLoading={indicatorsLoading}
+              />
               <span className="ml-auto text-[10px] text-muted-foreground/60 flex items-center gap-2">
-                {isFutures 
-                  ? futuresSymbols.find(f => f.symbol === symbol)?.name 
-                  : forexSymbols.find(f => f.symbol === symbol)?.name}
+                {activeSymbols.find(s => s.symbol === symbol)?.name}
                 {rawData.length > 0 && ` • ${aggregatedData.length.toLocaleString()} bars`}
-                {isFutures && rollovers.length > 0 && (
+                {isFutures && isContinuous && rollovers.length > 0 && (
                   <span className="flex items-center gap-1 text-amber-400">
                     <ArrowRightLeft className="h-3 w-3" />
                     {rollovers.length} rollovers
@@ -704,22 +818,23 @@ export default function DataSets() {
           </CardHeader>
           <CardContent className="flex-1 p-2 min-h-0">
             {aggregatedData.length > 0 ? (
-              <TradingChart 
-                data={aggregatedData} 
-                symbol={symbol} 
+              <TradingChart
+                data={aggregatedData}
+                symbol={effectiveSymbol}
                 isFutures={isFutures}
                 timeframe={timeframe}
                 onLoadMore={useInfiniteScroll ? (isFutures ? handleLoadMore : handleForexLoadMore) : undefined}
                 isLoadingMore={isFutures ? isLoadingMore : forexIsLoadingMore}
                 hasMoreLeft={isFutures ? hasMoreLeft : forexHasMoreLeft}
                 hasMoreRight={isFutures ? hasMoreRight : forexHasMoreRight}
-                rollovers={isFutures ? rollovers : []}
+                rollovers={isFutures && isContinuous ? rollovers : []}
                 labelMarkers={showLabels ? visibleLabels : []}
+                indicatorOverlays={indicatorOverlays}
               />
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                 <Database className="h-12 w-12 mb-3 opacity-20" />
-                <p className="font-mono text-sm">No data for {symbol}</p>
+                <p className="font-mono text-sm">No data for {effectiveSymbol}</p>
                 <p className="text-xs text-muted-foreground/60 mt-1">Upload {isFutures ? 'futures' : 'forex'} data to see the chart</p>
               </div>
             )}
@@ -794,7 +909,7 @@ export default function DataSets() {
                         
                         previewMutation.mutate({
                           generatorType: selectedGenerator,
-                          symbol,
+                          symbol: effectiveSymbol,
                           params: currentParams,
                           limit: 500,
                           startTimestamp,
@@ -874,9 +989,10 @@ export default function DataSets() {
                 </div>
 
                 <div className="p-2 rounded-lg bg-white/5 mt-auto">
-                  <p className="font-mono text-sm text-primary">{symbol}</p>
+                  <p className="font-mono text-sm text-primary">{effectiveSymbol}</p>
                   <p className="text-[9px] text-muted-foreground">
-                    {isFutures ? futuresSymbols.find(f => f.symbol === symbol)?.name : forexSymbols.find(f => f.symbol === symbol)?.name}
+                    {activeSymbols.find(s => s.symbol === symbol)?.name}
+                    {contract !== "continuous" && " (Individual Contract)"}
                   </p>
                 </div>
               </CardContent>

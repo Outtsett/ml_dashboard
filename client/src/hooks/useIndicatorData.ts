@@ -1,0 +1,216 @@
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getIndicatorColor, getIndicatorLineWidth } from '@/lib/indicatorColors';
+
+// --- Types ---
+
+export type IndicatorDisplayType = 'overlay' | 'subchart' | 'marker';
+
+export interface IndicatorOverlay {
+  column: string;
+  data: { time: number; value: number }[];
+  color: string;
+  displayType: IndicatorDisplayType;
+  lineWidth: number;
+}
+
+export interface IndicatorCatalog {
+  categories: Record<string, string[]>;
+  total: number;
+  columns: string[];
+}
+
+// --- Constants ---
+
+const STORAGE_KEY = 'indicator-selection';
+
+const TIMEFRAME_MAP: Record<number, string> = {
+  1: '1m', 5: '5m', 15: '15m', 30: '30m',
+  60: '1h', 240: '4h', 1440: '1d', 10080: '1w',
+};
+
+/** Prefixes that render as overlays on the price chart (share Y-axis with candles). */
+const OVERLAY_PREFIXES = [
+  'SMA_', 'EMA_', 'WMA_', 'DEMA_', 'TEMA_', 'T3_', 'KAMA_', 'FWMA_', 'HMA_',
+  'ALMA_', 'TRIMA_', 'VIDYA_', 'VWMA_', 'SWMA_', 'SINWMA_', 'PWMA_', 'RMA_',
+  'ZL_', 'LINREG_', 'MIDPOINT_', 'MIDPRICE_',
+  'BBL_', 'BBM_', 'BBU_',
+  'KCL', 'KCB', 'KCU',
+  'DCL_', 'DCM_', 'DCU_',
+  'ACCBL_', 'ACCBM_', 'ACCBU_',
+  'SUPERTREND', 'SUPERTd', 'SUPERTl', 'SUPERTs',
+  'ISA_', 'ISB_', 'ITS_', 'IKS_', 'ICS_',
+  'PSARl_', 'PSARs_', 'PSARaf_', 'PSARr_',
+  'VWAP_', 'HWMA_',
+  'HA_', 'HILO',
+  'HILOl_', 'HILOs_',
+];
+
+/** Prefixes that render as markers on candles. */
+const MARKER_PREFIXES = ['CDL_'];
+
+// --- Helpers ---
+
+function classifyColumn(column: string): IndicatorDisplayType {
+  for (const prefix of MARKER_PREFIXES) {
+    if (column.startsWith(prefix)) return 'marker';
+  }
+  for (const prefix of OVERLAY_PREFIXES) {
+    if (column.startsWith(prefix)) return 'overlay';
+  }
+  return 'subchart';
+}
+
+function loadSelection(): string[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSelection(columns: string[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(columns));
+  } catch {
+    // ignore quota errors
+  }
+}
+
+// --- Hook ---
+
+export function useIndicatorData(
+  symbol: string,
+  timeframeMinutes: number,
+  isFutures: boolean,
+) {
+  const [selectedColumns, setSelectedColumnsRaw] = useState<string[]>(loadSelection);
+
+  const setSelectedColumns = useCallback((cols: string[]) => {
+    setSelectedColumnsRaw(cols);
+    saveSelection(cols);
+  }, []);
+
+  // Persist on mount (sync from localStorage in case another tab changed it)
+  useEffect(() => {
+    const stored = loadSelection();
+    if (stored.length > 0) setSelectedColumnsRaw(stored);
+  }, []);
+
+  const tfKey = TIMEFRAME_MAP[timeframeMinutes] || '1d';
+
+  // For futures continuous contracts, use root symbol (not contract code)
+  const apiSymbol = symbol;
+
+  // 1) Fetch catalog (cached indefinitely)
+  const catalogQuery = useQuery<IndicatorCatalog>({
+    queryKey: ['indicator-catalog'],
+    queryFn: async () => {
+      const res = await fetch('/api/indicators/catalog');
+      if (!res.ok) throw new Error('Failed to fetch indicator catalog');
+      return res.json();
+    },
+    staleTime: Infinity,
+    gcTime: 30 * 60 * 1000,
+  });
+
+  // 2) Fetch indicator data for selected columns
+  const nonMarkerColumns = selectedColumns.filter(c => !c.startsWith('CDL_'));
+  const markerColumns = selectedColumns.filter(c => c.startsWith('CDL_'));
+
+  const dataQuery = useQuery({
+    queryKey: ['indicator-data', apiSymbol, tfKey, nonMarkerColumns.sort().join(',')],
+    queryFn: async () => {
+      if (nonMarkerColumns.length === 0) return { data: [] };
+      const params = new URLSearchParams({
+        timeframe: tfKey,
+        columns: nonMarkerColumns.join(','),
+        limit: '2000',
+      });
+      const res = await fetch(`/api/indicators/data/${apiSymbol}?${params}`);
+      if (!res.ok) return { data: [] };
+      return res.json();
+    },
+    enabled: nonMarkerColumns.length > 0,
+    staleTime: 60_000,
+  });
+
+  // 3) Fetch pattern data for selected CDL columns
+  const patternQuery = useQuery({
+    queryKey: ['indicator-patterns', apiSymbol, tfKey, markerColumns.sort().join(',')],
+    queryFn: async () => {
+      const params = new URLSearchParams({ timeframe: tfKey, limit: '2000' });
+      const res = await fetch(`/api/indicators/patterns/${apiSymbol}?${params}`);
+      if (!res.ok) return { data: [] };
+      return res.json();
+    },
+    enabled: markerColumns.length > 0,
+    staleTime: 60_000,
+  });
+
+  // 4) Build overlays from fetched data
+  const overlays = useMemo<IndicatorOverlay[]>(() => {
+    const result: IndicatorOverlay[] = [];
+
+    // Non-marker overlays (line series)
+    if (dataQuery.data?.data?.length) {
+      const rows = dataQuery.data.data as Record<string, number | null>[];
+      for (const col of nonMarkerColumns) {
+        const displayType = classifyColumn(col);
+        const points: { time: number; value: number }[] = [];
+        for (const row of rows) {
+          const ts = row.timestamp;
+          const val = row[col];
+          if (ts != null && val != null && !isNaN(val as number)) {
+            points.push({ time: Math.floor((ts as number) / 1000), value: val as number });
+          }
+        }
+        if (points.length > 0) {
+          result.push({
+            column: col,
+            data: points,
+            color: getIndicatorColor(col),
+            displayType,
+            lineWidth: getIndicatorLineWidth(col),
+          });
+        }
+      }
+    }
+
+    // Marker overlays (CDL patterns)
+    if (patternQuery.data?.data?.length) {
+      const rows = patternQuery.data.data as Record<string, number | null>[];
+      for (const col of markerColumns) {
+        const points: { time: number; value: number }[] = [];
+        for (const row of rows) {
+          const ts = row.timestamp;
+          const val = row[col];
+          if (ts != null && val != null && val !== 0) {
+            points.push({ time: Math.floor((ts as number) / 1000), value: val as number });
+          }
+        }
+        if (points.length > 0) {
+          result.push({
+            column: col,
+            data: points,
+            color: getIndicatorColor(col),
+            displayType: 'marker',
+            lineWidth: 1,
+          });
+        }
+      }
+    }
+
+    return result;
+  }, [dataQuery.data, patternQuery.data, nonMarkerColumns, markerColumns]);
+
+  return {
+    catalog: catalogQuery.data ?? null,
+    catalogLoading: catalogQuery.isLoading,
+    selectedColumns,
+    setSelectedColumns,
+    overlays,
+    isLoading: dataQuery.isLoading || patternQuery.isLoading,
+  };
+}

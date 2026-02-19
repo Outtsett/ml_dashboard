@@ -13,3 +13,6 @@ pythonlibs.zip
 node_modules.zip
 .questdb.pid
 attached_assets/
+data
+.claude/settings.local.json
+.vscode/
