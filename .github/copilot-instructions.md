@@ -73,6 +73,35 @@ router.get('/endpoint', async (req: Request, res: Response) => {
 - **Indicators**: 344 pre-computed columns via pandas-ta (parquets in `data/indicators/`), 13 realtime SQL generators in `server/lib/indicators/sqlGenerator.ts`
 - **Continuous contracts**: DuckDB Panama back-adjustment via rollover schedule — `server/routes/instruments.ts` endpoint
 
+## Git Worktrees (Parallel Agent Work)
+
+This repo uses **git worktrees** so multiple agents can work on different branches simultaneously without conflicts. Each worktree is a full working directory with its own branch, sharing the same `.git` history.
+
+```
+E:\source\repos\ml_dashboard\                        ← main (feat/data-architecture-reorg)
+E:\source\repos\ml_dashboard_worktrees\frontend\     ← agent/frontend branch
+E:\source\repos\ml_dashboard_worktrees\backend\      ← agent/backend branch
+```
+
+**Workflow for parallel agents:**
+1. Each agent opens its own worktree folder as the workspace
+2. Each commits to its own branch independently — no merge conflicts during work
+3. When done, merge agent branches back into the main branch:
+   ```bash
+   git checkout feat/data-architecture-reorg
+   git merge agent/frontend
+   git merge agent/backend
+   ```
+
+**Useful commands:**
+```bash
+git worktree list                                    # Show all worktrees
+git worktree add ../ml_dashboard_worktrees/NAME BRANCH  # Add a new worktree
+git worktree remove ../ml_dashboard_worktrees/NAME      # Remove when done
+```
+
+**Rules:** Each worktree must be on a unique branch — two worktrees cannot checkout the same branch. The worktrees share `node_modules` via the main repo; run `npm install` from the main worktree only.
+
 ## Security
 
 - Rate limiting: API 100/min, ML 50/min, upload 10/min (`server/lib/rateLimiter.ts`)
