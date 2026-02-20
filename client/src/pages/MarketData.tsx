@@ -6,17 +6,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Database, Loader2, Sparkles, TrendingUp, DollarSign, ArrowRightLeft, Tag, Eye, Play, BarChart3, ChevronsUpDown, Check, Clock } from "lucide-react";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { Database, Loader2, Sparkles, TrendingUp, DollarSign, ArrowRightLeft, Tag, Eye, Play, BarChart3, ChevronsUpDown, Check, Clock, Layers, ZapOff, ChevronDown, ChevronRight } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import TradingChart, { LabelMarker } from "@/components/TradingChart";
-import { getCachedBars, cacheBars, clearSymbolCache, getCacheStats } from "@/lib/indexeddb";
-import { startAutoCleanup, stopAutoCleanup } from "@/lib/cacheManager";
+import { type LabelMarker } from "@/components/TradingChart";
+import IndicatorChartLayout from "@/components/IndicatorChartLayout";
+import { clearAllCache } from "@/lib/indexeddb";
 import { LABEL_GENERATORS, type LabelGeneratorKey } from "@shared/mlTaxonomy";
 import { useIndicatorData } from "@/hooks/useIndicatorData";
 import { IndicatorSelector } from "@/components/IndicatorSelector";
 import { useBreadcrumbs } from "@/hooks/useBreadcrumbs";
+import { computeSupportResistance, computeZigZag, computeSwingZigZag } from "@/lib/chartOverlays";
 
 const timeframes = [
   { label: "1m", minutes: 1 },
@@ -36,36 +38,7 @@ interface OhlcvData {
   low: number;
   close: number;
   volume: number;
-}
-
-function aggregateToTimeframe(data: OhlcvData[], timeframeMinutes: number): OhlcvData[] {
-  if (data.length === 0) return [];
-  
-  const intervalMs = timeframeMinutes * 60 * 1000;
-  const aggregated: Map<number, OhlcvData> = new Map();
-  
-  for (const candle of data) {
-    const periodStart = Math.floor(candle.timestamp / intervalMs) * intervalMs;
-    
-    const existing = aggregated.get(periodStart);
-    if (existing) {
-      existing.high = Math.max(existing.high, candle.high);
-      existing.low = Math.min(existing.low, candle.low);
-      existing.close = candle.close;
-      existing.volume += candle.volume;
-    } else {
-      aggregated.set(periodStart, {
-        timestamp: periodStart,
-        open: candle.open,
-        high: candle.high,
-        low: candle.low,
-        close: candle.close,
-        volume: candle.volume,
-      });
-    }
-  }
-  
-  return Array.from(aggregated.values()).sort((a, b) => a.timestamp - b.timestamp);
+  activeContract?: string;
 }
 
 interface Rollover {
@@ -92,7 +65,6 @@ export default function MarketData() {
   const [contract, setContract] = useState<string>("continuous"); // "continuous" or specific contract like "ESH5"
   const [timeframe, setTimeframe] = useState(1);
   const { toast } = useToast();
-  const [cacheStats, setCacheStats] = useState<{ totalBars: number; symbols: number; sizeEstimate: string } | null>(null);
   const [symbolOpen, setSymbolOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
 
@@ -112,6 +84,26 @@ export default function MarketData() {
     overlays: indicatorOverlays,
     isLoading: indicatorsLoading,
   } = useIndicatorData(symbol, timeframe, assetType === "futures");
+
+  // Callback for subchart panel close buttons to remove indicator columns
+  const handleRemoveIndicators = useCallback((columns: string[]) => {
+    const newSelection = selectedColumns.filter(c => !columns.includes(c));
+    setSelectedColumns(newSelection);
+  }, [selectedColumns, setSelectedColumns]);
+
+  // ── Chart overlay toggles (S/R + ZigZag) ──
+  const [showSR, setShowSR] = useState(false);
+  const [showZigZag, setShowZigZag] = useState(false);
+  const [showSwingZZ, setShowSwingZZ] = useState(false);
+
+  // ── Label preview panel collapse ──
+  const [labelPanelOpen, setLabelPanelOpen] = useState(() => {
+    const saved = localStorage.getItem('label_panel_open');
+    return saved !== null ? saved === 'true' : true;
+  });
+  useEffect(() => {
+    localStorage.setItem('label_panel_open', String(labelPanelOpen));
+  }, [labelPanelOpen]);
 
   const { data: rawInstruments } = useQuery<InstrumentInfo[]>({
     queryKey: ["/api/instruments"],
@@ -157,19 +149,10 @@ export default function MarketData() {
   // The effective symbol to pass to chart queries
   const effectiveSymbol = contract === "continuous" ? symbol : contract;
 
-  // Initialize cache auto-cleanup and fetch initial stats
+  // Clear any stale IndexedDB OHLCV cache from previous sessions on mount
   useEffect(() => {
-    startAutoCleanup();
-    getCacheStats().then(setCacheStats).catch(() => {});
-    return () => {
-      stopAutoCleanup();
-    };
+    clearAllCache().catch(() => {});
   }, []);
-
-  // Refresh cache stats when symbol or timeframe changes
-  useEffect(() => {
-    getCacheStats().then(setCacheStats).catch(() => {});
-  }, [effectiveSymbol, timeframe]);
 
   // Label preview state
   const [selectedGenerator, setSelectedGenerator] = useState<LabelGeneratorKey>("direction");
@@ -200,14 +183,23 @@ export default function MarketData() {
       return res.json();
     },
     onSuccess: (data) => {
-      if (data.success && data.preview) {
-        const markers: LabelMarker[] = data.preview.map((row: Record<string, unknown>) => ({
-          timestamp: row.timestamp as number,
-          label: row.label as number | null,
-          close: row.close as number,
-        }));
+      if (data.success && data.preview && data.preview.length > 0) {
+        const markers: LabelMarker[] = data.preview
+          .filter((row: Record<string, unknown>) => row.label !== null && row.label !== undefined)
+          .map((row: Record<string, unknown>) => ({
+            timestamp: row.timestamp as number,
+            label: row.label as number | null,
+            close: row.close as number,
+          }));
         setLabelPreview(markers);
         setShowLabels(true);
+      } else if (data.error && data.preview?.length === 0) {
+        toast({
+          title: "Not Supported for Preview",
+          description: data.error,
+        });
+        setLabelPreview([]);
+        setShowLabels(false);
       }
     },
     onError: () => {
@@ -233,94 +225,71 @@ export default function MarketData() {
   
   // Keep track of visible range for sliding window
   const visibleRangeRef = useRef<{ start: number; end: number } | null>(null);
-  const MAX_BARS_IN_MEMORY = 5000; // Keep max 5000 bars in memory
+  const isLoadingMoreRef = useRef(false);
+  const MAX_BARS_IN_MEMORY = 50000; // Keep max 50K bars in memory (~2.5MB)
+  
+  // Adaptive fetch limit: scale down for higher timeframes to avoid over-fetching
+  const FETCH_LIMIT = useMemo(() => {
+    if (timeframe <= 1) return 10000;
+    if (timeframe <= 5) return 5000;
+    if (timeframe <= 15) return 3000;
+    if (timeframe <= 30) return 2000;
+    if (timeframe <= 60) return 1500;
+    if (timeframe <= 240) return 1000;
+    if (timeframe <= 1440) return 500;
+    return 250; // weekly
+  }, [timeframe]);
 
-  // Helper to cache bars in IndexedDB
-  const cacheNewBars = useCallback(async (bars: OhlcvData[]) => {
-    if (bars.length === 0) return;
-    const tfString = timeframe.toString();
-    await cacheBars(effectiveSymbol, tfString, bars.map(b => ({
-      timestamp: b.timestamp,
-      open: b.open,
-      high: b.high,
-      low: b.low,
-      close: b.close,
-      volume: b.volume
-    })));
-    // Update cache stats after caching
-    getCacheStats().then(setCacheStats).catch(() => {});
-  }, [effectiveSymbol, timeframe]);
-
-  // Helper to get bars from cache
-  const getBarsFromCache = useCallback(async (startTs: number, endTs: number): Promise<OhlcvData[]> => {
-    const tfString = timeframe.toString();
-    const cached = await getCachedBars(effectiveSymbol, tfString, startTs, endTs);
-    return cached.map(b => ({
-      symbol: b.symbol,
-      timestamp: b.timestamp,
-      open: b.open,
-      high: b.high,
-      low: b.low,
-      close: b.close,
-      volume: b.volume
-    }));
-  }, [effectiveSymbol, timeframe]);
+  // Reset futures infinite scroll state when symbol, timeframe, or contract changes
+  useEffect(() => {
+    if (isFutures) {
+      setVisibleData([]);
+      setHasMoreLeft(true);
+      setHasMoreRight(false);
+      isLoadingMoreRef.current = false;
+    }
+  }, [effectiveSymbol, timeframe, isFutures]);
 
   const { data: parquetData, isLoading: isParquetLoading, refetch: refetchParquet } = useQuery({
     queryKey: ["/api/parquet", effectiveSymbol, "aggregated", timeframe],
     queryFn: async () => {
-      const response = await fetch(`/api/parquet/${effectiveSymbol}/aggregated?timeframe=${timeframe}&limit=2000`);
+      const response = await fetch(`/api/parquet/${effectiveSymbol}/aggregated?timeframe=${timeframe}&limit=${FETCH_LIMIT}`);
       if (!response.ok) return [];
       const data = await response.json();
       setVisibleData(data);
       setHasMoreLeft(data.length > 0);
       setHasMoreRight(false);
-      cacheNewBars(data);
       return data;
     },
     enabled: isFutures,
   });
 
-  // Load more data when user scrolls to edges - with caching
+  // Load more data when user scrolls to edges (server-side LRU handles caching)
   const handleLoadMore = useCallback(async (direction: 'left' | 'right', timestamp: number) => {
-    if (isLoadingMore) return;
-
+    if (isLoadingMoreRef.current) return;
+    isLoadingMoreRef.current = true;
     setIsLoadingMore(true);
     try {
-      let newData: OhlcvData[] = [];
+      // Always fetch from server — server-side LRU cache handles dedup
+      let url = (isFutures && isContinuous)
+        ? `/api/continuous/${effectiveSymbol}?timeframe=${timeframe}&limit=${FETCH_LIMIT}`
+        : isFutures
+          ? `/api/parquet/${effectiveSymbol}/aggregated?timeframe=${timeframe}&limit=${FETCH_LIMIT}`
+          : `/api/ohlcv/${effectiveSymbol}?timeframe=${timeframe * 60}s&limit=${FETCH_LIMIT}`;
 
-      const rangeMs = 2000 * timeframe * 60 * 1000;
-      if (direction === 'left') {
-        const cached = await getBarsFromCache(timestamp - rangeMs, timestamp - 1);
-        if (cached.length > 100) newData = cached.slice(-2000);
-      } else {
-        const cached = await getBarsFromCache(timestamp + 1, timestamp + rangeMs);
-        if (cached.length > 100) newData = cached.slice(0, 2000);
-      }
+      if (direction === 'left') url += `&endTime=${timestamp - 1}`;
+      else url += `&startTime=${timestamp + 1}`;
 
-      if (newData.length === 0) {
-        // For continuous futures use continuous endpoint, for individual contracts use parquet
-        let url = (isFutures && isContinuous)
-          ? `/api/continuous/${effectiveSymbol}?timeframe=${timeframe}&limit=2000`
-          : isFutures
-            ? `/api/parquet/${effectiveSymbol}/aggregated?timeframe=${timeframe}&limit=2000`
-            : `/api/ohlcv/${effectiveSymbol}?timeframe=${timeframe}&limit=2000`;
+      const response = await fetch(url);
+      if (!response.ok) { isLoadingMoreRef.current = false; setIsLoadingMore(false); return; }
 
-        if (direction === 'left') url += `&endTime=${timestamp - 1}`;
-        else url += `&startTime=${timestamp + 1}`;
-
-        const response = await fetch(url);
-        if (!response.ok) { setIsLoadingMore(false); return; }
-
-        const result = await response.json();
-        newData = Array.isArray(result) ? result : (result.data || []);
-
-        if (newData.length > 0) await cacheNewBars(newData);
-      }
+      const result = await response.json();
+      const newData: OhlcvData[] = Array.isArray(result) ? result : (result.data || []);
 
       if (newData.length === 0) {
         if (direction === 'left') setHasMoreLeft(false);
         else setHasMoreRight(false);
+        isLoadingMoreRef.current = false;
         setIsLoadingMore(false);
         return;
       }
@@ -354,20 +323,21 @@ export default function MarketData() {
         return deduped;
       });
 
-      if (newData.length < 2000) {
+      if (newData.length < FETCH_LIMIT) {
         if (direction === 'left') setHasMoreLeft(false);
         else setHasMoreRight(false);
       }
     } catch (error) {
       console.error('Error loading more data:', error);
     }
+    isLoadingMoreRef.current = false;
     setIsLoadingMore(false);
-  }, [effectiveSymbol, timeframe, isLoadingMore, isFutures, isContinuous, cacheNewBars, getBarsFromCache]);
+  }, [effectiveSymbol, timeframe, isFutures, isContinuous, FETCH_LIMIT]);
 
   const { data: continuousData } = useQuery({
     queryKey: ["/api/continuous", symbol, timeframe],
     queryFn: async () => {
-      const response = await fetch(`/api/continuous/${symbol}?timeframe=${timeframe}&limit=500`);
+      const response = await fetch(`/api/continuous/${symbol}?timeframe=${timeframe}&limit=${FETCH_LIMIT}`);
       if (!response.ok) return { data: [], rollovers: [] };
       const result = await response.json();
       if (result.data && result.data.length > 0) {
@@ -390,58 +360,39 @@ export default function MarketData() {
     queryKey: ["/api/ohlcv", effectiveSymbol, timeframe],
     queryFn: async () => {
       const timeframeSec = timeframe * 60;
-      const response = await fetch(`/api/ohlcv/${effectiveSymbol}?timeframe=${timeframeSec}s&limit=2000`);
+      const response = await fetch(`/api/ohlcv/${effectiveSymbol}?timeframe=${timeframeSec}s&limit=${FETCH_LIMIT}`);
       if (!response.ok) return [];
       const data = await response.json();
       setForexVisibleData(data);
-      setForexHasMoreLeft(data.length >= 500);
-      cacheNewBars(data);
+      setForexHasMoreLeft(data.length > 0);
+      setForexHasMoreRight(false);
       return data;
     },
     enabled: !isFutures,
   });
 
-  // Load more forex data when user scrolls to edges
-  const handleForexLoadMore = useCallback(async (direction: 'left' | 'right', timestamp: number) => {
-    if (forexIsLoadingMore || isFutures) return;
+  // Load more forex data when user scrolls to edges (server-side LRU handles caching)
+  const forexIsLoadingMoreRef = useRef(false);
 
+  const handleForexLoadMore = useCallback(async (direction: 'left' | 'right', timestamp: number) => {
+    if (forexIsLoadingMoreRef.current || isFutures) return;
+    forexIsLoadingMoreRef.current = true;
     setForexIsLoadingMore(true);
     try {
-      const tfString = timeframe.toString();
       let newData: OhlcvData[] = [];
 
-      // First try cache (query actual bars, not metadata)
-      const rangeMs = 2000 * timeframe * 60 * 1000;
+      // Always fetch from server — server-side LRU cache handles dedup
+      const timeframeSec = timeframe * 60;
+      let url = `/api/ohlcv/${effectiveSymbol}?timeframe=${timeframeSec}s&limit=${FETCH_LIMIT}`;
       if (direction === 'left') {
-        const cached = await getBarsFromCache(timestamp - rangeMs, timestamp - 1);
-        if (cached.length > 100) {
-          newData = cached.slice(-2000);
-        }
+        url += `&endTime=${timestamp}`;
       } else {
-        const cached = await getBarsFromCache(timestamp + 1, timestamp + rangeMs);
-        if (cached.length > 100) {
-          newData = cached.slice(0, 2000);
-        }
+        url += `&startTime=${timestamp}`;
       }
 
-      // Fetch from server if no sufficient cache hit
-      if (newData.length === 0) {
-        const timeframeSec = timeframe * 60;
-        let url = `/api/ohlcv/${effectiveSymbol}?timeframe=${timeframeSec}s&limit=2000`;
-        if (direction === 'left') {
-          url += `&endTime=${timestamp}`;
-        } else {
-          url += `&startTime=${timestamp}`;
-        }
-
-        const response = await fetch(url);
-        if (response.ok) {
-          newData = await response.json();
-          // Cache the new data
-          if (newData.length > 0) {
-            await cacheNewBars(newData);
-          }
-        }
+      const response = await fetch(url);
+      if (response.ok) {
+        newData = await response.json();
       }
 
       if (newData.length > 0) {
@@ -477,7 +428,7 @@ export default function MarketData() {
         });
 
         // Update hasMore flags based on fetch size
-        if (newData.length < 2000) {
+        if (newData.length < FETCH_LIMIT) {
           if (direction === 'left') setForexHasMoreLeft(false);
           else setForexHasMoreRight(false);
         }
@@ -486,9 +437,10 @@ export default function MarketData() {
         else setForexHasMoreRight(false);
       }
     } finally {
+      forexIsLoadingMoreRef.current = false;
       setForexIsLoadingMore(false);
     }
-  }, [effectiveSymbol, timeframe, forexIsLoadingMore, isFutures, cacheNewBars, getBarsFromCache]);
+  }, [effectiveSymbol, timeframe, isFutures, FETCH_LIMIT]);
 
   // Reset forex data when symbol or timeframe changes
   useEffect(() => {
@@ -531,15 +483,41 @@ export default function MarketData() {
     ? (visibleData.length > 0 ? visibleData : (parquetData && parquetData.length > 0 ? parquetData : (continuousData?.data || []))) 
     : (forexVisibleData.length > 0 ? forexVisibleData : (ohlcvData || []));
   
-  // Both futures and forex now use server-side aggregation
-  const aggregatedData = useMemo(() => {
-    return rawData;
-  }, [rawData]);
+  // Both futures and forex use server-side aggregation — no client-side processing needed
+  const chartData = rawData;
+
+  // ── Compute chart overlays from chart data ──
+  const srLevels = useMemo(() => {
+    if (!showSR || chartData.length < 20) return [];
+    const bars = chartData.map((d: OhlcvData) => {
+      const ts = typeof d.timestamp === 'string' ? parseInt(d.timestamp, 10) : d.timestamp;
+      return { time: ts > 1e12 ? Math.floor(ts / 1000) : ts, open: d.open, high: d.high, low: d.low, close: d.close };
+    });
+    return computeSupportResistance(bars, 5, 10);
+  }, [showSR, chartData]);
+
+  const zigZagPts = useMemo(() => {
+    if (!showZigZag || chartData.length < 10) return [];
+    const bars = chartData.map((d: OhlcvData) => {
+      const ts = typeof d.timestamp === 'string' ? parseInt(d.timestamp, 10) : d.timestamp;
+      return { time: ts > 1e12 ? Math.floor(ts / 1000) : ts, open: d.open, high: d.high, low: d.low, close: d.close };
+    });
+    return computeZigZag(bars, 0);
+  }, [showZigZag, chartData]);
+
+  const swingZZPts = useMemo(() => {
+    if (!showSwingZZ || chartData.length < 10) return [];
+    const bars = chartData.map((d: OhlcvData) => {
+      const ts = typeof d.timestamp === 'string' ? parseInt(d.timestamp, 10) : d.timestamp;
+      return { time: ts > 1e12 ? Math.floor(ts / 1000) : ts, open: d.open, high: d.high, low: d.low, close: d.close };
+    });
+    return computeSwingZigZag(bars);
+  }, [showSwingZZ, chartData]);
 
   // Keep the generate function ref up to date
   generateLabelsRef.current = () => {
-    if (aggregatedData.length === 0 || previewMutation.isPending) return;
-    const timestamps = aggregatedData.map((d: OhlcvData) => d.timestamp);
+    if (chartData.length === 0 || previewMutation.isPending) return;
+    const timestamps = chartData.map((d: OhlcvData) => d.timestamp);
     const startTimestamp = timestamps.length > 0 ? Math.min(...timestamps) : undefined;
     const endTimestamp = timestamps.length > 0 ? Math.max(...timestamps) : undefined;
     previewMutation.mutate({
@@ -555,23 +533,23 @@ export default function MarketData() {
 
   // Auto-generate labels when generator, symbol, timeframe, or params change (if labels are showing)
   useEffect(() => {
-    if (!showLabels || aggregatedData.length === 0) return;
+    if (!showLabels || chartData.length === 0) return;
     // Debounce to avoid rapid re-fires when params change quickly
     const timer = setTimeout(() => {
       generateLabelsRef.current();
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGenerator, effectiveSymbol, timeframe, currentParams, showLabels, aggregatedData.length]);
+  }, [selectedGenerator, effectiveSymbol, timeframe, currentParams, showLabels, chartData.length]);
 
   // Filter labels to only show those within the visible data range
   const visibleLabels = useMemo(() => {
-    if (!showLabels || labelPreview.length === 0 || aggregatedData.length === 0) {
+    if (!showLabels || labelPreview.length === 0 || chartData.length === 0) {
       return [];
     }
 
-    // Both aggregatedData and label timestamps may be in ms or seconds — normalize both to seconds
-    const sampleDataTs = aggregatedData[0].timestamp;
+    // Both chartData and label timestamps may be in ms or seconds — normalize both to seconds
+    const sampleDataTs = chartData[0].timestamp;
     const dataInMs = sampleDataTs > 1e12;
 
     const toSec = (ts: number) => ts > 1e12 ? Math.floor(ts / 1000) : ts;
@@ -579,13 +557,13 @@ export default function MarketData() {
 
     // Build a set of candle timestamps in seconds, aligned to the current timeframe
     const dataTimestamps = new Set(
-      aggregatedData.map((d: OhlcvData) => {
+      chartData.map((d: OhlcvData) => {
         const sec = toSec(d.timestamp);
         return Math.floor(sec / timeframeSec) * timeframeSec;
       })
     );
-    const minTs = toSec(aggregatedData[0].timestamp);
-    const maxTs = toSec(aggregatedData[aggregatedData.length - 1].timestamp);
+    const minTs = toSec(chartData[0].timestamp);
+    const maxTs = toSec(chartData[chartData.length - 1].timestamp);
 
     // Only include labels that fall within the visible data range
     return labelPreview.filter(label => {
@@ -597,7 +575,7 @@ export default function MarketData() {
         alignedTs <= maxTs &&
         dataTimestamps.has(alignedTs);
     });
-  }, [labelPreview, aggregatedData, showLabels, timeframe]);
+  }, [labelPreview, chartData, showLabels, timeframe]);
 
   // Compute label distribution from visible labels only
   const labelDistribution = useMemo(() => {
@@ -624,11 +602,9 @@ export default function MarketData() {
     : forexVisibleData.length > 0;
 
   const selectSymbol = async (sym: string, type: "futures" | "forex") => {
-    // Clear old cache for this symbol to ensure fresh back-adjusted data
-    await clearSymbolCache(sym);
     setSymbol(sym);
     setAssetType(type);
-    setContract("continuous"); // Reset to continuous when changing root symbol
+    setContract("continuous");
     // Reset infinite scroll state when changing symbols
     setVisibleData([]);
     setHasMoreLeft(true);
@@ -636,6 +612,7 @@ export default function MarketData() {
     // Reset forex scroll state too
     setForexVisibleData([]);
     setForexHasMoreLeft(true);
+    setForexHasMoreRight(false);
   };
 
   return (
@@ -643,25 +620,12 @@ export default function MarketData() {
       <div className="flex justify-between items-center shrink-0">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500/30 to-teal-500/30 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-linear-to-br from-violet-500/30 to-teal-500/30 flex items-center justify-center">
               <Database className="h-5 w-5 text-violet-300" />
             </div>
             <span className="text-sm font-medium text-violet-300/80">Market Data</span>
           </div>
-          <h1 className="text-4xl font-display font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Market Data</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          {cacheStats && (
-            <div 
-              data-testid="cache-stats-indicator"
-              className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 flex items-center gap-2"
-            >
-              <div data-testid="cache-status-dot" className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-              <span className="text-xs text-muted-foreground">Cache:</span>
-              <span data-testid="text-cache-size" className="text-xs font-mono text-teal-400">{cacheStats.sizeEstimate}</span>
-              <span data-testid="text-cache-bars" className="text-[10px] text-muted-foreground">({cacheStats.totalBars.toLocaleString()} bars)</span>
-            </div>
-          )}
+          <h1 className="text-4xl font-display font-bold bg-linear-to-r from-white to-white/60 bg-clip-text text-transparent">Market Data</h1>
         </div>
       </div>
 
@@ -797,14 +761,20 @@ export default function MarketData() {
         )}
       </div>
 
-      {/* Main content: Chart (65%) + Side panels (35%) */}
-      <div className="flex gap-3 flex-1 min-h-0 overflow-hidden">
-        {/* Chart Panel - 65% of screen */}
-        <Card className="flex-[2] glass rounded-2xl gradient-border flex flex-col overflow-hidden">
+      {/* Main content: Chart + Side panels — resizable */}
+      <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
+        <ResizablePanel defaultSize={70} minSize={40} className="overflow-hidden">
+        {/* Chart Panel */}
+        <Card className="h-full glass rounded-2xl gradient-border flex flex-col overflow-hidden">
           <CardHeader className="py-2 px-4 border-b border-white/5 shrink-0">
             <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
               <Sparkles className="h-3 w-3 text-primary" />
               {effectiveSymbol}
+              {isFutures && isContinuous && continuousData?.data?.length > 0 && (
+                <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-400 ml-0.5">
+                  {continuousData.data[continuousData.data.length - 1]?.activeContract || 'Continuous'}
+                </Badge>
+              )}
               {contract !== "continuous" && (
                 <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-400 ml-1">
                   Single Contract
@@ -834,9 +804,54 @@ export default function MarketData() {
                 onSelectionChange={setSelectedColumns}
                 isLoading={indicatorsLoading}
               />
+              {/* Chart overlay toggles */}
+              <div className="flex items-center gap-0.5 ml-1">
+                <Button
+                  variant={showSR ? "default" : "ghost"}
+                  size="sm"
+                  className={`h-6 px-2 text-[10px] font-mono gap-1 ${
+                    showSR
+                      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                      : "text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10"
+                  }`}
+                  onClick={() => setShowSR(v => !v)}
+                  title="Support & Resistance levels"
+                >
+                  <Layers className="h-3 w-3" />
+                  S/R
+                </Button>
+                <Button
+                  variant={showZigZag ? "default" : "ghost"}
+                  size="sm"
+                  className={`h-6 px-2 text-[10px] font-mono gap-1 ${
+                    showZigZag
+                      ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                      : "text-muted-foreground hover:text-yellow-400 hover:bg-yellow-500/10"
+                  }`}
+                  onClick={() => setShowZigZag(v => !v)}
+                  title="ZigZag (ATR-filtered swings)"
+                >
+                  <ZapOff className="h-3 w-3" />
+                  ZZ
+                </Button>
+                <Button
+                  variant={showSwingZZ ? "default" : "ghost"}
+                  size="sm"
+                  className={`h-6 px-2 text-[10px] font-mono gap-1 ${
+                    showSwingZZ
+                      ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                      : "text-muted-foreground hover:text-cyan-400 hover:bg-cyan-500/10"
+                  }`}
+                  onClick={() => setShowSwingZZ(v => !v)}
+                  title="Swing ZigZag (every high/low)"
+                >
+                  <TrendingUp className="h-3 w-3" />
+                  SW
+                </Button>
+              </div>
               <span className="ml-auto text-[10px] text-muted-foreground/60 flex items-center gap-2">
                 {activeSymbols.find(s => s.symbol === symbol)?.name}
-                {rawData.length > 0 && ` • ${aggregatedData.length.toLocaleString()} bars`}
+                {rawData.length > 0 && ` \u2022 ${chartData.length.toLocaleString()} bars`}
                 {isFutures && isContinuous && rollovers.length > 0 && (
                   <span className="flex items-center gap-1 text-amber-400">
                     <ArrowRightLeft className="h-3 w-3" />
@@ -853,9 +868,9 @@ export default function MarketData() {
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 p-2 min-h-0">
-            {aggregatedData.length > 0 ? (
-              <TradingChart
-                data={aggregatedData}
+            {chartData.length > 0 ? (
+              <IndicatorChartLayout
+                data={chartData}
                 symbol={effectiveSymbol}
                 isFutures={isFutures}
                 timeframe={timeframe}
@@ -866,6 +881,10 @@ export default function MarketData() {
                 rollovers={isFutures && isContinuous ? rollovers : []}
                 labelMarkers={showLabels ? visibleLabels : []}
                 indicatorOverlays={indicatorOverlays}
+                onRemoveIndicators={handleRemoveIndicators}
+                supportResistanceLevels={srLevels}
+                zigZagPoints={zigZagPts}
+                swingZigZagPoints={swingZZPts}
               />
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
@@ -876,12 +895,16 @@ export default function MarketData() {
             )}
           </CardContent>
         </Card>
+        </ResizablePanel>
 
-        {/* Side Panels - 35% of screen */}
-        <div className="flex-1 flex flex-col gap-3 min-h-0 overflow-hidden">
-          <Card className="glass rounded-2xl gradient-border flex flex-col overflow-hidden flex-1">
-              <CardHeader className="py-2 px-4 border-b border-white/5 shrink-0">
+        <ResizableHandle withHandle className="mx-1 opacity-50 hover:opacity-100 transition-opacity" />
+
+        <ResizablePanel defaultSize={30} minSize={10} maxSize={50} collapsible collapsedSize={3} className="overflow-hidden">
+        {/* Side Panels */}
+          <Card className="glass rounded-2xl gradient-border flex flex-col overflow-hidden h-full">
+              <CardHeader className="py-2 px-4 border-b border-white/5 shrink-0 cursor-pointer select-none" onClick={() => setLabelPanelOpen(v => !v)}>
                 <CardTitle className="text-xs font-medium text-violet-400 flex items-center gap-2">
+                  {labelPanelOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                   <Tag className="h-3 w-3" /> Label Preview
                   {showLabels && visibleLabels.length > 0 && (
                     <Badge variant="outline" className="ml-auto text-[10px] border-green-500/30 text-green-400">
@@ -890,7 +913,7 @@ export default function MarketData() {
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-2 pb-3 space-y-3 flex-1 overflow-auto">
+              {labelPanelOpen && <CardContent className="pt-2 pb-3 space-y-3 flex-1 overflow-auto">
                 <div className="space-y-2">
                   <div className="space-y-1">
                     <label className="text-[10px] text-muted-foreground">Generator</label>
@@ -936,8 +959,8 @@ export default function MarketData() {
                     <Button
                       size="sm"
                       onClick={() => generateLabelsRef.current()}
-                      disabled={previewMutation.isPending || aggregatedData.length === 0}
-                      className="flex-1 h-7 text-[10px] bg-gradient-to-r from-violet-600 to-teal-500"
+                      disabled={previewMutation.isPending || chartData.length === 0}
+                      className="flex-1 h-7 text-[10px] bg-linear-to-r from-violet-600 to-teal-500"
                       data-testid="button-preview-labels"
                     >
                       {previewMutation.isPending ? (
@@ -1015,10 +1038,10 @@ export default function MarketData() {
                     {contract !== "continuous" && " (Individual Contract)"}
                   </p>
                 </div>
-              </CardContent>
+              </CardContent>}
             </Card>
-        </div>
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }
