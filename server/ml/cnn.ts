@@ -12,11 +12,11 @@ export interface CNNConfig {
 
 export const defaultConfig: CNNConfig = {
   sequenceLength: 60,
-  numFeatures: 5,
-  filters: [32, 64, 128],
-  kernelSizes: [3, 3, 3],
-  dropoutRate: 0.2,
-  learningRate: 0.001,
+  numFeatures: 30, // Universal pipeline: ~30 instrument-agnostic features
+  filters: [64, 128, 256],
+  kernelSizes: [3, 5, 3],
+  dropoutRate: 0.3,
+  learningRate: 0.0005,
   outputSize: 3,
 };
 

@@ -61,9 +61,9 @@ export interface IStorage {
   getOhlcvPartitionedRange(symbol: string, options: { startTime?: number; endTime?: number; limit?: number; timeframeSeconds?: number }): Promise<Ohlcv[]>;
 
   // TimescaleDB hypertable methods
-  getForexTimescale(symbol: string, limit?: number, timeframeSeconds?: number): Promise<Ohlcv[]>;
+  getForexTimescale(symbol: string, limit?: number, timeframeSeconds?: number, loadFromEnd?: boolean): Promise<Ohlcv[]>;
   getForexTimescaleRange(symbol: string, options: { startTime?: number; endTime?: number; limit?: number; timeframeSeconds?: number }): Promise<Ohlcv[]>;
-  getFuturesTimescale(symbol: string, limit?: number, timeframeSeconds?: number): Promise<Ohlcv[]>;
+  getFuturesTimescale(symbol: string, limit?: number, timeframeSeconds?: number, loadFromEnd?: boolean): Promise<Ohlcv[]>;
   getFuturesTimescaleRange(symbol: string, options: { startTime?: number; endTime?: number; limit?: number; timeframeSeconds?: number }): Promise<Ohlcv[]>;
 
   // Instrument metadata
@@ -676,10 +676,11 @@ export class DatabaseStorage implements IStorage {
    * Query forex_1m hypertable with time_bucket aggregation.
    * Returns latest N candles for the given symbol/timeframe.
    */
-  async getForexTimescale(symbol: string, limit: number = 500, timeframeSeconds: number = 60): Promise<Ohlcv[]> {
+  async getForexTimescale(symbol: string, limit: number = 500, timeframeSeconds: number = 60, loadFromEnd: boolean = true): Promise<Ohlcv[]> {
     const client = await pool.connect();
     try {
       const interval = `${timeframeSeconds} seconds`;
+      const orderDir = loadFromEnd ? 'DESC' : 'ASC';
       const result = await client.query(`
         SELECT
           EXTRACT(EPOCH FROM time_bucket($2::interval, ts))::bigint * 1000 AS timestamp,
@@ -692,10 +693,13 @@ export class DatabaseStorage implements IStorage {
         FROM forex_1m
         WHERE symbol = $1
         GROUP BY time_bucket($2::interval, ts)
-        ORDER BY timestamp DESC
+        ORDER BY timestamp ${orderDir}
         LIMIT $3
       `, [symbol, interval, limit]);
-      return result.rows;
+      const rows = result.rows;
+      // When loading from end (DESC), reverse to chronological order
+      if (loadFromEnd) rows.reverse();
+      return rows;
     } finally {
       client.release();
     }
@@ -902,7 +906,7 @@ export class DatabaseStorage implements IStorage {
    * Query ohlcv_1s hypertable for futures with time_bucket aggregation.
    * Supports both base symbols (ES -> continuous) and specific contracts (ESH24).
    */
-  async getFuturesTimescale(symbol: string, limit: number = 500, timeframeSeconds: number = 60): Promise<Ohlcv[]> {
+  async getFuturesTimescale(symbol: string, limit: number = 500, timeframeSeconds: number = 60, loadFromEnd: boolean = true): Promise<Ohlcv[]> {
     const client = await pool.connect();
     try {
       const interval = `${timeframeSeconds} seconds`;
@@ -914,28 +918,51 @@ export class DatabaseStorage implements IStorage {
       }
 
       // For specific contracts (ESH24), query ohlcv_1s directly
-      const maxTs = await this.getMaxTimestamp(client, symbol, false);
-      if (!maxTs) return [];
-      const bufferMult = timeframeSeconds >= 86400 ? 1.5 : 3;
-      const windowSeconds = Math.min(limit * timeframeSeconds * bufferMult, 5 * 365 * 86400);
+      const orderDir = loadFromEnd ? 'DESC' : 'ASC';
+      if (loadFromEnd) {
+        const maxTs = await this.getMaxTimestamp(client, symbol, false);
+        if (!maxTs) return [];
+        const bufferMult = timeframeSeconds >= 86400 ? 1.5 : 3;
+        const windowSeconds = Math.min(limit * timeframeSeconds * bufferMult, 5 * 365 * 86400);
 
-      const result = await client.query(`
-        SELECT
-          EXTRACT(EPOCH FROM time_bucket($2::interval, ts))::bigint * 1000 AS timestamp,
-          $1::text AS symbol,
-          (array_agg(open ORDER BY ts ASC))[1] AS open,
-          MAX(high) AS high,
-          MIN(low) AS low,
-          (array_agg(close ORDER BY ts DESC))[1] AS close,
-          COALESCE(SUM(volume)::bigint, 0) AS volume
-        FROM ohlcv_1s
-        WHERE symbol = $1
-          AND ts >= $3::timestamptz - make_interval(secs => $4::int)
-        GROUP BY time_bucket($2::interval, ts)
-        ORDER BY timestamp DESC
-        LIMIT $5
-      `, [symbol, interval, maxTs, windowSeconds, limit]);
-      return result.rows;
+        const result = await client.query(`
+          SELECT
+            EXTRACT(EPOCH FROM time_bucket($2::interval, ts))::bigint * 1000 AS timestamp,
+            $1::text AS symbol,
+            (array_agg(open ORDER BY ts ASC))[1] AS open,
+            MAX(high) AS high,
+            MIN(low) AS low,
+            (array_agg(close ORDER BY ts DESC))[1] AS close,
+            COALESCE(SUM(volume)::bigint, 0) AS volume
+          FROM ohlcv_1s
+          WHERE symbol = $1
+            AND ts >= $3::timestamptz - make_interval(secs => $4::int)
+          GROUP BY time_bucket($2::interval, ts)
+          ORDER BY timestamp DESC
+          LIMIT $5
+        `, [symbol, interval, maxTs, windowSeconds, limit]);
+        const rows = result.rows;
+        rows.reverse();
+        return rows;
+      } else {
+        // Load from start - get earliest data
+        const result = await client.query(`
+          SELECT
+            EXTRACT(EPOCH FROM time_bucket($2::interval, ts))::bigint * 1000 AS timestamp,
+            $1::text AS symbol,
+            (array_agg(open ORDER BY ts ASC))[1] AS open,
+            MAX(high) AS high,
+            MIN(low) AS low,
+            (array_agg(close ORDER BY ts DESC))[1] AS close,
+            COALESCE(SUM(volume)::bigint, 0) AS volume
+          FROM ohlcv_1s
+          WHERE symbol = $1
+          GROUP BY time_bucket($2::interval, ts)
+          ORDER BY timestamp ASC
+          LIMIT $3
+        `, [symbol, interval, limit]);
+        return result.rows;
+      }
     } finally {
       client.release();
     }

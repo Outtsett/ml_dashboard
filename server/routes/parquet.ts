@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { queryParquetOHLCV, queryParquetOHLCVAggregated, getParquetStats, listParquetFiles } from "../duckdb";
 import { getString } from "./helpers";
+import { ohlcvCache, cachedQuery, OHLCVCache } from "../lib/ohlcvCache";
 
 const router = Router();
 
@@ -55,19 +56,24 @@ router.get("/parquet/:symbol/aggregated", async (req: Request, res: Response) =>
     const startTime = req.query.startTime ? parseInt(getString(req.query.startTime as string)) : undefined;
     const endTime = req.query.endTime ? parseInt(getString(req.query.endTime as string)) : undefined;
     const requestedLimit = req.query.limit ? parseInt(getString(req.query.limit as string)) : 2000;
-    const limit = Math.min(requestedLimit, 5000);
+    const hasTimeFilter2 = startTime !== undefined || endTime !== undefined;
+    const maxLimit2 = hasTimeFilter2 ? 50000 : 20000;
+    const limit = Math.min(requestedLimit, maxLimit2);
+    const loadFromEnd = req.query.loadFromStart !== 'true'; // default: load most recent
 
     // Use pre-aggregated files if available (much faster)
     const { queryPreAggregatedParquet, hasPreAggregatedFiles } = await import("../duckdb");
 
-    if (hasPreAggregatedFiles(symbol)) {
-      const data = await queryPreAggregatedParquet(symbol, timeframe, startTime, endTime, limit);
-      res.json(data);
-    } else {
-      // Fall back to on-the-fly aggregation
-      const data = await queryParquetOHLCVAggregated(symbol, timeframe, startTime, endTime, limit, 0);
-      res.json(data);
-    }
+    const cacheKey = OHLCVCache.key('parquet', symbol, timeframe, { startTime, endTime, limit, loadFromStart: !loadFromEnd });
+
+    const data = await cachedQuery(cacheKey, async () => {
+      if (hasPreAggregatedFiles(symbol)) {
+        return queryPreAggregatedParquet(symbol, timeframe, startTime, endTime, limit, loadFromEnd);
+      } else {
+        return queryParquetOHLCVAggregated(symbol, timeframe, startTime, endTime, limit, 0, loadFromEnd);
+      }
+    });
+    res.json(data);
   } catch (error) {
     console.error("Error fetching aggregated parquet data:", error);
     res.status(500).json({ error: "Failed to fetch aggregated parquet data" });

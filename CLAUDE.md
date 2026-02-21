@@ -2,6 +2,17 @@
 
 Full-stack ML Dashboard for quantitative trading research. Electron desktop app + web (React 19 + Express 5) with a 3-database architecture.
 
+## User Learning Style
+
+The user is an **extreme visual learner** who cannot process abstract math or theoretical concepts in text form. When explaining technical concepts (ML architectures, algorithms, data flows, etc.):
+
+- **Always use "Think of it as..." analogies** grounded in trading/real-world terms the user already understands (e.g., "a chart pattern scanner sliding a magnifying glass", "a panel of experts voting", "a trader reading bar by bar with a mental notepad")
+- **Build visual components** in the dashboard rather than writing text explanations — the user needs to SEE how things work (data flows, layer shapes, attention maps, decision trees)
+- **Show data shape transformations** step-by-step (e.g., 60×31 → Conv → 30×64 → Pool → ...) so the user can trace how their data morphs through each layer
+- **Use strength/weakness trade-off badges** and side-by-side comparison matrices instead of paragraphs of prose
+- **Never assume math literacy** — translate formulas into visual or intuitive equivalents (e.g., "softmax = picks the strongest signal" not "softmax = e^x / Σe^x")
+- **Connect every concept back to the user's actual data** — their 31 features, their 60-bar windows, their OHLCV from DuckDB — not abstract examples
+
 ## Tech Stack
 
 - **Frontend**: React 19, Wouter router, TanStack Query, Tailwind v4, shadcn/ui (Radix), Recharts, Lightweight Charts, Three.js/R3F, D3, Framer Motion
@@ -17,11 +28,11 @@ Full-stack ML Dashboard for quantitative trading research. Electron desktop app 
 
 Three databases with distinct responsibilities:
 
-| Database | Role | Data Volume | Connection |
-|----------|------|-------------|------------|
-| **PostgreSQL 18 + TimescaleDB** | App layer: users, ML models, training, labels, trades, 25 instruments, 353 contract rollovers | 21 Drizzle tables | `postgresql://postgres:postgres@localhost:5432/ml_dashboard` (trust auth) |
-| **QuestDB 9.3.1** | Chart rendering via `SAMPLE BY` aggregation | 759.5M OHLCV rows (903 symbols) | HTTP `:9000`, ILP `:9009`, PG wire `:8812` |
-| **DuckDB 1.4** | Market data source of truth + analytics | 782M OHLCV + 14.5M trades + 408.8M MBP-10 + 353 rollovers | Embedded, `data/market.duckdb` |
+| Database                        | Role                                                                                          | Data Volume                                               | Connection                                                                |
+| ------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------- |
+| **PostgreSQL 18 + TimescaleDB** | App layer: users, ML models, training, labels, trades, 25 instruments, 353 contract rollovers | 21 Drizzle tables                                         | `postgresql://postgres:postgres@localhost:5432/ml_dashboard` (trust auth) |
+| **QuestDB 9.3.1**               | Chart rendering via `SAMPLE BY` aggregation                                                   | 759.5M OHLCV rows (903 symbols)                           | HTTP `:9000`, ILP `:9009`, PG wire `:8812`                                |
+| **DuckDB 1.4**                  | Market data source of truth + analytics                                                       | 782M OHLCV + 14.5M trades + 408.8M MBP-10 + 353 rollovers | Embedded, `data/market.duckdb`                                            |
 
 ### When to Use Which
 - **PostgreSQL**: Relationships, CRUD, metadata, auth, model registry, trade logs, instruments, rollovers
@@ -45,13 +56,13 @@ DuckDB:     In-process, no external server
 ```
 
 ### DuckDB Market Tables
-| Table | Rows | Schema |
-|-------|------|--------|
-| `ohlcv` | 782M | ts, symbol, open, high, low, close, volume |
-| `trades` | 14.5M | ts, rtype, publisher_id, instrument_id, action, side, depth, price, size, flags, ts_in_delta, sequence, symbol |
-| `mbp10` | 408.8M | ts_recv, ts_event, 10-level bid/ask (px, sz, ct), symbol |
-| `rollovers` | 353 | root, rollover_date, from_contract, to_contract, from_close, to_close, price_gap, cumulative_adjustment |
-| `ingested_files` | — | file_path (PK), file_hash, ingested_at, row_count |
+| Table            | Rows   | Schema                                                                                                         |
+| ---------------- | ------ | -------------------------------------------------------------------------------------------------------------- |
+| `ohlcv`          | 782M   | ts, symbol, open, high, low, close, volume                                                                     |
+| `trades`         | 14.5M  | ts, rtype, publisher_id, instrument_id, action, side, depth, price, size, flags, ts_in_delta, sequence, symbol |
+| `mbp10`          | 408.8M | ts_recv, ts_event, 10-level bid/ask (px, sz, ct), symbol                                                       |
+| `rollovers`      | 353    | root, rollover_date, from_contract, to_contract, from_close, to_close, price_gap, cumulative_adjustment        |
+| `ingested_files` | —      | file_path (PK), file_hash, ingested_at, row_count                                                              |
 
 ### Standardized OHLCV Schema
 
@@ -169,16 +180,16 @@ data/
 
 ## API Route Map (8 routers on `/api`)
 
-| Router | Mount | Purpose |
-|--------|-------|---------|
-| upload | `/api/upload` | File upload + OHLCV ingestion (CSV, ZST, Parquet, DBN; 500MB max) |
-| parquet | `/api/parquet` | Parquet file queries, aggregation, cursor pagination, export, rollovers |
-| instruments | `/api/instruments` | Instrument metadata, rollovers, continuous contracts (DuckDB-backed) |
-| indicators | `/api/indicators` | 344 pre-computed indicators (catalog, data, patterns), SQL generation, realtime calc |
-| ml | `/api/ml` | Models, training, features, predictions, ensembles, regimes, trades, labels, XAI |
-| news | `/api/news` | News articles + sentiment (Yahoo Finance RSS, Alpha Vantage) |
-| databases | `/api/databases` | DB health/stats, read-only SQL queries, QuestDB process control, pipeline status |
-| charts | `/api/charts` | OHLCV candles (QuestDB SAMPLE BY primary, DuckDB fallback) |
+| Router      | Mount              | Purpose                                                                              |
+| ----------- | ------------------ | ------------------------------------------------------------------------------------ |
+| upload      | `/api/upload`      | File upload + OHLCV ingestion (CSV, ZST, Parquet, DBN; 500MB max)                    |
+| parquet     | `/api/parquet`     | Parquet file queries, aggregation, cursor pagination, export, rollovers              |
+| instruments | `/api/instruments` | Instrument metadata, rollovers, continuous contracts (DuckDB-backed)                 |
+| indicators  | `/api/indicators`  | 344 pre-computed indicators (catalog, data, patterns), SQL generation, realtime calc |
+| ml          | `/api/ml`          | Models, training, features, predictions, ensembles, regimes, trades, labels, XAI     |
+| news        | `/api/news`        | News articles + sentiment (Yahoo Finance RSS, Alpha Vantage)                         |
+| databases   | `/api/databases`   | DB health/stats, read-only SQL queries, QuestDB process control, pipeline status     |
+| charts      | `/api/charts`      | OHLCV candles (QuestDB SAMPLE BY primary, DuckDB fallback)                           |
 
 ## Dev Commands
 
@@ -218,19 +229,19 @@ python scripts/compute-indicators.py --symbol ES --timeframe 1d  # Single combo
 
 ## NPM Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `dev` | Full dev server (Express + Vite, port 5000) |
-| `dev:client` | Vite-only dev server |
-| `build` | Production build (tsx script/build.ts) |
-| `start` | Production server |
-| `electron:dev` | Start DBs + dev + Electron |
-| `build:electron` | Build + Electron NSIS installer |
-| `start:desktop` | Launch Electron app |
-| `db:push` | Drizzle schema push to PostgreSQL |
-| `check` | TypeScript type check |
-| `test` | Vitest run |
-| `test:watch` | Vitest watch mode |
+| Script           | Purpose                                     |
+| ---------------- | ------------------------------------------- |
+| `dev`            | Full dev server (Express + Vite, port 5000) |
+| `dev:client`     | Vite-only dev server                        |
+| `build`          | Production build (tsx script/build.ts)      |
+| `start`          | Production server                           |
+| `electron:dev`   | Start DBs + dev + Electron                  |
+| `build:electron` | Build + Electron NSIS installer             |
+| `start:desktop`  | Launch Electron app                         |
+| `db:push`        | Drizzle schema push to PostgreSQL           |
+| `check`          | TypeScript type check                       |
+| `test`           | Vitest run                                  |
+| `test:watch`     | Vitest watch mode                           |
 
 ## Environment Variables (.env)
 
@@ -248,29 +259,29 @@ NODE_ENV=development
 
 Pre-computed for all 25 symbols × 8 timeframes via `scripts/compute-indicators.py`.
 
-| Category | Count | Examples |
-|----------|-------|---------|
-| **Candle Patterns** | 62 | CDL_DOJI, CDL_HAMMER, CDL_ENGULFING, CDL_MORNINGSTAR, CDL_SHOOTINGSTAR |
-| **Overlap** | 36 | SMA, EMA, WMA, DEMA, TEMA, T3, KAMA, HMA, ALMA, Ichimoku, Supertrend, Bollinger, Keltner, Donchian |
-| **Momentum** | 43 | RSI, MACD, Stochastic, StochRSI, CCI, Williams %R, ROC, AO, APO, PPO, Fisher, KDJ, Squeeze, STC, TRIX, TSI |
-| **Volatility** | 16 | ATR, NATR, True Range, Keltner, Aberration, Thermo, Ulcer Index, HWC |
-| **Volume** | 19 | OBV, AD, ADOSC, CMF, EFI, EMV, KVO, MFI, NVI, PVI, VWAP, TSV |
-| **Trend** | 20 | ADX, AROON, CHOP, DPO, PSAR, Vortex, VHF, ZigZag, Chandelier Exit |
-| **Statistics** | 10 | Entropy, Kurtosis, MAD, Median, Quantile, Skew, StdDev, Variance, Z-Score |
-| **Cycle** | 2 | EBSW, Reflex |
-| **Performance** | 2 | Log Return, Percent Return |
+| Category            | Count | Examples                                                                                                   |
+| ------------------- | ----- | ---------------------------------------------------------------------------------------------------------- |
+| **Candle Patterns** | 62    | CDL_DOJI, CDL_HAMMER, CDL_ENGULFING, CDL_MORNINGSTAR, CDL_SHOOTINGSTAR                                     |
+| **Overlap**         | 36    | SMA, EMA, WMA, DEMA, TEMA, T3, KAMA, HMA, ALMA, Ichimoku, Supertrend, Bollinger, Keltner, Donchian         |
+| **Momentum**        | 43    | RSI, MACD, Stochastic, StochRSI, CCI, Williams %R, ROC, AO, APO, PPO, Fisher, KDJ, Squeeze, STC, TRIX, TSI |
+| **Volatility**      | 16    | ATR, NATR, True Range, Keltner, Aberration, Thermo, Ulcer Index, HWC                                       |
+| **Volume**          | 19    | OBV, AD, ADOSC, CMF, EFI, EMV, KVO, MFI, NVI, PVI, VWAP, TSV                                               |
+| **Trend**           | 20    | ADX, AROON, CHOP, DPO, PSAR, Vortex, VHF, ZigZag, Chandelier Exit                                          |
+| **Statistics**      | 10    | Entropy, Kurtosis, MAD, Median, Quantile, Skew, StdDev, Variance, Z-Score                                  |
+| **Cycle**           | 2     | EBSW, Reflex                                                                                               |
+| **Performance**     | 2     | Log Return, Percent Return                                                                                 |
 
 Also available: 13 core indicators via TypeScript SQL generators for realtime computation (RSI, MACD, Bollinger, ATR, Stochastic, CCI, Williams %R, ROC, Momentum, SMA, EMA, WMA, StdDev).
 
 ## ML Taxonomy Reference
 
 ### Categories (4) -> Subcategories (10)
-| Category | Subcategories |
-|----------|--------------|
-| **Supervised** | classification, regression, sequence |
-| **Unsupervised** | clustering, dimensionality-reduction, anomaly-detection |
-| **Self-Supervised** | representation, contrastive |
-| **Semi-Supervised** | pseudo-labeling, consistency |
+| Category            | Subcategories                                           |
+| ------------------- | ------------------------------------------------------- |
+| **Supervised**      | classification, regression, sequence                    |
+| **Unsupervised**    | clustering, dimensionality-reduction, anomaly-detection |
+| **Self-Supervised** | representation, contrastive                             |
+| **Semi-Supervised** | pseudo-labeling, consistency                            |
 
 ### Label Generators (15+)
 **Supervised:** direction, signal, regime, future_return, future_volatility, multi_step, triple_barrier

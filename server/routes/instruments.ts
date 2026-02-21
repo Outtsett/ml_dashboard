@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { storage } from "../storage";
 import { getString } from "./helpers";
+import { ohlcvCache, cachedQuery, OHLCVCache } from "../lib/ohlcvCache";
 
 const router = Router();
 
@@ -74,7 +75,7 @@ router.get("/continuous/:baseSymbol", async (req: Request, res: Response) => {
   try {
     const baseSymbol = getString(req.params.baseSymbol).toUpperCase();
     const limit = getString(req.query.limit as string);
-    const limitNum = limit ? parseInt(limit) : 2000;
+    const limitNum = limit ? Math.min(parseInt(limit), 50000) : 2000;
     const timeframe = req.query.timeframe as string;
     const startTime = req.query.startTime ? parseInt(req.query.startTime as string) : undefined;
     const endTime = req.query.endTime ? parseInt(req.query.endTime as string) : undefined;
@@ -105,7 +106,12 @@ router.get("/continuous/:baseSymbol", async (req: Request, res: Response) => {
 
     const intervalSec = timeframeSec;
 
-    const data = await marketQuery<{
+    const continuousCacheKey = OHLCVCache.key('continuous', baseSymbol, timeframeSec, {
+      startTime, endTime, limit: limitNum,
+      loadFromStart: req.query.loadFromStart === 'true'
+    });
+
+    const data = await cachedQuery(continuousCacheKey, () => marketQuery<{
       timestamp: number;
       symbol: string;
       open: number;
@@ -117,6 +123,7 @@ router.get("/continuous/:baseSymbol", async (req: Request, res: Response) => {
       adjustedHigh: number;
       adjustedLow: number;
       adjustedClose: number;
+      activeContract: string;
     }>(`
       WITH schedule AS (
         -- Build active contract schedule from rollovers
@@ -143,6 +150,7 @@ router.get("/continuous/:baseSymbol", async (req: Request, res: Response) => {
       stitched AS (
         SELECT
           o.ts,
+          s.contract as active_contract,
           o.open + s.adj as adj_open,
           o.high + s.adj as adj_high,
           o.low + s.adj as adj_low,
@@ -157,6 +165,7 @@ router.get("/continuous/:baseSymbol", async (req: Request, res: Response) => {
       SELECT
         CAST(epoch_ms(time_bucket(INTERVAL '${intervalSec} seconds', ts)) AS DOUBLE) as timestamp,
         '${baseSymbol}' as symbol,
+        first(active_contract ORDER BY ts) as "activeContract",
         first(adj_open ORDER BY ts) as open,
         max(adj_high) as high,
         min(adj_low) as low,
@@ -168,15 +177,19 @@ router.get("/continuous/:baseSymbol", async (req: Request, res: Response) => {
         last(adj_close ORDER BY ts) as "adjustedClose"
       FROM stitched
       GROUP BY time_bucket(INTERVAL '${intervalSec} seconds', ts)
-      ORDER BY timestamp DESC
+      ORDER BY timestamp ${startTime && !endTime ? 'ASC' : !startTime && !endTime && req.query.loadFromStart === 'true' ? 'ASC' : 'DESC'}
       LIMIT ${limitNum}
-    `);
+    `));
 
-    // Reverse to ascending order
-    data.reverse();
+    // Reverse DESC results to ascending order for chart display
+    // Use spread to avoid mutating the cached array in-place (which would flip on every cache hit)
+    const sortedData = (!(startTime && !endTime) && !(req.query.loadFromStart === 'true'))
+      ? [...data].reverse()
+      : data;
 
-    // Get rollover events for the chart overlay
-    const rollovers = await marketQuery<{
+    // Get rollover events — cache separately since they rarely change
+    const rolloverCacheKey = `rollovers|${baseSymbol}`;
+    const rollovers = await cachedQuery(rolloverCacheKey, () => marketQuery<{
       rollover_date: string;
       from_contract: string;
       to_contract: string;
@@ -186,10 +199,10 @@ router.get("/continuous/:baseSymbol", async (req: Request, res: Response) => {
       FROM rollovers
       WHERE root = '${baseSymbol}'
       ORDER BY rollover_date
-    `);
+    `));
 
     res.json({
-      data,
+      data: sortedData,
       rollovers,
     });
   } catch (error) {

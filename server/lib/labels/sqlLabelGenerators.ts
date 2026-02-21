@@ -534,7 +534,7 @@ labeled AS (
     CASE 
       WHEN net_pnl >= ${minProfit} THEN 1
       ELSE 0
-    END as meta_label
+    END as label
   FROM with_pnl
   WHERE net_pnl IS NOT NULL
 )
@@ -824,6 +824,8 @@ ORDER BY timestamp`;
 
 export interface MultiStepParams {
   steps: number;
+  horizons?: number[];
+  target?: string;
   aggregation: 'mean' | 'sum' | 'last';
 }
 
@@ -832,7 +834,9 @@ export function generateMultiStepLabelsSQL(
   config: LabelGeneratorConfig
 ): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
-  const { steps, aggregation } = params;
+  // Support both direct 'steps' param and taxonomy 'horizons' array
+  const steps = params.steps || (params.horizons ? Math.max(...(Array.isArray(params.horizons) ? params.horizons : [1])) : 5);
+  const aggregation = params.aggregation || 'last';
   
   const futureColumns = Array.from({ length: steps }, (_, i) => 
     `LEAD(close, ${i + 1}) ${windowOver(cfg)} as future_close_${i + 1}`
@@ -964,8 +968,10 @@ ORDER BY timestamp`;
 
 export interface ConsistencyPerturbationParams {
   perturbationType: 'noise' | 'dropout' | 'mixup';
-  perturbationStrength: number;
-  consistencyWindow: number;
+  perturbationStrength?: number;
+  perturbationScale?: number;
+  consistencyWindow?: number;
+  numPerturbations?: number;
 }
 
 export function generateConsistencyPerturbationLabelsSQL(
@@ -973,7 +979,8 @@ export function generateConsistencyPerturbationLabelsSQL(
   config: LabelGeneratorConfig
 ): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
-  const { consistencyWindow } = params;
+  // Support both param name variants from taxonomy
+  const consistencyWindow = params.consistencyWindow || params.numPerturbations || 20;
   
   return `
 WITH base AS (

@@ -2,6 +2,9 @@ import { Router, Request, Response } from "express";
 import { storage } from "../storage";
 import { mlRateLimiter } from "../lib/rateLimiter";
 import { getString } from "./helpers";
+import { spawn } from "child_process";
+import path from "path";
+import fs from "fs";
 
 const router = Router();
 
@@ -406,21 +409,73 @@ router.post("/ml/train/start", async (req: Request, res: Response) => {
       learningRate,
       dropout,
       sequenceLength,
+      // Universal pipeline params
+      pipeline = 'universal', // 'universal' or 'legacy'
+      timeframeSec = 300,
+      maxBars = 100000,
+      labelType = 'direction',
+      labelHorizon = 10,
+      labelAtrMultiplier = 0.5,
+      labelNumClasses = 3,
+      takeProfitATR = 2.0,
+      stopLossATR = 1.0,
+      maxHoldingPeriod = 20,
     } = req.body;
 
-    const cnnConfig = {
-      ...(learningRate && { learningRate }),
-      ...(dropout && { dropoutRate: dropout }),
-      ...(sequenceLength && { sequenceLength }),
-    };
+    if (pipeline === 'universal') {
+      // Build universal config
+      const labelConfig = labelType === 'triple_barrier'
+        ? { type: 'triple_barrier' as const, takeProfitATR, stopLossATR, maxHoldingPeriod }
+        : { type: 'direction' as const, horizon: labelHorizon, atrMultiplier: labelAtrMultiplier, numClasses: labelNumClasses as 2 | 3 };
 
-    const sessionId = await trainer.startTraining(
-      symbol,
-      epochs,
-      batchSize,
-      Object.keys(cnnConfig).length > 0 ? cnnConfig : undefined
-    );
-    res.json({ sessionId, message: "Training started" });
+      const universalConfig = {
+        symbol,
+        timeframeSec,
+        maxBars,
+        sequenceLength: sequenceLength || 60,
+        labels: labelConfig,
+      };
+
+      const cnnOverrides: any = {};
+      if (learningRate) cnnOverrides.learningRate = learningRate;
+      if (dropout) cnnOverrides.dropoutRate = dropout;
+
+      const sessionId = await trainer.startUniversalTraining(
+        symbol,
+        epochs,
+        batchSize,
+        universalConfig,
+        Object.keys(cnnOverrides).length > 0 ? cnnOverrides : undefined
+      );
+
+      res.json({
+        sessionId,
+        message: "Universal training started",
+        pipeline: 'universal',
+        labelType: labelConfig.type,
+      });
+    } else {
+      // Legacy pipeline
+      const cnnConfig = {
+        ...(learningRate && { learningRate }),
+        ...(dropout && { dropoutRate: dropout }),
+        ...(sequenceLength && { sequenceLength }),
+        numFeatures: 5, // Legacy uses 5 raw OHLCV features
+      };
+
+      const sessionId = await trainer.startTraining(
+        symbol,
+        epochs,
+        batchSize,
+        Object.keys(cnnConfig).length > 0 ? cnnConfig : undefined
+      );
+
+      res.json({
+        sessionId,
+        message: "Legacy training started",
+        pipeline: 'legacy',
+      });
+    }
   } catch (error: any) {
     console.error("Error starting training:", error);
     res.status(500).json({ error: error.message || "Failed to start training" });
@@ -496,11 +551,46 @@ router.get("/ml/feature-importance/:modelName", async (req: Request, res: Respon
     res.json(data.map(f => ({
       feature: f.featureName,
       importance: f.importance,
-      category: f.featureName === 'volume' ? 'volume' : 'price',
+      category: f.category || (f.featureName === 'volume' ? 'volume' : 'price'),
     })));
   } catch (error: any) {
     console.error("Error getting feature importance:", error);
     res.status(500).json({ error: error.message || "Failed to get feature importance" });
+  }
+});
+
+// List saved models on disk
+router.get("/ml/saved-models", async (req: Request, res: Response) => {
+  try {
+    const trainer = await getTrainer();
+    const models = trainer.listSavedModels();
+    res.json({ models });
+  } catch (error: any) {
+    console.error("Error listing saved models:", error);
+    res.status(500).json({ error: error.message || "Failed to list saved models" });
+  }
+});
+
+// Get universal pipeline feature names
+router.get("/ml/universal/features", async (_req: Request, res: Response) => {
+  try {
+    const { getFeatureNames, DEFAULT_FEATURE_CONFIG } = await import('../ml/universalPipeline');
+    const featureNames = getFeatureNames(DEFAULT_FEATURE_CONFIG);
+    res.json({
+      count: featureNames.length,
+      features: featureNames,
+      categories: {
+        returns: featureNames.filter(f => f.startsWith('log_ret') || f === 'intrabar_ret'),
+        candle: featureNames.filter(f => ['bar_range_pct', 'upper_shadow_pct', 'lower_shadow_pct', 'body_pct'].includes(f)),
+        momentum: featureNames.filter(f => f.startsWith('rsi_') || f.startsWith('stoch_') || f === 'williams_r' || f.startsWith('roc_')),
+        trend: featureNames.filter(f => f.startsWith('bb_') || f === 'macd_hist_norm' || f.startsWith('close_vs_sma')),
+        volatility: featureNames.filter(f => f === 'vol_ratio' || f === 'realized_vol'),
+        volume: featureNames.filter(f => f === 'rel_volume' || f === 'vol_trend'),
+        time: featureNames.filter(f => f.endsWith('_sin') || f.endsWith('_cos')),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -518,7 +608,10 @@ router.get("/ml/train/last", async (req: Request, res: Response) => {
         symbol: session.symbol,
         status: session.status,
         savedModelId: session.savedModelId,
+        modelPath: session.modelPath,
+        featureNames: session.featureNames,
         config: session.config,
+        universalConfig: session.universalConfig,
         progress: session.progress,
         startTime: session.startTime,
         source: 'memory',
@@ -593,28 +686,46 @@ router.get("/ml/train/last", async (req: Request, res: Response) => {
 router.post("/ml/predict", async (req: Request, res: Response) => {
   try {
     const trainer = await getTrainer();
-    const { symbol, data } = req.body;
+    const { symbol, data, modelName } = req.body;
 
-    if (!symbol || !data) {
-      return res.status(400).json({ error: "Missing symbol or data" });
+    if (!symbol) {
+      return res.status(400).json({ error: "Missing symbol" });
     }
 
+    // Try in-memory trainer first (fast path, works during active training sessions)
+    if (data) {
+      try {
+        const predictions = await trainer.predict(symbol, data);
+        return res.json(predictions);
+      } catch (_predError: any) {
+        // Fall through to inference service
+      }
+    }
+
+    // Fall through to inference service for saved models
     try {
-      const predictions = await trainer.predict(symbol, data);
-      res.json(predictions);
-    } catch (predError: any) {
-      // Check if there's a model in the database even if no runtime model
+      const { predictLatest } = await import('../ml/inferenceService');
+      const resolvedModel = modelName || symbol;
+      const prediction = await predictLatest({
+        modelName: resolvedModel,
+        symbol: symbol.toUpperCase(),
+        includeFeatures: true,
+      });
+      return res.json(prediction);
+    } catch (infError: any) {
+      // Check if there's a model in the database
       const models = await storage.getMlModels('active');
       const dbModel = models.find((m: any) => m.name?.includes(symbol));
 
       if (dbModel) {
         return res.status(503).json({
-          error: "Model exists in database but no runtime model loaded. Please retrain the model to enable predictions.",
+          error: "Model exists in database but could not be loaded for inference. Check model files in data/models/.",
           modelId: dbModel.id,
           modelName: dbModel.name,
+          inferenceError: infError.message,
         });
       }
-      throw predError;
+      throw infError;
     }
   } catch (error: any) {
     console.error("Error generating predictions:", error);
@@ -909,6 +1020,138 @@ router.post("/xai/explain-batch", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error generating batch XAI explanations:", error);
     res.status(500).json({ error: error.message || "Failed to generate batch explanations" });
+  }
+});
+
+// ============================================================
+// PRE-TRAINED MODEL FORECASTING (Chronos)
+// ============================================================
+
+const FORECASTS_DIR = path.join(process.cwd(), "data", "forecasts");
+const PYTHON_EXE = path.join(process.cwd(), ".venv", "Scripts", "python.exe");
+const FORECAST_SCRIPT = path.join(process.cwd(), "scripts", "pretrained-forecast.py");
+
+/** GET /api/ml/forecasts — list all saved forecast files */
+router.get("/ml/forecasts", async (_req: Request, res: Response) => {
+  try {
+    if (!fs.existsSync(FORECASTS_DIR)) {
+      return res.json([]);
+    }
+    const files = fs.readdirSync(FORECASTS_DIR)
+      .filter(f => f.endsWith(".json"))
+      .map(f => {
+        const filePath = path.join(FORECASTS_DIR, f);
+        const stat = fs.statSync(filePath);
+        // Read just the metadata from each forecast
+        try {
+          const raw = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+          return {
+            filename: f,
+            size: stat.size,
+            modified: stat.mtime.toISOString(),
+            metadata: raw.metadata,
+            metrics: raw.metrics,
+          };
+        } catch {
+          return { filename: f, size: stat.size, modified: stat.mtime.toISOString() };
+        }
+      });
+    res.json(files);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/** GET /api/ml/forecasts/:filename — get a specific forecast result */
+router.get("/ml/forecasts/:filename", async (req: Request, res: Response) => {
+  try {
+    const filename = getString(req.params.filename);
+    if (!filename || !filename.endsWith(".json")) {
+      return res.status(400).json({ error: "Invalid filename" });
+    }
+    // Prevent path traversal
+    const safeName = path.basename(filename);
+    const filePath = path.join(FORECASTS_DIR, safeName);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "Forecast not found" });
+    }
+    const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    res.json(data);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/** POST /api/ml/forecast — run a new Chronos forecast */
+router.post("/ml/forecast", mlRateLimiter, async (req: Request, res: Response) => {
+  try {
+    const { symbol, timeframe = 3600, context = 500, horizon = 24, modelSize = "small", samples = 20 } = req.body;
+
+    if (!symbol) {
+      return res.status(400).json({ error: "symbol is required" });
+    }
+
+    const validSizes = ["tiny", "mini", "small", "base", "large"];
+    if (!validSizes.includes(modelSize)) {
+      return res.status(400).json({ error: `modelSize must be one of: ${validSizes.join(", ")}` });
+    }
+
+    // Validate numeric params
+    const ctx = Math.min(Math.max(50, Number(context)), 2000);
+    const hz = Math.min(Math.max(5, Number(horizon)), 100);
+    const smp = Math.min(Math.max(5, Number(samples)), 100);
+    const tf = Number(timeframe);
+
+    console.log(`[forecast] Starting Chronos ${modelSize} forecast: ${symbol} @ ${tf}s, ctx=${ctx}, hz=${hz}`);
+
+    // Run the Python script as a child process
+    const args = [
+      FORECAST_SCRIPT,
+      "--symbol", symbol,
+      "--timeframe", String(tf),
+      "--context", String(ctx),
+      "--horizon", String(hz),
+      "--model-size", modelSize,
+      "--samples", String(smp),
+    ];
+
+    const child = spawn(PYTHON_EXE, args, {
+      cwd: process.cwd(),
+      env: { ...process.env, PYTHONUNBUFFERED: "1" },
+    });
+
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (d) => { stdout += d.toString(); });
+    child.stderr.on("data", (d) => { stderr += d.toString(); });
+
+    const exitCode = await new Promise<number>((resolve) => {
+      child.on("close", (code) => resolve(code ?? 1));
+    });
+
+    if (exitCode !== 0) {
+      console.error(`[forecast] Script failed (exit ${exitCode}):`, stderr || stdout);
+      return res.status(500).json({
+        error: "Forecast script failed",
+        details: (stderr || stdout).slice(-1000),
+      });
+    }
+
+    // Read the output file
+    const tfLabels: Record<number, string> = { 60: "1m", 300: "5m", 900: "15m", 1800: "30m", 3600: "1h", 14400: "4h", 86400: "1d" };
+    const tfLabel = tfLabels[tf] || `${tf}s`;
+    const outFile = path.join(FORECASTS_DIR, `chronos_${symbol}_${tfLabel}_${modelSize}.json`);
+
+    if (!fs.existsSync(outFile)) {
+      return res.status(500).json({ error: "Forecast completed but output file not found" });
+    }
+
+    const result = JSON.parse(fs.readFileSync(outFile, "utf-8"));
+    console.log(`[forecast] Done: MAE=${result.metrics?.mae}, Dir=${result.metrics?.direction_accuracy}%`);
+    res.json(result);
+  } catch (error: any) {
+    console.error("[forecast] Error:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 

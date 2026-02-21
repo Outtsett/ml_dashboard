@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { storage } from "../storage";
 import * as path from "path";
 import { queryRateLimiter } from "../lib/rateLimiter";
+import { ohlcvCache, cachedQuery, OHLCVCache } from "../lib/ohlcvCache";
 import { getString } from "./helpers";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -373,53 +374,66 @@ router.get("/ohlcv/:symbol", queryRateLimiter, async (req: Request, res: Respons
 
     // Handle range queries with server-side aggregation for infinite scroll
     if (startTime || endTime) {
-      let data;
       const rangeOpts = {
         startTime: startTime ? parseInt(startTime) : undefined,
         endTime: endTime ? parseInt(endTime) : undefined,
         limit: limitNum,
         timeframeSeconds: timeframeSec
       };
+      const rangeCacheKey = OHLCVCache.key('ohlcv', symbol, timeframeSec, {
+        startTime: rangeOpts.startTime,
+        endTime: rangeOpts.endTime,
+        limit: limitNum
+      });
 
-      if (isForex) {
-        // Try TimescaleDB forex_1m first, fall back to legacy
-        data = await storage.getForexTimescaleRange(symbol, rangeOpts);
-        if (data.length === 0) {
-          data = await storage.getOhlcvAggregatedRange(symbol, rangeOpts);
+      const data = await cachedQuery(rangeCacheKey, async () => {
+        let result;
+        if (isForex) {
+          result = await storage.getForexTimescaleRange(symbol, rangeOpts);
+          if (result.length === 0) {
+            result = await storage.getOhlcvAggregatedRange(symbol, rangeOpts);
+          }
+        } else {
+          result = await storage.getFuturesTimescaleRange(symbol, rangeOpts);
+          if (result.length === 0) {
+            result = await storage.getOhlcvPartitionedRange(symbol, rangeOpts);
+          }
+          if (result.length === 0) {
+            result = await storage.getOhlcvAggregatedRange(symbol, rangeOpts);
+          }
         }
-      } else {
-        // Try TimescaleDB ohlcv_1s first, fall back to partitioned, then legacy
-        data = await storage.getFuturesTimescaleRange(symbol, rangeOpts);
-        if (data.length === 0) {
-          data = await storage.getOhlcvPartitionedRange(symbol, rangeOpts);
-        }
-        if (data.length === 0) {
-          data = await storage.getOhlcvAggregatedRange(symbol, rangeOpts);
-        }
-      }
+        return result;
+      });
 
       return res.json(data);
     }
 
-    // No time params - get latest data
-    let data;
-    if (isForex) {
-      // Try TimescaleDB forex_1m first, fall back to legacy
-      data = await storage.getForexTimescale(symbol, limitNum, timeframeSec);
-      if (data.length === 0) {
-        data = await storage.getOhlcvAggregated(symbol, limitNum, timeframeSec);
+    // No time params - get data (from start or end based on param)
+    const loadFromEnd = req.query.loadFromStart !== 'true';
+    const cacheKey = OHLCVCache.key('ohlcv', symbol, timeframeSec, { limit: limitNum, loadFromStart: !loadFromEnd });
+
+    const data = await cachedQuery(cacheKey, async () => {
+      let result;
+      if (isForex) {
+        result = await storage.getForexTimescale(symbol, limitNum, timeframeSec, loadFromEnd);
+        if (result.length === 0) {
+          result = await storage.getOhlcvAggregated(symbol, limitNum, timeframeSec);
+          if (loadFromEnd) result.reverse();
+        }
+      } else {
+        result = await storage.getFuturesTimescale(symbol, limitNum, timeframeSec, loadFromEnd);
+        if (result.length === 0) {
+          result = await storage.getOhlcvPartitioned(symbol, limitNum, timeframeSec);
+          if (loadFromEnd) result.reverse();
+        }
+        if (result.length === 0) {
+          result = await storage.getOhlcvAggregated(symbol, limitNum, timeframeSec);
+          if (loadFromEnd) result.reverse();
+        }
       }
-    } else {
-      // Try TimescaleDB ohlcv_1s first, fall back to partitioned, then legacy
-      data = await storage.getFuturesTimescale(symbol, limitNum, timeframeSec);
-      if (data.length === 0) {
-        data = await storage.getOhlcvPartitioned(symbol, limitNum, timeframeSec);
-      }
-      if (data.length === 0) {
-        data = await storage.getOhlcvAggregated(symbol, limitNum, timeframeSec);
-      }
-    }
-    res.json(data.reverse());
+      return result;
+    });
+    res.json(data);
   } catch (error) {
     console.error("Error fetching OHLCV data:", error);
     res.status(500).json({ error: "Failed to fetch data" });
@@ -652,6 +666,22 @@ router.get("/questdb/ohlcv/:symbol", queryRateLimiter, async (req: Request, res:
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// Server-side OHLCV cache stats and management
+router.get('/cache/stats', (_req: Request, res: Response) => {
+  res.json(ohlcvCache.getStats());
+});
+
+router.post('/cache/clear', (_req: Request, res: Response) => {
+  ohlcvCache.clear();
+  res.json({ message: 'Cache cleared' });
+});
+
+router.post('/cache/invalidate/:symbol', (req: Request, res: Response) => {
+  const symbol = getString(req.params.symbol);
+  const removed = ohlcvCache.invalidateSymbol(symbol);
+  res.json({ symbol, entriesRemoved: removed });
 });
 
 export default router;

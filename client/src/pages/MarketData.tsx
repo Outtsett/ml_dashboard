@@ -1,24 +1,25 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { Database, Loader2, Sparkles, TrendingUp, DollarSign, ArrowRightLeft, Tag, Eye, Play, BarChart3, ChevronsUpDown, Check, Clock, Layers, ZapOff, ChevronDown, ChevronRight } from "lucide-react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { Database, Loader2, Sparkles, TrendingUp, DollarSign, ArrowRightLeft, ChevronsUpDown, Check, Clock, Layers, ZapOff } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { type LabelMarker } from "@/components/TradingChart";
 import IndicatorChartLayout from "@/components/IndicatorChartLayout";
 import { clearAllCache } from "@/lib/indexeddb";
-import { LABEL_GENERATORS, type LabelGeneratorKey } from "@shared/mlTaxonomy";
 import { useIndicatorData } from "@/hooks/useIndicatorData";
 import { IndicatorSelector } from "@/components/IndicatorSelector";
 import { useBreadcrumbs } from "@/hooks/useBreadcrumbs";
 import { computeSupportResistance, computeZigZag, computeSwingZigZag } from "@/lib/chartOverlays";
+import { useDashboard } from "@/contexts/UnifiedDashboardContext";
+import { MLWorkflowSidebar } from "@/components/sidebar/MLWorkflowSidebar";
+import { BottomPanel } from "@/components/panels/BottomPanel";
 
 const timeframes = [
   { label: "1m", minutes: 1 },
@@ -60,13 +61,44 @@ interface InstrumentInfo {
 }
 
 export default function MarketData() {
-  const [symbol, setSymbol] = useState("MNQ");
-  const [assetType, setAssetType] = useState<"futures" | "forex">("futures");
+  // ── Unified context: local state syncs bidirectionally with dashboard-wide context ──
+  const dashboard = useDashboard();
+  const [symbol, setSymbolLocal] = useState(dashboard.symbol);
+  const [assetType, setAssetTypeLocal] = useState<"futures" | "forex">(dashboard.assetType);
   const [contract, setContract] = useState<string>("continuous"); // "continuous" or specific contract like "ESH5"
-  const [timeframe, setTimeframe] = useState(1);
+  const [timeframe, setTimeframeLocal] = useState(dashboard.timeframeMinutes);
   const { toast } = useToast();
   const [symbolOpen, setSymbolOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
+
+  // Sync local → context when user changes symbol/tf here
+  const setSymbol = useCallback((s: string) => {
+    setSymbolLocal(s);
+    dashboard.setSymbol(s);
+  }, [dashboard]);
+
+  const setAssetType = useCallback((t: "futures" | "forex") => {
+    setAssetTypeLocal(t);
+    dashboard.setAssetType(t);
+  }, [dashboard]);
+
+  const setTimeframe = useCallback((m: number) => {
+    setTimeframeLocal(m);
+    dashboard.setTimeframeMinutes(m);
+  }, [dashboard]);
+
+  // Sync context → local when another page changes symbol
+  useEffect(() => {
+    if (dashboard.symbol !== symbol) {
+      setSymbolLocal(dashboard.symbol);
+    }
+    if (dashboard.assetType !== assetType) {
+      setAssetTypeLocal(dashboard.assetType);
+    }
+    if (dashboard.timeframeMinutes !== timeframe) {
+      setTimeframeLocal(dashboard.timeframeMinutes);
+    }
+  }, [dashboard.symbol, dashboard.assetType, dashboard.timeframeMinutes]);
 
   const tfLabel = timeframes.find(t => t.minutes === timeframe)?.label ?? `${timeframe}m`;
   useBreadcrumbs([
@@ -96,14 +128,13 @@ export default function MarketData() {
   const [showZigZag, setShowZigZag] = useState(false);
   const [showSwingZZ, setShowSwingZZ] = useState(false);
 
-  // ── Label preview panel collapse ──
-  const [labelPanelOpen, setLabelPanelOpen] = useState(() => {
-    const saved = localStorage.getItem('label_panel_open');
-    return saved !== null ? saved === 'true' : true;
-  });
-  useEffect(() => {
-    localStorage.setItem('label_panel_open', String(labelPanelOpen));
-  }, [labelPanelOpen]);
+  // ── Label markers from sidebar workflow panel ──
+  const [sidebarLabelMarkers, setSidebarLabelMarkers] = useState<LabelMarker[]>([]);
+  const [sidebarShowLabels, setSidebarShowLabels] = useState(false);
+  const handleLabelMarkersChange = useCallback((markers: LabelMarker[], show: boolean) => {
+    setSidebarLabelMarkers(markers);
+    setSidebarShowLabels(show);
+  }, []);
 
   const { data: rawInstruments } = useQuery<InstrumentInfo[]>({
     queryKey: ["/api/instruments"],
@@ -154,65 +185,7 @@ export default function MarketData() {
     clearAllCache().catch(() => {});
   }, []);
 
-  // Label preview state
-  const [selectedGenerator, setSelectedGenerator] = useState<LabelGeneratorKey>("direction");
-  const [labelPreview, setLabelPreview] = useState<LabelMarker[]>([]);
-  const [showLabels, setShowLabels] = useState(false);
-  const [labelParams, setLabelParams] = useState<Record<string, unknown>>({});
-  
-  const generatorDef = LABEL_GENERATORS[selectedGenerator];
-  const defaultParams = useMemo(() => {
-    const defaults: Record<string, unknown> = {};
-    if (generatorDef?.params) {
-      for (const param of generatorDef.params) {
-        defaults[param.id] = param.default;
-      }
-    }
-    return defaults;
-  }, [generatorDef]);
-  const currentParams = useMemo(() => ({ ...defaultParams, ...labelParams }), [defaultParams, labelParams]);
 
-  const previewMutation = useMutation({
-    mutationFn: async (data: { generatorType: string; symbol: string; params: Record<string, unknown>; limit: number; startTimestamp?: number; endTimestamp?: number; timeframeMinutes?: number }) => {
-      const res = await fetch("/api/labels/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error("Failed to preview labels");
-      return res.json();
-    },
-    onSuccess: (data) => {
-      if (data.success && data.preview && data.preview.length > 0) {
-        const markers: LabelMarker[] = data.preview
-          .filter((row: Record<string, unknown>) => row.label !== null && row.label !== undefined)
-          .map((row: Record<string, unknown>) => ({
-            timestamp: row.timestamp as number,
-            label: row.label as number | null,
-            close: row.close as number,
-          }));
-        setLabelPreview(markers);
-        setShowLabels(true);
-      } else if (data.error && data.preview?.length === 0) {
-        toast({
-          title: "Not Supported for Preview",
-          description: data.error,
-        });
-        setLabelPreview([]);
-        setShowLabels(false);
-      }
-    },
-    onError: () => {
-      toast({
-        title: "Preview Failed",
-        description: "Could not generate label preview",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Stable ref for the generate function so the effect doesn't re-fire on its own mutation object
-  const generateLabelsRef = useRef<() => void>(() => {});
 
   const isFutures = assetType === "futures";
   const isContinuous = contract === "continuous";
@@ -514,86 +487,7 @@ export default function MarketData() {
     return computeSwingZigZag(bars);
   }, [showSwingZZ, chartData]);
 
-  // Keep the generate function ref up to date
-  generateLabelsRef.current = () => {
-    if (chartData.length === 0 || previewMutation.isPending) return;
-    const timestamps = chartData.map((d: OhlcvData) => d.timestamp);
-    const startTimestamp = timestamps.length > 0 ? Math.min(...timestamps) : undefined;
-    const endTimestamp = timestamps.length > 0 ? Math.max(...timestamps) : undefined;
-    previewMutation.mutate({
-      generatorType: selectedGenerator,
-      symbol: effectiveSymbol,
-      params: currentParams,
-      limit: 500,
-      startTimestamp,
-      endTimestamp,
-      timeframeMinutes: timeframe,
-    });
-  };
 
-  // Auto-generate labels when generator, symbol, timeframe, or params change (if labels are showing)
-  useEffect(() => {
-    if (!showLabels || chartData.length === 0) return;
-    // Debounce to avoid rapid re-fires when params change quickly
-    const timer = setTimeout(() => {
-      generateLabelsRef.current();
-    }, 300);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGenerator, effectiveSymbol, timeframe, currentParams, showLabels, chartData.length]);
-
-  // Filter labels to only show those within the visible data range
-  const visibleLabels = useMemo(() => {
-    if (!showLabels || labelPreview.length === 0 || chartData.length === 0) {
-      return [];
-    }
-
-    // Both chartData and label timestamps may be in ms or seconds — normalize both to seconds
-    const sampleDataTs = chartData[0].timestamp;
-    const dataInMs = sampleDataTs > 1e12;
-
-    const toSec = (ts: number) => ts > 1e12 ? Math.floor(ts / 1000) : ts;
-    const timeframeSec = timeframe * 60;
-
-    // Build a set of candle timestamps in seconds, aligned to the current timeframe
-    const dataTimestamps = new Set(
-      chartData.map((d: OhlcvData) => {
-        const sec = toSec(d.timestamp);
-        return Math.floor(sec / timeframeSec) * timeframeSec;
-      })
-    );
-    const minTs = toSec(chartData[0].timestamp);
-    const maxTs = toSec(chartData[chartData.length - 1].timestamp);
-
-    // Only include labels that fall within the visible data range
-    return labelPreview.filter(label => {
-      const labelTsSec = toSec(label.timestamp);
-      // Align to the chart's timeframe boundaries
-      const alignedTs = Math.floor(labelTsSec / timeframeSec) * timeframeSec;
-
-      return alignedTs >= minTs &&
-        alignedTs <= maxTs &&
-        dataTimestamps.has(alignedTs);
-    });
-  }, [labelPreview, chartData, showLabels, timeframe]);
-
-  // Compute label distribution from visible labels only
-  const labelDistribution = useMemo(() => {
-    const buy = visibleLabels.filter(l => l.label === 1).length;
-    const sell = visibleLabels.filter(l => l.label === -1).length;
-    const hold = visibleLabels.filter(l => l.label === 0).length;
-    const total = visibleLabels.length;
-    
-    return {
-      buy,
-      sell,
-      hold,
-      total,
-      buyPct: total > 0 ? ((buy / total) * 100).toFixed(1) : '0.0',
-      sellPct: total > 0 ? ((sell / total) * 100).toFixed(1) : '0.0',
-      holdPct: total > 0 ? ((hold / total) * 100).toFixed(1) : '0.0',
-    };
-  }, [visibleLabels]);
 
   // Check if we're using parquet data for infinite scroll (or forex visible data)
   // Enable infinite scroll for all data types with visible data
@@ -761,9 +655,11 @@ export default function MarketData() {
         )}
       </div>
 
-      {/* Main content: Chart + Side panels — resizable */}
-      <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
-        <ResizablePanel defaultSize={70} minSize={40} className="overflow-hidden">
+      {/* Main content: Vertical split — Chart area (top) + Hub panel (bottom) */}
+      <ResizablePanelGroup direction="vertical" className="flex-1 min-h-0">
+        <ResizablePanel defaultSize={65} minSize={30} className="overflow-hidden">
+          <ResizablePanelGroup direction="horizontal" className="h-full">
+            <ResizablePanel defaultSize={70} minSize={40} className="overflow-hidden">
         {/* Chart Panel */}
         <Card className="h-full glass rounded-2xl gradient-border flex flex-col overflow-hidden">
           <CardHeader className="py-2 px-4 border-b border-white/5 shrink-0">
@@ -879,12 +775,14 @@ export default function MarketData() {
                 hasMoreLeft={isFutures ? hasMoreLeft : forexHasMoreLeft}
                 hasMoreRight={isFutures ? hasMoreRight : forexHasMoreRight}
                 rollovers={isFutures && isContinuous ? rollovers : []}
-                labelMarkers={showLabels ? visibleLabels : []}
+                labelMarkers={sidebarShowLabels ? sidebarLabelMarkers : []}
                 indicatorOverlays={indicatorOverlays}
                 onRemoveIndicators={handleRemoveIndicators}
                 supportResistanceLevels={srLevels}
                 zigZagPoints={zigZagPts}
                 swingZigZagPoints={swingZZPts}
+                tradeMarkers={dashboard.overlays.tradeMarkers}
+                predictionMarkers={dashboard.overlays.predictionMarkers}
               />
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
@@ -900,146 +798,22 @@ export default function MarketData() {
         <ResizableHandle withHandle className="mx-1 opacity-50 hover:opacity-100 transition-opacity" />
 
         <ResizablePanel defaultSize={30} minSize={10} maxSize={50} collapsible collapsedSize={3} className="overflow-hidden">
-        {/* Side Panels */}
-          <Card className="glass rounded-2xl gradient-border flex flex-col overflow-hidden h-full">
-              <CardHeader className="py-2 px-4 border-b border-white/5 shrink-0 cursor-pointer select-none" onClick={() => setLabelPanelOpen(v => !v)}>
-                <CardTitle className="text-xs font-medium text-violet-400 flex items-center gap-2">
-                  {labelPanelOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                  <Tag className="h-3 w-3" /> Label Preview
-                  {showLabels && visibleLabels.length > 0 && (
-                    <Badge variant="outline" className="ml-auto text-[10px] border-green-500/30 text-green-400">
-                      {visibleLabels.length} labels
-                    </Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              {labelPanelOpen && <CardContent className="pt-2 pb-3 space-y-3 flex-1 overflow-auto">
-                <div className="space-y-2">
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-muted-foreground">Generator</label>
-                    <Select
-                      value={selectedGenerator}
-                      onValueChange={(v) => {
-                        setSelectedGenerator(v as LabelGeneratorKey);
-                        setLabelParams({});
-                      }}
-                    >
-                      <SelectTrigger className="h-8 text-xs bg-black/30 border-white/10" data-testid="select-generator">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(LABEL_GENERATORS).map(([key, gen]) => (
-                          <SelectItem key={key} value={key} className="text-xs">
-                            {gen.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+          <MLWorkflowSidebar
+            chartData={chartData}
+            effectiveSymbol={effectiveSymbol}
+            symbol={symbol}
+            isFutures={isFutures}
+            timeframe={timeframe}
+            onLabelMarkersChange={handleLabelMarkersChange}
+          />
+        </ResizablePanel>
+          </ResizablePanelGroup>
+        </ResizablePanel>
 
-                  {generatorDef?.params && generatorDef.params.length > 0 && (
-                    <div className="space-y-2 p-2 rounded-lg bg-white/5">
-                      <p className="text-[9px] text-muted-foreground font-medium">Parameters</p>
-                      {generatorDef.params.slice(0, 3).map((param) => (
-                        <div key={param.id} className="flex items-center gap-2">
-                          <label className="text-[10px] text-muted-foreground flex-1">{param.name}</label>
-                          <Input
-                            type="number"
-                            value={(currentParams[param.id] as number) ?? param.default}
-                            onChange={(e) => setLabelParams(prev => ({ ...prev, [param.id]: parseFloat(e.target.value) }))}
-                            className="h-6 w-20 text-[10px] bg-black/30 border-white/10"
-                            data-testid={`param-${param.id}`}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
+        <ResizableHandle withHandle className="my-0.5 opacity-50 hover:opacity-100 transition-opacity" />
 
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => generateLabelsRef.current()}
-                      disabled={previewMutation.isPending || chartData.length === 0}
-                      className="flex-1 h-7 text-[10px] bg-linear-to-r from-violet-600 to-teal-500"
-                      data-testid="button-preview-labels"
-                    >
-                      {previewMutation.isPending ? (
-                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                      ) : (
-                        <Eye className="h-3 w-3 mr-1" />
-                      )}
-                      Preview
-                    </Button>
-                    {showLabels && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setShowLabels(false);
-                          setLabelPreview([]);
-                        }}
-                        className="h-7 text-[10px] border-white/10"
-                        data-testid="button-clear-labels"
-                      >
-                        Clear
-                      </Button>
-                    )}
-                  </div>
-
-                  {showLabels && visibleLabels.length > 0 && (
-                    <div className="p-2 rounded-lg bg-green-500/10 border border-green-500/20 space-y-2">
-                      <p className="text-[10px] text-green-400 font-medium flex items-center gap-1">
-                        <BarChart3 className="h-3 w-3" />
-                        Label Distribution ({labelDistribution.total} visible)
-                      </p>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-green-500 rounded-full transition-all"
-                              style={{ width: `${labelDistribution.buyPct}%` }}
-                            />
-                          </div>
-                          <span className="text-green-400 text-[9px] font-mono w-16 text-right">
-                            BUY {labelDistribution.buy} ({labelDistribution.buyPct}%)
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-rose-500 rounded-full transition-all"
-                              style={{ width: `${labelDistribution.sellPct}%` }}
-                            />
-                          </div>
-                          <span className="text-rose-400 text-[9px] font-mono w-16 text-right">
-                            SELL {labelDistribution.sell} ({labelDistribution.sellPct}%)
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-violet-500 rounded-full transition-all"
-                              style={{ width: `${labelDistribution.holdPct}%` }}
-                            />
-                          </div>
-                          <span className="text-violet-400 text-[9px] font-mono w-16 text-right">
-                            HOLD {labelDistribution.hold} ({labelDistribution.holdPct}%)
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-2 rounded-lg bg-white/5 mt-auto">
-                  <p className="font-mono text-sm text-primary">{effectiveSymbol}</p>
-                  <p className="text-[9px] text-muted-foreground">
-                    {activeSymbols.find(s => s.symbol === symbol)?.name}
-                    {contract !== "continuous" && " (Individual Contract)"}
-                  </p>
-                </div>
-              </CardContent>}
-            </Card>
+        <ResizablePanel defaultSize={35} minSize={10} maxSize={60} collapsible collapsedSize={3} className="overflow-hidden">
+          <BottomPanel />
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>

@@ -1,9 +1,9 @@
 import { db, getCacheStats, clearSymbolCache, OHLCVBar, CacheMetadata, CacheConfig } from './indexeddb';
 
 const DEFAULT_CONFIG: CacheConfig = {
-  defaultTTLMs: 24 * 60 * 60 * 1000,
-  maxEntriesPerSymbol: 100000,
-  maxTotalSizeMB: 100,
+  defaultTTLMs: 4 * 60 * 60 * 1000, // 4 hours (was 24h — too long for trading data)
+  maxEntriesPerSymbol: 10000,         // 10K bars max per symbol (was 100K)
+  maxTotalSizeMB: 50,                 // 50MB total (was 100MB)
   cleanupIntervalMs: 60 * 1000
 };
 

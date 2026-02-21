@@ -1,5 +1,12 @@
 import Dexie, { Table } from 'dexie';
 
+/**
+ * Max bars to keep in IndexedDB per symbol+timeframe combo.
+ * Beyond this, oldest bars are evicted inline during cacheBars().
+ * This prevents unbounded growth from infinite scroll + prefetch.
+ */
+const MAX_BARS_PER_COMBO = 8000;
+
 export interface OHLCVBar {
   id?: number;
   symbol: string;
@@ -85,17 +92,53 @@ export async function cacheBars(
       if (bar.timestamp > maxTs) maxTs = bar.timestamp;
     }
     
-    const existingBars = await db.ohlcv
+    // Fetch only keys (not full records) for much faster dedup lookup
+    const existingKeys = await db.ohlcv
       .where('[symbol+timeframe+timestamp]')
       .between([symbol, timeframe, minTs], [symbol, timeframe, maxTs], true, true)
-      .toArray();
+      .keys();
     
-    const existingTimestamps = new Set(existingBars.map(bar => bar.timestamp));
+    // Extract timestamps from compound keys [symbol, timeframe, timestamp]
+    const existingTimestamps = new Set(
+      existingKeys.map(k => (k as unknown as [string, string, number])[2])
+    );
     const newBars = barsToCache.filter(bar => !existingTimestamps.has(bar.timestamp));
     
     if (newBars.length > 0) {
       await db.ohlcv.bulkAdd(newBars);
     }
+
+    // --- Inline eviction: cap this symbol+timeframe combo ---
+    const totalCount = await db.ohlcv
+      .where('[symbol+timeframe]')
+      .equals([symbol, timeframe])
+      .count();
+
+    if (totalCount > MAX_BARS_PER_COMBO) {
+      const excess = totalCount - MAX_BARS_PER_COMBO;
+      // Get the oldest bars by timestamp, delete them
+      const oldestBars = await db.ohlcv
+        .where('[symbol+timeframe+timestamp]')
+        .between([symbol, timeframe, Dexie.minKey], [symbol, timeframe, Dexie.maxKey])
+        .limit(excess)
+        .primaryKeys();
+      if (oldestBars.length > 0) {
+        await db.ohlcv.bulkDelete(oldestBars);
+      }
+    }
+
+    // Update metadata — recompute actual range after eviction
+    const firstBar = await db.ohlcv
+      .where('[symbol+timeframe+timestamp]')
+      .between([symbol, timeframe, Dexie.minKey], [symbol, timeframe, Dexie.maxKey])
+      .first();
+    const lastBar = await db.ohlcv
+      .where('[symbol+timeframe+timestamp]')
+      .between([symbol, timeframe, Dexie.minKey], [symbol, timeframe, Dexie.maxKey])
+      .last();
+
+    const actualMin = firstBar?.timestamp ?? minTs;
+    const actualMax = lastBar?.timestamp ?? maxTs;
 
     const existing = await db.cacheMetadata
       .where('[symbol+timeframe]')
@@ -104,16 +147,16 @@ export async function cacheBars(
 
     if (existing) {
       await db.cacheMetadata.update(existing.id!, {
-        startTimestamp: Math.min(existing.startTimestamp, minTs),
-        endTimestamp: Math.max(existing.endTimestamp, maxTs),
+        startTimestamp: actualMin,
+        endTimestamp: actualMax,
         lastUpdated: Date.now()
       });
     } else {
       await db.cacheMetadata.add({
         symbol,
         timeframe,
-        startTimestamp: minTs,
-        endTimestamp: maxTs,
+        startTimestamp: actualMin,
+        endTimestamp: actualMax,
         lastUpdated: Date.now()
       });
     }
@@ -166,9 +209,11 @@ export async function getCacheStats(): Promise<{
   symbols: number;
   sizeEstimate: string;
   sizeBytes: number;
+  combos: { key: string; count: number }[];
 }> {
   const totalBars = await db.ohlcv.count();
-  const symbols = (await db.cacheMetadata.toArray()).length;
+  const allMeta = await db.cacheMetadata.toArray();
+  const symbols = allMeta.length;
   const sizeBytes = totalBars * 64;
 
   let sizeEstimate: string;
@@ -176,7 +221,17 @@ export async function getCacheStats(): Promise<{
   else if (sizeBytes < 1024 * 1024) sizeEstimate = `${(sizeBytes / 1024).toFixed(1)} KB`;
   else sizeEstimate = `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
 
-  return { totalBars, symbols, sizeEstimate, sizeBytes };
+  // Breakdown by symbol+timeframe combo (fast: count per combo)
+  const combos: { key: string; count: number }[] = [];
+  for (const meta of allMeta) {
+    const count = await db.ohlcv
+      .where('[symbol+timeframe]')
+      .equals([meta.symbol, meta.timeframe])
+      .count();
+    combos.push({ key: `${meta.symbol}@${meta.timeframe}m`, count });
+  }
+
+  return { totalBars, symbols, sizeEstimate, sizeBytes, combos };
 }
 
 export async function getPreference<T>(key: string, defaultValue: T): Promise<T> {

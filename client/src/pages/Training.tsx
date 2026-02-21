@@ -12,7 +12,7 @@ import { Terminal, Pause, Square, Cpu, Brain, Sparkles, Play, AlertTriangle, Tre
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useRef, useCallback } from "react";
 import LossSurface3D from "@/components/LossSurface3D";
-import { useBreadcrumbs } from "@/hooks/useBreadcrumbs";
+import { useDashboard } from "@/contexts/UnifiedDashboardContext";
 
 interface TrainingProgress {
   epoch: number;
@@ -72,18 +72,40 @@ function MetricBox({ icon: Icon, label, value, color }: { icon: any; label: stri
   );
 }
 
-export default function Training() {
+/** Embeddable training panel – used both standalone and inside MLHub's Training tab */
+export function TrainingPanel() {
   const queryClient = useQueryClient();
+  const dashboard = useDashboard();
   const [activeTab, setActiveTab] = useState("training");
-  const [selectedSymbol, setSelectedSymbol] = useState("MNQ");
+  // Sync symbol with unified dashboard context
+  const [selectedSymbol, setSelectedSymbolLocal] = useState(dashboard.symbol);
+  const setSelectedSymbol = (sym: string) => {
+    setSelectedSymbolLocal(sym);
+    dashboard.setSymbol(sym);
+  };
+  // Listen for context changes from other pages
+  useEffect(() => {
+    if (dashboard.symbol !== selectedSymbol) {
+      setSelectedSymbolLocal(dashboard.symbol);
+    }
+  }, [dashboard.symbol]);
 
-  const tabLabels: Record<string, string> = { training: "Training", features: "Features", models: "Models" };
-  useBreadcrumbs([
-    { label: tabLabels[activeTab] ?? activeTab },
-    { label: selectedSymbol },
-  ]);
   const [epochs, setEpochs] = useState(50);
   const [batchSize, setBatchSize] = useState(32);
+
+  // Universal pipeline config
+  const [pipeline, setPipeline] = useState<'universal' | 'legacy'>('universal');
+  const [labelType, setLabelType] = useState<'direction' | 'triple_barrier'>('direction');
+  const [maxBars, setMaxBars] = useState(100000);
+  const [timeframeSec, setTimeframeSec] = useState(300);
+  const [labelHorizon, setLabelHorizon] = useState(10);
+  const [labelAtrMultiplier, setLabelAtrMultiplier] = useState(0.5);
+  const [labelNumClasses, setLabelNumClasses] = useState<2 | 3>(3);
+  const [takeProfitATR, setTakeProfitATR] = useState(2.0);
+  const [stopLossATR, setStopLossATR] = useState(1.0);
+  const [maxHoldingPeriod, setMaxHoldingPeriod] = useState(20);
+  const [showConfig, setShowConfig] = useState(false);
+
   const [lossHistory, setLossHistory] = useState<{epoch: number, loss: number, valLoss: number, accuracy?: number}[]>([]);
   const [currentProgress, setCurrentProgress] = useState<TrainingProgress | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -94,6 +116,8 @@ export default function Training() {
   const activeSessionSymbolRef = useRef<string | null>(null);
   const selectedSymbolRef = useRef(selectedSymbol);
   const activeModelNameRef = useRef<string | undefined>(undefined);
+  const dashboardRef = useRef(dashboard);
+  dashboardRef.current = dashboard;
 
   // Check training status on mount to sync live state
   const { data: trainingStatus } = useQuery({
@@ -222,7 +246,25 @@ export default function Training() {
 
         setCurrentProgress(progress);
 
+        // Push training context to unified dashboard so chart can highlight range
         if (progress.epoch > 0 && progress.status === 'training') {
+          dashboardRef.current.setTrainingContext({
+            dataStart: data.dataStart || '',
+            dataEnd: data.dataEnd || '',
+            epoch: progress.epoch,
+            totalEpochs: progress.totalEpochs,
+            loss: progress.loss,
+            valLoss: progress.valLoss,
+            accuracy: progress.accuracy,
+            valAccuracy: progress.valAccuracy,
+            status: progress.status,
+            message: progress.message,
+            trainSize: progress.trainSize,
+            valSize: progress.valSize,
+            symbol: eventSymbol || selectedSymbolRef.current || 'MNQ',
+            modelName: activeModelNameRef.current,
+          });
+
           setLossHistory(prev => {
             const exists = prev.some(p => p.epoch === progress.epoch);
             if (exists) return prev;
@@ -243,6 +285,8 @@ export default function Training() {
         if (progress.status === 'completed' || progress.status === 'stopped' || progress.status === 'error') {
           setLogs(prev => [...prev.slice(-50), `[INFO] Training ${progress.status}: ${progress.message || ''}`]);
           setActiveSessionSymbol(null);
+          // Clear training context from unified dashboard
+          dashboardRef.current.setTrainingContext(null);
           queryClient.invalidateQueries({ queryKey: [...QUERY_KEYS.mlModels] });
           queryClient.invalidateQueries({ queryKey: ['lastTrainingSession', selectedSymbolRef.current] });
           queryClient.invalidateQueries({ queryKey: ['featureImportance', activeModelNameRef.current] });
@@ -270,10 +314,32 @@ export default function Training() {
   // Start training mutation
   const startTrainingMutation = useMutation({
     mutationFn: async () => {
+      const body: Record<string, any> = {
+        symbol: selectedSymbol,
+        epochs,
+        batchSize,
+        pipeline,
+      };
+
+      if (pipeline === 'universal') {
+        body.timeframeSec = timeframeSec;
+        body.maxBars = maxBars;
+        body.labelType = labelType;
+        if (labelType === 'direction') {
+          body.labelHorizon = labelHorizon;
+          body.labelAtrMultiplier = labelAtrMultiplier;
+          body.labelNumClasses = labelNumClasses;
+        } else {
+          body.takeProfitATR = takeProfitATR;
+          body.stopLossATR = stopLossATR;
+          body.maxHoldingPeriod = maxHoldingPeriod;
+        }
+      }
+
       const res = await fetch('/api/ml/train/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbol: selectedSymbol, epochs, batchSize })
+        body: JSON.stringify(body)
       });
       if (!res.ok) {
         const error = await res.json();
@@ -393,7 +459,7 @@ export default function Training() {
   const futuresSymbols = instruments.filter((i: any) => i.assetType === 'futures').map((i: any) => i.symbol);
 
   return (
-    <div className="space-y-4 h-[calc(100vh-8.5rem)] flex flex-col overflow-hidden">
+    <div className="space-y-4 h-full flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex justify-between items-center shrink-0">
         <div>
@@ -405,6 +471,11 @@ export default function Training() {
             <Badge variant="outline" className={`text-xs ${isConnected ? 'border-green-500/50 text-green-400' : 'border-muted-foreground/30'}`}>
               {isConnected ? 'Connected' : 'Disconnected'}
             </Badge>
+            {pipeline === 'universal' && (
+              <Badge variant="outline" className="text-xs border-cyan-500/30 text-cyan-400 bg-cyan-500/10">
+                Universal · {labelType === 'direction' ? `${labelNumClasses}-class` : 'Triple Barrier'}
+              </Badge>
+            )}
             {isOverfitting && (
               <Badge variant="outline" className="border-amber-500/50 text-amber-400 bg-amber-500/10 gap-1">
                 <AlertTriangle className="h-3 w-3" /> Overfitting Detected
@@ -439,6 +510,17 @@ export default function Training() {
             />
           </div>
 
+          {/* Config toggle */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowConfig(!showConfig)}
+            disabled={isTraining}
+            className={`h-10 rounded-xl gap-1.5 ${showConfig ? 'border-primary/50 text-primary bg-primary/10' : ''}`}
+          >
+            <Settings className="h-4 w-4" /> Config
+          </Button>
+
           <Badge variant="outline" className={`h-10 px-4 font-mono gap-2 text-sm rounded-full ${
             isTraining ? 'border-green-500/30 text-green-400 bg-green-500/10' : 'border-muted-foreground/30 text-muted-foreground'
           }`}>
@@ -449,7 +531,7 @@ export default function Training() {
             <Button 
               onClick={() => startTrainingMutation.mutate()} 
               disabled={startTrainingMutation.isPending}
-              className="h-10 rounded-xl bg-gradient-to-r from-primary to-accent text-white hover:opacity-90" 
+              className="h-10 rounded-xl bg-linear-to-r from-primary to-accent text-white hover:opacity-90" 
               data-testid="button-start"
             >
               {startTrainingMutation.isPending ? (
@@ -472,6 +554,141 @@ export default function Training() {
           )}
         </div>
       </div>
+
+      {/* Pipeline Config Panel */}
+      {showConfig && !isTraining && (
+        <Card className="glass rounded-2xl border border-primary/20 shrink-0">
+          <CardContent className="p-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+              {/* Pipeline Type */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Pipeline</Label>
+                <Select value={pipeline} onValueChange={(v) => setPipeline(v as 'universal' | 'legacy')}>
+                  <SelectTrigger className="h-9 rounded-lg text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="universal">Universal (31 features)</SelectItem>
+                    <SelectItem value="legacy">Legacy (5 OHLCV)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {pipeline === 'universal' && (
+                <>
+                  {/* Label Type */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Label Type</Label>
+                    <Select value={labelType} onValueChange={(v) => setLabelType(v as 'direction' | 'triple_barrier')}>
+                      <SelectTrigger className="h-9 rounded-lg text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="direction">Direction</SelectItem>
+                        <SelectItem value="triple_barrier">Triple Barrier</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Max Bars */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Max Bars</Label>
+                    <Input
+                      type="number"
+                      value={maxBars}
+                      onChange={(e) => setMaxBars(parseInt(e.target.value) || 100000)}
+                      className="h-9 rounded-lg text-xs"
+                    />
+                  </div>
+
+                  {/* Timeframe */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Timeframe</Label>
+                    <Select value={String(timeframeSec)} onValueChange={(v) => setTimeframeSec(parseInt(v))}>
+                      <SelectTrigger className="h-9 rounded-lg text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="60">1m</SelectItem>
+                        <SelectItem value="300">5m</SelectItem>
+                        <SelectItem value="900">15m</SelectItem>
+                        <SelectItem value="1800">30m</SelectItem>
+                        <SelectItem value="3600">1H</SelectItem>
+                        <SelectItem value="14400">4H</SelectItem>
+                        <SelectItem value="86400">1D</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Direction-specific params */}
+                  {labelType === 'direction' && (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Horizon (bars)</Label>
+                        <Input
+                          type="number"
+                          value={labelHorizon}
+                          onChange={(e) => setLabelHorizon(parseInt(e.target.value) || 10)}
+                          className="h-9 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Classes</Label>
+                        <Select value={String(labelNumClasses)} onValueChange={(v) => setLabelNumClasses(parseInt(v) as 2 | 3)}>
+                          <SelectTrigger className="h-9 rounded-lg text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="2">2 (Up/Down)</SelectItem>
+                            <SelectItem value="3">3 (Up/Neutral/Down)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Triple barrier params */}
+                  {labelType === 'triple_barrier' && (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">TP (ATR×)</Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={takeProfitATR}
+                          onChange={(e) => setTakeProfitATR(parseFloat(e.target.value) || 2.0)}
+                          className="h-9 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">SL (ATR×)</Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={stopLossATR}
+                          onChange={(e) => setStopLossATR(parseFloat(e.target.value) || 1.0)}
+                          className="h-9 rounded-lg text-xs"
+                        />
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* Batch Size (always visible) */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Batch Size</Label>
+                <Input
+                  type="number"
+                  value={batchSize}
+                  onChange={(e) => setBatchSize(parseInt(e.target.value) || 32)}
+                  className="h-9 rounded-lg text-xs"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -797,4 +1014,8 @@ export default function Training() {
       </Card>
     </div>
   );
+}
+
+export default function Training() {
+  return <TrainingPanel />;
 }

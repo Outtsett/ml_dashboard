@@ -502,8 +502,21 @@ async function generateContrastiveLabels(
 
 export async function previewLabels(
   request: LabelPreviewRequest
-): Promise<{ success: boolean; preview?: Array<Record<string, unknown>>; count?: number; error?: string }> {
+): Promise<{ success: boolean; preview?: Array<Record<string, unknown>>; count?: number; error?: string; generatorType?: string }> {
   try {
+    // Handle contrastive generators — they produce pair indices, not per-bar labels.
+    // Fall back to direction labels for chart preview.
+    const isContrastive = ['contrastive_temporal', 'contrastive_augmentation', 'contrastive_statistical'].includes(request.generatorType);
+    if (isContrastive) {
+      return {
+        success: true,
+        preview: [],
+        count: 0,
+        generatorType: request.generatorType,
+        error: 'Contrastive generators produce sample pairs, not per-bar labels. Use the full generation flow to create contrastive pairs.',
+      };
+    }
+
     // Load OHLCV data into DuckDB first
     await loadOHLCVIntoDuckDB({ 
       symbol: request.symbol, 
@@ -512,6 +525,20 @@ export async function previewLabels(
       endTimestamp: request.endTimestamp,
       timeframeMinutes: request.timeframeMinutes,
     });
+
+    // For meta_label: generate primary direction labels first so the JOIN has data
+    if (request.generatorType === 'meta_label') {
+      const directionSQL = LABEL_SQL_GENERATORS.direction(
+        { horizon: 1, threshold: 0, numClasses: 2 },
+        { symbol: request.symbol }
+      );
+      try {
+        await queryDuckDB('DROP TABLE IF EXISTS primary_labels');
+        await queryDuckDB(`CREATE TABLE primary_labels AS ${directionSQL}`);
+      } catch (e) {
+        console.warn('[LabelService] Failed to generate primary labels for meta_label preview:', e);
+      }
+    }
     
     const labelSQL = generateLabelSQL(
       request.generatorType,
@@ -538,11 +565,15 @@ export async function previewLabels(
     const sortedResults = (results || []).sort((a: any, b: any) => 
       Number(a.timestamp) - Number(b.timestamp)
     );
+
+    // Post-process: normalize labels for chart rendering
+    const normalizedResults = normalizeLabelsForPreview(request.generatorType, sortedResults);
     
     return {
       success: true,
-      preview: sortedResults,
-      count: sortedResults.length,
+      preview: normalizedResults,
+      count: normalizedResults.length,
+      generatorType: request.generatorType,
     };
     
   } catch (error) {
@@ -551,6 +582,118 @@ export async function previewLabels(
       error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
+}
+
+/**
+ * Normalize label values for chart rendering.
+ * All generators should output { timestamp, close, label } where label is -1, 0, or 1.
+ * Generators that produce other values are mapped to this standard.
+ */
+function normalizeLabelsForPreview(
+  generatorType: string,
+  results: Array<Record<string, unknown>>
+): Array<Record<string, unknown>> {
+  if (!results || results.length === 0) return results;
+
+  const regressionGenerators = ['future_return', 'future_volatility'];
+  const multiClassGenerators = ['regime'];
+
+  if (regressionGenerators.includes(generatorType)) {
+    // Convert continuous regression targets to classification labels for chart
+    if (generatorType === 'future_volatility') {
+      // Volatility is always positive — bin into high(1) / medium(0) / low(-1)
+      // using percentile-based thresholds from the data
+      const values = results
+        .map(r => Number(r.label))
+        .filter(v => !isNaN(v) && v !== null);
+      if (values.length === 0) return results;
+      values.sort((a, b) => a - b);
+      const p33 = values[Math.floor(values.length * 0.33)];
+      const p66 = values[Math.floor(values.length * 0.66)];
+      return results.map(row => {
+        const rawLabel = Number(row.label);
+        if (isNaN(rawLabel) || row.label === null || row.label === undefined) {
+          return { ...row, label: null };
+        }
+        let normalizedLabel: number;
+        if (rawLabel >= p66) normalizedLabel = 1;       // High vol
+        else if (rawLabel <= p33) normalizedLabel = -1;  // Low vol
+        else normalizedLabel = 0;                        // Medium vol
+        return { ...row, label: normalizedLabel, rawLabel };
+      });
+    }
+    // future_return: sign of the return
+    return results.map(row => {
+      const rawLabel = Number(row.label);
+      if (isNaN(rawLabel) || row.label === null || row.label === undefined) {
+        return { ...row, label: null };
+      }
+      let normalizedLabel: number;
+      if (rawLabel > 0) normalizedLabel = 1;
+      else if (rawLabel < 0) normalizedLabel = -1;
+      else normalizedLabel = 0;
+      return { ...row, label: normalizedLabel, rawLabel };
+    });
+  }
+
+  if (multiClassGenerators.includes(generatorType)) {
+    // Regime labels: 0,1,2,3 → map to chart-compatible values
+    // Even regimes (0,2) = bearish-ish → -1, Odd regimes (1,3) = bullish-ish → 1
+    // For 3-regime: 0=downtrend→-1, 1=sideways→0, 2=uptrend→1
+    // For 2-regime: 0=bearish→-1, 1=bullish→1
+    return results.map(row => {
+      const rawLabel = Number(row.label);
+      if (isNaN(rawLabel) || row.label === null || row.label === undefined) {
+        return { ...row, label: null };
+      }
+      const regimeName = row.regime_name as string | undefined;
+      let normalizedLabel: number;
+      if (regimeName) {
+        // Use regime_name for more accurate mapping
+        if (regimeName.includes('down') || regimeName === 'bearish') normalizedLabel = -1;
+        else if (regimeName.includes('up') || regimeName === 'bullish') normalizedLabel = 1;
+        else normalizedLabel = 0; // sideways, low_vol_down etc
+      } else {
+        // Fallback: map numeric labels
+        if (rawLabel === 0) normalizedLabel = -1;
+        else if (rawLabel === 1) normalizedLabel = 1;
+        else if (rawLabel === 2) normalizedLabel = -1;
+        else normalizedLabel = 1;
+      }
+      return { ...row, label: normalizedLabel, rawLabel, regimeName };
+    });
+  }
+
+  // For multi_step: label is already 0 or 1, map 0 → -1 (sell) for chart
+  if (generatorType === 'multi_step') {
+    return results.map(row => {
+      const rawLabel = Number(row.label);
+      if (isNaN(rawLabel) || row.label === null || row.label === undefined) {
+        return { ...row, label: null };
+      }
+      return { ...row, label: rawLabel === 1 ? 1 : -1, rawLabel };
+    });
+  }
+
+  // For pseudo_confidence: filter out null labels (low confidence samples)
+  if (generatorType === 'pseudo_confidence') {
+    return results.filter(row => row.label !== null && row.label !== undefined);
+  }
+
+  // For meta_label: 0→-1 (don't trade), 1→1 (trade) mapping for chart
+  if (generatorType === 'meta_label') {
+    return results.map(row => {
+      const rawLabel = Number(row.label);
+      if (isNaN(rawLabel) || row.label === null || row.label === undefined) {
+        return { ...row, label: null };
+      }
+      return { ...row, label: rawLabel === 1 ? 1 : -1, rawLabel };
+    });
+  }
+
+  // Default: return as-is (direction, signal, triple_barrier, npmm, 
+  // volatility_adaptive, trend_scanning, consistency_perturbation already use -1/0/1)
+  return results;
 }
 
 // ============================================================================
@@ -633,9 +776,12 @@ function generateLabelSQL(
       );
     case 'meta_label':
       return LABEL_SQL_GENERATORS.meta_label(
-        params as unknown as MetaLabelParams,
+        { 
+          ...(params as unknown as MetaLabelParams),
+          primarySignalColumn: (params as unknown as MetaLabelParams).primarySignalColumn || 'label',
+        },
         config,
-        (params as { primaryLabelsTable?: string }).primaryLabelsTable
+        (params as { primaryLabelsTable?: string }).primaryLabelsTable || 'primary_labels'
       );
     case 'future_return':
       return LABEL_SQL_GENERATORS.future_return(

@@ -9,6 +9,7 @@ import * as path from "path";
 import { convertCSVToParquet, convertZstCSVToParquet, getParquetStats, runQuery } from "../duckdb";
 import { uploadRateLimiter } from "../lib/rateLimiter";
 import { parseTimestamp } from "./helpers";
+import { ohlcvCache } from "../lib/ohlcvCache";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
@@ -184,6 +185,7 @@ async function processOhlcvFileFromDisk(
 
       // Determine final status based on pipeline success
       await storage.updateUploadStatus(uploadId, "completed", stats.count);
+      ohlcvCache.invalidateSymbol(symbol); // clear stale cache for this symbol
       if (!questdbSuccess) {
         console.warn(`File processing complete: ${stats.count} records in Parquet. QuestDB ingestion skipped/failed.`);
       } else {
@@ -403,6 +405,7 @@ async function processOhlcvFileFromDisk(
         }
 
         await storage.updateUploadStatus(uploadId, "completed", recordCount);
+        ohlcvCache.invalidateSymbol(symbol);
         console.log(`[Fallback] File processing complete. Total records: ${recordCount}.`);
         resolve();
       } catch (err) {
@@ -503,6 +506,7 @@ async function processOhlcvFile(
       }
 
       await storage.updateUploadStatus(uploadId, "completed", recordCount);
+      ohlcvCache.invalidateSymbol(symbol);
       console.log(`File processing complete. ${recordCount} records -> ${assetType === 'futures' ? 'ohlcv_1s' : 'forex_1m'}`);
       resolve();
     });
@@ -573,6 +577,7 @@ async function processParquetFile(
     }
 
     await storage.updateUploadStatus(uploadId, "completed", count);
+    ohlcvCache.invalidateSymbol(symbol);
     console.log(`Processing complete. ${count} records -> ${assetType === 'futures' ? 'ohlcv_1s' : 'forex_1m'}`);
 
   } finally {

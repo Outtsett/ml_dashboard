@@ -67,6 +67,7 @@ export const featureImportance = pgTable("feature_importance", {
   modelName: text("model_name").notNull(),
   featureName: text("feature_name").notNull(),
   importance: doublePrecision("importance").notNull(),
+  category: text("category"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 

@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { getOHLCVSampleBy, checkQuestDBHealth } from '../questdb';
 import { marketQuery } from '../duckdb/market';
+import { cachedQuery, OHLCVCache } from '../lib/ohlcvCache';
 
 const router = Router();
 
@@ -30,11 +31,17 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
     const endMs = end ? new Date(end as string).getTime() : undefined;
     const rowLimit = limit ? parseInt(limit as string) : 5000;
 
+    const chartCacheKey = OHLCVCache.key('chart', symbol, timeframe as string, {
+      startTime: startMs, endTime: endMs, limit: rowLimit
+    });
+
     // Try QuestDB first (optimized for chart serving with SAMPLE BY)
     const questdbHealthy = await checkQuestDBHealth();
 
     if (questdbHealthy) {
-      const data = await getOHLCVSampleBy(symbol, timeframe as string, startMs, endMs, rowLimit);
+      const data = await cachedQuery(chartCacheKey, () =>
+        getOHLCVSampleBy(symbol, timeframe as string, startMs, endMs, rowLimit)
+      );
       return res.json({ source: 'questdb', count: data.length, data });
     }
 
@@ -46,7 +53,7 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
     if (endMs) sql += ` AND ts <= '${new Date(endMs).toISOString()}'`;
     sql += ` ORDER BY ts LIMIT ${rowLimit}`;
 
-    const data = await marketQuery(sql);
+    const data = await cachedQuery(chartCacheKey + ':duckdb', () => marketQuery(sql));
     return res.json({ source: 'duckdb', count: data.length, data });
   } catch (error: any) {
     console.error('[charts]', error.message);

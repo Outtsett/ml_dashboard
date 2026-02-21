@@ -11,6 +11,8 @@ import newsRouter from "./routes/news";
 import databasesRouter from "./routes/databases";
 import chartRouter from "./routes/charts";
 import backtestRouter from "./routes/backtest";
+import agentRouter from "./routes/agent";
+import regimeRouter from "./routes/regime";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
 
@@ -33,6 +35,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", databasesRouter);
   app.use("/api/charts", chartRouter);
   app.use("/api", backtestRouter);
+  app.use("/api", agentRouter);
+  app.use("/api", regimeRouter);
 
   return httpServer;
 }

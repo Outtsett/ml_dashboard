@@ -9,17 +9,18 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import {
   Play, RotateCcw, BarChart2, Sparkles, Target, TrendingDown, Orbit,
-  TrendingUp, Calculator, Loader2, AlertCircle, CheckCircle2
+  TrendingUp, Calculator, Loader2, AlertCircle, CheckCircle2, LineChart as LineChartIcon
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   ComposedChart, Bar, Legend, Line, ReferenceLine
 } from "recharts";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/types";
 import { apiRequest } from "@/lib/queryClient";
-import { useBreadcrumbs } from "@/hooks/useBreadcrumbs";
+import { useDashboard, type TradeMarker } from "@/contexts/UnifiedDashboardContext";
+
 
 // ============================================================
 // TYPES
@@ -78,13 +79,25 @@ interface BacktestRunResult {
 // COMPONENT
 // ============================================================
 
-export default function Backtest() {
+/** Embeddable backtest panel – used both standalone and inside MLHub's Backtest tab */
+export function BacktestPanel() {
   const queryClient = useQueryClient();
+  const dashboard = useDashboard();
   const [activeTab, setActiveTab] = useState("results");
 
-  // Form state
+  // Form state — sync symbol with unified context
   const [selectedModel, setSelectedModel] = useState<string>("");
-  const [selectedSymbol, setSelectedSymbol] = useState<string>("");
+  const [selectedSymbol, setSelectedSymbolLocal] = useState<string>(dashboard.symbol || "");
+  const setSelectedSymbol = (sym: string) => {
+    setSelectedSymbolLocal(sym);
+    dashboard.setSymbol(sym);
+  };
+  // Listen for context changes from other pages
+  useEffect(() => {
+    if (dashboard.symbol !== selectedSymbol) {
+      setSelectedSymbolLocal(dashboard.symbol);
+    }
+  }, [dashboard.symbol]);
   const [selectedBroker, setSelectedBroker] = useState<string>("");
   const [timeframe, setTimeframe] = useState("1m");
   const [splitRatio, setSplitRatio] = useState(0.8);
@@ -96,11 +109,7 @@ export default function Backtest() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  const tabLabels: Record<string, string> = { results: "Results", trades: "Trades", costs: "Costs" };
-  useBreadcrumbs([
-    { label: tabLabels[activeTab] ?? activeTab },
-    ...(selectedSymbol ? [{ label: selectedSymbol }] : []),
-  ]);
+
 
   // Results state
   const [lastResult, setLastResult] = useState<BacktestRunResult | null>(null);
@@ -168,6 +177,9 @@ export default function Backtest() {
       setLastResult(data);
       setSelectedRunId(data.run.id);
       queryClient.invalidateQueries({ queryKey: ["/api/backtest/runs"] });
+      // Push backtest trades as overlays to the unified chart via dashboard context
+      // We'll load them when the trades query resolves for this run
+      dashboard.addLog({ level: 'success', source: 'backtest', message: `Backtest completed: ${data.metrics.totalTrades} trades, ${data.metrics.winRate.toFixed(1)}% win rate` });
     },
   });
 
@@ -179,7 +191,8 @@ export default function Backtest() {
   const handleReset = useCallback(() => {
     setLastResult(null);
     setSelectedRunId(null);
-  }, []);
+    dashboard.clearTradeMarkers('backtest');
+  }, [dashboard]);
 
   const handleLoadRun = useCallback((run: any) => {
     setSelectedRunId(run.id);
@@ -234,8 +247,25 @@ export default function Backtest() {
   const metrics = lastResult?.metrics;
   const trades = tradesData?.trades ?? [];
 
+  // Push backtest trades as chart overlays when they load
+  useEffect(() => {
+    if (!tradesData?.chartMarkers?.length) return;
+    const markers: TradeMarker[] = tradesData.chartMarkers.map((m: any, i: number) => ({
+      id: `bt-${selectedRunId}-${i}`,
+      timestamp: m.timestamp,
+      type: m.type as 'entry' | 'exit',
+      side: m.side as 'long' | 'short',
+      price: m.price,
+      label: m.label,
+      pnl: m.pnl,
+      source: 'backtest' as const,
+    }));
+    dashboard.clearTradeMarkers('backtest');
+    dashboard.addTradeMarkers(markers);
+  }, [tradesData, selectedRunId]);
+
   return (
-    <div className="space-y-4 h-[calc(100vh-8.5rem)] flex flex-col overflow-hidden">
+    <div className="space-y-4 h-full flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex justify-between items-center shrink-0">
         <div>
@@ -252,6 +282,13 @@ export default function Backtest() {
           <h1 className="text-4xl font-display font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Backtesting</h1>
         </div>
         <div className="flex gap-3">
+          {lastResult && (tradesData?.chartMarkers?.length ?? 0) > 0 && (
+            <Button variant="outline" onClick={() => dashboard.navigateToChart()}
+              className="h-10 px-4 rounded-xl bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+            >
+              <LineChartIcon className="mr-2 h-4 w-4" /> Show on Chart
+            </Button>
+          )}
           <Button variant="outline" onClick={handleReset}
             className="h-10 px-4 rounded-xl bg-black/30 border-white/10"
           >
@@ -766,4 +803,8 @@ function StatRow({ label, value, positive, negative }: { label: string; value: s
       <span className={`font-mono ${positive ? 'text-green-400' : negative ? 'text-rose-400' : ''}`}>{value}</span>
     </div>
   );
+}
+
+export default function Backtest() {
+  return <BacktestPanel />;
 }

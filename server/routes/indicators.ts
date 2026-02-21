@@ -377,6 +377,117 @@ const INDICATOR_DIR = path.join(process.cwd(), "data", "indicators");
 // Cache for catalog data
 let cachedCatalog: { categories: Record<string, string[]>; total: number; columns: string[] } | null = null;
 
+// ===========================================================================
+// Partitioned indicator directory support (v2 format)
+// ===========================================================================
+
+interface CategoryMeta {
+  columns: string[];
+  column_count: number;
+  file_size_bytes: number;
+  file_size_mb: number;
+}
+
+interface IndicatorMeta {
+  version: number;
+  computed_at: string;
+  symbol: string;
+  timeframe: string;
+  row_count: number;
+  total_columns: number;
+  categories: Record<string, CategoryMeta>;
+}
+
+// Cache _meta.json contents (cleared on server restart)
+const metaCache = new Map<string, IndicatorMeta | null>();
+
+function getPartitionedDir(symbol: string, timeframe: string): string {
+  return path.join(INDICATOR_DIR, timeframe, symbol);
+}
+
+function readMeta(symbol: string, timeframe: string): IndicatorMeta | null {
+  const cacheKey = `${timeframe}/${symbol}`;
+  if (metaCache.has(cacheKey)) return metaCache.get(cacheKey)!;
+
+  const metaPath = path.join(getPartitionedDir(symbol, timeframe), "_meta.json");
+  if (!fs.existsSync(metaPath)) {
+    metaCache.set(cacheKey, null);
+    return null;
+  }
+
+  try {
+    const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8")) as IndicatorMeta;
+    metaCache.set(cacheKey, meta);
+    return meta;
+  } catch {
+    metaCache.set(cacheKey, null);
+    return null;
+  }
+}
+
+/** Find which category files contain the requested columns. */
+function findColumnsInCategories(
+  meta: IndicatorMeta,
+  columns: string[],
+): Map<string, string[]> {
+  const result = new Map<string, string[]>();
+  for (const col of columns) {
+    for (const [cat, catMeta] of Object.entries(meta.categories)) {
+      if (catMeta.columns.includes(col)) {
+        if (!result.has(cat)) result.set(cat, []);
+        result.get(cat)!.push(col);
+        break;
+      }
+    }
+  }
+  return result;
+}
+
+/** Build a DuckDB query that JOINs multiple category parquet files. */
+function buildPartitionedQuery(
+  partDir: string,
+  categoryColMap: Map<string, string[]>,
+  limit: number,
+): string {
+  const entries = Array.from(categoryColMap.entries());
+  if (entries.length === 0) return "";
+
+  const [firstCat, firstCols] = entries[0];
+  const firstPath = path.join(partDir, `${firstCat}.parquet`).replace(/\\/g, "/");
+
+  let selectCols = `t0."timestamp"`;
+  for (const c of firstCols) selectCols += `, t0."${c}"`;
+  for (let i = 1; i < entries.length; i++) {
+    for (const c of entries[i][1]) selectCols += `, t${i}."${c}"`;
+  }
+
+  let sql = `SELECT ${selectCols}\nFROM read_parquet('${firstPath}') t0`;
+  for (let i = 1; i < entries.length; i++) {
+    const catPath = path.join(partDir, `${entries[i][0]}.parquet`).replace(/\\/g, "/");
+    sql += `\nJOIN read_parquet('${catPath}') t${i} ON t0."timestamp" = t${i}."timestamp"`;
+  }
+  sql += `\nORDER BY t0."timestamp" DESC\nLIMIT ${limit}`;
+  return sql;
+}
+
+/** Find any _meta.json in the indicator directory tree. */
+function findSampleMeta(): IndicatorMeta | null {
+  if (!fs.existsSync(INDICATOR_DIR)) return null;
+  for (const tf of fs.readdirSync(INDICATOR_DIR)) {
+    const tfDir = path.join(INDICATOR_DIR, tf);
+    if (!fs.statSync(tfDir).isDirectory()) continue;
+    for (const sym of fs.readdirSync(tfDir)) {
+      const metaPath = path.join(tfDir, sym, "_meta.json");
+      if (fs.existsSync(metaPath)) {
+        try {
+          return JSON.parse(fs.readFileSync(metaPath, "utf-8")) as IndicatorMeta;
+        } catch { continue; }
+      }
+    }
+  }
+  return null;
+}
+
 // Get catalog of all pre-computed indicator columns
 router.get("/indicators/catalog", async (_req: Request, res: Response) => {
   try {
@@ -388,7 +499,24 @@ router.get("/indicators/catalog", async (_req: Request, res: Response) => {
       return res.json({ categories: {}, total: 0, columns: [] });
     }
 
-    // Find a sample parquet file
+    // Try partitioned format first (v2: _meta.json files)
+    const sampleMeta = findSampleMeta();
+    if (sampleMeta) {
+      const categories: Record<string, string[]> = {};
+      const allColumns: string[] = [];
+      for (const [cat, catMeta] of Object.entries(sampleMeta.categories)) {
+        categories[cat] = catMeta.columns;
+        allColumns.push(...catMeta.columns);
+      }
+      // Remove empty categories
+      for (const key of Object.keys(categories)) {
+        if (categories[key].length === 0) delete categories[key];
+      }
+      cachedCatalog = { categories, total: allColumns.length, columns: allColumns };
+      return res.json(cachedCatalog);
+    }
+
+    // Fall back to flat file introspection (v1 format)
     const files = fs.readdirSync(INDICATOR_DIR).filter(f => f.endsWith(".parquet"));
     if (files.length === 0) {
       return res.json({ categories: {}, total: 0, columns: [] });
@@ -405,41 +533,35 @@ router.get("/indicators/catalog", async (_req: Request, res: Response) => {
       .map(r => r.column_name)
       .filter(c => !ohlcvCols.has(c.toLowerCase()));
 
-    // Categorize by prefix patterns
+    // Categorize by prefix patterns (same order as Python classifier)
     const categories: Record<string, string[]> = {
-      candle: [],
-      overlap: [],
-      momentum: [],
-      volatility: [],
-      volume: [],
-      trend: [],
-      statistics: [],
-      cycle: [],
-      performance: [],
-      other: [],
+      candle: [], trend: [], volume: [], volatility: [], momentum: [],
+      cycle: [], statistics: [], performance: [], overlap: [], other: [],
     };
 
-    const candlePrefixes = ["CDL_"];
-    const overlapPrefixes = ["SMA", "EMA", "WMA", "DEMA", "TEMA", "T3", "KAMA", "FWMA", "HMA", "ALMA", "LINREG", "MIDPOINT", "MIDPRICE", "PWMA", "RMA", "SINWMA", "SWMA", "TRIMA", "VIDYA", "VWMA", "HWMA", "MCGD", "SMMA", "JMA", "ZLMA", "ZL", "HT", "HILO", "ISA", "ISB", "ITS", "IKS", "ICS", "MAMA", "FAMA", "SSF", "SSF3", "ACCB", "BBL", "BBM", "BBU", "BBB", "BBP", "KCL", "KCB", "KCU", "DCL", "DCM", "DCU", "SUPERT", "ALPHAT", "AMAT", "AGj", "AGt", "AGl"];
-    const momentumPrefixes = ["RSI", "MACD", "STOCH", "CCI", "WILLR", "MOM", "ROC", "AO", "APO", "PPO", "BIAS", "BOP", "AR", "BR", "CFO", "CG", "CMO", "COPC", "CRSI", "CTI", "ER", "FISHER", "INERTIA", "K", "D", "J", "KST", "PGO", "PSL", "QQE", "RSX", "RVGI", "STC", "TRIX", "TSI", "UO", "SMI", "TMO", "SQZ", "SQZPRO"];
-    const volatilityPrefixes = ["ATR", "NATR", "TRUERANGE", "ABER", "THERMO", "UI", "RVI", "MASSI", "HW", "TOS", "PDIST"];
-    const volumePrefixes = ["OBV", "AD", "ADOSC", "CMF", "EFI", "EOM", "KVO", "MFI", "NVI", "PVI", "PVOL", "PVR", "PVT", "VWAP", "TSV", "AOBV", "VP", "VHM"];
-    const trendPrefixes = ["ADX", "ADXR", "DMP", "DMN", "AROON", "CHOP", "CKSP", "DPO", "PSAR", "QS", "VTXP", "VTXM", "VHF", "EBSW", "REFLEX", "TRENDFLEX", "RWI", "LDECAY", "DEC", "INC", "ZIGZAG", "SMC", "EXHC", "CHDLREXTl", "CHDLREXTs", "CHDLREXTd"];
-    const statsPrefixes = ["ENTP", "KURT", "MAD", "MEDIAN", "QTL", "SKEW", "STDEV", "VAR", "ZS", "SLOPE"];
-    const perfPrefixes = ["LOGRET", "PCTRET"];
-    const cyclePrefixes = ["EBSW", "REFLEX"];
+    const categoryPrefixes: [string, string[]][] = [
+      ["candle", ["CDL_"]],
+      ["trend", ["ADX", "DMP_", "DMN_", "AROON", "CHOP_", "CKSP_", "DPO_", "PSAR", "QS_", "VTXP_", "VTXM_", "VHF_", "RWI_", "LDECAY_", "DEC_", "INC_", "ZIGZAG", "SMC_", "EXHC_", "CHDLREXT"]],
+      ["volume", ["OBV", "ADOSC_", "AD", "CMF_", "EFI_", "EOM", "KVO_", "MFI_", "NVI_", "PVI_", "PVOL_", "PVR_", "PVT_", "VWAP_", "TSV_", "AOBV_", "VP_", "VHM_"]],
+      ["volatility", ["ATR", "NATR_", "TRUERANGE", "ABER", "THERMO", "UI_", "PDIST_", "MASSI_", "HWU_", "HWM_", "HWL_", "TOS_", "BBW_", "KCW_", "RVI_"]],
+      ["momentum", ["RSI_", "MACD", "STOCH", "CCI_", "WILLR_", "MOM_", "ROC_", "AO_", "APO_", "PPO_", "BIAS_", "BOP", "CFO_", "CG_", "CMO_", "COPC_", "CRSI_", "CTI_", "ER_", "FISHER", "INERTIA_", "KST_", "PGO_", "PSL_", "QQE", "RSX_", "RVGI_", "STC_", "TRIX_", "TSI_", "UO_", "SMI_", "TMO_", "SQZ", "K_", "D_", "J_"]],
+      ["cycle", ["EBSW_", "REFLEX_"]],
+      ["statistics", ["ENTP", "KURT", "MAD_", "MEDIAN_", "QTL_", "SKEW_", "STDEV_", "VAR_", "ZS_", "SLOPE_"]],
+      ["performance", ["LOGRET_", "PCTRET_", "CUMLOGRET_", "CUMPCTRET_"]],
+      ["overlap", ["SMA_", "EMA_", "WMA_", "DEMA_", "TEMA_", "T3_", "KAMA_", "FWMA_", "HMA_", "ALMA_", "LINREG_", "MIDPOINT_", "MIDPRICE_", "PWMA_", "RMA_", "SINWMA_", "SWMA_", "TRIMA_", "VIDYA_", "VWMA_", "HWMA_", "MCGD_", "SMMA_", "JMA_", "ZLMA_", "ZL_", "HT_", "HILO", "ISA_", "ISB_", "ITS_", "IKS_", "ICS_", "MAMA_", "FAMA_", "SSF", "BBL_", "BBM_", "BBU_", "BBB_", "BBP_", "KCL", "KCB", "KCU", "DCL_", "DCM_", "DCU_", "SUPERT", "ALPHAT", "AMAT", "ACCB"]],
+    ];
 
     for (const col of indicatorCols) {
       const upper = col.toUpperCase();
-      if (candlePrefixes.some(p => upper.startsWith(p))) categories.candle.push(col);
-      else if (perfPrefixes.some(p => upper.startsWith(p))) categories.performance.push(col);
-      else if (statsPrefixes.some(p => upper.startsWith(p))) categories.statistics.push(col);
-      else if (volumePrefixes.some(p => upper.startsWith(p))) categories.volume.push(col);
-      else if (volatilityPrefixes.some(p => upper.startsWith(p))) categories.volatility.push(col);
-      else if (trendPrefixes.some(p => upper.startsWith(p))) categories.trend.push(col);
-      else if (momentumPrefixes.some(p => upper.startsWith(p))) categories.momentum.push(col);
-      else if (overlapPrefixes.some(p => upper.startsWith(p))) categories.overlap.push(col);
-      else categories.other.push(col);
+      let classified = false;
+      for (const [cat, prefixes] of categoryPrefixes) {
+        if (prefixes.some(p => upper.startsWith(p))) {
+          categories[cat].push(col);
+          classified = true;
+          break;
+        }
+      }
+      if (!classified) categories.other.push(col);
     }
 
     // Remove empty categories
@@ -469,24 +591,88 @@ router.get("/indicators/data/:symbol", async (req: Request, res: Response) => {
     const limitStr = req.query.limit as string | undefined;
     const limit = limitStr ? Math.min(parseInt(limitStr), 10000) : 2000;
 
+    // --- Try partitioned format first (v2) ---
+    const meta = readMeta(symbol, timeframe);
+    if (meta) {
+      const partDir = getPartitionedDir(symbol, timeframe);
+
+      if (columns) {
+        const requestedCols = columns.split(",").map(c => c.trim()).filter(c => /^[a-zA-Z0-9_.]+$/.test(c));
+        const categoryColMap = findColumnsInCategories(meta, requestedCols);
+
+        if (categoryColMap.size === 0) {
+          return res.status(404).json({
+            error: `None of the requested columns found in ${symbol}/${timeframe}`,
+            available_categories: Object.keys(meta.categories),
+          });
+        }
+
+        const sql = buildPartitionedQuery(partDir, categoryColMap, limit);
+        const data = await runQuery(sql);
+        data.reverse();
+
+        const serialized = data.map(row => {
+          const converted: Record<string, unknown> = {};
+          for (const [key, val] of Object.entries(row)) {
+            converted[key] = typeof val === "bigint" ? Number(val) : val;
+          }
+          return converted;
+        });
+
+        return res.json({ symbol, timeframe, count: serialized.length, data: serialized });
+      } else {
+        // All columns — join all category files
+        const allColMap = new Map<string, string[]>();
+        for (const [cat, catMeta] of Object.entries(meta.categories)) {
+          allColMap.set(cat, catMeta.columns);
+        }
+
+        const sql = buildPartitionedQuery(partDir, allColMap, limit);
+        const data = await runQuery(sql);
+        data.reverse();
+
+        const serialized = data.map(row => {
+          const converted: Record<string, unknown> = {};
+          for (const [key, val] of Object.entries(row)) {
+            converted[key] = typeof val === "bigint" ? Number(val) : val;
+          }
+          return converted;
+        });
+
+        return res.json({ symbol, timeframe, count: serialized.length, data: serialized });
+      }
+    }
+
+    // --- Fall back to flat file (v1) ---
     const filePath = path.join(INDICATOR_DIR, `${symbol}_${timeframe}.parquet`);
     if (!fs.existsSync(filePath)) {
+      // List what's available
+      const available: string[] = [];
+      if (fs.existsSync(INDICATOR_DIR)) {
+        // Check partitioned dirs
+        for (const tf of fs.readdirSync(INDICATOR_DIR)) {
+          const symDir = path.join(INDICATOR_DIR, tf, symbol);
+          if (fs.existsSync(path.join(symDir, "_meta.json"))) {
+            available.push(`${symbol}_${tf} (partitioned)`);
+          }
+        }
+        // Check flat files
+        for (const f of fs.readdirSync(INDICATOR_DIR).filter(f => f.startsWith(symbol) && f.endsWith(".parquet"))) {
+          available.push(f.replace(".parquet", ""));
+        }
+      }
       return res.status(404).json({
         error: `No pre-computed indicators for ${symbol} at ${timeframe}`,
-        available: fs.existsSync(INDICATOR_DIR)
-          ? fs.readdirSync(INDICATOR_DIR).filter(f => f.startsWith(symbol)).map(f => f.replace(".parquet", ""))
-          : [],
+        available,
       });
     }
 
     const safePath = filePath.replace(/\\/g, "/");
 
-    // Select specific columns or all
     let selectClause = "*";
     if (columns) {
       const requestedCols = columns.split(",").map(c => c.trim());
-      // Always include timestamp
-      const safeCols = ["timestamp", ...requestedCols.filter(c => /^[a-zA-Z0-9_]+$/.test(c))];
+      const safeCols = ["timestamp", ...requestedCols.filter(c => /^[a-zA-Z0-9_.]+$/.test(c))];
       selectClause = safeCols.map(c => `"${c}"`).join(", ");
     }
 
@@ -497,10 +683,8 @@ router.get("/indicators/data/:symbol", async (req: Request, res: Response) => {
       LIMIT ${limit}
     `);
 
-    // Reverse to ascending
     data.reverse();
 
-    // Convert BigInt values to Number for JSON serialization
     const serialized = data.map(row => {
       const converted: Record<string, unknown> = {};
       for (const [key, val] of Object.entries(row)) {
@@ -509,12 +693,7 @@ router.get("/indicators/data/:symbol", async (req: Request, res: Response) => {
       return converted;
     });
 
-    res.json({
-      symbol,
-      timeframe,
-      count: serialized.length,
-      data: serialized,
-    });
+    res.json({ symbol, timeframe, count: serialized.length, data: serialized });
   } catch (error: any) {
     console.error("Error fetching indicator data:", error);
     res.status(500).json({ error: error.message || "Failed to fetch indicator data" });
@@ -529,6 +708,54 @@ router.get("/indicators/patterns/:symbol", async (req: Request, res: Response) =
     const limitStr = req.query.limit as string | undefined;
     const limit = limitStr ? Math.min(parseInt(limitStr), 5000) : 2000;
 
+    // --- Try partitioned format first (v2) ---
+    const meta = readMeta(symbol, timeframe);
+    if (meta && meta.categories.candle) {
+      const candlePath = path.join(
+        getPartitionedDir(symbol, timeframe), "candle.parquet"
+      ).replace(/\\/g, "/");
+      const patternCols = meta.categories.candle.columns;
+
+      if (patternCols.length === 0) {
+        return res.json({ symbol, timeframe, patterns: [], data: [] });
+      }
+
+      const selectCols = ["timestamp", ...patternCols].map(c => `"${c}"`).join(", ");
+      const data = await runQuery(`
+        SELECT ${selectCols}
+        FROM read_parquet('${candlePath}')
+        ORDER BY timestamp DESC
+        LIMIT ${limit}
+      `);
+      data.reverse();
+
+      const activePatterns = data
+        .map(row => {
+          const active: Record<string, number> = {};
+          let hasPattern = false;
+          for (const col of patternCols) {
+            const val = Number(row[col]);
+            if (val !== 0) {
+              active[col] = val;
+              hasPattern = true;
+            }
+          }
+          if (hasPattern) {
+            return {
+              timestamp: typeof row.timestamp === "bigint" ? Number(row.timestamp) : row.timestamp,
+              ...active,
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      return res.json({
+        symbol, timeframe, patterns: patternCols, count: activePatterns.length, data: activePatterns,
+      });
+    }
+
+    // --- Fall back to flat file (v1) ---
     const filePath = path.join(INDICATOR_DIR, `${symbol}_${timeframe}.parquet`);
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: `No pre-computed data for ${symbol} at ${timeframe}` });
@@ -536,7 +763,6 @@ router.get("/indicators/patterns/:symbol", async (req: Request, res: Response) =
 
     const safePath = filePath.replace(/\\/g, "/");
 
-    // Get CDL_* columns dynamically
     const colResult = await runQuery<{ column_name: string }>(`
       SELECT column_name FROM (DESCRIBE SELECT * FROM read_parquet('${safePath}'))
     `);
@@ -560,7 +786,6 @@ router.get("/indicators/patterns/:symbol", async (req: Request, res: Response) =
 
     data.reverse();
 
-    // Filter to only rows where at least one pattern is non-zero
     const activePatterns = data
       .map(row => {
         const active: Record<string, number> = {};
@@ -583,11 +808,7 @@ router.get("/indicators/patterns/:symbol", async (req: Request, res: Response) =
       .filter(Boolean);
 
     res.json({
-      symbol,
-      timeframe,
-      patterns: patternCols,
-      count: activePatterns.length,
-      data: activePatterns,
+      symbol, timeframe, patterns: patternCols, count: activePatterns.length, data: activePatterns,
     });
   } catch (error: any) {
     console.error("Error fetching pattern data:", error);

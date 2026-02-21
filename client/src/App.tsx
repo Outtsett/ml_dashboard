@@ -1,15 +1,15 @@
 import { Suspense, lazy, useEffect } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Layout from "@/components/Layout";
 import { BreadcrumbProvider } from "@/hooks/useBreadcrumbs";
+import { UnifiedDashboardProvider } from "@/contexts/UnifiedDashboardContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
   DashboardSkeleton,
-  MLHubSkeleton,
   DataGridSkeleton,
   ChartSkeleton,
   PageLoader
@@ -18,12 +18,10 @@ import { prefetchCriticalData } from "./lib/prefetch";
 
 const MarketData = lazy(() => import("@/pages/MarketData"));
 const Portfolio = lazy(() => import("@/pages/Portfolio"));
-const MLHub = lazy(() => import("@/pages/MLHub"));
-const Training = lazy(() => import("@/pages/Training"));
-const Backtest = lazy(() => import("@/pages/Backtest"));
 const Databases = lazy(() => import("@/pages/Databases"));
 const Watchlist = lazy(() => import("@/pages/Watchlist"));
 const News = lazy(() => import("@/pages/News"));
+const ArchitectureExplorer = lazy(() => import("@/pages/ArchitectureExplorer"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 function Router() {
@@ -38,26 +36,9 @@ function Router() {
           </ErrorBoundary>
         </Route>
         <Route path="/ml-hub">
-          <ErrorBoundary>
-            <Suspense fallback={<MLHubSkeleton />}>
-              <MLHub />
-            </Suspense>
-          </ErrorBoundary>
+          <Redirect to="/" />
         </Route>
-        <Route path="/training">
-          <ErrorBoundary>
-            <Suspense fallback={<MLHubSkeleton />}>
-              <Training />
-            </Suspense>
-          </ErrorBoundary>
-        </Route>
-        <Route path="/backtest">
-          <ErrorBoundary>
-            <Suspense fallback={<DataGridSkeleton />}>
-              <Backtest />
-            </Suspense>
-          </ErrorBoundary>
-        </Route>
+
         <Route path="/portfolio">
           <ErrorBoundary>
             <Suspense fallback={<DataGridSkeleton />}>
@@ -86,6 +67,13 @@ function Router() {
             </Suspense>
           </ErrorBoundary>
         </Route>
+        <Route path="/architecture">
+          <ErrorBoundary>
+            <Suspense fallback={<PageLoader />}>
+              <ArchitectureExplorer />
+            </Suspense>
+          </ErrorBoundary>
+        </Route>
         <Route path="/settings">
           <div className="p-6 text-center text-muted-foreground font-mono text-sm">Settings coming soon</div>
         </Route>
@@ -107,10 +95,12 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <BreadcrumbProvider>
-          <Toaster />
-          <Router />
-        </BreadcrumbProvider>
+        <UnifiedDashboardProvider>
+          <BreadcrumbProvider>
+            <Toaster />
+            <Router />
+          </BreadcrumbProvider>
+        </UnifiedDashboardProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
