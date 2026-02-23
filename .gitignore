@@ -16,3 +16,4 @@ attached_assets/
 data
 .claude/settings.local.json
 .vscode/
+client/src/pages/archive/

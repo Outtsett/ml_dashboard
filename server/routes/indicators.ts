@@ -91,13 +91,29 @@ router.post("/indicators/calculate", async (req: Request, res: Response) => {
       return res.status(400).json({ error: `Invalid timeframe. Valid: ${validTimeframes.join(', ')}` });
     }
 
-    // Load OHLCV data from parquet
-    const { queryParquetOHLCVAggregated } = await import("../duckdb");
-    const rows = await queryParquetOHLCVAggregated(
-      symbol.toUpperCase(),
-      timeframe,
-      Math.max(limit, 200) // Ensure enough data for lookback
-    );
+    // Load OHLCV data from QuestDB (time-series → QuestDB first, DuckDB fallback)
+    let rows: any[] = [];
+    try {
+      const { checkQuestDBHealth, getOHLCVSampleBy } = await import("../questdb");
+      const healthy = await checkQuestDBHealth();
+      if (healthy) {
+        const qdbRows = await getOHLCVSampleBy(
+          symbol.toUpperCase(), timeframe, undefined, undefined, Math.max(limit, 200)
+        );
+        rows = qdbRows.map((r: any) => ({
+          timestamp: r.timestamp instanceof Date ? r.timestamp.getTime() : Number(r.timestamp),
+          open: Number(r.open), high: Number(r.high), low: Number(r.low),
+          close: Number(r.close), volume: Number(r.volume),
+        }));
+      }
+    } catch {}
+    // Fallback to DuckDB parquet if QuestDB returned nothing
+    if (rows.length === 0) {
+      const { queryParquetOHLCVAggregated } = await import("../duckdb");
+      rows = await queryParquetOHLCVAggregated(
+        symbol.toUpperCase(), timeframe, Math.max(limit, 200)
+      );
+    }
 
     if (rows.length === 0) {
       return res.status(404).json({ error: `No data found for ${symbol}` });
@@ -222,8 +238,24 @@ router.post("/indicators/compute", mlRateLimiter, async (req: Request, res: Resp
 
     const { computeIndicatorsRealtime, INDICATOR_PRESETS } = await import('../lib/indicators/indicatorService');
 
-    // Get OHLCV data
-    const ohlcvData = await storage.getOhlcvPartitioned(symbol, limit);
+    // Get OHLCV data — QuestDB first (time-series), PostgreSQL fallback
+    let ohlcvData: any[] = [];
+    try {
+      const { checkQuestDBHealth, getOHLCVSampleBy } = await import("../questdb");
+      const healthy = await checkQuestDBHealth();
+      if (healthy) {
+        const qdbRows = await getOHLCVSampleBy(symbol, '1m', undefined, undefined, limit);
+        ohlcvData = qdbRows.map((r: any) => ({
+          timestamp: r.timestamp instanceof Date ? r.timestamp.getTime() : Number(r.timestamp),
+          open: Number(r.open), high: Number(r.high), low: Number(r.low),
+          close: Number(r.close), volume: Number(r.volume),
+        }));
+      }
+    } catch {}
+    // Fallback to PostgreSQL if QuestDB returned nothing
+    if (ohlcvData.length === 0) {
+      ohlcvData = await storage.getOhlcvPartitioned(symbol, limit);
+    }
 
     if (!ohlcvData || ohlcvData.length === 0) {
       return res.status(404).json({ error: `No OHLCV data found for ${symbol}` });

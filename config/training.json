@@ -1,0 +1,27 @@
+{
+  "paths": {
+    "pythonExe": ".venv/Scripts/python.exe",
+    "modelsDir": "data/models",
+    "indicatorsDir": "data/indicators",
+    "marketDb": "data/market.duckdb"
+  },
+  "limits": {
+    "maxConcurrentJobs": 1,
+    "maxBarsDefault": 100000,
+    "jobRetentionSec": 120
+  },
+  "timeframes": {
+    "1m": 60,
+    "5m": 300,
+    "15m": 900,
+    "30m": 1800,
+    "1h": 3600,
+    "1H": 3600,
+    "4h": 14400,
+    "4H": 14400,
+    "1d": 86400,
+    "1D": 86400,
+    "1w": 604800,
+    "1W": 604800
+  }
+}

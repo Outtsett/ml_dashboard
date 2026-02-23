@@ -13,6 +13,7 @@ import chartRouter from "./routes/charts";
 import backtestRouter from "./routes/backtest";
 import agentRouter from "./routes/agent";
 import regimeRouter from "./routes/regime";
+import trainingRouter from "./routes/training";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
 
@@ -30,6 +31,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", parquetRouter);
   app.use("/api", instrumentsRouter);
   app.use("/api", indicatorsRouter);
+  app.use("/api", trainingRouter);  // before mlRouter — static routes must match before ml's /training/:id
   app.use("/api", mlRouter);
   app.use("/api", newsRouter);
   app.use("/api", databasesRouter);

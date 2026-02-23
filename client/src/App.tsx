@@ -7,6 +7,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Layout from "@/components/Layout";
 import { BreadcrumbProvider } from "@/hooks/useBreadcrumbs";
 import { UnifiedDashboardProvider } from "@/contexts/UnifiedDashboardContext";
+import { RegimeTrainingProvider } from "@/contexts/RegimeTrainingContext";
+import { TrainingProvider } from "@/contexts/TrainingContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
   DashboardSkeleton,
@@ -17,10 +19,14 @@ import {
 import { prefetchCriticalData } from "./lib/prefetch";
 
 const MarketData = lazy(() => import("@/pages/MarketData"));
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Portfolio = lazy(() => import("@/pages/Portfolio"));
 const Databases = lazy(() => import("@/pages/Databases"));
 const Watchlist = lazy(() => import("@/pages/Watchlist"));
 const News = lazy(() => import("@/pages/News"));
+const Training = lazy(() => import("@/pages/Training"));
+const Backtest = lazy(() => import("@/pages/Backtest"));
+const FourierTransform = lazy(() => import("@/pages/FourierTransform"));
 const ArchitectureExplorer = lazy(() => import("@/pages/ArchitectureExplorer"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
@@ -37,6 +43,13 @@ function Router() {
         </Route>
         <Route path="/ml-hub">
           <Redirect to="/" />
+        </Route>
+        <Route path="/dashboard">
+          <ErrorBoundary>
+            <Suspense fallback={<DashboardSkeleton />}>
+              <Dashboard />
+            </Suspense>
+          </ErrorBoundary>
         </Route>
 
         <Route path="/portfolio">
@@ -67,6 +80,27 @@ function Router() {
             </Suspense>
           </ErrorBoundary>
         </Route>
+        <Route path="/training">
+          <ErrorBoundary>
+            <Suspense fallback={<ChartSkeleton />}>
+              <Training />
+            </Suspense>
+          </ErrorBoundary>
+        </Route>
+        <Route path="/backtest">
+          <ErrorBoundary>
+            <Suspense fallback={<DataGridSkeleton />}>
+              <Backtest />
+            </Suspense>
+          </ErrorBoundary>
+        </Route>
+        <Route path="/fourier">
+          <ErrorBoundary>
+            <Suspense fallback={<ChartSkeleton />}>
+              <FourierTransform />
+            </Suspense>
+          </ErrorBoundary>
+        </Route>
         <Route path="/architecture">
           <ErrorBoundary>
             <Suspense fallback={<PageLoader />}>
@@ -78,9 +112,11 @@ function Router() {
           <div className="p-6 text-center text-muted-foreground font-mono text-sm">Settings coming soon</div>
         </Route>
         <Route>
-          <Suspense fallback={<PageLoader />}>
-            <NotFound />
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense fallback={<PageLoader />}>
+              <NotFound />
+            </Suspense>
+          </ErrorBoundary>
         </Route>
       </Switch>
     </Layout>
@@ -96,10 +132,14 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <UnifiedDashboardProvider>
-          <BreadcrumbProvider>
-            <Toaster />
-            <Router />
-          </BreadcrumbProvider>
+          <RegimeTrainingProvider>
+          <TrainingProvider>
+            <BreadcrumbProvider>
+              <Toaster />
+              <Router />
+            </BreadcrumbProvider>
+          </TrainingProvider>
+          </RegimeTrainingProvider>
         </UnifiedDashboardProvider>
       </TooltipProvider>
     </QueryClientProvider>

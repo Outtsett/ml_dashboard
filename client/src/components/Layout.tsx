@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Home, LineChart, Database, Settings, Server, BarChart2, List, Newspaper, ChevronRight, PanelLeftClose, PanelLeftOpen, Network } from "lucide-react";
+import { Home, LineChart, Database, Settings, Server, BarChart2, List, Newspaper, ChevronRight, PanelLeftClose, PanelLeftOpen, Network, Brain, FlaskConical, AudioWaveform, LayoutDashboard } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { prefetchOnHover } from "@/lib/prefetch";
 import { useBreadcrumbItems } from "@/hooks/useBreadcrumbs";
@@ -22,8 +22,11 @@ const SIDEBAR_COLLAPSED_KEY = "sidebar_collapsed";
 
 const routeMeta: Record<string, { label: string; icon: typeof Home }> = {
   "/": { label: "Market Data", icon: Database },
+  "/dashboard": { label: "Dashboard", icon: LayoutDashboard },
+  "/training": { label: "Training", icon: Brain },
+  "/backtest": { label: "Backtest", icon: FlaskConical },
+  "/fourier": { label: "Fourier", icon: AudioWaveform },
   "/architecture": { label: "Architecture", icon: Network },
-
   "/portfolio": { label: "Portfolio", icon: BarChart2 },
   "/watchlist": { label: "Watchlist", icon: List },
   "/news": { label: "News", icon: Newspaper },
@@ -59,8 +62,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { icon: Database, label: "Market Data", href: "/" },
+    { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
+    { icon: Brain, label: "Training", href: "/training" },
+    { icon: FlaskConical, label: "Backtest", href: "/backtest" },
+    { icon: AudioWaveform, label: "Fourier", href: "/fourier" },
     { icon: Network, label: "Architecture", href: "/architecture" },
-
     { icon: BarChart2, label: "Portfolio", href: "/portfolio" },
     { icon: List, label: "Watchlist", href: "/watchlist" },
     { icon: Newspaper, label: "News", href: "/news" },

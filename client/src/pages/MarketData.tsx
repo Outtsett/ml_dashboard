@@ -1,12 +1,10 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { Database, Loader2, Sparkles, TrendingUp, DollarSign, ArrowRightLeft, ChevronsUpDown, Check, Clock, Layers, ZapOff } from "lucide-react";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Database, Loader2, TrendingUp, DollarSign, ArrowRightLeft, ChevronsUpDown, Check, Clock, Layers, ZapOff, Play, Pause, Brain, PanelRightOpen, Flame, Square } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -19,7 +17,17 @@ import { useBreadcrumbs } from "@/hooks/useBreadcrumbs";
 import { computeSupportResistance, computeZigZag, computeSwingZigZag } from "@/lib/chartOverlays";
 import { useDashboard } from "@/contexts/UnifiedDashboardContext";
 import { MLWorkflowSidebar } from "@/components/sidebar/MLWorkflowSidebar";
-import { BottomPanel } from "@/components/panels/BottomPanel";
+import { useLocalReplay } from "@/hooks/useLocalReplay";
+import { useTrainingSync } from "@/hooks/useTrainingSync";
+import { ReplayControls } from "@/components/ReplayControls";
+import { TrainingSyncBanner } from "@/components/TrainingSyncBanner";
+import { useRegimeTrainingContext } from "@/contexts/RegimeTrainingContext";
+import { useTrainingContext } from "@/contexts/TrainingContext";
+import { RegimeLegend, type RegimeInfo } from "@/components/RegimeLegend";
+import { REGIME_COLORS } from "@/components/training/types";
+import TrainingTerminal from "@/components/training/TrainingTerminal";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { QUERY_KEYS, type Trade } from "@/lib/types";
 
 const timeframes = [
   { label: "1m", minutes: 1 },
@@ -63,6 +71,8 @@ interface InstrumentInfo {
 export default function MarketData() {
   // ── Unified context: local state syncs bidirectionally with dashboard-wide context ──
   const dashboard = useDashboard();
+  const regime = useRegimeTrainingContext();
+  const training = useTrainingContext();
   const [symbol, setSymbolLocal] = useState(dashboard.symbol);
   const [assetType, setAssetTypeLocal] = useState<"futures" | "forex">(dashboard.assetType);
   const [contract, setContract] = useState<string>("continuous"); // "continuous" or specific contract like "ESH5"
@@ -70,6 +80,7 @@ export default function MarketData() {
   const { toast } = useToast();
   const [symbolOpen, setSymbolOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
+  const [mlPanelOpen, setMlPanelOpen] = useState(false);
 
   // Sync local → context when user changes symbol/tf here
   const setSymbol = useCallback((s: string) => {
@@ -185,23 +196,18 @@ export default function MarketData() {
     clearAllCache().catch(() => {});
   }, []);
 
-
-
   const isFutures = assetType === "futures";
   const isContinuous = contract === "continuous";
 
-  // State for visible chart data (sliding window - not all data in memory)
+  // ── Unified chart data state (sliding window for infinite scroll) ──
   const [visibleData, setVisibleData] = useState<OhlcvData[]>([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMoreLeft, setHasMoreLeft] = useState(true);
   const [hasMoreRight, setHasMoreRight] = useState(false);
-  
-  // Keep track of visible range for sliding window
-  const visibleRangeRef = useRef<{ start: number; end: number } | null>(null);
   const isLoadingMoreRef = useRef(false);
-  const MAX_BARS_IN_MEMORY = 50000; // Keep max 50K bars in memory (~2.5MB)
-  
-  // Adaptive fetch limit: scale down for higher timeframes to avoid over-fetching
+  const MAX_BARS_IN_MEMORY = 50000;
+
+  // Adaptive fetch limit: scale down for higher timeframes
   const FETCH_LIMIT = useMemo(() => {
     if (timeframe <= 1) return 10000;
     if (timeframe <= 5) return 5000;
@@ -210,45 +216,76 @@ export default function MarketData() {
     if (timeframe <= 60) return 1500;
     if (timeframe <= 240) return 1000;
     if (timeframe <= 1440) return 500;
-    return 250; // weekly
+    return 250;
   }, [timeframe]);
 
-  // Reset futures infinite scroll state when symbol, timeframe, or contract changes
-  useEffect(() => {
-    if (isFutures) {
-      setVisibleData([]);
-      setHasMoreLeft(true);
-      setHasMoreRight(false);
-      isLoadingMoreRef.current = false;
-    }
-  }, [effectiveSymbol, timeframe, isFutures]);
+  // Map minutes → API timeframe label (lowercase for QuestDB SAMPLE BY)
+  const apiTimeframe = useMemo(() => {
+    const map: Record<number, string> = { 1: '1m', 5: '5m', 15: '15m', 30: '30m', 60: '1h', 240: '4h', 1440: '1d', 10080: '1w' };
+    return map[timeframe] || `${timeframe}`;
+  }, [timeframe]);
 
-  const { data: parquetData, isLoading: isParquetLoading, refetch: refetchParquet } = useQuery({
-    queryKey: ["/api/parquet", effectiveSymbol, "aggregated", timeframe],
+  // Reset scroll state on symbol/timeframe/contract change
+  useEffect(() => {
+    setVisibleData([]);
+    setHasMoreLeft(true);
+    setHasMoreRight(false);
+    isLoadingMoreRef.current = false;
+  }, [effectiveSymbol, timeframe]);
+
+  // ── Primary data: QuestDB via /api/charts/ohlcv (for non-continuous, or everything for forex) ──
+  const useContinuous = isFutures && isContinuous;
+
+  const { data: chartQueryData } = useQuery({
+    queryKey: ["/api/charts/ohlcv", effectiveSymbol, apiTimeframe],
     queryFn: async () => {
-      const response = await fetch(`/api/parquet/${effectiveSymbol}/aggregated?timeframe=${timeframe}&limit=${FETCH_LIMIT}`);
+      const url = `/api/charts/ohlcv?symbol=${effectiveSymbol}&timeframe=${apiTimeframe}&limit=${FETCH_LIMIT}&order=asc`;
+      const response = await fetch(url);
       if (!response.ok) return [];
-      const data = await response.json();
+      const data: OhlcvData[] = await response.json();
       setVisibleData(data);
-      setHasMoreLeft(data.length > 0);
-      setHasMoreRight(false);
+      setHasMoreLeft(false);
+      setHasMoreRight(data.length >= FETCH_LIMIT);
       return data;
     },
-    enabled: isFutures,
+    enabled: !useContinuous,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev: any) => prev,
   });
 
-  // Load more data when user scrolls to edges (server-side LRU handles caching)
+  // ── Continuous contract data: must use DuckDB (requires rollover schedule + Panama adjustment) ──
+  const { data: continuousData } = useQuery({
+    queryKey: ["/api/continuous", symbol, timeframe],
+    queryFn: async () => {
+      const response = await fetch(`/api/continuous/${symbol}?timeframe=${timeframe}&limit=${FETCH_LIMIT}&loadFromStart=true`);
+      if (!response.ok) return { data: [], rollovers: [] };
+      const result = await response.json();
+      if (result.data?.length > 0) {
+        setVisibleData(result.data);
+        setHasMoreLeft(false);
+        setHasMoreRight(result.data.length >= FETCH_LIMIT);
+      }
+      return result;
+    },
+    enabled: useContinuous,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev: any) => prev,
+  });
+
+  // ── Infinite scroll: load more bars when user scrolls to edges ──
   const handleLoadMore = useCallback(async (direction: 'left' | 'right', timestamp: number) => {
     if (isLoadingMoreRef.current) return;
     isLoadingMoreRef.current = true;
     setIsLoadingMore(true);
     try {
-      // Always fetch from server — server-side LRU cache handles dedup
-      let url = (isFutures && isContinuous)
-        ? `/api/continuous/${effectiveSymbol}?timeframe=${timeframe}&limit=${FETCH_LIMIT}`
-        : isFutures
-          ? `/api/parquet/${effectiveSymbol}/aggregated?timeframe=${timeframe}&limit=${FETCH_LIMIT}`
-          : `/api/ohlcv/${effectiveSymbol}?timeframe=${timeframe * 60}s&limit=${FETCH_LIMIT}`;
+      let url: string;
+      if (useContinuous) {
+        // Continuous uses DuckDB (needs rollover logic)
+        url = `/api/continuous/${effectiveSymbol}?timeframe=${timeframe}&limit=${FETCH_LIMIT}`;
+      } else {
+        // Everything else → QuestDB via unified charts endpoint
+        url = `/api/charts/ohlcv?symbol=${effectiveSymbol}&timeframe=${apiTimeframe}&limit=${FETCH_LIMIT}&order=asc`;
+      }
 
       if (direction === 'left') url += `&endTime=${timestamp - 1}`;
       else url += `&startTime=${timestamp + 1}`;
@@ -268,10 +305,7 @@ export default function MarketData() {
       }
 
       setVisibleData(prev => {
-        const combined = direction === 'left'
-          ? [...newData, ...prev]
-          : [...prev, ...newData];
-
+        const combined = direction === 'left' ? [...newData, ...prev] : [...prev, ...newData];
         const seen = new Set<number>();
         const deduped = combined.filter(d => {
           const ts = typeof d.timestamp === 'string' ? parseInt(d.timestamp) : d.timestamp;
@@ -305,131 +339,7 @@ export default function MarketData() {
     }
     isLoadingMoreRef.current = false;
     setIsLoadingMore(false);
-  }, [effectiveSymbol, timeframe, isFutures, isContinuous, FETCH_LIMIT]);
-
-  const { data: continuousData } = useQuery({
-    queryKey: ["/api/continuous", symbol, timeframe],
-    queryFn: async () => {
-      const response = await fetch(`/api/continuous/${symbol}?timeframe=${timeframe}&limit=${FETCH_LIMIT}`);
-      if (!response.ok) return { data: [], rollovers: [] };
-      const result = await response.json();
-      if (result.data && result.data.length > 0) {
-        setVisibleData(result.data);
-        setHasMoreLeft(true);
-        setHasMoreRight(false);
-      }
-      return result;
-    },
-    enabled: isFutures && isContinuous && (!parquetData || parquetData.length === 0),
-  });
-
-  // Forex data state for infinite scroll
-  const [forexVisibleData, setForexVisibleData] = useState<OhlcvData[]>([]);
-  const [forexHasMoreLeft, setForexHasMoreLeft] = useState(true);
-  const [forexHasMoreRight, setForexHasMoreRight] = useState(false);
-  const [forexIsLoadingMore, setForexIsLoadingMore] = useState(false);
-
-  const { data: ohlcvData, refetch: refetchForex } = useQuery({
-    queryKey: ["/api/ohlcv", effectiveSymbol, timeframe],
-    queryFn: async () => {
-      const timeframeSec = timeframe * 60;
-      const response = await fetch(`/api/ohlcv/${effectiveSymbol}?timeframe=${timeframeSec}s&limit=${FETCH_LIMIT}`);
-      if (!response.ok) return [];
-      const data = await response.json();
-      setForexVisibleData(data);
-      setForexHasMoreLeft(data.length > 0);
-      setForexHasMoreRight(false);
-      return data;
-    },
-    enabled: !isFutures,
-  });
-
-  // Load more forex data when user scrolls to edges (server-side LRU handles caching)
-  const forexIsLoadingMoreRef = useRef(false);
-
-  const handleForexLoadMore = useCallback(async (direction: 'left' | 'right', timestamp: number) => {
-    if (forexIsLoadingMoreRef.current || isFutures) return;
-    forexIsLoadingMoreRef.current = true;
-    setForexIsLoadingMore(true);
-    try {
-      let newData: OhlcvData[] = [];
-
-      // Always fetch from server — server-side LRU cache handles dedup
-      const timeframeSec = timeframe * 60;
-      let url = `/api/ohlcv/${effectiveSymbol}?timeframe=${timeframeSec}s&limit=${FETCH_LIMIT}`;
-      if (direction === 'left') {
-        url += `&endTime=${timestamp}`;
-      } else {
-        url += `&startTime=${timestamp}`;
-      }
-
-      const response = await fetch(url);
-      if (response.ok) {
-        newData = await response.json();
-      }
-
-      if (newData.length > 0) {
-        setForexVisibleData(prev => {
-          const combined = direction === 'left'
-            ? [...newData, ...prev]
-            : [...prev, ...newData];
-
-          // Deduplicate by timestamp
-          const seen = new Set<number>();
-          const deduped = combined.filter(d => {
-            const ts = typeof d.timestamp === 'string' ? parseInt(d.timestamp) : d.timestamp;
-            if (seen.has(ts)) return false;
-            seen.add(ts);
-            return true;
-          }).sort((a, b) => {
-            const tsA = typeof a.timestamp === 'string' ? parseInt(a.timestamp) : a.timestamp;
-            const tsB = typeof b.timestamp === 'string' ? parseInt(b.timestamp) : b.timestamp;
-            return tsA - tsB;
-          });
-
-          // Trim to max bars in memory
-          if (deduped.length > MAX_BARS_IN_MEMORY) {
-            if (direction === 'left') {
-              setForexHasMoreRight(true); // dropped right-side bars
-              return deduped.slice(0, MAX_BARS_IN_MEMORY);
-            } else {
-              setForexHasMoreLeft(true); // dropped left-side bars
-              return deduped.slice(-MAX_BARS_IN_MEMORY);
-            }
-          }
-          return deduped;
-        });
-
-        // Update hasMore flags based on fetch size
-        if (newData.length < FETCH_LIMIT) {
-          if (direction === 'left') setForexHasMoreLeft(false);
-          else setForexHasMoreRight(false);
-        }
-      } else {
-        if (direction === 'left') setForexHasMoreLeft(false);
-        else setForexHasMoreRight(false);
-      }
-    } finally {
-      forexIsLoadingMoreRef.current = false;
-      setForexIsLoadingMore(false);
-    }
-  }, [effectiveSymbol, timeframe, isFutures, FETCH_LIMIT]);
-
-  // Reset forex data when symbol or timeframe changes
-  useEffect(() => {
-    if (!isFutures) {
-      setForexVisibleData([]);
-      setForexHasMoreLeft(true);
-      setForexHasMoreRight(false);
-    }
-  }, [symbol, timeframe, isFutures]);
-
-  // Initialize forexVisibleData from ohlcvData when it loads
-  useEffect(() => {
-    if (!isFutures && ohlcvData && ohlcvData.length > 0 && forexVisibleData.length === 0) {
-      setForexVisibleData(ohlcvData);
-    }
-  }, [isFutures, ohlcvData, forexVisibleData.length]);
+  }, [effectiveSymbol, timeframe, apiTimeframe, useContinuous, FETCH_LIMIT]);
 
   // Extract base symbol (e.g., MNQ from MNQM9 or MNQ2024)
   const baseSymbol = useMemo(() => {
@@ -451,13 +361,24 @@ export default function MarketData() {
     enabled: isFutures && baseSymbol.length > 0,
   });
 
-  // Use visibleData for infinite scroll, fallback to parquetData/continuousData
-  const rawData = isFutures 
-    ? (visibleData.length > 0 ? visibleData : (parquetData && parquetData.length > 0 ? parquetData : (continuousData?.data || []))) 
-    : (forexVisibleData.length > 0 ? forexVisibleData : (ohlcvData || []));
+  // Use visibleData for infinite scroll, fallback to query data
+  const rawData = visibleData.length > 0
+    ? visibleData
+    : useContinuous
+      ? (continuousData?.data || [])
+      : (chartQueryData || []);
   
   // Both futures and forex use server-side aggregation — no client-side processing needed
   const chartData = rawData;
+
+  // ── Market Replay — VCR controller over the loaded chart data ──
+  const replay = useLocalReplay(chartData);
+
+  // ── Training Sync — auto-activates replay when training starts ──
+  const trainingSync = useTrainingSync(regime, symbol, replay);
+
+  // When replay is active, the chart only sees bars up to the playhead
+  const displayData = replay.active ? replay.snapshot.visibleBars : chartData;
 
   // ── Compute chart overlays from chart data ──
   const srLevels = useMemo(() => {
@@ -487,54 +408,208 @@ export default function MarketData() {
     return computeSwingZigZag(bars);
   }, [showSwingZZ, chartData]);
 
+  // ── Quick stats for inline analytics strip ──
+  const { data: savedModelsData } = useQuery<{ models: { name: string }[] }>({
+    queryKey: ['savedModels'],
+    queryFn: async () => {
+      const res = await fetch('/api/ml/saved-models');
+      if (!res.ok) return { models: [] };
+      return res.json();
+    },
+  });
+  const modelCount = savedModelsData?.models?.length || 0;
+
+  const { data: quickTrades = [] } = useQuery<Trade[]>({
+    queryKey: ["/api/ml/trades"],
+    queryFn: async () => { const res = await fetch("/api/ml/trades?limit=50"); return res.json(); },
+  });
+
+  const tradeMetrics = useMemo(() => {
+    const closed = quickTrades.filter((t: Trade) => t.status === 'closed');
+    const winners = closed.filter((t: Trade) => (t.pnl || 0) > 0);
+    const losers = closed.filter((t: Trade) => (t.pnl || 0) < 0);
+    const totalPnl = closed.reduce((sum: number, t: Trade) => sum + (t.pnl || 0), 0);
+    const grossWin = winners.reduce((sum: number, t: Trade) => sum + (t.pnl || 0), 0);
+    const grossLoss = Math.abs(losers.reduce((sum: number, t: Trade) => sum + (t.pnl || 0), 0));
+    const winRate = closed.length > 0 ? (winners.length / closed.length) * 100 : 0;
+    const profitFactor = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? Infinity : 0;
+    return { totalTrades: closed.length, winRate, totalPnl, profitFactor };
+  }, [quickTrades]);
+
+  // ── Regime color map — live training OR saved model ──
+
+  // Auto-match: find saved model for current symbol+timeframe
+  const matchedModelId = useMemo(() => {
+    if (regime.isTraining) return null; // live training uses SSE data
+    const target = `${symbol.toUpperCase()}_${tfLabel}`;
+    const match = regime.models.find(m => m.id === target);
+    return match ? match.id : null;
+  }, [symbol, tfLabel, regime.models, regime.isTraining]);
+
+  // Fetch saved regime assignments when a matching model exists
+  interface RegimeRow { ts: string; regime: number; regime_label: string; split: string }
+  const { data: savedAssignments } = useQuery<{ rows: RegimeRow[] }>({
+    queryKey: [...QUERY_KEYS.regimeAssignments(matchedModelId || ''), 'chart'],
+    queryFn: async () => {
+      const res = await fetch(`/api/regime/assignments/${matchedModelId}?limit=100000`);
+      if (!res.ok) throw new Error('Failed to load regime assignments');
+      return res.json();
+    },
+    enabled: !!matchedModelId && !regime.isTraining,
+    staleTime: 120_000,
+  });
+
+  // Regime legend filter state
+  const [selectedRegimes, setSelectedRegimes] = useState<Set<number> | null>(null);
+
+  // Reset filter when model or symbol changes
+  useEffect(() => {
+    setSelectedRegimes(null);
+  }, [matchedModelId, symbol, tfLabel]);
+
+  const toggleRegime = useCallback((regimeId: number) => {
+    setSelectedRegimes((prev) => {
+      if (prev === null) return new Set([regimeId]);
+      const next = new Set(prev);
+      if (next.has(regimeId)) {
+        next.delete(regimeId);
+        if (next.size === 0) return null;
+      } else {
+        next.add(regimeId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Build regimeColorMap from live training OR saved model
+  // Priority: universal training > HDP-HMM-specific training > saved model
+  const regimeColorMap = useMemo(() => {
+    // 1. Universal training pipeline live overlay
+    const uts = training.liveRegimeTimestamps;
+    const uassign = training.liveRegimeAssignments;
+    if (uts.length && uassign.length && uts.length === uassign.length) {
+      const map = new Map<number, number>();
+      for (let i = 0; i < uts.length; i++) {
+        if (selectedRegimes === null || selectedRegimes.has(uassign[i])) {
+          map.set(uts[i], uassign[i]);
+        }
+      }
+      if (map.size > 0) return map;
+    }
+
+    // 2. Legacy HDP-HMM training (RegimeTrainingContext)
+    const ts = regime.liveRegimeTimestamps;
+    const assignments = regime.liveRegimeAssignments;
+    if (ts.length && assignments.length && ts.length === assignments.length) {
+      const map = new Map<number, number>();
+      for (let i = 0; i < ts.length; i++) {
+        if (selectedRegimes === null || selectedRegimes.has(assignments[i])) {
+          map.set(ts[i], assignments[i]);
+        }
+      }
+      if (map.size > 0) return map;
+    }
+
+    // 3. Saved model fallback
+    const rows = savedAssignments?.rows;
+    if (!rows || rows.length === 0) return undefined;
+    const map = new Map<number, number>();
+    for (const row of rows) {
+      if (selectedRegimes === null || selectedRegimes.has(row.regime)) {
+        map.set(Math.floor(new Date(row.ts).getTime() / 1000), row.regime);
+      }
+    }
+    return map.size > 0 ? map : undefined;
+  }, [training.liveRegimeTimestamps, training.liveRegimeAssignments,
+      regime.liveRegimeTimestamps, regime.liveRegimeAssignments,
+      savedAssignments, selectedRegimes]);
+
+  // Derive regime legend info (for legend component)
+  const regimeLegendInfo = useMemo((): RegimeInfo[] => {
+    // During live training, use trainingSync legend
+    if (trainingSync.isActive && trainingSync.regimeLegend.length > 0) {
+      const total = trainingSync.regimeLegend.reduce((s, r) => s + r.barCount, 0);
+      return trainingSync.regimeLegend.map(r => ({
+        id: r.id,
+        label: `Regime ${r.id}`,
+        count: r.barCount,
+        pct: total > 0 ? (r.barCount / total) * 100 : 0,
+      }));
+    }
+
+    // From saved assignments
+    const rows = savedAssignments?.rows;
+    if (!rows || rows.length === 0) return [];
+    const counts = new Map<number, { label: string; count: number }>();
+    for (const row of rows) {
+      const existing = counts.get(row.regime);
+      if (existing) {
+        existing.count++;
+      } else {
+        counts.set(row.regime, {
+          label: row.regime_label?.replace(/_/g, ' ') || `Regime ${row.regime}`,
+          count: 1,
+        });
+      }
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([id, info]) => ({
+        id,
+        label: info.label,
+        count: info.count,
+        pct: (info.count / rows.length) * 100,
+      }));
+  }, [trainingSync.isActive, trainingSync.regimeLegend, savedAssignments]);
+
+  // Train/test split timestamp (epoch seconds of first test bar)
+  const trainTestSplitTime = useMemo(() => {
+    const rows = savedAssignments?.rows;
+    if (!rows || rows.length === 0) return undefined;
+    const testRow = rows.find(r => r.split === 'test');
+    if (!testRow) return undefined;
+    return Math.floor(new Date(testRow.ts).getTime() / 1000);
+  }, [savedAssignments]);
+
+  const { data: trainingStatus } = useQuery({
+    queryKey: ['trainingStatus'],
+    queryFn: async () => {
+      const res = await fetch('/api/ml/train/status');
+      if (!res.ok) return null;
+      return res.json();
+    },
+    refetchInterval: 5000,
+  });
+  const isTrainingActive = trainingStatus?.active === true;
 
 
-  // Check if we're using parquet data for infinite scroll (or forex visible data)
-  // Enable infinite scroll for all data types with visible data
-  const useInfiniteScroll = isFutures 
-    ? visibleData.length > 0 
-    : forexVisibleData.length > 0;
+  // Enable infinite scroll when we have visible data loaded
+  const useInfiniteScroll = visibleData.length > 0;
 
   const selectSymbol = async (sym: string, type: "futures" | "forex") => {
     setSymbol(sym);
     setAssetType(type);
     setContract("continuous");
-    // Reset infinite scroll state when changing symbols
     setVisibleData([]);
     setHasMoreLeft(true);
     setHasMoreRight(false);
-    // Reset forex scroll state too
-    setForexVisibleData([]);
-    setForexHasMoreLeft(true);
-    setForexHasMoreRight(false);
   };
 
   return (
-    <div className="space-y-4 h-[calc(100vh-8.5rem)] flex flex-col overflow-hidden">
-      <div className="flex justify-between items-center shrink-0">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-linear-to-br from-violet-500/30 to-teal-500/30 flex items-center justify-center">
-              <Database className="h-5 w-5 text-violet-300" />
-            </div>
-            <span className="text-sm font-medium text-violet-300/80">Market Data</span>
-          </div>
-          <h1 className="text-4xl font-display font-bold bg-linear-to-r from-white to-white/60 bg-clip-text text-transparent">Market Data</h1>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-3 shrink-0">
+    <div className="h-[calc(100vh-4.5rem)] flex flex-col overflow-hidden -m-4">
+      {/* ── Toolbar: Asset / Symbol / Contract / Timeframe / Overlays ── */}
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-white/5 shrink-0 bg-card/30 backdrop-blur-sm flex-wrap">
         <Tabs value={assetType} onValueChange={(v) => {
           const newType = v as "futures" | "forex";
           setAssetType(newType);
           setSymbol(newType === "futures" ? "ES" : "EURUSD");
         }}>
-          <TabsList className="glass rounded-xl p-1 h-auto">
-            <TabsTrigger value="futures" className="rounded-lg px-4 py-1.5 text-xs data-[state=active]:bg-primary/20" data-testid="tab-futures">
-              <TrendingUp className="h-3 w-3 mr-1.5" /> Futures
+          <TabsList className="glass rounded-lg p-0.5 h-auto">
+            <TabsTrigger value="futures" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-primary/20" data-testid="tab-futures">
+              <TrendingUp className="h-3 w-3 mr-1" /> Futures
             </TabsTrigger>
-            <TabsTrigger value="forex" className="rounded-lg px-4 py-1.5 text-xs data-[state=active]:bg-accent/20" data-testid="tab-forex">
-              <DollarSign className="h-3 w-3 mr-1.5" /> Forex
+            <TabsTrigger value="forex" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-accent/20" data-testid="tab-forex">
+              <DollarSign className="h-3 w-3 mr-1" /> Forex
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -545,18 +620,18 @@ export default function MarketData() {
               variant="outline"
               role="combobox"
               aria-expanded={symbolOpen}
-              className="w-[280px] justify-between h-9 text-sm font-mono border-white/10 bg-black/30"
+              className="w-[220px] justify-between h-7 text-xs font-mono border-white/10 bg-black/30"
               data-testid="symbol-selector"
             >
               <span className="flex items-center gap-2">
                 <span className="text-primary font-semibold">{symbol}</span>
                 {activeSymbols.find(s => s.symbol === symbol)?.name && (
-                  <span className="text-muted-foreground text-xs font-sans truncate">
+                  <span className="text-muted-foreground text-[10px] font-sans truncate">
                     {activeSymbols.find(s => s.symbol === symbol)?.name}
                   </span>
                 )}
               </span>
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[280px] p-0" align="start">
@@ -586,7 +661,6 @@ export default function MarketData() {
           </PopoverContent>
         </Popover>
 
-        {/* Contract rollover dropdown — only for futures */}
         {isFutures && contractsForSymbol.length > 0 && (
           <Popover open={contractOpen} onOpenChange={setContractOpen}>
             <PopoverTrigger asChild>
@@ -594,14 +668,14 @@ export default function MarketData() {
                 variant="outline"
                 role="combobox"
                 aria-expanded={contractOpen}
-                className="w-[200px] justify-between h-9 text-sm font-mono border-white/10 bg-black/30"
+                className="w-[160px] justify-between h-7 text-xs font-mono border-white/10 bg-black/30"
                 data-testid="contract-selector"
               >
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-1.5">
                   <ArrowRightLeft className="h-3 w-3 text-amber-400" />
                   {contract === "continuous" ? "Continuous" : contract}
                 </span>
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[280px] p-0" align="start">
@@ -653,151 +727,322 @@ export default function MarketData() {
             </PopoverContent>
           </Popover>
         )}
+
+        <div className="w-px h-5 bg-white/10" />
+
+        {/* Timeframe chips */}
+        <div className="flex items-center gap-0.5">
+          {timeframes.map((tf) => (
+            <Button
+              key={tf.label}
+              variant={timeframe === tf.minutes ? "default" : "ghost"}
+              size="sm"
+              className={`h-6 px-2 text-[10px] font-mono ${
+                timeframe === tf.minutes
+                  ? "bg-primary/20 text-primary border border-primary/30"
+                  : "text-muted-foreground hover:text-primary hover:bg-primary/10"
+              }`}
+              onClick={() => setTimeframe(tf.minutes)}
+              data-testid={`timeframe-${tf.label}`}
+            >
+              {tf.label}
+            </Button>
+          ))}
+        </div>
+
+        <div className="w-px h-5 bg-white/10" />
+
+        {/* Indicators + Overlays */}
+        <IndicatorSelector
+          catalog={catalog}
+          selectedColumns={selectedColumns}
+          onSelectionChange={setSelectedColumns}
+          isLoading={indicatorsLoading}
+        />
+
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant={showSR ? "default" : "ghost"}
+            size="sm"
+            className={`h-6 px-2 text-[10px] font-mono gap-1 ${
+              showSR
+                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                : "text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10"
+            }`}
+            onClick={() => setShowSR(v => !v)}
+            title="Support & Resistance levels"
+          >
+            <Layers className="h-3 w-3" /> S/R
+          </Button>
+          <Button
+            variant={showZigZag ? "default" : "ghost"}
+            size="sm"
+            className={`h-6 px-2 text-[10px] font-mono gap-1 ${
+              showZigZag
+                ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                : "text-muted-foreground hover:text-yellow-400 hover:bg-yellow-500/10"
+            }`}
+            onClick={() => setShowZigZag(v => !v)}
+            title="ZigZag (ATR-filtered swings)"
+          >
+            <ZapOff className="h-3 w-3" /> ZZ
+          </Button>
+          <Button
+            variant={showSwingZZ ? "default" : "ghost"}
+            size="sm"
+            className={`h-6 px-2 text-[10px] font-mono gap-1 ${
+              showSwingZZ
+                ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                : "text-muted-foreground hover:text-cyan-400 hover:bg-cyan-500/10"
+            }`}
+            onClick={() => setShowSwingZZ(v => !v)}
+            title="Swing ZigZag (every high/low)"
+          >
+            <TrendingUp className="h-3 w-3" /> SW
+          </Button>
+          <Button
+            variant={replay.active ? "default" : "ghost"}
+            size="sm"
+            className={`h-6 px-2 text-[10px] font-mono gap-1 ${
+              replay.active
+                ? "bg-violet-500/20 text-violet-400 border border-violet-500/30"
+                : "text-muted-foreground hover:text-violet-400 hover:bg-violet-500/10"
+            }`}
+            onClick={replay.toggleReplay}
+            title={replay.active ? "Exit replay mode" : "Enter replay mode"}
+          >
+            {replay.active ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+            Replay
+          </Button>
+        </div>
+
+        <div className="flex-1" />
+
+        {/* HDP-HMM Train / Stop button */}
+        {!regime.isTraining ? (
+          <Button
+            size="sm"
+            className="h-7 px-3 text-[10px] font-mono gap-1.5 bg-linear-to-r from-orange-500 to-rose-500 text-white hover:opacity-90"
+            onClick={regime.startTraining}
+          >
+            <Flame className="h-3.5 w-3.5" /> Train
+          </Button>
+        ) : (
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-7 px-3 text-[10px] font-mono gap-1.5"
+            onClick={regime.stopTraining}
+          >
+            <Square className="h-3.5 w-3.5" /> Stop
+            {regime.progress && (
+              <span className="ml-1 font-mono">{regime.progress.pct.toFixed(0)}%</span>
+            )}
+          </Button>
+        )}
+
+        {/* ML Tools drawer trigger */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 px-3 text-[10px] font-mono border-white/10 bg-black/30 hover:bg-primary/10 hover:text-primary gap-1.5"
+          onClick={() => setMlPanelOpen(true)}
+        >
+          <PanelRightOpen className="h-3.5 w-3.5" />
+          ML Tools
+          {isTrainingActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+        </Button>
       </div>
 
-      {/* Main content: Vertical split — Chart area (top) + Hub panel (bottom) */}
-      <ResizablePanelGroup direction="vertical" className="flex-1 min-h-0">
-        <ResizablePanel defaultSize={65} minSize={30} className="overflow-hidden">
-          <ResizablePanelGroup direction="horizontal" className="h-full">
-            <ResizablePanel defaultSize={70} minSize={40} className="overflow-hidden">
-        {/* Chart Panel */}
-        <Card className="h-full glass rounded-2xl gradient-border flex flex-col overflow-hidden">
-          <CardHeader className="py-2 px-4 border-b border-white/5 shrink-0">
-            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-              <Sparkles className="h-3 w-3 text-primary" />
-              {effectiveSymbol}
-              {isFutures && isContinuous && continuousData?.data?.length > 0 && (
-                <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-400 ml-0.5">
-                  {continuousData.data[continuousData.data.length - 1]?.activeContract || 'Continuous'}
-                </Badge>
-              )}
-              {contract !== "continuous" && (
-                <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-400 ml-1">
-                  Single Contract
-                </Badge>
-              )}
-              <div className="flex items-center gap-1 ml-4">
-                {timeframes.map((tf) => (
-                  <Button
-                    key={tf.label}
-                    variant={timeframe === tf.minutes ? "default" : "ghost"}
-                    size="sm"
-                    className={`h-5 px-2 text-[10px] font-mono ${
-                      timeframe === tf.minutes 
-                        ? "bg-primary/20 text-primary border border-primary/30" 
-                        : "text-muted-foreground hover:text-primary hover:bg-primary/10"
-                    }`}
-                    onClick={() => setTimeframe(tf.minutes)}
-                    data-testid={`timeframe-${tf.label}`}
-                  >
-                    {tf.label}
-                  </Button>
-                ))}
-              </div>
-              <IndicatorSelector
-                catalog={catalog}
-                selectedColumns={selectedColumns}
-                onSelectionChange={setSelectedColumns}
-                isLoading={indicatorsLoading}
-              />
-              {/* Chart overlay toggles */}
-              <div className="flex items-center gap-0.5 ml-1">
-                <Button
-                  variant={showSR ? "default" : "ghost"}
-                  size="sm"
-                  className={`h-6 px-2 text-[10px] font-mono gap-1 ${
-                    showSR
-                      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                      : "text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10"
-                  }`}
-                  onClick={() => setShowSR(v => !v)}
-                  title="Support & Resistance levels"
-                >
-                  <Layers className="h-3 w-3" />
-                  S/R
-                </Button>
-                <Button
-                  variant={showZigZag ? "default" : "ghost"}
-                  size="sm"
-                  className={`h-6 px-2 text-[10px] font-mono gap-1 ${
-                    showZigZag
-                      ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
-                      : "text-muted-foreground hover:text-yellow-400 hover:bg-yellow-500/10"
-                  }`}
-                  onClick={() => setShowZigZag(v => !v)}
-                  title="ZigZag (ATR-filtered swings)"
-                >
-                  <ZapOff className="h-3 w-3" />
-                  ZZ
-                </Button>
-                <Button
-                  variant={showSwingZZ ? "default" : "ghost"}
-                  size="sm"
-                  className={`h-6 px-2 text-[10px] font-mono gap-1 ${
-                    showSwingZZ
-                      ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
-                      : "text-muted-foreground hover:text-cyan-400 hover:bg-cyan-500/10"
-                  }`}
-                  onClick={() => setShowSwingZZ(v => !v)}
-                  title="Swing ZigZag (every high/low)"
-                >
-                  <TrendingUp className="h-3 w-3" />
-                  SW
-                </Button>
-              </div>
-              <span className="ml-auto text-[10px] text-muted-foreground/60 flex items-center gap-2">
-                {activeSymbols.find(s => s.symbol === symbol)?.name}
-                {rawData.length > 0 && ` \u2022 ${chartData.length.toLocaleString()} bars`}
-                {isFutures && isContinuous && rollovers.length > 0 && (
-                  <span className="flex items-center gap-1 text-amber-400">
-                    <ArrowRightLeft className="h-3 w-3" />
-                    {rollovers.length} rollovers
-                  </span>
-                )}
-                {isLoadingMore && (
-                  <span className="flex items-center gap-1 text-violet-400">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Loading...
-                  </span>
-                )}
+      {/* ── Analytics Strip: always-visible key metrics ── */}
+      <div className="flex items-center gap-3 px-3 py-1 border-b border-white/5 shrink-0 text-[10px] bg-card/20">
+        <span className="font-mono font-semibold text-primary text-xs">{effectiveSymbol}</span>
+        {isFutures && isContinuous && continuousData?.data?.length > 0 && (
+          <Badge variant="outline" className="text-[8px] border-amber-500/30 text-amber-400 py-0">
+            {continuousData.data[continuousData.data.length - 1]?.activeContract || 'Continuous'}
+          </Badge>
+        )}
+        {contract !== "continuous" && (
+          <Badge variant="outline" className="text-[8px] border-amber-500/30 text-amber-400 py-0">
+            Single Contract
+          </Badge>
+        )}
+
+        <span className="text-muted-foreground font-mono">
+          {displayData.length.toLocaleString()}{replay.active ? ` / ${chartData.length.toLocaleString()}` : ''} bars
+        </span>
+
+        {isFutures && isContinuous && rollovers.length > 0 && (
+          <span className="flex items-center gap-1 text-amber-400">
+            <ArrowRightLeft className="h-3 w-3" /> {rollovers.length} rollovers
+          </span>
+        )}
+
+        <div className="flex-1" />
+
+        {tradeMetrics.totalTrades > 0 && (
+          <>
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/5">
+              <span className="text-muted-foreground">Trades</span>
+              <span className="font-mono text-foreground">{tradeMetrics.totalTrades}</span>
+            </div>
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/5">
+              <span className="text-muted-foreground">WR</span>
+              <span className="font-mono text-emerald-400">{tradeMetrics.winRate.toFixed(1)}%</span>
+            </div>
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/5">
+              <span className="text-muted-foreground">P&L</span>
+              <span className={`font-mono ${tradeMetrics.totalPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {tradeMetrics.totalPnl >= 0 ? '+' : ''}${tradeMetrics.totalPnl.toFixed(0)}
               </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 p-2 min-h-0">
-            {chartData.length > 0 ? (
-              <IndicatorChartLayout
-                data={chartData}
-                symbol={effectiveSymbol}
-                isFutures={isFutures}
-                timeframe={timeframe}
-                onLoadMore={useInfiniteScroll ? (isFutures ? handleLoadMore : handleForexLoadMore) : undefined}
-                isLoadingMore={isFutures ? isLoadingMore : forexIsLoadingMore}
-                hasMoreLeft={isFutures ? hasMoreLeft : forexHasMoreLeft}
-                hasMoreRight={isFutures ? hasMoreRight : forexHasMoreRight}
-                rollovers={isFutures && isContinuous ? rollovers : []}
-                labelMarkers={sidebarShowLabels ? sidebarLabelMarkers : []}
-                indicatorOverlays={indicatorOverlays}
-                onRemoveIndicators={handleRemoveIndicators}
-                supportResistanceLevels={srLevels}
-                zigZagPoints={zigZagPts}
-                swingZigZagPoints={swingZZPts}
-                tradeMarkers={dashboard.overlays.tradeMarkers}
-                predictionMarkers={dashboard.overlays.predictionMarkers}
-              />
+            </div>
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/5">
+              <span className="text-muted-foreground">PF</span>
+              <span className="font-mono text-cyan-400">
+                {tradeMetrics.profitFactor === Infinity ? '∞' : tradeMetrics.profitFactor.toFixed(2)}
+              </span>
+            </div>
+          </>
+        )}
+
+        <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/5">
+          <Brain className="h-3 w-3 text-primary" />
+          <span className="font-mono text-foreground">{modelCount}</span>
+          <span className="text-muted-foreground">models</span>
+        </div>
+
+        {matchedModelId && !regime.isTraining && (
+          <Badge variant="outline" className="text-[8px] border-orange-500/30 text-orange-400 bg-orange-500/10 py-0 gap-1">
+            <Layers className="h-2.5 w-2.5" />
+            {matchedModelId} · {regimeLegendInfo.length}R
+            {regime.models.find(m => m.id === matchedModelId)?.quality_score != null && (
+              <span className="text-muted-foreground">Q:{regime.models.find(m => m.id === matchedModelId)!.quality_score!.toFixed(0)}</span>
+            )}
+          </Badge>
+        )}
+
+        {isTrainingActive && (
+          <Badge variant="outline" className="text-[8px] border-green-500/30 text-green-400 bg-green-500/10 py-0 gap-1">
+            <Brain className="h-2.5 w-2.5 animate-pulse" /> Training
+          </Badge>
+        )}
+
+        {replay.active && (
+          <Badge variant="outline" className="text-[8px] border-violet-500/30 text-violet-400 bg-violet-500/10 py-0 gap-1">
+            <Play className="h-2.5 w-2.5" /> Replay
+          </Badge>
+        )}
+
+        {isLoadingMore && (
+          <Loader2 className="h-3 w-3 animate-spin text-violet-400" />
+        )}
+      </div>
+
+      {/* ── Chart + Terminal: resizable vertical split ── */}
+      <ResizablePanelGroup direction="vertical" className="flex-1 min-h-0">
+        {/* ── Chart panel ── */}
+        <ResizablePanel defaultSize={75} minSize={30}>
+          <div className="h-full flex flex-col">
+            {/* Replay controls — shown during manual replay OR training-driven replay */}
+            {replay.active && (
+              <div className="px-3 py-1.5 border-b border-white/5 shrink-0 flex items-center gap-3">
+                {trainingSync.isActive ? (
+                  <TrainingSyncBanner
+                    gibbsIter={trainingSync.gibbsIter}
+                    gibbsTotal={trainingSync.gibbsTotal}
+                    activeRegimes={trainingSync.activeRegimes}
+                    regimeLegend={trainingSync.regimeLegend}
+                    trainingPhase={trainingSync.trainingPhase}
+                  />
+                ) : null}
+                <ReplayControls
+                  state={replay.state}
+                  speed={replay.speed}
+                  snapshot={replay.snapshot}
+                  onPlay={replay.play}
+                  onPause={replay.pause}
+                  onStepForward={replay.stepForward}
+                  onStepBackward={replay.stepBackward}
+                  onSeekTo={replay.seekTo}
+                  onChangeSpeed={replay.changeSpeed}
+                  onReset={replay.reset}
+                />
+              </div>
+            )}
+
+            {/* Regime legend — shown when regime colors are active */}
+            {regimeLegendInfo.length > 0 && (
+              <div className="px-3 py-1 border-b border-white/5 shrink-0">
+                <RegimeLegend
+                  regimes={regimeLegendInfo}
+                  selectedRegimes={selectedRegimes}
+                  onToggleRegime={toggleRegime}
+                  onShowAll={() => setSelectedRegimes(null)}
+                />
+              </div>
+            )}
+
+            {displayData.length > 0 ? (
+              <div className="flex-1 min-h-0 p-1">
+                <IndicatorChartLayout
+                  data={displayData}
+                  symbol={effectiveSymbol}
+                  isFutures={isFutures}
+                  timeframe={timeframe}
+                  isReplayActive={replay.active}
+                  onLoadMore={!replay.active && useInfiniteScroll ? handleLoadMore : undefined}
+                  isLoadingMore={isLoadingMore}
+                  hasMoreLeft={!replay.active && hasMoreLeft}
+                  hasMoreRight={!replay.active && hasMoreRight}
+                  rollovers={isFutures && isContinuous ? rollovers : []}
+                  labelMarkers={sidebarShowLabels ? sidebarLabelMarkers : []}
+                  indicatorOverlays={indicatorOverlays}
+                  onRemoveIndicators={handleRemoveIndicators}
+                  supportResistanceLevels={srLevels}
+                  zigZagPoints={zigZagPts}
+                  swingZigZagPoints={swingZZPts}
+                  tradeMarkers={dashboard.overlays.tradeMarkers}
+                  predictionMarkers={dashboard.overlays.predictionMarkers}
+                  regimeColorMap={regimeColorMap}
+                  trainTestSplitTime={trainTestSplitTime}
+                />
+              </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
                 <Database className="h-12 w-12 mb-3 opacity-20" />
                 <p className="font-mono text-sm">No data for {effectiveSymbol}</p>
                 <p className="text-xs text-muted-foreground/60 mt-1">Upload {isFutures ? 'futures' : 'forex'} data to see the chart</p>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
         </ResizablePanel>
 
-        <ResizableHandle withHandle className="mx-1 opacity-50 hover:opacity-100 transition-opacity" />
+        {/* ── Drag handle ── */}
+        <ResizableHandle withHandle />
 
-        <ResizablePanel defaultSize={30} minSize={10} maxSize={50} collapsible collapsedSize={3} className="overflow-hidden">
+        {/* ── Terminal panel ── */}
+        <ResizablePanel defaultSize={25} minSize={5} maxSize={60}>
+          <div className="h-full px-1 pb-1">
+            <TrainingTerminal
+              trainLogs={regime.trainLogs}
+              isTraining={regime.isTraining}
+              liveMetrics={regime.liveMetrics}
+              liveConvergence={regime.liveConvergence}
+              selectedSymbol={regime.selectedSymbol}
+              selectedTimeframe={regime.selectedTimeframe}
+              showTerminal={regime.showTerminal}
+              setShowTerminal={regime.setShowTerminal}
+              logEndRef={regime.logEndRef}
+              burnIn={regime.burnIn}
+            />
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+
+      {/* ── ML Tools Sheet (slides from right) ── */}
+      <Sheet open={mlPanelOpen} onOpenChange={setMlPanelOpen}>
+        <SheetContent side="right" className="w-[380px] sm:w-[420px] sm:max-w-[420px] p-0 border-l border-white/10 bg-background/95 backdrop-blur-xl flex flex-col">
+          <SheetTitle className="sr-only">ML Tools — {symbol}</SheetTitle>
           <MLWorkflowSidebar
             chartData={chartData}
             effectiveSymbol={effectiveSymbol}
@@ -806,16 +1051,8 @@ export default function MarketData() {
             timeframe={timeframe}
             onLabelMarkersChange={handleLabelMarkersChange}
           />
-        </ResizablePanel>
-          </ResizablePanelGroup>
-        </ResizablePanel>
-
-        <ResizableHandle withHandle className="my-0.5 opacity-50 hover:opacity-100 transition-opacity" />
-
-        <ResizablePanel defaultSize={35} minSize={10} maxSize={60} collapsible collapsedSize={3} className="overflow-hidden">
-          <BottomPanel />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

@@ -71,6 +71,12 @@ export interface TradingChartProps {
   tradeMarkers?: TradeMarker[];
   /** Model prediction markers (up/down/neutral) */
   predictionMarkers?: PredictionMarker[];
+  /** When true, the chart auto-pans to keep the latest bar visible (used during replay). */
+  isReplayActive?: boolean;
+  /** Map of epoch-seconds → regime index for live regime coloring during training. */
+  regimeColorMap?: Map<number, number>;
+  /** Epoch-seconds timestamp of the train/test split boundary (shows "TEST" marker). */
+  trainTestSplitTime?: number;
 }
 
 const futuresTickInfo: Record<string, { tickSize: number; tickValue: number; decimals: number }> = {
@@ -127,6 +133,9 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
   swingZigZagPoints = [],
   tradeMarkers = [],
   predictionMarkers = [],
+  isReplayActive = false,
+  regimeColorMap,
+  trainTestSplitTime,
 }, ref) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -159,6 +168,9 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const swingZZMarkersRef = useRef<any>(null);
   const [priceInfo, setPriceInfo] = useState<{ open: number; high: number; low: number; close: number; time: string; activeContract?: string } | null>(null);
+
+  // Track whether we've already scrolled to the oldest bar for the current regime training session
+  const hasScrolledToRegimeStartRef = useRef(false);
 
   // Stable ref for the range-change callback
   const onRangeChangeRef = useRef(onVisibleLogicalRangeChange);
@@ -228,6 +240,12 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     return transitions;
   }, [data, isFutures]);
 
+  // Regime color fills (body, border, wick) — matches REGIME_COLORS from training/types.ts
+  const REGIME_FILLS = [
+    '#f43f5e', '#f97316', '#f59e0b', '#10b981',
+    '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899',
+  ];
+
   const processedData = useMemo(() => {
     if (data.length === 0) return { candles: [] as CandlestickData<Time>[], volumes: [] as { time: Time; value: number; color: string }[] };
 
@@ -236,6 +254,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     const candles: CandlestickData<Time>[] = [];
     const volumes: { time: Time; value: number; color: string }[] = [];
     let lastTimeKey = -1;
+    const hasRegimeColors = regimeColorMap && regimeColorMap.size > 0;
 
     for (let i = 0; i < data.length; i++) {
       const d = data[i];
@@ -247,25 +266,45 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
       if (timeKey === lastTimeKey) continue;
       lastTimeKey = timeKey;
 
-      candles.push({
-        time: timeKey as Time,
-        open: d.open,
-        high: d.high,
-        low: d.low,
-        close: d.close,
-      });
+      // Apply regime color if available for this bar
+      const regimeIdx = hasRegimeColors ? regimeColorMap!.get(timeKey) : undefined;
+      if (regimeIdx !== undefined) {
+        const fill = REGIME_FILLS[regimeIdx % REGIME_FILLS.length];
+        candles.push({
+          time: timeKey as Time,
+          open: d.open,
+          high: d.high,
+          low: d.low,
+          close: d.close,
+          color: fill,
+          borderColor: fill,
+          wickColor: fill,
+        });
+      } else {
+        candles.push({
+          time: timeKey as Time,
+          open: d.open,
+          high: d.high,
+          low: d.low,
+          close: d.close,
+        });
+      }
 
       if (!isNaN(d.volume)) {
+        // Volume bars also get regime color if available
+        const volColor = regimeIdx !== undefined
+          ? REGIME_FILLS[regimeIdx % REGIME_FILLS.length] + '66' // ~40% opacity
+          : d.close >= d.open ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)';
         volumes.push({
           time: timeKey as Time,
           value: d.volume,
-          color: d.close >= d.open ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)',
+          color: volColor,
         });
       }
     }
 
     return { candles, volumes };
-  }, [data]);
+  }, [data, regimeColorMap]);
 
   const rolloverPriceLines = useMemo(() => {
     if (!isFutures || rollovers.length === 0) return [];
@@ -577,16 +616,49 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     volumeSeriesRef.current.setData(processedData.volumes);
 
     if (chartRef.current && (isInitialLoadRef.current || symbolChanged || timeframeChanged)) {
-      // Show the LATEST ~250 bars at proper spacing (user scrolls left for history)
+      // Show the OLDEST ~250 bars first (user scrolls right for newer data)
       const totalBars = processedData.candles.length;
       const visibleBars = Math.min(250, totalBars);
       chartRef.current.timeScale().setVisibleLogicalRange({
-        from: totalBars - visibleBars,
-        to: totalBars,
+        from: 0,
+        to: visibleBars,
       });
       isInitialLoadRef.current = false;
+    } else if (chartRef.current && isReplayActive) {
+      // During replay: keep the latest bar visible by showing the trailing ~150 bars.
+      // Think of it as the chart "following the playhead" like a TV camera tracking a runner.
+      const totalBars = processedData.candles.length;
+      const windowSize = Math.min(150, totalBars);
+      chartRef.current.timeScale().setVisibleLogicalRange({
+        from: totalBars - windowSize,
+        to: totalBars + 5,  // small right offset so the leading edge isn't smashed against the wall
+      });
     }
-  }, [processedData, symbol, timeframe]);
+  }, [processedData, symbol, timeframe, isReplayActive]);
+
+  // Reset regime-scroll flag when regime colors are cleared (training ends or new session)
+  useEffect(() => {
+    if (!regimeColorMap || regimeColorMap.size === 0) {
+      hasScrolledToRegimeStartRef.current = false;
+    }
+  }, [regimeColorMap]);
+
+  // Scroll chart to first bar when regime colors first arrive (re-anchor to oldest bar)
+  useEffect(() => {
+    if (
+      regimeColorMap && regimeColorMap.size > 0 &&
+      !hasScrolledToRegimeStartRef.current &&
+      chartRef.current && processedData.candles.length > 0
+    ) {
+      hasScrolledToRegimeStartRef.current = true;
+      const totalBars = processedData.candles.length;
+      const visibleBars = Math.min(250, totalBars);
+      chartRef.current.timeScale().setVisibleLogicalRange({
+        from: 0,
+        to: visibleBars,
+      });
+    }
+  }, [regimeColorMap, processedData]);
 
   useEffect(() => {
     if (rafIdRef.current) {
@@ -860,6 +932,38 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
       rolloverMarkersRef.current.setMarkers([]);
     }
   }, [isFutures, contractTransitions, processedData.candles]);
+
+  // Train/test split marker — shows "TEST" arrow at the boundary
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const splitMarkerRef = useRef<any>(null);
+  useEffect(() => {
+    if (!candleSeriesRef.current) return;
+
+    if (!trainTestSplitTime) {
+      if (splitMarkerRef.current) {
+        splitMarkerRef.current.setMarkers([]);
+      }
+      return;
+    }
+
+    const candleTimes = new Set(processedData.candles.map(d => d.time as number));
+    if (candleTimes.has(trainTestSplitTime)) {
+      const marker = [{
+        time: trainTestSplitTime as Time,
+        position: 'aboveBar' as const,
+        color: 'rgba(255, 255, 255, 0.4)',
+        shape: 'arrowDown' as const,
+        text: 'TEST',
+      }];
+      if (splitMarkerRef.current) {
+        splitMarkerRef.current.setMarkers(marker);
+      } else {
+        splitMarkerRef.current = createSeriesMarkers(candleSeriesRef.current, marker);
+      }
+    } else if (splitMarkerRef.current) {
+      splitMarkerRef.current.setMarkers([]);
+    }
+  }, [trainTestSplitTime, processedData.candles]);
 
   // Manage indicator overlay series — only handles 'overlay' type.
   // Subchart indicators are rendered by separate SubchartPanel components.

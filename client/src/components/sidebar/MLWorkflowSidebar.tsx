@@ -23,14 +23,14 @@ import { Progress } from "@/components/ui/progress";
 import {
   Tag, Eye, BarChart3, ChevronDown, ChevronRight,
   Play, Square, Brain, Loader2, TrendingUp, AlertTriangle,
-  FlaskConical, Crosshair, Sparkles, Activity, Settings, RefreshCw, Layers,
+  FlaskConical, Crosshair, Sparkles, Activity, Settings, RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useDashboard } from "@/contexts/UnifiedDashboardContext";
 import { LABEL_GENERATORS, type LabelGeneratorKey } from "@shared/mlTaxonomy";
 import { type LabelMarker } from "@/components/TradingChart";
 import { QUERY_KEYS } from "@/lib/types";
-import RegimeAnalytics from "@/components/RegimeAnalytics";
+
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -514,9 +514,6 @@ export function MLWorkflowSidebar({
             </TabsTrigger>
             <TabsTrigger value="xai" className="flex-1 h-6 text-[10px] data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 rounded-md px-1.5 gap-1">
               <Crosshair className="h-3 w-3" /> XAI
-            </TabsTrigger>
-            <TabsTrigger value="regimes" className="flex-1 h-6 text-[10px] data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-400 rounded-md px-1.5 gap-1">
-              <Layers className="h-3 w-3" /> Regimes
             </TabsTrigger>
           </TabsList>
         </div>
@@ -1032,12 +1029,6 @@ export function MLWorkflowSidebar({
           </div>
         </TabsContent>
 
-        {/* ═══════════════════════════════════════════════ */}
-        {/* REGIMES TAB                                     */}
-        {/* ═══════════════════════════════════════════════ */}
-        <TabsContent value="regimes" className="flex-1 overflow-hidden m-0 p-0">
-          <RegimeAnalytics />
-        </TabsContent>
       </Tabs>
     </Card>
   );

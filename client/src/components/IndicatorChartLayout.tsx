@@ -36,6 +36,8 @@ const BASE_PANEL_HEIGHT = 120;
 export default function IndicatorChartLayout({
   indicatorOverlays = [],
   onRemoveIndicators,
+  isReplayActive,
+  regimeColorMap,
   ...chartProps
 }: IndicatorChartLayoutProps) {
   const mainChartRef = useRef<TradingChartHandle>(null);
@@ -145,6 +147,8 @@ export default function IndicatorChartLayout({
           indicatorOverlays={overlayIndicators}
           onVisibleLogicalRangeChange={handleMainRangeChange}
           showTimeAxis={subchartPanels.length === 0}
+          isReplayActive={isReplayActive}
+          regimeColorMap={regimeColorMap}
         />
       </div>
 

@@ -7,17 +7,22 @@
  * bars, probability ribbons, and a transition map showing how the market
  * switches between moods.
  *
+ * The HDP-HMM discovers the number of regimes AUTOMATICALLY via Gibbs sampling
+ * (no max_regimes cap). Key hyperparams:
+ *   - Gamma: how eagerly new regimes are created
+ *   - Kappa: how sticky regimes are (higher = longer durations)
+ *   - Alpha: transition diversity
+ *
  * Visual sections:
- *   1. Train controls (symbol/timeframe/params + advanced: folds, test split)
+ *   1. Train controls (symbol/timeframe/gibbs iter + advanced: alpha/gamma/kappa)
  *   2. Quality Score badge (0-100 composite)
- *   3. BIC model selection chart (how it picked # of regimes)
- *   4. Cross-validation fold results table (train/val LL per fold)
- *   5. Walk-forward stability (window-by-window regime consistency)
- *   6. Out-of-sample assessment (distribution similarity, confidence)
- *   7. EM Convergence curves (log-likelihood per iteration)
- *   8. Regime stats table (bars, %, return, volatility, duration — color-coded)
- *   9. Transition matrix heatmap (which regime follows which)
- *  10. Regime timeline (color bars showing regime over time)
+ *   3. Regime discovery summary (# regimes found, hyperparams)
+ *   4. Walk-forward stability (window-by-window regime consistency)
+ *   5. Out-of-sample assessment (distribution similarity, confidence)
+ *   6. Gibbs convergence curves (log-likelihood per Gibbs iteration)
+ *   7. Regime stats table (bars, %, return, volatility, duration -- color-coded)
+ *   8. Transition matrix heatmap (which regime follows which)
+ *   9. Regime timeline (color bars showing regime over time)
  */
 
 import { useState, useRef, useCallback, useEffect } from "react";
@@ -51,11 +56,13 @@ interface RegimeModel {
   quality_score?: number;
   date_range: { start: string; end: string; train_end?: string; test_start?: string };
   training_config?: {
-    n_folds: number;
-    n_restarts: number;
-    max_iter: number;
+    gibbs_iter: number;
+    burn_in: number;
     test_split: number;
     walk_forward_windows: number;
+    alpha: number;
+    gamma: number;
+    kappa: number;
   };
   training_time_sec: number;
   trained_at: string;
@@ -66,6 +73,7 @@ interface RegimeStat {
   count: number;
   pct: number;
   avg_return: number;
+  avg_return_pct?: number;
   avg_volatility: number;
   avg_range: number;
   avg_atr_ratio: number;
@@ -74,6 +82,9 @@ interface RegimeStat {
   max_duration: number;
   median_duration: number;
   label: string;
+  nickname?: string;
+  volatility_state?: string;
+  bar_character?: string;
   characteristics: Record<string, number>;
 }
 
@@ -167,28 +178,37 @@ interface Diagnostics {
   feature_names: string[];
   date_range: { start: string; end: string; train_end?: string; test_start?: string };
   quality_score?: number;
-  model_selection: ModelSelection[];
+  model_selection?: ModelSelection[];
   bic_best_k?: number;
   cv_best_k?: number;
   cross_validation?: Record<string, CVResult>;
   walk_forward?: WalkForwardResult;
   out_of_sample?: OOSResult;
   convergence_summary?: {
-    converged: boolean;
+    converged?: boolean;
     n_iterations: number;
     final_log_likelihood: number;
+    final_active_states?: number;
+  };
+  n_regimes_discovered?: number;
+  gibbs_iterations?: number;
+  burn_in?: number;
+  hyperparams?: {
+    alpha: number;
+    gamma: number;
+    kappa: number;
   };
   regime_stats: RegimeStat[];
   transitions: Transition[];
   transition_matrix: number[][];
   training_config?: {
-    min_regimes: number;
-    max_regimes: number;
-    n_folds: number;
-    n_restarts: number;
-    max_iter: number;
+    gibbs_iter: number;
+    burn_in: number;
     test_split: number;
     walk_forward_windows: number;
+    alpha: number;
+    gamma: number;
+    kappa: number;
   };
   training_time_sec: number;
   trained_at: string;
@@ -708,10 +728,13 @@ export default function RegimeAnalytics({ compact = true }: RegimeAnalyticsProps
   // Config state
   const [selectedSymbol, setSelectedSymbol] = useState(dashboard.symbol || "ES");
   const [selectedTimeframe, setSelectedTimeframe] = useState("30m");
-  const [maxRegimes, setMaxRegimes] = useState(8);
-  const [nFolds, setNFolds] = useState(5);
+  const [gibbsIter, setGibbsIter] = useState(100);
+  const [burnIn, setBurnIn] = useState(30);
   const [testSplit, setTestSplit] = useState(0.15);
   const [wfWindows, setWfWindows] = useState(5);
+  const [alpha, setAlpha] = useState(1.0);
+  const [gamma, setGamma] = useState(5.0);
+  const [kappa, setKappa] = useState(50.0);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Results state
@@ -779,27 +802,44 @@ export default function RegimeAnalytics({ compact = true }: RegimeAnalyticsProps
     abortRef.current = abort;
 
     try {
-      const res = await fetch("/api/regime/train", {
+      // Step 1: POST to start training (returns 202 with modelId)
+      const startRes = await fetch("/api/regime/train", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           symbol: selectedSymbol,
           timeframe: selectedTimeframe,
-          maxRegimes,
-          nFolds,
+          gibbsIter,
+          burnIn,
           testSplit,
           wfWindows,
+          alpha,
+          gamma,
+          kappa,
         }),
         signal: abort.signal,
       });
 
-      if (!res.ok || !res.body) {
-        throw new Error("Failed to start training");
+      if (!startRes.ok) {
+        const errBody = await startRes.json().catch(() => ({ error: `HTTP ${startRes.status}` }));
+        throw new Error(errBody.error || "Failed to start training");
       }
 
-      const reader = res.body.getReader();
+      const { modelId } = await startRes.json();
+
+      // Step 2: Connect to SSE stream for live events
+      const streamRes = await fetch(`/api/regime/train/stream/${modelId}`, {
+        signal: abort.signal,
+      });
+
+      if (!streamRes.ok || !streamRes.body) {
+        throw new Error("Failed to connect to training stream");
+      }
+
+      const reader = streamRes.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let eventName = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -809,7 +849,6 @@ export default function RegimeAnalytics({ compact = true }: RegimeAnalyticsProps
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
-        let eventName = "";
         for (const line of lines) {
           if (line.startsWith("event: ")) {
             eventName = line.slice(7).trim();
@@ -848,7 +887,7 @@ export default function RegimeAnalytics({ compact = true }: RegimeAnalyticsProps
       setIsTraining(false);
       abortRef.current = null;
     }
-  }, [selectedSymbol, selectedTimeframe, maxRegimes, nFolds, testSplit, wfWindows, refetchModels]);
+  }, [selectedSymbol, selectedTimeframe, gibbsIter, burnIn, testSplit, wfWindows, alpha, gamma, kappa, refetchModels]);
 
   const stopTraining = useCallback(() => {
     abortRef.current?.abort();
@@ -904,13 +943,13 @@ export default function RegimeAnalytics({ compact = true }: RegimeAnalyticsProps
               </Select>
             </div>
             <div>
-              <label className="text-[9px] text-muted-foreground">Max Regimes</label>
+              <label className="text-[9px] text-muted-foreground">Gibbs Iter</label>
               <Input
                 type="number"
-                value={maxRegimes}
-                onChange={e => setMaxRegimes(Math.max(3, Math.min(12, parseInt(e.target.value) || 8)))}
+                value={gibbsIter}
+                onChange={e => setGibbsIter(Math.max(30, Math.min(500, parseInt(e.target.value) || 100)))}
                 className="h-6 text-[10px] bg-black/30 border-white/10 px-2"
-                min={3} max={12}
+                min={30} max={500}
                 disabled={isTraining}
               />
             </div>
@@ -927,41 +966,82 @@ export default function RegimeAnalytics({ compact = true }: RegimeAnalyticsProps
           </button>
 
           {showAdvanced && (
-            <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-black/20 border border-white/5">
-              <div>
-                <label className="text-[8px] text-muted-foreground">CV Folds</label>
-                <Input
-                  type="number"
-                  value={nFolds}
-                  onChange={e => setNFolds(Math.max(2, Math.min(10, parseInt(e.target.value) || 5)))}
-                  className="h-5 text-[9px] bg-black/30 border-white/10 px-1.5"
-                  min={2} max={10}
-                  disabled={isTraining}
-                />
+            <div className="space-y-1.5 p-2 rounded-lg bg-black/20 border border-white/5">
+              <div className="grid grid-cols-3 gap-1.5">
+                <div>
+                  <label className="text-[8px] text-muted-foreground">Burn-In</label>
+                  <Input
+                    type="number"
+                    value={burnIn}
+                    onChange={e => setBurnIn(Math.max(10, Math.min(200, parseInt(e.target.value) || 30)))}
+                    className="h-5 text-[9px] bg-black/30 border-white/10 px-1.5"
+                    min={10} max={200}
+                    disabled={isTraining}
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] text-muted-foreground">Test Split</label>
+                  <Input
+                    type="number"
+                    value={testSplit}
+                    onChange={e => setTestSplit(Math.max(0.05, Math.min(0.5, parseFloat(e.target.value) || 0.15)))}
+                    className="h-5 text-[9px] bg-black/30 border-white/10 px-1.5"
+                    step={0.05}
+                    min={0.05} max={0.5}
+                    disabled={isTraining}
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] text-muted-foreground">WF Windows</label>
+                  <Input
+                    type="number"
+                    value={wfWindows}
+                    onChange={e => setWfWindows(Math.max(2, Math.min(10, parseInt(e.target.value) || 5)))}
+                    className="h-5 text-[9px] bg-black/30 border-white/10 px-1.5"
+                    min={2} max={10}
+                    disabled={isTraining}
+                  />
+                </div>
               </div>
-              <div>
-                <label className="text-[8px] text-muted-foreground">Test Split</label>
-                <Input
-                  type="number"
-                  value={testSplit}
-                  onChange={e => setTestSplit(Math.max(0.05, Math.min(0.5, parseFloat(e.target.value) || 0.15)))}
-                  className="h-5 text-[9px] bg-black/30 border-white/10 px-1.5"
-                  step={0.05}
-                  min={0.05} max={0.5}
-                  disabled={isTraining}
-                />
+              <div className="grid grid-cols-3 gap-1.5">
+                <div>
+                  <label className="text-[8px] text-muted-foreground" title="Transition concentration - higher = more regime diversity">Alpha</label>
+                  <Input
+                    type="number"
+                    value={alpha}
+                    onChange={e => setAlpha(Math.max(0.1, Math.min(50, parseFloat(e.target.value) || 1.0)))}
+                    className="h-5 text-[9px] bg-black/30 border-white/10 px-1.5"
+                    step={0.5}
+                    min={0.1} max={50}
+                    disabled={isTraining}
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] text-muted-foreground" title="DP concentration - higher = more new regimes">Gamma</label>
+                  <Input
+                    type="number"
+                    value={gamma}
+                    onChange={e => setGamma(Math.max(0.1, Math.min(50, parseFloat(e.target.value) || 5.0)))}
+                    className="h-5 text-[9px] bg-black/30 border-white/10 px-1.5"
+                    step={1}
+                    min={0.1} max={50}
+                    disabled={isTraining}
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] text-muted-foreground" title="Stickiness - higher = longer regime durations">Kappa</label>
+                  <Input
+                    type="number"
+                    value={kappa}
+                    onChange={e => setKappa(Math.max(1, Math.min(500, parseFloat(e.target.value) || 50)))}
+                    className="h-5 text-[9px] bg-black/30 border-white/10 px-1.5"
+                    step={10}
+                    min={1} max={500}
+                    disabled={isTraining}
+                  />
+                </div>
               </div>
-              <div>
-                <label className="text-[8px] text-muted-foreground">WF Windows</label>
-                <Input
-                  type="number"
-                  value={wfWindows}
-                  onChange={e => setWfWindows(Math.max(2, Math.min(10, parseInt(e.target.value) || 5)))}
-                  className="h-5 text-[9px] bg-black/30 border-white/10 px-1.5"
-                  min={2} max={10}
-                  disabled={isTraining}
-                />
-              </div>
+              <p className="text-[7px] text-muted-foreground/40 mt-1">Gamma = regime creation willingness | Kappa = regime persistence (stickiness)</p>
             </div>
           )}
 
@@ -1110,64 +1190,43 @@ export default function RegimeAnalytics({ compact = true }: RegimeAnalyticsProps
               </div>
             )}
 
-            {/* BIC Model Selection */}
-            <Section title="Model Selection (BIC)" icon={<BarChart3 className="h-3 w-3 text-cyan-400" />} defaultOpen>
-              <div className="p-1.5 rounded-lg bg-black/30 border border-white/5">
-                <BICChart
-                  data={diagnostics.model_selection}
-                  bestN={diagnostics.n_regimes}
-                  bicBestK={diagnostics.bic_best_k}
-                  cvBestK={diagnostics.cv_best_k}
-                />
-              </div>
-              {diagnostics.bic_best_k != null && diagnostics.cv_best_k != null && (
-                <div className="flex gap-2 mt-1">
-                  <Badge variant="outline" className="text-[7px] px-1 py-0 rounded-full border-amber-500/30 text-amber-400">
-                    BIC: k={diagnostics.bic_best_k}
+            {/* HDP-HMM Discovery Info */}
+            <Section title="Regime Discovery" icon={<BarChart3 className="h-3 w-3 text-cyan-400" />} defaultOpen>
+              <div className="p-1.5 rounded-lg bg-black/30 border border-white/5 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[8px] px-1.5 py-0.5 rounded-full border-emerald-500/30 text-emerald-400">
+                    {diagnostics.n_regimes} regimes discovered
                   </Badge>
-                  <Badge variant="outline" className="text-[7px] px-1 py-0 rounded-full border-emerald-500/30 text-emerald-400">
-                    CV: k={diagnostics.cv_best_k}
-                  </Badge>
-                  <Badge variant="outline" className="text-[7px] px-1 py-0 rounded-full border-blue-500/30 text-blue-400">
-                    Final: k={diagnostics.n_regimes}
-                  </Badge>
+                  <span className="text-[7px] text-muted-foreground font-mono">
+                    auto (no cap)
+                  </span>
                 </div>
-              )}
+                {diagnostics.hyperparams && (
+                  <div className="flex gap-1.5 flex-wrap">
+                    <Badge variant="outline" className="text-[7px] px-1 py-0 rounded-full border-cyan-500/30 text-cyan-400">
+                      alpha={diagnostics.hyperparams.alpha}
+                    </Badge>
+                    <Badge variant="outline" className="text-[7px] px-1 py-0 rounded-full border-violet-500/30 text-violet-400">
+                      gamma={diagnostics.hyperparams.gamma}
+                    </Badge>
+                    <Badge variant="outline" className="text-[7px] px-1 py-0 rounded-full border-orange-500/30 text-orange-400">
+                      kappa={diagnostics.hyperparams.kappa}
+                    </Badge>
+                  </div>
+                )}
+              </div>
               {/* Convergence info */}
               {diagnostics.convergence_summary && (
                 <div className="flex items-center gap-2 mt-1">
-                  <Badge variant="outline" className={`text-[7px] px-1 py-0 rounded-full ${
-                    diagnostics.convergence_summary.converged ? "border-emerald-500/30 text-emerald-400" : "border-rose-500/30 text-rose-400"
-                  }`}>
-                    {diagnostics.convergence_summary.converged ? "Converged" : "Not Converged"}
-                  </Badge>
                   <span className="text-[7px] text-muted-foreground font-mono">
-                    {diagnostics.convergence_summary.n_iterations} iters
+                    {diagnostics.convergence_summary.n_iterations} Gibbs iters
+                  </span>
+                  <span className="text-[7px] text-muted-foreground font-mono">
+                    final states: {diagnostics.convergence_summary.final_active_states || diagnostics.n_regimes}
                   </span>
                 </div>
               )}
             </Section>
-
-            {/* Cross-Validation Results */}
-            {diagnostics.cross_validation && Object.keys(diagnostics.cross_validation).length > 0 && (
-              <Section title="Cross-Validation" icon={<Shield className="h-3 w-3 text-violet-400" />} defaultOpen>
-                {Object.entries(diagnostics.cross_validation).map(([k, cv]) => (
-                  <div key={k} className="space-y-1 mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[8px] font-mono text-muted-foreground">k={cv.n_components}</span>
-                      {cv.mean_val_ll_per_sample != null && (
-                        <span className="text-[8px] font-mono text-violet-400">
-                          val={cv.mean_val_ll_per_sample.toFixed(3)} +/- {cv.std_val_ll_per_sample?.toFixed(3)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="p-1.5 rounded bg-black/20 border border-white/5">
-                      <CVFoldTable cv={cv} />
-                    </div>
-                  </div>
-                ))}
-              </Section>
-            )}
 
             {/* Walk-Forward Results */}
             {diagnostics.walk_forward && diagnostics.walk_forward.n_windows > 0 && (
@@ -1187,12 +1246,12 @@ export default function RegimeAnalytics({ compact = true }: RegimeAnalyticsProps
               </Section>
             )}
 
-            {/* EM Convergence Curves */}
+            {/* Gibbs Convergence Curves */}
             {convergenceData && Object.keys(convergenceData).length > 0 && (
-              <Section title="EM Convergence" icon={<Activity className="h-3 w-3 text-violet-400" />}>
+              <Section title="Gibbs Convergence" icon={<Activity className="h-3 w-3 text-violet-400" />}>
                 <div className="p-1.5 rounded bg-black/20 border border-white/5 space-y-2">
                   {Object.entries(convergenceData).map(([key, history]) => (
-                    <ConvergenceCurve key={key} data={history} label={key.startsWith("final") ? `Final Model (${key})` : `k=${key}`} />
+                    <ConvergenceCurve key={key} data={history} label={key === "gibbs" ? "Gibbs Sampler" : key} />
                   ))}
                 </div>
               </Section>
@@ -1208,7 +1267,7 @@ export default function RegimeAnalytics({ compact = true }: RegimeAnalyticsProps
                       <div className="flex items-center gap-1.5">
                         <span className={`${color.text}`}>{getRegimeIcon(r.label)}</span>
                         <span className={`text-[10px] font-medium ${color.text}`}>
-                          R{r.regime_id}: {r.label.replace(/_/g, " ")}
+                          R{r.regime_id}: {r.nickname || r.label.replace(/_/g, " ")}
                         </span>
                       </div>
                       <Badge variant="outline" className={`text-[7px] px-1 py-0 ${color.border} ${color.text}`}>
@@ -1221,9 +1280,9 @@ export default function RegimeAnalytics({ compact = true }: RegimeAnalyticsProps
                         <p className="text-[9px] font-mono">{r.count.toLocaleString()}</p>
                       </div>
                       <div>
-                        <span className="text-[7px] text-muted-foreground">Avg Ret</span>
-                        <p className={`text-[9px] font-mono ${r.avg_return >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                          {(r.avg_return * 100).toFixed(3)}%
+                        <span className="text-[7px] text-muted-foreground">Ret/Bar</span>
+                        <p className={`text-[9px] font-mono ${(r.avg_return_pct ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {(r.avg_return_pct ?? 0) >= 0 ? '+' : ''}{(r.avg_return_pct ?? 0).toFixed(3)}%
                         </p>
                       </div>
                       <div>
@@ -1250,7 +1309,7 @@ export default function RegimeAnalytics({ compact = true }: RegimeAnalyticsProps
                 <div className="p-2 rounded-lg bg-black/30 border border-white/5 flex justify-center">
                   <TransitionMatrix
                     matrix={diagnostics.transition_matrix}
-                    labels={diagnostics.regime_stats.map(r => r.label)}
+                    labels={diagnostics.regime_stats.map(r => r.nickname || r.label)}
                   />
                 </div>
                 <p className="text-[7px] text-muted-foreground/50 text-center mt-1">
@@ -1273,7 +1332,7 @@ export default function RegimeAnalytics({ compact = true }: RegimeAnalyticsProps
                     return (
                       <div key={r.regime_id} className="flex items-center gap-1">
                         <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color.hex }} />
-                        <span className="text-[7px] text-muted-foreground">{r.label.replace(/_/g, " ")}</span>
+                        <span className="text-[7px] text-muted-foreground">{(r.nickname || r.label).replace(/_/g, " ")}</span>
                       </div>
                     );
                   })}

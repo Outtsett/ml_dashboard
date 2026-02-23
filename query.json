@@ -1,0 +1,1 @@
+{"db":"duckdb","sql":"SELECT DISTINCT symbol FROM ohlcv WHERE symbol LIKE \u0027%MNQ%\u0027 LIMIT 20"}

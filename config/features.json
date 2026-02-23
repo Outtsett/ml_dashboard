@@ -1,0 +1,36 @@
+{
+  "hdp-hmm-12": {
+    "name": "HDP-HMM Self-Referential",
+    "description": "12 rolling z-score features for regime detection. Self-referential normalization avoids lookahead bias.",
+    "features": [
+      "log_return_z", "range_pct_z", "body_pct_z",
+      "upper_wick_pct", "lower_wick_pct", "vol_rank",
+      "atr_ratio", "trend_5_z", "trend_20_z",
+      "vol_ratio_5_20", "range_rank", "return_rank"
+    ],
+    "warmupBars": 50,
+    "rollingWindow": 50
+  },
+  "universal-30": {
+    "name": "Universal 30-Feature",
+    "description": "Instrument-agnostic features for supervised models. Returns, momentum, volatility, volume, time.",
+    "returnPeriods": [1, 2, 3, 5, 10, 20],
+    "rsiPeriods": [14, 7],
+    "stochKPeriod": 14,
+    "stochDPeriod": 3,
+    "williamsRPeriod": 14,
+    "rocPeriod": 10,
+    "bbPeriod": 20,
+    "atrPeriod": 14,
+    "atrLongPeriod": 50,
+    "realizedVolWindow": 20,
+    "smaWindows": [5, 10, 20, 50],
+    "volumeAvgWindow": 20,
+    "volumeShortWindow": 5,
+    "includeTimeFeatures": true,
+    "macdFast": 12,
+    "macdSlow": 26,
+    "macdSignal": 9,
+    "warmupBars": 60
+  }
+}

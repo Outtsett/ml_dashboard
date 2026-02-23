@@ -30,6 +30,9 @@ export function getQuestDBQueryPool(): pg.Pool {
       user: "admin",
       password: "quest",
       max: 10,
+      connectionTimeoutMillis: 3000,
+      idleTimeoutMillis: 30000,
+      statement_timeout: 10000,
     });
     queryPool.on("error", (err) => {
       console.error("[questdb] Idle client error:", err.message);
@@ -114,6 +117,21 @@ function validatePositiveInt(value: number | undefined, maxValue: number = 10000
   return intVal;
 }
 
+/**
+ * Materialized view lookup — pre-computed SAMPLE BY aggregations.
+ * For these timeframes we query the view directly (no SAMPLE BY needed).
+ * Views auto-refresh on new inserts into the base ohlcv table.
+ */
+const MATERIALIZED_VIEWS: Record<string, string> = {
+  "5m": "ohlcv_5m",
+  "15m": "ohlcv_15m",
+  "30m": "ohlcv_30m",
+  "1h": "ohlcv_1h",
+  "4h": "ohlcv_4h",
+  "1d": "ohlcv_1d",
+  "1w": "ohlcv_1w",
+};
+
 export async function getOHLCVSampleBy(
   symbol: string,
   timeframe: string,
@@ -126,8 +144,36 @@ export async function getOHLCVSampleBy(
   const safeStartTime = startTime ? validatePositiveInt(startTime, Number.MAX_SAFE_INTEGER) : undefined;
   const safeEndTime = endTime ? validatePositiveInt(endTime, Number.MAX_SAFE_INTEGER) : undefined;
   const safeLimit = limit ? validatePositiveInt(limit, 100000) : undefined;
-  
-  // Whitelist valid timeframes
+
+  // Build WHERE clause with escaped symbol
+  const escapedSymbol = safeSymbol.replace(/'/g, "''");
+  let whereClause = `WHERE symbol = '${escapedSymbol}'`;
+  if (safeStartTime) {
+    whereClause += ` AND timestamp >= '${new Date(safeStartTime).toISOString()}'`;
+  }
+  if (safeEndTime) {
+    whereClause += ` AND timestamp <= '${new Date(safeEndTime).toISOString()}'`;
+  }
+
+  const limitClause = safeLimit ? `LIMIT ${safeLimit}` : "";
+
+  // Check if a materialized view exists for this timeframe
+  const matView = MATERIALIZED_VIEWS[timeframe];
+  if (matView) {
+    // Query pre-computed materialized view directly — no SAMPLE BY needed
+    const sql = `
+      SELECT symbol, timestamp, open, high, low, close, volume
+      FROM ${matView}
+      ${whereClause}
+      ORDER BY timestamp
+      ${limitClause}
+    `;
+    const rows = await queryQuestDB(sql);
+    // If view is still backfilling and returned 0 rows, fall back to SAMPLE BY
+    if (rows.length > 0) return rows;
+  }
+
+  // Fallback: SAMPLE BY on the base ohlcv table (used for 1s, 1m, or when views are empty)
   const validTimeframes: Record<string, string> = {
     "1s": "SAMPLE BY 1s",
     "1m": "SAMPLE BY 1m",
@@ -137,24 +183,13 @@ export async function getOHLCVSampleBy(
     "1h": "SAMPLE BY 1h",
     "4h": "SAMPLE BY 4h",
     "1d": "SAMPLE BY 1d",
+    "1w": "SAMPLE BY 7d",
   };
-  
+
   const sampleByClause = validTimeframes[timeframe] || "SAMPLE BY 1m";
-  
-  // Build WHERE clause with escaped symbol
-  const escapedSymbol = safeSymbol.replace(/'/g, "''");
-  let whereClause = `WHERE symbol = '${escapedSymbol}'`;
-  if (safeStartTime) {
-    whereClause += ` AND timestamp >= ${safeStartTime}`;
-  }
-  if (safeEndTime) {
-    whereClause += ` AND timestamp <= ${safeEndTime}`;
-  }
-  
-  const limitClause = safeLimit ? `LIMIT ${safeLimit}` : "";
-  
+
   const sql = `
-    SELECT 
+    SELECT
       symbol,
       timestamp,
       first(open) as open,
@@ -168,7 +203,7 @@ export async function getOHLCVSampleBy(
     ALIGN TO CALENDAR
     ${limitClause}
   `;
-  
+
   return await queryQuestDB(sql);
 }
 
@@ -185,8 +220,58 @@ export async function createOHLCVTable(): Promise<void> {
     ) timestamp(timestamp) PARTITION BY DAY WAL
     DEDUP UPSERT KEYS(symbol, timestamp);
   `;
-  
+
   await queryQuestDB(sql);
+}
+
+export async function createTradesTable(): Promise<void> {
+  await queryQuestDB(`
+    CREATE TABLE IF NOT EXISTS trades (
+      ts_event TIMESTAMP,
+      rtype SHORT,
+      publisher_id INT,
+      instrument_id LONG,
+      action SYMBOL CAPACITY 10 CACHE,
+      side SYMBOL CAPACITY 10 CACHE,
+      depth SHORT,
+      price DOUBLE,
+      size LONG,
+      flags SHORT,
+      ts_in_delta INT,
+      sequence LONG,
+      symbol SYMBOL CAPACITY 200 CACHE INDEX,
+      ts_recv TIMESTAMP
+    ) timestamp(ts_event) PARTITION BY DAY WAL
+    DEDUP UPSERT KEYS(symbol, ts_event, sequence);
+  `);
+}
+
+export async function createMBP10Table(): Promise<void> {
+  const bookLevels = Array.from({ length: 10 }, (_, i) => {
+    const pad = String(i).padStart(2, '0');
+    return `bid_px_${pad} DOUBLE, ask_px_${pad} DOUBLE, bid_sz_${pad} LONG, ask_sz_${pad} LONG, bid_ct_${pad} INT, ask_ct_${pad} INT`;
+  }).join(',\n      ');
+
+  await queryQuestDB(`
+    CREATE TABLE IF NOT EXISTS mbp10 (
+      ts_recv TIMESTAMP,
+      ts_event TIMESTAMP,
+      rtype SHORT,
+      publisher_id INT,
+      instrument_id LONG,
+      action SYMBOL CAPACITY 10 CACHE,
+      side SYMBOL CAPACITY 10 CACHE,
+      depth SHORT,
+      price DOUBLE,
+      size LONG,
+      flags SHORT,
+      ts_in_delta INT,
+      sequence LONG,
+      ${bookLevels},
+      symbol SYMBOL CAPACITY 200 CACHE INDEX
+    ) timestamp(ts_event) PARTITION BY DAY WAL
+    DEDUP UPSERT KEYS(symbol, ts_event, sequence);
+  `);
 }
 
 export async function getQuestDBTables(): Promise<any[]> {
@@ -238,10 +323,14 @@ export async function closeQuestDB(): Promise<void> {
 export async function checkQuestDBHealth(): Promise<boolean> {
   try {
     const pool = getQuestDBQueryPool();
-    await pool.query("SELECT 1;");
+    // Race against a 3-second timeout to prevent hanging
+    await Promise.race([
+      pool.query("SELECT 1;"),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('QuestDB health check timeout')), 3000)),
+    ]);
     return true;
-  } catch (error) {
-    console.error("QuestDB health check failed:", error);
+  } catch (error: any) {
+    console.warn("[questdb] Health check failed:", error.message);
     return false;
   }
 }

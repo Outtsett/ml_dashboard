@@ -11,7 +11,7 @@
     "build:electron": "tsx script/build.ts && electron-builder",
     "start": "cross-env NODE_ENV=production node --env-file=.env dist/index.cjs",
     "start:desktop": "cross-env NODE_ENV=production electron .",
-    "electron:dev": "node electron/start-databases.cjs && concurrently \"npm run dev\" \"wait-on http://127.0.0.1:5000 && electron .\"",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://127.0.0.1:5000 && electron .\"",
     "check": "tsc",
     "db:push": "npx drizzle-kit push",
     "test": "vitest run",

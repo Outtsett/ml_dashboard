@@ -5,7 +5,8 @@ import { createServer } from "http";
 import { setupPartitionedTables, migrateToPartitionedTables } from "./setup-partitions";
 import { initDuckDB } from "./duckdb";
 import { initMarketDB } from "./duckdb/market";
-import { startQuestDB } from "./lib/questdbProcess";
+import { runStartupSequence, getStartupReport } from "./lib/startupManager";
+import { testPostgresConnection } from "./db";
 
 const app = express();
 const httpServer = createServer(app);
@@ -70,31 +71,53 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  try {
-    await setupPartitionedTables();
-    await migrateToPartitionedTables();
-  } catch (error) {
-    console.error('Partition setup error (non-fatal):', error);
+  // ── Phase 1: Auto-start databases (PostgreSQL, QuestDB) ──
+  const report = await runStartupSequence();
+
+  // ── Phase 2: PostgreSQL schema setup (only if PG is reachable) ──
+  if (report.postgres.status === 'running' || report.postgres.status === 'skipped') {
+    const pgAlive = await testPostgresConnection(5000);
+    if (pgAlive) {
+      try {
+        await Promise.race([
+          (async () => {
+            await setupPartitionedTables();
+            await migrateToPartitionedTables();
+          })(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Partition setup timed out after 30s')), 30_000)),
+        ]);
+      } catch (error) {
+        console.error('Partition setup error (non-fatal):', error);
+      }
+    } else {
+      console.warn('[startup] PostgreSQL port open but connection failed — skipping partition setup');
+    }
+  } else {
+    console.warn('[startup] PostgreSQL not available — skipping partition setup');
   }
 
+  // ── Phase 3: DuckDB market data ──
   try {
-    await initMarketDB();
+    await Promise.race([
+      initMarketDB(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Market DuckDB init timed out after 15s')), 15_000)),
+    ]);
     log('Market DuckDB initialized', 'market-db');
   } catch (error) {
     console.warn('[market-db] Initialization error (non-fatal):', error);
   }
 
-  startQuestDB().then(result => {
-    if (result.started) {
-      console.log('[QuestDB] Started successfully');
-    } else {
-      console.warn('[QuestDB] Failed to start:', result.error);
-    }
-  }).catch(err => {
-    console.warn('[QuestDB] Startup error:', err);
-  });
-
+  // ── Phase 4: Routes + middleware ──
   await registerRoutes(httpServer, app);
+
+  // Expose startup report via API
+  app.get('/api/startup-report', (_req: Request, res: Response) => {
+    const currentReport = getStartupReport();
+    if (currentReport) {
+      return res.json(currentReport);
+    }
+    return res.status(503).json({ error: 'Startup not yet complete' });
+  });
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -119,7 +142,7 @@ app.use((req, res, next) => {
     await setupVite(httpServer, app);
   }
 
-  // Initialize DuckDB for analytics
+  // Initialize DuckDB for analytics (non-blocking)
   try {
     await initDuckDB();
     log("DuckDB initialized for analytics", "duckdb");
@@ -128,9 +151,6 @@ app.use((req, res, next) => {
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(
     {

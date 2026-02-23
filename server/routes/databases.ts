@@ -346,92 +346,80 @@ router.post("/databases/questdb/init", async (req: Request, res: Response) => {
 // Get OHLCV data for a symbol within a time range (query rate limited)
 router.get("/ohlcv/:symbol", queryRateLimiter, async (req: Request, res: Response) => {
   try {
-    const symbol = getString(req.params.symbol);
+    const symbol = getString(req.params.symbol).toUpperCase();
     const startTime = getString(req.query.startTime as string);
     const endTime = getString(req.query.endTime as string);
     const limit = getString(req.query.limit as string);
     const timeframe = req.query.timeframe as string; // e.g., "1m", "5m", "1h"
 
-    // Parse timeframe to seconds (default 60 = 1 minute)
-    let timeframeSec = 60;
-    if (timeframe) {
-      const match = timeframe.match(/^(\d+)(s|m|h|d)?$/);
-      if (match) {
-        const val = parseInt(match[1]);
-        const unit = match[2] || 'm';
-        timeframeSec = unit === 's' ? val : unit === 'm' ? val * 60 : unit === 'h' ? val * 3600 : val * 86400;
-      }
-    }
-
+    // Parse timeframe label (default "1m")
+    const tfLabel = timeframe || '1m';
     const limitNum = limit ? parseInt(limit) : 500;
+    const startMs = startTime ? parseInt(startTime) : undefined;
+    const endMs = endTime ? parseInt(endTime) : undefined;
 
-    // Check asset type to route to correct table directly (forex in legacy, futures in partitioned)
-    // Forex pairs are 6 characters made of currency codes - detect dynamically
-    const forexCurrencies = ['EUR', 'USD', 'GBP', 'JPY', 'AUD', 'NZD', 'CAD', 'CHF'];
-    const isForex = symbol.length === 6 &&
-      forexCurrencies.includes(symbol.slice(0, 3)) &&
-      forexCurrencies.includes(symbol.slice(3, 6));
+    // ── QuestDB first — concurrent reads, SAMPLE BY aggregation ──
+    const { checkQuestDBHealth, getOHLCVSampleBy, queryQuestDB } = await import("../questdb");
+    let qdbHealthy = false;
+    try { qdbHealthy = await checkQuestDBHealth(); } catch {}
 
-    // Handle range queries with server-side aggregation for infinite scroll
-    if (startTime || endTime) {
-      const rangeOpts = {
-        startTime: startTime ? parseInt(startTime) : undefined,
-        endTime: endTime ? parseInt(endTime) : undefined,
-        limit: limitNum,
-        timeframeSeconds: timeframeSec
-      };
-      const rangeCacheKey = OHLCVCache.key('ohlcv', symbol, timeframeSec, {
-        startTime: rangeOpts.startTime,
-        endTime: rangeOpts.endTime,
-        limit: limitNum
-      });
-
-      const data = await cachedQuery(rangeCacheKey, async () => {
-        let result;
-        if (isForex) {
-          result = await storage.getForexTimescaleRange(symbol, rangeOpts);
-          if (result.length === 0) {
-            result = await storage.getOhlcvAggregatedRange(symbol, rangeOpts);
+    // Estimate a time window when no start/end provided (avoids full-table SAMPLE BY scan)
+    let effectiveStart = startMs;
+    let effectiveEnd = endMs;
+    if (!effectiveStart && !effectiveEnd && qdbHealthy) {
+      try {
+        const safeEsc = symbol.replace(/'/g, "''");
+        const [row] = await queryQuestDB(`SELECT max(timestamp) as latest FROM ohlcv WHERE symbol = '${safeEsc}'`);
+        if (row?.latest) {
+          const latestMs = row.latest instanceof Date ? row.latest.getTime() : new Date(String(row.latest)).getTime();
+          // Parse timeframe to minutes for estimation
+          const tfMatch = tfLabel.match(/^(\d+)(s|m|h|d)?$/i);
+          let tfMinutes = 1;
+          if (tfMatch) {
+            const v = parseInt(tfMatch[1]);
+            const u = (tfMatch[2] || 'm').toLowerCase();
+            tfMinutes = u === 's' ? v / 60 : u === 'm' ? v : u === 'h' ? v * 60 : v * 1440;
           }
-        } else {
-          result = await storage.getFuturesTimescaleRange(symbol, rangeOpts);
-          if (result.length === 0) {
-            result = await storage.getOhlcvPartitionedRange(symbol, rangeOpts);
-          }
-          if (result.length === 0) {
-            result = await storage.getOhlcvAggregatedRange(symbol, rangeOpts);
-          }
+          effectiveStart = latestMs - limitNum * tfMinutes * 3 * 60_000;
         }
-        return result;
-      });
-
-      return res.json(data);
+      } catch { /* fall through without estimation */ }
     }
 
-    // No time params - get data (from start or end based on param)
-    const loadFromEnd = req.query.loadFromStart !== 'true';
-    const cacheKey = OHLCVCache.key('ohlcv', symbol, timeframeSec, { limit: limitNum, loadFromStart: !loadFromEnd });
+    const cacheKey = OHLCVCache.key('ohlcv', symbol, 0, { startTime: effectiveStart, endTime: effectiveEnd, limit: limitNum });
 
-    const data = await cachedQuery(cacheKey, async () => {
-      let result;
-      if (isForex) {
-        result = await storage.getForexTimescale(symbol, limitNum, timeframeSec, loadFromEnd);
-        if (result.length === 0) {
-          result = await storage.getOhlcvAggregated(symbol, limitNum, timeframeSec);
-          if (loadFromEnd) result.reverse();
-        }
-      } else {
-        result = await storage.getFuturesTimescale(symbol, limitNum, timeframeSec, loadFromEnd);
-        if (result.length === 0) {
-          result = await storage.getOhlcvPartitioned(symbol, limitNum, timeframeSec);
-          if (loadFromEnd) result.reverse();
-        }
-        if (result.length === 0) {
-          result = await storage.getOhlcvAggregated(symbol, limitNum, timeframeSec);
-          if (loadFromEnd) result.reverse();
-        }
+    if (qdbHealthy) {
+      try {
+        const data = await cachedQuery(cacheKey, () =>
+          getOHLCVSampleBy(symbol, tfLabel, effectiveStart, effectiveEnd, limitNum)
+        );
+        // Normalise QuestDB Date timestamps → epoch-ms
+        const normalised = data.map((r: any) => ({
+          timestamp: r.timestamp instanceof Date ? r.timestamp.getTime()
+            : typeof r.timestamp === 'string' ? new Date(r.timestamp).getTime()
+            : Number(r.timestamp),
+          open: Number(r.open),
+          high: Number(r.high),
+          low: Number(r.low),
+          close: Number(r.close),
+          volume: Number(r.volume),
+        }));
+        return res.json(normalised);
+      } catch (qdbErr: any) {
+        console.warn('[ohlcv] QuestDB failed, falling back to PostgreSQL:', qdbErr.message);
       }
-      return result;
+    }
+
+    // ── Fallback: PostgreSQL (legacy) ──
+    const loadFromEnd = req.query.loadFromStart !== 'true';
+    const fallbackKey = cacheKey + ':pg';
+    const data = await cachedQuery(fallbackKey, async () => {
+      if (startMs || endMs) {
+        return await storage.getOhlcvAggregatedRange(symbol, {
+          startTime: startMs, endTime: endMs, limit: limitNum, timeframeSeconds: 60
+        });
+      }
+      const result = await storage.getOhlcvAggregated(symbol, limitNum, 60);
+      return loadFromEnd ? result.reverse() : result;
     });
     res.json(data);
   } catch (error) {
