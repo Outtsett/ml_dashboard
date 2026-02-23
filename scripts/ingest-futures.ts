@@ -1,5 +1,5 @@
 /**
- * Ingest futures data from analytics.duckdb ohlcv_1s view into market DuckDB.
+ * Ingest futures data from analytics.duckdb ohlcv_1s view into QuestDB.
  *
  * The ohlcv_1s VIEW already has clean data:
  *   - timestamp: TIMESTAMPTZ (already converted from ts_event nanoseconds)
@@ -7,33 +7,48 @@
  *   - open/high/low/close: DOUBLE (already divided by 1B)
  *   - volume: BIGINT
  *
- * The instruments table maps instrument_id → symbol.
+ * The instruments table maps instrument_id -> symbol.
+ *
+ * Reads from source DuckDB (analytics.duckdb) via ephemeral DuckDB.
+ * Writes to QuestDB via ILP (InfluxDB Line Protocol).
+ * Tracks ingestion in PostgreSQL (optional -- requires running PG).
  *
  * Run: npx tsx scripts/ingest-futures.ts
  */
-import { initMarketDB, marketQuery, closeMarketDB } from '../server/duckdb/market';
+import { Sender } from '@questdb/nodejs-client';
+import { initDuckDB, runQuery } from '../server/duckdb';
+import { recordIngestion, computeFileHash, checkFileIngested } from '../server/services/ingestionService';
+
+const BATCH_SIZE = 50_000;
+const QUESTDB_HTTP_PORT = process.env.QUESTDB_HTTP_PORT || '9000';
+const QUESTDB_HOST = process.env.QUESTDB_HOST || 'localhost';
 
 async function main() {
-  await initMarketDB();
+  await initDuckDB();
 
   const analyticsPath = 'E:/source/repos/ml_dashboard/data/sources/analytics.duckdb';
 
-  // Check if already ingested
-  const existing = await marketQuery(
-    `SELECT file_path FROM ingested_files WHERE file_path LIKE '%analytics.duckdb%'`
-  );
-  if (existing.length > 0) {
-    console.log('[ingest] analytics.duckdb already ingested, skipping');
-    closeMarketDB();
-    return;
+  // Dedup check via PostgreSQL (optional)
+  let alreadyIngested = false;
+  try {
+    const hash = await computeFileHash(analyticsPath);
+    const dupCheck = await checkFileIngested(analyticsPath, hash);
+    if (dupCheck.ingested) {
+      console.log('[ingest] analytics.duckdb already ingested (per PostgreSQL), skipping');
+      alreadyIngested = true;
+    }
+  } catch (err) {
+    console.log('[ingest] PostgreSQL dedup check unavailable, proceeding with ingestion');
   }
 
-  console.log('[ingest] Attaching analytics.duckdb...');
-  await marketQuery(`ATTACH '${analyticsPath}' AS src (READ_ONLY)`);
+  if (alreadyIngested) return;
 
-  // Build instrument_id → symbol mapping from the instruments table
+  console.log('[ingest] Attaching analytics.duckdb...');
+  await runQuery(`ATTACH '${analyticsPath}' AS src (READ_ONLY)`);
+
+  // Build instrument_id -> symbol mapping from the instruments table
   console.log('[ingest] Loading instrument mapping...');
-  const instruments = await marketQuery<{ instrument_id: string; symbol: string }>(
+  const instruments = await runQuery<{ instrument_id: string; symbol: string }>(
     `SELECT instrument_id, symbol FROM src.instruments`
   );
   console.log(`[ingest] Found ${instruments.length} instrument mappings`);
@@ -41,63 +56,113 @@ async function main() {
   // Show sample mappings
   const sampleMappings = instruments.slice(0, 10);
   console.log('[ingest] Sample mappings:');
-  sampleMappings.forEach(m => console.log(`  ${m.instrument_id} → ${m.symbol}`));
+  sampleMappings.forEach(m => console.log(`  ${m.instrument_id} -> ${m.symbol}`));
 
-  // Get distinct instrument_ids in ohlcv_1s to know what we're working with
-  const distinctIds = await marketQuery<{ instrument_id: string }>(
+  // Build lookup map
+  const symbolMap = new Map(instruments.map(m => [m.instrument_id, m.symbol]));
+
+  // Get distinct instrument_ids in ohlcv_1s
+  const distinctIds = await runQuery<{ instrument_id: string }>(
     `SELECT DISTINCT instrument_id FROM src.ohlcv_1s LIMIT 50`
   );
   console.log(`[ingest] Found ${distinctIds.length} distinct instrument_ids in ohlcv_1s`);
 
-  console.log('[ingest] Starting futures ingestion from ohlcv_1s (720M rows)...');
+  // Count total rows
+  const totalResult = await runQuery<{ cnt: number }>(
+    `SELECT COUNT(*) as cnt FROM src.ohlcv_1s`
+  );
+  const totalRows = Number(totalResult[0].cnt);
+  console.log(`[ingest] Starting futures ingestion from ohlcv_1s (${totalRows.toLocaleString()} rows)...`);
   console.log('[ingest] This may take several minutes...');
 
   const start = Date.now();
+  const configStr = `http::addr=${QUESTDB_HOST}:${QUESTDB_HTTP_PORT};auto_flush=off;`;
+  const sender = await Sender.fromConfig(configStr);
 
-  // Join ohlcv_1s with instruments to get proper symbol names
-  // Use COALESCE to fall back to instrument_id if no mapping exists
-  await marketQuery(`
-    INSERT INTO ohlcv
-    SELECT
-      CAST(o.timestamp AS TIMESTAMP) AS ts,
-      COALESCE(i.symbol, o.instrument_id) AS symbol,
-      o.open,
-      o.high,
-      o.low,
-      o.close,
-      o.volume
-    FROM src.ohlcv_1s o
-    LEFT JOIN src.instruments i ON o.instrument_id = i.instrument_id
-  `);
+  let offset = 0;
+  let rowCount = 0;
+  let tsMin = Infinity;
+  let tsMax = -Infinity;
+
+  while (offset < totalRows) {
+    const batch = await runQuery<{
+      timestamp: string;
+      instrument_id: string;
+      open: number;
+      high: number;
+      low: number;
+      close: number;
+      volume: number;
+    }>(`
+      SELECT
+        CAST(o.timestamp AS VARCHAR) AS timestamp,
+        o.instrument_id,
+        o.open,
+        o.high,
+        o.low,
+        o.close,
+        o.volume
+      FROM src.ohlcv_1s o
+      ORDER BY o.timestamp
+      LIMIT ${BATCH_SIZE} OFFSET ${offset}
+    `);
+
+    if (batch.length === 0) break;
+
+    for (const row of batch) {
+      const symbol = symbolMap.get(row.instrument_id) || row.instrument_id;
+      const tsMs = new Date(row.timestamp).getTime();
+
+      await sender
+        .table('ohlcv')
+        .symbol('symbol', symbol)
+        .floatColumn('open', row.open)
+        .floatColumn('high', row.high)
+        .floatColumn('low', row.low)
+        .floatColumn('close', row.close)
+        .floatColumn('volume', Number(row.volume))
+        .at(tsMs, 'ms');
+
+      if (tsMs < tsMin) tsMin = tsMs;
+      if (tsMs > tsMax) tsMax = tsMs;
+      rowCount++;
+    }
+
+    await sender.flush();
+    offset += BATCH_SIZE;
+
+    if (rowCount % 500_000 === 0 || offset >= totalRows) {
+      const pct = ((offset / totalRows) * 100).toFixed(1);
+      console.log(`[ingest] Progress: ${rowCount.toLocaleString()} rows (${pct}%)`);
+    }
+  }
+
+  await sender.flush();
+  await sender.close();
 
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-  console.log(`[ingest] Futures ingestion complete in ${elapsed}s`);
+  console.log(`[ingest] Futures ingestion complete: ${rowCount.toLocaleString()} rows in ${elapsed}s`);
 
-  // Get stats
-  const stats = await marketQuery(`
-    SELECT symbol, COUNT(*) as cnt,
-           MIN(ts)::VARCHAR as ts_min,
-           MAX(ts)::VARCHAR as ts_max
-    FROM ohlcv
-    GROUP BY symbol
-    ORDER BY cnt DESC
-    LIMIT 20
-  `);
-  console.log('[ingest] Stats:');
-  stats.forEach((row: any) =>
-    console.log(`  ${row.symbol}: ${Number(row.cnt).toLocaleString()} rows, ${row.ts_min} → ${row.ts_max}`)
-  );
+  // Record ingestion in PostgreSQL (optional)
+  try {
+    const hash = await computeFileHash(analyticsPath);
+    const fs = await import('fs');
+    const fileSize = fs.statSync(analyticsPath).size;
+    await recordIngestion(
+      analyticsPath,
+      hash,
+      fileSize,
+      rowCount,
+      'FUTURES_ALL',
+      new Date(tsMin),
+      new Date(tsMax),
+    );
+    console.log('[ingest] Recorded ingestion in PostgreSQL');
+  } catch (err) {
+    console.log('[ingest] Could not record ingestion in PostgreSQL (DB may not be running)');
+  }
 
-  // Record ingestion
-  const totalRows = await marketQuery<{ cnt: number }>(`SELECT COUNT(*) as cnt FROM ohlcv`);
-  await marketQuery(`
-    INSERT INTO ingested_files (file_path, file_hash, file_size, row_count, symbol, ts_min, ts_max)
-    VALUES ('${analyticsPath}', 'bulk-futures', 0, ${Number(totalRows[0].cnt)}, 'FUTURES_ALL',
-            (SELECT MIN(ts) FROM ohlcv), (SELECT MAX(ts) FROM ohlcv))
-  `);
-
-  await marketQuery("DETACH src");
-  closeMarketDB();
+  await runQuery("DETACH src");
   console.log('[ingest] Done.');
 }
 

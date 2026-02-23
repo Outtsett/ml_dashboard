@@ -1,5 +1,5 @@
 /**
- * Ingest forex data from forex.duckdb and loose Parquet files.
+ * Ingest forex data from forex.duckdb and loose Parquet files into QuestDB.
  *
  * forex.duckdb tables:
  *   - native_bars (36.8M rows): pair, timeframe, ts, OHLCV + bid/ask/spread (M1)
@@ -11,75 +11,139 @@
  *
  * Forex parquets (15 files):
  *   - time (VARCHAR), open, high, low, close, volume
- *   - File naming: PAIR_M1_6Y.parquet → extract pair from filename
+ *   - File naming: PAIR_M1_6Y.parquet -> extract pair from filename
+ *
+ * Reads from source DuckDB/Parquet via ephemeral DuckDB.
+ * Writes to QuestDB via ILP.
+ * Tracks ingestion in PostgreSQL (optional).
  *
  * Run: npx tsx scripts/ingest-forex.ts
  */
-import { initMarketDB, marketQuery, closeMarketDB } from '../server/duckdb/market';
+import { Sender } from '@questdb/nodejs-client';
+import { initDuckDB, runQuery } from '../server/duckdb';
+import { recordIngestion, computeFileHash, checkFileIngested } from '../server/services/ingestionService';
 import * as fs from 'fs';
 import * as path from 'path';
 
-async function main() {
-  await initMarketDB();
+const BATCH_SIZE = 50_000;
+const QUESTDB_HTTP_PORT = process.env.QUESTDB_HTTP_PORT || '9000';
+const QUESTDB_HOST = process.env.QUESTDB_HOST || 'localhost';
 
-  // --- Part 1: forex.duckdb native_bars (highest quality — has bid/ask) ---
+async function main() {
+  await initDuckDB();
+
+  // --- Part 1: forex.duckdb native_bars (highest quality -- has bid/ask) ---
   const forexDbPath = 'E:/source/repos/ml_dashboard/data/sources/forex.duckdb';
 
-  const existingForexDb = await marketQuery(
-    `SELECT file_path FROM ingested_files WHERE file_path LIKE '%forex.duckdb%'`
-  );
+  let forexDbIngested = false;
+  try {
+    const hash = await computeFileHash(forexDbPath);
+    const dupCheck = await checkFileIngested(forexDbPath, hash);
+    if (dupCheck.ingested) {
+      console.log('[ingest] forex.duckdb already ingested (per PostgreSQL), skipping');
+      forexDbIngested = true;
+    }
+  } catch {
+    console.log('[ingest] PostgreSQL dedup check unavailable, proceeding');
+  }
 
-  if (existingForexDb.length > 0) {
-    console.log('[ingest] forex.duckdb already ingested, skipping');
-  } else {
+  if (!forexDbIngested) {
     console.log('[ingest] Attaching forex.duckdb...');
-    await marketQuery(`ATTACH '${forexDbPath}' AS forex (READ_ONLY)`);
+    await runQuery(`ATTACH '${forexDbPath}' AS forex (READ_ONLY)`);
 
-    // List tables to understand what's available
-    const tables = await marketQuery(
+    // List tables
+    const tables = await runQuery(
       "SELECT table_name FROM information_schema.tables WHERE table_catalog = 'forex' AND table_type = 'BASE TABLE'"
     );
     console.log(`[ingest] Found ${tables.length} tables:`, tables.map((t: any) => t.table_name));
 
-    // Ingest native_bars — M1 resolution only (skip higher timeframes, we'll aggregate)
-    console.log('[ingest] Ingesting native_bars (M1 only)...');
-
-    const m1Count = await marketQuery<{ cnt: number }>(
+    // Count M1 rows
+    const m1Count = await runQuery<{ cnt: number }>(
       `SELECT COUNT(*) as cnt FROM forex.native_bars WHERE timeframe = 'M1'`
     );
-    console.log(`[ingest] M1 rows to ingest: ${Number(m1Count[0].cnt).toLocaleString()}`);
+    const totalM1 = Number(m1Count[0].cnt);
+    console.log(`[ingest] M1 rows to ingest: ${totalM1.toLocaleString()}`);
 
     const start = Date.now();
+    const configStr = `http::addr=${QUESTDB_HOST}:${QUESTDB_HTTP_PORT};auto_flush=off;`;
+    const sender = await Sender.fromConfig(configStr);
 
-    // Convert pair format: AUD_JPY → AUDJPY
-    await marketQuery(`
-      INSERT INTO ohlcv
-      SELECT
-        CAST(ts AS TIMESTAMP) AS ts,
-        REPLACE(pair, '_', '') AS symbol,
-        open,
-        high,
-        low,
-        close,
-        volume
-      FROM forex.native_bars
-      WHERE timeframe = 'M1'
-    `);
+    let offset = 0;
+    let rowCount = 0;
+    let tsMin = Infinity;
+    let tsMax = -Infinity;
+
+    while (offset < totalM1) {
+      const batch = await runQuery<{
+        ts: string;
+        pair: string;
+        open: number;
+        high: number;
+        low: number;
+        close: number;
+        volume: number;
+      }>(`
+        SELECT
+          CAST(ts AS VARCHAR) AS ts,
+          pair,
+          open, high, low, close, volume
+        FROM forex.native_bars
+        WHERE timeframe = 'M1'
+        ORDER BY ts
+        LIMIT ${BATCH_SIZE} OFFSET ${offset}
+      `);
+
+      if (batch.length === 0) break;
+
+      for (const row of batch) {
+        // Convert pair format: AUD_JPY -> AUDJPY
+        const symbol = row.pair.replace(/_/g, '');
+        const tsMs = new Date(row.ts).getTime();
+
+        await sender
+          .table('ohlcv')
+          .symbol('symbol', symbol)
+          .floatColumn('open', row.open)
+          .floatColumn('high', row.high)
+          .floatColumn('low', row.low)
+          .floatColumn('close', row.close)
+          .floatColumn('volume', Number(row.volume))
+          .at(tsMs, 'ms');
+
+        if (tsMs < tsMin) tsMin = tsMs;
+        if (tsMs > tsMax) tsMax = tsMs;
+        rowCount++;
+      }
+
+      await sender.flush();
+      offset += BATCH_SIZE;
+
+      if (rowCount % 500_000 === 0 || offset >= totalM1) {
+        const pct = ((offset / totalM1) * 100).toFixed(1);
+        console.log(`[ingest] native_bars progress: ${rowCount.toLocaleString()} rows (${pct}%)`);
+      }
+    }
+
+    await sender.flush();
+    await sender.close();
 
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-    console.log(`[ingest] native_bars M1 ingested in ${elapsed}s`);
+    console.log(`[ingest] native_bars M1 ingested: ${rowCount.toLocaleString()} rows in ${elapsed}s`);
 
-    // Record
-    const forexRows = await marketQuery<{ cnt: number }>(
-      `SELECT COUNT(*) as cnt FROM ohlcv WHERE symbol NOT LIKE '%H%' AND symbol NOT LIKE '%M%' AND symbol NOT LIKE '%U%' AND symbol NOT LIKE '%Z%' AND LENGTH(symbol) = 6`
-    );
-    await marketQuery(`
-      INSERT INTO ingested_files (file_path, file_hash, file_size, row_count, symbol, ts_min, ts_max)
-      VALUES ('${forexDbPath}', 'bulk-forex-native', 0, ${Number(forexRows[0].cnt)}, 'FOREX_ALL',
-              (SELECT MIN(ts) FROM ohlcv WHERE LENGTH(symbol) = 6), (SELECT MAX(ts) FROM ohlcv WHERE LENGTH(symbol) = 6))
-    `);
+    // Record in PostgreSQL (optional)
+    try {
+      const hash = await computeFileHash(forexDbPath);
+      const fileSize = fs.statSync(forexDbPath).size;
+      await recordIngestion(
+        forexDbPath, hash, fileSize, rowCount,
+        'FOREX_ALL', new Date(tsMin), new Date(tsMax),
+      );
+      console.log('[ingest] Recorded forex.duckdb ingestion in PostgreSQL');
+    } catch {
+      console.log('[ingest] Could not record ingestion in PostgreSQL');
+    }
 
-    await marketQuery("DETACH forex");
+    await runQuery("DETACH forex");
   }
 
   // --- Part 2: Loose Parquet files (may have additional data not in forex.duckdb) ---
@@ -91,72 +155,104 @@ async function main() {
     for (const file of parquetFiles) {
       const filePath = path.join(forexParquetDir, file).replace(/\\/g, '/');
 
-      // Check if already ingested
-      const safePath = filePath.replace(/'/g, "''");
-      const existing = await marketQuery(
-        `SELECT file_path FROM ingested_files WHERE file_path = '${safePath}'`
-      );
-      if (existing.length > 0) {
-        console.log(`[ingest] ${file}: already ingested, skipping`);
-        continue;
+      // Dedup check
+      let skipFile = false;
+      try {
+        const hash = await computeFileHash(filePath);
+        const dupCheck = await checkFileIngested(filePath, hash);
+        if (dupCheck.ingested) {
+          console.log(`[ingest] ${file}: already ingested, skipping`);
+          skipFile = true;
+        }
+      } catch {
+        // PostgreSQL not available, proceed
       }
+      if (skipFile) continue;
 
-      // Extract symbol from filename: "AUD_JPY_M1_6Y.parquet" → "AUDJPY"
+      // Extract symbol from filename: "AUD_JPY_M1_6Y.parquet" -> "AUDJPY"
       const symbol = path.basename(file, '.parquet')
         .replace(/_M\d+_\d+Y$/i, '')
         .replace(/_/g, '')
         .toUpperCase();
 
-      console.log(`[ingest] ${file} → ${symbol}`);
+      console.log(`[ingest] ${file} -> ${symbol}`);
 
-      const count = await marketQuery<{ cnt: number }>(
+      const countResult = await runQuery<{ cnt: number }>(
         `SELECT COUNT(*) as cnt FROM read_parquet('${filePath}')`
       );
+      const totalRows = Number(countResult[0].cnt);
 
-      // Forex parquets have: time (VARCHAR), open, high, low, close, volume
-      await marketQuery(`
-        INSERT INTO ohlcv
-        SELECT
-          CAST(time AS TIMESTAMP) AS ts,
-          '${symbol}' AS symbol,
-          CAST(open AS DOUBLE) AS open,
-          CAST(high AS DOUBLE) AS high,
-          CAST(low AS DOUBLE) AS low,
-          CAST(close AS DOUBLE) AS close,
-          CAST(COALESCE(volume, 0) AS BIGINT) AS volume
-        FROM read_parquet('${filePath}')
-      `);
+      const configStr = `http::addr=${QUESTDB_HOST}:${QUESTDB_HTTP_PORT};auto_flush=off;`;
+      const sender = await Sender.fromConfig(configStr);
 
-      await marketQuery(`
-        INSERT INTO ingested_files (file_path, file_hash, file_size, row_count, symbol, ts_min, ts_max)
-        VALUES ('${safePath}', 'bulk-forex-parquet', 0, ${Number(count[0].cnt)}, '${symbol}',
-                (SELECT MIN(ts) FROM ohlcv WHERE symbol = '${symbol}'),
-                (SELECT MAX(ts) FROM ohlcv WHERE symbol = '${symbol}'))
-      `);
+      let offset = 0;
+      let rowCount = 0;
+      let tsMin = Infinity;
+      let tsMax = -Infinity;
 
-      console.log(`  Ingested ${Number(count[0].cnt).toLocaleString()} rows`);
+      while (offset < totalRows) {
+        // Forex parquets have: time (VARCHAR), open, high, low, close, volume
+        const batch = await runQuery<{
+          time: string;
+          open: number;
+          high: number;
+          low: number;
+          close: number;
+          volume: number;
+        }>(`
+          SELECT time, open, high, low, close, COALESCE(volume, 0) AS volume
+          FROM read_parquet('${filePath}')
+          LIMIT ${BATCH_SIZE} OFFSET ${offset}
+        `);
+
+        if (batch.length === 0) break;
+
+        for (const row of batch) {
+          const tsMs = new Date(row.time).getTime();
+
+          await sender
+            .table('ohlcv')
+            .symbol('symbol', symbol)
+            .floatColumn('open', Number(row.open))
+            .floatColumn('high', Number(row.high))
+            .floatColumn('low', Number(row.low))
+            .floatColumn('close', Number(row.close))
+            .floatColumn('volume', Number(row.volume))
+            .at(tsMs, 'ms');
+
+          if (tsMs < tsMin) tsMin = tsMs;
+          if (tsMs > tsMax) tsMax = tsMs;
+          rowCount++;
+        }
+
+        await sender.flush();
+        offset += BATCH_SIZE;
+      }
+
+      await sender.flush();
+      await sender.close();
+
+      console.log(`  Ingested ${rowCount.toLocaleString()} rows`);
+
+      // Record in PostgreSQL (optional)
+      try {
+        const hash = await computeFileHash(filePath);
+        const fileSize = fs.statSync(filePath).size;
+        await recordIngestion(
+          filePath, hash, fileSize, rowCount,
+          symbol, new Date(tsMin), new Date(tsMax),
+        );
+      } catch {
+        // PostgreSQL not available
+      }
     }
   }
 
   // --- Summary ---
-  console.log('\n[ingest] === Final Summary ===');
-  const summary = await marketQuery(`
-    SELECT symbol, COUNT(*) as cnt,
-           MIN(ts)::VARCHAR as ts_min,
-           MAX(ts)::VARCHAR as ts_max
-    FROM ohlcv
-    GROUP BY symbol
-    ORDER BY cnt DESC
-  `);
-  let total = 0;
-  summary.forEach((row: any) => {
-    const cnt = Number(row.cnt);
-    total += cnt;
-    console.log(`  ${row.symbol}: ${cnt.toLocaleString()} rows, ${row.ts_min} → ${row.ts_max}`);
-  });
-  console.log(`  TOTAL: ${total.toLocaleString()} rows across ${summary.length} symbols`);
-
-  closeMarketDB();
+  console.log('\n[ingest] === Ingestion Complete ===');
+  console.log('[ingest] Data written to QuestDB ohlcv table.');
+  console.log('[ingest] Use QuestDB console at http://localhost:9000 to verify.');
+  console.log('[ingest] Done.');
 }
 
 main().catch(console.error);
