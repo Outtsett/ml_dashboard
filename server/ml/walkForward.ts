@@ -30,7 +30,7 @@ import {
   type UniversalTrainingData,
   type NormalizationStats,
 } from './universalPipeline';
-import { marketQuery } from '../duckdb/market';
+import { questdbMarketQuery as marketQuery } from '../lib/questdbMarketQuery';
 import { EventEmitter } from 'events';
 
 // ============================================================

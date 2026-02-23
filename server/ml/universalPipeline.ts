@@ -11,7 +11,7 @@
  */
 
 import * as tf from '@tensorflow/tfjs-node';
-import { marketQuery } from '../duckdb/market';
+import { questdbMarketQuery as marketQuery } from '../lib/questdbMarketQuery';
 
 // ============================================================================
 // CONFIGURATION

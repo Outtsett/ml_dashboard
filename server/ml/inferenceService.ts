@@ -22,7 +22,7 @@
 import * as tf from '@tensorflow/tfjs-node';
 import * as fs from 'fs';
 import * as path from 'path';
-import { marketQuery } from '../duckdb/market';
+import { questdbMarketQuery as marketQuery } from '../lib/questdbMarketQuery';
 import {
   getFeatureNames,
   DEFAULT_FEATURE_CONFIG,

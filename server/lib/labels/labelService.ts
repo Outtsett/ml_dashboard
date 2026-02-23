@@ -109,7 +109,7 @@ async function loadOHLCVIntoDuckDB(options: LoadOHLCVOptions): Promise<void> {
   }
   
   // Query real market data from file-backed market.duckdb
-  const { marketQuery } = await import('../../duckdb/market');
+  const { questdbMarketQuery: marketQuery } = await import('../../lib/questdbMarketQuery');
   
   // Build time filter for market.duckdb queries
   let timeFilter = '';
