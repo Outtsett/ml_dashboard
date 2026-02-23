@@ -207,6 +207,55 @@ export async function getOHLCVSampleBy(
   return await queryQuestDB(sql);
 }
 
+export async function getOHLCVContinuousSampleBy(
+  root: string,
+  timeframe: string,
+  startTime?: number,
+  endTime?: number,
+  limit?: number
+): Promise<any[]> {
+  const safeRoot = validateSymbol(root);
+  const escapedRoot = safeRoot.replace(/'/g, "''");
+
+  let whereClause = `WHERE root = '${escapedRoot}'`;
+  if (startTime) {
+    whereClause += ` AND ts >= '${new Date(startTime).toISOString()}'`;
+  }
+  if (endTime) {
+    whereClause += ` AND ts <= '${new Date(endTime).toISOString()}'`;
+  }
+
+  const safeLimit = limit ? Math.min(Math.floor(limit), 100000) : undefined;
+  const limitClause = safeLimit ? `LIMIT ${safeLimit}` : '';
+
+  const validTimeframes: Record<string, string> = {
+    '1s': 'SAMPLE BY 1s', '1m': 'SAMPLE BY 1m', '5m': 'SAMPLE BY 5m',
+    '15m': 'SAMPLE BY 15m', '30m': 'SAMPLE BY 30m', '1h': 'SAMPLE BY 1h',
+    '4h': 'SAMPLE BY 4h', '1d': 'SAMPLE BY 1d', '1w': 'SAMPLE BY 7d',
+  };
+  const sampleByClause = validTimeframes[timeframe] || 'SAMPLE BY 1m';
+
+  // Note: ohlcv_continuous uses 'ts' as timestamp and 'root' instead of 'symbol'
+  // We alias them back to match the standard OHLCV response format
+  const sql = `
+    SELECT
+      root as symbol,
+      ts as timestamp,
+      first(open) as open,
+      max(high) as high,
+      min(low) as low,
+      last(close) as close,
+      sum(volume) as volume
+    FROM ohlcv_continuous
+    ${whereClause}
+    ${sampleByClause}
+    ALIGN TO CALENDAR
+    ${limitClause}
+  `;
+
+  return await queryQuestDB(sql);
+}
+
 export async function createOHLCVTable(): Promise<void> {
   const sql = `
     CREATE TABLE IF NOT EXISTS ohlcv (

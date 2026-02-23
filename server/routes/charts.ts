@@ -12,8 +12,9 @@
  * This route normalises everything to a flat array of { timestamp, open, high, low, close, volume }.
  */
 import { Router, Request, Response } from 'express';
-import { getOHLCVSampleBy, checkQuestDBHealth, queryQuestDB } from '../questdb';
+import { getOHLCVSampleBy, getOHLCVContinuousSampleBy, checkQuestDBHealth, queryQuestDB } from '../questdb';
 import { cachedQuery, OHLCVCache } from '../lib/ohlcvCache';
+import { isFuturesRoot } from '../services/continuousContract';
 
 const router = Router();
 
@@ -122,7 +123,11 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
       let anchorMs = Date.now();
       try {
         const safeEsc = symbol.replace(/'/g, "''");
-        const [row] = await queryQuestDB(`SELECT max(timestamp) as latest FROM ohlcv WHERE symbol = '${safeEsc}'`);
+        // For continuous contracts, query ohlcv_continuous with 'root' and 'ts'
+        const anchorTable = isFuturesRoot(symbol) ? 'ohlcv_continuous' : 'ohlcv';
+        const anchorSymbolCol = isFuturesRoot(symbol) ? 'root' : 'symbol';
+        const anchorTsCol = isFuturesRoot(symbol) ? 'ts' : 'timestamp';
+        const [row] = await queryQuestDB(`SELECT max(${anchorTsCol}) as latest FROM ${anchorTable} WHERE ${anchorSymbolCol} = '${safeEsc}'`);
         if (row?.latest) {
           const latestDate = row.latest instanceof Date ? row.latest.getTime() : new Date(String(row.latest)).getTime();
           if (!isNaN(latestDate)) anchorMs = latestDate;
@@ -141,9 +146,11 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
       return res.status(503).json({ error: 'QuestDB is not available' });
     }
 
-    const raw = await cachedQuery(cacheKey, () =>
-      getOHLCVSampleBy(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit)
-    );
+    const queryFn = isFuturesRoot(symbol)
+      ? () => getOHLCVContinuousSampleBy(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit)
+      : () => getOHLCVSampleBy(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit);
+
+    const raw = await cachedQuery(cacheKey, queryFn);
     const data = raw.map((r: any) => ({
       timestamp: normaliseTimestamp(r),
       open: Number(r.open),
