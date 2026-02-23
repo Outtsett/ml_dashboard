@@ -4,7 +4,6 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { setupPartitionedTables, migrateToPartitionedTables } from "./setup-partitions";
 import { initDuckDB } from "./duckdb";
-import { initMarketDB } from "./duckdb/market";
 import { runStartupSequence, getStartupReport } from "./lib/startupManager";
 import { testPostgresConnection } from "./db";
 
@@ -96,18 +95,7 @@ app.use((req, res, next) => {
     console.warn('[startup] PostgreSQL not available — skipping partition setup');
   }
 
-  // ── Phase 3: DuckDB market data ──
-  try {
-    await Promise.race([
-      initMarketDB(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Market DuckDB init timed out after 15s')), 15_000)),
-    ]);
-    log('Market DuckDB initialized', 'market-db');
-  } catch (error) {
-    console.warn('[market-db] Initialization error (non-fatal):', error);
-  }
-
-  // ── Phase 4: Routes + middleware ──
+  // ── Phase 3: Routes + middleware ──
   await registerRoutes(httpServer, app);
 
   // Expose startup report via API

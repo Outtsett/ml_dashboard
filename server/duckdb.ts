@@ -1,8 +1,23 @@
 // Barrel export - re-exports everything from sub-modules for backward compatibility
 // All imports like `import { ... } from "./duckdb"` continue to work unchanged.
 
-// Core infrastructure
-export { initDuckDB, closeDuckDB, runQuery, runQueryUnlocked, withMutex, validateFilePath, PARQUET_DIR } from "./duckdb/core";
+// Core infrastructure + statistical analysis (analytics.ts replaces core.ts + market.ts)
+export {
+  // Core infrastructure
+  initDuckDB, closeDuckDB, runQuery, runQueryUnlocked, withMutex, validateFilePath, PARQUET_DIR,
+  // Statistical analysis, volatility, and performance
+  calculateRollingStats,
+  correlationMatrix,
+  calculateReturns,
+  realizedVolatility,
+  parkinsonVolatility,
+  garmanKlassVolatility,
+  calculateDrawdown,
+  calculatePerformanceRatios,
+  calculateTradeMetrics,
+  createLaggedFeatures,
+  calculateTechnicalIndicators
+} from "./duckdb/analytics";
 
 // File I/O operations
 export { loadParquetSafe, loadCSVSafe, convertCSVToParquet, convertZstCSVToParquet, getParquetRowCount, listParquetFiles } from "./duckdb/fileOps";
@@ -23,21 +38,7 @@ export {
   computeOHLCVStats
 } from "./duckdb/queries";
 
-// Statistical analysis, volatility, and performance
-export {
-  calculateRollingStats,
-  correlationMatrix,
-  calculateReturns,
-  realizedVolatility,
-  parkinsonVolatility,
-  garmanKlassVolatility,
-  calculateDrawdown,
-  calculatePerformanceRatios,
-  calculateTradeMetrics,
-  createLaggedFeatures,
-  calculateTechnicalIndicators
-} from "./duckdb/analytics";
-
+// TODO: Remove preAggregation re-exports once parquet.ts and dataPipeline.ts are updated (Task 14)
 // Pre-aggregation and materialization
 export {
   createPreAggregatedParquetFiles,
