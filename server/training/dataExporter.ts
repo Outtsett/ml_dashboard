@@ -2,14 +2,14 @@
  * Data Exporter — Exports OHLCV from QuestDB to temp parquet for Python trainers.
  *
  * All time series data comes from QuestDB (SAMPLE BY aggregation).
- * No Panama adjustment or continuous contract stitching — individual contracts only.
  * Parquet writing uses DuckDB in-memory as a utility (analytics layer).
  */
 
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { getOHLCVSampleBy } from "../questdb";
+import { getOHLCVSampleBy, getFrontMonthOHLCV } from "../questdb";
+import { isFuturesRoot } from "../services/continuousContract";
 import { runQuery } from "../duckdb";
 
 const TMP_DIR = path.join(os.tmpdir(), "ml_dashboard_training");
@@ -42,8 +42,10 @@ export async function exportTrainingData(
   const startMs = dateRange?.start ? new Date(dateRange.start).getTime() : undefined;
   const endMs = dateRange?.end ? new Date(dateRange.end).getTime() : undefined;
 
-  // Query QuestDB via SAMPLE BY (no row limit — we want all training data)
-  const rows = await getOHLCVSampleBy(sym, sampleLabel, startMs, endMs);
+  // Query QuestDB — use front-month stitching for futures roots, direct query otherwise
+  const rows = isFuturesRoot(sym)
+    ? await getFrontMonthOHLCV(sym, sampleLabel, startMs, endMs)
+    : await getOHLCVSampleBy(sym, sampleLabel, startMs, endMs);
 
   if (rows.length === 0) {
     throw new Error(`No data found for ${sym} in QuestDB`);

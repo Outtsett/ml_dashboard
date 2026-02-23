@@ -337,72 +337,6 @@ function buildFeatureSQL(
   `;
 }
 
-function buildContinuousContractFeatureSQL(
-  rootSymbol: string,
-  timeframeSec: number,
-  maxBars: number,
-  config: UniversalFeatureConfig
-): string {
-  const interval = `${timeframeSec} seconds`;
-
-  // Same feature SQL but with continuous contract stitching
-  // Replace the 'agg' CTE with Panama back-adjusted continuous contract
-  const featureSQL = buildFeatureSQL(rootSymbol, timeframeSec, maxBars, config);
-
-  // Replace the agg CTE with continuous contract logic
-  const continuousAgg = `
-    -- Layer 0: Continuous contract with Panama back-adjustment
-    schedule AS (
-      SELECT
-        to_contract as contract,
-        rollover_date as start_date,
-        LEAD(rollover_date) OVER (PARTITION BY root ORDER BY rollover_date) as end_date,
-        cumulative_adjustment as adj
-      FROM rollovers
-      WHERE root = '${rootSymbol}'
-      UNION ALL
-      SELECT
-        from_contract as contract,
-        DATE '1900-01-01' as start_date,
-        rollover_date as end_date,
-        cumulative_adjustment + price_gap as adj
-      FROM rollovers
-      WHERE root = '${rootSymbol}'
-        AND rollover_date = (SELECT MIN(rollover_date) FROM rollovers WHERE root = '${rootSymbol}')
-    ),
-    stitched AS (
-      SELECT
-        o.ts,
-        o.open + s.adj as open,
-        o.high + s.adj as high,
-        o.low + s.adj as low,
-        o.close + s.adj as close,
-        o.volume
-      FROM ohlcv o
-      JOIN schedule s ON o.symbol = s.contract
-        AND CAST(o.ts AS DATE) >= s.start_date
-        AND (s.end_date IS NULL OR CAST(o.ts AS DATE) < s.end_date)
-    ),
-    agg AS (
-      SELECT
-        time_bucket(INTERVAL '${interval}', ts) as ts,
-        first(open ORDER BY ts) as open,
-        max(high) as high,
-        min(low) as low,
-        last(close ORDER BY ts) as close,
-        CAST(sum(volume) AS DOUBLE) as volume
-      FROM stitched
-      GROUP BY time_bucket(INTERVAL '${interval}', ts)
-      ORDER BY ts
-    ),`;
-
-  // Replace everything from WITH to the end of the agg CTE
-  return featureSQL.replace(
-    /WITH\s*\n\s*-- Layer 1: Aggregate to requested timeframe\s*\n\s*agg AS \([\s\S]*?\),\n\n\s*-- Layer 2/,
-    `WITH\n${continuousAgg}\n\n    -- Layer 2`
-  );
-}
-
 // ============================================================================
 // LABEL COMPUTATION (in JavaScript for flexibility)
 // ============================================================================
@@ -610,23 +544,10 @@ export async function loadUniversalTrainingData(
   console.log(`[UniversalPipeline] Features: ${numFeatures} (${featureNames.slice(0, 5).join(', ')}...)`);
   console.log(`[UniversalPipeline] Labels: ${cfg.labels.type}`);
 
-  // Check if this is a root symbol with rollovers (continuous contract)
-  let isContinuous = false;
-  try {
-    const rolloverCheck = await marketQuery<{ cnt: number }>(`
-      SELECT CAST(COUNT(*) AS DOUBLE) as cnt FROM rollovers WHERE root = '${symbol}'
-    `);
-    isContinuous = rolloverCheck.length > 0 && rolloverCheck[0].cnt > 0;
-  } catch {
-    // If rollovers table doesn't exist, just use direct symbol
-  }
+  // Build and execute feature SQL (queries QuestDB ohlcv directly)
+  const sql = buildFeatureSQL(symbol, cfg.timeframeSec, cfg.maxBars, cfg.features);
 
-  // Build and execute feature SQL
-  const sql = isContinuous
-    ? buildContinuousContractFeatureSQL(symbol, cfg.timeframeSec, cfg.maxBars, cfg.features)
-    : buildFeatureSQL(symbol, cfg.timeframeSec, cfg.maxBars, cfg.features);
-
-  console.log(`[UniversalPipeline] Querying ${isContinuous ? 'continuous contract' : 'direct symbol'} from market.duckdb...`);
+  console.log(`[UniversalPipeline] Querying ${symbol} from QuestDB ohlcv...`);
 
   let rows: RawBar[];
   try {

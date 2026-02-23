@@ -1,8 +1,8 @@
-import { 
-  users, ohlcvData, uploads, featureImportance, contractRollovers, trainingSessions, lossHistory, instruments,
+import {
+  users, ohlcvData, uploads, featureImportance, trainingSessions, lossHistory, instruments,
   newsArticles, newsSymbols,
-  type User, type InsertUser, type Ohlcv, type InsertOhlcv, type Upload, type InsertUpload, 
-  type FeatureImportance, type InsertFeatureImportance, type ContractRollover, type InsertContractRollover,
+  type User, type InsertUser, type Ohlcv, type InsertOhlcv, type Upload, type InsertUpload,
+  type FeatureImportance, type InsertFeatureImportance,
   type TrainingSession, type InsertTrainingSession, type LossHistory, type InsertLossHistory,
   type Instrument, type InsertInstrument, type NewsArticle, type InsertNewsArticle, type NewsSymbol, type InsertNewsSymbol
 } from "@shared/schema";
@@ -39,11 +39,6 @@ export interface IStorage {
   // Feature importance
   saveFeatureImportance(data: InsertFeatureImportance[]): Promise<void>;
   getFeatureImportance(modelName: string): Promise<FeatureImportance[]>;
-
-  // Contract rollovers
-  createContractRollover(rollover: InsertContractRollover): Promise<ContractRollover>;
-  getContractRollovers(baseSymbol: string): Promise<ContractRollover[]>;
-  detectVolumeRollovers(baseSymbol: string): Promise<ContractRollover[]>;
 
   // Training sessions
   createTrainingSession(session: InsertTrainingSession): Promise<TrainingSession>;
@@ -330,146 +325,6 @@ export class DatabaseStorage implements IStorage {
       .from(featureImportance)
       .where(eq(featureImportance.modelName, modelName))
       .orderBy(desc(featureImportance.importance));
-  }
-
-  async createContractRollover(rollover: InsertContractRollover): Promise<ContractRollover> {
-    const [result] = await db
-      .insert(contractRollovers)
-      .values(rollover)
-      .returning();
-    return result;
-  }
-
-  async getContractRollovers(baseSymbol: string): Promise<ContractRollover[]> {
-    return db
-      .select()
-      .from(contractRollovers)
-      .where(eq(contractRollovers.baseSymbol, baseSymbol))
-      .orderBy(asc(contractRollovers.rolloverTimestamp));
-  }
-
-  async detectVolumeRollovers(baseSymbol: string): Promise<ContractRollover[]> {
-    // Only process futures symbols, not forex pairs
-    const futuresBaseSymbols = ['ES', 'MES', 'NQ', 'MNQ', 'RTY', 'M2K', 'YM', 'MYM', 
-                                 'CL', 'GC', 'SI', 'ZB', 'ZN', 'ZC', 'ZS', 'ZW'];
-    const forexSymbols = ['EURUSD', 'USDJPY', 'GBPUSD', 'AUDUSD', 'USDCAD', 'USDCHF', 
-                          'NZDUSD', 'EURJPY', 'GBPJPY', 'EURGBP', 'AUDJPY', 'EURAUD',
-                          'EURCHF', 'AUDNZD', 'GBPAUD', 'GBPCHF', 'CADJPY'];
-    
-    // Skip if it's a forex pair
-    if (forexSymbols.includes(baseSymbol.toUpperCase())) {
-      return [];
-    }
-    
-    // Only process known futures base symbols
-    const upperBase = baseSymbol.toUpperCase();
-    if (!futuresBaseSymbols.some(f => upperBase === f || upperBase.startsWith(f))) {
-      return [];
-    }
-    
-    const existingRollovers = await this.getContractRollovers(baseSymbol);
-    const newRollovers: ContractRollover[] = [];
-
-    const contracts = await db
-      .selectDistinct({ symbol: ohlcvData.symbol })
-      .from(ohlcvData)
-      .where(sql`${ohlcvData.symbol} LIKE ${baseSymbol + '%'}`);
-
-    if (contracts.length < 2) {
-      return existingRollovers;
-    }
-
-    const parseFuturesCode = (symbol: string, base: string): { month: string; year: number } | null => {
-      const suffix = symbol.slice(base.length);
-      if (suffix.length < 3) return null;
-      
-      const monthCode = suffix[0].toUpperCase();
-      const yearStr = suffix.slice(1);
-      
-      let year = parseInt(yearStr);
-      if (yearStr.length === 2) {
-        year = year >= 50 ? 1900 + year : 2000 + year;
-      }
-      
-      return { month: monthCode, year };
-    };
-
-    const monthOrder: Record<string, number> = {
-      'F': 1, 'G': 2, 'H': 3, 'J': 4, 'K': 5, 'M': 6,
-      'N': 7, 'Q': 8, 'U': 9, 'V': 10, 'X': 11, 'Z': 12
-    };
-
-    const sortedContracts = contracts
-      .map(c => c.symbol)
-      .filter(s => s.length > baseSymbol.length)
-      .map(symbol => ({ symbol, parsed: parseFuturesCode(symbol, baseSymbol) }))
-      .filter(c => c.parsed !== null)
-      .sort((a, b) => {
-        const pa = a.parsed!;
-        const pb = b.parsed!;
-        if (pa.year !== pb.year) return pa.year - pb.year;
-        return (monthOrder[pa.month] || 0) - (monthOrder[pb.month] || 0);
-      })
-      .map(c => c.symbol);
-
-    for (let i = 0; i < sortedContracts.length - 1; i++) {
-      const currentContract = sortedContracts[i];
-      const nextContract = sortedContracts[i + 1];
-
-      const existsAlready = existingRollovers.some(
-        r => r.fromContract === currentContract && r.toContract === nextContract
-      );
-
-      if (existsAlready) continue;
-
-      const currentData = await db
-        .select()
-        .from(ohlcvData)
-        .where(eq(ohlcvData.symbol, currentContract))
-        .orderBy(asc(ohlcvData.timestamp))
-        .limit(5000);
-
-      const nextData = await db
-        .select()
-        .from(ohlcvData)
-        .where(eq(ohlcvData.symbol, nextContract))
-        .orderBy(asc(ohlcvData.timestamp))
-        .limit(5000);
-
-      if (currentData.length === 0 || nextData.length === 0) continue;
-
-      let rolloverPoint: { timestamp: number; fromClose: number; toClose: number; ratio: number } | null = null;
-
-      for (const currentBar of currentData) {
-        const matchingNext = nextData.find(n =>
-          Math.abs(n.timestamp - currentBar.timestamp) < 60000
-        );
-
-        if (matchingNext && matchingNext.volume > currentBar.volume) {
-          const fromClose = currentBar.close;
-          const toClose = matchingNext.close;
-          const ratio = fromClose !== 0 ? toClose / fromClose : 1;
-          rolloverPoint = { timestamp: currentBar.timestamp, fromClose, toClose, ratio };
-          break;
-        }
-      }
-
-      if (rolloverPoint) {
-        const newRollover = await this.createContractRollover({
-          baseSymbol,
-          fromContract: currentContract,
-          toContract: nextContract,
-          rolloverTimestamp: rolloverPoint.timestamp,
-          fromClose: rolloverPoint.fromClose,
-          toClose: rolloverPoint.toClose,
-          ratio: rolloverPoint.ratio,
-          rolloverType: "volume",
-        });
-        newRollovers.push(newRollover);
-      }
-    }
-
-    return [...existingRollovers, ...newRollovers];
   }
 
   async createTrainingSession(session: InsertTrainingSession): Promise<TrainingSession> {
@@ -778,133 +633,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Build continuous (stitched) data for a base symbol using the optimal source:
-   * - For daily+ timeframes: use daily_ohlcv continuous aggregate + manual stitching
-   * - For hourly timeframes (1h, 4h): use hourly_ohlcv continuous aggregate + manual stitching
-   * - For intraday (<1h): use the continuous_contract view directly
-   */
-  private async getContinuousData(client: any, baseSymbol: string, limit: number, timeframeSeconds: number): Promise<Ohlcv[]> {
-    const interval = `${timeframeSeconds} seconds`;
-    const maxTs = await this.getMaxTimestamp(client, baseSymbol, true);
-    if (!maxTs) return [];
-
-    // For intraday (<= 30m), use the continuous_contract view directly.
-    // It's efficient enough for small time windows.
-    if (timeframeSeconds < 3600) {
-      const bufferMultiplier = 3;
-      const windowSeconds = limit * timeframeSeconds * bufferMultiplier;
-      const result = await client.query(`
-        SELECT
-          EXTRACT(EPOCH FROM time_bucket($2::interval, ts))::bigint * 1000 AS timestamp,
-          symbol,
-          first(open, ts) AS open,
-          MAX(high) AS high,
-          MIN(low) AS low,
-          last(close, ts) AS close,
-          COALESCE(SUM(volume)::bigint, 0) AS volume
-        FROM continuous_contract
-        WHERE symbol = $1
-          AND ts >= $3::timestamptz - make_interval(secs => $4::int)
-        GROUP BY time_bucket($2::interval, ts), symbol
-        ORDER BY timestamp DESC
-        LIMIT $5
-      `, [baseSymbol, interval, maxTs, windowSeconds, limit]);
-      return result.rows;
-    }
-
-    // For hourly+ timeframes, use per-segment queries on continuous aggregates.
-    // Falls back to continuous_contract view if aggregates aren't populated yet.
-    const useDaily = timeframeSeconds >= 86400;
-    const aggTable = useDaily ? 'daily_ohlcv' : 'hourly_ohlcv';
-    const aggBucketCol = 'bucket';
-
-    // Check if the aggregate has data (fast - checks a single row)
-    const aggCheck = await client.query(`SELECT 1 FROM ${aggTable} LIMIT 1`);
-    if (aggCheck.rows.length === 0) {
-      // Aggregate not populated yet - fall back to continuous_contract view
-      // with a tighter window to keep it performant
-      const fallbackWindow = Math.min(limit * timeframeSeconds * 2, 90 * 86400); // cap 90 days
-      const result = await client.query(`
-        SELECT
-          EXTRACT(EPOCH FROM time_bucket($2::interval, ts))::bigint * 1000 AS timestamp,
-          symbol,
-          first(open, ts) AS open,
-          MAX(high) AS high,
-          MIN(low) AS low,
-          last(close, ts) AS close,
-          COALESCE(SUM(volume)::bigint, 0) AS volume
-        FROM continuous_contract
-        WHERE symbol = $1
-          AND ts >= $3::timestamptz - make_interval(secs => $4::int)
-        GROUP BY time_bucket($2::interval, ts), symbol
-        ORDER BY timestamp DESC
-        LIMIT $5
-      `, [baseSymbol, interval, maxTs, fallbackWindow, limit]);
-      return result.rows;
-    }
-
-    // Get the active contract schedule and cumulative adjustments
-    const bufferMult = useDaily ? 1.5 : 2;
-    const windowSeconds = Math.min(limit * timeframeSeconds * bufferMult, 15 * 365 * 86400);
-    const windowStart = new Date(maxTs.getTime() - windowSeconds * 1000);
-
-    const [scheduleRes, adjRes] = await Promise.all([
-      client.query(`
-        SELECT active_contract, start_date, end_date
-        FROM active_contract_schedule
-        WHERE base_symbol = $1 AND end_date >= $2::date
-        ORDER BY start_date ASC
-      `, [baseSymbol, windowStart]),
-      client.query(`
-        SELECT to_contract, COALESCE(cumulative_adjustment, 0) AS adj
-        FROM cumulative_adjustments
-        WHERE base_symbol = $1
-      `, [baseSymbol])
-    ]);
-
-    const schedule = scheduleRes.rows;
-    const adjMap = new Map<string, number>();
-    for (const row of adjRes.rows) {
-      adjMap.set(row.to_contract, parseFloat(row.adj));
-    }
-
-    if (schedule.length === 0) return [];
-
-    // Build per-segment queries using the continuous aggregate
-    const allRows: any[] = [];
-    for (const seg of schedule) {
-      const adj = adjMap.get(seg.active_contract) || 0;
-      const segStart = new Date(Math.max(seg.start_date.getTime(), windowStart.getTime()));
-      const segEnd = seg.end_date;
-
-      const result = await client.query(`
-        SELECT
-          EXTRACT(EPOCH FROM time_bucket($1::interval, ${aggBucketCol}))::bigint * 1000 AS timestamp,
-          $2::text AS symbol,
-          first(open, ${aggBucketCol}) + $5::float AS open,
-          MAX(high) + $5::float AS high,
-          MIN(low) + $5::float AS low,
-          last(close, ${aggBucketCol}) + $5::float AS close,
-          COALESCE(SUM(volume)::bigint, 0) AS volume
-        FROM ${aggTable}
-        WHERE symbol = $3
-          AND ${aggBucketCol} >= $4::timestamptz
-          AND ${aggBucketCol} < $6::timestamptz
-        GROUP BY time_bucket($1::interval, ${aggBucketCol})
-        ORDER BY timestamp ASC
-      `, [interval, baseSymbol, seg.active_contract, segStart, adj, segEnd]);
-
-      allRows.push(...result.rows);
-    }
-
-    // Sort descending and take the limit
-    allRows.sort((a, b) => Number(b.timestamp) - Number(a.timestamp));
-    return allRows.slice(0, limit);
-  }
-
-  /**
    * Query ohlcv_1s hypertable for futures with time_bucket aggregation.
-   * Supports both base symbols (ES -> continuous) and specific contracts (ESH24).
+   * For base symbols (ES), queries all matching contracts via base_symbol column.
+   * For specific contracts (ESH24), queries ohlcv_1s directly.
    */
   async getFuturesTimescale(symbol: string, limit: number = 500, timeframeSeconds: number = 60, loadFromEnd: boolean = true): Promise<Ohlcv[]> {
     const client = await pool.connect();
@@ -912,15 +643,12 @@ export class DatabaseStorage implements IStorage {
       const interval = `${timeframeSeconds} seconds`;
       const isBaseSymbol = FUTURES_SYMBOLS.includes(symbol);
 
-      // For base symbols, use stitched continuous data.
-      if (isBaseSymbol) {
-        return await this.getContinuousData(client, symbol, limit, timeframeSeconds);
-      }
+      // For base symbols, query by base_symbol column; for specific contracts, by symbol
+      const filterCol = isBaseSymbol ? 'base_symbol' : 'symbol';
 
-      // For specific contracts (ESH24), query ohlcv_1s directly
       const orderDir = loadFromEnd ? 'DESC' : 'ASC';
       if (loadFromEnd) {
-        const maxTs = await this.getMaxTimestamp(client, symbol, false);
+        const maxTs = await this.getMaxTimestamp(client, symbol, isBaseSymbol);
         if (!maxTs) return [];
         const bufferMult = timeframeSeconds >= 86400 ? 1.5 : 3;
         const windowSeconds = Math.min(limit * timeframeSeconds * bufferMult, 5 * 365 * 86400);
@@ -935,7 +663,7 @@ export class DatabaseStorage implements IStorage {
             (array_agg(close ORDER BY ts DESC))[1] AS close,
             COALESCE(SUM(volume)::bigint, 0) AS volume
           FROM ohlcv_1s
-          WHERE symbol = $1
+          WHERE ${filterCol} = $1
             AND ts >= $3::timestamptz - make_interval(secs => $4::int)
           GROUP BY time_bucket($2::interval, ts)
           ORDER BY timestamp DESC
@@ -956,7 +684,7 @@ export class DatabaseStorage implements IStorage {
             (array_agg(close ORDER BY ts DESC))[1] AS close,
             COALESCE(SUM(volume)::bigint, 0) AS volume
           FROM ohlcv_1s
-          WHERE symbol = $1
+          WHERE ${filterCol} = $1
           GROUP BY time_bucket($2::interval, ts)
           ORDER BY timestamp ASC
           LIMIT $3
@@ -970,6 +698,7 @@ export class DatabaseStorage implements IStorage {
 
   /**
    * Query ohlcv_1s hypertable for futures with time range and aggregation.
+   * For base symbols, queries by base_symbol column. For specific contracts, by symbol.
    */
   async getFuturesTimescaleRange(symbol: string, options: { startTime?: number; endTime?: number; limit?: number; timeframeSeconds?: number }): Promise<Ohlcv[]> {
     const client = await pool.connect();
@@ -979,12 +708,10 @@ export class DatabaseStorage implements IStorage {
       const candleLimit = options.limit || 2000;
       const isBaseSymbol = FUTURES_SYMBOLS.includes(symbol);
 
-      // Use continuous_contract view for base symbols (handles stitching),
-      // or ohlcv_1s directly for specific contracts.
-      const table = isBaseSymbol ? 'continuous_contract' : 'ohlcv_1s';
-      const symbolFilter = 'symbol = $1';
+      // Query ohlcv_1s directly for both base and specific symbols
+      const filterCol = isBaseSymbol ? 'base_symbol' : 'symbol';
 
-      let whereClause = `WHERE ${symbolFilter}`;
+      let whereClause = `WHERE ${filterCol} = $1`;
       const params: (string | number)[] = [symbol, interval];
       let paramIndex = 3;
 
@@ -1011,7 +738,7 @@ export class DatabaseStorage implements IStorage {
           MIN(low) AS low,
           (array_agg(close ORDER BY ts DESC))[1] AS close,
           COALESCE(SUM(volume)::bigint, 0) AS volume
-        FROM ${table}
+        FROM ohlcv_1s
         ${whereClause}
         GROUP BY time_bucket($2::interval, ts)
         ORDER BY timestamp ${orderDir}

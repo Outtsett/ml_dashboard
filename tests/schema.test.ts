@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { insertInstrumentSchema, insertContractRolloverSchema } from '../shared/schema';
+import { insertInstrumentSchema } from '../shared/schema';
 
 describe('instruments table', () => {
   it('should accept pip_size for forex instruments', () => {
@@ -50,35 +50,5 @@ describe('instruments table', () => {
       decimalPlaces: 2,
     });
     expect(result.success).toBe(true);
-  });
-});
-
-describe('contractRollovers table', () => {
-  it('should accept ratio back-adjustment fields', () => {
-    const result = insertContractRolloverSchema.safeParse({
-      baseSymbol: 'MNQ',
-      fromContract: 'MNQH26',
-      toContract: 'MNQM26',
-      rolloverTimestamp: 1710547200000,
-      fromClose: 18250.50,
-      toClose: 18275.25,
-      ratio: 18275.25 / 18250.50,
-      rolloverType: 'volume',
-    });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.ratio).toBeCloseTo(1.001355, 4);
-    }
-  });
-
-  it('should reject missing ratio fields', () => {
-    const result = insertContractRolloverSchema.safeParse({
-      baseSymbol: 'MNQ',
-      fromContract: 'MNQH26',
-      toContract: 'MNQM26',
-      rolloverTimestamp: 1710547200000,
-      rolloverType: 'volume',
-    });
-    expect(result.success).toBe(false);
   });
 });

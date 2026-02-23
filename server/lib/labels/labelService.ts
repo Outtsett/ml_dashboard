@@ -111,18 +111,22 @@ async function loadOHLCVIntoDuckDB(options: LoadOHLCVOptions): Promise<void> {
   // Query real market data from file-backed market.duckdb
   const { questdbMarketQuery: marketQuery } = await import('../../lib/questdbMarketQuery');
   
-  // Build time filter for market.duckdb queries
+  // Build time filter for QuestDB queries
   let timeFilter = '';
-  let stitchedTimeFilter = '';
   if (startTimestamp && endTimestamp) {
     const startMs = startTimestamp < 1e12 ? startTimestamp * 1000 : startTimestamp;
     const endMs = endTimestamp < 1e12 ? endTimestamp * 1000 : endTimestamp;
     timeFilter = ` AND epoch_ms(ts) >= ${startMs} AND epoch_ms(ts) <= ${endMs}`;
-    stitchedTimeFilter = ` AND epoch_ms(o.ts) >= ${startMs} AND epoch_ms(o.ts) <= ${endMs}`;
   }
-  
-  // First try exact symbol match (works for specific contracts like MNQH5, and forex like EURUSD)
-  let ohlcvRows = await marketQuery<{
+
+  // Detect if this is a root symbol (e.g. ES, NQ) vs specific contract (ESH5) or forex (EURUSD)
+  const isRootSymbol = symbol.length <= 3 && /^[A-Z]+$/.test(symbol);
+  const symbolFilter = isRootSymbol
+    ? `symbol ~ '^${symbol}[FGHJKMNQUVXZ][0-9]{1,2}$'`
+    : `symbol = '${symbol}'`;
+
+  // Query QuestDB ohlcv — for root symbols, match all contracts via regex
+  const ohlcvRows = await marketQuery<{
     timestamp: number;
     symbol: string;
     open: number;
@@ -131,7 +135,7 @@ async function loadOHLCVIntoDuckDB(options: LoadOHLCVOptions): Promise<void> {
     close: number;
     volume: number;
   }>(`
-    SELECT 
+    SELECT
       CAST(epoch_ms(time_bucket(INTERVAL '${intervalSec} seconds', ts)) AS DOUBLE) as timestamp,
       '${symbol}' as symbol,
       first(open ORDER BY ts) as open,
@@ -140,83 +144,13 @@ async function loadOHLCVIntoDuckDB(options: LoadOHLCVOptions): Promise<void> {
       last(close ORDER BY ts) as close,
       CAST(sum(volume) AS DOUBLE) as volume
     FROM ohlcv
-    WHERE symbol = '${symbol}'${timeFilter}
+    WHERE ${symbolFilter}${timeFilter}
     GROUP BY time_bucket(INTERVAL '${intervalSec} seconds', ts)
     ORDER BY timestamp DESC
     LIMIT ${limit}
   `);
-  
-  console.log(`[LabelService] Direct symbol query returned ${ohlcvRows.length} rows for ${symbol}`);
-  
-  // If no rows, check if this is a root symbol with rollover data (continuous contract)
-  if (ohlcvRows.length === 0) {
-    const rolloverCheck = await marketQuery<{ cnt: number }>(`
-      SELECT CAST(COUNT(*) AS DOUBLE) as cnt FROM rollovers WHERE root = '${symbol}'
-    `);
-    
-    if (rolloverCheck.length > 0 && rolloverCheck[0].cnt > 0) {
-      console.log(`[LabelService] Symbol ${symbol} is a root — building continuous contract with Panama adjustment`);
-      
-      // Build continuous contract data with Panama back-adjustment
-      // Same logic as /api/continuous/:baseSymbol in instruments.ts
-      ohlcvRows = await marketQuery<{
-        timestamp: number;
-        symbol: string;
-        open: number;
-        high: number;
-        low: number;
-        close: number;
-        volume: number;
-      }>(`
-        WITH schedule AS (
-          SELECT
-            to_contract as contract,
-            rollover_date as start_date,
-            LEAD(rollover_date) OVER (PARTITION BY root ORDER BY rollover_date) as end_date,
-            cumulative_adjustment as adj
-          FROM rollovers
-          WHERE root = '${symbol}'
-          UNION ALL
-          SELECT
-            from_contract as contract,
-            DATE '1900-01-01' as start_date,
-            rollover_date as end_date,
-            cumulative_adjustment + price_gap as adj
-          FROM rollovers
-          WHERE root = '${symbol}'
-            AND rollover_date = (SELECT MIN(rollover_date) FROM rollovers WHERE root = '${symbol}')
-        ),
-        stitched AS (
-          SELECT
-            o.ts,
-            o.open + s.adj as adj_open,
-            o.high + s.adj as adj_high,
-            o.low + s.adj as adj_low,
-            o.close + s.adj as adj_close,
-            o.volume
-          FROM ohlcv o
-          JOIN schedule s ON o.symbol = s.contract
-            AND CAST(o.ts AS DATE) >= s.start_date
-            AND (s.end_date IS NULL OR CAST(o.ts AS DATE) < s.end_date)
-          WHERE 1=1 ${stitchedTimeFilter}
-        )
-        SELECT
-          CAST(epoch_ms(time_bucket(INTERVAL '${intervalSec} seconds', ts)) AS DOUBLE) as timestamp,
-          '${symbol}' as symbol,
-          first(adj_open ORDER BY ts) as open,
-          max(adj_high) as high,
-          min(adj_low) as low,
-          last(adj_close ORDER BY ts) as close,
-          CAST(sum(volume) AS DOUBLE) as volume
-        FROM stitched
-        GROUP BY time_bucket(INTERVAL '${intervalSec} seconds', ts)
-        ORDER BY timestamp DESC
-        LIMIT ${limit}
-      `);
-      
-      console.log(`[LabelService] Continuous contract query returned ${ohlcvRows.length} rows for ${symbol}`);
-    }
-  }
+
+  console.log(`[LabelService] ${isRootSymbol ? 'Root symbol' : 'Direct symbol'} query returned ${ohlcvRows.length} rows for ${symbol}`);
   
   if (ohlcvRows.length === 0) {
     // Fall back to synthetic data only if no market data exists for this symbol

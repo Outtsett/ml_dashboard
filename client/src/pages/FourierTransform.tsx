@@ -286,23 +286,14 @@ export default function FourierTransform() {
   const hilbertLimit = 256;
 
   const { data: priceData, isLoading: priceLoading } = useQuery<{ close: number }[]>({
-    queryKey: ['/api/continuous', priceSymbol, priceTimeframe, 'fourier'],
+    queryKey: ['/api/charts/ohlcv', priceSymbol, priceTimeframe, 'fourier'],
     queryFn: async () => {
-      // Try continuous contract endpoint first (futures with rollover data)
-      const contRes = await fetch(`/api/continuous/${priceSymbol}?timeframe=${priceTimeframe}&limit=512`);
-      if (contRes.ok) {
-        const json = await contRes.json();
-        // Endpoint returns { data: [...], rollovers: [...] }
-        const rows = json?.data ?? json;
-        if (Array.isArray(rows) && rows.length > 0) return rows;
-      }
-      // Fallback: raw OHLCV from charts endpoint (forex / symbols without rollovers)
       const tfMap: Record<number, string> = { 1: '1m', 5: '5m', 15: '15m', 60: '1h', 240: '4h', 1440: '1d' };
       const tfStr = tfMap[priceTimeframe] || '1d';
-      const chartRes = await fetch(`/api/charts/ohlcv?symbol=${priceSymbol}&timeframe=${tfStr}&limit=512`);
-      if (!chartRes.ok) throw new Error('Failed to fetch price data');
-      const chartJson = await chartRes.json();
-      const rows = chartJson?.data ?? chartJson;
+      const res = await fetch(`/api/charts/ohlcv?symbol=${priceSymbol}&timeframe=${tfStr}&limit=512`);
+      if (!res.ok) throw new Error('Failed to fetch price data');
+      const json = await res.json();
+      const rows = json?.data ?? json;
       return Array.isArray(rows) ? rows : [];
     },
     enabled: waveType === 'price',

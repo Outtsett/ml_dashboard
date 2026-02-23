@@ -23,17 +23,6 @@ interface OhlcvData {
   activeContract?: string;
 }
 
-interface ContractRollover {
-  id?: number;
-  baseSymbol?: string;
-  fromContract: string;
-  toContract: string;
-  rolloverTimestamp?: number;
-  timestamp?: number;
-  priceAdjustment: number;
-  rolloverType?: string;
-}
-
 export interface LabelMarker {
   timestamp: number;
   label: number | null;
@@ -54,7 +43,6 @@ export interface TradingChartProps {
   isLoadingMore?: boolean;
   hasMoreLeft?: boolean;
   hasMoreRight?: boolean;
-  rollovers?: ContractRollover[];
   labelMarkers?: LabelMarker[];
   indicatorOverlays?: IndicatorOverlay[];
   /** Callback when visible time range changes (for subchart sync). */
@@ -123,7 +111,6 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
   isLoadingMore = false,
   hasMoreLeft = true,
   hasMoreRight = false,
-  rollovers = [],
   labelMarkers = [],
   indicatorOverlays = [],
   onVisibleLogicalRangeChange,
@@ -223,7 +210,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     return null;
   }, [data, isFutures]);
 
-  // Build rollover transition info: detect contract changes within loaded data
+  // Build contract transition info: detect contract changes within loaded data
   const contractTransitions = useMemo(() => {
     if (!isFutures || data.length < 2) return [];
     const transitions: { time: number; from: string; to: string }[] = [];
@@ -305,26 +292,6 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
 
     return { candles, volumes };
   }, [data, regimeColorMap]);
-
-  const rolloverPriceLines = useMemo(() => {
-    if (!isFutures || rollovers.length === 0) return [];
-    
-    return rollovers
-      .filter(r => {
-        const ts = r.rolloverTimestamp || r.timestamp || 0;
-        if (ts === 0) return false;
-        const rolloverTime = Math.floor(ts / 1000);
-        const minTime = processedData.candles.length > 0 ? (processedData.candles[0].time as number) : 0;
-        const maxTime = processedData.candles.length > 0 ? (processedData.candles[processedData.candles.length - 1].time as number) : 0;
-        return rolloverTime >= minTime && rolloverTime <= maxTime;
-      })
-      .map(r => ({
-        time: Math.floor((r.rolloverTimestamp || r.timestamp || 0) / 1000),
-        from: r.fromContract,
-        to: r.toContract,
-        adjustment: r.priceAdjustment,
-      }));
-  }, [isFutures, rollovers, processedData.candles]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -466,7 +433,6 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
       swingZZSeriesRef.current = null;
       swingZZMarkersRef.current = null;
       seriesMarkersRef.current = null;
-      rolloverMarkersRef.current = null;
       tradeMarkersSeriesRef.current = null;
       predictionMarkersSeriesRef.current = null;
       chart.remove();
@@ -896,15 +862,15 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     }
   }, [predictionMarkers, processedData, timeframe]);
 
-  // Draw rollover transition markers on the chart at contract boundaries
+  // Draw contract transition markers on the chart at contract boundaries
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rolloverMarkersRef = useRef<any>(null);
+  const contractTransitionMarkersRef = useRef<any>(null);
   useEffect(() => {
     if (!candleSeriesRef.current) return;
 
     if (!isFutures || contractTransitions.length === 0) {
-      if (rolloverMarkersRef.current) {
-        rolloverMarkersRef.current.setMarkers([]);
+      if (contractTransitionMarkersRef.current) {
+        contractTransitionMarkersRef.current.setMarkers([]);
       }
       return;
     }
@@ -923,13 +889,13 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
       .sort((a, b) => (a.time as number) - (b.time as number));
 
     if (markers.length > 0) {
-      if (rolloverMarkersRef.current) {
-        rolloverMarkersRef.current.setMarkers(markers);
+      if (contractTransitionMarkersRef.current) {
+        contractTransitionMarkersRef.current.setMarkers(markers);
       } else {
-        rolloverMarkersRef.current = createSeriesMarkers(candleSeriesRef.current, markers);
+        contractTransitionMarkersRef.current = createSeriesMarkers(candleSeriesRef.current, markers);
       }
-    } else if (rolloverMarkersRef.current) {
-      rolloverMarkersRef.current.setMarkers([]);
+    } else if (contractTransitionMarkersRef.current) {
+      contractTransitionMarkersRef.current.setMarkers([]);
     }
   }, [isFutures, contractTransitions, processedData.candles]);
 
@@ -1195,10 +1161,10 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
         seriesMarkersRef.current.setMarkers([]);
       }
       seriesMarkersRef.current = null;
-      if (rolloverMarkersRef.current) {
-        rolloverMarkersRef.current.setMarkers([]);
+      if (contractTransitionMarkersRef.current) {
+        contractTransitionMarkersRef.current.setMarkers([]);
       }
-      rolloverMarkersRef.current = null;
+      contractTransitionMarkersRef.current = null;
       if (tradeMarkersSeriesRef.current) {
         tradeMarkersSeriesRef.current.setMarkers([]);
       }
@@ -1265,7 +1231,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
           )}
           {contractTransitions.length > 0 && (
             <>
-              <span className="text-amber-400/70">{contractTransitions.length} rollover{contractTransitions.length !== 1 ? 's' : ''} in view</span>
+              <span className="text-amber-400/70">{contractTransitions.length} transition{contractTransitions.length !== 1 ? 's' : ''} in view</span>
               {contractTransitions.slice(-3).map((t, i) => (
                 <span key={i} className="text-amber-500/60 truncate">
                   {t.from} → {t.to}

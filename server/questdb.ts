@@ -173,9 +173,8 @@ export async function getOHLCVSampleBy(
     if (rows.length > 0) return rows;
   }
 
-  // Fallback: SAMPLE BY on the base ohlcv table (used for 1s, 1m, or when views are empty)
+  // Fallback: SAMPLE BY on the base ohlcv table (used for 1m or when views are empty)
   const validTimeframes: Record<string, string> = {
-    "1s": "SAMPLE BY 1s",
     "1m": "SAMPLE BY 1m",
     "5m": "SAMPLE BY 5m",
     "15m": "SAMPLE BY 15m",
@@ -207,7 +206,16 @@ export async function getOHLCVSampleBy(
   return await queryQuestDB(sql);
 }
 
-export async function getOHLCVContinuousSampleBy(
+/**
+ * Query OHLCV for a futures root (e.g. "ES") by stitching front-month
+ * contracts together based on daily volume leadership.
+ *
+ * 1. Pull daily bars (ohlcv_1d) for all contracts matching the root.
+ * 2. For each day, pick the contract with the highest volume.
+ * 3. Build contiguous (contract, start, end) ranges.
+ * 4. Query bars for each range in parallel, merge & sort.
+ */
+export async function getFrontMonthOHLCV(
   root: string,
   timeframe: string,
   startTime?: number,
@@ -215,45 +223,101 @@ export async function getOHLCVContinuousSampleBy(
   limit?: number
 ): Promise<any[]> {
   const safeRoot = validateSymbol(root);
-  const escapedRoot = safeRoot.replace(/'/g, "''");
-
-  let whereClause = `WHERE root = '${escapedRoot}'`;
-  if (startTime) {
-    whereClause += ` AND ts >= '${new Date(startTime).toISOString()}'`;
-  }
-  if (endTime) {
-    whereClause += ` AND ts <= '${new Date(endTime).toISOString()}'`;
-  }
+  const escaped = safeRoot.replace(/'/g, "''");
+  const contractRegex = `^${escaped}[FGHJKMNQUVXZ][0-9]{1,2}$`;
 
   const safeLimit = limit ? Math.min(Math.floor(limit), 100000) : undefined;
-  const limitClause = safeLimit ? `LIMIT ${safeLimit}` : '';
 
+  let timeFilter = '';
+  if (startTime) {
+    timeFilter += ` AND timestamp >= '${new Date(startTime).toISOString()}'`;
+  }
+  if (endTime) {
+    timeFilter += ` AND timestamp <= '${new Date(endTime).toISOString()}'`;
+  }
+
+  // Step 1: Daily bars for all contracts — determine volume leader per day
+  const dailyBars = await queryQuestDB<{ symbol: string; timestamp: Date | string; volume: number }>(
+    `SELECT symbol, timestamp, volume FROM ohlcv_1d
+     WHERE symbol ~ '${contractRegex}'${timeFilter}
+     ORDER BY timestamp`
+  );
+
+  if (dailyBars.length === 0) return [];
+
+  // Step 2: For each day, find the highest-volume contract
+  const leaders = new Map<string, { symbol: string; volume: number }>();
+  for (const bar of dailyBars) {
+    const day = bar.timestamp instanceof Date
+      ? bar.timestamp.toISOString().slice(0, 10)
+      : new Date(String(bar.timestamp)).toISOString().slice(0, 10);
+    const vol = Number(bar.volume);
+    const existing = leaders.get(day);
+    if (!existing || vol > existing.volume) {
+      leaders.set(day, { symbol: bar.symbol, volume: vol });
+    }
+  }
+
+  // Step 3: Build contiguous ranges (contract, startDay, endDay)
+  const ranges: { symbol: string; start: string; end: string }[] = [];
+  let current: { symbol: string; start: string; end: string } | null = null;
+  for (const [day, { symbol }] of [...leaders.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+    if (!current || current.symbol !== symbol) {
+      if (current) ranges.push(current);
+      current = { symbol, start: day, end: day };
+    } else {
+      current.end = day;
+    }
+  }
+  if (current) ranges.push(current);
+
+  // Step 4: Query bars for each range in parallel
+  const matView = MATERIALIZED_VIEWS[timeframe];
   const validTimeframes: Record<string, string> = {
-    '1s': 'SAMPLE BY 1s', '1m': 'SAMPLE BY 1m', '5m': 'SAMPLE BY 5m',
+    '1m': 'SAMPLE BY 1m', '5m': 'SAMPLE BY 5m',
     '15m': 'SAMPLE BY 15m', '30m': 'SAMPLE BY 30m', '1h': 'SAMPLE BY 1h',
     '4h': 'SAMPLE BY 4h', '1d': 'SAMPLE BY 1d', '1w': 'SAMPLE BY 7d',
   };
-  const sampleByClause = validTimeframes[timeframe] || 'SAMPLE BY 1m';
 
-  // Note: ohlcv_continuous uses 'ts' as timestamp and 'root' instead of 'symbol'
-  // We alias them back to match the standard OHLCV response format
-  const sql = `
-    SELECT
-      root as symbol,
-      ts as timestamp,
-      first(open) as open,
-      max(high) as high,
-      min(low) as low,
-      last(close) as close,
-      sum(volume) as volume
-    FROM ohlcv_continuous
-    ${whereClause}
-    ${sampleByClause}
-    ALIGN TO CALENDAR
-    ${limitClause}
-  `;
+  const queries = ranges.map(range => {
+    const sym = range.symbol.replace(/'/g, "''");
+    const s = range.start + 'T00:00:00.000Z';
+    const e = range.end + 'T23:59:59.999Z';
 
-  return await queryQuestDB(sql);
+    if (matView) {
+      return queryQuestDB(
+        `SELECT symbol, timestamp, open, high, low, close, volume
+         FROM ${matView}
+         WHERE symbol = '${sym}' AND timestamp >= '${s}' AND timestamp <= '${e}'
+         ORDER BY timestamp`
+      );
+    }
+    const sampleBy = validTimeframes[timeframe] || 'SAMPLE BY 1m';
+    return queryQuestDB(
+      `SELECT symbol, timestamp, first(open) as open, max(high) as high,
+              min(low) as low, last(close) as close, sum(volume) as volume
+       FROM ohlcv
+       WHERE symbol = '${sym}' AND timestamp >= '${s}' AND timestamp <= '${e}'
+       ${sampleBy} ALIGN TO CALENDAR`
+    );
+  });
+
+  const results = await Promise.all(queries);
+  let allBars = results.flat();
+
+  // Sort chronologically
+  allBars.sort((a, b) => {
+    const tsA = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
+    const tsB = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
+    return tsA - tsB;
+  });
+
+  // Apply limit (keep oldest — matches SAMPLE BY + LIMIT behavior)
+  if (safeLimit && allBars.length > safeLimit) {
+    allBars = allBars.slice(0, safeLimit);
+  }
+
+  return allBars;
 }
 
 export async function createOHLCVTable(): Promise<void> {
@@ -324,45 +388,10 @@ export async function createMBP10Table(): Promise<void> {
 }
 
 
-export async function createContinuousTable(): Promise<void> {
-  await queryQuestDB(`
-    CREATE TABLE IF NOT EXISTS ohlcv_continuous (
-      root SYMBOL CAPACITY 50 CACHE INDEX,
-      ts TIMESTAMP,
-      open DOUBLE,
-      high DOUBLE,
-      low DOUBLE,
-      close DOUBLE,
-      volume DOUBLE,
-      raw_close DOUBLE,
-      adjustment DOUBLE
-    ) timestamp(ts) PARTITION BY MONTH WAL
-    DEDUP UPSERT KEYS(root, ts);
-  `);
-}
-
-export async function createRolloversTable(): Promise<void> {
-  await queryQuestDB(`
-    CREATE TABLE IF NOT EXISTS rollovers (
-      root SYMBOL CAPACITY 50 CACHE INDEX,
-      ts TIMESTAMP,
-      from_contract SYMBOL CAPACITY 200 CACHE,
-      to_contract SYMBOL CAPACITY 200 CACHE,
-      from_close DOUBLE,
-      to_close DOUBLE,
-      price_gap DOUBLE,
-      rollover_type SYMBOL CAPACITY 10 CACHE
-    ) timestamp(ts)
-    DEDUP UPSERT KEYS(root, ts);
-  `);
-}
-
 export async function initQuestDBTables(): Promise<void> {
   await createOHLCVTable();
   await createTradesTable();
   await createMBP10Table();
-  await createContinuousTable();
-  await createRolloversTable();
 }
 
 export async function getQuestDBTables(): Promise<any[]> {

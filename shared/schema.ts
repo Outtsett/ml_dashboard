@@ -75,27 +75,6 @@ export const insertFeatureImportanceSchema = createInsertSchema(featureImportanc
 export type InsertFeatureImportance = z.infer<typeof insertFeatureImportanceSchema>;
 export type FeatureImportance = typeof featureImportance.$inferSelect;
 
-// Contract rollover tracking
-export const contractRollovers = pgTable("contract_rollovers", {
-  id: serial("id").primaryKey(),
-  baseSymbol: text("base_symbol").notNull(), // e.g., "ES" for E-mini S&P
-  fromContract: text("from_contract").notNull(), // e.g., "ESH24"
-  toContract: text("to_contract").notNull(), // e.g., "ESM24"
-  rolloverTimestamp: bigint("rollover_timestamp", { mode: "number" }).notNull(),
-  fromClose: doublePrecision("from_close").notNull(),
-  toClose: doublePrecision("to_close").notNull(),
-  ratio: doublePrecision("ratio").notNull(),             // toClose / fromClose
-  rolloverType: text("rollover_type").notNull().default("volume"), // volume, open_interest, expiry
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  baseSymbolIdx: index("base_symbol_idx").on(table.baseSymbol),
-  rolloverTimestampIdx: index("rollover_timestamp_idx").on(table.rolloverTimestamp),
-}));
-
-export const insertContractRolloverSchema = createInsertSchema(contractRollovers).omit({ id: true, createdAt: true });
-export type InsertContractRollover = z.infer<typeof insertContractRolloverSchema>;
-export type ContractRollover = typeof contractRollovers.$inferSelect;
-
 // Training session tracking for live loss surface updates
 export const trainingSessions = pgTable("training_sessions", {
   id: serial("id").primaryKey(),

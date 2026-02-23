@@ -68,22 +68,6 @@ describe('DuckDB market database', () => {
     expect(tables.some((t: any) => t.name === 'contracts')).toBe(true);
   });
 
-  it('should create rollovers table', async () => {
-    await query(`
-      CREATE TABLE IF NOT EXISTS rollovers (
-        ts TIMESTAMP NOT NULL,
-        root VARCHAR NOT NULL,
-        from_contract VARCHAR NOT NULL,
-        to_contract VARCHAR NOT NULL,
-        from_close DOUBLE NOT NULL,
-        to_close DOUBLE NOT NULL,
-        ratio DOUBLE NOT NULL
-      )
-    `);
-    const tables = await query("SHOW TABLES");
-    expect(tables.some((t: any) => t.name === 'rollovers')).toBe(true);
-  });
-
   it('should create ingested_files table', async () => {
     await query(`
       CREATE TABLE IF NOT EXISTS ingested_files (

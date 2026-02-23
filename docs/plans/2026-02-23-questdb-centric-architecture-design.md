@@ -1,7 +1,7 @@
 # QuestDB-Centric Architecture: Database Separation Design
 
 **Date**: 2026-02-23
-**Status**: Approved
+**Status**: Partially superseded — continuous contract tables (ohlcv_continuous, rollovers) and Panama back-adjustment were replaced with on-demand front-month queries. QuestDB/DuckDB/PostgreSQL separation remains valid.
 **Supersedes**: 2026-02-18-data-architecture-design.md (partially)
 
 ## Problem

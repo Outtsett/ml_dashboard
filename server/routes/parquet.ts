@@ -144,30 +144,6 @@ router.get("/parquet/:symbol/quick-stats", async (req: Request, res: Response) =
   }
 });
 
-// Get rollover info for a symbol from DuckDB rollovers table
-router.get("/parquet/:symbol/rollovers", async (req: Request, res: Response) => {
-  try {
-    const symbol = getString(req.params.symbol).toUpperCase();
-    const { questdbMarketQuery: marketQuery } = await import("../lib/questdbMarketQuery");
-
-    const rollovers = await marketQuery(`
-      SELECT
-        CAST(epoch_ms(rollover_date::TIMESTAMP) AS DOUBLE) as timestamp,
-        from_contract as "fromContract",
-        to_contract as "toContract",
-        price_gap as "priceAdjustment",
-        cumulative_adjustment as "cumulativeAdjustment"
-      FROM rollovers
-      WHERE root = '${symbol}'
-      ORDER BY rollover_date
-    `);
-    res.json(rollovers);
-  } catch (error) {
-    console.error("Error fetching rollover info:", error);
-    res.status(500).json({ error: "Failed to fetch rollover info" });
-  }
-});
-
 router.get("/parquet/storage", async (req: Request, res: Response) => {
   try {
     const { parquetStorage } = await import("../lib/parquetStorage");

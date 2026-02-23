@@ -100,7 +100,6 @@ export function useIndicatorData(
 
   const tfKey = TIMEFRAME_MAP[timeframeMinutes] || '1d';
 
-  // For futures continuous contracts, use root symbol (not contract code)
   const apiSymbol = symbol;
 
   // 1) Fetch catalog (cached indefinitely)

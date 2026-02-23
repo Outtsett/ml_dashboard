@@ -12,7 +12,7 @@
  * This route normalises everything to a flat array of { timestamp, open, high, low, close, volume }.
  */
 import { Router, Request, Response } from 'express';
-import { getOHLCVSampleBy, getOHLCVContinuousSampleBy, checkQuestDBHealth, queryQuestDB } from '../questdb';
+import { getOHLCVSampleBy, getFrontMonthOHLCV, checkQuestDBHealth, queryQuestDB } from '../questdb';
 import { cachedQuery, OHLCVCache } from '../lib/ohlcvCache';
 import { isFuturesRoot } from '../services/continuousContract';
 
@@ -22,14 +22,13 @@ const router = Router();
 
 /** Minutes → QuestDB SAMPLE BY label */
 const MINUTES_TO_SAMPLE: Record<number, string> = {
-  0.0167: '1s', // 1/60
   1: '1m', 5: '5m', 15: '15m', 30: '30m',
   60: '1h', 240: '4h', 1440: '1d', 10080: '1w',
 };
 
 /** String label → QuestDB SAMPLE BY label (for backwards compat) */
 const LABEL_TO_SAMPLE: Record<string, string> = {
-  '1s': '1s', '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m',
+  '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m',
   '1h': '1h', '4h': '4h', '1d': '1d', '1w': '1w',
 };
 
@@ -123,11 +122,15 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
       let anchorMs = Date.now();
       try {
         const safeEsc = symbol.replace(/'/g, "''");
-        // For continuous contracts, query ohlcv_continuous with 'root' and 'ts'
-        const anchorTable = isFuturesRoot(symbol) ? 'ohlcv_continuous' : 'ohlcv';
-        const anchorSymbolCol = isFuturesRoot(symbol) ? 'root' : 'symbol';
-        const anchorTsCol = isFuturesRoot(symbol) ? 'ts' : 'timestamp';
-        const [row] = await queryQuestDB(`SELECT max(${anchorTsCol}) as latest FROM ${anchorTable} WHERE ${anchorSymbolCol} = '${safeEsc}'`);
+        let anchorQuery: string;
+        if (isFuturesRoot(symbol)) {
+          // For futures roots, find latest bar across all matching contracts
+          const contractRegex = `^${safeEsc}[FGHJKMNQUVXZ][0-9]{1,2}$`;
+          anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE symbol ~ '${contractRegex}'`;
+        } else {
+          anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE symbol = '${safeEsc}'`;
+        }
+        const [row] = await queryQuestDB(anchorQuery);
         if (row?.latest) {
           const latestDate = row.latest instanceof Date ? row.latest.getTime() : new Date(String(row.latest)).getTime();
           if (!isNaN(latestDate)) anchorMs = latestDate;
@@ -147,7 +150,7 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
     }
 
     const queryFn = isFuturesRoot(symbol)
-      ? () => getOHLCVContinuousSampleBy(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit)
+      ? () => getFrontMonthOHLCV(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit)
       : () => getOHLCVSampleBy(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit);
 
     const raw = await cachedQuery(cacheKey, queryFn);

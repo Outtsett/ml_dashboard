@@ -309,44 +309,18 @@ router.get("/regime/assignments/:id", async (req: Request, res: Response) => {
       // Detect root vs specific contract symbol
       const isRoot = symbol.length <= 3 && /^[A-Za-z]+$/.test(symbol);
 
-      // Build the OHLCV source CTE — root symbols need continuous contract stitching
-      const ohlcvCte = isRoot
-        ? `schedule AS (
-             SELECT to_contract as contract, rollover_date as start_date,
-                    LEAD(rollover_date) OVER (PARTITION BY root ORDER BY rollover_date) as end_date,
-                    cumulative_adjustment as adj
-             FROM rollovers WHERE root = '${symbol}'
-             UNION ALL
-             SELECT from_contract as contract, DATE '1900-01-01' as start_date,
-                    rollover_date as end_date,
-                    cumulative_adjustment + price_gap as adj
-             FROM rollovers
-             WHERE root = '${symbol}'
-               AND rollover_date = (SELECT MIN(rollover_date) FROM rollovers WHERE root = '${symbol}')
-           ),
-           stitched AS (
-             SELECT o.ts, o.open + s.adj as open, o.high + s.adj as high,
-                    o.low + s.adj as low, o.close + s.adj as close, o.volume
-             FROM ohlcv o
-             JOIN schedule s ON o.symbol = s.contract
-               AND CAST(o.ts AS DATE) >= s.start_date
-               AND (s.end_date IS NULL OR CAST(o.ts AS DATE) < s.end_date)
-           ),
-           agg AS (
-             SELECT time_bucket(INTERVAL '${interval}', ts) AS bucket_ts,
-                    FIRST(open ORDER BY ts) AS open, MAX(high) AS high,
-                    MIN(low) AS low, LAST(close ORDER BY ts) AS close,
-                    CAST(SUM(volume) AS DOUBLE) AS volume
-             FROM stitched
-             GROUP BY bucket_ts
-           )`
-        : `agg AS (
+      // Build the OHLCV source CTE — root symbols query all matching contracts
+      const symbolFilter = isRoot
+        ? `symbol ~ '^${symbol}[FGHJKMNQUVXZ][0-9]{1,2}$'`
+        : `symbol = '${symbol}'`;
+
+      const ohlcvCte = `agg AS (
              SELECT time_bucket(INTERVAL '${interval}', ts) AS bucket_ts,
                     FIRST(open ORDER BY ts) AS open, MAX(high) AS high,
                     MIN(low) AS low, LAST(close ORDER BY ts) AS close,
                     CAST(SUM(volume) AS DOUBLE) AS volume
              FROM ohlcv
-             WHERE symbol = '${symbol}'
+             WHERE ${symbolFilter}
              GROUP BY bucket_ts
            )`;
 
@@ -443,41 +417,14 @@ router.post("/regime/train", async (req: Request, res: Response) => {
     if (start) timeFilter += ` AND o.ts >= '${start}'`;
     if (end) timeFilter += ` AND o.ts <= '${end}'`;
 
+    // For root symbols, match all contracts via regex; for specific symbols, exact match
+    const symbolFilter = isRootSymbol
+      ? `symbol ~ '^${sym}[FGHJKMNQUVXZ][0-9]{1,2}$'`
+      : `symbol = '${sym}'`;
+
     let selectSql: string;
-    if (isRootSymbol) {
-      const interval = `${tfSeconds} seconds`;
-      selectSql = `
-        WITH schedule AS (
-          SELECT to_contract as contract, rollover_date as start_date,
-                 LEAD(rollover_date) OVER (PARTITION BY root ORDER BY rollover_date) as end_date,
-                 cumulative_adjustment as adj
-          FROM rollovers WHERE root = '${sym}'
-          UNION ALL
-          SELECT from_contract as contract, DATE '1900-01-01' as start_date,
-                 rollover_date as end_date,
-                 cumulative_adjustment + price_gap as adj
-          FROM rollovers
-          WHERE root = '${sym}'
-            AND rollover_date = (SELECT MIN(rollover_date) FROM rollovers WHERE root = '${sym}')
-        ),
-        stitched AS (
-          SELECT o.ts, o.open + s.adj as open, o.high + s.adj as high,
-                 o.low + s.adj as low, o.close + s.adj as close, o.volume
-          FROM ohlcv o
-          JOIN schedule s ON o.symbol = s.contract
-            AND CAST(o.ts AS DATE) >= s.start_date
-            AND (s.end_date IS NULL OR CAST(o.ts AS DATE) < s.end_date)
-          WHERE 1=1 ${timeFilter}
-        )
-        SELECT time_bucket(INTERVAL '${interval}', ts) as ts,
-               FIRST(open ORDER BY ts) as open, MAX(high) as high,
-               MIN(low) as low, LAST(close ORDER BY ts) as close,
-               CAST(SUM(volume) AS DOUBLE) as volume
-        FROM stitched
-        GROUP BY time_bucket(INTERVAL '${interval}', ts)
-        ORDER BY 1 ASC`;
-    } else {
-      let where = `WHERE symbol = '${sym}'`;
+    {
+      let where = `WHERE ${symbolFilter}`;
       if (start) where += ` AND ts >= '${start}'`;
       if (end) where += ` AND ts <= '${end}'`;
       if (tfSeconds <= 60) {
@@ -675,44 +622,13 @@ router.post("/regime/train/universal", async (req: Request, res: Response) => {
       try {
         emitEvent(job, "status", { phase: "exporting", message: `Exporting ${sym} data...` });
         const isRoot = sym.length <= 3 && /^[A-Z]+$/.test(sym);
+        const symFilter = isRoot
+          ? `symbol ~ '^${sym}[FGHJKMNQUVXZ][0-9]{1,2}$'`
+          : `symbol = '${sym}'`;
         let selectSql: string;
 
-        if (isRoot) {
-          let timeFilter = "";
-          if (start) timeFilter += ` AND o.ts >= '${start}'`;
-          if (end) timeFilter += ` AND o.ts <= '${end}'`;
-          const interval = `${tfSeconds} seconds`;
-          selectSql = `
-            WITH schedule AS (
-              SELECT to_contract as contract, rollover_date as start_date,
-                     LEAD(rollover_date) OVER (PARTITION BY root ORDER BY rollover_date) as end_date,
-                     cumulative_adjustment as adj
-              FROM rollovers WHERE root = '${sym}'
-              UNION ALL
-              SELECT from_contract as contract, DATE '1900-01-01' as start_date,
-                     rollover_date as end_date,
-                     cumulative_adjustment + price_gap as adj
-              FROM rollovers WHERE root = '${sym}'
-                AND rollover_date = (SELECT MIN(rollover_date) FROM rollovers WHERE root = '${sym}')
-            ),
-            stitched AS (
-              SELECT o.ts, o.open + s.adj as open, o.high + s.adj as high,
-                     o.low + s.adj as low, o.close + s.adj as close, o.volume
-              FROM ohlcv o
-              JOIN schedule s ON o.symbol = s.contract
-                AND CAST(o.ts AS DATE) >= s.start_date
-                AND (s.end_date IS NULL OR CAST(o.ts AS DATE) < s.end_date)
-              WHERE 1=1 ${timeFilter}
-            )
-            SELECT time_bucket(INTERVAL '${interval}', ts) as ts,
-                   FIRST(open ORDER BY ts) as open, MAX(high) as high,
-                   MIN(low) as low, LAST(close ORDER BY ts) as close,
-                   CAST(SUM(volume) AS DOUBLE) as volume
-            FROM stitched
-            GROUP BY time_bucket(INTERVAL '${interval}', ts)
-            ORDER BY 1 ASC`;
-        } else {
-          let where = `WHERE symbol = '${sym}'`;
+        {
+          let where = `WHERE ${symFilter}`;
           if (start) where += ` AND ts >= '${start}'`;
           if (end) where += ` AND ts <= '${end}'`;
           if (tfSeconds <= 60) {

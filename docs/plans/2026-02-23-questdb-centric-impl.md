@@ -1,8 +1,8 @@
 # QuestDB-Centric Architecture Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **Status:** Partially superseded — continuous contract tables and Panama back-adjustment were removed in favor of on-demand front-month queries. Core QuestDB/DuckDB separation was implemented as planned.
 
-**Goal:** Migrate all time-series data ownership to QuestDB, make DuckDB a stateless analytics engine, and move continuous contract logic out of DuckDB.
+**Goal:** Migrate all time-series data ownership to QuestDB, make DuckDB a stateless analytics engine.
 
 **Architecture:** QuestDB becomes the sole source of truth for all market data (OHLCV, trades, mbp10, continuous contracts). DuckDB becomes an ephemeral in-memory analytics engine that queries QuestDB via `postgres_scanner`. PostgreSQL keeps app metadata and gains the `ingested_files` table for dedup tracking.
 

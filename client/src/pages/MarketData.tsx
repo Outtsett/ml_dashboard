@@ -50,17 +50,6 @@ interface OhlcvData {
   activeContract?: string;
 }
 
-interface Rollover {
-  id?: number;
-  baseSymbol?: string;
-  fromContract: string;
-  toContract: string;
-  rolloverTimestamp?: number;
-  timestamp?: number;
-  priceAdjustment: number;
-  rolloverType?: string;
-}
-
 interface InstrumentInfo {
   symbol: string;
   name: string;
@@ -75,7 +64,7 @@ export default function MarketData() {
   const training = useTrainingContext();
   const [symbol, setSymbolLocal] = useState(dashboard.symbol);
   const [assetType, setAssetTypeLocal] = useState<"futures" | "forex">(dashboard.assetType);
-  const [contract, setContract] = useState<string>("continuous"); // "continuous" or specific contract like "ESH5"
+  const [contract, setContract] = useState<string | null>(null); // null = root symbol, or specific contract like "ESH5"
   const [timeframe, setTimeframeLocal] = useState(dashboard.timeframeMinutes);
   const { toast } = useToast();
   const [symbolOpen, setSymbolOpen] = useState(false);
@@ -115,7 +104,7 @@ export default function MarketData() {
   useBreadcrumbs([
     { label: assetType === "futures" ? "Futures" : "Forex", icon: assetType === "futures" ? TrendingUp : DollarSign },
     { label: symbol },
-    { label: contract === "continuous" ? "Continuous" : contract },
+    { label: contract ?? symbol },
     { label: tfLabel, icon: Clock },
   ]);
 
@@ -189,7 +178,7 @@ export default function MarketData() {
   }, [symbol, assetType, chartSymbols]);
 
   // The effective symbol to pass to chart queries
-  const effectiveSymbol = contract === "continuous" ? symbol : contract;
+  const effectiveSymbol = contract ?? symbol;
 
   // Clear any stale IndexedDB OHLCV cache from previous sessions on mount
   useEffect(() => {
@@ -197,7 +186,6 @@ export default function MarketData() {
   }, []);
 
   const isFutures = assetType === "futures";
-  const isContinuous = contract === "continuous";
 
   // ── Unified chart data state (sliding window for infinite scroll) ──
   const [visibleData, setVisibleData] = useState<OhlcvData[]>([]);
@@ -233,9 +221,7 @@ export default function MarketData() {
     isLoadingMoreRef.current = false;
   }, [effectiveSymbol, timeframe]);
 
-  // ── Primary data: QuestDB via /api/charts/ohlcv (for non-continuous, or everything for forex) ──
-  const useContinuous = isFutures && isContinuous;
-
+  // ── Primary data: QuestDB via /api/charts/ohlcv (server handles front-month selection for futures roots) ──
   const { data: chartQueryData } = useQuery({
     queryKey: ["/api/charts/ohlcv", effectiveSymbol, apiTimeframe],
     queryFn: async () => {
@@ -248,26 +234,6 @@ export default function MarketData() {
       setHasMoreRight(data.length >= FETCH_LIMIT);
       return data;
     },
-    enabled: !useContinuous,
-    staleTime: 5 * 60 * 1000,
-    placeholderData: (prev: any) => prev,
-  });
-
-  // ── Continuous contract data: must use DuckDB (requires rollover schedule + Panama adjustment) ──
-  const { data: continuousData } = useQuery({
-    queryKey: ["/api/continuous", symbol, timeframe],
-    queryFn: async () => {
-      const response = await fetch(`/api/continuous/${symbol}?timeframe=${timeframe}&limit=${FETCH_LIMIT}&loadFromStart=true`);
-      if (!response.ok) return { data: [], rollovers: [] };
-      const result = await response.json();
-      if (result.data?.length > 0) {
-        setVisibleData(result.data);
-        setHasMoreLeft(false);
-        setHasMoreRight(result.data.length >= FETCH_LIMIT);
-      }
-      return result;
-    },
-    enabled: useContinuous,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev: any) => prev,
   });
@@ -278,14 +244,7 @@ export default function MarketData() {
     isLoadingMoreRef.current = true;
     setIsLoadingMore(true);
     try {
-      let url: string;
-      if (useContinuous) {
-        // Continuous uses DuckDB (needs rollover logic)
-        url = `/api/continuous/${effectiveSymbol}?timeframe=${timeframe}&limit=${FETCH_LIMIT}`;
-      } else {
-        // Everything else → QuestDB via unified charts endpoint
-        url = `/api/charts/ohlcv?symbol=${effectiveSymbol}&timeframe=${apiTimeframe}&limit=${FETCH_LIMIT}&order=asc`;
-      }
+      let url = `/api/charts/ohlcv?symbol=${effectiveSymbol}&timeframe=${apiTimeframe}&limit=${FETCH_LIMIT}&order=asc`;
 
       if (direction === 'left') url += `&endTime=${timestamp - 1}`;
       else url += `&startTime=${timestamp + 1}`;
@@ -339,34 +298,12 @@ export default function MarketData() {
     }
     isLoadingMoreRef.current = false;
     setIsLoadingMore(false);
-  }, [effectiveSymbol, timeframe, apiTimeframe, useContinuous, FETCH_LIMIT]);
-
-  // Extract base symbol (e.g., MNQ from MNQM9 or MNQ2024)
-  const baseSymbol = useMemo(() => {
-    return symbol.replace(/[A-Z]\d{1,2}$/, '').replace(/\d{4}$/, '');
-  }, [symbol]);
-
-  const { data: rollovers = [] } = useQuery<Rollover[]>({
-    queryKey: ["/api/parquet/rollovers", baseSymbol],
-    queryFn: async () => {
-      const response = await fetch(`/api/parquet/${baseSymbol}/rollovers`);
-      if (!response.ok) return [];
-      const data = await response.json();
-      return data.map((r: any) => ({
-        ...r,
-        rolloverTimestamp: r.timestamp,
-        rolloverType: 'volume'
-      }));
-    },
-    enabled: isFutures && baseSymbol.length > 0,
-  });
+  }, [effectiveSymbol, timeframe, apiTimeframe, FETCH_LIMIT]);
 
   // Use visibleData for infinite scroll, fallback to query data
   const rawData = visibleData.length > 0
     ? visibleData
-    : useContinuous
-      ? (continuousData?.data || [])
-      : (chartQueryData || []);
+    : (chartQueryData || []);
   
   // Both futures and forex use server-side aggregation — no client-side processing needed
   const chartData = rawData;
@@ -589,7 +526,7 @@ export default function MarketData() {
   const selectSymbol = async (sym: string, type: "futures" | "forex") => {
     setSymbol(sym);
     setAssetType(type);
-    setContract("continuous");
+    setContract(null);
     setVisibleData([]);
     setHasMoreLeft(true);
     setHasMoreRight(false);
@@ -673,7 +610,7 @@ export default function MarketData() {
               >
                 <span className="flex items-center gap-1.5">
                   <ArrowRightLeft className="h-3 w-3 text-amber-400" />
-                  {contract === "continuous" ? "Continuous" : contract}
+                  {contract ?? "Front Month"}
                 </span>
                 <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
               </Button>
@@ -685,9 +622,9 @@ export default function MarketData() {
                   <CommandEmpty>No contract found.</CommandEmpty>
                   <CommandGroup heading="View Mode">
                     <CommandItem
-                      value="continuous back-adjusted"
+                      value="front month auto"
                       onSelect={() => {
-                        setContract("continuous");
+                        setContract(null);
                         setContractOpen(false);
                         setVisibleData([]);
                         setHasMoreLeft(true);
@@ -695,9 +632,9 @@ export default function MarketData() {
                       }}
                       className="flex items-center gap-2"
                     >
-                      <Check className={`h-3 w-3 ${contract === "continuous" ? 'opacity-100' : 'opacity-0'}`} />
-                      <span className="font-semibold text-xs">Continuous</span>
-                      <span className="text-muted-foreground text-[10px]">Back-adjusted</span>
+                      <Check className={`h-3 w-3 ${contract === null ? 'opacity-100' : 'opacity-0'}`} />
+                      <span className="font-semibold text-xs">Front Month</span>
+                      <span className="text-muted-foreground text-[10px]">Auto-selected</span>
                     </CommandItem>
                   </CommandGroup>
                   <CommandGroup heading={`Individual Contracts (${contractsForSymbol.length})`}>
@@ -857,12 +794,7 @@ export default function MarketData() {
       {/* ── Analytics Strip: always-visible key metrics ── */}
       <div className="flex items-center gap-3 px-3 py-1 border-b border-white/5 shrink-0 text-[10px] bg-card/20">
         <span className="font-mono font-semibold text-primary text-xs">{effectiveSymbol}</span>
-        {isFutures && isContinuous && continuousData?.data?.length > 0 && (
-          <Badge variant="outline" className="text-[8px] border-amber-500/30 text-amber-400 py-0">
-            {continuousData.data[continuousData.data.length - 1]?.activeContract || 'Continuous'}
-          </Badge>
-        )}
-        {contract !== "continuous" && (
+        {contract !== null && (
           <Badge variant="outline" className="text-[8px] border-amber-500/30 text-amber-400 py-0">
             Single Contract
           </Badge>
@@ -871,12 +803,6 @@ export default function MarketData() {
         <span className="text-muted-foreground font-mono">
           {displayData.length.toLocaleString()}{replay.active ? ` / ${chartData.length.toLocaleString()}` : ''} bars
         </span>
-
-        {isFutures && isContinuous && rollovers.length > 0 && (
-          <span className="flex items-center gap-1 text-amber-400">
-            <ArrowRightLeft className="h-3 w-3" /> {rollovers.length} rollovers
-          </span>
-        )}
 
         <div className="flex-1" />
 
@@ -994,7 +920,6 @@ export default function MarketData() {
                   isLoadingMore={isLoadingMore}
                   hasMoreLeft={!replay.active && hasMoreLeft}
                   hasMoreRight={!replay.active && hasMoreRight}
-                  rollovers={isFutures && isContinuous ? rollovers : []}
                   labelMarkers={sidebarShowLabels ? sidebarLabelMarkers : []}
                   indicatorOverlays={indicatorOverlays}
                   onRemoveIndicators={handleRemoveIndicators}
