@@ -38,15 +38,6 @@ export {
   computeOHLCVStats
 } from "./duckdb/queries";
 
-// TODO: Remove preAggregation re-exports once parquet.ts and dataPipeline.ts are updated (Task 14)
-// Pre-aggregation and materialization
-export {
-  createPreAggregatedParquetFiles,
-  queryPreAggregatedParquet,
-  hasPreAggregatedFiles,
-  getRolloverInfo
-} from "./duckdb/preAggregation";
-
 // ML feature generation
 export {
   generateMLFeatures,

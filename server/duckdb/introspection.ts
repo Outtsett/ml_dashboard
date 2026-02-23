@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { validateSymbol } from "@shared/schema";
-import { conn, withMutex, PARQUET_DIR } from "./core";
+import { conn, withMutex, PARQUET_DIR } from "./analytics";
 import { listParquetFiles } from "./fileOps";
 import { getParquetStats } from "./queries";
 

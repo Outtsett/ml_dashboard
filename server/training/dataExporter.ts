@@ -10,7 +10,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { getOHLCVSampleBy } from "../questdb";
-import { runQuery } from "../duckdb/core";
+import { runQuery } from "../duckdb";
 
 const TMP_DIR = path.join(os.tmpdir(), "ml_dashboard_training");
 

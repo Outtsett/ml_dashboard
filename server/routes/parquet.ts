@@ -48,7 +48,6 @@ router.get("/parquet/:symbol/data", async (req: Request, res: Response) => {
 });
 
 // Get aggregated parquet data with server-side timeframe aggregation
-// Uses pre-aggregated files if available for instant loading
 router.get("/parquet/:symbol/aggregated", async (req: Request, res: Response) => {
   try {
     const symbol = getString(req.params.symbol).toUpperCase();
@@ -61,17 +60,10 @@ router.get("/parquet/:symbol/aggregated", async (req: Request, res: Response) =>
     const limit = Math.min(requestedLimit, maxLimit2);
     const loadFromEnd = req.query.loadFromStart !== 'true'; // default: load most recent
 
-    // Use pre-aggregated files if available (much faster)
-    const { queryPreAggregatedParquet, hasPreAggregatedFiles } = await import("../duckdb");
-
     const cacheKey = OHLCVCache.key('parquet', symbol, timeframe, { startTime, endTime, limit, loadFromStart: !loadFromEnd });
 
     const data = await cachedQuery(cacheKey, async () => {
-      if (hasPreAggregatedFiles(symbol)) {
-        return queryPreAggregatedParquet(symbol, timeframe, startTime, endTime, limit, loadFromEnd);
-      } else {
-        return queryParquetOHLCVAggregated(symbol, timeframe, startTime, endTime, limit, 0, loadFromEnd);
-      }
+      return queryParquetOHLCVAggregated(symbol, timeframe, startTime, endTime, limit, 0, loadFromEnd);
     });
     res.json(data);
   } catch (error) {
@@ -99,27 +91,6 @@ router.post("/parquet/:symbol/export", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error exporting to parquet:", error);
     res.status(500).json({ error: error.message || "Failed to export data" });
-  }
-});
-
-// Trigger pre-aggregation for a symbol (creates timeframe-specific parquet files)
-router.post("/parquet/:symbol/pre-aggregate", async (req: Request, res: Response) => {
-  try {
-    const symbol = getString(req.params.symbol).toUpperCase();
-    const { createPreAggregatedParquetFiles } = await import("../duckdb");
-
-    console.log(`[routes] Starting pre-aggregation for ${symbol}...`);
-    const result = await createPreAggregatedParquetFiles(symbol);
-
-    res.json({
-      success: true,
-      symbol,
-      timeframes: result.timeframes,
-      rollovers: result.rolloverInfo.length
-    });
-  } catch (error: any) {
-    console.error("Error pre-aggregating parquet data:", error);
-    res.status(500).json({ error: error.message || "Failed to pre-aggregate data" });
   }
 });
 

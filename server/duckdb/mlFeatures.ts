@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { validateSymbol } from "@shared/schema";
-import { runQuery, PARQUET_DIR } from "./core";
+import { runQuery, PARQUET_DIR } from "./analytics";
 
 export interface TechnicalIndicatorConfig {
   id: string;

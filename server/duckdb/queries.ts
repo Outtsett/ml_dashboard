@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { validateSymbol } from "@shared/schema";
-import { conn, withMutex, runQuery, runQueryUnlocked, validateTableName, validatePositiveInteger, PARQUET_DIR } from "./core";
+import { conn, withMutex, runQuery, runQueryUnlocked, validateTableName, validatePositiveInteger, PARQUET_DIR } from "./analytics";
 
 export async function loadParquetForAnalytics(symbol: string): Promise<any[]> {
   const safeSymbol = validateSymbol(symbol);

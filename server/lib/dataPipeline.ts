@@ -240,18 +240,8 @@ class DataPipelineManager extends EventEmitter {
         break;
 
       case 'create_aggregates':
-        if (this.config.autoAggregateTimeframes) {
-          try {
-            const { createPreAggregatedParquetFiles } = await import('../duckdb');
-            const result = await createPreAggregatedParquetFiles(job.symbol);
-            stage.rowsProcessed = result.timeframes.reduce((sum, tf) => sum + tf.rowCount, 0);
-          } catch (e: any) {
-            console.warn(`[Pipeline] Aggregate creation skipped: ${e.message}`);
-            stage.status = 'skipped';
-          }
-        } else {
-          stage.status = 'skipped';
-        }
+        // Pre-aggregation removed (was DuckDB-based). QuestDB SAMPLE BY handles aggregation at query time.
+        stage.status = 'skipped';
         break;
 
       case 'read_postgres':
