@@ -589,3 +589,27 @@ export const backtestTrades = pgTable("backtest_trades", {
 export const insertBacktestTradeSchema = createInsertSchema(backtestTrades).omit({ id: true });
 export type InsertBacktestTrade = z.infer<typeof insertBacktestTradeSchema>;
 export type BacktestTrade = typeof backtestTrades.$inferSelect;
+
+// ============================================================
+// FILE INGESTION TRACKING
+// ============================================================
+
+// File ingestion tracking (dedup) — moved from DuckDB market.duckdb
+export const ingestedFiles = pgTable("ingested_files", {
+  id: serial("id").primaryKey(),
+  filePath: text("file_path").notNull().unique(),
+  fileHash: text("file_hash"),
+  fileSize: bigint("file_size", { mode: "number" }),
+  rowCount: bigint("row_count", { mode: "number" }),
+  symbol: text("symbol"),
+  tsMin: timestamp("ts_min"),
+  tsMax: timestamp("ts_max"),
+  ingestedAt: timestamp("ingested_at").notNull().defaultNow(),
+}, (table) => ({
+  filePathIdx: index("ingested_files_file_path_idx").on(table.filePath),
+  symbolIdx: index("ingested_files_symbol_idx").on(table.symbol),
+}));
+
+export const insertIngestedFileSchema = createInsertSchema(ingestedFiles).omit({ id: true, ingestedAt: true });
+export type InsertIngestedFile = z.infer<typeof insertIngestedFileSchema>;
+export type IngestedFile = typeof ingestedFiles.$inferSelect;
