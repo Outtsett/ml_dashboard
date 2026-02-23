@@ -1,3 +1,5 @@
+> **SUPERSEDED** by `2026-02-23-questdb-centric-architecture-design.md`
+
 # Data Architecture Redesign — Design Document
 
 **Date:** 2026-02-18
