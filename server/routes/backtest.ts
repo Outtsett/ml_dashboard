@@ -11,7 +11,7 @@
 import { Router, Request, Response } from 'express';
 import { storage } from '../storage';
 import { getAssetType } from '../storage';
-import { marketQuery } from '../duckdb/market';
+import { questdbMarketQuery as marketQuery } from '../lib/questdbMarketQuery';
 import { trainer } from '../ml/trainer';
 import { runBacktest, type OHLCVBar, type Signal, type InstrumentSpec, type BacktestConfig } from '../lib/backtestEngine';
 import { getString } from './helpers';

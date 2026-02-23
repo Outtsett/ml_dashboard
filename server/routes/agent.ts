@@ -45,7 +45,7 @@ import {
   walkForwardValidator,
   type WalkForwardConfig,
 } from '../ml/walkForward';
-import { marketQuery } from '../duckdb/market';
+import { questdbMarketQuery as marketQuery } from '../lib/questdbMarketQuery';
 import { storage, getAssetType } from '../storage';
 import {
   runBacktest,

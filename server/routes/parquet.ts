@@ -177,7 +177,7 @@ router.get("/parquet/:symbol/quick-stats", async (req: Request, res: Response) =
 router.get("/parquet/:symbol/rollovers", async (req: Request, res: Response) => {
   try {
     const symbol = getString(req.params.symbol).toUpperCase();
-    const { marketQuery } = await import("../duckdb/market");
+    const { questdbMarketQuery: marketQuery } = await import("../lib/questdbMarketQuery");
 
     const rollovers = await marketQuery(`
       SELECT

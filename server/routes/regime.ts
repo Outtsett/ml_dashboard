@@ -278,7 +278,7 @@ router.get("/regime/assignments/:id", async (req: Request, res: Response) => {
       return res.status(404).json({ error: `Regime assignments not found for '${id}'` });
     }
 
-    const { marketQuery } = await import("../duckdb/market");
+    const { questdbMarketQuery: marketQuery } = await import("../lib/questdbMarketQuery");
     const forwardPath = parquetPath.replace(/\\/g, "/");
 
     const limit = Math.min(Number(req.query.limit) || 50000, 100000);
@@ -495,7 +495,7 @@ router.post("/regime/train", async (req: Request, res: Response) => {
     emitEvent(job, "status", { phase: "exporting", message: `Exporting ${sym} @ ${timeframe} OHLCV data...` });
 
     try {
-      const { marketQuery } = await import("../duckdb/market");
+      const { questdbMarketQuery: marketQuery } = await import("../lib/questdbMarketQuery");
       await marketQuery(`COPY (${selectSql}) TO '${dataFile}' (FORMAT PARQUET)`);
     } catch (exportErr: any) {
       emitEvent(job, "error", { message: `Failed to export data: ${exportErr.message}` });
@@ -666,7 +666,7 @@ router.post("/regime/train/universal", async (req: Request, res: Response) => {
     const tmpDir = path.join(os.tmpdir(), "ml_dashboard_regime", `universal_${Date.now()}`);
     if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
 
-    const { marketQuery } = await import("../duckdb/market");
+    const { questdbMarketQuery: marketQuery } = await import("../lib/questdbMarketQuery");
     const TIMEFRAME_MAP: Record<string, number> = { "1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "1H": 3600, "4h": 14400, "4H": 14400, "1d": 86400, "1D": 86400, "1w": 604800, "1W": 604800 };
     const tfSeconds = TIMEFRAME_MAP[timeframe] || 1800;
 

@@ -91,7 +91,7 @@ router.get("/continuous/:baseSymbol", async (req: Request, res: Response) => {
       }
     }
 
-    const { marketQuery } = await import("../duckdb/market");
+    const { questdbMarketQuery: marketQuery } = await import("../lib/questdbMarketQuery");
 
     // Build continuous contract: join OHLCV with rollover schedule
     // The rollover schedule tells us which contract is active on each day.
