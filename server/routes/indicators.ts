@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { spawn, ChildProcess } from "child_process";
 import { storage } from "../storage";
 import { runQuery } from "../duckdb";
 import { mlRateLimiter } from "../lib/rateLimiter";
@@ -238,7 +239,7 @@ router.post("/indicators/compute", mlRateLimiter, async (req: Request, res: Resp
 
     const { computeIndicatorsRealtime, INDICATOR_PRESETS } = await import('../lib/indicators/indicatorService');
 
-    // Get OHLCV data — QuestDB first (time-series), PostgreSQL fallback
+    // Get OHLCV data from QuestDB (time-series)
     let ohlcvData: any[] = [];
     try {
       const { checkQuestDBHealth, getOHLCVSampleBy } = await import("../questdb");
@@ -252,10 +253,6 @@ router.post("/indicators/compute", mlRateLimiter, async (req: Request, res: Resp
         }));
       }
     } catch {}
-    // Fallback to PostgreSQL if QuestDB returned nothing
-    if (ohlcvData.length === 0) {
-      ohlcvData = await storage.getOhlcvPartitioned(symbol, limit);
-    }
 
     if (!ohlcvData || ohlcvData.length === 0) {
       return res.status(404).json({ error: `No OHLCV data found for ${symbol}` });
@@ -845,6 +842,292 @@ router.get("/indicators/patterns/:symbol", async (req: Request, res: Response) =
   } catch (error: any) {
     console.error("Error fetching pattern data:", error);
     res.status(500).json({ error: error.message || "Failed to fetch pattern data" });
+  }
+});
+
+// ============================================================================
+// INDICATOR COMPUTATION PIPELINE (spawn compute-indicators.py)
+// ============================================================================
+
+let activeComputeProcess: ChildProcess | null = null;
+
+// POST /api/indicators/compute-batch — trigger indicator recomputation
+router.post("/indicators/compute-batch", mlRateLimiter, (req: Request, res: Response) => {
+  if (activeComputeProcess) {
+    return res.status(409).json({ error: "Indicator computation already in progress" });
+  }
+
+  const { symbols, timeframes, force } = req.body as {
+    symbols?: string[];
+    timeframes?: string[];
+    force?: boolean;
+  };
+
+  // Build CLI args
+  const trainingJsonPath = path.join(process.cwd(), "config", "training.json");
+  let pythonExe = ".venv/Scripts/python.exe";
+  try {
+    const trainingCfg = JSON.parse(fs.readFileSync(trainingJsonPath, "utf-8"));
+    pythonExe = trainingCfg.paths?.pythonExe || pythonExe;
+  } catch {}
+
+  const script = path.join(process.cwd(), "scripts", "compute-indicators.py");
+  const args = [script];
+
+  if (symbols && symbols.length > 0) {
+    args.push("--symbols", symbols.join(","));
+  }
+  if (timeframes && timeframes.length > 0) {
+    args.push("--timeframes", timeframes.join(","));
+  }
+  if (force) {
+    args.push("--force");
+  }
+
+  // SSE headers
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+
+  const sendEvent = (event: string, data: any) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  sendEvent("started", {
+    message: "Indicator computation started",
+    symbols: symbols || "all",
+    timeframes: timeframes || "all (except 1m)",
+    force: !!force,
+  });
+
+  const fullPythonExe = path.join(process.cwd(), pythonExe);
+  console.log(`[indicators] Spawning: ${fullPythonExe} ${args.join(" ")}`);
+
+  const child = spawn(fullPythonExe, args, {
+    cwd: process.cwd(),
+    env: { ...process.env, PYTHONUNBUFFERED: "1" },
+  });
+  activeComputeProcess = child;
+
+  child.stdout.on("data", (chunk) => {
+    const lines = chunk.toString().split("\n").filter((l: string) => l.trim());
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      // Parse progress markers like [indicators] ES done (7 computed, 0 skipped, 0 errors) [7/112]
+      const progressMatch = trimmed.match(/\[(\d+)\/(\d+)\]$/);
+      if (progressMatch) {
+        sendEvent("progress", {
+          done: parseInt(progressMatch[1]),
+          total: parseInt(progressMatch[2]),
+          message: trimmed,
+        });
+      } else {
+        sendEvent("log", { message: trimmed });
+      }
+    }
+  });
+
+  child.stderr.on("data", (chunk) => {
+    const text = chunk.toString().trim();
+    if (text && !text.includes("Warning") && !text.includes("FutureWarning")) {
+      sendEvent("warning", { message: text.slice(0, 500) });
+    }
+  });
+
+  child.on("close", (code) => {
+    activeComputeProcess = null;
+    // Clear meta cache so new data is picked up
+    metaCache.clear();
+    cachedCatalog = null;
+
+    if (code === 0) {
+      sendEvent("done", { message: "Indicator computation complete", exitCode: 0 });
+    } else {
+      sendEvent("error", { message: `Computation failed (exit code ${code})`, exitCode: code });
+    }
+    res.end();
+  });
+
+  // Client disconnect — kill process
+  req.on("close", () => {
+    if (activeComputeProcess && activeComputeProcess === child) {
+      console.log("[indicators] Client disconnected, killing compute process");
+      child.kill("SIGTERM");
+      setTimeout(() => {
+        if (!child.killed) child.kill("SIGKILL");
+      }, 5000);
+      activeComputeProcess = null;
+    }
+  });
+});
+
+// GET /api/indicators/status — which symbol/timeframe combos have indicators
+router.get("/indicators/status", (_req: Request, res: Response) => {
+  try {
+    if (!fs.existsSync(INDICATOR_DIR)) {
+      return res.json({ computed: [], totalSymbols: 0, totalCombinations: 0 });
+    }
+
+    const computed: Array<{
+      symbol: string;
+      timeframe: string;
+      rowCount: number;
+      totalColumns: number;
+      computedAt: string;
+      categories: string[];
+      totalSizeMb: number;
+    }> = [];
+
+    // Walk data/indicators/{timeframe}/{symbol}/_meta.json
+    for (const tf of fs.readdirSync(INDICATOR_DIR)) {
+      const tfDir = path.join(INDICATOR_DIR, tf);
+      if (!fs.statSync(tfDir).isDirectory()) continue;
+
+      for (const sym of fs.readdirSync(tfDir)) {
+        const metaPath = path.join(tfDir, sym, "_meta.json");
+        if (!fs.existsSync(metaPath)) continue;
+
+        try {
+          const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+          const totalSizeBytes = Object.values(meta.categories || {}).reduce(
+            (sum: number, c: any) => sum + (c.file_size_bytes || 0), 0
+          );
+          computed.push({
+            symbol: meta.symbol || sym,
+            timeframe: meta.timeframe || tf,
+            rowCount: meta.row_count || 0,
+            totalColumns: meta.total_columns || 0,
+            computedAt: meta.computed_at || "",
+            categories: Object.keys(meta.categories || {}),
+            totalSizeMb: Math.round((totalSizeBytes as number) / (1024 * 1024) * 10) / 10,
+          });
+        } catch { /* skip malformed */ }
+      }
+    }
+
+    const symbols = new Set(computed.map(c => c.symbol));
+    res.json({
+      computed,
+      totalSymbols: symbols.size,
+      totalCombinations: computed.length,
+      computing: !!activeComputeProcess,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to read indicator status" });
+  }
+});
+
+// ============================================================================
+// FEATURE REGISTRY API (normalized features for model consumption)
+// ============================================================================
+
+const FEATURES_DIR = path.join(process.cwd(), "data", "features");
+
+// GET /api/features/catalog — list all normalized features with normalization type
+router.get("/features/catalog", async (_req: Request, res: Response) => {
+  try {
+    if (!fs.existsSync(FEATURES_DIR)) {
+      return res.json({ columns: {}, totalColumns: 0 });
+    }
+
+    // Find any normalization_stats.json to build catalog
+    for (const tf of fs.readdirSync(FEATURES_DIR)) {
+      const tfDir = path.join(FEATURES_DIR, tf);
+      if (!fs.statSync(tfDir).isDirectory()) continue;
+      for (const sym of fs.readdirSync(tfDir)) {
+        const statsPath = path.join(tfDir, sym, "normalization_stats.json");
+        if (fs.existsSync(statsPath)) {
+          try {
+            const stats = JSON.parse(fs.readFileSync(statsPath, "utf-8"));
+            return res.json({
+              columns: stats.columns || {},
+              totalColumns: stats.columns_total || 0,
+              sampleSymbol: sym,
+              sampleTimeframe: tf,
+              rollingWindow: stats.rolling_window,
+              clipRange: stats.clip_range,
+            });
+          } catch { continue; }
+        }
+      }
+    }
+
+    res.json({ columns: {}, totalColumns: 0 });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to read feature catalog" });
+  }
+});
+
+// GET /api/features/data/:symbol — fetch normalized feature data
+router.get("/features/data/:symbol", async (req: Request, res: Response) => {
+  try {
+    const symbol = getString(req.params.symbol).toUpperCase();
+    const timeframe = (req.query.timeframe as string) || "1d";
+    const columns = req.query.columns as string | undefined;
+    const limitStr = req.query.limit as string | undefined;
+    const limit = limitStr ? Math.min(parseInt(limitStr), 10000) : 2000;
+
+    const normalizedPath = path.join(FEATURES_DIR, timeframe, symbol, "normalized.parquet");
+    if (!fs.existsSync(normalizedPath)) {
+      // List what's available
+      const available: string[] = [];
+      if (fs.existsSync(FEATURES_DIR)) {
+        for (const tf of fs.readdirSync(FEATURES_DIR)) {
+          const symPath = path.join(FEATURES_DIR, tf, symbol, "normalized.parquet");
+          if (fs.existsSync(symPath)) {
+            available.push(tf);
+          }
+        }
+      }
+      return res.status(404).json({
+        error: `No normalized features for ${symbol} at ${timeframe}`,
+        availableTimeframes: available,
+      });
+    }
+
+    const safePath = normalizedPath.replace(/\\/g, "/");
+    let selectClause = "*";
+    if (columns) {
+      const requestedCols = columns.split(",").map(c => c.trim()).filter(c => /^[a-zA-Z0-9_.]+$/.test(c));
+      const safeCols = ["timestamp", ...requestedCols];
+      selectClause = safeCols.map(c => `"${c}"`).join(", ");
+    }
+
+    const data = await runQuery(`
+      SELECT ${selectClause}
+      FROM read_parquet('${safePath}')
+      ORDER BY timestamp DESC
+      LIMIT ${limit}
+    `);
+    data.reverse();
+
+    const serialized = data.map(row => {
+      const converted: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(row)) {
+        converted[key] = typeof val === "bigint" ? Number(val) : val;
+      }
+      return converted;
+    });
+
+    res.json({ symbol, timeframe, count: serialized.length, data: serialized });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to fetch feature data" });
+  }
+});
+
+// GET /api/features/sets — list named feature sets
+router.get("/features/sets", async (_req: Request, res: Response) => {
+  try {
+    const { listFeatureSets, listFeaturePipelines } = await import("../training/registry");
+    res.json({
+      featureSets: listFeatureSets(),
+      pipelines: listFeaturePipelines(),
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to list feature sets" });
   }
 });
 

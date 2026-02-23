@@ -10,6 +10,7 @@ import { useState, useEffect, useMemo } from "react";
 import { IndicatorPanel } from "@/components/IndicatorPanel";
 
 import { Trade, MlModel, MarketRegime, QUERY_KEYS } from "@/lib/types";
+import { fetchArray } from "@/lib/fetchArray";
 
 const correlationInstruments: string[] = [];
 
@@ -29,19 +30,19 @@ export default function Dashboard() {
 
   const { data: trades = [] } = useQuery<Trade[]>({
     queryKey: [...QUERY_KEYS.mlTrades],
-    queryFn: async () => { const res = await fetch("/api/ml/trades?limit=20"); return res.json(); },
+    queryFn: () => fetchArray<Trade>("/api/ml/trades?limit=20"),
     refetchInterval: isLive ? 5000 : false,
   });
 
   const { data: models = [] } = useQuery<MlModel[]>({
     queryKey: [...QUERY_KEYS.mlModels],
-    queryFn: async () => { const res = await fetch("/api/ml/models"); return res.json(); },
+    queryFn: () => fetchArray<MlModel>("/api/ml/models"),
     refetchInterval: isLive ? 10000 : false,
   });
 
   const { data: regimes = [] } = useQuery<MarketRegime[]>({
     queryKey: [...QUERY_KEYS.mlRegimes],
-    queryFn: async () => { const res = await fetch("/api/ml/regimes"); return res.json(); },
+    queryFn: () => fetchArray<MarketRegime>("/api/ml/regimes"),
   });
 
   const currentRegime = regimes.length > 0 ? regimes[0] : null;

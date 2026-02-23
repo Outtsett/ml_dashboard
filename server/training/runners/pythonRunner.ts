@@ -194,6 +194,22 @@ export class PythonRunner implements ITrainerRunner {
     });
     session.child = child;
 
+    // Training timeout: SIGTERM then SIGKILL after grace period
+    const maxDurationSec = trainingCfg.limits.maxTrainingDurationSec ?? 7200;
+    const timeoutHandle = setTimeout(() => {
+      if (!session.finished) {
+        console.warn(`[training] Session ${session.sessionId} exceeded ${maxDurationSec}s timeout, sending SIGTERM`);
+        child.kill("SIGTERM");
+        // If still alive after 30s, force kill
+        setTimeout(() => {
+          if (!session.finished) {
+            console.warn(`[training] Session ${session.sessionId} did not exit after SIGTERM, sending SIGKILL`);
+            child.kill("SIGKILL");
+          }
+        }, 30_000);
+      }
+    }, maxDurationSec * 1000);
+
     child.stdout.on("data", (chunk) => {
       const text = chunk.toString();
       session.stdout += text;
@@ -215,6 +231,7 @@ export class PythonRunner implements ITrainerRunner {
     });
 
     child.on("close", (code) => {
+      clearTimeout(timeoutHandle);
       session.finished = true;
       session.exitCode = code;
 

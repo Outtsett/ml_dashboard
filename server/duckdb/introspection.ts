@@ -5,73 +5,9 @@ import { conn, withMutex, PARQUET_DIR } from "./analytics";
 import { listParquetFiles } from "./fileOps";
 import { getParquetStats } from "./queries";
 
-// Export PostgreSQL data to Parquet file for fast DuckDB queries
-export async function exportPostgresToParquet(symbol: string, db: any): Promise<string> {
-  const safeSymbol = validateSymbol(symbol);
-  const outputPath = path.join(PARQUET_DIR, `${safeSymbol}_ohlcv.parquet`);
-
-  console.log(`[duckdb] Exporting PostgreSQL data to parquet: ${symbol} -> ${outputPath}`);
-
-  // Query PostgreSQL for all data for this symbol
-  const { ohlcvData } = await import('@shared/schema');
-  const { eq, asc } = await import('drizzle-orm');
-
-  const data = await db
-    .select()
-    .from(ohlcvData)
-    .where(eq(ohlcvData.symbol, symbol))
-    .orderBy(asc(ohlcvData.timestamp));
-
-  if (data.length === 0) {
-    throw new Error(`No data found for symbol ${symbol}`);
-  }
-
-  console.log(`[duckdb] Found ${data.length} rows for ${symbol}, writing to parquet...`);
-
-  // Create a temporary JSON file, then convert to parquet using DuckDB
-  const tempJsonPath = path.join(PARQUET_DIR, `${safeSymbol}_temp.json`);
-  const rows = data.map((row: any) => ({
-    symbol: row.symbol,
-    timestamp: Number(row.timestamp),
-    open: Number(row.open),
-    high: Number(row.high),
-    low: Number(row.low),
-    close: Number(row.close),
-    volume: Number(row.volume)
-  }));
-
-  fs.writeFileSync(tempJsonPath, JSON.stringify(rows));
-
-  return withMutex(() => new Promise((resolve, reject) => {
-    // Use direct string interpolation for file paths (safe since paths are internally generated)
-    const sql = `
-      COPY (
-        SELECT
-          symbol,
-          CAST(timestamp AS BIGINT) as timestamp,
-          CAST(open AS DOUBLE) as open,
-          CAST(high AS DOUBLE) as high,
-          CAST(low AS DOUBLE) as low,
-          CAST(close AS DOUBLE) as close,
-          CAST(volume AS BIGINT) as volume
-        FROM read_json_auto('${tempJsonPath.replace(/'/g, "''")}')
-        ORDER BY timestamp ASC
-      ) TO '${outputPath.replace(/'/g, "''")}' (FORMAT PARQUET, COMPRESSION ZSTD)
-    `;
-
-    conn.run(sql, (err: Error | null) => {
-      // Clean up temp file
-      try { fs.unlinkSync(tempJsonPath); } catch(e) {}
-
-      if (err) {
-        console.error('[duckdb] Parquet export error:', err);
-        reject(err);
-      } else {
-        console.log(`[duckdb] Parquet file created: ${outputPath} (${data.length} rows)`);
-        resolve(outputPath);
-      }
-    });
-  }));
+// Legacy function - OHLCV export removed (data lives in QuestDB now)
+export async function exportPostgresToParquet(_symbol: string, _db: any): Promise<string> {
+  throw new Error('Legacy OHLCV export removed. OHLCV data is in QuestDB.');
 }
 
 // Get DuckDB stats for database explorer

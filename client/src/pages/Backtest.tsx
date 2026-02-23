@@ -19,6 +19,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/types";
 import { apiRequest } from "@/lib/queryClient";
+import { fetchArray } from "@/lib/fetchArray";
 import { useDashboard, type TradeMarker } from "@/contexts/UnifiedDashboardContext";
 
 
@@ -118,22 +119,22 @@ export function BacktestPanel() {
   // Data queries
   const { data: models = [] } = useQuery<{ id: number; name: string; architecture: string; symbol: string }[]>({
     queryKey: [...QUERY_KEYS.mlModels],
-    queryFn: async () => { const res = await fetch("/api/ml/models"); return res.json(); },
+    queryFn: () => fetchArray("/api/ml/models"),
   });
 
   const { data: instruments = [] } = useQuery<{ id: number; symbol: string; name: string; assetType: string }[]>({
     queryKey: ["/api/instruments"],
-    queryFn: async () => { const res = await fetch("/api/instruments"); return res.json(); },
+    queryFn: () => fetchArray("/api/instruments"),
   });
 
   const { data: brokers = [] } = useQuery<BrokerConfig[]>({
     queryKey: ["/api/brokers"],
-    queryFn: async () => { const res = await fetch("/api/brokers"); return res.json(); },
+    queryFn: () => fetchArray<BrokerConfig>("/api/brokers"),
   });
 
   const { data: previousRuns = [] } = useQuery<any[]>({
     queryKey: ["/api/backtest/runs"],
-    queryFn: async () => { const res = await fetch("/api/backtest/runs?limit=20"); return res.json(); },
+    queryFn: () => fetchArray("/api/backtest/runs?limit=20"),
   });
 
   // Trades for the selected run

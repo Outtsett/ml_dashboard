@@ -28,32 +28,40 @@ The user is an **extreme visual learner** who cannot process abstract math or th
 
 Three databases with distinct responsibilities:
 
-| Database                        | Role                                                                          | Data Volume                                                                        | Connection                                                                |
-| ------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| **PostgreSQL 18 + TimescaleDB** | App layer: users, ML models, training, labels, 25 instruments                 | 21 Drizzle tables                                                                  | `postgresql://postgres:postgres@localhost:5432/ml_dashboard` (trust auth) |
-| **QuestDB 9.3.1**               | ALL time series data: charts, training data, trades, depth                    | 759.5M OHLCV + 12.9M trades + 408.8M MBP-10 (903 symbols)                         | HTTP `:9000`, ILP `:9009`, PG wire `:8812`                                |
-| **DuckDB 1.4**                  | Single-node processing only: parquet I/O, feature engineering, ETL transforms | 782M OHLCV + 14.5M trades + 408.8M MBP-10 (ingestion source, never serves queries) | Embedded, `data/market.duckdb`                                            |
+| Database           | Role                                                     | Persistent? | Connection                                 |
+| ------------------ | -------------------------------------------------------- | ----------- | ------------------------------------------ |
+| **SQLite**         | App metadata: users, ML models, training, instruments    | Yes         | Embedded (`data/ml_dashboard.db`)          |
+| **QuestDB 9.3.1** | Source of truth for ALL time-series data                 | Yes         | HTTP `:9000`, ILP `:9009`, PG wire `:8812` |
+| **DuckDB 1.4**     | Ephemeral analytics engine: feature gen, parquet I/O     | No          | In-memory (+ `postgres_scanner` to QuestDB)|
+
+Plus file-based stores:
+
+| Store                    | Role                                                  | Size  |
+| ------------------------ | ----------------------------------------------------- | ----- |
+| `data/market.duckdb`     | OHLCV + rollovers (offline indicator computation)     | 44 GB |
+| `data/indicators/{tf}/`  | Pre-computed 344 pandas-ta indicators per symbol      | 24 GB |
+| `data/features/{tf}/`    | Normalized indicator parquets for model consumption   | NEW   |
+| `data/models/`           | Trained model checkpoints (CNN, HDP-HMM)              | Var.  |
 
 ### When to Use Which
-- **PostgreSQL**: Relationships, CRUD, metadata, auth, model registry, trade logs, instruments
-- **QuestDB**: ALL time series queries — chart rendering (SAMPLE BY), training data export, trades, MBP-10 depth. No DuckDB fallback.
-- **DuckDB market.ts**: Ingestion source of truth. Data is synced FROM here TO QuestDB. Never serves API endpoints.
-- **DuckDB core.ts**: Single-node processing — in-memory parquet I/O, feature engineering, ETL transforms, temp tables
-- **Indicator parquets**: Pre-computed pandas-ta indicators in `data/indicators/` (344 columns per file)
-- **No Panama adjustment / continuous contracts**: Individual contracts only (bad for ML training)
+
+- **SQLite**: All CRUD, relationships, metadata — model registry, trade logs, backtest results, instruments, uploads, labels, ensembles, training sessions, news
+- **QuestDB**: ALL time-series queries — chart rendering (`SAMPLE BY`), training data export, trades, MBP-10 depth. Source of truth. No DuckDB fallback for serving.
+- **DuckDB in-memory**: Analytics compute engine — reads QuestDB via `postgres_scanner`, computes features via SQL window functions, reads/writes parquet files. No persistent tables.
+- **market.duckdb (file)**: Offline OHLCV + rollovers source for `compute-indicators.py`. Can also be bypassed with `--source questdb` flag.
+- **Indicator parquets**: Pre-computed pandas-ta indicators in `data/indicators/` (344 columns, 9 categories per symbol)
+- **Feature parquets**: Normalized indicators in `data/features/` (binary pass-through, bounded [0,1], rolling z-score clipped [-5,5])
 
 ### Database Paths (Local Installs)
 ```
-PostgreSQL: E:\source\databases\PostgreSQL\pgsql\
-  bin:      E:\source\databases\PostgreSQL\pgsql\bin\pg_ctl.exe
-  data:     E:\source\databases\PostgreSQL\pgsql\data\
+SQLite:     data/ml_dashboard.db (embedded, WAL mode)
 
 QuestDB:    E:\source\databases\questdb-9.3.1-rt-windows-x86-64\
   bin:      E:\source\databases\questdb-9.3.1-rt-windows-x86-64\bin\java.exe
 
 DuckDB:     In-process, no external server
-  market:   data/market.duckdb (file-backed, persistent)
-  analytics: in-memory (ephemeral)
+  analytics: in-memory (ephemeral, uses postgres_scanner to attach QuestDB)
+  market:   data/market.duckdb (file-backed, used by compute-indicators.py)
 ```
 
 ### QuestDB Tables (time series — charts + training)
@@ -63,42 +71,85 @@ DuckDB:     In-process, no external server
 | `trades` | 12.9M  | DAY       | symbol (SYMBOL INDEX), timestamp, rtype, publisher_id, instrument_id, action, side, depth, price, size, flags, ts_in_delta, sequence |
 | `mbp10`  | 408.8M | DAY       | symbol (SYMBOL INDEX), timestamp, ts_recv, metadata cols, 10-level bid/ask (px DOUBLE, sz LONG, ct INT) |
 
-### QuestDB Performance Features
-- **Materialized Views**: Pre-compute SAMPLE BY aggregations, auto-refresh on insert. Use for chart timeframes (5m, 1h, 4h, 1d).
-- **Parameterized Views (9.3)**: Reusable queries with `DECLARE OVERRIDABLE` params for symbol/timeframe.
-- **WINDOW JOIN (9.3)**: Time-based window aggregation between tables (trades + orderbook correlation).
-- **LATEST ON**: Instant "last value per symbol" via index lookup.
-- **ASOF JOIN + TOLERANCE**: Match trades to nearest quote within time bounds.
-- **JIT Compilation**: WHERE filters compiled to SIMD (AVX2). ~3.3 GB/s filtering rate.
-- **Detach/Attach Partitions**: Cold storage for old data.
+**Materialized Views** (7 timeframes, auto-refresh on insert):
+`ohlcv_5m`, `ohlcv_15m`, `ohlcv_30m`, `ohlcv_1h`, `ohlcv_4h`, `ohlcv_1d`, `ohlcv_1w`
 
-### DuckDB Market Tables (ingestion source — never serves queries)
-| Table            | Rows   | Schema                                                                                                         |
-| ---------------- | ------ | -------------------------------------------------------------------------------------------------------------- |
-| `ohlcv`          | 782M   | ts, symbol, open, high, low, close, volume                                                                     |
-| `trades`         | 14.5M  | ts, rtype, publisher_id, instrument_id, action, side, depth, price, size, flags, ts_in_delta, sequence, symbol |
-| `mbp10`          | 408.8M | ts_recv, ts_event, 10-level bid/ask (px, sz, ct), symbol                                                       |
-| `rollovers`      | 353    | root, rollover_date, from_contract, to_contract, from_close, to_close, price_gap, cumulative_adjustment        |
-| `ingested_files` | —      | file_path (PK), file_hash, ingested_at, row_count                                                              |
+**Data Ingestion**: ILP protocol (port 9009) via Node.js Sender. File dedup tracked in SQLite `ingested_files`.
+
+**QuestDB Performance Features**:
+- `SAMPLE BY` aggregation for chart timeframes
+- `LATEST ON` for instant last-value-per-symbol lookup
+- `ASOF JOIN + TOLERANCE` for trade-to-quote matching
+- JIT-compiled WHERE filters (SIMD/AVX2, ~3.3 GB/s)
+- Detach/Attach partitions for cold storage
+
+### DuckDB Roles
+
+**In-Memory Analytics** (`server/duckdb/analytics.ts`):
+- Connects to QuestDB via `postgres_scanner` extension (PG wire port 8812)
+- Computes ML features via SQL window functions (RSI, ATR, Bollinger, etc.)
+- Exports QuestDB data to parquet for Python trainers
+- No persistent tables — all ephemeral compute
+
+**File-Backed market.duckdb** (`data/market.duckdb`):
+- Contains: `ohlcv` (782M rows), `rollovers` (353 events), `ingested_files`
+- Used by `scripts/compute-indicators.py` for offline indicator computation
+- Can be bypassed: `compute-indicators.py --source questdb` reads from QuestDB directly
+- Single-writer lock on Windows — dev server or scripts, not both
+
+### SQLite Schema (22 tables in `shared/schema.ts`)
+
+**User & Auth**: `users`
+**ML Observatory**: `ml_models`, `feature_sets`, `model_outputs`, `coherence_snapshots`, `ensemble_configs`, `generated_labels`, `contrastive_pairs`, `market_regimes`
+**Trading & Backtesting**: `trades`, `backtest_runs`, `backtest_trades`, `broker_configs`, `instruments`, `feature_importance`
+**Training & Data**: `training_sessions`, `loss_history`, `uploads`, `ingested_files`, `news_articles`, `news_symbols`
 
 ### Standardized OHLCV Schema
 
 All market data uses: `ts` (TIMESTAMP), `symbol` (VARCHAR), `open`, `high`, `low`, `close` (DOUBLE), `volume` (BIGINT)
 
-- Column names are standardized on ingestion (`ts_event` -> `ts`, `instrument_id` -> `symbol` via JOIN)
-- Futures: Panama additive back-adjustment for rollovers (volume-based daily detection from DuckDB)
+- Column names standardized on ingestion (`ts_event` -> `ts`, `instrument_id` -> `symbol`)
+- Futures: Panama additive back-adjustment via `rollovers` table
 - Forex: `pipSize` varies (0.0001 standard, 0.01 for JPY pairs)
 
 ### Continuous Contracts
-Built from DuckDB directly via rollover schedule:
+Built via rollover schedule (in market.duckdb or QuestDB):
 1. `rollovers` table stores volume-based rollover dates + Panama price gaps
-2. `/api/continuous/:baseSymbol` joins OHLCV with rollover schedule, applies cumulative adjustment
-3. Aggregates to any timeframe via `time_bucket()` — supports 1m, 5m, 15m, 30m, 1H, 4H, 1D, 1W
+2. `/api/continuous/:baseSymbol` joins OHLCV with schedule, applies cumulative adjustment
+3. Aggregates to any timeframe via `time_bucket()`
 4. Client can view continuous (back-adjusted) or individual contracts
 
-### PostgreSQL Schema (21 tables in `shared/schema.ts`)
+### Data Pipeline
 
-users, ohlcv_data, uploads, feature_importance, contract_rollovers, training_sessions, loss_history, instruments, news_articles, news_symbols, ml_models, feature_sets, model_outputs, model_output_embeddings, ensemble_configs, market_regimes, regime_history, trades, coherence_snapshots, generated_labels, contrastive_pairs
+```
+QuestDB OHLCV (source of truth)
+    |
+    +--> market.duckdb (offline copy, or --source questdb)
+    |        |
+    |        v
+    |    compute-indicators.py (344 pandas-ta indicators)
+    |        |
+    |        v
+    |    data/indicators/{tf}/{symbol}/{category}.parquet
+    |        |
+    |        v
+    |    normalize-indicators.py (binary/bounded/z-score normalization)
+    |        |
+    |        v
+    |    data/features/{tf}/{symbol}/normalized.parquet
+    |        |
+    |        v
+    |    Models consume pre-computed features (fallback: on-the-fly)
+    |        |-- HDP-HMM: 12 core + optional normalized indicators
+    |        |-- CNN: 30 universal features or pre-computed parquet
+    |
+    +--> DuckDB in-memory (postgres_scanner)
+    |        |
+    |        v
+    |    On-the-fly feature SQL (fallback when parquets unavailable)
+    |
+    +--> Chart API (SAMPLE BY, materialized views)
+```
 
 ## Project Structure
 
@@ -119,8 +170,8 @@ server/
   routes.ts         Route registration (11 routers)
   routes/           upload, parquet, instruments, indicators, ml, news, databases, charts,
                     backtest, agent, regime, training
-  db.ts             Drizzle PostgreSQL connection
-  storage.ts        Drizzle queries for all PostgreSQL tables
+  db.ts             Drizzle SQLite connection (better-sqlite3, WAL mode)
+  storage.ts        Drizzle queries for all SQLite tables
   duckdb.ts         In-memory analytics DuckDB (legacy)
   questdb.ts        QuestDB client (OHLCV, trades, MBP-10 table creation + queries)
   duckdb/

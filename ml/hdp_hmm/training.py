@@ -27,6 +27,8 @@ import numpy as np
 import pandas as pd  # type: ignore[import-untyped]
 from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
 
+from pathlib import Path
+
 from .analysis import analyze_regimes
 from .config import DEFAULT_FEATURES, OUTPUT_DIR, WARMUP_BARS
 from .data import load_ohlcv_data
@@ -34,6 +36,9 @@ from .features import compute_features
 from .indicators import merge_features_with_indicators
 from .model import StickyHDPHMM
 from .validation import assess_oos_stability, walk_forward_validation
+
+PROJECT_DIR = Path(__file__).parent.parent.parent
+FEATURES_DIR = PROJECT_DIR / "data" / "features"
 
 
 def _compute_quality_score(
@@ -91,6 +96,7 @@ def train_hdp_hmm(
     data_file: Optional[str] = None,
     include_indicators: bool = False,
     indicator_groups: Optional[list[Any]] = None,
+    use_precomputed_features: bool = True,
 ) -> dict:
     """
     Full HDP-HMM training pipeline. No max_regimes -- the model discovers K.
@@ -147,20 +153,72 @@ def train_hdp_hmm(
         )
 
     # [2/9] Compute features
-    print(
-        f"\n[2/{total_steps}] Computing features "
-        f"({len(DEFAULT_FEATURES)} core dimensions)..."
-    )
-    sys.stdout.flush()
-    features_df = compute_features(df)
+    precomputed_loaded = False
+    features_path = FEATURES_DIR / timeframe / symbol / "normalized.parquet"
 
-    # Optionally merge pre-computed indicator features
-    if include_indicators:
-        print("  Merging normalized indicator features...")
-        sys.stdout.flush()
-        features_df = merge_features_with_indicators(
-            features_df, symbol, timeframe, indicator_groups
+    if use_precomputed_features and features_path.exists() and include_indicators:
+        print(
+            f"\n[2/{total_steps}] Loading pre-computed normalized features "
+            f"from {features_path}..."
         )
+        sys.stdout.flush()
+        try:
+            import duckdb as _ddb
+            _conn = _ddb.connect(":memory:")
+            _fpath = str(features_path).replace("\\", "/")
+            norm_df = _conn.execute(f"SELECT * FROM read_parquet('{_fpath}')").fetchdf()
+            _conn.close()
+
+            # Also compute core 12 features from OHLCV
+            core_features_df = compute_features(df)
+
+            # Convert normalized parquet timestamp to join with core features
+            if "timestamp" in norm_df.columns and "ts" in core_features_df.columns:
+                # Determine column selection based on indicator_groups
+                if indicator_groups:
+                    from .config import INDICATOR_GROUPS
+                    wanted_cols: set = set()
+                    for g in indicator_groups:
+                        if g in INDICATOR_GROUPS:
+                            wanted_cols.update(INDICATOR_GROUPS[g])
+                    # Select only columns that exist in the normalized parquet
+                    available = set(norm_df.columns) - {"timestamp"}
+                    selected_cols = list(wanted_cols & available)
+                else:
+                    selected_cols = [c for c in norm_df.columns if c != "timestamp"]
+
+                if selected_cols:
+                    # Convert epoch ms timestamps to pandas datetime for joining
+                    norm_df["ts"] = pd.to_datetime(norm_df["timestamp"], unit="ms")
+                    norm_subset = norm_df[["ts"] + selected_cols]
+
+                    features_df = pd.merge(core_features_df, norm_subset, on="ts", how="inner")
+                    precomputed_loaded = True
+                    print(
+                        f"  Loaded {len(selected_cols)} pre-computed indicator columns "
+                        f"({len(features_df):,} bars after join)"
+                    )
+                else:
+                    print("  No matching columns found in normalized parquet, falling back")
+        except Exception as e:
+            print(f"  Failed to load pre-computed features: {e}, falling back")
+        sys.stdout.flush()
+
+    if not precomputed_loaded:
+        print(
+            f"\n[2/{total_steps}] Computing features "
+            f"({len(DEFAULT_FEATURES)} core dimensions)..."
+        )
+        sys.stdout.flush()
+        features_df = compute_features(df)
+
+        # Optionally merge pre-computed indicator features (old path)
+        if include_indicators:
+            print("  Merging normalized indicator features...")
+            sys.stdout.flush()
+            features_df = merge_features_with_indicators(
+                features_df, symbol, timeframe, indicator_groups
+            )
 
     feature_cols = [c for c in features_df.columns if c != "ts"]
     print(f"  Feature matrix: {len(features_df):,} bars x {len(feature_cols)} features")

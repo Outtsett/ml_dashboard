@@ -11,7 +11,10 @@
  */
 
 import * as tf from '@tensorflow/tfjs-node';
+import * as fs from 'fs';
+import * as path from 'path';
 import { questdbMarketQuery as marketQuery } from '../lib/questdbMarketQuery';
+import { runQuery } from '../duckdb';
 
 // ============================================================================
 // CONFIGURATION
@@ -544,44 +547,99 @@ export async function loadUniversalTrainingData(
   console.log(`[UniversalPipeline] Features: ${numFeatures} (${featureNames.slice(0, 5).join(', ')}...)`);
   console.log(`[UniversalPipeline] Labels: ${cfg.labels.type}`);
 
-  // Build and execute feature SQL (queries QuestDB ohlcv directly)
-  const sql = buildFeatureSQL(symbol, cfg.timeframeSec, cfg.maxBars, cfg.features);
+  // Try loading pre-computed normalized features from parquet
+  const timeframeLabelMap: Record<number, string> = {
+    60: '1m', 300: '5m', 900: '15m', 1800: '30m',
+    3600: '1h', 14400: '4h', 86400: '1d', 604800: '1w',
+  };
+  const tfLabel = timeframeLabelMap[cfg.timeframeSec] ?? '';
+  const featuresParquet = path.join(process.cwd(), 'data', 'features', tfLabel, symbol, 'normalized.parquet');
 
-  console.log(`[UniversalPipeline] Querying ${symbol} from QuestDB ohlcv...`);
+  let rows: RawBar[] = [];
+  let normalizedFeatures: number[][] = [];
+  let usedPrecomputed = false;
 
-  let rows: RawBar[];
-  try {
-    rows = await marketQuery<RawBar>(sql);
-  } catch (err: any) {
-    console.error('[UniversalPipeline] SQL error:', err.message);
-    throw new Error(`Failed to load training data for ${symbol}: ${err.message}`);
+  if (tfLabel && fs.existsSync(featuresParquet)) {
+    console.log(`[UniversalPipeline] Loading pre-computed normalized features from ${featuresParquet}`);
+    try {
+      const safePath = featuresParquet.replace(/\\/g, '/');
+      // Load normalized parquet + OHLCV for label computation
+      const featureRows = await runQuery<Record<string, any>>(
+        `SELECT * FROM read_parquet('${safePath}') ORDER BY timestamp LIMIT ${cfg.maxBars}`
+      );
+
+      if (featureRows.length >= cfg.sequenceLength + 200) {
+        // Also need OHLCV data for label computation — load from QuestDB
+        const ohlcvSql = buildFeatureSQL(symbol, cfg.timeframeSec, cfg.maxBars, cfg.features);
+        rows = await marketQuery<RawBar>(ohlcvSql);
+
+        // Extract the feature columns that match our feature names from the parquet
+        // For precomputed features, we use ALL available columns as features
+        const parquetCols = Object.keys(featureRows[0]).filter(c => c !== 'timestamp');
+
+        // Map pre-computed columns to feature matrix
+        normalizedFeatures = featureRows.map(row => {
+          return parquetCols.map(name => {
+            const val = Number(row[name]);
+            return isFinite(val) ? val : 0;
+          });
+        });
+
+        // Override feature names with actual parquet columns
+        featureNames.length = 0;
+        featureNames.push(...parquetCols);
+        usedPrecomputed = true;
+
+        console.log(`[UniversalPipeline] Loaded ${featureRows.length} bars with ${parquetCols.length} pre-normalized features`);
+      } else {
+        console.log(`[UniversalPipeline] Pre-computed features insufficient (${featureRows.length} bars), falling back to SQL`);
+      }
+    } catch (err: any) {
+      console.log(`[UniversalPipeline] Failed to load pre-computed features: ${err.message}, falling back to SQL`);
+    }
   }
 
-  if (rows.length < cfg.sequenceLength + 200) {
-    throw new Error(
-      `Insufficient data for ${symbol}: got ${rows.length} bars, need at least ${cfg.sequenceLength + 200}. ` +
-      `Try a smaller timeframe or different symbol.`
-    );
-  }
+  if (!usedPrecomputed) {
+    // Fallback: Build and execute feature SQL (queries QuestDB ohlcv directly)
+    const sql = buildFeatureSQL(symbol, cfg.timeframeSec, cfg.maxBars, cfg.features);
 
-  console.log(`[UniversalPipeline] Loaded ${rows.length} bars for ${symbol}`);
+    console.log(`[UniversalPipeline] Querying ${symbol} from QuestDB ohlcv...`);
+
+    try {
+      rows = await marketQuery<RawBar>(sql);
+    } catch (err: any) {
+      console.error('[UniversalPipeline] SQL error:', err.message);
+      throw new Error(`Failed to load training data for ${symbol}: ${err.message}`);
+    }
+
+    if (rows.length < cfg.sequenceLength + 200) {
+      throw new Error(
+        `Insufficient data for ${symbol}: got ${rows.length} bars, need at least ${cfg.sequenceLength + 200}. ` +
+        `Try a smaller timeframe or different symbol.`
+      );
+    }
+
+    console.log(`[UniversalPipeline] Loaded ${rows.length} bars for ${symbol}`);
+
+    // Extract feature matrix (replace NaN/null with 0)
+    const rawFeatures: number[][] = rows.map(row => {
+      return featureNames.map(name => {
+        const val = Number(row[name]);
+        return isFinite(val) ? val : 0;
+      });
+    });
+
+    // Z-score normalize
+    ({ normalized: normalizedFeatures } = zScoreNormalize(rawFeatures, featureNames));
+  }
 
   // Extract date range
   const dateRange = {
-    start: String(rows[0].ts),
-    end: String(rows[rows.length - 1].ts),
+    start: String(rows![0]?.ts ?? ''),
+    end: String(rows![rows!.length - 1]?.ts ?? ''),
   };
 
-  // Extract feature matrix (replace NaN/null with 0)
-  const rawFeatures: number[][] = rows.map(row => {
-    return featureNames.map(name => {
-      const val = Number(row[name]);
-      return isFinite(val) ? val : 0;
-    });
-  });
-
-  // Z-score normalize
-  const { normalized: normalizedFeatures } = zScoreNormalize(rawFeatures, featureNames);
+  const actualNumFeatures = featureNames.length;
 
   // Compute labels
   const numClasses = cfg.labels.type === 'direction'
@@ -590,9 +648,9 @@ export async function loadUniversalTrainingData(
 
   let labelsResult;
   if (cfg.labels.type === 'direction') {
-    labelsResult = computeDirectionLabels(rows, cfg.labels as DirectionLabelConfig, cfg.features.atrPeriod);
+    labelsResult = computeDirectionLabels(rows!, cfg.labels as DirectionLabelConfig, cfg.features.atrPeriod);
   } else {
-    labelsResult = computeTripleBarrierLabels(rows, cfg.labels as TripleBarrierLabelConfig);
+    labelsResult = computeTripleBarrierLabels(rows!, cfg.labels as TripleBarrierLabelConfig);
   }
 
   console.log(`[UniversalPipeline] Label distribution:`, labelsResult.distribution);
@@ -633,7 +691,7 @@ export async function loadUniversalTrainingData(
   const valY = sequenceLabels.slice(splitIdx);
 
   console.log(`[UniversalPipeline] Created ${sequences.length} sequences (${trainX.length} train, ${valX.length} val)`);
-  console.log(`[UniversalPipeline] Shape: [${sequences.length}, ${cfg.sequenceLength}, ${numFeatures}]`);
+  console.log(`[UniversalPipeline] Shape: [${sequences.length}, ${cfg.sequenceLength}, ${actualNumFeatures}]`);
 
   // Create tensors
   const featuresTensor = tf.tensor3d([...trainX, ...valX]);
@@ -645,12 +703,12 @@ export async function loadUniversalTrainingData(
     trainSize: trainX.length,
     valSize: valX.length,
     featureNames,
-    numFeatures,
+    numFeatures: actualNumFeatures,
     numClasses,
     metadata: {
       symbol,
       timeframeSec: cfg.timeframeSec,
-      totalBars: rows.length,
+      totalBars: rows!.length,
       dateRange,
       labelDistribution: labelsResult.distribution,
     },

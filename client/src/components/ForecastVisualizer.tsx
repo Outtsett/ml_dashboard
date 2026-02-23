@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { useDashboard } from "@/contexts/UnifiedDashboardContext";
+import { fetchArray } from "@/lib/fetchArray";
 import {
   Brain, Play, Loader2, TrendingUp, TrendingDown,
   Target, AlertTriangle, CheckCircle2, Eye,
@@ -114,18 +115,12 @@ export default function ForecastVisualizer() {
   // ── Queries ─────────────────────────────────────────────────
   const { data: instruments = [] } = useQuery({
     queryKey: ["instruments"],
-    queryFn: async () => {
-      const res = await fetch("/api/instruments");
-      return res.json();
-    },
+    queryFn: () => fetchArray("/api/instruments"),
   });
 
   const { data: forecastList = [], isLoading: isListLoading } = useQuery<ForecastListItem[]>({
     queryKey: ["/api/ml/forecasts"],
-    queryFn: async () => {
-      const res = await fetch("/api/ml/forecasts");
-      return res.json();
-    },
+    queryFn: () => fetchArray<ForecastListItem>("/api/ml/forecasts"),
   });
 
   const { data: forecastData, isLoading: isDataLoading } = useQuery<ForecastData>({

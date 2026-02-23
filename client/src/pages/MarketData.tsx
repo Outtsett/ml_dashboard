@@ -358,7 +358,7 @@ export default function MarketData() {
 
   const { data: quickTrades = [] } = useQuery<Trade[]>({
     queryKey: ["/api/ml/trades"],
-    queryFn: async () => { const res = await fetch("/api/ml/trades?limit=50"); return res.json(); },
+    queryFn: async () => { const res = await fetch("/api/ml/trades?limit=50"); const data = await res.json(); return Array.isArray(data) ? data : []; },
   });
 
   const tradeMetrics = useMemo(() => {

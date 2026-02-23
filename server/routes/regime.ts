@@ -21,6 +21,7 @@ import { spawn, ChildProcess } from "child_process";
 import path from "path";
 import fs from "fs";
 import os from "os";
+import { exportTrainingData, cleanupDataFile } from "../training/dataExporter";
 
 const router = Router();
 
@@ -404,146 +405,133 @@ router.post("/regime/train", async (req: Request, res: Response) => {
     activeJobs.set(modelId, job);
     emitEvent(job, "status", { phase: "starting", message: `Training HDP-HMM for ${sym} @ ${timeframe}...` });
 
-    // Export OHLCV to temp parquet (Node holds DuckDB write lock)
-    const TIMEFRAME_SECONDS: Record<string, number> = {
-      "1m": 60, "5m": 300, "15m": 900, "30m": 1800,
-      "1h": 3600, "1H": 3600, "4h": 14400, "4H": 14400,
-      "1d": 86400, "1D": 86400, "1w": 604800, "1W": 604800,
-    };
-    const tfSeconds = TIMEFRAME_SECONDS[timeframe] || 60;
-    const isRootSymbol = sym.length <= 3 && /^[A-Z]+$/.test(sym);
+    // Return immediately — client connects via GET /stream/:modelId for progress
+    res.status(202).json({ modelId, message: `Training started for ${modelId}` });
 
-    let timeFilter = "";
-    if (start) timeFilter += ` AND o.ts >= '${start}'`;
-    if (end) timeFilter += ` AND o.ts <= '${end}'`;
+    // Export + spawn in background (errors communicated via SSE events)
+    (async () => {
+      emitEvent(job, "status", { phase: "exporting", message: `Exporting ${sym} @ ${timeframe} OHLCV data...` });
 
-    // For root symbols, match all contracts via regex; for specific symbols, exact match
-    const symbolFilter = isRootSymbol
-      ? `symbol ~ '^${sym}[FGHJKMNQUVXZ][0-9]{1,2}$'`
-      : `symbol = '${sym}'`;
-
-    let selectSql: string;
-    {
-      let where = `WHERE ${symbolFilter}`;
-      if (start) where += ` AND ts >= '${start}'`;
-      if (end) where += ` AND ts <= '${end}'`;
-      if (tfSeconds <= 60) {
-        selectSql = `SELECT ts, open, high, low, close, CAST(volume AS DOUBLE) as volume FROM ohlcv ${where} ORDER BY ts ASC`;
-      } else {
-        const interval = `${tfSeconds} seconds`;
-        selectSql = `SELECT time_bucket(INTERVAL '${interval}', ts) as ts, FIRST(open) as open, MAX(high) as high, MIN(low) as low, LAST(close) as close, CAST(SUM(volume) AS DOUBLE) as volume FROM ohlcv ${where} GROUP BY time_bucket(INTERVAL '${interval}', ts) ORDER BY 1 ASC`;
+      let dataFile: string;
+      try {
+        const dateRange = start || end ? { start: start || '', end: end || '' } : undefined;
+        const result = await exportTrainingData(sym, timeframe, dateRange);
+        dataFile = result.dataFile;
+        emitEvent(job, "status", { phase: "exported", message: `Exported ${result.totalBars} bars (${result.dateRange.start} → ${result.dateRange.end})` });
+      } catch (exportErr: any) {
+        emitEvent(job, "error", { message: `Failed to export data: ${exportErr.message}` });
+        job.finished = true;
+        job.exitCode = -1;
+        setTimeout(() => activeJobs.delete(modelId), 60000);
+        return;
       }
-    }
 
-    const tmpDir = path.join(os.tmpdir(), "ml_dashboard_regime");
-    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-    const dataFile = path.join(tmpDir, `${modelId}_${Date.now()}.parquet`).replace(/\\/g, "/");
+      const args = [
+        TRAIN_SCRIPT,
+        "--symbol", sym,
+        "--timeframe", timeframe,
+        "--data-file", dataFile,
+        "--gibbs-iter", String(gibbsIter),
+        "--burn-in", String(burnIn),
+        "--test-split", String(testSplit),
+        "--wf-windows", String(wfWindows),
+        "--alpha", String(alpha),
+        "--gamma", String(gamma),
+        "--kappa", String(kappa),
+        "--json",
+      ];
 
-    emitEvent(job, "status", { phase: "exporting", message: `Exporting ${sym} @ ${timeframe} OHLCV data...` });
+      if (includeIndicators) {
+        args.push("--include-indicators");
+        if (indicatorGroups && typeof indicatorGroups === "string") {
+          args.push("--indicator-groups", indicatorGroups);
+        }
+      }
 
-    try {
-      const { questdbMarketQuery: marketQuery } = await import("../lib/questdbMarketQuery");
-      await marketQuery(`COPY (${selectSql}) TO '${dataFile}' (FORMAT PARQUET)`);
-    } catch (exportErr: any) {
-      emitEvent(job, "error", { message: `Failed to export data: ${exportErr.message}` });
+      console.log(`[regime] Spawning: ${PYTHON_EXE} ${args.join(" ")}`);
+
+      const child = spawn(PYTHON_EXE, args, {
+        cwd: process.cwd(),
+        env: { ...process.env, PYTHONUNBUFFERED: "1" },
+      });
+      job.child = child;
+
+      child.stdout.on("data", (chunk) => {
+        const text = chunk.toString();
+        job.stdout += text;
+        const lines = text.split("\n").filter((l: string) => l.trim());
+        for (const line of lines) {
+          parseLine(job, line.trim());
+        }
+      });
+
+      child.stderr.on("data", (chunk) => {
+        const text = chunk.toString();
+        job.stderr += text;
+        const trimmed = text.trim();
+        if (trimmed && !trimmed.includes("ConvergenceWarning") && !trimmed.includes("DeprecationWarning")
+            && !trimmed.includes("UserWarning") && !trimmed.includes("FutureWarning")
+            && !trimmed.includes("loky") && !trimmed.includes("resource_tracker")) {
+          emitEvent(job, "warning", { message: trimmed.slice(0, 500) });
+        }
+      });
+
+      child.on("error", (err) => {
+        console.error(`[regime] Spawn error for ${modelId}:`, err.message);
+        emitEvent(job, "error", { message: `Failed to start Python: ${err.message}` });
+        job.finished = true;
+        job.exitCode = -1;
+        try {
+          const localPath = dataFile.replace(/\//g, path.sep);
+          if (fs.existsSync(localPath)) fs.unlinkSync(localPath);
+        } catch { /* ignore */ }
+        setTimeout(() => activeJobs.delete(modelId), 60000);
+      });
+
+      child.on("close", (code) => {
+        job.finished = true;
+        job.exitCode = code;
+
+        try {
+          const localPath = dataFile.replace(/\//g, path.sep);
+          if (fs.existsSync(localPath)) fs.unlinkSync(localPath);
+        } catch { /* ignore */ }
+
+        if (code !== 0) {
+          emitEvent(job, "error", {
+            message: `Training failed (exit code ${code})`,
+            details: (job.stderr || job.stdout).slice(-2000),
+          });
+        } else {
+          let diagnostics = null;
+          const jsonMarker = "__JSON_OUTPUT__";
+          const jsonIdx = job.stdout.indexOf(jsonMarker);
+          if (jsonIdx >= 0) {
+            try { diagnostics = JSON.parse(job.stdout.slice(jsonIdx + jsonMarker.length).trim()); } catch { /* */ }
+          }
+          if (!diagnostics) {
+            const diagPath = path.join(MODELS_DIR, modelId, "diagnostics.json");
+            if (fs.existsSync(diagPath)) {
+              try { diagnostics = JSON.parse(fs.readFileSync(diagPath, "utf-8")); } catch { /* */ }
+            }
+          }
+          emitEvent(job, "done", {
+            modelId,
+            diagnostics,
+            elapsed: ((Date.now() - job.startedAt) / 1000).toFixed(1),
+          });
+        }
+
+        // Keep job around for 2 min so late-connecting clients can see results
+        setTimeout(() => activeJobs.delete(modelId), 120000);
+      });
+    })().catch(err => {
+      console.error(`[regime] Background training error for ${modelId}:`, err);
+      emitEvent(job, "error", { message: err.message });
       job.finished = true;
       job.exitCode = -1;
       setTimeout(() => activeJobs.delete(modelId), 60000);
-      return res.status(500).json({ error: `Data export failed: ${exportErr.message}` });
-    }
-
-    emitEvent(job, "status", { phase: "exported", message: `Data exported. Launching Python training process...` });
-
-    const args = [
-      TRAIN_SCRIPT,
-      "--symbol", sym,
-      "--timeframe", timeframe,
-      "--data-file", dataFile,
-      "--gibbs-iter", String(gibbsIter),
-      "--burn-in", String(burnIn),
-      "--test-split", String(testSplit),
-      "--wf-windows", String(wfWindows),
-      "--alpha", String(alpha),
-      "--gamma", String(gamma),
-      "--kappa", String(kappa),
-      "--json",
-    ];
-
-    if (includeIndicators) {
-      args.push("--include-indicators");
-      if (indicatorGroups && typeof indicatorGroups === "string") {
-        args.push("--indicator-groups", indicatorGroups);
-      }
-    }
-
-    console.log(`[regime] Spawning: ${PYTHON_EXE} ${args.join(" ")}`);
-
-    const child = spawn(PYTHON_EXE, args, {
-      cwd: process.cwd(),
-      env: { ...process.env, PYTHONUNBUFFERED: "1" },
     });
-    job.child = child;
-
-    child.stdout.on("data", (chunk) => {
-      const text = chunk.toString();
-      job.stdout += text;
-      const lines = text.split("\n").filter((l: string) => l.trim());
-      for (const line of lines) {
-        parseLine(job, line.trim());
-      }
-    });
-
-    child.stderr.on("data", (chunk) => {
-      const text = chunk.toString();
-      job.stderr += text;
-      const trimmed = text.trim();
-      if (trimmed && !trimmed.includes("ConvergenceWarning") && !trimmed.includes("DeprecationWarning")
-          && !trimmed.includes("UserWarning") && !trimmed.includes("FutureWarning")
-          && !trimmed.includes("loky") && !trimmed.includes("resource_tracker")) {
-        emitEvent(job, "warning", { message: trimmed.slice(0, 500) });
-      }
-    });
-
-    child.on("close", (code) => {
-      job.finished = true;
-      job.exitCode = code;
-
-      try {
-        const localPath = dataFile.replace(/\//g, path.sep);
-        if (fs.existsSync(localPath)) fs.unlinkSync(localPath);
-      } catch { /* ignore */ }
-
-      if (code !== 0) {
-        emitEvent(job, "error", {
-          message: `Training failed (exit code ${code})`,
-          details: (job.stderr || job.stdout).slice(-2000),
-        });
-      } else {
-        let diagnostics = null;
-        const jsonMarker = "__JSON_OUTPUT__";
-        const jsonIdx = job.stdout.indexOf(jsonMarker);
-        if (jsonIdx >= 0) {
-          try { diagnostics = JSON.parse(job.stdout.slice(jsonIdx + jsonMarker.length).trim()); } catch { /* */ }
-        }
-        if (!diagnostics) {
-          const diagPath = path.join(MODELS_DIR, modelId, "diagnostics.json");
-          if (fs.existsSync(diagPath)) {
-            try { diagnostics = JSON.parse(fs.readFileSync(diagPath, "utf-8")); } catch { /* */ }
-          }
-        }
-        emitEvent(job, "done", {
-          modelId,
-          diagnostics,
-          elapsed: ((Date.now() - job.startedAt) / 1000).toFixed(1),
-        });
-      }
-
-      // Keep job around for 2 min so late-connecting clients can see results
-      setTimeout(() => activeJobs.delete(modelId), 120000);
-    });
-
-    // Return immediately — client connects via GET /stream/:modelId
-    res.status(202).json({ modelId, message: `Training started for ${modelId}` });
   } catch (error: any) {
     console.error("[regime] Error:", error);
     res.status(500).json({ error: error.message });
@@ -609,39 +597,21 @@ router.post("/regime/train/universal", async (req: Request, res: Response) => {
       message: `Universal training: ${symbolList.length} symbols @ ${timeframe}`,
     });
 
-    // Export data for each symbol to temp parquets (DuckDB file lock prevents Python read_only access)
+    // Export data for each symbol to temp parquets
     const tmpDir = path.join(os.tmpdir(), "ml_dashboard_regime", `universal_${Date.now()}`);
     if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-
-    const { questdbMarketQuery: marketQuery } = await import("../lib/questdbMarketQuery");
-    const TIMEFRAME_MAP: Record<string, number> = { "1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "1H": 3600, "4h": 14400, "4H": 14400, "1d": 86400, "1D": 86400, "1w": 604800, "1W": 604800 };
-    const tfSeconds = TIMEFRAME_MAP[timeframe] || 1800;
 
     const exportedSymbols: string[] = [];
     for (const sym of symbolList) {
       try {
         emitEvent(job, "status", { phase: "exporting", message: `Exporting ${sym} data...` });
-        const isRoot = sym.length <= 3 && /^[A-Z]+$/.test(sym);
-        const symFilter = isRoot
-          ? `symbol ~ '^${sym}[FGHJKMNQUVXZ][0-9]{1,2}$'`
-          : `symbol = '${sym}'`;
-        let selectSql: string;
-
-        {
-          let where = `WHERE ${symFilter}`;
-          if (start) where += ` AND ts >= '${start}'`;
-          if (end) where += ` AND ts <= '${end}'`;
-          if (tfSeconds <= 60) {
-            selectSql = `SELECT ts, open, high, low, close, CAST(volume AS DOUBLE) as volume FROM ohlcv ${where} ORDER BY ts ASC`;
-          } else {
-            const interval = `${tfSeconds} seconds`;
-            selectSql = `SELECT time_bucket(INTERVAL '${interval}', ts) as ts, FIRST(open) as open, MAX(high) as high, MIN(low) as low, LAST(close) as close, CAST(SUM(volume) AS DOUBLE) as volume FROM ohlcv ${where} GROUP BY time_bucket(INTERVAL '${interval}', ts) ORDER BY 1 ASC`;
-          }
-        }
-
-        const dataFile = path.join(tmpDir, `${sym}.parquet`).replace(/\\/g, "/");
-        await marketQuery(`COPY (${selectSql}) TO '${dataFile}' (FORMAT PARQUET)`);
+        const dateRange = start || end ? { start: start || '', end: end || '' } : undefined;
+        const result = await exportTrainingData(sym, timeframe, dateRange);
+        // Move exported file to the universal tmp dir with consistent naming
+        const targetFile = path.join(tmpDir, `${sym}.parquet`).replace(/\\/g, "/");
+        fs.renameSync(result.dataFile.replace(/\//g, path.sep), targetFile.replace(/\//g, path.sep));
         exportedSymbols.push(sym);
+        emitEvent(job, "status", { phase: "exported", message: `${sym}: ${result.totalBars} bars exported` });
       } catch (err: any) {
         console.error(`[regime] Failed to export ${sym}: ${err.message}`);
         emitEvent(job, "warning", { message: `Failed to export ${sym}: ${err.message}` });

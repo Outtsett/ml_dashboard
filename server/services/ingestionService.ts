@@ -4,7 +4,7 @@
  * Replaces the old DuckDB-based ingestion pipeline (server/lib/ingestion/).
  * Reads Parquet/CSV files using DuckDB as an ephemeral compute engine,
  * normalizes data in TypeScript memory, and writes to QuestDB via ILP.
- * Tracks ingested files in PostgreSQL (via Drizzle ORM) for dedup.
+ * Tracks ingested files in SQLite (via Drizzle ORM) for dedup.
  */
 import * as fs from "fs";
 import * as path from "path";
@@ -145,7 +145,7 @@ export async function computeFileHash(filePath: string): Promise<string> {
 }
 
 /**
- * Check if a file has already been ingested (PostgreSQL dedup).
+ * Check if a file has already been ingested (SQLite dedup).
  */
 export async function checkFileIngested(
   filePath: string,
@@ -168,7 +168,7 @@ export async function checkFileIngested(
 }
 
 /**
- * Record a successful ingestion in PostgreSQL.
+ * Record a successful ingestion in SQLite.
  */
 export async function recordIngestion(
   filePath: string,
@@ -281,7 +281,7 @@ export async function ingestOHLCVFile(
 
     await sender.flush();
 
-    // Step 4: Record in PostgreSQL
+    // Step 4: Record in SQLite
     const fileSize = fs.statSync(absPath).size;
     const symbol =
       options?.symbolOverride ||

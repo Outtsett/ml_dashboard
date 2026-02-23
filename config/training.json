@@ -8,7 +8,8 @@
   "limits": {
     "maxConcurrentJobs": 1,
     "maxBarsDefault": 100000,
-    "jobRetentionSec": 120
+    "maxTrainingDurationSec": 7200,
+    "jobRetentionSec": 3600
   },
   "timeframes": {
     "1m": 60,

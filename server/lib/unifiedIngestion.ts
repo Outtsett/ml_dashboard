@@ -1,13 +1,13 @@
 /**
  * Unified Ingestion Service
- * Coordinates writes across PostgreSQL, QuestDB, and DuckDB
+ * Coordinates writes across QuestDB and DuckDB
  * Ensures data consistency and provides a single entry point for market data ingestion
  */
 
 import { validateSymbol } from "@shared/schema";
 import { db } from "../db";
-import { ohlcvData, uploads, instruments } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { uploads, instruments } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 // Types for OHLCV data
 export interface OHLCVRecord {
@@ -25,7 +25,6 @@ export interface IngestionResult {
   recordsProcessed: number;
   errors: string[];
   targets: {
-    postgresql: { success: boolean; count: number; error?: string };
     questdb: { success: boolean; count: number; error?: string };
     duckdb: { success: boolean; count: number; error?: string };
   };
@@ -33,7 +32,6 @@ export interface IngestionResult {
 
 export interface IngestionOptions {
   batchSize?: number;
-  skipPostgres?: boolean;
   skipQuestDB?: boolean;
   skipDuckDB?: boolean;
   validateData?: boolean;
@@ -42,7 +40,6 @@ export interface IngestionOptions {
 
 const DEFAULT_OPTIONS: IngestionOptions = {
   batchSize: 10000,
-  skipPostgres: true, // PostgreSQL OHLCV disabled by default (use QuestDB for time-series)
   skipQuestDB: false,
   skipDuckDB: false,
   validateData: true,
@@ -111,44 +108,6 @@ function deduplicateByTimestamp(records: OHLCVRecord[]): OHLCVRecord[] {
   }
   
   return Array.from(seen.values()).sort((a, b) => a.timestamp - b.timestamp);
-}
-
-/**
- * Ingest OHLCV data to PostgreSQL
- */
-async function ingestToPostgres(
-  records: OHLCVRecord[],
-  batchSize: number
-): Promise<{ success: boolean; count: number; error?: string }> {
-  try {
-    let totalInserted = 0;
-    
-    for (let i = 0; i < records.length; i += batchSize) {
-      const batch = records.slice(i, i + batchSize);
-      
-      await db.insert(ohlcvData).values(
-        batch.map(r => ({
-          symbol: r.symbol,
-          timestamp: r.timestamp,
-          open: r.open,
-          high: r.high,
-          low: r.low,
-          close: r.close,
-          volume: r.volume,
-        }))
-      );
-      
-      totalInserted += batch.length;
-    }
-    
-    return { success: true, count: totalInserted };
-  } catch (error) {
-    return { 
-      success: false, 
-      count: 0, 
-      error: error instanceof Error ? error.message : 'Unknown PostgreSQL error' 
-    };
-  }
 }
 
 /**
@@ -243,7 +202,6 @@ export async function ingestOHLCV(
       recordsProcessed: 0,
       errors: ['No records provided'],
       targets: {
-        postgresql: { success: false, count: 0, error: 'No records' },
         questdb: { success: false, count: 0, error: 'No records' },
         duckdb: { success: false, count: 0, error: 'No records' },
       },
@@ -283,25 +241,14 @@ export async function ingestOHLCV(
     recordsProcessed: processedRecords.length,
     errors,
     targets: {
-      postgresql: { success: true, count: 0 },
       questdb: { success: true, count: 0 },
       duckdb: { success: true, count: 0 },
     },
   };
-  
+
   // Ingest to each target in parallel where possible
   const promises: Promise<void>[] = [];
-  
-  // PostgreSQL
-  if (!opts.skipPostgres) {
-    promises.push(
-      ingestToPostgres(processedRecords, opts.batchSize!).then(r => {
-        result.targets.postgresql = r;
-        if (!r.success) result.success = false;
-      })
-    );
-  }
-  
+
   // QuestDB
   if (!opts.skipQuestDB) {
     promises.push(

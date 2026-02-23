@@ -1,44 +1,21 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import pg from "pg";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import Database from "better-sqlite3";
 import * as schema from "@shared/schema";
+import path from "path";
+import fs from "fs";
 
-const { Pool } = pg;
-
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+// Ensure data directory exists
+const dataDir = path.join(process.cwd(), "data");
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
 }
 
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  connectionTimeoutMillis: 10_000,  // fail fast instead of hanging forever
-  idleTimeoutMillis: 30_000,
-  max: 10,
-});
+const dbPath = path.join(dataDir, "ml_dashboard.db");
+const sqlite = new Database(dbPath);
 
-// Prevent unhandled 'error' on idle clients from crashing the process
-pool.on("error", (err) => {
-  console.error("[pg] Idle client error:", err.message);
-});
+// Performance pragmas
+sqlite.pragma("journal_mode = WAL");
+sqlite.pragma("foreign_keys = ON");
+sqlite.pragma("busy_timeout = 5000");
 
-export const db = drizzle(pool, { schema });
-
-/**
- * Test PostgreSQL connectivity with a timeout.
- * Returns true if the database is reachable, false otherwise.
- */
-export async function testPostgresConnection(timeoutMs = 5000): Promise<boolean> {
-  try {
-    const client = await pool.connect();
-    try {
-      await client.query('SELECT 1');
-      return true;
-    } finally {
-      client.release();
-    }
-  } catch (err: any) {
-    console.warn('[pg] Connection test failed:', err.message);
-    return false;
-  }
-}
+export const db = drizzle(sqlite, { schema });

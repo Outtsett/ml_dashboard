@@ -72,14 +72,14 @@ router.get("/parquet/:symbol/aggregated", async (req: Request, res: Response) =>
   }
 });
 
-// Export PostgreSQL data to Parquet file for fast DuckDB queries
+// Legacy export endpoint (OHLCV data now lives in QuestDB)
 router.post("/parquet/:symbol/export", async (req: Request, res: Response) => {
   try {
     const symbol = getString(req.params.symbol).toUpperCase();
     const { exportPostgresToParquet } = await import("../duckdb");
     const { db } = await import("../db");
 
-    console.log(`[routes] Exporting ${symbol} from PostgreSQL to Parquet...`);
+    console.log(`[routes] Exporting ${symbol} to Parquet...`);
     const outputPath = await exportPostgresToParquet(symbol, db);
 
     res.json({

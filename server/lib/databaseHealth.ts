@@ -1,4 +1,5 @@
-import { pool } from '../db';
+import { db } from '../db';
+import { sql } from 'drizzle-orm';
 import { getCircuitBreaker, CircuitOpenError, getAllCircuitBreakerStats } from './circuitBreaker';
 import { pipelineMetrics } from './metrics';
 
@@ -13,6 +14,7 @@ export interface DatabaseHealthStatus {
 
 export interface HealthCheckResult {
   overall: boolean;
+  degraded?: boolean;
   databases: DatabaseHealthStatus[];
   circuitBreakers: ReturnType<typeof getAllCircuitBreakerStats>;
 }
@@ -20,53 +22,36 @@ export interface HealthCheckResult {
 const healthCache: Map<string, DatabaseHealthStatus> = new Map();
 const HEALTH_CHECK_INTERVAL = 30000;
 
-export async function checkPostgresHealth(): Promise<DatabaseHealthStatus> {
-  const breaker = getCircuitBreaker('postgres', {
-    failureThreshold: 3,
-    timeout: 5000,
-    resetTimeout: 30000
-  });
-  
+export async function checkSqliteHealth(): Promise<DatabaseHealthStatus> {
   const startTime = Date.now();
-  
+
   try {
-    await breaker.execute(async () => {
-      const client = await pool.connect();
-      try {
-        await client.query('SELECT 1');
-      } finally {
-        client.release();
-      }
-    });
-    
+    db.get(sql`SELECT 1`);
+
     const latencyMs = Date.now() - startTime;
     const status: DatabaseHealthStatus = {
-      database: 'postgres',
+      database: 'sqlite',
       healthy: true,
       latencyMs,
       lastCheck: new Date(),
-      circuitState: breaker.getState()
     };
-    
-    pipelineMetrics.recordDatabaseHealth('postgres', true, latencyMs);
-    healthCache.set('postgres', status);
+
+    pipelineMetrics.recordDatabaseHealth('sqlite', true, latencyMs);
+    healthCache.set('sqlite', status);
     return status;
-    
+
   } catch (error: any) {
     const latencyMs = Date.now() - startTime;
-    const isCircuitOpen = error instanceof CircuitOpenError;
-    
     const status: DatabaseHealthStatus = {
-      database: 'postgres',
+      database: 'sqlite',
       healthy: false,
       latencyMs,
       lastCheck: new Date(),
-      error: isCircuitOpen ? 'Circuit breaker open' : error.message,
-      circuitState: breaker.getState()
+      error: error.message,
     };
-    
-    pipelineMetrics.recordDatabaseHealth('postgres', false, latencyMs);
-    healthCache.set('postgres', status);
+
+    pipelineMetrics.recordDatabaseHealth('sqlite', false, latencyMs);
+    healthCache.set('sqlite', status);
     return status;
   }
 }
@@ -77,9 +62,9 @@ export async function checkQuestDBHealth(): Promise<DatabaseHealthStatus> {
     timeout: 3000,
     resetTimeout: 60000
   });
-  
+
   const startTime = Date.now();
-  
+
   try {
     await breaker.execute(async () => {
       const { checkQuestDBHealth: questCheck } = await import('../questdb');
@@ -88,7 +73,7 @@ export async function checkQuestDBHealth(): Promise<DatabaseHealthStatus> {
         throw new Error('QuestDB health check failed');
       }
     });
-    
+
     const latencyMs = Date.now() - startTime;
     const status: DatabaseHealthStatus = {
       database: 'questdb',
@@ -97,15 +82,15 @@ export async function checkQuestDBHealth(): Promise<DatabaseHealthStatus> {
       lastCheck: new Date(),
       circuitState: breaker.getState()
     };
-    
+
     pipelineMetrics.recordDatabaseHealth('questdb', true, latencyMs);
     healthCache.set('questdb', status);
     return status;
-    
+
   } catch (error: any) {
     const latencyMs = Date.now() - startTime;
     const isCircuitOpen = error instanceof CircuitOpenError;
-    
+
     const status: DatabaseHealthStatus = {
       database: 'questdb',
       healthy: false,
@@ -114,7 +99,7 @@ export async function checkQuestDBHealth(): Promise<DatabaseHealthStatus> {
       error: isCircuitOpen ? 'Circuit breaker open' : error.message,
       circuitState: breaker.getState()
     };
-    
+
     pipelineMetrics.recordDatabaseHealth('questdb', false, latencyMs);
     healthCache.set('questdb', status);
     return status;
@@ -123,11 +108,11 @@ export async function checkQuestDBHealth(): Promise<DatabaseHealthStatus> {
 
 export async function checkDuckDBHealth(): Promise<DatabaseHealthStatus> {
   const startTime = Date.now();
-  
+
   try {
     const { runQuery } = await import('../duckdb');
     await runQuery('SELECT 1');
-    
+
     const latencyMs = Date.now() - startTime;
     const status: DatabaseHealthStatus = {
       database: 'duckdb',
@@ -135,11 +120,11 @@ export async function checkDuckDBHealth(): Promise<DatabaseHealthStatus> {
       latencyMs,
       lastCheck: new Date()
     };
-    
+
     pipelineMetrics.recordDatabaseHealth('duckdb', true, latencyMs);
     healthCache.set('duckdb', status);
     return status;
-    
+
   } catch (error: any) {
     const latencyMs = Date.now() - startTime;
     const status: DatabaseHealthStatus = {
@@ -149,7 +134,7 @@ export async function checkDuckDBHealth(): Promise<DatabaseHealthStatus> {
       lastCheck: new Date(),
       error: error.message
     };
-    
+
     pipelineMetrics.recordDatabaseHealth('duckdb', false, latencyMs);
     healthCache.set('duckdb', status);
     return status;
@@ -157,17 +142,19 @@ export async function checkDuckDBHealth(): Promise<DatabaseHealthStatus> {
 }
 
 export async function runHealthChecks(): Promise<HealthCheckResult> {
-  const [postgres, questdb, duckdb] = await Promise.all([
-    checkPostgresHealth(),
+  const [sqlite, questdb, duckdb] = await Promise.all([
+    checkSqliteHealth(),
     checkQuestDBHealth(),
     checkDuckDBHealth()
   ]);
-  
-  const databases = [postgres, questdb, duckdb];
-  const overall = databases.some(db => db.healthy && db.database === 'postgres');
-  
+
+  const databases = [sqlite, questdb, duckdb];
+  const overall = sqlite.healthy && questdb.healthy;
+  const degraded = overall && !duckdb.healthy;
+
   return {
     overall,
+    degraded,
     databases,
     circuitBreakers: getAllCircuitBreakerStats()
   };
@@ -184,7 +171,7 @@ export async function executeWithFallback<T>(
   fallbackName: string = 'fallback'
 ): Promise<{ result: T; source: string }> {
   const primaryBreaker = getCircuitBreaker(primaryName);
-  
+
   if (!primaryBreaker.isOpen()) {
     try {
       const result = await primaryBreaker.execute(primaryFn);
@@ -193,7 +180,7 @@ export async function executeWithFallback<T>(
       console.warn(`[DatabaseHealth] ${primaryName} failed, trying ${fallbackName}`);
     }
   }
-  
+
   const result = await fallbackFn();
   return { result, source: fallbackName };
 }
@@ -202,13 +189,13 @@ let healthCheckInterval: NodeJS.Timeout | null = null;
 
 export function startHealthMonitoring(): void {
   if (healthCheckInterval) return;
-  
+
   runHealthChecks().catch(console.error);
-  
+
   healthCheckInterval = setInterval(() => {
     runHealthChecks().catch(console.error);
   }, HEALTH_CHECK_INTERVAL);
-  
+
   console.log('[DatabaseHealth] Health monitoring started');
 }
 

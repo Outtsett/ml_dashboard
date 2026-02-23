@@ -52,6 +52,7 @@ export interface TrainingConfig {
   limits: {
     maxConcurrentJobs: number;
     maxBarsDefault: number;
+    maxTrainingDurationSec?: number;
     jobRetentionSec: number;
   };
   timeframes: Record<string, number>;

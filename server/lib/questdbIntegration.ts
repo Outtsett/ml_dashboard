@@ -1,4 +1,3 @@
-import { InsertOhlcv } from "@shared/schema";
 import { insertOHLCVBatch, OHLCVRow, getOHLCVSampleBy, checkQuestDBHealth, createOHLCVTable } from "../questdb";
 import { getCircuitBreaker } from "./circuitBreaker";
 import { pipelineMetrics } from "./metrics";
@@ -7,13 +6,11 @@ const questdbCircuit = getCircuitBreaker('questdb');
 
 export interface QuestDBIntegrationConfig {
   enableQuestDB: boolean;
-  syncToPg: boolean;
   batchSize: number;
 }
 
 const defaultConfig: QuestDBIntegrationConfig = {
   enableQuestDB: true,
-  syncToPg: false,
   batchSize: 5000
 };
 
@@ -28,7 +25,7 @@ export function getQuestDBConfig(): QuestDBIntegrationConfig {
 }
 
 export async function insertOHLCVToQuestDB(
-  data: InsertOhlcv[],
+  data: { symbol: string; timestamp: number | Date; open: number; high: number; low: number; close: number; volume: number }[],
   symbol: string
 ): Promise<{ success: boolean; insertedToQuestDB: number; error?: string }> {
   if (!config.enableQuestDB || data.length === 0) {

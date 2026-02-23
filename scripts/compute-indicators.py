@@ -69,6 +69,10 @@ TIMEFRAMES = {
 
 FUTURES_ROOTS = ["ES", "NQ", "YM", "RTY", "MNQ", "MES", "MYM", "M2K"]
 
+# QuestDB connection settings (PG wire protocol)
+QUESTDB_HOST = os.environ.get("QUESTDB_HOST", "localhost")
+QUESTDB_PG_PORT = int(os.environ.get("QUESTDB_PG_PORT", "8812"))
+
 # Parquet output settings
 PARQUET_COMPRESSION = "zstd"
 PARQUET_COMPRESSION_LEVEL = 3  # 1-22; 3 = fast with good ratio
@@ -157,6 +161,127 @@ def cleanup_snapshot():
 
 
 atexit.register(cleanup_snapshot)
+
+
+# ==============================================================================
+# QuestDB Source (via DuckDB postgres_scanner)
+# ==============================================================================
+
+
+def connect_questdb() -> duckdb.DuckDBPyConnection:
+    """Create a DuckDB in-memory connection with QuestDB attached via postgres_scanner."""
+    con = duckdb.connect(":memory:")
+    con.execute("INSTALL postgres_scanner; LOAD postgres_scanner;")
+    con.execute(f"""
+        ATTACH 'host={QUESTDB_HOST} port={QUESTDB_PG_PORT} user=admin password=quest dbname=qdb'
+        AS questdb (TYPE postgres, READ_ONLY)
+    """)
+    print(f"[indicators] Connected to QuestDB via postgres_scanner ({QUESTDB_HOST}:{QUESTDB_PG_PORT})")
+    return con
+
+
+def get_instruments_questdb(con: duckdb.DuckDBPyConnection) -> list[dict]:
+    """Get all symbols from QuestDB ohlcv, grouped by type."""
+    # QuestDB has rollovers table too (synced from market.duckdb)
+    # But for simplicity, use the known futures roots
+    all_symbols = con.sql(
+        "SELECT DISTINCT symbol FROM questdb.ohlcv ORDER BY symbol"
+    ).fetchall()
+
+    instruments = []
+    futures_set = set(FUTURES_ROOTS)
+
+    forex = []
+    for (sym,) in all_symbols:
+        is_root = sym in futures_set
+        is_contract = any(
+            sym.startswith(root) and len(sym) > len(root) for root in futures_set
+        )
+        if not is_root and not is_contract:
+            forex.append(sym)
+
+    for root in sorted(futures_set):
+        instruments.append({"symbol": root, "type": "futures"})
+    for sym in sorted(forex):
+        instruments.append({"symbol": sym, "type": "forex"})
+    return instruments
+
+
+def build_continuous_ohlcv_questdb(
+    con: duckdb.DuckDBPyConnection,
+    root: str,
+    tf_seconds: int,
+) -> pd.DataFrame:
+    """Build continuous contract OHLCV from QuestDB with Panama back-adjustment.
+
+    Uses questdb.ohlcv and questdb.rollovers via postgres_scanner.
+    """
+    interval = f"{tf_seconds} seconds"
+    return con.sql(f"""
+        WITH schedule AS (
+            SELECT to_contract as contract,
+                   rollover_date as start_date,
+                   LEAD(rollover_date) OVER (
+                       PARTITION BY root ORDER BY rollover_date
+                   ) as end_date,
+                   cumulative_adjustment as adj
+            FROM questdb.rollovers WHERE root = '{root}'
+            UNION ALL
+            SELECT from_contract as contract,
+                   DATE '1900-01-01' as start_date,
+                   rollover_date as end_date,
+                   cumulative_adjustment + price_gap as adj
+            FROM questdb.rollovers
+            WHERE root = '{root}'
+              AND rollover_date = (
+                  SELECT MIN(rollover_date) FROM questdb.rollovers WHERE root = '{root}'
+              )
+        ),
+        stitched AS (
+            SELECT o.ts,
+                   o.open + s.adj as open,
+                   o.high + s.adj as high,
+                   o.low  + s.adj as low,
+                   o.close + s.adj as close,
+                   o.volume
+            FROM questdb.ohlcv o
+            JOIN schedule s ON o.symbol = s.contract
+                AND CAST(o.ts AS DATE) >= s.start_date
+                AND (s.end_date IS NULL OR CAST(o.ts AS DATE) < s.end_date)
+        )
+        SELECT
+            time_bucket(INTERVAL '{interval}', ts) as timestamp,
+            first(open ORDER BY ts) as open,
+            max(high) as high,
+            min(low) as low,
+            last(close ORDER BY ts) as close,
+            CAST(sum(volume) AS DOUBLE) as volume
+        FROM stitched
+        GROUP BY time_bucket(INTERVAL '{interval}', ts)
+        ORDER BY timestamp
+    """).df()
+
+
+def build_forex_ohlcv_questdb(
+    con: duckdb.DuckDBPyConnection,
+    symbol: str,
+    tf_seconds: int,
+) -> pd.DataFrame:
+    """Read forex OHLCV from QuestDB aggregated to timeframe."""
+    interval = f"{tf_seconds} seconds"
+    return con.sql(f"""
+        SELECT
+            time_bucket(INTERVAL '{interval}', ts) as timestamp,
+            first(open ORDER BY ts) as open,
+            max(high) as high,
+            min(low) as low,
+            last(close ORDER BY ts) as close,
+            CAST(sum(volume) AS DOUBLE) as volume
+        FROM questdb.ohlcv
+        WHERE symbol = '{symbol}'
+        GROUP BY time_bucket(INTERVAL '{interval}', ts)
+        ORDER BY timestamp
+    """).df()
 
 
 # ==============================================================================
@@ -671,13 +796,17 @@ def process_symbol(
     tf_list: list[tuple[str, int]],
     force: bool,
     db_path: str | None = None,
+    source: str = "duckdb",
 ) -> dict:
     """Process all timeframes for one symbol. Runs in a worker process."""
-    if db_path:
-        global _RESOLVED_DB_PATH
-        _RESOLVED_DB_PATH = db_path
-    db = resolve_db_path()
-    con = duckdb.connect(db, read_only=True)
+    if source == "questdb":
+        con = connect_questdb()
+    else:
+        if db_path:
+            global _RESOLVED_DB_PATH
+            _RESOLVED_DB_PATH = db_path
+        db = resolve_db_path()
+        con = duckdb.connect(db, read_only=True)
     results = {
         "symbol": symbol,
         "completed": 0,
@@ -703,10 +832,16 @@ def process_symbol(
         combo_start = time.time()
         try:
             # Load OHLCV
-            if sym_type == "futures":
-                df = build_continuous_ohlcv(con, symbol, tf_sec)
+            if source == "questdb":
+                if sym_type == "futures":
+                    df = build_continuous_ohlcv_questdb(con, symbol, tf_sec)
+                else:
+                    df = build_forex_ohlcv_questdb(con, symbol, tf_sec)
             else:
-                df = build_forex_ohlcv(con, symbol, tf_sec)
+                if sym_type == "futures":
+                    df = build_continuous_ohlcv(con, symbol, tf_sec)
+                else:
+                    df = build_forex_ohlcv(con, symbol, tf_sec)
 
             if df.empty:
                 print(f"  [{symbol}/{tf_name}] No data", flush=True)
@@ -851,6 +986,10 @@ Examples:
         """,
     )
     parser.add_argument(
+        "--source", type=str, choices=["duckdb", "questdb"], default="duckdb",
+        help="Data source: 'duckdb' reads market.duckdb (default), 'questdb' reads from QuestDB via postgres_scanner",
+    )
+    parser.add_argument(
         "--db-path", type=str,
         help="Path to DuckDB file (use a copy if dev server holds the lock)",
     )
@@ -890,15 +1029,24 @@ Examples:
         return
 
     # --- Normal computation ---
-    if args.db_path:
-        _override = str(Path(args.db_path).resolve())
-        print(f"[indicators] Using provided DB: {_override}")
-        global _RESOLVED_DB_PATH
-        _RESOLVED_DB_PATH = _override
-    db = resolve_db_path()
-    con = duckdb.connect(db, read_only=True)
-    instruments = get_instruments(con)
-    con.close()
+    source = args.source
+
+    if source == "questdb":
+        print("[indicators] Source: QuestDB (via postgres_scanner)")
+        con = connect_questdb()
+        instruments = get_instruments_questdb(con)
+        con.close()
+    else:
+        if args.db_path:
+            _override = str(Path(args.db_path).resolve())
+            print(f"[indicators] Using provided DB: {_override}")
+            global _RESOLVED_DB_PATH
+            _RESOLVED_DB_PATH = _override
+        print(f"[indicators] Source: DuckDB ({DB_PATH})")
+        db = resolve_db_path()
+        con = duckdb.connect(db, read_only=True)
+        instruments = get_instruments(con)
+        con.close()
 
     n_futures = sum(1 for i in instruments if i["type"] == "futures")
     n_forex = sum(1 for i in instruments if i["type"] == "forex")
@@ -956,6 +1104,7 @@ Examples:
             try:
                 result = process_symbol(
                     symbol, inst["type"], tf_list, args.force, resolved_path,
+                    source=source,
                 )
                 total_completed += result["completed"]
                 total_skipped += result["skipped"]
@@ -986,6 +1135,7 @@ Examples:
                     tf_list,
                     args.force,
                     resolved_path,
+                    source,
                 )
                 futures[future] = inst["symbol"]
 

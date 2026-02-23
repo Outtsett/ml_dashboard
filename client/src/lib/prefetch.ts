@@ -1,4 +1,5 @@
 import { queryClient } from "./queryClient";
+import { fetchArray } from "./fetchArray";
 
 const prefetchedRoutes = new Set<string>();
 
@@ -11,17 +12,17 @@ export async function prefetchRouteData(route: string) {
       await Promise.all([
         queryClient.prefetchQuery({
           queryKey: ["/api/ml/models"],
-          queryFn: () => fetch("/api/ml/models").then(r => r.json()),
+          queryFn: () => fetchArray("/api/ml/models"),
           staleTime: 60000,
         }),
         queryClient.prefetchQuery({
           queryKey: ["/api/ml/trades"],
-          queryFn: () => fetch("/api/ml/trades").then(r => r.json()),
+          queryFn: () => fetchArray("/api/ml/trades"),
           staleTime: 60000,
         }),
         queryClient.prefetchQuery({
           queryKey: ["/api/ml/regimes"],
-          queryFn: () => fetch("/api/ml/regimes").then(r => r.json()),
+          queryFn: () => fetchArray("/api/ml/regimes"),
           staleTime: 60000,
         }),
       ]);
@@ -30,12 +31,12 @@ export async function prefetchRouteData(route: string) {
       await Promise.all([
         queryClient.prefetchQuery({
           queryKey: ["/api/ml/models"],
-          queryFn: () => fetch("/api/ml/models").then(r => r.json()),
+          queryFn: () => fetchArray("/api/ml/models"),
           staleTime: 60000,
         }),
         queryClient.prefetchQuery({
           queryKey: ["/api/ml/feature-sets"],
-          queryFn: () => fetch("/api/ml/feature-sets").then(r => r.json()),
+          queryFn: () => fetchArray("/api/ml/feature-sets"),
           staleTime: 60000,
         }),
       ]);
@@ -43,14 +44,14 @@ export async function prefetchRouteData(route: string) {
     "/backtest": async () => {
       await queryClient.prefetchQuery({
         queryKey: ["/api/instruments"],
-        queryFn: () => fetch("/api/instruments").then(r => r.json()),
+        queryFn: () => fetchArray("/api/instruments"),
         staleTime: 300000,
       });
     },
     "/data": async () => {
       await queryClient.prefetchQuery({
         queryKey: ["/api/instruments"],
-        queryFn: () => fetch("/api/instruments").then(r => r.json()),
+        queryFn: () => fetchArray("/api/instruments"),
         staleTime: 300000,
       });
     },
@@ -71,7 +72,7 @@ export async function prefetchRouteData(route: string) {
     "/portfolio": async () => {
       await queryClient.prefetchQuery({
         queryKey: ["/api/ml/trades"],
-        queryFn: () => fetch("/api/ml/trades").then(r => r.json()),
+        queryFn: () => fetchArray("/api/ml/trades"),
         staleTime: 60000,
       });
     },
@@ -98,12 +99,12 @@ export async function prefetchCriticalData() {
     await Promise.all([
       queryClient.prefetchQuery({
         queryKey: ["/api/instruments"],
-        queryFn: () => fetch("/api/instruments").then(r => r.json()),
+        queryFn: () => fetchArray("/api/instruments"),
         staleTime: 300000,
       }),
       queryClient.prefetchQuery({
         queryKey: ["/api/ml/models"],
-        queryFn: () => fetch("/api/ml/models").then(r => r.json()),
+        queryFn: () => fetchArray("/api/ml/models"),
         staleTime: 60000,
       }),
     ]);

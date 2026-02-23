@@ -4,6 +4,8 @@ import * as path from "path";
 import { queryRateLimiter } from "../lib/rateLimiter";
 import { ohlcvCache, cachedQuery, OHLCVCache } from "../lib/ohlcvCache";
 import { getString } from "./helpers";
+import { db } from "../db";
+import { sql as drizzleSql } from "drizzle-orm";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
@@ -13,95 +15,31 @@ const router = Router();
 // DATABASE EXPLORER API ENDPOINTS
 // ============================================================
 
-// PostgreSQL Stats
-router.get("/databases/postgres/stats", async (req: Request, res: Response) => {
+// SQLite Stats
+router.get("/databases/sqlite/stats", async (req: Request, res: Response) => {
   try {
-    const pool = (await import("../db")).pool;
-
-    // Get all tables with row counts
-    const tablesResult = await pool.query(`
-      SELECT
-        table_name,
-        (SELECT count(*) FROM information_schema.columns WHERE table_name = t.table_name) as column_count
-      FROM information_schema.tables t
-      WHERE table_schema = 'public'
-      AND table_type = 'BASE TABLE'
-      ORDER BY table_name
-    `);
+    const tables = db.all<{ name: string }>(drizzleSql`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`);
 
     const tableDetails = [];
-    for (const table of tablesResult.rows) {
+    for (const table of tables) {
       try {
-        const countResult = await pool.query(`SELECT count(*) as count FROM "${table.table_name}"`);
-        const columnsResult = await pool.query(`
-          SELECT column_name, data_type, is_nullable
-          FROM information_schema.columns
-          WHERE table_name = $1
-          ORDER BY ordinal_position
-        `, [table.table_name]);
+        const countRow = db.get<{ count: number }>(drizzleSql.raw(`SELECT count(*) as count FROM "${table.name}"`));
+        const columns = db.all<{ name: string; type: string; notnull: number }>(drizzleSql.raw(`PRAGMA table_info("${table.name}")`));
 
         tableDetails.push({
-          name: table.table_name,
-          rowCount: parseInt(countResult.rows[0]?.count || "0"),
+          name: table.name,
+          rowCount: countRow?.count ?? 0,
           type: "table",
-          columns: columnsResult.rows.map((c: any) => ({
-            name: c.column_name,
-            type: c.data_type,
-            nullable: c.is_nullable === "YES",
+          columns: columns.map((c: any) => ({
+            name: c.name,
+            type: c.type,
+            nullable: !c.notnull,
           })),
         });
       } catch (e) {
         tableDetails.push({
-          name: table.table_name,
+          name: table.name,
           rowCount: 0,
-          error: String(e),
-        });
-      }
-    }
-
-    // Also get views
-    const viewsResult = await pool.query(`
-      SELECT table_name
-      FROM information_schema.views
-      WHERE table_schema = 'public'
-    `);
-
-    for (const view of viewsResult.rows) {
-      try {
-        const countResult = await pool.query(`SELECT count(*) as count FROM "${view.table_name}"`);
-        tableDetails.push({
-          name: view.table_name,
-          rowCount: parseInt(countResult.rows[0]?.count || "0"),
-          type: "view",
-        });
-      } catch (e) {
-        tableDetails.push({
-          name: view.table_name,
-          rowCount: 0,
-          type: "view",
-          error: String(e),
-        });
-      }
-    }
-
-    // Get materialized views
-    const matViewsResult = await pool.query(`
-      SELECT matviewname as name FROM pg_matviews WHERE schemaname = 'public'
-    `);
-
-    for (const mv of matViewsResult.rows) {
-      try {
-        const countResult = await pool.query(`SELECT count(*) as count FROM "${mv.name}"`);
-        tableDetails.push({
-          name: mv.name,
-          rowCount: parseInt(countResult.rows[0]?.count || "0"),
-          type: "materialized view",
-        });
-      } catch (e) {
-        tableDetails.push({
-          name: mv.name,
-          rowCount: 0,
-          type: "materialized view",
           error: String(e),
         });
       }
@@ -120,6 +58,11 @@ router.get("/databases/postgres/stats", async (req: Request, res: Response) => {
       error: error.message,
     });
   }
+});
+
+// Legacy endpoint - redirect to SQLite
+router.get("/databases/postgres/stats", (_req: Request, res: Response) => {
+  res.json({ connected: false, tables: 0, tableDetails: [], error: "PostgreSQL removed. Use /databases/sqlite/stats" });
 });
 
 // QuestDB Stats
@@ -220,7 +163,7 @@ router.get("/databases/preview/:db/:table", async (req: Request, res: Response) 
     const limit = Math.min(Math.max(1, parseInt(req.query.limit as string) || 100), 1000);
 
     // Validate database parameter
-    if (!['postgres', 'questdb', 'duckdb'].includes(db)) {
+    if (!['sqlite', 'postgres', 'questdb', 'duckdb'].includes(db)) {
       return res.status(400).json({ error: "Invalid database specified" });
     }
 
@@ -231,12 +174,10 @@ router.get("/databases/preview/:db/:table", async (req: Request, res: Response) 
 
     let rows: any[] = [];
 
-    if (db === "postgres") {
-      const pool = (await import("../db")).pool;
-      // Use parameterized query for limit, escape table name properly
+    if (db === "sqlite" || db === "postgres") {
       const escapedTable = table.replace(/"/g, '""');
-      const result = await pool.query(`SELECT * FROM "${escapedTable}" LIMIT $1`, [limit]);
-      rows = result.rows;
+      const { db: sqliteDb } = await import("../db");
+      rows = sqliteDb.all(drizzleSql.raw(`SELECT * FROM "${escapedTable}" LIMIT ${limit}`));
     } else if (db === "questdb") {
       const { queryQuestDB } = await import("../questdb");
       // QuestDB table names validated above
@@ -274,7 +215,7 @@ router.post("/databases/query", async (req: Request, res: Response) => {
     }
 
     // Validate database parameter
-    if (!['postgres', 'questdb', 'duckdb'].includes(db)) {
+    if (!['sqlite', 'postgres', 'questdb', 'duckdb'].includes(db)) {
       return res.status(400).json({ error: "Invalid database specified" });
     }
 
@@ -287,21 +228,11 @@ router.post("/databases/query", async (req: Request, res: Response) => {
     let rows: any[] = [];
     let rowCount = 0;
 
-    if (db === "postgres") {
-      const pool = (await import("../db")).pool;
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN TRANSACTION READ ONLY');
-        const result = await client.query(sql);
-        rows = result.rows;
-        rowCount = result.rowCount || 0;
-        await client.query('COMMIT');
-      } catch (pgErr) {
-        await client.query('ROLLBACK').catch(() => {});
-        throw pgErr;
-      } finally {
-        client.release();
-      }
+    if (db === "sqlite" || db === "postgres") {
+      const { db: sqliteDb } = await import("../db");
+      const result = sqliteDb.all<Record<string, unknown>>(drizzleSql.raw(sql));
+      rows = result as any[];
+      rowCount = rows.length;
     } else if (db === "questdb") {
       const { queryQuestDB } = await import("../questdb");
       rows = await queryQuestDB(sql);
@@ -405,23 +336,12 @@ router.get("/ohlcv/:symbol", queryRateLimiter, async (req: Request, res: Respons
         }));
         return res.json(normalised);
       } catch (qdbErr: any) {
-        console.warn('[ohlcv] QuestDB failed, falling back to PostgreSQL:', qdbErr.message);
+        console.warn('[ohlcv] QuestDB query failed:', qdbErr.message);
       }
     }
 
-    // ── Fallback: PostgreSQL (legacy) ──
-    const loadFromEnd = req.query.loadFromStart !== 'true';
-    const fallbackKey = cacheKey + ':pg';
-    const data = await cachedQuery(fallbackKey, async () => {
-      if (startMs || endMs) {
-        return await storage.getOhlcvAggregatedRange(symbol, {
-          startTime: startMs, endTime: endMs, limit: limitNum, timeframeSeconds: 60
-        });
-      }
-      const result = await storage.getOhlcvAggregated(symbol, limitNum, 60);
-      return loadFromEnd ? result.reverse() : result;
-    });
-    res.json(data);
+    // No QuestDB data available
+    res.json([]);
   } catch (error) {
     console.error("Error fetching OHLCV data:", error);
     res.status(500).json({ error: "Failed to fetch data" });
@@ -646,8 +566,7 @@ router.get("/questdb/ohlcv/:symbol", queryRateLimiter, async (req: Request, res:
     const result = await queryOHLCVFromQuestDB(symbol, timeframe, startTime || 0, endTime || Date.now(), limit);
 
     if (!result.success) {
-      const pgData = await storage.getOhlcvData(symbol, startTime || 0, endTime || Date.now(), limit || 10000);
-      return res.json({ data: pgData, source: 'postgres', questdbError: result.error });
+      return res.json({ data: [], source: 'none', questdbError: result.error });
     }
 
     res.json({ data: result.data, source: result.source });

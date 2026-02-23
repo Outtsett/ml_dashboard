@@ -6,7 +6,7 @@
  * 2. Apply broker cost model (commission, spread, slippage)
  * 3. Generate trades with proper entry/exit mechanics
  * 4. Compute performance metrics (Sharpe, Sortino, drawdown, etc.)
- * 5. Persist results to PostgreSQL (backtest_runs + backtest_trades)
+ * 5. Persist results to SQLite (backtest_runs + backtest_trades)
  */
 
 import type { BrokerConfig, BacktestRun, InsertBacktestTrade } from '@shared/schema';

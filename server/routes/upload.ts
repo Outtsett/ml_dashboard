@@ -201,6 +201,7 @@ async function processOhlcvFileFromDisk(
   // Fallback: Streaming approach for non-zst files or if DuckDB fails
   const { spawn } = await import('child_process');
   const { getAssetType: getAssetTypeFallback } = await import("../storage");
+  const { insertOHLCVBatch: insertBatchFallback } = await import("../questdb");
   const fallbackAssetType = getAssetTypeFallback(symbol);
 
   return new Promise((resolve, reject) => {
@@ -259,10 +260,8 @@ async function processOhlcvFileFromDisk(
 
         if (records.length >= 1000) {
           const batch = records.splice(0, 1000);
-          const promise = (fallbackAssetType === 'futures'
-            ? storage.insertFuturesBatch(batch)
-            : storage.insertForexBatch(batch))
-            .then(() => console.log(`[Fallback] Inserted batch -> ${fallbackAssetType === 'futures' ? 'ohlcv_1s' : 'forex_1m'}, total: ${recordCount}`))
+          const promise = insertBatchFallback(batch.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })))
+            .then(() => console.log(`[Fallback] Inserted batch -> QuestDB ohlcv, total: ${recordCount}`))
             .catch(err => console.error("Batch insert error:", err));
           batchPromises.push(promise);
 
@@ -288,15 +287,10 @@ async function processOhlcvFileFromDisk(
         await Promise.all(batchPromises);
 
         if (records.length > 0) {
-          if (fallbackAssetType === 'futures') {
-            await storage.insertFuturesBatch(records);
-          } else {
-            await storage.insertForexBatch(records);
-          }
+          await insertBatchFallback(records.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })));
         }
 
-        // After storing in PostgreSQL, try to create Parquet from original file
-        // Note: We must decompress .zst files first since DuckDB already failed on them
+        // Try to create Parquet from original file
         let parquetPath: string | null = null;
         try {
           console.log("[Fallback] Attempting to create Parquet and upload to cloud...");
@@ -480,11 +474,10 @@ async function processOhlcvFile(
 
         if (records.length >= 1000) {
           const batch = records.splice(0, 1000);
-          const insertFn = assetType === 'futures'
-            ? storage.insertFuturesBatch(batch)
-            : storage.insertForexBatch(batch);
-          insertFn
-            .then(() => console.log(`Inserted batch to ${assetType === 'futures' ? 'ohlcv_1s' : 'forex_1m'}, total: ${recordCount}`))
+          import("../questdb").then(({ insertOHLCVBatch }) =>
+            insertOHLCVBatch(batch.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })))
+          )
+            .then(() => console.log(`Inserted batch to QuestDB ohlcv, total: ${recordCount}`))
             .catch(err => console.error("Batch insert error:", err));
         }
       }
@@ -498,16 +491,13 @@ async function processOhlcvFile(
 
     parser.on('end', async () => {
       if (records.length > 0) {
-        if (assetType === 'futures') {
-          await storage.insertFuturesBatch(records);
-        } else {
-          await storage.insertForexBatch(records);
-        }
+        const { insertOHLCVBatch } = await import("../questdb");
+        await insertOHLCVBatch(records.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })));
       }
 
       await storage.updateUploadStatus(uploadId, "completed", recordCount);
       ohlcvCache.invalidateSymbol(symbol);
-      console.log(`File processing complete. ${recordCount} records -> ${assetType === 'futures' ? 'ohlcv_1s' : 'forex_1m'}`);
+      console.log(`File processing complete. ${recordCount} records -> QuestDB ohlcv`);
       resolve();
     });
   });
@@ -565,20 +555,17 @@ async function processParquetFile(
         });
       }
 
-      if (assetType === 'futures') {
-        await storage.insertFuturesBatch(batch);
-      } else {
-        await storage.insertForexBatch(batch);
-      }
+      const { insertOHLCVBatch } = await import("../questdb");
+      await insertOHLCVBatch(batch.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })));
       insertedCount += batch.length;
       if (insertedCount % 10000 === 0 || insertedCount === count) {
-        console.log(`Inserted ${insertedCount}/${count} -> ${assetType === 'futures' ? 'ohlcv_1s' : 'forex_1m'}`);
+        console.log(`Inserted ${insertedCount}/${count} -> QuestDB ohlcv`);
       }
     }
 
     await storage.updateUploadStatus(uploadId, "completed", count);
     ohlcvCache.invalidateSymbol(symbol);
-    console.log(`Processing complete. ${count} records -> ${assetType === 'futures' ? 'ohlcv_1s' : 'forex_1m'}`);
+    console.log(`Processing complete. ${count} records -> QuestDB ohlcv`);
 
   } finally {
     try {

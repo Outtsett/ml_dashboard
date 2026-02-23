@@ -2,6 +2,7 @@ import { Sender } from "@questdb/nodejs-client";
 import pg from "pg";
 import * as path from "path";
 import { validateSymbol } from "@shared/schema";
+import { cachedQuery, OHLCVCache } from "./lib/ohlcvCache";
 
 const { Pool } = pg;
 
@@ -29,10 +30,10 @@ export function getQuestDBQueryPool(): pg.Pool {
       database: "qdb",
       user: "admin",
       password: "quest",
-      max: 10,
-      connectionTimeoutMillis: 3000,
+      max: 20,
+      connectionTimeoutMillis: 10000,
       idleTimeoutMillis: 30000,
-      statement_timeout: 10000,
+      statement_timeout: 30000,
     });
     queryPool.on("error", (err) => {
       console.error("[questdb] Idle client error:", err.message);
@@ -207,13 +208,78 @@ export async function getOHLCVSampleBy(
 }
 
 /**
+ * Determine front-month contract ranges for a futures root.
+ * Queries ohlcv_1d for daily volume leadership, returns contiguous
+ * (contract, start, end) date ranges.
+ *
+ * Extracted so both chart queries and training export can reuse.
+ */
+export async function getFrontMonthRanges(
+  root: string,
+  startTime?: number,
+  endTime?: number,
+): Promise<{ symbol: string; start: string; end: string }[]> {
+  const safeRoot = validateSymbol(root);
+
+  // Cache key: daily volume leadership changes at most once per day
+  const cacheKey = OHLCVCache.key('questdb', `fm_${safeRoot}`, 'ranges', {
+    startTime, endTime,
+  });
+
+  return cachedQuery(cacheKey, async () => {
+    const escaped = safeRoot.replace(/'/g, "''");
+    const contractRegex = `^${escaped}[FGHJKMNQUVXZ][0-9]{1,2}$`;
+
+    let timeFilter = '';
+    if (startTime) {
+      timeFilter += ` AND timestamp >= '${new Date(startTime).toISOString()}'`;
+    }
+    if (endTime) {
+      timeFilter += ` AND timestamp <= '${new Date(endTime).toISOString()}'`;
+    }
+
+    const dailyBars = await queryQuestDB<{ symbol: string; timestamp: Date | string; volume: number }>(
+      `SELECT symbol, timestamp, volume FROM ohlcv_1d
+       WHERE symbol ~ '${contractRegex}'${timeFilter}
+       ORDER BY timestamp`
+    );
+
+    if (dailyBars.length === 0) return [];
+
+    const leaders = new Map<string, { symbol: string; volume: number }>();
+    for (const bar of dailyBars) {
+      const day = bar.timestamp instanceof Date
+        ? bar.timestamp.toISOString().slice(0, 10)
+        : new Date(String(bar.timestamp)).toISOString().slice(0, 10);
+      const vol = Number(bar.volume);
+      const existing = leaders.get(day);
+      if (!existing || vol > existing.volume) {
+        leaders.set(day, { symbol: bar.symbol, volume: vol });
+      }
+    }
+
+    const ranges: { symbol: string; start: string; end: string }[] = [];
+    let current: { symbol: string; start: string; end: string } | null = null;
+    for (const [day, { symbol }] of [...leaders.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+      if (!current || current.symbol !== symbol) {
+        if (current) ranges.push(current);
+        current = { symbol, start: day, end: day };
+      } else {
+        current.end = day;
+      }
+    }
+    if (current) ranges.push(current);
+
+    return ranges;
+  });
+}
+
+/**
  * Query OHLCV for a futures root (e.g. "ES") by stitching front-month
  * contracts together based on daily volume leadership.
  *
- * 1. Pull daily bars (ohlcv_1d) for all contracts matching the root.
- * 2. For each day, pick the contract with the highest volume.
- * 3. Build contiguous (contract, start, end) ranges.
- * 4. Query bars for each range in parallel, merge & sort.
+ * Uses getFrontMonthRanges() for range detection, then queries bars
+ * for each range in parallel batches.
  */
 export async function getFrontMonthOHLCV(
   root: string,
@@ -222,56 +288,12 @@ export async function getFrontMonthOHLCV(
   endTime?: number,
   limit?: number
 ): Promise<any[]> {
-  const safeRoot = validateSymbol(root);
-  const escaped = safeRoot.replace(/'/g, "''");
-  const contractRegex = `^${escaped}[FGHJKMNQUVXZ][0-9]{1,2}$`;
-
   const safeLimit = limit ? Math.min(Math.floor(limit), 100000) : undefined;
 
-  let timeFilter = '';
-  if (startTime) {
-    timeFilter += ` AND timestamp >= '${new Date(startTime).toISOString()}'`;
-  }
-  if (endTime) {
-    timeFilter += ` AND timestamp <= '${new Date(endTime).toISOString()}'`;
-  }
+  const ranges = await getFrontMonthRanges(root, startTime, endTime);
+  if (ranges.length === 0) return [];
 
-  // Step 1: Daily bars for all contracts — determine volume leader per day
-  const dailyBars = await queryQuestDB<{ symbol: string; timestamp: Date | string; volume: number }>(
-    `SELECT symbol, timestamp, volume FROM ohlcv_1d
-     WHERE symbol ~ '${contractRegex}'${timeFilter}
-     ORDER BY timestamp`
-  );
-
-  if (dailyBars.length === 0) return [];
-
-  // Step 2: For each day, find the highest-volume contract
-  const leaders = new Map<string, { symbol: string; volume: number }>();
-  for (const bar of dailyBars) {
-    const day = bar.timestamp instanceof Date
-      ? bar.timestamp.toISOString().slice(0, 10)
-      : new Date(String(bar.timestamp)).toISOString().slice(0, 10);
-    const vol = Number(bar.volume);
-    const existing = leaders.get(day);
-    if (!existing || vol > existing.volume) {
-      leaders.set(day, { symbol: bar.symbol, volume: vol });
-    }
-  }
-
-  // Step 3: Build contiguous ranges (contract, startDay, endDay)
-  const ranges: { symbol: string; start: string; end: string }[] = [];
-  let current: { symbol: string; start: string; end: string } | null = null;
-  for (const [day, { symbol }] of [...leaders.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-    if (!current || current.symbol !== symbol) {
-      if (current) ranges.push(current);
-      current = { symbol, start: day, end: day };
-    } else {
-      current.end = day;
-    }
-  }
-  if (current) ranges.push(current);
-
-  // Step 4: Query bars for each range in parallel
+  // Query bars for each range in parallel
   const matView = MATERIALIZED_VIEWS[timeframe];
   const validTimeframes: Record<string, string> = {
     '1m': 'SAMPLE BY 1m', '5m': 'SAMPLE BY 5m',
@@ -279,7 +301,8 @@ export async function getFrontMonthOHLCV(
     '4h': 'SAMPLE BY 4h', '1d': 'SAMPLE BY 1d', '1w': 'SAMPLE BY 7d',
   };
 
-  const queries = ranges.map(range => {
+  // Build query functions for each range, execute in batches to avoid pool exhaustion
+  const makeQuery = (range: { symbol: string; start: string; end: string }) => {
     const sym = range.symbol.replace(/'/g, "''");
     const s = range.start + 'T00:00:00.000Z';
     const e = range.end + 'T23:59:59.999Z';
@@ -300,10 +323,16 @@ export async function getFrontMonthOHLCV(
        WHERE symbol = '${sym}' AND timestamp >= '${s}' AND timestamp <= '${e}'
        ${sampleBy} ALIGN TO CALENDAR`
     );
-  });
+  };
 
-  const results = await Promise.all(queries);
-  let allBars = results.flat();
+  // Execute in batches of 10 to stay within pool limits
+  let allBars: any[] = [];
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < ranges.length; i += BATCH_SIZE) {
+    const batch = ranges.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(batch.map(makeQuery));
+    allBars = allBars.concat(results.flat());
+  }
 
   // Sort chronologically
   allBars.sort((a, b) => {

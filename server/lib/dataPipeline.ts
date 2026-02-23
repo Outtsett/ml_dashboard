@@ -124,7 +124,7 @@ class DataPipelineManager extends EventEmitter {
         ];
       case 'migrate':
         return [
-          { name: 'read_postgres', status: 'pending' },
+          { name: 'read_legacy', status: 'pending' },
           { name: 'transform_data', status: 'pending' },
           { name: 'write_questdb', status: 'pending' },
           { name: 'verify_migration', status: 'pending' }
@@ -212,31 +212,8 @@ class DataPipelineManager extends EventEmitter {
         break;
 
       case 'ingest_questdb':
-        if (this.config.enableQuestDB) {
-          try {
-            const { insertOHLCVToQuestDB } = await import('./questdbIntegration');
-            const { storage } = await import('../storage');
-            const data = await storage.getLatestOhlcv(job.symbol, 10000);
-            if (data.length > 0) {
-              const insertData = data.map(d => ({
-                symbol: d.symbol,
-                timestamp: d.timestamp,
-                open: d.open,
-                high: d.high,
-                low: d.low,
-                close: d.close,
-                volume: d.volume
-              }));
-              const result = await insertOHLCVToQuestDB(insertData, job.symbol);
-              stage.rowsProcessed = result.insertedToQuestDB;
-            }
-          } catch (e: any) {
-            console.warn(`[Pipeline] QuestDB ingest skipped: ${e.message}`);
-            stage.status = 'skipped';
-          }
-        } else {
-          stage.status = 'skipped';
-        }
+        // OHLCV data is ingested directly to QuestDB at upload time
+        stage.status = 'skipped';
         break;
 
       case 'create_aggregates':
@@ -244,14 +221,9 @@ class DataPipelineManager extends EventEmitter {
         stage.status = 'skipped';
         break;
 
-      case 'read_postgres':
-        try {
-          const { storage } = await import('../storage');
-          const count = await storage.getOhlcvCount(job.symbol);
-          stage.rowsProcessed = count;
-        } catch (e: any) {
-          throw new Error(`Failed to read from Postgres: ${e.message}`);
-        }
+      case 'read_legacy':
+        // Legacy OHLCV source removed — data lives in QuestDB
+        stage.status = 'skipped';
         break;
 
       case 'write_questdb':
@@ -277,7 +249,7 @@ class DataPipelineManager extends EventEmitter {
   }
 
   private isCriticalStage(stageName: string): boolean {
-    const criticalStages = ['parse_file', 'convert_parquet', 'read_postgres'];
+    const criticalStages = ['parse_file', 'convert_parquet'];
     return criticalStages.includes(stageName);
   }
 
@@ -294,7 +266,7 @@ class DataPipelineManager extends EventEmitter {
       lastUpdated: fs.existsSync(localParquet) ? fs.statSync(localParquet).mtime : undefined
     });
 
-    sources.push({ type: 'postgres', symbol: safeSymbol, available: true });
+    sources.push({ type: 'questdb', symbol: safeSymbol, available: true });
     sources.push({ type: 'questdb', symbol: safeSymbol, available: this.config.enableQuestDB });
     sources.push({ type: 'duckdb', symbol: safeSymbol, available: this.config.enableDuckDB });
 

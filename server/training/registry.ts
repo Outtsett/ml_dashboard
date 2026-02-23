@@ -23,7 +23,11 @@ const CONFIG_DIR = path.join(process.cwd(), "config");
 // ─── Cached configs (loaded once at import time) ─────────────────────────────
 
 let modelsConfig: ModelRegistry | null = null;
-let featuresConfig: Record<string, Record<string, unknown>> | null = null;
+let featuresConfig: {
+  pipelines?: Record<string, Record<string, unknown>>;
+  featureSets?: Record<string, Record<string, unknown>>;
+  [key: string]: any;
+} | null = null;
 let trainingConfig: TrainingConfig | null = null;
 
 function loadJSON<T>(filename: string): T {
@@ -39,7 +43,7 @@ function ensureLoaded() {
     modelsConfig = loadJSON<ModelRegistry>("models.json");
   }
   if (!featuresConfig) {
-    featuresConfig = loadJSON<Record<string, Record<string, unknown>>>("features.json");
+    featuresConfig = loadJSON<typeof featuresConfig>("features.json");
   }
   if (!trainingConfig) {
     trainingConfig = loadJSON<TrainingConfig>("training.json");
@@ -63,13 +67,25 @@ export function listModels(): Record<string, ModelRegistryEntry> {
 /** Get a feature pipeline config by key (e.g. "hdp-hmm-12", "universal-30") */
 export function getFeaturePipeline(pipelineId: string): Record<string, unknown> | null {
   ensureLoaded();
-  return featuresConfig![pipelineId] ?? null;
+  return featuresConfig!.pipelines?.[pipelineId] ?? null;
 }
 
 /** Get all feature pipelines */
 export function listFeaturePipelines(): Record<string, Record<string, unknown>> {
   ensureLoaded();
-  return featuresConfig!;
+  return featuresConfig!.pipelines ?? {};
+}
+
+/** Get a named feature set (e.g. "hdp-hmm-indicators", "full-344") */
+export function getFeatureSet(setId: string): Record<string, unknown> | null {
+  ensureLoaded();
+  return featuresConfig!.featureSets?.[setId] ?? null;
+}
+
+/** Get all feature sets */
+export function listFeatureSets(): Record<string, Record<string, unknown>> {
+  ensureLoaded();
+  return featuresConfig!.featureSets ?? {};
 }
 
 /** Get training infrastructure config (paths, limits, timeframes) */

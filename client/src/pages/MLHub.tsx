@@ -18,6 +18,7 @@ import { useLocation } from "wouter";
 
 const ForecastVisualizer = lazy(() => import("@/components/ForecastVisualizer"));
 import { MlModel, Trade, QUERY_KEYS } from "@/lib/types";
+import { fetchArray } from "@/lib/fetchArray";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -103,12 +104,12 @@ export default function MLHub() {
 
   const { data: instruments = [] } = useQuery({
     queryKey: ['instruments'],
-    queryFn: async () => { const res = await fetch('/api/instruments'); return res.json(); }
+    queryFn: () => fetchArray('/api/instruments'),
   });
 
   const { data: models = [] } = useQuery<MlModel[]>({
     queryKey: [...QUERY_KEYS.mlModels],
-    queryFn: async () => { const res = await fetch('/api/ml/models'); return res.json(); }
+    queryFn: () => fetchArray<MlModel>('/api/ml/models'),
   });
 
   const { data: savedModelsData } = useQuery<{ models: SavedModel[] }>({
@@ -133,7 +134,7 @@ export default function MLHub() {
 
   const { data: trades = [] } = useQuery<Trade[]>({
     queryKey: ["/api/ml/trades"],
-    queryFn: async () => { const res = await fetch("/api/ml/trades?limit=50"); return res.json(); }
+    queryFn: () => fetchArray<Trade>("/api/ml/trades?limit=50"),
   });
 
   const { data: featureInfo } = useQuery({

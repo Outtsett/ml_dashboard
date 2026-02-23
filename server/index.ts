@@ -2,10 +2,8 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { setupPartitionedTables, migrateToPartitionedTables } from "./setup-partitions";
 import { initDuckDB } from "./duckdb";
 import { runStartupSequence, getStartupReport } from "./lib/startupManager";
-import { testPostgresConnection } from "./db";
 
 const app = express();
 const httpServer = createServer(app);
@@ -70,32 +68,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // ── Phase 1: Auto-start databases (PostgreSQL, QuestDB) ──
+  // ── Phase 1: Auto-start databases (QuestDB only — SQLite is embedded, no startup needed) ──
   const report = await runStartupSequence();
 
-  // ── Phase 2: PostgreSQL schema setup (only if PG is reachable) ──
-  if (report.postgres.status === 'running' || report.postgres.status === 'skipped') {
-    const pgAlive = await testPostgresConnection(5000);
-    if (pgAlive) {
-      try {
-        await Promise.race([
-          (async () => {
-            await setupPartitionedTables();
-            await migrateToPartitionedTables();
-          })(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Partition setup timed out after 30s')), 30_000)),
-        ]);
-      } catch (error) {
-        console.error('Partition setup error (non-fatal):', error);
-      }
-    } else {
-      console.warn('[startup] PostgreSQL port open but connection failed — skipping partition setup');
-    }
-  } else {
-    console.warn('[startup] PostgreSQL not available — skipping partition setup');
-  }
-
-  // ── Phase 3: Routes + middleware ──
+  // ── Phase 2: Routes + middleware ──
   await registerRoutes(httpServer, app);
 
   // Expose startup report via API

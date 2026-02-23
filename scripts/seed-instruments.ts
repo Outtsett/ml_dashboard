@@ -7,15 +7,15 @@ import { instruments } from '../shared/schema';
 
 const INSTRUMENTS = [
   // CME Micro Futures
-  { symbol: 'MNQ', name: 'Micro E-mini Nasdaq-100', assetType: 'futures', exchange: 'CME', tickSize: 0.25, tickValue: 0.50, pointValue: 2, contractSize: 1, currency: 'USD', decimalPlaces: 2, contractMonths: ['H', 'M', 'U', 'Z'] },
-  { symbol: 'MES', name: 'Micro E-mini S&P 500', assetType: 'futures', exchange: 'CME', tickSize: 0.25, tickValue: 1.25, pointValue: 5, contractSize: 1, currency: 'USD', decimalPlaces: 2, contractMonths: ['H', 'M', 'U', 'Z'] },
-  { symbol: 'MYM', name: 'Micro E-mini Dow', assetType: 'futures', exchange: 'CBOT', tickSize: 1.0, tickValue: 0.50, pointValue: 0.50, contractSize: 1, currency: 'USD', decimalPlaces: 0, contractMonths: ['H', 'M', 'U', 'Z'] },
-  { symbol: 'M2K', name: 'Micro E-mini Russell 2000', assetType: 'futures', exchange: 'CME', tickSize: 0.10, tickValue: 0.50, pointValue: 5, contractSize: 1, currency: 'USD', decimalPlaces: 1, contractMonths: ['H', 'M', 'U', 'Z'] },
+  { symbol: 'MNQ', name: 'Micro E-mini Nasdaq-100', assetType: 'futures', exchange: 'CME', tickSize: 0.25, tickValue: 0.50, pointValue: 2, contractSize: 1, currency: 'USD', decimalPlaces: 2, contractMonths: '["H","M","U","Z"]' },
+  { symbol: 'MES', name: 'Micro E-mini S&P 500', assetType: 'futures', exchange: 'CME', tickSize: 0.25, tickValue: 1.25, pointValue: 5, contractSize: 1, currency: 'USD', decimalPlaces: 2, contractMonths: '["H","M","U","Z"]' },
+  { symbol: 'MYM', name: 'Micro E-mini Dow', assetType: 'futures', exchange: 'CBOT', tickSize: 1.0, tickValue: 0.50, pointValue: 0.50, contractSize: 1, currency: 'USD', decimalPlaces: 0, contractMonths: '["H","M","U","Z"]' },
+  { symbol: 'M2K', name: 'Micro E-mini Russell 2000', assetType: 'futures', exchange: 'CME', tickSize: 0.10, tickValue: 0.50, pointValue: 5, contractSize: 1, currency: 'USD', decimalPlaces: 1, contractMonths: '["H","M","U","Z"]' },
   // E-mini Futures (parent contracts from Databento data)
-  { symbol: 'ES', name: 'E-mini S&P 500', assetType: 'futures', exchange: 'CME', tickSize: 0.25, tickValue: 12.50, pointValue: 50, contractSize: 1, currency: 'USD', decimalPlaces: 2, contractMonths: ['H', 'M', 'U', 'Z'] },
-  { symbol: 'NQ', name: 'E-mini Nasdaq-100', assetType: 'futures', exchange: 'CME', tickSize: 0.25, tickValue: 5.00, pointValue: 20, contractSize: 1, currency: 'USD', decimalPlaces: 2, contractMonths: ['H', 'M', 'U', 'Z'] },
-  { symbol: 'YM', name: 'E-mini Dow', assetType: 'futures', exchange: 'CBOT', tickSize: 1.0, tickValue: 5.00, pointValue: 5, contractSize: 1, currency: 'USD', decimalPlaces: 0, contractMonths: ['H', 'M', 'U', 'Z'] },
-  { symbol: 'RTY', name: 'E-mini Russell 2000', assetType: 'futures', exchange: 'CME', tickSize: 0.10, tickValue: 5.00, pointValue: 50, contractSize: 1, currency: 'USD', decimalPlaces: 1, contractMonths: ['H', 'M', 'U', 'Z'] },
+  { symbol: 'ES', name: 'E-mini S&P 500', assetType: 'futures', exchange: 'CME', tickSize: 0.25, tickValue: 12.50, pointValue: 50, contractSize: 1, currency: 'USD', decimalPlaces: 2, contractMonths: '["H","M","U","Z"]' },
+  { symbol: 'NQ', name: 'E-mini Nasdaq-100', assetType: 'futures', exchange: 'CME', tickSize: 0.25, tickValue: 5.00, pointValue: 20, contractSize: 1, currency: 'USD', decimalPlaces: 2, contractMonths: '["H","M","U","Z"]' },
+  { symbol: 'YM', name: 'E-mini Dow', assetType: 'futures', exchange: 'CBOT', tickSize: 1.0, tickValue: 5.00, pointValue: 5, contractSize: 1, currency: 'USD', decimalPlaces: 0, contractMonths: '["H","M","U","Z"]' },
+  { symbol: 'RTY', name: 'E-mini Russell 2000', assetType: 'futures', exchange: 'CME', tickSize: 0.10, tickValue: 5.00, pointValue: 50, contractSize: 1, currency: 'USD', decimalPlaces: 1, contractMonths: '["H","M","U","Z"]' },
 
   // Major Forex Pairs
   { symbol: 'EURUSD', name: 'EUR/USD', assetType: 'forex', exchange: 'OANDA', tickSize: 0.00001, tickValue: 1, pointValue: 100000, contractSize: 100000, currency: 'USD', decimalPlaces: 5, pipSize: 0.0001 },

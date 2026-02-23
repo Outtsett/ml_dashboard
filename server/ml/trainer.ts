@@ -387,7 +387,7 @@ class MLTrainer extends EventEmitter {
         console.error('[ML] Error saving model weights:', err.message);
       }
 
-      // Save model metadata to PostgreSQL
+      // Save model metadata to SQLite
       try {
         const finalProgress = session.progress[session.progress.length - 1];
         const labelConfig = session.universalConfig?.labels || DEFAULT_DATA_CONFIG.labels;

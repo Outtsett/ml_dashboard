@@ -84,7 +84,8 @@ export function useRegimeTraining(): TrainingState {
     queryKey: ['instruments'],
     queryFn: async () => {
       const res = await fetch('/api/instruments');
-      return res.json();
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
     },
   });
 
@@ -131,9 +132,10 @@ export function useRegimeTraining(): TrainingState {
 
   // ── Effects ────────────────────────────────────────────────────────────────
 
-  // Sync training state from status endpoint
+  // Sync training state from status endpoint (e.g. reconnect after page reload)
   useEffect(() => {
-    if (trainingStatus?.active?.some((j: { finished: boolean }) => !j.finished)) {
+    const hasActiveJob = trainingStatus?.active?.some((j: { finished: boolean }) => !j.finished);
+    if (hasActiveJob) {
       setIsTraining(true);
     }
   }, [trainingStatus]);

@@ -915,20 +915,22 @@ router.post("/xai/explain", async (req: Request, res: Response) => {
 
     let inputData = input;
 
-    // If no input provided but symbol given, fetch recent OHLCV data
+    // If no input provided but symbol given, fetch recent OHLCV data from QuestDB
     if ((!input || !Array.isArray(input) || input.length === 0) && symbol) {
       try {
-        const now = Date.now();
-        const oneDay = 24 * 60 * 60 * 1000;
-        const ohlcv = await storage.getOhlcvData(symbol, now - oneDay * 7, now, 30);
-        if (ohlcv && ohlcv.length > 0) {
-          inputData = ohlcv.map((bar: any) => [
-            bar.open || 0,
-            bar.high || 0,
-            bar.low || 0,
-            bar.close || 0,
-            bar.volume || 0
-          ]);
+        const { checkQuestDBHealth, getOHLCVSampleBy } = await import("../questdb");
+        const healthy = await checkQuestDBHealth();
+        if (healthy) {
+          const ohlcv = await getOHLCVSampleBy(symbol, '1m', undefined, undefined, 30);
+          if (ohlcv && ohlcv.length > 0) {
+            inputData = ohlcv.map((bar: any) => [
+              Number(bar.open) || 0,
+              Number(bar.high) || 0,
+              Number(bar.low) || 0,
+              Number(bar.close) || 0,
+              Number(bar.volume) || 0
+            ]);
+          }
         }
       } catch (e) {
         console.log('[XAI] Could not fetch real data, using synthetic');
