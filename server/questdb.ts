@@ -274,6 +274,48 @@ export async function createMBP10Table(): Promise<void> {
   `);
 }
 
+
+export async function createContinuousTable(): Promise<void> {
+  await queryQuestDB(`
+    CREATE TABLE IF NOT EXISTS ohlcv_continuous (
+      root SYMBOL CAPACITY 50 CACHE INDEX,
+      ts TIMESTAMP,
+      open DOUBLE,
+      high DOUBLE,
+      low DOUBLE,
+      close DOUBLE,
+      volume DOUBLE,
+      raw_close DOUBLE,
+      adjustment DOUBLE
+    ) timestamp(ts) PARTITION BY MONTH WAL
+    DEDUP UPSERT KEYS(root, ts);
+  `);
+}
+
+export async function createRolloversTable(): Promise<void> {
+  await queryQuestDB(`
+    CREATE TABLE IF NOT EXISTS rollovers (
+      root SYMBOL CAPACITY 50 CACHE INDEX,
+      ts TIMESTAMP,
+      from_contract SYMBOL CAPACITY 200 CACHE,
+      to_contract SYMBOL CAPACITY 200 CACHE,
+      from_close DOUBLE,
+      to_close DOUBLE,
+      price_gap DOUBLE,
+      rollover_type SYMBOL CAPACITY 10 CACHE
+    ) timestamp(ts)
+    DEDUP UPSERT KEYS(root, ts);
+  `);
+}
+
+export async function initQuestDBTables(): Promise<void> {
+  await createOHLCVTable();
+  await createTradesTable();
+  await createMBP10Table();
+  await createContinuousTable();
+  await createRolloversTable();
+}
+
 export async function getQuestDBTables(): Promise<any[]> {
   const sql = "SHOW TABLES;";
   return await queryQuestDB(sql);
