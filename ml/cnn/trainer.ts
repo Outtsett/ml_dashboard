@@ -271,8 +271,8 @@ class MLTrainer extends EventEmitter {
         verbose: 0,
       });
 
-      const loss = history.history.loss[0] as number;
-      const valLoss = history.history.val_loss[0] as number;
+      const loss = history.history.loss![0] as number;
+      const valLoss = history.history.val_loss![0] as number;
       const accuracy = history.history.acc?.[0] as number || 0.33;
       const valAccuracy = history.history.val_acc?.[0] as number || 0.33;
 
@@ -516,8 +516,8 @@ class MLTrainer extends EventEmitter {
         verbose: 0,
       });
       
-      const loss = history.history.loss[0] as number;
-      const valLoss = history.history.val_loss[0] as number;
+      const loss = history.history.loss![0] as number;
+      const valLoss = history.history.val_loss![0] as number;
       const accuracy = history.history.acc?.[0] as number || 0.33;
       const valAccuracy = history.history.val_acc?.[0] as number || 0.33;
       

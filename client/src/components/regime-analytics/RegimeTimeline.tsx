@@ -13,9 +13,9 @@ export function RegimeTimeline({ assignments, n_regimes }: { assignments: Array<
   const segments: Array<{ regime: number; count: number }> = [];
 
   for (let i = 0; i < assignments.length; i += step) {
-    const regime = assignments[i].regime;
-    if (segments.length > 0 && segments[segments.length - 1].regime === regime) {
-      segments[segments.length - 1].count += 1;
+    const regime = assignments[i]!.regime;
+    if (segments.length > 0 && segments[segments.length - 1]!.regime === regime) {
+      segments[segments.length - 1]!.count += 1;
     } else {
       segments.push({ regime, count: 1 });
     }

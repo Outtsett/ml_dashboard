@@ -1,1 +1,1 @@
-export { default } from './backtest';
+export { default } from './backtest/index';

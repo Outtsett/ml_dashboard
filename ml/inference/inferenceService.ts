@@ -251,7 +251,7 @@ export async function predictLatest(config: InferenceConfig): Promise<Prediction
 
   // Predict
   const output = model.predict(inputTensor) as tf.Tensor;
-  const probabilities = (await output.array() as number[][])[0];
+  const probabilities = (await output.array() as number[][])[0]!;
 
   // Cleanup
   inputTensor.dispose();
@@ -260,7 +260,7 @@ export async function predictLatest(config: InferenceConfig): Promise<Prediction
   const maxIdx = probabilities.indexOf(Math.max(...probabilities));
   const directions: Array<'up' | 'neutral' | 'down'> = ['up', 'neutral', 'down'];
 
-  const lastRow = rows[rows.length - 1];
+  const lastRow = rows[rows.length - 1]!;
 
   const prediction: Prediction = {
     timestamp: Number(lastRow.ts),
@@ -276,7 +276,7 @@ export async function predictLatest(config: InferenceConfig): Promise<Prediction
   if (config.includeFeatures) {
     prediction.featureSnapshot = {};
     featureNames.forEach((name, idx) => {
-      prediction.featureSnapshot![name] = normalized[normalized.length - 1][idx];
+      prediction.featureSnapshot![name] = normalized[normalized.length - 1]![idx]!;
     });
   }
 
@@ -369,12 +369,12 @@ export async function predictBatch(config: BatchInferenceConfig): Promise<BatchP
       output.dispose();
 
       for (let b = 0; b < allProbs.length; b++) {
-        const probs = allProbs[b];
+        const probs = allProbs[b]!;
         const maxIdx = probs.indexOf(Math.max(...probs));
-        const rowIdx = batchIndices[b];
+        const rowIdx = batchIndices[b]!;
 
         const pred: Prediction = {
-          timestamp: Number(rows[rowIdx].ts),
+          timestamp: Number(rows[rowIdx]!.ts),
           symbol: config.symbol,
           prediction: maxIdx,
           direction: directions[maxIdx] || 'neutral',
@@ -386,7 +386,7 @@ export async function predictBatch(config: BatchInferenceConfig): Promise<BatchP
         if (config.includeFeatures) {
           pred.featureSnapshot = {};
           featureNames.forEach((name, idx) => {
-            pred.featureSnapshot![name] = normalized[rowIdx][idx];
+            pred.featureSnapshot![name] = normalized[rowIdx!]![idx]!;
           });
         }
 
@@ -407,8 +407,8 @@ export async function predictBatch(config: BatchInferenceConfig): Promise<BatchP
     symbol: config.symbol,
     barsProcessed: rows.length,
     timeRange: {
-      start: predictions.length > 0 ? predictions[0].timestamp : 0,
-      end: predictions.length > 0 ? predictions[predictions.length - 1].timestamp : 0,
+      start: predictions.length > 0 ? predictions[0]!.timestamp : 0,
+      end: predictions.length > 0 ? predictions[predictions.length - 1]!.timestamp : 0,
     },
     computeTimeMs,
   };

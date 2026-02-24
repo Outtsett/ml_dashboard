@@ -25,8 +25,8 @@ export function createCNNModel(config: CNNConfig = defaultConfig): tf.Sequential
 
   model.add(tf.layers.conv1d({
     inputShape: [config.sequenceLength, config.numFeatures],
-    filters: config.filters[0],
-    kernelSize: config.kernelSizes[0],
+    filters: config.filters[0]!,
+    kernelSize: config.kernelSizes[0]!,
     activation: 'relu',
     padding: 'same',
   }));
@@ -36,8 +36,8 @@ export function createCNNModel(config: CNNConfig = defaultConfig): tf.Sequential
 
   for (let i = 1; i < config.filters.length; i++) {
     model.add(tf.layers.conv1d({
-      filters: config.filters[i],
-      kernelSize: config.kernelSizes[i],
+      filters: config.filters[i]!,
+      kernelSize: config.kernelSizes[i]!,
       activation: 'relu',
       padding: 'same',
     }));

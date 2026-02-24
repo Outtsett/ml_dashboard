@@ -99,7 +99,7 @@ export async function enforceMaxEntries(): Promise<{ trimmed: number; symbols: s
       // Update metadata startTimestamp to reflect the new oldest remaining bar
       const remaining = oldestEntries.slice(excess);
       if (remaining.length > 0) {
-        await db.cacheMetadata.update(meta.id!, { startTimestamp: remaining[0].timestamp });
+        await db.cacheMetadata.update(meta.id!, { startTimestamp: remaining[0]!.timestamp });
       } else {
         await db.cacheMetadata.delete(meta.id!);
       }

@@ -170,7 +170,7 @@ class DataPipelineManager extends EventEmitter {
     const totalStages = job.stages.length;
     
     for (let i = 0; i < job.stages.length; i++) {
-      const stage = job.stages[i];
+      const stage = job.stages[i]!;
       stage.status = 'running';
       stage.startedAt = new Date();
       this.emit('stage:started', job, stage);

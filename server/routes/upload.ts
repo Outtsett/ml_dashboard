@@ -124,8 +124,8 @@ async function processOhlcvFileFromDisk(
 
           const countResult = await runQuery<{total: number}>(`SELECT MAX(rn) as total FROM "${tempTable}"`);
 
-          if (countResult.length > 0 && countResult[0].total > 0) {
-            const total = countResult[0].total;
+          if (countResult.length > 0 && countResult[0]!.total > 0) {
+            const total = countResult[0]!.total;
             const CHUNK_SIZE = 50000;
             let totalIngested = 0;
             let chunkStart = 1;
@@ -346,8 +346,8 @@ async function processOhlcvFileFromDisk(
                 FROM read_parquet('${parquetPath}')`);
 
               const countResult = await runQuery<{total: number}>(`SELECT MAX(rn) as total FROM ${fallbackTempTable}`);
-              if (countResult.length > 0 && countResult[0].total > 0) {
-                const total = countResult[0].total;
+              if (countResult.length > 0 && countResult[0]!.total > 0) {
+                const total = countResult[0]!.total;
                 const CHUNK_SIZE = 50000;
                 let totalIngested = 0;
                 let chunkStart = 1;

@@ -97,7 +97,7 @@ export function useTrainingSync(
       .sort((a, b) => a[0] - b[0])
       .map(([id, barCount]) => ({
         id,
-        color: REGIME_COLORS[id % REGIME_COLORS.length].fill,
+        color: REGIME_COLORS[id % REGIME_COLORS.length]!.fill,
         barCount,
       }));
   }, [regime.liveRegimeAssignments]);

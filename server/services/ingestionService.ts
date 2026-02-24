@@ -162,7 +162,7 @@ export async function checkFileIngested(
     .where(eq(ingestedFiles.filePath, safePath));
 
   if (rows.length === 0) return { ingested: false, hashChanged: false };
-  if (rows[0].fileHash === currentHash)
+  if (rows[0]!.fileHash === currentHash)
     return { ingested: true, hashChanged: false };
   return { ingested: false, hashChanged: true };
 }

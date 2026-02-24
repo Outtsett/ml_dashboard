@@ -29,9 +29,9 @@ export function sma(values: number[], period: number): (number | null)[] {
   let sum = 0;
 
   for (let i = 0; i < values.length; i++) {
-    sum += values[i];
+    sum += values[i]!;
     if (i >= period) {
-      sum -= values[i - period];
+      sum -= values[i - period]!;
     }
     if (i >= period - 1) {
       result.push(sum / period);
@@ -60,12 +60,12 @@ export function ema(values: number[], period: number): (number | null)[] {
       // First EMA is SMA of first period values
       let sum = 0;
       for (let j = 0; j < period; j++) {
-        sum += values[j];
+        sum += values[j]!;
       }
       prevEma = sum / period;
       result.push(prevEma);
     } else {
-      prevEma = (values[i] * multiplier) + (prevEma! * (1 - multiplier));
+      prevEma = (values[i]! * multiplier) + (prevEma! * (1 - multiplier));
       result.push(prevEma);
     }
   }
@@ -88,7 +88,7 @@ export function wma(values: number[], period: number): (number | null)[] {
     } else {
       let weightedSum = 0;
       for (let j = 0; j < period; j++) {
-        weightedSum += values[i - period + 1 + j] * (j + 1);
+        weightedSum += values[i - period + 1 + j]! * (j + 1);
       }
       result.push(weightedSum / weightSum);
     }
@@ -126,9 +126,9 @@ export function rollingSum(values: number[], period: number): (number | null)[] 
   let sum = 0;
 
   for (let i = 0; i < values.length; i++) {
-    sum += values[i];
+    sum += values[i]!;
     if (i >= period) {
-      sum -= values[i - period];
+      sum -= values[i - period]!;
     }
     if (i >= period - 1) {
       result.push(sum);
@@ -191,7 +191,7 @@ export function diff(values: number[], period: number = 1): (number | null)[] {
     if (i < period) {
       result.push(null);
     } else {
-      result.push(values[i] - values[i - period]);
+      result.push(values[i]! - values[i - period]!);
     }
   }
 
@@ -209,7 +209,7 @@ export function roc(values: number[], period: number = 1): (number | null)[] {
     if (i < period || values[i - period] === 0) {
       result.push(null);
     } else {
-      result.push(((values[i] - values[i - period]) / values[i - period]) * 100);
+      result.push(((values[i]! - values[i - period]!) / values[i - period]!) * 100);
     }
   }
 
@@ -233,7 +233,7 @@ export function lag(values: number[], period: number = 1): (number | null)[] {
     if (i < period) {
       result.push(null);
     } else {
-      result.push(values[i - period]);
+      result.push(values[i - period]!);
     }
   }
 
@@ -290,13 +290,13 @@ export function trueRange(bars: OHLCVBar[]): (number | null)[] {
 
   for (let i = 0; i < bars.length; i++) {
     if (i === 0) {
-      result.push(bars[i].high - bars[i].low);
+      result.push(bars[i]!.high - bars[i]!.low);
     } else {
-      const prevClose = bars[i - 1].close;
+      const prevClose = bars[i - 1]!.close;
       const tr = Math.max(
-        bars[i].high - bars[i].low,
-        Math.abs(bars[i].high - prevClose),
-        Math.abs(bars[i].low - prevClose)
+        bars[i]!.high - bars[i]!.low,
+        Math.abs(bars[i]!.high - prevClose),
+        Math.abs(bars[i]!.low - prevClose)
       );
       result.push(tr);
     }
@@ -377,7 +377,7 @@ export function combine(
 ): (number | null)[] {
   return a.map((valA, i) => {
     const valB = b[i];
-    if (valA === null || valB === null) return null;
+    if (valA === null || valB == null) return null;
     return fn(valA, valB);
   });
 }

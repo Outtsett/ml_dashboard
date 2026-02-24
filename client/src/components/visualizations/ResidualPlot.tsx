@@ -149,7 +149,7 @@ export function ResidualPlot({
                   key={`cell-${index}`}
                   fill={
                     type === 'residual_vs_predicted' 
-                      ? (plotData[index].y > 0 ? '#3b82f6' : '#f59e0b')
+                      ? (plotData[index]!.y > 0 ? '#3b82f6' : '#f59e0b')
                       : '#3b82f6'
                   }
                 />

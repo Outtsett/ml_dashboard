@@ -159,9 +159,9 @@ function computeDirectionLabels(
   const distribution: Record<string, number> = {};
 
   for (let i = 0; i < bars.length - config.horizon; i++) {
-    const current = bars[i].close;
-    const future = bars[i + config.horizon].close;
-    const atr = bars[i].atr_val;
+    const current = bars[i]!.close;
+    const future = bars[i + config.horizon]!.close;
+    const atr = bars[i]!.atr_val;
 
     if (!atr || atr <= 0 || !current || !future) {
       // Skip bars where ATR isn't available
@@ -207,8 +207,8 @@ function computeTripleBarrierLabels(
   const distribution: Record<string, number> = { tp_hit: 0, sl_hit: 0, time_exit: 0 };
 
   for (let i = 0; i < bars.length - config.maxHoldingPeriod; i++) {
-    const entryPrice = bars[i].close;
-    const atr = bars[i].atr_val;
+    const entryPrice = bars[i]!.close;
+    const atr = bars[i]!.atr_val;
 
     if (!atr || atr <= 0 || !entryPrice) {
       labels.push([0, 1, 0]); // Default to neutral
@@ -232,16 +232,16 @@ function computeTripleBarrierLabels(
         break;
       } else if (high >= tpPrice) {
         result = 1;
-        distribution['tp_hit']++;
+        distribution['tp_hit']!++;
         break;
       } else if (low <= slPrice) {
         result = -1;
-        distribution['sl_hit']++;
+        distribution['sl_hit']!++;
         break;
       }
     }
 
-    if (result === 0) distribution['time_exit']++;
+    if (result === 0) distribution['time_exit']!++;
 
     // 3-class: [up, neutral, down]
     if (result === 1) labels.push([1, 0, 0]);
@@ -302,7 +302,7 @@ export async function loadUniversalTrainingData(
 
         // Extract the feature columns that match our feature names from the parquet
         // For precomputed features, we use ALL available columns as features
-        const parquetCols = Object.keys(featureRows[0]).filter(c => c !== 'timestamp');
+        const parquetCols = Object.keys(featureRows[0]!).filter(c => c !== 'timestamp');
 
         // Map pre-computed columns to feature matrix
         normalizedFeatures = featureRows.map(row => {

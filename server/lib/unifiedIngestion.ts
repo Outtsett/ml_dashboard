@@ -366,7 +366,7 @@ export async function trackUpload(
     status,
   }).returning({ id: uploads.id });
   
-  return result[0].id;
+  return result[0]!.id;
 }
 
 /**

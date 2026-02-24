@@ -192,8 +192,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       <main className={`flex-1 min-w-0 transition-all duration-200 ease-in-out ${collapsed ? "ml-14" : "ml-56"}`}>
         {/* Breadcrumb bar */}
-        <div className="border-b border-border bg-card/50 backdrop-blur-sm px-4 py-2 sticky top-0 z-10">
-          <Breadcrumb>
+        {(() => {
+          const RouteIcon = currentRoute!.icon;
+          return (
+        <div className="drag-region border-b border-border bg-card/50 backdrop-blur-sm px-4 pt-10 pb-2 sticky top-0 z-10">
+          <Breadcrumb className="no-drag">
             <BreadcrumbList>
               <BreadcrumbSlot>
                 <BreadcrumbLink asChild>
@@ -210,8 +213,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {subCrumbs.length === 0 ? (
                 <BreadcrumbSlot>
                   <BreadcrumbPage className="flex items-center gap-1.5 text-xs font-medium">
-                    <currentRoute.icon className="h-3.5 w-3.5 text-primary/70" />
-                    {currentRoute.label}
+                    <RouteIcon className="h-3.5 w-3.5 text-primary/70" />
+                    {currentRoute!.label}
                   </BreadcrumbPage>
                 </BreadcrumbSlot>
               ) : (
@@ -219,8 +222,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <BreadcrumbSlot>
                     <BreadcrumbLink asChild>
                       <Link href={location} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                        <currentRoute.icon className="h-3.5 w-3.5" />
-                        {currentRoute.label}
+                        <RouteIcon className="h-3.5 w-3.5" />
+                        {currentRoute!.label}
                       </Link>
                     </BreadcrumbLink>
                   </BreadcrumbSlot>
@@ -262,6 +265,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </BreadcrumbList>
           </Breadcrumb>
         </div>
+          );
+        })()}
 
         <div className="p-4 max-w-[1800px] mx-auto">
           {children}

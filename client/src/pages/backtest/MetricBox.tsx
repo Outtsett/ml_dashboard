@@ -15,12 +15,12 @@ const colorMap: Record<string, { bg: string; label: string; text: string }> = {
 };
 
 export function MetricBox({ label, value, subValue, color }: MetricBoxProps) {
-  const c = colorMap[color] ?? colorMap.emerald;
+  const c = colorMap[color] ?? colorMap.emerald!;
 
   return (
-    <div className={`bg-gradient-to-br ${c.bg} rounded-xl p-3 border`}>
-      <div className={`text-[10px] ${c.label} uppercase tracking-wider mb-1`}>{label}</div>
-      <div className={`text-2xl font-bold ${c.text}`}>{value}</div>
+    <div className={`bg-gradient-to-br ${c!.bg} rounded-xl p-3 border`}>
+      <div className={`text-[10px] ${c!.label} uppercase tracking-wider mb-1`}>{label}</div>
+      <div className={`text-2xl font-bold ${c!.text}`}>{value}</div>
       {subValue && <div className="text-[10px] text-muted-foreground mt-0.5">{subValue}</div>}
     </div>
   );

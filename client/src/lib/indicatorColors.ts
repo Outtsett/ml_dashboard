@@ -63,8 +63,8 @@ export function getIndicatorColor(column: string): string {
 
   // Check family prefix
   const prefix = column.split('_')[0];
-  if (FAMILY_HUES[prefix] !== undefined) {
-    const hue = FAMILY_HUES[prefix];
+  if (prefix !== undefined && FAMILY_HUES[prefix] !== undefined) {
+    const hue = FAMILY_HUES[prefix]!;
     // Vary saturation/lightness based on full column name hash
     const h = hashCode(column);
     const saturation = 60 + (h % 30);

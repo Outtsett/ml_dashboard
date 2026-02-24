@@ -30,21 +30,21 @@ export const defaultDataConfig: DataConfig = {
 function normalizeData(data: number[][]): number[][] {
   if (data.length === 0) return data;
 
-  const numFeatures = data[0].length;
+  const numFeatures = data[0]!.length;
   const mins: number[] = new Array(numFeatures).fill(Infinity);
   const maxs: number[] = new Array(numFeatures).fill(-Infinity);
 
   for (const row of data) {
     for (let j = 0; j < numFeatures; j++) {
-      if (row[j] < mins[j]) mins[j] = row[j];
-      if (row[j] > maxs[j]) maxs[j] = row[j];
+      if (row[j]! < mins[j]!) mins[j] = row[j]!;
+      if (row[j]! > maxs[j]!) maxs[j] = row[j]!;
     }
   }
 
   return data.map(row =>
     row.map((val, j) => {
-      const range = maxs[j] - mins[j];
-      return range > 0 ? (val - mins[j]) / range : 0;
+      const range = maxs[j]! - mins[j]!;
+      return range > 0 ? (val - mins[j]!) / range : 0;
     })
   );
 }
@@ -53,8 +53,8 @@ function createLabels(closes: number[], lookAhead: number, threshold: number): n
   const labels: number[][] = [];
 
   for (let i = 0; i < closes.length - lookAhead; i++) {
-    const current = closes[i];
-    const future = closes[i + lookAhead];
+    const current = closes[i]!;
+    const future = closes[i + lookAhead]!;
     const change = (future - current) / current;
 
     if (change > threshold) {
@@ -130,7 +130,7 @@ export async function loadTrainingData(config: DataConfig = defaultDataConfig): 
   for (let i = config.sequenceLength; i < labels.length; i++) {
     const seq = normalizedData.slice(i - config.sequenceLength, i);
     sequences.push(seq);
-    sequenceLabels.push(labels[i]);
+    sequenceLabels.push(labels[i]!);
   }
 
   const splitIdx = Math.floor(sequences.length * config.trainSplit);

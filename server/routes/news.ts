@@ -55,7 +55,7 @@ router.get("/news/:symbol", async (req: Request, res: Response) => {
     let match;
 
     while ((match = itemRegex.exec(xmlText)) !== null) {
-      const itemXml = match[1];
+      const itemXml = match[1]!;
       const getTag = (tag: string) => {
         const m = itemXml.match(new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>|<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`));
         return m ? (m[1] || m[2] || '').trim() : '';

@@ -55,8 +55,10 @@ export async function exportTrainingData(
   const dataFile = path.join(TMP_DIR, `${sym}_${timeframe}_${Date.now()}.parquet`).replace(/\\/g, "/");
 
   // Try direct path (DuckDB → QuestDB → parquet, zero Node.js copies)
+  // Skip direct path for futures roots — the UNION ALL of hundreds of contract
+  // ranges can cause DuckDB postgres_scanner to crash. Buffered path is safer.
   const matView = MATERIALIZED_VIEWS[sampleLabel];
-  if (matView) {
+  if (matView && !isFuturesRoot(sym)) {
     try {
       const result = await exportDirect(sym, matView, startMs, endMs, dataFile);
       if (result.totalBars > 0) {
@@ -183,8 +185,8 @@ async function exportBuffered(
     dataFile,
     totalBars: ohlcv.length,
     dateRange: {
-      start: ohlcv[0].ts,
-      end: ohlcv[ohlcv.length - 1].ts,
+      start: ohlcv[0]!.ts,
+      end: ohlcv[ohlcv.length - 1]!.ts,
     },
   };
 }
@@ -204,7 +206,7 @@ export function getNormalizedFeaturesPath(
   const tfDir = LABEL_TO_DIR[timeframe];
   if (!tfDir) return null;
 
-  const featuresPath = path.join(process.cwd(), 'data', 'features', tfDir, symbol.toUpperCase(), 'normalized.parquet');
+  const featuresPath = path.join(process.cwd(), 'data', 'indicators', tfDir, symbol.toUpperCase(), 'normalized.parquet');
   if (fs.existsSync(featuresPath)) {
     return featuresPath.replace(/\\/g, '/');
   }

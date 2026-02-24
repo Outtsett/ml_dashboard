@@ -335,8 +335,8 @@ export function getQualityVerdict(score: number): Verdict {
 export function getLLConvergenceVerdict(points: { log_likelihood: number }[]): Verdict {
   if (points.length < 2) return AWAITING;
   const vals = points.map(p => p.log_likelihood);
-  const totalImprove = vals[vals.length - 1] - vals[0];
-  const secondHalfImprove = vals[vals.length - 1] - vals[Math.floor(vals.length / 2)];
+  const totalImprove = vals[vals.length - 1]! - vals[0]!;
+  const secondHalfImprove = vals[vals.length - 1]! - vals[Math.floor(vals.length / 2)]!;
   const relativeGain = Math.abs(totalImprove) > 0 ? Math.abs(secondHalfImprove / totalImprove) : 0;
 
   if (relativeGain < 0.05) return { text: 'Fully converged — the model learned everything this data can teach it', color: 'text-emerald-400' };

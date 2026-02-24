@@ -277,7 +277,7 @@ export async function bulkLoadOHLCVUnlocked(
       const insertBatch = () => {
         const end = Math.min(processed + BATCH_SIZE, data.length);
         for (let i = processed; i < end; i++) {
-          const row = data[i];
+          const row = data[i]!;
           stmt.run(
             validateSymbol(row.symbol),
             row.timestamp,
@@ -396,8 +396,8 @@ export async function queryOHLCVCursor(
       // For backward direction, reverse to get chronological order
       if (direction === 'backward') data.reverse();
 
-      const nextCursor = hasMore && data.length > 0 ? data[data.length - 1].timestamp : null;
-      const prevCursor = data.length > 0 ? data[0].timestamp : null;
+      const nextCursor = hasMore && data.length > 0 ? data[data.length - 1]!.timestamp : null;
+      const prevCursor = data.length > 0 ? data[0]!.timestamp : null;
 
       resolve({ data, nextCursor, prevCursor });
     });

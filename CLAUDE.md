@@ -13,6 +13,22 @@ The user is an **extreme visual learner** who cannot process abstract math or th
 - **Never assume math literacy** — translate formulas into visual or intuitive equivalents (e.g., "softmax = picks the strongest signal" not "softmax = e^x / Σe^x")
 - **Connect every concept back to the user's actual data** — their 31 features, their 60-bar windows, their OHLCV from DuckDB — not abstract examples
 
+## Development Hardware
+
+| Component | Spec |
+|---|---|
+| **CPU** | AMD Ryzen 9 7900X — 12 cores / 24 threads, 5.6 GHz boost |
+| **RAM** | 128 GB DDR5-5600 (4 × 32 GB Micron CP32G60C40U5B) |
+| **GPU** | NVIDIA GeForce RTX 5060 Ti — 16 GB VRAM, 180 W TDP |
+| **iGPU** | AMD Radeon (integrated, Zen 4) |
+| **Motherboard** | ASUS TUF GAMING X870-PLUS WIFI |
+| **Boot/OS Drive** | Samsung 970 EVO Plus 500 GB NVMe (E:, 466 GB, 45 GB free) |
+| **Data Drive** | Samsung 870 EVO 2 TB SATA SSD (C:, 1.86 TB, 464 GB free) |
+| **Bulk Storage** | Seagate ST2000DM006 2 TB HDD (D:, 1.86 TB, 1.75 TB free) |
+| **OS** | Windows 11 Pro (Build 26200) |
+| **BIOS** | v0831 (2024-12-29) |
+| **GPU Driver** | NVIDIA 591.44 |
+
 ## Tech Stack
 
 - **Frontend**: React 19, Wouter router, TanStack Query, Tailwind v4, shadcn/ui (Radix), Recharts, Lightweight Charts, Three.js/R3F, D3, Framer Motion

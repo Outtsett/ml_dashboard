@@ -72,8 +72,8 @@ export function ForceDirectedCluster({
         for (let i = 0; i < nodeIds.length; i++) {
           for (let j = i + 1; j < nodeIds.length && j < i + 3; j++) {
             links.push({
-              source: nodeIds[i],
-              target: nodeIds[j],
+              source: nodeIds[i]!,
+              target: nodeIds[j]!,
               strength: 0.8,
             });
           }
@@ -138,7 +138,7 @@ export function ForceDirectedCluster({
       .enter()
       .append('circle')
       .attr('r', 5)
-      .attr('fill', d => CLUSTER_COLORS[d.cluster % CLUSTER_COLORS.length])
+      .attr('fill', d => CLUSTER_COLORS[d.cluster % CLUSTER_COLORS.length] ?? '#888')
       .attr('stroke', 'rgba(255,255,255,0.3)')
       .attr('stroke-width', 0.5)
       .attr('opacity', 0.8);
@@ -228,7 +228,7 @@ export function ForceDirectedCluster({
         .attr('r', 4)
         .attr('cx', 4)
         .attr('cy', 0)
-        .attr('fill', CLUSTER_COLORS[cluster % CLUSTER_COLORS.length]);
+        .attr('fill', CLUSTER_COLORS[cluster % CLUSTER_COLORS.length] ?? '#888');
 
       legendItem.append('text')
         .attr('x', 12)

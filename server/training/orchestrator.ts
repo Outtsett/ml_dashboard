@@ -1,12 +1,8 @@
 /**
- * Training Orchestrator — Universal entry point for all model training.
+ * Training Orchestrator — Model-agnostic dispatch center.
  *
- * Think of it as: a dispatch center. You tell it "train model X on symbol Y"
- * and it figures out which runner to use, exports the data if needed,
- * merges configs, and streams standardized events back.
- *
- * Replaces the model-specific training logic spread across regime.ts and ml.ts
- * with a single, model-agnostic coordinator.
+ * The server's only job: resolve config, spawn the runner, stream events back.
+ * Each model's script handles its own data loading — no server-side export blocking.
  */
 
 import type {
@@ -21,7 +17,6 @@ import {
   resolveHyperparameters,
   timeframeToSeconds,
 } from "./registry";
-import { exportTrainingData, cleanupDataFile } from "./dataExporter";
 import { emitSessionEvent } from "./runners/types";
 import { PythonRunner } from "./runners/pythonRunner";
 import { TfjsRunner } from "./runners/tfjsRunner";
@@ -42,7 +37,8 @@ const activeSessions = new Map<string, { session: TrainingSession; runner: ITrai
 
 /**
  * Start training for any model type.
- * Returns the session ID + model ID for SSE stream connection.
+ * Returns immediately with session ID + model ID for SSE stream connection.
+ * The model's script handles its own data loading.
  */
 export async function startTraining(request: TrainingRequest): Promise<{
   sessionId: string;
@@ -66,9 +62,10 @@ export async function startTraining(request: TrainingRequest): Promise<{
   }
 
   // 3. Resolve config: merge defaults + overrides + chart context
-  const sym = request.symbol.toUpperCase();
-  const modelId = `${sym}_${request.timeframe}`;
-  const timeframeSec = timeframeToSeconds(request.timeframe);
+  const sym = (request.symbol ?? "ES").toUpperCase();
+  const tf = request.timeframe ?? "1m";
+  const modelId = `${sym}_${tf}`;
+  const timeframeSec = timeframeToSeconds(tf);
   const hyperparameters = resolveHyperparameters(
     registry.defaultHyperparameters,
     request.hyperparameters,
@@ -87,70 +84,40 @@ export async function startTraining(request: TrainingRequest): Promise<{
     modelType: request.modelType,
     registry,
     symbol: sym,
-    timeframe: request.timeframe,
+    timeframe: tf,
     timeframeSec,
     dateRange: request.dateRange,
     hyperparameters,
     featurePipeline: registry.featurePipeline,
     outputDir: registry.outputDir,
     modelId,
-    includeIndicators: request.includeIndicators,
+    includeIndicators: request.includeIndicators ?? (registry as any).includeIndicators ?? false,
+    allFeatures: request.allFeatures ?? (registry as any).allFeatures ?? false,
     indicatorGroups: request.indicatorGroups,
   };
 
-  // 4. Export data if needed (Python runners need a parquet file)
-  if (registry.requiresDataExport) {
-    console.log(`[training] Exporting data for ${modelId}...`);
-    try {
-      const exportResult = await exportTrainingData(sym, request.timeframe, request.dateRange);
-      resolved.dataFile = exportResult.dataFile;
-
-      // Update date range from actual export (may differ from request)
-      if (!resolved.dateRange) {
-        resolved.dateRange = exportResult.dateRange;
-      }
-
-      console.log(`[training] Exported ${exportResult.totalBars} bars to ${exportResult.dataFile}`);
-    } catch (err: any) {
-      throw new Error(`Data export failed: ${err.message}`);
-    }
-  }
-
-  // 5. Select runner
+  // 4. Select runner
   const runner = runners[registry.runner];
   if (!runner) {
     throw new Error(`No runner available for type: ${registry.runner}`);
   }
 
-  // 6. Start training
-  console.log(`[training] Starting ${request.modelType} training for ${modelId} via ${registry.runner} runner`);
+  // 5. Spawn the training script — it handles its own data loading
+  console.log(`[training] Starting ${request.modelType} for ${modelId} via ${registry.runner} runner`);
   const session = await runner.start(resolved);
 
-  // Emit started event with chart alignment info
+  // Emit started event
   emitSessionEvent(session, "started", {
     sessionId: session.sessionId,
     modelType: request.modelType,
     symbol: sym,
-    timeframe: request.timeframe,
+    timeframe: tf,
     dateRange: resolved.dateRange ?? null,
     modelId,
   });
 
-  // 7. Track session
+  // 6. Track session
   activeSessions.set(modelId, { session, runner, config: resolved });
-
-  // Clean up data file when training finishes
-  if (resolved.dataFile) {
-    const dataFile = resolved.dataFile;
-    const checkCleanup = () => {
-      if (session.finished) {
-        cleanupDataFile(dataFile);
-      } else {
-        setTimeout(checkCleanup, 5000);
-      }
-    };
-    setTimeout(checkCleanup, 5000);
-  }
 
   return { sessionId: session.sessionId, modelId };
 }

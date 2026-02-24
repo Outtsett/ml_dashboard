@@ -27,7 +27,7 @@ export function RegimeLegend({ regimes, selectedRegimes, onToggleRegime, onShowA
   return (
     <div className="flex items-center gap-1 flex-wrap">
       {regimes.map((r) => {
-        const color = REGIME_COLORS[r.id % REGIME_COLORS.length];
+        const color = REGIME_COLORS[r.id % REGIME_COLORS.length]!;
         const active = selectedRegimes === null || selectedRegimes.has(r.id);
         return (
           <button

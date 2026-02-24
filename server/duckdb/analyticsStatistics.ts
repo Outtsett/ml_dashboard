@@ -36,7 +36,7 @@ export async function calculateRollingStats(
       const insertBatch = () => {
         const end = Math.min(processed + BATCH_SIZE, data.length);
         for (let i = processed; i < end; i++) {
-          stmt.run(data[i].timestamp, data[i].close);
+          stmt.run(data[i]!.timestamp, data[i]!.close);
         }
         processed = end;
 
@@ -99,7 +99,7 @@ export async function correlationMatrix(
       const insertBatch = () => {
         const end = Math.min(processed + BATCH_SIZE, data.length);
         for (let i = processed; i < end; i++) {
-          stmt.run(validateSymbol(data[i].symbol), data[i].timestamp, data[i].close);
+          stmt.run(validateSymbol(data[i]!.symbol), data[i]!.timestamp, data[i]!.close);
         }
         processed = end;
 
@@ -119,13 +119,13 @@ export async function correlationMatrix(
                     FROM (SELECT timestamp, close FROM "${tableName}" WHERE symbol = ?) a
                     JOIN (SELECT timestamp, close FROM "${tableName}" WHERE symbol = ?) b
                     ON a.timestamp = b.timestamp
-                  `, [validSymbols[i], validSymbols[j]]);
+                  `, [validSymbols[i]!, validSymbols[j]!]);
 
-                  if (corr.length > 0 && corr[0].correlation !== null) {
+                  if (corr.length > 0 && corr[0]!.correlation !== null) {
                     results.push({
-                      symbol1: validSymbols[i],
-                      symbol2: validSymbols[j],
-                      correlation: corr[0].correlation
+                      symbol1: validSymbols[i]!,
+                      symbol2: validSymbols[j]!,
+                      correlation: corr[0]!.correlation
                     });
                   }
                 }

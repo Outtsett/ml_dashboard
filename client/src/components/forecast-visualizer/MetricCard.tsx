@@ -20,10 +20,10 @@ const COLOR_MAP: Record<string, string> = {
 
 export function MetricCard({ label, value, icon, color, hint }: MetricCardProps) {
   const cls = COLOR_MAP[color] || COLOR_MAP.blue;
-  const [textColor] = cls.split(" ");
+  const [textColor] = cls!.split(" ");
 
   return (
-    <Card className={`glass rounded-xl border ${cls.split(" ").slice(1).join(" ")}`}>
+    <Card className={`glass rounded-xl border ${cls!.split(" ").slice(1).join(" ")}`}>
       <CardContent className="p-3">
         <div className="flex items-center gap-2 mb-1">
           <div className={textColor}>{icon}</div>

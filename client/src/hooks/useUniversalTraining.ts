@@ -231,11 +231,18 @@ export function useUniversalTraining(): UniversalTrainingState & {
     setProgress(0);
     setPhase("starting");
 
+    // Inject symbol + timeframe from chart context if not provided
+    const enriched: TrainingRequest = {
+      ...request,
+      symbol: request.symbol || dashboard.symbol,
+      timeframe: request.timeframe || timeframeLabel,
+    };
+
     try {
       const res = await fetch("/api/training/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(request),
+        body: JSON.stringify(enriched),
       });
 
       if (!res.ok) {
@@ -263,7 +270,7 @@ export function useUniversalTraining(): UniversalTrainingState & {
       setError(err.message);
       setIsTraining(false);
     }
-  }, [connectSSE]);
+  }, [connectSSE, dashboard.symbol, timeframeLabel]);
 
   // ── Stop Training ────────────────────────────────────────────────────────
   const stopTraining = useCallback(() => {

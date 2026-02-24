@@ -4,7 +4,6 @@ import { ArrowUpRight, ArrowDownRight, Activity, DollarSign, TrendingUp, Cpu, Sp
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMemo } from "react";
-import { IndicatorPanel } from "@/components/IndicatorPanel";
 
 import { Trade, MlModel, MarketRegime, QUERY_KEYS } from "@/lib/types";
 import { fetchArray } from "@/lib/fetchArray";
@@ -271,10 +270,6 @@ export default function Dashboard() {
             </CardContent>
           </ScrollArea>
         </Card>
-      </div>
-
-      <div className="shrink-0">
-        <IndicatorPanel symbol="MNQ" />
       </div>
     </div>
   );

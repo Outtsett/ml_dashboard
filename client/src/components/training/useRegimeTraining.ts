@@ -146,7 +146,7 @@ export function useRegimeTraining(): TrainingState {
       const sorted = [...models].sort((a, b) =>
         new Date(b.trained_at).getTime() - new Date(a.trained_at).getTime()
       );
-      setSelectedModel(sorted[0].id);
+      setSelectedModel(sorted[0]!.id);
     }
   }, [models, selectedModel, isTraining]);
 

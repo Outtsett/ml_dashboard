@@ -45,7 +45,7 @@ function cleanStalePidFile(pidFile: string, label: string): boolean {
 
   try {
     const content = fs.readFileSync(pidFile, 'utf-8');
-    const pid = parseInt(content.split('\n')[0].trim(), 10);
+    const pid = parseInt((content.split('\n')[0] ?? '').trim(), 10);
     if (isNaN(pid)) {
       log(`Removing corrupt PID file for ${label}`, 'startup');
       fs.unlinkSync(pidFile);

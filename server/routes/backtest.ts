@@ -190,10 +190,10 @@ router.post('/backtest/run', async (req: Request, res: Response) => {
           const preds = await trainer.predict(symbol, window);
           if (preds.length > 0) {
             signals.push({
-              timestamp: testBars[i].ts,
-              prediction: preds[0].prediction,
-              confidence: Math.max(...preds[0].probabilities),
-              probabilities: preds[0].probabilities,
+              timestamp: testBars[i]!.ts,
+              prediction: preds[0]!.prediction,
+              confidence: Math.max(...preds[0]!.probabilities),
+              probabilities: preds[0]!.probabilities,
             });
           }
         } catch {
@@ -207,7 +207,7 @@ router.post('/backtest/run', async (req: Request, res: Response) => {
       console.log(`[Backtest] No trained model — using momentum-based signals for ${symbol}`);
       const lookback = 20;
       for (let i = lookback; i < testBars.length; i++) {
-        const returns = (testBars[i].close - testBars[i - lookback].close) / testBars[i - lookback].close;
+        const returns = (testBars[i]!.close - testBars[i - lookback]!.close) / testBars[i - lookback]!.close;
         const absReturn = Math.abs(returns);
         let prediction: number;
         if (returns > 0.001) prediction = 2; // up/long
@@ -215,7 +215,7 @@ router.post('/backtest/run', async (req: Request, res: Response) => {
         else prediction = 1; // neutral
 
         signals.push({
-          timestamp: testBars[i].ts,
+          timestamp: testBars[i]!.ts,
           prediction,
           confidence: Math.min(0.5 + absReturn * 10, 0.99),
         });
@@ -237,10 +237,10 @@ router.post('/backtest/run', async (req: Request, res: Response) => {
       symbol,
       brokerConfigId: brokerConfig.id,
       timeframe,
-      trainStartTimestamp: trainBars.length > 0 ? trainBars[0].ts : null,
-      trainEndTimestamp: trainBars.length > 0 ? trainBars[trainBars.length - 1].ts : null,
-      testStartTimestamp: testBars.length > 0 ? testBars[0].ts : null,
-      testEndTimestamp: testBars.length > 0 ? testBars[testBars.length - 1].ts : null,
+      trainStartTimestamp: trainBars.length > 0 ? trainBars[0]!.ts : null,
+      trainEndTimestamp: trainBars.length > 0 ? trainBars[trainBars.length - 1]!.ts : null,
+      testStartTimestamp: testBars.length > 0 ? testBars[0]!.ts : null,
+      testEndTimestamp: testBars.length > 0 ? testBars[testBars.length - 1]!.ts : null,
       splitRatio,
       initialCapital,
       positionSize,

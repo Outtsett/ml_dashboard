@@ -61,7 +61,7 @@ Examples:
         """,
     )
 
-    parser.add_argument("--symbol", type=str, default="ES", help="Symbol to train on")
+    parser.add_argument("--symbol", type=str, default="MNQ", help="Symbol to train on")
     parser.add_argument(
         "--all-symbols",
         action="store_true",
@@ -142,7 +142,14 @@ Examples:
     parser.add_argument(
         "--include-indicators",
         action="store_true",
-        help="Merge pre-computed pandas-ta indicators (from data/indicators/)",
+        default=True,
+        help="Merge pre-computed pandas-ta indicators -- ON by default (use --no-indicators to disable)",
+    )
+    parser.add_argument(
+        "--no-indicators",
+        action="store_true",
+        default=False,
+        help="Disable pre-computed indicators (use only 12 core features)",
     )
     parser.add_argument(
         "--indicator-groups",
@@ -151,8 +158,32 @@ Examples:
         help=(
             "Comma-separated indicator groups to include "
             "(e.g., momentum,trend,volatility). "
-            "Default: momentum,trend,volatility,volume,statistics,cycle"
+            "Default: ALL groups (momentum,trend,volatility,volume,overlap,candle,statistics,cycle)"
         ),
+    )
+    parser.add_argument(
+        "--all-features",
+        action="store_true",
+        default=False,
+        help="Use ALL indicator columns (ignore group filtering, load every non-skip column)",
+    )
+    parser.add_argument(
+        "--train-window-weeks",
+        type=int,
+        default=8,
+        help="Rolling training window size in weeks (default: 8)",
+    )
+    parser.add_argument(
+        "--step-weeks",
+        type=int,
+        default=2,
+        help="Walk-forward step size in weeks (default: 2)",
+    )
+    parser.add_argument(
+        "--wf-gibbs-iter",
+        type=int,
+        default=50,
+        help="Gibbs iterations per walk-forward window (default: 50)",
     )
 
     args = parser.parse_args()
@@ -167,9 +198,14 @@ Examples:
     all_results: list = []
 
     # Parse indicator groups
+    # Indicators ON by default; --no-indicators disables them
+    use_indicators = args.include_indicators and not args.no_indicators
     ind_groups = None
-    if args.include_indicators:
-        if args.indicator_groups:
+    if use_indicators:
+        if args.all_features:
+            # None = load ALL non-skip columns (no group filter)
+            ind_groups = None
+        elif args.indicator_groups:
             ind_groups = [g.strip() for g in args.indicator_groups.split(",")]
             valid = set(INDICATOR_GROUPS.keys())
             invalid = [g for g in ind_groups if g not in valid]
@@ -216,7 +252,7 @@ Examples:
                 gamma=args.gamma,
                 kappa=args.kappa,
                 data_files=data_files,
-                include_indicators=args.include_indicators,
+                include_indicators=use_indicators,
                 indicator_groups=ind_groups,
             )
             all_results.append(result)
@@ -232,18 +268,17 @@ Examples:
                 result = train_hdp_hmm(
                     symbol=sym,
                     timeframe=args.timeframe,
-                    start=args.start,
-                    end=args.end,
                     gibbs_iter=args.gibbs_iter,
                     burn_in=args.burn_in,
-                    test_split=args.test_split,
                     walk_forward_windows=args.wf_windows,
                     alpha=args.alpha,
                     gamma=args.gamma,
                     kappa=args.kappa,
-                    data_file=args.data_file,
-                    include_indicators=args.include_indicators,
                     indicator_groups=ind_groups,
+                    train_window_weeks=args.train_window_weeks,
+                    step_weeks=args.step_weeks,
+                    wf_gibbs_iter=args.wf_gibbs_iter,
+                    data_file=args.data_file,
                 )
                 all_results.append(result)
             except Exception as e:  # pylint: disable=broad-exception-caught

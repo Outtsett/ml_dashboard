@@ -1,1 +1,1 @@
-export { default } from './databases';
+export { default } from './databases/index';

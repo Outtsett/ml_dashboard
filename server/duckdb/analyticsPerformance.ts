@@ -54,7 +54,7 @@ export async function calculatePerformanceRatios(
             return resolve({ sharpe: 0, sortino: 0, calmar: 0, avg_return: 0, volatility: 0, downside_dev: 0 });
           }
 
-          const { avg_return, volatility, downside_dev } = results[0];
+          const { avg_return, volatility, downside_dev } = results[0]!;
           const excessReturn = avg_return - riskFreeRate;
 
           const sharpe = volatility > 0 ? (excessReturn / volatility) * Math.sqrt(252) : 0;
@@ -151,7 +151,7 @@ export async function calculateTradeMetrics(
             });
           }
 
-          const r = results[0];
+          const r = results[0]!;
           const win_rate = r.total_trades > 0 ? r.winning_trades / r.total_trades : 0;
           const profit_factor = r.gross_loss > 0 ? r.gross_profit / r.gross_loss : r.gross_profit > 0 ? Infinity : 0;
           const expectancy = r.total_trades > 0 ? r.total_pnl / r.total_trades : 0;

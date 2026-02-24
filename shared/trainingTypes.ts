@@ -62,14 +62,15 @@ export interface TrainingConfig {
 
 export interface TrainingRequest {
   modelType: string;             // key in models.json: "hdp-hmm", "cnn-universal"
-  symbol: string;                // from chart context
-  timeframe: string;             // from chart context: "30m", "1h"
+  symbol?: string;               // optional — server uses registry default if omitted
+  timeframe?: string;            // optional — server uses registry default if omitted
   dateRange?: {
     start: string;               // ISO date string
     end: string;
   };
   hyperparameters?: Record<string, number | string | boolean>;
   includeIndicators?: boolean;
+  allFeatures?: boolean;
   indicatorGroups?: string;
 }
 
@@ -152,6 +153,7 @@ export interface ResolvedTrainingConfig {
   modelId: string;              // e.g. "ES_30m"
   dataFile?: string;            // path to exported parquet (Python runners)
   includeIndicators?: boolean;
+  allFeatures?: boolean;
   indicatorGroups?: string;
 }
 

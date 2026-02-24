@@ -15,9 +15,9 @@ export function extractSymbolFromFilename(filename: string): string {
   for (const pattern of forexPatterns) {
     const match = upperName.match(pattern);
     if (match) {
-      const pair = match[1] + match[2];
+      const pair = match[1]! + match[2]!;
       if (FOREX_PAIRS.includes(pair)) return pair;
-      const reversed = match[2] + match[1];
+      const reversed = match[2]! + match[1]!;
       if (FOREX_PAIRS.includes(reversed)) return reversed;
       return pair;
     }

@@ -73,12 +73,12 @@ export function ReplayControls({
   const isDisabled = state === 'idle';
 
   const handleSliderChange = useCallback((value: number[]) => {
-    onSeekTo(value[0]);
+    onSeekTo(value[0]!);
   }, [onSeekTo]);
 
   const cycleSpeed = useCallback(() => {
     const idx = SPEEDS.indexOf(speed);
-    const next = SPEEDS[(idx + 1) % SPEEDS.length];
+    const next = SPEEDS[(idx + 1) % SPEEDS.length]!;
     onChangeSpeed(next);
   }, [speed, onChangeSpeed]);
 

@@ -238,7 +238,7 @@ export function GenerateTab({ selectedSymbol, symbols, onSymbolChange }: Generat
                     {renderParamInput(param as { id: string; name: string; type: string; default?: unknown; min?: number; max?: number; step?: number; options?: unknown[] })}
                   </div>
                 ))}
-                {(!generatorDef?.params || generatorDef.params.length === 0) && (
+                {(!generatorDef?.params || generatorDef.params.length <= 0) && (
                   <p className="text-xs text-muted-foreground italic">No configurable parameters</p>
                 )}
               </div>

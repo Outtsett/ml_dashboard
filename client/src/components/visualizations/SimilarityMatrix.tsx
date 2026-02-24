@@ -91,9 +91,9 @@ export function SimilarityMatrix({
                 <div 
                   className="text-[7px] text-muted-foreground flex items-center justify-end pr-1 overflow-hidden"
                   style={{ width: 20 }}
-                  title={displayLabels[i]}
+                  title={displayLabels[i]!}
                 >
-                  {displayLabels[i].slice(0, 3)}
+                  {displayLabels[i]!.slice(0, 3)}
                 </div>
               )}
               {row.map((value, j) => {

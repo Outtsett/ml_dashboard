@@ -150,6 +150,54 @@ BINARY_EXACT = {
 }
 
 # ==============================================================================
+# Bounded Oscillator Rescaling
+# ==============================================================================
+# Indicators with fixed universal ranges that should be rescaled to 0-1
+# instead of z-scored. Key: column prefix. Value: (min, max) of the raw range.
+# Rescale formula: np.clip((x - lo) / (hi - lo), 0, 1)
+
+BOUNDED_COLUMNS: dict[str, tuple[float, float]] = {
+    # --- 0 to 100 oscillators (rescale: x / 100) ---
+    "RSI_": (0.0, 100.0),  # Relative Strength Index
+    "RSX_": (0.0, 100.0),  # Relative Strength Xtra (Jurik smoothed RSI)
+    "STOCHk_": (0.0, 100.0),  # Stochastic %K
+    "STOCHd_": (0.0, 100.0),  # Stochastic %D
+    "STOCHRSIk_": (0.0, 100.0),  # StochRSI %K
+    "STOCHRSId_": (0.0, 100.0),  # StochRSI %D
+    "MFI_": (0.0, 100.0),  # Money Flow Index
+    "UO_": (0.0, 100.0),  # Ultimate Oscillator
+    "ADX_": (0.0, 100.0),  # Average Directional Index
+    "ADXR_": (0.0, 100.0),  # ADX Rating
+    "AROONU_": (0.0, 100.0),  # Aroon Up
+    "AROOND_": (0.0, 100.0),  # Aroon Down
+    "DMP_": (0.0, 100.0),  # Directional Movement Plus
+    "DMN_": (0.0, 100.0),  # Directional Movement Minus
+    "CHOP_": (0.0, 100.0),  # Choppiness Index
+    "STC_": (0.0, 100.0),  # Schaff Trend Cycle
+    "INERTIA_": (0.0, 100.0),  # Inertia (RSI of linear regression slope)
+    # --- -100 to 0 oscillators ---
+    "WILLR_": (-100.0, 0.0),  # Williams %R
+    # --- -100 to 100 oscillators ---
+    "CMO_": (-100.0, 100.0),  # Chande Momentum Oscillator
+    "AROONOSC_": (-100.0, 100.0),  # Aroon Oscillator
+    "TSI_": (-100.0, 100.0),  # True Strength Index (line)
+    "TSIs_": (-100.0, 100.0),  # True Strength Index (signal)
+    # --- -1 to 1 oscillators ---
+    "CTI_": (-1.0, 1.0),  # Correlation Trend Indicator
+    "EBSW_": (-1.0, 1.0),  # Even Better Sinewave
+    # --- 0 to ~3 (vortex, clip to 1 after rescale) ---
+    "VTXP_": (0.0, 3.0),  # Vortex Positive
+    "VTXM_": (0.0, 3.0),  # Vortex Negative
+}
+
+# Columns already on a normalized 0-1 or z-score scale — keep as-is
+ALREADY_NORMALIZED_PREFIXES = (
+    "BBP_",  # Bollinger %B: ~0 to 1
+    "ER_",  # Efficiency Ratio: 0 to 1
+    "ZS_",  # Already a z-score
+)
+
+# ==============================================================================
 # Indicator Groups for Selective Inclusion
 # ==============================================================================
 
@@ -287,11 +335,14 @@ INDICATOR_GROUPS: dict[str, list[str]] = {
 }
 
 # Default groups when --include-indicators is used without specifying groups
+# ALL groups included by default -- the whole point is to use all 340+ features
 DEFAULT_INDICATOR_GROUPS = [
     "momentum",
     "trend",
     "volatility",
     "volume",
+    "overlap",
+    "candle",
     "statistics",
     "cycle",
 ]

@@ -126,7 +126,7 @@ const PANEL_DISPLAY_NAMES: Record<string, string> = {
 /** Get a display label for a panel key like "MACD_12_26_9" → "MACD (12,26,9)" */
 export function getPanelLabel(panelKey: string): string {
   const parts = panelKey.split('_');
-  const name = parts[0];
+  const name = parts[0]!;
   const params = parts.slice(1).filter(Boolean).join(',');
   const displayName = PANEL_DISPLAY_NAMES[name] || name;
   return params ? `${displayName} (${params})` : displayName;
@@ -191,7 +191,7 @@ const REFERENCE_LINES: Record<string, { value: number; color: string }[]> = {
 };
 
 export function getReferenceLines(panelKey: string): { value: number; color: string }[] {
-  const family = panelKey.split('_')[0];
+  const family = panelKey.split('_')[0]!;
   return REFERENCE_LINES[family] || [];
 }
 

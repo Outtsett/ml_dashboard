@@ -42,7 +42,7 @@ export default function TrainingTerminal({
         </div>
         <TerminalIcon className="h-3.5 w-3.5 text-[#8b949e]" />
         <span className="text-[#8b949e] text-[11px] font-medium">
-          hdp-hmm — {selectedSymbol}@{selectedTimeframe}
+          training — {selectedSymbol}@{selectedTimeframe}
         </span>
         {isTraining && liveMetrics && (
           <span className="text-[10px] text-orange-400 ml-2 animate-pulse">
@@ -182,7 +182,7 @@ export default function TrainingTerminal({
           <div className="flex-1 overflow-auto p-3 leading-[1.6]">
           {trainLogs.length === 0 ? (
             <div className="text-[#484f58] flex items-center gap-1">
-              <span className="text-green-500">$</span> Ready. Click Train to start HDP-HMM Gibbs sampler.
+              <span className="text-green-500">$</span> Ready. Click Train to start.
             </div>
           ) : (
             trainLogs.filter(log => {

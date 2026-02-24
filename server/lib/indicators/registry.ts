@@ -185,7 +185,7 @@ export function calculateRSI(bars: OHLCVBar[], period: number = 14): IndicatorRe
   
   const rsiValues = avgGain.map((ag, i) => {
     const al = avgLoss[i];
-    if (ag === null || al === null || al === 0) return null;
+    if (ag === null || al == null || al === 0) return null;
     return 100 - (100 / (1 + ag / al));
   });
 
@@ -235,7 +235,7 @@ export function calculateBollingerBands(
   const pctB = closes.map((c, i) => {
     const u = upper[i];
     const l = lower[i];
-    if (u === null || l === null || u === l) return null;
+    if (u == null || l == null || u === l) return null;
     return (c - l) / (u - l);
   });
 
@@ -276,7 +276,7 @@ export function calculateStochastic(
   const stochK = closes.map((c, i) => {
     const hh = highestHigh[i];
     const ll = lowestLow[i];
-    if (hh === null || ll === null || hh === ll) return null;
+    if (hh == null || ll == null || hh === ll) return null;
     return ((c - ll) / (hh - ll)) * 100;
   });
 
@@ -298,7 +298,7 @@ export function calculateCCI(bars: OHLCVBar[], period: number = 20): IndicatorRe
   
   const cciValues = tp.map((t, i) => {
     const mean = tpSMA[i];
-    if (mean === null || i < period - 1) return null;
+    if (mean == null || i < period - 1) return null;
     
     // Calculate mean deviation
     const window = tp.slice(i - period + 1, i + 1);
@@ -325,7 +325,7 @@ export function calculateWilliamsR(bars: OHLCVBar[], period: number = 14): Indic
   const willR = closes.map((c, i) => {
     const hh = highestHigh[i];
     const ll = lowestLow[i];
-    if (hh === null || ll === null || hh === ll) return null;
+    if (hh == null || ll == null || hh === ll) return null;
     return ((hh - c) / (hh - ll)) * -100;
   });
 
@@ -355,16 +355,16 @@ export function calculateIndicator(request: CalculateIndicatorParams): Indicator
 
   switch (indicator) {
     case 'sma':
-      return [{ name: `sma_${mergedParams.period}`, values: sma(closes, mergedParams.period) }];
+      return [{ name: `sma_${mergedParams.period}`, values: sma(closes, mergedParams.period!) }];
     
     case 'ema':
-      return [{ name: `ema_${mergedParams.period}`, values: ema(closes, mergedParams.period) }];
+      return [{ name: `ema_${mergedParams.period}`, values: ema(closes, mergedParams.period!) }];
     
     case 'wma':
-      return [{ name: `wma_${mergedParams.period}`, values: wma(closes, mergedParams.period) }];
+      return [{ name: `wma_${mergedParams.period}`, values: wma(closes, mergedParams.period!) }];
     
     case 'stddev':
-      return [{ name: `stddev_${mergedParams.period}`, values: stddev(closes, mergedParams.period) }];
+      return [{ name: `stddev_${mergedParams.period}`, values: stddev(closes, mergedParams.period!) }];
     
     case 'roc':
       return [{ name: `roc_${mergedParams.period}`, values: roc(closes, mergedParams.period) }];
@@ -451,16 +451,16 @@ export function generateIndicatorSQL(request: GenerateIndicatorSQLParams): strin
       const bulkRequest: BulkIndicatorRequest = {};
       switch (indicator) {
         case 'sma':
-          bulkRequest.sma = [mergedParams.period];
+          bulkRequest.sma = [mergedParams.period!];
           break;
         case 'stddev':
-          bulkRequest.stddev = [mergedParams.period];
+          bulkRequest.stddev = [mergedParams.period!];
           break;
         case 'roc':
-          bulkRequest.roc = [mergedParams.period];
+          bulkRequest.roc = [mergedParams.period!];
           break;
         case 'momentum':
-          bulkRequest.momentum = [mergedParams.period];
+          bulkRequest.momentum = [mergedParams.period!];
           break;
         default:
           throw new Error(`SQL generation not implemented for: ${indicator}`);

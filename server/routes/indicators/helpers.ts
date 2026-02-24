@@ -6,7 +6,7 @@ import * as fs from "fs";
 // ============================================================================
 
 export const INDICATOR_DIR = path.join(process.cwd(), "data", "indicators");
-export const FEATURES_DIR = path.join(process.cwd(), "data", "features");
+export const FEATURES_DIR = INDICATOR_DIR;  // normalized features live alongside indicators
 
 export interface CategoryMeta {
   columns: string[];

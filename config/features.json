@@ -1,14 +1,23 @@
 {
   "pipelines": {
     "hdp-hmm-12": {
-      "name": "HDP-HMM Self-Referential",
-      "description": "12 rolling z-score features for regime detection. Self-referential normalization avoids lookahead bias.",
+      "name": "HDP-HMM Self-Referential (Legacy)",
+      "description": "12 rolling z-score features only. Legacy pipeline — use hdp-hmm-full instead.",
       "features": [
         "log_return_z", "range_pct_z", "body_pct_z",
         "upper_wick_pct", "lower_wick_pct", "vol_rank",
         "atr_ratio", "trend_5_z", "trend_20_z",
         "vol_ratio_5_20", "range_rank", "return_rank"
       ],
+      "warmupBars": 50,
+      "rollingWindow": 50
+    },
+    "hdp-hmm-full": {
+      "name": "HDP-HMM Full Feature (344+12)",
+      "description": "12 core z-score features + all 344 pre-computed indicators. Maximizes regime discovery.",
+      "features": "*",
+      "includeIndicators": true,
+      "allFeatures": true,
       "warmupBars": 50,
       "rollingWindow": 50
     },

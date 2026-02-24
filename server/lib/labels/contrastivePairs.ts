@@ -323,11 +323,11 @@ export function applyTimeWarping(
     const idx = Math.floor(pos);
     const frac = pos - idx;
     if (idx >= warpPath.length - 1) {
-      augmented.push(data[warpPath[warpPath.length - 1]]);
+      augmented.push(data[warpPath[warpPath.length - 1]!]!);
     } else {
-      const srcIdx1 = warpPath[idx];
-      const srcIdx2 = warpPath[idx + 1];
-      augmented.push(data[srcIdx1] * (1 - frac) + data[srcIdx2] * frac);
+      const srcIdx1 = warpPath[idx]!;
+      const srcIdx2 = warpPath[idx + 1]!;
+      augmented.push(data[srcIdx1]! * (1 - frac) + data[srcIdx2]! * frac);
     }
   }
   

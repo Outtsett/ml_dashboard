@@ -59,7 +59,7 @@ export function detectMapping(columns: string[]): ColumnMapping | null {
     : undefined;
 
   return {
-    ts: columns[lower.indexOf(ts.toLowerCase())],
+    ts: columns[lower.indexOf(ts.toLowerCase())]!,
     symbol,
     open, high, low, close,
     volume: volume || 'volume',

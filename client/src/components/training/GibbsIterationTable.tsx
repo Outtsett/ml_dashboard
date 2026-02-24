@@ -125,53 +125,53 @@ export default function GibbsIterationTable({ points, totalIterations, nBars, bu
               `}
             >
               {/* Iter */}
-              <div className={`${COLUMNS[0].width} ${COLUMNS[0].align} px-1 shrink-0 text-[#8b949e]`}>
+              <div className={`${COLUMNS[0]!.width} ${COLUMNS[0]!.align} px-1 shrink-0 text-[#8b949e]`}>
                 <span className="text-[#484f58]">{pt.iter}</span>
                 <span className="text-[#30363d]">/{totalIterations}</span>
               </div>
 
               {/* Regimes */}
-              <div className={`${COLUMNS[1].width} ${COLUMNS[1].align} px-1 shrink-0`}>
+              <div className={`${COLUMNS[1]!.width} ${COLUMNS[1]!.align} px-1 shrink-0`}>
                 <span className="text-orange-400 font-bold">{nRegimes}</span>
               </div>
 
               {/* Fit/bar */}
-              <div className={`${COLUMNS[2].width} ${COLUMNS[2].align} px-1 shrink-0 text-violet-400`}>
+              <div className={`${COLUMNS[2]!.width} ${COLUMNS[2]!.align} px-1 shrink-0 text-violet-400`}>
                 {llPerBar.toFixed(2)}
               </div>
 
               {/* LL */}
-              <div className={`${COLUMNS[3].width} ${COLUMNS[3].align} px-1 shrink-0 text-violet-400/70`}>
+              <div className={`${COLUMNS[3]!.width} ${COLUMNS[3]!.align} px-1 shrink-0 text-violet-400/70`}>
                 {pt.log_likelihood.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </div>
 
               {/* Delta */}
-              <div className={`${COLUMNS[4].width} ${COLUMNS[4].align} px-1 shrink-0 ${deltaColor(d)}`}>
+              <div className={`${COLUMNS[4]!.width} ${COLUMNS[4]!.align} px-1 shrink-0 ${deltaColor(d)}`}>
                 {d < 10 ? d.toFixed(2) : d < 1000 ? d.toFixed(1) : d.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </div>
 
               {/* Entropy */}
-              <div className={`${COLUMNS[5].width} ${COLUMNS[5].align} px-1 shrink-0 ${entropyColor(ent, nRegimes)}`}>
+              <div className={`${COLUMNS[5]!.width} ${COLUMNS[5]!.align} px-1 shrink-0 ${entropyColor(ent, nRegimes)}`}>
                 {ent > 0 ? ent.toFixed(2) : '--'}
               </div>
 
               {/* Switch rate */}
-              <div className={`${COLUMNS[6].width} ${COLUMNS[6].align} px-1 shrink-0 ${switchColor(sw)}`}>
+              <div className={`${COLUMNS[6]!.width} ${COLUMNS[6]!.align} px-1 shrink-0 ${switchColor(sw)}`}>
                 {sw > 0 ? sw.toFixed(3) : '--'}
               </div>
 
               {/* Self-transition */}
-              <div className={`${COLUMNS[7].width} ${COLUMNS[7].align} px-1 shrink-0 ${selfTransColor(st)}`}>
+              <div className={`${COLUMNS[7]!.width} ${COLUMNS[7]!.align} px-1 shrink-0 ${selfTransColor(st)}`}>
                 {st > 0 ? st.toFixed(2) : '--'}
               </div>
 
               {/* Max regime % */}
-              <div className={`${COLUMNS[8].width} ${COLUMNS[8].align} px-1 shrink-0 ${maxRegColor(mr)}`}>
+              <div className={`${COLUMNS[8]!.width} ${COLUMNS[8]!.align} px-1 shrink-0 ${maxRegColor(mr)}`}>
                 {mr > 0 ? `${mr.toFixed(1)}%` : '--'}
               </div>
 
               {/* Avg dwell */}
-              <div className={`${COLUMNS[9].width} ${COLUMNS[9].align} px-1 shrink-0 ${dwellColor(dw)}`}>
+              <div className={`${COLUMNS[9]!.width} ${COLUMNS[9]!.align} px-1 shrink-0 ${dwellColor(dw)}`}>
                 {dw > 0 ? dw.toFixed(1) : '--'}
               </div>
             </div>

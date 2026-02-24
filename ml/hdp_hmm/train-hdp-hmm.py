@@ -7,8 +7,8 @@ The implementation has been modularized into the ml/hdp_hmm/ package.
 This script is kept for backward compatibility.
 
 Usage (either works):
-    python scripts/train-hdp-hmm.py --symbol ES --timeframe 1d
-    python -m ml.hdp_hmm --symbol ES --timeframe 1d
+    python scripts/train-hdp-hmm.py --symbol MNQ --timeframe 1m
+    python -m ml.hdp_hmm --symbol MNQ --timeframe 1m
 
 See ml/hdp_hmm/ for the full package:
     config.py     — Paths, constants, symbol/feature/indicator definitions

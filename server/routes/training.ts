@@ -39,11 +39,12 @@ router.post("/training/start", async (req: Request, res: Response) => {
   try {
     const request: TrainingRequest = {
       modelType: req.body.modelType,
-      symbol: req.body.symbol ?? "ES",
-      timeframe: req.body.timeframe ?? "30m",
+      symbol: req.body.symbol,        // optional — orchestrator resolves from registry
+      timeframe: req.body.timeframe,  // optional — orchestrator resolves from registry
       dateRange: req.body.dateRange,
       hyperparameters: req.body.hyperparameters,
       includeIndicators: req.body.includeIndicators,
+      allFeatures: req.body.allFeatures,
       indicatorGroups: req.body.indicatorGroups,
     };
 
@@ -91,7 +92,7 @@ router.get("/training/stream/:modelId", (req: Request, res: Response) => {
   // Replay buffered events so reconnecting client catches up
   const fromIdx = parseInt(req.query.from as string) || 0;
   for (let i = fromIdx; i < session.events.length; i++) {
-    send(session.events[i]);
+    send(session.events[i]!);
   }
   res.write(`event: caught_up\ndata: ${JSON.stringify({ eventCount: session.events.length })}\n\n`);
 

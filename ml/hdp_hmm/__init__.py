@@ -22,6 +22,7 @@ Package Structure:
     validation  - Walk-forward and out-of-sample validation
     analysis    - Regime analysis with auto-labeling
     training    - Full training pipelines (single + universal)
+    shap_analysis - SHAP explainability for regime assignments
     cli         - Command-line interface
 """
 
@@ -30,6 +31,7 @@ from .cli import main
 from .data import load_ohlcv_data
 from .features import compute_features
 from .model import StickyHDPHMM
+from .shap_analysis import compute_shap_explanations, save_shap_results
 from .training import train_hdp_hmm, train_universal
 
 __all__ = [
@@ -39,5 +41,7 @@ __all__ = [
     "compute_features",
     "load_ohlcv_data",
     "analyze_regimes",
+    "compute_shap_explanations",
+    "save_shap_results",
     "main",
 ]

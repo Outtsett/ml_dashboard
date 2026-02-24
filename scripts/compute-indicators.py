@@ -651,7 +651,7 @@ def compute_indicators(df: pd.DataFrame, symbol: str, tf_name: str) -> pd.DataFr
         print(f"  [{symbol}/{tf_name}] Skip after cleanup: only {len(df)} bars")
         return df
 
-    df.ta.cores = 2
+    df.ta.cores = 0 if len(df) > 500_000 else 2
     cols_before = len(df.columns)
 
     # 1) Run AllStudy -- computes all ~300+ indicators

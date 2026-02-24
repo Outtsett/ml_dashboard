@@ -42,7 +42,7 @@ function parseTimeframeMinutes(tf: string | undefined): number {
   // Label like "5m", "1h", "1d"
   const match = tf.match(/^(\d+)(s|m|h|d|w)?$/i);
   if (match) {
-    const val = parseInt(match[1]);
+    const val = parseInt(match[1]!);
     const unit = (match[2] || 'm').toLowerCase();
     if (unit === 's') return val / 60;
     if (unit === 'm') return val;

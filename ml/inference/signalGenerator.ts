@@ -176,7 +176,7 @@ export class SignalGenerator {
 
     // === Filter 2: Probability gap (ensures the model isn't just guessing) ===
     const sortedProbs = [...probabilities].sort((a, b) => b - a);
-    const gapPass = (sortedProbs[0] - sortedProbs[1]) >= this.config.minProbabilityGap;
+    const gapPass = (sortedProbs[0]! - sortedProbs[1]!) >= this.config.minProbabilityGap;
     const combinedConfidencePass = confidencePass && gapPass;
 
     // === Filter 3: Regime filter ===
@@ -228,7 +228,7 @@ export class SignalGenerator {
 
     if (!combinedConfidencePass) {
       direction = 'no_signal';
-      reason = `Low confidence (${(confidence * 100).toFixed(1)}%) or small gap (${((sortedProbs[0] - sortedProbs[1]) * 100).toFixed(1)}%)`;
+      reason = `Low confidence (${(confidence * 100).toFixed(1)}%) or small gap (${((sortedProbs[0]! - sortedProbs[1]!) * 100).toFixed(1)}%)`;
     } else if (!cooldownPass) {
       direction = 'no_signal';
       reason = `Cooldown (${this.config.cooldownBars} bars)`;

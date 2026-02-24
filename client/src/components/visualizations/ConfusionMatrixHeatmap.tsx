@@ -39,7 +39,7 @@ export function ConfusionMatrixHeatmap({
     const maxValue = Math.max(...matrix.flat());
 
     const normalizedMatrix = normalize
-      ? matrix.map((row, i) => row.map(v => rowSums[i] > 0 ? v / rowSums[i] : 0))
+      ? matrix.map((row, i) => row.map(v => rowSums[i]! > 0 ? v / rowSums[i]! : 0))
       : matrix;
 
     const classLabels = labels || Array.from({ length: numClasses }, (_, i) => `C${i + 1}`);

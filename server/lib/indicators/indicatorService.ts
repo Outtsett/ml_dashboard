@@ -57,7 +57,7 @@ export function computeIndicatorsRealtime(
       const rsiValues = RSI.calculate({ values: closes, period });
       const offset = data.length - rsiValues.length;
       rsiValues.forEach((val, i) => {
-        results[i + offset][`rsi_${period}`] = val;
+        results[i + offset]![`rsi_${period}`] = val;
       });
     }
   }
@@ -75,9 +75,9 @@ export function computeIndicatorsRealtime(
       });
       const offset = data.length - macdResult.length;
       macdResult.forEach((val, i) => {
-        results[i + offset][`macd_${params.fast}_${params.slow}_${params.signal}`] = val.MACD ?? null;
-        results[i + offset][`macd_signal_${params.fast}_${params.slow}_${params.signal}`] = val.signal ?? null;
-        results[i + offset][`macd_hist_${params.fast}_${params.slow}_${params.signal}`] = val.histogram ?? null;
+        results[i + offset]![`macd_${params.fast}_${params.slow}_${params.signal}`] = val.MACD ?? null;
+        results[i + offset]![`macd_signal_${params.fast}_${params.slow}_${params.signal}`] = val.signal ?? null;
+        results[i + offset]![`macd_hist_${params.fast}_${params.slow}_${params.signal}`] = val.histogram ?? null;
       });
     }
   }
@@ -92,12 +92,12 @@ export function computeIndicatorsRealtime(
       });
       const offset = data.length - bbResult.length;
       bbResult.forEach((val, i) => {
-        results[i + offset][`bb_upper_${params.period}`] = val.upper;
-        results[i + offset][`bb_middle_${params.period}`] = val.middle;
-        results[i + offset][`bb_lower_${params.period}`] = val.lower;
+        results[i + offset]![`bb_upper_${params.period}`] = val.upper;
+        results[i + offset]![`bb_middle_${params.period}`] = val.middle;
+        results[i + offset]![`bb_lower_${params.period}`] = val.lower;
         // %B = (close - lower) / (upper - lower)
-        const close = closes[i + offset];
-        results[i + offset][`bb_pct_b_${params.period}`] = 
+        const close = closes[i + offset]!;
+        results[i + offset]![`bb_pct_b_${params.period}`] = 
           val.upper !== val.lower ? (close - val.lower) / (val.upper - val.lower) : 0.5;
       });
     }
@@ -114,7 +114,7 @@ export function computeIndicatorsRealtime(
       });
       const offset = data.length - atrResult.length;
       atrResult.forEach((val, i) => {
-        results[i + offset][`atr_${period}`] = val;
+        results[i + offset]![`atr_${period}`] = val;
       });
     }
   }
@@ -131,8 +131,8 @@ export function computeIndicatorsRealtime(
       });
       const offset = data.length - stochResult.length;
       stochResult.forEach((val, i) => {
-        results[i + offset][`stoch_k_${params.k}`] = val.k;
-        results[i + offset][`stoch_d_${params.k}_${params.d}`] = val.d;
+        results[i + offset]![`stoch_k_${params.k}`] = val.k;
+        results[i + offset]![`stoch_d_${params.k}_${params.d}`] = val.d;
       });
     }
   }
@@ -148,7 +148,7 @@ export function computeIndicatorsRealtime(
       });
       const offset = data.length - cciResult.length;
       cciResult.forEach((val, i) => {
-        results[i + offset][`cci_${period}`] = val;
+        results[i + offset]![`cci_${period}`] = val;
       });
     }
   }
@@ -164,7 +164,7 @@ export function computeIndicatorsRealtime(
       });
       const offset = data.length - wrResult.length;
       wrResult.forEach((val, i) => {
-        results[i + offset][`williams_r_${period}`] = val;
+        results[i + offset]![`williams_r_${period}`] = val;
       });
     }
   }
@@ -175,7 +175,7 @@ export function computeIndicatorsRealtime(
       const smaResult = SMA.calculate({ values: closes, period });
       const offset = data.length - smaResult.length;
       smaResult.forEach((val, i) => {
-        results[i + offset][`sma_${period}`] = val;
+        results[i + offset]![`sma_${period}`] = val;
       });
     }
   }
@@ -186,7 +186,7 @@ export function computeIndicatorsRealtime(
       const emaResult = EMA.calculate({ values: closes, period });
       const offset = data.length - emaResult.length;
       emaResult.forEach((val, i) => {
-        results[i + offset][`ema_${period}`] = val;
+        results[i + offset]![`ema_${period}`] = val;
       });
     }
   }
@@ -197,7 +197,7 @@ export function computeIndicatorsRealtime(
       const rocResult = ROC.calculate({ values: closes, period });
       const offset = data.length - rocResult.length;
       rocResult.forEach((val, i) => {
-        results[i + offset][`roc_${period}`] = val;
+        results[i + offset]![`roc_${period}`] = val;
       });
     }
   }
@@ -206,7 +206,7 @@ export function computeIndicatorsRealtime(
   if (request.indicators.momentum) {
     for (const period of request.indicators.momentum) {
       for (let i = period; i < closes.length; i++) {
-        results[i][`momentum_${period}`] = closes[i] - closes[i - period];
+        results[i]![`momentum_${period}`] = closes[i]! - closes[i - period]!;
       }
     }
   }

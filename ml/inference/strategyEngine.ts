@@ -142,7 +142,7 @@ export class StrategyEngine {
       capital: initialCapital,
       peakCapital: initialCapital,
       dailyStartCapital: initialCapital,
-      currentDay: new Date().toISOString().split('T')[0],
+      currentDay: new Date().toISOString().split('T')[0]!,
       openPositionCount: 0,
       totalExposure: 0,
       tradeHistory: [],
@@ -168,7 +168,7 @@ export class StrategyEngine {
       capital,
       peakCapital: capital,
       dailyStartCapital: capital,
-      currentDay: new Date().toISOString().split('T')[0],
+      currentDay: new Date().toISOString().split('T')[0]!,
       openPositionCount: 0,
       totalExposure: 0,
       tradeHistory: [],
@@ -194,7 +194,7 @@ export class StrategyEngine {
     const rejections: string[] = [];
 
     // Check day rollover
-    const signalDay = new Date(signal.timestamp).toISOString().split('T')[0];
+    const signalDay = new Date(signal.timestamp).toISOString().split('T')[0]!;
     if (signalDay !== this.state.currentDay) {
       this.state.currentDay = signalDay;
       this.state.dailyStartCapital = this.state.capital;

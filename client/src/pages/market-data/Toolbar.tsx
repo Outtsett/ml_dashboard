@@ -293,7 +293,7 @@ export function Toolbar({
           className="h-7 px-3 text-[10px] font-mono gap-1.5 bg-linear-to-r from-orange-500 to-rose-500 text-white hover:opacity-90"
           onClick={onStartTraining}
         >
-          <Flame className="h-3.5 w-3.5" /> Train {selectedModelType === 'hdp-hmm' ? 'HDP-HMM' : 'CNN'}
+          <Flame className="h-3.5 w-3.5" /> Train
         </Button>
       ) : (
         <Button

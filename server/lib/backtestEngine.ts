@@ -233,7 +233,7 @@ export function runBacktest(
   let circuitBroken = false;
 
   for (let i = 0; i < sortedBars.length; i++) {
-    const bar = sortedBars[i];
+    const bar = sortedBars[i]!;
     const signal = signalMap.get(bar.ts);
 
     // Record equity curve point
@@ -373,7 +373,7 @@ export function runBacktest(
 
   // Close any remaining open position at end of data
   if (openPosition && sortedBars.length > 0) {
-    const lastBar = sortedBars[sortedBars.length - 1];
+    const lastBar = sortedBars[sortedBars.length - 1]!;
     closeTrade(sortedBars.length - 1, lastBar.close, 'end_of_data');
   }
 
@@ -386,7 +386,7 @@ export function runBacktest(
 
   function closeTrade(barIndex: number, exitPrice: number, reason: string) {
     if (!openPosition) return;
-    const bar = sortedBars[barIndex];
+    const bar = sortedBars[barIndex]!;
     const grossPnl = computePnL(
       instrument,
       openPosition.side,
@@ -485,7 +485,7 @@ function computeMetrics(
   const sortinoRatio = downsideStdDev > 0 ? (meanReturn / downsideStdDev) * Math.sqrt(252) : 0;
 
   // Max drawdown from equity curve
-  let peakEq = equityCurve.length > 0 ? equityCurve[0].equity : initialCapital;
+  let peakEq = equityCurve.length > 0 ? equityCurve[0]!.equity : initialCapital;
   let maxDD = 0;
   for (const pt of equityCurve) {
     if (pt.equity > peakEq) peakEq = pt.equity;

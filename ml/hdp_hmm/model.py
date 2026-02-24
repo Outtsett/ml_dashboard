@@ -20,7 +20,128 @@ from typing import Any, Callable, Optional
 
 import numpy as np
 from scipy.special import logsumexp as sp_logsumexp  # type: ignore[import-untyped]
-from scipy.stats import invwishart, multivariate_normal  # type: ignore[import-untyped]
+
+# ── Numba JIT acceleration for FFBS ─────────────────────────────────────────
+# The forward pass is O(T*K^2) with T potentially > 1M. Pure Python loops are
+# ~100x slower than compiled code. Numba JIT compiles these hot loops to LLVM
+# machine code, making each Gibbs iteration take seconds instead of minutes.
+
+try:
+    from numba import njit
+
+    @njit(cache=True)
+    def _forward_pass_jit(log_em: np.ndarray, log_trans: np.ndarray,
+                          log_sp: np.ndarray) -> np.ndarray:
+        """JIT-compiled forward pass: log_alpha[t,k] for all T timesteps."""
+        T = log_em.shape[0]
+        K = log_em.shape[1]
+        log_alpha = np.empty((T, K))
+        for k in range(K):
+            log_alpha[0, k] = log_sp[k] + log_em[0, k]
+        for t in range(1, T):
+            for k in range(K):
+                # logsumexp over j: log_alpha[t-1, j] + log_trans[j, k]
+                max_val = -1e300
+                for j in range(K):
+                    v = log_alpha[t - 1, j] + log_trans[j, k]
+                    if v > max_val:
+                        max_val = v
+                acc = 0.0
+                for j in range(K):
+                    acc += np.exp(log_alpha[t - 1, j] + log_trans[j, k] - max_val)
+                log_alpha[t, k] = log_em[t, k] + max_val + np.log(acc + 1e-300)
+        return log_alpha
+
+    @njit(cache=True)
+    def _backward_sample_jit(log_alpha: np.ndarray, log_trans: np.ndarray,
+                             rand_vals: np.ndarray) -> np.ndarray:
+        """JIT-compiled backward sampling: draw state sequence from log_alpha."""
+        T = log_alpha.shape[0]
+        K = log_alpha.shape[1]
+        states = np.empty(T, dtype=np.int64)
+        probs = np.empty(K)
+
+        # --- Sample last state ---
+        max_v = log_alpha[T - 1, 0]
+        for k in range(1, K):
+            if log_alpha[T - 1, k] > max_v:
+                max_v = log_alpha[T - 1, k]
+        s = 0.0
+        for k in range(K):
+            probs[k] = np.exp(log_alpha[T - 1, k] - max_v)
+            s += probs[k]
+        if s > 0:
+            for k in range(K):
+                probs[k] /= s
+        else:
+            for k in range(K):
+                probs[k] = 1.0 / K
+
+        cs = 0.0
+        states[T - 1] = K - 1
+        for k in range(K):
+            cs += probs[k]
+            if rand_vals[0] < cs:
+                states[T - 1] = k
+                break
+
+        # --- Backward sampling ---
+        for t in range(T - 2, -1, -1):
+            sk = states[t + 1]
+            max_v = -1e300
+            for k in range(K):
+                probs[k] = log_alpha[t, k] + log_trans[k, sk]
+                if probs[k] > max_v:
+                    max_v = probs[k]
+            s = 0.0
+            for k in range(K):
+                probs[k] = np.exp(probs[k] - max_v)
+                s += probs[k]
+            if s <= 0:
+                states[t] = 0
+                continue
+            for k in range(K):
+                probs[k] /= s
+            cs = 0.0
+            states[t] = K - 1
+            for k in range(K):
+                cs += probs[k]
+                if rand_vals[T - 1 - t] < cs:
+                    states[t] = k
+                    break
+        return states
+
+    @njit(cache=True)
+    def _predict_viterbi_jit(log_em: np.ndarray,
+                             log_trans: np.ndarray) -> np.ndarray:
+        """JIT-compiled greedy Viterbi-like prediction."""
+        T = log_em.shape[0]
+        K = log_em.shape[1]
+        states = np.empty(T, dtype=np.int64)
+        # First state: argmax of emission
+        best = log_em[0, 0]
+        states[0] = 0
+        for k in range(1, K):
+            if log_em[0, k] > best:
+                best = log_em[0, k]
+                states[0] = k
+        for t in range(1, T):
+            prev = states[t - 1]
+            best_k = 0
+            best_v = log_em[t, 0] + log_trans[prev, 0]
+            for k in range(1, K):
+                v = log_em[t, k] + log_trans[prev, k]
+                if v > best_v:
+                    best_v = v
+                    best_k = k
+            states[t] = best_k
+        return states
+
+    _HAS_NUMBA = True
+    print("  [numba] JIT acceleration available", flush=True)
+
+except ImportError:
+    _HAS_NUMBA = False
 
 
 # ==============================================================================
@@ -66,6 +187,11 @@ class StickyHDPHMM:
     4. Update the transition probabilities (how likely is regime A -> B?)
     5. Let the stick-breaking process potentially create NEW regimes
     6. Repeat for many iterations until assignments stabilize
+
+    Truly nonparametric: no fixed cap on number of states. The state space
+    grows dynamically during Gibbs sampling whenever the model needs more
+    room. Think of it as a hotel that builds new floors on demand — if
+    guests start filling the top floor, the hotel just adds another one.
     """
 
     def __init__(
@@ -73,7 +199,6 @@ class StickyHDPHMM:
         alpha: float = 1.0,
         gamma: float = 5.0,
         kappa: float = 50.0,
-        max_states: int = 30,
         n_iter: int = 100,
         burn_in: int = 30,
         random_state: int = 42,
@@ -87,9 +212,6 @@ class StickyHDPHMM:
                 regimes are created. Higher = more potential regimes.
         kappa : stickiness. Added to self-transition probability.
                 Higher = regimes last longer (markets are sticky!).
-        max_states : truncation level for the infinite state space.
-                     Not a hard cap -- just a computational ceiling.
-                     Active states will be much fewer.
         n_iter : total Gibbs sampling iterations.
         burn_in : iterations to discard before collecting samples.
         random_state : reproducibility seed.
@@ -97,14 +219,13 @@ class StickyHDPHMM:
         self.alpha = alpha
         self.gamma = gamma
         self.kappa = kappa
-        self.max_states = max_states
         self.n_iter = n_iter
         self.burn_in = burn_in
         self.rng = np.random.RandomState(random_state)  # type: ignore[attr-defined]  # pylint: disable=no-member
 
         # Model state (populated during fit)
         self.means_: Optional[np.ndarray] = None  # (K, D) emission means
-        self.covars_: Optional[np.ndarray] = None  # (K, D, D) emission covariances
+        self.covars_: Optional[np.ndarray] = None  # (K, D) diagonal variances
         self.transmat_: Optional[np.ndarray] = None  # (K, K) transition matrix
         self.startprob_: Optional[np.ndarray] = None  # (K,) initial state distribution
         self.beta_: Optional[np.ndarray] = (
@@ -147,61 +268,45 @@ class StickyHDPHMM:
         self, X: np.ndarray, assignments: np.ndarray, K: int, D: int
     ) -> tuple[np.ndarray, np.ndarray]:
         """
-        Sample Gaussian emission parameters for each state from posterior.
+        Sample diagonal Gaussian emission parameters for each state.
 
-        Think of it as: after we know which bars belong to which regime,
-        we ask "what's the typical behavior of bars in regime k?" and
-        sample the answer from a posterior that combines our prior beliefs
-        with the actual data.
+        Uses Normal-Inverse-Gamma conjugacy (independent per dimension).
+        Stores variances as (K, D) instead of full (K, D, D) covariance.
         """
-        # Normal-Inverse-Wishart prior
-        mu_0 = np.zeros(D)  # prior mean = zero (data is standardized)
-        kappa_0 = 0.1  # weak prior strength on mean
-        nu_0 = D + 2.0  # prior degrees of freedom (minimum + 2)
-        Psi_0 = np.eye(D) * 0.5  # prior scale matrix
+        # Normal-Inverse-Gamma prior (per dimension)
+        mu_0 = 0.0        # prior mean
+        kappa_0 = 0.1      # prior mean strength
+        alpha_0 = 2.0      # prior shape for variance
+        beta_0 = 0.5       # prior rate for variance
 
         means = np.zeros((K, D))
-        covars = np.zeros((K, D, D))
+        variances = np.zeros((K, D))
 
         for k in range(K):
             mask = assignments == k
             n_k = mask.sum()
 
             if n_k < 2:
-                # Not enough data -- sample from prior
-                means[k] = self.rng.multivariate_normal(mu_0, np.eye(D) * 0.5)
-                covars[k] = invwishart.rvs(df=nu_0, scale=Psi_0, random_state=self.rng)
+                means[k] = self.rng.normal(0, 0.5, size=D)
+                variances[k] = 1.0 / self.rng.gamma(alpha_0, 1.0 / beta_0, size=D)
                 continue
 
             X_k = X[mask]
             x_bar = X_k.mean(axis=0)
+            x_var = X_k.var(axis=0, ddof=1)
 
-            # Posterior parameters (Normal-Inverse-Wishart conjugacy)
+            # Posterior parameters (Normal-Inverse-Gamma)
             kappa_n = kappa_0 + n_k
             mu_n = (kappa_0 * mu_0 + n_k * x_bar) / kappa_n
-            nu_n = nu_0 + n_k
-            S_k = (X_k - x_bar).T @ (X_k - x_bar)  # scatter matrix
-            diff = x_bar - mu_0
-            Psi_n = Psi_0 + S_k + (kappa_0 * n_k / kappa_n) * np.outer(diff, diff)
+            alpha_n = alpha_0 + n_k / 2.0
+            beta_n = beta_0 + 0.5 * n_k * x_var + 0.5 * (kappa_0 * n_k / kappa_n) * (x_bar - mu_0) ** 2
 
-            # Ensure Psi_n is symmetric positive definite
-            Psi_n = 0.5 * (Psi_n + Psi_n.T) + np.eye(D) * 1e-6
+            # Sample variance from Inverse-Gamma, then mean from Normal
+            variances[k] = 1.0 / self.rng.gamma(alpha_n, 1.0 / np.maximum(beta_n, 1e-10), size=D)
+            variances[k] = np.maximum(variances[k], 1e-8)
+            means[k] = self.rng.normal(mu_n, np.sqrt(variances[k] / kappa_n))
 
-            # Sample covariance from Inverse-Wishart
-            try:
-                covars[k] = invwishart.rvs(df=nu_n, scale=Psi_n, random_state=self.rng)
-            except (np.linalg.LinAlgError, ValueError):
-                covars[k] = np.eye(D) * 0.5
-
-            # Sample mean from Normal
-            try:
-                cov_mean = covars[k] / kappa_n
-                cov_mean = 0.5 * (cov_mean + cov_mean.T) + np.eye(D) * 1e-8
-                means[k] = self.rng.multivariate_normal(mu_n, cov_mean)
-            except (np.linalg.LinAlgError, ValueError):
-                means[k] = x_bar
-
-        return means, covars
+        return means, variances
 
     # ------------------------------------------------------------------
     # Transitions
@@ -242,43 +347,30 @@ class StickyHDPHMM:
     # ------------------------------------------------------------------
 
     def _log_emission_prob(
-        self, x: np.ndarray, means: np.ndarray, covars: np.ndarray, K: int, D: int
+        self, x: np.ndarray, means: np.ndarray, variances: np.ndarray, K: int, D: int
     ) -> np.ndarray:
-        """Compute log P(x | state=k) for all states (single observation)."""
-        log_probs = np.full(K, -1e10)
-        for k in range(K):
-            try:
-                cov_k = covars[k]
-                cov_k = 0.5 * (cov_k + cov_k.T) + np.eye(D) * 1e-6
-                log_probs[k] = multivariate_normal.logpdf(  # type: ignore[arg-type]
-                    x, mean=means[k], cov=cov_k
-                )
-            except (np.linalg.LinAlgError, ValueError):
-                log_probs[k] = -1e10
+        """Compute log P(x | state=k) for all states (single observation, diagonal covariance)."""
+        # x: (D,), means: (K,D), variances: (K,D)
+        diff = x[np.newaxis, :] - means  # (K, D)
+        log_probs = -0.5 * (D * np.log(2 * np.pi) + np.sum(np.log(variances + 1e-10), axis=1) + np.sum(diff**2 / (variances + 1e-10), axis=1))
         return log_probs
 
     def _log_emission_matrix(
-        self, X: np.ndarray, means: np.ndarray, covars: np.ndarray, K: int, D: int
+        self, X: np.ndarray, means: np.ndarray, variances: np.ndarray, K: int, D: int
     ) -> np.ndarray:
         """
-        Vectorized: compute log P(x_t | state=k) for ALL T observations and K states.
-        Returns T×K matrix. Uses direct Gaussian logpdf formula with numpy,
-        ~100x faster than calling scipy.stats per-bar.
+        Vectorized: log P(x_t | state=k) for ALL T observations and K states.
+        Returns T×K matrix. Diagonal covariance — O(T*K*D), no Cholesky needed.
         """
         T = len(X)
-        log_em = np.full((T, K), -1e10)
+        log_em = np.empty((T, K))
+        log_norm = -0.5 * D * np.log(2 * np.pi)
         for k in range(K):
-            try:
-                cov_k = 0.5 * (covars[k] + covars[k].T) + np.eye(D) * 1e-6
-                # Cholesky decomposition for fast batch log-pdf
-                L = np.linalg.cholesky(cov_k)
-                log_det = 2.0 * np.sum(np.log(np.diag(L)))
-                diff = X - means[k]  # T×D
-                solved = np.linalg.solve(L, diff.T)  # D×T
-                mahal = np.sum(solved**2, axis=0)  # T
-                log_em[:, k] = -0.5 * (D * np.log(2 * np.pi) + log_det + mahal)
-            except (np.linalg.LinAlgError, ValueError):
-                log_em[:, k] = -1e10
+            var_k = variances[k] + 1e-10  # (D,)
+            log_det = np.sum(np.log(var_k))
+            diff = X - means[k]  # (T, D)
+            mahal = np.sum(diff**2 / var_k, axis=1)  # (T,)
+            log_em[:, k] = log_norm - 0.5 * (log_det + mahal)
         return log_em
 
     # ------------------------------------------------------------------
@@ -294,38 +386,42 @@ class StickyHDPHMM:
         startprob: np.ndarray,
         K: int,
         D: int,
-    ) -> np.ndarray:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Forward-filtering backward-sampling (FFBS) for state sequence.
 
-        Think of it as: reading the market data forward bar-by-bar and asking
-        "what's the probability of each regime here, given everything I've
-        seen so far?" Then walking backwards to sample a consistent sequence.
-        This is more principled than Viterbi -- it samples from the posterior
-        rather than just picking the MAP.
+        Returns (assignments, log_emission_matrix) so the caller can reuse
+        the emission matrix for log-likelihood without recomputing it.
+
+        Uses Numba JIT when available (~50-100x faster than pure Python loops).
         """
         T = len(X)
 
-        # Pre-compute ALL emission log-probabilities at once (vectorized)
+        # Pre-compute ALL emission log-probabilities at once (vectorized numpy)
         log_em_all = self._log_emission_matrix(X, means, covars, K, D)  # T×K
+        log_sp = np.log(np.asarray(startprob, dtype=np.float64) + 1e-300)
+        log_trans = np.log(np.asarray(transmat, dtype=np.float64) + 1e-300)  # K×K
 
-        # Forward pass (log scale for numerical stability)
+        if _HAS_NUMBA:
+            # JIT-compiled forward + backward — ~50-100x faster
+            log_alpha = _forward_pass_jit(
+                np.ascontiguousarray(log_em_all),
+                np.ascontiguousarray(log_trans),
+                np.ascontiguousarray(log_sp),
+            )
+            rand_vals = self.rng.random(T)
+            states = _backward_sample_jit(log_alpha, log_trans, rand_vals)
+            return states.astype(np.intp), log_em_all
+
+        # Fallback: pure numpy (slow for large T)
         log_alpha = np.full((T, K), -1e10)
-
-        # Initial
-        log_sp = np.log(startprob + 1e-300)
         log_alpha[0] = log_sp + log_em_all[0]
 
-        log_trans = np.log(transmat + 1e-300)  # K×K
-
         for t in range(1, T):
-            # Vectorized: compute log_alpha[t] for all K states at once
             msg = log_alpha[t - 1, :, np.newaxis] + log_trans  # K×K
-            log_alpha[t] = log_em_all[t] + sp_logsumexp(msg, axis=0)  # K
+            log_alpha[t] = log_em_all[t] + sp_logsumexp(msg, axis=0)
 
-        # Backward sampling
         states = np.zeros(T, dtype=int)
-        # Sample last state
         log_p = log_alpha[T - 1] - _logsumexp(log_alpha[T - 1])
         states[T - 1] = _sample_categorical(np.exp(log_p), self.rng)
 
@@ -334,7 +430,7 @@ class StickyHDPHMM:
             log_p -= _logsumexp(log_p)
             states[t] = _sample_categorical(np.exp(log_p), self.rng)
 
-        return states
+        return states, log_em_all
 
     # ------------------------------------------------------------------
     # Fit (Gibbs Sampling)
@@ -363,23 +459,28 @@ class StickyHDPHMM:
             Used to stream live regime coloring to the dashboard chart.
         """
         T, D = X.shape
-        K = self.max_states
 
+        # ── Dynamic state space ──
+        # Cap initial K at 40 — unused states get pruned, expansion adds more if needed
+        K = min(40, max(20, int(self.gamma * np.log(max(T, 100)))))
+        K_BUFFER = 5
+
+        jit_tag = "numba-JIT" if _HAS_NUMBA else "numpy"
         print(
-            f"  Gibbs sampler: {self.n_iter} iterations, K_max={K}, kappa={self.kappa}"
+            f"  Gibbs sampler: {self.n_iter} iterations, "
+            f"K_init={K} (diagonal cov, {jit_tag}), kappa={self.kappa}"
         )
         print(f"  Data: {T:,} bars x {D} features")
         sys.stdout.flush()
 
-        # Initialize: use K-means for a warm start
-        from sklearn.cluster import KMeans  # type: ignore[import-untyped]
+        # Initialize: K-means warm start
+        from sklearn.cluster import MiniBatchKMeans  # type: ignore[import-untyped]
 
-        n_init_clusters = min(8, K)
+        n_init_clusters = min(10, K)
         try:
-            km = KMeans(
-                n_clusters=n_init_clusters,
-                n_init=3,
-                random_state=self.rng.randint(0, 10000),
+            km = MiniBatchKMeans(
+                n_clusters=n_init_clusters, batch_size=min(10000, T),
+                n_init=3, random_state=self.rng.randint(0, 10000),
             )
             assignments = km.fit_predict(X)
         except (ValueError, RuntimeError):
@@ -402,7 +503,46 @@ class StickyHDPHMM:
         self.convergence_history_ = []
         prev_ll = -np.inf
 
+        def _expand_state_space(
+            K_old: int, K_new: int,
+            means_: np.ndarray, vars_: np.ndarray, transmat_: np.ndarray,
+        ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+            """Grow all K-indexed arrays to accommodate more states."""
+            new_means = np.zeros((K_new, D))
+            new_means[:K_old] = means_
+            new_means[K_old:] = self.rng.normal(0, 0.5, size=(K_new - K_old, D))
+            # Diagonal variances
+            new_vars = np.ones((K_new, D)) * 0.5
+            new_vars[:K_old] = vars_
+            # Transmat
+            new_transmat = np.zeros((K_new, K_new))
+            new_transmat[:K_old, :K_old] = transmat_
+            for k in range(K_old, K_new):
+                new_transmat[k, k] = 0.9
+                leftover = 0.1 / max(K_new - 1, 1)
+                new_transmat[k, :] += leftover
+                new_transmat[k, k] = 0.9
+            return new_means, new_vars, new_transmat
+
         for iteration in range(1, self.n_iter + 1):
+            # ── Dynamic expansion check ──
+            max_assigned = int(assignments.max()) if len(assignments) > 0 else 0
+            n_active = len(np.unique(assignments))
+            if max_assigned >= K - K_BUFFER or n_active >= K - K_BUFFER:
+                K_old = K
+                K = K + max(K // 2, 10)  # grow by 50% or at least 10
+                print(
+                    f"    [dynamic] Expanding state space: {K_old} -> {K} "
+                    f"(active={n_active}, max_idx={max_assigned})"
+                )
+                sys.stdout.flush()
+                means, covars, transmat = _expand_state_space(
+                    K_old, K, means, covars, transmat
+                )
+                self.beta_ = self._stick_breaking(self.gamma, K)
+                empirical = np.bincount(assignments, minlength=K).astype(float)
+                empirical /= max(empirical.sum(), 1e-10)
+                self.beta_ = 0.3 * self.beta_ + 0.7 * empirical
             # 1. Sample transition matrix
             transmat = self._sample_transitions(assignments, K)
 
@@ -415,7 +555,7 @@ class StickyHDPHMM:
             startprob /= startprob.sum()
 
             # 3. Forward-filtering backward-sampling for state sequence
-            assignments = self._sample_states(
+            assignments, log_em = self._sample_states(
                 X, means, covars, transmat, startprob, K, D
             )
 
@@ -424,9 +564,7 @@ class StickyHDPHMM:
 
             # 5. Resample beta via stick-breaking (approximate)
             state_counts = np.bincount(assignments, minlength=K).astype(float)
-            # Use counts to influence stick-breaking
             self.beta_ = self._stick_breaking(self.gamma, K)
-            # Blend with empirical frequencies for stability
             empirical = state_counts / max(state_counts.sum(), 1e-10)
             self.beta_ = 0.3 * self.beta_ + 0.7 * empirical
 
@@ -434,19 +572,8 @@ class StickyHDPHMM:
             n_active = len(np.unique(assignments))
             active_counts.append(n_active)
 
-            # Compute data log-likelihood under current params
-            ll = 0.0
-            for t in range(T):
-                k = assignments[t]
-                try:
-                    cov_k = 0.5 * (covars[k] + covars[k].T) + np.eye(D) * 1e-6
-                    ll += multivariate_normal.logpdf(
-                        X[t],
-                        mean=means[k],
-                        cov=cov_k,  # type: ignore[arg-type]
-                    )
-                except (np.linalg.LinAlgError, ValueError):
-                    ll -= 1e5
+            # Log-likelihood (reuse emission matrix from FFBS — no recomputation)
+            ll = float(np.sum(log_em[np.arange(T), assignments]))
 
             delta = abs(ll - prev_ll) if prev_ll != -np.inf else 0.0
             prev_ll = ll
@@ -506,7 +633,7 @@ class StickyHDPHMM:
                 f"Regimes={n_active:<3d} "
                 f"Fit={ll_per_bar:>7.2f}/bar  "
                 f"LL={ll:>12,.0f}  "
-                f"Delta={delta:>10.1f}  "
+                f"D={delta:>10.1f}  "
                 f"Entropy={entropy:.2f}  "
                 f"Switch={switch_rate:.3f}  "
                 f"SelfTr={self_trans:.2f}  "
@@ -527,6 +654,29 @@ class StickyHDPHMM:
             means_samples = [means]
             covars_samples = [covars]
 
+        # Pad all parameter samples to the final K size (dynamic expansion
+        # means earlier samples may have smaller K)
+        K_final = K
+        padded_means: list[np.ndarray] = []
+        padded_covars: list[np.ndarray] = []
+        padded_trans: list[np.ndarray] = []
+        for m, c, tr in zip(means_samples, covars_samples, transmat_samples):
+            k_s = m.shape[0]
+            if k_s < K_final:
+                pm = np.zeros((K_final, D))
+                pm[:k_s] = m
+                pc = np.ones((K_final, D)) * 0.5  # diagonal variances
+                pc[:k_s] = c
+                pt = np.zeros((K_final, K_final))
+                pt[:k_s, :k_s] = tr
+                padded_means.append(pm)
+                padded_covars.append(pc)
+                padded_trans.append(pt)
+            else:
+                padded_means.append(m)
+                padded_covars.append(c)
+                padded_trans.append(tr)
+
         # Mode of state assignments across samples
         state_matrix = np.array(state_samples)  # (n_samples, T)
         from scipy.stats import mode as scipy_mode
@@ -535,11 +685,11 @@ class StickyHDPHMM:
         final_assignments = mode_result.mode.flatten()
 
         # Average transition matrix
-        avg_transmat = np.mean(transmat_samples, axis=0)
+        avg_transmat = np.mean(padded_trans, axis=0)
 
         # Average emission params
-        avg_means = np.mean(means_samples, axis=0)
-        avg_covars = np.mean(covars_samples, axis=0)
+        avg_means = np.mean(padded_means, axis=0)
+        avg_covars = np.mean(padded_covars, axis=0)
 
         # Identify truly active states and compact
         active_states = sorted(np.unique(final_assignments))
@@ -576,7 +726,7 @@ class StickyHDPHMM:
 
         print(
             f"\n  Gibbs complete: {self.n_active_} active regimes "
-            f"discovered (from K_max={K})"
+            f"discovered (K_final={K}, dynamic)"
         )
         print(f"  Post burn-in samples: {len(state_samples)}")
         sys.stdout.flush()
@@ -588,20 +738,29 @@ class StickyHDPHMM:
     # ------------------------------------------------------------------
 
     def predict(self, X: np.ndarray) -> np.ndarray:
-        """Assign each observation to its most likely state."""
+        """Assign each observation to its most likely state (greedy Viterbi-like)."""
         assert self.means_ is not None and self.covars_ is not None
         assert self.transmat_ is not None
-        T = len(X)
         D = X.shape[1]
         K = self.n_active_
+
+        # Vectorized emission matrix (all T×K at once)
+        log_em = self._log_emission_matrix(X, self.means_, self.covars_, K, D)
+        log_trans = np.log(np.asarray(self.transmat_, dtype=np.float64) + 1e-300)
+
+        if _HAS_NUMBA:
+            return _predict_viterbi_jit(
+                np.ascontiguousarray(log_em),
+                np.ascontiguousarray(log_trans),
+            ).astype(int)
+
+        # Fallback: Python loop (still fast — just argmax per step)
+        T = len(X)
         assignments = np.zeros(T, dtype=int)
-
-        for t in range(T):
-            log_probs = self._log_emission_prob(X[t], self.means_, self.covars_, K, D)
-            if t > 0:
-                log_probs += np.log(self.transmat_[assignments[t - 1]] + 1e-300)
+        assignments[0] = np.argmax(log_em[0])
+        for t in range(1, T):
+            log_probs = log_em[t] + log_trans[assignments[t - 1]]
             assignments[t] = np.argmax(log_probs)
-
         return assignments
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
@@ -611,13 +770,19 @@ class StickyHDPHMM:
         T = len(X)
         D = X.shape[1]
         K = self.n_active_
+
+        # Vectorized emission matrix
+        log_em = self._log_emission_matrix(X, self.means_, self.covars_, K, D)
+        log_trans = np.log(np.asarray(self.transmat_, dtype=np.float64) + 1e-300)
         probs = np.zeros((T, K))
 
-        for t in range(T):
-            log_p = self._log_emission_prob(X[t], self.means_, self.covars_, K, D)
-            if t > 0:
-                log_p += np.log(self.transmat_[probs[t - 1].argmax()] + 1e-300)
-            # Softmax
+        # First timestep
+        log_p = log_em[0].copy()
+        log_p -= _logsumexp(log_p)
+        probs[0] = np.exp(log_p)
+
+        for t in range(1, T):
+            log_p = log_em[t] + log_trans[probs[t - 1].argmax()]
             log_p -= _logsumexp(log_p)
             probs[t] = np.exp(log_p)
 
@@ -626,23 +791,11 @@ class StickyHDPHMM:
     def score(self, X: np.ndarray) -> float:
         """Compute total log-likelihood of data under current model."""
         assert self.means_ is not None and self.covars_ is not None
-        T = len(X)
         D = X.shape[1]
-        _K = self.n_active_  # noqa: F841
-        ll = 0.0
+        K = self.n_active_
         assignments = self.predict(X)
-        for t in range(T):
-            k = assignments[t]
-            try:
-                cov_k = 0.5 * (self.covars_[k] + self.covars_[k].T) + np.eye(D) * 1e-6
-                ll += multivariate_normal.logpdf(
-                    X[t],
-                    mean=self.means_[k],
-                    cov=cov_k,  # type: ignore[arg-type]
-                )
-            except (np.linalg.LinAlgError, ValueError):
-                ll -= 1e5
-        return float(ll)
+        log_em = self._log_emission_matrix(X, self.means_, self.covars_, K, D)
+        return float(np.sum(log_em[np.arange(len(X)), assignments]))
 
     @property
     def n_components(self) -> int:

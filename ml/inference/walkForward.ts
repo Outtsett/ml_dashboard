@@ -269,8 +269,8 @@ export class WalkForwardValidator extends EventEmitter {
           verbose: 0,
         });
 
-        lastLoss = history.history.loss[0] as number;
-        const valLoss = history.history.val_loss[0] as number;
+        lastLoss = history.history.loss![0] as number;
+        const valLoss = history.history.val_loss![0] as number;
         lastAcc = (history.history.acc?.[0] as number) || 0.33;
         const valAcc = (history.history.val_acc?.[0] as number) || 0.33;
 
@@ -292,13 +292,13 @@ export class WalkForwardValidator extends EventEmitter {
 
       // Evaluate on test set
       const evalResult = model.evaluate(testFeaturesTensor, testLabelsTensor) as tf.Scalar[];
-      const testLoss = (await evalResult[0].data())[0];
-      const testAccuracy = (await evalResult[1].data())[0];
+      const testLoss = (await evalResult[0]!.data())[0]!;
+      const testAccuracy = (await evalResult[1]!.data())[0]!;
       evalResult.forEach(t => t.dispose());
 
       const trainEvalResult = model.evaluate(trainFeaturesTensor, trainLabelsTensor) as tf.Scalar[];
-      const trainLoss = (await trainEvalResult[0].data())[0];
-      const trainAccuracy = (await trainEvalResult[1].data())[0];
+      const trainLoss = (await trainEvalResult[0]!.data())[0]!;
+      const trainAccuracy = (await trainEvalResult[1]!.data())[0]!;
       trainEvalResult.forEach(t => t.dispose());
 
       // Generate predictions on test set
@@ -307,7 +307,7 @@ export class WalkForwardValidator extends EventEmitter {
       predsTensor.dispose();
 
       const predictions = predsArray.map((probs, idx) => {
-        const actualLabel = testY[idx];
+        const actualLabel = testY[idx]!;
         const actualClass = actualLabel.indexOf(Math.max(...actualLabel));
         const predClass = probs.indexOf(Math.max(...probs));
 

@@ -64,7 +64,6 @@ def walk_forward_validation(
                 alpha=alpha,
                 gamma=gamma,
                 kappa=kappa,
-                max_states=20,
                 n_iter=gibbs_iter,
                 burn_in=burn_in,
                 random_state=random_state + w * 100,
