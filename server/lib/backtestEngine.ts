@@ -10,13 +10,17 @@
  */
 
 import type { BrokerConfig, BacktestRun, InsertBacktestTrade } from '@shared/schema';
+// Note: shared/ohlcv.ts uses `timestamp`; this module uses `ts` to mirror the
+// DuckDB column name returned by `SELECT epoch_ms(ts)::DOUBLE AS ts ...`.
+// The route layer (backtest.ts) queries with `AS ts` so the rows map directly.
 
 // ============================================================
 // TYPES
 // ============================================================
 
+/** OHLCV bar as returned from DuckDB queries (field named `ts` to match SQL alias). */
 export interface OHLCVBar {
-  ts: number;       // epoch ms
+  ts: number;       // epoch ms (matches DuckDB column alias)
   open: number;
   high: number;
   low: number;

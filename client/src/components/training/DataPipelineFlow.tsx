@@ -1,15 +1,14 @@
 /**
- * DataPipelineFlow — Visual strip showing the HDP-HMM data journey.
+ * DataPipelineFlow — Visual strip showing the data journey per model type.
  *
- * Think of it as: An assembly line for regime discovery. Raw OHLCV bars enter
- * on the left, get compressed into 10 "vital signs" features, split chronologically,
- * run through the Gibbs sampler (the hotel that builds rooms on demand), and out
- * come discovered regime assignments on the right.
+ * HDP-HMM: Source -> Features -> Split -> Gibbs -> Regimes
+ * CNN:     Source -> Features -> Split -> CNN   -> Predictions
  */
 
-import { Database, Sigma, Scissors, Flame, Layers, ArrowRight } from 'lucide-react';
+import { Database, Sigma, Scissors, Flame, Layers, Brain, Target, ArrowRight } from 'lucide-react';
 
 interface DataPipelineFlowProps {
+  modelType?: string;
   symbol: string;
   timeframe: string;
   numBars?: number;
@@ -35,6 +34,7 @@ interface PipelineStep {
 }
 
 export default function DataPipelineFlow({
+  modelType = 'hdp-hmm',
   symbol,
   timeframe,
   numBars,
@@ -48,10 +48,12 @@ export default function DataPipelineFlow({
   phase,
   nRegimes,
 }: DataPipelineFlowProps) {
+  const isCnn = modelType === 'cnn-universal';
   const isGibbs = phase === 'gibbs_sampling';
   const isDone = phase === 'complete' || (nRegimes !== undefined && nRegimes > 0 && !isTraining);
 
-  const steps: PipelineStep[] = [
+  // Shared first 3 steps
+  const sharedSteps: PipelineStep[] = [
     {
       icon: Database,
       label: 'Source',
@@ -65,7 +67,7 @@ export default function DataPipelineFlow({
       icon: Sigma,
       label: 'Features',
       value: `${numFeatures} dims`,
-      detail: 'returns, range, vol',
+      detail: isCnn ? 'universal features' : 'returns, range, vol',
       borderColor: 'border-violet-500/30',
       textColor: 'text-violet-400',
       pulse: false,
@@ -75,33 +77,62 @@ export default function DataPipelineFlow({
       label: 'Split',
       value: trainSize && testSize
         ? `${(trainSize / 1000).toFixed(1)}K / ${(testSize / 1000).toFixed(1)}K`
-        : '85 / 15',
+        : isCnn ? '80 / 20' : '85 / 15',
       detail: 'train / test',
       borderColor: 'border-emerald-500/30',
       textColor: 'text-emerald-400',
       pulse: false,
     },
-    {
-      icon: Flame,
-      label: 'Gibbs',
-      value: isTraining && currentStep && totalSteps
-        ? `Step ${currentStep}/${totalSteps}`
-        : isTraining ? `${gibbsIter} iter` : 'Idle',
-      detail: isGibbs ? 'sampling...' : isTraining ? phase || 'starting' : 'ready',
-      borderColor: isTraining ? 'border-orange-500/40' : 'border-slate-500/30',
-      textColor: isTraining ? 'text-orange-400' : 'text-slate-400',
-      pulse: isGibbs,
-    },
-    {
-      icon: Layers,
-      label: 'Regimes',
-      value: isDone && nRegimes ? `${nRegimes} found` : 'auto-K',
-      detail: isDone ? 'discovered' : 'nonparametric',
-      borderColor: isDone ? 'border-rose-500/40' : 'border-rose-500/20',
-      textColor: isDone ? 'text-rose-400' : 'text-rose-300/50',
-      pulse: false,
-    },
   ];
+
+  // Model-specific steps 4 & 5
+  const modelSteps: PipelineStep[] = isCnn
+    ? [
+        {
+          icon: Brain,
+          label: 'CNN',
+          value: isTraining && currentStep && totalSteps
+            ? `Epoch ${currentStep}/${totalSteps}`
+            : isTraining ? 'training' : 'Idle',
+          detail: isTraining ? (phase || 'starting') : 'ready',
+          borderColor: isTraining ? 'border-orange-500/40' : 'border-slate-500/30',
+          textColor: isTraining ? 'text-orange-400' : 'text-slate-400',
+          pulse: isTraining && phase === 'training',
+        },
+        {
+          icon: Target,
+          label: 'Predictions',
+          value: isDone ? '3-class' : 'up/flat/down',
+          detail: isDone ? 'complete' : 'direction',
+          borderColor: isDone ? 'border-rose-500/40' : 'border-rose-500/20',
+          textColor: isDone ? 'text-rose-400' : 'text-rose-300/50',
+          pulse: false,
+        },
+      ]
+    : [
+        {
+          icon: Flame,
+          label: 'Gibbs',
+          value: isTraining && currentStep && totalSteps
+            ? `Step ${currentStep}/${totalSteps}`
+            : isTraining ? `${gibbsIter} iter` : 'Idle',
+          detail: isGibbs ? 'sampling...' : isTraining ? phase || 'starting' : 'ready',
+          borderColor: isTraining ? 'border-orange-500/40' : 'border-slate-500/30',
+          textColor: isTraining ? 'text-orange-400' : 'text-slate-400',
+          pulse: isGibbs,
+        },
+        {
+          icon: Layers,
+          label: 'Regimes',
+          value: isDone && nRegimes ? `${nRegimes} found` : 'auto-K',
+          detail: isDone ? 'discovered' : 'nonparametric',
+          borderColor: isDone ? 'border-rose-500/40' : 'border-rose-500/20',
+          textColor: isDone ? 'text-rose-400' : 'text-rose-300/50',
+          pulse: false,
+        },
+      ];
+
+  const steps = [...sharedSteps, ...modelSteps];
 
   return (
     <div className="flex items-stretch gap-0 overflow-x-auto">

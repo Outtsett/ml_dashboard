@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { validateSymbol } from "@shared/schema";
-import { conn, withMutex, runQuery, runQueryUnlocked, validateTableName, validatePositiveInteger, PARQUET_DIR } from "./analytics";
+import { conn, withMutex, runQuery, runQueryUnlocked, validateTableName, validatePositiveInteger, PARQUET_DIR } from "./analyticsCore";
 
 export async function loadParquetForAnalytics(symbol: string): Promise<any[]> {
   const safeSymbol = validateSymbol(symbol);
@@ -152,7 +152,7 @@ export async function queryParquetOHLCVAggregated(
         MAX(high) as high,
         MIN(low) as low,
         LAST(close) as close,
-        SUM(volume)::BIGINT as volume
+        SUM(volume)::DOUBLE as volume
       FROM read_parquet(?)
       WHERE 1=1
     `;
@@ -190,7 +190,7 @@ export async function queryParquetOHLCVAggregated(
         MAX(high) as high,
         MIN(low) as low,
         LAST(close) as close,
-        SUM(volume)::BIGINT as volume
+        SUM(volume)::DOUBLE as volume
       FROM read_parquet(?)
       WHERE 1=1
     `;

@@ -1,7 +1,9 @@
 /**
  * HeroStrip — Five metric cards displayed as a horizontal strip
  *
- * Layout: [Regimes] [WF Stability] — [Quality Ring] — [OOS Match] [Model Fit]
+ * HDP-HMM: [Regimes] [WF Stability] — [Quality Ring] — [OOS Match] [Model Fit]
+ * CNN:     [Val Accuracy] [Val Loss] — [Quality Ring] — [Best Epoch] [Train Acc]
+ *
  * Shows live metrics during training, falls back to diagnostics when idle.
  */
 
@@ -15,7 +17,182 @@ import {
 } from "./types";
 import { Sparkline, PendingValue, FitGauge, MiniProgress, QualityScoreRing } from "./MicroComponents";
 
-export default function HeroStrip({ state }: { state: TrainingState }) {
+interface HeroStripProps {
+  state: TrainingState;
+  modelType?: string;
+  universalMetrics?: Record<string, number>;
+  iterationHistory?: Array<{ iteration: number; metrics: Record<string, number> }>;
+}
+
+// ── CNN Hero Strip ──
+
+function CnnHeroStrip({
+  isTraining,
+  universalMetrics,
+  iterationHistory,
+  progress,
+}: {
+  isTraining: boolean;
+  universalMetrics: Record<string, number>;
+  iterationHistory: Array<{ iteration: number; metrics: Record<string, number> }>;
+  progress: number;
+}) {
+  const valAcc = universalMetrics.valAccuracy ?? 0;
+  const valLoss = universalMetrics.valLoss ?? 0;
+  const quality = universalMetrics.quality ?? 0;
+  const bestEpoch = universalMetrics.bestEpoch ?? 0;
+  const trainAcc = universalMetrics.accuracy ?? 0;
+  const totalEpochs = universalMetrics.totalEpochs ?? 0;
+  const currentEpoch = universalMetrics.epoch ?? 0;
+
+  const valAccHistory = iterationHistory.map(h => h.metrics.valAccuracy).filter((v): v is number => v != null);
+  const valLossHistory = iterationHistory.map(h => h.metrics.valLoss).filter((v): v is number => v != null);
+  const trainAccHistory = iterationHistory.map(h => h.metrics.accuracy).filter((v): v is number => v != null);
+
+  return (
+    <div className="rounded-2xl border border-white/6 bg-linear-to-br from-white/3 to-transparent backdrop-blur-xl overflow-hidden">
+      <div className="flex items-stretch">
+        {/* ── Left: Val Accuracy + Val Loss ── */}
+        <div className="flex-1 flex">
+          {/* Val Accuracy */}
+          <div className="flex-1 p-5 cursor-help border-r border-white/4" title="Validation accuracy — how often the model correctly predicts direction on unseen data.">
+            <div className="text-[10px] text-muted-foreground/60 uppercase tracking-widest mb-2">Val Accuracy</div>
+            <div className={`text-5xl font-bold font-mono leading-none mb-2 transition-all duration-500 ${valAcc > 0 ? 'text-emerald-400' : isTraining ? 'text-emerald-400/20' : 'text-emerald-400'}`}>
+              {valAcc > 0 ? `${(valAcc * 100).toFixed(1)}%` : isTraining ? <span className="animate-pulse text-emerald-400/20">--</span> : '--'}
+            </div>
+            {valAccHistory.length > 1 ? (
+              <Sparkline data={valAccHistory} className="mb-2" />
+            ) : (
+              <div className="h-4 mb-2" />
+            )}
+            <p className={`text-[11px] leading-relaxed ${
+              valAcc >= 0.55 ? 'text-emerald-400' : valAcc >= 0.45 ? 'text-amber-400' : valAcc > 0 ? 'text-rose-400' : 'text-muted-foreground/60'
+            }`}>
+              {valAcc >= 0.55 ? 'Above chance — model is learning patterns'
+                : valAcc >= 0.45 ? 'Near chance — may need more data or tuning'
+                : valAcc > 0 ? 'Below chance — check features and labels'
+                : isTraining ? 'Computed after first epoch' : 'Awaiting training'}
+            </p>
+          </div>
+
+          {/* Val Loss */}
+          <div className="flex-1 p-5 cursor-help border-r border-white/4" title="Validation loss — lower is better. Rising val loss while train loss falls = overfitting.">
+            <div className="text-[10px] text-muted-foreground/60 uppercase tracking-widest mb-2">Val Loss</div>
+            <div className={`text-5xl font-bold font-mono leading-none mb-2 transition-all duration-500 ${valLoss > 0 ? 'text-rose-400' : isTraining ? 'text-rose-400/20' : 'text-rose-400'}`}>
+              {valLoss > 0 ? valLoss.toFixed(3) : isTraining ? <span className="animate-pulse text-rose-400/20">--</span> : '--'}
+            </div>
+            {valLossHistory.length > 1 ? (
+              <Sparkline data={valLossHistory} className="mb-2" />
+            ) : (
+              <div className="h-4 mb-2" />
+            )}
+            <p className={`text-[11px] leading-relaxed ${
+              valLoss > 0 && valLoss < 0.8 ? 'text-emerald-400' : valLoss <= 1.1 ? 'text-amber-400' : valLoss > 0 ? 'text-rose-400' : 'text-muted-foreground/60'
+            }`}>
+              {valLoss > 0 && valLoss < 0.8 ? 'Low loss — good generalization'
+                : valLoss > 0 && valLoss <= 1.1 ? 'Moderate — check for overfitting'
+                : valLoss > 0 ? 'High loss — model struggling'
+                : isTraining ? 'Computed after first epoch' : 'Awaiting training'}
+            </p>
+          </div>
+        </div>
+
+        {/* ── Center: Quality Ring ── */}
+        <div className="w-52 shrink-0 flex flex-col items-center justify-center p-5 border-r border-white/4 bg-white/1" title="Overall quality (0-100). Composite of accuracy, loss trajectory, and generalization.">
+          <div className="text-[10px] text-muted-foreground/60 uppercase tracking-widest mb-3">Quality</div>
+          {quality > 0 ? (
+            <QualityScoreRing score={quality} size={96} />
+          ) : isTraining ? (
+            <div className="w-24 h-24 rounded-full border-2 border-orange-500/20 flex flex-col items-center justify-center animate-pulse">
+              <Flame className="h-6 w-6 text-orange-400/60 mb-1" />
+              <span className="text-[9px] text-orange-400/60 font-medium">
+                {currentEpoch > 0 ? `epoch ${currentEpoch}` : 'Starting'}
+              </span>
+            </div>
+          ) : (
+            <div className="w-24 h-24 rounded-full border-2 border-white/5 flex items-center justify-center">
+              <span className="text-3xl font-bold font-mono text-muted-foreground/20">--</span>
+            </div>
+          )}
+          <div className={`text-[10px] font-medium mt-3 px-2.5 py-1 rounded-full ${
+            quality >= 80 ? 'bg-emerald-500/15 text-emerald-400' :
+            quality >= 60 ? 'bg-amber-500/15 text-amber-400' :
+            quality >= 40 ? 'bg-orange-500/15 text-orange-400' :
+            isTraining ? 'bg-orange-500/10 text-orange-400/70' :
+            'bg-white/5 text-muted-foreground'
+          }`}>
+            {quality > 0 ? getQualityLabel(quality) : isTraining ? 'Training' : 'Awaiting'}
+          </div>
+        </div>
+
+        {/* ── Right: Best Epoch + Train Accuracy ── */}
+        <div className="flex-1 flex">
+          {/* Best Epoch */}
+          <div className="flex-1 p-5 cursor-help border-r border-white/4" title="The epoch with the lowest validation loss. If best epoch is much earlier than current, the model may be overfitting.">
+            <div className="text-[10px] text-muted-foreground/60 uppercase tracking-widest mb-2">Best Epoch</div>
+            <div className={`text-5xl font-bold font-mono leading-none mb-2 transition-all duration-500 text-cyan-400`}>
+              {bestEpoch > 0 ? bestEpoch : isTraining ? <span className="animate-pulse text-cyan-400/20">--</span> : '--'}
+            </div>
+            {totalEpochs > 0 && (
+              <MiniProgress value={currentEpoch} max={totalEpochs} />
+            )}
+            <p className={`text-[11px] leading-relaxed mt-2 ${
+              bestEpoch > 0 && currentEpoch > 0 && (currentEpoch - bestEpoch) > 10
+                ? 'text-amber-400' : bestEpoch > 0 ? 'text-cyan-400' : 'text-muted-foreground/60'
+            }`}>
+              {bestEpoch > 0 && currentEpoch > 0 && (currentEpoch - bestEpoch) > 10
+                ? `${currentEpoch - bestEpoch} epochs since best — consider early stopping`
+                : bestEpoch > 0 ? `Best at epoch ${bestEpoch}${totalEpochs > 0 ? ` of ${totalEpochs}` : ''}`
+                : isTraining ? 'Tracked after first epoch' : 'Awaiting training'}
+            </p>
+          </div>
+
+          {/* Train Accuracy */}
+          <div className="flex-1 p-5 cursor-help" title="Training accuracy — how well the model fits the training data. Gap between train and val accuracy indicates overfitting.">
+            <div className="text-[10px] text-muted-foreground/60 uppercase tracking-widest mb-2">
+              {isTraining && currentEpoch > 0 ? `Epoch ${currentEpoch}/${totalEpochs}` : 'Train Acc'}
+            </div>
+            <div className={`text-5xl font-bold font-mono leading-none mb-2 transition-all duration-500 text-violet-400`}>
+              {trainAcc > 0 ? `${(trainAcc * 100).toFixed(1)}%` : isTraining ? <span className="animate-pulse text-violet-400/20">--</span> : '--'}
+            </div>
+            {trainAccHistory.length > 1 ? (
+              <Sparkline data={trainAccHistory} fillColor="hsla(260, 80%, 70%, 0.08)" className="mb-2" />
+            ) : (
+              <div className="h-4 mb-2" />
+            )}
+            <p className={`text-[11px] leading-relaxed ${
+              trainAcc > 0 && valAcc > 0 && (trainAcc - valAcc) > 0.15
+                ? 'text-amber-400' : trainAcc > 0 ? 'text-violet-400' : 'text-muted-foreground/60'
+            }`}>
+              {trainAcc > 0 && valAcc > 0 && (trainAcc - valAcc) > 0.15
+                ? `${((trainAcc - valAcc) * 100).toFixed(0)}% gap to val — possible overfitting`
+                : trainAcc > 0 ? 'Training accuracy tracking well'
+                : isTraining ? 'Computed after first epoch' : 'Awaiting training'}
+            </p>
+            {/* Training time footnote */}
+            <div className="mt-3 pt-2 border-t border-white/4 flex items-center gap-2">
+              <Flame className={`h-3 w-3 ${isTraining ? 'text-orange-400 animate-pulse' : 'text-muted-foreground/30'}`} />
+              <span className="text-xs font-mono text-muted-foreground">
+                {isTraining && progress > 0 ? `${progress.toFixed(0)}%` : '--'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Progress bar during training */}
+      {isTraining && progress > 0 && (
+        <div className="px-5 pb-3">
+          <Progress value={progress} className="h-1 [&>div]:bg-orange-500" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── HDP-HMM Hero Strip (original, untouched) ──
+
+function HdpHmmHeroStrip({ state }: { state: TrainingState }) {
   const {
     isTraining, liveMetrics, liveConvergence, progress,
     gibbsPhase, isGibbsSampling, isPostGibbs,
@@ -131,7 +308,7 @@ export default function HeroStrip({ state }: { state: TrainingState }) {
                 <span className="text-foreground/60 font-mono">{profileCorrelation > 0 ? profileCorrelation.toFixed(2) : '--'}</span> profile corr
               </div>
               <div className="text-[10px] text-muted-foreground/50">
-                <span className="text-foreground/60 font-mono">{oos?.switch_rate_ratio ? oos.switch_rate_ratio.toFixed(2) : '--'}×</span> switch
+                <span className="text-foreground/60 font-mono">{oos?.switch_rate_ratio ? oos.switch_rate_ratio.toFixed(2) : '--'}x</span> switch
               </div>
             </div>
             <p className={`text-[11px] leading-relaxed ${oosSimilarity > 0
@@ -165,7 +342,7 @@ export default function HeroStrip({ state }: { state: TrainingState }) {
                   <Sparkline data={liveConvergence.map(p => p.log_likelihood)} fillColor="hsla(260, 80%, 70%, 0.08)" className="mb-1" />
                 )}
                 <div className="flex justify-between text-[9px] text-muted-foreground/50 mb-1">
-                  <span>Δ = {liveMetrics.delta.toFixed(1)}</span>
+                  <span>{'\u0394'} = {liveMetrics.delta.toFixed(1)}</span>
                   <span>{liveMetrics.activeStates} states</span>
                 </div>
                 <MiniProgress value={liveMetrics.gibbsIter} max={liveMetrics.gibbsTotal} />
@@ -193,7 +370,7 @@ export default function HeroStrip({ state }: { state: TrainingState }) {
               </span>
               {diagnostics && (
                 <span className="text-[9px] text-muted-foreground/40 font-mono">
-                  {diagnostics.n_bars_total?.toLocaleString()} bars · {diagnostics.training_config?.gibbs_iter || gibbsIter} iter
+                  {diagnostics.n_bars_total?.toLocaleString()} bars {'\u00B7'} {diagnostics.training_config?.gibbs_iter || gibbsIter} iter
                 </span>
               )}
             </div>
@@ -209,4 +386,21 @@ export default function HeroStrip({ state }: { state: TrainingState }) {
       )}
     </div>
   );
+}
+
+// ── Exported Component ──
+
+export default function HeroStrip({ state, modelType = 'hdp-hmm', universalMetrics, iterationHistory }: HeroStripProps) {
+  if (modelType === 'cnn-universal') {
+    return (
+      <CnnHeroStrip
+        isTraining={state.isTraining}
+        universalMetrics={universalMetrics ?? {}}
+        iterationHistory={iterationHistory ?? []}
+        progress={typeof universalMetrics?.progress === 'number' ? universalMetrics.progress : 0}
+      />
+    );
+  }
+
+  return <HdpHmmHeroStrip state={state} />;
 }

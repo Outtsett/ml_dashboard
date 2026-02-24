@@ -7,15 +7,12 @@ import Dexie, { Table } from 'dexie';
  */
 const MAX_BARS_PER_COMBO = 8000;
 
-export interface OHLCVBar {
+import type { OHLCVBar as SharedOHLCVBar } from '@shared/ohlcv';
+
+/** IndexedDB OHLCVBar extends the shared type with storage metadata fields. */
+export interface OHLCVBar extends SharedOHLCVBar {
   id?: number;
   symbol: string;
-  timestamp: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
   timeframe: string;
 }
 

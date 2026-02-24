@@ -1,23 +1,29 @@
 // Barrel export - re-exports everything from sub-modules for backward compatibility
 // All imports like `import { ... } from "./duckdb"` continue to work unchanged.
 
-// Core infrastructure + statistical analysis (analytics.ts replaces core.ts + market.ts)
+// Core infrastructure (analyticsCore.ts)
 export {
-  // Core infrastructure
-  initDuckDB, closeDuckDB, runQuery, runQueryUnlocked, withMutex, validateFilePath, PARQUET_DIR,
-  // Statistical analysis, volatility, and performance
+  initDuckDB, closeDuckDB, runQuery, runQueryUnlocked, withMutex, validateFilePath, PARQUET_DIR
+} from "./duckdb/analyticsCore";
+
+// Statistical analysis & volatility (analyticsStatistics.ts)
+export {
   calculateRollingStats,
   correlationMatrix,
   calculateReturns,
   realizedVolatility,
   parkinsonVolatility,
   garmanKlassVolatility,
-  calculateDrawdown,
+  calculateDrawdown
+} from "./duckdb/analyticsStatistics";
+
+// Performance metrics & feature engineering (analyticsPerformance.ts)
+export {
   calculatePerformanceRatios,
   calculateTradeMetrics,
   createLaggedFeatures,
   calculateTechnicalIndicators
-} from "./duckdb/analytics";
+} from "./duckdb/analyticsPerformance";
 
 // File I/O operations
 export { loadParquetSafe, loadCSVSafe, convertCSVToParquet, convertZstCSVToParquet, getParquetRowCount, listParquetFiles } from "./duckdb/fileOps";

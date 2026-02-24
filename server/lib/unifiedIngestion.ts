@@ -9,16 +9,8 @@ import { db } from "../db";
 import { uploads, instruments } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
-// Types for OHLCV data
-export interface OHLCVRecord {
-  symbol: string;
-  timestamp: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-}
+import type { OHLCVRecord } from '@shared/ohlcv';
+export type { OHLCVRecord };
 
 export interface IngestionResult {
   success: boolean;

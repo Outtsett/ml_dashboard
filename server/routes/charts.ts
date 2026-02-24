@@ -14,6 +14,7 @@
 import { Router, Request, Response } from 'express';
 import { getOHLCVSampleBy, getFrontMonthOHLCV, checkQuestDBHealth, queryQuestDB } from '../questdb';
 import { cachedQuery, OHLCVCache } from '../lib/ohlcvCache';
+import { normalizeTimestamp, parseTimestampParam } from '../lib/normalize';
 import { isFuturesRoot } from '../services/continuousContract';
 
 const router = Router();
@@ -54,23 +55,12 @@ function parseTimeframeMinutes(tf: string | undefined): number {
 
 /** Parse a timestamp param that may be ISO string, ms epoch, or seconds epoch */
 function parseTimestamp(v: string | undefined): number | undefined {
-  if (!v) return undefined;
-  const n = Number(v);
-  if (!isNaN(n)) {
-    // If it looks like seconds (< 2e10), convert to ms
-    return n < 2e10 ? n * 1000 : n;
-  }
-  const d = new Date(v);
-  return isNaN(d.getTime()) ? undefined : d.getTime();
+  return parseTimestampParam(v);
 }
 
 /** Normalise a QuestDB row's timestamp to epoch-ms number */
 function normaliseTimestamp(row: any): number {
-  const ts = row.timestamp;
-  if (ts instanceof Date) return ts.getTime();
-  if (typeof ts === 'string') return new Date(ts).getTime();
-  if (typeof ts === 'number') return ts < 2e10 ? ts * 1000 : ts;
-  return 0;
+  return normalizeTimestamp(row.timestamp);
 }
 
 // ── Cache for QuestDB health status (avoid checking every request) ──

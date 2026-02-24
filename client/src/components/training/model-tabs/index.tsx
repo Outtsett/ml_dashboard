@@ -1,0 +1,207 @@
+/**
+ * ModelTabs — Each trained model gets its own tab with metric sub-tabs.
+ *
+ * Layout:
+ *   ┌─ MNQ_30m ─┬─ ES_30m ─┬─ NQ_1H ─┐   ← model tabs (one per trained model)
+ *   │ Overview │ Regimes │ Convergence │ WF │ OOS │ Fit │  ← metric sub-tabs
+ *   │ [content for selected sub-tab]                      │
+ *   └────────────────────────────────────────────────────────┘
+ */
+
+import { useState } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Layers, Trash2 } from "lucide-react";
+import type { RegimeModel, ConvergencePoint } from "../types";
+import { getQualityColor } from "../types";
+import { SUB_TABS, type SubTabId, useModelDiagnostics } from "./constants";
+import { OverviewPanel } from "./OverviewPanel";
+import { RegimesPanel } from "./RegimesPanel";
+import { ConvergencePanel } from "./ConvergencePanel";
+import { WalkForwardPanel } from "./WalkForwardPanel";
+import { OOSPanel } from "./OOSPanel";
+import { FitPanel } from "./FitPanel";
+
+// ─── Main ModelTabs Component ────────────────────────────────────────────────
+
+interface ModelTabsProps {
+  models: RegimeModel[];
+  selectedModel: string | null;
+  setSelectedModel: (id: string | null) => void;
+  deleteModel: (id: string) => void;
+}
+
+export default function ModelTabs({ models, selectedModel, setSelectedModel, deleteModel }: ModelTabsProps) {
+  const [activeSubTab, setActiveSubTab] = useState<SubTabId>("overview");
+
+  if (models.length === 0) {
+    return (
+      <Card className="glass rounded-2xl gradient-border">
+        <div className="h-[300px] flex flex-col items-center justify-center text-muted-foreground">
+          <Layers className="h-10 w-10 mb-3 opacity-20" />
+          <p className="text-sm font-medium">No Trained Models</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Train a model to see its metrics here</p>
+        </div>
+      </Card>
+    );
+  }
+
+  const sortedModels = [...models].sort((a, b) =>
+    new Date(b.trained_at).getTime() - new Date(a.trained_at).getTime()
+  );
+
+  const activeModelId = selectedModel || sortedModels[0]?.id || "";
+
+  return (
+    <Card className="glass rounded-2xl gradient-border overflow-hidden">
+      {/* ── Model Tabs (top row) ── */}
+      <Tabs value={activeModelId} onValueChange={(id) => setSelectedModel(id)}>
+        <div className="border-b border-white/5 bg-white/[0.02]">
+          <div className="flex items-center px-2 overflow-x-auto scrollbar-none">
+            <TabsList className="bg-transparent h-auto p-0 gap-0">
+              {sortedModels.map((model) => {
+                const isActive = model.id === activeModelId;
+                const qColor = getQualityColor(model.quality_score ?? 0);
+                return (
+                  <TabsTrigger
+                    key={model.id}
+                    value={model.id}
+                    className={`
+                      relative rounded-none border-b-2 px-4 py-2.5 text-xs font-medium
+                      transition-all data-[state=active]:shadow-none
+                      ${isActive
+                        ? "border-primary text-foreground bg-white/[0.04]"
+                        : "border-transparent text-muted-foreground hover:text-foreground/70 hover:bg-white/[0.02]"
+                      }
+                    `}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono">{model.symbol}</span>
+                      <span className="text-[10px] text-muted-foreground/60">{model.timeframe}</span>
+                      <span className={`text-[10px] font-bold font-mono ${qColor}`}>
+                        {model.quality_score !== undefined ? model.quality_score.toFixed(0) : "--"}
+                      </span>
+                      <span className="text-[9px] text-orange-400/70 font-mono">{model.n_regimes}R</span>
+                    </div>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </div>
+        </div>
+
+        {/* ── Per-model content ── */}
+        {sortedModels.map((model) => (
+          <TabsContent key={model.id} value={model.id} className="mt-0">
+            <ModelPanel
+              model={model}
+              activeSubTab={activeSubTab}
+              setActiveSubTab={setActiveSubTab}
+              deleteModel={deleteModel}
+            />
+          </TabsContent>
+        ))}
+      </Tabs>
+    </Card>
+  );
+}
+
+// ─── ModelPanel: sub-tabs for one model ──────────────────────────────────────
+
+function ModelPanel({
+  model, activeSubTab, setActiveSubTab, deleteModel,
+}: {
+  model: RegimeModel;
+  activeSubTab: SubTabId;
+  setActiveSubTab: (tab: SubTabId) => void;
+  deleteModel: (id: string) => void;
+}) {
+  const { diagnostics, convergenceData } = useModelDiagnostics(model.id);
+
+  const convergencePoints: ConvergencePoint[] = convergenceData?.gibbs || [];
+  const nBarsForLL = diagnostics?.n_bars_total || 1;
+  const ll = diagnostics?.convergence_summary?.final_log_likelihood ?? 0;
+  const llPerBar = ll !== 0 ? ll / nBarsForLL : 0;
+  const wfWindResults = diagnostics?.walk_forward?.window_results || [];
+  const oos = diagnostics?.out_of_sample;
+  const stability = diagnostics?.walk_forward?.stability_score ?? 0;
+  const oosSimilarity = oos?.distribution_similarity ?? 0;
+  const profileCorrelation = oos?.avg_profile_correlation ?? 0;
+  const quality = diagnostics?.quality_score ?? 0;
+
+  return (
+    <div>
+      {/* ── Sub-tab bar ── */}
+      <div className="border-b border-white/5 px-3 flex items-center gap-1 overflow-x-auto scrollbar-none">
+        {SUB_TABS.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeSubTab === tab.id;
+          // Show badge values on sub-tab triggers
+          let badge: string | null = null;
+          if (tab.id === "regimes" && diagnostics) badge = `${diagnostics.n_regimes}`;
+          if (tab.id === "walkforward" && stability > 0) badge = `${(stability * 100).toFixed(0)}%`;
+          if (tab.id === "oos" && oosSimilarity > 0) badge = `${(oosSimilarity * 100).toFixed(0)}%`;
+          if (tab.id === "fit" && llPerBar !== 0) badge = llPerBar.toFixed(1);
+          if (tab.id === "overview" && quality > 0) badge = quality.toFixed(0);
+
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveSubTab(tab.id)}
+              className={`
+                flex items-center gap-1.5 px-3 py-2 text-[11px] font-medium border-b-2
+                transition-all whitespace-nowrap
+                ${isActive
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground/60 hover:text-muted-foreground"
+                }
+              `}
+            >
+              <Icon className="h-3 w-3" />
+              {tab.label}
+              {badge && (
+                <span className={`text-[9px] font-mono px-1 py-0.5 rounded ${
+                  isActive ? "bg-primary/15 text-primary" : "bg-white/5 text-muted-foreground/50"
+                }`}>
+                  {badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+
+        {/* Delete button on far right */}
+        <div className="ml-auto pl-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 text-muted-foreground/40 hover:text-rose-400"
+            onClick={() => deleteModel(model.id)}
+            title="Delete this model"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Sub-tab content ── */}
+      <div className="p-4">
+        {!diagnostics ? (
+          <div className="h-[300px] flex items-center justify-center text-muted-foreground text-xs animate-pulse">
+            Loading diagnostics...
+          </div>
+        ) : (
+          <>
+            {activeSubTab === "overview" && <OverviewPanel diagnostics={diagnostics} model={model} llPerBar={llPerBar} convergencePoints={convergencePoints} />}
+            {activeSubTab === "regimes" && <RegimesPanel diagnostics={diagnostics} />}
+            {activeSubTab === "convergence" && <ConvergencePanel diagnostics={diagnostics} convergencePoints={convergencePoints} nBarsForLL={nBarsForLL} llPerBar={llPerBar} />}
+            {activeSubTab === "walkforward" && <WalkForwardPanel diagnostics={diagnostics} wfWindResults={wfWindResults} stability={stability} />}
+            {activeSubTab === "oos" && <OOSPanel diagnostics={diagnostics} oos={oos} oosSimilarity={oosSimilarity} profileCorrelation={profileCorrelation} />}
+            {activeSubTab === "fit" && <FitPanel diagnostics={diagnostics} convergencePoints={convergencePoints} nBarsForLL={nBarsForLL} llPerBar={llPerBar} ll={ll} />}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -12,7 +12,7 @@ import { Router, Request, Response } from 'express';
 import { storage } from '../storage';
 import { getAssetType } from '../storage';
 import { questdbMarketQuery as marketQuery } from '../lib/questdbMarketQuery';
-import { trainer } from '../ml/trainer';
+import { trainer } from '../../ml/cnn/trainer';
 import { runBacktest, type OHLCVBar, type Signal, type InstrumentSpec, type BacktestConfig } from '../lib/backtestEngine';
 import { getString } from './helpers';
 
@@ -391,20 +391,20 @@ router.get('/backtest/trades/:runId', async (req: Request, res: Response) => {
     const chartMarkers = trades.flatMap((t: any) => {
       const markers: any[] = [];
       markers.push({
-        timestamp: Number(t.entry_timestamp),
+        timestamp: Number(t.entryTimestamp),
         type: 'entry',
         side: t.side,
-        price: t.entry_price,
+        price: t.entryPrice,
         label: t.side === 'long' ? 'BUY' : 'SELL',
       });
-      if (t.exit_timestamp) {
+      if (t.exitTimestamp) {
         markers.push({
-          timestamp: Number(t.exit_timestamp),
+          timestamp: Number(t.exitTimestamp),
           type: 'exit',
           side: t.side,
-          price: t.exit_price,
-          label: `${t.exit_reason?.toUpperCase()} ${(t.net_pnl ?? 0) >= 0 ? '+' : ''}${(t.net_pnl ?? 0).toFixed(2)}`,
-          pnl: t.net_pnl,
+          price: t.exitPrice,
+          label: `${t.exitReason?.toUpperCase()} ${(t.netPnl ?? 0) >= 0 ? '+' : ''}${(t.netPnl ?? 0).toFixed(2)}`,
+          pnl: t.netPnl,
         });
       }
       return markers;

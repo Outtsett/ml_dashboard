@@ -11,15 +11,9 @@ import {
   SMA, EMA, ROC
 } from 'technicalindicators';
 import { generateBulkIndicatorsSQL, rsiSQL, macdSQL, atrSQL, stochasticSQL, cciSQL, williamsRSQL, BulkIndicatorRequest } from './sqlGenerator';
+import type { OHLCVBar } from '@shared/ohlcv';
 
-export interface OHLCVBar {
-  timestamp: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-}
+export type { OHLCVBar };
 
 export interface IndicatorResult {
   timestamp: number;

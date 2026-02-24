@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { validateSymbol } from "@shared/schema";
-import { conn, withMutex, validateTableName, validateFilePath, PARQUET_DIR } from "./analytics";
+import { conn, withMutex, validateTableName, validateFilePath, PARQUET_DIR } from "./analyticsCore";
 
 export function loadParquetSafe(tableName: string, filePath: string): Promise<void> {
   const safeTable = validateTableName(tableName);

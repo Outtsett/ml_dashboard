@@ -1,0 +1,325 @@
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import {
+  TrendingUp, DollarSign, ArrowRightLeft, ChevronsUpDown, Check,
+  Layers, ZapOff, Play, Pause, Flame, Square, PanelRightOpen,
+} from "lucide-react";
+import { IndicatorSelector } from "@/components/IndicatorSelector";
+import type { InstrumentInfo, ChartSymbolInfo } from "./types";
+import { timeframes } from "./types";
+
+interface ToolbarProps {
+  // Asset / Symbol / Contract
+  assetType: "futures" | "forex";
+  onAssetTypeChange: (type: "futures" | "forex") => void;
+  symbol: string;
+  onSymbolSelect: (sym: string, type: "futures" | "forex") => void;
+  symbolOpen: boolean;
+  onSymbolOpenChange: (open: boolean) => void;
+  activeSymbols: InstrumentInfo[];
+  // Contracts (futures only)
+  isFutures: boolean;
+  contract: string | null;
+  onContractChange: (contract: string | null) => void;
+  contractOpen: boolean;
+  onContractOpenChange: (open: boolean) => void;
+  contractsForSymbol: ChartSymbolInfo[];
+  // Timeframe
+  timeframe: number;
+  onTimeframeChange: (minutes: number) => void;
+  // Indicators
+  catalog: any;
+  selectedColumns: string[];
+  onSelectionChange: (cols: string[]) => void;
+  indicatorsLoading: boolean;
+  // Overlays
+  showSR: boolean;
+  onToggleSR: () => void;
+  showZigZag: boolean;
+  onToggleZigZag: () => void;
+  showSwingZZ: boolean;
+  onToggleSwingZZ: () => void;
+  // Replay
+  replayActive: boolean;
+  onToggleReplay: () => void;
+  // Training
+  isTraining: boolean;
+  trainingProgress: number;
+  selectedModelType: string;
+  onStartTraining: () => void;
+  onStopTraining: () => void;
+  // ML Panel
+  isTrainingActive: boolean;
+  onOpenMlPanel: () => void;
+  // Data reset callback
+  onResetScrollState: () => void;
+}
+
+export function Toolbar({
+  assetType, onAssetTypeChange,
+  symbol, onSymbolSelect, symbolOpen, onSymbolOpenChange, activeSymbols,
+  isFutures, contract, onContractChange, contractOpen, onContractOpenChange, contractsForSymbol,
+  timeframe, onTimeframeChange,
+  catalog, selectedColumns, onSelectionChange, indicatorsLoading,
+  showSR, onToggleSR, showZigZag, onToggleZigZag, showSwingZZ, onToggleSwingZZ,
+  replayActive, onToggleReplay,
+  isTraining, trainingProgress, selectedModelType, onStartTraining, onStopTraining,
+  isTrainingActive, onOpenMlPanel,
+  onResetScrollState,
+}: ToolbarProps) {
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 border-b border-white/5 shrink-0 bg-card/30 backdrop-blur-sm flex-wrap">
+      <Tabs value={assetType} onValueChange={(v) => {
+        const newType = v as "futures" | "forex";
+        onAssetTypeChange(newType);
+      }}>
+        <TabsList className="glass rounded-lg p-0.5 h-auto">
+          <TabsTrigger value="futures" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-primary/20" data-testid="tab-futures">
+            <TrendingUp className="h-3 w-3 mr-1" /> Futures
+          </TabsTrigger>
+          <TabsTrigger value="forex" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-accent/20" data-testid="tab-forex">
+            <DollarSign className="h-3 w-3 mr-1" /> Forex
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      <Popover open={symbolOpen} onOpenChange={onSymbolOpenChange}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={symbolOpen}
+            className="w-[220px] justify-between h-7 text-xs font-mono border-white/10 bg-black/30"
+            data-testid="symbol-selector"
+          >
+            <span className="flex items-center gap-2">
+              <span className="text-primary font-semibold">{symbol}</span>
+              {activeSymbols.find(s => s.symbol === symbol)?.name && (
+                <span className="text-muted-foreground text-[10px] font-sans truncate">
+                  {activeSymbols.find(s => s.symbol === symbol)?.name}
+                </span>
+              )}
+            </span>
+            <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[280px] p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Search symbol..." />
+            <CommandList>
+              <CommandEmpty>No symbol found.</CommandEmpty>
+              <CommandGroup>
+                {activeSymbols.map((inst) => (
+                  <CommandItem
+                    key={inst.symbol}
+                    value={`${inst.symbol} ${inst.name}`}
+                    onSelect={() => {
+                      onSymbolSelect(inst.symbol, assetType);
+                      onSymbolOpenChange(false);
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <Check className={`h-3 w-3 ${symbol === inst.symbol ? 'opacity-100' : 'opacity-0'}`} />
+                    <span className="font-mono font-semibold text-xs">{inst.symbol}</span>
+                    <span className="text-muted-foreground text-xs truncate">{inst.name}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      {isFutures && contractsForSymbol.length > 0 && (
+        <Popover open={contractOpen} onOpenChange={onContractOpenChange}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={contractOpen}
+              className="w-[160px] justify-between h-7 text-xs font-mono border-white/10 bg-black/30"
+              data-testid="contract-selector"
+            >
+              <span className="flex items-center gap-1.5">
+                <ArrowRightLeft className="h-3 w-3 text-amber-400" />
+                {contract ?? "Front Month"}
+              </span>
+              <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[280px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Search contract..." />
+              <CommandList>
+                <CommandEmpty>No contract found.</CommandEmpty>
+                <CommandGroup heading="View Mode">
+                  <CommandItem
+                    value="front month auto"
+                    onSelect={() => {
+                      onContractChange(null);
+                      onContractOpenChange(false);
+                      onResetScrollState();
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <Check className={`h-3 w-3 ${contract === null ? 'opacity-100' : 'opacity-0'}`} />
+                    <span className="font-semibold text-xs">Front Month</span>
+                    <span className="text-muted-foreground text-[10px]">Auto-selected</span>
+                  </CommandItem>
+                </CommandGroup>
+                <CommandGroup heading={`Individual Contracts (${contractsForSymbol.length})`}>
+                  {contractsForSymbol.map((c) => (
+                    <CommandItem
+                      key={c.symbol}
+                      value={c.symbol}
+                      onSelect={() => {
+                        onContractChange(c.symbol);
+                        onContractOpenChange(false);
+                        onResetScrollState();
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <Check className={`h-3 w-3 ${contract === c.symbol ? 'opacity-100' : 'opacity-0'}`} />
+                      <span className="font-mono font-semibold text-xs">{c.symbol}</span>
+                      <span className="text-muted-foreground text-[10px] ml-auto">
+                        {Number(c.row_count).toLocaleString()} bars
+                      </span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      )}
+
+      <div className="w-px h-5 bg-white/10" />
+
+      {/* Timeframe chips */}
+      <div className="flex items-center gap-0.5">
+        {timeframes.map((tf) => (
+          <Button
+            key={tf.label}
+            variant={timeframe === tf.minutes ? "default" : "ghost"}
+            size="sm"
+            className={`h-6 px-2 text-[10px] font-mono ${
+              timeframe === tf.minutes
+                ? "bg-primary/20 text-primary border border-primary/30"
+                : "text-muted-foreground hover:text-primary hover:bg-primary/10"
+            }`}
+            onClick={() => onTimeframeChange(tf.minutes)}
+            data-testid={`timeframe-${tf.label}`}
+          >
+            {tf.label}
+          </Button>
+        ))}
+      </div>
+
+      <div className="w-px h-5 bg-white/10" />
+
+      {/* Indicators + Overlays */}
+      <IndicatorSelector
+        catalog={catalog}
+        selectedColumns={selectedColumns}
+        onSelectionChange={onSelectionChange}
+        isLoading={indicatorsLoading}
+      />
+
+      <div className="flex items-center gap-0.5">
+        <Button
+          variant={showSR ? "default" : "ghost"}
+          size="sm"
+          className={`h-6 px-2 text-[10px] font-mono gap-1 ${
+            showSR
+              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+              : "text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10"
+          }`}
+          onClick={onToggleSR}
+          title="Support & Resistance levels"
+        >
+          <Layers className="h-3 w-3" /> S/R
+        </Button>
+        <Button
+          variant={showZigZag ? "default" : "ghost"}
+          size="sm"
+          className={`h-6 px-2 text-[10px] font-mono gap-1 ${
+            showZigZag
+              ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+              : "text-muted-foreground hover:text-yellow-400 hover:bg-yellow-500/10"
+          }`}
+          onClick={onToggleZigZag}
+          title="ZigZag (ATR-filtered swings)"
+        >
+          <ZapOff className="h-3 w-3" /> ZZ
+        </Button>
+        <Button
+          variant={showSwingZZ ? "default" : "ghost"}
+          size="sm"
+          className={`h-6 px-2 text-[10px] font-mono gap-1 ${
+            showSwingZZ
+              ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+              : "text-muted-foreground hover:text-cyan-400 hover:bg-cyan-500/10"
+          }`}
+          onClick={onToggleSwingZZ}
+          title="Swing ZigZag (every high/low)"
+        >
+          <TrendingUp className="h-3 w-3" /> SW
+        </Button>
+        <Button
+          variant={replayActive ? "default" : "ghost"}
+          size="sm"
+          className={`h-6 px-2 text-[10px] font-mono gap-1 ${
+            replayActive
+              ? "bg-violet-500/20 text-violet-400 border border-violet-500/30"
+              : "text-muted-foreground hover:text-violet-400 hover:bg-violet-500/10"
+          }`}
+          onClick={onToggleReplay}
+          title={replayActive ? "Exit replay mode" : "Enter replay mode"}
+        >
+          {replayActive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+          Replay
+        </Button>
+      </div>
+
+      <div className="flex-1" />
+
+      {/* Train / Stop button */}
+      {!isTraining ? (
+        <Button
+          size="sm"
+          className="h-7 px-3 text-[10px] font-mono gap-1.5 bg-linear-to-r from-orange-500 to-rose-500 text-white hover:opacity-90"
+          onClick={onStartTraining}
+        >
+          <Flame className="h-3.5 w-3.5" /> Train {selectedModelType === 'hdp-hmm' ? 'HDP-HMM' : 'CNN'}
+        </Button>
+      ) : (
+        <Button
+          variant="destructive"
+          size="sm"
+          className="h-7 px-3 text-[10px] font-mono gap-1.5"
+          onClick={onStopTraining}
+        >
+          <Square className="h-3.5 w-3.5" /> Stop
+          {trainingProgress > 0 && (
+            <span className="ml-1 font-mono">{trainingProgress.toFixed(0)}%</span>
+          )}
+        </Button>
+      )}
+
+      {/* ML Tools drawer trigger */}
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 px-3 text-[10px] font-mono border-white/10 bg-black/30 hover:bg-primary/10 hover:text-primary gap-1.5"
+        onClick={onOpenMlPanel}
+      >
+        <PanelRightOpen className="h-3.5 w-3.5" />
+        ML Tools
+        {isTrainingActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+      </Button>
+    </div>
+  );
+}

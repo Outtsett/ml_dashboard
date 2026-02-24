@@ -16,6 +16,7 @@ import { Activity, Flame } from "lucide-react";
 import { useRegimeTrainingContext } from "@/contexts/RegimeTrainingContext";
 import { useTrainingContext } from "@/contexts/TrainingContext";
 import { getQualityLabel } from "@/components/training/types";
+import { getAdapter } from "@/components/training/modelAdapters";
 import DataPipelineFlow from "@/components/training/DataPipelineFlow";
 import HeroStrip from "@/components/training/HeroStrip";
 import ModelTabs from "@/components/training/ModelTabs";
@@ -48,6 +49,9 @@ export default function Training() {
     metrics,
   } = state;
 
+  const modelType = training.selectedModelType;
+  const adapter = getAdapter(modelType);
+
   const qualityScore = metrics.quality;
   const pipelinePhase = progress?.phase || (isTraining ? 'starting' : diagnostics ? 'complete' : '');
   const nRegimes = metrics.regimes;
@@ -62,7 +66,7 @@ export default function Training() {
           <div className="flex items-center gap-3 mb-1">
             <Flame className={`h-5 w-5 ${isTraining ? 'text-orange-400 pulse-slow' : 'text-muted-foreground'}`} />
             <span className={`text-sm font-medium ${isTraining ? 'text-orange-400' : 'text-muted-foreground'}`}>
-              {isTraining ? 'HDP-HMM Gibbs Sampler Active' : 'HDP-HMM Idle'}
+              {isTraining ? adapter.activeLabel : adapter.idleLabel}
             </span>
             {trainError && (
               <Badge variant="outline" className="border-rose-500/50 text-rose-400 bg-rose-500/10 gap-1 text-xs">
@@ -125,12 +129,13 @@ export default function Training() {
           <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
             <Activity className="h-3 w-3 text-cyan-400" /> Data Pipeline
             <span className="text-[10px] opacity-50 ml-auto font-normal">
-              Think of it as: OHLCV bars → regime features → Gibbs sampler → discovered moods
+              Think of it as: {adapter.pipelineDescription}
             </span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-3">
           <DataPipelineFlow
+            modelType={modelType}
             symbol={selectedSymbol}
             timeframe={selectedTimeframe}
             numBars={diagnostics?.n_bars_total}
@@ -148,7 +153,7 @@ export default function Training() {
       </Card>
 
       {/* ─── Section 2: Hero Strip (live training metrics) ─── */}
-      <HeroStrip state={state} />
+      <HeroStrip state={state} modelType={modelType} universalMetrics={training.metrics} iterationHistory={training.iterationHistory} />
 
       {/* ─── Section 3: Model Tabs — each model gets its own tab with metric sub-tabs ─── */}
       <ModelTabs

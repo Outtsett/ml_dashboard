@@ -18,7 +18,7 @@ export class TfjsRunner implements ITrainerRunner {
     this.sessions.set(session.sessionId, session);
 
     // Import MLTrainer lazily (it pulls in @tensorflow/tfjs-node)
-    const { trainer } = await import("../../ml/trainer");
+    const { trainer } = await import("../../../ml/cnn/trainer");
 
     // Extract CNN-specific hyperparameters
     const hp = config.hyperparameters;
@@ -114,7 +114,7 @@ export class TfjsRunner implements ITrainerRunner {
     const session = this.sessions.get(sessionId);
     if (session && !session.finished) {
       // MLTrainer has a shouldStop flag
-      import("../../ml/trainer").then(({ trainer }) => {
+      import("../../../ml/cnn/trainer").then(({ trainer }) => {
         trainer.stopTraining();
       });
       emitSessionEvent(session, "error", { message: "Training stopped by user" });

@@ -256,7 +256,7 @@ export const REGIME_COLORS = [
 ];
 
 export function getRegimeColor(idx: number) {
-  return REGIME_COLORS[idx % REGIME_COLORS.length];
+  return REGIME_COLORS[idx % REGIME_COLORS.length]!;
 }
 
 // ─── Verdict System ──────────────────────────────────────────────────────────

@@ -7,10 +7,18 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/**/*.test.ts'],
     testTimeout: 30000,
+    pool: 'forks',
+    reporters: ['default'],
+    coverage: {
+      provider: 'v8',
+      include: ['server/**/*.ts', 'shared/**/*.ts'],
+      exclude: ['**/*.test.ts', '**/types.ts', '**/*.d.ts'],
+    },
   },
   resolve: {
     alias: {
-      '@shared': path.resolve(__dirname, 'shared'),
+      '@shared': path.resolve(import.meta.dirname, 'shared'),
+      '@': path.resolve(import.meta.dirname, 'client', 'src'),
     },
   },
 });

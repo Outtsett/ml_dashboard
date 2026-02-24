@@ -1,19 +1,43 @@
+# Dependencies
 node_modules/
-dist/
 .venv/
 __pycache__/
 *.pyc
+
+# Build output
+dist/
+release/
+
+# Environment
 .env
-data/market.duckdb
-data/market.duckdb.wal
+.env.local
+.env.*.local
+
+# Database files
+data/
 *.duckdb
 *.duckdb.wal
-nul
+.questdb.pid
+
+# Archives
 pythonlibs.zip
 node_modules.zip
-.questdb.pid
-attached_assets/
-data
-.claude/settings.local.json
+nul
+
+# IDE & editor
 .vscode/
+*.swp
+*.swo
+
+# Project-specific
+attached_assets/
+.claude/settings.local.json
 client/src/pages/archive/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Coverage
+coverage/
