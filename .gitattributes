@@ -1,17 +1,72 @@
-# Auto-detect text files and normalize line endings
-* text=auto
+# Auto-detect text files and normalize to LF in the repo.
+# On checkout, Windows gets CRLF only for files that explicitly need it.
+* text=auto eol=lf
 
-# Force LF for shell scripts
-*.sh text eol=lf
+# ----- Windows-only scripts: keep CRLF -----
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
 
-# Force CRLF for Windows batch files
-*.bat text eol=crlf
-*.cmd text eol=crlf
+# ----- Source code: always LF -----
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.js        text eol=lf
+*.jsx       text eol=lf
+*.mjs       text eol=lf
+*.cjs       text eol=lf
+*.json      text eol=lf
+*.jsonc     text eol=lf
+*.md        text eol=lf
+*.mdx       text eol=lf
+*.css       text eol=lf
+*.html      text eol=lf
+*.svg       text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.toml      text eol=lf
+*.env       text eol=lf
+*.env.*     text eol=lf
 
-# Binary files
-*.duckdb binary
-*.parquet binary
-*.dbn binary
-*.zst binary
-*.png binary
-*.ico binary
+# ----- Python -----
+*.py        text eol=lf
+*.pyi       text eol=lf
+*.ipynb     text eol=lf
+
+# ----- Shell scripts -----
+*.sh        text eol=lf
+
+# ----- Binary files: no diff, no merge -----
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.eot       binary
+*.otf       binary
+
+# Project-specific binary formats
+*.duckdb    binary
+*.parquet   binary
+*.zip       binary
+*.zst       binary
+*.dbn       binary
+*.db        binary
+*.db-shm    binary
+*.db-wal    binary
+
+# ----- Linguist overrides (GitHub language stats) -----
+dist/                   linguist-generated=true
+node_modules/           linguist-vendored=true
+data/                   linguist-vendored=true
+attached_assets/        linguist-documentation=true
+docs/                   linguist-documentation=true
+scripts/                linguist-detectable=true
+*.min.js                linguist-generated=true
+*.min.css               linguist-generated=true
+
+# ----- Merge strategies -----
+package-lock.json       merge=ours
+yarn.lock               merge=ours

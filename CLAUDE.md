@@ -267,6 +267,50 @@ data/
 - `@/*` -> `./client/src/*`
 - `@shared/*` -> `./shared/*`
 
+## SOLID Principles
+
+All new code **must** follow SOLID. Apply everywhere — routes, components, hooks, services, ML trainers.
+
+### SRP — Single Responsibility
+> One module, one job. One reason to change.
+
+- **Route files**: HTTP concern only — parse params, call storage/service, return JSON. No business logic inline.
+- **`storage.ts` methods**: DB query only — no HTTP, no formatting, no side-effects.
+- **React components**: Render only. Data-fetching → custom hooks. Business logic → utils.
+- **Hooks**: One hook per data concern. Never a mega-hook that fetches everything.
+- **Python scripts**: Each script does one pipeline step (`compute-indicators.py` → indicators only, `normalize-indicators.py` → normalization only).
+
+### OCP — Open/Closed
+> Add new behavior by adding new code, not by editing existing code.
+
+- **ML models**: Add via `config/models.json` registry — never modify `orchestrator.ts` to hardcode a new runner.
+- **Indicators**: Add SQL indicator entry to `sqlGenerator.ts` registry map — never add `if (name === 'x')` branches.
+- **Label generators**: Add to `sqlLabelGenerators.ts` registry — callers iterate the registry, never reference specific types.
+- **React pages**: New file in `client/src/pages/` + one route entry in `App.tsx` — no other files change.
+
+### LSP — Liskov Substitution
+> Any implementation of an interface must be a drop-in replacement.
+
+- **`ITrainerRunner`**: `PythonRunner` and `TfjsRunner` are fully interchangeable — the orchestrator never uses `instanceof` to branch behavior.
+- **`marketQuery<T>()`**: Always returns `T[]` — callers trust the return contract, no `undefined` or `BigInt[]` surprises.
+- **React components**: If a prop type says `Trade[]`, every valid `Trade[]` must work — no hidden shape assumptions.
+
+### ISP — Interface Segregation
+> Don't force a module to depend on methods it doesn't use.
+
+- **Route handlers**: Import only the specific `storage.*` methods needed — not the whole `storage` object.
+- **React hooks**: Expose only the data the component needs — `useChartCandles()` should not also return model list.
+- **Types**: Split large interfaces. Accept `ModelSummary { id, name }` instead of full `MLModel` when only those fields are used.
+- **`shared/schema.ts`**: Export focused `Insert*` + select types per table — callers import only what they need.
+
+### DIP — Dependency Inversion
+> Depend on abstractions (interfaces/functions), not on concrete implementations.
+
+- **Routes → Storage**: Route handlers call `storage.*` (abstraction) — never call `db.select().from(table)` directly inside a route.
+- **Orchestrator → Runner**: `TrainingOrchestrator` depends on `ITrainerRunner` interface — never imports `PythonRunner` or `TfjsRunner` directly; receives runner via factory.
+- **DuckDB access**: All code calls `marketQuery()` abstraction — never references `marketConn` directly.
+- **React → API**: Components depend on TanStack Query hooks — never call `fetch('/api/...')` directly inside a component body.
+
 ## Key Architectural Patterns
 
 - **EventEmitter training**: `MLTrainer extends EventEmitter` emits progress events per epoch. Frontend connects via SSE at `GET /ml/train/stream`.

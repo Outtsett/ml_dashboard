@@ -31,6 +31,119 @@ Databases must be running first: `node electron/start-databases.cjs` (PostgreSQL
 - Use `import type` for type-only imports. Drizzle-inferred types live in `shared/schema.ts`.
 - Prefer raw SQL strings for DuckDB queries; use Drizzle ORM for PostgreSQL.
 
+## SOLID Principles
+
+All new code **must** follow SOLID. Apply these principles everywhere — routes, components, hooks, services, ML trainers.
+
+### SRP — Single Responsibility
+> One module, one job. One reason to change.
+
+- **Route files**: HTTP concern only — parse params, call a service/storage method, return JSON. No business logic inline.
+- **`storage.ts` methods**: DB query only — no HTTP, no formatting, no side-effects.
+- **React components**: Render only. Extract data-fetching into custom hooks, business logic into utils.
+- **Hooks**: One hook per data concern (`useModelList`, `useTrainingSession`). Never a mega-hook that fetches everything.
+- **Python scripts**: Each script does one pipeline step (`compute-indicators.py` → indicators only, `normalize-indicators.py` → normalization only).
+
+```ts
+// ❌ WRONG — route doing business logic
+router.get('/models', async (req, res) => {
+  const models = await db.select().from(mlModels);
+  const enriched = models.map(m => ({ ...m, accuracy: m.metrics?.accuracy * 100 }));
+  res.json(enriched);
+});
+
+// ✅ RIGHT — route delegates, storage is pure
+router.get('/models', async (req, res) => {
+  const models = await storage.getModels(); // storage owns the query
+  res.json(models);
+});
+```
+
+### OCP — Open/Closed
+> Add new behavior by adding new code, not by editing existing code.
+
+- **ML models**: Add new models via `config/models.json` registry — never modify `server/training/orchestrator.ts` to add a new runner.
+- **Indicators**: Add new SQL indicators by adding an entry to `sqlGenerator.ts`'s registry map — never add `if (name === 'newIndicator')` branches.
+- **Label generators**: Add new label types to `server/lib/labels/sqlLabelGenerators.ts` registry — callers iterate the registry, they never know specific types.
+- **React pages**: New pages added as new files in `client/src/pages/` + one route entry in `App.tsx` — no other files change.
+
+```ts
+// ❌ WRONG — adding new indicator breaks OCP
+function buildSQL(name: string) {
+  if (name === 'rsi') return rsiSQL;
+  if (name === 'macd') return macdSQL;  // ← every new indicator = edit this file
+}
+
+// ✅ RIGHT — registry is open for extension
+const indicators: Record<string, () => string> = {
+  rsi: () => rsiSQL,
+  macd: () => macdSQL,
+  // add new ones here, nothing else changes
+};
+```
+
+### LSP — Liskov Substitution
+> Any implementation of an interface must be a drop-in replacement.
+
+- **`ITrainerRunner`** (`server/training/runners/types.ts`): `PythonRunner` and `TfjsRunner` must be fully interchangeable — the orchestrator must never check `instanceof` to decide behavior.
+- **DB query helpers**: `marketQuery<T>()` must always return `T[]` — never `T[] | undefined | BigInt[]`. Callers trust the contract.
+- **React components**: If a component accepts `{ data: Trade[] }`, every caller can pass any valid `Trade[]` — no hidden shape assumptions.
+
+```ts
+// ❌ WRONG — caller must know the concrete type
+if (runner instanceof PythonRunner) {
+  await runner.parseGibbsOutput(); // TfjsRunner doesn't have this
+}
+
+// ✅ RIGHT — interface defines the full contract
+interface ITrainerRunner {
+  start(session: TrainingSession): Promise<void>;
+  stop(): Promise<void>;
+  onProgress(cb: (event: SSEEvent) => void): void;
+}
+```
+
+### ISP — Interface Segregation
+> Don't force a module to depend on methods it doesn't use.
+
+- **Route handlers**: Import only the specific `storage.*` methods needed — never import the entire `storage` object if only `getModels()` is needed.
+- **React hooks**: Expose only the data a component needs — `useChartCandles()` should not also return model list.
+- **Types**: Split large interfaces. If a component only needs `{ id, name }` from a model, define and accept `ModelSummary`, not the full `MLModel` type.
+- **`shared/schema.ts`**: Export focused `Insert*` + select types per table — callers import only the type(s) they need.
+
+```ts
+// ❌ WRONG — component forced to take a bloated type
+function ModelBadge({ model }: { model: MLModel }) { // MLModel has 30 fields
+  return <span>{model.name}</span>; // only uses 1
+}
+
+// ✅ RIGHT — minimal interface
+interface ModelSummary { id: number; name: string; }
+function ModelBadge({ model }: { model: ModelSummary }) { ... }
+```
+
+### DIP — Dependency Inversion
+> Depend on abstractions (interfaces/functions), not on concrete implementations.
+
+- **Routes → Storage**: Route handlers call `storage.*` methods (abstraction) — never call `db.select().from(mlModels)` directly inside a route.
+- **Orchestrator → Runner**: `TrainingOrchestrator` depends on `ITrainerRunner` interface — it never `import`s `PythonRunner` or `TfjsRunner` directly; it receives the runner via factory/injection.
+- **DuckDB access**: All code calls `marketQuery()` abstraction — never references `marketConn` directly. The mutex + connection lifecycle is hidden behind the abstraction.
+- **React → API**: Components depend on TanStack Query hooks (`useQuery`) — never call `fetch('/api/...')` directly in a component.
+
+```ts
+// ❌ WRONG — route imports concrete DB driver
+import { marketConn } from '../duckdb/market.ts';
+router.get('/ohlcv', async (req, res) => {
+  const rows = await marketConn.query('SELECT ...');
+});
+
+// ✅ RIGHT — depends on abstraction
+import { marketQuery } from '../duckdb/market.ts';
+router.get('/ohlcv', async (req, res) => {
+  const rows = await marketQuery<OHLCVRow>('SELECT ...');
+});
+```
+
 ## Architecture
 
 ### Three Databases

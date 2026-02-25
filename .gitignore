@@ -25,7 +25,10 @@ node_modules.zip
 nul
 
 # IDE & editor
-.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
 *.swp
 *.swo
 
