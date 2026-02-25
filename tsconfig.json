@@ -1,5 +1,5 @@
 {
-  "include": ["client/src/**/*", "shared/**/*", "server/**/*", "ml/**/*"],
+  "include": ["src/client/src/**/*", "src/shared/**/*", "src/server/**/*", "src/ml/**/*"],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
   "compilerOptions": {
     /* Emit */
@@ -12,6 +12,8 @@
     "module": "ESNext",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
 
     /* Module Resolution */
     "moduleResolution": "bundler",
@@ -34,10 +36,10 @@
     "baseUrl": ".",
     "types": ["node", "vite/client"],
     "paths": {
-      "@/*": ["./client/src/*"],
-      "@shared/*": ["./shared/*"],
-      "@ml/*": ["./ml/*"],
-      "@server/*": ["./server/*"]
+      "@/*": ["./src/client/src/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@ml/*": ["./src/ml/*"],
+      "@server/*": ["./src/server/*"]
     }
   }
 }

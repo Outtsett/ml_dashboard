@@ -15,19 +15,19 @@ The user is an **extreme visual learner** who cannot process abstract math or th
 
 ## Development Hardware
 
-| Component | Spec |
-|---|---|
-| **CPU** | AMD Ryzen 9 7900X — 12 cores / 24 threads, 5.6 GHz boost |
-| **RAM** | 128 GB DDR5-5600 (4 × 32 GB Micron CP32G60C40U5B) |
-| **GPU** | NVIDIA GeForce RTX 5060 Ti — 16 GB VRAM, 180 W TDP |
-| **iGPU** | AMD Radeon (integrated, Zen 4) |
-| **Motherboard** | ASUS TUF GAMING X870-PLUS WIFI |
+| Component         | Spec                                                      |
+| ----------------- | --------------------------------------------------------- |
+| **CPU**           | AMD Ryzen 9 7900X — 12 cores / 24 threads, 5.6 GHz boost  |
+| **RAM**           | 128 GB DDR5-5600 (4 × 32 GB Micron CP32G60C40U5B)         |
+| **GPU**           | NVIDIA GeForce RTX 5060 Ti — 16 GB VRAM, 180 W TDP        |
+| **iGPU**          | AMD Radeon (integrated, Zen 4)                            |
+| **Motherboard**   | ASUS TUF GAMING X870-PLUS WIFI                            |
 | **Boot/OS Drive** | Samsung 970 EVO Plus 500 GB NVMe (E:, 466 GB, 45 GB free) |
-| **Data Drive** | Samsung 870 EVO 2 TB SATA SSD (C:, 1.86 TB, 464 GB free) |
-| **Bulk Storage** | Seagate ST2000DM006 2 TB HDD (D:, 1.86 TB, 1.75 TB free) |
-| **OS** | Windows 11 Pro (Build 26200) |
-| **BIOS** | v0831 (2024-12-29) |
-| **GPU Driver** | NVIDIA 591.44 |
+| **Data Drive**    | Samsung 870 EVO 2 TB SATA SSD (C:, 1.86 TB, 464 GB free)  |
+| **Bulk Storage**  | Seagate ST2000DM006 2 TB HDD (D:, 1.86 TB, 1.75 TB free)  |
+| **OS**            | Windows 11 Pro (Build 26200)                              |
+| **BIOS**          | v0831 (2024-12-29)                                        |
+| **GPU Driver**    | NVIDIA 591.44                                             |
 
 ## Tech Stack
 
@@ -44,20 +44,20 @@ The user is an **extreme visual learner** who cannot process abstract math or th
 
 Three databases with distinct responsibilities:
 
-| Database           | Role                                                     | Persistent? | Connection                                 |
-| ------------------ | -------------------------------------------------------- | ----------- | ------------------------------------------ |
-| **SQLite**         | App metadata: users, ML models, training, instruments    | Yes         | Embedded (`data/ml_dashboard.db`)          |
-| **QuestDB 9.3.1** | Source of truth for ALL time-series data                 | Yes         | HTTP `:9000`, ILP `:9009`, PG wire `:8812` |
-| **DuckDB 1.4**     | Ephemeral analytics engine: feature gen, parquet I/O     | No          | In-memory (+ `postgres_scanner` to QuestDB)|
+| Database          | Role                                                  | Persistent? | Connection                                  |
+| ----------------- | ----------------------------------------------------- | ----------- | ------------------------------------------- |
+| **SQLite**        | App metadata: users, ML models, training, instruments | Yes         | Embedded (`data/ml_dashboard.db`)           |
+| **QuestDB 9.3.1** | Source of truth for ALL time-series data              | Yes         | HTTP `:9000`, ILP `:9009`, PG wire `:8812`  |
+| **DuckDB 1.4**    | Ephemeral analytics engine: feature gen, parquet I/O  | No          | In-memory (+ `postgres_scanner` to QuestDB) |
 
 Plus file-based stores:
 
-| Store                    | Role                                                  | Size  |
-| ------------------------ | ----------------------------------------------------- | ----- |
-| `data/market.duckdb`     | OHLCV + rollovers (offline indicator computation)     | 44 GB |
-| `data/indicators/{tf}/`  | Pre-computed 344 pandas-ta indicators per symbol      | 24 GB |
-| `data/features/{tf}/`    | Normalized indicator parquets for model consumption   | NEW   |
-| `data/models/`           | Trained model checkpoints (CNN, HDP-HMM)              | Var.  |
+| Store                   | Role                                                | Size  |
+| ----------------------- | --------------------------------------------------- | ----- |
+| `data/market.duckdb`    | OHLCV + rollovers (offline indicator computation)   | 44 GB |
+| `data/indicators/{tf}/` | Pre-computed 344 pandas-ta indicators per symbol    | 24 GB |
+| `data/features/{tf}/`   | Normalized indicator parquets for model consumption | NEW   |
+| `data/models/`          | Trained model checkpoints (CNN, HDP-HMM)            | Var.  |
 
 ### When to Use Which
 
@@ -81,11 +81,11 @@ DuckDB:     In-process, no external server
 ```
 
 ### QuestDB Tables (time series — charts + training)
-| Table    | Rows   | Partition | Schema                                                                         |
-| -------- | ------ | --------- | ------------------------------------------------------------------------------ |
-| `ohlcv`  | 759.5M | DAY       | symbol (SYMBOL INDEX), timestamp, open, high, low, close, volume (all DOUBLE)  |
+| Table    | Rows   | Partition | Schema                                                                                                                               |
+| -------- | ------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `ohlcv`  | 759.5M | DAY       | symbol (SYMBOL INDEX), timestamp, open, high, low, close, volume (all DOUBLE)                                                        |
 | `trades` | 12.9M  | DAY       | symbol (SYMBOL INDEX), timestamp, rtype, publisher_id, instrument_id, action, side, depth, price, size, flags, ts_in_delta, sequence |
-| `mbp10`  | 408.8M | DAY       | symbol (SYMBOL INDEX), timestamp, ts_recv, metadata cols, 10-level bid/ask (px DOUBLE, sz LONG, ct INT) |
+| `mbp10`  | 408.8M | DAY       | symbol (SYMBOL INDEX), timestamp, ts_recv, metadata cols, 10-level bid/ask (px DOUBLE, sz LONG, ct INT)                              |
 
 **Materialized Views** (7 timeframes, auto-refresh on insert):
 `ohlcv_5m`, `ohlcv_15m`, `ohlcv_30m`, `ohlcv_1h`, `ohlcv_4h`, `ohlcv_1d`, `ohlcv_1w`

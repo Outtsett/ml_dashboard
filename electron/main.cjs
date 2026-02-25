@@ -83,7 +83,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 700,
     title: "ML Dashboard",
-    icon: path.join(__dirname, "..", "client", "public", "favicon.png"),
+    icon: path.join(__dirname, "..", "src", "client", "public", "favicon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       nodeIntegration: false,

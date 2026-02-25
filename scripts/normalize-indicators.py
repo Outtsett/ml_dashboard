@@ -468,6 +468,179 @@ def _load_close_prices(
         conn.close()
 
 
+def _load_ohlcv(symbol: str, timeframe: str) -> pd.DataFrame | None:
+    """Load full OHLCV from market.duckdb for core feature computation."""
+    if not MARKET_DB.exists():
+        return None
+
+    db_path = str(MARKET_DB).replace("\\", "/")
+    conn = duckdb.connect(db_path, read_only=True)
+
+    try:
+        tf_sec = TF_SECONDS.get(timeframe)
+        if tf_sec is None:
+            return None
+
+        interval = f"{tf_sec} seconds"
+
+        has_rollovers = conn.execute(
+            f"SELECT count(*) FROM rollovers WHERE root = '{symbol}'"
+        ).fetchone()[0] > 0
+
+        if has_rollovers:
+            df = conn.execute(f"""
+                WITH schedule AS (
+                    SELECT to_contract as contract,
+                           rollover_date as start_date,
+                           LEAD(rollover_date) OVER (
+                               PARTITION BY root ORDER BY rollover_date
+                           ) as end_date,
+                           cumulative_adjustment as adj
+                    FROM rollovers WHERE root = '{symbol}'
+                    UNION ALL
+                    SELECT from_contract as contract,
+                           DATE '1900-01-01' as start_date,
+                           rollover_date as end_date,
+                           cumulative_adjustment + price_gap as adj
+                    FROM rollovers
+                    WHERE root = '{symbol}'
+                      AND rollover_date = (
+                          SELECT MIN(rollover_date) FROM rollovers WHERE root = '{symbol}'
+                      )
+                ),
+                stitched AS (
+                    SELECT o.ts,
+                           o.open + s.adj as open,
+                           o.high + s.adj as high,
+                           o.low + s.adj as low,
+                           o.close + s.adj as close,
+                           o.volume
+                    FROM ohlcv o
+                    JOIN schedule s ON o.symbol = s.contract
+                        AND CAST(o.ts AS DATE) >= s.start_date
+                        AND (s.end_date IS NULL OR CAST(o.ts AS DATE) < s.end_date)
+                )
+                SELECT
+                    time_bucket(INTERVAL '{interval}', ts) as timestamp,
+                    first(open ORDER BY ts) as open,
+                    max(high) as high,
+                    min(low) as low,
+                    last(close ORDER BY ts) as close,
+                    sum(volume) as volume
+                FROM stitched
+                GROUP BY time_bucket(INTERVAL '{interval}', ts)
+                ORDER BY timestamp
+            """).fetchdf()
+        else:
+            df = conn.execute(f"""
+                SELECT
+                    time_bucket(INTERVAL '{interval}', ts) as timestamp,
+                    first(open ORDER BY ts) as open,
+                    max(high) as high,
+                    min(low) as low,
+                    last(close ORDER BY ts) as close,
+                    sum(volume) as volume
+                FROM ohlcv
+                WHERE symbol = '{symbol}'
+                GROUP BY time_bucket(INTERVAL '{interval}', ts)
+                ORDER BY timestamp
+            """).fetchdf()
+
+        if df.empty:
+            return None
+
+        if str(df["timestamp"].dtype).startswith("datetime64"):
+            df["timestamp"] = (df["timestamp"].astype("int64") // 10**6).astype("int64")
+
+        return df
+
+    except Exception as e:
+        print(f"    Warning: OHLCV load failed: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def _rolling_rank(arr: np.ndarray, window: int = ROLLING_WINDOW) -> np.ndarray:
+    """Rolling percentile rank (0 to 1)."""
+    series = pd.Series(arr)
+    result = series.rolling(window, min_periods=5).rank(pct=True)
+    return result.fillna(0.5).values
+
+
+def compute_core_features(
+    ohlcv: pd.DataFrame, timestamps: np.ndarray
+) -> pd.DataFrame:
+    """Compute the 12 core OHLCV-derived features.
+
+    All features are self-referential: rolling z-scores, percentile ranks,
+    or dimensionless ratios. Universal across instruments.
+
+    Returns DataFrame with timestamp + 12 feature columns, trimmed by ROLLING_WINDOW warmup.
+    """
+    close = ohlcv["close"].values.astype(np.float64)
+    open_ = ohlcv["open"].values.astype(np.float64)
+    high = ohlcv["high"].values.astype(np.float64)
+    low = ohlcv["low"].values.astype(np.float64)
+    volume = ohlcv["volume"].values.astype(np.float64)
+
+    # Raw intermediate signals
+    log_return = np.log(close / np.roll(close, 1))
+    log_return[0] = 0
+
+    range_pct = (high - low) / np.where(close > 0, close, 1)
+    body_pct = (close - open_) / np.where(close > 0, close, 1)
+    bar_range = high - low
+
+    trend_5 = (close - np.roll(close, 5)) / np.where(
+        np.roll(close, 5) > 0, np.roll(close, 5), 1
+    )
+    trend_5[:5] = 0
+
+    trend_20 = (close - np.roll(close, 20)) / np.where(
+        np.roll(close, 20) > 0, np.roll(close, 20), 1
+    )
+    trend_20[:20] = 0
+
+    # Build features
+    safe_bar_range = np.where(bar_range > 0, bar_range, 1.0)
+    vol_safe = np.where(volume > 0, volume, 1).astype(np.float64)
+
+    range_series = pd.Series(bar_range)
+    rolling_range_20 = range_series.rolling(20, min_periods=1).mean().values
+    atr_ratio = bar_range / np.where(rolling_range_20 > 0, rolling_range_20, 1)
+
+    ret_series = pd.Series(log_return)
+    vol_5 = ret_series.rolling(5, min_periods=1).std().values
+    vol_20 = ret_series.rolling(20, min_periods=1).std().values
+
+    feat = pd.DataFrame({
+        "timestamp": timestamps,
+        "log_return_z": rolling_zscore(log_return).astype(np.float32),
+        "range_pct_z": rolling_zscore(range_pct).astype(np.float32),
+        "body_pct_z": rolling_zscore(body_pct).astype(np.float32),
+        "upper_wick_pct": np.where(
+            bar_range > 0, (high - np.maximum(close, open_)) / safe_bar_range, 0
+        ).astype(np.float32),
+        "lower_wick_pct": np.where(
+            bar_range > 0, (np.minimum(close, open_) - low) / safe_bar_range, 0
+        ).astype(np.float32),
+        "vol_rank": _rolling_rank(vol_safe).astype(np.float32),
+        "atr_ratio": atr_ratio.astype(np.float32),
+        "trend_5_z": rolling_zscore(trend_5).astype(np.float32),
+        "trend_20_z": rolling_zscore(trend_20).astype(np.float32),
+        "vol_ratio_5_20": (vol_5 / np.where(vol_20 > 0, vol_20, 1)).astype(np.float32),
+        "range_rank": _rolling_rank(range_pct).astype(np.float32),
+        "return_rank": _rolling_rank(np.abs(log_return)).astype(np.float32),
+    })
+
+    # Trim warmup
+    feat = feat.iloc[ROLLING_WINDOW:].copy()
+    feat = feat.replace([np.inf, -np.inf], 0)
+    feat = feat.fillna(0)
+    return feat
+
+
 # ==============================================================================
 # Main Processing
 # ==============================================================================
@@ -545,7 +718,7 @@ def normalize_symbol_timeframe(
     stats: dict[str, dict] = {}
     counts = {"binary": 0, "bounded": 0, "pct_from_close": 0,
               "price_ratio": 0, "cumulative": 0, "passthrough": 0,
-              "rolling_zscore": 0, "skipped": 0}
+              "rolling_zscore": 0, "core_ohlcv": 0, "skipped": 0}
 
     indicator_cols = [c for c in merged.columns if c != "timestamp"]
 
@@ -616,6 +789,21 @@ def normalize_symbol_timeframe(
                 "std": round(float(valid.std()), 6) if len(valid) > 0 else 1,
             }
             counts["rolling_zscore"] += 1
+
+    # ── Compute and merge 12 core OHLCV features ──
+    ohlcv = _load_ohlcv(symbol, timeframe)
+    if ohlcv is not None and len(ohlcv) >= 100:
+        core = compute_core_features(ohlcv, ohlcv["timestamp"].values)
+        # Merge on timestamp (inner join — only matching rows)
+        result = pd.merge(result, core, on="timestamp", how="inner")
+        n_core = len(core.columns) - 1  # exclude timestamp
+        for c in core.columns:
+            if c != "timestamp":
+                stats[c] = {"type": "core_ohlcv"}
+        counts["core_ohlcv"] = n_core
+        print(f"    + {n_core} core OHLCV features merged")
+    else:
+        print(f"    Warning: could not compute core OHLCV features")
 
     # Downcast float64 -> float32 for space efficiency
     for col in result.columns:
