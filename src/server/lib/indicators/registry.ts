@@ -1,23 +1,25 @@
 /**
  * Technical Indicator Registry
- * 
- * Defines all indicators as compositions of core math primitives.
- * Each indicator has:
- * - Name and description
- * - Default parameters
- * - TypeScript calculation function
- * - SQL generation function for DuckDB batch processing
+ *
+ * Metadata definitions for all 13 core indicators.
+ * Lookup helpers and SQL generation dispatch.
+ *
+ * Calculation functions are in ./calculators.ts (SRP).
  */
 
 import {
-  OHLCVBar, sma, ema, wma, stddev, rollingMax, rollingMin,
-  diff, roc, trueRange, typicalPrice, gains, losses, combine
-} from './math';
-import {
-  rsiSQL, macdSQL, bollingerBandsSQL, atrSQL, stochasticSQL, 
-  cciSQL, williamsRSQL, smaSQL, stddevSQL, lagSQL, diffSQL, rocSQL,
+  rsiSQL, macdSQL, bollingerBandsSQL, atrSQL, stochasticSQL,
+  cciSQL, williamsRSQL,
   SQLGeneratorOptions, generateBulkIndicatorsSQL, BulkIndicatorRequest
 } from './sqlGenerator';
+
+// Re-export calculators for backward compat
+export {
+  calculateRSI, calculateMACD, calculateBollingerBands,
+  calculateATR, calculateStochastic, calculateCCI, calculateWilliamsR,
+  calculateIndicator,
+  type IndicatorResult, type CalculateIndicatorParams,
+} from './calculators';
 
 // ============================================================================
 // INDICATOR DEFINITIONS
@@ -164,247 +166,6 @@ export const INDICATOR_REGISTRY: Record<string, IndicatorDefinition> = {
 };
 
 // ============================================================================
-// TYPESCRIPT CALCULATIONS
-// ============================================================================
-
-export interface IndicatorResult {
-  name: string;
-  values: (number | null)[];
-}
-
-/**
- * Calculate RSI from OHLCV bars
- */
-export function calculateRSI(bars: OHLCVBar[], period: number = 14): IndicatorResult {
-  const closes = bars.map(b => b.close);
-  const g = gains(closes).map(v => v ?? 0);
-  const l = losses(closes).map(v => v ?? 0);
-  
-  const avgGain = sma(g, period);
-  const avgLoss = sma(l, period);
-  
-  const rsiValues = avgGain.map((ag, i) => {
-    const al = avgLoss[i];
-    if (ag === null || al == null || al === 0) return null;
-    return 100 - (100 / (1 + ag / al));
-  });
-
-  return { name: `rsi_${period}`, values: rsiValues };
-}
-
-/**
- * Calculate MACD from OHLCV bars
- */
-export function calculateMACD(
-  bars: OHLCVBar[],
-  fastPeriod: number = 12,
-  slowPeriod: number = 26,
-  signalPeriod: number = 9
-): { macd: IndicatorResult; signal: IndicatorResult; histogram: IndicatorResult } {
-  const closes = bars.map(b => b.close);
-  const fastEMA = ema(closes, fastPeriod);
-  const slowEMA = ema(closes, slowPeriod);
-  
-  const macdLine = combine(fastEMA, slowEMA, (a, b) => a - b);
-  const macdNonNull = macdLine.map(v => v ?? 0);
-  const signalLine = ema(macdNonNull, signalPeriod);
-  const histogram = combine(macdLine, signalLine, (a, b) => a - b);
-
-  return {
-    macd: { name: `macd_${fastPeriod}_${slowPeriod}_${signalPeriod}`, values: macdLine },
-    signal: { name: `macd_signal_${fastPeriod}_${slowPeriod}_${signalPeriod}`, values: signalLine },
-    histogram: { name: `macd_hist_${fastPeriod}_${slowPeriod}_${signalPeriod}`, values: histogram }
-  };
-}
-
-/**
- * Calculate Bollinger Bands from OHLCV bars
- */
-export function calculateBollingerBands(
-  bars: OHLCVBar[],
-  period: number = 20,
-  stdDevMultiplier: number = 2
-): { upper: IndicatorResult; middle: IndicatorResult; lower: IndicatorResult; pctB: IndicatorResult } {
-  const closes = bars.map(b => b.close);
-  const middle = sma(closes, period);
-  const std = stddev(closes, period);
-
-  const upper = combine(middle, std, (m, s) => m + stdDevMultiplier * s);
-  const lower = combine(middle, std, (m, s) => m - stdDevMultiplier * s);
-  
-  const pctB = closes.map((c, i) => {
-    const u = upper[i];
-    const l = lower[i];
-    if (u == null || l == null || u === l) return null;
-    return (c - l) / (u - l);
-  });
-
-  return {
-    upper: { name: `bb_upper_${period}`, values: upper },
-    middle: { name: `bb_middle_${period}`, values: middle },
-    lower: { name: `bb_lower_${period}`, values: lower },
-    pctB: { name: `bb_pct_b_${period}`, values: pctB }
-  };
-}
-
-/**
- * Calculate ATR from OHLCV bars
- */
-export function calculateATR(bars: OHLCVBar[], period: number = 14): IndicatorResult {
-  const tr = trueRange(bars);
-  const trNonNull = tr.map(v => v ?? 0);
-  const atrValues = sma(trNonNull, period);
-
-  return { name: `atr_${period}`, values: atrValues };
-}
-
-/**
- * Calculate Stochastic Oscillator from OHLCV bars
- */
-export function calculateStochastic(
-  bars: OHLCVBar[],
-  kPeriod: number = 14,
-  dPeriod: number = 3
-): { k: IndicatorResult; d: IndicatorResult } {
-  const highs = bars.map(b => b.high);
-  const lows = bars.map(b => b.low);
-  const closes = bars.map(b => b.close);
-
-  const highestHigh = rollingMax(highs, kPeriod);
-  const lowestLow = rollingMin(lows, kPeriod);
-
-  const stochK = closes.map((c, i) => {
-    const hh = highestHigh[i];
-    const ll = lowestLow[i];
-    if (hh == null || ll == null || hh === ll) return null;
-    return ((c - ll) / (hh - ll)) * 100;
-  });
-
-  const stochKNonNull = stochK.map(v => v ?? 0);
-  const stochD = sma(stochKNonNull, dPeriod);
-
-  return {
-    k: { name: `stoch_k_${kPeriod}`, values: stochK },
-    d: { name: `stoch_d_${kPeriod}_${dPeriod}`, values: stochD }
-  };
-}
-
-/**
- * Calculate CCI from OHLCV bars
- */
-export function calculateCCI(bars: OHLCVBar[], period: number = 20): IndicatorResult {
-  const tp = typicalPrice(bars);
-  const tpSMA = sma(tp, period);
-  
-  const cciValues = tp.map((t, i) => {
-    const mean = tpSMA[i];
-    if (mean == null || i < period - 1) return null;
-    
-    // Calculate mean deviation
-    const window = tp.slice(i - period + 1, i + 1);
-    const meanDev = window.reduce((sum, v) => sum + Math.abs(v - mean), 0) / period;
-    
-    if (meanDev === 0) return null;
-    return (t - mean) / (0.015 * meanDev);
-  });
-
-  return { name: `cci_${period}`, values: cciValues };
-}
-
-/**
- * Calculate Williams %R from OHLCV bars
- */
-export function calculateWilliamsR(bars: OHLCVBar[], period: number = 14): IndicatorResult {
-  const highs = bars.map(b => b.high);
-  const lows = bars.map(b => b.low);
-  const closes = bars.map(b => b.close);
-
-  const highestHigh = rollingMax(highs, period);
-  const lowestLow = rollingMin(lows, period);
-
-  const willR = closes.map((c, i) => {
-    const hh = highestHigh[i];
-    const ll = lowestLow[i];
-    if (hh == null || ll == null || hh === ll) return null;
-    return ((hh - c) / (hh - ll)) * -100;
-  });
-
-  return { name: `williams_r_${period}`, values: willR };
-}
-
-// ============================================================================
-// UNIFIED INDICATOR CALCULATOR
-// ============================================================================
-
-export interface CalculateIndicatorParams {
-  indicator: string;
-  bars: OHLCVBar[];
-  params?: Record<string, number>;
-}
-
-export function calculateIndicator(request: CalculateIndicatorParams): IndicatorResult[] {
-  const { indicator, bars, params = {} } = request;
-  const def = INDICATOR_REGISTRY[indicator];
-  
-  if (!def) {
-    throw new Error(`Unknown indicator: ${indicator}`);
-  }
-
-  const mergedParams = { ...def.defaultParams, ...params };
-  const closes = bars.map(b => b.close);
-
-  switch (indicator) {
-    case 'sma':
-      return [{ name: `sma_${mergedParams.period}`, values: sma(closes, mergedParams.period!) }];
-    
-    case 'ema':
-      return [{ name: `ema_${mergedParams.period}`, values: ema(closes, mergedParams.period!) }];
-    
-    case 'wma':
-      return [{ name: `wma_${mergedParams.period}`, values: wma(closes, mergedParams.period!) }];
-    
-    case 'stddev':
-      return [{ name: `stddev_${mergedParams.period}`, values: stddev(closes, mergedParams.period!) }];
-    
-    case 'roc':
-      return [{ name: `roc_${mergedParams.period}`, values: roc(closes, mergedParams.period) }];
-    
-    case 'momentum':
-      return [{ name: `momentum_${mergedParams.period}`, values: diff(closes, mergedParams.period) }];
-    
-    case 'rsi':
-      return [calculateRSI(bars, mergedParams.period)];
-    
-    case 'macd': {
-      const macdResult = calculateMACD(bars, mergedParams.fastPeriod, mergedParams.slowPeriod, mergedParams.signalPeriod);
-      return [macdResult.macd, macdResult.signal, macdResult.histogram];
-    }
-    
-    case 'bollinger': {
-      const bbResult = calculateBollingerBands(bars, mergedParams.period, mergedParams.stdDev);
-      return [bbResult.upper, bbResult.middle, bbResult.lower, bbResult.pctB];
-    }
-    
-    case 'atr':
-      return [calculateATR(bars, mergedParams.period)];
-    
-    case 'stochastic': {
-      const stochResult = calculateStochastic(bars, mergedParams.kPeriod, mergedParams.dPeriod);
-      return [stochResult.k, stochResult.d];
-    }
-    
-    case 'cci':
-      return [calculateCCI(bars, mergedParams.period)];
-    
-    case 'williams_r':
-      return [calculateWilliamsR(bars, mergedParams.period)];
-    
-    default:
-      throw new Error(`Indicator calculation not implemented: ${indicator}`);
-  }
-}
-
-// ============================================================================
 // SQL GENERATION FOR BATCH PROCESSING
 // ============================================================================
 
@@ -417,7 +178,7 @@ export interface GenerateIndicatorSQLParams {
 export function generateIndicatorSQL(request: GenerateIndicatorSQLParams): string {
   const { indicator, params = {}, options = {} } = request;
   const def = INDICATOR_REGISTRY[indicator];
-  
+
   if (!def) {
     throw new Error(`Unknown indicator: ${indicator}`);
   }
@@ -427,27 +188,26 @@ export function generateIndicatorSQL(request: GenerateIndicatorSQLParams): strin
   switch (indicator) {
     case 'rsi':
       return rsiSQL(mergedParams.period, options);
-    
+
     case 'macd':
       return macdSQL(mergedParams.fastPeriod, mergedParams.slowPeriod, mergedParams.signalPeriod, options);
-    
+
     case 'bollinger':
       return bollingerBandsSQL(mergedParams.period, mergedParams.stdDev, options);
-    
+
     case 'atr':
       return atrSQL(mergedParams.period, options);
-    
+
     case 'stochastic':
       return stochasticSQL(mergedParams.kPeriod, mergedParams.dPeriod, options);
-    
+
     case 'cci':
       return cciSQL(mergedParams.period, options);
-    
+
     case 'williams_r':
       return williamsRSQL(mergedParams.period, options);
-    
-    default:
-      // For simple indicators, generate bulk SQL
+
+    default: {
       const bulkRequest: BulkIndicatorRequest = {};
       switch (indicator) {
         case 'sma':
@@ -466,11 +226,12 @@ export function generateIndicatorSQL(request: GenerateIndicatorSQLParams): strin
           throw new Error(`SQL generation not implemented for: ${indicator}`);
       }
       return generateBulkIndicatorsSQL(bulkRequest, options);
+    }
   }
 }
 
 // ============================================================================
-// HELPER FUNCTIONS
+// LOOKUP HELPERS
 // ============================================================================
 
 export function listIndicators(): IndicatorDefinition[] {

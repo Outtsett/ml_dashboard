@@ -1,7 +1,8 @@
 /**
- * Storage — Types & Interface
+ * Storage — Types & Interfaces (ISP-compliant)
  *
- * Defines the IStorage contract and shared helpers.
+ * Split into domain-specific sub-interfaces so consumers depend
+ * only on the methods they use. Composed into IStorage for backward compat.
  */
 
 import type {
@@ -10,6 +11,8 @@ import type {
   TrainingSession, InsertTrainingSession, LossHistory, InsertLossHistory,
   Instrument, InsertInstrument, NewsArticle, InsertNewsArticle,
 } from '@shared/schema';
+
+// ─── Asset Type Helper ──────────────────────────────────────────────────────
 
 const FUTURES_SYMBOLS = ['ES', 'MES', 'NQ', 'MNQ', 'RTY', 'M2K', 'YM', 'MYM'];
 
@@ -20,37 +23,41 @@ export function getAssetType(symbol: string): 'futures' | 'forex' {
   return 'futures';
 }
 
-export interface IStorage {
-  // User methods
+// ─── Domain Sub-Interfaces ──────────────────────────────────────────────────
+
+export interface IUserStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+}
 
-  // Upload tracking
+export interface IUploadStorage {
   createUpload(upload: InsertUpload): Promise<Upload>;
   updateUploadStatus(id: number, status: string, recordCount?: number): Promise<void>;
   getUploads(): Promise<Upload[]>;
+}
 
-  // Feature importance
+export interface IFeatureStorage {
   saveFeatureImportance(data: InsertFeatureImportance[]): Promise<void>;
   getFeatureImportance(modelName: string): Promise<FeatureImportance[]>;
+}
 
-  // Training sessions
+export interface ITrainingStorage {
   createTrainingSession(session: InsertTrainingSession): Promise<TrainingSession>;
   updateTrainingSession(id: number, data: Partial<TrainingSession>): Promise<void>;
   getActiveTrainingSession(): Promise<TrainingSession | undefined>;
   getTrainingSession(id: number): Promise<TrainingSession | undefined>;
-
-  // Loss history
   addLossHistory(entry: InsertLossHistory): Promise<LossHistory>;
   getLossHistory(sessionId: number): Promise<LossHistory[]>;
+}
 
-  // Instrument metadata
+export interface IInstrumentStorage {
   getInstrument(symbol: string): Promise<Instrument | undefined>;
   getAllInstruments(): Promise<Instrument[]>;
   getInstrumentsByType(assetType: 'futures' | 'forex'): Promise<Instrument[]>;
+}
 
-  // News articles
+export interface INewsStorage {
   createNewsArticle(article: InsertNewsArticle, symbols?: string[]): Promise<NewsArticle>;
   getNewsArticles(options?: { limit?: number; symbol?: string; source?: string; startDate?: Date; endDate?: Date }): Promise<NewsArticle[]>;
   getNewsArticleById(id: number): Promise<NewsArticle | undefined>;
@@ -58,8 +65,9 @@ export interface IStorage {
   updateNewsSentiment(id: number, sentimentScore: number, sentimentLabel: string, sentimentConfidence: number): Promise<void>;
   getNewsBySymbol(symbol: string, limit?: number): Promise<NewsArticle[]>;
   linkNewsToSymbols(newsId: number, symbols: string[], primarySymbol?: string): Promise<void>;
+}
 
-  // ML Observatory methods
+export interface IObservatoryStorage {
   createMlModel(data: any): Promise<any>;
   getMlModels(status?: string): Promise<any[]>;
   getMlModel(id: number): Promise<any | undefined>;
@@ -80,20 +88,33 @@ export interface IStorage {
   createMarketRegime(data: any): Promise<any>;
   getMarketRegimes(): Promise<any[]>;
   recordRegimeHistory(data: any): Promise<any>;
+}
 
-  // Broker configs
+export interface IBrokerStorage {
   getBrokerConfigs(): Promise<any[]>;
   getBrokerConfig(id: number): Promise<any | undefined>;
   getBrokerConfigByName(name: string): Promise<any | undefined>;
   getDefaultBrokerConfig(assetType: string): Promise<any | undefined>;
+}
 
-  // Backtest runs
+export interface IBacktestStorage {
   createBacktestRun(data: any): Promise<any>;
   updateBacktestRun(id: number, data: Partial<any>): Promise<void>;
   getBacktestRuns(options?: { symbol?: string; modelId?: number; status?: string; limit?: number }): Promise<any[]>;
   getBacktestRun(id: number): Promise<any | undefined>;
-
-  // Backtest trades
   insertBacktestTrades(trades: any[]): Promise<void>;
   getBacktestTrades(backtestRunId: number, limit?: number): Promise<any[]>;
 }
+
+// ─── Composed Interface (backward compat) ───────────────────────────────────
+
+export interface IStorage extends
+  IUserStorage,
+  IUploadStorage,
+  IFeatureStorage,
+  ITrainingStorage,
+  IInstrumentStorage,
+  INewsStorage,
+  IObservatoryStorage,
+  IBrokerStorage,
+  IBacktestStorage {}
