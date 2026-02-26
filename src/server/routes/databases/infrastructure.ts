@@ -23,8 +23,8 @@
 
 import { Router, Request, Response } from 'express';
 import { queryRateLimiter } from '../../lib/rateLimiter';
-import { ohlcvCache, cachedQuery, OHLCVCache } from '../../lib/ohlcvCache';
-import { normalizeTimestamp } from '../../lib/normalize';
+import { ohlcvCache } from '../../lib/ohlcvCache';
+import { queryOHLCV } from '../../lib/databaseManager';
 import { getString } from '../helpers';
 
 const router = Router();
@@ -36,77 +36,20 @@ const router = Router();
 router.get('/ohlcv/:symbol', queryRateLimiter, async (req: Request, res: Response) => {
   try {
     const symbol = getString(req.params.symbol).toUpperCase();
+    const timeframe = req.query.timeframe as string;
     const startTime = getString(req.query.startTime as string);
     const endTime = getString(req.query.endTime as string);
     const limit = getString(req.query.limit as string);
-    const timeframe = req.query.timeframe as string;
 
-    const tfLabel = timeframe || '1m';
-    const limitNum = limit ? parseInt(limit) : 500;
-    const startMs = startTime ? parseInt(startTime) : undefined;
-    const endMs = endTime ? parseInt(endTime) : undefined;
-
-    // QuestDB first — concurrent reads, SAMPLE BY aggregation
-    const { checkQuestDBHealth, getOHLCVSampleBy, queryQuestDB } = await import('../../questdb');
-    let qdbHealthy = false;
-    try {
-      qdbHealthy = await checkQuestDBHealth();
-    } catch {}
-
-    // Estimate time window when no start/end provided
-    let effectiveStart = startMs;
-    let effectiveEnd = endMs;
-    if (!effectiveStart && !effectiveEnd && qdbHealthy) {
-      try {
-        const safeEsc = symbol.replace(/'/g, "''");
-        const [row] = await queryQuestDB(
-          `SELECT max(timestamp) as latest FROM ohlcv WHERE symbol = '${safeEsc}'`,
-        );
-        if (row?.latest) {
-          const latestMs =
-            row.latest instanceof Date
-              ? row.latest.getTime()
-              : new Date(String(row.latest)).getTime();
-          const tfMatch = tfLabel.match(/^(\d+)(s|m|h|d)?$/i);
-          let tfMinutes = 1;
-          if (tfMatch) {
-            const v = parseInt(tfMatch[1]!);
-            const u = (tfMatch[2] || 'm').toLowerCase();
-            tfMinutes = u === 's' ? v / 60 : u === 'm' ? v : u === 'h' ? v * 60 : v * 1440;
-          }
-          effectiveStart = latestMs - limitNum * tfMinutes * 3 * 60_000;
-        }
-      } catch {
-        /* fall through without estimation */
-      }
-    }
-
-    const cacheKey = OHLCVCache.key('ohlcv', symbol, 0, {
-      startTime: effectiveStart,
-      endTime: effectiveEnd,
-      limit: limitNum,
+    const data = await queryOHLCV({
+      symbol,
+      timeframe,
+      startTime: startTime ? parseInt(startTime) : undefined,
+      endTime: endTime ? parseInt(endTime) : undefined,
+      limit: limit ? parseInt(limit) : undefined,
     });
 
-    if (qdbHealthy) {
-      try {
-        const data = await cachedQuery(cacheKey, () =>
-          getOHLCVSampleBy(symbol, tfLabel, effectiveStart, effectiveEnd, limitNum),
-        );
-        const normalised = data.map((r: any) => ({
-          timestamp: normalizeTimestamp(r.timestamp),
-          open: Number(r.open),
-          high: Number(r.high),
-          low: Number(r.low),
-          close: Number(r.close),
-          volume: Number(r.volume),
-        }));
-        return res.json(normalised);
-      } catch (qdbErr: any) {
-        console.warn('[ohlcv] QuestDB query failed:', qdbErr.message);
-      }
-    }
-
-    res.json([]);
+    res.json(data);
   } catch (error) {
     console.error('Error fetching OHLCV data:', error);
     res.status(500).json({ error: 'Failed to fetch data' });

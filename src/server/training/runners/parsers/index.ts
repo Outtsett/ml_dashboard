@@ -6,16 +6,13 @@
  */
 
 import type { IOutputParser } from './types';
-import { HdpHmmParser } from './hdpHmmParser';
 import { DefaultParser } from './defaultParser';
 
 export type { IOutputParser, ParserContext } from './types';
 
 const defaultParser = new DefaultParser();
 
-const PARSERS: Record<string, IOutputParser> = {
-  'hdp-hmm': new HdpHmmParser(),
-};
+const PARSERS: Record<string, IOutputParser> = {};
 
 /** Get the parser for a model type, falling back to the default log-emitter. */
 export function getParser(modelType: string): IOutputParser {

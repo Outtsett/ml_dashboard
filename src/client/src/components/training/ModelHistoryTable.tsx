@@ -1,5 +1,5 @@
 /**
- * ModelHistoryTable — List of previously trained HDP-HMM models.
+ * ModelHistoryTable — List of previously trained models.
  * Click to select, trash to delete.
  */
 
@@ -16,7 +16,7 @@ export default function ModelHistoryTable({ state }: { state: TrainingState }) {
     <Card className="glass rounded-2xl gradient-border">
       <CardHeader className="border-b border-white/5 py-2 px-4">
         <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2 cursor-help"
-          title="All previously trained HDP-HMM models. Each row shows the symbol, timeframe, number of regimes discovered, quality score, bars processed, and training time. Click a row to load that model's diagnostics. Delete old models to keep the list clean.">
+          title="All previously trained models. Each row shows the symbol, timeframe, number of regimes discovered, quality score, bars processed, and training time. Click a row to load that model's diagnostics. Delete old models to keep the list clean.">
           <Layers className="h-3 w-3 text-primary" /> Model History
           <span className="text-[10px] opacity-50 ml-auto font-normal">{models.length} models</span>
         </CardTitle>

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { queryParquetOHLCV, queryParquetOHLCVAggregated, getParquetStats, listParquetFiles } from "../duckdb";
 import { getString } from "./helpers";
-import { ohlcvCache, cachedQuery, OHLCVCache } from "../lib/ohlcvCache";
+import { cachedQuery, OHLCVCache } from "../lib/ohlcvCache";
 
 const router = Router();
 
@@ -77,7 +77,7 @@ router.post("/parquet/:symbol/export", async (req: Request, res: Response) => {
   try {
     const symbol = getString(req.params.symbol).toUpperCase();
     const { exportPostgresToParquet } = await import("../duckdb");
-    const { db } = await import("../db");
+    const { db } = await import("../database/db");
 
     console.log(`[routes] Exporting ${symbol} to Parquet...`);
     const outputPath = await exportPostgresToParquet(symbol, db);

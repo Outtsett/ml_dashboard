@@ -16,7 +16,7 @@ import {
 import { TrendingUp, Zap, Shield, Target, BarChart3, Layers } from "lucide-react";
 import RegimeDiscoveryViz from "@/components/training/RegimeDiscoveryViz";
 import type { TrainingState } from "./types";
-import { getRegimeColor, getOosVerdict, CHART_GRID, CHART_AXIS, CHART_TOOLTIP } from "./types";
+import { getRegimeColor, CHART_GRID, CHART_AXIS, CHART_TOOLTIP } from "./types";
 
 /* ─── Section 3: Regime Discovery + Convergence ── */
 

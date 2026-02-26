@@ -441,7 +441,7 @@ async function processParquetFile(
   fs.writeFileSync(tempPath, buffer);
 
   try {
-    const pythonScript = path.join(process.cwd(), 'src', 'server', 'data_reader.py');
+    const pythonScript = path.join(process.cwd(), 'scripts', 'data_reader.py');
     const result = execSync(`python3 "${pythonScript}" "${tempPath}"`, {
       maxBuffer: 500 * 1024 * 1024,
       encoding: 'utf-8',

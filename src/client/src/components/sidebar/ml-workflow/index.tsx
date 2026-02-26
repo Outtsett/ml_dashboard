@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { LABEL_GENERATORS, type LabelGeneratorKey } from "@shared/mlTaxonomy";
 import { type LabelMarker } from "@/components/TradingChart";
 import { QUERY_KEYS } from "@/lib/types";
+import { labelApi, mlApi } from "@/lib/apiService";
 
 import type {
   MlModel, XAIResult,
@@ -68,15 +69,8 @@ export function MLWorkflowSidebar({
   const currentParams = useMemo(() => ({ ...defaultParams, ...labelParams }), [defaultParams, labelParams]);
 
   const previewMutation = useMutation({
-    mutationFn: async (data: { generatorType: string; symbol: string; params: Record<string, unknown>; limit: number; startTimestamp?: number; endTimestamp?: number; timeframeMinutes?: number }) => {
-      const res = await fetch("/api/labels/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error("Failed to preview labels");
-      return res.json();
-    },
+    mutationFn: (data: { generatorType: string; symbol: string; params: Record<string, unknown>; limit: number; startTimestamp?: number; endTimestamp?: number; timeframeMinutes?: number }) =>
+      labelApi.preview(data),
     onSuccess: (data) => {
       if (data.success && data.preview && data.preview.length > 0) {
         const markers: LabelMarker[] = data.preview
@@ -144,17 +138,19 @@ export function MLWorkflowSidebar({
   // └──────────────────────────────────────────────────────┘
   const { data: mlModels = [] } = useQuery<MlModel[]>({
     queryKey: [...QUERY_KEYS.mlModels],
-    queryFn: async () => { const res = await fetch('/api/ml/models'); return res.json(); },
+    queryFn: () => mlApi.getModels() as Promise<MlModel[]>,
   });
-  const activeModelName = mlModels.find(m => m.name.includes(symbol) && m.status === 'active')?.name || `CNN-${symbol}`;
+  const activeModelName = mlModels.find(m => m.name.includes(symbol) && m.status === 'active')?.name || `Model-${symbol}`;
 
   const [xaiMethod, setXaiMethod] = useState("permutation");
   const { data: xaiResult } = useQuery<XAIResult>({
     queryKey: ['xai', activeModelName, xaiMethod],
     queryFn: async () => {
-      const res = await fetch(`/api/ml/xai/${encodeURIComponent(activeModelName)}?method=${xaiMethod}`);
-      if (!res.ok) return { method: xaiMethod, features: [] };
-      return res.json();
+      try {
+        return await mlApi.getXAI(activeModelName, xaiMethod) as XAIResult;
+      } catch {
+        return { method: xaiMethod, features: [] } as unknown as XAIResult;
+      }
     },
     enabled: activeTab === 'xai' && !!activeModelName,
   });

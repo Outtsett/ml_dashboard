@@ -1,4 +1,5 @@
 import duckdb
+
 conn = duckdb.connect(":memory:")
 df = conn.execute("SELECT * FROM read_parquet('E:/source/repos/ml_dashboard/data/indicators/ES_1d.parquet') LIMIT 1").fetchdf()
 conn.close()

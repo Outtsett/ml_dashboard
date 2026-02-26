@@ -1,6 +1,8 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getIndicatorColor, getIndicatorLineWidth } from '@/lib/indicatorColors';
+import { minutesToApiKey } from '@/lib/timeframes';
+import { QUERY_KEYS } from '@/lib/types';
 
 // --- Types ---
 
@@ -24,10 +26,7 @@ export interface IndicatorCatalog {
 
 const STORAGE_KEY = 'indicator-selection';
 
-const TIMEFRAME_MAP: Record<number, string> = {
-  1: '1m', 5: '5m', 15: '15m', 30: '30m',
-  60: '1h', 240: '4h', 1440: '1d', 10080: '1w',
-};
+// TIMEFRAME_MAP removed — use minutesToApiKey() from lib/timeframes
 
 /** Prefixes that render as overlays on the price chart (share Y-axis with candles). */
 const OVERLAY_PREFIXES = [
@@ -98,13 +97,13 @@ export function useIndicatorData(
     if (stored.length > 0) setSelectedColumnsRaw(stored);
   }, []);
 
-  const tfKey = TIMEFRAME_MAP[timeframeMinutes] || '1d';
+  const tfKey = minutesToApiKey(timeframeMinutes);
 
   const apiSymbol = symbol;
 
   // 1) Fetch catalog (cached indefinitely)
   const catalogQuery = useQuery<IndicatorCatalog>({
-    queryKey: ['indicator-catalog'],
+    queryKey: ["/api/indicators/catalog"],
     queryFn: async () => {
       const res = await fetch('/api/indicators/catalog');
       if (!res.ok) throw new Error('Failed to fetch indicator catalog');
@@ -119,7 +118,7 @@ export function useIndicatorData(
   const markerColumns = selectedColumns.filter(c => c.startsWith('CDL_'));
 
   const dataQuery = useQuery({
-    queryKey: ['indicator-data', apiSymbol, tfKey, nonMarkerColumns.sort().join(',')],
+    queryKey: [...QUERY_KEYS.indicatorData(apiSymbol), tfKey, nonMarkerColumns.sort().join(',')],
     queryFn: async () => {
       if (nonMarkerColumns.length === 0) return { data: [] };
       const params = new URLSearchParams({
@@ -137,7 +136,7 @@ export function useIndicatorData(
 
   // 3) Fetch pattern data for selected CDL columns
   const patternQuery = useQuery({
-    queryKey: ['indicator-patterns', apiSymbol, tfKey, markerColumns.sort().join(',')],
+    queryKey: [...QUERY_KEYS.indicatorPatterns(apiSymbol), tfKey, markerColumns.sort().join(',')],
     queryFn: async () => {
       const params = new URLSearchParams({ timeframe: tfKey, limit: '2000' });
       const res = await fetch(`/api/indicators/patterns/${apiSymbol}?${params}`);

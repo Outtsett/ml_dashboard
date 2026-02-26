@@ -1,11 +1,5 @@
 {
-  "pipelines": {
-    "hdp-hmm": {
-      "name": "HDP-HMM",
-      "description": "All pre-computed features from data/features/{tf}/{symbol}/normalized.parquet",
-      "source": "normalized.parquet"
-    }
-  },
+  "pipelines": {},
   "featureSets": {
     "full-344": {
       "description": "All available pre-computed indicators",

@@ -5,8 +5,7 @@
 import { Flame } from "lucide-react";
 import { Sparkline, QualityScoreRing } from "../MicroComponents";
 import type { RegimeModel, Diagnostics, ConvergencePoint } from "../types";
-import {
-  getQualityColor, getQualityLabel, getQualityVerdict,
+import { getQualityLabel, getQualityVerdict,
   getRegimeVerdict, getStabilityVerdict, getOosVerdict, getFitVerdict,
 } from "../types";
 

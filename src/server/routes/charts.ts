@@ -15,7 +15,8 @@ import { Router, Request, Response } from 'express';
 import { getOHLCVSampleBy, getFrontMonthOHLCV, checkQuestDBHealth, queryQuestDB } from '../questdb';
 import { cachedQuery, OHLCVCache } from '../lib/ohlcvCache';
 import { normalizeTimestamp, parseTimestampParam } from '../lib/normalize';
-import { isFuturesRoot } from '../services/continuousContract';
+import { isFuturesRoot } from '../lib/continuousContract';
+import { CACHE_SEMI } from '../lib/cacheHeaders';
 
 const router = Router();
 
@@ -165,7 +166,7 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
  * GET /api/charts/symbols
  * Returns available symbols with row counts and time ranges from QuestDB.
  */
-router.get('/symbols', async (_req: Request, res: Response) => {
+router.get('/symbols', CACHE_SEMI, async (_req: Request, res: Response) => {
   try {
     const healthy = await isQuestDBHealthy();
     if (!healthy) {

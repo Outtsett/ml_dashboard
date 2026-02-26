@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
+import type { Upload as UploadRecord } from "@shared/schema";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Database, Clock, Cpu, Upload, Layers, HardDrive, BarChart3, RefreshCw } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { databaseApi } from "@/lib/apiService";
 import { extractSymbolFromFilename, detectAssetType } from "@/lib/uploadUtils";
 import type { DatabaseStats, FileUploadItem } from "./types";
 import { formatNumber } from "./types";
@@ -49,13 +51,7 @@ export default function Databases() {
 
   const runQueryMutation = useMutation({
     mutationFn: async (params: { db: string; sql: string }) => {
-      const response = await fetch("/api/databases/query", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(params),
-      });
-      if (!response.ok) throw new Error(await response.text());
-      return response.json();
+      return databaseApi.query(params);
     },
     onSuccess: () => {
       toast({ title: "Query executed successfully" });
@@ -66,7 +62,7 @@ export default function Databases() {
     },
   });
 
-  const { data: uploads = [] } = useQuery<any[]>({
+  const { data: uploads = [] } = useQuery<UploadRecord[]>({
     queryKey: ["/api/uploads"],
     refetchInterval: 5000,
   });

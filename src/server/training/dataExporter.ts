@@ -13,7 +13,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { getOHLCVSampleBy, getFrontMonthOHLCV, getFrontMonthRanges } from "../questdb";
-import { isFuturesRoot } from "../services/continuousContract";
+import { isFuturesRoot } from "../lib/continuousContract";
 import { runQuery } from "../duckdb";
 import { validateSymbol } from "@shared/schema";
 
@@ -93,8 +93,10 @@ async function exportDirect(
     const ranges = await getFrontMonthRanges(sym, startMs, endMs);
     if (ranges.length === 0) throw new Error(`No front-month ranges for ${sym}`);
 
+    // Defense-in-depth: validate each contract symbol even though they come from QuestDB.
+    // Date strings are safe — getFrontMonthRanges returns YYYY-MM-DD format only.
     const unions = ranges.map(r => {
-      const eSym = r.symbol.replace(/'/g, "''");
+      const eSym = validateSymbol(r.symbol).replace(/'/g, "''");
       const s = r.start + 'T00:00:00.000Z';
       const e = r.end + 'T23:59:59.999Z';
       return `SELECT timestamp, open, high, low, close, volume FROM questdb.${matView} WHERE symbol = '${eSym}' AND timestamp >= '${s}' AND timestamp <= '${e}'`;
@@ -102,6 +104,7 @@ async function exportDirect(
 
     selectQuery = `SELECT * FROM (${unions}) ORDER BY timestamp`;
   } else {
+    // Safe: Date.toISOString() always produces YYYY-MM-DDTHH:mm:ss.sssZ — no injection vector.
     let timeFilter = '';
     if (startMs) timeFilter += ` AND timestamp >= '${new Date(startMs).toISOString()}'`;
     if (endMs) timeFilter += ` AND timestamp <= '${new Date(endMs).toISOString()}'`;
@@ -206,7 +209,7 @@ export function getNormalizedFeaturesPath(
   const tfDir = LABEL_TO_DIR[timeframe];
   if (!tfDir) return null;
 
-  const featuresPath = path.join(process.cwd(), 'data', 'indicators', tfDir, symbol.toUpperCase(), 'normalized.parquet');
+  const featuresPath = path.join(process.cwd(), 'data', 'features', tfDir, symbol.toUpperCase(), 'normalized.parquet');
   if (fs.existsSync(featuresPath)) {
     return featuresPath.replace(/\\/g, '/');
   }

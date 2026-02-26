@@ -1,11 +1,12 @@
 import { Router, Request, Response } from "express";
 import { storage } from "../storage";
 import { getString } from "./helpers";
+import { CACHE_STATIC } from "../lib/cacheHeaders";
 
 const router = Router();
 
 // Instrument metadata APIs
-router.get("/instruments", async (req: Request, res: Response) => {
+router.get("/instruments", CACHE_STATIC, async (req: Request, res: Response) => {
   try {
     const type = getString(req.query.type as string);
     if (type === 'futures' || type === 'forex') {

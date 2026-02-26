@@ -52,9 +52,9 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const seriesMapRef = useRef<Map<string, any>>(new Map());
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const priceLinesAddedRef = useRef(false);
     const isSyncingRef = useRef(false);
 
@@ -239,7 +239,7 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
       // Add reference lines once (on first series available)
       if (!priceLinesAddedRef.current && refLines.length > 0 && seriesMapRef.current.size > 0) {
         // Use the first non-histogram series, or any series
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         let targetSeries: any = null;
         seriesMapRef.current.forEach((s, col) => {
           if (!targetSeries && !shouldRenderAsHistogram(col)) {

@@ -1,5 +1,5 @@
 /**
- * Universal Training Types — The contract between server and client.
+ * Training Types — The contract between server and client.
  *
  * These types define how any model type communicates during training:
  * what the client sends to start training, what SSE events look like,
@@ -11,7 +11,7 @@
 
 // ─── Runner Types ────────────────────────────────────────────────────────────
 
-export type TrainerRunner = 'python' | 'tfjs';
+export type TrainerRunner = 'python';
 
 // ─── Config File Shapes (mirrors config/*.json) ─────────────────────────────
 
@@ -61,7 +61,7 @@ export interface TrainingConfig {
 // ─── Training Request (client → server) ──────────────────────────────────────
 
 export interface TrainingRequest {
-  modelType: string;             // key in models.json: "hdp-hmm", "cnn-universal"
+  modelType: string;             // key in models.json
   symbol?: string;               // optional — server uses registry default if omitted
   timeframe?: string;            // optional — server uses registry default if omitted
   dateRange?: {
@@ -174,7 +174,7 @@ export interface TrainingSession {
 
 // ─── Client-Side Training State ──────────────────────────────────────────────
 
-export interface UniversalTrainingState {
+export interface TrainingState {
   // What's being trained
   modelType: string | null;
   sessionId: string | null;
@@ -199,7 +199,7 @@ export interface UniversalTrainingState {
   overlayType: string | null;
   overlayData: OverlayPayload | null;
 
-  // Live regime overlay (populated during HDP-HMM or any regime-producing model)
+  // Live regime overlay (populated during any regime-producing model)
   liveRegimeTimestamps: number[];
   liveRegimeAssignments: number[];
 
@@ -212,4 +212,38 @@ export interface UniversalTrainingState {
   // Actions
   startTraining: (request: TrainingRequest) => Promise<void>;
   stopTraining: () => void;
+}
+
+/** Control plane — user actions + session status. Changes ~10x per run. */
+export interface TrainingControl {
+  isTraining: boolean;
+  phase: string;
+  progress: number;
+  error: string | null;
+  startTraining: (request: TrainingRequest) => Promise<void>;
+  stopTraining: () => void;
+  selectedModelType: string;
+  setSelectedModelType: (type: string) => void;
+  availableModels: Record<string, ModelRegistryEntry>;
+  completedModelId: string | null;
+  config: TrainingRequest | null;
+  timeframeLabel: string;
+  modelType: string | null;
+  sessionId: string | null;
+  modelId: string | null;
+}
+
+/** Live data plane — metrics, overlays, logs. Changes ~500x per run. */
+export interface TrainingLive {
+  metrics: Record<string, number>;
+  iterationHistory: Array<{ iteration: number; metrics: Record<string, number> }>;
+  logs: string[];
+  liveRegimeTimestamps: number[];
+  liveRegimeAssignments: number[];
+  overlayData: OverlayPayload | null;
+  overlayType: string | null;
+  elapsedSec: number;
+  totalBars: number;
+  dataRange: { start: string; end: string } | null;
+  diagnostics: unknown | null;
 }

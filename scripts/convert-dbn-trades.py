@@ -7,8 +7,9 @@ Output: D:\HistoricalTickData\*.trades.parquet
 
 Run: python scripts/convert-dbn-trades.py
 """
-import databento as db
 from pathlib import Path
+
+import databento as db
 
 hist_dir = Path(r'D:\HistoricalTickData')
 

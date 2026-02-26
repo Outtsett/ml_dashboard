@@ -109,13 +109,42 @@ export const QUERY_KEYS = {
   mlModels: ["/api/ml/models"] as const,
   mlTrades: ["/api/ml/trades"] as const,
   mlRegimes: ["/api/ml/regimes"] as const,
-  regimeModels: ["/api/regime/models"] as const,
-  regimeDiagnostics: (id: string) => ["/api/regime/diagnostics", id] as const,
-  regimeAssignments: (id: string) => ["/api/regime/assignments", id] as const,
+  mlSavedModels: ["/api/ml/saved-models"] as const,
+  mlTrainStatus: ["/api/ml/train/status"] as const,
+  mlFeatures: ["/api/ml/universal/features"] as const,
+  regimeModels: ["/api/training/models"] as const,
+  regimeDiagnostics: (id: string | number) => ["/api/training/models", String(id), "diagnostics"] as const,
+  regimeConvergence: (id: string | number) => ["/api/training/models", String(id), "convergence"] as const,
+  regimeAssignments: (id: string) => ["/api/training/models", id, "assignments"] as const,
+  regimeTrainStatus: ["/api/training/status"] as const,
   instruments: ["/api/instruments"] as const,
   featureImportance: (modelName: string) => ["/api/ml/feature-importance", modelName] as const,
   trainingStatus: ["/api/ml/train/status"] as const,
+  trainingConfig: ["/api/training/config"] as const,
   lastTrainingSession: (symbol: string) => ["/api/ml/train/last-session", symbol] as const,
   chartOhlcv: (symbol: string, timeframe: string) => ["/api/charts/ohlcv", symbol, timeframe] as const,
   chartSymbols: ["/api/charts/symbols"] as const,
+  indicatorCatalog: (symbol: string) => ["/api/indicators/catalog", symbol] as const,
+  indicatorData: (symbol: string, tf: string) => ["/api/indicators/data", symbol, tf] as const,
+  indicatorPatterns: (symbol: string, tf: string) => ["/api/indicators/patterns", symbol, tf] as const,
+  xaiMethods: ["/api/xai/methods"] as const,
+  labels: (symbol: string) => ["/api/labels", symbol] as const,
+  backtestTrades: (params: string) => ["/api/backtest/trades", params] as const,
+  uploads: ["/api/databases/uploads"] as const,
+  mlForecasts: (params: string) => ["/api/ml/forecasts", params] as const,
 } as const;
+
+// ── Slim projection types (ISP) ─────────────────────────────────────────────
+// Use these minimal interfaces when a component only needs a few fields.
+
+/** Minimal model reference — use when only id+name are needed (badges, lists). */
+export interface ModelSummary { id: number; name: string; type?: string; }
+
+/** Minimal trade reference for table rows that don't need full Trade fields. */
+export interface TradeSummary { id: number; symbol: string; side: string; pnl: number | null; }
+
+/** Minimal feature reference for importance displays. */
+export interface FeatureInfo { name: string; importance: number; }
+
+/** Minimal training status for progress indicators. */
+export interface TrainStatus { modelId: number; status: string; progress?: number; epoch?: number; }

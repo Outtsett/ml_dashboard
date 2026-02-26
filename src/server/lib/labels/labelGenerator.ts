@@ -4,7 +4,7 @@
  * Handles both standard supervised labels and contrastive pair generation.
  */
 
-import { db } from '../../db';
+import { db } from '../../database/db';
 import { generatedLabels, contrastivePairs } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import {

@@ -3,13 +3,14 @@ Upload trade parquet files to QuestDB via /imp endpoint.
 Uses DuckDB to convert parquet to CSV (avoids pyarrow timezone issues).
 """
 
-import duckdb
-import subprocess
+import json
 import os
+import subprocess
 import sys
 import time
 import urllib.request
-import json
+
+import duckdb
 
 QUESTDB_URL = os.environ.get("QUESTDB_HOST", "http://localhost:9000")
 TRADES_DIR = r"D:\HistoricalTickData"
@@ -107,7 +108,6 @@ def convert_and_upload(parquet_path):
     return http_code == "200"
 
 def main():
-    import urllib.parse
 
     print(f"=== Trade Parquet -> QuestDB Upload ===")
     print(f"Found {len(TRADE_FILES)} trade parquet files\n")

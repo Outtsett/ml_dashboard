@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
-import { db } from '../db';
+import { db } from './db';
 
 @Injectable()
 export class SQLiteService implements OnModuleDestroy {

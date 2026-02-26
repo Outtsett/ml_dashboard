@@ -1,5 +1,5 @@
 /**
- * Universal Training Routes
+ * Training Routes
  *
  * Model-agnostic training API. Works with any model type registered in config/models.json.
  * Uses NestJS services via bridge pattern (getNestApp()).
@@ -10,19 +10,53 @@
  *   GET  /api/training/stream/:modelId  — SSE stream (standardized events, reconnectable)
  *   GET  /api/training/status           — List active training jobs
  *   POST /api/training/stop/:modelId    — Stop a training job
+ *
+ * Model CRUD:
+ *   GET    /api/training/models                    — List all trained models
+ *   GET    /api/training/models/:id/diagnostics    — Diagnostics JSON
+ *   GET    /api/training/models/:id/convergence    — Convergence JSON
+ *   GET    /api/training/models/:id/assignments    — Per-bar regime assignments + OHLCV
+ *   DELETE /api/training/models/:id                — Delete a model
  */
 
 import { Router, Request, Response } from "express";
+import path from "path";
+import { z } from "zod";
+import { CACHE_SEMI } from "../lib/cacheHeaders";
 import { getNestApp } from "../main";
 import { TrainingService } from "../training/training.service";
 import { RegistryService } from "../training/registry.service";
 import type { TrainingRequest, TrainingEvent } from "@shared/trainingTypes";
+import {
+  sanitizeModelId,
+  listTrainedModels,
+  getModelDiagnostics,
+  getModelConvergence,
+  getModelAssignments,
+  deleteModel,
+} from "../lib/modelResults";
+
+// ─── Zod schema for request validation (DIP — route depends on schema, not manual field copying) ──
+
+const trainingRequestSchema = z.object({
+  modelType: z.string().min(1, "modelType is required"),
+  symbol: z.string().optional(),
+  timeframe: z.string().optional(),
+  dateRange: z.object({
+    start: z.string(),
+    end: z.string(),
+  }).optional(),
+  hyperparameters: z.record(z.union([z.number(), z.string(), z.boolean()])).optional(),
+  includeIndicators: z.boolean().optional(),
+  allFeatures: z.boolean().optional(),
+  indicatorGroups: z.string().optional(),
+}) satisfies z.ZodType<TrainingRequest>;
 
 const router = Router();
 
 // ─── Config (for client UI) ─────────────────────────────────────────────────
 
-router.get("/training/config", (_req: Request, res: Response) => {
+router.get("/training/config", CACHE_SEMI, (_req: Request, res: Response) => {
   try {
     const registry = getNestApp().get(RegistryService);
     res.json(registry.getClientConfig());
@@ -35,20 +69,13 @@ router.get("/training/config", (_req: Request, res: Response) => {
 
 router.post("/training/start", async (req: Request, res: Response) => {
   try {
-    const request: TrainingRequest = {
-      modelType: req.body.modelType,
-      symbol: req.body.symbol,        // optional — orchestrator resolves from registry
-      timeframe: req.body.timeframe,  // optional — orchestrator resolves from registry
-      dateRange: req.body.dateRange,
-      hyperparameters: req.body.hyperparameters,
-      includeIndicators: req.body.includeIndicators,
-      allFeatures: req.body.allFeatures,
-      indicatorGroups: req.body.indicatorGroups,
-    };
-
-    if (!request.modelType) {
-      return res.status(400).json({ error: "modelType is required" });
+    // Validate + parse request body via Zod schema (DIP — single source of truth)
+    const parseResult = trainingRequestSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      const errors = parseResult.error.issues.map(i => i.message).join(", ");
+      return res.status(400).json({ error: errors });
     }
+    const request: TrainingRequest = parseResult.data;
 
     const training = getNestApp().get(TrainingService);
     const result = await training.start(request);
@@ -137,6 +164,81 @@ router.post("/training/stop/:modelId", (req: Request, res: Response) => {
     res.json({ message: `Stopped training ${modelId}` });
   } else {
     res.status(404).json({ error: `No active training for ${modelId}` });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Model CRUD (replaces legacy /api/regime/models, diagnostics, etc.)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MODELS_DIR = path.join(process.cwd(), "data", "models");
+
+// ─── List trained models ─────────────────────────────────────────────────────
+
+router.get("/training/models", (_req: Request, res: Response) => {
+  try {
+    res.json({ models: listTrainedModels(MODELS_DIR) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Diagnostics ─────────────────────────────────────────────────────────────
+
+router.get("/training/models/:id/diagnostics", (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const diag = getModelDiagnostics(MODELS_DIR, id);
+    if (!diag) return res.status(404).json({ error: `Model '${id}' not found` });
+    res.json(diag);
+  } catch (err: any) {
+    const status = err.message.includes("Invalid model ID") ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// ─── Convergence ─────────────────────────────────────────────────────────────
+
+router.get("/training/models/:id/convergence", (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const conv = getModelConvergence(MODELS_DIR, id);
+    if (!conv) return res.status(404).json({ error: `Convergence data for '${id}' not found` });
+    res.json(conv);
+  } catch (err: any) {
+    const status = err.message.includes("Invalid model ID") ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// ─── Assignments (parquet + OHLCV join) ──────────────────────────────────────
+
+router.get("/training/models/:id/assignments", async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const result = await getModelAssignments(MODELS_DIR, id, {
+      limit: Number(req.query.limit) || undefined,
+      offset: Number(req.query.offset) || undefined,
+    });
+    if (!result) return res.status(404).json({ error: `Assignments not found for '${id}'` });
+    res.json(result);
+  } catch (err: any) {
+    const status = err.message.includes("Invalid model ID") ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// ─── Delete model ────────────────────────────────────────────────────────────
+
+router.delete("/training/models/:id", (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const deleted = deleteModel(MODELS_DIR, id);
+    if (!deleted) return res.status(404).json({ error: `Model '${id}' not found` });
+    res.json({ message: `Deleted model '${id}'` });
+  } catch (err: any) {
+    const status = err.message.includes("Invalid model ID") ? 400 : 500;
+    res.status(status).json({ error: err.message });
   }
 });
 

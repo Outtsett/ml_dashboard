@@ -30,8 +30,8 @@ const PORT = process.env.PORT || 5000;
 const IS_DEV = process.env.NODE_ENV === "development";
 
 // Database paths for shutdown
-const PG_CTL = "E:\\PostgreSQL\\pgsql\\bin\\pg_ctl.exe";
-const PG_DATA = "E:\\PostgreSQL\\pgsql\\data";
+const PG_CTL = "E:\\source\\databases\\PostgreSQL\\pgsql\\bin\\pg_ctl.exe";
+const PG_DATA = "E:\\source\\databases\\PostgreSQL\\pgsql\\data";
 const QUESTDB_PID_FILE = path.join(__dirname, ".questdb.pid");
 
 let mainWindow = null;
@@ -82,8 +82,8 @@ function createWindow() {
     height: 1000,
     minWidth: 1024,
     minHeight: 700,
-    title: "ML Dashboard",
-    icon: path.join(__dirname, "..", "src", "client", "public", "favicon.png"),
+    title: "Quant AI Dashboard",
+    icon: path.join(__dirname, "..", "src", "client", "public", "favicon.svg"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       nodeIntegration: false,

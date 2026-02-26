@@ -5,7 +5,10 @@
  */
 
 // Core math primitives
-export * from './math';
+export * from './math/types';
+export * from './math/trendMath';
+export * from './math/volatilityMath';
+export * from './math/momentumMath';
 
 // SQL generation for DuckDB batch processing
 export * from './sqlGenerator';

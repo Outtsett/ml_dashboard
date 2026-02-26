@@ -9,6 +9,8 @@ import {
   computeHilbert, detrend, smooth,
 } from './math';
 import { SPECTRUM_COLORS, TF_LABELS } from './constants';
+import { minutesToApiKey } from '@/lib/timeframes';
+import { chartApi } from '@/lib/apiService';
 import { FourierControls } from './FourierControls';
 
 export default function FourierTransform() {
@@ -44,12 +46,9 @@ export default function FourierTransform() {
   const { data: priceData, isLoading: priceLoading } = useQuery<{ close: number }[]>({
     queryKey: ['/api/charts/ohlcv', priceSymbol, priceTimeframe, 'fourier'],
     queryFn: async () => {
-      const tfMap: Record<number, string> = { 1: '1m', 5: '5m', 15: '15m', 60: '1h', 240: '4h', 1440: '1d' };
-      const tfStr = tfMap[priceTimeframe] || '1d';
-      const res = await fetch(`/api/charts/ohlcv?symbol=${priceSymbol}&timeframe=${tfStr}&limit=512`);
-      if (!res.ok) throw new Error('Failed to fetch price data');
-      const json = await res.json();
-      const rows = json?.data ?? json;
+      const tfStr = minutesToApiKey(priceTimeframe);
+      const data = await chartApi.getOhlcv({ symbol: priceSymbol, timeframe: tfStr, limit: '512' });
+      const rows = (data as any)?.data ?? data;
       return Array.isArray(rows) ? rows : [];
     },
     enabled: waveType === 'price',

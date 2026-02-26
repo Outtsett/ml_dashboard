@@ -5,13 +5,15 @@
  * (past data) and tries to predict what happens RIGHT of the line (future).
  * Then we reveal what ACTUALLY happened and compare.
  */
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useDashboard } from "@/contexts/UnifiedDashboardContext";
+import { useSymbol } from "@/contexts/UnifiedDashboardContext";
 import { fetchArray } from "@/lib/fetchArray";
+import { mlApi } from "@/lib/apiService";
+import { QUERY_KEYS } from "@/lib/types";
 import {
   Brain, TrendingUp, TrendingDown, Target,
   CheckCircle2, Eye, Clock, ChevronDown, ChevronUp, Loader2
@@ -25,19 +27,7 @@ import { ForecastControls } from "./ForecastControls";
 
 export default function ForecastVisualizer() {
   const queryClient = useQueryClient();
-  const dashboard = useDashboard();
-
-  // ── Controls state — sync symbol with unified context ─────
-  const [symbol, setSymbolLocal] = useState(dashboard.symbol);
-  const setSymbol = (sym: string) => {
-    setSymbolLocal(sym);
-    dashboard.setSymbol(sym);
-  };
-  useEffect(() => {
-    if (dashboard.symbol !== symbol) {
-      setSymbolLocal(dashboard.symbol);
-    }
-  }, [dashboard.symbol]);
+  const { symbol, setSymbol } = useSymbol();
   const [timeframe, setTimeframe] = useState("3600");
   const [modelSize, setModelSize] = useState("small");
   const [context, setContext] = useState(500);
@@ -57,35 +47,21 @@ export default function ForecastVisualizer() {
   });
 
   const { data: forecastData, isLoading: isDataLoading } = useQuery<ForecastData>({
-    queryKey: ["/api/ml/forecasts", selectedForecast],
-    queryFn: async () => {
-      const res = await fetch(`/api/ml/forecasts/${selectedForecast}`);
-      return res.json();
-    },
+    queryKey: [...QUERY_KEYS.mlForecasts, selectedForecast],
+    queryFn: () => mlApi.getForecastById(selectedForecast!) as Promise<ForecastData>,
     enabled: !!selectedForecast,
   });
 
   // ── Run forecast mutation ───────────────────────────────────
   const runForecast = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/ml/forecast", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          symbol,
-          timeframe: parseInt(timeframe),
-          context,
-          horizon,
-          modelSize,
-          samples: 20,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Forecast failed");
-      }
-      return res.json();
-    },
+    mutationFn: () => mlApi.runForecast({
+      symbol,
+      timeframe: parseInt(timeframe),
+      context,
+      horizon,
+      modelSize,
+      samples: 20,
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/ml/forecasts"] });
       const tfLabels: Record<string, string> = { "60": "1m", "300": "5m", "900": "15m", "1800": "30m", "3600": "1h", "14400": "4h", "86400": "1d" };

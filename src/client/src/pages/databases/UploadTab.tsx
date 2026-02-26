@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import type { Upload as UploadRecord } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +13,7 @@ interface UploadTabProps {
   selectedFiles: FileUploadItem[];
   isUploading: boolean;
   pendingCount: number;
-  uploads: any[];
+  uploads: UploadRecord[];
   onFilesSelected: (files: FileList | null) => void;
   onRemoveFile: (index: number) => void;
   onUpdateFileSymbol: (index: number, newSymbol: string) => void;
@@ -154,7 +155,7 @@ export function UploadTab({
           ) : (
             <ScrollArea className="h-[300px]">
               <div className="space-y-2">
-                {uploads.map((upload: any) => (
+                {uploads.map((upload) => (
                   <div key={upload.id} className="flex items-center gap-3 p-2 rounded-lg bg-white/5" data-testid={`upload-history-${upload.id}`}>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">

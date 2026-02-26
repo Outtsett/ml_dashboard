@@ -7,7 +7,9 @@
 
 import type { IStorage } from './types';
 import * as core from './core';
-import * as observatory from './observatory';
+import * as modelStorage from './modelStorage';
+import * as tradeStorage from './tradeStorage';
+import * as regimeStorage from './regimeStorage';
 import * as backtesting from './backtesting';
 
 export { getAssetType } from './types';
@@ -40,27 +42,31 @@ class DatabaseStorage implements IStorage {
   getNewsBySymbol = core.getNewsBySymbol;
   linkNewsToSymbols = core.linkNewsToSymbols;
 
-  // Observatory
-  createMlModel = observatory.createMlModel;
-  getMlModels = observatory.getMlModels;
-  getMlModel = observatory.getMlModel;
-  updateMlModel = observatory.updateMlModel;
-  createFeatureSet = observatory.createFeatureSet;
-  getFeatureSets = observatory.getFeatureSets;
-  saveModelOutput = observatory.saveModelOutput;
-  saveModelOutputBatch = observatory.saveModelOutputBatch;
-  getModelOutputs = observatory.getModelOutputs;
-  getModelCoherence = observatory.getModelCoherence;
-  saveCoherenceSnapshot = observatory.saveCoherenceSnapshot;
-  createEnsembleConfig = observatory.createEnsembleConfig;
-  getEnsembleConfigs = observatory.getEnsembleConfigs;
-  simulateEnsemble = observatory.simulateEnsemble;
-  createTrade = observatory.createTrade;
-  getTrades = observatory.getTrades;
-  closeTrade = observatory.closeTrade;
-  createMarketRegime = observatory.createMarketRegime;
-  getMarketRegimes = observatory.getMarketRegimes;
-  recordRegimeHistory = observatory.recordRegimeHistory;
+  // ML Models, Features, Outputs, Coherence, Ensembles
+  createMlModel = modelStorage.createMlModel;
+  getMlModels = modelStorage.getMlModels;
+  getMlModel = modelStorage.getMlModel;
+  updateMlModel = modelStorage.updateMlModel;
+  createFeatureSet = modelStorage.createFeatureSet;
+  getFeatureSets = modelStorage.getFeatureSets;
+  saveModelOutput = modelStorage.saveModelOutput;
+  saveModelOutputBatch = modelStorage.saveModelOutputBatch;
+  getModelOutputs = modelStorage.getModelOutputs;
+  getModelCoherence = modelStorage.getModelCoherence;
+  saveCoherenceSnapshot = modelStorage.saveCoherenceSnapshot;
+  createEnsembleConfig = modelStorage.createEnsembleConfig;
+  getEnsembleConfigs = modelStorage.getEnsembleConfigs;
+  simulateEnsemble = modelStorage.simulateEnsemble;
+
+  // Trades
+  createTrade = tradeStorage.createTrade;
+  getTrades = tradeStorage.getTrades;
+  closeTrade = tradeStorage.closeTrade;
+
+  // Market Regimes
+  createMarketRegime = regimeStorage.createMarketRegime;
+  getMarketRegimes = regimeStorage.getMarketRegimes;
+  recordRegimeHistory = regimeStorage.recordRegimeHistory;
 
   // Backtesting
   getBrokerConfigs = backtesting.getBrokerConfigs;

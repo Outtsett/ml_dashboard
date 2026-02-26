@@ -10,7 +10,8 @@ import {
 import { QUERY_KEYS } from "@/lib/types";
 import { apiRequest } from "@/lib/queryClient";
 import { fetchArray } from "@/lib/fetchArray";
-import { useDashboard, type TradeMarker } from "@/contexts/UnifiedDashboardContext";
+import { backtestApi } from "@/lib/apiService";
+import { useDashboard, useSymbol, type TradeMarker } from "@/contexts/UnifiedDashboardContext";
 import type { BrokerConfig, BacktestRunResult } from "./types";
 import { MetricBox } from "./MetricBox";
 import { ConfigPanel } from "./ConfigPanel";
@@ -22,20 +23,11 @@ import { CostsTab } from "./CostsTab";
 export function BacktestPanel() {
   const queryClient = useQueryClient();
   const dashboard = useDashboard();
+  const { symbol: selectedSymbol, setSymbol: setSelectedSymbol } = useSymbol();
   const [activeTab, setActiveTab] = useState("results");
 
-  // Form state — sync symbol with unified context
+  // Form state
   const [selectedModel, setSelectedModel] = useState<string>("");
-  const [selectedSymbol, setSelectedSymbolLocal] = useState<string>(dashboard.symbol || "");
-  const setSelectedSymbol = (sym: string) => {
-    setSelectedSymbolLocal(sym);
-    dashboard.setSymbol(sym);
-  };
-  useEffect(() => {
-    if (dashboard.symbol !== selectedSymbol) {
-      setSelectedSymbolLocal(dashboard.symbol);
-    }
-  }, [dashboard.symbol]);
   const [selectedBroker, setSelectedBroker] = useState<string>("");
   const [timeframe, setTimeframe] = useState("1m");
   const [splitRatio, setSplitRatio] = useState(0.8);
@@ -75,10 +67,7 @@ export function BacktestPanel() {
   // Trades for the selected run
   const { data: tradesData } = useQuery<{ trades: any[]; chartMarkers: any[]; count: number }>({
     queryKey: ["/api/backtest/trades", selectedRunId],
-    queryFn: async () => {
-      const res = await fetch(`/api/backtest/trades/${selectedRunId}`);
-      return res.json();
-    },
+    queryFn: () => backtestApi.getTradesForRun(selectedRunId!),
     enabled: !!selectedRunId,
   });
 

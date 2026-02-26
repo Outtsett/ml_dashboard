@@ -11,8 +11,10 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
   Brain, Eye, Lightbulb, HelpCircle, BarChart3, Zap, Target,
-  Layers, ChevronRight, RefreshCw, CheckCircle2, ArrowRight, Info
+  Layers, RefreshCw, CheckCircle2, ArrowRight, Info
 } from "lucide-react";
+import { xaiApi } from "@/lib/apiService";
+import { QUERY_KEYS } from "@/lib/types";
 
 import type { ExplainableAIProps, XAIExplanation, XAIMethod } from "./types";
 import { COMPLEXITY_COLORS } from "./types";
@@ -42,12 +44,8 @@ export function ExplainableAI({ symbol, modelId }: ExplainableAIProps) {
   const [explanation, setExplanation] = useState<XAIExplanation | null>(null);
 
   const { data: methodsData } = useQuery({
-    queryKey: ['xai-methods'],
-    queryFn: async () => {
-      const res = await fetch('/api/xai/methods');
-      if (!res.ok) throw new Error('Failed to fetch XAI methods');
-      return res.json();
-    },
+    queryKey: [...QUERY_KEYS.xaiMethods],
+    queryFn: () => xaiApi.getMethods(),
   });
 
   const methods: Record<string, XAIMethod> = useMemo(() => {
@@ -70,18 +68,12 @@ export function ExplainableAI({ symbol, modelId }: ExplainableAIProps) {
 
   const explainMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch('/api/xai/explain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          symbol,
-          method: selectedMethod,
-          params,
-          modelId: modelId || 0,
-        }),
+      return xaiApi.explain({
+        symbol,
+        method: selectedMethod,
+        params,
+        modelId: modelId || 0,
       });
-      if (!res.ok) throw new Error('Failed to generate explanation');
-      return res.json();
     },
     onSuccess: (data) => {
       setExplanation(data.explanation);

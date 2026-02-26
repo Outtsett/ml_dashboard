@@ -1,14 +1,17 @@
 /**
  * HeroStrip — Five metric cards displayed as a horizontal strip
  *
- * HDP-HMM: [Regimes] [WF Stability] — [Quality Ring] — [OOS Match] [Model Fit]
+ * [Regimes] [Stability] — [Quality Ring] — [Match] [Model Fit]
  *
  * Shows live metrics during training, falls back to diagnostics when idle.
  */
 
 import { Progress } from "@/components/ui/progress";
 import { Flame } from "lucide-react";
-import type { TrainingState } from "./types";
+import type {
+  TrainingProgress, LiveMetrics, ConvergencePoint,
+  WalkForwardWindow, OOSResult, Diagnostics,
+} from "./types";
 import {
   getRegimeColor, getRegimeVerdict, getStabilityVerdict,
   getOosVerdict, getQualityLabel, getQualityVerdict,
@@ -16,20 +19,42 @@ import {
 } from "./types";
 import { Sparkline, PendingValue, FitGauge, MiniProgress, QualityScoreRing } from "./MicroComponents";
 
-interface HeroStripProps {
-  state: TrainingState;
-  modelType?: string;
-  universalMetrics?: Record<string, number>;
-  iterationHistory?: Array<{ iteration: number; metrics: Record<string, number> }>;
+interface DerivedMetrics {
+  quality: number;
+  regimes: number;
+  stability: number;
+  oos: number;
+  profileCorr: number;
+  ll: number;
+  activeStates: number;
+  elapsedSec: number;
 }
 
-export default function HeroStrip({ state }: HeroStripProps) {
+interface HeroStripProps {
+  isTraining: boolean;
+  progress: TrainingProgress | null;
+  gibbsIter: number;
+  gibbsPhase: string;
+  isGibbsSampling: boolean;
+  isPostGibbs: boolean;
+  liveMetrics: LiveMetrics | null;
+  liveConvergence: ConvergencePoint[];
+  diagnostics: Diagnostics | undefined;
+  metrics: DerivedMetrics;
+  nBarsForLL: number;
+  llPerBar: number;
+  convergencePoints: ConvergencePoint[];
+  wfWindResults: WalkForwardWindow[];
+  oos: OOSResult | undefined;
+}
+
+export default function HeroStrip(props: HeroStripProps) {
   const {
     isTraining, liveMetrics, liveConvergence, progress,
     gibbsPhase, isGibbsSampling, isPostGibbs,
     metrics, nBarsForLL, llPerBar,
     convergencePoints, wfWindResults, oos, diagnostics, gibbsIter,
-  } = state;
+  } = props;
 
   // Short aliases for readability
   const { quality: qualityScore, regimes: nRegimes, stability: stabilityScore,

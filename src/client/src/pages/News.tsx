@@ -1,11 +1,12 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Newspaper, Search, ExternalLink, Clock, TrendingUp, RefreshCw, Star, Sparkles, Zap, Radio } from "lucide-react";
+import { Newspaper, Search, ExternalLink, Clock, RefreshCw, Star, Sparkles, Radio } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useInstruments } from "@/hooks/useRegimeData";
 
 interface NewsItem {
   title: string;
@@ -18,41 +19,23 @@ interface NewsItem {
   isNew?: boolean;
 }
 
-const watchlistSymbols = [
-  // CME Equity Index Futures
-  { symbol: "ES", name: "E-mini S&P 500", type: "CME" },
-  { symbol: "MES", name: "Micro E-mini S&P 500", type: "CME" },
-  { symbol: "NQ", name: "E-mini Nasdaq 100", type: "CME" },
-  { symbol: "MNQ", name: "Micro E-mini Nasdaq", type: "CME" },
-  { symbol: "RTY", name: "E-mini Russell 2000", type: "CME" },
-  { symbol: "M2K", name: "Micro E-mini Russell", type: "CME" },
-  // CBOT Dow Futures
-  { symbol: "YM", name: "E-mini Dow", type: "CBOT" },
-  { symbol: "MYM", name: "Micro E-mini Dow", type: "CBOT" },
-  // Top 15 Liquid Forex Pairs
-  { symbol: "EURUSD", name: "Euro/US Dollar", type: "forex" },
-  { symbol: "USDJPY", name: "US Dollar/Japanese Yen", type: "forex" },
-  { symbol: "GBPUSD", name: "British Pound/US Dollar", type: "forex" },
-  { symbol: "AUDUSD", name: "Australian Dollar/US Dollar", type: "forex" },
-  { symbol: "USDCAD", name: "US Dollar/Canadian Dollar", type: "forex" },
-  { symbol: "USDCHF", name: "US Dollar/Swiss Franc", type: "forex" },
-  { symbol: "NZDUSD", name: "New Zealand Dollar/US Dollar", type: "forex" },
-  { symbol: "EURJPY", name: "Euro/Japanese Yen", type: "forex" },
-  { symbol: "GBPJPY", name: "British Pound/Japanese Yen", type: "forex" },
-  { symbol: "EURGBP", name: "Euro/British Pound", type: "forex" },
-  { symbol: "AUDJPY", name: "Australian Dollar/Japanese Yen", type: "forex" },
-  { symbol: "EURAUD", name: "Euro/Australian Dollar", type: "forex" },
-  { symbol: "EURCHF", name: "Euro/Swiss Franc", type: "forex" },
-  { symbol: "AUDNZD", name: "Australian Dollar/New Zealand Dollar", type: "forex" },
-  { symbol: "GBPAUD", name: "British Pound/Australian Dollar", type: "forex" },
-];
-
 export default function News() {
   const queryClient = useQueryClient();
   const [selectedSymbol, setSelectedSymbol] = useState<string>("MNQ");
   const [searchQuery, setSearchQuery] = useState("");
   const [isStreaming, setIsStreaming] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+
+  // Derive watchlist from instruments API instead of hardcoding
+  const { data: instruments = [] } = useInstruments();
+  const watchlistSymbols = useMemo(() =>
+    instruments.map((i) => ({
+      symbol: i.symbol,
+      name: i.name ?? i.symbol,
+      type: i.exchange ?? i.assetType ?? 'unknown',
+    })),
+    [instruments],
+  );
   const [newsData, setNewsData] = useState<NewsItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');

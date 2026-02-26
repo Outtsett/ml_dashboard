@@ -7,7 +7,7 @@
 import {
   brokerConfigs, backtestRuns, backtestTrades, mlModels,
 } from '@shared/schema';
-import { db } from '../db';
+import { db } from '../database/db';
 import { eq, and, desc, asc, getTableColumns } from 'drizzle-orm';
 
 // ── Broker Configs ──────────────────────────────────────────

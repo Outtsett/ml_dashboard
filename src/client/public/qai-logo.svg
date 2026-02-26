@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="64" fill="#020617"/> <!-- Tailwind slate-950 -->
+  
+  <!-- Outer Ring (Q) -->
+  <circle cx="256" cy="256" r="180" stroke="#38bdf8" stroke-width="28" fill="none" stroke-opacity="0.9" /> <!-- Tailwind sky-400 -->
+  
+  <!-- Q-Tail -->
+  <line x1="380" y1="380" x2="450" y2="450" stroke="#38bdf8" stroke-width="40" stroke-linecap="round" />
+  
+  <!-- A + I Composite -->
+  <path d="M256 120 L150 360 L362 360 Z" fill="none" stroke="#f8fafc" stroke-width="24" stroke-linejoin="round" /> <!-- Tailwind slate-50 -->
+  <line x1="190" y1="280" x2="322" y2="280" stroke="#f8fafc" stroke-width="20" />
+  
+  <!-- I Integrated into A top -->
+  <line x1="256" y1="180" x2="256" y2="250" stroke="#38bdf8" stroke-width="32" stroke-linecap="round" />
+  
+  <!-- Branding Text -->
+  <text x="50%" y="490" text-anchor="middle" font-family="Inter, system-ui, -apple-system, sans-serif" font-weight="900" font-size="42" fill="#f8fafc" letter-spacing="4">QUANT AI</text>
+</svg>

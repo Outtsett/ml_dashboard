@@ -7,7 +7,7 @@
 
 import { storage, getAssetType } from '../../storage';
 import { questdbMarketQuery as marketQuery } from '../questdbMarketQuery';
-import { runBacktest, type OHLCVBar, type Signal, type InstrumentSpec, type BacktestConfig } from '../backtestEngine';
+import { runBacktest, type Signal, type InstrumentSpec, type BacktestConfig } from './tradeSimulator';
 
 // ─── Request / Response Types ───────────────────────────────────────────────
 

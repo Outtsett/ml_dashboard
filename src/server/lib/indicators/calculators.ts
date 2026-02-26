@@ -5,10 +5,10 @@
  * Uses math primitives from ./math.ts.
  */
 
-import {
-  OHLCVBar, sma, ema, wma, stddev, rollingMax, rollingMin,
-  diff, roc, trueRange, typicalPrice, gains, losses, combine
-} from './math';
+import type { OHLCVBar } from './math/types';
+import { sma, ema, wma } from './math/trendMath';
+import { stddev, rollingMax, rollingMin, trueRange, typicalPrice } from './math/volatilityMath';
+import { diff, roc, gains, losses, combine } from './math/momentumMath';
 import { INDICATOR_REGISTRY } from './registry';
 
 export interface IndicatorResult {

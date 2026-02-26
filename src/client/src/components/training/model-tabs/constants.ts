@@ -26,7 +26,7 @@ export function useModelDiagnostics(modelId: string) {
   const { data: diagnostics } = useQuery({
     queryKey: QUERY_KEYS.regimeDiagnostics(modelId),
     queryFn: async () => {
-      const res = await fetch(`/api/regime/diagnostics/${modelId}`);
+      const res = await fetch(`/api/training/models/${modelId}/diagnostics`);
       if (!res.ok) throw new Error("Failed to load diagnostics");
       return res.json() as Promise<Diagnostics>;
     },
@@ -37,7 +37,7 @@ export function useModelDiagnostics(modelId: string) {
   const { data: convergenceData } = useQuery({
     queryKey: [...QUERY_KEYS.regimeDiagnostics(modelId), "convergence"],
     queryFn: async () => {
-      const res = await fetch(`/api/regime/convergence/${modelId}`);
+      const res = await fetch(`/api/training/models/${modelId}/convergence`);
       if (!res.ok) return null;
       return res.json() as Promise<Record<string, ConvergencePoint[]>>;
     },

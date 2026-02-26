@@ -1,4 +1,5 @@
 import { Database } from "lucide-react";
+import type { LiveMetrics, ConvergencePoint } from "@/components/training/types";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import IndicatorChartLayout from "@/components/IndicatorChartLayout";
 import { ReplayControls } from "@/components/ReplayControls";
@@ -63,15 +64,15 @@ interface ChartPanelProps {
   predictionMarkers: any[];
   // Training terminal
   regime: {
-    trainLogs: any[];
+    trainLogs: string[];
     isTraining: boolean;
-    liveMetrics: any;
-    liveConvergence: any;
+    liveMetrics: LiveMetrics | null;
+    liveConvergence: ConvergencePoint[];
     selectedSymbol: string;
     selectedTimeframe: string;
     showTerminal: boolean;
     setShowTerminal: (v: boolean) => void;
-    logEndRef: React.RefObject<any>;
+    logEndRef: React.RefObject<HTMLDivElement | null>;
     burnIn: number;
   };
 }

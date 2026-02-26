@@ -324,7 +324,7 @@ export const XAI_METHODS = {
   gradcam: {
     id: 'gradcam',
     name: 'Gradient-CAM',
-    description: 'Gradient-weighted Class Activation Mapping for CNN attention',
+    description: 'Gradient-weighted Class Activation Mapping for model attention',
     category: 'attention',
     output: 'attention_heatmap',
     complexity: 'medium',

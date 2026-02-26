@@ -33,7 +33,6 @@ Requires: pandas, numpy, pyarrow, duckdb
 
 import argparse
 import json
-import os
 import sys
 import time
 import warnings

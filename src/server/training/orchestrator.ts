@@ -8,7 +8,6 @@
 import type {
   TrainingRequest,
   TrainingSession,
-  TrainingEvent,
   ResolvedTrainingConfig,
 } from "@shared/trainingTypes";
 import {
@@ -18,14 +17,8 @@ import {
   timeframeToSeconds,
 } from "./registry";
 import { emitSessionEvent } from "./runners/types";
-import { PythonRunner } from "./runners/pythonRunner";
+import { getRunner } from "./runnerFactory";
 import type { ITrainerRunner } from "./runners/types";
-
-// ─── Runner instances (singletons) ───────────────────────────────────────────
-
-const runners: Record<string, ITrainerRunner> = {
-  python: new PythonRunner(),
-};
 
 // ─── Active sessions index ───────────────────────────────────────────────────
 
@@ -94,10 +87,10 @@ export async function startTraining(request: TrainingRequest): Promise<{
     indicatorGroups: request.indicatorGroups,
   };
 
-  // 4. Select runner
-  const runner = runners[registry.runner];
+  // 4. Select runner via factory (DIP — no concrete runner imports)
+  const runner = getRunner(registry.runner);
   if (!runner) {
-    throw new Error(`No runner available for type: ${registry.runner}`);
+    throw new Error(`No runner registered for type: "${registry.runner}". Register it in server startup.`);
   }
 
   // 5. Spawn the training script — it handles its own data loading

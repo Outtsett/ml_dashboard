@@ -5,7 +5,7 @@ import { RefreshCw } from "lucide-react";
 
 interface TablePreviewProps {
   tableName: string;
-  data: any;
+  data: unknown;
   isLoading: boolean;
   onClose: () => void;
 }

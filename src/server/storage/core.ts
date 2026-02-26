@@ -13,7 +13,7 @@ import {
   type TrainingSession, type InsertTrainingSession, type LossHistory, type InsertLossHistory,
   type Instrument, type NewsArticle, type InsertNewsArticle,
 } from '@shared/schema';
-import { db } from '../db';
+import { db } from '../database/db';
 import { eq, and, gte, lte, desc, asc, getTableColumns } from 'drizzle-orm';
 
 // ── Users ───────────────────────────────────────────────────

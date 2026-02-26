@@ -7,7 +7,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Layout from "@/components/Layout";
 import { BreadcrumbProvider } from "@/hooks/useBreadcrumbs";
 import { UnifiedDashboardProvider } from "@/contexts/UnifiedDashboardContext";
-import { RegimeTrainingProvider } from "@/contexts/RegimeTrainingContext";
 import { TrainingProvider } from "@/contexts/TrainingContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
@@ -26,6 +25,7 @@ const Training = lazy(() => import("@/pages/Training"));
 const Backtest = lazy(() => import("@/pages/Backtest"));
 const FourierTransform = lazy(() => import("@/pages/FourierTransform"));
 const ArchitectureExplorer = lazy(() => import("@/pages/ArchitectureExplorer"));
+const ModelCatalog = lazy(() => import("@/pages/ModelCatalog"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 function Router() {
@@ -98,6 +98,13 @@ function Router() {
             </Suspense>
           </ErrorBoundary>
         </Route>
+        <Route path="/model-catalog">
+          <ErrorBoundary>
+            <Suspense fallback={<PageLoader />}>
+              <ModelCatalog />
+            </Suspense>
+          </ErrorBoundary>
+        </Route>
         <Route path="/settings">
           <div className="p-6 text-center text-muted-foreground font-mono text-sm">Settings coming soon</div>
         </Route>
@@ -122,14 +129,12 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <UnifiedDashboardProvider>
-          <RegimeTrainingProvider>
           <TrainingProvider>
             <BreadcrumbProvider>
               <Toaster />
               <Router />
             </BreadcrumbProvider>
           </TrainingProvider>
-          </RegimeTrainingProvider>
         </UnifiedDashboardProvider>
       </TooltipProvider>
     </QueryClientProvider>

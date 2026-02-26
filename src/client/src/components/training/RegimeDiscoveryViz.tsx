@@ -1,12 +1,11 @@
 /**
- * RegimeDiscoveryViz — Visual representation of discovered HDP-HMM regimes.
+ * RegimeDiscoveryViz — Visual representation of discovered regimes.
  *
  * Think of it as: A museum exhibit showing the different "market personalities"
  * the Gibbs sampler found. Each regime is a colored block whose SIZE matches
  * how often the market was in that mood, and the ARROWS between them show
  * how the market typically transitions from one personality to another.
  *
- * Replaces CNNArchitectureViz for the HDP-HMM training flow.
  */
 
 import {

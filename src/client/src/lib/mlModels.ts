@@ -1,5 +1,46 @@
-export type ModelCategory = 'unsupervised' | 'supervised' | 'self-supervised' | 'semi-supervised';
-export type ModelSubcategory = 'dimensionality-reduction' | 'clustering' | 'anomaly-detection' | 'self-organizing' | 'linear' | 'ensemble' | 'boosting' | 'meta-learner' | 'deep-learning' | 'classification' | 'regression' | 'sequence';
+export type ModelCategory =
+  | 'unsupervised' | 'supervised' | 'self-supervised' | 'semi-supervised'
+  | 'generative' | 'hybrid-composite' | 'neural-network' | 'optimization'
+  | 'probabilistic-symbolic' | 'reinforcement-learning' | 'simulation-decision' | 'statistical';
+
+export type ModelSubcategory =
+  | 'dimensionality-reduction' | 'clustering' | 'anomaly-detection' | 'self-organizing'
+  | 'linear' | 'ensemble' | 'boosting' | 'meta-learner' | 'deep-learning'
+  | 'classification' | 'regression' | 'sequence'
+  // Generative
+  | 'adversarial' | 'autoregressive' | 'diffusion-and-score-based' | 'latent-variable-models'
+  // Hybrid & Composite
+  | 'classical-hybrids' | 'generative-discriminative-hybrids' | 'graph-and-attention-hybrids'
+  | 'multi-modal-and-temporal-fusion' | 'neuro-symbolic-systems'
+  // Neural Network
+  | 'attention-based' | 'convolutional-networks' | 'feedforward-and-mlps'
+  | 'generative-and-latent-models' | 'graph-neural-networks'
+  | 'memory-and-routing' | 'recurrent-and-sequential' | 'specialized-and-modular'
+  // Self-Supervised
+  | 'augmentation-based' | 'contrastive-learning' | 'latent-and-generative'
+  | 'masked-modeling' | 'predictive-representation'
+  // Semi-Supervised
+  | 'clustering-based' | 'consistency-based' | 'generative-and-hybrid'
+  | 'graph-based' | 'multi-view-and-co-training' | 'regularization-and-theoretical'
+  | 'self-training-and-bootstrapping'
+  // Reinforcement Learning
+  | 'meta-rl-and-hierarchical' | 'model-based-rl' | 'model-free-rl'
+  | 'actor-critic' | 'policy-gradient' | 'value-based'
+  // Optimization
+  | 'classical-optimization' | 'convex-and-non-convex' | 'evolutionary'
+  | 'gradient-based' | 'metaheuristic'
+  // Probabilistic & Symbolic
+  | 'generative-processes' | 'graphical-and-structured' | 'probabilistic-inference'
+  | 'probabilistic-programming' | 'symbolic-reasoning'
+  // Simulation & Decision
+  | 'agent-based' | 'game-theory' | 'tree-and-graph-decision'
+  | 'utility-and-value-based' | 'simulation-techniques'
+  // Statistical
+  | 'bayesian-models' | 'forecasting' | 'generalized-linear' | 'probabilistic-mixture'
+  | 'regression-techniques' | 'survival-analysis' | 'time-series'
+  // Catch-all
+  | 'general'
+  | string; // Allow dynamic subcategories from imported specs
 
 export interface MLModelDefinition {
   id: string;
@@ -1317,7 +1358,7 @@ export const getModelById = (id: string) => {
   return allModels.find(m => m.id === id);
 };
 
-export const modelSubcategoryLabels: Record<ModelSubcategory, string> = {
+export const modelSubcategoryLabels: Record<string, string> = {
   'dimensionality-reduction': 'Dimensionality Reduction',
   'clustering': 'Clustering',
   'anomaly-detection': 'Anomaly Detection',
@@ -1330,11 +1371,87 @@ export const modelSubcategoryLabels: Record<ModelSubcategory, string> = {
   'classification': 'Classification',
   'regression': 'Regression',
   'sequence': 'Sequence Modeling',
+  // Generative
+  'adversarial': 'Adversarial (GAN)',
+  'autoregressive': 'Autoregressive',
+  'diffusion-and-score-based': 'Diffusion & Score-Based',
+  'latent-variable-models': 'Latent Variable Models',
+  // Hybrid & Composite
+  'classical-hybrids': 'Classical Hybrids',
+  'generative-discriminative-hybrids': 'Generative-Discriminative Hybrids',
+  'graph-and-attention-hybrids': 'Graph & Attention Hybrids',
+  'multi-modal-and-temporal-fusion': 'Multi-Modal & Temporal Fusion',
+  'neuro-symbolic-systems': 'Neuro-Symbolic Systems',
+  // Neural Network
+  'attention-based': 'Attention-Based',
+  'convolutional-networks': 'Convolutional Networks',
+  'feedforward-and-mlps': 'Feedforward & MLPs',
+  'generative-and-latent-models': 'Generative & Latent Models',
+  'graph-neural-networks': 'Graph Neural Networks',
+  'memory-and-routing': 'Memory & Routing',
+  'recurrent-and-sequential': 'Recurrent & Sequential',
+  'specialized-and-modular': 'Specialized & Modular',
+  // Self-Supervised
+  'augmentation-based': 'Augmentation-Based',
+  'contrastive-learning': 'Contrastive Learning',
+  'latent-and-generative': 'Latent & Generative',
+  'masked-modeling': 'Masked Modeling',
+  'predictive-representation': 'Predictive Representation',
+  // Semi-Supervised
+  'clustering-based': 'Clustering-Based',
+  'consistency-based': 'Consistency-Based',
+  'generative-and-hybrid': 'Generative & Hybrid',
+  'graph-based': 'Graph-Based',
+  'multi-view-and-co-training': 'Multi-View & Co-Training',
+  'regularization-and-theoretical': 'Regularization & Theoretical',
+  'self-training-and-bootstrapping': 'Self-Training & Bootstrapping',
+  // Reinforcement Learning
+  'meta-rl-and-hierarchical': 'Meta-RL & Hierarchical',
+  'model-based-rl': 'Model-Based RL',
+  'model-free-rl': 'Model-Free RL',
+  'actor-critic': 'Actor-Critic',
+  'policy-gradient': 'Policy Gradient',
+  'value-based': 'Value-Based',
+  // Optimization
+  'classical-optimization': 'Classical Optimization',
+  'convex-and-non-convex': 'Convex & Non-Convex',
+  'evolutionary': 'Evolutionary Strategies',
+  'gradient-based': 'Gradient-Based',
+  'metaheuristic': 'Metaheuristic',
+  // Probabilistic & Symbolic
+  'generative-processes': 'Generative Processes',
+  'graphical-and-structured': 'Graphical & Structured',
+  'probabilistic-inference': 'Probabilistic Inference',
+  'probabilistic-programming': 'Probabilistic Programming',
+  'symbolic-reasoning': 'Symbolic Reasoning',
+  // Simulation & Decision
+  'agent-based': 'Agent-Based',
+  'game-theory': 'Game Theory',
+  'tree-and-graph-decision': 'Tree & Graph Decision',
+  'utility-and-value-based': 'Utility & Value-Based',
+  'simulation-techniques': 'Simulation Techniques',
+  // Statistical
+  'bayesian-models': 'Bayesian Models',
+  'forecasting': 'Forecasting',
+  'generalized-linear': 'Generalized Linear',
+  'probabilistic-mixture': 'Probabilistic Mixture',
+  'regression-techniques': 'Regression Techniques',
+  'survival-analysis': 'Survival Analysis',
+  'time-series': 'Time Series',
+  'general': 'General',
 };
 
-export const modelCategoryLabels: Record<ModelCategory, string> = {
+export const modelCategoryLabels: Record<string, string> = {
   'unsupervised': 'Unsupervised',
   'supervised': 'Supervised',
   'self-supervised': 'Self-Supervised',
   'semi-supervised': 'Semi-Supervised',
+  'generative': 'Generative Models',
+  'hybrid-composite': 'Hybrid & Composite',
+  'neural-network': 'Neural Networks',
+  'optimization': 'Optimization',
+  'probabilistic-symbolic': 'Probabilistic & Symbolic',
+  'reinforcement-learning': 'Reinforcement Learning',
+  'simulation-decision': 'Simulation & Decision',
+  'statistical': 'Statistical Models',
 };

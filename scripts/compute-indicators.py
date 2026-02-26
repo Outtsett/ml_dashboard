@@ -30,13 +30,12 @@ Requires: pandas-ta>=0.4.71b0, duckdb>=1.2.0, pyarrow
 import argparse
 import json
 import os
-import sys
 import time
 import traceback
 import warnings
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import duckdb
 import pandas as pd
@@ -81,9 +80,8 @@ PARQUET_COMPRESSION_LEVEL = 3  # 1-22; 3 = fast with good ratio
 # DuckDB Lock Bypass (Windows single-writer lock)
 # ==============================================================================
 
-import shutil
-import tempfile
 import atexit
+import tempfile
 
 _SNAPSHOT_DIR: tempfile.TemporaryDirectory | None = None
 

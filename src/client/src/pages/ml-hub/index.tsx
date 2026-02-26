@@ -1,5 +1,4 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,11 +11,11 @@ import { useBreadcrumbs } from "@/hooks/useBreadcrumbs";
 import { useDashboard } from "@/contexts/UnifiedDashboardContext";
 import { PageLoader } from "@/components/LoadingSkeletons";
 import { useLocation } from "wouter";
+import { useInstruments } from "@/hooks/useRegimeData";
+import { useMLModels, useSavedModels, useMLTrades, useTrainStatus, useMLFeatures } from "@/hooks/useMLData";
+import { useTradeMetrics } from "@/hooks/useTradeMetrics";
 
 const ForecastVisualizer = lazy(() => import("@/components/ForecastVisualizer"));
-import type { MlModel, Trade, SavedModel } from "@/lib/types";
-import { QUERY_KEYS } from "@/lib/types";
-import { fetchArray } from "@/lib/fetchArray";
 
 import { OverviewTab } from "./OverviewTab";
 import { TradesTab } from "./TradesTab";
@@ -52,69 +51,19 @@ export default function MLHub() {
 
   // ─── Data Queries ───────────────────────────────────────────
 
-  const { data: instruments = [] } = useQuery({
-    queryKey: ['instruments'],
-    queryFn: () => fetchArray('/api/instruments'),
-  });
-
-  const { data: models = [] } = useQuery<MlModel[]>({
-    queryKey: [...QUERY_KEYS.mlModels],
-    queryFn: () => fetchArray<MlModel>('/api/ml/models'),
-  });
-
-  const { data: savedModelsData } = useQuery<{ models: SavedModel[] }>({
-    queryKey: ['savedModels'],
-    queryFn: async () => {
-      const res = await fetch('/api/ml/saved-models');
-      if (!res.ok) return { models: [] };
-      return res.json();
-    }
-  });
-  const savedModels = savedModelsData?.models || [];
-
-  const { data: trainingStatus } = useQuery({
-    queryKey: ['trainingStatus'],
-    queryFn: async () => {
-      const res = await fetch('/api/ml/train/status');
-      if (!res.ok) return null;
-      return res.json();
-    },
-    refetchInterval: 5000,
-  });
-
-  const { data: trades = [] } = useQuery<Trade[]>({
-    queryKey: ["/api/ml/trades"],
-    queryFn: () => fetchArray<Trade>("/api/ml/trades?limit=50"),
-  });
-
-  const { data: featureInfo } = useQuery({
-    queryKey: ['universalFeatures'],
-    queryFn: async () => {
-      const res = await fetch('/api/ml/universal/features');
-      if (!res.ok) return null;
-      return res.json();
-    }
-  });
+  const { data: instruments = [] } = useInstruments();
+  const { data: models = [] } = useMLModels();
+  const { savedModels } = useSavedModels();
+  const { data: trainingStatus } = useTrainStatus();
+  const { data: trades = [] } = useMLTrades();
+  const { data: featureInfo } = useMLFeatures();
 
   // ─── Derived Metrics ────────────────────────────────────────
 
-  const tradeMetrics = useMemo(() => {
-    const closed = trades.filter(t => t.status === 'closed');
-    const winners = closed.filter(t => (t.pnl || 0) > 0);
-    const losers = closed.filter(t => (t.pnl || 0) < 0);
-    const totalPnl = closed.reduce((sum, t) => sum + (t.pnl || 0), 0);
-    const grossWin = winners.reduce((sum, t) => sum + (t.pnl || 0), 0);
-    const grossLoss = Math.abs(losers.reduce((sum, t) => sum + (t.pnl || 0), 0));
-    const winRate = closed.length > 0 ? (winners.length / closed.length) * 100 : 0;
-    const profitFactor = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? Infinity : 0;
-    const avgWin = winners.length > 0 ? grossWin / winners.length : 0;
-    const avgLoss = losers.length > 0 ? grossLoss / losers.length : 0;
-    const openTrades = trades.filter(t => t.status === 'open').length;
-    return { totalTrades: closed.length, winRate, totalPnl, profitFactor, avgWin, avgLoss, openTrades, winners: winners.length, losers: losers.length };
-  }, [trades]);
+  const tradeMetrics = useTradeMetrics(trades);
 
   const isTraining = trainingStatus?.active === true;
-  const futuresSymbols = instruments.filter((i: any) => i.assetType === 'futures').map((i: any) => i.symbol);
+  const futuresSymbols = instruments.filter((i) => i.assetType === 'futures').map((i) => i.symbol);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">

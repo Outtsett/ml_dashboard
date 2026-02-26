@@ -3,5 +3,19 @@
     "allow": [
       "Read(//e/**)"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/auto-lint.py",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
   }
 }

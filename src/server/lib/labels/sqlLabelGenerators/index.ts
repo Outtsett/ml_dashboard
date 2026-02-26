@@ -5,24 +5,31 @@
 export type { LabelGeneratorConfig } from './helpers';
 export { DEFAULT_CONFIG, partitionClause, orderClause, windowOver, rowsBetween } from './helpers';
 
-export type { DirectionParams, TripleBarrierParams, NPMMParams, VolatilityAdaptiveParams, TrendScanningParams, MetaLabelParams } from './supervisedGenerators';
-export {
-  generateDirectionLabelsSQL,
-  generateTripleBarrierLabelsSQL,
-  generateNPMMLabelsSQL,
-  generateVolatilityAdaptiveLabelsSQL,
-  generateTrendScanningLabelsSQL,
-  generateMetaLabelsSQL,
-} from './supervisedGenerators';
+export type { DirectionParams } from './direction';
+export type { TripleBarrierParams } from './tripleBarrier';
+export type { NPMMParams } from './npmm';
+export type { VolatilityAdaptiveParams } from './volatilityAdaptive';
+export type { TrendScanningParams } from './trendScanning';
+export type { MetaLabelParams } from './metaLabel';
 
-export type { FutureReturnParams, FutureVolatilityParams, MarketRegimeParams, SignalParams, MultiStepParams } from './targetGenerators';
-export {
-  generateFutureReturnLabelsSQL,
-  generateFutureVolatilityLabelsSQL,
-  generateMarketRegimeLabelsSQL,
-  generateSignalLabelsSQL,
-  generateMultiStepLabelsSQL,
-} from './targetGenerators';
+export { generateDirectionLabelsSQL } from './direction';
+export { generateTripleBarrierLabelsSQL } from './tripleBarrier';
+export { generateNPMMLabelsSQL } from './npmm';
+export { generateVolatilityAdaptiveLabelsSQL } from './volatilityAdaptive';
+export { generateTrendScanningLabelsSQL } from './trendScanning';
+export { generateMetaLabelsSQL } from './metaLabel';
+
+export type { FutureReturnParams } from './futureReturn';
+export type { FutureVolatilityParams } from './futureVolatility';
+export type { MarketRegimeParams } from './marketRegime';
+export type { SignalParams } from './signal';
+export type { MultiStepParams } from './multiStep';
+
+export { generateFutureReturnLabelsSQL } from './futureReturn';
+export { generateFutureVolatilityLabelsSQL } from './futureVolatility';
+export { generateMarketRegimeLabelsSQL } from './marketRegime';
+export { generateSignalLabelsSQL } from './signal';
+export { generateMultiStepLabelsSQL } from './multiStep';
 
 export type { PseudoConfidenceParams, ConsistencyPerturbationParams } from './semiSupervisedGenerators';
 export {
@@ -31,21 +38,17 @@ export {
 } from './semiSupervisedGenerators';
 
 // Import functions for building registry
-import {
-  generateDirectionLabelsSQL,
-  generateTripleBarrierLabelsSQL,
-  generateNPMMLabelsSQL,
-  generateVolatilityAdaptiveLabelsSQL,
-  generateTrendScanningLabelsSQL,
-  generateMetaLabelsSQL,
-} from './supervisedGenerators';
-import {
-  generateFutureReturnLabelsSQL,
-  generateFutureVolatilityLabelsSQL,
-  generateMarketRegimeLabelsSQL,
-  generateSignalLabelsSQL,
-  generateMultiStepLabelsSQL,
-} from './targetGenerators';
+import { generateDirectionLabelsSQL } from './direction';
+import { generateTripleBarrierLabelsSQL } from './tripleBarrier';
+import { generateNPMMLabelsSQL } from './npmm';
+import { generateVolatilityAdaptiveLabelsSQL } from './volatilityAdaptive';
+import { generateTrendScanningLabelsSQL } from './trendScanning';
+import { generateMetaLabelsSQL } from './metaLabel';
+import { generateFutureReturnLabelsSQL } from './futureReturn';
+import { generateFutureVolatilityLabelsSQL } from './futureVolatility';
+import { generateMarketRegimeLabelsSQL } from './marketRegime';
+import { generateSignalLabelsSQL } from './signal';
+import { generateMultiStepLabelsSQL } from './multiStep';
 import {
   generatePseudoConfidenceLabelsSQL,
   generateConsistencyPerturbationLabelsSQL,

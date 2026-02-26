@@ -1,15 +1,14 @@
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
   TrendingUp, DollarSign, ArrowRightLeft, ChevronsUpDown, Check,
-  Layers, ZapOff, Play, Pause, Flame, Square, PanelRightOpen,
+  Layers, ZapOff, Play, Pause, Flame, Square, PanelRightOpen, RotateCcw,
 } from "lucide-react";
 import { IndicatorSelector } from "@/components/IndicatorSelector";
 import type { InstrumentInfo, ChartSymbolInfo } from "./types";
-import { timeframes } from "./types";
+import { TIMEFRAME_OPTIONS as timeframes } from "@/lib/timeframes";
 
 interface ToolbarProps {
   // Asset / Symbol / Contract
@@ -54,6 +53,9 @@ interface ToolbarProps {
   // ML Panel
   isTrainingActive: boolean;
   onOpenMlPanel: () => void;
+  // Chart reset
+  onResetChart: () => void;
+  isRefetching: boolean;
   // Data reset callback
   onResetScrollState: () => void;
 }
@@ -68,6 +70,7 @@ export function Toolbar({
   replayActive, onToggleReplay,
   isTraining, trainingProgress, selectedModelType, onStartTraining, onStopTraining,
   isTrainingActive, onOpenMlPanel,
+  onResetChart, isRefetching,
   onResetScrollState,
 }: ToolbarProps) {
   return (
@@ -281,6 +284,16 @@ export function Toolbar({
         >
           {replayActive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
           Replay
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-[10px] font-mono gap-1 text-muted-foreground hover:text-blue-400 hover:bg-blue-500/10"
+          onClick={onResetChart}
+          title="Reset chart (reload data)"
+        >
+          <RotateCcw className={`h-3 w-3 ${isRefetching ? 'animate-spin' : ''}`} />
+          Reset
         </Button>
       </div>
 

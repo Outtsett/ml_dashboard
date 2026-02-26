@@ -2,6 +2,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { validateSymbol } from "@shared/schema";
 import { runQuery, PARQUET_DIR } from "./analyticsCore";
+import {
+  generateIndicatorSQLColumns,
+  getIndicatorFeatureNames,
+  VALID_INDICATORS,
+} from './indicatorSqlRegistry';
+
+// Re-export for backward compat
+export { generateIndicatorSQLColumns, getIndicatorFeatureNames, VALID_INDICATORS } from './indicatorSqlRegistry';
 
 export interface TechnicalIndicatorConfig {
   id: string;
@@ -41,8 +49,6 @@ export function validateTimeframe(tf: string): ValidTimeframe {
   return tf as ValidTimeframe;
 }
 
-export const VALID_INDICATORS = ['sma', 'ema', 'wma', 'rsi', 'macd', 'bollinger', 'atr', 'stochastic', 'cci', 'williams_r', 'roc', 'momentum', 'stddev'];
-
 export function validateMLConfig(config: Partial<MLFeatureConfig>): MLFeatureConfig {
   const cfg = { ...DEFAULT_ML_CONFIG };
 
@@ -81,144 +87,6 @@ export function validateMLConfig(config: Partial<MLFeatureConfig>): MLFeatureCon
   }
 
   return cfg;
-}
-
-export function generateIndicatorSQLColumns(indicators: TechnicalIndicatorConfig[]): string {
-  const columns: string[] = [];
-
-  for (const ind of indicators) {
-    const params = ind.params || {};
-
-    switch (ind.id) {
-      case 'rsi': {
-        const period = params.period || 14;
-        columns.push(`100 - (100 / (1 +
-          AVG(gain) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW) /
-          NULLIF(AVG(loss) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW), 0)
-        )) AS rsi_${period}`);
-        break;
-      }
-      case 'ema': {
-        const period = params.period || 20;
-        columns.push(`AVG(close) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW) AS ema_${period}`);
-        break;
-      }
-      case 'sma': {
-        const period = params.period || 20;
-        columns.push(`AVG(close) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW) AS sma_${period}`);
-        break;
-      }
-      case 'stddev': {
-        const period = params.period || 20;
-        columns.push(`STDDEV_POP(close) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW) AS stddev_${period}`);
-        break;
-      }
-      case 'atr': {
-        const period = params.period || 14;
-        columns.push(`AVG(true_range) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW) AS atr_${period}`);
-        break;
-      }
-      case 'bollinger': {
-        const period = params.period || 20;
-        const stdDev = params.stdDev || 2;
-        columns.push(`AVG(close) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW) AS bb_middle_${period}`);
-        columns.push(`AVG(close) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW) + (${stdDev} * STDDEV_POP(close) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW)) AS bb_upper_${period}`);
-        columns.push(`AVG(close) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW) - (${stdDev} * STDDEV_POP(close) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW)) AS bb_lower_${period}`);
-        columns.push(`(close - (AVG(close) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW) - (${stdDev} * STDDEV_POP(close) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW)))) /
-          NULLIF((AVG(close) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW) + (${stdDev} * STDDEV_POP(close) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW))) -
-                 (AVG(close) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW) - (${stdDev} * STDDEV_POP(close) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW))), 0) AS bb_pct_b_${period}`);
-        break;
-      }
-      case 'stochastic': {
-        const kPeriod = params.kPeriod || 14;
-        const dPeriod = params.dPeriod || 3;
-        columns.push(`(close - MIN(low) OVER (ORDER BY timestamp ROWS BETWEEN ${kPeriod - 1} PRECEDING AND CURRENT ROW)) /
-          NULLIF(MAX(high) OVER (ORDER BY timestamp ROWS BETWEEN ${kPeriod - 1} PRECEDING AND CURRENT ROW) -
-                 MIN(low) OVER (ORDER BY timestamp ROWS BETWEEN ${kPeriod - 1} PRECEDING AND CURRENT ROW), 0) * 100 AS stoch_k_${kPeriod}`);
-        columns.push(`AVG((close - MIN(low) OVER (ORDER BY timestamp ROWS BETWEEN ${kPeriod - 1} PRECEDING AND CURRENT ROW)) /
-          NULLIF(MAX(high) OVER (ORDER BY timestamp ROWS BETWEEN ${kPeriod - 1} PRECEDING AND CURRENT ROW) -
-                 MIN(low) OVER (ORDER BY timestamp ROWS BETWEEN ${kPeriod - 1} PRECEDING AND CURRENT ROW), 0) * 100)
-          OVER (ORDER BY timestamp ROWS BETWEEN ${dPeriod - 1} PRECEDING AND CURRENT ROW) AS stoch_d_${kPeriod}_${dPeriod}`);
-        break;
-      }
-      case 'cci': {
-        const period = params.period || 20;
-        columns.push(`(typical_price - AVG(typical_price) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW)) /
-          NULLIF(0.015 * STDDEV_POP(typical_price) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW), 0) AS cci_${period}`);
-        break;
-      }
-      case 'williams_r': {
-        const period = params.period || 14;
-        columns.push(`(MAX(high) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW) - close) /
-          NULLIF(MAX(high) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW) -
-                 MIN(low) OVER (ORDER BY timestamp ROWS BETWEEN ${period - 1} PRECEDING AND CURRENT ROW), 0) * -100 AS williams_r_${period}`);
-        break;
-      }
-      case 'roc': {
-        const period = params.period || 10;
-        columns.push(`((close - LAG(close, ${period}) OVER (ORDER BY timestamp)) / NULLIF(LAG(close, ${period}) OVER (ORDER BY timestamp), 0) * 100) AS roc_${period}`);
-        break;
-      }
-      case 'momentum': {
-        const period = params.period || 10;
-        columns.push(`(close - LAG(close, ${period}) OVER (ORDER BY timestamp)) AS momentum_${period}`);
-        break;
-      }
-    }
-  }
-
-  return columns.join(',\n        ');
-}
-
-export function getIndicatorFeatureNames(indicators: TechnicalIndicatorConfig[]): string[] {
-  const features: string[] = [];
-
-  for (const ind of indicators) {
-    const params = ind.params || {};
-
-    switch (ind.id) {
-      case 'rsi':
-        features.push(`rsi_${params.period || 14}`);
-        break;
-      case 'ema':
-        features.push(`ema_${params.period || 20}`);
-        break;
-      case 'sma':
-        features.push(`sma_${params.period || 20}`);
-        break;
-      case 'stddev':
-        features.push(`stddev_${params.period || 20}`);
-        break;
-      case 'atr':
-        features.push(`atr_${params.period || 14}`);
-        break;
-      case 'bollinger': {
-        const p = params.period || 20;
-        features.push(`bb_middle_${p}`, `bb_upper_${p}`, `bb_lower_${p}`, `bb_pct_b_${p}`);
-        break;
-      }
-      case 'stochastic': {
-        const k = params.kPeriod || 14;
-        const d = params.dPeriod || 3;
-        features.push(`stoch_k_${k}`, `stoch_d_${k}_${d}`);
-        break;
-      }
-      case 'cci':
-        features.push(`cci_${params.period || 20}`);
-        break;
-      case 'williams_r':
-        features.push(`williams_r_${params.period || 14}`);
-        break;
-      case 'roc':
-        features.push(`roc_${params.period || 10}`);
-        break;
-      case 'momentum':
-        features.push(`momentum_${params.period || 10}`);
-        break;
-    }
-  }
-
-  return features;
 }
 
 export async function generateMLFeatures(

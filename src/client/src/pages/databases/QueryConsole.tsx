@@ -33,7 +33,7 @@ export function QueryConsole({
         <div className="flex gap-4">
           <select
             value={queryDb}
-            onChange={(e) => onQueryDbChange(e.target.value as any)}
+            onChange={(e) => onQueryDbChange(e.target.value as "postgres" | "questdb" | "duckdb")}
             className="glass rounded-lg px-4 py-2 text-sm font-mono bg-transparent border border-white/10"
             data-testid="query-db-select"
           >

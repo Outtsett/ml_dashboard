@@ -4,10 +4,11 @@
  * Each adapter defines labels, pipeline steps, and hero card configs
  * so Training.tsx, DataPipelineFlow, and HeroStrip can render
  * model-appropriate UI without hardcoding model names.
+ *
+ * To add a new model: add one entry to MODEL_ADAPTERS. No other files change (OCP).
  */
 
 import type { LucideIcon } from "lucide-react";
-import { Database, Sigma, Scissors, Flame, Layers } from "lucide-react";
 
 // ── Types ──
 
@@ -37,35 +38,19 @@ export interface ModelAdapter {
   heroCards: HeroCardDef[];
 }
 
-// ── HDP-HMM Pipeline Steps ──
-
-const hdpHmmSteps: PipelineStep[] = [
-  { icon: Database, label: "Source", valueKey: "source", detailKey: "sourceDetail", borderColor: "border-cyan-500/30", textColor: "text-cyan-400" },
-  { icon: Sigma, label: "Features", valueKey: "features", detailKey: "featuresDetail", borderColor: "border-violet-500/30", textColor: "text-violet-400" },
-  { icon: Scissors, label: "Split", valueKey: "split", detailKey: "splitDetail", borderColor: "border-emerald-500/30", textColor: "text-emerald-400" },
-  { icon: Flame, label: "Gibbs", valueKey: "engine", detailKey: "engineDetail", borderColor: "border-orange-500/30", textColor: "text-orange-400" },
-  { icon: Layers, label: "Regimes", valueKey: "output", detailKey: "outputDetail", borderColor: "border-rose-500/30", textColor: "text-rose-400" },
-];
-
 // ── Adapter Registry ──
 
-export const MODEL_ADAPTERS: Record<string, ModelAdapter> = {
-  "hdp-hmm": {
-    name: "HDP-HMM",
-    activeLabel: "HDP-HMM Gibbs Sampler Active",
-    idleLabel: "HDP-HMM Idle",
-    pipelineDescription: "OHLCV bars \u2192 regime features \u2192 Gibbs sampler \u2192 discovered moods",
-    pipelineSteps: hdpHmmSteps,
-    heroCards: [
-      { key: "regimes", label: "Regimes", color: "text-orange-400", format: "number" },
-      { key: "stability", label: "Walk-Forward", color: "text-emerald-400", format: "percent" },
-      { key: "quality", label: "Quality", color: "text-amber-400", format: "number" },
-      { key: "oos", label: "OOS Match", color: "text-cyan-400", format: "percent" },
-      { key: "ll", label: "Model Fit", color: "text-violet-400", format: "float" },
-    ],
-  },
+export const MODEL_ADAPTERS: Record<string, ModelAdapter> = {};
+
+const FALLBACK_ADAPTER: ModelAdapter = {
+  name: "Unknown",
+  activeLabel: "Training Active",
+  idleLabel: "Idle",
+  pipelineDescription: "",
+  pipelineSteps: [],
+  heroCards: [],
 };
 
 export function getAdapter(modelType: string): ModelAdapter {
-  return MODEL_ADAPTERS[modelType] ?? MODEL_ADAPTERS["hdp-hmm"]!;
+  return MODEL_ADAPTERS[modelType] ?? FALLBACK_ADAPTER;
 }

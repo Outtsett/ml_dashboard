@@ -6,7 +6,7 @@
  * - Default feature pipeline configs
  * - Infrastructure paths, limits, timeframe mappings
  *
- * JSON configs are cross-language (Python reads them too via ml/hdp_hmm/config.py).
+ * JSON configs are cross-language (Python reads them too).
  */
 
 import fs from "fs";
@@ -52,7 +52,7 @@ function ensureLoaded() {
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
-/** Get a model config by type key (e.g. "hdp-hmm", "cnn-universal") */
+/** Get a model config by type key */
 export function getModelConfig(modelType: string): ModelRegistryEntry | null {
   ensureLoaded();
   return modelsConfig!.models[modelType] ?? null;
@@ -64,7 +64,7 @@ export function listModels(): Record<string, ModelRegistryEntry> {
   return modelsConfig!.models;
 }
 
-/** Get a feature pipeline config by key (e.g. "hdp-hmm-12", "universal-30") */
+/** Get a feature pipeline config by key */
 export function getFeaturePipeline(pipelineId: string): Record<string, unknown> | null {
   ensureLoaded();
   return featuresConfig!.pipelines?.[pipelineId] ?? null;
@@ -76,7 +76,7 @@ export function listFeaturePipelines(): Record<string, Record<string, unknown>> 
   return featuresConfig!.pipelines ?? {};
 }
 
-/** Get a named feature set (e.g. "hdp-hmm-indicators", "full-344") */
+/** Get a named feature set (e.g. "full-344") */
 export function getFeatureSet(setId: string): Record<string, unknown> | null {
   ensureLoaded();
   return featuresConfig!.featureSets?.[setId] ?? null;

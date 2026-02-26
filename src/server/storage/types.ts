@@ -9,7 +9,7 @@ import type {
   User, InsertUser, Upload, InsertUpload,
   FeatureImportance, InsertFeatureImportance,
   TrainingSession, InsertTrainingSession, LossHistory, InsertLossHistory,
-  Instrument, InsertInstrument, NewsArticle, InsertNewsArticle,
+  Instrument, NewsArticle, InsertNewsArticle,
 } from '@shared/schema';
 
 // ─── Asset Type Helper ──────────────────────────────────────────────────────

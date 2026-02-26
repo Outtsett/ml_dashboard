@@ -5,14 +5,14 @@ import { ConfigService } from '@nestjs/config';
 import type { INestApplicationContext } from '@nestjs/common';
 import { createServer } from 'http';
 import { AppModule } from './app.module';
-import { registerRoutes } from './routes';
-import { serveStatic } from './static';
+import { registerRoutes } from './core/routes';
+import { serveStatic } from './core/static';
 import { runStartupSequence, getStartupReport } from './lib/startupManager';
 import { getStaticOpenApiSpec } from './core/swagger/swagger.config';
-import { log } from './log';
+import { log } from './lib/log';
 
 // Re-export log for backward compat
-export { log } from './log';
+export { log } from './lib/log';
 
 declare module 'http' {
   interface IncomingMessage {
@@ -85,6 +85,12 @@ async function bootstrap() {
   const config = appContext.get(ConfigService);
   log('NestJS initialized (databases ready)', 'nest');
 
+  // ── Register training runners (DIP — concrete classes registered here, not in orchestrator) ──
+  const { registerRunner } = await import('./training/runnerFactory');
+  const { PythonRunner } = await import('./training/runners/pythonRunner');
+  registerRunner('python', new PythonRunner());
+  log('Training runners registered: python', 'training');
+
   // ── Routes + middleware ──
   await registerRoutes(httpServer, expressApp);
 
@@ -117,7 +123,7 @@ async function bootstrap() {
   if (config.get('nodeEnv') === 'production') {
     serveStatic(expressApp);
   } else {
-    const { setupVite } = await import('./vite');
+    const { setupVite } = await import('./core/vite');
     await setupVite(httpServer, expressApp);
   }
 

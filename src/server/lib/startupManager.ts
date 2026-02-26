@@ -10,11 +10,10 @@
  * Reports a structured status object the frontend can display.
  */
 
-import { execFileSync, spawn, type ChildProcess } from 'child_process';
-import net from 'net';
+import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { log } from '../log';
+import { log } from './log';
 
 // ── Paths (Windows-specific) ──
 const QUESTDB_JAVA = 'E:\\source\\databases\\questdb-9.3.1-rt-windows-x86-64\\bin\\java.exe';

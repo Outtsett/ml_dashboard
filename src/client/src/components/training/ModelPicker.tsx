@@ -7,7 +7,7 @@
  */
 
 import { useState, useMemo } from "react";
-import { ChevronDown, ChevronUp, Play, Square, Settings2 } from "lucide-react";
+import { ChevronUp, Play, Square, Settings2 } from "lucide-react";
 import type { ModelRegistryEntry, HyperparameterDef } from "@shared/trainingTypes";
 
 interface ModelPickerProps {

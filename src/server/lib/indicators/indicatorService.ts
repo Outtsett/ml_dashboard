@@ -10,7 +10,7 @@ import {
   RSI, MACD, BollingerBands, ATR, Stochastic, CCI, WilliamsR, 
   SMA, EMA, ROC
 } from 'technicalindicators';
-import { generateBulkIndicatorsSQL, rsiSQL, macdSQL, atrSQL, stochasticSQL, cciSQL, williamsRSQL, BulkIndicatorRequest } from './sqlGenerator';
+import { generateBulkIndicatorsSQL, BulkIndicatorRequest } from './sqlGenerator';
 import type { OHLCVBar } from '@shared/ohlcv';
 
 export type { OHLCVBar };

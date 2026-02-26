@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Home, LineChart, Database, Settings, Server, BarChart2, List, Newspaper, ChevronRight, PanelLeftClose, PanelLeftOpen, Network, Brain, FlaskConical, AudioWaveform } from "lucide-react";
+import { Home, LineChart, Database, Settings, Server, BarChart2, List, Newspaper, ChevronRight, PanelLeftClose, PanelLeftOpen, Network, Brain, FlaskConical, AudioWaveform, BookOpen } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { prefetchOnHover } from "@/lib/prefetch";
 import { useBreadcrumbItems } from "@/hooks/useBreadcrumbs";
@@ -26,6 +26,7 @@ const routeMeta: Record<string, { label: string; icon: typeof Home }> = {
   "/backtest": { label: "Backtest", icon: FlaskConical },
   "/fourier": { label: "Fourier", icon: AudioWaveform },
   "/architecture": { label: "Architecture", icon: Network },
+  "/model-catalog": { label: "Model Catalog", icon: BookOpen },
   "/portfolio": { label: "Portfolio", icon: BarChart2 },
   "/watchlist": { label: "Watchlist", icon: List },
   "/news": { label: "News", icon: Newspaper },
@@ -65,6 +66,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { icon: FlaskConical, label: "Backtest", href: "/backtest" },
     { icon: AudioWaveform, label: "Fourier", href: "/fourier" },
     { icon: Network, label: "Architecture", href: "/architecture" },
+    { icon: BookOpen, label: "Model Catalog", href: "/model-catalog" },
     { icon: BarChart2, label: "Portfolio", href: "/portfolio" },
     { icon: List, label: "Watchlist", href: "/watchlist" },
     { icon: Newspaper, label: "News", href: "/news" },

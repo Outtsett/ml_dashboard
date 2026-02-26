@@ -1,18 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tag, BarChart3 } from "lucide-react";
+import { labelApi } from "@/lib/apiService";
+import { QUERY_KEYS } from "@/lib/types";
 import type { LabelGenerationProps, LabelSet } from "./types";
 import { GenerateTab } from "./GenerateTab";
 import { HistoryTab } from "./HistoryTab";
 
 export function LabelGeneration({ selectedSymbol, symbols, onSymbolChange }: LabelGenerationProps) {
   const { data: labelSets, isLoading: loadingLabelSets } = useQuery<LabelSet[]>({
-    queryKey: ["/api/labels", selectedSymbol],
-    queryFn: async () => {
-      const res = await fetch(`/api/labels?symbol=${selectedSymbol}`);
-      if (!res.ok) throw new Error("Failed to fetch label sets");
-      return res.json();
-    },
+    queryKey: [...QUERY_KEYS.labels, selectedSymbol],
+    queryFn: () => labelApi.getLabels(selectedSymbol) as Promise<LabelSet[]>,
   });
 
   return (

@@ -16,7 +16,7 @@
 import { Router, Request, Response } from 'express';
 import * as path from 'path';
 import { getString } from '../helpers';
-import { db } from '../../db';
+import { db } from '../../database/db';
 import { sql as drizzleSql } from 'drizzle-orm';
 
 export const DATA_DIR = path.join(process.cwd(), 'data');
@@ -169,7 +169,7 @@ router.get('/databases/preview/:db/:table', async (req: Request, res: Response) 
 
     if (dbParam === 'sqlite' || dbParam === 'postgres') {
       const escapedTable = table.replace(/"/g, '""');
-      const { db: sqliteDb } = await import('../../db');
+      const { db: sqliteDb } = await import('../../database/db');
       rows = sqliteDb.all(drizzleSql.raw(`SELECT * FROM "${escapedTable}" LIMIT ${limit}`));
     } else if (dbParam === 'questdb') {
       const { queryQuestDB } = await import('../../questdb');
@@ -217,7 +217,7 @@ router.post('/databases/query', async (req: Request, res: Response) => {
     let rows: any[] = [];
 
     if (dbParam === 'sqlite' || dbParam === 'postgres') {
-      const { db: sqliteDb } = await import('../../db');
+      const { db: sqliteDb } = await import('../../database/db');
       rows = sqliteDb.all<Record<string, unknown>>(drizzleSql.raw(sql)) as any[];
     } else if (dbParam === 'questdb') {
       const { queryQuestDB } = await import('../../questdb');

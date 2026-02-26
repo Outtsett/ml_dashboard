@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, TrendingUp, Activity, BarChart3 } from 'lucide-react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, Area, ComposedChart } from 'recharts';
+import { ResponsiveContainer, Line, XAxis, YAxis, Tooltip, ReferenceLine, Area, ComposedChart } from 'recharts';
+import { indicatorApi } from '@/lib/apiService';
 
 interface IndicatorPanelProps {
   symbol: string;
@@ -24,15 +25,7 @@ export function IndicatorPanel({ symbol }: IndicatorPanelProps) {
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['indicators', symbol, preset],
-    queryFn: async () => {
-      const res = await fetch('/api/indicators/compute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbol, preset, limit: 500 }),
-      });
-      if (!res.ok) throw new Error('Failed to compute indicators');
-      return res.json();
-    },
+    queryFn: () => indicatorApi.compute({ symbol, preset, limit: 500 }),
     enabled: enabled && !!symbol,
     staleTime: 60000,
   });

@@ -13,7 +13,6 @@ import argparse
 import io
 import json
 import re
-import sys
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -21,7 +20,6 @@ from pathlib import Path
 
 import databento as db
 import psycopg2
-from psycopg2 import sql as pgsql
 
 # ── Paths ──────────────────────────────────────────────────────────────
 DATA_DIR = Path(r"C:\Users\tyler\Downloads\GLBX-20260110-UCKUBNMN7Y\GLBX-20251231-4HHC9WJQBX")

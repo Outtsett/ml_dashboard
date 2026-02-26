@@ -1,5 +1,4 @@
 import { useState, useEffect, lazy, Suspense } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -8,13 +7,12 @@ import {
   Brain, BarChart3, Wand2, Terminal, Trash2,
 } from "lucide-react";
 
-import { useDashboard, type DashboardLog } from "@/contexts/UnifiedDashboardContext";
+import { useDashboard } from "@/contexts/UnifiedDashboardContext";
 import { PageLoader } from "@/components/LoadingSkeletons";
-import type { MlModel, Trade, SavedModel } from "@/lib/types";
-import { QUERY_KEYS } from "@/lib/types";
 import { useTradeMetrics } from "@/hooks/useTradeMetrics";
+import { useMLModels, useSavedModels, useMLTrades, useTrainStatus, useMLFeatures } from "@/hooks/useMLData";
 
-import { TradeRow, LogEntry, logColors } from "./TradeRow";
+import { LogEntry } from "./TradeRow";
 import { ModelsTab } from "./ModelsTab";
 import { TradesTab } from "./TradesTab";
 
@@ -41,44 +39,11 @@ export function BottomPanel({ isCollapsed }: BottomPanelProps) {
 
   // ─── Data Queries ──────────────────────────────────────────
 
-  const { data: models = [] } = useQuery<MlModel[]>({
-    queryKey: [...QUERY_KEYS.mlModels],
-    queryFn: async () => { const res = await fetch('/api/ml/models'); return res.json(); },
-  });
-
-  const { data: savedModelsData } = useQuery<{ models: SavedModel[] }>({
-    queryKey: ['savedModels'],
-    queryFn: async () => {
-      const res = await fetch('/api/ml/saved-models');
-      if (!res.ok) return { models: [] };
-      return res.json();
-    },
-  });
-  const savedModels = savedModelsData?.models || [];
-
-  const { data: trades = [] } = useQuery<Trade[]>({
-    queryKey: ["/api/ml/trades"],
-    queryFn: async () => { const res = await fetch("/api/ml/trades?limit=50"); return res.json(); },
-  });
-
-  const { data: featureInfo } = useQuery({
-    queryKey: ['universalFeatures'],
-    queryFn: async () => {
-      const res = await fetch('/api/ml/universal/features');
-      if (!res.ok) return null;
-      return res.json();
-    },
-  });
-
-  const { data: trainingStatus } = useQuery({
-    queryKey: ['trainingStatus'],
-    queryFn: async () => {
-      const res = await fetch('/api/ml/train/status');
-      if (!res.ok) return null;
-      return res.json();
-    },
-    refetchInterval: 5000,
-  });
+  const { data: models = [] } = useMLModels();
+  const { savedModels } = useSavedModels();
+  const { data: trades = [] } = useMLTrades();
+  const { data: featureInfo } = useMLFeatures();
+  const { data: trainingStatus } = useTrainStatus();
 
   // ─── Derived metrics ──────────────────────────────────────
 

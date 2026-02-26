@@ -1,15 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  TrendingUp, TrendingDown, DollarSign, Wallet, 
+  TrendingUp, DollarSign, Wallet, 
   PieChart, ArrowUpRight, ArrowDownRight, Clock,
   Target, Activity, Sparkles
 } from "lucide-react";
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { useState } from "react";
-import NotImplemented from "@/components/NotImplemented";
 
 type Position = { symbol: string; name: string; quantity: number; avgPrice: number; currentPrice: number; pnl: number; pnlPercent: number };
 type AllocationEntry = { name: string; value: number; color: string };

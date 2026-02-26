@@ -16,7 +16,10 @@
     "check:watch": "tsc --noEmit --watch",
     "db:push": "npx drizzle-kit push",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint": "npm run lint:py && npm run lint:ts",
+    "lint:py": "ruff check --fix src/ml/ scripts/",
+    "lint:ts": "eslint --fix src/"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -69,7 +72,6 @@
     "csv-parse": "^6.1.0",
     "d3": "^7.9.0",
     "date-fns": "^3.6.0",
-    "dexie": "^4.2.1",
     "drizzle-orm": "^0.39.3",
     "drizzle-zod": "^0.7.0",
     "duckdb": "^1.4.3",
@@ -129,6 +131,8 @@
     "@types/react-window": "^1.8.8",
     "@types/three": "^0.182.0",
     "@types/ws": "^8.5.13",
+    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/parser": "^8.56.1",
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.1.0",
@@ -137,10 +141,13 @@
     "electron": "^34.2.0",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.25.0",
+    "eslint": "^10.0.2",
+    "eslint-plugin-unused-imports": "^4.4.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.20.5",
     "typescript": "5.6.3",
+    "typescript-eslint": "^8.56.1",
     "vite": "^7.1.9",
     "vitest": "^4.0.18",
     "wait-on": "^8.0.3"
@@ -150,7 +157,7 @@
   },
   "build": {
     "appId": "com.ml-dashboard.app",
-    "productName": "ML Dashboard",
+    "productName": "Quant AI Dashboard",
     "files": [
       "dist/**/*",
       "electron/**/*",
