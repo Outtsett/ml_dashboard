@@ -4,10 +4,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Play, RefreshCw } from "lucide-react";
 
 interface QueryConsoleProps {
-  queryDb: "postgres" | "questdb" | "duckdb";
+  queryDb: "postgres" | "questdb";
   customQuery: string;
   isPending: boolean;
-  onQueryDbChange: (db: "postgres" | "questdb" | "duckdb") => void;
+  onQueryDbChange: (db: "postgres" | "questdb") => void;
   onCustomQueryChange: (query: string) => void;
   onRunQuery: () => void;
 }
@@ -33,13 +33,12 @@ export function QueryConsole({
         <div className="flex gap-4">
           <select
             value={queryDb}
-            onChange={(e) => onQueryDbChange(e.target.value as "postgres" | "questdb" | "duckdb")}
+            onChange={(e) => onQueryDbChange(e.target.value as "postgres" | "questdb")}
             className="glass rounded-lg px-4 py-2 text-sm font-mono bg-transparent border border-white/10"
             data-testid="query-db-select"
           >
             <option value="postgres">PostgreSQL</option>
             <option value="questdb">QuestDB</option>
-            <option value="duckdb">DuckDB</option>
           </select>
         </div>
         <Textarea
@@ -52,7 +51,6 @@ export function QueryConsole({
         <div className="flex justify-between items-center">
           <p className="text-xs text-muted-foreground">
             {queryDb === "questdb" && "Tip: Use SAMPLE BY 1h for time aggregation"}
-            {queryDb === "duckdb" && "Tip: Query Parquet files directly with read_parquet()"}
             {queryDb === "postgres" && "Tip: Query metadata tables for instrument info"}
           </p>
           <Button

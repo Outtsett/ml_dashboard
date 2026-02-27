@@ -5,7 +5,7 @@ import { ArrowRight, Activity, Layers, Cpu, Target, Network, Zap } from "lucide-
 
 export function PipelineOverview() {
   const stages = [
-    { icon: <Activity className="h-5 w-5" />, label: "Raw OHLCV", detail: "782M+ bars from DuckDB", color: "text-blue-400" },
+    { icon: <Activity className="h-5 w-5" />, label: "Raw OHLCV", detail: "759M+ bars from QuestDB", color: "text-blue-400" },
     { icon: <Zap className="h-5 w-5" />, label: "31 Features", detail: "Returns, RSI, ATR, z-scores...", color: "text-violet-400" },
     { icon: <Layers className="h-5 w-5" />, label: "60-Bar Windows", detail: "Sliding sequence windows", color: "text-amber-400" },
     { icon: <Cpu className="h-5 w-5" />, label: "Model", detail: "Architecture goes here", color: "text-cyan-400" },

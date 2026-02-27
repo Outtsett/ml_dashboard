@@ -9,6 +9,7 @@ import {
 import RegimeDiscoveryViz from "@/components/training/RegimeDiscoveryViz";
 import type { Diagnostics } from "../types";
 import { getRegimeColor, VOL_COLORS, CANDLE_LABELS, CHART_GRID, CHART_AXIS, CHART_TOOLTIP } from "../types";
+import { ShapHeatmap } from "./ShapHeatmap";
 
 export function RegimesPanel({ diagnostics }: { diagnostics: Diagnostics }) {
   return (
@@ -98,6 +99,11 @@ export function RegimesPanel({ diagnostics }: { diagnostics: Diagnostics }) {
             </BarChart>
           </ResponsiveContainer>
         </div>
+      )}
+
+      {/* SHAP Feature Importance */}
+      {diagnostics.shap_summary && diagnostics.shap_summary.length > 0 && (
+        <ShapHeatmap shapSummary={diagnostics.shap_summary} regimeStats={diagnostics.regime_stats} />
       )}
     </div>
   );

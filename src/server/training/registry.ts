@@ -20,7 +20,9 @@ import type {
 
 const CONFIG_DIR = path.join(process.cwd(), "src", "config");
 
-// ─── Cached configs (loaded once at import time) ─────────────────────────────
+// ─── Cached configs (auto-reload on file change in dev mode) ────────────────
+
+const IS_DEV = process.env.NODE_ENV !== "production";
 
 let modelsConfig: ModelRegistry | null = null;
 let featuresConfig: {
@@ -30,15 +32,33 @@ let featuresConfig: {
 } | null = null;
 let trainingConfig: TrainingConfig | null = null;
 
+/** Track file mtimes for dev-mode auto-reload */
+const lastMtimes: Record<string, number> = {};
+
 function loadJSON<T>(filename: string): T {
   const filePath = path.join(CONFIG_DIR, filename);
   if (!fs.existsSync(filePath)) {
     throw new Error(`Config file not found: ${filePath}`);
   }
+  lastMtimes[filename] = fs.statSync(filePath).mtimeMs;
   return JSON.parse(fs.readFileSync(filePath, "utf-8")) as T;
 }
 
+function fileChanged(filename: string): boolean {
+  const filePath = path.join(CONFIG_DIR, filename);
+  try {
+    return fs.statSync(filePath).mtimeMs !== (lastMtimes[filename] ?? 0);
+  } catch { return false; }
+}
+
 function ensureLoaded() {
+  // In dev mode, re-read if any config file changed on disk
+  if (IS_DEV && (fileChanged("models.json") || fileChanged("features.json") || fileChanged("training.json"))) {
+    modelsConfig = null;
+    featuresConfig = null;
+    trainingConfig = null;
+  }
+
   if (!modelsConfig) {
     modelsConfig = loadJSON<ModelRegistry>("models.json");
   }

@@ -1,5 +1,4 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { DuckDBService } from '../database/duckdb.service';
 import { QuestDBService } from '../database/questdb.service';
 import { SQLiteService } from '../database/sqlite.service';
 import {
@@ -17,7 +16,6 @@ import {
 @Injectable()
 export class LabelsService {
   constructor(
-    @Inject(DuckDBService) private duckdb: DuckDBService,
     @Inject(QuestDBService) private questdb: QuestDBService,
     @Inject(SQLiteService) private sqlite: SQLiteService,
   ) {}

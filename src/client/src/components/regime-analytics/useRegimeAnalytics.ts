@@ -110,8 +110,8 @@ export function useRegimeAnalytics(): RegimeAnalyticsState {
     abortRef.current = abort;
 
     try {
-      const result = await regimeApi.startTraining({
-        modelType: "",
+      const result = await regimeApi.start({
+        modelType: "hdp-hmm",
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
         hyperparameters: { gibbsIter, burnIn, testSplit, wfWindows, alpha, gamma, kappa },
@@ -183,12 +183,12 @@ export function useRegimeAnalytics(): RegimeAnalyticsState {
 
   const stopTraining = useCallback(() => {
     abortRef.current?.abort();
-    regimeApi.stopTraining(`${selectedSymbol}_${selectedTimeframe}`);
+    regimeApi.stop(`${selectedSymbol}_${selectedTimeframe}`);
     setIsTraining(false);
   }, [selectedSymbol, selectedTimeframe]);
 
   const deleteModel = useCallback(async (id: string) => {
-    await regimeApi.deleteModel(Number(id));
+    await regimeApi.deleteModel(id);
     if (selectedModel === id) setSelectedModel(null);
     refetchModels();
   }, [selectedModel, refetchModels]);

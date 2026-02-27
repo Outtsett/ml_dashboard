@@ -3,7 +3,7 @@
  *
  * Responsibilities:
  *  - SQL identifier validation (injection prevention)
- *  - OHLCV bar loading from QuestDB (primary) with DuckDB parquet fallback
+ *  - OHLCV bar loading from QuestDB
  *  - Bar deduplication and sorting
  *  - Indicator config resolution (preset or custom)
  *  - Indicator name list generation from config
@@ -96,26 +96,11 @@ export function isValidTimeframe(tf: string): tf is Timeframe {
   return (VALID_TIMEFRAMES as readonly string[]).includes(tf);
 }
 
-/** Map a string timeframe to minutes (used by DuckDB parquet fallback). */
-function timeframeToMinutes(tf: string): number {
-  const map: Record<string, number> = {
-    "1s": 1,
-    "1m": 1,
-    "5m": 5,
-    "15m": 15,
-    "30m": 30,
-    "1h": 60,
-    "4h": 240,
-    "1d": 1440,
-  };
-  return map[tf] ?? 1;
-}
-
 // ---------------------------------------------------------------------------
 // OHLCV bar loading
 // ---------------------------------------------------------------------------
 
-/** Normalize a raw QuestDB / DuckDB row into a typed OHLCVBar. */
+/** Normalize a raw QuestDB row into a typed OHLCVBar. */
 function normalizeRow(r: any): OHLCVBar {
   return {
     timestamp:
@@ -131,9 +116,7 @@ function normalizeRow(r: any): OHLCVBar {
 }
 
 /**
- * Load OHLCV bars for a symbol/timeframe.
- * Primary source: QuestDB via `getOHLCVSampleBy`.
- * Fallback: DuckDB parquet via `queryParquetOHLCVAggregated`.
+ * Load OHLCV bars for a symbol/timeframe from QuestDB.
  */
 export async function loadOHLCVBars(
   symbol: string,
@@ -143,47 +126,24 @@ export async function loadOHLCVBars(
   const upperSymbol = symbol.toUpperCase();
   const effectiveLimit = Math.max(limit, 200);
 
-  // QuestDB primary
   try {
-    const { checkQuestDBHealth, getOHLCVSampleBy } = await import(
-      "../../questdb"
-    );
-    const healthy = await checkQuestDBHealth();
-    if (healthy) {
-      const qdbRows = await getOHLCVSampleBy(
-        upperSymbol,
-        timeframe,
-        undefined,
-        undefined,
-        effectiveLimit
-      );
-      if (qdbRows.length > 0) {
-        return qdbRows.map(normalizeRow);
-      }
-    }
-  } catch {
-    // fall through to DuckDB
-  }
-
-  // DuckDB parquet fallback
-  try {
-    const { queryParquetOHLCVAggregated } = await import("../../duckdb");
-    const rows = await queryParquetOHLCVAggregated(
+    const { getOHLCVSampleBy } = await import("../../questdb");
+    const qdbRows = await getOHLCVSampleBy(
       upperSymbol,
-      timeframeToMinutes(timeframe),
+      timeframe,
       undefined,
       undefined,
       effectiveLimit
     );
-    return rows.map(normalizeRow);
+    return qdbRows.map(normalizeRow);
   } catch {
     return [];
   }
 }
 
 /**
- * Load OHLCV bars from QuestDB only (no DuckDB fallback).
- * Used by the /indicators/compute endpoint which only supports QuestDB.
+ * Load OHLCV bars from QuestDB with explicit health check.
+ * Used by the /indicators/compute endpoint.
  */
 export async function loadOHLCVBarsQuestDBOnly(
   symbol: string,

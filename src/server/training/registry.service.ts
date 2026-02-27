@@ -1,5 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable } from '@nestjs/common';
 import type { HyperparameterDef } from '@shared/trainingTypes';
 import {
   getModelConfig,
@@ -18,7 +17,6 @@ import {
 
 @Injectable()
 export class RegistryService {
-  constructor(@Inject(ConfigService) private config: ConfigService) {}
 
   getModel(modelType: string) {
     return getModelConfig(modelType);

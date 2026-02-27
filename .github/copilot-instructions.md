@@ -194,7 +194,7 @@ router.get('/endpoint', async (req: Request, res: Response) => {
 
 - **DuckDB ↔ QuestDB sync**: Bulk CSV export → QuestDB `/imp` endpoint (see `scripts/fast-questdb-sync.ts`)
 - **ML training**: `MLTrainer extends EventEmitter` in `server/ml/trainer.ts` — emits progress via SSE at `GET /api/ml/train/stream`
-- **Indicators**: 344 pre-computed columns via pandas-ta (parquets in `data/indicators/`), 13 realtime SQL generators in `server/lib/indicators/sqlGenerator.ts`
+- **Indicators**: 344 pre-computed columns via pandas-ta (parquets in `data/{futures,forex}/{symbol}/{tf}/`), 13 realtime SQL generators in `server/lib/indicators/sqlGenerator.ts`
 - **Continuous contracts**: DuckDB Panama back-adjustment via rollover schedule — `server/routes/instruments.ts` endpoint
 
 ## Git Worktrees (Parallel Agent Work)

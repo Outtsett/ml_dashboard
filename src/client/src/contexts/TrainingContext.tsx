@@ -16,6 +16,7 @@ import type { TrainingState, ModelRegistryEntry, TrainingControl, TrainingLive }
 
 // ── Full context type (backward compat) ─────────────────────────────────────
 type TrainingContextValue = TrainingState & {
+  isPending: boolean;
   availableModels: Record<string, ModelRegistryEntry>;
   selectedModelType: string;
   setSelectedModelType: (type: string) => void;
@@ -37,6 +38,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
   // Control plane — only changes on user action or phase transition
   const control = useMemo<ControlValue>(() => ({
     isTraining: state.isTraining,
+    isPending: state.isPending,
     phase: state.phase,
     progress: state.progress,
     error: state.error,
@@ -52,7 +54,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     sessionId: state.sessionId,
     modelId: state.modelId,
   }), [
-    state.isTraining, state.phase, state.progress, state.error,
+    state.isTraining, state.isPending, state.phase, state.progress, state.error,
     state.startTraining, state.stopTraining,
     state.selectedModelType, state.setSelectedModelType,
     state.availableModels, state.completedModelId, state.config,

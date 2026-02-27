@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { spawn, ChildProcess } from "child_process";
 import { mlRateLimiter } from "../../lib/rateLimiter";
-import { metaCache, clearCachedCatalog, INDICATOR_DIR } from "./helpers";
+import { metaCache, clearCachedCatalog, DATA_DIR, ASSET_CLASSES } from "./helpers";
 import * as path from "path";
 import * as fs from "fs";
 
@@ -125,7 +125,7 @@ router.post("/indicators/compute-batch", mlRateLimiter, (req: Request, res: Resp
 // GET /api/indicators/status — which symbol/timeframe combos have indicators
 router.get("/indicators/status", (_req: Request, res: Response) => {
   try {
-    if (!fs.existsSync(INDICATOR_DIR)) {
+    if (!fs.existsSync(DATA_DIR)) {
       return res.json({ computed: [], totalSymbols: 0, totalCombinations: 0 });
     }
 
@@ -139,30 +139,35 @@ router.get("/indicators/status", (_req: Request, res: Response) => {
       totalSizeMb: number;
     }> = [];
 
-    // Walk data/indicators/{timeframe}/{symbol}/_meta.json
-    for (const tf of fs.readdirSync(INDICATOR_DIR)) {
-      const tfDir = path.join(INDICATOR_DIR, tf);
-      if (!fs.statSync(tfDir).isDirectory()) continue;
+    // Walk data/{futures|forex}/{symbol}/{timeframe}/_meta.json
+    for (const ac of ASSET_CLASSES) {
+      const acDir = path.join(DATA_DIR, ac);
+      if (!fs.existsSync(acDir)) continue;
 
-      for (const sym of fs.readdirSync(tfDir)) {
-        const metaPath = path.join(tfDir, sym, "_meta.json");
-        if (!fs.existsSync(metaPath)) continue;
+      for (const sym of fs.readdirSync(acDir)) {
+        const symDir = path.join(acDir, sym);
+        if (!fs.statSync(symDir).isDirectory()) continue;
 
-        try {
-          const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
-          const totalSizeBytes = Object.values(meta.categories || {}).reduce(
-            (sum: number, c: any) => sum + (c.file_size_bytes || 0), 0
-          );
-          computed.push({
-            symbol: meta.symbol || sym,
-            timeframe: meta.timeframe || tf,
-            rowCount: meta.row_count || 0,
-            totalColumns: meta.total_columns || 0,
-            computedAt: meta.computed_at || "",
-            categories: Object.keys(meta.categories || {}),
-            totalSizeMb: Math.round((totalSizeBytes as number) / (1024 * 1024) * 10) / 10,
-          });
-        } catch { /* skip malformed */ }
+        for (const tf of fs.readdirSync(symDir)) {
+          const metaPath = path.join(symDir, tf, "_meta.json");
+          if (!fs.existsSync(metaPath)) continue;
+
+          try {
+            const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+            const totalSizeBytes = Object.values(meta.categories || {}).reduce(
+              (sum: number, c: any) => sum + (c.file_size_bytes || 0), 0
+            );
+            computed.push({
+              symbol: meta.symbol || sym,
+              timeframe: meta.timeframe || tf,
+              rowCount: meta.row_count || 0,
+              totalColumns: meta.total_columns || 0,
+              computedAt: meta.computed_at || "",
+              categories: Object.keys(meta.categories || {}),
+              totalSizeMb: Math.round((totalSizeBytes as number) / (1024 * 1024) * 10) / 10,
+            });
+          } catch { /* skip malformed */ }
+        }
       }
     }
 

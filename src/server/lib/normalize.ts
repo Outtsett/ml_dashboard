@@ -5,7 +5,7 @@
  * copy-pasted across charts.ts, databases.ts, indicators.ts, etc.
  */
 
-import type { OHLCVBar, QuestDBOHLCVRow, DuckDBOHLCVRow } from "@shared/ohlcv";
+import type { OHLCVBar, QuestDBOHLCVRow } from "@shared/ohlcv";
 
 // ─── Timestamp normalization ────────────────────────────────
 
@@ -17,7 +17,6 @@ import type { OHLCVBar, QuestDBOHLCVRow, DuckDBOHLCVRow } from "@shared/ohlcv";
  *  - ISO strings
  *  - Epoch-ms numbers
  *  - Epoch-seconds numbers (< 2×10¹⁰)
- *  - BigInt epoch-ms (DuckDB)
  */
 export function normalizeTimestamp(ts: unknown): number {
   if (ts instanceof Date) return ts.getTime();
@@ -62,22 +61,7 @@ export function normalizeQuestDBRow(row: QuestDBOHLCVRow): OHLCVBar {
 }
 
 /**
- * Normalize a raw DuckDB OHLCV row → standard OHLCVBar.
- * Handles BigInt values from COUNT / SUM / epoch columns.
- */
-export function normalizeDuckDBRow(row: DuckDBOHLCVRow): OHLCVBar {
-  return {
-    timestamp: typeof row.timestamp === "bigint" ? Number(row.timestamp) : row.timestamp,
-    open: Number(row.open),
-    high: Number(row.high),
-    low: Number(row.low),
-    close: Number(row.close),
-    volume: typeof row.volume === "bigint" ? Number(row.volume) : Number(row.volume),
-  };
-}
-
-/**
- * Convert any DuckDB result row to plain JS (BigInt → Number).
+ * Convert a result row to plain JS (BigInt → Number).
  * Use when the row may contain arbitrary columns, not just OHLCV.
  */
 export function coerceBigInts<T extends Record<string, unknown>>(row: T): T {

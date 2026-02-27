@@ -9,9 +9,9 @@ import { computeMetrics } from './metricsCalculator';
 // TYPES
 // ============================================================
 
-/** OHLCV bar as returned from DuckDB queries (field named `ts` to match SQL alias). */
+/** OHLCV bar from queries (field named `ts` to match SQL column alias). */
 export interface OHLCVBar {
-  ts: number;       // epoch ms (matches DuckDB column alias)
+  ts: number;       // epoch ms
   open: number;
   high: number;
   low: number;

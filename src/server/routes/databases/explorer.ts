@@ -7,7 +7,6 @@
  *   GET  /api/databases/sqlite/stats
  *   GET  /api/databases/postgres/stats (legacy redirect)
  *   GET  /api/databases/questdb/stats
- *   GET  /api/databases/duckdb/stats
  *   GET  /api/databases/preview/:db/:table
  *   POST /api/databases/query
  *   POST /api/databases/questdb/init
@@ -124,33 +123,6 @@ router.get('/databases/questdb/stats', async (_req: Request, res: Response) => {
   }
 });
 
-// DuckDB Stats
-router.get('/databases/duckdb/stats', async (_req: Request, res: Response) => {
-  try {
-    const { getDuckDBStats, listParquetFiles } = await import('../../duckdb');
-    const parquetFiles = await listParquetFiles();
-
-    let stats;
-    if (typeof getDuckDBStats === 'function') {
-      stats = await getDuckDBStats();
-    } else {
-      stats = {
-        connected: true,
-        tables: parquetFiles.length,
-        tableDetails: parquetFiles.map((f: any) => ({
-          name: f.filename || f,
-          rowCount: f.rowCount || 0,
-          type: 'parquet',
-        })),
-      };
-    }
-
-    res.json(stats);
-  } catch (error: any) {
-    res.json({ connected: false, tables: 0, tableDetails: [], error: error.message });
-  }
-});
-
 // Table preview
 router.get('/databases/preview/:db/:table', async (req: Request, res: Response) => {
   try {
@@ -158,7 +130,7 @@ router.get('/databases/preview/:db/:table', async (req: Request, res: Response) 
     const table = getString(req.params.table);
     const limit = Math.min(Math.max(1, parseInt(req.query.limit as string) || 100), 1000);
 
-    if (!['sqlite', 'postgres', 'questdb', 'duckdb'].includes(dbParam)) {
+    if (!['sqlite', 'postgres', 'questdb'].includes(dbParam)) {
       return res.status(400).json({ error: 'Invalid database specified' });
     }
     if (!isValidIdentifier(table)) {
@@ -175,17 +147,6 @@ router.get('/databases/preview/:db/:table', async (req: Request, res: Response) 
       const { queryQuestDB } = await import('../../questdb');
       const escapedTable = table.replace(/'/g, "''");
       rows = await queryQuestDB(`SELECT * FROM '${escapedTable}' LIMIT ${limit}`);
-    } else if (dbParam === 'duckdb') {
-      const { queryParquet } = await import('../../duckdb');
-      if (typeof queryParquet === 'function') {
-        const safePath = path.join(DATA_DIR, 'parquet-data', table);
-        if (!table.endsWith('.parquet')) {
-          return res.status(400).json({ error: 'Only .parquet files can be previewed in DuckDB' });
-        }
-        rows = await queryParquet(
-          `SELECT * FROM read_parquet('${safePath.replace(/'/g, "''")}') LIMIT ${limit}`,
-        );
-      }
     }
 
     res.json({ rows, count: rows.length });
@@ -205,7 +166,7 @@ router.post('/databases/query', async (req: Request, res: Response) => {
     if (sql.length > 10000) {
       return res.status(400).json({ error: 'Query too long (max 10000 characters)' });
     }
-    if (!['sqlite', 'postgres', 'questdb', 'duckdb'].includes(dbParam)) {
+    if (!['sqlite', 'postgres', 'questdb'].includes(dbParam)) {
       return res.status(400).json({ error: 'Invalid database specified' });
     }
 
@@ -222,13 +183,6 @@ router.post('/databases/query', async (req: Request, res: Response) => {
     } else if (dbParam === 'questdb') {
       const { queryQuestDB } = await import('../../questdb');
       rows = await queryQuestDB(sql);
-    } else if (dbParam === 'duckdb') {
-      const { executeDuckDBQuery } = await import('../../duckdb');
-      if (typeof executeDuckDBQuery === 'function') {
-        rows = await executeDuckDBQuery(sql);
-      } else {
-        return res.status(400).json({ error: 'DuckDB query execution not available' });
-      }
     }
 
     if (rows.length > 10000) rows = rows.slice(0, 10000);

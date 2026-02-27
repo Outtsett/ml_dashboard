@@ -39,3 +39,10 @@ export {
 } from "./queries";
 
 export { exportQuestDBToParquet } from "./export";
+
+export {
+  questdbHttpQuery,
+  questdbExportParquet,
+  questdbExportCSV,
+  questdbImportCSV,
+} from "./httpQuery";

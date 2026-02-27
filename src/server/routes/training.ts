@@ -33,6 +33,7 @@ import {
   getModelDiagnostics,
   getModelConvergence,
   getModelAssignments,
+  getModelShap,
   deleteModel,
 } from "../lib/modelResults";
 
@@ -40,7 +41,7 @@ import {
 
 const trainingRequestSchema = z.object({
   modelType: z.string().min(1, "modelType is required"),
-  symbol: z.string().optional(),
+  symbol: z.string().min(1, "symbol is required"),
   timeframe: z.string().optional(),
   dateRange: z.object({
     start: z.string(),
@@ -59,6 +60,16 @@ const router = Router();
 router.get("/training/config", CACHE_SEMI, (_req: Request, res: Response) => {
   try {
     const registry = getNestApp().get(RegistryService);
+    res.json(registry.getClientConfig());
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/training/config/reload", (_req: Request, res: Response) => {
+  try {
+    const registry = getNestApp().get(RegistryService);
+    registry.reload();
     res.json(registry.getClientConfig());
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -221,6 +232,24 @@ router.get("/training/models/:id/assignments", async (req: Request, res: Respons
       offset: Number(req.query.offset) || undefined,
     });
     if (!result) return res.status(404).json({ error: `Assignments not found for '${id}'` });
+    res.json(result);
+  } catch (err: any) {
+    const status = err.message.includes("Invalid model ID") ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// ─── SHAP values (per-bar feature importance) ───────────────────────────────
+
+router.get("/training/models/:id/shap", async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const result = await getModelShap(MODELS_DIR, id, {
+      regime: req.query.regime !== undefined ? Number(req.query.regime) : undefined,
+      limit: Number(req.query.limit) || undefined,
+      offset: Number(req.query.offset) || undefined,
+    });
+    if (!result) return res.status(404).json({ error: `SHAP data not found for '${id}'` });
     res.json(result);
   } catch (err: any) {
     const status = err.message.includes("Invalid model ID") ? 400 : 500;

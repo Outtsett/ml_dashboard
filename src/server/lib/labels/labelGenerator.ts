@@ -33,7 +33,7 @@ import {
   type StatisticalPairParams,
   generateContrastivePairsFromSQL,
 } from './contrastivePairs';
-import { queryDuckDB, loadOHLCVIntoDuckDB } from './labelHelpers';
+import { queryLabels, buildMetaLabelSQL } from './labelHelpers';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -76,23 +76,30 @@ export async function generateLabels(
     const labelSetId = labelRecord!.id;
 
     try {
-      await loadOHLCVIntoDuckDB({ symbol: request.symbol, limit: 100000 });
-
       if (isContrastiveGenerator(request.generatorType)) {
         return await generateContrastiveLabels(labelSetId, request, startTime);
       }
 
-      const labelSQL = generateLabelSQL(
-        request.generatorType as LabelGeneratorType,
-        request.params,
-        { symbol: request.symbol }
-      );
+      // For meta_label, build combined SQL with direction labels as CTE
+      let labelSQL: string | null;
+      if (request.generatorType === 'meta_label') {
+        labelSQL = buildMetaLabelSQL(
+          request.params as unknown as MetaLabelParams,
+          request.symbol,
+        );
+      } else {
+        labelSQL = generateLabelSQL(
+          request.generatorType as LabelGeneratorType,
+          request.params,
+          { symbol: request.symbol }
+        );
+      }
 
       if (!labelSQL) {
         throw new Error(`Unknown generator type: ${request.generatorType}`);
       }
 
-      const results = await queryDuckDB(labelSQL);
+      const results = await queryLabels(labelSQL);
 
       if (!results || results.length === 0) {
         await db.update(generatedLabels)
@@ -197,7 +204,7 @@ async function generateContrastiveLabels(
     throw new Error(`Unknown contrastive generator: ${genType}`);
   }
 
-  const results = await queryDuckDB(sql);
+  const results = await queryLabels(sql);
 
   if (!results || results.length === 0) {
     await db.update(generatedLabels)

@@ -27,7 +27,7 @@ export interface PipelineStage {
 }
 
 export interface DataSource {
-  type: 'postgres' | 'questdb' | 'duckdb' | 'file';
+  type: 'postgres' | 'questdb' | 'file';
   path?: string;
   symbol?: string;
   available: boolean;
@@ -37,7 +37,6 @@ export interface DataSource {
 
 export interface PipelineConfig {
   enableQuestDB: boolean;
-  enableDuckDB: boolean;
   batchSize: number;
   maxConcurrentJobs: number;
   autoAggregateTimeframes: boolean;
@@ -45,7 +44,6 @@ export interface PipelineConfig {
 
 const DEFAULT_CONFIG: PipelineConfig = {
   enableQuestDB: true,
-  enableDuckDB: true,
   batchSize: 5000,
   maxConcurrentJobs: 3,
   autoAggregateTimeframes: true
@@ -267,7 +265,6 @@ class DataPipelineManager extends EventEmitter {
 
     sources.push({ type: 'questdb', symbol: safeSymbol, available: true });
     sources.push({ type: 'questdb', symbol: safeSymbol, available: this.config.enableQuestDB });
-    sources.push({ type: 'duckdb', symbol: safeSymbol, available: this.config.enableDuckDB });
 
     return sources;
   }

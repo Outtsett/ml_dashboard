@@ -1,7 +1,7 @@
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { TrendingUp, DollarSign, Clock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useRef, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { type LabelMarker } from "@/components/TradingChart";
 import { useIndicatorData } from "@/hooks/useIndicatorData";
 import { useBreadcrumbs } from "@/hooks/useBreadcrumbs";
@@ -33,15 +33,6 @@ export default function MarketData() {
   const [symbolOpen, setSymbolOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
   const [mlPanelOpen, setMlPanelOpen] = useState(false);
-  const [showTerminal, setShowTerminal] = useState(true);
-  const logEndRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll terminal when new logs arrive
-  useEffect(() => {
-    if (logEndRef.current && training.logs.length > 0) {
-      logEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [training.logs.length]);
 
   // Sync local → context when user changes symbol/tf here
   const setSymbol = useCallback((s: string) => {
@@ -138,8 +129,8 @@ export default function MarketData() {
   // ── Market Replay ──
   const replay = useLocalReplay(chartData);
 
-  // ── Training Sync ──
-  const trainingSync = useTrainingSync(training, symbol, replay);
+  // ── Training Sync (live stabilization — no auto-replay) ──
+  const trainingSync = useTrainingSync(training, symbol);
 
   const displayData = replay.active ? replay.snapshot.visibleBars : chartData;
 
@@ -224,13 +215,6 @@ export default function MarketData() {
         onToggleReplay={replay.toggleReplay}
         onResetChart={resetChart}
         isRefetching={isFetching}
-        isTraining={training.isTraining}
-        trainingProgress={training.progress}
-        selectedModelType={training.selectedModelType}
-        onStartTraining={() => training.startTraining({
-          modelType: training.selectedModelType,
-        })}
-        onStopTraining={training.stopTraining}
         isTrainingActive={isTrainingActive}
         onOpenMlPanel={() => setMlPanelOpen(true)}
         onResetScrollState={resetScrollState}
@@ -280,6 +264,7 @@ export default function MarketData() {
           activeRegimes: trainingSync.activeRegimes,
           regimeLegend: trainingSync.regimeLegend,
           trainingPhase: trainingSync.trainingPhase,
+          stability: trainingSync.stability,
         }}
         regimeLegendInfo={regimeLegendInfo}
         selectedRegimes={selectedRegimes}
@@ -300,47 +285,6 @@ export default function MarketData() {
         swingZigZagPoints={swingZZPts}
         tradeMarkers={dashboard.overlays.tradeMarkers}
         predictionMarkers={dashboard.overlays.predictionMarkers}
-        regime={{
-          trainLogs: training.logs,
-          isTraining: training.isTraining,
-          liveMetrics: training.metrics ? {
-            gibbsIter: (training.iterationHistory.at(-1)?.iteration ?? 0),
-            gibbsTotal: (training.iterationHistory.at(-1)?.metrics?.totalIterations as number ?? 0) || 200,
-            logLikelihood: training.metrics.logLikelihood ?? 0,
-            activeStates: training.metrics.activeStates ?? 0,
-            delta: training.metrics.delta ?? 0,
-            fitPerBar: training.metrics.fitPerBar ?? 0,
-            entropy: training.metrics.entropy ?? 0,
-            switchRate: training.metrics.switchRate ?? 0,
-            selfTransition: training.metrics.selfTransition ?? 0,
-            maxRegimePct: training.metrics.maxRegimePct ?? 0,
-            avgDwell: training.metrics.avgDwell ?? 0,
-            nBarsTotal: training.totalBars ?? 0,
-            regimesDiscovered: training.metrics.regimes_discovered ?? 0,
-            stability: training.metrics.stability ?? 0,
-            oosSimilarity: training.metrics.oos_similarity ?? 0,
-            oosCorrelation: training.metrics.oos_correlation ?? 0,
-            qualityScore: training.metrics.quality_score ?? 0,
-            elapsed: training.elapsedSec,
-          } : null,
-          liveConvergence: training.iterationHistory.map(h => ({
-            iter: h.iteration,
-            log_likelihood: h.metrics.logLikelihood ?? 0,
-            n_active_states: h.metrics.activeStates,
-            delta: h.metrics.delta,
-            entropy: h.metrics.entropy,
-            switch_rate: h.metrics.switchRate,
-            self_transition: h.metrics.selfTransition,
-            max_regime_pct: h.metrics.maxRegimePct,
-            avg_dwell: h.metrics.avgDwell,
-          })),
-          selectedSymbol: symbol,
-          selectedTimeframe: tfLabel,
-          showTerminal,
-          setShowTerminal,
-          logEndRef,
-          burnIn: 50,
-        }}
       />
 
       {/* ML Tools Sheet */}

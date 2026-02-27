@@ -5,8 +5,18 @@ import * as fs from "fs";
 // SHARED CONSTANTS & TYPES
 // ============================================================================
 
-export const INDICATOR_DIR = path.join(process.cwd(), "data", "indicators");
-export const FEATURES_DIR = INDICATOR_DIR;  // normalized features live alongside indicators
+export const DATA_DIR = path.join(process.cwd(), "data");
+export const ASSET_CLASSES = ["futures", "forex"] as const;
+
+/** Resolve the indicator directory for a symbol by scanning asset class folders. */
+export function resolveSymbolDir(symbol: string): string | null {
+  for (const ac of ASSET_CLASSES) {
+    const dir = path.join(DATA_DIR, ac, symbol);
+    if (fs.existsSync(dir)) return dir;
+  }
+  return null;
+}
+
 
 export interface CategoryMeta {
   columns: string[];
@@ -40,7 +50,10 @@ export const metaCache = new Map<string, IndicatorMeta | null>();
 // ============================================================================
 
 export function getPartitionedDir(symbol: string, timeframe: string): string {
-  return path.join(INDICATOR_DIR, timeframe, symbol);
+  const symDir = resolveSymbolDir(symbol);
+  if (symDir) return path.join(symDir, timeframe);
+  // Fallback: assume futures
+  return path.join(DATA_DIR, "futures", symbol, timeframe);
 }
 
 export function readMeta(symbol: string, timeframe: string): IndicatorMeta | null {
@@ -81,7 +94,7 @@ export function findColumnsInCategories(
   return result;
 }
 
-/** Build a DuckDB query that JOINs multiple category parquet files. */
+/** Build a SQL query that JOINs multiple category parquet files via read_parquet(). */
 export function buildPartitionedQuery(
   partDir: string,
   categoryColMap: Map<string, string[]>,
@@ -109,18 +122,21 @@ export function buildPartitionedQuery(
   return sql;
 }
 
-/** Find any _meta.json in the indicator directory tree. */
+/** Find any _meta.json in the data/{futures|forex}/{symbol}/{tf}/ tree. */
 export function findSampleMeta(): IndicatorMeta | null {
-  if (!fs.existsSync(INDICATOR_DIR)) return null;
-  for (const tf of fs.readdirSync(INDICATOR_DIR)) {
-    const tfDir = path.join(INDICATOR_DIR, tf);
-    if (!fs.statSync(tfDir).isDirectory()) continue;
-    for (const sym of fs.readdirSync(tfDir)) {
-      const metaPath = path.join(tfDir, sym, "_meta.json");
-      if (fs.existsSync(metaPath)) {
-        try {
-          return JSON.parse(fs.readFileSync(metaPath, "utf-8")) as IndicatorMeta;
-        } catch { continue; }
+  for (const ac of ASSET_CLASSES) {
+    const acDir = path.join(DATA_DIR, ac);
+    if (!fs.existsSync(acDir)) continue;
+    for (const sym of fs.readdirSync(acDir)) {
+      const symDir = path.join(acDir, sym);
+      if (!fs.statSync(symDir).isDirectory()) continue;
+      for (const tf of fs.readdirSync(symDir)) {
+        const metaPath = path.join(symDir, tf, "_meta.json");
+        if (fs.existsSync(metaPath)) {
+          try {
+            return JSON.parse(fs.readFileSync(metaPath, "utf-8")) as IndicatorMeta;
+          } catch { continue; }
+        }
       }
     }
   }

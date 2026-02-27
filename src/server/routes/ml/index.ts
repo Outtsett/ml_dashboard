@@ -1,5 +1,4 @@
 import { Router } from "express";
-import featuresRouter from "./features";
 import observatoryRouter from "./observatory";
 import trainingRouter from "./training";
 import labelsRouter from "./labels";
@@ -8,7 +7,6 @@ import forecastsRouter from "./forecasts";
 
 const router = Router();
 
-router.use(featuresRouter);
 router.use(observatoryRouter);
 router.use(trainingRouter);
 router.use(labelsRouter);

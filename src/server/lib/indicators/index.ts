@@ -10,7 +10,7 @@ export * from './math/trendMath';
 export * from './math/volatilityMath';
 export * from './math/momentumMath';
 
-// SQL generation for DuckDB batch processing
+// SQL generation for batch processing
 export * from './sqlGenerator';
 
 // Indicator registry and metadata

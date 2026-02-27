@@ -4,7 +4,6 @@
  * Single entry point that handles:
  * 1. SQLite: embedded, no external process needed
  * 2. QuestDB: detect -> start -> verify
- * 3. DuckDB: initialize (in-process, no external process)
  *
  * Each database has independent lifecycle — one failing doesn't block others.
  * Reports a structured status object the frontend can display.
@@ -33,7 +32,6 @@ export interface DbStatus {
 export interface StartupReport {
   sqlite: DbStatus;
   questdb: DbStatus;
-  duckdb: DbStatus;
   overallHealthy: boolean;
   timestamp: string;
 }
@@ -140,18 +138,9 @@ export async function runStartupSequence(): Promise<StartupReport> {
   // QuestDB needs external process
   const questStatus = await ensureQuestDB();
 
-  // DuckDB is in-process — it gets initialized separately in index.ts
-  const duckdbStatus: DbStatus = {
-    name: 'DuckDB',
-    status: 'running',
-    message: 'In-process (initialized during server startup)',
-    startedBy: 'not-attempted',
-  };
-
   const report: StartupReport = {
     sqlite: sqliteStatus,
     questdb: questStatus,
-    duckdb: duckdbStatus,
     overallHealthy: sqliteStatus.status === 'running' && questStatus.status === 'running',
     timestamp: new Date().toISOString(),
   };
@@ -160,7 +149,6 @@ export async function runStartupSequence(): Promise<StartupReport> {
   const icon = (s: DbStatus) => s.status === 'running' ? '+' : s.status === 'skipped' ? 'o' : 'x';
   log(`  ${icon(sqliteStatus)} SQLite:     ${sqliteStatus.message}`, 'startup');
   log(`  ${icon(questStatus)} QuestDB:    ${questStatus.message}`, 'startup');
-  log(`  ${icon(duckdbStatus)} DuckDB:     ${duckdbStatus.message}`, 'startup');
   log(`--- Overall: ${report.overallHealthy ? 'HEALTHY' : 'DEGRADED'} ---`, 'startup');
 
   lastReport = report;

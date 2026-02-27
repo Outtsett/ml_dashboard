@@ -2,7 +2,7 @@
   "paths": {
     "pythonExe": ".venv/Scripts/python.exe",
     "modelsDir": "data/models",
-    "indicatorsDir": "data/indicators",
+    "dataDir": "data",
     "marketDb": "data/market.duckdb"
   },
   "limits": {
@@ -11,6 +11,17 @@
     "maxTrainingDurationSec": 7200,
     "jobRetentionSec": 3600
   },
+  "stderrSuppressPatterns": [
+    "ConvergenceWarning",
+    "DeprecationWarning",
+    "UserWarning",
+    "FutureWarning",
+    "loky",
+    "resource_tracker",
+    "RuntimeWarning",
+    "torch.cuda",
+    "TensorFlow"
+  ],
   "timeframes": {
     "1m": 60,
     "5m": 300,

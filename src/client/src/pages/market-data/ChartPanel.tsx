@@ -1,11 +1,10 @@
 import { Database } from "lucide-react";
-import type { LiveMetrics, ConvergencePoint } from "@/components/training/types";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import IndicatorChartLayout from "@/components/IndicatorChartLayout";
 import { ReplayControls } from "@/components/ReplayControls";
 import { TrainingSyncBanner } from "@/components/TrainingSyncBanner";
 import { RegimeLegend, type RegimeInfo } from "@/components/RegimeLegend";
-import TrainingTerminal from "@/components/training/TrainingTerminal";
+import { TerminalTabs } from "@/components/terminal/TerminalTabs";
 import type { LabelMarker } from "@/components/TradingChart";
 import type { PlaybackSpeed, PlaybackState } from "@/hooks/useLocalReplay";
 import type { OhlcvData } from "./types";
@@ -39,6 +38,7 @@ interface ChartPanelProps {
     activeRegimes: number;
     regimeLegend: any[];
     trainingPhase: string;
+    stability: number;
   };
   // Regime
   regimeLegendInfo: RegimeInfo[];
@@ -62,19 +62,6 @@ interface ChartPanelProps {
   swingZigZagPoints: any[];
   tradeMarkers: any[];
   predictionMarkers: any[];
-  // Training terminal
-  regime: {
-    trainLogs: string[];
-    isTraining: boolean;
-    liveMetrics: LiveMetrics | null;
-    liveConvergence: ConvergencePoint[];
-    selectedSymbol: string;
-    selectedTimeframe: string;
-    showTerminal: boolean;
-    setShowTerminal: (v: boolean) => void;
-    logEndRef: React.RefObject<HTMLDivElement | null>;
-    burnIn: number;
-  };
 }
 
 export function ChartPanel({
@@ -86,25 +73,29 @@ export function ChartPanel({
   labelMarkers, indicatorOverlays, onRemoveIndicators,
   supportResistanceLevels, zigZagPoints, swingZigZagPoints,
   tradeMarkers, predictionMarkers,
-  regime,
 }: ChartPanelProps) {
   return (
     <ResizablePanelGroup direction="vertical" className="flex-1 min-h-0">
       {/* Chart panel */}
       <ResizablePanel defaultSize={75} minSize={30}>
         <div className="h-full flex flex-col">
-          {/* Replay controls */}
+          {/* Training banner — visible whenever training is active (independent of replay) */}
+          {trainingSync.isActive && (
+            <div className="px-3 py-1.5 border-b border-white/5 shrink-0">
+              <TrainingSyncBanner
+                gibbsIter={trainingSync.gibbsIter}
+                gibbsTotal={trainingSync.gibbsTotal}
+                activeRegimes={trainingSync.activeRegimes}
+                regimeLegend={trainingSync.regimeLegend}
+                trainingPhase={trainingSync.trainingPhase}
+                stability={trainingSync.stability}
+              />
+            </div>
+          )}
+
+          {/* Replay controls — only when replay is active */}
           {replay.active && (
             <div className="px-3 py-1.5 border-b border-white/5 shrink-0 flex items-center gap-3">
-              {trainingSync.isActive ? (
-                <TrainingSyncBanner
-                  gibbsIter={trainingSync.gibbsIter}
-                  gibbsTotal={trainingSync.gibbsTotal}
-                  activeRegimes={trainingSync.activeRegimes}
-                  regimeLegend={trainingSync.regimeLegend}
-                  trainingPhase={trainingSync.trainingPhase}
-                />
-              ) : null}
               <ReplayControls
                 state={replay.state}
                 speed={replay.speed}
@@ -170,20 +161,7 @@ export function ChartPanel({
 
       {/* Terminal panel */}
       <ResizablePanel defaultSize={25} minSize={5} maxSize={60}>
-        <div className="h-full px-1 pb-1">
-          <TrainingTerminal
-            trainLogs={regime.trainLogs}
-            isTraining={regime.isTraining}
-            liveMetrics={regime.liveMetrics}
-            liveConvergence={regime.liveConvergence}
-            selectedSymbol={regime.selectedSymbol}
-            selectedTimeframe={regime.selectedTimeframe}
-            showTerminal={regime.showTerminal}
-            setShowTerminal={regime.setShowTerminal}
-            logEndRef={regime.logEndRef}
-            burnIn={regime.burnIn}
-          />
-        </div>
+        <TerminalTabs showTrainingTab />
       </ResizablePanel>
     </ResizablePanelGroup>
   );

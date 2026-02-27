@@ -7,7 +7,7 @@
  */
 
 import { useState, useMemo } from "react";
-import { ChevronUp, Play, Square, Settings2 } from "lucide-react";
+import { ChevronUp, Play, Square, Settings2, Loader2 } from "lucide-react";
 import type { ModelRegistryEntry, HyperparameterDef } from "@shared/trainingTypes";
 
 interface ModelPickerProps {
@@ -17,6 +17,7 @@ interface ModelPickerProps {
   hyperparameterOverrides: Record<string, number | string | boolean>;
   onHyperparameterChange: (key: string, value: number | string | boolean) => void;
   isTraining: boolean;
+  isPending: boolean;
   onTrain: () => void;
   onStop: () => void;
   symbol: string;
@@ -32,6 +33,7 @@ export default function ModelPicker({
   hyperparameterOverrides,
   onHyperparameterChange,
   isTraining,
+  isPending,
   onTrain,
   onStop,
   symbol,
@@ -78,16 +80,24 @@ export default function ModelPicker({
         {/* Train / Stop button */}
         <button
           onClick={isTraining ? onStop : onTrain}
+          disabled={isPending}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all ${
             isTraining
               ? "bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/30"
-              : "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border border-orange-500/30"
+              : isPending
+                ? "bg-orange-500/10 text-orange-400/60 border border-orange-500/20 cursor-wait"
+                : "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border border-orange-500/30"
           }`}
         >
           {isTraining ? (
             <>
               <Square className="h-3.5 w-3.5" />
               Stop
+            </>
+          ) : isPending ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Starting...
             </>
           ) : (
             <>
@@ -99,7 +109,7 @@ export default function ModelPicker({
       </div>
 
       {/* Training status strip */}
-      {isTraining && (
+      {(isTraining || isPending) && (
         <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
           <div className="h-2 w-2 rounded-full bg-orange-400 animate-pulse" />
           <span className="text-xs text-orange-400/80 font-mono">

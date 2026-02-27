@@ -22,7 +22,7 @@ Actions: start, stop, status, reset, migrate
 | DuckDB market.duckdb | Rollovers | 353 events (8 roots) |
 | QuestDB ohlcv_1s | OHLCV (synced from DuckDB) | 759.5M rows (903 symbols) |
 | PostgreSQL | 21 Drizzle tables | 25 instruments, 353 rollovers |
-| Indicator parquets | pandas-ta (data/indicators/) | 200 files, ~350 cols each |
+| Indicator parquets | pandas-ta (data/{futures,forex}/) | 200 files, ~350 cols each |
 
 ## Actions
 
@@ -47,7 +47,7 @@ Check and report:
 - QuestDB: HTTP health check on port 9000, ILP port 9009, PG wire port 8812
 - DuckDB: Check if data/market.duckdb exists and report file size
 - DuckDB tables: Query row counts for ohlcv, trades, mbp10, rollovers
-- Indicator parquets: Count files in data/indicators/ and total size
+- Indicator parquets: Count files in data/{futures,forex}/ and total size
 
 ### reset
 1. Stop PostgreSQL if running

@@ -10,23 +10,26 @@
  * useTrainingSSE. This hook owns state + start/stop logic.
  */
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDashboard } from "@/contexts/UnifiedDashboardContext";
 import { trainingApi } from "@/lib/apiService";
 import { minutesToLabel } from "@/lib/timeframes";
+import { buildSSECallbacks } from "@/lib/training/sseHandlers";
 import { useTrainingConfig } from "./useTrainingConfig";
 import { useTrainingSSE } from "./useTrainingSSE";
+import { useTrainingLiveState } from "./useTrainingLiveState";
 import type {
   TrainingRequest,
   TrainingState,
-  OverlayPayload,
   ModelRegistryEntry,
 } from "@shared/trainingTypes";
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useTraining(): TrainingState & {
+  /** True from button press until API responds — gives instant visual feedback */
+  isPending: boolean;
   /** Available model types from config/models.json */
   availableModels: Record<string, ModelRegistryEntry>;
   /** Currently selected model type */
@@ -41,29 +44,26 @@ export function useTraining(): TrainingState & {
   // ── Model selection ──────────────────────────────────────────────────────
   const [selectedModelType, setSelectedModelType] = useState("");
 
-  // ── Training state ───────────────────────────────────────────────────────
+  // ── Session state (slow-changing, lifecycle events) ─────────────────────
   const [modelType, setModelType] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [modelId, setModelId] = useState<string | null>(null);
   const [isTraining, setIsTraining] = useState(false);
+  const [isPending, setIsPending] = useState(false);
   const [phase, setPhase] = useState("");
   const [progress, setProgress] = useState(0);
   const [config, setConfig] = useState<TrainingRequest | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
-  const [metrics, setMetrics] = useState<Record<string, number>>({});
-  const [iterationHistory, setIterationHistory] = useState<Array<{ iteration: number; metrics: Record<string, number> }>>([]);
-  const [dataRange, setDataRange] = useState<{ start: string; end: string } | null>(null);
-  const [totalBars, setTotalBars] = useState(0);
-  const [overlayType, setOverlayType] = useState<string | null>(null);
-  const [overlayData, setOverlayData] = useState<OverlayPayload | null>(null);
-  const [liveRegimeTimestamps, setLiveRegimeTimestamps] = useState<number[]>([]);
-  const [liveRegimeAssignments, setLiveRegimeAssignments] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [completedModelId, setCompletedModelId] = useState<string | null>(null);
-  const [diagnostics, setDiagnostics] = useState<unknown | null>(null);
-  const [elapsedSec, setElapsedSec] = useState(0);
-  const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startTimeRef = useRef(0);
+
+  // ── Live state (fast-changing, per-iteration SSE updates — SRP sub-hook) ──
+  const {
+    state: liveState,
+    setters: liveSetters,
+    resetLiveState,
+    startElapsedTimer,
+    clearElapsedTimer,
+  } = useTrainingLiveState();
 
   // ── Timeframe from dashboard ─────────────────────────────────────────────
   const timeframeLabel = minutesToLabel(dashboard.timeframeMinutes);
@@ -72,105 +72,52 @@ export function useTraining(): TrainingState & {
   const { data: trainingConfig } = useTrainingConfig();
   const availableModels = trainingConfig?.models ?? {};
 
-  // ── Elapsed timer helpers ────────────────────────────────────────────────
-  const clearElapsedTimer = useCallback(() => {
-    if (elapsedTimerRef.current) {
-      clearInterval(elapsedTimerRef.current);
-      elapsedTimerRef.current = null;
+  // Auto-select first model when registry loads and nothing is selected yet
+  useEffect(() => {
+    if (!selectedModelType && availableModels) {
+      const keys = Object.keys(availableModels);
+      if (keys.length > 0) setSelectedModelType(keys[0]!);
     }
-  }, []);
+  }, [availableModels, selectedModelType, setSelectedModelType]);
 
-  const startElapsedTimer = useCallback(() => {
-    clearElapsedTimer();
-    startTimeRef.current = Date.now();
-    elapsedTimerRef.current = setInterval(() => {
-      setElapsedSec((Date.now() - startTimeRef.current) / 1000);
-    }, 1000);
-  }, [clearElapsedTimer]);
-
-  // ── SSE callbacks → state updates ────────────────────────────────────────
-  const { connect: connectSSE, disconnect: disconnectSSE } = useTrainingSSE({
-    onStarted(d) {
-      setDataRange(d.dateRange ?? null);
-      setTotalBars(d.totalBars ?? 0);
-      setModelType(d.modelType);
-      dashboard.setTrainingContext({
-        dataStart: d.dateRange?.start ?? "",
-        dataEnd: d.dateRange?.end ?? "",
-        epoch: 0, totalEpochs: 0,
-        loss: 0, valLoss: 0, accuracy: 0, valAccuracy: 0,
-        status: "training",
-        symbol: d.symbol ?? "",
-      });
-    },
-    onProgress(d) {
-      setPhase(d.phase ?? "");
-      setProgress(d.pct ?? 0);
-      setLogs(prev => [...prev.slice(-500), d.message]);
-    },
-    onMetric(d) {
-      if (d.metrics) {
-        setMetrics(prev => ({ ...prev, ...d.metrics }));
-        if (d.iteration != null) {
-          setIterationHistory(prev => [...prev, { iteration: d.iteration!, metrics: d.metrics! }]);
-        }
-      }
-      if (d.type && d.value != null) {
-        setMetrics(prev => ({ ...prev, [d.type!]: d.value! }));
-      }
-    },
-    onOverlay(d) {
-      setOverlayType(d.overlayType);
-      setOverlayData(d);
-      if (d.overlayType === "regime_timestamps" && Array.isArray(d.timestamps)) {
-        setLiveRegimeTimestamps(d.timestamps);
-      } else if (d.overlayType === "regime_colors" && Array.isArray(d.assignments)) {
-        setLiveRegimeAssignments(d.assignments);
-      }
-    },
-    onLog(d) {
-      if (d.message) setLogs(prev => [...prev.slice(-500), d.message!]);
-    },
-    onDone(d) {
-      setCompletedModelId(d.modelId ?? null);
-      setDiagnostics(d.diagnostics ?? null);
-      setElapsedSec(d.elapsedSec ?? 0);
-      setIsTraining(false);
-      setPhase("complete");
-      setProgress(100);
-      dashboard.setTrainingContext(null);
-      clearElapsedTimer();
-      queryClient.invalidateQueries({ queryKey: ["regime", "models"] });
-    },
-    onError(d) {
-      if (d?.message) setError(d.message);
-      else setError("Training error");
-      setIsTraining(false);
-      dashboard.setTrainingContext(null);
-      clearElapsedTimer();
-    },
-  });
+  // ── SSE callbacks → state updates (extracted to sseHandlers.ts — SRP) ────
+  const { connect: connectSSE, disconnect: disconnectSSE } = useTrainingSSE(
+    buildSSECallbacks({
+      // Session setters (this hook)
+      setModelType, setPhase, setProgress,
+      setCompletedModelId, setError, setIsTraining,
+      // Live data setters (sub-hook)
+      setDataRange: liveSetters.setDataRange,
+      setTotalBars: liveSetters.setTotalBars,
+      setLogs: liveSetters.setLogs,
+      setMetrics: liveSetters.setMetrics,
+      setIterationHistory: liveSetters.setIterationHistory,
+      setOverlayType: liveSetters.setOverlayType,
+      setOverlayData: liveSetters.setOverlayData,
+      setLiveRegimeTimestamps: liveSetters.setLiveRegimeTimestamps,
+      setLiveRegimeAssignments: liveSetters.setLiveRegimeAssignments,
+      setDiagnostics: liveSetters.setDiagnostics,
+      setElapsedSec: liveSetters.setElapsedSec,
+      clearElapsedTimer,
+      // External side effects
+      setTrainingContext: dashboard.setTrainingContext,
+      invalidateModels: () => queryClient.invalidateQueries({ queryKey: ["regime", "models"] }),
+    })
+  );
 
   // ── Start Training ───────────────────────────────────────────────────────
   const startTraining = useCallback(async (request: TrainingRequest) => {
+    // Immediate visual feedback — button changes the instant you press it
+    setIsPending(true);
     setError(null);
-    setLogs([]);
-    setMetrics({});
-    setIterationHistory([]);
-    setOverlayData(null);
-    setOverlayType(null);
-    setLiveRegimeTimestamps([]);
-    setLiveRegimeAssignments([]);
     setCompletedModelId(null);
-    setDiagnostics(null);
-    setDataRange(null);
-    setTotalBars(0);
     setProgress(0);
     setPhase("starting");
+    resetLiveState();
 
     const enriched: TrainingRequest = {
       ...request,
-      symbol: request.symbol || dashboard.symbol,
+      symbol: request.symbol,
       timeframe: request.timeframe || timeframeLabel,
     };
 
@@ -181,18 +128,20 @@ export function useTraining(): TrainingState & {
       setModelType(request.modelType);
       setConfig(request);
       setIsTraining(true);
+      setIsPending(false);
       startElapsedTimer();
       connectSSE(result.modelId);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
       setIsTraining(false);
+      setIsPending(false);
     }
-  }, [connectSSE, dashboard.symbol, timeframeLabel, startElapsedTimer]);
+  }, [connectSSE, dashboard.symbol, timeframeLabel, startElapsedTimer, resetLiveState]);
 
   // ── Stop Training ────────────────────────────────────────────────────────
   const stopTraining = useCallback(() => {
     if (modelId) {
-      trainingApi.stop(Number(modelId)).catch(() => {});
+      trainingApi.stop(modelId).catch(() => {});
     }
     disconnectSSE();
     setIsTraining(false);
@@ -200,37 +149,18 @@ export function useTraining(): TrainingState & {
     clearElapsedTimer();
   }, [modelId, dashboard, disconnectSSE, clearElapsedTimer]);
 
-  // ── Cleanup on unmount ───────────────────────────────────────────────────
-  useEffect(() => {
-    return () => clearElapsedTimer();
-  }, [clearElapsedTimer]);
-
   return {
-    modelType,
-    sessionId,
-    modelId,
-    isTraining,
-    phase,
-    progress,
-    config,
-    logs,
-    metrics,
-    iterationHistory,
-    dataRange,
-    totalBars,
-    overlayType,
-    overlayData,
-    liveRegimeTimestamps,
-    liveRegimeAssignments,
-    error,
-    completedModelId,
-    diagnostics,
-    elapsedSec,
-    startTraining,
-    stopTraining,
-    availableModels,
-    selectedModelType,
-    setSelectedModelType,
+    // Session state
+    modelType, sessionId, modelId,
+    isTraining, isPending,
+    phase, progress, config,
+    error, completedModelId,
+    // Live state (from sub-hook)
+    ...liveState,
+    // Actions
+    startTraining, stopTraining,
+    // Config
+    availableModels, selectedModelType, setSelectedModelType,
     timeframeLabel,
   };
 }

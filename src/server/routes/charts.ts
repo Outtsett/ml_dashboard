@@ -6,7 +6,7 @@
  * Why QuestDB only?
  *  - No file lock — multiple queries can run in parallel
  *  - SAMPLE BY gives instant timeframe aggregation (no GROUP BY needed)
- *  - All time series data lives in QuestDB; DuckDB is for analytics only
+ *  - All time series data lives in QuestDB
  *
  * The client sends minutes-based timeframes (1, 5, 15, etc.) and ms-epoch timestamps.
  * This route normalises everything to a flat array of { timestamp, open, high, low, close, volume }.

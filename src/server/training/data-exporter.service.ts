@@ -1,6 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { QuestDBService } from '../database/questdb.service';
-import { DuckDBService } from '../database/duckdb.service';
+import { Injectable } from '@nestjs/common';
 import {
   exportTrainingData,
   getNormalizedFeaturesPath,
@@ -10,10 +8,6 @@ import {
 
 @Injectable()
 export class DataExporterService {
-  constructor(
-    @Inject(QuestDBService) private questdb: QuestDBService,
-    @Inject(DuckDBService) private duckdb: DuckDBService,
-  ) {}
 
   /** Export OHLCV from QuestDB to temp parquet for Python trainers. */
   export(

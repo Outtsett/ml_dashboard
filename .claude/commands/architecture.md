@@ -195,11 +195,11 @@ filepath VARCHAR PRIMARY KEY, row_count INTEGER,
 ingested_at TIMESTAMP DEFAULT current_timestamp
 ```
 
-## Pre-computed Indicator Parquets (data/indicators/)
+## Pre-computed Indicator Parquets (data/{futures,forex}/)
 
-Per-symbol, per-timeframe parquet files with ~350 columns each:
-- Pattern: `{symbol}_{timeframe}.parquet` (e.g. `ES_1d.parquet`, `EURUSD_5m.parquet`)
-- 25 symbols × 8 timeframes = 200 files
+Per-symbol, per-timeframe category-partitioned parquets with ~350 columns total:
+- Pattern: `data/{futures|forex}/{symbol}/{timeframe}/{category}.parquet`
+- 25 symbols × 8 timeframes, 9 category parquets per combo
 - Computed by: `python scripts/compute-indicators.py`
 - ~344 indicator columns across 9 categories:
   - **Candle** (62): CDL_DOJI, CDL_HAMMER, CDL_ENGULFING, etc.

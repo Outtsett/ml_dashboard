@@ -78,7 +78,7 @@ async function bootstrap() {
   // ── Start QuestDB process if not running (must happen before NestJS DB services init) ──
   await runStartupSequence();
 
-  // ── NestJS DI container (initializes DB connections + DuckDB via lifecycle hooks) ──
+  // ── NestJS DI container (initializes DB connections via lifecycle hooks) ──
   appContext = await NestFactory.createApplicationContext(AppModule, {
     logger: ['log', 'warn', 'error'],
   });

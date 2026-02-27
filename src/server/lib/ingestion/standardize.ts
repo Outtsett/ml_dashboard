@@ -68,7 +68,7 @@ export function detectMapping(columns: string[]): ColumnMapping | null {
 }
 
 /**
- * Generate a DuckDB SQL INSERT...SELECT that reads a Parquet file
+ * Generate a SQL INSERT...SELECT that reads a Parquet file
  * and inserts standardized rows into the ohlcv table.
  */
 export function buildInsertSQL(

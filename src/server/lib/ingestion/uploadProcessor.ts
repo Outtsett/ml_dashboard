@@ -2,7 +2,7 @@
  * Upload Processing — OHLCV file ingestion pipeline.
  *
  * Handles CSV (.csv, .zst), Parquet, and DBN files.
- * Pipeline: decompress → parse → DuckDB parquet → QuestDB batch insert.
+ * Pipeline: decompress → parse → QuestDB batch insert (ILP).
  *
  * Extracted from routes/upload.ts for SRP: routes handle HTTP, this handles data.
  */
@@ -13,7 +13,6 @@ import { Readable } from "stream";
 import * as fs from "fs";
 import * as path from "path";
 import { storage } from "../../storage";
-import { convertCSVToParquet, getParquetStats, runQuery } from "../../duckdb";
 import { parseTimestamp } from "../../routes/helpers";
 import { ohlcvCache } from "../ohlcvCache";
 
@@ -118,7 +117,7 @@ export async function processOhlcvFile(
 
 /**
  * Process an OHLCV file directly from disk (avoids holding 500MB in memory).
- * Preferred path for CSV/ZST files stored by multer diskStorage.
+ * Streams CSV rows and inserts into QuestDB via ILP batches.
  */
 export async function processOhlcvFileFromDisk(
   filePath: string,
@@ -128,109 +127,14 @@ export async function processOhlcvFileFromDisk(
 ): Promise<void> {
   console.log(`Processing file from disk: ${filename} for symbol: ${symbol}`);
 
-  // Step 1: Convert to Parquet using DuckDB (very fast, columnar format for ML)
-  if (filename.endsWith('.zst') || filename.endsWith('.csv')) {
-    try {
-      console.log("Converting CSV to Parquet using DuckDB...");
-      const compression = filename.endsWith('.zst') ? 'zstd' : 'none';
-      const parquetPath = await convertCSVToParquet(filePath, symbol, compression as 'zstd' | 'none');
-      console.log(`Parquet file created at: ${parquetPath}`);
-
-      const stats = await getParquetStats(symbol);
-      console.log(`Parquet stats: ${stats.count} records, ${(stats.fileSize / 1024 / 1024).toFixed(2)} MB`);
-
-      // Step 2: Ingest into QuestDB if available
-      let questdbSuccess = false;
-      let tempTable: string | null = null;
-      try {
-        const { insertOHLCVBatch, checkQuestDBHealth } = await import("../../questdb");
-        const isHealthy = await checkQuestDBHealth();
-        if (isHealthy) {
-          console.log("QuestDB is available, ingesting data with single-pass streaming...");
-
-          const crypto = await import("crypto");
-          tempTable = `temp_ingest_${crypto.randomUUID().replace(/-/g, '')}`;
-          await runQuery(`CREATE OR REPLACE TEMPORARY TABLE "${tempTable}" AS
-            SELECT ROW_NUMBER() OVER (ORDER BY timestamp, open, close) as rn, symbol, timestamp, open, high, low, close, volume
-            FROM read_parquet('${parquetPath}')`);
-
-          const countResult = await runQuery<{ total: number }>(`SELECT MAX(rn) as total FROM "${tempTable}"`);
-
-          if (countResult.length > 0 && countResult[0]!.total > 0) {
-            const total = countResult[0]!.total;
-            const CHUNK_SIZE = 50000;
-            let totalIngested = 0;
-            let chunkStart = 1;
-
-            while (chunkStart <= total) {
-              const chunkEnd = chunkStart + CHUNK_SIZE - 1;
-              const chunkData = await runQuery<{ symbol?: string; timestamp: number | string; open: number; high: number; low: number; close: number; volume?: number }>(
-                `SELECT symbol, timestamp, open, high, low, close, volume FROM "${tempTable}" WHERE rn >= ${chunkStart} AND rn <= ${chunkEnd}`
-              );
-
-              if (chunkData.length > 0) {
-                await insertOHLCVBatch(chunkData.map((row) => ({
-                  symbol: row.symbol || symbol,
-                  timestamp: new Date(typeof row.timestamp === 'number' ? row.timestamp : new Date(row.timestamp).getTime()),
-                  open: row.open,
-                  high: row.high,
-                  low: row.low,
-                  close: row.close,
-                  volume: row.volume || 0
-                })));
-                totalIngested += chunkData.length;
-              }
-
-              chunkStart += CHUNK_SIZE;
-              console.log(`Ingested ${totalIngested}/${total} rows into QuestDB`);
-            }
-
-            questdbSuccess = true;
-            console.log(`QuestDB ingestion complete: ${totalIngested} rows`);
-          }
-        } else {
-          console.log("QuestDB not available, skipping ingestion (data persisted in cloud storage)");
-          questdbSuccess = true;
-        }
-      } catch (questErr) {
-        console.error("QuestDB ingestion failed:", String(questErr).substring(0, 200));
-      } finally {
-        if (tempTable) {
-          try { await runQuery(`DROP TABLE IF EXISTS "${tempTable}"`); }
-          catch (dropErr) { console.error("Failed to drop temp table:", dropErr); }
-        }
-      }
-
-      // Clean up original CSV file
-      try {
-        await fs.promises.unlink(filePath);
-        console.log(`Deleted original file: ${filePath}`);
-      } catch (cleanupErr) {
-        console.error("Failed to delete original file:", cleanupErr);
-      }
-
-      await storage.updateUploadStatus(uploadId, "completed", stats.count);
-      ohlcvCache.invalidateSymbol(symbol);
-      if (!questdbSuccess) {
-        console.warn(`File processing complete: ${stats.count} records in Parquet. QuestDB ingestion skipped/failed.`);
-      } else {
-        console.log(`File processing complete: ${stats.count} records. Parquet: OK, QuestDB: OK`);
-      }
-      return;
-    } catch (err) {
-      console.error("DuckDB Parquet conversion failed, falling back to streaming:", err);
-    }
-  }
-
-  // Fallback: Streaming approach for non-zst files or if DuckDB fails
-  const { spawn } = await import('child_process');
-  const { insertOHLCVBatch: insertBatchFallback } = await import("../../questdb");
+  const { insertOHLCVBatch } = await import("../../questdb");
 
   return new Promise((resolve, reject) => {
     let inputStream: Readable;
 
     if (filename.endsWith('.zst')) {
       console.log("Using streaming zstd decompression...");
+      const { spawn } = require('child_process');
       const zstd = spawn('zstd', ['-d', '-c', filePath], {
         stdio: ['ignore', 'pipe', 'pipe']
       });
@@ -278,8 +182,8 @@ export async function processOhlcvFileFromDisk(
 
         if (records.length >= 1000) {
           const batch = records.splice(0, 1000);
-          const promise = insertBatchFallback(batch.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })))
-            .then(() => console.log(`[Fallback] Inserted batch -> QuestDB ohlcv, total: ${recordCount}`))
+          const promise = insertOHLCVBatch(batch.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })))
+            .then(() => console.log(`Inserted batch -> QuestDB ohlcv, total: ${recordCount}`))
             .catch(err => console.error("Batch insert error:", err));
           batchPromises.push(promise);
 
@@ -305,98 +209,7 @@ export async function processOhlcvFileFromDisk(
         await Promise.all(batchPromises);
 
         if (records.length > 0) {
-          await insertBatchFallback(records.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })));
-        }
-
-        // Try to create Parquet from original file
-        let parquetPath: string | null = null;
-        try {
-          console.log("[Fallback] Attempting to create Parquet and upload to cloud...");
-
-          let csvPathForConversion = filePath;
-          let tempDecompressedPath: string | null = null;
-
-          if (filename.endsWith('.zst')) {
-            tempDecompressedPath = path.join(DATA_DIR, "ohlcv-processing", `decompressed_${symbol}_${Date.now()}.csv`);
-            const { spawn } = await import('child_process');
-            await new Promise<void>((res, rej) => {
-              const zstd = spawn('zstd', ['-d', '-c', filePath], {
-                stdio: ['ignore', 'pipe', 'pipe']
-              });
-              const writeStream = fs.createWriteStream(tempDecompressedPath!);
-              zstd.stdout.pipe(writeStream);
-              zstd.on('close', (code: number | null) => {
-                if (code === 0) res();
-                else rej(new Error(`zstd exited with code ${code}`));
-              });
-              zstd.on('error', rej);
-            });
-            csvPathForConversion = tempDecompressedPath;
-          }
-
-          parquetPath = await convertCSVToParquet(csvPathForConversion, symbol, 'none');
-          console.log(`[Fallback] Parquet created: ${parquetPath}`);
-
-          if (tempDecompressedPath) {
-            await fs.promises.unlink(tempDecompressedPath);
-          }
-        } catch (fallbackErr) {
-          console.error("[Fallback] Could not create Parquet:", fallbackErr);
-        }
-
-        // Try to ingest to QuestDB if Parquet was created successfully
-        if (parquetPath) {
-          let fallbackTempTable: string | null = null;
-          try {
-            const { insertOHLCVBatch, checkQuestDBHealth } = await import("../../questdb");
-            const isHealthy = await checkQuestDBHealth();
-            if (isHealthy) {
-              console.log("[Fallback] Ingesting to QuestDB with temp table approach...");
-
-              fallbackTempTable = `temp_fallback_${symbol.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}`;
-              await runQuery(`CREATE OR REPLACE TABLE ${fallbackTempTable} AS
-                SELECT ROW_NUMBER() OVER (ORDER BY timestamp, open, close) as rn, symbol, timestamp, open, high, low, close, volume
-                FROM read_parquet('${parquetPath}')`);
-
-              const countResult = await runQuery<{ total: number }>(`SELECT MAX(rn) as total FROM ${fallbackTempTable}`);
-              if (countResult.length > 0 && countResult[0]!.total > 0) {
-                const total = countResult[0]!.total;
-                const CHUNK_SIZE = 50000;
-                let totalIngested = 0;
-                let chunkStart = 1;
-
-                while (chunkStart <= total) {
-                  const chunkEnd = chunkStart + CHUNK_SIZE - 1;
-                  const chunkData = await runQuery<{ symbol?: string; timestamp: number | string; open: number; high: number; low: number; close: number; volume?: number }>(
-                    `SELECT symbol, timestamp, open, high, low, close, volume FROM ${fallbackTempTable} WHERE rn >= ${chunkStart} AND rn <= ${chunkEnd}`
-                  );
-
-                  if (chunkData.length > 0) {
-                    await insertOHLCVBatch(chunkData.map((row) => ({
-                      symbol: row.symbol || symbol,
-                      timestamp: new Date(typeof row.timestamp === 'number' ? row.timestamp : new Date(row.timestamp).getTime()),
-                      open: row.open,
-                      high: row.high,
-                      low: row.low,
-                      close: row.close,
-                      volume: row.volume || 0
-                    })));
-                    totalIngested += chunkData.length;
-                  }
-                  chunkStart += CHUNK_SIZE;
-                }
-
-                console.log(`[Fallback] QuestDB ingestion complete: ${totalIngested} rows`);
-              }
-            }
-          } catch (questErr) {
-            console.log("[Fallback] QuestDB ingestion skipped:", String(questErr).substring(0, 100));
-          } finally {
-            if (fallbackTempTable) {
-              try { await runQuery(`DROP TABLE IF EXISTS ${fallbackTempTable}`); }
-              catch (dropErr) { console.error("[Fallback] Failed to drop temp table:", dropErr); }
-            }
-          }
+          await insertOHLCVBatch(records.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })));
         }
 
         // Clean up original file
@@ -409,7 +222,7 @@ export async function processOhlcvFileFromDisk(
 
         await storage.updateUploadStatus(uploadId, "completed", recordCount);
         ohlcvCache.invalidateSymbol(symbol);
-        console.log(`[Fallback] File processing complete. Total records: ${recordCount}.`);
+        console.log(`File processing complete. Total records: ${recordCount} -> QuestDB ohlcv`);
         resolve();
       } catch (err) {
         console.error("Final batch error:", err);

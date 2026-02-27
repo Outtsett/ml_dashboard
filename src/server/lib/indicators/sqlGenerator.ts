@@ -1,5 +1,5 @@
 /**
- * DuckDB SQL Generator for Technical Indicators
+ * SQL Generator for Technical Indicators
  * 
  * Generates SQL window functions that match the TypeScript math primitives.
  * This ensures consistent calculations between real-time (TS) and batch (SQL) processing.

@@ -9,8 +9,8 @@
 import type { ResolvedTrainingConfig, TrainingEvent, TrainingSession } from "@shared/trainingTypes";
 
 export interface ITrainerRunner {
-  /** Start training, return a session handle */
-  start(config: ResolvedTrainingConfig): Promise<TrainingSession>;
+  /** Start training, return a session handle. If existingSession provided, reuse it. */
+  start(config: ResolvedTrainingConfig, existingSession?: TrainingSession): Promise<TrainingSession>;
 
   /** Stop an active training session */
   stop(sessionId: string): void;

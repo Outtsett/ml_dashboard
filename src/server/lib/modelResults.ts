@@ -8,7 +8,7 @@
 
 import path from "path";
 import fs from "fs";
-import { questdbMarketQuery } from "./questdbMarketQuery";
+import { questdbHttpQuery } from "../questdb/httpQuery";
 
 // ─── Security ────────────────────────────────────────────────────────────────
 
@@ -79,11 +79,83 @@ export function listTrainedModels(baseDir: string): ModelSummary[] {
 
 // ─── Diagnostics ─────────────────────────────────────────────────────────────
 
+/** Convert legacy regime_profiles dict → regime_stats array for backward compat */
+function migrateLegacyDiagnostics(diag: Record<string, unknown>): Record<string, unknown> {
+  // Already new format
+  if (diag.regime_stats) return diag;
+
+  // Convert regime_profiles dict → regime_stats array
+  if (diag.regime_profiles && typeof diag.regime_profiles === "object") {
+    const profiles = diag.regime_profiles as Record<string, Record<string, unknown>>;
+    const nBarsTotal = (diag.n_bars_total || diag.n_bars || 1) as number;
+    diag.regime_stats = Object.entries(profiles).map(([id, p]) => ({
+      regime_id: Number(id),
+      count: (p.count as number) || 0,
+      pct: (p.pct as number) || 0,
+      avg_return: (p.mean_return as number) || 0,
+      avg_return_pct: ((p.mean_return as number) || 0) * 100,
+      avg_volatility: (p.volatility as number) || 0,
+      avg_range: 0,
+      avg_atr_ratio: 1,
+      avg_duration: 0,
+      max_duration: 0,
+      label: (p.label as string) || `Regime ${id}`,
+      nickname: (p.label as string) || `Regime ${id}`,
+      volatility_state: "normal",
+      bar_character: "normal",
+      characteristics: {},
+    }));
+    // Estimate durations from bar counts if possible
+    const stats = diag.regime_stats as Array<Record<string, unknown>>;
+    for (const s of stats) {
+      const count = s.count as number;
+      const nRegimes = (diag.n_regimes as number) || 1;
+      // Rough avg duration: total bars per regime / estimated number of visits
+      const estVisits = Math.max(1, nBarsTotal / (count > 0 ? nBarsTotal / count : 1) / 10);
+      s.avg_duration = Math.round(count / estVisits * 10) / 10;
+      s.max_duration = Math.round((s.avg_duration as number) * 3);
+    }
+  }
+
+  // Convert features_used → feature_names
+  if (diag.features_used && !diag.feature_names) {
+    diag.feature_names = diag.features_used;
+  }
+
+  // Add convergence_summary if missing (from convergence.json data if available)
+  if (!diag.convergence_summary) {
+    diag.convergence_summary = {
+      n_iterations: (diag.training_config as Record<string, unknown>)?.gibbs_iter || 0,
+      final_log_likelihood: 0,
+      final_active_states: (diag.n_regimes as number) || 0,
+    };
+  }
+
+  // Add empty transitions array from transition_matrix
+  if (!diag.transitions && diag.transition_matrix) {
+    const matrix = diag.transition_matrix as number[][];
+    const nRegimes = (diag.n_regimes as number) || matrix.length;
+    const transitions: Array<{ from: number; to: number; probability: number }> = [];
+    for (let i = 0; i < Math.min(nRegimes, matrix.length); i++) {
+      for (let j = 0; j < Math.min(nRegimes, (matrix[i]?.length || 0)); j++) {
+        const prob = matrix[i]![j]!;
+        if (prob >= 0.01) {
+          transitions.push({ from: i, to: j, probability: Math.round(prob * 10000) / 10000 });
+        }
+      }
+    }
+    diag.transitions = transitions;
+  }
+
+  return diag;
+}
+
 export function getModelDiagnostics(baseDir: string, id: string): object | null {
   const safe = sanitizeModelId(id);
   const diagPath = path.join(baseDir, safe, "diagnostics.json");
   if (!fs.existsSync(diagPath)) return null;
-  return JSON.parse(fs.readFileSync(diagPath, "utf-8"));
+  const raw = JSON.parse(fs.readFileSync(diagPath, "utf-8"));
+  return migrateLegacyDiagnostics(raw);
 }
 
 // ─── Convergence ─────────────────────────────────────────────────────────────
@@ -92,17 +164,26 @@ export function getModelConvergence(baseDir: string, id: string): object | null 
   const safe = sanitizeModelId(id);
   const convPath = path.join(baseDir, safe, "convergence.json");
   if (!fs.existsSync(convPath)) return null;
-  return JSON.parse(fs.readFileSync(convPath, "utf-8"));
+  const raw = JSON.parse(fs.readFileSync(convPath, "utf-8"));
+
+  // New format: already has "gibbs" key with ConvergencePoint[]
+  if (raw.gibbs) return raw;
+
+  // Legacy format: { log_likelihoods: number[] } → convert to ConvergencePoint[]
+  if (raw.log_likelihoods) {
+    return {
+      gibbs: (raw.log_likelihoods as number[]).map((ll: number, i: number) => ({
+        iter: i + 1,
+        log_likelihood: ll,
+      })),
+      n_iterations: raw.n_iterations || raw.log_likelihoods.length,
+    };
+  }
+
+  return raw;
 }
 
-// ─── Assignments (parquet + OHLCV join) ──────────────────────────────────────
-
-const TF_MAP: Record<string, string> = {
-  "1m": "1 MINUTE", "5m": "5 MINUTES", "15m": "15 MINUTES",
-  "30m": "30 MINUTES", "1h": "1 HOUR", "1H": "1 HOUR",
-  "4h": "4 HOURS", "4H": "4 HOURS",
-  "1d": "1 DAY", "1D": "1 DAY", "1w": "7 DAYS", "1W": "7 DAYS",
-};
+// ─── Assignments (parquet via QuestDB read_parquet) ──────────────────────────
 
 export interface AssignmentsOptions {
   limit?: number;
@@ -122,64 +203,57 @@ export async function getModelAssignments(
   const limit = Math.min(Number(opts.limit) || 50000, 100000);
   const offset = Number(opts.offset) || 0;
 
-  // Read diagnostics for symbol + timeframe (needed for OHLCV join)
-  const diagPath = path.join(baseDir, safe, "diagnostics.json");
-  let symbol: string | null = null;
-  let timeframe: string | null = null;
-  if (fs.existsSync(diagPath)) {
-    try {
-      const diag = JSON.parse(fs.readFileSync(diagPath, "utf-8"));
-      symbol = diag.symbol || null;
-      timeframe = diag.timeframe || null;
-    } catch { /* ignore */ }
-  }
-
-  const interval = timeframe ? TF_MAP[timeframe] || "30 MINUTES" : "30 MINUTES";
-
-  let rows: Record<string, unknown>[];
-  if (symbol) {
-    const isRoot = symbol.length <= 3 && /^[A-Za-z]+$/.test(symbol);
-    const symbolFilter = isRoot
-      ? `symbol ~ '^${symbol}[FGHJKMNQUVXZ][0-9]{1,2}$'`
-      : `symbol = '${symbol}'`;
-
-    const ohlcvCte = `agg AS (
-           SELECT time_bucket(INTERVAL '${interval}', ts) AS bucket_ts,
-                  FIRST(open ORDER BY ts) AS open, MAX(high) AS high,
-                  MIN(low) AS low, LAST(close ORDER BY ts) AS close,
-                  CAST(SUM(volume) AS DOUBLE) AS volume
-           FROM ohlcv
-           WHERE ${symbolFilter}
-           GROUP BY bucket_ts
-         )`;
-
-    rows = await questdbMarketQuery<Record<string, unknown>>(
-      `WITH ${ohlcvCte}
-       SELECT r.ts,
-              CAST(COALESCE(a.open,  r.close) AS DOUBLE) as open,
-              CAST(COALESCE(a.high,  r.close) AS DOUBLE) as high,
-              CAST(COALESCE(a.low,   r.close) AS DOUBLE) as low,
-              CAST(r.close AS DOUBLE) as close,
-              CAST(COALESCE(a.volume, 0) AS DOUBLE) as volume,
-              CAST(r.regime AS INTEGER) as regime,
-              r.regime_label,
-              r.split
-       FROM read_parquet('${forwardPath}') r
-       LEFT JOIN agg a ON a.bucket_ts = r.ts
-       ORDER BY r.ts ASC LIMIT ${limit} OFFSET ${offset}`
-    );
-  } else {
-    rows = await questdbMarketQuery<Record<string, unknown>>(
-      `SELECT ts, CAST(close AS DOUBLE) as close, CAST(regime AS INTEGER) as regime, regime_label, split
-       FROM read_parquet('${forwardPath}') ORDER BY ts ASC LIMIT ${limit} OFFSET ${offset}`
-    );
-  }
-
-  const total = await questdbMarketQuery<{ cnt: number }>(
-    `SELECT CAST(COUNT(*) AS DOUBLE) as cnt FROM read_parquet('${forwardPath}')`
+  const rows = await questdbHttpQuery<Record<string, unknown>>(
+    `SELECT ts, CAST(close AS DOUBLE) as close,
+            CAST(regime AS INT) as regime, regime_label, split
+     FROM read_parquet('${forwardPath}')
+     ORDER BY ts ASC
+     LIMIT ${offset}, ${limit}`
   );
 
-  return { rows, total: total[0]?.cnt || rows.length, limit, offset };
+  const total = await questdbHttpQuery<{ cnt: number }>(
+    `SELECT count() as cnt FROM read_parquet('${forwardPath}')`
+  );
+
+  return { rows, total: Number(total[0]?.cnt ?? rows.length), limit, offset };
+}
+
+// ─── SHAP Values ─────────────────────────────────────────────────────────────
+
+export interface ShapOptions {
+  regime?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export async function getModelShap(
+  baseDir: string,
+  id: string,
+  opts: ShapOptions = {},
+) {
+  const safe = sanitizeModelId(id);
+  const parquetPath = path.join(baseDir, safe, "shap_values.parquet");
+  if (!fs.existsSync(parquetPath)) return null;
+
+  const forwardPath = parquetPath.replace(/\\/g, "/");
+  const limit = Math.min(Number(opts.limit) || 50000, 100000);
+  const offset = Number(opts.offset) || 0;
+  const regimeFilter = opts.regime !== undefined
+    ? `WHERE regime = ${Math.floor(Number(opts.regime))}`
+    : "";
+
+  const rows = await questdbHttpQuery<Record<string, unknown>>(
+    `SELECT * FROM read_parquet('${forwardPath}')
+     ${regimeFilter}
+     ORDER BY ts ASC
+     LIMIT ${offset}, ${limit}`
+  );
+
+  const total = await questdbHttpQuery<{ cnt: number }>(
+    `SELECT count() as cnt FROM read_parquet('${forwardPath}') ${regimeFilter}`
+  );
+
+  return { rows, total: Number(total[0]?.cnt ?? rows.length), limit, offset };
 }
 
 // ─── Delete ──────────────────────────────────────────────────────────────────

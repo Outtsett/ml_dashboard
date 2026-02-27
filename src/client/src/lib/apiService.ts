@@ -51,27 +51,23 @@ export const mlApi = {
     get(`/api/ml/xai/${encodeURIComponent(modelName)}?method=${method}`),
 } as const;
 
-// ── Training ─────────────────────────────────────────────────────────────────
+// ── Training (unified — model lifecycle + CRUD) ─────────────────────────────
 
 export const trainingApi = {
-  getConfig:    ()                => get('/api/training/config'),
-  start:        (body: unknown)   => mutate('POST', '/api/training/start', body),
-  stop:         (modelId: number) => mutate('POST', `/api/training/stop/${modelId}`),
-} as const;
-
-// ── Regime (unified training router) ─────────────────────────────────────────
-
-export const regimeApi = {
-  getModels:      ()              => getArray('/api/training/models'),
-  getDiagnostics: (id: number)    => get(`/api/training/models/${id}/diagnostics`),
-  getConvergence: (id: number)    => getArray(`/api/training/models/${id}/convergence`),
+  getConfig:      ()                 => get('/api/training/config'),
+  start:          (body: unknown)    => mutate('POST', '/api/training/start', body),
+  stop:           (modelId: string)  => mutate('POST', `/api/training/stop/${modelId}`),
+  getStatus:      ()                 => get('/api/training/status'),
+  getModels:      ()                 => getArray('/api/training/models'),
+  getDiagnostics: (id: string)       => get(`/api/training/models/${id}/diagnostics`),
+  getConvergence: (id: string)       => getArray(`/api/training/models/${id}/convergence`),
   getAssignments: (params: Record<string, string>) =>
     get(`/api/training/models/${params.modelId}/assignments?${new URLSearchParams(params)}`),
-  getTrainStatus: ()              => get('/api/training/status'),
-  startTraining:  (body: unknown) => mutate('POST', '/api/training/start', body),
-  stopTraining:   (modelId: string) => mutate('POST', `/api/training/stop/${modelId}`),
-  deleteModel:    (id: number)    => mutate('DELETE', `/api/training/models/${id}`),
+  deleteModel:    (id: string)       => mutate('DELETE', `/api/training/models/${id}`),
 } as const;
+
+/** @deprecated Use `trainingApi` instead — consolidated to avoid DRY violation. */
+export const regimeApi = trainingApi;
 
 // ── Indicators ───────────────────────────────────────────────────────────────
 

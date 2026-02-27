@@ -1,8 +1,8 @@
 /**
  * Indicator Computation Service
  * 
- * Provides both batch (DuckDB SQL) and real-time (technicalindicators) calculations.
- * - Batch mode: Uses DuckDB for efficient OLAP-style computation on large datasets
+ * Provides both batch (SQL) and real-time (technicalindicators) calculations.
+ * - Batch mode: Uses SQL window functions for efficient OLAP-style computation
  * - Real-time mode: Uses technicalindicators library for streaming calculations
  */
 

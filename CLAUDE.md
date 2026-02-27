@@ -55,8 +55,8 @@ Plus file-based stores:
 | Store                   | Role                                                | Size  |
 | ----------------------- | --------------------------------------------------- | ----- |
 | `data/market.duckdb`    | OHLCV + rollovers (offline indicator computation)   | 44 GB |
-| `data/indicators/{tf}/` | Pre-computed 344 pandas-ta indicators per symbol    | 24 GB |
-| `data/features/{tf}/`   | Normalized indicator parquets for model consumption | NEW   |
+| `data/{futures,forex}/`  | Pre-computed 344 pandas-ta indicators per symbol   | 24 GB |
+| `data/features/`         | Normalized indicator parquets for model consumption | NEW   |
 | `data/models/`          | Trained model checkpoints (CNN, HDP-HMM)            | Var.  |
 
 ### When to Use Which
@@ -65,8 +65,8 @@ Plus file-based stores:
 - **QuestDB**: ALL time-series queries — chart rendering (`SAMPLE BY`), training data export, trades, MBP-10 depth. Source of truth. No DuckDB fallback for serving.
 - **DuckDB in-memory**: Analytics compute engine — reads QuestDB via `postgres_scanner`, computes features via SQL window functions, reads/writes parquet files. No persistent tables.
 - **market.duckdb (file)**: Offline OHLCV + rollovers source for `compute-indicators.py`. Can also be bypassed with `--source questdb` flag.
-- **Indicator parquets**: Pre-computed pandas-ta indicators in `data/indicators/` (344 columns, 9 categories per symbol)
-- **Feature parquets**: Normalized indicators in `data/features/` (binary pass-through, bounded [0,1], rolling z-score clipped [-5,5])
+- **Indicator parquets**: Pre-computed pandas-ta indicators in `data/{futures,forex}/{symbol}/{tf}/` (344 columns, 9 categories per symbol)
+- **Feature parquets**: Normalized indicators in `data/features/{futures,forex}/{symbol}/{tf}/` (binary pass-through, bounded [0,1], rolling z-score clipped [-5,5])
 
 ### Database Paths (Local Installs)
 ```
@@ -146,13 +146,13 @@ QuestDB OHLCV (source of truth)
     |    compute-indicators.py (344 pandas-ta indicators)
     |        |
     |        v
-    |    data/indicators/{tf}/{symbol}/{category}.parquet
+    |    data/{futures|forex}/{symbol}/{tf}/{category}.parquet
     |        |
     |        v
     |    normalize-indicators.py (binary/bounded/z-score normalization)
     |        |
     |        v
-    |    data/features/{tf}/{symbol}/normalized.parquet
+    |    data/features/{futures|forex}/{symbol}/{tf}/normalized.parquet
     |        |
     |        v
     |    Models consume pre-computed features (fallback: on-the-fly)
@@ -315,7 +315,7 @@ All new code **must** follow SOLID. Apply everywhere — routes, components, hoo
 
 - **EventEmitter training**: `MLTrainer extends EventEmitter` emits progress events per epoch. Frontend connects via SSE at `GET /ml/train/stream`.
 - **SQL-first indicators/labels**: DuckDB SQL window functions for batch processing. Direction labels and triple barrier labels generate via SQL CTEs, not row-by-row.
-- **Pre-computed indicators**: pandas-ta `AllStudy` computes 344 indicator columns (9 categories: overlap, momentum, volatility, volume, trend, candle, statistics, cycle, performance). Stored as parquet files in `data/indicators/`, served via `/api/indicators/data/:symbol`.
+- **Pre-computed indicators**: pandas-ta `AllStudy` computes 344 indicator columns (9 categories: overlap, momentum, volatility, volume, trend, candle, statistics, cycle, performance). Stored as parquet files in `data/{futures,forex}/{symbol}/{tf}/`, served via `/api/indicators/data/:symbol`.
 - **No continuous contracts / Panama adjustment**: Individual contracts only. Rollover stitching removed (bad for ML).
 - **Circuit breaker**: Auto-disable failing DB connections. States: closed (normal), open (failing, fast-fail), half-open (testing). Reset via `POST /circuit-breaker/reset/:name`.
 - **File-level dedup**: SHA-256 hash tracking in `ingested_files` DuckDB table prevents re-ingestion.

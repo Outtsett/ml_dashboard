@@ -31,9 +31,9 @@ flowchart TB
     end
 
     subgraph DATA["Pre-Computed Data Layer (Read-Only)"]
-        IND["Indicator Parquets\ndata/indicators/{tf}/{symbol}/\n10 category files × 344 cols"]
+        IND["Indicator Parquets\ndata/{futures|forex}/{symbol}/{tf}/\n10 category files × 344 cols"]
         OHLCV["QuestDB OHLCV\n759.5M rows\n25 symbols × 8 timeframes"]
-        FEAT["Feature Parquets\ndata/features/{tf}/{symbol}/\nnormalized.parquet"]
+        FEAT["Feature Parquets\ndata/features/{futures|forex}/{symbol}/{tf}/\nnormalized.parquet"]
     end
 
     subgraph ASSEMBLE["Data Assembly (ephemeral)"]
@@ -89,7 +89,7 @@ flowchart TB
 | **`features.json`**                                            | ⚠️ Only `full-344` stub. No presets, no pipelines              | Can't select features                         |
 | **Parser registry** (`runners/parsers/index.ts`)               | ⚠️ Empty map — everything falls to DefaultParser               | No model-specific output parsing              |
 | **Model adapters** (`components/training/modelAdapters.ts`)    | ⚠️ Empty map — falls to FALLBACK_ADAPTER                       | No per-model UI                               |
-| **Pre-computed data** (`data/indicators/`)                     | ✅ 344 cols × 13 symbols × 8 timeframes                        | data/features/ (normalized) not yet generated |
+| **Pre-computed data** (`data/{futures,forex}/`)                | ✅ 344 cols × 13 symbols × 8 timeframes                        | data/features/ (normalized) not yet generated |
 
 **Think of it as**: The train tracks (orchestrator, SSE, runners) are fully laid. The station (UI) is built. But there are no trains on the tracks — `models.json` is the train schedule, and it's blank.
 
@@ -100,7 +100,7 @@ flowchart TB
 ### 2.1 What Already Exists
 
 ```
-data/indicators/{timeframe}/{symbol}/
+data/{futures|forex}/{symbol}/{timeframe}/
   ├── candle.parquet     → 62 pattern columns (CDL_DOJI, CDL_HAMMER, ...)
   ├── cycle.parquet      →  2 columns (EBSW, Reflex)
   ├── momentum.parquet   → 62 columns (RSI_14, MACD_12_26_9, ...)
@@ -180,7 +180,7 @@ import { getFeatureSet } from './registry';
 
 export interface ResolvedFeatures {
   columns: string[];               // e.g. ["RSI_14", "MACD_12_26_9", ...]
-  parquetPaths: string[];          // e.g. ["data/indicators/1d/ES/momentum.parquet", ...]
+  parquetPaths: string[];          // e.g. ["data/futures/ES/1d/momentum.parquet", ...]
   categories: string[];            // which category files are needed
 }
 
@@ -246,9 +246,9 @@ export async function assembleTrainingData(req: AssemblyRequest): Promise<Assemb
 CREATE TEMP TABLE indicators AS
 SELECT ts, {selected_feature_columns}
 FROM read_parquet([
-  'data/indicators/1d/ES/momentum.parquet',
-  'data/indicators/1d/ES/volatility.parquet',
-  'data/indicators/1d/ES/overlap.parquet'
+  'data/futures/ES/1d/momentum.parquet',
+  'data/futures/ES/1d/volatility.parquet',
+  'data/futures/ES/1d/overlap.parquet'
   -- only the category files that contain requested columns
 ]);
 

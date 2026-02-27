@@ -1,8 +1,8 @@
 """
 Normalize pre-computed indicator parquets for model consumption.
 
-Reads raw 344-indicator parquets from data/indicators/{tf}/{symbol}/
-and produces normalized versions in data/features/{tf}/{symbol}/.
+Reads raw 344-indicator parquets from data/{futures|forex}/{symbol}/{tf}/
+and produces normalized versions in data/features/{futures|forex}/{symbol}/{tf}/.
 
 Normalization types (7 categories):
   1. skip         - Raw OHLCV duplicates, broken columns (HWPCT_1)
@@ -20,8 +20,8 @@ Normalization types (7 categories):
   8. passthrough  - Already normalized (Z-scores, percentile ranks)
 
 Output:
-    data/features/{tf}/{symbol}/normalized.parquet
-    data/features/{tf}/{symbol}/normalization_stats.json
+    data/features/{futures|forex}/{symbol}/{tf}/normalized.parquet
+    data/features/{futures|forex}/{symbol}/{tf}/normalization_stats.json
 
 Usage:
     python scripts/normalize-indicators.py
@@ -50,8 +50,9 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 # ==============================================================================
 
 ROOT = Path(__file__).resolve().parent.parent
-INDICATORS_DIR = ROOT / "data" / "indicators"
+DATA_DIR = ROOT / "data"
 FEATURES_DIR = ROOT / "data" / "features"
+ASSET_CLASSES = ("futures", "forex")
 
 ROLLING_WINDOW = 50
 CLIP_RANGE = 5.0
@@ -648,19 +649,20 @@ def compute_core_features(
 def normalize_symbol_timeframe(
     symbol: str,
     timeframe: str,
+    asset_class: str = "futures",
     force: bool = False,
 ) -> dict | None:
     """Normalize all indicators for one symbol/timeframe combo.
 
     Returns metadata dict or None if skipped.
     """
-    indicator_dir = INDICATORS_DIR / timeframe / symbol
+    indicator_dir = DATA_DIR / asset_class / symbol / timeframe
     meta_path = indicator_dir / "_meta.json"
 
     if not meta_path.exists():
         return None
 
-    output_dir = FEATURES_DIR / timeframe / symbol
+    output_dir = FEATURES_DIR / asset_class / symbol / timeframe
     normalized_path = output_dir / "normalized.parquet"
     stats_path = output_dir / "normalization_stats.json"
 
@@ -870,8 +872,8 @@ def main():
         description="Normalize pre-computed indicators for model consumption",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Output: data/features/{timeframe}/{symbol}/normalized.parquet
-        data/features/{timeframe}/{symbol}/normalization_stats.json
+Output: data/features/{futures|forex}/{symbol}/{timeframe}/normalized.parquet
+        data/features/{futures|forex}/{symbol}/{timeframe}/normalization_stats.json
 
 Examples:
   python scripts/normalize-indicators.py                          # All computed indicators
@@ -888,21 +890,13 @@ Examples:
     total_start = time.time()
     FEATURES_DIR.mkdir(parents=True, exist_ok=True)
 
-    if not INDICATORS_DIR.exists():
-        print("[normalize] No indicators directory found. Run compute-indicators.py first.")
-        sys.exit(1)
-
-    # Discover all symbol/timeframe combos from indicators dir
-    combos: list[tuple[str, str]] = []
-    for tf_dir in sorted(INDICATORS_DIR.iterdir()):
-        if not tf_dir.is_dir():
+    # Discover all symbol/timeframe combos from data/{futures|forex}/{symbol}/{tf}/
+    combos: list[tuple[str, str, str]] = []  # (symbol, timeframe, asset_class)
+    for ac in ASSET_CLASSES:
+        ac_dir = DATA_DIR / ac
+        if not ac_dir.exists():
             continue
-        tf = tf_dir.name
-        if args.timeframes:
-            selected_tfs = set(args.timeframes.lower().split(","))
-            if tf.lower() not in selected_tfs:
-                continue
-        for sym_dir in sorted(tf_dir.iterdir()):
+        for sym_dir in sorted(ac_dir.iterdir()):
             if not sym_dir.is_dir():
                 continue
             sym = sym_dir.name
@@ -910,20 +904,32 @@ Examples:
                 selected_syms = set(args.symbols.upper().split(","))
                 if sym.upper() not in selected_syms:
                     continue
-            if (sym_dir / "_meta.json").exists():
-                combos.append((sym, tf))
+            for tf_dir in sorted(sym_dir.iterdir()):
+                if not tf_dir.is_dir():
+                    continue
+                tf = tf_dir.name
+                if args.timeframes:
+                    selected_tfs = set(args.timeframes.lower().split(","))
+                    if tf.lower() not in selected_tfs:
+                        continue
+                if (tf_dir / "_meta.json").exists():
+                    combos.append((sym, tf, ac))
+
+    if not combos:
+        print("[normalize] No indicator data found. Run compute-indicators.py first.")
+        sys.exit(1)
 
     print(f"[normalize] Found {len(combos)} symbol/timeframe combinations to normalize")
-    print(f"[normalize] Output: data/features/{{timeframe}}/{{symbol}}/normalized.parquet")
+    print(f"[normalize] Output: data/features/{{ac}}/{{symbol}}/{{timeframe}}/normalized.parquet")
     print()
 
     computed = 0
     skipped = 0
     errors = 0
 
-    for i, (sym, tf) in enumerate(combos, 1):
+    for i, (sym, tf, ac) in enumerate(combos, 1):
         try:
-            result = normalize_symbol_timeframe(sym, tf, force=args.force)
+            result = normalize_symbol_timeframe(sym, tf, asset_class=ac, force=args.force)
             if result is None:
                 errors += 1
             elif result["status"] == "skipped":

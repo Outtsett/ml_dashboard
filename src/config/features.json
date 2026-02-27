@@ -1,5 +1,11 @@
 {
-  "pipelines": {},
+  "pipelines": {
+    "self-contained": {
+      "name": "Self-Contained",
+      "description": "Model computes and normalizes its own features from raw OHLCV",
+      "source": "internal"
+    }
+  },
   "featureSets": {
     "full-344": {
       "description": "All available pre-computed indicators",

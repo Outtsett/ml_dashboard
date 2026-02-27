@@ -2,15 +2,17 @@
  * Pre-computed indicator business logic.
  *
  * Handles catalog generation, indicator data retrieval, and candle-pattern
- * extraction for both the v2 partitioned format and the v1 flat-file format.
+ * extraction from category-partitioned parquets in data/{futures|forex}/{symbol}/{tf}/.
  * Route handlers delegate here — no HTTP concerns live in this module.
  */
 
 import * as path from "path";
 import * as fs from "fs";
-import { runQuery } from "../../duckdb";
+import { questdbHttpQuery } from "../../questdb/httpQuery";
 import {
-  INDICATOR_DIR,
+  DATA_DIR,
+  ASSET_CLASSES,
+  resolveSymbolDir,
   cachedCatalog,
   setCachedCatalog,
   readMeta,
@@ -123,44 +125,21 @@ export interface CatalogResult {
 export async function getCatalog(): Promise<CatalogResult> {
   if (cachedCatalog) return cachedCatalog;
 
-  if (!fs.existsSync(INDICATOR_DIR)) {
-    return { categories: {}, total: 0, columns: [] };
-  }
-
-  // Try partitioned format first (v2: _meta.json files)
   const sampleMeta = findSampleMeta();
-  if (sampleMeta) {
-    const categories: Record<string, string[]> = {};
-    const allColumns: string[] = [];
-    for (const [cat, catMeta] of Object.entries(sampleMeta.categories)) {
-      categories[cat] = catMeta.columns;
-      allColumns.push(...catMeta.columns);
-    }
-    for (const key of Object.keys(categories)) {
-      if (categories[key]?.length === 0) delete categories[key];
-    }
-    const result: CatalogResult = { categories, total: allColumns.length, columns: allColumns };
-    setCachedCatalog(result);
-    return result;
-  }
-
-  // Fall back to flat file introspection (v1 format)
-  const files = fs.readdirSync(INDICATOR_DIR).filter(f => f.endsWith(".parquet"));
-  if (files.length === 0) {
+  if (!sampleMeta) {
     return { categories: {}, total: 0, columns: [] };
   }
 
-  const samplePath = path.join(INDICATOR_DIR, files[0]!).replace(/\\/g, "/");
-  const colResult = await runQuery<{ column_name: string }>(`
-    SELECT column_name FROM (DESCRIBE SELECT * FROM read_parquet('${samplePath}'))
-  `);
-
-  const indicatorCols = colResult
-    .map(r => r.column_name)
-    .filter(c => !OHLCV_COLS.has(c.toLowerCase()));
-
-  const categories = classifyColumns(indicatorCols);
-  const result: CatalogResult = { categories, total: indicatorCols.length, columns: indicatorCols };
+  const categories: Record<string, string[]> = {};
+  const allColumns: string[] = [];
+  for (const [cat, catMeta] of Object.entries(sampleMeta.categories)) {
+    categories[cat] = catMeta.columns;
+    allColumns.push(...catMeta.columns);
+  }
+  for (const key of Object.keys(categories)) {
+    if (categories[key]?.length === 0) delete categories[key];
+  }
+  const result: CatalogResult = { categories, total: allColumns.length, columns: allColumns };
   setCachedCatalog(result);
   return result;
 }
@@ -189,47 +168,8 @@ export async function getIndicatorData(
   columns?: string,
   limit: number = 2000,
 ): Promise<{ data: IndicatorDataResult } | { notFound: IndicatorDataNotFound }> {
-  // --- Try partitioned format first (v2) ---
   const meta = readMeta(symbol, timeframe);
-  if (meta) {
-    const partDir = getPartitionedDir(symbol, timeframe);
-
-    if (columns) {
-      const requestedCols = columns.split(",").map(c => c.trim()).filter(c => /^[a-zA-Z0-9_.]+$/.test(c));
-      const categoryColMap = findColumnsInCategories(meta, requestedCols);
-
-      if (categoryColMap.size === 0) {
-        return {
-          notFound: {
-            error: `None of the requested columns found in ${symbol}/${timeframe}`,
-            available_categories: Object.keys(meta.categories),
-          },
-        };
-      }
-
-      const sql = buildPartitionedQuery(partDir, categoryColMap, limit);
-      const raw = await runQuery(sql);
-      raw.reverse();
-      const serialized = serializeBigInts(raw);
-      return { data: { symbol, timeframe, count: serialized.length, data: serialized } };
-    }
-
-    // All columns -- join all category files
-    const allColMap = new Map<string, string[]>();
-    for (const [cat, catMeta] of Object.entries(meta.categories)) {
-      allColMap.set(cat, catMeta.columns);
-    }
-
-    const sql = buildPartitionedQuery(partDir, allColMap, limit);
-    const raw = await runQuery(sql);
-    raw.reverse();
-    const serialized = serializeBigInts(raw);
-    return { data: { symbol, timeframe, count: serialized.length, data: serialized } };
-  }
-
-  // --- Fall back to flat file (v1) ---
-  const filePath = path.join(INDICATOR_DIR, `${symbol}_${timeframe}.parquet`);
-  if (!fs.existsSync(filePath)) {
+  if (!meta) {
     const available = listAvailableIndicators(symbol);
     return {
       notFound: {
@@ -239,21 +179,36 @@ export async function getIndicatorData(
     };
   }
 
-  const safePath = filePath.replace(/\\/g, "/");
+  const partDir = getPartitionedDir(symbol, timeframe);
 
-  let selectClause = "*";
   if (columns) {
-    const requestedCols = columns.split(",").map(c => c.trim());
-    const safeCols = ["timestamp", ...requestedCols.filter(c => /^[a-zA-Z0-9_.]+$/.test(c))];
-    selectClause = safeCols.map(c => `"${c}"`).join(", ");
+    const requestedCols = columns.split(",").map(c => c.trim()).filter(c => /^[a-zA-Z0-9_.]+$/.test(c));
+    const categoryColMap = findColumnsInCategories(meta, requestedCols);
+
+    if (categoryColMap.size === 0) {
+      return {
+        notFound: {
+          error: `None of the requested columns found in ${symbol}/${timeframe}`,
+          available_categories: Object.keys(meta.categories),
+        },
+      };
+    }
+
+    const sql = buildPartitionedQuery(partDir, categoryColMap, limit);
+    const raw = await questdbHttpQuery(sql);
+    raw.reverse();
+    const serialized = serializeBigInts(raw);
+    return { data: { symbol, timeframe, count: serialized.length, data: serialized } };
   }
 
-  const raw = await runQuery(`
-    SELECT ${selectClause}
-    FROM read_parquet('${safePath}')
-    ORDER BY timestamp DESC
-    LIMIT ${limit}
-  `);
+  // All columns -- join all category files
+  const allColMap = new Map<string, string[]>();
+  for (const [cat, catMeta] of Object.entries(meta.categories)) {
+    allColMap.set(cat, catMeta.columns);
+  }
+
+  const sql = buildPartitionedQuery(partDir, allColMap, limit);
+  const raw = await questdbHttpQuery(sql);
   raw.reverse();
   const serialized = serializeBigInts(raw);
   return { data: { symbol, timeframe, count: serialized.length, data: serialized } };
@@ -273,57 +228,24 @@ export async function getPatternData(
   timeframe: string,
   limit: number = 2000,
 ): Promise<{ data: PatternDataResult } | { notFound: { error: string } }> {
-  // --- Try partitioned format first (v2) ---
   const meta = readMeta(symbol, timeframe);
-  if (meta && meta.categories.candle) {
-    const candlePath = path.join(
-      getPartitionedDir(symbol, timeframe), "candle.parquet",
-    ).replace(/\\/g, "/");
-    const patternCols = meta.categories.candle.columns;
-
-    if (patternCols.length === 0) {
-      return { data: { symbol, timeframe, patterns: [], count: 0, data: [] } };
-    }
-
-    const selectCols = ["timestamp", ...patternCols].map(c => `"${c}"`).join(", ");
-    const raw = await runQuery(`
-      SELECT ${selectCols}
-      FROM read_parquet('${candlePath}')
-      ORDER BY timestamp DESC
-      LIMIT ${limit}
-    `);
-    raw.reverse();
-
-    const activePatterns = extractActivePatterns(raw, patternCols);
-    return {
-      data: { symbol, timeframe, patterns: patternCols, count: activePatterns.length, data: activePatterns },
-    };
-  }
-
-  // --- Fall back to flat file (v1) ---
-  const filePath = path.join(INDICATOR_DIR, `${symbol}_${timeframe}.parquet`);
-  if (!fs.existsSync(filePath)) {
+  if (!meta || !meta.categories.candle) {
     return { notFound: { error: `No pre-computed data for ${symbol} at ${timeframe}` } };
   }
 
-  const safePath = filePath.replace(/\\/g, "/");
-
-  const colResult = await runQuery<{ column_name: string }>(`
-    SELECT column_name FROM (DESCRIBE SELECT * FROM read_parquet('${safePath}'))
-  `);
-
-  const patternCols = colResult
-    .map(r => r.column_name)
-    .filter(c => c.startsWith("CDL_"));
+  const candlePath = path.join(
+    getPartitionedDir(symbol, timeframe), "candle.parquet",
+  ).replace(/\\/g, "/");
+  const patternCols = meta.categories.candle.columns;
 
   if (patternCols.length === 0) {
     return { data: { symbol, timeframe, patterns: [], count: 0, data: [] } };
   }
 
   const selectCols = ["timestamp", ...patternCols].map(c => `"${c}"`).join(", ");
-  const raw = await runQuery(`
+  const raw = await questdbHttpQuery(`
     SELECT ${selectCols}
-    FROM read_parquet('${safePath}')
+    FROM read_parquet('${candlePath}')
     ORDER BY timestamp DESC
     LIMIT ${limit}
   `);
@@ -335,21 +257,18 @@ export async function getPatternData(
   };
 }
 
-/** List available indicator files (partitioned + flat) for a symbol. */
+/** List available indicator timeframes for a symbol. */
 export function listAvailableIndicators(symbol: string): string[] {
   const available: string[] = [];
-  if (!fs.existsSync(INDICATOR_DIR)) return available;
+  const symDir = resolveSymbolDir(symbol);
+  if (!symDir || !fs.existsSync(symDir)) return available;
 
-  // Check partitioned dirs
-  for (const tf of fs.readdirSync(INDICATOR_DIR)) {
-    const symDir = path.join(INDICATOR_DIR, tf, symbol);
-    if (fs.existsSync(path.join(symDir, "_meta.json"))) {
-      available.push(`${symbol}_${tf} (partitioned)`);
+  for (const tf of fs.readdirSync(symDir)) {
+    const tfDir = path.join(symDir, tf);
+    if (!fs.statSync(tfDir).isDirectory()) continue;
+    if (fs.existsSync(path.join(tfDir, "_meta.json"))) {
+      available.push(`${symbol}/${tf}`);
     }
-  }
-  // Check flat files
-  for (const f of fs.readdirSync(INDICATOR_DIR).filter(f => f.startsWith(symbol) && f.endsWith(".parquet"))) {
-    available.push(f.replace(".parquet", ""));
   }
 
   return available;

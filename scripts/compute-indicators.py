@@ -5,7 +5,7 @@ Reads OHLCV from DuckDB market.duckdb (read-only), computes ~344 indicator
 columns via pandas-ta, writes category-partitioned parquets with metadata.
 
 Output structure:
-    data/indicators/{timeframe}/{symbol}/
+    data/{futures|forex}/{symbol}/{timeframe}/
         overlap.parquet      # SMA, EMA, Bollinger, Keltner, Donchian, etc.
         momentum.parquet     # RSI, MACD, Stochastic, CCI, etc.
         volatility.parquet   # ATR, NATR, True Range, etc.
@@ -22,7 +22,6 @@ Usage:
     python scripts/compute-indicators.py --symbols ES,MNQ --timeframes 1d,1h
     python scripts/compute-indicators.py --timeframes 1m --workers 2
     python scripts/compute-indicators.py --force --workers 4
-    python scripts/compute-indicators.py --migrate   # Convert old flat files
 
 Requires: pandas-ta>=0.4.71b0, duckdb>=1.2.0, pyarrow
 """
@@ -50,7 +49,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = str(ROOT / "data" / "market.duckdb")
-OUT_DIR = ROOT / "data" / "indicators"
+DATA_DIR = ROOT / "data"
 
 # Global: resolved path to use (may be a snapshot copy if file is locked)
 _RESOLVED_DB_PATH: str | None = None
@@ -694,6 +693,7 @@ def write_partitioned(
     symbol: str,
     tf_name: str,
     out_dir: Path,
+    sym_type: str = "futures",
 ) -> dict:
     """Write indicator DataFrame to category-partitioned parquet files.
 
@@ -703,7 +703,7 @@ def write_partitioned(
 
     Returns metadata dict.
     """
-    symbol_dir = out_dir / tf_name / symbol
+    symbol_dir = out_dir / sym_type / symbol / tf_name
     symbol_dir.mkdir(parents=True, exist_ok=True)
 
     # Reset index if timestamp is the index
@@ -813,17 +813,11 @@ def process_symbol(
     }
 
     for tf_name, tf_sec in tf_list:
-        symbol_dir = OUT_DIR / tf_name / symbol
+        symbol_dir = DATA_DIR / sym_type / symbol / tf_name
         meta_path = symbol_dir / "_meta.json"
 
         # Skip if already computed (partitioned format)
         if meta_path.exists() and not force:
-            results["skipped"] += 1
-            continue
-
-        # Also skip if old flat file exists and we're not forcing
-        old_path = OUT_DIR / f"{symbol}_{tf_name}.parquet"
-        if old_path.exists() and not force:
             results["skipped"] += 1
             continue
 
@@ -855,7 +849,7 @@ def process_symbol(
             df = compute_indicators(df, symbol, tf_name)
 
             # Write partitioned
-            meta = write_partitioned(df, symbol, tf_name, OUT_DIR)
+            meta = write_partitioned(df, symbol, tf_name, DATA_DIR, sym_type)
 
             elapsed = time.time() - combo_start
             results["completed"] += 1
@@ -890,78 +884,6 @@ def process_symbol(
 # ==============================================================================
 
 
-def migrate_flat_files(out_dir: Path, remove_old: bool = False):
-    """Migrate old flat {SYMBOL}_{timeframe}.parquet files to partitioned format."""
-    flat_files = sorted(out_dir.glob("*.parquet"))
-    flat_files = [f for f in flat_files if f.is_file()]
-
-    if not flat_files:
-        print("[migrate] No flat files found to migrate")
-        return
-
-    print(f"[migrate] Found {len(flat_files)} flat parquet files")
-    migrated = 0
-    skipped = 0
-    errors = 0
-
-    for flat_path in flat_files:
-        name = flat_path.stem  # e.g., "ES_1d", "AUDJPY_15m"
-
-        # Parse symbol and timeframe from filename
-        symbol = None
-        tf_name = None
-        for tf in TIMEFRAMES:
-            if name.endswith(f"_{tf}"):
-                symbol = name[: -(len(tf) + 1)]
-                tf_name = tf
-                break
-
-        if not symbol or not tf_name:
-            print(f"  [migrate] Skip {flat_path.name}: can't parse symbol/timeframe")
-            skipped += 1
-            continue
-
-        target_dir = out_dir / tf_name / symbol
-        if (target_dir / "_meta.json").exists():
-            print(f"  [migrate] Skip {symbol}/{tf_name}: already partitioned")
-            skipped += 1
-            continue
-
-        size_mb = flat_path.stat().st_size / (1024 * 1024)
-        print(
-            f"  [migrate] {flat_path.name} ({size_mb:.0f}MB) -> {tf_name}/{symbol}/...",
-            end="",
-            flush=True,
-        )
-
-        try:
-            con = duckdb.connect(":memory:")
-            safe = str(flat_path).replace("\\", "/")
-            df = con.sql(f"SELECT * FROM read_parquet('{safe}')").df()
-            con.close()
-
-            meta = write_partitioned(df, symbol, tf_name, out_dir)
-            del df
-
-            new_size = meta.get("total_size_mb", 0)
-            print(f" -> {new_size}MB ({len(meta.get('categories', {}))} categories)")
-            migrated += 1
-
-            if remove_old:
-                flat_path.unlink()
-                print(f"    Removed {flat_path.name}")
-
-        except Exception as e:
-            errors += 1
-            print(f" ERROR: {e}")
-
-    print(f"\n[migrate] Done: {migrated} migrated, {skipped} skipped, {errors} errors")
-    if not remove_old and migrated > 0:
-        print(
-            "[migrate] Old flat files kept. Re-run with --migrate --remove-old to delete them."
-        )
-
-
 # ==============================================================================
 # Main
 # ==============================================================================
@@ -972,15 +894,13 @@ def main():
         description="Compute technical indicators (category-partitioned, zstd-compressed)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Output: data/indicators/{timeframe}/{symbol}/{category}.parquet
+Output: data/{futures|forex}/{symbol}/{timeframe}/{category}.parquet
 Categories: candle, overlap, momentum, volatility, volume, trend, statistics, cycle, performance
 
 Examples:
   python scripts/compute-indicators.py                          # All symbols, all timeframes (except 1m)
   python scripts/compute-indicators.py --timeframes 1m          # 1m only (auto-caps workers to 2)
   python scripts/compute-indicators.py --symbols ES,MNQ --force # Recompute specific symbols
-  python scripts/compute-indicators.py --migrate                # Convert old flat files
-  python scripts/compute-indicators.py --migrate --remove-old   # Migrate and remove old files
         """,
     )
     parser.add_argument(
@@ -1006,25 +926,11 @@ Examples:
     parser.add_argument(
         "--workers", type=int, default=3, help="Parallel workers (default: 3)"
     )
-    parser.add_argument(
-        "--migrate",
-        action="store_true",
-        help="Migrate old flat files to partitioned format",
-    )
-    parser.add_argument(
-        "--remove-old",
-        action="store_true",
-        help="Remove old flat files after migration",
-    )
     args = parser.parse_args()
 
     total_start = time.time()
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-
-    # --- Migration mode ---
-    if args.migrate:
-        migrate_flat_files(OUT_DIR, remove_old=args.remove_old)
-        return
+    (DATA_DIR / "futures").mkdir(parents=True, exist_ok=True)
+    (DATA_DIR / "forex").mkdir(parents=True, exist_ok=True)
 
     # --- Normal computation ---
     source = args.source
@@ -1078,7 +984,7 @@ Examples:
     print(f"[indicators] Timeframes: {[t[0] for t in tf_list]}")
     print(f"[indicators] Workers: {effective_workers} {'(sequential)' if effective_workers == 0 else '(parallel)'}")
     print(
-        f"[indicators] Output: data/indicators/{{timeframe}}/{{symbol}}/{{category}}.parquet"
+        f"[indicators] Output: data/{{futures|forex}}/{{symbol}}/{{timeframe}}/{{category}}.parquet"
     )
     print(
         f"[indicators] Compression: {PARQUET_COMPRESSION} (level {PARQUET_COMPRESSION_LEVEL})"
@@ -1169,9 +1075,12 @@ Examples:
     # Disk usage summary
     total_bytes = 0
     file_count = 0
-    for p in OUT_DIR.rglob("*.parquet"):
-        total_bytes += p.stat().st_size
-        file_count += 1
+    for ac in ("futures", "forex"):
+        ac_dir = DATA_DIR / ac
+        if ac_dir.exists():
+            for p in ac_dir.rglob("*.parquet"):
+                total_bytes += p.stat().st_size
+                file_count += 1
     print(f"  Files:    {file_count} parquets")
     print(f"  Disk:     {total_bytes / (1024**3):.1f} GB")
     print(f"{'=' * 60}")

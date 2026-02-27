@@ -50,8 +50,8 @@ Compute all pandas-ta indicators for every symbol × timeframe:
 python scripts/compute-indicators.py
 python scripts/compute-indicators.py --symbols ES,MNQ --timeframes 1d,1h
 ```
-- Outputs to `data/indicators/{symbol}_{timeframe}.parquet`
-- 25 symbols × 8 timeframes = 200 files, ~350 columns each
+- Outputs to `data/{futures|forex}/{symbol}/{timeframe}/{category}.parquet`
+- 25 symbols × 8 timeframes, ~350 columns each (9 category parquets per combo)
 - Futures: builds continuous contract from DuckDB (Panama adjustment)
 - Forex: reads directly from ohlcv table
 - **Important**: Kill dev server first — DuckDB file lock prevents read_only access
@@ -72,7 +72,7 @@ Check ingestion status:
 1. Query `data/market.duckdb` for row counts per symbol
 2. Check `ingested_files` table for processed file history
 3. Compare QuestDB row counts vs DuckDB counts
-4. Check `data/indicators/` for parquet file count + size
+4. Check `data/{futures,forex}/` for parquet file count + size
 
 ### seed
 Seed instruments table with 25 known instruments:

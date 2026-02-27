@@ -106,55 +106,17 @@ export async function checkQuestDBHealth(): Promise<DatabaseHealthStatus> {
   }
 }
 
-export async function checkDuckDBHealth(): Promise<DatabaseHealthStatus> {
-  const startTime = Date.now();
-
-  try {
-    const { runQuery } = await import('../duckdb');
-    await runQuery('SELECT 1');
-
-    const latencyMs = Date.now() - startTime;
-    const status: DatabaseHealthStatus = {
-      database: 'duckdb',
-      healthy: true,
-      latencyMs,
-      lastCheck: new Date()
-    };
-
-    pipelineMetrics.recordDatabaseHealth('duckdb', true, latencyMs);
-    healthCache.set('duckdb', status);
-    return status;
-
-  } catch (error: any) {
-    const latencyMs = Date.now() - startTime;
-    const status: DatabaseHealthStatus = {
-      database: 'duckdb',
-      healthy: false,
-      latencyMs,
-      lastCheck: new Date(),
-      error: error.message
-    };
-
-    pipelineMetrics.recordDatabaseHealth('duckdb', false, latencyMs);
-    healthCache.set('duckdb', status);
-    return status;
-  }
-}
-
 export async function runHealthChecks(): Promise<HealthCheckResult> {
-  const [sqlite, questdb, duckdb] = await Promise.all([
+  const [sqlite, questdb] = await Promise.all([
     checkSqliteHealth(),
     checkQuestDBHealth(),
-    checkDuckDBHealth()
   ]);
 
-  const databases = [sqlite, questdb, duckdb];
+  const databases = [sqlite, questdb];
   const overall = sqlite.healthy && questdb.healthy;
-  const degraded = overall && !duckdb.healthy;
 
   return {
     overall,
-    degraded,
     databases,
     circuitBreakers: getAllCircuitBreakerStats()
   };

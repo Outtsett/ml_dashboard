@@ -1,157 +1,111 @@
 /**
  * Label Service Helpers
  *
- * Shared utilities for label generation: DuckDB access, OHLCV loading,
- * and synthetic data generation.
+ * Shared utilities for label generation: QuestDB queries and timestamp handling.
  */
 
-// Dynamic import to avoid circular dependencies
-export async function getDuckDB() {
-  const duckdb = await import('../../duckdb');
-  return {
-    runQuery: duckdb.runQuery,
-    executeDuckDBQuery: duckdb.executeDuckDBQuery,
+import type { MetaLabelParams } from './sqlLabelGenerators';
+
+/** Map timeframe in minutes to QuestDB materialized view name. */
+export function getTimeframeTable(timeframeMinutes?: number): string {
+  if (!timeframeMinutes || timeframeMinutes <= 1) return 'ohlcv';
+  const map: Record<number, string> = {
+    5: 'ohlcv_5m',
+    15: 'ohlcv_15m',
+    30: 'ohlcv_30m',
+    60: 'ohlcv_1h',
+    240: 'ohlcv_4h',
+    1440: 'ohlcv_1d',
+    10080: 'ohlcv_1w',
   };
+  return map[timeframeMinutes] || 'ohlcv';
 }
 
-export async function queryDuckDB(sql: string): Promise<Array<Record<string, unknown>>> {
-  const { executeDuckDBQuery } = await getDuckDB();
-  return executeDuckDBQuery(sql);
+/** Convert a timestamp value (Date, string, number, bigint) to epoch milliseconds. */
+function toEpochMs(val: unknown): number {
+  if (typeof val === 'number') return val;
+  if (typeof val === 'bigint') return Number(val);
+  if (val instanceof Date) return val.getTime();
+  if (typeof val === 'string') return new Date(val).getTime();
+  return Number(val);
 }
 
-// Generate synthetic OHLCV data for preview purposes when no real data exists
-export async function generateSyntheticOHLCV(symbol: string, count: number = 1000): Promise<void> {
-  const { executeDuckDBQuery } = await getDuckDB();
-
-  // Create realistic-looking synthetic data using DuckDB
-  await executeDuckDBQuery(`
-    CREATE TABLE ohlcv AS
-    WITH RECURSIVE dates AS (
-      SELECT 
-        1 as idx,
-        1704067200000::BIGINT as ts,  -- Jan 1, 2024
-        100.0 as price
-      UNION ALL
-      SELECT 
-        idx + 1,
-        ts + 60000,  -- 1-minute bars
-        price * (1 + (RANDOM() - 0.5) * 0.002)  -- Random walk
-      FROM dates
-      WHERE idx < ${count}
-    ),
-    ohlcv_gen AS (
-      SELECT
-        ts as timestamp,
-        '${symbol}' as symbol,
-        price * (1 + (RANDOM() - 0.5) * 0.001) as open,
-        price * (1 + RANDOM() * 0.002) as high,
-        price * (1 - RANDOM() * 0.002) as low,
-        price as close,
-        (RANDOM() * 10000 + 1000)::INTEGER as volume
-      FROM dates
-    )
-    SELECT * FROM ohlcv_gen
-  `);
+/**
+ * Execute label SQL against QuestDB and return results with numeric timestamps.
+ * Uses PG wire protocol for standard SQL execution.
+ */
+export async function queryLabels(sql: string): Promise<Array<Record<string, unknown>>> {
+  const { queryQuestDB } = await import('../../questdb');
+  const rows = await queryQuestDB(sql);
+  return rows.map((row: Record<string, unknown>) => {
+    const converted = { ...row };
+    if (converted.timestamp !== undefined && converted.timestamp !== null) {
+      converted.timestamp = toEpochMs(converted.timestamp);
+    }
+    return converted;
+  });
 }
 
-// Load OHLCV data from QuestDB into analytics DuckDB table for label generation
+/**
+ * Build a combined SQL for meta_label that inlines direction labels as a CTE.
+ * Avoids the need for a DuckDB temp table — runs entirely on QuestDB.
+ */
+export function buildMetaLabelSQL(
+  metaParams: MetaLabelParams,
+  symbol: string,
+  tableName: string = 'ohlcv',
+): string {
+  const txCost = (metaParams.transactionCostBps || 10) / 10000;
+  const minProfit = (metaParams.minProfitBps || 20) / 10000;
+  const primaryCol = metaParams.primarySignalColumn || 'label';
+  const metaHorizon = metaParams.horizon || 5;
+  const wo = `OVER (PARTITION BY symbol ORDER BY timestamp)`;
+
+  return `
+WITH dir_source AS (
+  SELECT timestamp, symbol, close,
+    LEAD(close, 1) ${wo} as future_close
+  FROM ${tableName}
+  WHERE symbol = '${symbol}'
+),
+primary_labels AS (
+  SELECT timestamp, symbol, close,
+    CASE WHEN future_close >= close THEN 1 ELSE -1 END as ${primaryCol}
+  FROM dir_source
+  WHERE future_close IS NOT NULL
+),
+meta_base AS (
+  SELECT o.timestamp, o.symbol, o.close,
+    p.${primaryCol} as primary_signal,
+    LEAD(o.close, ${metaHorizon}) ${wo} as future_close
+  FROM ${tableName} o
+  INNER JOIN primary_labels p ON o.timestamp = p.timestamp AND o.symbol = p.symbol
+  WHERE o.symbol = '${symbol}'
+),
+with_pnl AS (
+  SELECT timestamp, symbol, close, primary_signal, future_close,
+    CASE
+      WHEN primary_signal = 0 OR future_close IS NULL THEN NULL
+      ELSE primary_signal * (future_close - close) / close - ${txCost}
+    END as net_pnl
+  FROM meta_base
+  WHERE primary_signal != 0
+),
+meta_labeled AS (
+  SELECT timestamp, symbol, close, primary_signal, net_pnl,
+    CASE WHEN net_pnl >= ${minProfit} THEN 1 ELSE 0 END as label
+  FROM with_pnl
+  WHERE net_pnl IS NOT NULL
+)
+SELECT * FROM meta_labeled
+ORDER BY timestamp`;
+}
+
+// Backward-compat type export
 export interface LoadOHLCVOptions {
   symbol: string;
   limit?: number;
-  startTimestamp?: number; // In milliseconds - filter data from this time
-  endTimestamp?: number;   // In milliseconds - filter data up to this time
-  timeframeMinutes?: number; // Timeframe to aggregate to (default 1 = 1-minute)
-}
-
-export async function loadOHLCVIntoDuckDB(options: LoadOHLCVOptions): Promise<void> {
-  const { symbol, limit = 50000, startTimestamp, endTimestamp, timeframeMinutes = 1 } = options;
-  const { executeDuckDBQuery } = await getDuckDB();
-  const intervalSec = timeframeMinutes * 60;
-
-  console.log(`[LabelService] Loading OHLCV from market.duckdb for ${symbol}, tf=${timeframeMinutes}m, range: ${startTimestamp} - ${endTimestamp}`);
-
-  // Drop existing temp ohlcv table in analytics DuckDB
-  try {
-    await executeDuckDBQuery('DROP TABLE IF EXISTS ohlcv');
-  } catch (e) {
-    // Ignore if table doesn't exist
-  }
-
-  // Query real market data from file-backed market.duckdb
-  const { questdbMarketQuery: marketQuery } = await import('../../lib/questdbMarketQuery');
-
-  // Build time filter for QuestDB queries
-  let timeFilter = '';
-  if (startTimestamp && endTimestamp) {
-    const startMs = startTimestamp < 1e12 ? startTimestamp * 1000 : startTimestamp;
-    const endMs = endTimestamp < 1e12 ? endTimestamp * 1000 : endTimestamp;
-    timeFilter = ` AND epoch_ms(ts) >= ${startMs} AND epoch_ms(ts) <= ${endMs}`;
-  }
-
-  // Detect if this is a root symbol (e.g. ES, NQ) vs specific contract (ESH5) or forex (EURUSD)
-  const isRootSymbol = symbol.length <= 3 && /^[A-Z]+$/.test(symbol);
-  const symbolFilter = isRootSymbol
-    ? `symbol ~ '^${symbol}[FGHJKMNQUVXZ][0-9]{1,2}$'`
-    : `symbol = '${symbol}'`;
-
-  // Query QuestDB ohlcv — for root symbols, match all contracts via regex
-  const ohlcvRows = await marketQuery<{
-    timestamp: number;
-    symbol: string;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume: number;
-  }>(`
-    SELECT
-      CAST(epoch_ms(time_bucket(INTERVAL '${intervalSec} seconds', ts)) AS DOUBLE) as timestamp,
-      '${symbol}' as symbol,
-      first(open ORDER BY ts) as open,
-      max(high) as high,
-      min(low) as low,
-      last(close ORDER BY ts) as close,
-      CAST(sum(volume) AS DOUBLE) as volume
-    FROM ohlcv
-    WHERE ${symbolFilter}${timeFilter}
-    GROUP BY time_bucket(INTERVAL '${intervalSec} seconds', ts)
-    ORDER BY timestamp DESC
-    LIMIT ${limit}
-  `);
-
-  console.log(`[LabelService] ${isRootSymbol ? 'Root symbol' : 'Direct symbol'} query returned ${ohlcvRows.length} rows for ${symbol}`);
-
-  if (ohlcvRows.length === 0) {
-    // Fall back to synthetic data only if no market data exists for this symbol
-    console.warn(`[LabelService] No market data found for ${symbol}, generating synthetic data`);
-    await generateSyntheticOHLCV(symbol, limit);
-    return;
-  }
-
-  // Sort ascending for proper label generation (WINDOW functions need chronological order)
-  ohlcvRows.sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
-
-  // Create the ohlcv table in analytics DuckDB
-  await executeDuckDBQuery(`
-    CREATE TABLE ohlcv (
-      timestamp BIGINT,
-      symbol VARCHAR,
-      open DOUBLE,
-      high DOUBLE,
-      low DOUBLE,
-      close DOUBLE,
-      volume DOUBLE
-    )
-  `);
-
-  // Insert data in batches
-  const batchSize = 1000;
-  for (let i = 0; i < ohlcvRows.length; i += batchSize) {
-    const batch = ohlcvRows.slice(i, i + batchSize);
-    const values = batch.map(row =>
-      `(${Number(row.timestamp)}, '${row.symbol}', ${row.open}, ${row.high}, ${row.low}, ${row.close}, ${row.volume})`
-    ).join(',\n');
-
-    await executeDuckDBQuery(`INSERT INTO ohlcv VALUES ${values}`);
-  }
+  startTimestamp?: number;
+  endTimestamp?: number;
+  timeframeMinutes?: number;
 }

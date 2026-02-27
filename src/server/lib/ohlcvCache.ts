@@ -1,7 +1,7 @@
 /**
  * Server-side LRU cache for OHLCV bar query results.
  *
- * Sits between the API routes and the database queries (DuckDB, QuestDB, SQLite).
+ * Sits between the API routes and the database queries (QuestDB, SQLite).
  * Cache keys encode symbol + timeframe + time window so identical scroll requests
  * are served from memory instead of re-querying 782M+ row tables.
  *

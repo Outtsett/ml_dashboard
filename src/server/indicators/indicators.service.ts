@@ -1,5 +1,4 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { DuckDBService } from '../database/duckdb.service';
 import { QuestDBService } from '../database/questdb.service';
 import {
   listIndicators,
@@ -25,7 +24,6 @@ import {
 @Injectable()
 export class IndicatorsService {
   constructor(
-    @Inject(DuckDBService) private duckdb: DuckDBService,
     @Inject(QuestDBService) private questdb: QuestDBService,
   ) {}
 
@@ -49,7 +47,7 @@ export class IndicatorsService {
     return calculateIndicator(params);
   }
 
-  /** Generate DuckDB SQL for a single indicator. */
+  /** Generate SQL for a single indicator. */
   generateSQL(params: GenerateIndicatorSQLParams): string {
     return generateIndicatorSQL(params);
   }
@@ -62,11 +60,6 @@ export class IndicatorsService {
   /** Generate bulk indicator SQL (multiple indicators in one SELECT). */
   generateBulkSQL(request: ComputeIndicatorsRequest, tableName = 'ohlcv'): string {
     return generateBulkSQL(request, tableName);
-  }
-
-  /** Execute a DuckDB query (convenience for route handlers). */
-  queryDuckDB<T = any>(sql: string): Promise<T[]> {
-    return this.duckdb.query<T>(sql);
   }
 
   /** Get indicator presets (momentum, volatility, trend, oscillators, full). */

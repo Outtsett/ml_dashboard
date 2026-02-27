@@ -5,10 +5,10 @@ import duckdb
 conn = duckdb.connect(":memory:")
 
 es = conn.execute(
-    "SELECT * FROM read_parquet('data/indicators/ES_1d.parquet')"
+    "SELECT * FROM read_parquet('data/futures/ES/1d/*.parquet')"
 ).fetchdf()
 eurusd = conn.execute(
-    "SELECT * FROM read_parquet('data/indicators/EURUSD_1d.parquet')"
+    "SELECT * FROM read_parquet('data/forex/EURUSD/1d/*.parquet')"
 ).fetchdf()
 
 print(f"ES shape: {es.shape}, EURUSD shape: {eurusd.shape}")

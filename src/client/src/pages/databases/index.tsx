@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Upload as UploadRecord } from "@shared/schema";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Database, Clock, Cpu, Upload, Layers, HardDrive, BarChart3, RefreshCw } from "lucide-react";
+import { Database, Clock, Upload, Layers, HardDrive, RefreshCw } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +23,7 @@ export default function Databases() {
   const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
   const [previewTable, setPreviewTable] = useState<string | null>(null);
   const [customQuery, setCustomQuery] = useState("");
-  const [queryDb, setQueryDb] = useState<"postgres" | "questdb" | "duckdb">("postgres");
+  const [queryDb, setQueryDb] = useState<"postgres" | "questdb">("postgres");
   const [selectedFiles, setSelectedFiles] = useState<FileUploadItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
@@ -36,11 +36,6 @@ export default function Databases() {
 
   const { data: questdbStats, isLoading: qdbLoading, refetch: refetchQdb } = useQuery<DatabaseStats>({
     queryKey: ["/api/databases/questdb/stats"],
-    refetchInterval: 30000,
-  });
-
-  const { data: duckdbStats, isLoading: duckLoading, refetch: refetchDuck } = useQuery<DatabaseStats>({
-    queryKey: ["/api/databases/duckdb/stats"],
     refetchInterval: 30000,
   });
 
@@ -164,8 +159,7 @@ export default function Databases() {
   };
 
   const totalRows = (postgresStats?.tableDetails || []).reduce((sum, t) => sum + t.rowCount, 0) +
-    (questdbStats?.tableDetails || []).reduce((sum, t) => sum + t.rowCount, 0) +
-    (duckdbStats?.tableDetails || []).reduce((sum, t) => sum + t.rowCount, 0);
+    (questdbStats?.tableDetails || []).reduce((sum, t) => sum + t.rowCount, 0);
 
   return (
     <div className="space-y-6">
@@ -179,12 +173,12 @@ export default function Databases() {
             <span className="text-sm font-medium text-emerald-300/80">Data Infrastructure</span>
           </div>
           <h1 className="text-4xl font-display font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Database Explorer</h1>
-          <p className="text-muted-foreground text-sm mt-1">PostgreSQL, QuestDB, and DuckDB instances</p>
+          <p className="text-muted-foreground text-sm mt-1">PostgreSQL and QuestDB instances</p>
         </div>
         <div className="flex gap-3">
           <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 rounded-xl px-4 py-2 border border-emerald-500/20 text-center">
             <div className="text-[10px] text-emerald-300/70 uppercase tracking-wider mb-0.5">Tables</div>
-            <div className="text-xl font-bold text-emerald-300">{(postgresStats?.tables || 0) + (questdbStats?.tables || 0) + (duckdbStats?.tables || 0)}</div>
+            <div className="text-xl font-bold text-emerald-300">{(postgresStats?.tables || 0) + (questdbStats?.tables || 0)}</div>
           </div>
           <div className="bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 rounded-xl px-4 py-2 border border-cyan-500/20 text-center">
             <div className="text-[10px] text-cyan-300/70 uppercase tracking-wider mb-0.5">Rows</div>
@@ -212,15 +206,6 @@ export default function Databases() {
             <Clock className="h-4 w-4 mr-2" />
             QuestDB
             <Badge className="ml-2 text-[10px] bg-amber-500/20 text-amber-300">{questdbStats?.tables || 0}</Badge>
-          </TabsTrigger>
-          <TabsTrigger
-            value="duckdb"
-            className="rounded-lg px-5 py-2.5 data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300"
-            data-testid="tab-duckdb"
-          >
-            <Cpu className="h-4 w-4 mr-2" />
-            DuckDB
-            <Badge className="ml-2 text-[10px] bg-cyan-500/20 text-cyan-300">{duckdbStats?.tables || 0}</Badge>
           </TabsTrigger>
           <TabsTrigger
             value="upload"
@@ -300,55 +285,6 @@ export default function Databases() {
           {questdbStats?.tableDetails && (
             <ScrollArea className="h-[400px]">
               <TableList tables={questdbStats.tableDetails} dbType="questdb" expandedTables={expandedTables} onToggleTable={toggleTable} onPreview={handlePreview} />
-            </ScrollArea>
-          )}
-        </TabsContent>
-
-        {/* DuckDB Tab */}
-        <TabsContent value="duckdb" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-display font-semibold">DuckDB</h2>
-              <p className="text-sm text-muted-foreground">In-memory OLAP for Parquet analytics and ML feature engineering</p>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => refetchDuck()} data-testid="refresh-duckdb">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
-          <StatsCards stats={duckdbStats} loading={duckLoading} dbName="DuckDB" />
-
-          <Card className="glass">
-            <CardHeader>
-              <CardTitle className="text-sm font-mono">DuckDB Capabilities</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-4 rounded-lg bg-white/5">
-                <HardDrive className="h-6 w-6 mx-auto text-primary mb-2" />
-                <p className="text-xs font-medium">Parquet Native</p>
-                <p className="text-[10px] text-muted-foreground">Direct file queries</p>
-              </div>
-              <div className="text-center p-4 rounded-lg bg-white/5">
-                <Cpu className="h-6 w-6 mx-auto text-accent mb-2" />
-                <p className="text-xs font-medium">Vectorized</p>
-                <p className="text-[10px] text-muted-foreground">SIMD execution</p>
-              </div>
-              <div className="text-center p-4 rounded-lg bg-white/5">
-                <BarChart3 className="h-6 w-6 mx-auto text-primary mb-2" />
-                <p className="text-xs font-medium">Analytics</p>
-                <p className="text-[10px] text-muted-foreground">10-100x faster</p>
-              </div>
-              <div className="text-center p-4 rounded-lg bg-white/5">
-                <Layers className="h-6 w-6 mx-auto text-accent mb-2" />
-                <p className="text-xs font-medium">ML Ready</p>
-                <p className="text-[10px] text-muted-foreground">Feature engineering</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {duckdbStats?.tableDetails && (
-            <ScrollArea className="h-[400px]">
-              <TableList tables={duckdbStats.tableDetails} dbType="duckdb" expandedTables={expandedTables} onToggleTable={toggleTable} onPreview={handlePreview} />
             </ScrollArea>
           )}
         </TabsContent>

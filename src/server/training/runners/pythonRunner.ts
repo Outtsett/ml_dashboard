@@ -19,13 +19,13 @@ import { getParser } from "./parsers/index";
 export class PythonRunner implements ITrainerRunner {
   private sessions = new Map<string, TrainingSession & { child: ChildProcess; stdout: string; stderr: string }>();
 
-  async start(config: ResolvedTrainingConfig): Promise<TrainingSession> {
+  async start(config: ResolvedTrainingConfig, existingSession?: TrainingSession): Promise<TrainingSession> {
     const trainingCfg = getTrainingConfig();
-    const pythonExe = path.join(process.cwd(), config.registry.script ? "" : "", trainingCfg.paths.pythonExe);
+    const pythonExe = path.join(process.cwd(), trainingCfg.paths.pythonExe);
     const script = path.join(process.cwd(), config.registry.script!);
     const modelsDir = path.join(process.cwd(), config.registry.outputDir);
 
-    const session = createSession(config.modelId, config) as TrainingSession & { child: ChildProcess; stdout: string; stderr: string };
+    const session = (existingSession ?? createSession(config.modelId, config)) as TrainingSession & { child: ChildProcess; stdout: string; stderr: string };
     session.stdout = "";
     session.stderr = "";
 
@@ -36,8 +36,8 @@ export class PythonRunner implements ITrainerRunner {
       args.push("--data-file", config.dataFile);
     }
 
-    // Map hyperparameters to CLI flags
-    const hypMap: Record<string, string> = {
+    // Map hyperparameters to CLI flags (OCP: prefer registry cliFlags, fall back to built-in defaults)
+    const defaultFlags: Record<string, string> = {
       gibbsIter: "--gibbs-iter",
       burnIn: "--burn-in",
       testSplit: "--test-split",
@@ -48,7 +48,9 @@ export class PythonRunner implements ITrainerRunner {
       trainWindowWeeks: "--train-window-weeks",
       stepWeeks: "--step-weeks",
       wfGibbsIter: "--wf-gibbs-iter",
+      overlayInterval: "--overlay-interval",
     };
+    const hypMap = { ...defaultFlags, ...config.registry.cliFlags };
 
     for (const [key, val] of Object.entries(config.hyperparameters)) {
       const flag = hypMap[key];
@@ -104,13 +106,14 @@ export class PythonRunner implements ITrainerRunner {
       }
     });
 
+    // OCP: Suppress patterns come from config/training.json — add new entries without modifying this file
+    const suppressPatterns = trainingCfg.stderrSuppressPatterns ?? [];
+
     child.stderr.on("data", (chunk) => {
       const text = chunk.toString();
       session.stderr += text;
       const trimmed = text.trim();
-      if (trimmed && !trimmed.includes("ConvergenceWarning") && !trimmed.includes("DeprecationWarning")
-          && !trimmed.includes("UserWarning") && !trimmed.includes("FutureWarning")
-          && !trimmed.includes("loky") && !trimmed.includes("resource_tracker")) {
+      if (trimmed && !suppressPatterns.some((p: string) => trimmed.includes(p))) {
         emitSessionEvent(session, "log", { message: trimmed.slice(0, 500), level: "warning" });
       }
     });

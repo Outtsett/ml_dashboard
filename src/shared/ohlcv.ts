@@ -1,7 +1,7 @@
 /**
  * Shared OHLCV type definitions — the single source of truth.
  *
- * Every layer (QuestDB, DuckDB, API routes, client components) should import
+ * Every layer (QuestDB, API routes, client components) should import
  * from here instead of declaring its own OHLCV interface.
  *
  * Field contract:
@@ -42,20 +42,6 @@ export interface QuestDBOHLCVRow {
   low: number | string;
   close: number | string;
   volume: number | string;
-}
-
-/**
- * Shape of a raw DuckDB row (parquet / analytics).
- * `timestamp` is a BigInt epoch-ms; volume may be BigInt after SUM().
- */
-export interface DuckDBOHLCVRow {
-  symbol?: string;
-  timestamp: bigint | number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: bigint | number;
 }
 
 // ─── Ingestion shape ────────────────────────────────────────

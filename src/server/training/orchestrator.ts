@@ -16,7 +16,7 @@ import {
   resolveHyperparameters,
   timeframeToSeconds,
 } from "./registry";
-import { emitSessionEvent } from "./runners/types";
+import { createSession, emitSessionEvent } from "./runners/types";
 import { getRunner } from "./runnerFactory";
 import type { ITrainerRunner } from "./runners/types";
 
@@ -29,7 +29,7 @@ const activeSessions = new Map<string, { session: TrainingSession; runner: ITrai
 /**
  * Start training for any model type.
  * Returns immediately with session ID + model ID for SSE stream connection.
- * The model's script handles its own data loading.
+ * Data export (if needed) runs in the background, streaming progress via SSE.
  */
 export async function startTraining(request: TrainingRequest): Promise<{
   sessionId: string;
@@ -53,7 +53,10 @@ export async function startTraining(request: TrainingRequest): Promise<{
   }
 
   // 3. Resolve config: merge defaults + overrides + chart context
-  const sym = (request.symbol ?? "ES").toUpperCase();
+  if (!request.symbol) {
+    throw new Error("Symbol is required. Select a symbol on the chart before training.");
+  }
+  const sym = request.symbol.toUpperCase();
   const tf = request.timeframe ?? "1m";
   const modelId = `${sym}_${tf}`;
   const timeframeSec = timeframeToSeconds(tf);
@@ -71,6 +74,12 @@ export async function startTraining(request: TrainingRequest): Promise<{
     activeSessions.delete(modelId);
   }
 
+  // Validate runner exists before creating session
+  const runner = getRunner(registry.runner);
+  if (!runner) {
+    throw new Error(`No runner registered for type: "${registry.runner}". Register it in server startup.`);
+  }
+
   const resolved: ResolvedTrainingConfig = {
     modelType: request.modelType,
     registry,
@@ -82,22 +91,70 @@ export async function startTraining(request: TrainingRequest): Promise<{
     featurePipeline: registry.featurePipeline,
     outputDir: registry.outputDir,
     modelId,
-    includeIndicators: request.includeIndicators ?? (registry as any).includeIndicators ?? false,
-    allFeatures: request.allFeatures ?? (registry as any).allFeatures ?? false,
+    includeIndicators: request.includeIndicators ?? registry.includeIndicators ?? false,
+    allFeatures: request.allFeatures ?? registry.allFeatures ?? false,
     indicatorGroups: request.indicatorGroups,
   };
 
-  // 4. Select runner via factory (DIP — no concrete runner imports)
-  const runner = getRunner(registry.runner);
-  if (!runner) {
-    throw new Error(`No runner registered for type: "${registry.runner}". Register it in server startup.`);
+  // 4. Create session immediately so SSE clients can connect right away
+  const session = createSession(modelId, resolved);
+  activeSessions.set(modelId, { session, runner, config: resolved });
+
+  // 5. Launch background pipeline: export (if needed) → spawn runner
+  //    The API returns NOW — progress streams over SSE.
+  launchTrainingPipeline(session, runner, resolved, registry, trainingCfg, request).catch(err => {
+    console.error(`[training] Pipeline failed for ${modelId}:`, err);
+    if (!session.finished) {
+      emitSessionEvent(session, "error", { message: err.message ?? "Training pipeline failed" });
+      session.finished = true;
+      session.exitCode = -1;
+    }
+  });
+
+  return { sessionId: session.sessionId, modelId };
+}
+
+/** Background pipeline: export data → start runner. Progress is streamed via SSE. */
+async function launchTrainingPipeline(
+  session: TrainingSession,
+  runner: ITrainerRunner,
+  resolved: ResolvedTrainingConfig,
+  registry: ResolvedTrainingConfig["registry"],
+  trainingCfg: ReturnType<typeof getTrainingConfig>,
+  request: TrainingRequest,
+) {
+  const { modelId, symbol: sym, timeframe: tf } = resolved;
+
+  // Export data if model requires it (Python models need a parquet file)
+  if (registry.requiresDataExport) {
+    emitSessionEvent(session, "progress", {
+      phase: "exporting",
+      pct: 0,
+      message: `Exporting ${sym} ${tf} data from QuestDB...`,
+    });
+
+    const { exportTrainingData } = await import("./dataExporter");
+    const maxBars = trainingCfg.limits.maxBarsDefault;
+    console.log(`[training] Exporting data for ${modelId} (max ${maxBars} bars)...`);
+
+    const exportResult = await exportTrainingData(sym, tf, request.dateRange, maxBars);
+    resolved.dataFile = exportResult.dataFile;
+    if (!resolved.dateRange) {
+      resolved.dateRange = exportResult.dateRange;
+    }
+
+    console.log(`[training] Exported ${exportResult.totalBars} bars to ${exportResult.dataFile}`);
+    emitSessionEvent(session, "progress", {
+      phase: "exporting",
+      pct: 100,
+      message: `Exported ${exportResult.totalBars.toLocaleString()} bars`,
+    });
   }
 
-  // 5. Spawn the training script — it handles its own data loading
-  console.log(`[training] Starting ${request.modelType} for ${modelId} via ${registry.runner} runner`);
-  const session = await runner.start(resolved);
+  // If session was stopped during export, bail
+  if (session.finished) return;
 
-  // Emit started event
+  // Emit started event (data is ready, runner is about to spawn)
   emitSessionEvent(session, "started", {
     sessionId: session.sessionId,
     modelType: request.modelType,
@@ -107,10 +164,9 @@ export async function startTraining(request: TrainingRequest): Promise<{
     modelId,
   });
 
-  // 6. Track session
-  activeSessions.set(modelId, { session, runner, config: resolved });
-
-  return { sessionId: session.sessionId, modelId };
+  // Start runner, passing existing session so it reuses our listeners/events
+  console.log(`[training] Starting ${request.modelType} for ${modelId} via ${registry.runner} runner`);
+  await runner.start(resolved, session);
 }
 
 /** Stop a training session by model ID */

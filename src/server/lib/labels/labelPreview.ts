@@ -2,11 +2,12 @@
  * Label Preview — generates label previews without persisting to database.
  *
  * Used by the chart overlay to show labels on the trading chart.
+ * Queries QuestDB directly (no DuckDB temp tables).
  */
 
 import type { LabelGeneratorType } from './sqlLabelGenerators';
-import { LABEL_SQL_GENERATORS } from './sqlLabelGenerators';
-import { queryDuckDB, loadOHLCVIntoDuckDB } from './labelHelpers';
+import type { MetaLabelParams } from './sqlLabelGenerators';
+import { queryLabels, getTimeframeTable, buildMetaLabelSQL } from './labelHelpers';
 import { generateLabelSQL } from './labelGenerator';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -38,39 +39,30 @@ export async function previewLabels(
       };
     }
 
-    await loadOHLCVIntoDuckDB({
-      symbol: request.symbol,
-      limit: 10000,
-      startTimestamp: request.startTimestamp,
-      endTimestamp: request.endTimestamp,
-      timeframeMinutes: request.timeframeMinutes,
-    });
+    const tableName = getTimeframeTable(request.timeframeMinutes);
+    const limit = request.limit || 500;
 
-    // For meta_label: generate primary direction labels first so the JOIN has data
+    let labelSQL: string | null;
+
+    // For meta_label, build combined SQL with direction labels as CTE
     if (request.generatorType === 'meta_label') {
-      const directionSQL = LABEL_SQL_GENERATORS.direction(
-        { horizon: 1, threshold: 0, numClasses: 2 },
-        { symbol: request.symbol }
+      labelSQL = buildMetaLabelSQL(
+        request.params as unknown as MetaLabelParams,
+        request.symbol,
+        tableName,
       );
-      try {
-        await queryDuckDB('DROP TABLE IF EXISTS primary_labels');
-        await queryDuckDB(`CREATE TABLE primary_labels AS ${directionSQL}`);
-      } catch (e) {
-        console.warn('[LabelService] Failed to generate primary labels for meta_label preview:', e);
-      }
+    } else {
+      labelSQL = generateLabelSQL(
+        request.generatorType,
+        request.params,
+        { symbol: request.symbol, tableName }
+      );
     }
-
-    const labelSQL = generateLabelSQL(
-      request.generatorType,
-      request.params,
-      { symbol: request.symbol }
-    );
 
     if (!labelSQL) {
       return { success: false, error: `Unknown generator type: ${request.generatorType}` };
     }
 
-    const limit = request.limit || 500;
     const limitedSQL = `
       WITH label_data AS (${labelSQL})
       SELECT * FROM label_data
@@ -78,7 +70,7 @@ export async function previewLabels(
       LIMIT ${limit}
     `;
 
-    const results = await queryDuckDB(limitedSQL);
+    const results = await queryLabels(limitedSQL);
 
     const sortedResults = (results || []).sort((a: any, b: any) =>
       Number(a.timestamp) - Number(b.timestamp)

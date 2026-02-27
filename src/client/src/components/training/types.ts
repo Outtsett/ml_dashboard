@@ -83,6 +83,17 @@ export interface RegimeStat {
   characteristics: Record<string, number>;
 }
 
+export interface ShapFeature {
+  feature: string;
+  mean_abs_shap: number;
+  mean_shap: number;
+}
+
+export interface ShapRegimeSummary {
+  regime_id: number;
+  top_features: ShapFeature[];
+}
+
 export interface Transition {
   from: number;
   to: number;
@@ -148,6 +159,7 @@ export interface Diagnostics {
   };
   training_time_sec: number;
   trained_at: string;
+  shap_summary?: ShapRegimeSummary[];
 }
 
 export interface ConvergencePoint {

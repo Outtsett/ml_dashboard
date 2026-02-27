@@ -35,6 +35,9 @@ export interface ModelRegistryEntry {
   outputDir: string;              // where results are saved
   requiresDataExport: boolean;    // Python models need parquet export
   defaultHyperparameters: Record<string, HyperparameterDef>;
+  includeIndicators?: boolean;    // default for including pre-computed indicators
+  allFeatures?: boolean;          // default for using all available features
+  cliFlags?: Record<string, string>;  // hyperparameter name → CLI flag mapping (OCP)
 }
 
 export interface ModelRegistry {
@@ -56,13 +59,15 @@ export interface TrainingConfig {
     jobRetentionSec: number;
   };
   timeframes: Record<string, number>;
+  /** Stderr substrings to suppress from training log output (OCP: extend via training.json) */
+  stderrSuppressPatterns?: string[];
 }
 
 // ─── Training Request (client → server) ──────────────────────────────────────
 
 export interface TrainingRequest {
   modelType: string;             // key in models.json
-  symbol?: string;               // optional — server uses registry default if omitted
+  symbol: string;                // required — comes from dashboard chart selection
   timeframe?: string;            // optional — server uses registry default if omitted
   dateRange?: {
     start: string;               // ISO date string
@@ -217,6 +222,7 @@ export interface TrainingState {
 /** Control plane — user actions + session status. Changes ~10x per run. */
 export interface TrainingControl {
   isTraining: boolean;
+  isPending: boolean;
   phase: string;
   progress: number;
   error: string | null;

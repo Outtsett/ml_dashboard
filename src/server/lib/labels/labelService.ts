@@ -2,7 +2,7 @@
  * Label Service — Barrel re-export
  *
  * All implementation has been split into:
- *   - labelHelpers.ts    — DuckDB access, OHLCV loading, synthetic data
+ *   - labelHelpers.ts    — QuestDB queries, timestamp handling, timeframe mapping
  *   - labelServiceCore.ts — Generation, preview, management, contrastive pairs
  */
 
@@ -23,12 +23,11 @@ export type {
   LabelPreviewRequest,
 } from './labelServiceCore';
 
-// Re-export helpers for consumers that need direct DuckDB/OHLCV access
+// Re-export helpers for consumers that need QuestDB label queries
 export {
-  getDuckDB,
-  queryDuckDB,
-  generateSyntheticOHLCV,
-  loadOHLCVIntoDuckDB,
+  queryLabels,
+  getTimeframeTable,
+  buildMetaLabelSQL,
 } from './labelHelpers';
 
 export type { LoadOHLCVOptions } from './labelHelpers';

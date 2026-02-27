@@ -4,7 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
   TrendingUp, DollarSign, ArrowRightLeft, ChevronsUpDown, Check,
-  Layers, ZapOff, Play, Pause, Flame, Square, PanelRightOpen, RotateCcw,
+  Layers, ZapOff, Play, Pause, PanelRightOpen, RotateCcw,
 } from "lucide-react";
 import { IndicatorSelector } from "@/components/IndicatorSelector";
 import type { InstrumentInfo, ChartSymbolInfo } from "./types";
@@ -44,18 +44,12 @@ interface ToolbarProps {
   // Replay
   replayActive: boolean;
   onToggleReplay: () => void;
-  // Training
-  isTraining: boolean;
-  trainingProgress: number;
-  selectedModelType: string;
-  onStartTraining: () => void;
-  onStopTraining: () => void;
-  // ML Panel
-  isTrainingActive: boolean;
-  onOpenMlPanel: () => void;
   // Chart reset
   onResetChart: () => void;
   isRefetching: boolean;
+  // ML Panel
+  isTrainingActive: boolean;
+  onOpenMlPanel: () => void;
   // Data reset callback
   onResetScrollState: () => void;
 }
@@ -68,9 +62,8 @@ export function Toolbar({
   catalog, selectedColumns, onSelectionChange, indicatorsLoading,
   showSR, onToggleSR, showZigZag, onToggleZigZag, showSwingZZ, onToggleSwingZZ,
   replayActive, onToggleReplay,
-  isTraining, trainingProgress, selectedModelType, onStartTraining, onStopTraining,
-  isTrainingActive, onOpenMlPanel,
   onResetChart, isRefetching,
+  isTrainingActive, onOpenMlPanel,
   onResetScrollState,
 }: ToolbarProps) {
   return (
@@ -83,7 +76,7 @@ export function Toolbar({
           <TabsTrigger value="futures" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-primary/20" data-testid="tab-futures">
             <TrendingUp className="h-3 w-3 mr-1" /> Futures
           </TabsTrigger>
-          <TabsTrigger value="forex" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-accent/20" data-testid="tab-forex">
+          <TabsTrigger value="forex" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-primary/20" data-testid="tab-forex">
             <DollarSign className="h-3 w-3 mr-1" /> Forex
           </TabsTrigger>
         </TabsList>
@@ -298,29 +291,6 @@ export function Toolbar({
       </div>
 
       <div className="flex-1" />
-
-      {/* Train / Stop button */}
-      {!isTraining ? (
-        <Button
-          size="sm"
-          className="h-7 px-3 text-[10px] font-mono gap-1.5 bg-linear-to-r from-orange-500 to-rose-500 text-white hover:opacity-90"
-          onClick={onStartTraining}
-        >
-          <Flame className="h-3.5 w-3.5" /> Train
-        </Button>
-      ) : (
-        <Button
-          variant="destructive"
-          size="sm"
-          className="h-7 px-3 text-[10px] font-mono gap-1.5"
-          onClick={onStopTraining}
-        >
-          <Square className="h-3.5 w-3.5" /> Stop
-          {trainingProgress > 0 && (
-            <span className="ml-1 font-mono">{trainingProgress.toFixed(0)}%</span>
-          )}
-        </Button>
-      )}
 
       {/* ML Tools drawer trigger */}
       <Button

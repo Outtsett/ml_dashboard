@@ -2,8 +2,9 @@ import type { Express } from "express";
 import { type Server } from "http";
 import { apiRateLimiter, validationErrorHandler } from "../lib/rateLimiter";
 import { startHealthMonitoring } from "../lib/databaseHealth";
+import { attachPtyWebSocket, registerTerminalRoutes } from "../lib/ptyServer";
 import uploadRouter from "../routes/upload";
-import parquetRouter from "../routes/parquet";
+
 import instrumentsRouter from "../routes/instruments";
 import indicatorsRouter from "../routes/indicators";
 import mlRouter from "../routes/ml";
@@ -17,6 +18,12 @@ import trainingRouter from "../routes/training";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
 
+  // Attach PTY WebSocket (independent of Express — survives route errors)
+  attachPtyWebSocket(httpServer);
+
+  // Register terminal session management REST routes
+  registerTerminalRoutes(app);
+
   // Start health monitoring
   startHealthMonitoring();
 
@@ -28,7 +35,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Mount domain-specific routers
   app.use("/api", uploadRouter);
-  app.use("/api", parquetRouter);
+
   app.use("/api", instrumentsRouter);
   app.use("/api", indicatorsRouter);
   app.use("/api", trainingRouter);  // before mlRouter — static routes must match before ml's /training/:id

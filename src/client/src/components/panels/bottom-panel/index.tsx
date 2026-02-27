@@ -4,13 +4,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import {
-  Brain, BarChart3, Wand2, Terminal, Trash2,
+  Brain, BarChart3, Wand2, Terminal, TerminalSquare, Trash2,
 } from "lucide-react";
 
 import { useDashboard } from "@/contexts/UnifiedDashboardContext";
 import { PageLoader } from "@/components/LoadingSkeletons";
 import { useTradeMetrics } from "@/hooks/useTradeMetrics";
 import { useMLModels, useSavedModels, useMLTrades, useTrainStatus, useMLFeatures } from "@/hooks/useMLData";
+import { TerminalTabs } from "@/components/terminal/TerminalTabs";
 
 import { LogEntry } from "./TradeRow";
 import { ModelsTab } from "./ModelsTab";
@@ -77,6 +78,9 @@ export function BottomPanel({ isCollapsed }: BottomPanelProps) {
               <BarChart3 className="h-3 w-3" /> Trades
               {tradeMetrics.totalTrades > 0 && <Badge variant="outline" className="text-[8px] px-1 py-0 rounded-full ml-0.5">{tradeMetrics.totalTrades}</Badge>}
             </TabsTrigger>
+            <TabsTrigger value="terminal" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-400 gap-1">
+              <TerminalSquare className="h-3 w-3" /> Terminal
+            </TabsTrigger>
             <TabsTrigger value="logs" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-violet-500/15 data-[state=active]:text-violet-400 gap-1">
               <Terminal className="h-3 w-3" /> Log
               {logs.length > 0 && <Badge variant="outline" className="text-[8px] px-1 py-0 rounded-full ml-0.5">{logs.length}</Badge>}
@@ -114,7 +118,10 @@ export function BottomPanel({ isCollapsed }: BottomPanelProps) {
         <TabsContent value="trades" className="flex-1 min-h-0 overflow-auto mt-0 p-3 space-y-3">
           <TradesTab trades={trades} tradeMetrics={tradeMetrics} />
         </TabsContent>
-
+        {/* ─── Terminal Tab (real PTY) ──────────────────────── */}
+        <TabsContent value="terminal" className="flex-1 min-h-0 overflow-hidden mt-0">
+          <TerminalTabs visible={activeTab === "terminal"} />
+        </TabsContent>
         {/* ─── Training Log Tab ────────────────────────────────── */}
         <TabsContent value="logs" className="flex-1 min-h-0 overflow-hidden mt-0 flex flex-col">
           <div className="flex items-center gap-2 px-3 py-1.5 border-b border-white/5 shrink-0">
