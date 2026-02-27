@@ -170,7 +170,7 @@ def connect_questdb() -> duckdb.DuckDBPyConnection:
     con = duckdb.connect(":memory:")
     con.execute("INSTALL postgres_scanner; LOAD postgres_scanner;")
     con.execute(f"""
-        ATTACH 'host={QUESTDB_HOST} port={QUESTDB_PG_PORT} user=admin password=quest dbname=qdb'
+        ATTACH 'host={QUESTDB_HOST} port={QUESTDB_PG_PORT} user={os.environ.get("QUESTDB_USER", "admin")} password={os.environ.get("QUESTDB_PASSWORD", "quest")} dbname=qdb'
         AS questdb (TYPE postgres, READ_ONLY)
     """)
     print(f"[indicators] Connected to QuestDB via postgres_scanner ({QUESTDB_HOST}:{QUESTDB_PG_PORT})")

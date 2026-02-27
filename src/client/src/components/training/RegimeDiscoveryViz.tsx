@@ -14,10 +14,11 @@ import {
 import { getRegimeColor } from './types';
 
 function getRegimeIcon(label: string) {
-  if (label.includes('up')) return <TrendingUp className="h-3 w-3" />;
-  if (label.includes('down')) return <TrendingDown className="h-3 w-3" />;
-  if (label.includes('volatile') || label.includes('choppy')) return <Zap className="h-3 w-3" />;
-  if (label.includes('quiet') || label.includes('calm')) return <Minus className="h-3 w-3" />;
+  const l = label.toLowerCase();
+  if (l.includes('up') || l.includes('bull')) return <TrendingUp className="h-3 w-3" />;
+  if (l.includes('down') || l.includes('bear')) return <TrendingDown className="h-3 w-3" />;
+  if (l.includes('volatile') || l.includes('choppy')) return <Zap className="h-3 w-3" />;
+  if (l.includes('quiet') || l.includes('calm') || l.includes('low')) return <Minus className="h-3 w-3" />;
   return <Activity className="h-3 w-3" />;
 }
 
@@ -90,8 +91,8 @@ export default function RegimeDiscoveryViz({
           .sort((a, b) => b.pct - a.pct)
           .map((regime) => {
             const color = getRegimeColor(regime.regime_id);
-            // Height proportional to percentage (min 30%, max 100%)
-            const heightPct = Math.max(30, (regime.pct / maxPct) * 100);
+            // Height proportional to percentage (min 15% so tiny regimes stay visible)
+            const heightPct = Math.max(15, (regime.pct / maxPct) * 100);
             const label = regime.label || `Regime ${regime.regime_id}`;
 
             return (
@@ -121,7 +122,7 @@ export default function RegimeDiscoveryViz({
                 </div>
 
                 {/* Key stats */}
-                <div className="text-[7px] text-muted-foreground/60 text-center space-y-0.5">
+                <div className="text-[9px] text-muted-foreground/60 text-center space-y-0.5">
                   <div>ret: {(regime.avg_return * 100).toFixed(3)}%</div>
                   <div>vol: {(regime.avg_volatility * 100).toFixed(2)}%</div>
                   <div>dur: {regime.avg_duration.toFixed(1)} bars</div>

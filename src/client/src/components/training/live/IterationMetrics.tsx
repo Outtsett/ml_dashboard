@@ -4,7 +4,7 @@
  * Shows: current iteration, elapsed time, iterations/sec, ETA, active regimes.
  */
 import { useMemo } from "react";
-import { Activity, Clock, Gauge, Layers, Timer } from "lucide-react";
+import { Activity, BarChart3, Clock, Gauge, Layers, Timer } from "lucide-react";
 
 interface IterationMetricsProps {
   isTraining: boolean;
@@ -41,8 +41,10 @@ export function IterationMetrics({ isTraining, progress, phase, iterationHistory
     const currentIter = latest.iteration;
 
     const iterPerSec = elapsedSec > 0 ? currentIter / elapsedSec : 0;
-    const eta = iterPerSec > 0 && progress < 100
-      ? ((100 - progress) / 100) * (currentIter / iterPerSec) * (100 / progress)
+    // ETA = elapsed * (remaining% / completed%), clamped to avoid explosion at low progress
+    const safePct = Math.max(progress, 0.5);
+    const eta = iterPerSec > 0 && safePct < 100
+      ? elapsedSec * ((100 - safePct) / safePct)
       : 0;
 
     const nRegimes = latest.metrics?.num_regimes ?? 0;
@@ -106,8 +108,8 @@ export function IterationMetrics({ isTraining, progress, phase, iterationHistory
         />
         {stats.ll != null && (
           <MetricCard
-            icon={<Activity className="h-3.5 w-3.5" />}
-            label="Log-Lik"
+            icon={<BarChart3 className="h-3.5 w-3.5" />}
+            label="Log-Likelihood"
             value={stats.ll.toFixed(1)}
             color="#3b82f6"
           />

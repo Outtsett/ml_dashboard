@@ -1,14 +1,14 @@
 /**
- * Database Manager — OHLCV query orchestration.
+ * OHLCV Query Orchestration — health check, time-window estimation,
+ * caching, and row normalization.
  *
- * Pure business logic for querying OHLCV data from QuestDB with
- * time-window estimation, caching, and row normalization.
+ * Pure business logic for querying OHLCV data from QuestDB.
  * Extracted from the /ohlcv/:symbol route handler (SRP).
  */
 
-import { checkQuestDBHealth, getOHLCVSampleBy, queryQuestDB } from '../questdb';
-import { ohlcvCache, cachedQuery, OHLCVCache } from './ohlcvCache';
-import { normalizeTimestamp } from './normalize';
+import { checkQuestDBHealth, getOHLCVSampleBy, queryQuestDB } from '.';
+import { ohlcvCache, cachedQuery, OHLCVCache } from '../../lib/ohlcvCache';
+import { normalizeTimestamp } from '../../lib/normalize';
 
 // ─── Types ──────────────────────────────────────────────────
 

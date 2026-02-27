@@ -182,45 +182,45 @@ client/src/
   lib/              queryClient, prefetch, mlModels (50+ model definitions), utils
 
 server/
-  index.ts          Express app + startup (initMarketDB, startQuestDB, setupPartitions)
-  routes.ts         Route registration (11 routers)
-  routes/           upload, parquet, instruments, indicators, ml, news, databases, charts,
+  main.ts           Express app + NestJS DI bootstrap
+  core/routes.ts    Route registration (11 routers)
+  routes/           upload, instruments, indicators, ml, news, databases, charts,
                     backtest, agent, regime, training
-  db.ts             Drizzle SQLite connection (better-sqlite3, WAL mode)
-  storage.ts        Drizzle queries for all SQLite tables
-  duckdb.ts         In-memory analytics DuckDB (legacy)
-  questdb.ts        QuestDB client (OHLCV, trades, MBP-10 table creation + queries)
-  duckdb/
-    market.ts       File-backed market DuckDB (ingestion source, Mutex serialization)
-                    Tables: ohlcv, trades, mbp10, rollovers, ingested_files
-    core.ts         In-memory DuckDB (single-node processing: parquet I/O, feature eng)
-    analytics.ts    Analytics queries
-    queries.ts      Query helpers
-    fileOps.ts      File operations
-    mlFeatures.ts   ML feature generation (13 core indicators via SQL)
-    introspection.ts  Schema introspection
-    preAggregation.ts  Pre-aggregated data
+  database/
+    db.ts           Drizzle SQLite connection (better-sqlite3, WAL mode)
+    health.ts       Cross-DB health monitoring (SQLite + QuestDB, circuit breaker)
+    database.module.ts  NestJS DI module (QuestDBService, SQLiteService)
+    questdb.service.ts  NestJS QuestDB facade
+    sqlite.service.ts   NestJS SQLite facade
+    typeorm.module.ts   TypeORM config
+    questdb/
+      connection.ts   Low-level clients (Sender, pg.Pool, queryQuestDB, insertOHLCVBatch)
+      marketData.ts   OHLCV SAMPLE BY queries, materialized view lookup, front-month stitching
+      introspection.ts  Schema metadata (SHOW TABLES, columns, partitions, stats)
+      httpQuery.ts    QuestDB HTTP API (questdbHttpQuery, questdbExportParquet, questdbImportCSV)
+      export.ts       Parquet export via /exp endpoint
+      tables.ts       DDL (createOHLCVTable, createTradesTable, createMBP10Table)
+      lifecycle.ts    QuestDB process lifecycle (start, stop, status)
+      integration.ts  Circuit-breaker-wrapped insert/query + pipeline metrics
+      ohlcvQuery.ts   OHLCV query orchestration (health check, time-window estimation, caching)
+      index.ts        Barrel re-exporting all sub-modules
+  storage/          Drizzle queries for all SQLite tables (domain sub-interfaces)
   training/
     registry.ts     Config reader (config/models.json, features.json, training.json)
     orchestrator.ts Central coordinator — startTraining, stopTraining, session management
-    dataExporter.ts QuestDB → parquet export for Python trainers (via DuckDB in-memory)
+    dataExporter.ts QuestDB → parquet export for Python trainers
     runners/
       types.ts      ITrainerRunner interface, session management, SSE event buffering
       pythonRunner.ts  Spawns Python scripts, parses stdout (HDP-HMM Gibbs metrics)
       tfjsRunner.ts    Wraps TF.js MLTrainer EventEmitter
   lib/
-    ingestion/      fileTracker (SHA-256 dedup), standardize, ingestParquet
-    indicators/     registry (344 indicators via pandas-ta), sqlGenerator, math, indicatorService
+    ingestion/      fileTracker (SHA-256 dedup), standardize, uploadProcessor
+    indicators/     registry (344 indicators via pandas-ta), sqlGenerator, precomputedService
     labels/         sqlLabelGenerators (15+ types), contrastivePairs, labelService
     xai/            xaiService (9 methods: SHAP, LIME, GradCAM, Integrated Gradients,
                     Saliency, Permutation, Feature Interaction, Calibration, Counterfactual)
-    questdbSync.ts  DuckDB -> QuestDB bulk sync via ILP (legacy, slow)
-    questdbProcess.ts  QuestDB java.exe lifecycle management
     circuitBreaker.ts  Auto-disable failing DB connections
-    databaseHealth.ts  Health monitoring
     rateLimiter.ts  API 100/min, ML 50/min, upload 10/min
-    streamingPipeline.ts  CSV/Parquet -> multi-DB streaming
-    unifiedIngestion.ts   Multi-DB ingestion coordinator
     dataPipeline.ts       ETL orchestration
     metrics.ts            Performance tracking
   ml/               trainer.ts (MLTrainer + SSE streaming), cnn.ts, dataPipeline.ts

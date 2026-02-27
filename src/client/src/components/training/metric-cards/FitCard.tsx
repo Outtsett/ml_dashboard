@@ -33,7 +33,7 @@ export function FitCard({
         {isTraining && liveMetrics?.gibbsIter ? `Gibbs ${liveMetrics.gibbsIter}/${liveMetrics.gibbsTotal}` : 'Model Fit'}
       </div>
       <div className="text-4xl font-bold font-mono text-violet-400 leading-none mb-2 truncate transition-all duration-500">
-        {llPerBar !== 0 ? llPerBar.toFixed(2) : isTraining ? <span className="animate-pulse text-violet-400/20">—</span> : '--'}
+        {llPerBar !== 0 ? llPerBar.toFixed(2) : isTraining ? <span className="animate-pulse text-violet-400/20">{'\u2014'}</span> : <span className="text-violet-400/20">{'\u2014'}</span>}
       </div>
       {finalLL !== 0 && (
         <div className="text-[9px] text-muted-foreground/50 mb-1">
@@ -70,7 +70,7 @@ export function FitCard({
         <span className="text-xs font-mono text-muted-foreground">
           {trainingTimeSec > 0 ? (
             trainingTimeSec >= 60 ? `${Math.floor(trainingTimeSec / 60)}m ${Math.round(trainingTimeSec % 60)}s` : `${trainingTimeSec.toFixed(0)}s`
-          ) : isTraining && progress ? `${progress.pct.toFixed(0)}%` : '--'}
+          ) : isTraining && progress ? `${progress.pct.toFixed(0)}%` : '\u2014'}
         </span>
         {diagnostics && (
           <span className="text-[9px] text-muted-foreground/40 font-mono">

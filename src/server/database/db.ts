@@ -20,3 +20,9 @@ sqlite.pragma("foreign_keys = ON");
 sqlite.pragma("busy_timeout = 5000");
 
 export const db = drizzle(sqlite, { schema });
+
+// Read-only connection for the database explorer query endpoint (security: prevents writes
+// even if the SQL blocklist validator is bypassed via SQLite function tricks).
+const sqliteReadOnly = new Database(dbPath, { readonly: true });
+sqliteReadOnly.pragma("busy_timeout = 5000");
+export const dbReadOnly = drizzle(sqliteReadOnly, { schema });

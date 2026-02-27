@@ -89,11 +89,11 @@ def compute_feature_importance(regime_X, global_X, feature_names):
 
 def generate_regime_description(regime_features, feature_names, avg_return, avg_volatility, avg_duration, pct):
     """
-    Classify regime by market structure using multi-timeframe feature relationships.
+    Classify regime by market structure using price features and swing structure.
 
     Returns (label, nickname) where:
-      - label: Market structure type (e.g., "Bull Breakout", "Bear Reversal", "Compression")
-      - nickname: Numeric fingerprint (e.g., "+3.2bp/bar, 1.1% vol, expanding ranges, 6-bar hold")
+      - label: Market structure type (e.g., "Bull Trend", "Choppy", "Breakout")
+      - nickname: Numeric fingerprint (e.g., "+3.2bp/bar, 1.1% vol, 12-bar swings, 6-bar hold")
     """
     def _feat(name):
         if name in feature_names:
@@ -112,6 +112,15 @@ def generate_regime_description(regime_features, feature_names, avg_return, avg_
     body = _feat("body_ratio")
     bar_range = _feat("bar_range")
     vol_ratio = _feat("volume_ratio_10")
+
+    # Swing features (causal zigzag)
+    swing_dir = _feat("swing_direction")
+    swing_pct = _feat("swing_pct")
+    swing_dur = _feat("swing_duration")
+    swing_vel = _feat("swing_velocity")
+    prev_swing_pct = _feat("prev_swing_pct")
+    retrace = _feat("retracement_ratio")
+    swing_count = _feat("swing_count_50")
 
     ret_bps = (ret1 or 0) * 10000
     vol_pct = avg_volatility * 100
@@ -140,11 +149,24 @@ def generate_regime_description(regime_features, feature_names, avg_return, avg_
     # Volume surge
     vol_surge = (vol_ratio is not None and vol_ratio > 1.5)
 
+    # ── Swing structure signals ──
+    has_swing = swing_count is not None
+    choppy = has_swing and swing_count is not None and swing_count > 8
+    long_swings = has_swing and swing_dur is not None and swing_dur > 10
+    big_swings = has_swing and swing_pct is not None and abs(swing_pct) > 0.005
+    deep_retrace = has_swing and retrace is not None and retrace > 0.6
+    shallow_retrace = has_swing and retrace is not None and retrace < 0.3
+
     # ── Label: market structure classification ──
     bull = short_dir > 0
     prefix = "Bull" if bull else "Bear"
 
-    if not aligned and trending and vol_expanding:
+    # Swing-aware classification (takes priority when swing features available)
+    if has_swing and choppy and not trending:
+        label = "Choppy"
+    elif has_swing and choppy and vol_expanding:
+        label = "Whipsaw"
+    elif not aligned and trending and vol_expanding:
         label = f"{prefix} Reversal"
     elif not aligned and trending:
         label = f"{prefix} Reversal"
@@ -152,18 +174,24 @@ def generate_regime_description(regime_features, feature_names, avg_return, avg_
         label = f"{prefix} Breakout"
     elif aligned and vol_expanding and trending:
         label = f"{prefix} Breakout"
+    elif has_swing and long_swings and big_swings and aligned:
+        label = f"{prefix} Trend"
     elif aligned and accel:
         label = f"{prefix} Acceleration"
     elif aligned and decel and extended:
         label = f"{prefix} Exhaustion"
+    elif has_swing and deep_retrace and trending:
+        label = f"{prefix} Pullback"
     elif aligned and trending:
         label = f"{prefix} Continuation"
     elif vol_contracting and abs(ret_bps) < 1.0:
         label = "Compression"
+    elif has_swing and shallow_retrace and not trending:
+        label = "Coiling"
     elif abs(ret_bps) < 0.3 and vol_pct < 0.3:
         label = "Dead Zone"
-    elif vol_pct > 1.5 and abs(ret_bps) < 1.5:
-        label = "Whipsaw"
+    elif has_swing and choppy:
+        label = "Range-Bound"
     elif abs(ret_bps) < 1.0:
         label = "Range-Bound"
     elif bull:
@@ -192,6 +220,12 @@ def generate_regime_description(regime_features, feature_names, avg_return, avg_
 
     if vol_surge:
         parts.append(f"{vol_ratio:.1f}x vol")
+
+    # Swing structure in nickname
+    if has_swing and swing_dur is not None:
+        parts.append(f"{swing_dur:.0f}-bar swings")
+    if has_swing and swing_count is not None:
+        parts.append(f"{swing_count:.0f} pivots/50bars")
 
     parts.append(f"{avg_duration:.0f}-bar hold")
     parts.append(f"{pct:.0f}% of data")

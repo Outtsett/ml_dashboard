@@ -1,7 +1,7 @@
-import { db } from '../database/db';
+import { db } from './db';
 import { sql } from 'drizzle-orm';
-import { getCircuitBreaker, CircuitOpenError, getAllCircuitBreakerStats } from './circuitBreaker';
-import { pipelineMetrics } from './metrics';
+import { getCircuitBreaker, CircuitOpenError, getAllCircuitBreakerStats } from '../lib/circuitBreaker';
+import { pipelineMetrics } from '../lib/metrics';
 
 export interface DatabaseHealthStatus {
   database: string;
@@ -67,7 +67,7 @@ export async function checkQuestDBHealth(): Promise<DatabaseHealthStatus> {
 
   try {
     await breaker.execute(async () => {
-      const { checkQuestDBHealth: questCheck } = await import('../questdb');
+      const { checkQuestDBHealth: questCheck } = await import('./questdb');
       const healthy = await questCheck();
       if (!healthy) {
         throw new Error('QuestDB health check failed');

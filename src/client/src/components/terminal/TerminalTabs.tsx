@@ -65,14 +65,14 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
   const editInputRef = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
   const training = useTrainingContext();
-  const hasTrainingTab = showTrainingTab || training.isTraining;
+  const hasTrainingTab = !!showTrainingTab;
 
-  // Auto-switch to training tab when training starts
+  // Auto-switch to training tab when training starts (only if tab is shown)
   useEffect(() => {
-    if (training.isTraining) {
+    if (showTrainingTab && training.isTraining) {
       setActiveTabId("__training__");
     }
-  }, [training.isTraining]);
+  }, [showTrainingTab, training.isTraining]);
 
   // ── Init: load existing sessions or create the first one ───────────────────
 

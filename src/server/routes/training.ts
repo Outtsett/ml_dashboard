@@ -39,18 +39,29 @@ import {
 
 // ─── Zod schema for request validation (DIP — route depends on schema, not manual field copying) ──
 
+/** ISO date: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS */
+const isoDatePattern = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?$/;
+
+const VALID_TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"] as const;
+
 const trainingRequestSchema = z.object({
-  modelType: z.string().min(1, "modelType is required"),
-  symbol: z.string().min(1, "symbol is required"),
-  timeframe: z.string().optional(),
+  modelType: z.string().min(1, "modelType is required").max(64),
+  symbol: z.string().min(1, "symbol is required").max(20)
+    .regex(/^[A-Z][A-Z0-9_\-\/]{0,19}$/, "Invalid symbol format"),
+  timeframe: z.enum(VALID_TIMEFRAMES).optional(),
   dateRange: z.object({
-    start: z.string(),
-    end: z.string(),
+    start: z.string().regex(isoDatePattern, "dateRange.start must be YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS"),
+    end: z.string().regex(isoDatePattern, "dateRange.end must be YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS"),
   }).optional(),
-  hyperparameters: z.record(z.union([z.number(), z.string(), z.boolean()])).optional(),
+  // Allow string values for backward compat, but restrict to safe characters
+  hyperparameters: z.record(z.union([
+    z.number(),
+    z.string().max(100).regex(/^[a-zA-Z0-9_.\-]+$/, "Unsafe hyperparameter value"),
+    z.boolean(),
+  ])).optional(),
   includeIndicators: z.boolean().optional(),
   allFeatures: z.boolean().optional(),
-  indicatorGroups: z.string().optional(),
+  indicatorGroups: z.string().max(200).regex(/^[a-zA-Z0-9_,]+$/, "Invalid indicator group format").optional(),
 }) satisfies z.ZodType<TrainingRequest>;
 
 const router = Router();
@@ -222,7 +233,7 @@ router.get("/training/models/:id/convergence", (req: Request, res: Response) => 
   }
 });
 
-// ─── Assignments (parquet + OHLCV join) ──────────────────────────────────────
+// ─── Assignments (QuestDB model_regimes table) ──────────────────────────────
 
 router.get("/training/models/:id/assignments", async (req: Request, res: Response) => {
   try {
@@ -259,10 +270,10 @@ router.get("/training/models/:id/shap", async (req: Request, res: Response) => {
 
 // ─── Delete model ────────────────────────────────────────────────────────────
 
-router.delete("/training/models/:id", (req: Request, res: Response) => {
+router.delete("/training/models/:id", async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
-    const deleted = deleteModel(MODELS_DIR, id);
+    const deleted = await deleteModel(MODELS_DIR, id);
     if (!deleted) return res.status(404).json({ error: `Model '${id}' not found` });
     res.json({ message: `Deleted model '${id}'` });
   } catch (err: any) {

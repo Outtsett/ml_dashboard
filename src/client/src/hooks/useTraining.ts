@@ -25,6 +25,18 @@ import type {
   ModelRegistryEntry,
 } from "@shared/trainingTypes";
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Parse API error responses — server returns "429: {"error":"..."}" format. */
+function parseApiError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  const jsonIdx = raw.indexOf("{");
+  if (jsonIdx >= 0) {
+    try { return JSON.parse(raw.slice(jsonIdx)).error || raw; } catch { /* keep raw */ }
+  }
+  return raw;
+}
+
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useTraining(): TrainingState & {
@@ -132,7 +144,7 @@ export function useTraining(): TrainingState & {
       startElapsedTimer();
       connectSSE(result.modelId);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(parseApiError(err));
       setIsTraining(false);
       setIsPending(false);
     }

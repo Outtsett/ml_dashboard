@@ -64,7 +64,7 @@ export function isQuestDBRunning(): boolean {
   return connected;
 }
 
-export function getQuestDBStatus(): {
+export function getQuestDBProcessStatus(): {
   running: boolean;
   pid: number | undefined;
   uptime: string;

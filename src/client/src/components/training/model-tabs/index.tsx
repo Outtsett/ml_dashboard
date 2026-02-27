@@ -3,7 +3,7 @@
  *
  * Layout:
  *   ┌─ MNQ_30m ─┬─ ES_30m ─┬─ NQ_1H ─┐   ← model tabs (one per trained model)
- *   │ Overview │ Regimes │ Convergence │ WF │ OOS │ Fit │  ← metric sub-tabs
+ *   │ Overview │ Regimes │ Convergence │ WF │ OOS │ Fit │ Log │  ← sub-tabs
  *   │ [content for selected sub-tab]                      │
  *   └────────────────────────────────────────────────────────┘
  */
@@ -12,6 +12,11 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Layers, Trash2 } from "lucide-react";
 import type { RegimeModel, ConvergencePoint } from "../types";
 import { getQualityColor } from "../types";
@@ -22,6 +27,7 @@ import { ConvergencePanel } from "./ConvergencePanel";
 import { WalkForwardPanel } from "./WalkForwardPanel";
 import { OOSPanel } from "./OOSPanel";
 import { FitPanel } from "./FitPanel";
+import { TrainingLogTab } from "@/components/terminal/TrainingLogTab";
 
 // ─── Main ModelTabs Component ────────────────────────────────────────────────
 
@@ -171,37 +177,69 @@ function ModelPanel({
           );
         })}
 
-        {/* Delete button on far right */}
+        {/* Delete with confirmation */}
         <div className="ml-auto pl-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0 text-muted-foreground/40 hover:text-rose-400"
-            onClick={() => deleteModel(model.id)}
-            title="Delete this model"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-muted-foreground/40 hover:text-rose-400"
+                title="Delete this model"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete {model.symbol} {model.timeframe}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete the model files and QuestDB regime data.
+                  This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-rose-600 hover:bg-rose-700 text-white"
+                  onClick={() => deleteModel(model.id)}
+                >
+                  Delete Model
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
       {/* ── Sub-tab content ── */}
-      <div className="p-4">
-        {!diagnostics ? (
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground text-xs animate-pulse">
-            Loading diagnostics...
-          </div>
-        ) : (
-          <>
-            {activeSubTab === "overview" && <OverviewPanel diagnostics={diagnostics} model={model} llPerBar={llPerBar} convergencePoints={convergencePoints} />}
-            {activeSubTab === "regimes" && <RegimesPanel diagnostics={diagnostics} />}
-            {activeSubTab === "convergence" && <ConvergencePanel diagnostics={diagnostics} convergencePoints={convergencePoints} nBarsForLL={nBarsForLL} llPerBar={llPerBar} />}
-            {activeSubTab === "walkforward" && <WalkForwardPanel diagnostics={diagnostics} wfWindResults={wfWindResults} stability={stability} />}
-            {activeSubTab === "oos" && <OOSPanel diagnostics={diagnostics} oos={oos} oosSimilarity={oosSimilarity} profileCorrelation={profileCorrelation} />}
-            {activeSubTab === "fit" && <FitPanel diagnostics={diagnostics} convergencePoints={convergencePoints} nBarsForLL={nBarsForLL} llPerBar={llPerBar} ll={ll} />}
-          </>
-        )}
-      </div>
+      {activeSubTab === "log" ? (
+        <div className="h-[320px]">
+          <TrainingLogTab visible />
+        </div>
+      ) : (
+        <div className="p-4">
+          {!diagnostics ? (
+            <div className="h-[300px] flex flex-col items-center justify-center gap-3">
+              <div className="flex gap-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="h-16 w-28 rounded-xl bg-white/3 animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
+                ))}
+              </div>
+              <span className="text-xs text-muted-foreground/40 font-mono">Loading diagnostics</span>
+            </div>
+          ) : (
+            <>
+              {activeSubTab === "overview" && <OverviewPanel diagnostics={diagnostics} model={model} llPerBar={llPerBar} convergencePoints={convergencePoints} />}
+              {activeSubTab === "regimes" && <RegimesPanel diagnostics={diagnostics} />}
+              {activeSubTab === "convergence" && <ConvergencePanel diagnostics={diagnostics} convergencePoints={convergencePoints} nBarsForLL={nBarsForLL} llPerBar={llPerBar} />}
+              {activeSubTab === "walkforward" && <WalkForwardPanel diagnostics={diagnostics} wfWindResults={wfWindResults} stability={stability} />}
+              {activeSubTab === "oos" && <OOSPanel diagnostics={diagnostics} oos={oos} oosSimilarity={oosSimilarity} profileCorrelation={profileCorrelation} />}
+              {activeSubTab === "fit" && <FitPanel diagnostics={diagnostics} convergencePoints={convergencePoints} nBarsForLL={nBarsForLL} llPerBar={llPerBar} ll={ll} />}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

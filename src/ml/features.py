@@ -1,7 +1,7 @@
 """
 Feature Computation — raw OHLCV → feature matrix.
 
-Computes 21 core features from price/volume data for regime discovery:
+Computes 29 features from price/volume data for regime discovery:
   - Log returns at multiple horizons (1, 5, 10, 20)
   - Realized volatility (rolling std of returns)
   - Range-based (Parkinson) volatility
@@ -9,11 +9,14 @@ Computes 21 core features from price/volume data for regime discovery:
   - Price structure (bar range, body ratio, shadow ratios)
   - Rate of change
   - Moving average distance
+  - Swing structure (8 causal features from zigzag — no lookahead)
 
 Also provides rolling z-score normalization.
 """
 
 import numpy as np
+
+from swing import compute_swing_features
 
 
 def _rolling_stat(arr, window, func):
@@ -76,6 +79,10 @@ def compute_features(table):
     for w in [10, 20, 50]:
         ma = _rolling_stat(close, w, np.mean)
         features[f"ma_dist_{w}"] = (close - ma) / (ma + 1e-10)
+
+    # Swing structure (causal zigzag — strictly no lookahead)
+    swing_feats = compute_swing_features(high, low, close)
+    features.update(swing_feats)
 
     # Stack into matrix
     names = list(features.keys())

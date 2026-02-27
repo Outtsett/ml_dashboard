@@ -11,38 +11,39 @@
  *
  * Only renders when training is active. Reads from TrainingContext.
  */
-import { useTrainingContext } from "@/contexts/TrainingContext";
+import { useTrainingControl, useTrainingLive } from "@/contexts/TrainingContext";
 import { ConvergenceChart } from "./ConvergenceChart";
 import { RegimeCountTracker } from "./RegimeCountTracker";
 import { TransitionMatrixHeatmap } from "./TransitionMatrixHeatmap";
 import { IterationMetrics } from "./IterationMetrics";
 
 export function LiveTrainingDashboard() {
-  const training = useTrainingContext();
+  const { isTraining, completedModelId, config, progress, phase } = useTrainingControl();
+  const { iterationHistory, overlayData, diagnostics, elapsedSec } = useTrainingLive();
 
-  if (!training.isTraining && !training.completedModelId) return null;
+  if (!isTraining && !completedModelId) return null;
 
   // Safe cast — diagnostics shape is model-dependent
-  const diag = training.diagnostics as Record<string, unknown> | null;
-  const overlay = training.overlayData?.payload as Record<string, unknown> | undefined;
+  const diag = diagnostics as Record<string, unknown> | null;
+  const overlay = overlayData?.payload as Record<string, unknown> | undefined;
 
   return (
-    <div className="border border-white/5 rounded-lg overflow-hidden bg-black/20">
-      <div className="grid grid-cols-2 grid-rows-2" style={{ height: '360px' }}>
+    <div className="border border-white/5 rounded-xl overflow-hidden bg-black/20">
+      <div className="grid grid-cols-2 grid-rows-2 min-h-[280px] max-h-[420px]" style={{ height: 'clamp(280px, 30vw, 420px)' }}>
         {/* Top-left: Convergence */}
         <div className="border-r border-b border-white/5">
           <ConvergenceChart
-            iterationHistory={training.iterationHistory || []}
-            burnIn={(training.config?.hyperparameters?.burnIn as number) ?? 100}
-            isTraining={training.isTraining}
+            iterationHistory={iterationHistory || []}
+            burnIn={(config?.hyperparameters?.burnIn as number) ?? 100}
+            isTraining={isTraining}
           />
         </div>
 
         {/* Top-right: Regime Count */}
         <div className="border-b border-white/5">
           <RegimeCountTracker
-            iterationHistory={training.iterationHistory || []}
-            isTraining={training.isTraining}
+            iterationHistory={iterationHistory || []}
+            isTraining={isTraining}
           />
         </div>
 
@@ -60,11 +61,11 @@ export function LiveTrainingDashboard() {
         {/* Bottom-right: Iteration Metrics */}
         <div>
           <IterationMetrics
-            isTraining={training.isTraining}
-            progress={training.progress ?? 0}
-            phase={training.phase ?? ''}
-            iterationHistory={training.iterationHistory || []}
-            elapsedSec={training.elapsedSec ?? 0}
+            isTraining={isTraining}
+            progress={progress ?? 0}
+            phase={phase ?? ''}
+            iterationHistory={iterationHistory || []}
+            elapsedSec={elapsedSec ?? 0}
           />
         </div>
       </div>

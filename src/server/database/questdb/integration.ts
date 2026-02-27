@@ -1,6 +1,6 @@
-import { insertOHLCVBatch, OHLCVRow, getOHLCVSampleBy, checkQuestDBHealth, createOHLCVTable } from "../questdb";
-import { getCircuitBreaker } from "./circuitBreaker";
-import { pipelineMetrics } from "./metrics";
+import { insertOHLCVBatch, OHLCVRow, getOHLCVSampleBy, checkQuestDBHealth, createOHLCVTable } from ".";
+import { getCircuitBreaker } from "../../lib/circuitBreaker";
+import { pipelineMetrics } from "../../lib/metrics";
 
 const questdbCircuit = getCircuitBreaker('questdb');
 
@@ -33,7 +33,7 @@ export async function insertOHLCVToQuestDB(
   }
 
   const startTime = Date.now();
-  
+
   try {
     const result = await questdbCircuit.execute(async () => {
       const rows: OHLCVRow[] = data.map(d => ({
@@ -114,7 +114,7 @@ export async function initializeQuestDB(): Promise<{ success: boolean; error?: s
 
     await createOHLCVTable();
     console.log('[QuestDB] OHLCV table initialized');
-    
+
     return { success: true };
   } catch (error) {
     console.error('[QuestDB] Initialization failed:', error);
@@ -125,7 +125,7 @@ export async function initializeQuestDB(): Promise<{ success: boolean; error?: s
   }
 }
 
-export async function getQuestDBStatus(): Promise<{
+export async function getQuestDBIntegrationStatus(): Promise<{
   enabled: boolean;
   healthy: boolean;
   circuitState: string;
@@ -158,7 +158,7 @@ export async function getQuestDBRowCount(symbol: string): Promise<number> {
   }
 
   try {
-    const { queryQuestDB } = await import('../questdb');
+    const { queryQuestDB } = await import(".");
     const result = await questdbCircuit.execute(async () => {
       const sql = `SELECT COUNT(*) as cnt FROM ohlcv WHERE symbol = '${safeSymbol}'`;
       return queryQuestDB(sql);

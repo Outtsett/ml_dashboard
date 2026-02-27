@@ -9,7 +9,7 @@
  *  - Max 500 entries (each ~2000 bars × ~64 bytes ≈ 125 KB → total ~60 MB max)
  *  - 5 min TTL per entry (market data doesn't change for historical bars)
  *  - LRU eviction when at capacity
- *  - Supports parquet, ohlcv, questdb, and chart cache sources
+ *  - Supports ohlcv, questdb, and chart cache sources
  */
 
 interface CacheEntry<T> {
@@ -48,7 +48,7 @@ class OHLCVCache {
    * Key format: source|symbol|timeframe|startTime|endTime|limit|loadFromStart
    */
   static key(
-    source: 'parquet' | 'ohlcv' | 'questdb' | 'chart',
+    source: 'ohlcv' | 'questdb' | 'chart',
     symbol: string,
     timeframe: number | string,
     opts?: {

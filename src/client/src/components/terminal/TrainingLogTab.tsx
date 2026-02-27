@@ -1,15 +1,22 @@
 /**
- * TrainingLogTab — Read-only training log viewer.
+ * TrainingLogTab — Rich training log viewer.
  *
  * Subscribes to the training SSE stream via TrainingContext and renders
  * formatted events in an xterm.js terminal (no PTY — write-only).
- * Auto-activates when training starts.
+ *
+ * Displays:
+ * - Log messages (startup info, feature computation, periodic summaries)
+ * - Live progress bar (replaces bare "Iteration X/Y" flood)
+ * - Formatted metric snapshots at ~10% intervals (LL, states, entropy, etc.)
+ * - Regime overlay update notifications
+ * - Completion banner with model ID, time, regime count, quality score
+ * - Error banner
  */
 import { useEffect, useRef, useCallback } from "react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
-import { useTrainingContext } from "@/contexts/TrainingContext";
+import { useTrainingControl, useTrainingLive } from "@/contexts/TrainingContext";
 
 const THEME = {
   background: "#0a0a0a",
@@ -47,6 +54,12 @@ const C = {
   white: "\x1b[37m",
 };
 
+/** Show a metric snapshot at every N% progress. */
+const METRIC_INTERVAL_PCT = 10;
+
+/** Bare iteration messages to filter (we show a progress bar instead). */
+const ITERATION_RE = /^Iteration \d+\/\d+$/;
+
 interface TrainingLogTabProps {
   visible?: boolean;
 }
@@ -55,9 +68,19 @@ export function TrainingLogTab({ visible = true }: TrainingLogTabProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
-  const training = useTrainingContext();
-  const lastLogCount = useRef(0);
+
+  // Focused hooks — avoids full-context re-renders
+  const { isTraining, config, modelType, completedModelId, progress, phase, error } = useTrainingControl();
+  const { logs, metrics, overlayData, elapsedSec, totalBars, diagnostics, dataRange } = useTrainingLive();
+
+  // Track what we've already rendered to the terminal
+  const lastLogIdx = useRef(0);
+  const lastMetricBucket = useRef(-1);
   const wasTraining = useRef(false);
+  const completedRef = useRef<string | null>(null);
+  const errorRef = useRef<string | null>(null);
+  const lastOverlayNRegimes = useRef<number | null>(null);
+  const onProgressLine = useRef(false);
 
   // Initialize xterm (read-only)
   useEffect(() => {
@@ -94,7 +117,7 @@ export function TrainingLogTab({ visible = true }: TrainingLogTabProps) {
     };
   }, []);
 
-  // Resize
+  // Resize on container changes
   useEffect(() => {
     if (!containerRef.current || !fitRef.current) return;
     const observer = new ResizeObserver(() => {
@@ -106,112 +129,159 @@ export function TrainingLogTab({ visible = true }: TrainingLogTabProps) {
     return () => observer.disconnect();
   }, []);
 
-  // Re-fit on visibility change
+  // Re-fit on visibility toggle
   useEffect(() => {
     if (visible) {
       requestAnimationFrame(() => fitRef.current?.fit());
     }
   }, [visible]);
 
-  // Format SSE events into ANSI terminal output
-  const writeEvent = useCallback((type: string, data: Record<string, unknown>) => {
-    const term = termRef.current;
-    if (!term) return;
-
-    switch (type) {
-      case "started":
-        term.writeln(
-          `${C.bold}${C.green}\u25B6 Training started${C.reset} ` +
-          `${C.dim}${data.modelType} | ${data.symbol} ${data.timeframe}${C.reset}`
-        );
-        term.writeln("");
-        break;
-
-      case "progress": {
-        const pct = Math.round((data.pct as number) || 0);
-        const filled = Math.round(pct / 5);
-        const bar = "\u2588".repeat(filled) + "\u2591".repeat(20 - filled);
-        const phase = data.phase || "training";
-        // Overwrite current line with \r
-        term.write(
-          `\r${C.cyan}[${bar}]${C.reset} ${C.bold}${pct}%${C.reset} ` +
-          `${C.dim}${data.step}/${data.totalSteps} ${phase}${C.reset}`
-        );
-        break;
-      }
-
-      case "metric": {
-        const metrics = (data.metrics as Record<string, number>) || {};
-        for (const [name, value] of Object.entries(metrics)) {
-          const formatted = typeof value === "number" ? value.toFixed(4) : String(value);
-          const color = name === "log_likelihood" ? C.blue
-            : name === "num_regimes" ? C.magenta
-            : C.white;
-          term.writeln(`  ${color}${name}${C.reset}: ${C.bold}${formatted}${C.reset}`);
-        }
-        break;
-      }
-
-      case "overlay":
-        term.writeln(`\r${C.green}\u25C6 Regime update${C.reset} ${C.dim}overlay refreshed${C.reset}`);
-        break;
-
-      case "log": {
-        const level = (data.level as string) || "info";
-        const color = level === "error" ? C.red : level === "warn" ? C.yellow : C.dim;
-        term.writeln(`${color}${data.message}${C.reset}`);
-        break;
-      }
-
-      case "done":
-        term.writeln("");
-        term.writeln(`${C.bold}${C.green}\u2713 Training complete${C.reset}`);
-        if (data.elapsedSec) {
-          term.writeln(`${C.dim}  Elapsed: ${(data.elapsedSec as number).toFixed(1)}s${C.reset}`);
-        }
-        break;
-
-      case "error":
-        term.writeln(`${C.bold}${C.red}\u2717 Error: ${data.message}${C.reset}`);
-        if (data.details) {
-          term.writeln(`${C.dim}${C.red}${data.details}${C.reset}`);
-        }
-        break;
+  /** End a \r-overwritten progress line before writing a new full line. */
+  const endProgressLine = useCallback(() => {
+    if (onProgressLine.current && termRef.current) {
+      termRef.current.writeln("");
+      onProgressLine.current = false;
     }
   }, []);
 
-  // React to training state changes
+  /** Format elapsed seconds as human-readable string. */
+  const fmtTime = useCallback((sec: number) =>
+    sec >= 60 ? `${Math.floor(sec / 60)}m ${Math.round(sec % 60)}s` : `${sec.toFixed(0)}s`
+  , []);
+
+  // ── Main reactive effect ────────────────────────────────────────────────────
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
 
-    // When training starts fresh, clear and write header
-    if (training.isTraining && !wasTraining.current) {
+    // ── Training start ──────────────────────────────────────────────────────
+    if (isTraining && !wasTraining.current) {
       wasTraining.current = true;
-      lastLogCount.current = 0;
+      lastLogIdx.current = 0;
+      lastMetricBucket.current = -1;
+      completedRef.current = null;
+      errorRef.current = null;
+      lastOverlayNRegimes.current = null;
+      onProgressLine.current = false;
       term.clear();
-      writeEvent("started", {
-        modelType: training.modelType,
-        symbol: training.config?.symbol,
-        timeframe: training.config?.timeframe,
-      });
+
+      term.writeln(
+        `${C.bold}${C.green}\u25B6 Training started${C.reset}  ` +
+        `${C.dim}${modelType} | ${config?.symbol} ${config?.timeframe}${C.reset}`
+      );
+      const infoParts: string[] = [];
+      if (totalBars > 0) infoParts.push(`${totalBars.toLocaleString()} bars`);
+      if (dataRange) infoParts.push(`${dataRange.start} \u2192 ${dataRange.end}`);
+      if (infoParts.length) term.writeln(`  ${C.dim}${infoParts.join(" | ")}${C.reset}`);
+      term.writeln("");
     }
 
-    // When training stops
-    if (!training.isTraining && wasTraining.current) {
+    // ── Training stop (cancelled / stopped without completion) ────────────
+    if (!isTraining && wasTraining.current) {
       wasTraining.current = false;
     }
 
-    // Process new log entries (logs are plain strings from onProgress/onLog)
-    const logs = training.logs || [];
-    for (let i = lastLogCount.current; i < logs.length; i++) {
-      const msg = logs[i];
-      if (msg) {
-        writeEvent("log", { message: msg, level: "info" });
+    // ── Log entries ─────────────────────────────────────────────────────────
+    const allLogs = logs || [];
+    for (let i = lastLogIdx.current; i < allLogs.length; i++) {
+      const msg = allLogs[i];
+      if (!msg) continue;
+
+      // Filter bare "Iteration 123/500" lines — progress bar replaces them
+      if (ITERATION_RE.test(msg)) continue;
+
+      endProgressLine();
+
+      if (msg.toLowerCase().includes("error")) {
+        term.writeln(`${C.red}${msg}${C.reset}`);
+      } else if (msg.toLowerCase().includes("warn")) {
+        term.writeln(`${C.yellow}${msg}${C.reset}`);
+      } else {
+        term.writeln(`${C.dim}${msg}${C.reset}`);
       }
     }
-    lastLogCount.current = logs.length;
-  }, [training.isTraining, training.logs, training.modelType, training.config, writeEvent]);
+    lastLogIdx.current = allLogs.length;
+
+    // ── Progress bar (overwrites current line via \r) ───────────────────────
+    if (isTraining && progress > 0) {
+      const filled = Math.round(progress / 5);
+      const bar = "\u2588".repeat(filled) + "\u2591".repeat(20 - filled);
+      term.write(
+        `\r${C.cyan}[${bar}]${C.reset} ${C.bold}${Math.round(progress)}%${C.reset}` +
+        `  ${C.dim}${phase || "training"}  ${fmtTime(elapsedSec)}${C.reset}   `
+      );
+      onProgressLine.current = true;
+
+      // ── Metric snapshot at interval boundaries ──────────────────────────
+      const bucket = Math.floor(progress / METRIC_INTERVAL_PCT) * METRIC_INTERVAL_PCT;
+      if (bucket > lastMetricBucket.current && Object.keys(metrics).length > 0) {
+        lastMetricBucket.current = bucket;
+        endProgressLine();
+
+        const parts: string[] = [];
+        if (metrics.log_likelihood != null)
+          parts.push(`${C.blue}LL${C.reset} ${C.bold}${metrics.log_likelihood.toFixed(1)}${C.reset}`);
+        if (metrics.num_regimes != null)
+          parts.push(`${C.magenta}States${C.reset} ${C.bold}${Math.round(metrics.num_regimes)}${C.reset}`);
+        if (metrics.beta_entropy != null)
+          parts.push(`${C.cyan}Entropy${C.reset} ${C.bold}${metrics.beta_entropy.toFixed(2)}${C.reset}`);
+        if (metrics.mean_self_transition != null)
+          parts.push(`${C.yellow}SelfTrans${C.reset} ${C.bold}${metrics.mean_self_transition.toFixed(3)}${C.reset}`);
+        if (metrics.assignment_stability != null)
+          parts.push(`${C.green}Stability${C.reset} ${C.bold}${metrics.assignment_stability.toFixed(2)}${C.reset}`);
+
+        if (parts.length > 0) {
+          term.writeln(`  ${parts.join("  ")}`);
+        }
+      }
+    }
+
+    // ── Overlay update ──────────────────────────────────────────────────────
+    if (overlayData) {
+      const payload = overlayData.payload as Record<string, unknown> | undefined;
+      const nRegimes = (payload?.n_regimes as number) ?? null;
+      if (nRegimes != null && nRegimes !== lastOverlayNRegimes.current) {
+        lastOverlayNRegimes.current = nRegimes;
+        endProgressLine();
+        term.writeln(
+          `${C.green}\u25C6 Regime update${C.reset}  ${C.dim}${nRegimes} regimes detected${C.reset}`
+        );
+      }
+    }
+
+    // ── Completion banner ───────────────────────────────────────────────────
+    if (completedModelId && completedModelId !== completedRef.current) {
+      completedRef.current = completedModelId;
+      endProgressLine();
+      term.writeln("");
+      term.writeln(`${C.bold}${C.green}\u2713 Training complete${C.reset}`);
+
+      const infoParts: string[] = [
+        `${C.dim}Model:${C.reset} ${C.bold}${completedModelId}${C.reset}`,
+        `${C.dim}Time:${C.reset} ${fmtTime(elapsedSec)}`,
+      ];
+      const diag = diagnostics as Record<string, unknown> | null;
+      if (diag?.n_regimes) infoParts.push(`${C.magenta}${diag.n_regimes} regimes${C.reset}`);
+      if (diag?.quality_score)
+        infoParts.push(`${C.yellow}Quality: ${(diag.quality_score as number).toFixed(0)}/100${C.reset}`);
+      term.writeln(`  ${infoParts.join("  ")}`);
+    }
+
+    // ── Error banner ────────────────────────────────────────────────────────
+    if (error && error !== errorRef.current) {
+      errorRef.current = error;
+      endProgressLine();
+      term.writeln(`${C.bold}${C.red}\u2717 ${error}${C.reset}`);
+    }
+
+    // Auto-scroll to bottom so the user always sees the latest output
+    term.scrollToBottom();
+  }, [
+    isTraining, logs, metrics, progress, phase, elapsedSec,
+    overlayData, completedModelId, diagnostics, error,
+    config, modelType, totalBars, dataRange,
+    endProgressLine, fmtTime,
+  ]);
 
   return (
     <div

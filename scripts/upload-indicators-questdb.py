@@ -74,7 +74,11 @@ def questdb_http(sql: str, timeout: int = 300) -> dict:
 def questdb_pg(sql: str):
     """Execute SQL on QuestDB via Postgres wire (port 8812). No size limit."""
     conn = psycopg2.connect(
-        host="localhost", port=8812, user="admin", password="quest", database="qdb"
+        host=os.environ.get("QUESTDB_HOST", "localhost"),
+        port=int(os.environ.get("QUESTDB_PG_PORT", "8812")),
+        user=os.environ.get("QUESTDB_USER", "admin"),
+        password=os.environ.get("QUESTDB_PASSWORD", "quest"),
+        database="qdb",
     )
     conn.autocommit = True
     cur = conn.cursor()

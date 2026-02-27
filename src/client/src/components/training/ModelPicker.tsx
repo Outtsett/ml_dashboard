@@ -24,6 +24,7 @@ interface ModelPickerProps {
   timeframe: string;
   progress: number;
   phase: string;
+  error?: string | null;
 }
 
 export default function ModelPicker({
@@ -40,6 +41,7 @@ export default function ModelPicker({
   timeframe,
   progress,
   phase,
+  error,
 }: ModelPickerProps) {
   const [showConfig, setShowConfig] = useState(false);
 
@@ -123,6 +125,13 @@ export default function ModelPicker({
               />
             </div>
           )}
+        </div>
+      )}
+
+      {/* Error message */}
+      {error && !isTraining && !isPending && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-400">
+          {error}
         </div>
       )}
 

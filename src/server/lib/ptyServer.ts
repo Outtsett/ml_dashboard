@@ -187,6 +187,12 @@ export function registerTerminalRoutes(app: Express): void {
 
 // ── WebSocket Server ─────────────────────────────────────────────────────────
 
+/** Allowed origins for WebSocket connections (prevents CSRF-to-RCE). */
+const ALLOWED_WS_ORIGINS = new Set([
+  "http://127.0.0.1:5000",
+  "http://localhost:5000",
+]);
+
 export function attachPtyWebSocket(httpServer: Server): void {
   const wss = new WebSocketServer({ noServer: true });
 
@@ -194,6 +200,15 @@ export function attachPtyWebSocket(httpServer: Server): void {
     const url = req.url ?? "";
     const match = url.match(/^\/ws\/terminal\/?([\w-]*)$/);
     if (!match) return;
+
+    // Origin validation — reject cross-origin WebSocket connections
+    const origin = req.headers.origin ?? "";
+    if (origin && !ALLOWED_WS_ORIGINS.has(origin)) {
+      log(`Rejected WebSocket from origin: ${origin}`, "pty");
+      socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+      socket.destroy();
+      return;
+    }
 
     wss.handleUpgrade(req, socket, head, (ws) => {
       const sessionId = match[1] || "default";
@@ -222,13 +237,16 @@ export function attachPtyWebSocket(httpServer: Server): void {
             break;
           case "resize":
             if (msg.cols && msg.rows) {
-              session.pty.resize(msg.cols, msg.rows);
+              session.pty.resize(
+                Math.min(Math.max(msg.cols, 1), 500),
+                Math.min(Math.max(msg.rows, 1), 200),
+              );
             }
             break;
         }
       } catch {
-        const text = typeof raw === "string" ? raw : raw.toString("utf-8");
-        session.pty.write(text);
+        // Drop malformed messages — do NOT pipe raw text into the shell
+        log(`Dropped malformed WebSocket message from terminal client`, "pty");
       }
     });
 

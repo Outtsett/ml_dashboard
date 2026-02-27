@@ -161,7 +161,7 @@ export function useIndicatorData(
           const ts = row.timestamp;
           const val = row[col];
           if (ts != null && val != null && !isNaN(val as number)) {
-            // Timestamps from indicator parquets are already in seconds
+            // Timestamps from indicator tables are already in seconds
             const timeSec = ts as number;
             pointMap.set(timeSec, val as number);
           }
@@ -190,7 +190,7 @@ export function useIndicatorData(
           const ts = row.timestamp;
           const val = row[col];
           if (ts != null && val != null && val !== 0) {
-            // Timestamps from pattern parquets are already in seconds
+            // Timestamps from pattern tables are already in seconds
             const timeSec = ts as number;
             pointMap.set(timeSec, val as number);
           }

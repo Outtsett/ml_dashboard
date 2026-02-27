@@ -2,22 +2,25 @@
  * Model Results Service (SRP)
  *
  * Pure functions for trained-model CRUD: list, read diagnostics/convergence,
- * read assignments (parquet + OHLCV join), and delete.
+ * read assignments (QuestDB model_regimes table), and delete.
  * Consumed by routes/training.ts — no HTTP or Express types here.
  */
 
 import path from "path";
 import fs from "fs";
-import { questdbHttpQuery } from "../questdb/httpQuery";
+import { questdbHttpQuery } from "../database/questdb/httpQuery";
 
 // ─── Security ────────────────────────────────────────────────────────────────
 
+/** Strict allowlist: alphanumeric + underscore + hyphen, max 128 chars.
+ *  Used in SQL string interpolation — no quotes or metacharacters possible. */
 const MODEL_ID_RE = /^[a-zA-Z0-9_\-]+$/;
+const MODEL_ID_MAX_LEN = 128;
 
 export function sanitizeModelId(id: string): string {
   const trimmed = String(id).trim();
-  if (!trimmed || trimmed.includes("..") || !MODEL_ID_RE.test(trimmed)) {
-    throw new Error(`Invalid model ID: ${JSON.stringify(trimmed)}`);
+  if (!trimmed || trimmed.length > MODEL_ID_MAX_LEN || trimmed.includes("..") || !MODEL_ID_RE.test(trimmed)) {
+    throw new Error(`Invalid model ID: ${JSON.stringify(trimmed.slice(0, 40))}`);
   }
   return trimmed;
 }
@@ -183,7 +186,7 @@ export function getModelConvergence(baseDir: string, id: string): object | null 
   return raw;
 }
 
-// ─── Assignments (parquet via QuestDB read_parquet) ──────────────────────────
+// ─── Assignments (QuestDB model_regimes table) ──────────────────────────────
 
 export interface AssignmentsOptions {
   limit?: number;
@@ -191,28 +194,26 @@ export interface AssignmentsOptions {
 }
 
 export async function getModelAssignments(
-  baseDir: string,
+  _baseDir: string,
   id: string,
   opts: AssignmentsOptions = {},
 ) {
   const safe = sanitizeModelId(id);
-  const parquetPath = path.join(baseDir, safe, "regimes.parquet");
-  if (!fs.existsSync(parquetPath)) return null;
-
-  const forwardPath = parquetPath.replace(/\\/g, "/");
   const limit = Math.min(Number(opts.limit) || 50000, 100000);
   const offset = Number(opts.offset) || 0;
 
   const rows = await questdbHttpQuery<Record<string, unknown>>(
-    `SELECT ts, CAST(close AS DOUBLE) as close,
-            CAST(regime AS INT) as regime, regime_label, split
-     FROM read_parquet('${forwardPath}')
+    `SELECT ts, close, regime, regime_label, split
+     FROM model_regimes
+     WHERE model_id = '${safe}'
      ORDER BY ts ASC
      LIMIT ${offset}, ${limit}`
   );
 
+  if (rows.length === 0) return null;
+
   const total = await questdbHttpQuery<{ cnt: number }>(
-    `SELECT count() as cnt FROM read_parquet('${forwardPath}')`
+    `SELECT count() as cnt FROM model_regimes WHERE model_id = '${safe}'`
   );
 
   return { rows, total: Number(total[0]?.cnt ?? rows.length), limit, offset };
@@ -227,30 +228,28 @@ export interface ShapOptions {
 }
 
 export async function getModelShap(
-  baseDir: string,
+  _baseDir: string,
   id: string,
   opts: ShapOptions = {},
 ) {
   const safe = sanitizeModelId(id);
-  const parquetPath = path.join(baseDir, safe, "shap_values.parquet");
-  if (!fs.existsSync(parquetPath)) return null;
-
-  const forwardPath = parquetPath.replace(/\\/g, "/");
   const limit = Math.min(Number(opts.limit) || 50000, 100000);
   const offset = Number(opts.offset) || 0;
   const regimeFilter = opts.regime !== undefined
-    ? `WHERE regime = ${Math.floor(Number(opts.regime))}`
+    ? ` AND regime = ${Math.floor(Number(opts.regime))}`
     : "";
 
   const rows = await questdbHttpQuery<Record<string, unknown>>(
-    `SELECT * FROM read_parquet('${forwardPath}')
-     ${regimeFilter}
+    `SELECT * FROM model_shap
+     WHERE model_id = '${safe}'${regimeFilter}
      ORDER BY ts ASC
      LIMIT ${offset}, ${limit}`
   );
 
+  if (rows.length === 0) return null;
+
   const total = await questdbHttpQuery<{ cnt: number }>(
-    `SELECT count() as cnt FROM read_parquet('${forwardPath}') ${regimeFilter}`
+    `SELECT count() as cnt FROM model_shap WHERE model_id = '${safe}'${regimeFilter}`
   );
 
   return { rows, total: Number(total[0]?.cnt ?? rows.length), limit, offset };
@@ -258,7 +257,7 @@ export async function getModelShap(
 
 // ─── Delete ──────────────────────────────────────────────────────────────────
 
-export function deleteModel(baseDir: string, id: string): boolean {
+export async function deleteModel(baseDir: string, id: string): Promise<boolean> {
   const safe = sanitizeModelId(id);
   const modelDir = path.join(baseDir, safe);
   if (!fs.existsSync(modelDir)) return false;
@@ -268,5 +267,14 @@ export function deleteModel(baseDir: string, id: string): boolean {
     fs.unlinkSync(path.join(modelDir, file));
   }
   fs.rmdirSync(modelDir);
+
+  // Clean up QuestDB rows (fire-and-forget — disk deletion is the primary action)
+  try {
+    await questdbHttpQuery(`DELETE FROM model_regimes WHERE model_id = '${safe}'`);
+    await questdbHttpQuery(`DELETE FROM model_shap WHERE model_id = '${safe}'`);
+  } catch (err) {
+    console.warn(`[modelResults] Failed to delete QuestDB rows for ${safe}:`, err);
+  }
+
   return true;
 }

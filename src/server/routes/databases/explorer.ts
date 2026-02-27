@@ -15,7 +15,7 @@
 import { Router, Request, Response } from 'express';
 import * as path from 'path';
 import { getString } from '../helpers';
-import { db } from '../../database/db';
+import { db, dbReadOnly } from '../../database/db';
 import { sql as drizzleSql } from 'drizzle-orm';
 
 export const DATA_DIR = path.join(process.cwd(), 'data');
@@ -26,7 +26,8 @@ export const DATA_DIR = path.join(process.cwd(), 'data');
 export const isValidIdentifier = (name: string): boolean =>
   /^[a-zA-Z_][a-zA-Z0-9_.\-]{0,127}$/.test(name);
 
-/** Ensure a query is read-only (SELECT / SHOW / DESCRIBE / EXPLAIN) */
+/** Ensure a query is read-only (SELECT / SHOW / DESCRIBE / EXPLAIN).
+ *  Defense-in-depth: blocklist + SQLite read-only connection (see query endpoint). */
 export const isSafeReadOnlyQuery = (sql: string): { safe: boolean; error?: string } => {
   const normalizedSql = sql.trim().toUpperCase();
 
@@ -39,23 +40,22 @@ export const isSafeReadOnlyQuery = (sql: string): { safe: boolean; error?: strin
     return { safe: false, error: 'Only SELECT, SHOW, DESCRIBE, and EXPLAIN queries are allowed' };
   }
 
+  // Block DML/DDL keywords
   const dangerousPatterns =
-    /\b(DROP|DELETE|TRUNCATE|ALTER|GRANT|REVOKE|INSERT|UPDATE|CREATE|EXEC|EXECUTE|CALL|SET|INTO)\b/i;
+    /\b(DROP|DELETE|TRUNCATE|ALTER|GRANT|REVOKE|INSERT|UPDATE|CREATE|EXEC|EXECUTE|CALL|SET|INTO|ATTACH|DETACH|PRAGMA|VACUUM|REINDEX)\b/i;
   if (dangerousPatterns.test(sql)) {
     return { safe: false, error: 'Destructive or modifying queries are not allowed' };
   }
 
-  if (/;\s*[^\s]/.test(sql)) {
+  // Block multiple statements (semicolon followed by any non-whitespace, or just trailing semicolons)
+  if (/;/.test(sql.trim().replace(/;+\s*$/, ''))) {
     return { safe: false, error: 'Multiple statements are not allowed' };
   }
 
-  const parquetDataDir = path.join(DATA_DIR, 'parquet-data').replace(/\\/g, '/');
-  const filePatterns = new RegExp(
-    `\\b(read_csv|read_json|read_parquet)\\s*\\(\\s*['"](?!${parquetDataDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`,
-    'i',
-  );
-  if (filePatterns.test(sql)) {
-    return { safe: false, error: `Filesystem access is restricted to ${parquetDataDir} directory` };
+  // Block dangerous SQLite/DuckDB filesystem and extension functions
+  const dangerousFunctions = /\b(read_csv|read_json|read_parquet|readfile|writefile|load_extension|fts3_tokenizer)\s*\(/i;
+  if (dangerousFunctions.test(sql)) {
+    return { safe: false, error: 'Filesystem and extension functions are not allowed in queries' };
   }
 
   return { safe: true };
@@ -115,7 +115,7 @@ router.get('/databases/postgres/stats', (_req: Request, res: Response) => {
 // QuestDB Stats
 router.get('/databases/questdb/stats', async (_req: Request, res: Response) => {
   try {
-    const { getQuestDBStats } = await import('../../questdb');
+    const { getQuestDBStats } = await import('../../database/questdb');
     const stats = await getQuestDBStats();
     res.json(stats);
   } catch (error: any) {
@@ -144,7 +144,7 @@ router.get('/databases/preview/:db/:table', async (req: Request, res: Response) 
       const { db: sqliteDb } = await import('../../database/db');
       rows = sqliteDb.all(drizzleSql.raw(`SELECT * FROM "${escapedTable}" LIMIT ${limit}`));
     } else if (dbParam === 'questdb') {
-      const { queryQuestDB } = await import('../../questdb');
+      const { queryQuestDB } = await import('../../database/questdb');
       const escapedTable = table.replace(/'/g, "''");
       rows = await queryQuestDB(`SELECT * FROM '${escapedTable}' LIMIT ${limit}`);
     }
@@ -178,10 +178,10 @@ router.post('/databases/query', async (req: Request, res: Response) => {
     let rows: any[] = [];
 
     if (dbParam === 'sqlite' || dbParam === 'postgres') {
-      const { db: sqliteDb } = await import('../../database/db');
-      rows = sqliteDb.all<Record<string, unknown>>(drizzleSql.raw(sql)) as any[];
+      // Use read-only connection — prevents writes even if blocklist is bypassed
+      rows = dbReadOnly.all<Record<string, unknown>>(drizzleSql.raw(sql)) as any[];
     } else if (dbParam === 'questdb') {
-      const { queryQuestDB } = await import('../../questdb');
+      const { queryQuestDB } = await import('../../database/questdb');
       rows = await queryQuestDB(sql);
     }
 
@@ -189,14 +189,16 @@ router.post('/databases/query', async (req: Request, res: Response) => {
 
     res.json({ rows, rowCount: rows.length });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    // Sanitize error messages — don't leak internal paths or SQL details
+    const safeMessage = String(error.message || '').replace(/[A-Z]:\\[^\s]*/gi, '[path]');
+    res.status(500).json({ error: safeMessage });
   }
 });
 
 // Initialize QuestDB OHLCV table
 router.post('/databases/questdb/init', async (_req: Request, res: Response) => {
   try {
-    const { createOHLCVTable } = await import('../../questdb');
+    const { createOHLCVTable } = await import('../../database/questdb');
     await createOHLCVTable();
     res.json({ success: true, message: 'QuestDB OHLCV table created' });
   } catch (error: any) {

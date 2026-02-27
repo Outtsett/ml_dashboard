@@ -161,7 +161,7 @@ export function ChartPanel({
 
       {/* Terminal panel */}
       <ResizablePanel defaultSize={25} minSize={5} maxSize={60}>
-        <TerminalTabs showTrainingTab />
+        <TerminalTabs />
       </ResizablePanel>
     </ResizablePanelGroup>
   );

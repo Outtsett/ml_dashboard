@@ -1,7 +1,8 @@
 import { Router, Request, Response } from "express";
 import { spawn, ChildProcess } from "child_process";
 import { mlRateLimiter } from "../../lib/rateLimiter";
-import { metaCache, clearCachedCatalog, DATA_DIR, ASSET_CLASSES } from "./helpers";
+import { clearCachedCatalog, clearColumnCache, getIndicatorTable } from "./helpers";
+import { questdbHttpQuery } from "../../database/questdb/httpQuery";
 import * as path from "path";
 import * as fs from "fs";
 
@@ -97,9 +98,9 @@ router.post("/indicators/compute-batch", mlRateLimiter, (req: Request, res: Resp
 
   child.on("close", (code) => {
     activeComputeProcess = null;
-    // Clear meta cache so new data is picked up
-    metaCache.clear();
+    // Clear caches so new data is picked up
     clearCachedCatalog();
+    clearColumnCache();
 
     if (code === 0) {
       sendEvent("done", { message: "Indicator computation complete", exitCode: 0 });
@@ -123,51 +124,35 @@ router.post("/indicators/compute-batch", mlRateLimiter, (req: Request, res: Resp
 });
 
 // GET /api/indicators/status — which symbol/timeframe combos have indicators
-router.get("/indicators/status", (_req: Request, res: Response) => {
+router.get("/indicators/status", async (_req: Request, res: Response) => {
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      return res.json({ computed: [], totalSymbols: 0, totalCombinations: 0 });
-    }
+    const timeframes = ["5m", "15m", "30m", "1h", "4h", "1d", "1w"];
 
     const computed: Array<{
       symbol: string;
       timeframe: string;
       rowCount: number;
       totalColumns: number;
-      computedAt: string;
-      categories: string[];
-      totalSizeMb: number;
     }> = [];
 
-    // Walk data/{futures|forex}/{symbol}/{timeframe}/_meta.json
-    for (const ac of ASSET_CLASSES) {
-      const acDir = path.join(DATA_DIR, ac);
-      if (!fs.existsSync(acDir)) continue;
+    for (const tf of timeframes) {
+      const table = getIndicatorTable(tf);
+      if (!table) continue;
 
-      for (const sym of fs.readdirSync(acDir)) {
-        const symDir = path.join(acDir, sym);
-        if (!fs.statSync(symDir).isDirectory()) continue;
-
-        for (const tf of fs.readdirSync(symDir)) {
-          const metaPath = path.join(symDir, tf, "_meta.json");
-          if (!fs.existsSync(metaPath)) continue;
-
-          try {
-            const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
-            const totalSizeBytes = Object.values(meta.categories || {}).reduce(
-              (sum: number, c: any) => sum + (c.file_size_bytes || 0), 0
-            );
-            computed.push({
-              symbol: meta.symbol || sym,
-              timeframe: meta.timeframe || tf,
-              rowCount: meta.row_count || 0,
-              totalColumns: meta.total_columns || 0,
-              computedAt: meta.computed_at || "",
-              categories: Object.keys(meta.categories || {}),
-              totalSizeMb: Math.round((totalSizeBytes as number) / (1024 * 1024) * 10) / 10,
-            });
-          } catch { /* skip malformed */ }
+      try {
+        const rows = await questdbHttpQuery<{ symbol: string; cnt: number }>(
+          `SELECT symbol, count() as cnt FROM ${table} GROUP BY symbol ORDER BY symbol`
+        );
+        for (const row of rows) {
+          computed.push({
+            symbol: row.symbol,
+            timeframe: tf,
+            rowCount: row.cnt,
+            totalColumns: 344,
+          });
         }
+      } catch {
+        // Table might not exist yet
       }
     }
 

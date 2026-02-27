@@ -32,8 +32,16 @@ export class PythonRunner implements ITrainerRunner {
     // Build CLI args from resolved hyperparameters
     const args = [script, "--symbol", config.symbol, "--timeframe", config.timeframe, "--json"];
 
-    if (config.dataFile) {
-      args.push("--data-file", config.dataFile);
+    // Pass max bars limit
+    const maxBars = trainingCfg.limits.maxBarsDefault ?? 100000;
+    args.push("--max-bars", String(maxBars));
+
+    // Pass date range if specified
+    if (config.dateRange?.start) {
+      args.push("--date-start", config.dateRange.start);
+    }
+    if (config.dateRange?.end) {
+      args.push("--date-end", config.dateRange.end);
     }
 
     // Map hyperparameters to CLI flags (OCP: prefer registry cliFlags, fall back to built-in defaults)
@@ -124,11 +132,15 @@ export class PythonRunner implements ITrainerRunner {
       session.exitCode = code;
 
       if (code !== 0) {
+        const details = (session.stderr || session.stdout).slice(-2000);
+        console.error(`[training] Python process exited with code ${code} for ${session.sessionId}`);
+        if (details) console.error(`[training] Last output: ${details.slice(0, 500)}`);
         emitSessionEvent(session, "error", {
           message: `Training failed (exit code ${code})`,
-          details: (session.stderr || session.stdout).slice(-2000),
+          details,
         });
       } else {
+        console.log(`[training] Python process completed successfully for ${session.sessionId}`);
         let diagnostics = null;
         const jsonMarker = "__JSON_OUTPUT__";
         const jsonIdx = session.stdout.indexOf(jsonMarker);

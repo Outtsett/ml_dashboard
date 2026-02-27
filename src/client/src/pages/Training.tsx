@@ -159,6 +159,7 @@ export default function Training() {
             timeframe={training.timeframeLabel}
             progress={training.progress}
             phase={training.phase}
+            error={training.error}
           />
         </CardContent>
       </Card>
@@ -214,7 +215,7 @@ export default function Training() {
       {/* ─── Section 2b: Live Training Analytics (visible during/after training) ─── */}
       <LiveTrainingDashboard />
 
-      {/* ─── Section 3: Model Tabs — each model gets its own tab with metric sub-tabs ─── */}
+      {/* ─── Section 3: Model Tabs — each model gets its own tab with metric sub-tabs + training log ─── */}
       <ModelTabs
         models={models || []}
         selectedModel={selectedModel}

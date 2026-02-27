@@ -21,7 +21,7 @@ export function RegimesCard({ nRegimes, isTraining, isGibbsSampling, liveMetrics
         {isLivePruning ? 'Active States' : 'Regimes'}
       </div>
       <div className={`text-5xl font-bold font-mono leading-none mb-2 transition-all duration-500 ${isLivePruning ? 'text-amber-400' : 'text-orange-400'}`}>
-        {nRegimes > 0 ? nRegimes : isTraining ? <span className="animate-pulse text-orange-400/20">—</span> : '--'}
+        {nRegimes > 0 ? nRegimes : isTraining ? <span className="animate-pulse text-orange-400/20">{'\u2014'}</span> : <span className="text-orange-400/20">{'\u2014'}</span>}
       </div>
       <div className="flex gap-0.5 mb-2">
         {Array.from({ length: Math.max(nRegimes, 9) }, (_, i) => (

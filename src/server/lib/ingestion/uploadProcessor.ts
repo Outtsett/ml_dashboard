@@ -84,7 +84,7 @@ export async function processOhlcvFile(
 
         if (records.length >= 1000) {
           const batch = records.splice(0, 1000);
-          import("../../questdb").then(({ insertOHLCVBatch }) =>
+          import("../../database/questdb").then(({ insertOHLCVBatch }) =>
             insertOHLCVBatch(batch.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })))
           )
             .then(() => console.log(`Inserted batch to QuestDB ohlcv, total: ${recordCount}`))
@@ -101,7 +101,7 @@ export async function processOhlcvFile(
 
     parser.on('end', async () => {
       if (records.length > 0) {
-        const { insertOHLCVBatch } = await import("../../questdb");
+        const { insertOHLCVBatch } = await import("../../database/questdb");
         await insertOHLCVBatch(records.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })));
       }
 
@@ -125,9 +125,17 @@ export async function processOhlcvFileFromDisk(
   uploadId: number,
   filename: string,
 ): Promise<void> {
+  // Path traversal protection — ensure file is within DATA_DIR or OS temp dir
+  const resolved = path.resolve(filePath);
+  const os = await import('os');
+  const allowedPrefixes = [path.resolve(DATA_DIR), path.resolve(os.tmpdir())];
+  if (!allowedPrefixes.some(prefix => resolved.startsWith(prefix))) {
+    throw new Error(`Path traversal blocked: ${filePath}`);
+  }
+
   console.log(`Processing file from disk: ${filename} for symbol: ${symbol}`);
 
-  const { insertOHLCVBatch } = await import("../../questdb");
+  const { insertOHLCVBatch } = await import("../../database/questdb");
 
   return new Promise((resolve, reject) => {
     let inputStream: Readable;
@@ -286,7 +294,7 @@ async function processParquetFile(
         });
       }
 
-      const { insertOHLCVBatch } = await import("../../questdb");
+      const { insertOHLCVBatch } = await import("../../database/questdb");
       await insertOHLCVBatch(batch.map(r => ({ symbol: r.symbol, timestamp: r.ts, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume })));
       insertedCount += batch.length;
       if (insertedCount % 10000 === 0 || insertedCount === count) {

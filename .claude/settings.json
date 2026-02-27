@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Read(//e/**)"
+      "Read(//e/**)",
+      "Read(//tmp/claude/e--source-repos-ml-dashboard/tasks/**)"
     ]
   },
   "hooks": {

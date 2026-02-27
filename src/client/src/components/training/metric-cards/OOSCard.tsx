@@ -23,14 +23,14 @@ export function OOSCard({ oosSimilarity, profileCorrelation, oos, isTraining, is
       <div className={`text-5xl font-bold font-mono leading-none mb-2 transition-all duration-700 ${oosSimilarity > 0 ? 'text-cyan-400 scale-100' : isTraining ? 'text-cyan-400/20' : 'text-cyan-400'}`}>
         {oosSimilarity > 0 ? `${(oosSimilarity * 100).toFixed(0)}%` : isTraining ? (
           <PendingValue color="text-cyan-400/40" label={isPostGibbs && gibbsPhase === 'oos_evaluation' ? 'computing' : 'pending'} />
-        ) : '--'}
+        ) : <span className="text-cyan-400/20">{'\u2014'}</span>}
       </div>
       <div className="flex items-center gap-3 mb-2">
         <div className="text-[10px] text-muted-foreground/50">
-          <span className="text-foreground/60 font-mono">{profileCorrelation > 0 ? profileCorrelation.toFixed(2) : '--'}</span> profile corr
+          <span className="text-foreground/60 font-mono">{profileCorrelation > 0 ? profileCorrelation.toFixed(2) : '\u2014'}</span> profile corr
         </div>
         <div className="text-[10px] text-muted-foreground/50">
-          <span className="text-foreground/60 font-mono">{oos?.switch_rate_ratio ? oos.switch_rate_ratio.toFixed(2) : '--'}x</span> switch
+          <span className="text-foreground/60 font-mono">{oos?.switch_rate_ratio ? oos.switch_rate_ratio.toFixed(2) : '\u2014'}x</span> switch
         </div>
       </div>
       <p className={`text-[11px] leading-relaxed ${oosSimilarity > 0

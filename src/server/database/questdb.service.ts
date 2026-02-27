@@ -9,7 +9,7 @@ import {
   insertOHLCVBatch,
   insertOHLCVStream,
   type OHLCVRow,
-} from '../questdb/connection';
+} from './questdb/connection';
 
 @Injectable()
 export class QuestDBService implements OnModuleInit, OnModuleDestroy {

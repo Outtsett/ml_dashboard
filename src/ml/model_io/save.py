@@ -1,12 +1,15 @@
 """Save model artifacts — orchestrator that wires all analysis steps."""
 
+import io
 import json
+import os
 import time
 from pathlib import Path
 
+from datetime import datetime
+
 import numpy as np
-import pyarrow as pa
-import pyarrow.parquet as pq
+import requests
 
 from .relabel import relabel_states
 from .regime_stats import compute_regime_stats, compute_transitions
@@ -15,9 +18,41 @@ from .shap import compute_shap_values
 from .quality import compute_quality_score
 
 
+QUESTDB_HTTP_URL = os.environ.get("QUESTDB_URL", "http://localhost:9000")
+
+
+def _write_to_questdb(table_name: str, csv_content: str, ts_col: str = "ts"):
+    """Upload CSV data to QuestDB via /imp endpoint.
+
+    Must pass a schema form field specifying the timestamp pattern so QuestDB
+    can parse the designated timestamp column on existing WAL tables.
+    Schema must come BEFORE data in the multipart form.
+    """
+    schema = json.dumps([{"name": ts_col, "type": "TIMESTAMP", "pattern": "yyyy-MM-ddTHH:mm:ss.SSSUUUz"}])
+    resp = requests.post(
+        f"{QUESTDB_HTTP_URL}/imp?name={table_name}",
+        files=[
+            ("schema", (None, schema, "text/plain")),
+            ("data", ("data.csv", csv_content, "text/csv")),
+        ],
+        timeout=60,
+    )
+    resp.raise_for_status()
+
+
+def _fmt_ts(ts) -> str:
+    """Format timestamp for QuestDB /imp: yyyy-MM-ddTHH:mm:ss.000000Z"""
+    if isinstance(ts, datetime):
+        return ts.strftime("%Y-%m-%dT%H:%M:%S.000000Z")
+    s = str(ts).replace(" ", "T")
+    if not s.endswith("Z"):
+        s += ".000000Z" if "." not in s else "Z"
+    return s
+
+
 def save_model(model, timestamps, features, feature_names, args, elapsed,
-               iteration_metrics=None, state_samples=None):
-    """Save model artifacts to data/models/<modelId>/"""
+               iteration_metrics=None, state_samples=None, close_vals=None):
+    """Save model artifacts to data/models/<modelId>/ and QuestDB tables."""
     # model_io/ is at src/ml/model_io/ — 4 parents to reach project root
     project_root = Path(__file__).parent.parent.parent.parent
     model_id = f"{args.symbol}_{args.timeframe}"
@@ -27,24 +62,29 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
     T = len(timestamps)
     relabeled, colors, labels, n_regimes = relabel_states(model.state_sequence, features)
 
-    # 1. regimes.parquet
+    # Resolve close values and timestamps
     split_idx = int(T * (1 - args.test_split))
     splits = ["train"] * split_idx + ["test"] * (T - split_idx)
     regime_label_list = [labels.get(str(int(r)), f"Regime {r}") for r in relabeled]
 
-    table = pq.read_table(args.data_file)
-    ts_col = "timestamp" if "timestamp" in table.column_names else "ts"
-    close_vals = table.column("close").to_pylist()[:T]
-    ts_vals = table.column(ts_col).to_pylist()[:T]
+    if close_vals is None:
+        # Fallback: zeros if not provided (shouldn't happen with new pipeline)
+        close_vals = [0.0] * T
+    ts_vals = timestamps
 
-    regime_table = pa.table({
-        "ts": ts_vals,
-        "close": [float(c) for c in close_vals],
-        "regime": [int(r) for r in relabeled],
-        "regime_label": regime_label_list,
-        "split": splits,
-    })
-    pq.write_table(regime_table, str(output_dir / "regimes.parquet"))
+    # 1. Write regime assignments to QuestDB model_regimes table
+    csv_buf = io.StringIO()
+    csv_buf.write("model_id,symbol,ts,close,regime,regime_label,split\n")
+    for i in range(T):
+        ts_str = _fmt_ts(ts_vals[i])
+        # Escape commas in regime labels
+        rl = str(regime_label_list[i]).replace(",", " ")
+        csv_buf.write(f"{model_id},{args.symbol},{ts_str},{float(close_vals[i])},{int(relabeled[i])},{rl},{splits[i]}\n")
+
+    try:
+        _write_to_questdb("model_regimes", csv_buf.getvalue())
+    except Exception as e:
+        print(f"[save] Warning: Failed to write model_regimes to QuestDB: {e}", file=__import__('sys').stderr)
 
     # 2. convergence.json — full ConvergencePoint[] format
     if iteration_metrics:
@@ -53,7 +93,6 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
             "n_iterations": len(iteration_metrics),
         }
     else:
-        # Fallback: legacy format from raw LL array
         convergence = {
             "gibbs": [
                 {"iter": i + 1, "log_likelihood": float(ll)}
@@ -77,14 +116,23 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
     # 6. Walk-forward stability from Gibbs samples
     walk_forward = compute_walk_forward(state_samples, n_regimes, n_windows=5)
 
-    # 7. SHAP values (analytical for diagonal Gaussian HMM)
+    # 7. SHAP values (analytical for diagonal Gaussian HMM) → QuestDB
     shap_matrix, shap_summary = compute_shap_values(
         model, features, relabeled, feature_names, n_regimes
     )
-    shap_data = {"ts": ts_vals, "regime": pa.array(relabeled.astype(np.int32))}
-    for d, name in enumerate(feature_names):
-        shap_data[f"shap_{name}"] = pa.array(shap_matrix[:, d])
-    pq.write_table(pa.table(shap_data), str(output_dir / "shap_values.parquet"))
+
+    csv_buf = io.StringIO()
+    shap_cols = [f"shap_{name}" for name in feature_names]
+    csv_buf.write(f"model_id,symbol,ts,regime,{','.join(shap_cols)}\n")
+    for i in range(T):
+        ts_str = _fmt_ts(ts_vals[i])
+        shap_vals = ",".join(str(float(shap_matrix[i, d])) for d in range(len(feature_names)))
+        csv_buf.write(f"{model_id},{args.symbol},{ts_str},{int(relabeled[i])},{shap_vals}\n")
+
+    try:
+        _write_to_questdb("model_shap", csv_buf.getvalue())
+    except Exception as e:
+        print(f"[save] Warning: Failed to write model_shap to QuestDB: {e}", file=__import__('sys').stderr)
 
     # 8. Quality score (incorporating OOS + WF)
     quality_score = compute_quality_score(model, relabeled, n_regimes, T, oos=oos, walk_forward=walk_forward)

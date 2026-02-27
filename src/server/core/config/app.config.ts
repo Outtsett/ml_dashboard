@@ -25,7 +25,6 @@ const ModelSchema = z.object({
   outputs: z.array(z.string()),
   chartOverlay: z.string().optional(),
   outputDir: z.string(),
-  requiresDataExport: z.boolean(),
   defaultHyperparameters: z.record(HyperparamSchema),
 });
 

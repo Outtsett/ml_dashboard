@@ -40,7 +40,16 @@ export interface ModelAdapter {
 
 // ── Adapter Registry ──
 
-export const MODEL_ADAPTERS: Record<string, ModelAdapter> = {};
+export const MODEL_ADAPTERS: Record<string, ModelAdapter> = {
+  "hdp-hmm": {
+    name: "HDP-HMM",
+    activeLabel: "HDP-HMM Sampling",
+    idleLabel: "Ready to Train",
+    pipelineDescription: "a Bayesian sampler that discovers market regimes automatically",
+    pipelineSteps: [],
+    heroCards: [],
+  },
+};
 
 const FALLBACK_ADAPTER: ModelAdapter = {
   name: "Unknown",

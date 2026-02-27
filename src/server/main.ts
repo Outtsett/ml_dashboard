@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import express, { type Request, Response, NextFunction } from 'express';
+import cors from 'cors';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import type { INestApplicationContext } from '@nestjs/common';
@@ -34,6 +35,25 @@ async function bootstrap() {
   const httpServer = createServer(expressApp);
 
   // ── Express middleware (preserved from index.ts) ──
+
+  // CORS — restrict to localhost origins only (prevents CSRF from malicious websites)
+  const allowedOrigins = [
+    'http://127.0.0.1:5000',
+    'http://localhost:5000',
+    ...(process.env.NODE_ENV === 'development' ? ['http://host.docker.internal:5000'] : []),
+  ];
+  expressApp.use(cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (same-origin, curl, Electron)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS blocked: ${origin}`));
+      }
+    },
+    credentials: false,
+  }));
+
   expressApp.use(
     express.json({
       verify: (req, _res, buf) => {
@@ -108,14 +128,17 @@ async function bootstrap() {
     return res.status(503).json({ error: 'Startup not yet complete' });
   });
 
-  // Error handler
+  // Error handler — sanitize error messages to avoid leaking internal paths/secrets
   expressApp.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || 'Internal Server Error';
     console.error('Internal Server Error:', err);
     if (res.headersSent) {
       return next(err);
     }
+    // In production, strip internal details (file paths, SQL errors, connection strings)
+    const message = status >= 500
+      ? 'Internal Server Error'
+      : (err.message || 'Request failed');
     return res.status(status).json({ message });
   });
 

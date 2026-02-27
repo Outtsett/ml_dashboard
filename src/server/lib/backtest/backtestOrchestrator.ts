@@ -6,7 +6,7 @@
  */
 
 import { storage, getAssetType } from '../../storage';
-import { questdbMarketQuery as marketQuery } from '../questdbMarketQuery';
+import { queryQuestDB as marketQuery } from '../../database/questdb';
 import { runBacktest, type Signal, type InstrumentSpec, type BacktestConfig } from './tradeSimulator';
 
 // ─── Request / Response Types ───────────────────────────────────────────────

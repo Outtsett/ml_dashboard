@@ -81,7 +81,7 @@ export function buildInsertSQL(
   const tsExpr = mapping.tsTransform || `CAST(${mapping.ts} AS TIMESTAMP)`;
   const priceFn = (col: string) => priceScale ? `(${col} / ${priceScale})` : col;
   const symbolExpr = symbolOverride
-    ? `'${symbolOverride}'`
+    ? `'${symbolOverride.replace(/'/g, "''")}'`
     : mapping.symbol
       ? `CAST(${mapping.symbol} AS VARCHAR)`
       : "'UNKNOWN'";

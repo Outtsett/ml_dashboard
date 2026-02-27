@@ -49,7 +49,7 @@ export function FitGauge({ level, label = 'fit' }: { level: number; label?: stri
           <div key={i} className={`h-1.5 flex-1 rounded-full ${i < level ? 'bg-violet-500/60' : 'bg-white/5'}`} />
         ))}
       </div>
-      <span className="text-[8px] text-muted-foreground/40">{label}</span>
+      <span className="text-[9px] text-muted-foreground/40">{label}</span>
     </div>
   );
 }
@@ -59,10 +59,11 @@ export function FitGauge({ level, label = 'fit' }: { level: number; label?: stri
 export function MiniProgress({ value, max }: {
   value: number; max: number;
 }) {
+  const pct = max > 0 ? (value / max) * 100 : 0;
   return (
     <div className="h-1 bg-white/5 rounded-full overflow-hidden">
       <div className="h-full bg-violet-500/60 rounded-full transition-all duration-500"
-        style={{ width: `${(value / max) * 100}%` }} />
+        style={{ width: `${pct}%` }} />
     </div>
   );
 }

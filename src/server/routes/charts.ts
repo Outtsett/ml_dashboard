@@ -12,11 +12,12 @@
  * This route normalises everything to a flat array of { timestamp, open, high, low, close, volume }.
  */
 import { Router, Request, Response } from 'express';
-import { getOHLCVSampleBy, getFrontMonthOHLCV, checkQuestDBHealth, queryQuestDB } from '../questdb';
+import { getOHLCVSampleBy, getFrontMonthOHLCV, checkQuestDBHealth, queryQuestDB } from '../database/questdb';
 import { cachedQuery, OHLCVCache } from '../lib/ohlcvCache';
 import { normalizeTimestamp, parseTimestampParam } from '../lib/normalize';
 import { isFuturesRoot } from '../lib/continuousContract';
 import { CACHE_SEMI } from '../lib/cacheHeaders';
+import { SYMBOL_REGEX } from '@shared/schema';
 
 const router = Router();
 
@@ -90,8 +91,9 @@ async function isQuestDBHealthy(): Promise<boolean> {
 // ───────────────────────────────────────────────────────────────
 router.get('/ohlcv', async (req: Request, res: Response) => {
   try {
-    const symbol = (req.query.symbol as string)?.trim();
+    const symbol = (req.query.symbol as string)?.trim()?.toUpperCase();
     if (!symbol) return res.status(400).json({ error: 'symbol is required' });
+    if (!SYMBOL_REGEX.test(symbol)) return res.status(400).json({ error: 'Invalid symbol format' });
 
     const tfMinutes = parseTimeframeMinutes(req.query.timeframe as string);
     const startMs = parseTimestamp(req.query.startTime as string) ?? parseTimestamp(req.query.start as string);

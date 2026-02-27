@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { type Server } from "http";
 import { apiRateLimiter, validationErrorHandler } from "../lib/rateLimiter";
-import { startHealthMonitoring } from "../lib/databaseHealth";
+import { startHealthMonitoring } from "../database/health";
 import { attachPtyWebSocket, registerTerminalRoutes } from "../lib/ptyServer";
 import uploadRouter from "../routes/upload";
 
@@ -21,17 +21,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Attach PTY WebSocket (independent of Express — survives route errors)
   attachPtyWebSocket(httpServer);
 
-  // Register terminal session management REST routes
-  registerTerminalRoutes(app);
-
   // Start health monitoring
   startHealthMonitoring();
 
   // Register validation error handler
   app.use(validationErrorHandler);
 
-  // Apply rate limiting to all API routes
+  // Apply rate limiting to all API routes (BEFORE terminal routes — ensures coverage)
   app.use('/api', apiRateLimiter);
+
+  // Register terminal session management REST routes (after rate limiter)
+  registerTerminalRoutes(app);
 
   // Mount domain-specific routers
   app.use("/api", uploadRouter);

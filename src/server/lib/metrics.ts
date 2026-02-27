@@ -189,13 +189,6 @@ export class DataPipelineMetrics {
     metrics.recordTimeSeries('data_pipeline_query_throughput', rowCount / (durationMs / 1000), { source, symbol });
   }
 
-  recordParquetConversion(symbol: string, inputRows: number, outputSizeBytes: number, durationMs: number): void {
-    metrics.incrementCounter('data_pipeline_parquet_conversions_total', 1, { symbol });
-    metrics.incrementCounter('data_pipeline_parquet_rows_converted', inputRows, { symbol });
-    metrics.recordHistogram('data_pipeline_parquet_conversion_duration_seconds', durationMs / 1000, { symbol });
-    metrics.setGauge('data_pipeline_parquet_file_size_bytes', outputSizeBytes, { symbol });
-  }
-
   recordDatabaseHealth(database: string, healthy: boolean, latencyMs: number): void {
     metrics.setGauge('database_health', healthy ? 1 : 0, { database });
     metrics.recordHistogram('database_health_check_latency_seconds', latencyMs / 1000, { database });

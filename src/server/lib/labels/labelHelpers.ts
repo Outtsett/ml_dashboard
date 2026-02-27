@@ -35,7 +35,7 @@ function toEpochMs(val: unknown): number {
  * Uses PG wire protocol for standard SQL execution.
  */
 export async function queryLabels(sql: string): Promise<Array<Record<string, unknown>>> {
-  const { queryQuestDB } = await import('../../questdb');
+  const { queryQuestDB } = await import('../../database/questdb');
   const rows = await queryQuestDB(sql);
   return rows.map((row: Record<string, unknown>) => {
     const converted = { ...row };

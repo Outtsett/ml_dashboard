@@ -1,5 +1,5 @@
 /**
- * Database Routes — OHLCV, Health, Pipeline, QuestDB, Cache
+ * Database Routes — OHLCV, Health, QuestDB, Cache
  *
  * Routes:
  *   GET  /api/ohlcv/:symbol
@@ -8,10 +8,6 @@
  *   GET  /api/rate-limits
  *   POST /api/circuit-breaker/reset/:name
  *   POST /api/circuit-breaker/reset-all
- *   GET  /api/pipeline/status|jobs
- *   POST /api/pipeline/jobs
- *   GET  /api/pipeline/sources/:symbol
- *   POST /api/questdb/:symbol/export-parquet
  *   GET  /api/questdb/symbols
  *   GET  /api/questdb/:symbol/stats
  *   GET  /api/questdb/status
@@ -24,7 +20,7 @@
 import { Router, Request, Response } from 'express';
 import { queryRateLimiter } from '../../lib/rateLimiter';
 import { ohlcvCache } from '../../lib/ohlcvCache';
-import { queryOHLCV } from '../../lib/databaseManager';
+import { queryOHLCV } from '../../database/questdb/ohlcvQuery';
 import { getString } from '../helpers';
 
 const router = Router();
@@ -69,7 +65,7 @@ router.get('/health', async (_req: Request, res: Response) => {
     res.status(result.status === 'ok' ? 200 : 503).json(result);
   } catch (error: any) {
     // Fallback to old health checks if NestJS not ready
-    const { runHealthChecks } = await import('../../lib/databaseHealth');
+    const { runHealthChecks } = await import('../../database/health');
     const health = await runHealthChecks();
     res.json(health);
   }
@@ -120,81 +116,12 @@ router.post('/circuit-breaker/reset-all', async (_req: Request, res: Response) =
 });
 
 // ============================================================
-// DATA PIPELINE
-// ============================================================
-
-router.get('/pipeline/status', async (_req: Request, res: Response) => {
-  try {
-    const { dataPipeline } = await import('../../lib/dataPipeline');
-    res.json({
-      config: dataPipeline.getConfig(),
-      stats: dataPipeline.getStats(),
-      activeJobs: dataPipeline.getActiveJobs(),
-      queuedJobs: dataPipeline.getQueuedJobs(),
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/pipeline/jobs', async (req: Request, res: Response) => {
-  try {
-    const { dataPipeline } = await import('../../lib/dataPipeline');
-    const limit = parseInt(req.query.limit as string) || 20;
-    res.json(dataPipeline.getRecentJobs(limit));
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-router.post('/pipeline/jobs', async (req: Request, res: Response) => {
-  try {
-    const { dataPipeline } = await import('../../lib/dataPipeline');
-    const { type, symbol } = req.body;
-    if (!type || !symbol) {
-      return res.status(400).json({ error: 'type and symbol required' });
-    }
-    const job = dataPipeline.createJob(type, symbol);
-    res.json(job);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/pipeline/sources/:symbol', async (req: Request, res: Response) => {
-  try {
-    const { dataPipeline } = await import('../../lib/dataPipeline');
-    const symbol = req.params.symbol as string;
-    const sources = await dataPipeline.checkDataSources(symbol);
-    res.json(sources);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ============================================================
 // QUESTDB INTEGRATION
 // ============================================================
 
-router.post('/questdb/:symbol/export-parquet', async (req: Request, res: Response) => {
-  try {
-    const symbol = getString(req.params.symbol).toUpperCase();
-    const timeframe = req.body?.timeframe || '1m';
-
-    const { exportQuestDBToParquet } = await import('../../questdb');
-    console.log(`[routes] Exporting ${symbol} (${timeframe}) from QuestDB to Parquet...`);
-    const result = await exportQuestDBToParquet(symbol, timeframe);
-
-    res.json({ success: true, symbol, timeframe, path: result.path, rowCount: result.rowCount });
-  } catch (error: any) {
-    console.error('Error exporting QuestDB to parquet:', error);
-    res.status(500).json({ error: error.message || 'Failed to export QuestDB data' });
-  }
-});
-
 router.get('/questdb/symbols', async (_req: Request, res: Response) => {
   try {
-    const { getSymbolsInQuestDB } = await import('../../questdb');
+    const { getSymbolsInQuestDB } = await import('../../database/questdb');
     const symbols = await getSymbolsInQuestDB();
     res.json({ symbols });
   } catch (error: any) {
@@ -205,7 +132,7 @@ router.get('/questdb/symbols', async (_req: Request, res: Response) => {
 router.get('/questdb/:symbol/stats', async (req: Request, res: Response) => {
   try {
     const symbol = getString(req.params.symbol).toUpperCase();
-    const { getSymbolStats } = await import('../../questdb');
+    const { getSymbolStats } = await import('../../database/questdb');
     const stats = await getSymbolStats(symbol);
     res.json(stats);
   } catch (error: any) {
@@ -215,11 +142,11 @@ router.get('/questdb/:symbol/stats', async (req: Request, res: Response) => {
 
 router.get('/questdb/status', async (_req: Request, res: Response) => {
   try {
-    const { getQuestDBStatus } = await import('../../lib/questdbIntegration');
-    const { getQuestDBStatus: getProcessStatus } = await import('../../lib/questdbProcess');
+    const { getQuestDBIntegrationStatus } = await import('../../database/questdb/integration');
+    const { getQuestDBProcessStatus } = await import('../../database/questdb/lifecycle');
     const [integrationStatus, processStatus] = await Promise.all([
-      getQuestDBStatus(),
-      Promise.resolve(getProcessStatus()),
+      getQuestDBIntegrationStatus(),
+      Promise.resolve(getQuestDBProcessStatus()),
     ]);
     res.json({ ...integrationStatus, process: processStatus });
   } catch (error: any) {
@@ -229,7 +156,7 @@ router.get('/questdb/status', async (_req: Request, res: Response) => {
 
 router.post('/questdb/start', async (_req: Request, res: Response) => {
   try {
-    const { startQuestDB } = await import('../../lib/questdbProcess');
+    const { startQuestDB } = await import('../../database/questdb/lifecycle');
     const result = await startQuestDB();
     res.json(result);
   } catch (error: any) {
@@ -239,7 +166,7 @@ router.post('/questdb/start', async (_req: Request, res: Response) => {
 
 router.post('/questdb/stop', async (_req: Request, res: Response) => {
   try {
-    const { stopQuestDB } = await import('../../lib/questdbProcess');
+    const { stopQuestDB } = await import('../../database/questdb/lifecycle');
     stopQuestDB();
     res.json({ stopped: true });
   } catch (error: any) {
@@ -249,7 +176,7 @@ router.post('/questdb/stop', async (_req: Request, res: Response) => {
 
 router.post('/questdb/init', async (_req: Request, res: Response) => {
   try {
-    const { initializeQuestDB } = await import('../../lib/questdbIntegration');
+    const { initializeQuestDB } = await import('../../database/questdb/integration');
     const result = await initializeQuestDB();
     res.json(result);
   } catch (error: any) {
@@ -271,7 +198,7 @@ router.get('/questdb/ohlcv/:symbol', queryRateLimiter, async (req: Request, res:
       ? parseInt(getString(req.query.limit as string))
       : undefined;
 
-    const { queryOHLCVFromQuestDB } = await import('../../lib/questdbIntegration');
+    const { queryOHLCVFromQuestDB } = await import('../../database/questdb/integration');
     const result = await queryOHLCVFromQuestDB(
       symbol,
       timeframe,

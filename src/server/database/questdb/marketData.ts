@@ -5,7 +5,7 @@
  */
 
 import { validateSymbol } from "@shared/schema";
-import { cachedQuery, OHLCVCache } from "../lib/ohlcvCache";
+import { cachedQuery, OHLCVCache } from "../../lib/ohlcvCache";
 import { queryQuestDB } from "./connection";
 
 // ─── Materialized View Lookup ───────────────────────────────────────────────

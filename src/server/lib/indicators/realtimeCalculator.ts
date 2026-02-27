@@ -127,7 +127,7 @@ export async function loadOHLCVBars(
   const effectiveLimit = Math.max(limit, 200);
 
   try {
-    const { getOHLCVSampleBy } = await import("../../questdb");
+    const { getOHLCVSampleBy } = await import("../../database/questdb");
     const qdbRows = await getOHLCVSampleBy(
       upperSymbol,
       timeframe,
@@ -152,7 +152,7 @@ export async function loadOHLCVBarsQuestDBOnly(
 ): Promise<OHLCVBar[]> {
   try {
     const { checkQuestDBHealth, getOHLCVSampleBy } = await import(
-      "../../questdb"
+      "../../database/questdb"
     );
     const healthy = await checkQuestDBHealth();
     if (healthy) {

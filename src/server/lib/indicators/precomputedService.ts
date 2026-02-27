@@ -2,31 +2,25 @@
  * Pre-computed indicator business logic.
  *
  * Handles catalog generation, indicator data retrieval, and candle-pattern
- * extraction from category-partitioned parquets in data/{futures|forex}/{symbol}/{tf}/.
+ * extraction from QuestDB indicator tables (indicators_5m through indicators_1w).
  * Route handlers delegate here — no HTTP concerns live in this module.
  */
 
-import * as path from "path";
-import * as fs from "fs";
-import { questdbHttpQuery } from "../../questdb/httpQuery";
+import { questdbHttpQuery } from "../../database/questdb/httpQuery";
 import {
-  DATA_DIR,
-  ASSET_CLASSES,
-  resolveSymbolDir,
   cachedCatalog,
   setCachedCatalog,
-  readMeta,
-  getPartitionedDir,
-  findColumnsInCategories,
-  buildPartitionedQuery,
-  findSampleMeta,
+  getIndicatorTable,
+  getIndicatorColumns,
+  sanitizeColumnName,
+  buildIndicatorQuery,
 } from "../../routes/indicators/helpers";
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
-/** Category-to-prefix map used by the v1 flat-file classifier. */
+/** Category-to-prefix map used by the column classifier. */
 export const CATEGORY_PREFIXES: readonly [string, string[]][] = [
   ["candle", ["CDL_"]],
   ["trend", ["ADX", "DMP_", "DMN_", "AROON", "CHOP_", "CKSP_", "DPO_", "PSAR", "QS_", "VTXP_", "VTXM_", "VHF_", "RWI_", "LDECAY_", "DEC_", "INC_", "ZIGZAG", "SMC_", "EXHC_", "CHDLREXT"]],
@@ -38,8 +32,6 @@ export const CATEGORY_PREFIXES: readonly [string, string[]][] = [
   ["performance", ["LOGRET_", "PCTRET_", "CUMLOGRET_", "CUMPCTRET_"]],
   ["overlap", ["SMA_", "EMA_", "WMA_", "DEMA_", "TEMA_", "T3_", "KAMA_", "FWMA_", "HMA_", "ALMA_", "LINREG_", "MIDPOINT_", "MIDPRICE_", "PWMA_", "RMA_", "SINWMA_", "SWMA_", "TRIMA_", "VIDYA_", "VWMA_", "HWMA_", "MCGD_", "SMMA_", "JMA_", "ZLMA_", "ZL_", "HT_", "HILO", "ISA_", "ISB_", "ITS_", "IKS_", "ICS_", "MAMA_", "FAMA_", "SSF", "BBL_", "BBM_", "BBU_", "BBB_", "BBP_", "KCL", "KCB", "KCU", "DCL_", "DCM_", "DCU_", "SUPERT", "ALPHAT", "AMAT", "ACCB"]],
 ];
-
-const OHLCV_COLS = new Set(["timestamp", "open", "high", "low", "close", "volume"]);
 
 // ============================================================================
 // PURE HELPERS
@@ -65,7 +57,6 @@ export function classifyColumns(indicatorCols: string[]): Record<string, string[
     if (!classified) categories.other?.push(col);
   }
 
-  // Remove empty categories
   for (const key of Object.keys(categories)) {
     if (categories[key]?.length === 0) delete categories[key];
   }
@@ -125,21 +116,14 @@ export interface CatalogResult {
 export async function getCatalog(): Promise<CatalogResult> {
   if (cachedCatalog) return cachedCatalog;
 
-  const sampleMeta = findSampleMeta();
-  if (!sampleMeta) {
+  // Use 1d table as reference — all timeframes have the same column set
+  const columns = await getIndicatorColumns("1d");
+  if (columns.length === 0) {
     return { categories: {}, total: 0, columns: [] };
   }
 
-  const categories: Record<string, string[]> = {};
-  const allColumns: string[] = [];
-  for (const [cat, catMeta] of Object.entries(sampleMeta.categories)) {
-    categories[cat] = catMeta.columns;
-    allColumns.push(...catMeta.columns);
-  }
-  for (const key of Object.keys(categories)) {
-    if (categories[key]?.length === 0) delete categories[key];
-  }
-  const result: CatalogResult = { categories, total: allColumns.length, columns: allColumns };
+  const categories = classifyColumns(columns);
+  const result: CatalogResult = { categories, total: columns.length, columns };
   setCachedCatalog(result);
   return result;
 }
@@ -158,7 +142,7 @@ export interface IndicatorDataNotFound {
 }
 
 /**
- * Load pre-computed indicator data for a symbol.
+ * Load pre-computed indicator data for a symbol from QuestDB.
  * Returns `{ data: ... }` on success or `{ notFound: ... }` when the
  * requested symbol/timeframe/columns do not exist.
  */
@@ -168,48 +152,49 @@ export async function getIndicatorData(
   columns?: string,
   limit: number = 2000,
 ): Promise<{ data: IndicatorDataResult } | { notFound: IndicatorDataNotFound }> {
-  const meta = readMeta(symbol, timeframe);
-  if (!meta) {
-    const available = listAvailableIndicators(symbol);
+  const table = getIndicatorTable(timeframe);
+  if (!table) {
+    const available = await listAvailableIndicators(symbol);
     return {
       notFound: {
-        error: `No pre-computed indicators for ${symbol} at ${timeframe}`,
+        error: `No indicator table for timeframe ${timeframe}. Available: 5m, 15m, 30m, 1h, 4h, 1d, 1w`,
         available,
       },
     };
   }
 
-  const partDir = getPartitionedDir(symbol, timeframe);
+  const allColumns = await getIndicatorColumns(timeframe);
+  if (allColumns.length === 0) {
+    return {
+      notFound: {
+        error: `Indicator table ${table} has no data. Run upload-indicators-questdb.py to populate.`,
+      },
+    };
+  }
 
+  let queryCols: string[];
   if (columns) {
-    const requestedCols = columns.split(",").map(c => c.trim()).filter(c => /^[a-zA-Z0-9_.]+$/.test(c));
-    const categoryColMap = findColumnsInCategories(meta, requestedCols);
+    const requested = columns.split(",").map(c => sanitizeColumnName(c.trim())).filter(c => /^[a-zA-Z0-9_]+$/.test(c));
+    // Filter to only columns that exist in the table
+    const colSet = new Set(allColumns);
+    queryCols = requested.filter(c => colSet.has(c));
 
-    if (categoryColMap.size === 0) {
+    if (queryCols.length === 0) {
+      const categories = classifyColumns(allColumns);
       return {
         notFound: {
-          error: `None of the requested columns found in ${symbol}/${timeframe}`,
-          available_categories: Object.keys(meta.categories),
+          error: `None of the requested columns found in ${table}`,
+          available_categories: Object.keys(categories),
         },
       };
     }
-
-    const sql = buildPartitionedQuery(partDir, categoryColMap, limit);
-    const raw = await questdbHttpQuery(sql);
-    raw.reverse();
-    const serialized = serializeBigInts(raw);
-    return { data: { symbol, timeframe, count: serialized.length, data: serialized } };
+  } else {
+    queryCols = allColumns;
   }
 
-  // All columns -- join all category files
-  const allColMap = new Map<string, string[]>();
-  for (const [cat, catMeta] of Object.entries(meta.categories)) {
-    allColMap.set(cat, catMeta.columns);
-  }
-
-  const sql = buildPartitionedQuery(partDir, allColMap, limit);
+  const sql = buildIndicatorQuery(table, symbol, queryCols, limit);
   const raw = await questdbHttpQuery(sql);
-  raw.reverse();
+  raw.reverse(); // QuestDB returns DESC, we want ASC
   const serialized = serializeBigInts(raw);
   return { data: { symbol, timeframe, count: serialized.length, data: serialized } };
 }
@@ -228,27 +213,20 @@ export async function getPatternData(
   timeframe: string,
   limit: number = 2000,
 ): Promise<{ data: PatternDataResult } | { notFound: { error: string } }> {
-  const meta = readMeta(symbol, timeframe);
-  if (!meta || !meta.categories.candle) {
-    return { notFound: { error: `No pre-computed data for ${symbol} at ${timeframe}` } };
+  const table = getIndicatorTable(timeframe);
+  if (!table) {
+    return { notFound: { error: `No indicator table for timeframe ${timeframe}` } };
   }
 
-  const candlePath = path.join(
-    getPartitionedDir(symbol, timeframe), "candle.parquet",
-  ).replace(/\\/g, "/");
-  const patternCols = meta.categories.candle.columns;
+  const allColumns = await getIndicatorColumns(timeframe);
+  const patternCols = allColumns.filter(c => c.toUpperCase().startsWith("CDL_"));
 
   if (patternCols.length === 0) {
-    return { data: { symbol, timeframe, patterns: [], count: 0, data: [] } };
+    return { notFound: { error: `No candle pattern columns in ${table}` } };
   }
 
-  const selectCols = ["timestamp", ...patternCols].map(c => `"${c}"`).join(", ");
-  const raw = await questdbHttpQuery(`
-    SELECT ${selectCols}
-    FROM read_parquet('${candlePath}')
-    ORDER BY timestamp DESC
-    LIMIT ${limit}
-  `);
+  const sql = buildIndicatorQuery(table, symbol, patternCols, limit);
+  const raw = await questdbHttpQuery(sql);
   raw.reverse();
 
   const activePatterns = extractActivePatterns(raw, patternCols);
@@ -257,17 +235,25 @@ export async function getPatternData(
   };
 }
 
-/** List available indicator timeframes for a symbol. */
-export function listAvailableIndicators(symbol: string): string[] {
+/** List available indicator timeframes for a symbol by checking QuestDB tables. */
+export async function listAvailableIndicators(symbol: string): Promise<string[]> {
   const available: string[] = [];
-  const symDir = resolveSymbolDir(symbol);
-  if (!symDir || !fs.existsSync(symDir)) return available;
+  const timeframes = ["5m", "15m", "30m", "1h", "4h", "1d", "1w"];
+  const safeSymbol = symbol.replace(/'/g, "''");
 
-  for (const tf of fs.readdirSync(symDir)) {
-    const tfDir = path.join(symDir, tf);
-    if (!fs.statSync(tfDir).isDirectory()) continue;
-    if (fs.existsSync(path.join(tfDir, "_meta.json"))) {
-      available.push(`${symbol}/${tf}`);
+  for (const tf of timeframes) {
+    const table = getIndicatorTable(tf);
+    if (!table) continue;
+
+    try {
+      const rows = await questdbHttpQuery<{ cnt: number }>(
+        `SELECT count() as cnt FROM ${table} WHERE symbol = '${safeSymbol}' LIMIT 0, 1`
+      );
+      if (rows.length > 0 && rows[0]!.cnt > 0) {
+        available.push(`${symbol}/${tf}`);
+      }
+    } catch {
+      // Table might not exist yet
     }
   }
 

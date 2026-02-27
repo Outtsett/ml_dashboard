@@ -1,144 +1,106 @@
-import * as path from "path";
-import * as fs from "fs";
+/**
+ * Indicator helpers — QuestDB-backed indicator table queries.
+ *
+ * All indicator data lives in per-timeframe QuestDB tables:
+ *   indicators_5m, indicators_15m, indicators_30m,
+ *   indicators_1h, indicators_4h, indicators_1d, indicators_1w
+ *
+ * Tables created by scripts/upload-indicators-questdb.py.
+ */
+
+import { questdbHttpQuery } from "../../database/questdb/httpQuery";
 
 // ============================================================================
 // SHARED CONSTANTS & TYPES
 // ============================================================================
 
-export const DATA_DIR = path.join(process.cwd(), "data");
-export const ASSET_CLASSES = ["futures", "forex"] as const;
+/** Valid indicator timeframes (1m excluded — too expensive to pre-compute). */
+const INDICATOR_TIMEFRAMES = new Set(["5m", "15m", "30m", "1h", "4h", "1d", "1w"]);
 
-/** Resolve the indicator directory for a symbol by scanning asset class folders. */
-export function resolveSymbolDir(symbol: string): string | null {
-  for (const ac of ASSET_CLASSES) {
-    const dir = path.join(DATA_DIR, ac, symbol);
-    if (fs.existsSync(dir)) return dir;
-  }
-  return null;
-}
-
-
-export interface CategoryMeta {
-  columns: string[];
-  column_count: number;
-  file_size_bytes: number;
-  file_size_mb: number;
-}
-
-export interface IndicatorMeta {
-  version: number;
-  computed_at: string;
-  symbol: string;
-  timeframe: string;
-  row_count: number;
-  total_columns: number;
-  categories: Record<string, CategoryMeta>;
-}
+/** Columns that are structural (not indicators). */
+const STRUCTURAL_COLS = new Set([
+  "timestamp", "symbol", "asset_class", "open", "high", "low", "close", "volume",
+]);
 
 // ============================================================================
-// CACHES (cleared on server restart or compute-batch completion)
+// CACHES
 // ============================================================================
 
 export let cachedCatalog: { categories: Record<string, string[]>; total: number; columns: string[] } | null = null;
 export function clearCachedCatalog() { cachedCatalog = null; }
 export function setCachedCatalog(val: typeof cachedCatalog) { cachedCatalog = val; }
 
-export const metaCache = new Map<string, IndicatorMeta | null>();
+/** Column cache per timeframe — avoids repeated SHOW COLUMNS queries. */
+const columnCache = new Map<string, { columns: string[]; cachedAt: number }>();
+const COLUMN_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-// ============================================================================
-// PARTITIONED DIRECTORY HELPERS (v2 format)
-// ============================================================================
-
-export function getPartitionedDir(symbol: string, timeframe: string): string {
-  const symDir = resolveSymbolDir(symbol);
-  if (symDir) return path.join(symDir, timeframe);
-  // Fallback: assume futures
-  return path.join(DATA_DIR, "futures", symbol, timeframe);
+export function clearColumnCache() {
+  columnCache.clear();
 }
 
-export function readMeta(symbol: string, timeframe: string): IndicatorMeta | null {
-  const cacheKey = `${timeframe}/${symbol}`;
-  if (metaCache.has(cacheKey)) return metaCache.get(cacheKey)!;
+// ============================================================================
+// QuestDB INDICATOR TABLE HELPERS
+// ============================================================================
 
-  const metaPath = path.join(getPartitionedDir(symbol, timeframe), "_meta.json");
-  if (!fs.existsSync(metaPath)) {
-    metaCache.set(cacheKey, null);
-    return null;
+/** Map timeframe string to QuestDB indicator table name. Returns null for unsupported timeframes. */
+export function getIndicatorTable(timeframe: string): string | null {
+  if (INDICATOR_TIMEFRAMES.has(timeframe)) {
+    return `indicators_${timeframe}`;
+  }
+  return null;
+}
+
+/**
+ * Sanitize column name to match QuestDB convention.
+ * The upload script replaces . → _ and % → pct.
+ */
+export function sanitizeColumnName(name: string): string {
+  return name.replace(/\./g, "_").replace(/%/g, "pct");
+}
+
+/**
+ * Get all indicator column names for a timeframe.
+ * Excludes structural columns (timestamp, symbol, OHLCV, asset_class).
+ */
+export async function getIndicatorColumns(timeframe: string): Promise<string[]> {
+  const table = getIndicatorTable(timeframe);
+  if (!table) return [];
+
+  const cacheKey = timeframe;
+  const cached = columnCache.get(cacheKey);
+  if (cached && Date.now() - cached.cachedAt < COLUMN_CACHE_TTL_MS) {
+    return cached.columns;
   }
 
   try {
-    const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8")) as IndicatorMeta;
-    metaCache.set(cacheKey, meta);
-    return meta;
+    const rows = await questdbHttpQuery<{ column: string; type: string }>(
+      `SHOW COLUMNS FROM ${table}`
+    );
+    const columns = rows
+      .map(r => r.column)
+      .filter(c => !STRUCTURAL_COLS.has(c));
+
+    columnCache.set(cacheKey, { columns, cachedAt: Date.now() });
+    return columns;
   } catch {
-    metaCache.set(cacheKey, null);
-    return null;
+    return [];
   }
 }
 
-/** Find which category files contain the requested columns. */
-export function findColumnsInCategories(
-  meta: IndicatorMeta,
+/**
+ * Build a SELECT query against a QuestDB indicator table.
+ * Symbol and column names are sanitized to prevent SQL injection.
+ */
+export function buildIndicatorQuery(
+  table: string,
+  symbol: string,
   columns: string[],
-): Map<string, string[]> {
-  const result = new Map<string, string[]>();
-  for (const col of columns) {
-    for (const [cat, catMeta] of Object.entries(meta.categories)) {
-      if (catMeta.columns.includes(col)) {
-        if (!result.has(cat)) result.set(cat, []);
-        result.get(cat)!.push(col);
-        break;
-      }
-    }
-  }
-  return result;
-}
-
-/** Build a SQL query that JOINs multiple category parquet files via read_parquet(). */
-export function buildPartitionedQuery(
-  partDir: string,
-  categoryColMap: Map<string, string[]>,
   limit: number,
 ): string {
-  const entries = Array.from(categoryColMap.entries());
-  if (entries.length === 0) return "";
-
-  const firstEntry = entries[0]!;
-  const [firstCat, firstCols] = firstEntry;
-  const firstPath = path.join(partDir, `${firstCat}.parquet`).replace(/\\/g, "/");
-
-  let selectCols = `t0."timestamp"`;
-  for (const c of firstCols) selectCols += `, t0."${c}"`;
-  for (let i = 1; i < entries.length; i++) {
-    for (const c of entries[i]![1]) selectCols += `, t${i}."${c}"`;
-  }
-
-  let sql = `SELECT ${selectCols}\nFROM read_parquet('${firstPath}') t0`;
-  for (let i = 1; i < entries.length; i++) {
-    const catPath = path.join(partDir, `${entries[i]![0]}.parquet`).replace(/\\/g, "/");
-    sql += `\nJOIN read_parquet('${catPath}') t${i} ON t0."timestamp" = t${i}."timestamp"`;
-  }
-  sql += `\nORDER BY t0."timestamp" DESC\nLIMIT ${limit}`;
-  return sql;
-}
-
-/** Find any _meta.json in the data/{futures|forex}/{symbol}/{tf}/ tree. */
-export function findSampleMeta(): IndicatorMeta | null {
-  for (const ac of ASSET_CLASSES) {
-    const acDir = path.join(DATA_DIR, ac);
-    if (!fs.existsSync(acDir)) continue;
-    for (const sym of fs.readdirSync(acDir)) {
-      const symDir = path.join(acDir, sym);
-      if (!fs.statSync(symDir).isDirectory()) continue;
-      for (const tf of fs.readdirSync(symDir)) {
-        const metaPath = path.join(symDir, tf, "_meta.json");
-        if (fs.existsSync(metaPath)) {
-          try {
-            return JSON.parse(fs.readFileSync(metaPath, "utf-8")) as IndicatorMeta;
-          } catch { continue; }
-        }
-      }
-    }
-  }
-  return null;
+  // Escape single quotes in symbol to prevent SQL injection
+  const safeSymbol = symbol.replace(/'/g, "''");
+  // Escape double quotes in column names to prevent breakout
+  const quotedCols = columns.map(c => `"${c.replace(/"/g, '""')}"`).join(", ");
+  const safeLimit = Math.min(Math.max(1, Math.floor(limit)), 100000);
+  return `SELECT "timestamp", ${quotedCols} FROM ${table} WHERE symbol = '${safeSymbol}' ORDER BY timestamp DESC LIMIT ${safeLimit}`;
 }

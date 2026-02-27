@@ -21,16 +21,16 @@ export function StabilityCard({ stabilityScore, isTraining, isGibbsSampling, isP
       <div className={`text-5xl font-bold font-mono leading-none mb-2 transition-all duration-700 ${stabilityScore > 0 ? 'text-emerald-400 scale-100' : isTraining ? 'text-emerald-400/20' : 'text-emerald-400'}`}>
         {stabilityScore > 0 ? `${(stabilityScore * 100).toFixed(0)}%` : isTraining ? (
           <PendingValue color="text-emerald-400/40" label={isPostGibbs ? 'computing' : 'pending'} />
-        ) : '--'}
+        ) : <span className="text-emerald-400/20">{'\u2014'}</span>}
       </div>
-      <div className="flex gap-1 items-end h-5 mb-2">
+      <div className="flex gap-1 items-end h-8 mb-2">
         {(wfWindResults.length > 0 ? wfWindResults : Array.from({ length: 5 }, () => ({ avg_confidence: 0, failed: false }))).map((w, i) => {
-          const conf = w.avg_confidence ? w.avg_confidence * 100 : 0;
+          const confPct = w.avg_confidence ? w.avg_confidence * 100 : 0;
           return (
             <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
               <div className={`w-full rounded-sm ${wfWindResults.length > 0 ? (w.failed ? 'bg-rose-500/50' : 'bg-emerald-500/40') : 'bg-white/5'}`}
-                style={{ height: `${Math.max(conf * 0.2, 2)}px` }} />
-              <span className="text-[7px] text-muted-foreground/40">W{i + 1}</span>
+                style={{ height: `${Math.max(confPct * 0.28, 2)}px` }} />
+              <span className="text-[9px] text-muted-foreground/40">W{i + 1}</span>
             </div>
           );
         })}

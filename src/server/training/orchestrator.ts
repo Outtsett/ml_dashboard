@@ -125,36 +125,10 @@ async function launchTrainingPipeline(
 ) {
   const { modelId, symbol: sym, timeframe: tf } = resolved;
 
-  // Export data if model requires it (Python models need a parquet file)
-  if (registry.requiresDataExport) {
-    emitSessionEvent(session, "progress", {
-      phase: "exporting",
-      pct: 0,
-      message: `Exporting ${sym} ${tf} data from QuestDB...`,
-    });
-
-    const { exportTrainingData } = await import("./dataExporter");
-    const maxBars = trainingCfg.limits.maxBarsDefault;
-    console.log(`[training] Exporting data for ${modelId} (max ${maxBars} bars)...`);
-
-    const exportResult = await exportTrainingData(sym, tf, request.dateRange, maxBars);
-    resolved.dataFile = exportResult.dataFile;
-    if (!resolved.dateRange) {
-      resolved.dateRange = exportResult.dateRange;
-    }
-
-    console.log(`[training] Exported ${exportResult.totalBars} bars to ${exportResult.dataFile}`);
-    emitSessionEvent(session, "progress", {
-      phase: "exporting",
-      pct: 100,
-      message: `Exported ${exportResult.totalBars.toLocaleString()} bars`,
-    });
-  }
-
-  // If session was stopped during export, bail
+  // If session was stopped before launch, bail
   if (session.finished) return;
 
-  // Emit started event (data is ready, runner is about to spawn)
+  // Emit started event (runner is about to spawn — Python reads QuestDB directly)
   emitSessionEvent(session, "started", {
     sessionId: session.sessionId,
     modelType: request.modelType,

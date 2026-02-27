@@ -114,12 +114,12 @@ export function useTrainingSSE(callbacks: TrainingSSECallbacks) {
 
     es.addEventListener("error", (e) => {
       if (e instanceof MessageEvent) {
+        // Server sent a training error event — training failed, close stream
         cbRef.current.onError(JSON.parse(e.data));
-      } else {
-        cbRef.current.onError(null);
+        es.close();
+        eventSourceRef.current = null;
       }
-      es.close();
-      eventSourceRef.current = null;
+      // Native connection errors: let EventSource auto-reconnect (don't close)
     });
 
     // caught_up — all buffered events replayed (no-op)

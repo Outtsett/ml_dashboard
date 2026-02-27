@@ -37,7 +37,7 @@ export function OverviewPanel({ diagnostics, model, llPerBar, convergencePoints 
         <span>{diagnostics.n_features} features</span>
         <span>{diagnostics.training_config?.gibbs_iter} iterations</span>
         <span className="flex items-center gap-1"><Flame className="h-3 w-3" />{timeStr}</span>
-        <span className="text-[9px]">{diagnostics.date_range?.start} → {diagnostics.date_range?.end}</span>
+        <span className="text-[9px]">{diagnostics.date_range?.start} {'\u2192'} {diagnostics.date_range?.end}</span>
       </div>
 
       {/* Quality ring + metrics grid */}
@@ -57,7 +57,7 @@ export function OverviewPanel({ diagnostics, model, llPerBar, convergencePoints 
             </>
           ) : (
             <div className="w-24 h-24 rounded-full border-2 border-white/5 flex items-center justify-center">
-              <span className="text-3xl font-bold font-mono text-muted-foreground/20">--</span>
+              <span className="text-3xl font-bold font-mono text-muted-foreground/20">{'\u2014'}</span>
             </div>
           )}
         </div>
@@ -65,7 +65,7 @@ export function OverviewPanel({ diagnostics, model, llPerBar, convergencePoints 
         {/* Metric cards in a row */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 flex-1">
           {metrics.map((m) => (
-            <div key={m.label} className="bg-white/[0.02] rounded-xl p-3 border border-white/5">
+            <div key={m.label} className="bg-white/5 rounded-xl p-3 border border-white/8">
               <div className="text-[9px] text-muted-foreground/50 uppercase tracking-widest mb-1">{m.label}</div>
               <div className={`text-xl font-bold font-mono ${m.color}`}>{m.value}</div>
               <p className={`text-[10px] mt-1 ${m.verdict.color}`}>{m.verdict.text}</p>
@@ -76,7 +76,7 @@ export function OverviewPanel({ diagnostics, model, llPerBar, convergencePoints 
 
       {/* Mini convergence sparkline */}
       {convergencePoints.length > 2 && (
-        <div className="bg-white/[0.02] rounded-xl p-3 border border-white/5">
+        <div className="bg-white/5 rounded-xl p-3 border border-white/8">
           <div className="text-[9px] text-muted-foreground/50 uppercase tracking-widest mb-2">Convergence Trend</div>
           <Sparkline data={convergencePoints.map(p => p.log_likelihood)} className="h-8" />
         </div>
@@ -85,19 +85,19 @@ export function OverviewPanel({ diagnostics, model, llPerBar, convergencePoints 
       {/* Profile correlation + switch ratio */}
       {diagnostics.out_of_sample && (
         <div className="flex gap-3">
-          <div className="bg-white/[0.02] rounded-xl p-3 border border-white/5 flex-1">
+          <div className="bg-white/5 rounded-xl p-3 border border-white/8 flex-1">
             <div className="text-[9px] text-muted-foreground/50 uppercase tracking-widest mb-1">Profile Correlation</div>
             <div className="text-lg font-bold font-mono text-foreground">{profileCorr.toFixed(2)}</div>
             <div className="text-[9px] text-muted-foreground/50">avg across regimes</div>
           </div>
-          <div className="bg-white/[0.02] rounded-xl p-3 border border-white/5 flex-1">
+          <div className="bg-white/5 rounded-xl p-3 border border-white/8 flex-1">
             <div className="text-[9px] text-muted-foreground/50 uppercase tracking-widest mb-1">Switch Ratio</div>
             <div className={`text-lg font-bold font-mono ${
               switchRatio >= 0.7 && switchRatio <= 1.3 ? 'text-emerald-400' : 'text-amber-400'
-            }`}>{switchRatio.toFixed(2)}×</div>
+            }`}>{switchRatio.toFixed(2)}{'\u00D7'}</div>
             <div className="text-[9px] text-muted-foreground/50">test / train</div>
           </div>
-          <div className="bg-white/[0.02] rounded-xl p-3 border border-white/5 flex-1">
+          <div className="bg-white/5 rounded-xl p-3 border border-white/8 flex-1">
             <div className="text-[9px] text-muted-foreground/50 uppercase tracking-widest mb-1">Training Time</div>
             <div className="text-lg font-bold font-mono text-foreground">{timeStr}</div>
             <div className="text-[9px] text-muted-foreground/50">{diagnostics.n_bars_total?.toLocaleString()} bars</div>

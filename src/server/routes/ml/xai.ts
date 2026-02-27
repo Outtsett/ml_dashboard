@@ -38,7 +38,7 @@ router.post("/xai/explain", async (req: Request, res: Response) => {
     // If no input provided but symbol given, fetch recent OHLCV data from QuestDB
     if ((!input || !Array.isArray(input) || input.length === 0) && symbol) {
       try {
-        const { checkQuestDBHealth, getOHLCVSampleBy } = await import("../../questdb");
+        const { checkQuestDBHealth, getOHLCVSampleBy } = await import("../../database/questdb");
         const healthy = await checkQuestDBHealth();
         if (healthy) {
           const ohlcv = await getOHLCVSampleBy(symbol, '1m', undefined, undefined, 30);

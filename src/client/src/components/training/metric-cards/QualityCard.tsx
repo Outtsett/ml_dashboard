@@ -29,7 +29,7 @@ export function QualityCard({ qualityScore, isTraining, isGibbsSampling, liveMet
         </div>
       ) : (
         <div className="w-24 h-24 rounded-full border-2 border-white/5 flex items-center justify-center">
-          <span className="text-3xl font-bold font-mono text-muted-foreground/20">--</span>
+          <span className="text-3xl font-bold font-mono text-muted-foreground/20">{'\u2014'}</span>
         </div>
       )}
       <div className={`text-[10px] font-medium mt-3 px-2.5 py-1 rounded-full ${

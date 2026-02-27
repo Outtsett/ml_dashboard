@@ -33,7 +33,6 @@ export interface ModelRegistryEntry {
   outputs: string[];              // what this model produces
   chartOverlay: string;           // how it paints on the chart
   outputDir: string;              // where results are saved
-  requiresDataExport: boolean;    // Python models need parquet export
   defaultHyperparameters: Record<string, HyperparameterDef>;
   includeIndicators?: boolean;    // default for including pre-computed indicators
   allFeatures?: boolean;          // default for using all available features
@@ -108,7 +107,7 @@ export interface StartedPayload {
 
 // ── training:progress — phase-level progress
 export interface ProgressPayload {
-  phase: string;        // 'exporting' | 'features' | 'training' | 'validation' | 'saving'
+  phase: string;        // 'features' | 'training' | 'validation' | 'saving'
   step: number;
   totalSteps: number;
   pct: number;          // 0-100
@@ -156,7 +155,6 @@ export interface ResolvedTrainingConfig {
   featurePipeline: string;
   outputDir: string;
   modelId: string;              // e.g. "ES_30m"
-  dataFile?: string;            // path to exported parquet (Python runners)
   includeIndicators?: boolean;
   allFeatures?: boolean;
   indicatorGroups?: string;

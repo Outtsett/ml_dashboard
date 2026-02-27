@@ -1,9 +1,8 @@
 /**
- * QuestDB HTTP API helpers for read_parquet() and parquet export.
+ * QuestDB HTTP API helpers.
  *
  * Use queryQuestDB() (PG wire) for standard SQL.
- * Use these for read_parquet() (HTTP-only in some QuestDB builds)
- * and /exp?fmt=parquet (training data export).
+ * Use questdbHttpQuery() for HTTP-only features (e.g. SHOW COLUMNS).
  */
 
 import { QUESTDB_HOST, QUESTDB_HTTP_PORT } from "./connection";
@@ -13,7 +12,7 @@ const QUESTDB_HTTP_URL = `http://${QUESTDB_HOST}:${QUESTDB_HTTP_PORT}`;
 /**
  * Execute SQL via QuestDB HTTP API. Returns array of typed objects.
  * Prefer queryQuestDB() (PG wire) for most queries.
- * Use this for read_parquet() which may only work via HTTP.
+ * Use this for HTTP-only features like SHOW COLUMNS.
  */
 export async function questdbHttpQuery<T = Record<string, unknown>>(sql: string): Promise<T[]> {
   const resp = await fetch(`${QUESTDB_HTTP_URL}/exec?query=${encodeURIComponent(sql)}&nm=true`);
@@ -35,22 +34,6 @@ export async function questdbHttpQuery<T = Record<string, unknown>>(sql: string)
     }
     return obj as T;
   });
-}
-
-/**
- * Export query results as parquet file via QuestDB HTTP /exp endpoint.
- * Returns the raw parquet buffer to write to disk.
- */
-export async function questdbExportParquet(sql: string): Promise<Buffer> {
-  const resp = await fetch(
-    `${QUESTDB_HTTP_URL}/exp?query=${encodeURIComponent(sql)}&fmt=parquet`
-  );
-  if (!resp.ok) {
-    const body = await resp.text();
-    throw new Error(`QuestDB parquet export failed (${resp.status}): ${body.slice(0, 200)}`);
-  }
-  const arrayBuf = await resp.arrayBuffer();
-  return Buffer.from(arrayBuf);
 }
 
 /**
