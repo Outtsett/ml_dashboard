@@ -47,8 +47,8 @@ export function IterationMetrics({ isTraining, progress, phase, iterationHistory
       ? elapsedSec * ((100 - safePct) / safePct)
       : 0;
 
-    const nRegimes = latest.metrics?.num_regimes ?? 0;
-    const ll = latest.metrics?.log_likelihood;
+    const nRegimes = latest.metrics?.activeStates ?? 0;
+    const ll = latest.metrics?.logLikelihood;
 
     return { currentIter, elapsed: elapsedSec, iterPerSec, eta, nRegimes, ll };
   }, [iterationHistory, elapsedSec, progress]);

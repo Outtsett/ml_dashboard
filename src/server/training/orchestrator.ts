@@ -58,7 +58,7 @@ export async function startTraining(request: TrainingRequest): Promise<{
   }
   const sym = request.symbol.toUpperCase();
   const tf = request.timeframe ?? "1m";
-  const modelId = `${sym}_${tf}`;
+  const modelId = `${sym}_${tf}_${request.modelType}`;
   const timeframeSec = timeframeToSeconds(tf);
   const hyperparameters = resolveHyperparameters(
     registry.defaultHyperparameters,

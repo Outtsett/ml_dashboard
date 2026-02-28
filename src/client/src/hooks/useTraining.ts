@@ -10,7 +10,7 @@
  * useTrainingSSE. This hook owns state + start/stop logic.
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDashboard } from "@/contexts/UnifiedDashboardContext";
 import { trainingApi } from "@/lib/apiService";
@@ -19,6 +19,7 @@ import { buildSSECallbacks } from "@/lib/training/sseHandlers";
 import { useTrainingConfig } from "./useTrainingConfig";
 import { useTrainingSSE } from "./useTrainingSSE";
 import { useTrainingLiveState } from "./useTrainingLiveState";
+import { QUERY_KEYS } from "@/lib/types";
 import type {
   TrainingRequest,
   TrainingState,
@@ -113,9 +114,34 @@ export function useTraining(): TrainingState & {
       clearElapsedTimer,
       // External side effects
       setTrainingContext: dashboard.setTrainingContext,
-      invalidateModels: () => queryClient.invalidateQueries({ queryKey: ["regime", "models"] }),
+      invalidateModels: () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.regimeModels }),
     })
   );
+
+  // ── Reset state when model type changes (multi-model isolation) ─────────
+  // When the user switches model type in the dropdown, clear stale data from
+  // the previous model so metrics/overlays/diagnostics don't bleed across.
+  const prevModelTypeRef = useRef(selectedModelType);
+  useEffect(() => {
+    if (prevModelTypeRef.current && prevModelTypeRef.current !== selectedModelType) {
+      // Only reset if not actively training — don't nuke a live session
+      if (!isTraining) {
+        disconnectSSE();
+        resetLiveState();
+        clearElapsedTimer();
+        setModelType(null);
+        setSessionId(null);
+        setModelId(null);
+        setCompletedModelId(null);
+        setConfig(null);
+        setError(null);
+        setIsPending(false);
+        setPhase("");
+        setProgress(0);
+      }
+    }
+    prevModelTypeRef.current = selectedModelType;
+  }, [selectedModelType, isTraining, disconnectSSE, resetLiveState, clearElapsedTimer]);
 
   // ── Start Training ───────────────────────────────────────────────────────
   const startTraining = useCallback(async (request: TrainingRequest) => {
@@ -159,7 +185,8 @@ export function useTraining(): TrainingState & {
     setIsTraining(false);
     dashboard.setTrainingContext(null);
     clearElapsedTimer();
-  }, [modelId, dashboard, disconnectSSE, clearElapsedTimer]);
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.regimeModels });
+  }, [modelId, dashboard, disconnectSSE, clearElapsedTimer, queryClient]);
 
   return {
     // Session state

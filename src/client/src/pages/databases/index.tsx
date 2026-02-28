@@ -31,12 +31,14 @@ export default function Databases() {
 
   const { data: postgresStats, isLoading: pgLoading, refetch: refetchPg } = useQuery<DatabaseStats>({
     queryKey: ["/api/databases/postgres/stats"],
-    refetchInterval: 30000,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
   });
 
   const { data: questdbStats, isLoading: qdbLoading, refetch: refetchQdb } = useQuery<DatabaseStats>({
     queryKey: ["/api/databases/questdb/stats"],
-    refetchInterval: 30000,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
   });
 
   const { data: tablePreview, isLoading: previewLoading } = useQuery({
@@ -59,7 +61,8 @@ export default function Databases() {
 
   const { data: uploads = [] } = useQuery<UploadRecord[]>({
     queryKey: ["/api/uploads"],
-    refetchInterval: 5000,
+    staleTime: 10_000,
+    refetchInterval: isUploading ? 5000 : 30_000,
   });
 
   // ── File upload handlers ──

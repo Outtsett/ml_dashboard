@@ -7,6 +7,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { trainingApi } from "@/lib/apiService";
+import { QUERY_KEYS } from "@/lib/types";
 import type { ModelRegistryEntry } from "@shared/trainingTypes";
 
 export interface TrainingConfigResponse {
@@ -17,7 +18,7 @@ export interface TrainingConfigResponse {
 
 export function useTrainingConfig() {
   return useQuery<TrainingConfigResponse>({
-    queryKey: ["training", "config"],
+    queryKey: [...QUERY_KEYS.trainingConfig],
     queryFn: () => trainingApi.getConfig(),
     staleTime: 300_000, // 5 min
   });

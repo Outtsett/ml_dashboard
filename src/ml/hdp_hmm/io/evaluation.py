@@ -91,47 +91,54 @@ def compute_oos_evaluation(relabeled, features, split_idx, n_regimes):
 
 # ── Walk-Forward Stability ───────────────────────────────────────────────────
 
-def compute_walk_forward(state_samples, n_regimes, n_windows=5):
-    """Walk-forward stability from post-burn-in Gibbs samples (no re-training)."""
-    if not state_samples or len(state_samples) < n_windows * 2:
+def compute_walk_forward(wf_counts, n_regimes, n_windows=5):
+    """Walk-forward stability from windowed mode counters (no re-training).
+
+    Args:
+        wf_counts: list of n_windows numpy arrays, each (T, K) int16/int32.
+                   Each array holds per-timestep regime vote counts for that
+                   window of the Gibbs sampling chain.
+        n_regimes: number of active regimes.
+        n_windows: expected number of windows.
+    """
+    if not wf_counts or len(wf_counts) < n_windows:
         return None
 
-    samples = np.array(state_samples)
-    n_samples = len(samples)
-    window_size = n_samples // n_windows
+    # Check that at least some counts were accumulated
+    if all(c.sum() == 0 for c in wf_counts):
+        return None
 
     window_results = []
     distributions = []
+    K = min(n_regimes, wf_counts[0].shape[1])
 
     for w in range(n_windows):
-        start = w * window_size
-        end = start + window_size if w < n_windows - 1 else n_samples
-        window_samples = samples[start:end]
+        counts = wf_counts[w]  # (T, K_max)
+        counts_k = counts[:, :K]  # restrict to active regimes
 
         # Mode assignment for this window
-        T = window_samples.shape[1]
-        mode_states = np.zeros(T, dtype=int)
-        for t in range(T):
-            vals, cnts = np.unique(window_samples[:, t], return_counts=True)
-            mode_states[t] = vals[np.argmax(cnts)]
+        mode_states = np.argmax(counts_k, axis=1)
 
         # Distribution
         dist = compute_distribution(mode_states, n_regimes)
         distributions.append(dist)
 
+        T = len(mode_states)
         # Switch rate
         switches = float(np.sum(mode_states[1:] != mode_states[:-1]) / max(1, T - 1))
 
         # Confidence: fraction of samples agreeing with mode per timestep
-        agreement_per_t = np.zeros(T)
-        for t in range(T):
-            agreement_per_t[t] = np.mean(window_samples[:, t] == mode_states[t])
-        avg_confidence = float(np.mean(agreement_per_t))
+        total_per_t = np.maximum(counts.sum(axis=1), 1).astype(np.float64)
+        mode_count_per_t = counts[np.arange(T), mode_states]
+        avg_confidence = float(np.mean(mode_count_per_t / total_per_t))
+
+        # Sample count for this window
+        sample_count = int(counts.sum(axis=1).max())
 
         window_results.append({
             "window": w + 1,
-            "train_size": int(end - start),
-            "test_size": int(window_size),
+            "train_size": sample_count,
+            "test_size": sample_count,
             "regime_distribution": [round(x, 4) for x in dist],
             "switch_rate": round(switches, 4),
             "avg_confidence": round(avg_confidence, 4),

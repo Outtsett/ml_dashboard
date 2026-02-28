@@ -10,16 +10,25 @@ import type { Diagnostics, ConvergencePoint } from "../types";
 // ─── Sub-tab definitions ─────────────────────────────────────────────────────
 
 export const SUB_TABS = [
-  { id: "overview",    label: "Overview",     icon: Activity },
-  { id: "regimes",     label: "Regimes",      icon: Layers },
-  { id: "convergence", label: "Convergence",  icon: TrendingUp },
-  { id: "walkforward", label: "Walk-Forward", icon: Shield },
-  { id: "oos",         label: "OOS",          icon: Target },
-  { id: "fit",         label: "Model Fit",    icon: BarChart3 },
-  { id: "log",         label: "Training Log", icon: Terminal },
+  { id: "overview",    label: "Overview",     icon: Activity,    requiredKeys: [] as string[] },
+  { id: "regimes",     label: "Regimes",      icon: Layers,      requiredKeys: ["regime_stats"] },
+  { id: "convergence", label: "Convergence",  icon: TrendingUp,  requiredKeys: ["convergence_summary"] },
+  { id: "walkforward", label: "Walk-Forward", icon: Shield,      requiredKeys: ["walk_forward"] },
+  { id: "oos",         label: "OOS",          icon: Target,      requiredKeys: ["out_of_sample"] },
+  { id: "fit",         label: "Model Fit",    icon: BarChart3,   requiredKeys: ["convergence_summary"] },
+  { id: "log",         label: "Training Log", icon: Terminal,     requiredKeys: [] as string[] },
 ] as const;
 
 export type SubTabId = typeof SUB_TABS[number]["id"];
+
+/** Filter sub-tabs to only those with data in diagnostics */
+export function getVisibleSubTabs(diagnostics: Diagnostics | undefined) {
+  if (!diagnostics) return SUB_TABS; // Show all tabs while loading
+  const d = diagnostics as unknown as Record<string, unknown>;
+  return SUB_TABS.filter(tab =>
+    tab.requiredKeys.length === 0 || tab.requiredKeys.every(key => d[key] != null)
+  );
+}
 
 // ─── Per-model diagnostics hook ──────────────────────────────────────────────
 

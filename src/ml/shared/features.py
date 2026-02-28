@@ -110,25 +110,42 @@ def _load_feature_config():
         return json.load(f)
 
 
-def compute_features(table, categories=None):
+def _extract_arrays(data):
+    """Extract OHLCV numpy arrays + timestamps from dict or PyArrow table."""
+    if isinstance(data, dict):
+        # Direct numpy dict from load_ohlcv_arrays()
+        close = data["close"].astype(np.float64)
+        high = data["high"].astype(np.float64)
+        low = data["low"].astype(np.float64)
+        volume = data["volume"].astype(np.float64)
+        open_ = data["open"].astype(np.float64)
+        timestamps = data.get("timestamp", [])
+    else:
+        # PyArrow table (backward compat)
+        close = data.column("close").to_numpy().astype(np.float64)
+        high = data.column("high").to_numpy().astype(np.float64)
+        low = data.column("low").to_numpy().astype(np.float64)
+        volume = data.column("volume").to_numpy().astype(np.float64)
+        open_ = data.column("open").to_numpy().astype(np.float64)
+        ts_col = "timestamp" if "timestamp" in data.column_names else "ts"
+        timestamps = data.column(ts_col).to_pylist()
+    ohlcv = dict(close=close, high=high, low=low, volume=volume, open_=open_)
+    return ohlcv, timestamps
+
+
+def compute_features(data, categories=None):
     """
     Config-driven feature computation from raw OHLCV.
 
     Args:
-        table: PyArrow table with open, high, low, close, volume, timestamp columns.
+        data: dict with numpy arrays (from load_ohlcv_arrays) or PyArrow table.
         categories: Optional set/list of category names to include.
                     None = all categories (default, backward compatible).
 
     Returns (feature_matrix, feature_names, timestamps).
     """
     config = _load_feature_config()
-
-    close  = table.column("close").to_numpy().astype(np.float64)
-    high   = table.column("high").to_numpy().astype(np.float64)
-    low    = table.column("low").to_numpy().astype(np.float64)
-    volume = table.column("volume").to_numpy().astype(np.float64)
-    open_  = table.column("open").to_numpy().astype(np.float64)
-    ohlcv  = dict(close=close, high=high, low=low, volume=volume, open_=open_)
+    ohlcv, timestamps = _extract_arrays(data)
 
     features = {}
     feature_names = []
@@ -147,7 +164,9 @@ def compute_features(table, categories=None):
         if feat_type == "swing":
             # Compute swing batch once, distribute individual outputs
             if swing_cache is None:
-                swing_cache = compute_swing_features(high, low, close)
+                swing_cache = compute_swing_features(
+                    ohlcv["high"], ohlcv["low"], ohlcv["close"]
+                )
             if feat_name in swing_cache:
                 features[feat_name] = swing_cache[feat_name]
                 feature_names.append(feat_name)
@@ -161,21 +180,29 @@ def compute_features(table, categories=None):
 
     matrix = np.column_stack([features[n] for n in feature_names])
 
-    ts_col = "timestamp" if "timestamp" in table.column_names else "ts"
-    timestamps = table.column(ts_col).to_pylist()
-
     return matrix, feature_names, timestamps
 
 
 def normalize_features(X, lookback=250, clip_range=(-5, 5)):
-    """Rolling z-score normalization. Clips to configured range."""
+    """Rolling z-score normalization (vectorized). Clips to configured range."""
+    from numpy.lib.stride_tricks import sliding_window_view
+
     T, D = X.shape
     X_norm = np.full_like(X, np.nan)
-    for i in range(lookback, T):
-        window = X[max(0, i - lookback):i]
-        mu = np.nanmean(window, axis=0)
-        sigma = np.nanstd(window, axis=0)
-        sigma = np.where(sigma < 1e-10, 1.0, sigma)
-        X_norm[i] = (X[i] - mu) / sigma
+
+    if T <= lookback:
+        return np.clip(X_norm, clip_range[0], clip_range[1])
+
+    # Shape: (T - lookback + 1, D, lookback)
+    # windows[i, d, :] = X[i:i+lookback, d]
+    # windows[0] covers X[0:lookback], used to normalize X[lookback]
+    windows = sliding_window_view(X, window_shape=lookback, axis=0)
+
+    n_valid = T - lookback
+    mu = np.nanmean(windows[:n_valid], axis=2)    # (n_valid, D)
+    sigma = np.nanstd(windows[:n_valid], axis=2)  # (n_valid, D)
+    sigma = np.where(sigma < 1e-10, 1.0, sigma)
+
+    X_norm[lookback:] = (X[lookback:] - mu) / sigma
     X_norm = np.clip(X_norm, clip_range[0], clip_range[1])
     return X_norm

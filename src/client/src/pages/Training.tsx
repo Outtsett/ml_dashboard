@@ -10,10 +10,10 @@
  *   useRegimeModels/Diagnostics → Saved model list, per-model metrics (data hooks)
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Activity, Flame } from "lucide-react";
 
 import { useTrainingContext } from "@/contexts/TrainingContext";
@@ -24,7 +24,6 @@ import { regimeApi } from "@/lib/apiService";
 import { getQualityLabel } from "@/components/training/types";
 import { getAdapter } from "@/components/training/modelAdapters";
 import DataPipelineFlow from "@/components/training/DataPipelineFlow";
-import HeroStrip from "@/components/training/HeroStrip";
 import ModelTabs from "@/components/training/ModelTabs";
 import ModelPicker from "@/components/training/ModelPicker";
 import { LiveTrainingDashboard } from "@/components/training/live";
@@ -40,15 +39,30 @@ export default function Training() {
   const { data: diagnostics } = useRegimeDiagnostics(selectedModel);
   const { data: convergenceData } = useRegimeConvergence(selectedModel);
 
-  // Auto-select most recent model when idle
+  // Clear selected model when model type changes — prevents stale cross-model data
+  useEffect(() => {
+    setSelectedModel(null);
+  }, [training.selectedModelType]);
+
+  // Auto-select most recent model of the current type when idle
   useEffect(() => {
     if (!selectedModel && !training.isTraining && models.length > 0) {
-      const sorted = [...models].sort((a, b) =>
-        new Date(b.trained_at).getTime() - new Date(a.trained_at).getTime()
-      );
-      setSelectedModel(sorted[0]!.id);
+      const mt = training.selectedModelType;
+      // Filter to models matching current type (new format: id ends with _modelType)
+      const matching = models.filter(m => {
+        const prefix = `${m.symbol}_${m.timeframe}_`;
+        if (m.id.startsWith(prefix)) return m.id.slice(prefix.length) === mt;
+        // Legacy models without type suffix are assumed hdp-hmm
+        return mt === "hdp-hmm";
+      });
+      if (matching.length > 0) {
+        const sorted = [...matching].sort((a, b) =>
+          new Date(b.trained_at).getTime() - new Date(a.trained_at).getTime()
+        );
+        setSelectedModel(sorted[0]!.id);
+      }
     }
-  }, [models, selectedModel, training.isTraining]);
+  }, [models, selectedModel, training.isTraining, training.selectedModelType]);
 
   // Select newly completed model
   useEffect(() => {
@@ -84,14 +98,22 @@ export default function Training() {
 
   // ── Derive training metrics from state + diagnostics (extracted to hook — SRP) ──
   const {
-    isTraining, liveMetrics, liveConvergence, progress,
-    gibbsPhase, isGibbsSampling, isPostGibbs,
-    metrics, nBarsForLL, llPerBar, convergencePoints,
-    wfWindResults, oos, gibbsIter,
+    isTraining, progress,
+    trainingPhase, metrics, convergencePoints, iterationCount,
   } = useTrainingMetrics(training, diagnostics, convergenceData);
 
   const modelType = training.selectedModelType;
   const adapter = getAdapter(modelType);
+
+  // Filter saved models to only show the current model type
+  const filteredModels = useMemo(() => {
+    if (!models?.length) return [];
+    return models.filter(m => {
+      const prefix = `${m.symbol}_${m.timeframe}_`;
+      if (m.id.startsWith(prefix)) return m.id.slice(prefix.length) === modelType;
+      return modelType === "hdp-hmm"; // legacy models without type suffix
+    });
+  }, [models, modelType]);
   const modelEntry = training.availableModels[modelType];
   const modelDisplayName = modelEntry?.name ?? adapter.name;
   const qualityScore = metrics.quality;
@@ -100,133 +122,128 @@ export default function Training() {
   const selectedTimeframe = training.timeframeLabel;
 
   return (
-    <ScrollArea className="h-full">
-    <div className="space-y-4 p-1">
-
-      {/* ─── Header ─── */}
-      <div className="flex flex-wrap justify-between items-center gap-3 shrink-0">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <Flame className={`h-5 w-5 ${isTraining ? 'text-orange-400 pulse-slow' : 'text-muted-foreground'}`} />
-            <span className={`text-sm font-medium ${isTraining ? 'text-orange-400' : 'text-muted-foreground'}`}>
-              {isTraining ? `Training ${modelDisplayName}` : modelDisplayName}
-            </span>
-            {training.error && (
-              <Badge variant="outline" className="border-rose-500/50 text-rose-400 bg-rose-500/10 gap-1 text-xs">
-                Error
-              </Badge>
-            )}
-            {qualityScore > 0 && !isTraining && (
-              <Badge variant="outline" className={`text-xs ${
-                qualityScore >= 80 ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' :
-                qualityScore >= 60 ? 'border-amber-500/30 text-amber-400 bg-amber-500/10' :
-                'border-orange-500/30 text-orange-400 bg-orange-500/10'
-              }`}>
-                Quality: {qualityScore.toFixed(0)} · {getQualityLabel(qualityScore)}
-              </Badge>
-            )}
+    <div className="flex flex-col h-full p-1 gap-2">
+      {/* ─── Header (fixed, not resizable) ─── */}
+      <div className="shrink-0 space-y-3">
+        <div className="flex flex-wrap justify-between items-center gap-3">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <Flame className={`h-5 w-5 ${isTraining ? 'text-orange-400 pulse-slow' : 'text-muted-foreground'}`} />
+              <span className={`text-sm font-medium ${isTraining ? 'text-orange-400' : 'text-muted-foreground'}`}>
+                {isTraining ? `Training ${modelDisplayName}` : modelDisplayName}
+              </span>
+              {training.error && (
+                <Badge variant="outline" className="border-rose-500/50 text-rose-400 bg-rose-500/10 gap-1 text-xs">
+                  Error
+                </Badge>
+              )}
+              {qualityScore > 0 && !isTraining && (
+                <Badge variant="outline" className={`text-xs ${
+                  qualityScore >= 80 ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' :
+                  qualityScore >= 60 ? 'border-amber-500/30 text-amber-400 bg-amber-500/10' :
+                  'border-orange-500/30 text-orange-400 bg-orange-500/10'
+                }`}>
+                  Quality: {qualityScore.toFixed(0)} · {getQualityLabel(qualityScore)}
+                </Badge>
+              )}
+            </div>
+            <h1 className="text-3xl font-display font-bold text-foreground">Training Center</h1>
           </div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Training Center</h1>
+          <div className="flex gap-2 items-center flex-wrap">
+            <Badge variant="outline" className="h-9 px-3 font-mono gap-1.5 text-xs rounded-full border-white/10">
+              {adapter.name} · {selectedSymbol} · {selectedTimeframe}
+            </Badge>
+            <Badge variant="outline" className={`h-9 px-3 font-mono gap-1.5 text-xs rounded-full ${
+              isTraining ? 'border-orange-500/30 text-orange-400 bg-orange-500/10' : 'border-muted-foreground/30 text-muted-foreground'
+            }`}>
+              <Flame className={`h-3.5 w-3.5 ${isTraining ? 'pulse-slow' : ''}`} />
+              {progress ? `${progress.pct.toFixed(0)}%` : 'Ready'}
+            </Badge>
+          </div>
         </div>
-        <div className="flex gap-2 items-center flex-wrap">
-          <Badge variant="outline" className="h-9 px-3 font-mono gap-1.5 text-xs rounded-full border-white/10">
-            {adapter.name} · {selectedSymbol} · {selectedTimeframe}
-          </Badge>
-          <Badge variant="outline" className={`h-9 px-3 font-mono gap-1.5 text-xs rounded-full ${
-            isTraining ? 'border-orange-500/30 text-orange-400 bg-orange-500/10' : 'border-muted-foreground/30 text-muted-foreground'
-          }`}>
-            <Flame className={`h-3.5 w-3.5 ${isTraining ? 'pulse-slow' : ''}`} />
-            {progress ? `${progress.pct.toFixed(0)}%` : 'Ready'}
-          </Badge>
-        </div>
+
+        {/* ─── Universal Model Picker + Train Button ─── */}
+        <Card className="glass rounded-2xl gradient-border">
+          <CardHeader className="border-b border-white/5 py-2 px-4">
+            <CardTitle className="text-xs font-medium text-muted-foreground">
+              {modelDisplayName}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3">
+            <ModelPicker
+              models={training.availableModels}
+              selectedModel={training.selectedModelType}
+              onSelectModel={training.setSelectedModelType}
+              hyperparameterOverrides={hyperOverrides}
+              onHyperparameterChange={handleHyperChange}
+              isTraining={training.isTraining}
+              isPending={training.isPending}
+              onTrain={handleTrain}
+              onStop={training.stopTraining}
+              symbol={selectedSymbol}
+              timeframe={training.timeframeLabel}
+              progress={training.progress}
+              phase={training.phase}
+              error={training.error}
+            />
+          </CardContent>
+        </Card>
       </div>
 
-      {/* ─── Universal Model Picker + Train Button ─── */}
-      <Card className="glass rounded-2xl gradient-border">
-        <CardHeader className="border-b border-white/5 py-2 px-4">
-          <CardTitle className="text-xs font-medium text-muted-foreground">
-            {modelDisplayName}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-3">
-          <ModelPicker
-            models={training.availableModels}
-            selectedModel={training.selectedModelType}
-            onSelectModel={training.setSelectedModelType}
-            hyperparameterOverrides={hyperOverrides}
-            onHyperparameterChange={handleHyperChange}
-            isTraining={training.isTraining}
-            isPending={training.isPending}
-            onTrain={handleTrain}
-            onStop={training.stopTraining}
-            symbol={selectedSymbol}
-            timeframe={training.timeframeLabel}
-            progress={training.progress}
-            phase={training.phase}
-            error={training.error}
-          />
-        </CardContent>
-      </Card>
+      {/* ─── Resizable Content Sections (2 panels) ─── */}
+      <ResizablePanelGroup direction="vertical" autoSaveId="training-layout-v2" className="flex-1 min-h-0">
+        {/* Top: Pipeline + Live (collapsible) */}
+        <ResizablePanel defaultSize={isTraining ? 30 : 8} minSize={5} collapsible>
+          <div className="h-full flex flex-col gap-2 min-h-0">
+            <Card className="glass rounded-2xl gradient-border shrink-0">
+              <CardHeader className="border-b border-white/5 py-2 px-4">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  <Activity className="h-3 w-3 text-cyan-400" /> Data Pipeline
+                  <span className="text-[10px] opacity-50 ml-auto font-normal">
+                    {adapter.pipelineDescription}
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-3">
+                <DataPipelineFlow
+                  modelType={modelType}
+                  symbol={selectedSymbol}
+                  timeframe={selectedTimeframe}
+                  numBars={diagnostics?.n_bars_total}
+                  numFeatures={diagnostics?.n_features || 10}
+                  trainSize={diagnostics?.n_bars_train_val}
+                  testSize={diagnostics?.n_bars_test}
+                  isTraining={isTraining}
+                  iterationCount={iterationCount}
+                  currentStep={progress?.step}
+                  totalSteps={progress?.totalSteps}
+                  phase={pipelinePhase}
+                  nRegimes={nRegimes}
+                />
+              </CardContent>
+            </Card>
+            {(isTraining || training.completedModelId) && (
+              <div className="flex-1 min-h-0">
+                <LiveTrainingDashboard />
+              </div>
+            )}
+          </div>
+        </ResizablePanel>
 
-      {/* ─── Section 1: Data Pipeline Flow ─── */}
-      <Card className="glass rounded-2xl gradient-border">
-        <CardHeader className="border-b border-white/5 py-2 px-4">
-          <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-            <Activity className="h-3 w-3 text-cyan-400" /> Data Pipeline
-            <span className="text-[10px] opacity-50 ml-auto font-normal">
-              Think of it as: {adapter.pipelineDescription}
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-3">
-          <DataPipelineFlow
-            modelType={modelType}
-            symbol={selectedSymbol}
-            timeframe={selectedTimeframe}
-            numBars={diagnostics?.n_bars_total}
-            numFeatures={diagnostics?.n_features || 10}
-            trainSize={diagnostics?.n_bars_train_val}
-            testSize={diagnostics?.n_bars_test}
-            isTraining={isTraining}
-            gibbsIter={gibbsIter}
-            currentStep={progress?.step}
-            totalSteps={progress?.totalSteps}
-            phase={pipelinePhase}
-            nRegimes={nRegimes}
-          />
-        </CardContent>
-      </Card>
+        <ResizableHandle withHandle className="my-1 bg-white/4 hover:bg-white/10 transition-colors" />
 
-      {/* ─── Section 2: Hero Strip (live training metrics) ─── */}
-      <HeroStrip
-        isTraining={isTraining}
-        progress={progress}
-        gibbsIter={gibbsIter}
-        gibbsPhase={gibbsPhase}
-        isGibbsSampling={isGibbsSampling}
-        isPostGibbs={isPostGibbs}
-        liveMetrics={liveMetrics}
-        liveConvergence={liveConvergence}
-        diagnostics={diagnostics}
-        metrics={metrics}
-        nBarsForLL={nBarsForLL}
-        llPerBar={llPerBar}
-        convergencePoints={convergencePoints}
-        wfWindResults={wfWindResults}
-        oos={oos}
-      />
-
-      {/* ─── Section 2b: Live Training Analytics (visible during/after training) ─── */}
-      <LiveTrainingDashboard />
-
-      {/* ─── Section 3: Model Tabs — each model gets its own tab with metric sub-tabs + training log ─── */}
-      <ModelTabs
-        models={models || []}
-        selectedModel={selectedModel}
-        setSelectedModel={setSelectedModel}
-        deleteModel={deleteModel}
-      />
+        {/* Bottom: ModelTabs (THE HERO — fills remaining space) */}
+        <ResizablePanel defaultSize={isTraining ? 70 : 92} minSize={30}>
+          <div className="h-full min-h-0">
+            <ModelTabs
+              models={filteredModels}
+              selectedModel={selectedModel}
+              setSelectedModel={setSelectedModel}
+              deleteModel={deleteModel}
+            />
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
-    </ScrollArea>
   );
 }

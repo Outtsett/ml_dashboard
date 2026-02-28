@@ -3,16 +3,17 @@
  *
  * Extracted from Training.tsx (SRP): the page component renders layout,
  * this hook owns the data transformation from raw training state to
- * the metric shape consumed by HeroStrip and other sub-components.
+ * the metric shape consumed by the header badges and sub-components.
+ *
+ * Model-agnostic: phase names are generic, no model-specific terminology.
  */
 
 import { useMemo } from "react";
 import type { TrainingState } from "@shared/trainingTypes";
 import type {
-  LiveMetrics, ConvergencePoint, TrainingProgress,
-  WalkForwardWindow, OOSResult, Diagnostics,
+  ConvergencePoint, TrainingProgress,
+  Diagnostics,
 } from "@/components/training/types";
-import { INITIAL_LIVE_METRICS } from "@/components/training/types";
 
 export interface DerivedMetrics {
   quality: number;
@@ -27,19 +28,12 @@ export interface DerivedMetrics {
 
 export interface TrainingMetricsResult {
   isTraining: boolean;
-  liveMetrics: LiveMetrics | null;
   liveConvergence: ConvergencePoint[];
   progress: TrainingProgress | null;
-  gibbsPhase: string;
-  isGibbsSampling: boolean;
-  isPostGibbs: boolean;
+  trainingPhase: string;
   metrics: DerivedMetrics;
-  nBarsForLL: number;
-  llPerBar: number;
   convergencePoints: ConvergencePoint[];
-  wfWindResults: WalkForwardWindow[];
-  oos: OOSResult | undefined;
-  gibbsIter: number;
+  iterationCount: number;
 }
 
 export function useTrainingMetrics(
@@ -48,30 +42,9 @@ export function useTrainingMetrics(
   convergenceData: { gibbs?: ConvergencePoint[] } | null | undefined,
 ): TrainingMetricsResult {
   const isTraining = training.isTraining;
-  const gibbsIter = (training.config?.hyperparameters as Record<string, number>)?.gibbsIter ?? 200;
-
-  // Build LiveMetrics from universal metrics (Record<string, number>)
-  const liveMetrics: LiveMetrics | null = isTraining ? {
-    ...INITIAL_LIVE_METRICS,
-    gibbsIter: training.iterationHistory.at(-1)?.iteration ?? 0,
-    gibbsTotal: (training.iterationHistory.at(-1)?.metrics?.totalIterations as number) ?? gibbsIter,
-    logLikelihood: training.metrics.logLikelihood ?? 0,
-    activeStates: training.metrics.activeStates ?? 0,
-    delta: training.metrics.delta ?? 0,
-    fitPerBar: training.metrics.fitPerBar ?? 0,
-    entropy: training.metrics.entropy ?? 0,
-    switchRate: training.metrics.switchRate ?? 0,
-    selfTransition: training.metrics.selfTransition ?? 0,
-    maxRegimePct: training.metrics.maxRegimePct ?? 0,
-    avgDwell: training.metrics.avgDwell ?? 0,
-    nBarsTotal: training.totalBars ?? 0,
-    regimesDiscovered: training.metrics.regimes_discovered ?? 0,
-    stability: training.metrics.stability ?? 0,
-    oosSimilarity: training.metrics.oos_similarity ?? 0,
-    oosCorrelation: training.metrics.oos_correlation ?? 0,
-    qualityScore: training.metrics.quality_score ?? 0,
-    elapsed: training.elapsedSec,
-  } : null;
+  const iterationCount = (training.config?.hyperparameters as Record<string, number>)?.gibbsIter
+    ?? (training.config?.hyperparameters as Record<string, number>)?.emIter
+    ?? 200;
 
   const liveConvergence: ConvergencePoint[] = training.iterationHistory.map(h => ({
     iter: h.iteration,
@@ -94,24 +67,22 @@ export function useTrainingMetrics(
     pct: training.progress,
   } : null;
 
-  // Phase detection
-  const gibbsPhase = training.phase || '';
-  const isGibbsSampling = isTraining && gibbsPhase === 'gibbs_sampling';
-  const isPostGibbs = isTraining && ['walk_forward', 'oos_evaluation', 'analyzing', 'saving'].includes(gibbsPhase);
+  // Phase detection (model-agnostic)
+  const trainingPhase = training.phase || '';
 
   // Derived metrics (live during training, from diagnostics when idle)
   const metrics = useMemo((): DerivedMetrics => {
-    if (isTraining && liveMetrics != null) return {
-      quality: liveMetrics.qualityScore,
-      regimes: liveMetrics.regimesDiscovered || liveMetrics.activeStates,
-      stability: liveMetrics.stability,
-      oos: liveMetrics.oosSimilarity,
-      profileCorr: liveMetrics.oosCorrelation,
-      ll: liveMetrics.logLikelihood,
-      activeStates: liveMetrics.activeStates,
-      elapsedSec: liveMetrics.elapsed,
+    if (isTraining) return {
+      quality: training.metrics.quality_score ?? 0,
+      regimes: training.metrics.regimes_discovered ?? training.metrics.activeStates ?? 0,
+      stability: training.metrics.stability ?? 0,
+      oos: training.metrics.oos_similarity ?? 0,
+      profileCorr: training.metrics.oos_correlation ?? 0,
+      ll: training.metrics.logLikelihood ?? 0,
+      activeStates: training.metrics.activeStates ?? 0,
+      elapsedSec: training.elapsedSec,
     };
-    if (!isTraining && diagnostics) return {
+    if (diagnostics) return {
       quality: diagnostics.quality_score ?? 0,
       regimes: diagnostics.n_regimes ?? 0,
       stability: diagnostics.walk_forward?.stability_score ?? 0,
@@ -122,28 +93,17 @@ export function useTrainingMetrics(
       elapsedSec: diagnostics.training_time_sec ?? 0,
     };
     return { quality: 0, regimes: 0, stability: 0, oos: 0, profileCorr: 0, ll: 0, activeStates: 0, elapsedSec: 0 };
-  }, [isTraining, liveMetrics, diagnostics]);
+  }, [isTraining, training.metrics, training.elapsedSec, diagnostics]);
 
-  const nBarsForLL = (isTraining && liveMetrics?.nBarsTotal) ? liveMetrics.nBarsTotal : diagnostics?.n_bars_total || 1;
-  const llPerBar = metrics.ll !== 0 ? metrics.ll / nBarsForLL : 0;
   const convergencePoints: ConvergencePoint[] = liveConvergence.length > 0 && !convergenceData ? liveConvergence : (convergenceData?.gibbs || []);
-  const wfWindResults = diagnostics?.walk_forward?.window_results || [];
-  const oos = diagnostics?.out_of_sample;
 
   return {
     isTraining,
-    liveMetrics,
     liveConvergence,
     progress,
-    gibbsPhase,
-    isGibbsSampling,
-    isPostGibbs,
+    trainingPhase,
     metrics,
-    nBarsForLL,
-    llPerBar,
     convergencePoints,
-    wfWindResults,
-    oos,
-    gibbsIter,
+    iterationCount,
   };
 }

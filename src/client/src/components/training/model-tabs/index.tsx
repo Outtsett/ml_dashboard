@@ -20,7 +20,7 @@ import {
 import { Layers, Trash2 } from "lucide-react";
 import type { RegimeModel, ConvergencePoint } from "../types";
 import { getQualityColor } from "../types";
-import { SUB_TABS, type SubTabId, useModelDiagnostics } from "./constants";
+import { SUB_TABS, type SubTabId, useModelDiagnostics, getVisibleSubTabs } from "./constants";
 import { OverviewPanel } from "./OverviewPanel";
 import { RegimesPanel } from "./RegimesPanel";
 import { ConvergencePanel } from "./ConvergencePanel";
@@ -41,75 +41,124 @@ interface ModelTabsProps {
 export default function ModelTabs({ models, selectedModel, setSelectedModel, deleteModel }: ModelTabsProps) {
   const [activeSubTab, setActiveSubTab] = useState<SubTabId>("overview");
 
-  if (models.length === 0) {
-    return (
-      <Card className="glass rounded-2xl gradient-border">
-        <div className="h-[300px] flex flex-col items-center justify-center text-muted-foreground">
-          <Layers className="h-10 w-10 mb-3 opacity-20" />
-          <p className="text-sm font-medium">No Trained Models</p>
-          <p className="text-xs text-muted-foreground/60 mt-1">Train a model to see its metrics here</p>
-        </div>
-      </Card>
-    );
-  }
-
   const sortedModels = [...models].sort((a, b) =>
     new Date(b.trained_at).getTime() - new Date(a.trained_at).getTime()
   );
 
   const activeModelId = selectedModel || sortedModels[0]?.id || "";
+  const hasModels = models.length > 0;
 
   return (
-    <Card className="glass rounded-2xl gradient-border overflow-hidden">
+    <Card className="glass rounded-2xl gradient-border overflow-hidden h-full flex flex-col min-h-0">
       {/* ── Model Tabs (top row) ── */}
-      <Tabs value={activeModelId} onValueChange={(id) => setSelectedModel(id)}>
-        <div className="border-b border-white/5 bg-white/[0.02]">
-          <div className="flex items-center px-2 overflow-x-auto scrollbar-none">
-            <TabsList className="bg-transparent h-auto p-0 gap-0">
-              {sortedModels.map((model) => {
-                const isActive = model.id === activeModelId;
-                const qColor = getQualityColor(model.quality_score ?? 0);
-                return (
-                  <TabsTrigger
-                    key={model.id}
-                    value={model.id}
-                    className={`
-                      relative rounded-none border-b-2 px-4 py-2.5 text-xs font-medium
-                      transition-all data-[state=active]:shadow-none
-                      ${isActive
-                        ? "border-primary text-foreground bg-white/[0.04]"
-                        : "border-transparent text-muted-foreground hover:text-foreground/70 hover:bg-white/[0.02]"
-                      }
-                    `}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono">{model.symbol}</span>
-                      <span className="text-[10px] text-muted-foreground/60">{model.timeframe}</span>
-                      <span className={`text-[10px] font-bold font-mono ${qColor}`}>
-                        {model.quality_score !== undefined ? model.quality_score.toFixed(0) : "--"}
-                      </span>
-                      <span className="text-[9px] text-orange-400/70 font-mono">{model.n_regimes}R</span>
-                    </div>
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
+      {hasModels ? (
+        <Tabs value={activeModelId} onValueChange={(id) => setSelectedModel(id)} className="flex flex-col min-h-0 flex-1">
+          <div className="border-b border-white/5 bg-white/[0.02] shrink-0">
+            <div className="flex items-center px-2 overflow-x-auto scrollbar-none">
+              <TabsList className="bg-transparent h-auto p-0 gap-0">
+                {sortedModels.map((model) => {
+                  const isActive = model.id === activeModelId;
+                  const qColor = getQualityColor(model.quality_score ?? 0);
+                  return (
+                    <TabsTrigger
+                      key={model.id}
+                      value={model.id}
+                      className={`
+                        relative rounded-none border-b-2 px-4 py-2.5 text-xs font-medium
+                        transition-all data-[state=active]:shadow-none
+                        ${isActive
+                          ? "border-primary text-foreground bg-white/[0.04]"
+                          : "border-transparent text-muted-foreground hover:text-foreground/70 hover:bg-white/[0.02]"
+                        }
+                      `}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono">{model.symbol}</span>
+                        <span className="text-[10px] text-muted-foreground/60">{model.timeframe}</span>
+                        <span className={`text-[10px] font-bold font-mono ${qColor}`}>
+                          {model.quality_score !== undefined ? model.quality_score.toFixed(0) : "--"}
+                        </span>
+                        <span className="text-[9px] text-orange-400/70 font-mono">{model.n_regimes}R</span>
+                      </div>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+            </div>
           </div>
-        </div>
 
-        {/* ── Per-model content ── */}
-        {sortedModels.map((model) => (
-          <TabsContent key={model.id} value={model.id} className="mt-0">
-            <ModelPanel
-              model={model}
-              activeSubTab={activeSubTab}
-              setActiveSubTab={setActiveSubTab}
-              deleteModel={deleteModel}
-            />
-          </TabsContent>
-        ))}
-      </Tabs>
+          {/* ── Per-model content ── */}
+          {sortedModels.map((model) => (
+            <TabsContent key={model.id} value={model.id} className="mt-0 flex-1 min-h-0">
+              <ModelPanel
+                model={model}
+                activeSubTab={activeSubTab}
+                setActiveSubTab={setActiveSubTab}
+                deleteModel={deleteModel}
+              />
+            </TabsContent>
+          ))}
+        </Tabs>
+      ) : (
+        /* ── No models: show sub-tab bar + empty/log content ── */
+        <EmptyModelPanel activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
+      )}
     </Card>
+  );
+}
+
+// ─── EmptyModelPanel: sub-tabs visible even with no trained models ───────────
+
+function EmptyModelPanel({
+  activeSubTab, setActiveSubTab,
+}: {
+  activeSubTab: SubTabId;
+  setActiveSubTab: (tab: SubTabId) => void;
+}) {
+  // Show all sub-tabs (no diagnostics to filter by)
+  const visibleTabs = SUB_TABS;
+  const effectiveSubTab = visibleTabs.some(t => t.id === activeSubTab) ? activeSubTab : "overview";
+
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      {/* ── Sub-tab bar (same structure as ModelPanel) ── */}
+      <div className="border-b border-white/5 px-3 flex items-center gap-1 overflow-x-auto scrollbar-none shrink-0">
+        {visibleTabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = effectiveSubTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveSubTab(tab.id)}
+              className={`
+                flex items-center gap-1.5 px-3 py-2 text-[11px] font-medium border-b-2
+                transition-all whitespace-nowrap
+                ${isActive
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground/60 hover:text-muted-foreground"
+                }
+              `}
+            >
+              <Icon className="h-3 w-3" />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Content: Training Log works, other tabs show empty state ── */}
+      {effectiveSubTab === "log" ? (
+        <div className="flex-1 min-h-0">
+          <TrainingLogTab visible />
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-muted-foreground">
+          <Layers className="h-10 w-10 mb-3 opacity-20" />
+          <p className="text-sm font-medium">No Trained Models</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Train a model to see its metrics here</p>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -136,13 +185,18 @@ function ModelPanel({
   const profileCorrelation = oos?.avg_profile_correlation ?? 0;
   const quality = diagnostics?.quality_score ?? 0;
 
+  // Filter sub-tabs based on available diagnostics keys (OCP)
+  const visibleTabs = getVisibleSubTabs(diagnostics);
+  // Auto-reset to "overview" if current tab is no longer visible
+  const effectiveSubTab = visibleTabs.some(t => t.id === activeSubTab) ? activeSubTab : "overview";
+
   return (
-    <div>
+    <div className="h-full flex flex-col min-h-0">
       {/* ── Sub-tab bar ── */}
-      <div className="border-b border-white/5 px-3 flex items-center gap-1 overflow-x-auto scrollbar-none">
-        {SUB_TABS.map((tab) => {
+      <div className="border-b border-white/5 px-3 flex items-center gap-1 overflow-x-auto scrollbar-none shrink-0">
+        {visibleTabs.map((tab) => {
           const Icon = tab.icon;
-          const isActive = activeSubTab === tab.id;
+          const isActive = effectiveSubTab === tab.id;
           // Show badge values on sub-tab triggers
           let badge: string | null = null;
           if (tab.id === "regimes" && diagnostics) badge = `${diagnostics.n_regimes}`;
@@ -212,15 +266,15 @@ function ModelPanel({
         </div>
       </div>
 
-      {/* ── Sub-tab content ── */}
-      {activeSubTab === "log" ? (
-        <div className="h-[320px]">
+      {/* ── Sub-tab content (ONLY scrollable area on page) ── */}
+      {effectiveSubTab === "log" ? (
+        <div className="flex-1 min-h-0">
           <TrainingLogTab visible />
         </div>
       ) : (
-        <div className="p-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4">
           {!diagnostics ? (
-            <div className="h-[300px] flex flex-col items-center justify-center gap-3">
+            <div className="h-full flex flex-col items-center justify-center gap-3">
               <div className="flex gap-3">
                 {[...Array(3)].map((_, i) => (
                   <div key={i} className="h-16 w-28 rounded-xl bg-white/3 animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
@@ -230,12 +284,12 @@ function ModelPanel({
             </div>
           ) : (
             <>
-              {activeSubTab === "overview" && <OverviewPanel diagnostics={diagnostics} model={model} llPerBar={llPerBar} convergencePoints={convergencePoints} />}
-              {activeSubTab === "regimes" && <RegimesPanel diagnostics={diagnostics} />}
-              {activeSubTab === "convergence" && <ConvergencePanel diagnostics={diagnostics} convergencePoints={convergencePoints} nBarsForLL={nBarsForLL} llPerBar={llPerBar} />}
-              {activeSubTab === "walkforward" && <WalkForwardPanel diagnostics={diagnostics} wfWindResults={wfWindResults} stability={stability} />}
-              {activeSubTab === "oos" && <OOSPanel diagnostics={diagnostics} oos={oos} oosSimilarity={oosSimilarity} profileCorrelation={profileCorrelation} />}
-              {activeSubTab === "fit" && <FitPanel diagnostics={diagnostics} convergencePoints={convergencePoints} nBarsForLL={nBarsForLL} llPerBar={llPerBar} ll={ll} />}
+              {effectiveSubTab === "overview" && <OverviewPanel diagnostics={diagnostics} model={model} llPerBar={llPerBar} convergencePoints={convergencePoints} />}
+              {effectiveSubTab === "regimes" && <RegimesPanel diagnostics={diagnostics} />}
+              {effectiveSubTab === "convergence" && <ConvergencePanel diagnostics={diagnostics} convergencePoints={convergencePoints} nBarsForLL={nBarsForLL} llPerBar={llPerBar} />}
+              {effectiveSubTab === "walkforward" && <WalkForwardPanel diagnostics={diagnostics} wfWindResults={wfWindResults} stability={stability} />}
+              {effectiveSubTab === "oos" && <OOSPanel diagnostics={diagnostics} oos={oos} oosSimilarity={oosSimilarity} profileCorrelation={profileCorrelation} />}
+              {effectiveSubTab === "fit" && <FitPanel diagnostics={diagnostics} convergencePoints={convergencePoints} nBarsForLL={nBarsForLL} llPerBar={llPerBar} ll={ll} />}
             </>
           )}
         </div>

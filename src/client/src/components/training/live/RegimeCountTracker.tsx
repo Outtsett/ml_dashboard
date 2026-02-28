@@ -14,10 +14,10 @@ interface RegimeCountTrackerProps {
 export function RegimeCountTracker({ iterationHistory, isTraining }: RegimeCountTrackerProps) {
   const data = useMemo(() =>
     iterationHistory
-      .filter(h => h.metrics?.num_regimes != null)
+      .filter(h => h.metrics?.activeStates != null)
       .map(h => ({
         iteration: h.iteration,
-        regimes: Math.round(h.metrics.num_regimes ?? 0),
+        regimes: Math.round(h.metrics.activeStates ?? 0),
       })),
     [iterationHistory],
   );

@@ -190,12 +190,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className={`flex-1 min-w-0 transition-all duration-200 ease-in-out ${collapsed ? "ml-14" : "ml-56"}`}>
+      <main className={`flex-1 min-w-0 flex flex-col h-screen overflow-hidden transition-all duration-200 ease-in-out ${collapsed ? "ml-14" : "ml-56"}`}>
         {/* Breadcrumb bar */}
         {(() => {
           const RouteIcon = currentRoute!.icon;
           return (
-        <div className="drag-region border-b border-border bg-card/50 backdrop-blur-sm px-4 pt-10 pb-2 sticky top-0 z-10">
+        <div className="drag-region border-b border-border bg-card/50 backdrop-blur-sm px-4 pt-10 pb-2 shrink-0 z-10">
           <Breadcrumb className="no-drag">
             <BreadcrumbList>
               <BreadcrumbSlot>
@@ -268,7 +268,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           );
         })()}
 
-        <div className="p-4 max-w-[1800px] mx-auto">
+        <div className="p-4 max-w-[1800px] mx-auto flex-1 min-h-0 overflow-auto">
           {children}
         </div>
       </main>

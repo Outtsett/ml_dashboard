@@ -109,7 +109,7 @@ export function useIndicatorData(
       if (!res.ok) throw new Error('Failed to fetch indicator catalog');
       return res.json();
     },
-    staleTime: Infinity,
+    staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
 

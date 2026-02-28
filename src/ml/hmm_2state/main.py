@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
-Sticky HDP-HMM Regime Detection  (Fox et al. 2011 / Teh et al. 2006)
+2-State Bull/Bear HMM Regime Detection (Baum-Welch EM)
 
 Entry point spawned by Node.js pythonRunner.ts. Loads OHLCV from QuestDB,
-computes config-driven features, trains the HDP-HMM Gibbs sampler, and
+computes config-driven features, trains a 2-state Gaussian HMM, and
 writes results back to QuestDB.
 
 Usage:
-  python src/ml/hdp_hmm/main.py --symbol ES --timeframe 1h \
-    --gibbs-iter 500 --burn-in 100 --alpha 1.0 --gamma 1.0 --kappa 50.0 \
-    --test-split 0.15 --overlay-interval 25 --json
+  python src/ml/hmm_2state/main.py --symbol ES --timeframe 1h \
+    --em-iter 100 --n-restarts 5 --test-split 0.15 --json
 """
 
 import argparse
@@ -17,33 +16,30 @@ import os
 import sys
 import time
 
-# Add src/ml/ to sys.path so shared.* and hdp_hmm.* imports resolve
+# Add src/ml/ to sys.path so shared.* and hmm_2state.* imports resolve
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import numpy as np
 
-from shared.protocol import emit_progress, emit_metric, emit_overlay, emit_log, emit_done, emit_error
+from shared.protocol import emit_progress, emit_log, emit_done, emit_error
 from shared.features import compute_features, normalize_features, _load_feature_config
 from shared.data import load_ohlcv_arrays
-from hdp_hmm.model import StickyHDPHMM
-from hdp_hmm.io import relabel_states, save_model
+from hmm_2state.model import GaussianHMM2State
+from hmm_2state.io import save_model
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Sticky HDP-HMM Regime Detection")
+    parser = argparse.ArgumentParser(description="2-State Bull/Bear HMM")
     parser.add_argument("--symbol", required=True)
     parser.add_argument("--timeframe", required=True)
     parser.add_argument("--model-id", type=str, default=None, help="Model ID from server (used for output dir and QuestDB)")
-    parser.add_argument("--max-bars", type=int, default=0, help="Max bars to load (0 = all available data)")
+    parser.add_argument("--max-bars", type=int, default=0, help="Max bars to load (0 = all)")
     parser.add_argument("--date-start", type=str, default=None)
     parser.add_argument("--date-end", type=str, default=None)
-    parser.add_argument("--gibbs-iter", type=int, default=500)
-    parser.add_argument("--burn-in", type=int, default=100)
-    parser.add_argument("--alpha", type=float, default=1.0)
-    parser.add_argument("--gamma", type=float, default=1.0)
-    parser.add_argument("--kappa", type=float, default=50.0)
+    parser.add_argument("--em-iter", type=int, default=100)
+    parser.add_argument("--n-restarts", type=int, default=5)
     parser.add_argument("--test-split", type=float, default=0.15)
-    parser.add_argument("--overlay-interval", type=int, default=25)
+    parser.add_argument("--overlay-interval", type=int, default=10)
     parser.add_argument("--feature-categories", type=str, default=None,
                         help="Comma-separated feature categories (default: all)")
     parser.add_argument("--json", action="store_true")
@@ -70,20 +66,20 @@ def main():
             emit_error(f"Insufficient data: {n_bars} bars (need >= 100)")
             sys.exit(1)
 
-        # 2. Compute features (config-driven — reads src/config/features.json)
-        emit_progress(0, args.gibbs_iter, "computing_features")
+        # 2. Compute features (config-driven)
+        emit_progress(0, args.em_iter * args.n_restarts, "computing_features")
         categories = args.feature_categories.split(",") if args.feature_categories else None
         cat_label = ", ".join(categories) if categories else "all"
         emit_log(f"Computing features from raw OHLCV (categories: {cat_label})...")
         X_raw, feature_names, timestamps = compute_features(data, categories=categories)
         emit_log(f"Computed {len(feature_names)} features: {', '.join(feature_names[:5])}...")
 
-        # 3. Normalize (params from config/features.json)
+        # 3. Normalize
         feat_config = _load_feature_config()
         norm_cfg = feat_config.get("normalization", {})
         lookback = norm_cfg.get("lookback", 250)
         clip_range = tuple(norm_cfg.get("clip", [-5, 5]))
-        emit_progress(0, args.gibbs_iter, "normalizing")
+        emit_progress(0, args.em_iter * args.n_restarts, "normalizing")
         emit_log(f"Normalizing features (rolling z-score, lookback={lookback}, clip={clip_range})...")
         X = normalize_features(X_raw, lookback=lookback, clip_range=clip_range)
 
@@ -100,36 +96,28 @@ def main():
             sys.exit(1)
 
         # 4. Train
-        model = StickyHDPHMM(
-            alpha=args.alpha,
-            gamma=args.gamma,
-            kappa=args.kappa,
-        )
-        model, iteration_metrics, wf_counts = model.fit(
+        model = GaussianHMM2State()
+        model, iteration_metrics = model.fit(
             X_valid,
-            n_iter=args.gibbs_iter,
-            burn_in=args.burn_in,
+            n_iter=args.em_iter,
             overlay_interval=args.overlay_interval,
             timestamps=timestamps_valid,
+            n_restarts=args.n_restarts,
         )
 
-        # 5. Save — extract close values aligned with valid timestamps
+        # 5. Save
         close_valid = [float(c) for c, v in zip(data["close"], valid_mask) if v]
 
-        emit_progress(args.gibbs_iter, args.gibbs_iter, "saving")
+        total_iter = args.em_iter * args.n_restarts
+        emit_progress(total_iter, total_iter, "saving")
         elapsed = time.time() - t_start
         model_path, diagnostics = save_model(
             model, timestamps_valid, features_valid, feature_names, args, elapsed,
             iteration_metrics=iteration_metrics,
-            wf_counts=wf_counts,
             close_vals=close_valid,
         )
 
-        # 6. Final overlay
-        relabeled, colors, labels, _ = relabel_states(model.state_sequence, features_valid)
-        emit_overlay(timestamps_valid, relabeled, colors, labels)
-
-        # 7. Done
+        # 6. Done
         emit_done(model_path, diagnostics)
 
     except Exception as e:

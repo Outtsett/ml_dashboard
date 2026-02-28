@@ -37,6 +37,7 @@ export function useRegimeModels(isTraining = false) {
       if (!res.ok) throw new Error('Failed to load regime models');
       return res.json();
     },
+    staleTime: 2 * 60 * 1000,
     refetchInterval: isTraining ? 5000 : false,
   });
   return {
@@ -56,6 +57,7 @@ export function useRegimeDiagnostics(modelId: string | null) {
       return res.json();
     },
     enabled: !!modelId,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -70,6 +72,7 @@ export function useRegimeConvergence(modelId: string | null) {
       return res.json();
     },
     enabled: !!modelId,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -114,6 +117,7 @@ export function useRegimeTrainStatus(isTraining = false) {
       if (!res.ok) return null;
       return res.json();
     },
+    staleTime: 30_000,
     refetchInterval: isTraining ? 3000 : false,
   });
 }

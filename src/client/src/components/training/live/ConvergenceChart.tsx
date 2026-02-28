@@ -1,7 +1,7 @@
 /**
- * ConvergenceChart — Live log-likelihood over Gibbs iterations.
+ * ConvergenceChart — Live log-likelihood over training iterations.
  *
- * Shows the model's fit improving as the sampler runs.
+ * Shows the model's fit improving as training progresses.
  * Updates every metric event from TrainingLiveCtx.
  */
 import { useMemo } from "react";
@@ -19,7 +19,7 @@ interface ConvergenceChartProps {
 export function ConvergenceChart({ iterationHistory, burnIn = 100, isTraining }: ConvergenceChartProps) {
   const data = useMemo(() =>
     iterationHistory
-      .filter(h => h.metrics?.log_likelihood != null)
+      .filter(h => h.metrics?.logLikelihood != null)
       .map(h => ({
         iteration: h.iteration,
         ll: h.metrics.log_likelihood,

@@ -8,7 +8,21 @@
 
 import { useState, useMemo } from "react";
 import { ChevronUp, Play, Square, Settings2, Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { ModelRegistryEntry, HyperparameterDef } from "@shared/trainingTypes";
+
+/** Distinct accent color per model type (dot + ring). */
+const MODEL_COLORS: Record<string, { dot: string; ring: string; text: string }> = {
+  "hdp-hmm":      { dot: "bg-violet-500",  ring: "ring-violet-500/30", text: "text-violet-400" },
+  "2-state-hmm":  { dot: "bg-amber-500",   ring: "ring-amber-500/30",  text: "text-amber-400"  },
+};
+const DEFAULT_COLOR = { dot: "bg-cyan-500", ring: "ring-cyan-500/30", text: "text-cyan-400" };
 
 interface ModelPickerProps {
   models: Record<string, ModelRegistryEntry>;
@@ -57,18 +71,32 @@ export default function ModelPicker({
       {/* Model selector + train button row */}
       <div className="flex items-center gap-2">
         {/* Model dropdown */}
-        <select
-          value={selectedModel}
-          onChange={(e) => onSelectModel(e.target.value)}
-          disabled={isTraining}
-          className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-orange-500/50 disabled:opacity-50"
-        >
-          {modelList.map(([key, model]) => (
-            <option key={key} value={key}>
-              {model.name}
-            </option>
-          ))}
-        </select>
+        <Select value={selectedModel} onValueChange={onSelectModel} disabled={isTraining}>
+          <SelectTrigger className="flex-1 bg-white/5 border-white/10 rounded-lg text-sm focus:ring-1 focus:ring-orange-500/50">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full shrink-0 ${(MODEL_COLORS[selectedModel] ?? DEFAULT_COLOR).dot}`} />
+              <SelectValue />
+            </div>
+          </SelectTrigger>
+          <SelectContent className="bg-[#1a1a2e] border-white/10">
+            {modelList.map(([key, model]) => {
+              const c = MODEL_COLORS[key] ?? DEFAULT_COLOR;
+              return (
+                <SelectItem key={key} value={key} className="py-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${c.dot} ring-2 ${c.ring}`} />
+                    <div>
+                      <div className="text-sm font-medium">{model.name}</div>
+                      <div className="text-[10px] text-muted-foreground/60">
+                        {model.category} · {model.runner}
+                      </div>
+                    </div>
+                  </div>
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
 
         {/* Config toggle */}
         <button
@@ -135,13 +163,18 @@ export default function ModelPicker({
         </div>
       )}
 
-      {/* Model info badge */}
-      <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60">
-        <span className="px-1.5 py-0.5 rounded bg-white/5">{modelEntry.category}</span>
-        <span className="px-1.5 py-0.5 rounded bg-white/5">{modelEntry.subcategory}</span>
-        <span className="px-1.5 py-0.5 rounded bg-white/5">{modelEntry.runner}</span>
-        <span className="px-1.5 py-0.5 rounded bg-white/5">{modelEntry.chartOverlay}</span>
-      </div>
+      {/* Model info badges */}
+      {(() => {
+        const c = MODEL_COLORS[selectedModel] ?? DEFAULT_COLOR;
+        return (
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60">
+            <span className={`px-1.5 py-0.5 rounded bg-white/5 ${c.text} font-medium`}>{modelEntry.category}</span>
+            <span className="px-1.5 py-0.5 rounded bg-white/5">{modelEntry.subcategory}</span>
+            <span className="px-1.5 py-0.5 rounded bg-white/5">{modelEntry.runner}</span>
+            <span className="px-1.5 py-0.5 rounded bg-white/5">{modelEntry.chartOverlay}</span>
+          </div>
+        );
+      })()}
 
       {/* Hyperparameter config panel */}
       {showConfig && (

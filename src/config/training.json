@@ -5,7 +5,7 @@
   },
   "limits": {
     "maxConcurrentJobs": 1,
-    "maxBarsDefault": 100000,
+    "maxBarsDefault": 0,
     "maxTrainingDurationSec": 7200,
     "jobRetentionSec": 3600
   },

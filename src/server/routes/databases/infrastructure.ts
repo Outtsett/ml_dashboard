@@ -22,6 +22,7 @@ import { queryRateLimiter } from '../../lib/rateLimiter';
 import { ohlcvCache } from '../../lib/ohlcvCache';
 import { queryOHLCV } from '../../database/questdb/ohlcvQuery';
 import { getString } from '../helpers';
+import { CACHE_SEMI } from '../../lib/cacheHeaders';
 
 const router = Router();
 
@@ -56,7 +57,7 @@ router.get('/ohlcv/:symbol', queryRateLimiter, async (req: Request, res: Respons
 // MONITORING & HEALTH
 // ============================================================
 
-router.get('/health', async (_req: Request, res: Response) => {
+router.get('/health', CACHE_SEMI, async (_req: Request, res: Response) => {
   try {
     const { getNestApp } = await import('../../main');
     const { HealthService } = await import('../../core/health/health.service');

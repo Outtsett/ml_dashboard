@@ -30,7 +30,7 @@ export class PythonRunner implements ITrainerRunner {
     session.stderr = "";
 
     // Build CLI args from resolved hyperparameters
-    const args = [script, "--symbol", config.symbol, "--timeframe", config.timeframe, "--json"];
+    const args = [script, "--symbol", config.symbol, "--timeframe", config.timeframe, "--model-id", config.modelId, "--json"];
 
     // Pass max bars limit (0 = all data → omit flag so Python uses everything)
     const maxBars = config.maxBars ?? trainingCfg.limits.maxBarsDefault ?? 100000;

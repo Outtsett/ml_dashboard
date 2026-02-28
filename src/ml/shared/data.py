@@ -2,15 +2,16 @@
 QuestDB OHLCV data loading — shared across all ML model packages.
 
 Loads OHLCV data from QuestDB via PG wire protocol (psycopg2).
+Returns numpy arrays directly — no PyArrow intermediate.
 Supports exact symbol match and front-month stitching for base symbols.
 """
 
 import os
 import re
 
-import pyarrow as pa
+import numpy as np
 
-from .protocol import emit_log
+from .protocol import emit_log, emit_progress
 
 
 # ── SQL Input Validation ────────────────────────────────────────────────────
@@ -29,18 +30,36 @@ def _validate_date(value, name):
     return value
 
 
-# ── OHLCV Loading ───────────────────────────────────────────────────────────
+# ── Connection helper ──────────────────────────────────────────────────────
 
-def load_ohlcv_from_questdb(symbol, timeframe, max_bars=0, date_range=None):
-    """Load OHLCV data from QuestDB via PG wire protocol. Returns pyarrow Table.
-
-    For base symbols (MNQ, ES, NQ, etc.) performs front-month stitching:
-    picks the highest-volume contract per day, then queries each contract
-    in its front-month date range. Matches the chart API behavior exactly.
-    """
+def _connect():
+    """Create psycopg2 connection to QuestDB PG wire."""
     import psycopg2
+    return psycopg2.connect(
+        host=os.environ.get("QUESTDB_HOST", "localhost"),
+        port=int(os.environ.get("QUESTDB_PG_PORT", "8812")),
+        user=os.environ.get("QUESTDB_USER", "admin"),
+        password=os.environ.get("QUESTDB_PASSWORD", "quest"),
+        database="qdb",
+    )
 
-    # Validate inputs before any SQL interpolation
+
+# ── OHLCV Loading (numpy arrays, no PyArrow) ──────────────────────────────
+
+CHUNK_SIZE = 50_000
+
+
+def load_ohlcv_arrays(symbol, timeframe, max_bars=0, date_range=None):
+    """Load OHLCV from QuestDB directly into numpy arrays. No PyArrow.
+
+    Uses server-side cursor with chunked fetching. Emits progress events
+    during loading so the UI stays responsive.
+
+    Returns dict: {
+        'open': np.ndarray, 'high': np.ndarray, 'low': np.ndarray,
+        'close': np.ndarray, 'volume': np.ndarray, 'timestamp': list
+    }
+    """
     _validate_sql_input(symbol, "symbol")
     _validate_sql_input(timeframe, "timeframe", r'^[0-9]+[mhdw]$')
     max_bars = int(max_bars)
@@ -50,51 +69,67 @@ def load_ohlcv_from_questdb(symbol, timeframe, max_bars=0, date_range=None):
         if date_range.get("end"):
             _validate_date(date_range["end"], "date_range.end")
 
-    host = os.environ.get("QUESTDB_HOST", "localhost")
-    port = int(os.environ.get("QUESTDB_PG_PORT", "8812"))
-    user = os.environ.get("QUESTDB_USER", "admin")
-    password = os.environ.get("QUESTDB_PASSWORD", "quest")
     interval = timeframe if timeframe != "1w" else "7d"
 
-    conn = psycopg2.connect(
-        host=host, port=port, user=user, password=password, database="qdb"
-    )
+    conn = _connect()
     try:
-        cur = conn.cursor()
+        # Try exact symbol match first
+        rows = _fetch_rows(conn, symbol, interval, max_bars, date_range)
 
-        # Try exact symbol match first (handles individual contracts like MNQH5)
-        rows, col_names = _query_single_symbol(cur, symbol, interval, max_bars, date_range)
-
-        # If no data and symbol looks like a base/root (no month+year suffix),
-        # try front-month stitching across individual contracts
+        # If no data and symbol looks like a base/root, try front-month stitching
         if not rows and not re.match(r'.+[FGHJKMNQUVXZ]\d{1,2}$', symbol):
             emit_log(f"No exact match for '{symbol}', trying front-month stitching...")
-            rows, col_names = _query_front_month(cur, symbol, interval, max_bars, date_range)
-
-        cur.close()
+            rows = _fetch_front_month_rows(conn, symbol, interval, max_bars, date_range)
     finally:
         conn.close()
 
     if not rows:
         raise ValueError(f"No OHLCV data found for {symbol} at {timeframe}")
 
-    # Build pyarrow Table
-    arrays = {}
-    for i, col in enumerate(col_names):
-        arrays[col] = [row[i] for row in rows]
-    return pa.table(arrays)
+    # Convert rows to numpy arrays in one pass
+    n = len(rows)
+    timestamps = []
+    open_arr = np.empty(n, dtype=np.float64)
+    high_arr = np.empty(n, dtype=np.float64)
+    low_arr = np.empty(n, dtype=np.float64)
+    close_arr = np.empty(n, dtype=np.float64)
+    volume_arr = np.empty(n, dtype=np.float64)
+
+    for i, row in enumerate(rows):
+        # row: (symbol, timestamp, open, high, low, close, volume)
+        timestamps.append(row[1])
+        open_arr[i] = float(row[2])
+        high_arr[i] = float(row[3])
+        low_arr[i] = float(row[4])
+        close_arr[i] = float(row[5])
+        volume_arr[i] = float(row[6])
+
+    return {
+        "open": open_arr,
+        "high": high_arr,
+        "low": low_arr,
+        "close": close_arr,
+        "volume": volume_arr,
+        "timestamp": timestamps,
+    }
 
 
-def _query_single_symbol(cur, symbol, interval, max_bars, date_range):
-    """Query OHLCV for a specific symbol with SAMPLE BY."""
+def _build_where(symbol, date_range):
+    """Build WHERE clause for OHLCV query."""
     where = f"WHERE symbol = '{symbol}'"
     if date_range:
         if date_range.get("start"):
             where += f" AND timestamp >= '{date_range['start']}'"
         if date_range.get("end"):
             where += f" AND timestamp <= '{date_range['end']}'"
+    return where
 
+
+def _fetch_rows(conn, symbol, interval, max_bars, date_range):
+    """Fetch OHLCV rows for a single symbol with chunked cursor + progress."""
+    where = _build_where(symbol, date_range)
     limit_clause = f"LIMIT {max_bars}" if max_bars > 0 else ""
+
     sql = f"""
         SELECT symbol, timestamp,
             first(open) as open, max(high) as high,
@@ -106,13 +141,48 @@ def _query_single_symbol(cur, symbol, interval, max_bars, date_range):
         ORDER BY timestamp
         {limit_clause}
     """
+
+    # Count first for progress reporting
+    count_sql = f"""
+        SELECT count() FROM (
+            SELECT timestamp FROM ohlcv {where}
+            SAMPLE BY {interval} ALIGN TO CALENDAR
+            {limit_clause}
+        )
+    """
+    cur = conn.cursor()
+    try:
+        cur.execute(count_sql)
+        total_rows = int(cur.fetchone()[0])
+    except Exception:
+        total_rows = 0
+    cur.close()
+
+    if total_rows == 0:
+        return []
+
+    emit_log(f"Fetching {total_rows} bars...")
+
+    # Use server-side named cursor for chunked fetching
+    cur = conn.cursor(name="ohlcv_load")
+    cur.itersize = CHUNK_SIZE
     cur.execute(sql)
-    rows = cur.fetchall()
-    col_names = [desc[0] for desc in cur.description] if cur.description else []
-    return rows, col_names
+
+    rows = []
+    loaded = 0
+    while True:
+        chunk = cur.fetchmany(CHUNK_SIZE)
+        if not chunk:
+            break
+        rows.extend(chunk)
+        loaded += len(chunk)
+        emit_progress(loaded, total_rows, "loading_data")
+
+    cur.close()
+    return rows
 
 
-def _query_front_month(cur, root, interval, max_bars, date_range):
+def _fetch_front_month_rows(conn, root, interval, max_bars, date_range):
     """Front-month stitching: pick highest-volume contract per day, query each."""
     contract_regex = f'^{re.escape(root)}[FGHJKMNQUVXZ][0-9]{{1,2}}$'
 
@@ -123,6 +193,8 @@ def _query_front_month(cur, root, interval, max_bars, date_range):
         if date_range.get("end"):
             time_filter += f" AND timestamp <= '{date_range['end']}'"
 
+    cur = conn.cursor()
+
     # Step 1: Daily volume per contract from materialized view
     cur.execute(f"""
         SELECT symbol, timestamp, volume FROM ohlcv_1d
@@ -132,7 +204,8 @@ def _query_front_month(cur, root, interval, max_bars, date_range):
     daily_bars = cur.fetchall()
 
     if not daily_bars:
-        return [], []
+        cur.close()
+        return []
 
     # Step 2: Pick highest-volume contract per day (= front month)
     leaders = {}
@@ -160,9 +233,9 @@ def _query_front_month(cur, root, interval, max_bars, date_range):
 
     # Step 4: Query each contract in its front-month range
     all_rows = []
-    col_names = None
+    total_contracts = len(ranges)
 
-    for sym, start, end in ranges:
+    for idx, (sym, start, end) in enumerate(ranges):
         s = f"{start}T00:00:00.000Z"
         e = f"{end}T23:59:59.999Z"
 
@@ -176,17 +249,27 @@ def _query_front_month(cur, root, interval, max_bars, date_range):
             SAMPLE BY {interval} ALIGN TO CALENDAR
             ORDER BY timestamp
         """)
-        rows = cur.fetchall()
-        if col_names is None and cur.description:
-            col_names = [desc[0] for desc in cur.description]
-        all_rows.extend(rows)
+        all_rows.extend(cur.fetchall())
+        emit_progress(idx + 1, total_contracts, "loading_data")
+
+    cur.close()
 
     if not all_rows:
-        return [], col_names or []
+        return []
 
     # Sort by timestamp and limit
     all_rows.sort(key=lambda r: r[1])
     if max_bars > 0 and len(all_rows) > max_bars:
         all_rows = all_rows[:max_bars]
 
-    return all_rows, col_names
+    return all_rows
+
+
+# ── Backward-compatible wrapper ────────────────────────────────────────────
+
+def load_ohlcv_from_questdb(symbol, timeframe, max_bars=0, date_range=None):
+    """Load OHLCV data from QuestDB. Returns dict of numpy arrays.
+
+    This is the backward-compatible entry point used by all model main.py files.
+    """
+    return load_ohlcv_arrays(symbol, timeframe, max_bars, date_range)

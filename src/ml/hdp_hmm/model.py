@@ -393,9 +393,9 @@ class StickyHDPHMM:
           3. Dirichlet posterior to sample transition rows pi_j
           4-6. CRF auxiliary variables to sample global beta
 
-        Returns (self, iteration_metrics, state_samples):
+        Returns (self, iteration_metrics, wf_counts):
           - iteration_metrics: list of per-iteration ConvergencePoint dicts
-          - state_samples: list of post-burn-in state sequence arrays
+          - wf_counts: list of 5 (T, K) int16 arrays for walk-forward stability
         """
         from hdp_hmm.io import relabel_states
 
@@ -407,7 +407,13 @@ class StickyHDPHMM:
 
         emit_log("Compiling JIT kernels (first iteration may be slow)...")
 
-        state_samples = []
+        # Windowed mode counters — replaces storing every post-burn-in sample
+        n_post_burn = max(1, n_iter - burn_in)
+        n_wf_windows = 5
+        wf_window_size = max(1, n_post_burn // n_wf_windows)
+        wf_counts = [np.zeros((T, self.K), dtype=np.int16) for _ in range(n_wf_windows)]
+        total_counts = np.zeros((T, self.K), dtype=np.int32)
+
         iteration_metrics = []
         prev_states = None
         t_start = time.time()
@@ -431,9 +437,15 @@ class StickyHDPHMM:
             active = unique[counts > max(1, T * 0.01)]
             n_active = len(active)
 
-            # Collect post-burn-in samples
+            # Accumulate post-burn-in counts into windowed counters
             if it > burn_in:
-                state_samples.append(states.copy())
+                post_idx = it - burn_in - 1
+                win = min(post_idx // wf_window_size, n_wf_windows - 1)
+                for k in unique:
+                    if k < self.K:
+                        mask = (states == k)
+                        wf_counts[win][mask, k] += 1
+                        total_counts[mask, k] += 1
 
             # ── Compute per-iteration metrics ──────────────────────────────
 
@@ -508,16 +520,11 @@ class StickyHDPHMM:
                     f"{ips:.1f} it/s | ETA {eta:.0f}s"
                 )
 
-        # Mode assignment from post-burn-in samples
-        if state_samples:
-            sample_matrix = np.array(state_samples)
-            final_states = np.zeros(T, dtype=np.int64)
-            for t_idx in range(T):
-                vals, cnts = np.unique(sample_matrix[:, t_idx], return_counts=True)
-                final_states[t_idx] = vals[np.argmax(cnts)]
-            self.state_sequence = final_states
+        # Mode assignment from accumulated counts
+        if total_counts.sum() > 0:
+            self.state_sequence = np.argmax(total_counts, axis=1).astype(np.int64)
 
         elapsed = time.time() - t_start
         n_active_final = len(np.unique(self.state_sequence))
         emit_log(f"Training complete: {elapsed:.1f}s, {n_active_final} regimes discovered")
-        return self, iteration_metrics, state_samples
+        return self, iteration_metrics, wf_counts

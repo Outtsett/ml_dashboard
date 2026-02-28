@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { sanitizeModelId, getModelShap } from "../../lib/modelResults";
+import { CACHE_STATIC } from "../../lib/cacheHeaders";
 
 const router = Router();
 
@@ -19,7 +20,7 @@ async function getXAIService() {
 const MODELS_DIR = "data/models";
 
 // List available XAI methods
-router.get("/xai/methods", async (req: Request, res: Response) => {
+router.get("/xai/methods", CACHE_STATIC, async (req: Request, res: Response) => {
   try {
     const xaiService = await getXAIService();
     const methods = xaiService.listMethods();

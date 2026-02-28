@@ -1,10 +1,13 @@
 /**
  * DataPipelineFlow — Visual strip showing the data journey.
  *
- * Source -> Features -> Split -> Gibbs -> Regimes
+ * Source -> Features -> Split -> [Training] -> [Output]
+ *
+ * The first 3 steps are universal. Steps 4-5 come from the model adapter (OCP).
  */
 
 import { Database, Sigma, Scissors, Flame, Layers, ArrowRight } from 'lucide-react';
+import { getAdapter } from './modelAdapters';
 
 interface DataPipelineFlowProps {
   modelType?: string;
@@ -15,7 +18,7 @@ interface DataPipelineFlowProps {
   trainSize?: number;
   testSize?: number;
   isTraining: boolean;
-  gibbsIter: number;
+  iterationCount: number;
   currentStep?: number;
   totalSteps?: number;
   phase?: string;
@@ -33,6 +36,7 @@ interface PipelineStep {
 }
 
 export default function DataPipelineFlow({
+  modelType = 'hdp-hmm',
   symbol,
   timeframe,
   numBars,
@@ -40,15 +44,17 @@ export default function DataPipelineFlow({
   trainSize,
   testSize,
   isTraining,
-  gibbsIter,
+  iterationCount,
   currentStep,
   totalSteps,
   phase,
   nRegimes,
 }: DataPipelineFlowProps) {
-  const isGibbs = phase === 'gibbs_sampling';
+  const adapter = getAdapter(modelType);
+  const isActive = isTraining && adapter.activePhases.includes(phase || '');
   const isDone = phase === 'complete' || (nRegimes !== undefined && nRegimes > 0 && !isTraining);
 
+  // Universal steps (Source, Features, Split) + adapter-driven steps (Training, Output)
   const steps: PipelineStep[] = [
     {
       icon: Database,
@@ -81,20 +87,20 @@ export default function DataPipelineFlow({
     },
     {
       icon: Flame,
-      label: 'Gibbs',
+      label: adapter.trainingStepLabel,
       value: isTraining && currentStep && totalSteps
         ? `Step ${currentStep}/${totalSteps}`
-        : isTraining ? `${gibbsIter} iter` : 'Idle',
-      detail: isGibbs ? 'sampling...' : isTraining ? phase || 'starting' : 'ready',
+        : isTraining ? `${iterationCount} iter` : 'Idle',
+      detail: isActive ? 'training...' : isTraining ? phase || 'starting' : 'ready',
       borderColor: isTraining ? 'border-orange-500/40' : 'border-slate-500/30',
       textColor: isTraining ? 'text-orange-400' : 'text-slate-400',
-      pulse: isGibbs,
+      pulse: isActive,
     },
     {
       icon: Layers,
-      label: 'Regimes',
-      value: isDone && nRegimes ? `${nRegimes} found` : 'auto-K',
-      detail: isDone ? 'discovered' : 'nonparametric',
+      label: adapter.outputStepLabel,
+      value: isDone && nRegimes ? `${nRegimes} found` : adapter.outputDefault,
+      detail: isDone ? adapter.outputComplete : adapter.outputDefault,
       borderColor: isDone ? 'border-rose-500/40' : 'border-rose-500/20',
       textColor: isDone ? 'text-rose-400' : 'text-rose-300/50',
       pulse: false,

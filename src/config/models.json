@@ -22,6 +22,29 @@
         "overlayInterval": { "value": 25, "min": 5, "max": 100, "step": 5, "label": "Overlay Emit Interval (iterations)" },
         "maxBars": { "value": 0, "min": 0, "max": 500000, "step": 10000, "label": "Max Bars (0 = all data)" }
       }
+    },
+    "2-state-hmm": {
+      "name": "2-State Bull/Bear HMM",
+      "category": "unsupervised",
+      "subcategory": "clustering",
+      "runner": "python",
+      "script": "src/ml/hmm_2state/main.py",
+      "featurePipeline": "self-contained",
+      "featureCategories": null,
+      "outputs": ["regimes", "transition_matrix", "convergence"],
+      "chartOverlay": "regime_zones",
+      "outputDir": "data/models",
+      "cliFlags": {
+        "emIter": "--em-iter",
+        "nRestarts": "--n-restarts"
+      },
+      "defaultHyperparameters": {
+        "emIter": { "value": 100, "min": 10, "max": 500, "step": 10, "label": "Max EM Iterations" },
+        "nRestarts": { "value": 5, "min": 1, "max": 20, "step": 1, "label": "Random Restarts" },
+        "testSplit": { "value": 0.15, "min": 0.05, "max": 0.4, "step": 0.05, "label": "Test Split Ratio" },
+        "overlayInterval": { "value": 10, "min": 1, "max": 50, "step": 1, "label": "Overlay Emit Interval" },
+        "maxBars": { "value": 0, "min": 0, "max": 500000, "step": 10000, "label": "Max Bars (0 = all)" }
+      }
     }
   }
 }

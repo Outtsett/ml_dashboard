@@ -261,7 +261,7 @@ const QUALITY_VERDICTS: { min: number; verdict: Verdict }[] = [
 export function getQualityVerdict(score: number): Verdict {
   if (score <= 0) return AWAITING;
   return findVerdict(score, QUALITY_VERDICTS,
-    { text: 'Not ready — needs more Gibbs iterations or different hyperparameters', color: 'text-rose-400' });
+    { text: 'Not ready — needs more iterations or different hyperparameters', color: 'text-rose-400' });
 }
 
 export function getLLConvergenceVerdict(points: { log_likelihood: number }[]): Verdict {
@@ -273,8 +273,8 @@ export function getLLConvergenceVerdict(points: { log_likelihood: number }[]): V
 
   if (relativeGain < 0.05) return { text: 'Fully converged — the model learned everything this data can teach it', color: 'text-emerald-400' };
   if (relativeGain < 0.20) return { text: 'Nearly converged — still improving slightly, a few more iterations might help', color: 'text-emerald-400/80' };
-  if (relativeGain < 0.40) return { text: 'Still climbing — the model needs more Gibbs iterations to finish learning', color: 'text-amber-400' };
-  return { text: 'Far from done — increase Gibbs iterations significantly, the model is still in early learning', color: 'text-rose-400' };
+  if (relativeGain < 0.40) return { text: 'Still climbing — the model needs more iterations to finish learning', color: 'text-amber-400' };
+  return { text: 'Far from done — increase iterations significantly, the model is still in early learning', color: 'text-rose-400' };
 }
 
 export function getFitVerdict(llPerBar: number): Verdict {
