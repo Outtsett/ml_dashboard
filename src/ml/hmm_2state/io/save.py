@@ -18,6 +18,7 @@ from hdp_hmm.io.evaluation import compute_oos_evaluation
 from hdp_hmm.io.shap import compute_shap_values
 from hdp_hmm.io.quality import compute_quality_score
 from hdp_hmm.io.constants import REGIME_COLORS
+from shared.evaluation import run_all_stages
 
 from hmm_2state.config import LABELS
 
@@ -165,6 +166,26 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
     # 7. Quality score
     quality_score = compute_quality_score(model, relabeled, n_regimes, T, oos=oos)
 
+    # 7b. Statistical evaluation pipeline (Stages 1-5)
+    split_mask = np.array([s == "train" for s in splits])
+    close_arr = np.array(close_vals, dtype=np.float64)
+    # 2-state HMM may have posteriors for confidence
+    posteriors = getattr(model, 'posteriors_', None)
+    conf_arr = posteriors.max(axis=1) if posteriors is not None and posteriors.ndim == 2 else None
+    tm = model.transition_matrix[:n_regimes, :n_regimes] if hasattr(model, 'transition_matrix') else None
+    run_sig = getattr(args, 'run_significance_tests', False)
+    eval_iter = getattr(args, 'em_iter', 0) * getattr(args, 'n_restarts', 1)
+    evaluation_results = run_all_stages(
+        features=features,
+        assignments=np.array(relabeled),
+        close=close_arr,
+        split_mask=split_mask,
+        confidence=conf_arr,
+        transition_matrix=tm,
+        run_significance=run_sig,
+        iteration=eval_iter,
+    )
+
     # 8. Convergence summary
     final_ll = float(model.log_likelihoods[-1]) if model.log_likelihoods else 0.0
     convergence_summary = {
@@ -205,6 +226,7 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
         "shap_summary": shap_summary,
         "feature_names": feature_names,
         "n_features": len(feature_names),
+        "evaluation": evaluation_results,
     }
     with open(output_dir / "diagnostics.json", "w") as f:
         json.dump(diagnostics, f, indent=2)

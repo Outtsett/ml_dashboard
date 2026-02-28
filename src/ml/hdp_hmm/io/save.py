@@ -17,6 +17,7 @@ from .evaluation import compute_oos_evaluation, compute_walk_forward
 from .shap import compute_shap_values
 from .quality import compute_quality_score
 from shared.signals import compute_signal_columns
+from shared.evaluation import run_all_stages
 
 
 QUESTDB_HTTP_URL = os.environ.get("QUESTDB_URL", "http://localhost:9000")
@@ -154,6 +155,24 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
     # 8. Quality score (incorporating OOS + WF)
     quality_score = compute_quality_score(model, relabeled, n_regimes, T, oos=oos, walk_forward=walk_forward)
 
+    # 8b. Statistical evaluation pipeline (Stages 1-5)
+    split_mask = np.array([s == "train" for s in splits])
+    close_arr = np.array(close_vals, dtype=np.float64)
+    conf_arr = signal_cols["confidence"] if "confidence" in signal_cols else None
+    tm = model.transition_matrix[:n_regimes, :n_regimes] if hasattr(model, 'transition_matrix') else None
+    run_sig = getattr(args, 'run_significance_tests', False)
+    eval_iter = getattr(args, 'gibbs_iter', 0)
+    evaluation_results = run_all_stages(
+        features=features,
+        assignments=np.array(relabeled),
+        close=close_arr,
+        split_mask=split_mask,
+        confidence=conf_arr,
+        transition_matrix=tm,
+        run_significance=run_sig,
+        iteration=eval_iter,
+    )
+
     # 9. Convergence summary
     final_ll = float(model.log_likelihoods[-1]) if model.log_likelihoods else 0.0
     final_active = int(len(np.unique(relabeled)))
@@ -200,6 +219,7 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
         "feature_names": feature_names,
         "n_features": len(feature_names),
         "beta": model.beta.tolist(),
+        "evaluation": evaluation_results,
     }
     with open(output_dir / "diagnostics.json", "w") as f:
         json.dump(diagnostics, f, indent=2)
