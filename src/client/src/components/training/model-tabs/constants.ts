@@ -2,7 +2,7 @@
  * ModelTabs — Constants and hooks shared across model tab panels.
  */
 
-import { Activity, Layers, TrendingUp, Shield, Target, BarChart3, Terminal } from "lucide-react";
+import { Activity, Layers, TrendingUp, Shield, Target, BarChart3, BarChart2, Terminal } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/types";
 import type { Diagnostics, ConvergencePoint } from "../types";
@@ -16,6 +16,7 @@ export const SUB_TABS = [
   { id: "walkforward", label: "Walk-Forward", icon: Shield,      requiredKeys: ["walk_forward"] },
   { id: "oos",         label: "OOS",          icon: Target,      requiredKeys: ["out_of_sample"] },
   { id: "fit",         label: "Model Fit",    icon: BarChart3,   requiredKeys: ["convergence_summary"] },
+  { id: "analytics",   label: "Analytics",    icon: BarChart2,   requiredKeys: [] as string[] },
   { id: "log",         label: "Training Log", icon: Terminal,     requiredKeys: [] as string[] },
 ] as const;
 

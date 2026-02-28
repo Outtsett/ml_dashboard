@@ -28,6 +28,7 @@ import { WalkForwardPanel } from "./WalkForwardPanel";
 import { OOSPanel } from "./OOSPanel";
 import { FitPanel } from "./FitPanel";
 import { TrainingLogTab } from "@/components/terminal/TrainingLogTab";
+import AnalyticsPanel from "../analytics";
 
 // ─── Main ModelTabs Component ────────────────────────────────────────────────
 
@@ -290,6 +291,13 @@ function ModelPanel({
               {effectiveSubTab === "walkforward" && <WalkForwardPanel diagnostics={diagnostics} wfWindResults={wfWindResults} stability={stability} />}
               {effectiveSubTab === "oos" && <OOSPanel diagnostics={diagnostics} oos={oos} oosSimilarity={oosSimilarity} profileCorrelation={profileCorrelation} />}
               {effectiveSubTab === "fit" && <FitPanel diagnostics={diagnostics} convergencePoints={convergencePoints} nBarsForLL={nBarsForLL} llPerBar={llPerBar} ll={ll} />}
+              {effectiveSubTab === "analytics" && (
+                <AnalyticsPanel
+                  diagnostics={diagnostics}
+                  modelId={model.id}
+                  subcategory="clustering"
+                />
+              )}
             </>
           )}
         </div>
