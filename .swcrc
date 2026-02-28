@@ -13,10 +13,10 @@
     "target": "es2022",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./client/src/*"],
-      "@shared/*": ["./shared/*"],
-      "@ml/*": ["./ml/*"],
-      "@server/*": ["./server/*"]
+      "@/*": ["./src/client/src/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@ml/*": ["./src/ml/*"],
+      "@server/*": ["./src/server/*"]
     }
   },
   "module": {

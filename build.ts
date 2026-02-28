@@ -53,6 +53,20 @@ async function buildAll() {
   ];
   const externals = allDeps.filter((dep) => !allowlist.includes(dep));
 
+  // NestJS optional peer deps — not installed, handled at runtime via try/catch
+  externals.push(
+    "@nestjs/websockets",
+    "@nestjs/websockets/socket-module",
+    "@nestjs/microservices",
+    "@nestjs/microservices/microservices-module",
+    "@nestjs/mongoose",
+    "@nestjs/sequelize",
+    "@nestjs/sequelize/dist/common/sequelize.utils",
+    "@mikro-orm/core",
+    "class-validator",
+    "class-transformer",
+  );
+
   await esbuild({
     entryPoints: ["src/server/main.ts"],
     platform: "node",
@@ -73,6 +87,7 @@ async function buildAll() {
       // SWC plugin transforms TypeScript with decorator metadata emission
       // (required by NestJS DI — esbuild alone strips decorator metadata)
       UnpluginSWC.esbuild({
+        tsconfigFile: false,
         jsc: {
           parser: { syntax: "typescript", decorators: true },
           transform: { legacyDecorator: true, decoratorMetadata: true },
