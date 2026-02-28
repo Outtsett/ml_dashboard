@@ -19,6 +19,9 @@ import {
 import { createSession, emitSessionEvent } from "./runners/types";
 import { getRunner } from "./runnerFactory";
 import type { ITrainerRunner } from "./runners/types";
+import { generateVersionedModelId, getBaseModelId, appendWindowIndex } from "./versioning";
+import * as trainingStorage from "../storage/trainingStorage";
+import { computeWindows, generateGroupId } from "./walkforward";
 
 // ─── Active sessions index ───────────────────────────────────────────────────
 
@@ -58,20 +61,19 @@ export async function startTraining(request: TrainingRequest): Promise<{
   }
   const sym = request.symbol.toUpperCase();
   const tf = request.timeframe ?? "1m";
-  const modelId = `${sym}_${tf}_${request.modelType}`;
+  const baseModelId = `${sym}_${tf}_${request.modelType}`;
+  const modelId = generateVersionedModelId(sym, tf, request.modelType);
   const timeframeSec = timeframeToSeconds(tf);
   const hyperparameters = resolveHyperparameters(
     registry.defaultHyperparameters,
     request.hyperparameters,
   );
 
-  // Check if already training this model
-  const existing = activeSessions.get(modelId);
-  if (existing && !existing.session.finished) {
-    throw new Error(`Already training ${modelId}. Stop it first.`);
-  }
-  if (existing) {
-    activeSessions.delete(modelId);
+  // Check if already training this base model (prevents concurrent duplicate training)
+  for (const [existingId, entry] of Array.from(activeSessions.entries())) {
+    if (!entry.session.finished && getBaseModelId(existingId) === baseModelId) {
+      throw new Error(`Already training ${baseModelId}. Stop it first.`);
+    }
   }
 
   // Validate runner exists before creating session
@@ -101,6 +103,25 @@ export async function startTraining(request: TrainingRequest): Promise<{
   // 4. Create session immediately so SSE clients can connect right away
   const session = createSession(modelId, resolved);
   activeSessions.set(modelId, { session, runner, config: resolved });
+
+  // Persist session to SQLite for crash recovery (DIP — storage abstraction)
+  try {
+    const dbSession = trainingStorage.createTrainingSession({
+      modelName: baseModelId,
+      modelType: request.modelType,
+      symbol: sym,
+      timeframe: tf,
+      versionedModelId: modelId,
+      maxEpochs: Number(hyperparameters.gibbsIter ?? hyperparameters.emIter ?? 100),
+      learningRate: 0, // Not applicable for HMM models
+      hyperparameters: hyperparameters as Record<string, unknown>,
+      featureCategories: resolved.featureCategories,
+    });
+    // Attach DB session ID for metric persistence and finalization
+    (session as any).dbSessionId = dbSession.id;
+  } catch (err) {
+    console.error(`[training] Failed to persist session to SQLite:`, err);
+  }
 
   // 5. Launch background pipeline: export (if needed) → spawn runner
   //    The API returns NOW — progress streams over SSE.
@@ -140,9 +161,14 @@ async function launchTrainingPipeline(
     modelId,
   });
 
-  // Start runner, passing existing session so it reuses our listeners/events
-  console.log(`[training] Starting ${request.modelType} for ${modelId} via ${registry.runner} runner`);
-  await runner.start(resolved, session);
+  if (request.walkForward && resolved.dateRange) {
+    // Walk-forward mode: N sequential windows
+    await launchWalkForwardPipeline(session, runner, resolved, request);
+  } else {
+    // Single-run mode (original path)
+    console.log(`[training] Starting ${request.modelType} for ${modelId} via ${registry.runner} runner`);
+    await runner.start(resolved, session);
+  }
 }
 
 /** Stop a training session by model ID */
@@ -193,4 +219,79 @@ export function listTrainingSessions(): Array<{
   }
 
   return result;
+}
+
+/** Walk-forward pipeline: spawn N sequential training windows. */
+async function launchWalkForwardPipeline(
+  session: TrainingSession,
+  runner: ITrainerRunner,
+  resolved: ResolvedTrainingConfig,
+  request: TrainingRequest,
+) {
+  const { start: dateStart, end: dateEnd } = resolved.dateRange!;
+  const windows = computeWindows(dateStart, dateEnd, request.walkForward!);
+  const groupId = generateGroupId();
+
+  emitSessionEvent(session, "log", {
+    message: `Walk-forward: ${windows.length} windows (${request.walkForward!.trainMonths}m train / ${request.walkForward!.testMonths}m test)`,
+    level: "info",
+  });
+
+  for (const window of windows) {
+    if (session.finished) break; // User stopped training
+
+    const windowModelId = appendWindowIndex(resolved.modelId, window.index);
+
+    emitSessionEvent(session, "walk-forward-window-start" as any, {
+      window: window.index,
+      totalWindows: windows.length,
+      trainRange: { start: window.trainStart, end: window.trainEnd },
+      testRange: { start: window.testStart, end: window.testEnd },
+    });
+
+    // Persist walk-forward window session to SQLite
+    try {
+      trainingStorage.createTrainingSession({
+        modelName: resolved.modelId,
+        modelType: request.modelType,
+        symbol: resolved.symbol,
+        timeframe: resolved.timeframe,
+        versionedModelId: windowModelId,
+        maxEpochs: Number(resolved.hyperparameters.gibbsIter ?? resolved.hyperparameters.emIter ?? 100),
+        learningRate: 0,
+        hyperparameters: resolved.hyperparameters as Record<string, unknown>,
+        featureCategories: resolved.featureCategories,
+        walkForwardGroupId: groupId,
+        windowIndex: window.index,
+      });
+    } catch (err) {
+      console.error(`[training] Failed to persist WF window session:`, err);
+    }
+
+    // Per-window config with window-specific date range
+    const windowConfig: ResolvedTrainingConfig = {
+      ...resolved,
+      modelId: windowModelId,
+      dateRange: { start: window.trainStart, end: window.testEnd },
+    };
+
+    console.log(`[training] WF window ${window.index}/${windows.length}: ${window.trainStart}→${window.testEnd}`);
+    await runner.start(windowConfig, session);
+
+    emitSessionEvent(session, "walk-forward-window-done" as any, {
+      window: window.index,
+      totalWindows: windows.length,
+    });
+  }
+
+  // Emit walk-forward summary
+  emitSessionEvent(session, "walk-forward-summary" as any, {
+    groupId,
+    totalWindows: windows.length,
+    windows: windows.map(w => ({
+      index: w.index,
+      trainRange: { start: w.trainStart, end: w.trainEnd },
+      testRange: { start: w.testStart, end: w.testEnd },
+    })),
+  });
 }

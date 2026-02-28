@@ -13,6 +13,7 @@ import { createSession, emitSessionEvent } from "./types";
 import type { ITrainerRunner } from "./types";
 import { getTrainingConfig } from "../registry";
 import { getParser } from "./parsers/index";
+import * as trainingStorage from "../../storage/trainingStorage";
 
 // ─── Python Runner ───────────────────────────────────────────────────────────
 
@@ -145,6 +146,16 @@ export class PythonRunner implements ITrainerRunner {
           message: `Training failed (exit code ${code})`,
           details,
         });
+
+        // Finalize failed session in SQLite
+        const dbSessId = (session as any).dbSessionId;
+        if (dbSessId != null) {
+          trainingStorage.finalizeSession(dbSessId, {
+            status: "failed",
+            elapsedSec: parseFloat(((Date.now() - session.startedAt) / 1000).toFixed(1)),
+            errorMessage: `Training failed (exit code ${code})`,
+          });
+        }
       } else {
         console.log(`[training] Python process completed successfully for ${session.sessionId}`);
         let diagnostics = null;
@@ -164,6 +175,19 @@ export class PythonRunner implements ITrainerRunner {
           elapsedSec: parseFloat(((Date.now() - session.startedAt) / 1000).toFixed(1)),
           diagnostics,
         });
+
+        // Finalize completed session in SQLite (DIP — storage abstraction)
+        const dbSessId = (session as any).dbSessionId;
+        if (dbSessId != null) {
+          trainingStorage.finalizeSession(dbSessId, {
+            status: "completed",
+            diagnostics: diagnostics as Record<string, unknown> ?? undefined,
+            qualityScore: (diagnostics as any)?.quality_score as number ?? undefined,
+            evaluationGrade: (diagnostics as any)?.evaluation?.grade as string ?? undefined,
+            modelPath: `${config.outputDir}/${config.modelId}`,
+            elapsedSec: parseFloat(((Date.now() - session.startedAt) / 1000).toFixed(1)),
+          });
+        }
       }
 
       // Keep session around for reconnecting clients
@@ -182,6 +206,16 @@ export class PythonRunner implements ITrainerRunner {
       emitSessionEvent(session, "error", { message: "Training stopped by user" });
       session.finished = true;
       session.exitCode = -1;
+
+      const dbSessId = (session as any).dbSessionId;
+      if (dbSessId != null) {
+        trainingStorage.finalizeSession(dbSessId, {
+          status: "stopped",
+          elapsedSec: parseFloat(((Date.now() - session.startedAt) / 1000).toFixed(1)),
+          errorMessage: "Training stopped by user",
+        });
+      }
+
       setTimeout(() => this.sessions.delete(sessionId), 10000);
     }
   }

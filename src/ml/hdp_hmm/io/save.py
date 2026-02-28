@@ -16,6 +16,7 @@ from .regime_stats import compute_regime_stats, compute_transitions
 from .evaluation import compute_oos_evaluation, compute_walk_forward
 from .shap import compute_shap_values
 from .quality import compute_quality_score
+from shared.signals import compute_signal_columns
 
 
 QUESTDB_HTTP_URL = os.environ.get("QUESTDB_URL", "http://localhost:9000")
@@ -62,6 +63,16 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
     T = len(timestamps)
     relabeled, colors, labels, n_regimes = relabel_states(model.state_sequence, features)
 
+    # Compute rich signal columns for model_regimes (OCP — new columns, existing untouched)
+    posteriors = getattr(model, 'posteriors_', None)  # (T, K) if available from Gibbs/EM
+    trans_matrix_full = model.transition_matrix if hasattr(model, 'transition_matrix') else None
+    signal_cols = compute_signal_columns(
+        assignments=np.array(relabeled),
+        posteriors=posteriors,
+        close=np.array(close_vals if close_vals is not None else [0.0] * T, dtype=np.float64),
+        transition_matrix=trans_matrix_full[:n_regimes, :n_regimes] if trans_matrix_full is not None else None,
+    )
+
     # Resolve close values and timestamps
     split_idx = int(T * (1 - args.test_split))
     splits = ["train"] * split_idx + ["test"] * (T - split_idx)
@@ -74,12 +85,18 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
 
     # 1. Write regime assignments to QuestDB model_regimes table
     csv_buf = io.StringIO()
-    csv_buf.write("model_id,symbol,ts,close,regime,regime_label,split\n")
+    csv_buf.write("model_id,symbol,ts,close,regime,regime_label,split,confidence,entropy,magnitude,volatility,duration_bars,transition_prob\n")
     for i in range(T):
         ts_str = _fmt_ts(ts_vals[i])
         # Escape commas in regime labels
         rl = str(regime_label_list[i]).replace(",", " ")
-        csv_buf.write(f"{model_id},{args.symbol},{ts_str},{float(close_vals[i])},{int(relabeled[i])},{rl},{splits[i]}\n")
+        conf = float(signal_cols["confidence"][i])
+        ent = float(signal_cols["entropy"][i])
+        mag = float(signal_cols["magnitude"][i])
+        vol = float(signal_cols["volatility"][i])
+        dur = int(signal_cols["duration_bars"][i])
+        tp = float(signal_cols["transition_prob"][i])
+        csv_buf.write(f"{model_id},{args.symbol},{ts_str},{float(close_vals[i])},{int(relabeled[i])},{rl},{splits[i]},{conf},{ent},{mag},{vol},{dur},{tp}\n")
 
     try:
         _write_to_questdb("model_regimes", csv_buf.getvalue())

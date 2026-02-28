@@ -20,6 +20,7 @@
  */
 
 import { Router, Request, Response } from "express";
+import fs from "fs";
 import path from "path";
 import { z } from "zod";
 import { CACHE_SEMI } from "../lib/cacheHeaders";
@@ -36,6 +37,7 @@ import {
   getModelShap,
   deleteModel,
 } from "../lib/modelResults";
+import * as trainingStorage from "../storage/trainingStorage";
 
 // ─── Zod schema for request validation (DIP — route depends on schema, not manual field copying) ──
 
@@ -64,6 +66,11 @@ const trainingRequestSchema = z.object({
   includeIndicators: z.boolean().optional(),
   allFeatures: z.boolean().optional(),
   indicatorGroups: z.string().max(200).regex(/^[a-zA-Z0-9_,]+$/, "Invalid indicator group format").optional(),
+  walkForward: z.object({
+    trainMonths: z.number().int().min(1).max(120),
+    testMonths: z.number().int().min(1).max(60),
+    stepMonths: z.number().int().min(1).max(120).optional(),
+  }).optional(),
 }) satisfies z.ZodType<TrainingRequest>;
 
 const router = Router();
@@ -281,6 +288,142 @@ router.delete("/training/models/:id", async (req: Request, res: Response) => {
   } catch (err: any) {
     const status = err.message.includes("Invalid model ID") ? 400 : 500;
     res.status(status).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Persisted Sessions + Metrics + Evaluation (Phase 1 Analytics)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── Persisted Sessions ──────────────────────────────────────────────────────
+
+router.get("/training/sessions", (_req: Request, res: Response) => {
+  try {
+    const { symbol, modelType, status, limit } = _req.query;
+    const sessions = trainingStorage.listSessions({
+      symbol: symbol as string | undefined,
+      modelType: modelType as string | undefined,
+      status: status as string | undefined,
+      limit: limit ? Number(limit) : 50,
+    });
+    res.json({ sessions });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/training/sessions/:id", (req: Request, res: Response) => {
+  try {
+    const session = trainingStorage.getSession(Number(req.params.id));
+    if (!session) return res.status(404).json({ error: "Session not found" });
+    res.json(session);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Per-Iteration Metrics ───────────────────────────────────────────────────
+
+router.get("/training/sessions/:id/metrics", (req: Request, res: Response) => {
+  try {
+    const { metricName } = req.query;
+    const metrics = trainingStorage.getMetrics(
+      Number(req.params.id),
+      metricName as string | undefined,
+    );
+    res.json({ metrics });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/training/sessions/:id/metrics/names", (req: Request, res: Response) => {
+  try {
+    const names = trainingStorage.getMetricNames(Number(req.params.id));
+    res.json({ names });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Evaluation Results ──────────────────────────────────────────────────────
+
+router.get("/training/sessions/:id/evaluation", (req: Request, res: Response) => {
+  try {
+    const { stage } = req.query;
+    const results = trainingStorage.getEvaluations(
+      Number(req.params.id),
+      stage as string | undefined,
+    );
+    res.json({ results });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/training/sessions/:id/evaluation/summary", (req: Request, res: Response) => {
+  try {
+    const summary = trainingStorage.getEvaluationSummary(Number(req.params.id));
+    res.json({ summary });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Walk-Forward Group ──────────────────────────────────────────────────────
+
+router.get("/training/walk-forward/:groupId", (req: Request, res: Response) => {
+  try {
+    const windows = trainingStorage.getWalkForwardGroup(String(req.params.groupId));
+    if (windows.length === 0) {
+      return res.status(404).json({ error: "Walk-forward group not found" });
+    }
+    res.json({
+      groupId: req.params.groupId,
+      windows,
+      totalWindows: windows.length,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Visualization Registry (config-driven component resolution — OCP)
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.get("/training/visualizations", CACHE_SEMI, (_req: Request, res: Response) => {
+  try {
+    const configPath = path.join(process.cwd(), "src", "config", "visualizations.json");
+    const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    res.json(config);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/training/visualizations/:category", CACHE_SEMI, (req: Request, res: Response) => {
+  try {
+    const configPath = path.join(process.cwd(), "src", "config", "visualizations.json");
+    const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    const { category } = req.params;
+
+    const universal: string[] = config.universal || [];
+    let groupComponents: string[] = [];
+    let conditional: Record<string, string[]> = {};
+
+    for (const [, groupDef] of Object.entries(config.groups)) {
+      const def = groupDef as any;
+      if (def.subcategories?.includes(category)) {
+        groupComponents = def.components || [];
+        conditional = def.conditional || {};
+        break;
+      }
+    }
+
+    res.json({ universal, components: groupComponents, conditional });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

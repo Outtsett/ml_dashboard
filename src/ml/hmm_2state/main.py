@@ -26,6 +26,7 @@ from shared.features import compute_features, normalize_features, _load_feature_
 from shared.data import load_ohlcv_arrays
 from hmm_2state.model import GaussianHMM2State
 from hmm_2state.io import save_model
+from shared.evaluation import run_stage1_regime_quality, run_stage2_significance, compute_evaluation_grade
 
 
 def parse_args():
@@ -43,6 +44,10 @@ def parse_args():
     parser.add_argument("--feature-categories", type=str, default=None,
                         help="Comma-separated feature categories (default: all)")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--run-significance-tests", action="store_true", default=False,
+                        help="Run expensive significance tests")
+    parser.add_argument("--n-permutations", type=int, default=1000)
+    parser.add_argument("--n-bootstrap", type=int, default=100)
     return parser.parse_args()
 
 
@@ -105,9 +110,33 @@ def main():
             n_restarts=args.n_restarts,
         )
 
-        # 5. Save
+        # 4b. Evaluate — statistical validation of regime quality
         close_valid = [float(c) for c, v in zip(data["close"], valid_mask) if v]
 
+        emit_log("Running evaluation Stage 1: Regime Quality Assessment")
+        stage1_results = run_stage1_regime_quality(
+            features=X_valid,
+            assignments=model.state_sequence,
+            close=np.array(close_valid, dtype=np.float64),
+            iteration=args.em_iter * args.n_restarts,
+        )
+
+        stage2_results = {}
+        if args.run_significance_tests:
+            emit_log("Running evaluation Stage 2: Significance Tests")
+            stage2_results = run_stage2_significance(
+                features=X_valid,
+                assignments=model.state_sequence,
+                close=np.array(close_valid, dtype=np.float64),
+                n_permutations=args.n_permutations,
+                n_bootstrap=args.n_bootstrap,
+                iteration=args.em_iter * args.n_restarts,
+            )
+
+        eval_grade = compute_evaluation_grade(stage1_results, stage2_results or None)
+        emit_log(f"Evaluation grade: {eval_grade}")
+
+        # 5. Save
         total_iter = args.em_iter * args.n_restarts
         emit_progress(total_iter, total_iter, "saving")
         elapsed = time.time() - t_start
@@ -116,6 +145,17 @@ def main():
             iteration_metrics=iteration_metrics,
             close_vals=close_valid,
         )
+
+        # 5b. Inject evaluation results into diagnostics
+        diagnostics["evaluation"] = {
+            "stage1": stage1_results,
+            "stage2": stage2_results,
+            "grade": eval_grade,
+        }
+        import json
+        diag_path = os.path.join(model_path, "diagnostics.json")
+        with open(diag_path, "w") as f:
+            json.dump(diagnostics, f, indent=2)
 
         # 6. Done
         emit_done(model_path, diagnostics)

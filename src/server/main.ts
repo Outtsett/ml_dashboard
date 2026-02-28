@@ -111,6 +111,13 @@ async function bootstrap() {
   registerRunner('python', new PythonRunner());
   log('Training runners registered: python', 'training');
 
+  // ── Clean up orphaned training sessions (sessions that were "running" when server crashed) ──
+  const { markOrphanedSessionsFailed } = await import('./storage/trainingStorage');
+  const orphanCount = markOrphanedSessionsFailed();
+  if (orphanCount > 0) {
+    log(`Marked ${orphanCount} orphaned training session(s) as failed`, 'training');
+  }
+
   // ── Routes + middleware ──
   await registerRoutes(httpServer, expressApp);
 

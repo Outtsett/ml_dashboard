@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "universal": [
+    "convergence-panel",
+    "feature-correlation-matrix",
+    "train-test-split-timeline",
+    "walk-forward-windows",
+    "confidence-calibration",
+    "data-quality-panel",
+    "resource-usage"
+  ],
+  "groups": {
+    "clustering": {
+      "subcategories": ["clustering", "self-organizing", "probabilistic-mixture"],
+      "components": [
+        "regime-timeline",
+        "transition-sankey",
+        "cluster-scatter",
+        "posterior-heatmap",
+        "cluster-profile-cards",
+        "silhouette-plot",
+        "elbow-bic-curve"
+      ],
+      "conditional": {
+        "hierarchical": ["dendrogram"],
+        "som": ["som-grid"]
+      }
+    },
+    "dimensionality-reduction": {
+      "subcategories": ["dimensionality-reduction"],
+      "components": [
+        "scatter-2d-3d",
+        "explained-variance-bar",
+        "component-loadings-heatmap",
+        "reconstruction-error-plot",
+        "biplot"
+      ],
+      "conditional": {
+        "manifold": ["manifold-surface"],
+        "umap": ["neighborhood-graph"],
+        "tsne": ["neighborhood-graph"]
+      }
+    },
+    "anomaly-detection": {
+      "subcategories": ["anomaly-detection"],
+      "components": [
+        "anomaly-timeline",
+        "score-distribution",
+        "decision-boundary",
+        "feature-contribution-breakdown",
+        "anomaly-cluster-view"
+      ]
+    },
+    "classification": {
+      "subcategories": ["classification", "meta-learner"],
+      "components": [
+        "confusion-matrix-heatmap",
+        "roc-curve",
+        "precision-recall-curve",
+        "feature-importance-bar",
+        "shap-beeswarm",
+        "shap-waterfall",
+        "calibration-plot",
+        "prediction-timeline",
+        "profit-curve",
+        "learning-curve"
+      ]
+    },
+    "regression": {
+      "subcategories": ["regression", "linear", "regression-techniques"],
+      "components": [
+        "residual-plot",
+        "prediction-vs-actual",
+        "residual-distribution",
+        "coefficient-bar",
+        "prediction-interval",
+        "rolling-error",
+        "quantile-fan"
+      ],
+      "conditional": {
+        "lasso-regression": ["regularization-path"],
+        "ridge-regression": ["regularization-path"],
+        "elasticnet-regression": ["regularization-path"]
+      }
+    },
+    "sequence": {
+      "subcategories": ["sequence", "time-series", "recurrent-and-sequential", "attention-based"],
+      "components": [
+        "forecast-ribbon",
+        "attention-heatmap",
+        "hidden-state-timeline",
+        "layer-activation-map",
+        "gradcam-overlay",
+        "multi-horizon-error",
+        "sequence-embedding"
+      ]
+    },
+    "ensemble-boosting": {
+      "subcategories": ["ensemble", "boosting"],
+      "components": [
+        "boosting-loss-curve",
+        "tree-count-vs-error",
+        "feature-importance-3way",
+        "shap-dependence-plot",
+        "shap-interaction",
+        "individual-tree-viz",
+        "ensemble-diversity",
+        "stacking-weights"
+      ]
+    },
+    "deep-learning": {
+      "subcategories": ["deep-learning", "convolutional-networks", "feedforward-and-mlps", "generative-and-latent-models"],
+      "components": [
+        "loss-surface-3d",
+        "training-curves",
+        "gradient-flow",
+        "activation-distribution",
+        "weight-distribution",
+        "embedding-space",
+        "reconstruction-grid",
+        "latent-space-walk"
+      ]
+    }
+  }
+}

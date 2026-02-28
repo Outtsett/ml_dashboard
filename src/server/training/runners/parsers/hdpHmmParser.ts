@@ -9,6 +9,7 @@
 import type { TrainingSession } from '@shared/trainingTypes';
 import { emitSessionEvent } from '../types';
 import type { IOutputParser, ParserContext } from './types';
+import * as trainingStorage from "../../../storage/trainingStorage";
 
 export class HdpHmmParser implements IOutputParser {
   parseLine(session: TrainingSession, line: string, ctx: ParserContext): boolean {
@@ -42,13 +43,25 @@ export class HdpHmmParser implements IOutputParser {
         });
         break;
 
-      case 'metric':
+      case 'metric': {
         emitSessionEvent(session, 'metric', {
           iteration: msg.iteration,
           totalIterations: msg.total,
           metrics: { [msg.name as string]: msg.value },
         });
+
+        // Persist metric to SQLite for post-training convergence analysis (DIP)
+        const dbSessionId = (session as any).dbSessionId;
+        if (dbSessionId != null) {
+          trainingStorage.insertMetric({
+            sessionId: dbSessionId,
+            iteration: Number(msg.iteration ?? 0),
+            metricName: String(msg.name),
+            metricValue: Number(msg.value),
+          });
+        }
         break;
+      }
 
       case 'overlay':
         emitSessionEvent(session, 'overlay', {

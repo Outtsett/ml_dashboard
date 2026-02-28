@@ -77,6 +77,11 @@ export interface TrainingRequest {
   includeIndicators?: boolean;
   allFeatures?: boolean;
   indicatorGroups?: string;
+  walkForward?: {
+    trainMonths: number;
+    testMonths: number;
+    stepMonths?: number;
+  };
 }
 
 // ─── Standardized SSE Event Types ────────────────────────────────────────────
@@ -88,7 +93,10 @@ export type TrainingEventType =
   | 'overlay'
   | 'log'
   | 'done'
-  | 'error';
+  | 'error'
+  | 'walk-forward-window-start'
+  | 'walk-forward-window-done'
+  | 'walk-forward-summary';
 
 export interface TrainingEvent {
   type: TrainingEventType;

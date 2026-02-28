@@ -56,11 +56,12 @@ export const insertFeatureImportanceSchema = createInsertSchema(featureImportanc
 export type InsertFeatureImportance = z.infer<typeof insertFeatureImportanceSchema>;
 export type FeatureImportance = typeof featureImportance.$inferSelect;
 
-// Training session tracking for live loss surface updates
+// Training session tracking — persists across server restarts
 export const trainingSessions = sqliteTable("training_sessions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  // ── Original columns (unchanged) ──
   modelName: text("model_name").notNull(),
-  status: text("status").notNull().default("running"), // running, paused, completed, failed
+  status: text("status").notNull().default("running"), // running, paused, completed, failed, stopped
   currentEpoch: integer("current_epoch").notNull().default(0),
   maxEpochs: integer("max_epochs").notNull(),
   currentLoss: real("current_loss"),
@@ -68,7 +69,37 @@ export const trainingSessions = sqliteTable("training_sessions", {
   learningRate: real("learning_rate").notNull(),
   startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
-});
+
+  // ── Phase 1: Training Analytics columns ──
+  modelType: text("model_type"),
+  symbol: text("symbol"),
+  timeframe: text("timeframe"),
+  versionedModelId: text("versioned_model_id"),
+  hyperparameters: text("hyperparameters"),
+  featureCategories: text("feature_categories"),
+  trainDateStart: integer("train_date_start"),
+  trainDateEnd: integer("train_date_end"),
+  testDateStart: integer("test_date_start"),
+  testDateEnd: integer("test_date_end"),
+  totalBars: integer("total_bars"),
+  totalFeatures: integer("total_features"),
+  modelPath: text("model_path"),
+  diagnostics: text("diagnostics"),
+  qualityScore: real("quality_score"),
+  evaluationGrade: text("evaluation_grade"),
+  walkForwardGroupId: text("walk_forward_group_id"),
+  windowIndex: integer("window_index"),
+  errorMessage: text("error_message"),
+  elapsedSec: real("elapsed_sec"),
+  resourcePeakMemoryMb: real("resource_peak_memory_mb"),
+  resourceAvgCpuPct: real("resource_avg_cpu_pct"),
+}, (table) => ({
+  modelTypeIdx: index("ts_model_type_idx").on(table.modelType),
+  symbolIdx: index("ts_symbol_idx").on(table.symbol),
+  statusIdx: index("ts_status_idx").on(table.status),
+  versionedModelIdIdx: index("ts_versioned_model_id_idx").on(table.versionedModelId),
+  walkForwardGroupIdx: index("ts_wf_group_idx").on(table.walkForwardGroupId),
+}));
 
 export const insertTrainingSessionSchema = createInsertSchema(trainingSessions).omit({ id: true, startedAt: true, updatedAt: true });
 export type InsertTrainingSession = z.infer<typeof insertTrainingSessionSchema>;
@@ -89,6 +120,43 @@ export const lossHistory = sqliteTable("loss_history", {
 export const insertLossHistorySchema = createInsertSchema(lossHistory).omit({ id: true, timestamp: true });
 export type InsertLossHistory = z.infer<typeof insertLossHistorySchema>;
 export type LossHistory = typeof lossHistory.$inferSelect;
+
+// Per-iteration training metrics — convergence curves that survive restarts
+export const trainingMetrics = sqliteTable("training_metrics", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  sessionId: integer("session_id").notNull(),
+  iteration: integer("iteration").notNull(),
+  metricName: text("metric_name").notNull(),
+  metricValue: real("metric_value").notNull(),
+  timestamp: integer("timestamp", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+}, (table) => ({
+  sessionMetricIdx: index("tm_session_metric_idx").on(table.sessionId, table.metricName, table.iteration),
+  sessionIdx: index("tm_session_idx").on(table.sessionId),
+}));
+
+export const insertTrainingMetricSchema = createInsertSchema(trainingMetrics).omit({ id: true, timestamp: true });
+export type InsertTrainingMetric = z.infer<typeof insertTrainingMetricSchema>;
+export type TrainingMetric = typeof trainingMetrics.$inferSelect;
+
+// Statistical evaluation results — per-test pass/fail with p-values
+export const evaluationResults = sqliteTable("evaluation_results", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  sessionId: integer("session_id").notNull(),
+  stage: text("stage").notNull(),
+  testName: text("test_name").notNull(),
+  testValue: real("test_value"),
+  testPassed: integer("test_passed"),
+  pValue: real("p_value"),
+  details: text("details"),
+  computedAt: integer("computed_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+}, (table) => ({
+  sessionStageIdx: index("er_session_stage_idx").on(table.sessionId, table.stage, table.testName),
+  sessionIdx: index("er_session_idx").on(table.sessionId),
+}));
+
+export const insertEvaluationResultSchema = createInsertSchema(evaluationResults).omit({ id: true, computedAt: true });
+export type InsertEvaluationResult = z.infer<typeof insertEvaluationResultSchema>;
+export type EvaluationResult = typeof evaluationResults.$inferSelect;
 
 // Instrument metadata - tick/pip sizes, contract specs
 export const instruments = sqliteTable("instruments", {
