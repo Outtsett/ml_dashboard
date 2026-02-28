@@ -27,6 +27,8 @@ const COMPONENT_MAP: Record<string, React.LazyExoticComponent<React.ComponentTyp
   "cluster-profile-cards":       lazy(() => import("./ClusterProfileCards")),
   "silhouette-plot":             lazy(() => import("./SilhouettePlot")),
   "elbow-bic-curve":             lazy(() => import("./ElbowBicCurve")),
+  "benchmark-comparison":        lazy(() => import("./BenchmarkComparison")),
+  "model-history":               lazy(() => import("./ModelHistory")),
 };
 
 export interface AnalyticsComponentProps {

@@ -7,7 +7,9 @@
     "walk-forward-windows",
     "confidence-calibration",
     "data-quality-panel",
-    "resource-usage"
+    "resource-usage",
+    "benchmark-comparison",
+    "model-history"
   ],
   "groups": {
     "clustering": {
