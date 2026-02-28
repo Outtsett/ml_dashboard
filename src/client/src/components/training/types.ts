@@ -126,6 +126,28 @@ export interface OOSResult {
   switch_rate_ratio: number;
 }
 
+export interface EvaluationTestResult {
+  value: number | null;
+  passed: boolean;
+  p_value: number | null;
+  details?: Record<string, unknown>;
+}
+
+export interface EvaluationResults {
+  stage1: Record<string, EvaluationTestResult>;
+  stage2: Record<string, EvaluationTestResult>;
+  stage3: Record<string, EvaluationTestResult>;
+  stage4: Record<string, EvaluationTestResult>;
+  stage5: Record<string, EvaluationTestResult>;
+  grade: string;
+}
+
+export interface BenchmarkResult {
+  buyAndHold: { cumulative: number[]; totalReturn: number };
+  smaCrossover: { cumulative: number[]; totalReturn: number; signals: number[] };
+  dates: string[];
+}
+
 export interface Diagnostics {
   symbol: string;
   timeframe: string;
@@ -135,8 +157,9 @@ export interface Diagnostics {
   n_bars_test?: number;
   n_features: number;
   feature_names: string[];
-  date_range: { start: string; end: string };
+  date_range: { start: string; end: string; train_end?: string; test_start?: string };
   quality_score?: number;
+  evaluation?: EvaluationResults;
   convergence_summary?: {
     n_iterations: number;
     final_log_likelihood: number;

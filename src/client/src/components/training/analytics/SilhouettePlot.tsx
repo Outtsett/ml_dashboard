@@ -8,7 +8,7 @@ import type { AnalyticsComponentProps } from "./index";
 import { ChartCard, EmptyState } from "./shared";
 
 export default function SilhouettePlot({ diagnostics }: AnalyticsComponentProps) {
-  const evaluation = (diagnostics as any).evaluation;
+  const evaluation = diagnostics.evaluation;
   const stage1 = evaluation?.stage1;
 
   if (!stage1) {

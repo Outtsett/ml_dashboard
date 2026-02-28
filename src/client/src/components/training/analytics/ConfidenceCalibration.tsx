@@ -7,14 +7,8 @@
 
 import { CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import type { AnalyticsComponentProps } from "./index";
+import type { EvaluationTestResult } from "../types";
 import { ChartCard, EmptyState } from "./shared";
-
-interface TestResult {
-  value: number | null;
-  passed: boolean;
-  p_value: number | null;
-  details?: Record<string, unknown>;
-}
 
 const GRADE_COLORS: Record<string, string> = {
   A: "text-emerald-400 bg-emerald-500/15",
@@ -36,11 +30,7 @@ const TEST_LABELS: Record<string, string> = {
 };
 
 export default function ConfidenceCalibration({ diagnostics }: AnalyticsComponentProps) {
-  const evaluation = (diagnostics as any).evaluation as {
-    stage1: Record<string, TestResult>;
-    stage2: Record<string, TestResult>;
-    grade: string;
-  } | undefined;
+  const evaluation = diagnostics.evaluation;
 
   if (!evaluation) {
     return (
@@ -53,7 +43,7 @@ export default function ConfidenceCalibration({ diagnostics }: AnalyticsComponen
   const { stage1, stage2, grade } = evaluation;
   const gradeStyle = GRADE_COLORS[grade] || GRADE_COLORS.F;
 
-  const renderTests = (tests: Record<string, TestResult>, stageLabel: string) => (
+  const renderTests = (tests: Record<string, EvaluationTestResult>, stageLabel: string) => (
     <div>
       <h5 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50 mb-2">{stageLabel}</h5>
       <div className="space-y-1.5">

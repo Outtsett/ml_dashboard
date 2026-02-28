@@ -20,8 +20,8 @@ export default function TrainTestTimeline({ diagnostics }: AnalyticsComponentPro
 
   const trainPct = n_bars_total && n_bars_train_val ? (n_bars_train_val / n_bars_total * 100) : 85;
   const testPct = n_bars_total && n_bars_test ? (n_bars_test / n_bars_total * 100) : 15;
-  const trainEnd = (date_range as any).train_end || "\u2014";
-  const testStart = (date_range as any).test_start || "\u2014";
+  const trainEnd = date_range.train_end || "\u2014";
+  const testStart = date_range.test_start || "\u2014";
 
   return (
     <ChartCard title="Train / Test Split" subtitle={`${n_bars_total?.toLocaleString() ?? "?"} total bars`} minHeight={100}>
