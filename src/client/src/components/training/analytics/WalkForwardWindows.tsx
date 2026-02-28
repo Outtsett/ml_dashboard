@@ -4,13 +4,15 @@
  * SRP: Renders walk-forward window results only.
  */
 
+import { useState } from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell, ReferenceLine } from "recharts";
 import type { AnalyticsComponentProps } from "./index";
-import { CHART_GRID, CHART_AXIS, CHART_TOOLTIP } from "../types";
+import { CHART_GRID, CHART_AXIS, CHART_TOOLTIP, getRegimeColor } from "../types";
 import { ChartCard, EmptyState } from "./shared";
 
 export default function WalkForwardWindows({ diagnostics }: AnalyticsComponentProps) {
   const wf = diagnostics.walk_forward;
+  const [selectedWindow, setSelectedWindow] = useState<number | null>(null);
 
   if (!wf?.window_results?.length) {
     return (
@@ -42,7 +44,12 @@ export default function WalkForwardWindows({ diagnostics }: AnalyticsComponentPr
       }
     >
       <ResponsiveContainer width="100%" height={180}>
-        <BarChart data={chartData} barGap={2}>
+        <BarChart data={chartData} barGap={2} onClick={(data: any) => {
+          if (data?.activeTooltipIndex != null) {
+            const idx = data.activeTooltipIndex;
+            setSelectedWindow(idx === selectedWindow ? null : idx);
+          }
+        }}>
           <CartesianGrid {...CHART_GRID} />
           <XAxis dataKey="name" {...CHART_AXIS} />
           <YAxis {...CHART_AXIS} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} />
@@ -50,11 +57,45 @@ export default function WalkForwardWindows({ diagnostics }: AnalyticsComponentPr
           <ReferenceLine y={50} stroke="rgba(239, 68, 68, 0.3)" strokeDasharray="3 3" />
           <Bar dataKey="confidence" name="Confidence" radius={[3, 3, 0, 0]}>
             {chartData.map((d, i) => (
-              <Cell key={i} fill={d.failed ? "#ef444460" : d.confidence > 70 ? "#10b98160" : "#f59e0b60"} />
+              <Cell key={i} fill={d.failed ? "#ef444460" : d.confidence > 70 ? "#10b98160" : "#f59e0b60"} cursor="pointer" />
             ))}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+
+      {selectedWindow !== null && wf.window_results[selectedWindow] && (() => {
+        const w = wf.window_results[selectedWindow];
+        return (
+          <div className="bg-white/[0.02] rounded-xl p-3 border border-white/5 mt-2 grid grid-cols-2 md:grid-cols-4 gap-3 text-[9px]">
+            <div>
+              <div className="text-muted-foreground/50">Train size</div>
+              <div className="font-mono font-medium">{w.train_size.toLocaleString()} bars</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground/50">Test size</div>
+              <div className="font-mono font-medium">{w.test_size.toLocaleString()} bars</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground/50">Switch rate</div>
+              <div className="font-mono font-medium">{((w.switch_rate ?? 0) * 100).toFixed(1)}%</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground/50">Confidence</div>
+              <div className="font-mono font-medium">{((w.avg_confidence ?? 0) * 100).toFixed(1)}%</div>
+            </div>
+            {w.regime_distribution && (
+              <div className="col-span-full">
+                <div className="text-muted-foreground/50 mb-1">Regime distribution</div>
+                <div className="flex gap-0.5 h-3 rounded-full overflow-hidden">
+                  {w.regime_distribution.map((pct: number, i: number) => (
+                    <div key={i} style={{ width: `${Math.max(pct * 100, 1)}%`, backgroundColor: getRegimeColor(i).fill }} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </ChartCard>
   );
 }
