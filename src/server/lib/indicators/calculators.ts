@@ -160,6 +160,35 @@ export interface CalculateIndicatorParams {
   params?: Record<string, number>;
 }
 
+// ─── Calculator Dispatch Map (OCP: add new indicator = add entry here) ───────
+
+type CalculatorFn = (bars: OHLCVBar[], params: Record<string, number>) => IndicatorResult[];
+
+const INDICATOR_CALCULATORS: Record<string, CalculatorFn> = {
+  sma:        (bars, p) => [{ name: `sma_${p.period}`, values: sma(bars.map(b => b.close), p.period!) }],
+  ema:        (bars, p) => [{ name: `ema_${p.period}`, values: ema(bars.map(b => b.close), p.period!) }],
+  wma:        (bars, p) => [{ name: `wma_${p.period}`, values: wma(bars.map(b => b.close), p.period!) }],
+  stddev:     (bars, p) => [{ name: `stddev_${p.period}`, values: stddev(bars.map(b => b.close), p.period!) }],
+  roc:        (bars, p) => [{ name: `roc_${p.period}`, values: roc(bars.map(b => b.close), p.period) }],
+  momentum:   (bars, p) => [{ name: `momentum_${p.period}`, values: diff(bars.map(b => b.close), p.period) }],
+  rsi:        (bars, p) => [calculateRSI(bars, p.period)],
+  macd:       (bars, p) => {
+    const r = calculateMACD(bars, p.fastPeriod, p.slowPeriod, p.signalPeriod);
+    return [r.macd, r.signal, r.histogram];
+  },
+  bollinger:  (bars, p) => {
+    const r = calculateBollingerBands(bars, p.period, p.stdDev);
+    return [r.upper, r.middle, r.lower, r.pctB];
+  },
+  atr:        (bars, p) => [calculateATR(bars, p.period)],
+  stochastic: (bars, p) => {
+    const r = calculateStochastic(bars, p.kPeriod, p.dPeriod);
+    return [r.k, r.d];
+  },
+  cci:        (bars, p) => [calculateCCI(bars, p.period)],
+  williams_r: (bars, p) => [calculateWilliamsR(bars, p.period)],
+};
+
 export function calculateIndicator(request: CalculateIndicatorParams): IndicatorResult[] {
   const { indicator, bars, params = {} } = request;
   const def = INDICATOR_REGISTRY[indicator];
@@ -168,56 +197,11 @@ export function calculateIndicator(request: CalculateIndicatorParams): Indicator
     throw new Error(`Unknown indicator: ${indicator}`);
   }
 
-  const mergedParams = { ...def.defaultParams, ...params };
-  const closes = bars.map(b => b.close);
-
-  switch (indicator) {
-    case 'sma':
-      return [{ name: `sma_${mergedParams.period}`, values: sma(closes, mergedParams.period!) }];
-
-    case 'ema':
-      return [{ name: `ema_${mergedParams.period}`, values: ema(closes, mergedParams.period!) }];
-
-    case 'wma':
-      return [{ name: `wma_${mergedParams.period}`, values: wma(closes, mergedParams.period!) }];
-
-    case 'stddev':
-      return [{ name: `stddev_${mergedParams.period}`, values: stddev(closes, mergedParams.period!) }];
-
-    case 'roc':
-      return [{ name: `roc_${mergedParams.period}`, values: roc(closes, mergedParams.period) }];
-
-    case 'momentum':
-      return [{ name: `momentum_${mergedParams.period}`, values: diff(closes, mergedParams.period) }];
-
-    case 'rsi':
-      return [calculateRSI(bars, mergedParams.period)];
-
-    case 'macd': {
-      const macdResult = calculateMACD(bars, mergedParams.fastPeriod, mergedParams.slowPeriod, mergedParams.signalPeriod);
-      return [macdResult.macd, macdResult.signal, macdResult.histogram];
-    }
-
-    case 'bollinger': {
-      const bbResult = calculateBollingerBands(bars, mergedParams.period, mergedParams.stdDev);
-      return [bbResult.upper, bbResult.middle, bbResult.lower, bbResult.pctB];
-    }
-
-    case 'atr':
-      return [calculateATR(bars, mergedParams.period)];
-
-    case 'stochastic': {
-      const stochResult = calculateStochastic(bars, mergedParams.kPeriod, mergedParams.dPeriod);
-      return [stochResult.k, stochResult.d];
-    }
-
-    case 'cci':
-      return [calculateCCI(bars, mergedParams.period)];
-
-    case 'williams_r':
-      return [calculateWilliamsR(bars, mergedParams.period)];
-
-    default:
-      throw new Error(`Indicator calculation not implemented: ${indicator}`);
+  const calculator = INDICATOR_CALCULATORS[indicator];
+  if (!calculator) {
+    throw new Error(`Indicator calculation not implemented: ${indicator}`);
   }
+
+  const mergedParams = { ...def.defaultParams, ...params };
+  return calculator(bars, mergedParams);
 }

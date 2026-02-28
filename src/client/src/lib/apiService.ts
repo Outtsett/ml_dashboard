@@ -95,6 +95,17 @@ export const chartApi = {
 export const xaiApi = {
   getMethods: () => get('/api/xai/methods'),
   explain:    (body: unknown) => mutate('POST', '/api/xai/explain', body),
+  getRegimeImportance: (modelId: string) =>
+    get<{ success: boolean; importance: Array<{ feature: string; value: number; contribution: number; direction: string }> }>(
+      `/api/xai/regime-importance/${encodeURIComponent(modelId)}`
+    ),
+  getShap: (modelId: string, opts?: { regime?: number; limit?: number; offset?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.regime !== undefined) params.set('regime', String(opts.regime));
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    if (opts?.offset) params.set('offset', String(opts.offset));
+    return get(`/api/xai/shap/${encodeURIComponent(modelId)}?${params}`);
+  },
 } as const;
 
 // ── Labels ───────────────────────────────────────────────────────────────────

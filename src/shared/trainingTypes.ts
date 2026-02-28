@@ -34,6 +34,7 @@ export interface ModelRegistryEntry {
   chartOverlay: string;           // how it paints on the chart
   outputDir: string;              // where results are saved
   defaultHyperparameters: Record<string, HyperparameterDef>;
+  featureCategories?: string[] | null;  // feature category filter (null = all)
   includeIndicators?: boolean;    // default for including pre-computed indicators
   allFeatures?: boolean;          // default for using all available features
   cliFlags?: Record<string, string>;  // hyperparameter name → CLI flag mapping (OCP)
@@ -48,8 +49,6 @@ export interface TrainingConfig {
   paths: {
     pythonExe: string;
     modelsDir: string;
-    indicatorsDir: string;
-    marketDb: string;
   };
   limits: {
     maxConcurrentJobs: number;
@@ -73,6 +72,8 @@ export interface TrainingRequest {
     end: string;
   };
   hyperparameters?: Record<string, number | string | boolean>;
+  maxBars?: number;              // 0 = use all available data, undefined = use config default
+  featureCategories?: string[];  // override model's default feature categories
   includeIndicators?: boolean;
   allFeatures?: boolean;
   indicatorGroups?: string;
@@ -152,6 +153,8 @@ export interface ResolvedTrainingConfig {
   timeframeSec: number;
   dateRange?: { start: string; end: string };
   hyperparameters: Record<string, number | string | boolean>;
+  maxBars?: number;             // 0 = use all available data, undefined = use config default
+  featureCategories?: string[];  // feature category filter (undefined = all)
   featurePipeline: string;
   outputDir: string;
   modelId: string;              // e.g. "ES_30m"

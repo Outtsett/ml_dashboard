@@ -1,5 +1,4 @@
 import type { FeatureContribution } from '../xaiTypes';
-import { FEATURE_NAMES } from '../xaiTypes';
 
 export function computePermutationImportance(
   input: number[][],
@@ -8,7 +7,7 @@ export function computePermutationImportance(
 ): FeatureContribution[] {
   const nRepeats = (params.nRepeats as number) || 10;
   const flatInput = input.flat();
-  const numFeatures = Math.min(flatInput.length, FEATURE_NAMES.length);
+  const numFeatures = flatInput.length;
 
   const contributions: FeatureContribution[] = [];
 
@@ -23,7 +22,7 @@ export function computePermutationImportance(
     const avgDrop = totalDrop / nRepeats;
 
     contributions.push({
-      feature: FEATURE_NAMES[i] || `feature_${i}`,
+      feature: `feature_${i}`,
       value: flatInput[i]!,
       contribution: avgDrop,
       direction: avgDrop >= 0 ? 'positive' : 'negative'

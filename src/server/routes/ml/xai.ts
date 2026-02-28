@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { sanitizeModelId, getModelShap } from "../../lib/modelResults";
 
 const router = Router();
 
@@ -14,6 +15,8 @@ async function getXAIService() {
   }
   return xaiServiceModule.xaiService;
 }
+
+const MODELS_DIR = "data/models";
 
 // List available XAI methods
 router.get("/xai/methods", async (req: Request, res: Response) => {
@@ -90,25 +93,6 @@ router.post("/xai/explain", async (req: Request, res: Response) => {
   }
 });
 
-// Get feature importance for a specific model
-router.get("/xai/importance/:modelId", async (req: Request, res: Response) => {
-  try {
-    const xaiService = await getXAIService();
-    const modelIdParam = req.params.modelId as string;
-    const modelId = parseInt(modelIdParam);
-
-    if (isNaN(modelId)) {
-      return res.status(400).json({ error: "Valid model ID required" });
-    }
-
-    const importance = await xaiService.getFeatureImportanceForModel(modelId);
-    res.json({ success: true, importance });
-  } catch (error: any) {
-    console.error("Error getting feature importance:", error);
-    res.status(500).json({ error: error.message || "Failed to get feature importance" });
-  }
-});
-
 // Batch explain multiple samples
 router.post("/xai/explain-batch", async (req: Request, res: Response) => {
   try {
@@ -142,6 +126,40 @@ router.post("/xai/explain-batch", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error generating batch XAI explanations:", error);
     res.status(500).json({ error: error.message || "Failed to generate batch explanations" });
+  }
+});
+
+// ── Real SHAP importance for trained regime models (e.g. "MNQ_1m") ──────────
+
+router.get("/xai/regime-importance/:modelId", async (req: Request, res: Response) => {
+  try {
+    const xaiService = await getXAIService();
+    const modelId = String(req.params.modelId);
+    sanitizeModelId(modelId); // validates format
+
+    const importance = xaiService.getRegimeModelImportance(modelId);
+    res.json({ success: true, importance });
+  } catch (error: any) {
+    const status = error.message?.includes("Invalid model ID") ? 400 : 500;
+    res.status(status).json({ error: error.message || "Failed to get regime model importance" });
+  }
+});
+
+// ── Per-bar SHAP values from QuestDB model_shap table ───────────────────────
+
+router.get("/xai/shap/:modelId", async (req: Request, res: Response) => {
+  try {
+    const modelId = String(req.params.modelId);
+    const result = await getModelShap(MODELS_DIR, modelId, {
+      regime: req.query.regime !== undefined ? Number(req.query.regime) : undefined,
+      limit: Number(req.query.limit) || undefined,
+      offset: Number(req.query.offset) || undefined,
+    });
+    if (!result) return res.status(404).json({ error: `SHAP data not found for '${modelId}'` });
+    res.json({ success: true, ...result });
+  } catch (error: any) {
+    const status = error.message?.includes("Invalid model ID") ? 400 : 500;
+    res.status(status).json({ error: error.message || "Failed to get SHAP data" });
   }
 });
 

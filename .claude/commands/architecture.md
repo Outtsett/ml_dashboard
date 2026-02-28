@@ -6,7 +6,14 @@ Complete schema, database rules, API map, and frontend structure for the ML Dash
 
 Use this as a reference when answering architecture questions, making schema changes, or understanding data flow. When the user asks about tables, routes, or components, consult the relevant section below.
 
-## PostgreSQL Tables (21)
+## Database Architecture (2 databases)
+
+| Database | Role | Connection |
+|----------|------|------------|
+| **SQLite** | App metadata: users, ML models, training, instruments | Embedded (`data/ml_dashboard.db`, WAL mode) |
+| **QuestDB 9.3.1** | ALL time-series data: OHLCV, trades, MBP-10, indicators, model outputs | HTTP `:9000`, ILP `:9009`, PG wire `:8812` |
+
+## SQLite Tables (22 in `shared/schema.ts`)
 
 ### Core Trading Data (5 tables)
 
@@ -16,16 +23,6 @@ Use this as a reference when answering architecture questions, making schema cha
 | id | varchar (PK) | gen_random_uuid |
 | username | text | UNIQUE, NOT NULL |
 | password | text | NOT NULL |
-
-**ohlcv_data** — 1-second OHLCV ticks (legacy)
-| Column | Type | Notes |
-|--------|------|-------|
-| id | serial (PK) | |
-| symbol | text | NOT NULL |
-| timestamp | bigint | NOT NULL |
-| open, high, low, close | double precision | |
-| volume | double precision | |
-| *Indexes:* | | timestamp, symbol, (symbol, timestamp) |
 
 **uploads** — Upload tracking
 | Column | Type | Notes |
@@ -45,17 +42,25 @@ Use this as a reference when answering architecture questions, making schema cha
 | importance | double precision | NOT NULL |
 | updatedAt | timestamp | DEFAULT now() |
 
-**contractRollovers** — Futures contract management (synced from DuckDB)
+**instruments** — Asset metadata (25 instruments: 8 futures + 17 forex)
 | Column | Type | Notes |
 |--------|------|-------|
 | id | serial (PK) | |
-| baseSymbol | text | e.g. "ES" |
-| fromContract, toContract | text | e.g. "ESH24" → "ESM24" |
-| rolloverTimestamp | bigint | epoch ms |
-| priceAdjustment | double precision | Panama cumulative adjustment |
-| from_close | double precision | Close price of outgoing contract |
-| to_close | double precision | Close price of incoming contract |
-| ratio | double precision | Price gap at rollover |
+| symbol | text | UNIQUE, NOT NULL |
+| name, assetType | text | futures / forex |
+| exchange | text | CME / CBOT / etc. |
+| tickSize, tickValue, pointValue | double precision | |
+| contractSize | double precision | DEFAULT 1 |
+| currency | text | DEFAULT 'USD' |
+| marginRequirement | double precision | |
+| tradingHours | text | |
+| decimalPlaces | integer | DEFAULT 2 |
+| pip_size | double precision | For forex precision |
+| contract_months | text[] | Active contract months |
+
+**newsArticles** + **newsSymbols** — Sentiment tracking
+- newsArticles: title, summary, content, source, sentimentScore (-1 to 1), sentimentLabel, category
+- newsSymbols: newsId (FK CASCADE), symbol, isPrimary
 
 ### Training & Monitoring (4 tables)
 
@@ -77,26 +82,6 @@ Use this as a reference when answering architecture questions, making schema cha
 | sessionId | integer (FK) | trainingSessions |
 | epoch | integer | NOT NULL |
 | loss, valLoss | double precision | NOT NULL |
-
-**instruments** — Asset metadata (25 instruments: 8 futures + 17 forex)
-| Column | Type | Notes |
-|--------|------|-------|
-| id | serial (PK) | |
-| symbol | text | UNIQUE, NOT NULL |
-| name, assetType | text | futures / forex |
-| exchange | text | CME / CBOT / etc. |
-| tickSize, tickValue, pointValue | double precision | |
-| contractSize | double precision | DEFAULT 1 |
-| currency | text | DEFAULT 'USD' |
-| marginRequirement | double precision | |
-| tradingHours | text | |
-| decimalPlaces | integer | DEFAULT 2 |
-| pip_size | double precision | For forex precision |
-| contract_months | text[] | Active contract months |
-
-**newsArticles** + **newsSymbols** — Sentiment tracking
-- newsArticles: title, summary, content, source, sentimentScore (-1 to 1), sentimentLabel, category
-- newsSymbols: newsId (FK CASCADE), symbol, isPrimary
 
 ### ML Observatory (11 tables)
 
@@ -120,9 +105,6 @@ Use this as a reference when answering architecture questions, making schema cha
 **modelOutputs** — Predictions
 - modelId (FK CASCADE), symbol, timestamp, prediction, predictionLabel, confidence, probabilities (JSON), features (JSON snapshot)
 
-**modelOutputEmbeddings** — pgvector support
-- outputId (FK CASCADE), embeddingDim, embedding vector(256)
-
 **ensembleConfigs** — Multi-model ensembles
 - name (UNIQUE), modelIds (JSON), weights (JSON), aggregationMethod (vote/average/weighted/stacking), confidenceThreshold, unanimityRequired
 
@@ -137,140 +119,108 @@ Use this as a reference when answering architecture questions, making schema cha
 - timestamp, symbol, modelCorrelations (JSON), agreementMatrix (JSON), ensembleSignal, ensembleConfidence, divergenceScore
 
 **generatedLabels** + **contrastivePairs** — Label generation
-- generatedLabels: generatorType, category (classification/regression/sequence/contrastive), config (JSON), sampleCount, labelDistribution (JSON), parquetPath, status
+- generatedLabels: generatorType, category (classification/regression/sequence/contrastive), config (JSON), sampleCount, labelDistribution (JSON), status
 - contrastivePairs: labelSetId (FK CASCADE), anchorIdx, positiveIdx, negativeIdx, pairType, similarity
 
-### TimescaleDB Hypertable
+## QuestDB Tables (time series)
 
-**ohlcv_1s** — High-performance time-series (via `setup_hypertable.sql`)
+**ohlcv** — 759.5M rows, PARTITION BY DAY
 ```sql
-ts TIMESTAMPTZ, symbol TEXT, base_symbol TEXT,
-open DOUBLE PRECISION, high DOUBLE PRECISION,
-low DOUBLE PRECISION, close DOUBLE PRECISION, volume BIGINT
-```
-- Partitioned by `ts` (range)
-- Auto-compress chunks > 90 days
-- Materialized view: `daily_contract_volume` for rollover detection
-
-## DuckDB Tables (market.duckdb — 782M+ OHLCV rows)
-
-**ohlcv** — Primary OHLCV storage (782M rows, 1s bars)
-```sql
-ts TIMESTAMP, symbol VARCHAR, open DOUBLE, high DOUBLE,
+symbol SYMBOL INDEX, timestamp TIMESTAMP, open DOUBLE, high DOUBLE,
 low DOUBLE, close DOUBLE, volume DOUBLE
 ```
 
-**rollovers** — Futures contract rollover schedule (353 events across 8 roots)
+**trades** — 12.9M rows, PARTITION BY DAY
 ```sql
-root VARCHAR NOT NULL,           -- e.g. "ES", "NQ"
-rollover_date DATE NOT NULL,     -- Date of rollover
-from_contract VARCHAR NOT NULL,  -- e.g. "ESH24"
-to_contract VARCHAR NOT NULL,    -- e.g. "ESM24"
-from_close DOUBLE NOT NULL,      -- Outgoing contract close
-to_close DOUBLE NOT NULL,        -- Incoming contract close
-price_gap DOUBLE NOT NULL,       -- to_close - from_close
-cumulative_adjustment DOUBLE NOT NULL  -- Panama back-adjustment
+symbol SYMBOL INDEX, ts_event TIMESTAMP, rtype, publisher_id, instrument_id,
+action, side, depth, price, size, flags, ts_in_delta, sequence, ts_recv
 ```
 
-**trades** — Tick-level trade data (14.5M rows)
+**mbp10** — 408.8M rows, PARTITION BY DAY
 ```sql
-ts TIMESTAMP, symbol VARCHAR, action VARCHAR, side VARCHAR,
-price DOUBLE, size DOUBLE, flags UINTEGER, sequence UBIGINT,
-ts_recv TIMESTAMP
+symbol SYMBOL INDEX, ts_event TIMESTAMP, ts_recv,
+bid_px_00..bid_px_09, ask_px_00..ask_px_09,
+bid_sz_00..bid_sz_09, ask_sz_00..ask_sz_09,
+bid_ct_00..bid_ct_09, ask_ct_00..ask_ct_09
 ```
 
-**mbp10** — Market-by-price 10-level book (408.8M rows)
+**indicators_{tf}** — 7 tables (5m, 15m, 30m, 1h, 4h, 1d, 1w)
 ```sql
-ts TIMESTAMP, symbol VARCHAR, action VARCHAR, side VARCHAR,
-price DOUBLE, size DOUBLE, flags UINTEGER, sequence UBIGINT,
-ts_recv TIMESTAMP, bid_px_00..bid_px_09 DOUBLE,
-ask_px_00..ask_px_09 DOUBLE, bid_sz_00..bid_sz_09 DOUBLE,
-ask_sz_00..ask_sz_09 DOUBLE, bid_ct_00..bid_ct_09 UINTEGER,
-ask_ct_00..ask_ct_09 UINTEGER
+timestamp TIMESTAMP, symbol SYMBOL INDEX, [344 indicator columns]
 ```
 
-**ingested_files** — Tracks which source files have been processed
+**model_regimes** — PARTITION BY YEAR, WAL, DEDUP UPSERT KEYS(model_id, ts)
 ```sql
-filepath VARCHAR PRIMARY KEY, row_count INTEGER,
-ingested_at TIMESTAMP DEFAULT current_timestamp
+model_id SYMBOL INDEX, symbol SYMBOL INDEX, ts TIMESTAMP,
+close DOUBLE, regime INT, regime_label VARCHAR, split VARCHAR
 ```
 
-## Pre-computed Indicator Parquets (data/{futures,forex}/)
-
-Per-symbol, per-timeframe category-partitioned parquets with ~350 columns total:
-- Pattern: `data/{futures|forex}/{symbol}/{timeframe}/{category}.parquet`
-- 25 symbols × 8 timeframes, 9 category parquets per combo
-- Computed by: `python scripts/compute-indicators.py`
-- ~344 indicator columns across 9 categories:
-  - **Candle** (62): CDL_DOJI, CDL_HAMMER, CDL_ENGULFING, etc.
-  - **Overlap** (36): SMA, EMA, WMA, DEMA, TEMA, HMA, ICHIMOKU, SUPERTREND, etc.
-  - **Momentum** (43): RSI, MACD, STOCH, STOCHRSI, CCI, WILLR, MOM, ROC, etc.
-  - **Volatility** (28): BBANDS, ATR, NATR, KC, DONCHIAN, etc.
-  - **Volume** (17): OBV, AD, ADOSC, CMF, MFI, KVO, etc.
-  - **Trend** (23): ADX, AROON, CHOP, PSAR, VORTEX, etc.
-  - **Statistics** (12): ENTROPY, KURTOSIS, SKEW, STDEV, ZSCORE, etc.
-  - **Cycle** (4): EBSW, etc.
-  - **Performance** (3): LOG_RETURN, PERCENT_RETURN, etc.
-
-## Continuous Contract Data Flow
-
-```
-DuckDB rollovers table (353 events, 8 roots)
-    ↓
-CTE: schedule (active contract windows + Panama adjustment)
-    ↓
-CTE: stitched (OHLCV joined to schedule, prices adjusted)
-    ↓
-time_bucket() aggregation (1m, 5m, 15m, 30m, 1H, 4H, 1D, 1W)
-    ↓
-API response / Indicator computation
+**model_shap** — PARTITION BY YEAR, WAL, DEDUP UPSERT KEYS(model_id, ts)
+```sql
+model_id SYMBOL INDEX, symbol SYMBOL INDEX, ts TIMESTAMP,
+regime INT, [29 shap_* columns]
 ```
 
-**Panama back-adjustment**: Additive cumulative adjustment computed backward from most recent contract. Volume-based daily rollover detection (when next contract's daily volume exceeds current).
+**Materialized Views** (auto-refresh on insert):
+`ohlcv_5m`, `ohlcv_15m`, `ohlcv_30m`, `ohlcv_1h`, `ohlcv_4h`, `ohlcv_1d`, `ohlcv_1w`
+
+## Pre-computed Indicators (QuestDB `indicators_{tf}` tables)
+
+~344 indicator columns across 9 categories:
+- **Candle** (62): CDL_DOJI, CDL_HAMMER, CDL_ENGULFING, etc.
+- **Overlap** (36): SMA, EMA, WMA, DEMA, TEMA, HMA, ICHIMOKU, SUPERTREND, etc.
+- **Momentum** (43): RSI, MACD, STOCH, STOCHRSI, CCI, WILLR, MOM, ROC, etc.
+- **Volatility** (28): BBANDS, ATR, NATR, KC, DONCHIAN, etc.
+- **Volume** (17): OBV, AD, ADOSC, CMF, MFI, KVO, etc.
+- **Trend** (23): ADX, AROON, CHOP, PSAR, VORTEX, etc.
+- **Statistics** (12): ENTROPY, KURTOSIS, SKEW, STDEV, ZSCORE, etc.
+- **Cycle** (4): EBSW, etc.
+- **Performance** (3): LOG_RETURN, PERCENT_RETURN, etc.
+
+Computed by `scripts/compute-indicators.py`, uploaded by `scripts/upload-indicators-questdb.py`.
 
 ## Database Selection Rules
 
 | Use Case | Database | Why |
 |----------|----------|-----|
-| User auth, sessions | PostgreSQL | Relational, Passport.js |
-| Model metadata, CRUD | PostgreSQL | Drizzle ORM, relationships |
-| Trade logs, P&L | PostgreSQL | Transactional integrity |
-| Label generation jobs | PostgreSQL | Status tracking, foreign keys |
-| Ensemble configs | PostgreSQL | JSON + relational hybrid |
-| Primary OHLCV storage | DuckDB | 782M rows, columnar, fast aggregation |
-| Continuous contracts | DuckDB | Rollover schedule + Panama adjustment |
-| Pre-computed indicators | DuckDB | read_parquet() on indicator files |
-| Tick trades + book data | DuckDB | 14.5M trades, 408.8M MBP-10 |
-| QuestDB chart rendering | QuestDB | 759.5M rows, bulk CSV sync |
-| Time-range OHLCV queries | QuestDB | Columnar, time-partitioned |
-| Historical OHLCV archive | TimescaleDB | Compression, hypertable |
-| Parquet file analytics | DuckDB | In-process, zero-copy |
-| Feature engineering SQL | DuckDB | Window functions on Parquet |
-| Indicator batch calc | DuckDB | SQL generation engine |
+| User auth, sessions | SQLite | Relational, Drizzle ORM |
+| Model metadata, CRUD | SQLite | Drizzle ORM, relationships |
+| Trade logs, P&L | SQLite | Transactional integrity |
+| Label generation jobs | SQLite | Status tracking, foreign keys |
+| Ensemble configs | SQLite | JSON + relational hybrid |
+| OHLCV chart rendering | QuestDB | SAMPLE BY, materialized views |
+| Training data source | QuestDB | Python reads via PG wire |
+| Pre-computed indicators | QuestDB | `indicators_{tf}` tables |
+| Tick trades + book data | QuestDB | Time-partitioned columnar |
+| Model outputs | QuestDB | `model_regimes`, `model_shap` |
 
-## Fallback Routing (OHLCV Queries)
+## Data Flow
 
 ```
-Request → DuckDB (primary: 782M rows, continuous contracts)
-  ↓ (if chart rendering)
-QuestDB (759.5M rows, bulk CSV sync)
-  ↓ (if unavailable)
-TimescaleDB hypertable (ohlcv_1s)
-  ↓ (if unavailable)
-Legacy ohlcv_data table (Drizzle)
+QuestDB OHLCV (source of truth, 759.5M rows)
+    |
+    +--> Chart API (SAMPLE BY, materialized views)
+    |
+    +--> Python training (PG wire :8812)
+    |        |-- features.py: 29 inline features from config
+    |        |-- HDP-HMM → model_regimes + model_shap
+    |
+    +--> Indicator pipeline (offline)
+         |-- compute-indicators.py → parquet
+         |-- upload-indicators-questdb.py → indicators_{tf}
 ```
 
 ## Frontend Page Structure
 
-| Route | Page | Skeleton | Description |
-|-------|------|----------|-------------|
-| `/` | DataSets | ChartSkeleton | Data import, OHLCV charts, file management |
-| `/ml-hub` | MLHub | MLHubSkeleton | Model registry, training, predictions |
-| `/portfolio` | Portfolio | DataGridSkeleton | Portfolio tracking (stub) |
-| `/watchlist` | Watchlist | DataGridSkeleton | Instrument watchlist |
-| `/news` | News | DataGridSkeleton | Financial news + sentiment |
-| `/databases` | Databases | DataGridSkeleton | DB health, query explorer |
-| `/settings` | Settings | — | Coming soon |
+| Route | Page | Description |
+|-------|------|-------------|
+| `/` | DataSets | Data import, OHLCV charts, file management |
+| `/ml-hub` | MLHub | Model registry, training, predictions |
+| `/portfolio` | Portfolio | Portfolio tracking |
+| `/watchlist` | Watchlist | Instrument watchlist |
+| `/news` | News | Financial news + sentiment |
+| `/databases` | Databases | DB health, query explorer |
+| `/training` | Training | Model training dashboard |
 
 All pages: lazy-loaded via `React.lazy()`, wrapped in `ErrorBoundary` + `Suspense`.
 
@@ -282,4 +232,3 @@ All pages: lazy-loaded via `React.lazy()`, wrapped in `ErrorBoundary` + `Suspens
 - **Data Fetching:** @tanstack/react-query (60s stale, 10min gc, 1 retry)
 - **Animations:** Framer Motion
 - **Icons:** Lucide React
-- **Caching:** Dexie (IndexedDB) for client-side persistence

@@ -88,6 +88,8 @@ export async function startTraining(request: TrainingRequest): Promise<{
     timeframeSec,
     dateRange: request.dateRange,
     hyperparameters,
+    maxBars: request.maxBars,
+    featureCategories: request.featureCategories ?? registry.featureCategories ?? undefined,
     featurePipeline: registry.featurePipeline,
     outputDir: registry.outputDir,
     modelId,

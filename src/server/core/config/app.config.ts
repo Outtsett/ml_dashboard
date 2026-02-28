@@ -45,6 +45,21 @@ const FeatureSetSchema = z.object({
 });
 
 const FeaturesConfigSchema = z.object({
+  version: z.number().optional(),
+  categories: z.record(z.object({ name: z.string(), description: z.string() })).optional(),
+  features: z.array(z.object({
+    name: z.string(),
+    category: z.string(),
+    type: z.string(),
+    params: z.record(z.number()).optional(),
+    requires: z.array(z.string()).optional(),
+    description: z.string().optional(),
+  })).optional(),
+  normalization: z.object({
+    method: z.string(),
+    lookback: z.number(),
+    clip: z.tuple([z.number(), z.number()]),
+  }).optional(),
   pipelines: z.record(FeaturePipelineSchema),
   featureSets: z.record(FeatureSetSchema),
 });
@@ -53,8 +68,6 @@ const TrainingConfigSchema = z.object({
   paths: z.object({
     pythonExe: z.string(),
     modelsDir: z.string(),
-    indicatorsDir: z.string(),
-    marketDb: z.string(),
   }),
   limits: z.object({
     maxConcurrentJobs: z.number(),

@@ -6,8 +6,9 @@
       "category": "unsupervised",
       "subcategory": "clustering",
       "runner": "python",
-      "script": "src/ml/hdp_hmm.py",
+      "script": "src/ml/hdp_hmm/main.py",
       "featurePipeline": "self-contained",
+      "featureCategories": null,
       "outputs": ["regimes", "transition_matrix", "convergence"],
       "chartOverlay": "regime_zones",
       "outputDir": "data/models",
@@ -18,7 +19,8 @@
         "gamma": { "value": 1.0, "min": 0.01, "max": 10.0, "step": 0.1, "label": "Gamma (top-level DP concentration)" },
         "kappa": { "value": 50.0, "min": 1.0, "max": 200.0, "step": 1.0, "label": "Kappa (sticky self-transition bias)" },
         "testSplit": { "value": 0.15, "min": 0.05, "max": 0.4, "step": 0.05, "label": "Test Split Ratio" },
-        "overlayInterval": { "value": 25, "min": 5, "max": 100, "step": 5, "label": "Overlay Emit Interval (iterations)" }
+        "overlayInterval": { "value": 25, "min": 5, "max": 100, "step": 5, "label": "Overlay Emit Interval (iterations)" },
+        "maxBars": { "value": 0, "min": 0, "max": 500000, "step": 10000, "label": "Max Bars (0 = all data)" }
       }
     }
   }

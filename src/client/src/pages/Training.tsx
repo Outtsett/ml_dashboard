@@ -68,11 +68,13 @@ export default function Training() {
   const selectedSymbol = dashboard.symbol;
 
   const handleTrain = () => {
+    const maxBars = hyperOverrides.maxBars != null ? Number(hyperOverrides.maxBars) : undefined;
     training.startTraining({
       modelType: training.selectedModelType,
       symbol: selectedSymbol,
       timeframe: training.timeframeLabel,
       hyperparameters: hyperOverrides,
+      maxBars,
     });
   };
 
@@ -90,6 +92,8 @@ export default function Training() {
 
   const modelType = training.selectedModelType;
   const adapter = getAdapter(modelType);
+  const modelEntry = training.availableModels[modelType];
+  const modelDisplayName = modelEntry?.name ?? adapter.name;
   const qualityScore = metrics.quality;
   const pipelinePhase = progress?.phase || (isTraining ? 'starting' : diagnostics ? 'complete' : '');
   const nRegimes = metrics.regimes;
@@ -105,7 +109,7 @@ export default function Training() {
           <div className="flex items-center gap-3 mb-1">
             <Flame className={`h-5 w-5 ${isTraining ? 'text-orange-400 pulse-slow' : 'text-muted-foreground'}`} />
             <span className={`text-sm font-medium ${isTraining ? 'text-orange-400' : 'text-muted-foreground'}`}>
-              {isTraining ? adapter.activeLabel : adapter.idleLabel}
+              {isTraining ? `Training ${modelDisplayName}` : modelDisplayName}
             </span>
             {training.error && (
               <Badge variant="outline" className="border-rose-500/50 text-rose-400 bg-rose-500/10 gap-1 text-xs">
@@ -126,7 +130,7 @@ export default function Training() {
         </div>
         <div className="flex gap-2 items-center flex-wrap">
           <Badge variant="outline" className="h-9 px-3 font-mono gap-1.5 text-xs rounded-full border-white/10">
-            {selectedSymbol} · {selectedTimeframe}
+            {adapter.name} · {selectedSymbol} · {selectedTimeframe}
           </Badge>
           <Badge variant="outline" className={`h-9 px-3 font-mono gap-1.5 text-xs rounded-full ${
             isTraining ? 'border-orange-500/30 text-orange-400 bg-orange-500/10' : 'border-muted-foreground/30 text-muted-foreground'
@@ -141,7 +145,7 @@ export default function Training() {
       <Card className="glass rounded-2xl gradient-border">
         <CardHeader className="border-b border-white/5 py-2 px-4">
           <CardTitle className="text-xs font-medium text-muted-foreground">
-            Universal Training
+            {modelDisplayName}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-3">

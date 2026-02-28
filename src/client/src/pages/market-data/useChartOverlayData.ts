@@ -83,8 +83,8 @@ export function useChartOverlayData(
   const [selectedRegimes, setSelectedRegimes] = useState<Set<number> | null>(null);
   const matchedModelId = useMemo(() => {
     if (regime.isTraining) return null;
-    const target = `${symbol.toUpperCase()}_${tfLabel}`;
-    const match = regime.models.find(m => m.id === target);
+    const target = `${symbol.toUpperCase()}_${tfLabel.toUpperCase()}`;
+    const match = regime.models.find(m => m.id.toUpperCase() === target);
     return match ? match.id : null;
   }, [symbol, tfLabel, regime.models, regime.isTraining]);
 

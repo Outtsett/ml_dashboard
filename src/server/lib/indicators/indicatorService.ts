@@ -36,178 +36,158 @@ export interface ComputeIndicatorsRequest {
   };
 }
 
-export function computeIndicatorsRealtime(
-  data: OHLCVBar[],
-  request: ComputeIndicatorsRequest
-): IndicatorResult[] {
-  if (data.length === 0) return [];
+// ─── Realtime Indicator Registry (OCP: add new indicator = add entry here) ───
 
-  const results: IndicatorResult[] = data.map(bar => ({
-    timestamp: bar.timestamp,
-  }));
+interface BarData {
+  closes: number[];
+  highs: number[];
+  lows: number[];
+  volumes: number[];
+}
 
-  const closes = data.map(d => d.close);
-  const highs = data.map(d => d.high);
-  const lows = data.map(d => d.low);
-  const volumes = data.map(d => d.volume);
+type RealtimeIndicatorFn = (
+  bars: BarData,
+  results: IndicatorResult[],
+  config: unknown,
+) => void;
 
-  // RSI
-  if (request.indicators.rsi) {
-    for (const period of request.indicators.rsi) {
-      const rsiValues = RSI.calculate({ values: closes, period });
-      const offset = data.length - rsiValues.length;
-      rsiValues.forEach((val, i) => {
-        results[i + offset]![`rsi_${period}`] = val;
-      });
+const REALTIME_INDICATORS: Record<string, RealtimeIndicatorFn> = {
+  rsi: (bars, results, periods) => {
+    for (const period of periods as number[]) {
+      const values = RSI.calculate({ values: bars.closes, period });
+      const offset = bars.closes.length - values.length;
+      values.forEach((val, i) => { results[i + offset]![`rsi_${period}`] = val; });
     }
-  }
+  },
 
-  // MACD
-  if (request.indicators.macd) {
-    for (const params of request.indicators.macd) {
+  macd: (bars, results, configs) => {
+    for (const params of configs as { fast: number; slow: number; signal: number }[]) {
       const macdResult = MACD.calculate({
-        values: closes,
+        values: bars.closes,
         fastPeriod: params.fast,
         slowPeriod: params.slow,
         signalPeriod: params.signal,
         SimpleMAOscillator: false,
         SimpleMASignal: false,
       });
-      const offset = data.length - macdResult.length;
+      const offset = bars.closes.length - macdResult.length;
       macdResult.forEach((val, i) => {
         results[i + offset]![`macd_${params.fast}_${params.slow}_${params.signal}`] = val.MACD ?? null;
         results[i + offset]![`macd_signal_${params.fast}_${params.slow}_${params.signal}`] = val.signal ?? null;
         results[i + offset]![`macd_hist_${params.fast}_${params.slow}_${params.signal}`] = val.histogram ?? null;
       });
     }
-  }
+  },
 
-  // Bollinger Bands
-  if (request.indicators.bollinger) {
-    for (const params of request.indicators.bollinger) {
+  bollinger: (bars, results, configs) => {
+    for (const params of configs as { period: number; stdDev: number }[]) {
       const bbResult = BollingerBands.calculate({
-        values: closes,
+        values: bars.closes,
         period: params.period,
         stdDev: params.stdDev,
       });
-      const offset = data.length - bbResult.length;
+      const offset = bars.closes.length - bbResult.length;
       bbResult.forEach((val, i) => {
         results[i + offset]![`bb_upper_${params.period}`] = val.upper;
         results[i + offset]![`bb_middle_${params.period}`] = val.middle;
         results[i + offset]![`bb_lower_${params.period}`] = val.lower;
-        // %B = (close - lower) / (upper - lower)
-        const close = closes[i + offset]!;
+        const close = bars.closes[i + offset]!;
         results[i + offset]![`bb_pct_b_${params.period}`] = 
           val.upper !== val.lower ? (close - val.lower) / (val.upper - val.lower) : 0.5;
       });
     }
-  }
+  },
 
-  // ATR
-  if (request.indicators.atr) {
-    for (const period of request.indicators.atr) {
-      const atrResult = ATR.calculate({
-        high: highs,
-        low: lows,
-        close: closes,
-        period,
-      });
-      const offset = data.length - atrResult.length;
-      atrResult.forEach((val, i) => {
-        results[i + offset]![`atr_${period}`] = val;
-      });
+  atr: (bars, results, periods) => {
+    for (const period of periods as number[]) {
+      const atrResult = ATR.calculate({ high: bars.highs, low: bars.lows, close: bars.closes, period });
+      const offset = bars.closes.length - atrResult.length;
+      atrResult.forEach((val, i) => { results[i + offset]![`atr_${period}`] = val; });
     }
-  }
+  },
 
-  // Stochastic
-  if (request.indicators.stochastic) {
-    for (const params of request.indicators.stochastic) {
+  stochastic: (bars, results, configs) => {
+    for (const params of configs as { k: number; d: number }[]) {
       const stochResult = Stochastic.calculate({
-        high: highs,
-        low: lows,
-        close: closes,
-        period: params.k,
-        signalPeriod: params.d,
+        high: bars.highs, low: bars.lows, close: bars.closes,
+        period: params.k, signalPeriod: params.d,
       });
-      const offset = data.length - stochResult.length;
+      const offset = bars.closes.length - stochResult.length;
       stochResult.forEach((val, i) => {
         results[i + offset]![`stoch_k_${params.k}`] = val.k;
         results[i + offset]![`stoch_d_${params.k}_${params.d}`] = val.d;
       });
     }
-  }
+  },
 
-  // CCI
-  if (request.indicators.cci) {
-    for (const period of request.indicators.cci) {
-      const cciResult = CCI.calculate({
-        high: highs,
-        low: lows,
-        close: closes,
-        period,
-      });
-      const offset = data.length - cciResult.length;
-      cciResult.forEach((val, i) => {
-        results[i + offset]![`cci_${period}`] = val;
-      });
+  cci: (bars, results, periods) => {
+    for (const period of periods as number[]) {
+      const cciResult = CCI.calculate({ high: bars.highs, low: bars.lows, close: bars.closes, period });
+      const offset = bars.closes.length - cciResult.length;
+      cciResult.forEach((val, i) => { results[i + offset]![`cci_${period}`] = val; });
     }
-  }
+  },
 
-  // Williams %R
-  if (request.indicators.williamsR) {
-    for (const period of request.indicators.williamsR) {
-      const wrResult = WilliamsR.calculate({
-        high: highs,
-        low: lows,
-        close: closes,
-        period,
-      });
-      const offset = data.length - wrResult.length;
-      wrResult.forEach((val, i) => {
-        results[i + offset]![`williams_r_${period}`] = val;
-      });
+  williamsR: (bars, results, periods) => {
+    for (const period of periods as number[]) {
+      const wrResult = WilliamsR.calculate({ high: bars.highs, low: bars.lows, close: bars.closes, period });
+      const offset = bars.closes.length - wrResult.length;
+      wrResult.forEach((val, i) => { results[i + offset]![`williams_r_${period}`] = val; });
     }
-  }
+  },
 
-  // SMA
-  if (request.indicators.sma) {
-    for (const period of request.indicators.sma) {
-      const smaResult = SMA.calculate({ values: closes, period });
-      const offset = data.length - smaResult.length;
-      smaResult.forEach((val, i) => {
-        results[i + offset]![`sma_${period}`] = val;
-      });
+  sma: (bars, results, periods) => {
+    for (const period of periods as number[]) {
+      const smaResult = SMA.calculate({ values: bars.closes, period });
+      const offset = bars.closes.length - smaResult.length;
+      smaResult.forEach((val, i) => { results[i + offset]![`sma_${period}`] = val; });
     }
-  }
+  },
 
-  // EMA
-  if (request.indicators.ema) {
-    for (const period of request.indicators.ema) {
-      const emaResult = EMA.calculate({ values: closes, period });
-      const offset = data.length - emaResult.length;
-      emaResult.forEach((val, i) => {
-        results[i + offset]![`ema_${period}`] = val;
-      });
+  ema: (bars, results, periods) => {
+    for (const period of periods as number[]) {
+      const emaResult = EMA.calculate({ values: bars.closes, period });
+      const offset = bars.closes.length - emaResult.length;
+      emaResult.forEach((val, i) => { results[i + offset]![`ema_${period}`] = val; });
     }
-  }
+  },
 
-  // ROC
-  if (request.indicators.roc) {
-    for (const period of request.indicators.roc) {
-      const rocResult = ROC.calculate({ values: closes, period });
-      const offset = data.length - rocResult.length;
-      rocResult.forEach((val, i) => {
-        results[i + offset]![`roc_${period}`] = val;
-      });
+  roc: (bars, results, periods) => {
+    for (const period of periods as number[]) {
+      const rocResult = ROC.calculate({ values: bars.closes, period });
+      const offset = bars.closes.length - rocResult.length;
+      rocResult.forEach((val, i) => { results[i + offset]![`roc_${period}`] = val; });
     }
-  }
+  },
 
-  // Momentum (price - price[n periods ago])
-  if (request.indicators.momentum) {
-    for (const period of request.indicators.momentum) {
-      for (let i = period; i < closes.length; i++) {
-        results[i]![`momentum_${period}`] = closes[i]! - closes[i - period]!;
+  momentum: (bars, results, periods) => {
+    for (const period of periods as number[]) {
+      for (let i = period; i < bars.closes.length; i++) {
+        results[i]![`momentum_${period}`] = bars.closes[i]! - bars.closes[i - period]!;
       }
+    }
+  },
+};
+
+export function computeIndicatorsRealtime(
+  data: OHLCVBar[],
+  request: ComputeIndicatorsRequest
+): IndicatorResult[] {
+  if (data.length === 0) return [];
+
+  const results: IndicatorResult[] = data.map(bar => ({ timestamp: bar.timestamp }));
+  const bars: BarData = {
+    closes: data.map(d => d.close),
+    highs: data.map(d => d.high),
+    lows: data.map(d => d.low),
+    volumes: data.map(d => d.volume),
+  };
+
+  // Iterate the registry — each key maps to the request config
+  for (const [key, compute] of Object.entries(REALTIME_INDICATORS)) {
+    const config = request.indicators[key as keyof typeof request.indicators];
+    if (config) {
+      compute(bars, results, config);
     }
   }
 

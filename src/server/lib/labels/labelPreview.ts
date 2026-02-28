@@ -2,7 +2,7 @@
  * Label Preview — generates label previews without persisting to database.
  *
  * Used by the chart overlay to show labels on the trading chart.
- * Queries QuestDB directly (no DuckDB temp tables).
+ * Queries QuestDB directly with CTE-based label generation.
  */
 
 import type { LabelGeneratorType } from './sqlLabelGenerators';

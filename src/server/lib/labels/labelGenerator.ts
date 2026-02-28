@@ -11,19 +11,6 @@ import {
   LABEL_SQL_GENERATORS,
   type LabelGeneratorType,
   type LabelGeneratorConfig,
-  type DirectionParams,
-  type TripleBarrierParams,
-  type NPMMParams,
-  type VolatilityAdaptiveParams,
-  type TrendScanningParams,
-  type MetaLabelParams,
-  type FutureReturnParams,
-  type FutureVolatilityParams,
-  type MarketRegimeParams,
-  type SignalParams,
-  type MultiStepParams,
-  type PseudoConfidenceParams,
-  type ConsistencyPerturbationParams,
 } from './sqlLabelGenerators';
 import {
   CONTRASTIVE_SQL_GENERATORS,
@@ -34,6 +21,7 @@ import {
   generateContrastivePairsFromSQL,
 } from './contrastivePairs';
 import { queryLabels, buildMetaLabelSQL } from './labelHelpers';
+import type { MetaLabelParams } from './sqlLabelGenerators';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -275,59 +263,48 @@ export function generateLabelSQL(
   params: Record<string, unknown>,
   config: LabelGeneratorConfig
 ): string | null {
-  switch (generatorType) {
-    case 'direction':
-      return LABEL_SQL_GENERATORS.direction(params as unknown as DirectionParams, config);
-    case 'triple_barrier':
-      return LABEL_SQL_GENERATORS.triple_barrier(params as unknown as TripleBarrierParams, config);
-    case 'npmm':
-      return LABEL_SQL_GENERATORS.npmm(params as unknown as NPMMParams, config);
-    case 'volatility_adaptive':
-      return LABEL_SQL_GENERATORS.volatility_adaptive(params as unknown as VolatilityAdaptiveParams, config);
-    case 'trend_scanning':
-      return LABEL_SQL_GENERATORS.trend_scanning(params as unknown as TrendScanningParams, config);
-    case 'meta_label':
-      return LABEL_SQL_GENERATORS.meta_label(
-        {
-          ...(params as unknown as MetaLabelParams),
-          primarySignalColumn: (params as unknown as MetaLabelParams).primarySignalColumn || 'label',
-        },
-        config,
-        (params as { primaryLabelsTable?: string }).primaryLabelsTable || 'primary_labels'
-      );
-    case 'future_return':
-      return LABEL_SQL_GENERATORS.future_return(params as unknown as FutureReturnParams, config);
-    case 'future_volatility':
-      return LABEL_SQL_GENERATORS.future_volatility(params as unknown as FutureVolatilityParams, config);
-    case 'regime':
-      return LABEL_SQL_GENERATORS.regime(params as unknown as MarketRegimeParams, config);
-    case 'signal':
-      return LABEL_SQL_GENERATORS.signal(params as unknown as SignalParams, config);
-    case 'multi_step':
-      return LABEL_SQL_GENERATORS.multi_step(params as unknown as MultiStepParams, config);
-    case 'pseudo_confidence':
-      return LABEL_SQL_GENERATORS.pseudo_confidence(params as unknown as PseudoConfidenceParams, config);
-    case 'consistency_perturbation':
-      return LABEL_SQL_GENERATORS.consistency_perturbation(params as unknown as ConsistencyPerturbationParams, config);
-    default:
-      return null;
+  // Special case: meta_label needs a primary labels CTE reference
+  if (generatorType === 'meta_label') {
+    return LABEL_SQL_GENERATORS.meta_label(
+      {
+        ...(params as unknown as MetaLabelParams),
+        primarySignalColumn: (params as unknown as MetaLabelParams).primarySignalColumn || 'label',
+      },
+      config,
+      (params as { primaryLabelsTable?: string }).primaryLabelsTable || 'primary_labels'
+    );
   }
+
+  // OCP: dispatch via registry — adding a new generator = add entry to LABEL_SQL_GENERATORS
+  const generator = LABEL_SQL_GENERATORS[generatorType];
+  if (!generator) return null;
+
+  return (generator as (p: unknown, c: LabelGeneratorConfig) => string)(params, config);
 }
 
+// ─── Generator Category Map (OCP: add new generator = add entry here) ────────
+
+const GENERATOR_CATEGORIES: Record<string, string> = {
+  direction: 'classification',
+  triple_barrier: 'classification',
+  npmm: 'classification',
+  volatility_adaptive: 'classification',
+  trend_scanning: 'classification',
+  meta_label: 'classification',
+  signal: 'classification',
+  regime: 'classification',
+  pseudo_confidence: 'semi-supervised',
+  consistency_perturbation: 'semi-supervised',
+  future_return: 'regression',
+  future_volatility: 'regression',
+  multi_step: 'sequence',
+  contrastive_temporal: 'contrastive',
+  contrastive_augmentation: 'contrastive',
+  contrastive_statistical: 'contrastive',
+};
+
 export function getCategoryForGenerator(generatorType: string): string {
-  const classificationGenerators = ['direction', 'triple_barrier', 'npmm', 'volatility_adaptive', 'trend_scanning', 'meta_label', 'signal', 'regime', 'pseudo_confidence', 'consistency_perturbation'];
-  const regressionGenerators = ['future_return', 'future_volatility'];
-  const sequenceGenerators = ['multi_step'];
-  const contrastiveGenerators = ['contrastive_temporal', 'contrastive_augmentation', 'contrastive_statistical'];
-  const semiSupervisedGenerators = ['pseudo_confidence', 'consistency_perturbation'];
-
-  if (classificationGenerators.includes(generatorType)) return 'classification';
-  if (regressionGenerators.includes(generatorType)) return 'regression';
-  if (sequenceGenerators.includes(generatorType)) return 'sequence';
-  if (contrastiveGenerators.includes(generatorType)) return 'contrastive';
-  if (semiSupervisedGenerators.includes(generatorType)) return 'semi-supervised';
-
-  return 'classification';
+  return GENERATOR_CATEGORIES[generatorType] ?? 'classification';
 }
 
 export function isContrastiveGenerator(generatorType: string): boolean {

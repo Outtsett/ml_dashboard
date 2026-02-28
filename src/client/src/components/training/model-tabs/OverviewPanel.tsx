@@ -2,12 +2,33 @@
  * OverviewPanel — Summary of all regime model metrics at a glance.
  */
 
+import { useMemo } from "react";
 import { Flame } from "lucide-react";
 import { Sparkline, QualityScoreRing } from "../MicroComponents";
 import type { RegimeModel, Diagnostics, ConvergencePoint } from "../types";
 import { getQualityLabel, getQualityVerdict,
   getRegimeVerdict, getStabilityVerdict, getOosVerdict, getFitVerdict,
 } from "../types";
+
+// ── Feature category mapping ──
+
+function getFeatureCategory(name: string): { label: string; color: string; textColor: string; barColor: string } {
+  if (name.startsWith('return_'))
+    return { label: 'Returns', color: 'bg-blue-500/20', textColor: 'text-blue-400', barColor: 'bg-blue-500/50' };
+  if (name.startsWith('volatility_') || name.startsWith('parkinson_'))
+    return { label: 'Volatility', color: 'bg-orange-500/20', textColor: 'text-orange-400', barColor: 'bg-orange-500/50' };
+  if (name.startsWith('volume_'))
+    return { label: 'Volume', color: 'bg-emerald-500/20', textColor: 'text-emerald-400', barColor: 'bg-emerald-500/50' };
+  if (['bar_range', 'body_ratio', 'upper_shadow', 'lower_shadow'].includes(name))
+    return { label: 'Structure', color: 'bg-violet-500/20', textColor: 'text-violet-400', barColor: 'bg-violet-500/50' };
+  if (name.startsWith('roc_'))
+    return { label: 'Momentum', color: 'bg-cyan-500/20', textColor: 'text-cyan-400', barColor: 'bg-cyan-500/50' };
+  if (name.startsWith('ma_dist_'))
+    return { label: 'MA Dist', color: 'bg-amber-500/20', textColor: 'text-amber-400', barColor: 'bg-amber-500/50' };
+  if (name.startsWith('swing_') || name.startsWith('prev_swing_') || name === 'retracement_ratio')
+    return { label: 'Swing', color: 'bg-rose-500/20', textColor: 'text-rose-400', barColor: 'bg-rose-500/50' };
+  return { label: 'Other', color: 'bg-white/10', textColor: 'text-muted-foreground', barColor: 'bg-white/20' };
+}
 
 export function OverviewPanel({ diagnostics, model, llPerBar, convergencePoints }: {
   diagnostics: Diagnostics; model: RegimeModel; llPerBar: number; convergencePoints: ConvergencePoint[];
@@ -82,6 +103,9 @@ export function OverviewPanel({ diagnostics, model, llPerBar, convergencePoints 
         </div>
       )}
 
+      {/* Feature importance (SHAP-based) */}
+      <FeatureImportanceSection diagnostics={diagnostics} />
+
       {/* Profile correlation + switch ratio */}
       {diagnostics.out_of_sample && (
         <div className="flex gap-3">
@@ -104,6 +128,75 @@ export function OverviewPanel({ diagnostics, model, llPerBar, convergencePoints 
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Feature Importance Section ──
+
+function FeatureImportanceSection({ diagnostics }: { diagnostics: Diagnostics }) {
+  const featureImportance = useMemo(() => {
+    const shapSummary = diagnostics.shap_summary;
+    if (!shapSummary?.length || !diagnostics.feature_names?.length) return [];
+
+    // Aggregate mean_abs_shap across all regimes per feature
+    const importanceMap = new Map<string, number>();
+    for (const regime of shapSummary) {
+      for (const feat of regime.top_features) {
+        importanceMap.set(feat.feature, (importanceMap.get(feat.feature) ?? 0) + feat.mean_abs_shap);
+      }
+    }
+    const nRegimes = shapSummary.length;
+    const features = diagnostics.feature_names.map(name => ({
+      name,
+      importance: (importanceMap.get(name) ?? 0) / nRegimes,
+      category: getFeatureCategory(name),
+    }));
+    features.sort((a, b) => b.importance - a.importance);
+    return features;
+  }, [diagnostics.shap_summary, diagnostics.feature_names]);
+
+  if (featureImportance.length === 0) return null;
+
+  // Log scale so dominant features don't flatten everything else
+  const maxLog = Math.log1p(featureImportance[0]?.importance ?? 1);
+
+  return (
+    <div className="bg-white/5 rounded-xl p-4 border border-white/8">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[9px] text-muted-foreground/50 uppercase tracking-widest">Feature Importance</div>
+        <div className="text-[9px] text-muted-foreground/40">
+          {diagnostics.n_features} features · mean |SHAP| across {diagnostics.n_regimes} regimes
+        </div>
+      </div>
+      <div className="space-y-1">
+        {featureImportance.map((feat, i) => {
+          const pct = maxLog > 0 ? (Math.log1p(feat.importance) / maxLog) * 100 : 0;
+          const isTop = i < 3;
+          return (
+            <div key={feat.name} className="flex items-center gap-2">
+              <span className={`text-[9px] font-mono w-5 text-right ${isTop ? 'text-foreground/80' : 'text-muted-foreground/30'}`}>
+                {i + 1}
+              </span>
+              <span className={`text-[8px] px-1.5 py-0.5 rounded ${feat.category.color} ${feat.category.textColor} shrink-0 w-16 text-center`}>
+                {feat.category.label}
+              </span>
+              <span className={`text-[10px] font-mono w-40 truncate ${isTop ? 'text-foreground' : 'text-muted-foreground/60'}`}>
+                {feat.name}
+              </span>
+              <div className="flex-1 h-2.5 bg-white/5 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${isTop ? feat.category.barColor : 'bg-white/10'}`}
+                  style={{ width: `${Math.max(pct, 0.5)}%` }}
+                />
+              </div>
+              <span className="text-[9px] font-mono text-muted-foreground/40 w-16 text-right">
+                {feat.importance >= 100 ? feat.importance.toFixed(0) : feat.importance.toFixed(1)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

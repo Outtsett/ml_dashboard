@@ -32,9 +32,11 @@ export class PythonRunner implements ITrainerRunner {
     // Build CLI args from resolved hyperparameters
     const args = [script, "--symbol", config.symbol, "--timeframe", config.timeframe, "--json"];
 
-    // Pass max bars limit
-    const maxBars = trainingCfg.limits.maxBarsDefault ?? 100000;
-    args.push("--max-bars", String(maxBars));
+    // Pass max bars limit (0 = all data → omit flag so Python uses everything)
+    const maxBars = config.maxBars ?? trainingCfg.limits.maxBarsDefault ?? 100000;
+    if (maxBars > 0) {
+      args.push("--max-bars", String(maxBars));
+    }
 
     // Pass date range if specified
     if (config.dateRange?.start) {
@@ -65,6 +67,10 @@ export class PythonRunner implements ITrainerRunner {
       if (flag) {
         args.push(flag, String(val));
       }
+    }
+
+    if (config.featureCategories?.length) {
+      args.push("--feature-categories", config.featureCategories.join(","));
     }
 
     if (config.includeIndicators) {

@@ -6,8 +6,10 @@
  */
 
 import * as tf from '@tensorflow/tfjs-node';
+import path from 'path';
 import { XAI_METHODS, type XAIExplanation } from '@shared/mlTaxonomy';
 import { storage } from '../../storage';
+import { getModelDiagnostics } from '../modelResults';
 import type { XAIConfig, PredictionWithExplanation, FeatureContribution, CalibrationBin, CounterfactualExample } from './xaiTypes';
 import {
   softmax,
@@ -30,7 +32,60 @@ import {
   generateCalibrationSummary,
   generateCounterfactualSummary,
 } from './xaiMethods';
-import { FEATURE_NAMES } from './xaiTypes';
+
+// ─── XAI Method Registry (OCP: add new method = add entry here) ─────────────
+
+type Prediction = { class: number; confidence: number; probabilities: number[]; direction: 'up' | 'down' | 'neutral' };
+
+interface XAIMethodResult {
+  featureContributions: FeatureContribution[];
+  attentionWeights?: number[];
+  calibration?: { expectedConfidence: number; actualAccuracy: number; reliabilityDiagram: CalibrationBin[] };
+  counterfactuals?: CounterfactualExample[];
+  summary: string;
+}
+
+type XAIMethodHandler = (input: number[][], prediction: Prediction, params: Record<string, unknown>) => XAIMethodResult;
+
+const XAI_METHOD_HANDLERS: Record<string, XAIMethodHandler> = {
+  shap: (input, prediction, params) => {
+    const fc = computeSHAP(input, prediction, params);
+    return { featureContributions: fc, summary: generateSHAPSummary(fc, prediction) };
+  },
+  permutation: (input, prediction, params) => {
+    const fc = computePermutationImportance(input, prediction, params);
+    return { featureContributions: fc, summary: generatePermutationSummary(fc) };
+  },
+  gradcam: (input, _prediction, params) => {
+    const aw = computeGradCAM(input, params);
+    return { featureContributions: [], attentionWeights: aw, summary: generateGradCAMSummary(aw) };
+  },
+  integratedGradients: (input, prediction, params) => {
+    const fc = computeIntegratedGradients(input, prediction, params);
+    return { featureContributions: fc, summary: generateIntegratedGradientsSummary(fc, prediction) };
+  },
+  saliency: (input, prediction, params) => {
+    const fc = computeSaliency(input, prediction, params);
+    return { featureContributions: fc, summary: generateSaliencySummary(fc) };
+  },
+  lime: (input, prediction, params) => {
+    const fc = computeLIME(input, prediction, params);
+    return { featureContributions: fc, summary: generateLIMESummary(fc, prediction) };
+  },
+  featureInteraction: (input, prediction, params) => {
+    const fc = computeFeatureInteractions(input, prediction, params);
+    return { featureContributions: fc, summary: generateInteractionSummary(fc) };
+  },
+  confidenceCalibration: (_input, prediction, params) => {
+    const cal = computeCalibration(prediction, params);
+    return { featureContributions: [], calibration: cal, summary: generateCalibrationSummary(cal) };
+  },
+  counterfactual: (input, prediction, params) => {
+    const cf = computeCounterfactuals(input, prediction, params);
+    return { featureContributions: [], counterfactuals: cf, summary: generateCounterfactualSummary(cf, prediction) };
+  },
+};
+
 
 export class XAIService {
   private model: tf.LayersModel | null = null;
@@ -92,56 +147,17 @@ export class XAIService {
       prediction = this.generateMockPrediction();
     }
 
-    switch (config.method) {
-      case 'shap':
-        featureContributions = computeSHAP(input, prediction, config.params);
-        summary = generateSHAPSummary(featureContributions, prediction);
-        break;
+    // OCP: dispatch via registry — adding a new XAI method = add entry to XAI_METHOD_HANDLERS
+    const handler = XAI_METHOD_HANDLERS[config.method];
+    const result = handler
+      ? handler(input, prediction, config.params ?? {})
+      : { featureContributions: computeSHAP(input, prediction, {}), summary: 'Default SHAP-based explanation' };
 
-      case 'permutation':
-        featureContributions = computePermutationImportance(input, prediction, config.params);
-        summary = generatePermutationSummary(featureContributions);
-        break;
-
-      case 'gradcam':
-        attentionWeights = computeGradCAM(input, config.params);
-        summary = generateGradCAMSummary(attentionWeights);
-        break;
-
-      case 'integratedGradients':
-        featureContributions = computeIntegratedGradients(input, prediction, config.params);
-        summary = generateIntegratedGradientsSummary(featureContributions, prediction);
-        break;
-
-      case 'saliency':
-        featureContributions = computeSaliency(input, prediction, config.params);
-        summary = generateSaliencySummary(featureContributions);
-        break;
-
-      case 'lime':
-        featureContributions = computeLIME(input, prediction, config.params);
-        summary = generateLIMESummary(featureContributions, prediction);
-        break;
-
-      case 'featureInteraction':
-        featureContributions = computeFeatureInteractions(input, prediction, config.params);
-        summary = generateInteractionSummary(featureContributions);
-        break;
-
-      case 'confidenceCalibration':
-        calibration = computeCalibration(prediction, config.params);
-        summary = generateCalibrationSummary(calibration);
-        break;
-
-      case 'counterfactual':
-        counterfactuals = computeCounterfactuals(input, prediction, config.params);
-        summary = generateCounterfactualSummary(counterfactuals, prediction);
-        break;
-
-      default:
-        featureContributions = computeSHAP(input, prediction, {});
-        summary = 'Default SHAP-based explanation';
-    }
+    featureContributions = result.featureContributions;
+    attentionWeights = result.attentionWeights;
+    calibration = result.calibration;
+    counterfactuals = result.counterfactuals;
+    summary = result.summary;
 
     const explanation: XAIExplanation = {
       method: config.method,
@@ -172,16 +188,49 @@ export class XAIService {
     };
   }
 
-  async getFeatureImportanceForModel(modelId: number): Promise<FeatureContribution[]> {
-    const model = await storage.getMlModel(modelId);
-    if (!model) return [];
+  /**
+   * Real SHAP importance for a trained regime model (e.g. "MNQ_1m").
+   * Reads diagnostics.json shap_summary and aggregates mean |SHAP|
+   * across all regimes per feature — same analytical SHAP values
+   * computed by src/ml/model_io/shap.py during training.
+   */
+  getRegimeModelImportance(modelId: string): FeatureContribution[] {
+    const modelsDir = path.join(process.cwd(), "data", "models");
+    const diag = getModelDiagnostics(modelsDir, modelId) as Record<string, unknown> | null;
+    if (!diag) return [];
 
-    return FEATURE_NAMES.slice(0, 10).map((feature, _i) => ({
-      feature,
-      value: 0,
-      contribution: Math.random() * 0.3,
-      direction: (Math.random() > 0.3 ? 'positive' : 'negative') as 'positive' | 'negative'
-    })).sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+    const shapSummary = diag.shap_summary as Array<{
+      regime_id: number;
+      top_features: Array<{ feature: string; mean_abs_shap: number; mean_shap: number }>;
+    }> | undefined;
+    const featureNames = diag.feature_names as string[] | undefined;
+
+    if (!shapSummary?.length || !featureNames?.length) return [];
+
+    // Aggregate mean_abs_shap across all regimes per feature
+    const importanceMap = new Map<string, { absShap: number; meanShap: number }>();
+    for (const regime of shapSummary) {
+      for (const feat of regime.top_features) {
+        const existing = importanceMap.get(feat.feature) ?? { absShap: 0, meanShap: 0 };
+        existing.absShap += feat.mean_abs_shap;
+        existing.meanShap += feat.mean_shap;
+        importanceMap.set(feat.feature, existing);
+      }
+    }
+
+    const nRegimes = shapSummary.length;
+    return featureNames
+      .map((name) => {
+        const data = importanceMap.get(name) ?? { absShap: 0, meanShap: 0 };
+        const importance = data.absShap / nRegimes;
+        return {
+          feature: name,
+          value: importance,
+          contribution: data.meanShap / nRegimes,
+          direction: (data.meanShap >= 0 ? 'positive' : 'negative') as 'positive' | 'negative',
+        };
+      })
+      .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
   }
 
   listMethods(): typeof XAI_METHODS {

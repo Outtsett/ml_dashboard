@@ -1,5 +1,4 @@
 import type { FeatureContribution } from '../xaiTypes';
-import { FEATURE_NAMES } from '../xaiTypes';
 import { computeFeatureImportance } from '../xaiMath';
 
 export function computeSHAP(
@@ -9,7 +8,7 @@ export function computeSHAP(
 ): FeatureContribution[] {
   const nSamples = (params.nSamples as number) || 100;
   const flatInput = input.flat();
-  const numFeatures = Math.min(flatInput.length, FEATURE_NAMES.length);
+  const numFeatures = flatInput.length;
 
   const contributions: FeatureContribution[] = [];
   const baseValue = 1 / 3;
@@ -19,7 +18,7 @@ export function computeSHAP(
     const contribution = (prediction.confidence - baseValue) * importance;
 
     contributions.push({
-      feature: FEATURE_NAMES[i] || `feature_${i}`,
+      feature: `feature_${i}`,
       value: flatInput[i]!,
       contribution,
       direction: contribution >= 0 ? 'positive' : 'negative'

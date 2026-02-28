@@ -1,5 +1,4 @@
 import type { FeatureContribution } from '../xaiTypes';
-import { FEATURE_NAMES } from '../xaiTypes';
 import { approximateGradient } from '../xaiMath';
 
 export function computeSaliency(
@@ -9,7 +8,7 @@ export function computeSaliency(
 ): FeatureContribution[] {
   const absoluteValue = (params.absoluteValue as boolean) ?? true;
   const flatInput = input.flat();
-  const numFeatures = Math.min(flatInput.length, FEATURE_NAMES.length);
+  const numFeatures = flatInput.length;
 
   const contributions: FeatureContribution[] = [];
 
@@ -18,7 +17,7 @@ export function computeSaliency(
     const saliency = absoluteValue ? Math.abs(gradient) : gradient;
 
     contributions.push({
-      feature: FEATURE_NAMES[i] || `feature_${i}`,
+      feature: `feature_${i}`,
       value: flatInput[i]!,
       contribution: saliency,
       direction: gradient >= 0 ? 'positive' : 'negative'

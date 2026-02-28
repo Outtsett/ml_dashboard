@@ -19,11 +19,6 @@ export class XaiService {
     return xaiSingleton.explainPrediction(input, config, modelId);
   }
 
-  /** Get top-10 feature importances for a trained model. */
-  getFeatureImportance(modelId: number) {
-    return xaiSingleton.getFeatureImportanceForModel(modelId);
-  }
-
   /** List all available XAI methods. */
   listMethods() {
     return xaiSingleton.listMethods();

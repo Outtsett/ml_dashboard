@@ -1,6 +1,6 @@
 # ML Dashboard
 
-Full-stack ML Dashboard for quantitative trading research. Electron desktop app + web (React 19 + Express 5) with a 3-database architecture.
+Full-stack ML Dashboard for quantitative trading research. Electron desktop app + web (React 19 + Express 5) with a 2-database architecture (SQLite + QuestDB).
 
 ## User Learning Style
 
@@ -11,7 +11,7 @@ The user is an **extreme visual learner** who cannot process abstract math or th
 - **Show data shape transformations** step-by-step (e.g., 60×31 → Conv → 30×64 → Pool → ...) so the user can trace how their data morphs through each layer
 - **Use strength/weakness trade-off badges** and side-by-side comparison matrices instead of paragraphs of prose
 - **Never assume math literacy** — translate formulas into visual or intuitive equivalents (e.g., "softmax = picks the strongest signal" not "softmax = e^x / Σe^x")
-- **Connect every concept back to the user's actual data** — their 31 features, their 60-bar windows, their OHLCV from DuckDB — not abstract examples
+- **Connect every concept back to the user's actual data** — their 29 features, their OHLCV from QuestDB — not abstract examples
 
 ## Development Hardware
 
@@ -42,31 +42,23 @@ The user is an **extreme visual learner** who cannot process abstract math or th
 
 ## Database Architecture
 
-Three databases with distinct responsibilities:
+Two databases with distinct responsibilities:
 
-| Database          | Role                                                  | Persistent? | Connection                                  |
-| ----------------- | ----------------------------------------------------- | ----------- | ------------------------------------------- |
-| **SQLite**        | App metadata: users, ML models, training, instruments | Yes         | Embedded (`data/ml_dashboard.db`)           |
-| **QuestDB 9.3.1** | Source of truth for ALL time-series data              | Yes         | HTTP `:9000`, ILP `:9009`, PG wire `:8812`  |
-| **DuckDB 1.4**    | Ephemeral analytics engine: feature gen, parquet I/O  | No          | In-memory (+ `postgres_scanner` to QuestDB) |
+| Database          | Role                                                  | Persistent? | Connection                                 |
+| ----------------- | ----------------------------------------------------- | ----------- | ------------------------------------------ |
+| **SQLite**        | App metadata: users, ML models, training, instruments | Yes         | Embedded (`data/ml_dashboard.db`)          |
+| **QuestDB 9.3.1** | Source of truth for ALL time-series data              | Yes         | HTTP `:9000`, ILP `:9009`, PG wire `:8812` |
 
 Plus file-based stores:
 
-| Store                   | Role                                                | Size  |
-| ----------------------- | --------------------------------------------------- | ----- |
-| `data/market.duckdb`    | OHLCV + rollovers (offline indicator computation)   | 44 GB |
-| `data/{futures,forex}/`  | Pre-computed 344 pandas-ta indicators per symbol   | 24 GB |
-| `data/features/`         | Normalized indicator parquets for model consumption | NEW   |
-| `data/models/`          | Trained model checkpoints (CNN, HDP-HMM)            | Var.  |
+| Store          | Role                                | Size |
+| -------------- | ----------------------------------- | ---- |
+| `data/models/` | Trained model checkpoints (HDP-HMM) | Var. |
 
 ### When to Use Which
 
 - **SQLite**: All CRUD, relationships, metadata — model registry, trade logs, backtest results, instruments, uploads, labels, ensembles, training sessions, news
-- **QuestDB**: ALL time-series queries — chart rendering (`SAMPLE BY`), training data export, trades, MBP-10 depth. Source of truth. No DuckDB fallback for serving.
-- **DuckDB in-memory**: Analytics compute engine — reads QuestDB via `postgres_scanner`, computes features via SQL window functions, reads/writes parquet files. No persistent tables.
-- **market.duckdb (file)**: Offline OHLCV + rollovers source for `compute-indicators.py`. Can also be bypassed with `--source questdb` flag.
-- **Indicator parquets**: Pre-computed pandas-ta indicators in `data/{futures,forex}/{symbol}/{tf}/` (344 columns, 9 categories per symbol)
-- **Feature parquets**: Normalized indicators in `data/features/{futures,forex}/{symbol}/{tf}/` (binary pass-through, bounded [0,1], rolling z-score clipped [-5,5])
+- **QuestDB**: ALL time-series queries — chart rendering (`SAMPLE BY`), training data (Python reads via PG wire), trades, MBP-10 depth, pre-computed indicators (`indicators_{tf}` tables), model outputs (`model_regimes`, `model_shap`)
 
 ### Database Paths (Local Installs)
 ```
@@ -74,10 +66,6 @@ SQLite:     data/ml_dashboard.db (embedded, WAL mode)
 
 QuestDB:    E:\source\databases\questdb-9.3.1-rt-windows-x86-64\
   bin:      E:\source\databases\questdb-9.3.1-rt-windows-x86-64\bin\java.exe
-
-DuckDB:     In-process, no external server
-  analytics: in-memory (ephemeral, uses postgres_scanner to attach QuestDB)
-  market:   data/market.duckdb (file-backed, used by compute-indicators.py)
 ```
 
 ### QuestDB Tables (time series — charts + training)
@@ -99,20 +87,6 @@ DuckDB:     In-process, no external server
 - JIT-compiled WHERE filters (SIMD/AVX2, ~3.3 GB/s)
 - Detach/Attach partitions for cold storage
 
-### DuckDB Roles
-
-**In-Memory Analytics** (`server/duckdb/analytics.ts`):
-- Connects to QuestDB via `postgres_scanner` extension (PG wire port 8812)
-- Computes ML features via SQL window functions (RSI, ATR, Bollinger, etc.)
-- Exports QuestDB data to parquet for Python trainers
-- No persistent tables — all ephemeral compute
-
-**File-Backed market.duckdb** (`data/market.duckdb`):
-- Contains: `ohlcv` (782M rows), `rollovers` (353 events), `ingested_files`
-- Used by `scripts/compute-indicators.py` for offline indicator computation
-- Can be bypassed: `compute-indicators.py --source questdb` reads from QuestDB directly
-- Single-writer lock on Windows — dev server or scripts, not both
-
 ### SQLite Schema (22 tables in `shared/schema.ts`)
 
 **User & Auth**: `users`
@@ -128,41 +102,26 @@ All market data uses: `ts` (TIMESTAMP), `symbol` (VARCHAR), `open`, `high`, `low
 - Futures: Panama additive back-adjustment via `rollovers` table
 - Forex: `pipSize` varies (0.0001 standard, 0.01 for JPY pairs)
 
-### Continuous Contracts
-Built via rollover schedule (in market.duckdb or QuestDB):
-1. `rollovers` table stores volume-based rollover dates + Panama price gaps
-2. `/api/continuous/:baseSymbol` joins OHLCV with schedule, applies cumulative adjustment
-3. Aggregates to any timeframe via `time_bucket()`
-4. Client can view continuous (back-adjusted) or individual contracts
-
 ### Data Pipeline
 
 ```
-QuestDB OHLCV (source of truth)
+QuestDB OHLCV (source of truth, 759.5M rows)
     |
-    +--> market.duckdb (offline copy, or --source questdb)
+    +--> Python training reads QuestDB directly (PG wire :8812)
+    |        |
+    |        v
+    |    features.py computes 29 inline features from raw OHLCV
+    |        |
+    |        v
+    |    HDP-HMM regime discovery → writes model_regimes + model_shap to QuestDB
+    |
+    +--> Offline indicator pipeline
     |        |
     |        v
     |    compute-indicators.py (344 pandas-ta indicators)
     |        |
     |        v
-    |    data/{futures|forex}/{symbol}/{tf}/{category}.parquet
-    |        |
-    |        v
-    |    normalize-indicators.py (binary/bounded/z-score normalization)
-    |        |
-    |        v
-    |    data/features/{futures|forex}/{symbol}/{tf}/normalized.parquet
-    |        |
-    |        v
-    |    Models consume pre-computed features (fallback: on-the-fly)
-    |        |-- HDP-HMM: 12 core + optional normalized indicators
-    |        |-- CNN: 30 universal features or pre-computed parquet
-    |
-    +--> DuckDB in-memory (postgres_scanner)
-    |        |
-    |        v
-    |    On-the-fly feature SQL (fallback when parquets unavailable)
+    |    upload-indicators-questdb.py → QuestDB indicators_{tf} tables
     |
     +--> Chart API (SAMPLE BY, materialized views)
 ```
@@ -208,7 +167,6 @@ server/
   training/
     registry.ts     Config reader (config/models.json, features.json, training.json)
     orchestrator.ts Central coordinator — startTraining, stopTraining, session management
-    dataExporter.ts QuestDB → parquet export for Python trainers
     runners/
       types.ts      ITrainerRunner interface, session management, SSE event buffering
       pythonRunner.ts  Spawns Python scripts, parses stdout (HDP-HMM Gibbs metrics)
@@ -221,45 +179,45 @@ server/
                     Saliency, Permutation, Feature Interaction, Calibration, Counterfactual)
     circuitBreaker.ts  Auto-disable failing DB connections
     rateLimiter.ts  API 100/min, ML 50/min, upload 10/min
-    dataPipeline.ts       ETL orchestration
     metrics.ts            Performance tracking
-  ml/               trainer.ts (MLTrainer + SSE streaming), cnn.ts, dataPipeline.ts
+  ml/               trainer.ts (MLTrainer + SSE streaming), cnn.ts
+
+ml/                 Python ML model packages
+  shared/           Shared across ALL models
+    features.py     Config-driven feature computation (29 features, 8 categories)
+    swing.py        Causal zigzag detection (no lookahead)
+    protocol.py     JSON stdout protocol (emit_progress, emit_metric, etc.)
+    data.py         QuestDB OHLCV loading via PG wire (psycopg2)
+  hdp_hmm/          Sticky HDP-HMM regime detection package
+    main.py         Entry point spawned by pythonRunner.ts (CLI + orchestration)
+    model.py        StickyHDPHMM class + Numba JIT kernels (~500 lines)
+    config.py       Model constants (K_TRUNC=20, NIG priors)
+    io/             Model-specific I/O (save, relabel, SHAP, evaluation, quality)
 
 shared/
-  schema.ts         21 PostgreSQL tables (Drizzle definitions + Zod validation)
+  schema.ts         22 SQLite tables (Drizzle definitions + Zod validation)
   mlTaxonomy.ts     ML categories, subcategories, metrics, XAI method registry (~1600 lines)
   trainingTypes.ts  Universal training types (TrainingRequest, SSE events, overlay payloads)
 
 config/
   models.json       Model registry (hdp-hmm, cnn-universal — runner, script, hyperparams)
-  features.json     Feature pipeline defaults (hdp-hmm-12, universal-30)
+  features.json     Feature registry (29 features, 8 categories, normalization config)
   training.json     Infrastructure: paths, limits, timeframe map
 
 scripts/
-  ingest-futures.ts    Migrate futures from analytics.duckdb -> market.duckdb (720M rows)
-  ingest-forex.ts      Migrate forex from forex.duckdb + parquets -> market.duckdb (103M rows)
-  ingest-trades.ts     Ingest merged_trades_all.parquet -> market.duckdb trades table
-  ingest-mbp10.ts      Ingest MBP-10 depth CSVs -> market.duckdb mbp10 table (210GB source)
-  fast-questdb-sync.ts Bulk CSV sync DuckDB OHLCV -> QuestDB via /imp (754K rows/sec)
-  sync-trades-questdb.ts  Sync trades DuckDB -> QuestDB (14.5M rows)
-  sync-mbp10-questdb.ts   Sync MBP-10 depth DuckDB -> QuestDB (408.8M rows)
-  sync-to-questdb.ts   Legacy ILP sync (slow, replaced by fast-questdb-sync)
-  compute-rollovers.ts Volume-based rollover detection + Panama adjustment (353 events, 8 roots)
-  compute-indicators.py  Batch compute ALL pandas-ta indicators (344 columns, 25 symbols × 8 timeframes)
-  seed-instruments.ts  Upsert 25 instruments (8 futures + 17 forex)
-  convert-dbn-trades.py  Convert .dbn binary -> parquet via databento Python lib
-  inspect-sources.ts   Inspect source data files
+  compute-indicators.py        Batch compute ALL pandas-ta indicators (344 columns, 25 symbols × 8 timeframes)
+  upload-indicators-questdb.py Upload indicator parquets to QuestDB indicators_{tf} tables
+  seed-instruments.ts          Upsert 25 instruments (8 futures + 17 forex)
+  inspect-sources.ts           Inspect source data files
 
 electron/
   main.cjs             Electron main process
-  start-databases.cjs  Database lifecycle (pg_ctl + QuestDB java.exe)
+  start-databases.cjs  Database lifecycle (QuestDB java.exe)
   preload.cjs          Preload script
 
 data/
-  sources/             Raw data files (analytics.duckdb, forex.duckdb)
-  sources/forex/       17 forex pair parquets (6Y of M1 data each)
-  market.duckdb        Clean market data (782M OHLCV + 14.5M trades + 408.8M MBP-10)
-  indicators/          Pre-computed pandas-ta indicator parquets (25 symbols × 8 timeframes)
+  ml_dashboard.db      SQLite database (WAL mode)
+  models/              Trained model checkpoints (HDP-HMM)
 ```
 
 ## Path Aliases (tsconfig.json)
@@ -283,7 +241,7 @@ All new code **must** follow SOLID. Apply everywhere — routes, components, hoo
 ### OCP — Open/Closed
 > Add new behavior by adding new code, not by editing existing code.
 
-- **ML models**: Add via `config/models.json` registry — never modify `orchestrator.ts` to hardcode a new runner.
+- **ML models**: New model = new directory in `src/ml/` following `hdp_hmm/` pattern (main.py, model.py, config.py, io/) + entry in `config/models.json`. Shared utils live in `src/ml/shared/`.
 - **Indicators**: Add SQL indicator entry to `sqlGenerator.ts` registry map — never add `if (name === 'x')` branches.
 - **Label generators**: Add to `sqlLabelGenerators.ts` registry — callers iterate the registry, never reference specific types.
 - **React pages**: New file in `client/src/pages/` + one route entry in `App.tsx` — no other files change.
@@ -292,7 +250,7 @@ All new code **must** follow SOLID. Apply everywhere — routes, components, hoo
 > Any implementation of an interface must be a drop-in replacement.
 
 - **`ITrainerRunner`**: `PythonRunner` and `TfjsRunner` are fully interchangeable — the orchestrator never uses `instanceof` to branch behavior.
-- **`marketQuery<T>()`**: Always returns `T[]` — callers trust the return contract, no `undefined` or `BigInt[]` surprises.
+- **`questdbHttpQuery<T>()`**: Always returns `T[]` — callers trust the return contract, no surprises.
 - **React components**: If a prop type says `Trade[]`, every valid `Trade[]` must work — no hidden shape assumptions.
 
 ### ISP — Interface Segregation
@@ -308,21 +266,19 @@ All new code **must** follow SOLID. Apply everywhere — routes, components, hoo
 
 - **Routes → Storage**: Route handlers call `storage.*` (abstraction) — never call `db.select().from(table)` directly inside a route.
 - **Orchestrator → Runner**: `TrainingOrchestrator` depends on `ITrainerRunner` interface — never imports `PythonRunner` or `TfjsRunner` directly; receives runner via factory.
-- **DuckDB access**: All code calls `marketQuery()` abstraction — never references `marketConn` directly.
+- **QuestDB access**: All code calls `questdbHttpQuery()` / `getOHLCVSampleBy()` abstractions — never constructs raw HTTP requests directly.
 - **React → API**: Components depend on TanStack Query hooks — never call `fetch('/api/...')` directly inside a component body.
 
 ## Key Architectural Patterns
 
 - **EventEmitter training**: `MLTrainer extends EventEmitter` emits progress events per epoch. Frontend connects via SSE at `GET /ml/train/stream`.
-- **SQL-first indicators/labels**: DuckDB SQL window functions for batch processing. Direction labels and triple barrier labels generate via SQL CTEs, not row-by-row.
-- **Pre-computed indicators**: pandas-ta `AllStudy` computes 344 indicator columns (9 categories: overlap, momentum, volatility, volume, trend, candle, statistics, cycle, performance). Stored as parquet files in `data/{futures,forex}/{symbol}/{tf}/`, served via `/api/indicators/data/:symbol`.
-- **No continuous contracts / Panama adjustment**: Individual contracts only. Rollover stitching removed (bad for ML).
+- **Config-driven features**: `src/config/features.json` is the single source of truth for all 29 features across 8 categories. Python `features.py` reads this config via dispatch table. Adding a feature = add JSON entry.
+- **Pre-computed indicators**: pandas-ta computes 344 indicator columns (9 categories). Stored in QuestDB `indicators_{tf}` tables, served via `/api/indicators/data/:symbol`.
+- **No continuous contracts / Panama adjustment**: Individual contracts only (bad for ML).
 - **Circuit breaker**: Auto-disable failing DB connections. States: closed (normal), open (failing, fast-fail), half-open (testing). Reset via `POST /circuit-breaker/reset/:name`.
-- **File-level dedup**: SHA-256 hash tracking in `ingested_files` DuckDB table prevents re-ingestion.
-- **Mutex serialization**: File-backed DuckDB (`market.duckdb`) needs serialized access via Mutex class.
-- **Chart data flow**: QuestDB `SAMPLE BY` for all chart candles. No DuckDB fallback. Individual contracts only.
-- **Training data flow**: QuestDB `SAMPLE BY` → export to parquet via DuckDB in-memory (analytics utility) → Python trainer reads parquet.
-- **QuestDB bulk sync**: CSV export from DuckDB -> upload via QuestDB `/imp` REST endpoint. Scripts: `fast-questdb-sync.ts` (OHLCV), `sync-trades-questdb.ts`, `sync-mbp10-questdb.ts`.
+- **File-level dedup**: SHA-256 hash tracking in SQLite `ingested_files` table prevents re-ingestion.
+- **Chart data flow**: QuestDB `SAMPLE BY` for all chart candles. Individual contracts only.
+- **Training data flow**: Python reads QuestDB directly via PG wire (psycopg2), computes features inline, writes results back to QuestDB via HTTP `/imp`.
 
 ## API Route Map (11 routers on `/api`)
 
@@ -344,10 +300,10 @@ All new code **must** follow SOLID. Apply everywhere — routes, components, hoo
 ## Dev Commands
 
 ```bash
-# Start databases (PostgreSQL + QuestDB)
+# Start QuestDB
 node electron/start-databases.cjs
 
-# Push Drizzle schema changes to PostgreSQL
+# Push Drizzle schema changes to SQLite
 npx drizzle-kit push
 
 # Run dev server (Express API + Vite HMR on port 5000)
@@ -365,18 +321,11 @@ npm run check
 # Build for production
 npm run build
 
-# Data pipeline scripts
-npx tsx scripts/ingest-futures.ts          # Futures OHLCV -> DuckDB (720M rows)
-npx tsx scripts/ingest-forex.ts            # Forex OHLCV -> DuckDB (103M rows)
-npx tsx scripts/ingest-trades.ts           # Trades -> DuckDB (14.5M rows)
-npx tsx scripts/ingest-mbp10.ts            # MBP-10 depth -> DuckDB (408.8M rows)
-npx tsx scripts/fast-questdb-sync.ts       # DuckDB OHLCV -> QuestDB bulk CSV (759.5M rows)
-npx tsx scripts/sync-trades-questdb.ts     # DuckDB trades -> QuestDB (14.5M rows)
-npx tsx scripts/sync-mbp10-questdb.ts      # DuckDB MBP-10 -> QuestDB (408.8M rows)
-npx tsx scripts/compute-rollovers.ts       # Volume-based rollover detection (353 events)
+# Offline scripts
 npx tsx scripts/seed-instruments.ts        # Upsert 25 instruments
 python scripts/compute-indicators.py       # ALL pandas-ta indicators (344 columns, 200 files)
 python scripts/compute-indicators.py --symbol ES --timeframe 1d  # Single combo
+python scripts/upload-indicators-questdb.py  # Upload indicator parquets to QuestDB
 ```
 
 ## NPM Scripts
@@ -390,7 +339,7 @@ python scripts/compute-indicators.py --symbol ES --timeframe 1d  # Single combo
 | `electron:dev`   | Start DBs + dev + Electron                  |
 | `build:electron` | Build + Electron NSIS installer             |
 | `start:desktop`  | Launch Electron app                         |
-| `db:push`        | Drizzle schema push to PostgreSQL           |
+| `db:push`        | Drizzle schema push to SQLite               |
 | `check`          | TypeScript type check                       |
 | `test`           | Vitest run                                  |
 | `test:watch`     | Vitest watch mode                           |
@@ -398,7 +347,6 @@ python scripts/compute-indicators.py --symbol ES --timeframe 1d  # Single combo
 ## Environment Variables (.env)
 
 ```
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ml_dashboard
 QUESTDB_HOST=localhost
 QUESTDB_ILP_PORT=9009
 QUESTDB_PG_PORT=8812
@@ -444,23 +392,69 @@ Also available: 13 core indicators via TypeScript SQL generators for realtime co
 ### XAI Methods (9)
 SHAP, Permutation Importance, GradCAM, Integrated Gradients, Saliency Maps, LIME, Feature Interactions, Confidence Calibration, Counterfactuals
 
+## Naming Convention
+
+Filenames are **operational interfaces**, not descriptions. Names declare what a module *does*, not what it *is about*.
+
+### Level 1 — Domain Directories
+- **Exactly one word** — names an operational domain or process stage.
+- Absorbs semantic context so children don't repeat it.
+
+```
+server/
+  training/       ✅  (domain: training)
+  routes/         ✅  (domain: routing)
+  lib/            ✅  (domain: shared utilities)
+```
+
+### Level 2 — Component Files
+- **One word by default** (`orchestrator.ts`, `registry.ts`, `runner.ts`).
+- **Two words (snake_case) only when**:
+  - No single atomic term exists (`circuit_breaker.ts`)
+  - The file is a system boundary (`python_runner.ts`)
+  - A sibling collision would otherwise occur
+
+```
+server/training/
+  orchestrator.ts   ✅  one word — role is clear from parent
+  registry.ts       ✅  one word
+  runners/
+    types.ts        ✅  one word
+    python_runner.ts ✅  two words — system boundary (Python ↔ Node)
+    tfjs_runner.ts   ✅  two words — system boundary
+```
+
+### Constraints
+- Names must be **minimal relative to directory context** — the parent directory provides scope.
+- **More than two tokens = mis-scoped abstraction** — refactor the module or restructure the directory.
+- **No metaphors, no outcomes, no interpretations** — name the mechanism, not the effect.
+
+```
+❌ training_session_manager.ts   → 3 tokens, parent is training/
+✅ sessions.ts                   → parent provides "training" context
+
+❌ smart_feature_picker.ts       → metaphor ("smart")
+✅ selector.ts                   → mechanism
+
+❌ profit_calculator.ts          → outcome
+✅ returns.ts                    → domain
+```
+
 ## Common Pitfalls
 
-- **Windows paths**: Use forward slashes in Node.js code and DuckDB SQL (`read_parquet('E:/data/file.parquet')`), backslashes in shell commands
+- **Windows paths**: Use forward slashes in Node.js code, backslashes in shell commands
 - **npx shims**: Use `npx tsx` not `tsx` directly on Windows; or use `npm run` scripts
 - **`--env-file` flag**: Requires Node 20.6+; the dev script uses `node --env-file=.env --import tsx`
-- **DuckDB BigInt**: `COUNT(*)` and `epoch_ms()` return BigInt; cast to DOUBLE in SQL or wrap with `Number()` in JS for JSON serialization
-- **DuckDB file lock**: File-backed DB (`market.duckdb`) allows only one writer. Dev server holds the lock — kill node processes before running scripts that write to DuckDB. Python scripts should use `read_only=True` when possible.
-- **DuckDB mutex**: File-backed access needs serialized access via the Mutex class in `market.ts`
-- **DuckDB volume type**: `volume` is `BIGINT` in DuckDB market tables, not `DOUBLE`
 - **Rate limits**: API 100/min, ML 50/min, upload 10/min
 - **QuestDB startup**: Uses `java.exe` directly (not questdb.exe as a service); PID saved to `.questdb.pid`
-- **QuestDB dedup**: UPSERT KEYS(symbol, timestamp) reduces 782M DuckDB rows to 759.5M QuestDB rows (22.6M duplicates)
+- **QuestDB LIMIT syntax**: `LIMIT offset, count` (NOT `LIMIT count OFFSET offset`)
+- **QuestDB count**: `count()` (NOT `COUNT(*)`)
+- **QuestDB cast**: `CAST(x AS INT)` (NOT `CAST(x AS INTEGER)`)
+- **QuestDB /imp timestamps**: Require `T` separator (not space), no timezone offset like `+00`
+- **QuestDB `nm=true`**: Strips `columns` metadata from `/exec` response — do NOT use if code needs column names
 - **Vite dev vs production**: Vite middleware only loaded in development; production uses static file serving from `dist/`
 - **Schema push**: Always run `npx drizzle-kit push` after modifying `shared/schema.ts`
-- **MACD SQL approximation**: DuckDB SQL uses SMA approximation for MACD (true EMA needs recursive CTEs). TypeScript calc uses true EMA. Results differ slightly. Pre-computed pandas-ta indicators use true EMA.
-- **TimescaleDB extension**: Must `CREATE EXTENSION IF NOT EXISTS timescaledb` before creating hypertables
-- **Indicator parquets**: Read via DuckDB `read_parquet()` — columns include pandas-ta naming convention (e.g., `SMA_10`, `RSI_14`, `BBL_20_2.0`, `CDL_DOJI_10_0.1`)
+- **Indicator column names**: pandas-ta naming convention with dots/percent sanitized (e.g., `BBL_20_2.0` → `BBL_20_2_0`, `%` → `pct`)
 
 ## Claude Skills
 

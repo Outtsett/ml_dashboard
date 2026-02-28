@@ -52,7 +52,7 @@ export const isSafeReadOnlyQuery = (sql: string): { safe: boolean; error?: strin
     return { safe: false, error: 'Multiple statements are not allowed' };
   }
 
-  // Block dangerous SQLite/DuckDB filesystem and extension functions
+  // Block dangerous filesystem and extension functions in read-only queries
   const dangerousFunctions = /\b(read_csv|read_json|read_parquet|readfile|writefile|load_extension|fts3_tokenizer)\s*\(/i;
   if (dangerousFunctions.test(sql)) {
     return { safe: false, error: 'Filesystem and extension functions are not allowed in queries' };

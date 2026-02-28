@@ -1,4 +1,58 @@
 {
+  "version": 2,
+  "categories": {
+    "returns":         { "name": "Returns",                 "description": "Log returns at various horizons" },
+    "volatility":      { "name": "Realized Volatility",     "description": "Rolling std of returns" },
+    "parkinson":       { "name": "Range-Based Volatility",  "description": "Parkinson high-low volatility estimator" },
+    "volume":          { "name": "Volume Dynamics",         "description": "Relative volume ratios" },
+    "price_structure": { "name": "Price Structure",         "description": "Candle anatomy features" },
+    "momentum":        { "name": "Rate of Change",          "description": "Price momentum at multiple horizons" },
+    "ma_distance":     { "name": "Moving Average Distance", "description": "Distance from moving averages" },
+    "swing":           { "name": "Swing Structure",         "description": "Causal zigzag pivot detection (no lookahead)" }
+  },
+  "features": [
+    { "name": "return_1",         "category": "returns",         "type": "log_return",    "params": { "horizon": 1 },  "requires": ["close"], "description": "1-bar log return" },
+    { "name": "return_5",         "category": "returns",         "type": "log_return",    "params": { "horizon": 5 },  "requires": ["close"], "description": "5-bar cumulative log return" },
+    { "name": "return_10",        "category": "returns",         "type": "log_return",    "params": { "horizon": 10 }, "requires": ["close"], "description": "10-bar cumulative log return" },
+    { "name": "return_20",        "category": "returns",         "type": "log_return",    "params": { "horizon": 20 }, "requires": ["close"], "description": "20-bar cumulative log return" },
+
+    { "name": "volatility_10",    "category": "volatility",      "type": "realized_vol",  "params": { "window": 10 }, "requires": ["close"], "description": "10-bar rolling std of returns" },
+    { "name": "volatility_20",    "category": "volatility",      "type": "realized_vol",  "params": { "window": 20 }, "requires": ["close"], "description": "20-bar rolling std of returns" },
+    { "name": "volatility_50",    "category": "volatility",      "type": "realized_vol",  "params": { "window": 50 }, "requires": ["close"], "description": "50-bar rolling std of returns" },
+
+    { "name": "parkinson_vol_10", "category": "parkinson",       "type": "parkinson_vol", "params": { "window": 10 }, "requires": ["high", "low"], "description": "10-bar Parkinson volatility" },
+    { "name": "parkinson_vol_20", "category": "parkinson",       "type": "parkinson_vol", "params": { "window": 20 }, "requires": ["high", "low"], "description": "20-bar Parkinson volatility" },
+
+    { "name": "volume_ratio_10",  "category": "volume",          "type": "volume_ratio",  "params": { "window": 10 }, "requires": ["volume"], "description": "Volume / 10-bar average" },
+    { "name": "volume_ratio_20",  "category": "volume",          "type": "volume_ratio",  "params": { "window": 20 }, "requires": ["volume"], "description": "Volume / 20-bar average" },
+
+    { "name": "bar_range",        "category": "price_structure",  "type": "bar_range",     "params": {}, "requires": ["high", "low", "close"],         "description": "Normalized bar range (H-L)/close" },
+    { "name": "body_ratio",       "category": "price_structure",  "type": "body_ratio",    "params": {}, "requires": ["open", "high", "low", "close"], "description": "|close-open|/(H-L)" },
+    { "name": "upper_shadow",     "category": "price_structure",  "type": "upper_shadow",  "params": {}, "requires": ["open", "high", "low", "close"], "description": "Upper wick ratio" },
+    { "name": "lower_shadow",     "category": "price_structure",  "type": "lower_shadow",  "params": {}, "requires": ["open", "high", "low", "close"], "description": "Lower wick ratio" },
+
+    { "name": "roc_5",            "category": "momentum",         "type": "rate_of_change", "params": { "horizon": 5 },  "requires": ["close"], "description": "5-bar rate of change" },
+    { "name": "roc_10",           "category": "momentum",         "type": "rate_of_change", "params": { "horizon": 10 }, "requires": ["close"], "description": "10-bar rate of change" },
+    { "name": "roc_20",           "category": "momentum",         "type": "rate_of_change", "params": { "horizon": 20 }, "requires": ["close"], "description": "20-bar rate of change" },
+
+    { "name": "ma_dist_10",       "category": "ma_distance",      "type": "ma_distance",    "params": { "window": 10 }, "requires": ["close"], "description": "Distance from 10-bar SMA" },
+    { "name": "ma_dist_20",       "category": "ma_distance",      "type": "ma_distance",    "params": { "window": 20 }, "requires": ["close"], "description": "Distance from 20-bar SMA" },
+    { "name": "ma_dist_50",       "category": "ma_distance",      "type": "ma_distance",    "params": { "window": 50 }, "requires": ["close"], "description": "Distance from 50-bar SMA" },
+
+    { "name": "swing_direction",    "category": "swing", "type": "swing", "params": {}, "requires": ["high", "low", "close"], "description": "Current swing direction (+1 up, -1 down)" },
+    { "name": "swing_pct",          "category": "swing", "type": "swing", "params": {}, "requires": ["high", "low", "close"], "description": "% move from last confirmed pivot" },
+    { "name": "swing_duration",     "category": "swing", "type": "swing", "params": {}, "requires": ["high", "low", "close"], "description": "Bars since last confirmed pivot" },
+    { "name": "swing_velocity",     "category": "swing", "type": "swing", "params": {}, "requires": ["high", "low", "close"], "description": "Swing move rate per bar" },
+    { "name": "prev_swing_pct",     "category": "swing", "type": "swing", "params": {}, "requires": ["high", "low", "close"], "description": "Previous completed swing magnitude" },
+    { "name": "prev_swing_duration","category": "swing", "type": "swing", "params": {}, "requires": ["high", "low", "close"], "description": "Previous swing duration" },
+    { "name": "retracement_ratio",  "category": "swing", "type": "swing", "params": {}, "requires": ["high", "low", "close"], "description": "Current/previous swing ratio (Fibonacci-like)" },
+    { "name": "swing_count_50",     "category": "swing", "type": "swing", "params": {}, "requires": ["high", "low", "close"], "description": "Confirmed pivots in 50-bar window" }
+  ],
+  "normalization": {
+    "method": "rolling_zscore",
+    "lookback": 250,
+    "clip": [-5, 5]
+  },
   "pipelines": {
     "self-contained": {
       "name": "Self-Contained",

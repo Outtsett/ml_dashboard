@@ -15,7 +15,7 @@ const QUESTDB_HTTP_URL = `http://${QUESTDB_HOST}:${QUESTDB_HTTP_PORT}`;
  * Use this for HTTP-only features like SHOW COLUMNS.
  */
 export async function questdbHttpQuery<T = Record<string, unknown>>(sql: string): Promise<T[]> {
-  const resp = await fetch(`${QUESTDB_HTTP_URL}/exec?query=${encodeURIComponent(sql)}&nm=true`);
+  const resp = await fetch(`${QUESTDB_HTTP_URL}/exec?query=${encodeURIComponent(sql)}`);
   if (!resp.ok) {
     const body = await resp.text();
     throw new Error(`QuestDB HTTP query failed (${resp.status}): ${body.slice(0, 200)}`);

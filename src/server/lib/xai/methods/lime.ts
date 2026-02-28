@@ -1,5 +1,4 @@
 import type { FeatureContribution } from '../xaiTypes';
-import { FEATURE_NAMES } from '../xaiTypes';
 import { euclideanDistance } from '../xaiMath';
 
 export function computeLIME(
@@ -10,7 +9,7 @@ export function computeLIME(
   const nSamples = (params.nSamples as number) || 1000;
   const kernelWidth = (params.kernelWidth as number) || 0.75;
   const flatInput = input.flat();
-  const numFeatures = Math.min(flatInput.length, FEATURE_NAMES.length);
+  const numFeatures = flatInput.length;
 
   const coefficients: number[] = new Array(numFeatures).fill(0);
 
@@ -32,7 +31,7 @@ export function computeLIME(
   for (let i = 0; i < numFeatures; i++) {
     const coef = coefficients[i]! / nSamples;
     contributions.push({
-      feature: FEATURE_NAMES[i] || `feature_${i}`,
+      feature: `feature_${i}`,
       value: flatInput[i]!,
       contribution: coef,
       direction: coef >= 0 ? 'positive' : 'negative'

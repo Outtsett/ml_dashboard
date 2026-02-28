@@ -2,7 +2,7 @@
  * XAI Service — Barrel re-export
  *
  * All implementation has been split into:
- *   - xaiTypes.ts       — Interfaces, types, FEATURE_NAMES constant
+ *   - xaiTypes.ts       — Interfaces and types
  *   - xaiMethods.ts     — Standalone XAI compute & summary functions
  *   - xaiServiceCore.ts — XAIService class + singleton instance
  */
@@ -18,7 +18,6 @@ export type {
   XAIConfig,
   PredictionWithExplanation,
 } from './xaiTypes';
-export { FEATURE_NAMES } from './xaiTypes';
 
 // Re-export method functions for direct use
 export {

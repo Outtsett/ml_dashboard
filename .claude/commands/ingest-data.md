@@ -1,78 +1,36 @@
 # Data Ingestion
 
-Load market data into the ML Dashboard's DuckDB market database, sync to QuestDB, and compute indicators.
+Upload market data into the ML Dashboard via QuestDB and compute indicators.
 
 ## Usage: /ingest-data [action]
 
-Actions: futures, forex, trades, mbp10, sync, indicators, rollovers, status, seed
+Actions: upload, indicators, seed, status
 
-### futures
-Ingest futures data from analytics.duckdb into market.duckdb:
-```bash
-npx tsx scripts/ingest-futures.ts
-```
-Source: `data/sources/analytics.duckdb` (720M+ rows, 1s bars)
-Maps instrument_id → symbol via instruments table JOIN.
-
-### forex
-Ingest forex data from forex.duckdb and loose parquets into market.duckdb:
-```bash
-npx tsx scripts/ingest-forex.ts
-```
-Sources: `data/sources/forex.duckdb` (native_bars M1) + `data/sources/*.parquet`
-
-### trades
-Ingest tick-level trade data from Databento DBN files:
-```bash
-npx tsx scripts/ingest-trades.ts
-```
-Source: `data/sources/trades/*.dbn.zst` → DuckDB trades table (14.5M rows)
-Uses `convert-dbn-trades.py` for DBN→parquet conversion.
-
-### mbp10
-Ingest MBP-10 order book snapshots from Databento DBN files:
-```bash
-npx tsx scripts/ingest-mbp10.ts
-```
-Source: `data/sources/mbp10/*.dbn.zst` → DuckDB mbp10 table (408.8M rows)
-
-### sync
-Sync DuckDB market data to QuestDB using bulk CSV:
-```bash
-npx tsx scripts/fast-questdb-sync.ts
-```
-Uses QuestDB `/imp` CSV endpoint (754K rows/sec). Syncs in batches.
-Requires QuestDB running on port 9000.
+### upload
+Upload market data files via the web UI or API:
+- POST `/api/upload` — supports CSV, ZST, Parquet, DBN (500MB max)
+- Standardizes columns on ingestion (`ts_event` → `ts`, `instrument_id` → `symbol`)
+- Ingests into QuestDB via ILP protocol (port 9009)
+- SHA-256 file dedup tracked in SQLite `ingested_files` table
 
 ### indicators
-Compute all pandas-ta indicators for every symbol × timeframe:
+Compute all pandas-ta indicators for every symbol × timeframe, then upload to QuestDB:
+
+**Step 1 — Compute indicators** (outputs parquet files):
 ```bash
 python scripts/compute-indicators.py
-python scripts/compute-indicators.py --symbols ES,MNQ --timeframes 1d,1h
+python scripts/compute-indicators.py --symbol ES --timeframe 1d
 ```
-- Outputs to `data/{futures|forex}/{symbol}/{timeframe}/{category}.parquet`
-- 25 symbols × 8 timeframes, ~350 columns each (9 category parquets per combo)
-- Futures: builds continuous contract from DuckDB (Panama adjustment)
-- Forex: reads directly from ohlcv table
-- **Important**: Kill dev server first — DuckDB file lock prevents read_only access
-- Requires: `pip install pandas-ta duckdb pyarrow` (in .venv)
+- 25 symbols × 8 timeframes, ~344 columns each (9 category parquets per combo)
+- Requires: `pip install pandas-ta duckdb pyarrow` (in .venv; duckdb used by offline script only)
 
-### rollovers
-Compute futures contract rollovers from DuckDB volume data:
+**Step 2 — Upload to QuestDB**:
 ```bash
-npx tsx scripts/compute-rollovers.ts
+python scripts/upload-indicators-questdb.py
+python scripts/upload-indicators-questdb.py --symbol ES --timeframe 1d
 ```
-- Volume-based daily detection across 8 roots (ES, NQ, YM, RTY, MNQ, MES, MYM, M2K)
-- Writes to DuckDB `rollovers` table + syncs to PG `contract_rollovers`
-- 353 rollover events total
-- Panama additive back-adjustment (cumulative price gap)
-
-### status
-Check ingestion status:
-1. Query `data/market.duckdb` for row counts per symbol
-2. Check `ingested_files` table for processed file history
-3. Compare QuestDB row counts vs DuckDB counts
-4. Check `data/{futures,forex}/` for parquet file count + size
+- Writes to `indicators_{tf}` tables in QuestDB
+- Column name sanitization: dots → underscores, `%` → `pct`
 
 ### seed
 Seed instruments table with 25 known instruments:
@@ -81,30 +39,27 @@ npx tsx scripts/seed-instruments.ts
 ```
 8 futures (MNQ, MES, MYM, M2K, ES, NQ, YM, RTY) + 17 forex pairs with pip sizes.
 
+### status
+Check ingestion status:
+1. Query QuestDB for row counts per table (`ohlcv`, `trades`, `mbp10`, `indicators_*`)
+2. Query QuestDB for distinct symbol counts
+3. Check SQLite `ingested_files` table for processed file history
+
 ## Standardized Schema
-All data normalizes to: ts, symbol, open, high, low, close, volume
-- Futures: Panama additive back-adjustment for rollovers (volume-based daily detection from DuckDB)
+All data normalizes to: `symbol`, `timestamp`, `open`, `high`, `low`, `close`, `volume`
 - Forex: pip precision varies (0.0001 standard, 0.01 JPY pairs)
 
 ## Data Volumes
-| Table | Rows | Source |
-|-------|------|--------|
-| DuckDB ohlcv | 782M | futures + forex 1s bars |
-| DuckDB trades | 14.5M | Databento tick data |
-| DuckDB mbp10 | 408.8M | Databento order book |
-| DuckDB rollovers | 353 | Volume-based detection |
-| QuestDB ohlcv_1s | 759.5M | Bulk CSV sync from DuckDB |
-| Indicator parquets | 200 files | pandas-ta AllStudy (~350 cols each) |
+| Table | Rows | Description |
+|-------|------|-------------|
+| QuestDB ohlcv | 759.5M | Futures + forex 1s bars |
+| QuestDB trades | 12.9M | Tick-level trade data |
+| QuestDB mbp10 | 408.8M | 10-level order book |
+| QuestDB indicators_{tf} | Varies | 7 timeframe tables, 344 columns each |
 
 ## Scripts Reference
 | Script | Language | Purpose |
 |--------|----------|---------|
-| `ingest-futures.ts` | TypeScript | analytics.duckdb → market.duckdb |
-| `ingest-forex.ts` | TypeScript | forex.duckdb + parquets → market.duckdb |
-| `ingest-trades.ts` | TypeScript | DBN trade files → DuckDB trades |
-| `ingest-mbp10.ts` | TypeScript | DBN book files → DuckDB mbp10 |
-| `fast-questdb-sync.ts` | TypeScript | DuckDB → QuestDB bulk CSV |
-| `compute-rollovers.ts` | TypeScript | DuckDB volume → rollovers table |
-| `compute-indicators.py` | Python | OHLCV → parquet indicator files |
-| `seed-instruments.ts` | TypeScript | Populate PG instruments table |
-| `convert-dbn-trades.py` | Python | DBN→parquet conversion utility |
+| `compute-indicators.py` | Python | OHLCV → indicator parquet files |
+| `upload-indicators-questdb.py` | Python | Indicator parquets → QuestDB tables |
+| `seed-instruments.ts` | TypeScript | Populate SQLite instruments table |

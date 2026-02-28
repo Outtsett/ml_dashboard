@@ -1,10 +1,7 @@
 {
   "paths": {
     "pythonExe": ".venv/Scripts/python.exe",
-    "modelsDir": "data/models",
-    "dataDir": "data",
-    "indicatorsDir": "data",
-    "marketDb": "data/market.duckdb"
+    "modelsDir": "data/models"
   },
   "limits": {
     "maxConcurrentJobs": 1,

@@ -25,11 +25,25 @@ const CONFIG_DIR = path.join(process.cwd(), "src", "config");
 const IS_DEV = process.env.NODE_ENV !== "production";
 
 let modelsConfig: ModelRegistry | null = null;
-let featuresConfig: {
+interface FeatureDefinition {
+  name: string;
+  category: string;
+  type: string;
+  params: Record<string, number>;
+  requires: string[];
+  description: string;
+}
+
+interface FeaturesConfig {
+  version?: number;
+  categories?: Record<string, { name: string; description: string }>;
+  features?: FeatureDefinition[];
+  normalization?: { method: string; lookback: number; clip: number[] };
   pipelines?: Record<string, Record<string, unknown>>;
   featureSets?: Record<string, Record<string, unknown>>;
-  [key: string]: any;
-} | null = null;
+}
+
+let featuresConfig: FeaturesConfig | null = null;
 let trainingConfig: TrainingConfig | null = null;
 
 /** Track file mtimes for dev-mode auto-reload */
@@ -63,7 +77,7 @@ function ensureLoaded() {
     modelsConfig = loadJSON<ModelRegistry>("models.json");
   }
   if (!featuresConfig) {
-    featuresConfig = loadJSON<typeof featuresConfig>("features.json");
+    featuresConfig = loadJSON<FeaturesConfig>("features.json");
   }
   if (!trainingConfig) {
     trainingConfig = loadJSON<TrainingConfig>("training.json");
@@ -106,6 +120,24 @@ export function getFeatureSet(setId: string): Record<string, unknown> | null {
 export function listFeatureSets(): Record<string, Record<string, unknown>> {
   ensureLoaded();
   return featuresConfig!.featureSets ?? {};
+}
+
+/** Get all feature categories */
+export function getFeatureCategories(): Record<string, { name: string; description: string }> {
+  ensureLoaded();
+  return featuresConfig!.categories ?? {};
+}
+
+/** Get full feature catalog (all defined features) */
+export function getFeatureCatalog(): FeatureDefinition[] {
+  ensureLoaded();
+  return featuresConfig!.features ?? [];
+}
+
+/** Get normalization config */
+export function getNormalizationConfig(): { method: string; lookback: number; clip: number[] } | null {
+  ensureLoaded();
+  return featuresConfig!.normalization ?? null;
 }
 
 /** Get training infrastructure config (paths, limits, timeframes) */

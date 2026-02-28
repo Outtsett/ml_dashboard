@@ -1,5 +1,4 @@
 import type { CounterfactualExample } from '../xaiTypes';
-import { FEATURE_NAMES } from '../xaiTypes';
 import { sampleIndices } from '../xaiMath';
 
 export function computeCounterfactuals(
@@ -10,7 +9,7 @@ export function computeCounterfactuals(
   const nExamples = (params.nExamples as number) || 3;
   const maxChanges = (params.maxChanges as number) || 5;
   const flatInput = input.flat();
-  const numFeatures = Math.min(flatInput.length, FEATURE_NAMES.length);
+  const numFeatures = flatInput.length;
 
   const counterfactuals: CounterfactualExample[] = [];
   const targetClasses = [0, 1, 2].filter(c => c !== prediction.class);
@@ -28,7 +27,7 @@ export function computeCounterfactuals(
       const to = from + changeMagnitude;
 
       changes.push({
-        feature: FEATURE_NAMES[idx] || `feature_${idx}`,
+        feature: `feature_${idx}`,
         from,
         to
       });

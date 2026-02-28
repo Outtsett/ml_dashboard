@@ -1,5 +1,4 @@
 import type { FeatureContribution } from '../xaiTypes';
-import { FEATURE_NAMES } from '../xaiTypes';
 import { approximateGradient } from '../xaiMath';
 
 export function computeIntegratedGradients(
@@ -9,7 +8,7 @@ export function computeIntegratedGradients(
 ): FeatureContribution[] {
   const nSteps = (params.nSteps as number) || 50;
   const flatInput = input.flat();
-  const numFeatures = Math.min(flatInput.length, FEATURE_NAMES.length);
+  const numFeatures = flatInput.length;
 
   const contributions: FeatureContribution[] = [];
 
@@ -24,7 +23,7 @@ export function computeIntegratedGradients(
     }
 
     contributions.push({
-      feature: FEATURE_NAMES[i] || `feature_${i}`,
+      feature: `feature_${i}`,
       value: featureValue,
       contribution: integral,
       direction: integral >= 0 ? 'positive' : 'negative'

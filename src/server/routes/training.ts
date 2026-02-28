@@ -59,6 +59,8 @@ const trainingRequestSchema = z.object({
     z.string().max(100).regex(/^[a-zA-Z0-9_.\-]+$/, "Unsafe hyperparameter value"),
     z.boolean(),
   ])).optional(),
+  maxBars: z.number().int().min(0).max(10000000).optional(),
+  featureCategories: z.array(z.string().max(50).regex(/^[a-z_]+$/, "Invalid category name")).optional(),
   includeIndicators: z.boolean().optional(),
   allFeatures: z.boolean().optional(),
   indicatorGroups: z.string().max(200).regex(/^[a-zA-Z0-9_,]+$/, "Invalid indicator group format").optional(),

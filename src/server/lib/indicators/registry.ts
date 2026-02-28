@@ -10,7 +10,7 @@
 import {
   rsiSQL, macdSQL, bollingerBandsSQL, atrSQL, stochasticSQL,
   cciSQL, williamsRSQL,
-  SQLGeneratorOptions, generateBulkIndicatorsSQL, BulkIndicatorRequest
+  type SQLGeneratorOptions, generateBulkIndicatorsSQL, type BulkIndicatorRequest
 } from './sqlGenerator';
 
 // Re-export calculators for backward compat
@@ -175,6 +175,26 @@ export interface GenerateIndicatorSQLParams {
   options?: SQLGeneratorOptions;
 }
 
+// ─── SQL Generator Dispatch Map (OCP: add new indicator = add entry here) ────
+
+type SQLGeneratorFn = (params: Record<string, number>, options: SQLGeneratorOptions) => string;
+
+const INDICATOR_SQL_DISPATCH: Record<string, SQLGeneratorFn> = {
+  rsi:        (p, o) => rsiSQL(p.period, o),
+  macd:       (p, o) => macdSQL(p.fastPeriod, p.slowPeriod, p.signalPeriod, o),
+  bollinger:  (p, o) => bollingerBandsSQL(p.period, p.stdDev, o),
+  atr:        (p, o) => atrSQL(p.period, o),
+  stochastic: (p, o) => stochasticSQL(p.kPeriod, p.dPeriod, o),
+  cci:        (p, o) => cciSQL(p.period, o),
+  williams_r: (p, o) => williamsRSQL(p.period, o),
+  sma:        (p, o) => generateBulkIndicatorsSQL({ sma: [p.period!] }, o),
+  ema:        (p, o) => generateBulkIndicatorsSQL({ ema: [p.period!] }, o),
+  wma:        (p, o) => generateBulkIndicatorsSQL({ sma: [p.period!] }, o), // WMA approximated as SMA in SQL
+  stddev:     (p, o) => generateBulkIndicatorsSQL({ stddev: [p.period!] }, o),
+  roc:        (p, o) => generateBulkIndicatorsSQL({ roc: [p.period!] }, o),
+  momentum:   (p, o) => generateBulkIndicatorsSQL({ momentum: [p.period!] }, o),
+};
+
 export function generateIndicatorSQL(request: GenerateIndicatorSQLParams): string {
   const { indicator, params = {}, options = {} } = request;
   const def = INDICATOR_REGISTRY[indicator];
@@ -183,51 +203,13 @@ export function generateIndicatorSQL(request: GenerateIndicatorSQLParams): strin
     throw new Error(`Unknown indicator: ${indicator}`);
   }
 
-  const mergedParams = { ...def.defaultParams, ...params };
-
-  switch (indicator) {
-    case 'rsi':
-      return rsiSQL(mergedParams.period, options);
-
-    case 'macd':
-      return macdSQL(mergedParams.fastPeriod, mergedParams.slowPeriod, mergedParams.signalPeriod, options);
-
-    case 'bollinger':
-      return bollingerBandsSQL(mergedParams.period, mergedParams.stdDev, options);
-
-    case 'atr':
-      return atrSQL(mergedParams.period, options);
-
-    case 'stochastic':
-      return stochasticSQL(mergedParams.kPeriod, mergedParams.dPeriod, options);
-
-    case 'cci':
-      return cciSQL(mergedParams.period, options);
-
-    case 'williams_r':
-      return williamsRSQL(mergedParams.period, options);
-
-    default: {
-      const bulkRequest: BulkIndicatorRequest = {};
-      switch (indicator) {
-        case 'sma':
-          bulkRequest.sma = [mergedParams.period!];
-          break;
-        case 'stddev':
-          bulkRequest.stddev = [mergedParams.period!];
-          break;
-        case 'roc':
-          bulkRequest.roc = [mergedParams.period!];
-          break;
-        case 'momentum':
-          bulkRequest.momentum = [mergedParams.period!];
-          break;
-        default:
-          throw new Error(`SQL generation not implemented for: ${indicator}`);
-      }
-      return generateBulkIndicatorsSQL(bulkRequest, options);
-    }
+  const dispatch = INDICATOR_SQL_DISPATCH[indicator];
+  if (!dispatch) {
+    throw new Error(`SQL generation not implemented for: ${indicator}`);
   }
+
+  const mergedParams = { ...def.defaultParams, ...params };
+  return dispatch(mergedParams, options);
 }
 
 // ============================================================================

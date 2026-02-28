@@ -48,7 +48,7 @@ export async function queryLabels(sql: string): Promise<Array<Record<string, unk
 
 /**
  * Build a combined SQL for meta_label that inlines direction labels as a CTE.
- * Avoids the need for a DuckDB temp table — runs entirely on QuestDB.
+ * Inlines direction labels as a CTE — no temp tables needed.
  */
 export function buildMetaLabelSQL(
   metaParams: MetaLabelParams,

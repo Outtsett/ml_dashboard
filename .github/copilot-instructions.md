@@ -31,6 +31,54 @@ Databases must be running first: `node electron/start-databases.cjs` (PostgreSQL
 - Use `import type` for type-only imports. Drizzle-inferred types live in `shared/schema.ts`.
 - Prefer raw SQL strings for DuckDB queries; use Drizzle ORM for PostgreSQL.
 
+## Naming Convention
+
+Filenames are **operational interfaces**, not descriptions. Names declare what a module *does*, not what it *is about*.
+
+### Level 1 — Domain Directories
+- **Exactly one word** — names an operational domain or process stage.
+- Absorbs semantic context so children don't repeat it.
+
+```
+server/
+  training/       ✅  (domain: training)
+  routes/         ✅  (domain: routing)
+  lib/            ✅  (domain: shared utilities)
+```
+
+### Level 2 — Component Files
+- **One word by default** (`orchestrator.ts`, `registry.ts`, `runner.ts`).
+- **Two words (snake_case) only when**:
+  - No single atomic term exists (`circuit_breaker.ts`)
+  - The file is a system boundary (`python_runner.ts`)
+  - A sibling collision would otherwise occur
+
+```
+server/training/
+  orchestrator.ts   ✅  one word — role is clear from parent
+  registry.ts       ✅  one word
+  runners/
+    types.ts        ✅  one word
+    python_runner.ts ✅  two words — system boundary (Python ↔ Node)
+    tfjs_runner.ts   ✅  two words — system boundary
+```
+
+### Constraints
+- Names must be **minimal relative to directory context** — the parent directory provides scope.
+- **More than two tokens = mis-scoped abstraction** — refactor the module or restructure the directory.
+- **No metaphors, no outcomes, no interpretations** — name the mechanism, not the effect.
+
+```
+❌ training_session_manager.ts   → 3 tokens, parent is training/
+✅ sessions.ts                   → parent provides "training" context
+
+❌ smart_feature_picker.ts       → metaphor ("smart")
+✅ selector.ts                   → mechanism
+
+❌ profit_calculator.ts          → outcome
+✅ returns.ts                    → domain
+```
+
 ## SOLID Principles
 
 All new code **must** follow SOLID. Apply these principles everywhere — routes, components, hooks, services, ML trainers.

@@ -1,5 +1,4 @@
 import type { FeatureContribution } from '../xaiTypes';
-import { FEATURE_NAMES } from '../xaiTypes';
 import { computeCorrelation } from '../xaiMath';
 
 export function computeFeatureInteractions(
@@ -9,7 +8,7 @@ export function computeFeatureInteractions(
 ): FeatureContribution[] {
   const topK = (params.topK as number) || 10;
   const flatInput = input.flat();
-  const numFeatures = Math.min(flatInput.length, FEATURE_NAMES.length);
+  const numFeatures = flatInput.length;
 
   const interactions: Array<{ pair: string; strength: number }> = [];
 
@@ -18,7 +17,7 @@ export function computeFeatureInteractions(
       const correlation = computeCorrelation(flatInput[i]!, flatInput[j]!);
       const interactionStrength = Math.abs(correlation) * (Math.abs(flatInput[i]!) + Math.abs(flatInput[j]!));
       interactions.push({
-        pair: `${FEATURE_NAMES[i] || `f${i}`} \u00d7 ${FEATURE_NAMES[j] || `f${j}`}`,
+        pair: `f${i} \u00d7 f${j}`,
         strength: interactionStrength
       });
     }
