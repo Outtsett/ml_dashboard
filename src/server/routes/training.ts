@@ -16,7 +16,9 @@
  *   GET    /api/training/models/:id/diagnostics    — Diagnostics JSON
  *   GET    /api/training/models/:id/convergence    — Convergence JSON
  *   GET    /api/training/models/:id/assignments    — Per-bar regime assignments + OHLCV
+ *   GET    /api/training/models/:id/benchmarks     — Buy-and-hold + SMA crossover benchmarks
  *   DELETE /api/training/models/:id                — Delete a model
+ *   GET    /api/training/history                   — Quality score history (degradation tracking)
  */
 
 import { Router, Request, Response } from "express";
@@ -35,6 +37,7 @@ import {
   getModelConvergence,
   getModelAssignments,
   getModelShap,
+  getModelBenchmarks,
   deleteModel,
 } from "../lib/modelResults";
 import * as trainingStorage from "../storage/trainingStorage";
@@ -277,6 +280,20 @@ router.get("/training/models/:id/shap", async (req: Request, res: Response) => {
   }
 });
 
+// ─── Benchmarks (buy-and-hold + SMA crossover comparison) ────────────────────
+
+router.get("/training/models/:id/benchmarks", async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const result = await getModelBenchmarks(MODELS_DIR, id);
+    if (!result) return res.status(404).json({ error: "Benchmark data unavailable" });
+    res.json(result);
+  } catch (err: any) {
+    const status = err.message.includes("Invalid model ID") ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
 // ─── Delete model ────────────────────────────────────────────────────────────
 
 router.delete("/training/models/:id", async (req: Request, res: Response) => {
@@ -317,6 +334,24 @@ router.get("/training/sessions/:id", (req: Request, res: Response) => {
     const session = trainingStorage.getSession(Number(req.params.id));
     if (!session) return res.status(404).json({ error: "Session not found" });
     res.json(session);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Quality History (degradation tracking) ─────────────────────────────────
+
+router.get("/training/history", (req: Request, res: Response) => {
+  try {
+    const { symbol, modelType } = req.query;
+    if (!symbol || !modelType) {
+      return res.status(400).json({ error: "symbol and modelType query params required" });
+    }
+    const sessions = trainingStorage.getQualityHistory(
+      String(symbol),
+      String(modelType),
+    );
+    res.json({ sessions });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

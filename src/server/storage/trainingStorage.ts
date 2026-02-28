@@ -139,6 +139,26 @@ export function getWalkForwardGroup(groupId: string) {
     .all();
 }
 
+/** Get quality score history for a symbol+modelType combo (for degradation tracking). */
+export function getQualityHistory(symbol: string, modelType: string) {
+  return db.select({
+    id: trainingSessions.id,
+    versionedModelId: trainingSessions.versionedModelId,
+    qualityScore: trainingSessions.qualityScore,
+    evaluationGrade: trainingSessions.evaluationGrade,
+    startedAt: trainingSessions.startedAt,
+    elapsedSec: trainingSessions.elapsedSec,
+  })
+  .from(trainingSessions)
+  .where(and(
+    eq(trainingSessions.symbol, symbol),
+    eq(trainingSessions.modelType, modelType),
+    eq(trainingSessions.status, "completed"),
+  ))
+  .orderBy(trainingSessions.startedAt)
+  .all();
+}
+
 /** Mark any "running" sessions as "failed" — call on server startup to clean up orphans. */
 export function markOrphanedSessionsFailed(): number {
   const result = db.update(trainingSessions)

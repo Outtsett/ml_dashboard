@@ -255,6 +255,88 @@ export async function getModelShap(
   return { rows, total: Number(total[0]?.cnt ?? rows.length), limit, offset };
 }
 
+// ─── Benchmarks ─────────────────────────────────────────────────────────
+
+export interface BenchmarkResult {
+  buyAndHold: { cumulative: number[]; totalReturn: number };
+  smaCrossover: { cumulative: number[]; totalReturn: number; signals: number[] };
+  dates: string[];
+}
+
+/** Compute buy-and-hold and SMA crossover benchmarks for a model's date range. */
+export async function getModelBenchmarks(
+  baseDir: string,
+  id: string,
+): Promise<BenchmarkResult | null> {
+  const safe = sanitizeModelId(id);
+  const diagPath = path.join(baseDir, safe, "diagnostics.json");
+  if (!fs.existsSync(diagPath)) return null;
+
+  const diag = JSON.parse(fs.readFileSync(diagPath, "utf-8"));
+  const { symbol, date_range } = diag;
+  if (!symbol || !date_range?.start || !date_range?.end) return null;
+
+  // Query OHLCV from QuestDB for the model's date range
+  const ohlcv = await questdbHttpQuery<{ ts: string; close: number }>(
+    `SELECT timestamp as ts, close FROM ohlcv
+     WHERE symbol = '${symbol}'
+       AND timestamp >= '${date_range.start}'
+       AND timestamp <= '${date_range.end}'
+     ORDER BY timestamp ASC
+     LIMIT 0, 100000`
+  );
+
+  if (ohlcv.length < 200) return null;
+
+  const closes = ohlcv.map(r => r.close);
+  const buyAndHold = computeBuyAndHold(closes);
+  const smaCrossover = computeSMACrossover(closes, 50, 200);
+
+  return { buyAndHold, smaCrossover, dates: ohlcv.map(r => r.ts) };
+}
+
+function computeBuyAndHold(closes: number[]): { cumulative: number[]; totalReturn: number } {
+  const cumulative: number[] = [0];
+  for (let i = 1; i < closes.length; i++) {
+    const logRet = Math.log(closes[i]! / Math.max(closes[i - 1]!, 1e-10));
+    cumulative.push(cumulative[i - 1]! + logRet);
+  }
+  return { cumulative, totalReturn: cumulative[cumulative.length - 1]! };
+}
+
+function computeSMACrossover(
+  closes: number[], shortWindow: number, longWindow: number,
+): { cumulative: number[]; totalReturn: number; signals: number[] } {
+  const smaShort = sma(closes, shortWindow);
+  const smaLong = sma(closes, longWindow);
+
+  // Positions: +1 when short > long, -1 otherwise, 0 during warmup
+  const signals: number[] = closes.map((_, i) => {
+    if (i < longWindow - 1 || smaShort[i] === null || smaLong[i] === null) return 0;
+    return smaShort[i]! > smaLong[i]! ? 1 : -1;
+  });
+
+  // Cumulative returns with position
+  const cumulative: number[] = [0];
+  for (let i = 1; i < closes.length; i++) {
+    const logRet = Math.log(closes[i]! / Math.max(closes[i - 1]!, 1e-10));
+    cumulative.push(cumulative[i - 1]! + signals[i]! * logRet);
+  }
+
+  return { cumulative, totalReturn: cumulative[cumulative.length - 1]!, signals };
+}
+
+function sma(data: number[], window: number): (number | null)[] {
+  const result: (number | null)[] = new Array(data.length).fill(null);
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) {
+    sum += data[i]!;
+    if (i >= window) sum -= data[i - window]!;
+    if (i >= window - 1) result[i] = sum / window;
+  }
+  return result;
+}
+
 // ─── Delete ──────────────────────────────────────────────────────────────────
 
 export async function deleteModel(baseDir: string, id: string): Promise<boolean> {
