@@ -16,7 +16,8 @@ from .protocol import emit_log, emit_progress
 
 # ── SQL Input Validation ────────────────────────────────────────────────────
 
-def _validate_sql_input(value, name, pattern=r'^[A-Za-z0-9_\-/]+$'):
+
+def _validate_sql_input(value, name, pattern=r"^[A-Za-z0-9_\-/]+$"):
     """Validate input before SQL interpolation to prevent injection."""
     if not isinstance(value, str) or not re.match(pattern, value):
         raise ValueError(f"Invalid {name}: {value!r}")
@@ -25,18 +26,22 @@ def _validate_sql_input(value, name, pattern=r'^[A-Za-z0-9_\-/]+$'):
 
 def _validate_date(value, name):
     """Validate date string is ISO format before SQL interpolation."""
-    if not isinstance(value, str) or not re.match(r'^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?$', value):
+    if not isinstance(value, str) or not re.match(
+        r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?$", value
+    ):
         raise ValueError(f"Invalid {name}: {value!r}")
     return value
 
 
 # ── Connection helper ──────────────────────────────────────────────────────
 
+
 def _connect():
     """Create psycopg2 connection to QuestDB PG wire."""
     import psycopg2
+
     return psycopg2.connect(
-        host=os.environ.get("QUESTDB_HOST", "localhost"),
+        host=os.environ.get("QUESTDB_HOST", "127.0.0.1"),
         port=int(os.environ.get("QUESTDB_PG_PORT", "8812")),
         user=os.environ.get("QUESTDB_USER", "admin"),
         password=os.environ.get("QUESTDB_PASSWORD", "quest"),
@@ -61,7 +66,7 @@ def load_ohlcv_arrays(symbol, timeframe, max_bars=0, date_range=None):
     }
     """
     _validate_sql_input(symbol, "symbol")
-    _validate_sql_input(timeframe, "timeframe", r'^[0-9]+[mhdw]$')
+    _validate_sql_input(timeframe, "timeframe", r"^[0-9]+[mhdw]$")
     max_bars = int(max_bars)
     if date_range:
         if date_range.get("start"):
@@ -77,7 +82,7 @@ def load_ohlcv_arrays(symbol, timeframe, max_bars=0, date_range=None):
         rows = _fetch_rows(conn, symbol, interval, max_bars, date_range)
 
         # If no data and symbol looks like a base/root, try front-month stitching
-        if not rows and not re.match(r'.+[FGHJKMNQUVXZ]\d{1,2}$', symbol):
+        if not rows and not re.match(r".+[FGHJKMNQUVXZ]\d{1,2}$", symbol):
             emit_log(f"No exact match for '{symbol}', trying front-month stitching...")
             rows = _fetch_front_month_rows(conn, symbol, interval, max_bars, date_range)
     finally:
@@ -143,9 +148,10 @@ def _fetch_rows(conn, symbol, interval, max_bars, date_range):
     """
 
     # Count first for progress reporting
+    # QuestDB SAMPLE BY requires an aggregation function in SELECT — use count()
     count_sql = f"""
         SELECT count() FROM (
-            SELECT timestamp FROM ohlcv {where}
+            SELECT first(open) FROM ohlcv {where}
             SAMPLE BY {interval} ALIGN TO CALENDAR
             {limit_clause}
         )
@@ -154,18 +160,22 @@ def _fetch_rows(conn, symbol, interval, max_bars, date_range):
     try:
         cur.execute(count_sql)
         total_rows = int(cur.fetchone()[0])
-    except Exception:
-        total_rows = 0
+    except Exception as e:
+        emit_log(f"Count pre-query failed ({e}), will attempt data fetch anyway...")
+        total_rows = -1  # Unknown — still proceed
+        conn.rollback()  # Reset connection state after failed query (psycopg2 requirement)
     cur.close()
 
     if total_rows == 0:
         return []
 
-    emit_log(f"Fetching {total_rows} bars...")
+    if total_rows > 0:
+        emit_log(f"Fetching {total_rows} bars...")
+    else:
+        emit_log("Fetching bars (count unknown)...")
 
-    # Use server-side named cursor for chunked fetching
-    cur = conn.cursor(name="ohlcv_load")
-    cur.itersize = CHUNK_SIZE
+    # Use regular cursor — QuestDB PG wire doesn't support DECLARE CURSOR
+    cur = conn.cursor()
     cur.execute(sql)
 
     rows = []
@@ -176,7 +186,7 @@ def _fetch_rows(conn, symbol, interval, max_bars, date_range):
             break
         rows.extend(chunk)
         loaded += len(chunk)
-        emit_progress(loaded, total_rows, "loading_data")
+        emit_progress(loaded, total_rows if total_rows > 0 else loaded, "loading_data")
 
     cur.close()
     return rows
@@ -184,7 +194,7 @@ def _fetch_rows(conn, symbol, interval, max_bars, date_range):
 
 def _fetch_front_month_rows(conn, root, interval, max_bars, date_range):
     """Front-month stitching: pick highest-volume contract per day, query each."""
-    contract_regex = f'^{re.escape(root)}[FGHJKMNQUVXZ][0-9]{{1,2}}$'
+    contract_regex = f"^{re.escape(root)}[FGHJKMNQUVXZ][0-9]{{1,2}}$"
 
     time_filter = ""
     if date_range:
@@ -210,7 +220,7 @@ def _fetch_front_month_rows(conn, root, interval, max_bars, date_range):
     # Step 2: Pick highest-volume contract per day (= front month)
     leaders = {}
     for sym, ts, vol in daily_bars:
-        day = ts.strftime('%Y-%m-%d') if hasattr(ts, 'strftime') else str(ts)[:10]
+        day = ts.strftime("%Y-%m-%d") if hasattr(ts, "strftime") else str(ts)[:10]
         v = float(vol) if vol else 0
         if day not in leaders or v > leaders[day][1]:
             leaders[day] = (sym, v)
@@ -266,6 +276,7 @@ def _fetch_front_month_rows(conn, root, interval, max_bars, date_range):
 
 
 # ── Backward-compatible wrapper ────────────────────────────────────────────
+
 
 def load_ohlcv_from_questdb(symbol, timeframe, max_bars=0, date_range=None):
     """Load OHLCV data from QuestDB. Returns dict of numpy arrays.

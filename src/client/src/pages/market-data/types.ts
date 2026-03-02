@@ -1,10 +1,10 @@
-import type { ContinuousOHLCVBar } from "@shared/ohlcv";
+import type { StitchedOHLCVBar } from "@shared/ohlcv";
 
 // Re-export shared timeframe helpers so existing imports keep working
 export { TIMEFRAME_OPTIONS as timeframes, MAX_BARS_IN_MEMORY, getFetchLimit, minutesToApiKey as getApiTimeframe } from "@/lib/timeframes";
 
-// Use the shared OHLCV type (with optional activeContract for continuous contracts)
-export type OhlcvData = ContinuousOHLCVBar;
+// Use the shared OHLCV type (stitching is transparent for futures)
+export type OhlcvData = StitchedOHLCVBar;
 
 export interface InstrumentInfo {
   symbol: string;

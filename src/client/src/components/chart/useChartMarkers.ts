@@ -2,7 +2,7 @@ import { useRef, useMemo } from 'react';
 import type { CandlestickData, Time } from 'lightweight-charts';
 import type { TradeMarker, PredictionMarker } from '@/contexts/UnifiedDashboardContext';
 import { useSeriesMarkers, buildCandleTimeSet, alignTimestamp, type ChartMarker } from './useSeriesMarkers';
-import type { LabelMarker, ContractTransition } from './types';
+import type { LabelMarker } from './types';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -15,15 +15,14 @@ interface ChartMarkersOptions {
   labelMarkers: LabelMarker[];
   tradeMarkers: TradeMarker[];
   predictionMarkers: PredictionMarker[];
-  contractTransitions: ContractTransition[];
   trainTestSplitTime?: number;
 }
 
 // ── Hook ───────────────────────────────────────────────────────────────────
 
 /**
- * Computes all chart marker arrays (labels, trades, predictions, contract
- * transitions, train/test split) and delegates rendering to `useSeriesMarkers`.
+ * Computes all chart marker arrays (labels, trades, predictions,
+ * train/test split) and delegates rendering to `useSeriesMarkers`.
  */
 export function useChartMarkers({
   candleSeriesRef,
@@ -34,7 +33,6 @@ export function useChartMarkers({
   labelMarkers,
   tradeMarkers,
   predictionMarkers,
-  contractTransitions,
   trainTestSplitTime,
 }: ChartMarkersOptions): void {
   const timeframeSec = timeframe * 60;
@@ -45,7 +43,6 @@ export function useChartMarkers({
   const labelMarkersSeriesRef = useRef<any>(null);
   const tradeMarkersSeriesRef = useRef<any>(null);
   const predictionMarkersSeriesRef = useRef<any>(null);
-  const contractTransitionMarkersRef = useRef<any>(null);
   const splitMarkerRef = useRef<any>(null);
 
   // ── Label markers ──────────────────────────────────────────────────────
@@ -135,20 +132,6 @@ export function useChartMarkers({
 
   useSeriesMarkers(predictionMarkersSeriesRef, candleSeriesRef, computedPredictionMarkers);
 
-  // ── Contract transition markers ────────────────────────────────────────
-
-  const computedContractTransitionMarkers = useMemo((): ChartMarker[] => {
-    if (!isFutures || contractTransitions.length === 0) return [];
-    return contractTransitions
-      .filter(t => validCandleSet.has(t.time))
-      .map(t => ({
-        time: t.time as Time, position: 'aboveBar' as const,
-        color: '#f59e0b', shape: 'square' as const, text: `${t.to}`,
-      }))
-      .sort((a, b) => (a.time as number) - (b.time as number));
-  }, [isFutures, contractTransitions, validCandleSet]);
-
-  useSeriesMarkers(contractTransitionMarkersRef, candleSeriesRef, computedContractTransitionMarkers);
 
   // ── Train/test split marker ────────────────────────────────────────────
 

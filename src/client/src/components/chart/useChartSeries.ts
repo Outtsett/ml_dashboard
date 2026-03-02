@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react';
 import type { IChartApi, CandlestickData, Time, LogicalRange } from 'lightweight-charts';
 import { REGIME_FILLS } from './chartConfig';
-import type { OhlcvData, ContractTransition, ProcessedChartData } from './types';
+import type { OhlcvData, ProcessedChartData } from './types';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -23,9 +23,6 @@ interface ChartSeriesOptions {
 
 interface ChartSeriesResult {
   processedData: ProcessedChartData;
-  contractLookup: Map<number, string>;
-  contractTransitions: ContractTransition[];
-  currentFrontMonth: string | null;
 }
 
 // ── Hook ───────────────────────────────────────────────────────────────────
@@ -33,7 +30,6 @@ interface ChartSeriesResult {
 /**
  * Manages the chart's data lifecycle:
  *  - Processes OHLCV into chart-ready candle + volume arrays (with regime colors)
- *  - Computes futures contract metadata (lookup, transitions, front month)
  *  - Handles data updates (symbol/TF change, load-more, replay ticker)
  *  - Implements infinite scroll (load-more on edge approach)
  *  - Schedules updates via requestAnimationFrame
@@ -73,44 +69,6 @@ export function useChartSeries({
   dataRef.current = data;
   const onLoadMoreRef = useRef(onLoadMore);
   onLoadMoreRef.current = onLoadMore;
-
-  // ── Contract metadata ──────────────────────────────────────────────────
-
-  const contractLookup = useMemo(() => {
-    if (!isFutures) return new Map<number, string>();
-    const map = new Map<number, string>();
-    for (const d of data) {
-      if (d.activeContract) {
-        const ts = typeof d.timestamp === 'string' ? parseInt(d.timestamp, 10) : d.timestamp;
-        map.set(Math.floor(ts / 1000), d.activeContract);
-      }
-    }
-    return map;
-  }, [data, isFutures]);
-
-  const currentFrontMonth = useMemo(() => {
-    if (!isFutures || data.length === 0) return null;
-    for (let i = data.length - 1; i >= 0; i--) {
-      const bar = data[i]!;
-      if (bar.activeContract) return bar.activeContract;
-    }
-    return null;
-  }, [data, isFutures]);
-
-  const contractTransitions = useMemo(() => {
-    if (!isFutures || data.length < 2) return [];
-    const transitions: ContractTransition[] = [];
-    let prevContract: string | undefined = data[0]!.activeContract;
-    for (let i = 1; i < data.length; i++) {
-      const bar = data[i]!;
-      const curr = bar.activeContract;
-      if (curr && prevContract && curr !== prevContract) {
-        transitions.push({ time: Math.floor(bar.timestamp / 1000), from: prevContract, to: curr });
-      }
-      if (curr) prevContract = curr;
-    }
-    return transitions;
-  }, [data, isFutures]);
 
   // ── Process OHLCV → chart-ready arrays ─────────────────────────────────
 
@@ -307,5 +265,5 @@ export function useChartSeries({
     return () => { if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current); };
   }, [updateChartData]);
 
-  return { processedData, contractLookup, contractTransitions, currentFrontMonth };
+  return { processedData };
 }

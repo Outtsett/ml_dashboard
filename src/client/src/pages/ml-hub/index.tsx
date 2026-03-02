@@ -9,10 +9,11 @@ import {
 
 import { useBreadcrumbs } from "@/hooks/useBreadcrumbs";
 import { useDashboard } from "@/contexts/UnifiedDashboardContext";
+import { useTrainingContext } from "@/contexts/TrainingContext";
 import { PageLoader } from "@/components/LoadingSkeletons";
 import { useLocation } from "wouter";
-import { useInstruments } from "@/hooks/useRegimeData";
-import { useMLModels, useSavedModels, useMLTrades, useTrainStatus, useMLFeatures } from "@/hooks/useMLData";
+import { useInstruments, useRegimeModels } from "@/hooks/useRegimeData";
+import { useMLModels, useMLTrades } from "@/hooks/useMLData";
 import { useTradeMetrics } from "@/hooks/useTradeMetrics";
 
 const ForecastVisualizer = lazy(() => import("@/components/ForecastVisualizer"));
@@ -22,6 +23,7 @@ import { TradesTab } from "./TradesTab";
 
 export default function MLHub() {
   const dashboard = useDashboard();
+  const training = useTrainingContext();
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedSymbol, setSelectedSymbolLocal] = useState(dashboard.symbol);
   const setSelectedSymbol = (sym: string) => {
@@ -53,16 +55,14 @@ export default function MLHub() {
 
   const { data: instruments = [] } = useInstruments();
   const { data: models = [] } = useMLModels();
-  const { savedModels } = useSavedModels();
-  const { data: trainingStatus } = useTrainStatus();
+  const { models: regimeModels } = useRegimeModels(training.isTraining);
   const { data: trades = [] } = useMLTrades();
-  const { data: featureInfo } = useMLFeatures();
 
   // ─── Derived Metrics ────────────────────────────────────────
 
   const tradeMetrics = useTradeMetrics(trades);
 
-  const isTraining = trainingStatus?.active === true;
+  const isTraining = training.isTraining;
   const futuresSymbols = instruments.filter((i) => i.assetType === 'futures').map((i) => i.symbol);
 
   return (
@@ -120,8 +120,7 @@ export default function MLHub() {
         {/* ─── Overview Tab ──────────────────────────────────── */}
         <TabsContent value="overview" className="flex-1 min-h-0 overflow-auto mt-4 space-y-4">
           <OverviewTab
-            savedModels={savedModels}
-            featureInfo={featureInfo}
+            savedModels={regimeModels}
             tradeMetrics={tradeMetrics}
             models={models}
           />

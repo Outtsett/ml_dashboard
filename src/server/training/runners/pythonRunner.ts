@@ -22,7 +22,9 @@ export class PythonRunner implements ITrainerRunner {
 
   async start(config: ResolvedTrainingConfig, existingSession?: TrainingSession): Promise<TrainingSession> {
     const trainingCfg = getTrainingConfig();
-    const pythonExe = path.join(process.cwd(), trainingCfg.paths.pythonExe);
+    const pythonExe = path.isAbsolute(trainingCfg.paths.pythonExe)
+      ? trainingCfg.paths.pythonExe
+      : path.join(process.cwd(), trainingCfg.paths.pythonExe);
     const script = path.join(process.cwd(), config.registry.script!);
     const modelsDir = path.join(process.cwd(), config.registry.outputDir);
 

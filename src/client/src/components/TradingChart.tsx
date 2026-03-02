@@ -56,33 +56,30 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
   const onRangeChangeRef = useRef(onVisibleLogicalRangeChange);
   onRangeChangeRef.current = onVisibleLogicalRangeChange;
 
-  const contractLookupRef = useRef(new Map<number, string>());
+
 
   // ── Chart lifecycle hooks ──────────────────────────────────────────────
 
   const { chartRef, candleSeriesRef, volumeSeriesRef } = useChartSetup({
     containerRef: chartContainerRef,
     decimals, minMove, isFutures, tickInfo,
-    contractLookupRef, setPriceInfo, onRangeChangeRef,
+    setPriceInfo, onRangeChangeRef,
     showTimeAxis,
   });
 
-  const { processedData, contractLookup, contractTransitions, currentFrontMonth } = useChartSeries({
+  const { processedData } = useChartSeries({
     chartRef, candleSeriesRef, volumeSeriesRef,
     data, symbol, timeframe, isFutures,
     regimeColorMap, isReplayActive,
     onLoadMore, isLoadingMore, hasMoreLeft, hasMoreRight,
   });
 
-  // Keep contractLookupRef in sync for crosshair callback
-  contractLookupRef.current = contractLookup;
-
   useChartMarkers({
     candleSeriesRef,
     processedCandles: processedData.candles,
     timeframe, symbol, isFutures,
     labelMarkers, tradeMarkers, predictionMarkers,
-    contractTransitions, trainTestSplitTime,
+    trainTestSplitTime,
   });
 
   useChartOverlays(chartRef, candleSeriesRef, indicatorOverlays, processedData.candles);
@@ -137,11 +134,6 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
 
       <div className="absolute top-2 left-2 flex items-center gap-4 text-[10px] font-mono bg-black/40 backdrop-blur-sm rounded-lg px-3 py-1.5">
         <span className="text-primary font-bold">{symbol}</span>
-        {(priceInfo?.activeContract || currentFrontMonth) && (
-          <span className="text-amber-400 font-semibold text-[10px]">
-            {priceInfo?.activeContract || currentFrontMonth}
-          </span>
-        )}
         <span className="text-muted-foreground">{tickOrPipLabel}</span>
         {priceInfo && (
           <>
@@ -152,22 +144,6 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
           </>
         )}
       </div>
-
-      {isFutures && (contractTransitions.length > 0 || currentFrontMonth) && (
-        <div className="absolute top-12 left-2 flex flex-col gap-0.5 text-[8px] font-mono bg-amber-500/10 backdrop-blur-sm rounded px-1.5 py-1 border border-amber-500/20 max-w-[200px]">
-          {currentFrontMonth && (
-            <span className="text-amber-300 font-semibold">Front: {currentFrontMonth}</span>
-          )}
-          {contractTransitions.length > 0 && (
-            <>
-              <span className="text-amber-400/70">{contractTransitions.length} transition{contractTransitions.length !== 1 ? 's' : ''} in view</span>
-              {contractTransitions.slice(-3).map((t, i) => (
-                <span key={i} className="text-amber-500/60 truncate">{t.from} → {t.to}</span>
-              ))}
-            </>
-          )}
-        </div>
-      )}
 
       {labelMarkers.length > 0 && (
         <div className="absolute top-12 right-2 flex flex-col gap-0.5 text-[8px] font-mono bg-violet-500/10 backdrop-blur-sm rounded px-2 py-1.5 border border-violet-500/20">

@@ -48,13 +48,7 @@ export default function Training() {
   useEffect(() => {
     if (!selectedModel && !training.isTraining && models.length > 0) {
       const mt = training.selectedModelType;
-      // Filter to models matching current type (new format: id ends with _modelType)
-      const matching = models.filter(m => {
-        const prefix = `${m.symbol}_${m.timeframe}_`;
-        if (m.id.startsWith(prefix)) return m.id.slice(prefix.length) === mt;
-        // Legacy models without type suffix are assumed hdp-hmm
-        return mt === "hdp-hmm";
-      });
+      const matching = models.filter(m => m.modelType === mt);
       if (matching.length > 0) {
         const sorted = [...matching].sort((a, b) =>
           new Date(b.trained_at).getTime() - new Date(a.trained_at).getTime()
@@ -108,11 +102,7 @@ export default function Training() {
   // Filter saved models to only show the current model type
   const filteredModels = useMemo(() => {
     if (!models?.length) return [];
-    return models.filter(m => {
-      const prefix = `${m.symbol}_${m.timeframe}_`;
-      if (m.id.startsWith(prefix)) return m.id.slice(prefix.length) === modelType;
-      return modelType === "hdp-hmm"; // legacy models without type suffix
-    });
+    return models.filter(m => m.modelType === modelType);
   }, [models, modelType]);
   const modelEntry = training.availableModels[modelType];
   const modelDisplayName = modelEntry?.name ?? adapter.name;

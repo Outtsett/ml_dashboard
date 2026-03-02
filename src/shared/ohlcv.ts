@@ -59,8 +59,8 @@ export interface OHLCVRecord {
 
 // ─── Chart API response extras ──────────────────────────────
 
-/** Extended bar returned by front-month / continuous-contract endpoints. */
-export interface ContinuousOHLCVBar extends OHLCVBar {
+/** Extended bar returned by front-month stitching endpoints. */
+export interface StitchedOHLCVBar extends OHLCVBar {
   activeContract?: string;
 }
 

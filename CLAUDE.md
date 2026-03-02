@@ -274,10 +274,10 @@ All new code **must** follow SOLID. Apply everywhere — routes, components, hoo
 - **EventEmitter training**: `MLTrainer extends EventEmitter` emits progress events per epoch. Frontend connects via SSE at `GET /ml/train/stream`.
 - **Config-driven features**: `src/config/features.json` is the single source of truth for all 29 features across 8 categories. Python `features.py` reads this config via dispatch table. Adding a feature = add JSON entry.
 - **Pre-computed indicators**: pandas-ta computes 344 indicator columns (9 categories). Stored in QuestDB `indicators_{tf}` tables, served via `/api/indicators/data/:symbol`.
-- **No continuous contracts / Panama adjustment**: Individual contracts only (bad for ML).
+- **Front-month stitching**: Futures roots (ES, MNQ, M2K, etc.) are stitched at query time from highest-volume contract per day. No pre-built continuous series.
 - **Circuit breaker**: Auto-disable failing DB connections. States: closed (normal), open (failing, fast-fail), half-open (testing). Reset via `POST /circuit-breaker/reset/:name`.
 - **File-level dedup**: SHA-256 hash tracking in SQLite `ingested_files` table prevents re-ingestion.
-- **Chart data flow**: QuestDB `SAMPLE BY` for all chart candles. Individual contracts only.
+- **Chart data flow**: QuestDB `SAMPLE BY` for chart candles. Futures roots use front-month stitching (`getFrontMonthOHLCV`); forex uses direct queries.
 - **Training data flow**: Python reads QuestDB directly via PG wire (psycopg2), computes features inline, writes results back to QuestDB via HTTP `/imp`.
 
 ## API Route Map (11 routers on `/api`)

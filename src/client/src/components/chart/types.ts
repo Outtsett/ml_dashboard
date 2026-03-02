@@ -2,12 +2,12 @@ import type { CandlestickData, LogicalRange, Time } from 'lightweight-charts';
 import type { IndicatorOverlay } from '@/hooks/useIndicatorData';
 import type { SupportResistanceLevel, ZigZagPoint } from '@/lib/chartOverlays';
 import type { TradeMarker, PredictionMarker } from '@/contexts/UnifiedDashboardContext';
-import type { ContinuousOHLCVBar } from '@shared/ohlcv';
+import type { StitchedOHLCVBar } from '@shared/ohlcv';
 
 // ── Core data type ─────────────────────────────────────────────────────────
 
-/** OHLCV bar with optional continuous-contract metadata */
-export type OhlcvData = ContinuousOHLCVBar;
+/** OHLCV bar data (stitching is transparent) */
+export type OhlcvData = StitchedOHLCVBar;
 
 // ── Marker types ───────────────────────────────────────────────────────────
 
@@ -56,14 +56,6 @@ export interface PriceInfo {
   low: number;
   close: number;
   time: string;
-  activeContract?: string;
-}
-
-/** Contract rollover transition */
-export interface ContractTransition {
-  time: number;
-  from: string;
-  to: string;
 }
 
 /** Processed chart-ready data */

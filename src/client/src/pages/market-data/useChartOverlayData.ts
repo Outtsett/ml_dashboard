@@ -30,7 +30,7 @@ interface RegimeSource {
   /** Whether training is currently active */
   isTraining: boolean;
   /** All regime models for matching */
-  models: Array<{ id: string; quality_score?: number }>;
+  models: Array<{ id: string; symbol: string; timeframe: string; quality_score?: number }>;
   /** Training sync data for regime legend during training */
   trainingSync: { isActive: boolean; regimeLegend: Array<{ id: number; barCount: number }> };
 }
@@ -83,9 +83,16 @@ export function useChartOverlayData(
   const [selectedRegimes, setSelectedRegimes] = useState<Set<number> | null>(null);
   const matchedModelId = useMemo(() => {
     if (regime.isTraining) return null;
-    const target = `${symbol.toUpperCase()}_${tfLabel.toUpperCase()}`;
-    const match = regime.models.find(m => m.id.toUpperCase() === target);
-    return match ? match.id : null;
+    // Find models matching current symbol + timeframe, pick highest quality
+    const sym = symbol.toUpperCase();
+    const tf = tfLabel.toUpperCase();
+    const candidates = regime.models.filter(
+      m => m.symbol.toUpperCase() === sym && m.timeframe.toUpperCase() === tf,
+    );
+    if (candidates.length === 0) return null;
+    // Pick highest quality_score, or first if no scores
+    candidates.sort((a, b) => (b.quality_score ?? 0) - (a.quality_score ?? 0));
+    return candidates[0]!.id;
   }, [symbol, tfLabel, regime.models, regime.isTraining]);
 
   useEffect(() => { setSelectedRegimes(null); }, [matchedModelId, symbol, tfLabel]);
@@ -103,6 +110,7 @@ export function useChartOverlayData(
   // ── Saved regime assignments ──
   const { data: savedAssignments } = useRegimeAssignments(matchedModelId, {
     enabled: !!matchedModelId && !regime.isTraining,
+    limit: 500000,
   });
 
   // ── Regime color map (priority: live training → saved model) ──

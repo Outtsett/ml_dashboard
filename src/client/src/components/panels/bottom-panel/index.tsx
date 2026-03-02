@@ -8,9 +8,11 @@ import {
 } from "lucide-react";
 
 import { useDashboard } from "@/contexts/UnifiedDashboardContext";
+import { useTrainingContext } from "@/contexts/TrainingContext";
 import { PageLoader } from "@/components/LoadingSkeletons";
 import { useTradeMetrics } from "@/hooks/useTradeMetrics";
-import { useMLModels, useSavedModels, useMLTrades, useTrainStatus, useMLFeatures } from "@/hooks/useMLData";
+import { useMLModels, useMLTrades } from "@/hooks/useMLData";
+import { useRegimeModels } from "@/hooks/useRegimeData";
 import { TerminalTabs } from "@/components/terminal/TerminalTabs";
 
 import { LogEntry } from "./TradeRow";
@@ -26,6 +28,7 @@ interface BottomPanelProps {
 
 export function BottomPanel({ isCollapsed }: BottomPanelProps) {
   const dashboard = useDashboard();
+  const training = useTrainingContext();
   const [activeTab, setActiveTab] = useState("models");
 
   // Listen for cross-page tab navigation (e.g., context.navigateToMLHub("trades"))
@@ -41,15 +44,13 @@ export function BottomPanel({ isCollapsed }: BottomPanelProps) {
   // ─── Data Queries ──────────────────────────────────────────
 
   const { data: models = [] } = useMLModels();
-  const { savedModels } = useSavedModels();
+  const { models: regimeModels } = useRegimeModels(training.isTraining);
   const { data: trades = [] } = useMLTrades();
-  const { data: featureInfo } = useMLFeatures();
-  const { data: trainingStatus } = useTrainStatus();
 
   // ─── Derived metrics ──────────────────────────────────────
 
   const tradeMetrics = useTradeMetrics(trades);
-  const isTraining = trainingStatus?.active === true;
+  const isTraining = training.isTraining;
   const logs = dashboard.logs;
 
   if (isCollapsed) {
@@ -69,7 +70,7 @@ export function BottomPanel({ isCollapsed }: BottomPanelProps) {
           <TabsList className="glass rounded-lg p-0.5 h-auto w-fit">
             <TabsTrigger value="models" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-primary/20 gap-1">
               <Brain className="h-3 w-3" /> Models
-              {savedModels.length > 0 && <Badge variant="outline" className="text-[8px] px-1 py-0 rounded-full ml-0.5">{savedModels.length}</Badge>}
+              {regimeModels.length > 0 && <Badge variant="outline" className="text-[8px] px-1 py-0 rounded-full ml-0.5">{regimeModels.length}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="forecast" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-400 gap-1">
               <Wand2 className="h-3 w-3" /> Forecast
@@ -100,8 +101,7 @@ export function BottomPanel({ isCollapsed }: BottomPanelProps) {
         {/* ─── Models Tab ──────────────────────────────────────── */}
         <TabsContent value="models" className="flex-1 min-h-0 overflow-auto mt-0 p-3 space-y-3">
           <ModelsTab
-            savedModels={savedModels}
-            featureInfo={featureInfo}
+            savedModels={regimeModels}
             tradeMetrics={tradeMetrics}
             models={models}
           />

@@ -23,12 +23,33 @@ from shared.evaluation import run_all_stages
 from hmm_2state.config import LABELS
 
 
-QUESTDB_HTTP_URL = os.environ.get("QUESTDB_URL", "http://localhost:9000")
+class _NumpyEncoder(json.JSONEncoder):
+    """JSON encoder that handles numpy types (numpy 2.x compatible)."""
+
+    def default(self, obj):
+        if hasattr(np, "bool_") and isinstance(obj, np.bool_):
+            return bool(obj)
+        if hasattr(np, "bool") and isinstance(obj, np.bool):
+            return bool(obj)
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, np.generic):
+            return obj.item()
+        return super().default(obj)
+
+
+QUESTDB_HTTP_URL = os.environ.get("QUESTDB_URL", "http://127.0.0.1:9000")
 
 
 def _write_to_questdb(table_name: str, csv_content: str, ts_col: str = "ts"):
     """Upload CSV data to QuestDB via /imp endpoint."""
-    schema = json.dumps([{"name": ts_col, "type": "TIMESTAMP", "pattern": "yyyy-MM-ddTHH:mm:ss.SSSUUUz"}])
+    schema = json.dumps(
+        [{"name": ts_col, "type": "TIMESTAMP", "pattern": "yyyy-MM-ddTHH:mm:ss.SSSUUUz"}]
+    )
     resp = requests.post(
         f"{QUESTDB_HTTP_URL}/imp?name={table_name}",
         files=[
@@ -76,10 +97,19 @@ def _relabel_bull_bear(relabeled, features, n_regimes):
     return relabeled, colors, labels
 
 
-def save_model(model, timestamps, features, feature_names, args, elapsed,
-               iteration_metrics=None, close_vals=None):
+def save_model(
+    model,
+    timestamps,
+    features,
+    feature_names,
+    args,
+    elapsed,
+    iteration_metrics=None,
+    close_vals=None,
+):
     """Save model artifacts to data/models/<modelId>/ and QuestDB tables."""
-    project_root = Path(__file__).parent.parent.parent.parent
+    # Use cwd (set by Node runner) for reliable path resolution
+    project_root = Path.cwd()
     model_id = args.model_id if args.model_id else f"{args.symbol}_{args.timeframe}_2state"
     output_dir = project_root / "data" / "models" / model_id
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -105,12 +135,27 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
     for i in range(T):
         ts_str = _fmt_ts(ts_vals[i])
         rl = str(regime_label_list[i]).replace(",", " ")
-        csv_buf.write(f"{model_id},{args.symbol},{ts_str},{float(close_vals[i])},{int(relabeled[i])},{rl},{splits[i]}\n")
+        csv_buf.write(
+            f"{model_id},{args.symbol},{ts_str},{float(close_vals[i])},{int(relabeled[i])},{rl},{splits[i]}\n"
+        )
 
     try:
         _write_to_questdb("model_regimes", csv_buf.getvalue())
     except Exception as e:
-        print(f"[save] Warning: Failed to write model_regimes to QuestDB: {e}", file=__import__('sys').stderr)
+        print(
+            f"[save] Warning: Failed to write model_regimes to QuestDB: {e}",
+            file=__import__("sys").stderr,
+        )
+
+    # 1b. Also save assignments to disk as CSV (durable fallback)
+    assignments_path = output_dir / "assignments.csv"
+    try:
+        assignments_path.write_text(csv_buf.getvalue(), encoding="utf-8")
+    except Exception as e:
+        print(
+            f"[save] Warning: Failed to write assignments.csv to disk: {e}",
+            file=__import__("sys").stderr,
+        )
 
     # 2. convergence.json — EM iteration metrics
     if iteration_metrics:
@@ -127,7 +172,7 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
             "n_iterations": len(model.log_likelihoods),
         }
     with open(output_dir / "convergence.json", "w") as f:
-        json.dump(convergence, f)
+        json.dump(convergence, f, cls=_NumpyEncoder)
 
     # 3. Regime stats (reuse from hdp_hmm.io — model-agnostic)
     regime_stats = compute_regime_stats(relabeled, features, feature_names)
@@ -161,7 +206,10 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
     try:
         _write_to_questdb("model_shap", csv_buf.getvalue())
     except Exception as e:
-        print(f"[save] Warning: Failed to write model_shap to QuestDB: {e}", file=__import__('sys').stderr)
+        print(
+            f"[save] Warning: Failed to write model_shap to QuestDB: {e}",
+            file=__import__("sys").stderr,
+        )
 
     # 7. Quality score
     quality_score = compute_quality_score(model, relabeled, n_regimes, T, oos=oos)
@@ -170,11 +218,15 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
     split_mask = np.array([s == "train" for s in splits])
     close_arr = np.array(close_vals, dtype=np.float64)
     # 2-state HMM may have posteriors for confidence
-    posteriors = getattr(model, 'posteriors_', None)
+    posteriors = getattr(model, "posteriors_", None)
     conf_arr = posteriors.max(axis=1) if posteriors is not None and posteriors.ndim == 2 else None
-    tm = model.transition_matrix[:n_regimes, :n_regimes] if hasattr(model, 'transition_matrix') else None
-    run_sig = getattr(args, 'run_significance_tests', False)
-    eval_iter = getattr(args, 'em_iter', 0) * getattr(args, 'n_restarts', 1)
+    tm = (
+        model.transition_matrix[:n_regimes, :n_regimes]
+        if hasattr(model, "transition_matrix")
+        else None
+    )
+    run_sig = getattr(args, "run_significance_tests", False)
+    eval_iter = getattr(args, "em_iter", 0) * getattr(args, "n_restarts", 1)
     evaluation_results = run_all_stages(
         features=features,
         assignments=np.array(relabeled),
@@ -229,6 +281,6 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
         "evaluation": evaluation_results,
     }
     with open(output_dir / "diagnostics.json", "w") as f:
-        json.dump(diagnostics, f, indent=2)
+        json.dump(diagnostics, f, indent=2, cls=_NumpyEncoder)
 
     return str(output_dir).replace("\\", "/"), diagnostics

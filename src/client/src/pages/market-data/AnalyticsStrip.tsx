@@ -3,8 +3,7 @@ import { Brain, Layers, Loader2, Play } from "lucide-react";
 import type { RegimeInfo } from "@/components/RegimeLegend";
 
 interface AnalyticsStripProps {
-  effectiveSymbol: string;
-  contract: string | null;
+  symbol: string;
   displayDataLength: number;
   chartDataLength: number;
   replayActive: boolean;
@@ -26,7 +25,7 @@ interface AnalyticsStripProps {
 }
 
 export function AnalyticsStrip({
-  effectiveSymbol, contract, displayDataLength, chartDataLength,
+  symbol, displayDataLength, chartDataLength,
   replayActive, isLoadingMore,
   tradeMetrics, modelCount,
   matchedModelId, regimeLegendInfo, regimeIsTraining, regimeQualityScore,
@@ -34,12 +33,7 @@ export function AnalyticsStrip({
 }: AnalyticsStripProps) {
   return (
     <div className="flex items-center gap-3 px-3 py-1 border-b border-white/5 shrink-0 text-[10px] bg-card/20">
-      <span className="font-mono font-semibold text-primary text-xs">{effectiveSymbol}</span>
-      {contract !== null && (
-        <Badge variant="outline" className="text-[8px] border-amber-500/30 text-amber-400 py-0">
-          Single Contract
-        </Badge>
-      )}
+      <span className="font-mono font-semibold text-primary text-xs">{symbol}</span>
 
       <span className="text-muted-foreground font-mono">
         {displayDataLength.toLocaleString()}{replayActive ? ` / ${chartDataLength.toLocaleString()}` : ''} bars

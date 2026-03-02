@@ -29,6 +29,7 @@ export function sanitizeModelId(id: string): string {
 
 export interface ModelSummary {
   id: string;
+  modelType: string;
   symbol: string;
   timeframe: string;
   n_regimes: number;
@@ -41,6 +42,20 @@ export interface ModelSummary {
   training_config: Record<string, unknown>;
   training_time_sec: number;
   trained_at: string;
+}
+
+/** Extract model type from versioned ID.
+ *  MNQZ5_1m_hdp-hmm_20260302T000850 → hdp-hmm
+ *  ES_1h_2-state-hmm_20260301T143022 → 2-state-hmm */
+function extractModelType(id: string): string {
+  const parts = id.split("_");
+  const tsPattern = /^\d{8}T\d{6}$/;
+  const tsIdx = parts.findIndex(p => tsPattern.test(p));
+  // Format: symbol_timeframe_modelType[_timestamp][_wN]
+  // Model type is everything between index 2 and the timestamp
+  if (tsIdx > 2) return parts.slice(2, tsIdx).join("_");
+  if (tsIdx === -1 && parts.length > 2) return parts.slice(2).join("_");
+  return "unknown";
 }
 
 // ─── List ────────────────────────────────────────────────────────────────────
@@ -60,6 +75,7 @@ export function listTrainedModels(baseDir: string): ModelSummary[] {
       const diag = JSON.parse(fs.readFileSync(diagPath, "utf-8"));
       models.push({
         id: dir,
+        modelType: diag.model_type || extractModelType(dir),
         symbol: diag.symbol,
         timeframe: diag.timeframe,
         n_regimes: diag.n_regimes,
@@ -199,24 +215,64 @@ export async function getModelAssignments(
   opts: AssignmentsOptions = {},
 ) {
   const safe = sanitizeModelId(id);
-  const limit = Math.min(Number(opts.limit) || 50000, 100000);
+  const limit = Math.min(Number(opts.limit) || 50000, 500000);
   const offset = Number(opts.offset) || 0;
 
-  const rows = await questdbHttpQuery<Record<string, unknown>>(
-    `SELECT ts, close, regime, regime_label, split
-     FROM model_regimes
-     WHERE model_id = '${safe}'
-     ORDER BY ts ASC
-     LIMIT ${offset}, ${limit}`
-  );
+  // 1. Try QuestDB first
+  try {
+    const rows = await questdbHttpQuery<Record<string, unknown>>(
+      `SELECT ts, close, regime, regime_label, split
+       FROM model_regimes
+       WHERE model_id = '${safe}'
+       ORDER BY ts ASC
+       LIMIT ${offset}, ${limit}`
+    );
 
-  if (rows.length === 0) return null;
+    if (rows.length > 0) {
+      const total = await questdbHttpQuery<{ cnt: number }>(
+        `SELECT count() as cnt FROM model_regimes WHERE model_id = '${safe}'`
+      );
+      return { rows, total: Number(total[0]?.cnt ?? rows.length), limit, offset };
+    }
+  } catch {
+    // QuestDB unavailable — fall through to disk fallback
+  }
 
-  const total = await questdbHttpQuery<{ cnt: number }>(
-    `SELECT count() as cnt FROM model_regimes WHERE model_id = '${safe}'`
-  );
+  // 2. Disk-based fallback: read assignments.csv from model directory
+  const csvPath = path.join(_baseDir, safe, "assignments.csv");
+  if (!fs.existsSync(csvPath)) return null;
 
-  return { rows, total: Number(total[0]?.cnt ?? rows.length), limit, offset };
+  const csvText = fs.readFileSync(csvPath, "utf-8");
+  const lines = csvText.split("\n").filter(l => l.trim());
+  if (lines.length < 2) return null;
+
+  const header = lines[0]!.split(",");
+  const tsIdx = header.indexOf("ts");
+  const closeIdx = header.indexOf("close");
+  const regimeIdx = header.indexOf("regime");
+  const labelIdx = header.indexOf("regime_label");
+  const splitIdx = header.indexOf("split");
+
+  if (tsIdx < 0 || regimeIdx < 0) return null;
+
+  const allRows: Record<string, unknown>[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i]!.split(",");
+    if (cols.length < Math.max(tsIdx, regimeIdx) + 1) continue;
+    allRows.push({
+      ts: cols[tsIdx]!,
+      close: closeIdx >= 0 ? parseFloat(cols[closeIdx]!) : 0,
+      regime: parseInt(cols[regimeIdx]!, 10),
+      regime_label: labelIdx >= 0 ? cols[labelIdx]! : `Regime ${cols[regimeIdx]}`,
+      split: splitIdx >= 0 ? cols[splitIdx]! : "train",
+    });
+  }
+
+  const totalCount = allRows.length;
+  const sliced = allRows.slice(offset, offset + limit);
+  return sliced.length > 0
+    ? { rows: sliced, total: totalCount, limit, offset }
+    : null;
 }
 
 // ─── SHAP Values ─────────────────────────────────────────────────────────────

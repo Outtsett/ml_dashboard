@@ -32,7 +32,6 @@ import { XAITab } from "./XAITab";
 
 export function MLWorkflowSidebar({
   chartData,
-  effectiveSymbol,
   symbol,
   isFutures,
   timeframe,
@@ -103,7 +102,7 @@ export function MLWorkflowSidebar({
       const endTs = chartData[chartData.length - 1]!.timestamp;
       previewMutation.mutate({
         generatorType: selectedGenerator,
-        symbol: effectiveSymbol,
+        symbol: symbol,
         params: currentParams,
         limit: 50000,
         startTimestamp: startTs,
@@ -111,7 +110,7 @@ export function MLWorkflowSidebar({
         timeframeMinutes: timeframe,
       });
     };
-  }, [selectedGenerator, effectiveSymbol, currentParams, chartData, timeframe]);
+  }, [selectedGenerator, symbol, currentParams, chartData, timeframe]);
 
   const visibleLabels = useMemo(() => {
     if (!showLabels || labelPreview.length === 0 || chartData.length === 0) return [];
@@ -193,7 +192,7 @@ export function MLWorkflowSidebar({
             }}
             labelDistribution={labelDistribution}
             visibleLabelsCount={visibleLabels.length}
-            effectiveSymbol={effectiveSymbol}
+            symbol={symbol}
           />
         </TabsContent>
 

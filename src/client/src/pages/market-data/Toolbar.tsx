@@ -3,11 +3,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
-  TrendingUp, DollarSign, ArrowRightLeft, ChevronsUpDown, Check,
+  TrendingUp, DollarSign, ChevronsUpDown, Check,
   Layers, ZapOff, Play, Pause, PanelRightOpen, RotateCcw,
 } from "lucide-react";
 import { IndicatorSelector } from "@/components/IndicatorSelector";
-import type { InstrumentInfo, ChartSymbolInfo } from "./types";
+import type { InstrumentInfo } from "./types";
 import { TIMEFRAME_OPTIONS as timeframes } from "@/lib/timeframes";
 
 interface ToolbarProps {
@@ -19,13 +19,8 @@ interface ToolbarProps {
   symbolOpen: boolean;
   onSymbolOpenChange: (open: boolean) => void;
   activeSymbols: InstrumentInfo[];
-  // Contracts (futures only)
+  // Futures flag
   isFutures: boolean;
-  contract: string | null;
-  onContractChange: (contract: string | null) => void;
-  contractOpen: boolean;
-  onContractOpenChange: (open: boolean) => void;
-  contractsForSymbol: ChartSymbolInfo[];
   // Timeframe
   timeframe: number;
   onTimeframeChange: (minutes: number) => void;
@@ -57,7 +52,7 @@ interface ToolbarProps {
 export function Toolbar({
   assetType, onAssetTypeChange,
   symbol, onSymbolSelect, symbolOpen, onSymbolOpenChange, activeSymbols,
-  isFutures, contract, onContractChange, contractOpen, onContractOpenChange, contractsForSymbol,
+  isFutures,
   timeframe, onTimeframeChange,
   catalog, selectedColumns, onSelectionChange, indicatorsLoading,
   showSR, onToggleSR, showZigZag, onToggleZigZag, showSwingZZ, onToggleSwingZZ,
@@ -128,69 +123,6 @@ export function Toolbar({
           </Command>
         </PopoverContent>
       </Popover>
-
-      {isFutures && contractsForSymbol.length > 0 && (
-        <Popover open={contractOpen} onOpenChange={onContractOpenChange}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              aria-expanded={contractOpen}
-              className="w-[160px] justify-between h-7 text-xs font-mono border-white/10 bg-black/30"
-              data-testid="contract-selector"
-            >
-              <span className="flex items-center gap-1.5">
-                <ArrowRightLeft className="h-3 w-3 text-amber-400" />
-                {contract ?? "Front Month"}
-              </span>
-              <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[280px] p-0" align="start">
-            <Command>
-              <CommandInput placeholder="Search contract..." />
-              <CommandList>
-                <CommandEmpty>No contract found.</CommandEmpty>
-                <CommandGroup heading="View Mode">
-                  <CommandItem
-                    value="front month auto"
-                    onSelect={() => {
-                      onContractChange(null);
-                      onContractOpenChange(false);
-                      onResetScrollState();
-                    }}
-                    className="flex items-center gap-2"
-                  >
-                    <Check className={`h-3 w-3 ${contract === null ? 'opacity-100' : 'opacity-0'}`} />
-                    <span className="font-semibold text-xs">Front Month</span>
-                    <span className="text-muted-foreground text-[10px]">Auto-selected</span>
-                  </CommandItem>
-                </CommandGroup>
-                <CommandGroup heading={`Individual Contracts (${contractsForSymbol.length})`}>
-                  {contractsForSymbol.map((c) => (
-                    <CommandItem
-                      key={c.symbol}
-                      value={c.symbol}
-                      onSelect={() => {
-                        onContractChange(c.symbol);
-                        onContractOpenChange(false);
-                        onResetScrollState();
-                      }}
-                      className="flex items-center gap-2"
-                    >
-                      <Check className={`h-3 w-3 ${contract === c.symbol ? 'opacity-100' : 'opacity-0'}`} />
-                      <span className="font-mono font-semibold text-xs">{c.symbol}</span>
-                      <span className="text-muted-foreground text-[10px] ml-auto">
-                        {Number(c.row_count).toLocaleString()} bars
-                      </span>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-      )}
 
       <div className="w-px h-5 bg-white/10" />
 

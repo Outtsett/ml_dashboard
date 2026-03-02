@@ -48,6 +48,7 @@ export const INITIAL_LIVE_METRICS: LiveMetrics = {
 
 export interface RegimeModel {
   id: string;
+  modelType: string;
   symbol: string;
   timeframe: string;
   n_regimes: number;
@@ -200,14 +201,26 @@ export interface ConvergencePoint {
 // ─── Regime Color Palette ────────────────────────────────────────────────────
 
 export const REGIME_COLORS = [
-  { bg: 'bg-rose-500/20', text: 'text-rose-400', border: 'border-rose-500/30', fill: '#f43f5e' },
-  { bg: 'bg-orange-500/20', text: 'text-orange-400', border: 'border-orange-500/30', fill: '#f97316' },
-  { bg: 'bg-amber-500/20', text: 'text-amber-400', border: 'border-amber-500/30', fill: '#f59e0b' },
-  { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/30', fill: '#10b981' },
-  { bg: 'bg-cyan-500/20', text: 'text-cyan-400', border: 'border-cyan-500/30', fill: '#06b6d4' },
-  { bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/30', fill: '#3b82f6' },
-  { bg: 'bg-violet-500/20', text: 'text-violet-400', border: 'border-violet-500/30', fill: '#8b5cf6' },
-  { bg: 'bg-pink-500/20', text: 'text-pink-400', border: 'border-pink-500/30', fill: '#ec4899' },
+  { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/30', fill: '#4CAF50' },
+  { bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/30', fill: '#2196F3' },
+  { bg: 'bg-orange-500/20', text: 'text-orange-400', border: 'border-orange-500/30', fill: '#FF9800' },
+  { bg: 'bg-pink-500/20', text: 'text-pink-400', border: 'border-pink-500/30', fill: '#E91E63' },
+  { bg: 'bg-purple-500/20', text: 'text-purple-400', border: 'border-purple-500/30', fill: '#9C27B0' },
+  { bg: 'bg-cyan-500/20', text: 'text-cyan-400', border: 'border-cyan-500/30', fill: '#00BCD4' },
+  { bg: 'bg-yellow-500/20', text: 'text-yellow-400', border: 'border-yellow-500/30', fill: '#FFEB3B' },
+  { bg: 'bg-amber-700/20', text: 'text-amber-600', border: 'border-amber-700/30', fill: '#795548' },
+  { bg: 'bg-slate-500/20', text: 'text-slate-400', border: 'border-slate-500/30', fill: '#607D8B' },
+  { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30', fill: '#F44336' },
+  { bg: 'bg-lime-500/20', text: 'text-lime-400', border: 'border-lime-500/30', fill: '#8BC34A' },
+  { bg: 'bg-indigo-500/20', text: 'text-indigo-400', border: 'border-indigo-500/30', fill: '#3F51B5' },
+  { bg: 'bg-orange-600/20', text: 'text-orange-500', border: 'border-orange-600/30', fill: '#FF5722' },
+  { bg: 'bg-teal-500/20', text: 'text-teal-400', border: 'border-teal-500/30', fill: '#009688' },
+  { bg: 'bg-lime-400/20', text: 'text-lime-300', border: 'border-lime-400/30', fill: '#CDDC39' },
+  { bg: 'bg-violet-600/20', text: 'text-violet-500', border: 'border-violet-600/30', fill: '#673AB7' },
+  { bg: 'bg-amber-500/20', text: 'text-amber-400', border: 'border-amber-500/30', fill: '#FFC107' },
+  { bg: 'bg-sky-500/20', text: 'text-sky-400', border: 'border-sky-500/30', fill: '#03A9F4' },
+  { bg: 'bg-rose-500/20', text: 'text-rose-400', border: 'border-rose-500/30', fill: '#FF4081' },
+  { bg: 'bg-green-400/20', text: 'text-green-300', border: 'border-green-400/30', fill: '#00E676' },
 ];
 
 export function getRegimeColor(idx: number) {

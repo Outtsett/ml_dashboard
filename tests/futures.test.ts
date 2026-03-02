@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   isFuturesRoot,
   contractPattern,
-} from "../server/services/continuousContract";
+} from "../src/server/lib/futures";
 
 // ── isFuturesRoot ───────────────────────────────────────────────────────
 
@@ -15,6 +15,12 @@ describe("isFuturesRoot", () => {
     expect(isFuturesRoot("CL")).toBe(true);
     expect(isFuturesRoot("GC")).toBe(true);
     expect(isFuturesRoot("YM")).toBe(true);
+  });
+
+  it("should return true for roots containing digits (M2K)", () => {
+    expect(isFuturesRoot("M2K")).toBe(true);
+    expect(isFuturesRoot("RTY")).toBe(true);
+    expect(isFuturesRoot("MYM")).toBe(true);
   });
 
   it("should return false for specific contracts", () => {

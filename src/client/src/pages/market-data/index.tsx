@@ -12,10 +12,10 @@ import { useTrainingSync } from "@/hooks/useTrainingSync";
 import { useTrainingContext } from "@/contexts/TrainingContext";
 import { useRegimeModels } from "@/hooks/useRegimeData";
 import type { Trade } from "@/lib/types";
-import { useSavedModels, useMLTrades, useTrainStatus } from "@/hooks/useMLData";
+import { useMLTrades } from "@/hooks/useMLData";
 import { useChartOHLCV } from "@/hooks/useChartOHLCV";
 import { useChartOverlayData } from "./useChartOverlayData";
-import { type OhlcvData, type InstrumentInfo, type ChartSymbolInfo } from "./types";
+import { type OhlcvData, type InstrumentInfo } from "./types";
 import { TIMEFRAME_OPTIONS as timeframes, minutesToLabel } from "@/lib/timeframes";
 import { Toolbar } from "./Toolbar";
 import { AnalyticsStrip } from "./AnalyticsStrip";
@@ -28,10 +28,8 @@ export default function MarketData() {
   const { models } = useRegimeModels(training.isTraining);
   const [symbol, setSymbolLocal] = useState(dashboard.symbol);
   const [assetType, setAssetTypeLocal] = useState<"futures" | "forex">(dashboard.assetType);
-  const [contract, setContract] = useState<string | null>(null);
   const [timeframe, setTimeframeLocal] = useState(dashboard.timeframeMinutes);
   const [symbolOpen, setSymbolOpen] = useState(false);
-  const [contractOpen, setContractOpen] = useState(false);
   const [mlPanelOpen, setMlPanelOpen] = useState(false);
 
   // Sync local → context when user changes symbol/tf here
@@ -61,7 +59,7 @@ export default function MarketData() {
   useBreadcrumbs([
     { label: assetType === "futures" ? "Futures" : "Forex", icon: assetType === "futures" ? TrendingUp : DollarSign },
     { label: symbol },
-    { label: contract ?? symbol },
+    { label: symbol },
     { label: tfLabel, icon: Clock },
   ]);
 
@@ -93,10 +91,6 @@ export default function MarketData() {
   });
   const allInstruments = Array.isArray(rawInstruments) ? rawInstruments : [];
 
-  const { data: chartSymbols = [] } = useQuery<ChartSymbolInfo[]>({
-    queryKey: ["/api/charts/symbols"],
-  });
-
   const futuresSymbols = useMemo(() =>
     allInstruments.filter(i => i.assetType === 'futures').sort((a, b) => a.symbol.localeCompare(b.symbol)),
     [allInstruments]
@@ -108,15 +102,6 @@ export default function MarketData() {
 
   const activeSymbols = assetType === "futures" ? futuresSymbols : forexSymbols;
 
-  const contractsForSymbol = useMemo(() => {
-    if (assetType !== "futures" || !symbol) return [];
-    const re = new RegExp(`^${symbol}[A-Z]\\d{1,2}$`);
-    return chartSymbols
-      .filter(s => re.test(s.symbol))
-      .sort((a, b) => b.last_bar.localeCompare(a.last_bar));
-  }, [symbol, assetType, chartSymbols]);
-
-  const effectiveSymbol = contract ?? symbol;
   const isFutures = assetType === "futures";
 
 
@@ -124,7 +109,7 @@ export default function MarketData() {
   const {
     chartData, isFetching, isLoadingMore, hasMoreLeft, hasMoreRight,
     handleLoadMore, resetScrollState, resetChart, useInfiniteScroll,
-  } = useChartOHLCV(effectiveSymbol, timeframe);
+  } = useChartOHLCV(symbol, timeframe);
 
   // ── Market Replay ──
   const replay = useLocalReplay(chartData);
@@ -152,8 +137,7 @@ export default function MarketData() {
   });
 
   // ── Quick stats ──
-  const { savedModels } = useSavedModels();
-  const modelCount = savedModels.length;
+  const modelCount = models.length;
 
   const { data: quickTrades = [] } = useMLTrades();
 
@@ -169,13 +153,11 @@ export default function MarketData() {
     return { totalTrades: closed.length, winRate, totalPnl, profitFactor };
   }, [quickTrades]);
 
-  const { data: trainingStatus } = useTrainStatus();
-  const isTrainingActive = trainingStatus?.active === true;
+  const isTrainingActive = training.isTraining;
 
   const selectSymbol = async (sym: string, type: "futures" | "forex") => {
     setSymbol(sym);
     setAssetType(type);
-    setContract(null);
     resetScrollState();
   };
 
@@ -194,11 +176,6 @@ export default function MarketData() {
         onSymbolOpenChange={setSymbolOpen}
         activeSymbols={activeSymbols}
         isFutures={isFutures}
-        contract={contract}
-        onContractChange={(c) => { setContract(c); resetScrollState(); }}
-        contractOpen={contractOpen}
-        onContractOpenChange={setContractOpen}
-        contractsForSymbol={contractsForSymbol}
         timeframe={timeframe}
         onTimeframeChange={setTimeframe}
         catalog={catalog}
@@ -222,8 +199,7 @@ export default function MarketData() {
 
       {/* Analytics Strip */}
       <AnalyticsStrip
-        effectiveSymbol={effectiveSymbol}
-        contract={contract}
+        symbol={symbol}
         displayDataLength={displayData.length}
         chartDataLength={chartData.length}
         replayActive={replay.active}
@@ -241,7 +217,7 @@ export default function MarketData() {
       <ChartPanel
         displayData={displayData}
         chartData={chartData}
-        effectiveSymbol={effectiveSymbol}
+        symbol={symbol}
         isFutures={isFutures}
         timeframe={timeframe}
         replay={{
@@ -293,7 +269,6 @@ export default function MarketData() {
           <SheetTitle className="sr-only">ML Tools — {symbol}</SheetTitle>
           <MLWorkflowSidebar
             chartData={chartData}
-            effectiveSymbol={effectiveSymbol}
             symbol={symbol}
             isFutures={isFutures}
             timeframe={timeframe}

@@ -16,7 +16,7 @@ export function LabelsTab({
   onGenerate, isPreviewing, chartDataLength,
   showLabels, onClearLabels,
   labelDistribution, visibleLabelsCount,
-  effectiveSymbol,
+  symbol,
 }: LabelsTabProps) {
   return (
     <div className="p-3 space-y-3">
@@ -112,7 +112,7 @@ export function LabelsTab({
 
       {/* Symbol info footer */}
       <div className="p-2 rounded-lg bg-white/5 mt-auto">
-        <p className="font-mono text-sm text-primary">{effectiveSymbol}</p>
+        <p className="font-mono text-sm text-primary">{symbol}</p>
         <p className="text-[9px] text-muted-foreground">
           {chartDataLength > 0 ? `${chartDataLength.toLocaleString()} bars loaded` : 'No data'}
         </p>

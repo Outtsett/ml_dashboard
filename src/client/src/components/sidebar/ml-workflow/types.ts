@@ -56,7 +56,6 @@ export interface XAIResult {
 
 export interface MLWorkflowSidebarProps {
   chartData: { timestamp: number; open: number; high: number; low: number; close: number; volume: number }[];
-  effectiveSymbol: string;
   symbol: string;
   isFutures: boolean;
   timeframe: number;
@@ -91,7 +90,7 @@ export interface LabelsTabProps {
   onClearLabels: () => void;
   labelDistribution: LabelDistribution;
   visibleLabelsCount: number;
-  effectiveSymbol: string;
+  symbol: string;
 }
 
 export interface TrainTabProps {

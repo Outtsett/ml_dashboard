@@ -16,7 +16,6 @@ interface ChartSetupOptions {
   minMove: number;
   isFutures: boolean;
   tickInfo: { tickSize: number; tickValue: number; decimals: number } | undefined;
-  contractLookupRef: React.RefObject<Map<number, string>>;
   setPriceInfo: React.Dispatch<React.SetStateAction<PriceInfo | null>>;
   onRangeChangeRef: React.MutableRefObject<((range: LogicalRange) => void) | undefined>;
   showTimeAxis: boolean;
@@ -40,7 +39,7 @@ interface ChartSetupResult {
 export function useChartSetup({
   containerRef,
   decimals, minMove, isFutures, tickInfo,
-  contractLookupRef, setPriceInfo, onRangeChangeRef,
+  setPriceInfo, onRangeChangeRef,
   showTimeAxis,
 }: ChartSetupOptions): ChartSetupResult {
   const chartRef = useRef<IChartApi | null>(null);
@@ -71,12 +70,10 @@ export function useChartSetup({
       if (param.time && candleSeriesRef.current) {
         const data = param.seriesData.get(candleSeriesRef.current) as CandlestickData<Time> | undefined;
         if (data) {
-          const timeValue = param.time as number;
-          const date = new Date(timeValue * 1000);
+          const date = new Date((param.time as number) * 1000);
           setPriceInfoRef.current({
             open: data.open, high: data.high, low: data.low, close: data.close,
             time: date.toLocaleString(),
-            activeContract: contractLookupRef.current.get(timeValue),
           });
         }
       }

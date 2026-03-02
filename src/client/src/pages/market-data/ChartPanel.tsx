@@ -13,7 +13,7 @@ interface ChartPanelProps {
   // Chart data
   displayData: OhlcvData[];
   chartData: OhlcvData[];
-  effectiveSymbol: string;
+  symbol: string;
   isFutures: boolean;
   timeframe: number;
   // Replay
@@ -65,7 +65,7 @@ interface ChartPanelProps {
 }
 
 export function ChartPanel({
-  displayData, chartData, effectiveSymbol, isFutures, timeframe,
+  displayData, chartData, symbol, isFutures, timeframe,
   replay, trainingSync,
   regimeLegendInfo, selectedRegimes, onToggleRegime, onShowAllRegimes,
   regimeColorMap, trainTestSplitTime,
@@ -127,7 +127,7 @@ export function ChartPanel({
             <div className="flex-1 min-h-0 p-1">
               <IndicatorChartLayout
                 data={displayData}
-                symbol={effectiveSymbol}
+                symbol={symbol}
                 isFutures={isFutures}
                 timeframe={timeframe}
                 isReplayActive={replay.active}
@@ -150,7 +150,7 @@ export function ChartPanel({
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
               <Database className="h-12 w-12 mb-3 opacity-20" />
-              <p className="font-mono text-sm">No data for {effectiveSymbol}</p>
+              <p className="font-mono text-sm">No data for {symbol}</p>
               <p className="text-xs text-muted-foreground/60 mt-1">Upload {isFutures ? 'futures' : 'forex'} data to see the chart</p>
             </div>
           )}

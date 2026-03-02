@@ -25,12 +25,13 @@ def _rolling_stat(arr, window, func):
     """Compute a rolling statistic over an array."""
     result = np.full_like(arr, np.nan, dtype=np.float64)
     for i in range(window, len(arr)):
-        result[i] = func(arr[i - window:i])
+        result[i] = func(arr[i - window : i])
     return result
 
 
 # ── Individual compute functions (one per type) ─────────────────────────────
 # Each takes **ohlcv (close, high, low, open_, volume) + type-specific params.
+
 
 def _compute_log_return(close, horizon, **_):
     return np.concatenate([np.zeros(horizon), np.diff(np.log(close + 1e-10), n=horizon)])
@@ -43,9 +44,7 @@ def _compute_realized_vol(close, window, **_):
 
 def _compute_parkinson_vol(high, low, window, **_):
     log_hl = np.log(high / (low + 1e-10))
-    return _rolling_stat(
-        log_hl, window, lambda x: np.sqrt(np.mean(x ** 2) / (4 * np.log(2)))
-    )
+    return _rolling_stat(log_hl, window, lambda x: np.sqrt(np.mean(x**2) / (4 * np.log(2))))
 
 
 def _compute_volume_ratio(volume, window, **_):
@@ -87,25 +86,23 @@ def _compute_ma_distance(close, window, **_):
 # ── Dispatch table: type → function ─────────────────────────────────────────
 
 COMPUTE_FUNCTIONS = {
-    "log_return":     _compute_log_return,
-    "realized_vol":   _compute_realized_vol,
-    "parkinson_vol":  _compute_parkinson_vol,
-    "volume_ratio":   _compute_volume_ratio,
-    "bar_range":      _compute_bar_range,
-    "body_ratio":     _compute_body_ratio,
-    "upper_shadow":   _compute_upper_shadow,
-    "lower_shadow":   _compute_lower_shadow,
+    "log_return": _compute_log_return,
+    "realized_vol": _compute_realized_vol,
+    "parkinson_vol": _compute_parkinson_vol,
+    "volume_ratio": _compute_volume_ratio,
+    "bar_range": _compute_bar_range,
+    "body_ratio": _compute_body_ratio,
+    "upper_shadow": _compute_upper_shadow,
+    "lower_shadow": _compute_lower_shadow,
     "rate_of_change": _compute_rate_of_change,
-    "ma_distance":    _compute_ma_distance,
+    "ma_distance": _compute_ma_distance,
     # "swing" is handled specially — batch computation via swing.py
 }
 
 
 def _load_feature_config():
-    """Read feature registry from config/features.json."""
-    config_path = os.path.join(
-        os.path.dirname(__file__), "..", "config", "features.json"
-    )
+    """Read feature registry from src/config/features.json."""
+    config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config", "features.json")
     with open(config_path) as f:
         return json.load(f)
 
@@ -164,9 +161,7 @@ def compute_features(data, categories=None):
         if feat_type == "swing":
             # Compute swing batch once, distribute individual outputs
             if swing_cache is None:
-                swing_cache = compute_swing_features(
-                    ohlcv["high"], ohlcv["low"], ohlcv["close"]
-                )
+                swing_cache = compute_swing_features(ohlcv["high"], ohlcv["low"], ohlcv["close"])
             if feat_name in swing_cache:
                 features[feat_name] = swing_cache[feat_name]
                 feature_names.append(feat_name)
@@ -199,7 +194,7 @@ def normalize_features(X, lookback=250, clip_range=(-5, 5)):
     windows = sliding_window_view(X, window_shape=lookback, axis=0)
 
     n_valid = T - lookback
-    mu = np.nanmean(windows[:n_valid], axis=2)    # (n_valid, D)
+    mu = np.nanmean(windows[:n_valid], axis=2)  # (n_valid, D)
     sigma = np.nanstd(windows[:n_valid], axis=2)  # (n_valid, D)
     sigma = np.where(sigma < 1e-10, 1.0, sigma)
 

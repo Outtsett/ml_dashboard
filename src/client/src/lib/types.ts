@@ -8,7 +8,7 @@
  */
 
 // Re-export OHLCV types from the shared canonical definition
-export type { OHLCVBar, SymbolOHLCVBar, ContinuousOHLCVBar, SymbolStats } from "@shared/ohlcv";
+export type { OHLCVBar, SymbolOHLCVBar, StitchedOHLCVBar, SymbolStats } from "@shared/ohlcv";
 
 export interface MlModel {
   id: number;
@@ -109,9 +109,6 @@ export const QUERY_KEYS = {
   mlModels: ["/api/ml/models"] as const,
   mlTrades: ["/api/ml/trades"] as const,
   mlRegimes: ["/api/ml/regimes"] as const,
-  mlSavedModels: ["/api/ml/saved-models"] as const,
-  mlTrainStatus: ["/api/ml/train/status"] as const,
-  mlFeatures: ["/api/ml/universal/features"] as const,
   regimeModels: ["/api/training/models"] as const,
   regimeDiagnostics: (id: string | number) => ["/api/training/models", String(id), "diagnostics"] as const,
   regimeConvergence: (id: string | number) => ["/api/training/models", String(id), "convergence"] as const,
@@ -119,9 +116,7 @@ export const QUERY_KEYS = {
   regimeTrainStatus: ["/api/training/status"] as const,
   instruments: ["/api/instruments"] as const,
   featureImportance: (modelName: string) => ["/api/ml/feature-importance", modelName] as const,
-  trainingStatus: ["/api/ml/train/status"] as const,
   trainingConfig: ["/api/training/config"] as const,
-  lastTrainingSession: (symbol: string) => ["/api/ml/train/last-session", symbol] as const,
   chartOhlcv: (symbol: string, timeframe: string) => ["/api/charts/ohlcv", symbol, timeframe] as const,
   chartSymbols: ["/api/charts/symbols"] as const,
   indicatorCatalog: (symbol: string) => ["/api/indicators/catalog", symbol] as const,

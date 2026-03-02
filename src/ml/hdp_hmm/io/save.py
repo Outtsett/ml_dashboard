@@ -20,7 +20,28 @@ from shared.signals import compute_signal_columns
 from shared.evaluation import run_all_stages
 
 
-QUESTDB_HTTP_URL = os.environ.get("QUESTDB_URL", "http://localhost:9000")
+class _NumpyEncoder(json.JSONEncoder):
+    """JSON encoder that handles numpy types (numpy 2.x compatible)."""
+
+    def default(self, obj):
+        # numpy 2.x: np.bool_ no longer inherits from Python bool
+        if hasattr(np, "bool_") and isinstance(obj, np.bool_):
+            return bool(obj)
+        if hasattr(np, "bool") and isinstance(obj, np.bool):
+            return bool(obj)
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        # Catch any remaining numpy generic types
+        if isinstance(obj, np.generic):
+            return obj.item()
+        return super().default(obj)
+
+
+QUESTDB_HTTP_URL = os.environ.get("QUESTDB_URL", "http://127.0.0.1:9000")
 
 
 def _write_to_questdb(table_name: str, csv_content: str, ts_col: str = "ts"):
@@ -30,7 +51,9 @@ def _write_to_questdb(table_name: str, csv_content: str, ts_col: str = "ts"):
     can parse the designated timestamp column on existing WAL tables.
     Schema must come BEFORE data in the multipart form.
     """
-    schema = json.dumps([{"name": ts_col, "type": "TIMESTAMP", "pattern": "yyyy-MM-ddTHH:mm:ss.SSSUUUz"}])
+    schema = json.dumps(
+        [{"name": ts_col, "type": "TIMESTAMP", "pattern": "yyyy-MM-ddTHH:mm:ss.SSSUUUz"}]
+    )
     resp = requests.post(
         f"{QUESTDB_HTTP_URL}/imp?name={table_name}",
         files=[
@@ -52,11 +75,20 @@ def _fmt_ts(ts) -> str:
     return s
 
 
-def save_model(model, timestamps, features, feature_names, args, elapsed,
-               iteration_metrics=None, wf_counts=None, close_vals=None):
+def save_model(
+    model,
+    timestamps,
+    features,
+    feature_names,
+    args,
+    elapsed,
+    iteration_metrics=None,
+    wf_counts=None,
+    close_vals=None,
+):
     """Save model artifacts to data/models/<modelId>/ and QuestDB tables."""
-    # model_io/ is at src/ml/model_io/ — 4 parents to reach project root
-    project_root = Path(__file__).parent.parent.parent.parent
+    # save.py is at src/ml/hdp_hmm/io/ — use cwd (set by Node runner) for reliability
+    project_root = Path.cwd()
     model_id = args.model_id if args.model_id else f"{args.symbol}_{args.timeframe}"
     output_dir = project_root / "data" / "models" / model_id
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -65,13 +97,15 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
     relabeled, colors, labels, n_regimes = relabel_states(model.state_sequence, features)
 
     # Compute rich signal columns for model_regimes (OCP — new columns, existing untouched)
-    posteriors = getattr(model, 'posteriors_', None)  # (T, K) if available from Gibbs/EM
-    trans_matrix_full = model.transition_matrix if hasattr(model, 'transition_matrix') else None
+    posteriors = getattr(model, "posteriors_", None)  # (T, K) if available from Gibbs/EM
+    trans_matrix_full = model.transition_matrix if hasattr(model, "transition_matrix") else None
     signal_cols = compute_signal_columns(
         assignments=np.array(relabeled),
         posteriors=posteriors,
         close=np.array(close_vals if close_vals is not None else [0.0] * T, dtype=np.float64),
-        transition_matrix=trans_matrix_full[:n_regimes, :n_regimes] if trans_matrix_full is not None else None,
+        transition_matrix=trans_matrix_full[:n_regimes, :n_regimes]
+        if trans_matrix_full is not None
+        else None,
     )
 
     # Resolve close values and timestamps
@@ -86,7 +120,9 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
 
     # 1. Write regime assignments to QuestDB model_regimes table
     csv_buf = io.StringIO()
-    csv_buf.write("model_id,symbol,ts,close,regime,regime_label,split,confidence,entropy,magnitude,volatility,duration_bars,transition_prob\n")
+    csv_buf.write(
+        "model_id,symbol,ts,close,regime,regime_label,split,confidence,entropy,magnitude,volatility,duration_bars,transition_prob\n"
+    )
     for i in range(T):
         ts_str = _fmt_ts(ts_vals[i])
         # Escape commas in regime labels
@@ -97,12 +133,27 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
         vol = float(signal_cols["volatility"][i])
         dur = int(signal_cols["duration_bars"][i])
         tp = float(signal_cols["transition_prob"][i])
-        csv_buf.write(f"{model_id},{args.symbol},{ts_str},{float(close_vals[i])},{int(relabeled[i])},{rl},{splits[i]},{conf},{ent},{mag},{vol},{dur},{tp}\n")
+        csv_buf.write(
+            f"{model_id},{args.symbol},{ts_str},{float(close_vals[i])},{int(relabeled[i])},{rl},{splits[i]},{conf},{ent},{mag},{vol},{dur},{tp}\n"
+        )
 
     try:
         _write_to_questdb("model_regimes", csv_buf.getvalue())
     except Exception as e:
-        print(f"[save] Warning: Failed to write model_regimes to QuestDB: {e}", file=__import__('sys').stderr)
+        print(
+            f"[save] Warning: Failed to write model_regimes to QuestDB: {e}",
+            file=__import__("sys").stderr,
+        )
+
+    # 1b. Also save assignments to disk as CSV (durable fallback)
+    assignments_path = output_dir / "assignments.csv"
+    try:
+        assignments_path.write_text(csv_buf.getvalue(), encoding="utf-8")
+    except Exception as e:
+        print(
+            f"[save] Warning: Failed to write assignments.csv to disk: {e}",
+            file=__import__("sys").stderr,
+        )
 
     # 2. convergence.json — full ConvergencePoint[] format
     if iteration_metrics:
@@ -150,18 +201,27 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
     try:
         _write_to_questdb("model_shap", csv_buf.getvalue())
     except Exception as e:
-        print(f"[save] Warning: Failed to write model_shap to QuestDB: {e}", file=__import__('sys').stderr)
+        print(
+            f"[save] Warning: Failed to write model_shap to QuestDB: {e}",
+            file=__import__("sys").stderr,
+        )
 
     # 8. Quality score (incorporating OOS + WF)
-    quality_score = compute_quality_score(model, relabeled, n_regimes, T, oos=oos, walk_forward=walk_forward)
+    quality_score = compute_quality_score(
+        model, relabeled, n_regimes, T, oos=oos, walk_forward=walk_forward
+    )
 
     # 8b. Statistical evaluation pipeline (Stages 1-5)
     split_mask = np.array([s == "train" for s in splits])
     close_arr = np.array(close_vals, dtype=np.float64)
     conf_arr = signal_cols["confidence"] if "confidence" in signal_cols else None
-    tm = model.transition_matrix[:n_regimes, :n_regimes] if hasattr(model, 'transition_matrix') else None
-    run_sig = getattr(args, 'run_significance_tests', False)
-    eval_iter = getattr(args, 'gibbs_iter', 0)
+    tm = (
+        model.transition_matrix[:n_regimes, :n_regimes]
+        if hasattr(model, "transition_matrix")
+        else None
+    )
+    run_sig = getattr(args, "run_significance_tests", False)
+    eval_iter = getattr(args, "gibbs_iter", 0)
     evaluation_results = run_all_stages(
         features=features,
         assignments=np.array(relabeled),
@@ -222,6 +282,6 @@ def save_model(model, timestamps, features, feature_names, args, elapsed,
         "evaluation": evaluation_results,
     }
     with open(output_dir / "diagnostics.json", "w") as f:
-        json.dump(diagnostics, f, indent=2)
+        json.dump(diagnostics, f, indent=2, cls=_NumpyEncoder)
 
     return str(output_dir).replace("\\", "/"), diagnostics

@@ -38,9 +38,6 @@ async function mutate<T = unknown>(method: string, url: string, body?: unknown):
 
 export const mlApi = {
   getModels:      ()  => getArray('/api/ml/models'),
-  getSavedModels: ()  => get<{ models: unknown[] }>('/api/ml/saved-models'),
-  getTrainStatus: ()  => get('/api/ml/train/status'),
-  getFeatures:    ()  => get('/api/ml/universal/features'),
   getTrades:      ()  => getArray('/api/ml/trades'),
   getForecasts:   (params: Record<string, string>) =>
     get(`/api/ml/forecasts?${new URLSearchParams(params)}`),

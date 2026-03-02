@@ -116,12 +116,18 @@ export async function getFrontMonthRanges(
     const escaped = safeRoot.replace(/'/g, "''");
     const contractRegex = `^${escaped}[FGHJKMNQUVXZ][0-9]{1,2}$`;
 
+    // Floor start / ceil end to day boundaries — ohlcv_1d bars sit at midnight,
+    // so a sub-day startTime would miss the current day's daily bar.
     let timeFilter = '';
     if (startTime) {
-      timeFilter += ` AND timestamp >= '${new Date(startTime).toISOString()}'`;
+      const dayStart = new Date(startTime);
+      dayStart.setUTCHours(0, 0, 0, 0);
+      timeFilter += ` AND timestamp >= '${dayStart.toISOString()}'`;
     }
     if (endTime) {
-      timeFilter += ` AND timestamp <= '${new Date(endTime).toISOString()}'`;
+      const dayEnd = new Date(endTime);
+      dayEnd.setUTCHours(23, 59, 59, 999);
+      timeFilter += ` AND timestamp <= '${dayEnd.toISOString()}'`;
     }
 
     const dailyBars = await queryQuestDB<{ symbol: string; timestamp: Date | string; volume: number }>(

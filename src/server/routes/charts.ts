@@ -15,7 +15,7 @@ import { Router, Request, Response } from 'express';
 import { getOHLCVSampleBy, getFrontMonthOHLCV, checkQuestDBHealth, queryQuestDB } from '../database/questdb';
 import { cachedQuery, OHLCVCache } from '../lib/ohlcvCache';
 import { normalizeTimestamp, parseTimestampParam } from '../lib/normalize';
-import { isFuturesRoot } from '../lib/continuousContract';
+import { isFuturesRoot } from '../lib/futures';
 import { CACHE_SEMI } from '../lib/cacheHeaders';
 import { SYMBOL_REGEX } from '@shared/schema';
 
