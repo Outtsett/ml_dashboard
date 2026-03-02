@@ -75,8 +75,8 @@ QuestDB:    E:\source\databases\questdb-9.3.1-rt-windows-x86-64\
 | `trades` | 12.9M  | DAY       | symbol (SYMBOL INDEX), timestamp, rtype, publisher_id, instrument_id, action, side, depth, price, size, flags, ts_in_delta, sequence |
 | `mbp10`  | 408.8M | DAY       | symbol (SYMBOL INDEX), timestamp, ts_recv, metadata cols, 10-level bid/ask (px DOUBLE, sz LONG, ct INT)                              |
 
-**Materialized Views** (7 timeframes, auto-refresh on insert):
-`ohlcv_5m`, `ohlcv_15m`, `ohlcv_30m`, `ohlcv_1h`, `ohlcv_4h`, `ohlcv_1d`, `ohlcv_1w`
+**Materialized Views** (8 timeframes, auto-refresh on insert):
+`ohlcv_1m`, `ohlcv_5m`, `ohlcv_15m`, `ohlcv_30m`, `ohlcv_1h`, `ohlcv_4h`, `ohlcv_1d`, `ohlcv_1w`
 
 **Data Ingestion**: ILP protocol (port 9009) via Node.js Sender. File dedup tracked in SQLite `ingested_files`.
 
@@ -99,7 +99,7 @@ QuestDB:    E:\source\databases\questdb-9.3.1-rt-windows-x86-64\
 All market data uses: `ts` (TIMESTAMP), `symbol` (VARCHAR), `open`, `high`, `low`, `close` (DOUBLE), `volume` (BIGINT)
 
 - Column names standardized on ingestion (`ts_event` -> `ts`, `instrument_id` -> `symbol`)
-- Futures: Panama additive back-adjustment via `rollovers` table
+- Futures: Rollover stitching via QuestDB `rollovers` table (353 rows, 8 roots). Default: raw prices (no adjustment). Optional: `?adjustment=panama|ratio`
 - Forex: `pipSize` varies (0.0001 standard, 0.01 for JPY pairs)
 
 ### Data Pipeline
@@ -154,7 +154,7 @@ server/
     typeorm.module.ts   TypeORM config
     questdb/
       connection.ts   Low-level clients (Sender, pg.Pool, queryQuestDB, insertOHLCVBatch)
-      marketData.ts   OHLCV SAMPLE BY queries, materialized view lookup, front-month stitching
+      marketData.ts   OHLCV SAMPLE BY queries, materialized view lookup, rollover stitching
       introspection.ts  Schema metadata (SHOW TABLES, columns, partitions, stats)
       httpQuery.ts    QuestDB HTTP API (questdbHttpQuery, questdbExportParquet, questdbImportCSV)
       export.ts       Parquet export via /exp endpoint
@@ -274,10 +274,10 @@ All new code **must** follow SOLID. Apply everywhere — routes, components, hoo
 - **EventEmitter training**: `MLTrainer extends EventEmitter` emits progress events per epoch. Frontend connects via SSE at `GET /ml/train/stream`.
 - **Config-driven features**: `src/config/features.json` is the single source of truth for all 29 features across 8 categories. Python `features.py` reads this config via dispatch table. Adding a feature = add JSON entry.
 - **Pre-computed indicators**: pandas-ta computes 344 indicator columns (9 categories). Stored in QuestDB `indicators_{tf}` tables, served via `/api/indicators/data/:symbol`.
-- **Front-month stitching**: Futures roots (ES, MNQ, M2K, etc.) are stitched at query time from highest-volume contract per day. No pre-built continuous series.
+- **Rollover stitching**: Futures root symbols (ES, MNQ, M2K, etc.) are stitched at query time from per-contract OHLCV using the `rollovers` table. Frontend references root symbols only — all rollover/front-month logic is backend.
 - **Circuit breaker**: Auto-disable failing DB connections. States: closed (normal), open (failing, fast-fail), half-open (testing). Reset via `POST /circuit-breaker/reset/:name`.
 - **File-level dedup**: SHA-256 hash tracking in SQLite `ingested_files` table prevents re-ingestion.
-- **Chart data flow**: QuestDB `SAMPLE BY` for chart candles. Futures roots use front-month stitching (`getFrontMonthOHLCV`); forex uses direct queries.
+- **Chart data flow**: QuestDB `SAMPLE BY` for chart candles. Futures roots use rollover stitching (`getStitchedOHLCV`, default: no price adjustment); forex uses direct queries.
 - **Training data flow**: Python reads QuestDB directly via PG wire (psycopg2), computes features inline, writes results back to QuestDB via HTTP `/imp`.
 
 ## API Route Map (11 routers on `/api`)

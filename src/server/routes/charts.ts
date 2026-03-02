@@ -12,7 +12,8 @@
  * This route normalises everything to a flat array of { timestamp, open, high, low, close, volume }.
  */
 import { Router, Request, Response } from 'express';
-import { getOHLCVSampleBy, getFrontMonthOHLCV, checkQuestDBHealth, queryQuestDB } from '../database/questdb';
+import { getOHLCVSampleBy, getStitchedOHLCV, checkQuestDBHealth, queryQuestDB } from '../database/questdb';
+import type { AdjustmentMode } from '@shared/ohlcv';
 import { cachedQuery, OHLCVCache } from '../lib/ohlcvCache';
 import { normalizeTimestamp, parseTimestampParam } from '../lib/normalize';
 import { isFuturesRoot } from '../lib/futures';
@@ -100,6 +101,9 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
     const endMs   = parseTimestamp(req.query.endTime as string)   ?? parseTimestamp(req.query.end as string);
     const rowLimit = Math.min(parseInt(req.query.limit as string) || 5000, 50000);
     const orderDesc = (req.query.order as string)?.toLowerCase() !== 'asc';
+    const adjustmentRaw = (req.query.adjustment as string)?.toLowerCase();
+    const adjustment: AdjustmentMode = adjustmentRaw === 'panama' ? 'panama'
+      : adjustmentRaw === 'ratio' ? 'ratio' : 'none';
 
     const sampleLabel = MINUTES_TO_SAMPLE[tfMinutes]
       || LABEL_TO_SAMPLE[(req.query.timeframe as string)?.toLowerCase() ?? '']
@@ -134,7 +138,8 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
     }
 
     const cacheKey = OHLCVCache.key('chart', symbol, tfMinutes, {
-      startTime: effectiveStart, endTime: effectiveEnd, limit: rowLimit
+      startTime: effectiveStart, endTime: effectiveEnd, limit: rowLimit,
+      extra: isFuturesRoot(symbol) ? adjustment : undefined,
     });
 
     const healthy = await isQuestDBHealthy();
@@ -143,7 +148,7 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
     }
 
     const queryFn = isFuturesRoot(symbol)
-      ? () => getFrontMonthOHLCV(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit)
+      ? () => getStitchedOHLCV(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit, adjustment)
       : () => getOHLCVSampleBy(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit);
 
     const raw = await cachedQuery(cacheKey, queryFn);
@@ -154,6 +159,7 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
       low: Number(r.low),
       close: Number(r.close),
       volume: Number(r.volume),
+      ...(r.activeContract ? { activeContract: r.activeContract } : {}),
     }));
     // Sort: QuestDB returns ASC; reverse if caller wants DESC
     if (orderDesc) data.reverse();

@@ -29,6 +29,7 @@ export {
   getOHLCVSampleBy,
   getFrontMonthRanges,
   getFrontMonthOHLCV,
+  getStitchedOHLCV,
   getSymbolsInQuestDB,
   getSymbolStats,
 } from "./marketData";

@@ -29,6 +29,7 @@ import { OOSPanel } from "./OOSPanel";
 import { FitPanel } from "./FitPanel";
 import { TrainingLogTab } from "@/components/terminal/TrainingLogTab";
 import AnalyticsPanel from "../analytics";
+import { ModelComparisonView } from "../metrics";
 
 // ─── Main ModelTabs Component ────────────────────────────────────────────────
 
@@ -54,7 +55,7 @@ export default function ModelTabs({ models, selectedModel, setSelectedModel, del
       {/* ── Model Tabs (top row) ── */}
       {hasModels ? (
         <Tabs value={activeModelId} onValueChange={(id) => setSelectedModel(id)} className="flex flex-col min-h-0 flex-1">
-          <div className="border-b border-white/5 bg-white/[0.02] shrink-0">
+          <div className="border-b border-white/5 bg-white/2 shrink-0">
             <div className="flex items-center px-2 overflow-x-auto scrollbar-none">
               <TabsList className="bg-transparent h-auto p-0 gap-0">
                 {sortedModels.map((model) => {
@@ -68,8 +69,8 @@ export default function ModelTabs({ models, selectedModel, setSelectedModel, del
                         relative rounded-none border-b-2 px-4 py-2.5 text-xs font-medium
                         transition-all data-[state=active]:shadow-none
                         ${isActive
-                          ? "border-primary text-foreground bg-white/[0.04]"
-                          : "border-transparent text-muted-foreground hover:text-foreground/70 hover:bg-white/[0.02]"
+                          ? "border-primary text-foreground bg-white/4"
+                          : "border-transparent text-muted-foreground hover:text-foreground/70 hover:bg-white/2"
                         }
                       `}
                     >
@@ -93,6 +94,7 @@ export default function ModelTabs({ models, selectedModel, setSelectedModel, del
             <TabsContent key={model.id} value={model.id} className="mt-0 flex-1 min-h-0">
               <ModelPanel
                 model={model}
+                models={sortedModels}
                 activeSubTab={activeSubTab}
                 setActiveSubTab={setActiveSubTab}
                 deleteModel={deleteModel}
@@ -166,9 +168,10 @@ function EmptyModelPanel({
 // ─── ModelPanel: sub-tabs for one model ──────────────────────────────────────
 
 function ModelPanel({
-  model, activeSubTab, setActiveSubTab, deleteModel,
+  model, models, activeSubTab, setActiveSubTab, deleteModel,
 }: {
   model: RegimeModel;
+  models: RegimeModel[];
   activeSubTab: SubTabId;
   setActiveSubTab: (tab: SubTabId) => void;
   deleteModel: (id: string) => void;
@@ -291,6 +294,13 @@ function ModelPanel({
               {effectiveSubTab === "walkforward" && <WalkForwardPanel diagnostics={diagnostics} wfWindResults={wfWindResults} stability={stability} />}
               {effectiveSubTab === "oos" && <OOSPanel diagnostics={diagnostics} oos={oos} oosSimilarity={oosSimilarity} profileCorrelation={profileCorrelation} />}
               {effectiveSubTab === "fit" && <FitPanel diagnostics={diagnostics} convergencePoints={convergencePoints} nBarsForLL={nBarsForLL} llPerBar={llPerBar} ll={ll} />}
+              {effectiveSubTab === "compare" && (
+                <ModelComparisonView
+                  models={models}
+                  modelCategory="unsupervised"
+                  modelSubcategory="clustering"
+                />
+              )}
               {effectiveSubTab === "analytics" && (
                 <AnalyticsPanel
                   diagnostics={diagnostics}

@@ -56,6 +56,7 @@ class OHLCVCache {
       endTime?: number;
       limit?: number;
       loadFromStart?: boolean;
+      extra?: string;
     }
   ): string {
     const parts = [
@@ -66,6 +67,7 @@ class OHLCVCache {
       opts?.endTime?.toString() ?? '',
       opts?.limit?.toString() ?? '2000',
       opts?.loadFromStart ? '1' : '0',
+      opts?.extra ?? '',
     ];
     return parts.join('|');
   }

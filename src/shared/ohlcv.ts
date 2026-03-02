@@ -59,10 +59,13 @@ export interface OHLCVRecord {
 
 // ─── Chart API response extras ──────────────────────────────
 
-/** Extended bar returned by front-month stitching endpoints. */
+/** Extended bar returned by rollover stitching endpoints. */
 export interface StitchedOHLCVBar extends OHLCVBar {
   activeContract?: string;
 }
+
+/** Price adjustment modes for rollover stitching. */
+export type AdjustmentMode = 'panama' | 'ratio' | 'none';
 
 // ─── Symbol stats (from /api/charts/symbols) ────────────────
 
