@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useTrainingSSE, type MetricEvent } from "../../../hooks/useTrainingSSE";
+import { Heatmap } from "../../../components/charts/Heatmap";
 
 function groupByEpoch(events: MetricEvent[], metricName: string) {
   const byEpoch = new Map<number, number>();
@@ -22,6 +23,39 @@ function groupByEpoch(events: MetricEvent[], metricName: string) {
     .map(([epoch, value]) => ({ epoch, value }));
 }
 
+interface ArtifactData {
+  data: number[][];
+  rowLabels?: string[];
+  colLabels?: string[];
+}
+
+function useArtifact(phase: string, name: string) {
+  const [artifact, setArtifact] = useState<ArtifactData | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/training/artifacts/${phase}/${name}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Not found");
+        return res.json();
+      })
+      .then((data: ArtifactData) => {
+        if (!cancelled) setArtifact(data);
+      })
+      .catch(() => {
+        if (!cancelled) setArtifact(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [phase, name]);
+
+  return { artifact, loading };
+}
+
 export function PhaseBPanel() {
   const { events, connected } = useTrainingSSE({
     phase: "B",
@@ -32,6 +66,9 @@ export function PhaseBPanel() {
   const regimeCount = useMemo(() => groupByEpoch(events, "regime_count_stable"), [events]);
   const slotEntropy = useMemo(() => groupByEpoch(events, "slot_entropy"), [events]);
   const totalLoss = useMemo(() => groupByEpoch(events, "total_loss"), [events]);
+
+  const { artifact: somUmatrix, loading: somLoading } = useArtifact("B", "som_umatrix");
+  const { artifact: slotAttention, loading: slotLoading } = useArtifact("B", "slot_attention");
 
   const latest = (data: { epoch: number; value: number }[]) =>
     data.length > 0 ? data[data.length - 1]!.value.toFixed(4) : "---";
@@ -108,6 +145,69 @@ export function PhaseBPanel() {
               <div className="text-muted-foreground">No data yet</div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* SOM U-Matrix and Slot Attention Heatmaps */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="border border-border rounded-lg p-4">
+          <h3 className="text-sm font-mono font-medium mb-2">SOM U-Matrix</h3>
+          {somLoading ? (
+            <div className="flex items-center justify-center h-[300px] text-muted-foreground text-xs">
+              Loading...
+            </div>
+          ) : somUmatrix?.data ? (
+            <Heatmap
+              data={somUmatrix.data}
+              rowLabels={somUmatrix.rowLabels}
+              colLabels={somUmatrix.colLabels}
+              colorRange={["#1e3a5f", "#e2e8f0", "#7c2d12"]}
+              title=""
+              width={380}
+              height={300}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+              <div className="text-center">
+                <svg className="w-8 h-8 mx-auto mb-2 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <path d="M3 9h18M9 3v18" />
+                </svg>
+                <p className="text-xs">No U-matrix data</p>
+                <p className="text-[10px] opacity-60">Requires SOM training artifacts</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="border border-border rounded-lg p-4">
+          <h3 className="text-sm font-mono font-medium mb-2">Slot Attention Weights</h3>
+          {slotLoading ? (
+            <div className="flex items-center justify-center h-[300px] text-muted-foreground text-xs">
+              Loading...
+            </div>
+          ) : slotAttention?.data ? (
+            <Heatmap
+              data={slotAttention.data}
+              rowLabels={slotAttention.rowLabels}
+              colLabels={slotAttention.colLabels}
+              colorRange={["#0f172a", "#f8fafc", "#7c3aed"]}
+              title=""
+              width={380}
+              height={300}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+              <div className="text-center">
+                <svg className="w-8 h-8 mx-auto mb-2 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <path d="M3 12h18M12 3v18" />
+                </svg>
+                <p className="text-xs">No attention data</p>
+                <p className="text-[10px] opacity-60">Requires slot attention artifacts</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
