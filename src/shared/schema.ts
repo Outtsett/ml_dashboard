@@ -619,3 +619,25 @@ export const ingestedFiles = sqliteTable("ingested_files", {
 export const insertIngestedFileSchema = createInsertSchema(ingestedFiles).omit({ id: true, ingestedAt: true });
 export type InsertIngestedFile = z.infer<typeof insertIngestedFileSchema>;
 export type IngestedFile = typeof ingestedFiles.$inferSelect;
+
+// ============================================================
+// EVENT STORE
+// ============================================================
+
+export const events = sqliteTable("events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  streamId: text("stream_id").notNull(),
+  streamPosition: integer("stream_position").notNull(),
+  type: text("type").notNull(),
+  version: integer("version").notNull().default(1),
+  data: text("data").notNull(),
+  metadata: text("metadata").notNull(),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+}, (table) => ({
+  streamPositionUnique: index("events_stream_position_unique").on(table.streamId, table.streamPosition),
+  streamIdx: index("idx_events_stream").on(table.streamId, table.streamPosition),
+  typeIdx: index("idx_events_type").on(table.type),
+  createdIdx: index("idx_events_created").on(table.createdAt),
+}));
+
+export type EventRow = typeof events.$inferSelect;
