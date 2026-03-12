@@ -11,6 +11,7 @@ import { serveStatic } from './core/static';
 import { runStartupSequence, getStartupReport } from './lib/startupManager';
 import { getStaticOpenApiSpec } from './core/swagger/swagger.config';
 import { log } from './lib/log';
+import { db } from './database/db';
 
 // Re-export log for backward compat
 export { log } from './lib/log';
@@ -104,6 +105,16 @@ async function bootstrap() {
   });
   const config = appContext.get(ConfigService);
   log('NestJS initialized (databases ready)', 'nest');
+
+  // ── Recover incomplete pipelines from prior crash ──
+  try {
+    const { recoverPipelinesOnStartup } = await import('./sagas/recovery');
+    const { EventStore } = await import('./events/event-store');
+    const recoveryStore = new EventStore(db);
+    await recoverPipelinesOnStartup(recoveryStore);
+  } catch (err) {
+    console.error('[recovery] Failed to recover pipelines:', err);
+  }
 
   // ── Register training runners (DIP — concrete classes registered here, not in orchestrator) ──
   const { registerRunner } = await import('./training/runnerFactory');
