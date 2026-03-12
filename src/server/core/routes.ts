@@ -15,6 +15,8 @@ import backtestRouter from "../routes/backtest";
 import modelCatalogRouter from "../routes/modelCatalog";
 
 import trainingRouter from "../routes/training";
+import eventsRouter from "../routes/events";
+import pipelinesRouter from "../routes/pipelines";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
 
@@ -45,6 +47,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api/charts", chartRouter);
   app.use("/api", backtestRouter);
   app.use("/api", modelCatalogRouter);
+  app.use("/api", eventsRouter);
+  app.use("/api", pipelinesRouter);
 
 
   return httpServer;
