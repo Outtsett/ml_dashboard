@@ -7,6 +7,7 @@ import { Newspaper, Search, ExternalLink, Clock, RefreshCw, Star, Sparkles, Radi
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useInstruments } from "@/hooks/useRegimeData";
+import { logError } from "../lib/errorLogger";
 
 interface NewsItem {
   title: string;
@@ -89,11 +90,12 @@ export default function News() {
           return combined;
         });
       } catch (error) {
-        console.error('Error parsing news event:', error);
+        logError('News', 'Failed to parse news SSE event', { error: String(error), symbol });
       }
     });
 
     eventSource.onerror = () => {
+      logError('News', 'SSE connection error, retrying in 5s', { symbol });
       setConnectionStatus('disconnected');
       retryTimeoutRef.current = setTimeout(() => {
         if (eventSourceRef.current) {
