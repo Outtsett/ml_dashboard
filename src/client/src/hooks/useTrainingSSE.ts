@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect, startTransition } from 'react';
+import { RingBuffer } from '../lib/ringBuffer';
+import { useSSEConnection } from './useSSEConnection';
 
 export interface MetricEvent {
   ts: string;
@@ -11,70 +13,70 @@ export interface MetricEvent {
   fold: number;
 }
 
-interface UseTrainingSSEOptions {
+export interface UseTrainingSSEOptions {
   phase: string;
   model: string;
   enabled?: boolean;
   maxEvents?: number;
+  batchIntervalMs?: number;
 }
 
-interface UseTrainingSSEResult {
+export interface UseTrainingSSEResult {
   events: MetricEvent[];
   connected: boolean;
   error: string | null;
+  reconnectAttempt: number;
   clear: () => void;
 }
 
-export function useTrainingSSE({
-  phase,
-  model,
-  enabled = true,
-  maxEvents = 5000,
-}: UseTrainingSSEOptions): UseTrainingSSEResult {
-  const [events, setEvents] = useState<MetricEvent[]>([]);
-  const [connected, setConnected] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const sourceRef = useRef<EventSource | null>(null);
+const DEFAULT_MAX_EVENTS = 5000;
+const DEFAULT_BATCH_INTERVAL = 50;
 
-  const clear = useCallback(() => setEvents([]), []);
+export function useTrainingSSE(options: UseTrainingSSEOptions): UseTrainingSSEResult {
+  const {
+    phase, model, enabled = true,
+    maxEvents = DEFAULT_MAX_EVENTS,
+    batchIntervalMs = DEFAULT_BATCH_INTERVAL,
+  } = options;
+
+  const [events, setEvents] = useState<MetricEvent[]>([]);
+  const ringRef = useRef(new RingBuffer<MetricEvent>(maxEvents));
+  const batchRef = useRef<MetricEvent[]>([]);
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flush = useCallback(() => {
+    flushTimerRef.current = null;
+    const batch = batchRef.current;
+    if (batch.length === 0) return;
+    const ring = ringRef.current;
+    for (const event of batch) ring.push(event);
+    batchRef.current = [];
+    const snapshot = ring.toArray();
+    startTransition(() => setEvents(snapshot));
+  }, []);
+
+  const handleMessage = useCallback((data: unknown) => {
+    batchRef.current.push(data as MetricEvent);
+    if (!flushTimerRef.current) {
+      flushTimerRef.current = setTimeout(flush, batchIntervalMs);
+    }
+  }, [flush, batchIntervalMs]);
+
+  const url = `/api/training/stream/${encodeURIComponent(phase)}/${encodeURIComponent(model)}`;
+  const { connected, error, reconnectAttempt } = useSSEConnection({
+    url, enabled, onMessage: handleMessage,
+  });
+
+  const clear = useCallback(() => {
+    ringRef.current.clear();
+    batchRef.current = [];
+    if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
+    setEvents([]);
+  }, []);
 
   useEffect(() => {
-    if (!enabled || !phase || !model) {
-      return;
-    }
+    return () => { if (flushTimerRef.current) clearTimeout(flushTimerRef.current); };
+  }, []);
 
-    const url = `/api/training/stream/${phase}/${model}`;
-    const source = new EventSource(url);
-    sourceRef.current = source;
-
-    source.addEventListener("connected", () => {
-      setConnected(true);
-      setError(null);
-    });
-
-    source.addEventListener("metric", (e: MessageEvent) => {
-      try {
-        const data: MetricEvent = JSON.parse(e.data);
-        setEvents((prev) => {
-          const next = [...prev, data];
-          return next.length > maxEvents ? next.slice(-maxEvents) : next;
-        });
-      } catch {
-        // Ignore malformed events
-      }
-    });
-
-    source.onerror = () => {
-      setConnected(false);
-      setError("SSE connection lost");
-    };
-
-    return () => {
-      source.close();
-      sourceRef.current = null;
-      setConnected(false);
-    };
-  }, [phase, model, enabled, maxEvents]);
-
-  return { events, connected, error, clear };
+  return { events, connected, error, reconnectAttempt, clear };
 }
