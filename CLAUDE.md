@@ -64,19 +64,55 @@ Plus file-based stores:
 ```
 SQLite:     data/ml_dashboard.db (embedded, WAL mode)
 
-QuestDB:    E:\source\databases\questdb-9.3.1-rt-windows-x86-64\
-  bin:      E:\source\databases\questdb-9.3.1-rt-windows-x86-64\bin\java.exe
+QuestDB:    E:\source\databases\questdb-9.3.3-rt-windows-x86-64\
+  bin:      E:\source\databases\questdb-9.3.3-rt-windows-x86-64\bin\java.exe
+  service:  Registered as Windows service "QuestDB" (nssm, auto-start)
 ```
 
-### QuestDB Tables (time series — charts + training)
-| Table    | Rows   | Partition | Schema                                                                                                                               |
-| -------- | ------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `ohlcv`  | 759.5M | DAY       | symbol (SYMBOL INDEX), timestamp, open, high, low, close, volume (all DOUBLE)                                                        |
-| `trades` | 12.9M  | DAY       | symbol (SYMBOL INDEX), timestamp, rtype, publisher_id, instrument_id, action, side, depth, price, size, flags, ts_in_delta, sequence |
-| `mbp10`  | 408.8M | DAY       | symbol (SYMBOL INDEX), timestamp, ts_recv, metadata cols, 10-level bid/ask (px DOUBLE, sz LONG, ct INT)                              |
+### QuestDB Schema (47 objects: 19 tables + 22 materialized views + 6 views)
 
-**Materialized Views** (8 timeframes, auto-refresh on insert):
-`ohlcv_1m`, `ohlcv_5m`, `ohlcv_15m`, `ohlcv_30m`, `ohlcv_1h`, `ohlcv_4h`, `ohlcv_1d`, `ohlcv_1w`
+**Base Tables (19)**:
+
+| Table | Rows | Partition | Dedup | Schema |
+| ----- | ---- | --------- | ----- | ------ |
+| `ohlcv` | 856M | DAY | yes | symbol, timestamp, open, high, low, close, volume |
+| `ohlcv_forex` | 38.6M | WEEK | no | symbol, open, high, low, close, volume, timestamp |
+| `futures_ohlcv` | 0 (empty) | DAY | yes | symbol, root, timestamp, open, high, low, close, volume |
+| `mbp10` | 400M | DAY | yes | 73 cols: ts_recv, ts_event, symbol, 10-level bid/ask (px/sz/ct) |
+| `trades` | 12.7M | DAY | yes | 14 cols: ts_event, symbol, price, size, side, flags, etc. |
+| `rollovers` | 353 | YEAR | yes | root, rollover_date, from_contract, to_contract, from_close, to_close, price_gap, cumulative_adjustment |
+| `symbols` | 904 | DAY | no | symbol, asset_class, tick_size, timestamp |
+| `labels` | 77.8M | MONTH | no | 15 cols: timestamp, symbol, close, regime/trend/exec directions, confluence, reversal, volatility |
+| `swing_labels` | 2.0M | MONTH | no | 13 cols: timestamp, symbol, dir at 7 horizons (1m-1h), proximity, magnitude, transition |
+| `triple_barrier_labels` | 2.0M | MONTH | no | timestamp, symbol, tb_label, tb_holding_period, tb_return, tb_upper, tb_lower |
+| `features_1m` | 2.3M | DAY | no | 36 cols: symbol, OHLCV, returns, SMAs, EMAs, MACD, BB, ATR, RSI, vol_ratio, timestamp |
+| `training_1m` | 2.0M | MONTH | no | 47 cols: features_1m + label columns joined |
+| `talib_features` | 153M | MONTH | no | 141 cols: timestamp, symbol + 139 TA-Lib indicators |
+| `talib_features_clean` | 6.4M | NONE | no | Same 141 cols, cleaned/filtered subset. Non-WAL. |
+| `ob_features_1m` | 104K | MONTH | yes | 62 cols: 1-min aggregated orderbook features (10 levels) |
+| `trade_features_1m` | 50K | MONTH | yes | 9 cols: trade_count, total_volume, VWAP, first/last/high/low price |
+| `model_regimes` | 100K | YEAR | yes | model_id, symbol, ts, close, regime, regime_label, split |
+| `model_shap` | 530K | YEAR | yes | 32 cols: model_id, symbol, ts, regime, shap_* for 28 features |
+| `training_metrics` | 2.5K | DAY | no | phase, model, metric, value, step, epoch, fold, timestamp |
+
+**Materialized Views (22)** — all `immediate` refresh (auto-update on insert), all `valid`:
+
+| Base Table | Materialized Views (SAMPLE BY) |
+| ---------- | ------------------------------ |
+| `ohlcv` | `ohlcv_1m`, `ohlcv_5m`, `ohlcv_15m`, `ohlcv_30m`, `ohlcv_1h`, `ohlcv_4h`, `ohlcv_1d`, `ohlcv_1w` |
+| `ohlcv_forex` | `ohlcv_forex_5m`, `ohlcv_forex_15m`, `ohlcv_forex_30m`, `ohlcv_forex_1h`, `ohlcv_forex_4h`, `ohlcv_forex_1d`, `ohlcv_forex_1w` |
+| `futures_ohlcv` | `futures_ohlcv_5m`, `futures_ohlcv_15m`, `futures_ohlcv_30m`, `futures_ohlcv_1h`, `futures_ohlcv_4h`, `futures_ohlcv_1d`, `futures_ohlcv_1w` |
+
+**Regular Views (6)**:
+
+| View | Purpose |
+| ---- | ------- |
+| `view_futures_panama_adj` | Latest Panama canal adjustment per root (LATEST ON rollover_date) |
+| `view_current_front_month` | Current front-month contract per root (LATEST ON timestamp) |
+| `view_futures_inventory` | Contract count/date range per root (GROUP BY root, symbol) |
+| `view_forex_inventory` | Symbol count/date range for forex (GROUP BY symbol) |
+| `view_futures_latest_rollovers` | Most recent rollover per root (max rollover_date) |
+| `view_futures_active_contracts` | Currently active contract per root (LATEST ON timestamp) |
 
 **Data Ingestion**: ILP protocol (port 9009) via Node.js Sender. File dedup tracked in SQLite `ingested_files`.
 
@@ -86,6 +122,13 @@ QuestDB:    E:\source\databases\questdb-9.3.1-rt-windows-x86-64\
 - `ASOF JOIN + TOLERANCE` for trade-to-quote matching
 - JIT-compiled WHERE filters (SIMD/AVX2, ~3.3 GB/s)
 - Detach/Attach partitions for cold storage
+- Materialized views with `immediate` refresh for zero-query-latency timeframe aggregation
+
+**QuestDB as Windows Service**:
+- Managed via `nssm` (Non-Sucking Service Manager)
+- Auto-starts on boot, auto-restarts on crash
+- `nssm start/stop/status QuestDB` to manage
+- PostgreSQL also registered as service (`nssm start/stop/status PostgreSQL`)
 
 ### SQLite Schema (22 tables in `shared/schema.ts`)
 
@@ -185,6 +228,7 @@ server/
 ml/                 Python ML model packages
   shared/           Shared across ALL models
     features.py     Config-driven feature computation (29 features, 8 categories)
+    normalizer.py   Feature classification (8 types) + transform functions (rolling_zscore, scale_bounded, pct_from_close, price_ratio, cumulative_roc). Constants: ROLLING_WINDOW=50, CLIP_RANGE=5.0
     swing.py        Causal zigzag detection (no lookahead)
     protocol.py     JSON stdout protocol (emit_progress, emit_metric, etc.)
     data.py         QuestDB OHLCV loading via PG wire (psycopg2)
@@ -206,6 +250,7 @@ config/
 
 scripts/
   compute-indicators.py        Batch compute ALL pandas-ta indicators (344 columns, 25 symbols × 8 timeframes)
+  normalize-indicators.py      Normalize indicator parquets (imports classification + transforms from src/ml/shared/normalizer.py)
   upload-indicators-questdb.py Upload indicator parquets to QuestDB indicators_{tf} tables
   seed-instruments.ts          Upsert 25 instruments (8 futures + 17 forex)
   inspect-sources.ts           Inspect source data files
@@ -440,13 +485,50 @@ server/training/
 ✅ returns.ts                    → domain
 ```
 
+## Token Budget
+
+No token budget constraints. Always prioritize high-end performance and thorough implementation over token conservation. Use a million tokens if needed — quality and completeness matter, not cost.
+
+## Rendering Infrastructure
+
+### React Compiler
+- `babel-plugin-react-compiler` enabled in `vite.config.ts`
+- Auto-memoizes all components, hooks, and intermediate values at build time
+- Do NOT add manual `React.memo`, `useMemo`, or `useCallback` — the compiler handles it
+- If a component needs to opt out: add `'use no memo'` directive
+
+### SSE Streaming
+- `useSSEConnection` — shared hook with exponential backoff reconnection (1s/2s/4s/8s, max 30s), supports both `onMessage` and named `eventMap`
+- `useTrainingSSE` — ring buffer (5000 slots) + 50ms microbatch + `startTransition` flush (~2-3 renders/sec vs old ~50/sec)
+- `useEventStream` — pipeline/training/system channels with auto-reconnection via named event listeners
+- All SSE errors logged via `logError()` from `lib/errorLogger.ts`
+
+### Query Layer
+- Global `staleTime: 5min` — individual queries override as needed (chart OHLCV uses Infinity)
+- `useSuspenseQuery` preferred over `useQuery` when data is required for render
+- `QueryErrorBoundary` wraps route groups for retry on query failure (integrates with `QueryErrorResetBoundary`)
+- All mutations must have `onError` handlers (toast notification)
+
+### Error Handling
+- Global `unhandledrejection` listener in `App.tsx`
+- `logError(component, message, context)` / `logWarn()` from `lib/errorLogger.ts` for structured logging
+- No silent catch blocks — every catch must log or handle
+- Custom error handler sink via `setErrorHandler()` for toast integration
+
+### Performance
+- lightweight-charts: `enableConflation: true` + `conflationThresholdFactor: 1.0` for 10k+ bar datasets
+- Web Vitals monitoring in dev mode (LCP, FID, CLS) via `useWebVitals()` hook
+- `useDeferredFilter()` hook for search/filter inputs (wraps `useDeferredValue`)
+- `RingBuffer<T>` class in `lib/ringBuffer.ts` for O(1) push event accumulation
+- Training context split: `useTrainingMetrics()`, `useTrainingLogs()`, `useTrainingOverlays()` for granular subscriptions
+
 ## Common Pitfalls
 
 - **Windows paths**: Use forward slashes in Node.js code, backslashes in shell commands
 - **npx shims**: Use `npx tsx` not `tsx` directly on Windows; or use `npm run` scripts
 - **`--env-file` flag**: Requires Node 20.6+; the dev script uses `node --env-file=.env --import tsx`
 - **Rate limits**: API 100/min, ML 50/min, upload 10/min
-- **QuestDB startup**: Uses `java.exe` directly (not questdb.exe as a service); PID saved to `.questdb.pid`
+- **QuestDB startup**: Registered as Windows service via nssm (auto-start on boot). Also manageable with `nssm start/stop/status QuestDB`
 - **QuestDB LIMIT syntax**: `LIMIT offset, count` (NOT `LIMIT count OFFSET offset`)
 - **QuestDB count**: `count()` (NOT `COUNT(*)`)
 - **QuestDB cast**: `CAST(x AS INT)` (NOT `CAST(x AS INTEGER)`)
