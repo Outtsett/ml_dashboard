@@ -28,6 +28,12 @@ from shared.data import load_ohlcv_arrays
 from hdp_hmm.model import StickyHDPHMM
 from hdp_hmm.io import relabel_states, save_model
 
+try:
+    from shared.wandb_logger import create_logger
+    _WANDB_AVAILABLE = True
+except ImportError:
+    _WANDB_AVAILABLE = False
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Sticky HDP-HMM Regime Detection")
@@ -53,12 +59,48 @@ def parse_args():
                         help="Number of permutations for significance test")
     parser.add_argument("--n-bootstrap", type=int, default=100,
                         help="Number of bootstrap resamples")
+    parser.add_argument("--wandb", action=argparse.BooleanOptionalAction, default=True,
+                        help="Enable/disable W&B logging (default: enabled)")
+    parser.add_argument("--wandb-project", type=str, default=None,
+                        help="Override W&B project name")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
     t_start = time.time()
+
+    # --- W&B logger setup ---
+    wandb_logger = None
+    if _WANDB_AVAILABLE:
+        try:
+            wandb_logger = create_logger(
+                model_type="hdp-hmm",
+                symbol=args.symbol,
+                timeframe=args.timeframe,
+                wandb_enabled=args.wandb,
+            )
+            if args.wandb_project:
+                wandb_logger.project = args.wandb_project
+            wandb_logger.init_run(
+                config={
+                    "model_type": "hdp-hmm",
+                    "symbol": args.symbol,
+                    "timeframe": args.timeframe,
+                    "gibbs_iter": args.gibbs_iter,
+                    "burn_in": args.burn_in,
+                    "alpha": args.alpha,
+                    "gamma": args.gamma,
+                    "kappa": args.kappa,
+                    "test_split": args.test_split,
+                    "max_bars": args.max_bars,
+                    "feature_categories": args.feature_categories,
+                },
+                name=f"hdp-hmm-{args.symbol}-{args.timeframe}",
+                group="regime-detection",
+            )
+        except Exception:
+            wandb_logger = None
 
     try:
         # 1. Load data from QuestDB (chunked, with progress events)
@@ -119,6 +161,26 @@ def main():
             timestamps=timestamps_valid,
         )
 
+        # --- W&B: log per-iteration metrics ---
+        if wandb_logger:
+            try:
+                for m in iteration_metrics:
+                    wandb_logger.log_metrics(
+                        {
+                            "log_likelihood": m.get("log_likelihood"),
+                            "n_active_states": m.get("n_active_states"),
+                            "delta": m.get("delta"),
+                            "entropy": m.get("entropy"),
+                            "switch_rate": m.get("switch_rate"),
+                            "self_transition": m.get("self_transition"),
+                            "max_regime_pct": m.get("max_regime_pct"),
+                            "avg_dwell": m.get("avg_dwell"),
+                        },
+                        step=m.get("iter", 0),
+                    )
+            except Exception:
+                pass
+
         # 4b. Resolve close values for save pipeline
         close_valid = [float(c) for c, v in zip(data["close"], valid_mask) if v]
 
@@ -136,6 +198,39 @@ def main():
         emit_log(f"Evaluation grade: {eval_grade}")
         emit_metric("evaluation_grade_ord", ord(eval_grade) - ord("A"), args.gibbs_iter)
 
+        # --- W&B: log visualizations and save artifact ---
+        if wandb_logger:
+            try:
+                iters = [m.get("iter", i) for i, m in enumerate(iteration_metrics)]
+                lls = [m.get("log_likelihood", 0) for m in iteration_metrics]
+                wandb_logger.log_convergence_plot(iters, lls)
+            except Exception:
+                pass
+            try:
+                n_states = model.transition_matrix.shape[0]
+                state_labels = [f"S{i}" for i in range(n_states)]
+                wandb_logger.log_transition_matrix(model.transition_matrix, state_labels)
+            except Exception:
+                pass
+            try:
+                wandb_logger.log_regime_distribution(model.state_sequence)
+            except Exception:
+                pass
+            try:
+                wandb_logger.save_model_artifact(
+                    model_path,
+                    name=f"hdp-hmm-{args.symbol}-{args.timeframe}",
+                    metadata={
+                        "symbol": args.symbol,
+                        "timeframe": args.timeframe,
+                        "gibbs_iter": args.gibbs_iter,
+                        "n_regimes": int(diagnostics.get("n_regimes", 0)),
+                        "evaluation_grade": eval_grade,
+                    },
+                )
+            except Exception:
+                pass
+
         # 6. Final overlay
         relabeled, colors, labels, _ = relabel_states(model.state_sequence, features_valid)
         emit_overlay(timestamps_valid, relabeled, colors, labels)
@@ -147,6 +242,12 @@ def main():
         import traceback
         emit_error(str(e), traceback.format_exc())
         sys.exit(1)
+    finally:
+        if wandb_logger:
+            try:
+                wandb_logger.finish()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
