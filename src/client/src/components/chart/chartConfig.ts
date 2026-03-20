@@ -103,6 +103,8 @@ export function createChartOptions() {
       fixLeftEdge: false,
       fixRightEdge: false,
       lockVisibleTimeRangeOnResize: false,
+      enableConflation: true,
+      conflationThresholdFactor: 1.0,
     },
     handleScroll: {
       mouseWheel: true,

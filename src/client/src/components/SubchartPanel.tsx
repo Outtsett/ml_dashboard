@@ -123,6 +123,8 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
           rightOffset: 5,
           barSpacing: 6,
           minBarSpacing: 0.5,
+          enableConflation: true,
+          conflationThresholdFactor: 1.0,
         },
         handleScroll: {
           mouseWheel: true,
