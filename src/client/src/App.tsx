@@ -15,17 +15,16 @@ import {
   PageLoader
 } from "@/components/LoadingSkeletons";
 import { prefetchCriticalData } from "./lib/prefetch";
+import { useWebVitals } from './hooks/useWebVitals';
 
 const MarketData = lazy(() => import("@/pages/MarketData"));
 const Portfolio = lazy(() => import("@/pages/Portfolio"));
 const Databases = lazy(() => import("@/pages/Databases"));
 const Watchlist = lazy(() => import("@/pages/Watchlist"));
 const News = lazy(() => import("@/pages/News"));
-const Training = lazy(() => import("@/pages/Training"));
-const Backtest = lazy(() => import("@/pages/Backtest"));
-const FourierTransform = lazy(() => import("@/pages/FourierTransform"));
-const ArchitectureExplorer = lazy(() => import("@/pages/ArchitectureExplorer"));
+const MLStudio = lazy(() => import("@/pages/MLStudio"));
 const ModelCatalog = lazy(() => import("@/pages/ModelCatalog"));
+const Settings = lazy(() => import("@/pages/Settings"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 function Router() {
@@ -70,31 +69,10 @@ function Router() {
             </Suspense>
           </ErrorBoundary>
         </Route>
-        <Route path="/training">
-          <ErrorBoundary>
-            <Suspense fallback={<ChartSkeleton />}>
-              <Training />
-            </Suspense>
-          </ErrorBoundary>
-        </Route>
-        <Route path="/backtest">
-          <ErrorBoundary>
-            <Suspense fallback={<DataGridSkeleton />}>
-              <Backtest />
-            </Suspense>
-          </ErrorBoundary>
-        </Route>
-        <Route path="/fourier">
-          <ErrorBoundary>
-            <Suspense fallback={<ChartSkeleton />}>
-              <FourierTransform />
-            </Suspense>
-          </ErrorBoundary>
-        </Route>
-        <Route path="/architecture">
+        <Route path="/ml-studio">
           <ErrorBoundary>
             <Suspense fallback={<PageLoader />}>
-              <ArchitectureExplorer />
+              <MLStudio />
             </Suspense>
           </ErrorBoundary>
         </Route>
@@ -106,7 +84,11 @@ function Router() {
           </ErrorBoundary>
         </Route>
         <Route path="/settings">
-          <div className="p-6 text-center text-muted-foreground font-mono text-sm">Settings coming soon</div>
+          <ErrorBoundary>
+            <Suspense fallback={<PageLoader />}>
+              <Settings />
+            </Suspense>
+          </ErrorBoundary>
         </Route>
         <Route>
           <ErrorBoundary>
@@ -124,6 +106,17 @@ function App() {
   useEffect(() => {
     prefetchCriticalData();
   }, []);
+
+  // Global unhandled promise rejection handler
+  useEffect(() => {
+    const handler = (event: PromiseRejectionEvent) => {
+      console.error('[Unhandled Rejection]', event.reason);
+    };
+    window.addEventListener('unhandledrejection', handler);
+    return () => window.removeEventListener('unhandledrejection', handler);
+  }, []);
+
+  useWebVitals();
 
   return (
     <QueryClientProvider client={queryClient}>
