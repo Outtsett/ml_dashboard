@@ -18,3 +18,6 @@ export * from './registry';
 
 // TypeScript calculators (also re-exported via registry for backward compat)
 export * from './calculators';
+
+// TA-Lib column name mapping for talib_features table
+export * from './talibMapping';
