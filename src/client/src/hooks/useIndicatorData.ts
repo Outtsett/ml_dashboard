@@ -1,8 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { getIndicatorColor } from '@/lib/indicatorColors';
-import { minutesToApiKey } from '@/lib/timeframes';
-import { QUERY_KEYS } from '@/lib/types';
+import { scanPatterns } from '@/lib/candlePatterns';
 
 // --- Types ---
 
@@ -55,39 +53,36 @@ function savePatternSelection(columns: string[]) {
   }
 }
 
-/** Extract first and last timestamp (in ms) from OHLCV bar array. */
-function getBarTimeRange(bars: OHLCVBarInput[]): { startMs: number; endMs: number } | null {
-  if (bars.length === 0) return null;
-  const toMs = (ts: number | string): number => {
-    if (typeof ts === 'string') {
-      const n = parseInt(ts, 10);
-      return isNaN(n) ? new Date(ts).getTime() : (n < 2e10 ? n * 1000 : n);
-    }
-    return ts < 2e10 ? ts * 1000 : ts;
-  };
-  const first = toMs(bars[0]!.timestamp);
-  const last = toMs(bars[bars.length - 1]!.timestamp);
-  // Ensure ascending order
-  return { startMs: Math.min(first, last), endMs: Math.max(first, last) };
+/** Normalize timestamp to milliseconds (number). */
+function toMs(ts: number | string): number {
+  if (typeof ts === 'string') {
+    const n = parseInt(ts, 10);
+    return isNaN(n) ? new Date(ts).getTime() : (n < 2e10 ? n * 1000 : n);
+  }
+  return ts < 2e10 ? ts * 1000 : ts;
 }
 
 // --- Hook ---
 
 /**
- * Pattern data hook — manages CDL candlestick pattern selection and fetching.
+ * Pattern data hook — manages CDL candlestick pattern selection and
+ * client-side computation from OHLCV bars.
  *
- * Indicators are now managed by useActiveIndicators. This hook only handles:
- * - Fetching the indicator catalog (for the CDL patterns list in the UI)
- * - CDL pattern selection and data fetching from talib_features
+ * Indicators are managed by useActiveIndicators. This hook only handles:
+ * - CDL pattern selection (persisted to localStorage)
+ * - Client-side pattern detection from the chart's own OHLCV data
  *
- * @param symbol - Trading symbol (e.g. "ES", "EURUSD")
- * @param timeframeMinutes - Chart timeframe in minutes
- * @param _isFutures - Whether the symbol is a futures root
- * @param ohlcvBars - Current chart OHLCV bars (used to align pattern query time range)
+ * No API calls are needed — patterns are computed directly from ohlcvBars
+ * so they work for all symbols on all time ranges.
+ *
+ * @param _symbol - Trading symbol (unused, kept for API compat)
+ * @param _timeframeMinutes - Chart timeframe in minutes (unused)
+ * @param _isFutures - Whether the symbol is a futures root (unused)
+ * @param ohlcvBars - Current chart OHLCV bars to compute patterns from
  */
 export function useIndicatorData(
-  symbol: string,
-  timeframeMinutes: number,
+  _symbol: string,
+  _timeframeMinutes: number,
   _isFutures: boolean,
   ohlcvBars: OHLCVBarInput[] = [],
 ) {
@@ -104,92 +99,46 @@ export function useIndicatorData(
     if (stored.length > 0) setSelectedPatternsRaw(stored);
   }, []);
 
-  const tfKey = minutesToApiKey(timeframeMinutes);
+  // Convert OHLCV bars to the format scanPatterns expects (numeric timestamps)
+  const numericBars = useMemo(() => {
+    return ohlcvBars.map(b => ({
+      timestamp: toMs(b.timestamp),
+      open: b.open,
+      high: b.high,
+      low: b.low,
+      close: b.close,
+    }));
+  }, [ohlcvBars]);
 
-  // Compute chart time range from OHLCV bars for pattern query alignment
-  const barTimeRange = useMemo(() => getBarTimeRange(ohlcvBars), [ohlcvBars]);
-
-  // Stable key for the time range so query doesn't refetch on every render
-  const rangeKey = barTimeRange
-    ? `${Math.floor(barTimeRange.startMs / 60000)}-${Math.floor(barTimeRange.endMs / 60000)}`
-    : 'none';
-
-  // 1) Fetch catalog (cached indefinitely) — used by IndicatorSelector for patterns list
-  const catalogQuery = useQuery<IndicatorCatalog>({
-    queryKey: ["/api/indicators/catalog"],
-    queryFn: async () => {
-      const res = await fetch('/api/indicators/catalog');
-      if (!res.ok) throw new Error('Failed to fetch indicator catalog');
-      return res.json();
-    },
-    staleTime: 10 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-  });
-
-  // 2) Fetch pattern data for selected CDL columns, aligned to chart time range
-  const patternQuery = useQuery({
-    queryKey: [...QUERY_KEYS.indicatorPatterns(symbol, tfKey), selectedPatterns.sort().join(','), rangeKey],
-    queryFn: async () => {
-      const params = new URLSearchParams({ timeframe: tfKey, limit: '5000' });
-      // Pass chart time range to backend so pattern data aligns with visible candles
-      if (barTimeRange) {
-        params.set('startTime', String(barTimeRange.startMs));
-        params.set('endTime', String(barTimeRange.endMs));
-      }
-      const res = await fetch(`/api/indicators/patterns/${symbol}?${params}`);
-      if (!res.ok) return { data: [] };
-      return res.json();
-    },
-    enabled: selectedPatterns.length > 0 && ohlcvBars.length > 0,
-    staleTime: 60_000,
-  });
-
-  // 3) Build marker overlays from pattern data
+  // Compute patterns client-side from OHLCV data
   const patternOverlays = useMemo<IndicatorOverlay[]>(() => {
+    if (selectedPatterns.length === 0 || numericBars.length === 0) return [];
+
+    const patternMap = scanPatterns(numericBars, selectedPatterns);
     const result: IndicatorOverlay[] = [];
 
-    if (patternQuery.data?.data?.length) {
-      const rows = patternQuery.data.data as Record<string, number | null>[];
-      for (const col of selectedPatterns) {
-        const pointMap = new Map<number, number>();
-        for (const row of rows) {
-          const ts = row.timestamp;
-          const val = row[col];
-          if (ts != null && val != null && val !== 0) {
-            const timeSec = typeof ts === 'string'
-              ? Math.floor(new Date(ts as unknown as string).getTime() / 1000)
-              : typeof ts === 'number'
-                ? (ts < 2e10 ? ts : Math.floor(ts / 1000))
-                : NaN;
-            if (!isNaN(timeSec)) {
-              pointMap.set(timeSec, val as number);
-            }
-          }
-        }
-        if (pointMap.size > 0) {
-          const points = Array.from(pointMap.entries())
-            .sort((a, b) => a[0] - b[0])
-            .map(([t, v]) => ({ time: t, value: v }));
-          result.push({
-            column: col,
-            data: points,
-            color: getIndicatorColor(col),
-            displayType: 'marker',
-            lineWidth: 1,
-          });
-        }
+    for (const col of selectedPatterns) {
+      const hits = patternMap.get(col);
+      if (hits && hits.length > 0) {
+        result.push({
+          column: col,
+          data: hits,
+          color: getIndicatorColor(col),
+          displayType: 'marker',
+          lineWidth: 1,
+        });
       }
     }
 
     return result;
-  }, [selectedPatterns, patternQuery.data]);
+  }, [selectedPatterns, numericBars]);
 
   return {
-    catalog: catalogQuery.data ?? null,
-    catalogLoading: catalogQuery.isLoading,
+    catalog: null,
+    catalogLoading: false,
     selectedPatterns,
     setSelectedPatterns,
     patternOverlays,
-    isLoading: patternQuery.isLoading,
+    isLoading: false,
   };
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { LineSeries, createSeriesMarkers, type IChartApi, type Time } from 'lightweight-charts';
 import type { IndicatorOverlay } from '@/hooks/useIndicatorData';
+import { getPatternDisplayName } from '@/lib/candlePatterns';
 import { dedupByTime } from './chartConfig';
 
 /**
@@ -145,7 +146,7 @@ export function useChartOverlays(
                 position: (d.value > 0 ? 'belowBar' : 'aboveBar') as 'belowBar' | 'aboveBar',
                 color: d.value > 0 ? '#22c55e' : '#ef4444',
                 shape: (d.value > 0 ? 'arrowUp' : 'arrowDown') as 'arrowUp' | 'arrowDown',
-                text: overlay.column.replace('CDL_', ''),
+                text: getPatternDisplayName(overlay.column),
               };
             })
             .filter((m): m is NonNullable<typeof m> => m !== null)

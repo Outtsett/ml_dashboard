@@ -100,9 +100,8 @@ export default function MarketData() {
     overlays: indicatorOverlays,
   } = useActiveIndicators(chartData);
 
-  // ── CDL Patterns (from talib_features API) ──
+  // ── CDL Patterns (computed client-side from OHLCV data) ──
   const {
-    catalog,
     selectedPatterns,
     setSelectedPatterns,
     patternOverlays,
@@ -210,7 +209,6 @@ export default function MarketData() {
         onUpdateParams={updateParams}
         onToggleVisibility={toggleVisibility}
         onClearAllIndicators={clearAllIndicators}
-        patternCatalog={catalog}
         selectedPatterns={selectedPatterns}
         onPatternSelectionChange={setSelectedPatterns}
         indicatorsLoading={patternsLoading}

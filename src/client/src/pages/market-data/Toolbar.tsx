@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { IndicatorSelector } from "@/components/IndicatorSelector";
 import type { ActiveIndicator } from "@/hooks/useActiveIndicators";
-import type { IndicatorCatalog } from "@/hooks/useIndicatorData";
 import type { InstrumentInfo } from "./types";
 import { TIMEFRAME_OPTIONS as timeframes } from "@/lib/timeframes";
 
@@ -34,7 +33,6 @@ interface ToolbarProps {
   onToggleVisibility: (instanceId: string) => void;
   onClearAllIndicators: () => void;
   // CDL Patterns
-  patternCatalog: IndicatorCatalog | null;
   selectedPatterns: string[];
   onPatternSelectionChange: (cols: string[]) => void;
   indicatorsLoading: boolean;
@@ -65,7 +63,7 @@ export function Toolbar({
   timeframe, onTimeframeChange,
   activeIndicators, onAddIndicator, onRemoveIndicator, onUpdateParams,
   onToggleVisibility, onClearAllIndicators,
-  patternCatalog, selectedPatterns, onPatternSelectionChange,
+  selectedPatterns, onPatternSelectionChange,
   indicatorsLoading,
   showSR, onToggleSR, showZigZag, onToggleZigZag, showSwingZZ, onToggleSwingZZ,
   replayActive, onToggleReplay,
@@ -168,7 +166,6 @@ export function Toolbar({
         onUpdateParams={onUpdateParams}
         onToggleVisibility={onToggleVisibility}
         onClearAll={onClearAllIndicators}
-        patternCatalog={patternCatalog}
         selectedPatterns={selectedPatterns}
         onPatternSelectionChange={onPatternSelectionChange}
         isLoading={indicatorsLoading}

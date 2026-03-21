@@ -182,7 +182,8 @@ client/src/
                     ForecastRibbon, ResidualPlot, SimilarityMatrix
   hooks/            useMarketData, useActiveIndicators (professional indicator system), use-toast
   lib/              queryClient, prefetch, mlModels (50+ model definitions), indicatorRegistry (all indicator definitions),
-                    indicatorCompute (dispatcher), overlayCalculators, subchartCalculators, indicatorPanels, indicatorColors, utils
+                    indicatorCompute (dispatcher), overlayCalculators, subchartCalculators, candlePatterns (26 client-side CDL patterns),
+                    indicatorPanels, indicatorColors, utils
 
 server/
   main.ts           Express app + NestJS DI bootstrap
@@ -320,7 +321,7 @@ All new code **must** follow SOLID. Apply everywhere — routes, components, hoo
 - **EventEmitter training**: `MLTrainer extends EventEmitter` emits progress events per epoch. Frontend connects via SSE at `GET /ml/train/stream`.
 - **Config-driven features**: `src/config/features.json` is the single source of truth for all 29 features across 8 categories. Python `features.py` reads this config via dispatch table. Adding a feature = add JSON entry.
 - **Pre-computed indicators**: pandas-ta computes 344 indicator columns (9 categories). Stored in QuestDB `talib_features` table, served via `/api/indicators/data/:symbol`.
-- **Professional indicator system**: Indicators are configurable entities (like TradingView), not database columns. `lib/indicatorRegistry.ts` defines 24 indicators across 5 categories with typed params (period, stdDev, etc.). Users add/configure/remove indicator instances via `useActiveIndicators` hook. Each instance is independently parameterized. `lib/indicatorCompute.ts` dispatches computation to `overlayCalculators.ts` (overlay) and `subchartCalculators.ts` (subchart). CDL_* candlestick patterns remain as checkbox selections from talib_features API. Panel grouping via `indicatorPanels.ts` uses instance IDs for the new system, legacy column names for backward compatibility.
+- **Professional indicator system**: Indicators are configurable entities (like TradingView), not database columns. `lib/indicatorRegistry.ts` defines 24 indicators across 5 categories with typed params (period, stdDev, etc.). Users add/configure/remove indicator instances via `useActiveIndicators` hook. Each instance is independently parameterized. `lib/indicatorCompute.ts` dispatches computation to `overlayCalculators.ts` (overlay) and `subchartCalculators.ts` (subchart). CDL_* candlestick patterns (26 patterns) are computed client-side from OHLCV data via `lib/candlePatterns.ts` — no API dependency on talib_features. Pattern catalog is always available regardless of API connectivity. Panel grouping via `indicatorPanels.ts` uses instance IDs for the new system, legacy column names for backward compatibility.
 - **Rollover stitching**: Futures root symbols (ES, MNQ, M2K, etc.) are stitched at query time from per-contract OHLCV using the `rollovers` table. Frontend references root symbols only — all rollover/front-month logic is backend.
 - **Circuit breaker**: Auto-disable failing DB connections. States: closed (normal), open (failing, fast-fail), half-open (testing). Reset via `POST /circuit-breaker/reset/:name`.
 - **File-level dedup**: SHA-256 hash tracking in SQLite `ingested_files` table prevents re-ingestion.

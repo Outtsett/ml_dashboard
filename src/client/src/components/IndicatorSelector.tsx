@@ -23,7 +23,7 @@ import {
   type IndicatorCategory,
 } from '@/lib/indicatorRegistry';
 import type { ActiveIndicator } from '@/hooks/useActiveIndicators';
-import type { IndicatorCatalog } from '@/hooks/useIndicatorData';
+import { CANDLE_PATTERN_CATALOG, getPatternDisplayName } from '@/lib/candlePatterns';
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -40,8 +40,6 @@ interface IndicatorSelectorProps {
   onToggleVisibility: (instanceId: string) => void;
   /** Clear all indicators */
   onClearAll: () => void;
-  /** CDL pattern catalog from API (for the Patterns section) */
-  patternCatalog: IndicatorCatalog | null;
   /** Selected CDL pattern columns */
   selectedPatterns: string[];
   /** Callback for CDL pattern selection changes */
@@ -290,32 +288,30 @@ function CatalogCategory({
 // ─── Patterns Section ────────────────────────────────────────────────────────
 
 function PatternsSection({
-  catalog,
   selectedPatterns,
   onSelectionChange,
   searchFilter,
 }: {
-  catalog: IndicatorCatalog | null;
   selectedPatterns: string[];
   onSelectionChange: (columns: string[]) => void;
   searchFilter: string;
 }) {
   const [expanded, setExpanded] = useState(false);
 
-  const patternColumns = useMemo(() => {
-    if (!catalog?.categories?.candle) return [];
-    return catalog.categories.candle.sort();
-  }, [catalog]);
+  const patternEntries = useMemo(() => {
+    return CANDLE_PATTERN_CATALOG.slice().sort((a, b) => a.name.localeCompare(b.name));
+  }, []);
 
   const filtered = useMemo(() => {
-    if (!searchFilter) return patternColumns;
+    if (!searchFilter) return patternEntries;
     const q = searchFilter.toLowerCase();
-    return patternColumns.filter(c => c.toLowerCase().includes(q));
-  }, [patternColumns, searchFilter]);
+    return patternEntries.filter(
+      p => p.name.toLowerCase().includes(q) || p.displayName.toLowerCase().includes(q),
+    );
+  }, [patternEntries, searchFilter]);
 
   const isExpanded = searchFilter ? filtered.length > 0 : expanded;
 
-  if (patternColumns.length === 0) return null;
   if (searchFilter && filtered.length === 0) return null;
 
   const togglePattern = (col: string) => {
@@ -326,7 +322,8 @@ function PatternsSection({
     }
   };
 
-  const selectedCount = selectedPatterns.filter(c => patternColumns.includes(c)).length;
+  const patternNames = new Set(patternEntries.map(p => p.name));
+  const selectedCount = selectedPatterns.filter(c => patternNames.has(c)).length;
 
   return (
     <div>
@@ -348,22 +345,21 @@ function PatternsSection({
       </button>
       {isExpanded && (
         <div className="ml-2 max-h-[200px] overflow-y-auto">
-          {filtered.map(col => {
-            const isSelected = selectedPatterns.includes(col);
-            const displayName = col.replace('CDL_', '').replace(/_/g, ' ');
+          {filtered.map(entry => {
+            const isSelected = selectedPatterns.includes(entry.name);
             return (
               <button
-                key={col}
-                onClick={() => togglePattern(col)}
+                key={entry.name}
+                onClick={() => togglePattern(entry.name)}
                 className="flex items-center gap-1.5 w-full px-2 py-0.5 text-left hover:bg-white/[0.03] transition-colors"
               >
                 <Checkbox
                   checked={isSelected}
                   className="h-3 w-3"
-                  onCheckedChange={() => togglePattern(col)}
+                  onCheckedChange={() => togglePattern(entry.name)}
                 />
                 <span className={`text-[10px] font-mono ${isSelected ? 'text-zinc-200' : 'text-zinc-500'}`}>
-                  {displayName}
+                  {entry.displayName}
                 </span>
               </button>
             );
@@ -383,7 +379,6 @@ export function IndicatorSelector({
   onUpdateParams,
   onToggleVisibility,
   onClearAll,
-  patternCatalog,
   selectedPatterns,
   onPatternSelectionChange,
 }: IndicatorSelectorProps) {
@@ -494,7 +489,6 @@ export function IndicatorSelector({
 
             {/* CDL Patterns */}
             <PatternsSection
-              catalog={patternCatalog}
               selectedPatterns={selectedPatterns}
               onSelectionChange={onPatternSelectionChange}
               searchFilter={search}
@@ -515,7 +509,7 @@ export function IndicatorSelector({
                     onPatternSelectionChange(selectedPatterns.filter(c => c !== col))
                   }
                 >
-                  {col.replace('CDL_', '')}
+                  {getPatternDisplayName(col)}
                   <X className="h-2.5 w-2.5 ml-0.5" />
                 </Badge>
               ))}
