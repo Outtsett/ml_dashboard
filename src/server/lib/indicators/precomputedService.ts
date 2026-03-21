@@ -72,8 +72,10 @@ export function extractActivePatterns(
       const active: Record<string, number> = {};
       let hasPattern = false;
       for (const col of patternCols) {
-        const val = Number(row[col]);
-        if (val !== 0) {
+        const raw = row[col];
+        if (raw == null) continue;
+        const val = Number(raw);
+        if (!isNaN(val) && val !== 0) {
           active[col] = val;
           hasPattern = true;
         }
@@ -219,6 +221,7 @@ export async function getPatternData(
   symbol: string,
   timeframe: string,
   limit: number = 2000,
+  opts?: { startTime?: number; endTime?: number },
 ): Promise<{ data: PatternDataResult } | { notFound: { error: string } }> {
   const table = getIndicatorTable(timeframe);
 
@@ -229,7 +232,7 @@ export async function getPatternData(
     return { notFound: { error: `No candle pattern columns in ${table}` } };
   }
 
-  const sql = buildIndicatorQuery(table, symbol, patternCols, limit);
+  const sql = buildIndicatorQuery(table, symbol, patternCols, limit, opts);
   const raw = await questdbHttpQuery(sql);
   raw.reverse();
 

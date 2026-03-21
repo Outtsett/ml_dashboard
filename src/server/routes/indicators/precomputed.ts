@@ -49,7 +49,21 @@ router.get("/indicators/patterns/:symbol", async (req: Request, res: Response) =
     const limitStr = req.query.limit as string | undefined;
     const limit = limitStr ? Math.min(parseInt(limitStr), 5000) : 2000;
 
-    const result = await getPatternData(symbol, timeframe, limit);
+    // Parse optional time range (epoch-ms or ISO string)
+    const startTimeRaw = req.query.startTime as string | undefined;
+    const endTimeRaw = req.query.endTime as string | undefined;
+    let startTime: number | undefined;
+    let endTime: number | undefined;
+    if (startTimeRaw) {
+      const n = Number(startTimeRaw);
+      startTime = !isNaN(n) ? (n < 2e10 ? n * 1000 : n) : new Date(startTimeRaw).getTime() || undefined;
+    }
+    if (endTimeRaw) {
+      const n = Number(endTimeRaw);
+      endTime = !isNaN(n) ? (n < 2e10 ? n * 1000 : n) : new Date(endTimeRaw).getTime() || undefined;
+    }
+
+    const result = await getPatternData(symbol, timeframe, limit, { startTime, endTime });
 
     if ("notFound" in result) {
       return res.status(404).json(result.notFound);

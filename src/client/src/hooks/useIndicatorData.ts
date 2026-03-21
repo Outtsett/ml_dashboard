@@ -55,6 +55,22 @@ function savePatternSelection(columns: string[]) {
   }
 }
 
+/** Extract first and last timestamp (in ms) from OHLCV bar array. */
+function getBarTimeRange(bars: OHLCVBarInput[]): { startMs: number; endMs: number } | null {
+  if (bars.length === 0) return null;
+  const toMs = (ts: number | string): number => {
+    if (typeof ts === 'string') {
+      const n = parseInt(ts, 10);
+      return isNaN(n) ? new Date(ts).getTime() : (n < 2e10 ? n * 1000 : n);
+    }
+    return ts < 2e10 ? ts * 1000 : ts;
+  };
+  const first = toMs(bars[0]!.timestamp);
+  const last = toMs(bars[bars.length - 1]!.timestamp);
+  // Ensure ascending order
+  return { startMs: Math.min(first, last), endMs: Math.max(first, last) };
+}
+
 // --- Hook ---
 
 /**
@@ -66,12 +82,14 @@ function savePatternSelection(columns: string[]) {
  *
  * @param symbol - Trading symbol (e.g. "ES", "EURUSD")
  * @param timeframeMinutes - Chart timeframe in minutes
+ * @param _isFutures - Whether the symbol is a futures root
+ * @param ohlcvBars - Current chart OHLCV bars (used to align pattern query time range)
  */
 export function useIndicatorData(
   symbol: string,
   timeframeMinutes: number,
   _isFutures: boolean,
-  _ohlcvBars: OHLCVBarInput[] = [],
+  ohlcvBars: OHLCVBarInput[] = [],
 ) {
   const [selectedPatterns, setSelectedPatternsRaw] = useState<string[]>(loadPatternSelection);
 
@@ -88,6 +106,14 @@ export function useIndicatorData(
 
   const tfKey = minutesToApiKey(timeframeMinutes);
 
+  // Compute chart time range from OHLCV bars for pattern query alignment
+  const barTimeRange = useMemo(() => getBarTimeRange(ohlcvBars), [ohlcvBars]);
+
+  // Stable key for the time range so query doesn't refetch on every render
+  const rangeKey = barTimeRange
+    ? `${Math.floor(barTimeRange.startMs / 60000)}-${Math.floor(barTimeRange.endMs / 60000)}`
+    : 'none';
+
   // 1) Fetch catalog (cached indefinitely) — used by IndicatorSelector for patterns list
   const catalogQuery = useQuery<IndicatorCatalog>({
     queryKey: ["/api/indicators/catalog"],
@@ -100,16 +126,21 @@ export function useIndicatorData(
     gcTime: 30 * 60 * 1000,
   });
 
-  // 2) Fetch pattern data for selected CDL columns
+  // 2) Fetch pattern data for selected CDL columns, aligned to chart time range
   const patternQuery = useQuery({
-    queryKey: [...QUERY_KEYS.indicatorPatterns(symbol, tfKey), selectedPatterns.sort().join(',')],
+    queryKey: [...QUERY_KEYS.indicatorPatterns(symbol, tfKey), selectedPatterns.sort().join(','), rangeKey],
     queryFn: async () => {
-      const params = new URLSearchParams({ timeframe: tfKey, limit: '2000' });
+      const params = new URLSearchParams({ timeframe: tfKey, limit: '5000' });
+      // Pass chart time range to backend so pattern data aligns with visible candles
+      if (barTimeRange) {
+        params.set('startTime', String(barTimeRange.startMs));
+        params.set('endTime', String(barTimeRange.endMs));
+      }
       const res = await fetch(`/api/indicators/patterns/${symbol}?${params}`);
       if (!res.ok) return { data: [] };
       return res.json();
     },
-    enabled: selectedPatterns.length > 0,
+    enabled: selectedPatterns.length > 0 && ohlcvBars.length > 0,
     staleTime: 60_000,
   });
 
@@ -126,8 +157,10 @@ export function useIndicatorData(
           const val = row[col];
           if (ts != null && val != null && val !== 0) {
             const timeSec = typeof ts === 'string'
-              ? Math.floor(new Date(ts).getTime() / 1000)
-              : (ts as number);
+              ? Math.floor(new Date(ts as unknown as string).getTime() / 1000)
+              : typeof ts === 'number'
+                ? (ts < 2e10 ? ts : Math.floor(ts / 1000))
+                : NaN;
             if (!isNaN(timeSec)) {
               pointMap.set(timeSec, val as number);
             }

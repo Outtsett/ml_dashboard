@@ -107,6 +107,7 @@ export function buildIndicatorQuery(
   symbol: string,
   displayColumns: string[],
   limit: number,
+  opts?: { startTime?: number; endTime?: number },
 ): string {
   const safeSymbol = symbol.replace(/'/g, "''");
   const safeLimit = Math.min(Math.max(1, Math.floor(limit)), 100000);
@@ -132,5 +133,18 @@ export function buildIndicatorQuery(
     }
   }
 
-  return `SELECT "timestamp", ${colExprs.join(", ")} FROM ${table} WHERE symbol = '${safeSymbol}' ORDER BY timestamp DESC LIMIT ${safeLimit}`;
+  // Build WHERE clause with optional time range filters
+  const conditions = [`symbol = '${safeSymbol}'`];
+  if (opts?.startTime) {
+    // Convert ms epoch to ISO for QuestDB designated timestamp filter
+    const startISO = new Date(opts.startTime).toISOString();
+    conditions.push(`timestamp >= '${startISO}'`);
+  }
+  if (opts?.endTime) {
+    const endISO = new Date(opts.endTime).toISOString();
+    conditions.push(`timestamp <= '${endISO}'`);
+  }
+
+  const whereClause = conditions.join(' AND ');
+  return `SELECT "timestamp", ${colExprs.join(", ")} FROM ${table} WHERE ${whereClause} ORDER BY timestamp DESC LIMIT ${safeLimit}`;
 }
