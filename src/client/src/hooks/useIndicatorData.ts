@@ -161,9 +161,12 @@ export function useIndicatorData(
           const ts = row.timestamp;
           const val = row[col];
           if (ts != null && val != null && !isNaN(val as number)) {
-            // Timestamps from indicator tables are already in seconds
-            const timeSec = ts as number;
-            pointMap.set(timeSec, val as number);
+            const timeSec = typeof ts === 'string'
+              ? Math.floor(new Date(ts).getTime() / 1000)
+              : (ts as number);
+            if (!isNaN(timeSec)) {
+              pointMap.set(timeSec, val as number);
+            }
           }
         }
         if (pointMap.size > 0) {
@@ -190,9 +193,12 @@ export function useIndicatorData(
           const ts = row.timestamp;
           const val = row[col];
           if (ts != null && val != null && val !== 0) {
-            // Timestamps from pattern tables are already in seconds
-            const timeSec = ts as number;
-            pointMap.set(timeSec, val as number);
+            const timeSec = typeof ts === 'string'
+              ? Math.floor(new Date(ts).getTime() / 1000)
+              : (ts as number);
+            if (!isNaN(timeSec)) {
+              pointMap.set(timeSec, val as number);
+            }
           }
         }
         if (pointMap.size > 0) {
