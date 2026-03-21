@@ -4,6 +4,7 @@ import { getIndicatorColor, getIndicatorLineWidth } from '@/lib/indicatorColors'
 import { minutesToApiKey } from '@/lib/timeframes';
 import { QUERY_KEYS } from '@/lib/types';
 import { computeOverlay } from '@/lib/overlayCalculators';
+import { computeSubchart } from '@/lib/subchartCalculators';
 
 // --- Types ---
 
@@ -59,7 +60,6 @@ const OVERLAY_PREFIXES = [
   'HT_TRENDLINE',
   'AVGPRICE', 'MEDPRICE', 'TYPPRICE', 'WCLPRICE',
   'MAMA', 'FAMA',
-  'LINREG_INTERCEPT_',
 ];
 
 /** Exact matches for overlay indicators without trailing underscore/params */
@@ -69,11 +69,21 @@ const OVERLAY_EXACT = new Set(['PSAR', 'PSAREXT', 'HT_TRENDLINE', 'MAMA', 'FAMA'
 /** Prefixes that render as markers on candles. */
 const MARKER_PREFIXES = ['CDL_'];
 
+/** Subchart indicators whose LINREG_ prefix would wrongly match overlay.
+ *  LINREG_SLOPE_, LINREG_ANGLE_, LINREG_INTERCEPT_ are subchart, not overlay. */
+const SUBCHART_OVERRIDE_PREFIXES = [
+  'LINREG_SLOPE_', 'LINREG_ANGLE_', 'LINREG_INTERCEPT_',
+];
+
 // --- Helpers ---
 
 function classifyColumn(column: string): IndicatorDisplayType {
   for (const prefix of MARKER_PREFIXES) {
     if (column.startsWith(prefix)) return 'marker';
+  }
+  // Check subchart overrides before overlay (LINREG_SLOPE_ etc.)
+  for (const prefix of SUBCHART_OVERRIDE_PREFIXES) {
+    if (column.startsWith(prefix)) return 'subchart';
   }
   if (OVERLAY_EXACT.has(column)) return 'overlay';
   for (const prefix of OVERLAY_PREFIXES) {
@@ -102,15 +112,17 @@ function saveSelection(columns: string[]) {
 // --- Hook ---
 
 /**
- * Indicator data hook with dual-path strategy:
- *  - Overlay indicators: computed client-side from OHLCV data (raw price values)
- *  - Subchart indicators: fetched from talib_features (values on own scale)
- *  - Marker indicators: fetched from talib_features patterns endpoint
+ * Indicator data hook with client-first strategy:
+ *  - ALL non-CDL indicators: computed client-side from OHLCV data first
+ *  - Fallback: if client-side returns null, fetch from talib_features
+ *  - CDL_* patterns: always fetched from talib_features patterns endpoint
+ *
+ * This ensures every indicator works for every symbol, not just MNQ.
  *
  * @param symbol - Trading symbol (e.g. "ES", "EURUSD")
  * @param timeframeMinutes - Chart timeframe in minutes
  * @param isFutures - Whether the symbol is a futures instrument
- * @param ohlcvBars - Raw OHLCV bars from the chart (for client-side overlay computation)
+ * @param ohlcvBars - Raw OHLCV bars from the chart (for client-side computation)
  */
 export function useIndicatorData(
   symbol: string,
@@ -149,6 +161,48 @@ export function useIndicatorData(
     return { overlayColumns: overlay, subchartColumns: subchart, markerColumns: marker };
   }, [selectedColumns]);
 
+  // ── Normalize OHLCV bars once for all client-side calculators ──
+  const normalizedBars = useMemo(() => {
+    if (ohlcvBars.length === 0) return [];
+    return ohlcvBars.map(b => ({
+      timestamp: typeof b.timestamp === 'string' ? parseInt(b.timestamp) : b.timestamp,
+      open: b.open,
+      high: b.high,
+      low: b.low,
+      close: b.close,
+      volume: b.volume,
+    }));
+  }, [ohlcvBars]);
+
+  // ── Try computing ALL subchart indicators client-side; track failures ──
+  const { clientSubchartResults, fallbackColumns } = useMemo(() => {
+    const results: IndicatorOverlay[] = [];
+    const fallback: string[] = [];
+
+    if (normalizedBars.length === 0) {
+      // No OHLCV data → all subchart columns must fall back to API
+      return { clientSubchartResults: results, fallbackColumns: subchartColumns };
+    }
+
+    for (const col of subchartColumns) {
+      const points = computeSubchart(col, normalizedBars);
+      if (points && points.length > 0) {
+        results.push({
+          column: col,
+          data: points,
+          color: getIndicatorColor(col),
+          displayType: 'subchart',
+          lineWidth: getIndicatorLineWidth(col),
+        });
+      } else {
+        // Client-side computation not available for this column — fall back
+        fallback.push(col);
+      }
+    }
+
+    return { clientSubchartResults: results, fallbackColumns: fallback };
+  }, [subchartColumns, normalizedBars]);
+
   // 1) Fetch catalog (cached indefinitely)
   const catalogQuery = useQuery<IndicatorCatalog>({
     queryKey: ["/api/indicators/catalog"],
@@ -161,21 +215,21 @@ export function useIndicatorData(
     gcTime: 30 * 60 * 1000,
   });
 
-  // 2) Fetch SUBCHART indicator data from talib_features (own Y-axis, z-scored is fine)
+  // 2) Fetch ONLY fallback subchart columns from talib_features (ones we couldn't compute)
   const dataQuery = useQuery({
-    queryKey: [...QUERY_KEYS.indicatorData(apiSymbol, tfKey), 'subchart', subchartColumns.sort().join(',')],
+    queryKey: [...QUERY_KEYS.indicatorData(apiSymbol, tfKey), 'subchart-fallback', fallbackColumns.sort().join(',')],
     queryFn: async () => {
-      if (subchartColumns.length === 0) return { data: [] };
+      if (fallbackColumns.length === 0) return { data: [] };
       const params = new URLSearchParams({
         timeframe: tfKey,
-        columns: subchartColumns.join(','),
+        columns: fallbackColumns.join(','),
         limit: '2000',
       });
       const res = await fetch(`/api/indicators/data/${apiSymbol}?${params}`);
       if (!res.ok) return { data: [] };
       return res.json();
     },
-    enabled: subchartColumns.length > 0,
+    enabled: fallbackColumns.length > 0,
     staleTime: 60_000,
   });
 
@@ -192,21 +246,12 @@ export function useIndicatorData(
     staleTime: 60_000,
   });
 
-  // 4) Build overlays from all three sources
+  // 4) Build overlays from all sources
   const overlays = useMemo<IndicatorOverlay[]>(() => {
     const result: IndicatorOverlay[] = [];
 
     // ── A) OVERLAY indicators: computed client-side from OHLCV data ──
-    if (overlayColumns.length > 0 && ohlcvBars.length > 0) {
-      // Normalize bars for the calculator
-      const normalizedBars = ohlcvBars.map(b => ({
-        timestamp: typeof b.timestamp === 'string' ? parseInt(b.timestamp) : b.timestamp,
-        open: b.open,
-        high: b.high,
-        low: b.low,
-        close: b.close,
-      }));
-
+    if (overlayColumns.length > 0 && normalizedBars.length > 0) {
       for (const col of overlayColumns) {
         const points = computeOverlay(col, normalizedBars);
         if (points && points.length > 0) {
@@ -221,10 +266,15 @@ export function useIndicatorData(
       }
     }
 
-    // ── B) SUBCHART indicators: from talib_features (line series) ──
+    // ── B) SUBCHART indicators: client-side computed results ──
+    for (const overlay of clientSubchartResults) {
+      result.push(overlay);
+    }
+
+    // ── C) SUBCHART fallback: from talib_features for columns we couldn't compute ──
     if (dataQuery.data?.data?.length) {
       const rows = dataQuery.data.data as Record<string, number | null>[];
-      for (const col of subchartColumns) {
+      for (const col of fallbackColumns) {
         const pointMap = new Map<number, number>();
         for (const row of rows) {
           const ts = row.timestamp;
@@ -253,7 +303,7 @@ export function useIndicatorData(
       }
     }
 
-    // ── C) MARKER overlays: CDL patterns from talib_features ──
+    // ── D) MARKER overlays: CDL patterns from talib_features ──
     if (patternQuery.data?.data?.length) {
       const rows = patternQuery.data.data as Record<string, number | null>[];
       for (const col of markerColumns) {
@@ -286,7 +336,7 @@ export function useIndicatorData(
     }
 
     return result;
-  }, [overlayColumns, subchartColumns, markerColumns, ohlcvBars, dataQuery.data, patternQuery.data]);
+  }, [overlayColumns, normalizedBars, clientSubchartResults, fallbackColumns, dataQuery.data, markerColumns, patternQuery.data]);
 
   return {
     catalog: catalogQuery.data ?? null,

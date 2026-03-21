@@ -22,6 +22,31 @@ const INDICATOR_COLORS: Record<string, string> = {
   'MACD_12_26_9': '#06b6d4', 'MACDh_12_26_9': '#94a3b8', 'MACDs_12_26_9': '#f97316',
   // Stochastic
   'STOCHk_14_3_3': '#f59e0b', 'STOCHd_14_3_3': '#d97706',
+  // MACDEXT / MACDFIX
+  'MACDEXT_12_26_9': '#0ea5e9', 'MACDEXTs_12_26_9': '#fb923c', 'MACDEXTh_12_26_9': '#94a3b8',
+  'MACDFIX_9': '#38bdf8', 'MACDFIXs_9': '#fdba74', 'MACDFIXh_9': '#94a3b8',
+  // Fast Stochastic
+  'STOCHFk_5_3': '#fbbf24', 'STOCHFd_5_3': '#b45309',
+  // StochRSI
+  'STOCHRSIk_14_14_3_3': '#c084fc', 'STOCHRSId_14_14_3_3': '#9333ea',
+  // Directional
+  'PLUS_DI_14': '#22c55e', 'MINUS_DI_14': '#ef4444',
+  'PLUS_DM_14': '#4ade80', 'MINUS_DM_14': '#f87171',
+  'DX_14': '#f59e0b', 'ADXR_14': '#d97706',
+  // Aroon
+  'AROON_UP_25': '#22c55e', 'AROON_DOWN_25': '#ef4444',
+  'AROONOSC_25': '#a78bfa',
+  // Momentum
+  'MOM_10': '#38bdf8', 'ROC_10': '#0ea5e9', 'CMO_14': '#c084fc',
+  'APO_12_26': '#14b8a6', 'PPO_12_26': '#2dd4bf',
+  'BOP': '#94a3b8', 'ULTOSC_7_14_28': '#e879f9', 'TRIX_15': '#a3e635',
+  // Volatility
+  'ATR_14': '#f97316', 'NATR_14': '#fb923c', 'TRANGE': '#fdba74',
+  // Volume
+  'AD': '#06b6d4', 'ADOSC_3_10': '#22d3ee',
+  // Statistics
+  'STDEV_20': '#a78bfa', 'VAR_20': '#c4b5fd',
+  'LINREG_SLOPE_20': '#60a5fa', 'LINREG_ANGLE_20': '#93c5fd',
   // Others
   'ADX_14': '#ef4444', 'ATRr_14': '#f97316',
   'OBV': '#06b6d4', 'WILLR_14': '#ec4899',
@@ -37,8 +62,17 @@ const FAMILY_HUES: Record<string, number> = {
   SUPERTREND: 45, PSAR: 340,
   ISA: 280, ISB: 280, ITS: 320, IKS: 320, ICS: 300,
   RSI: 263, MACD: 187, STOCH: 38, CCI: 263,
-  ADX: 0, AROON: 30, ATR: 25, OBV: 187,
-  CDL: 50,
+  ADX: 0, ADXR: 25, DX: 38, AROON: 30, ATR: 25, OBV: 187,
+  CDL: 50, MOM: 200, ROC: 200, CMO: 270, APO: 170, PPO: 170,
+  BOP: 210, ULTOSC: 290, TRIX: 80, MFI: 187,
+  NATR: 25, TRANGE: 30, AD: 187, ADOSC: 187,
+  WILLR: 330, STOCHF: 38, STOCHRSI: 270,
+  MACDEXT: 200, MACDFIX: 200,
+  PLUS: 142, MINUS: 0,
+  STDEV: 263, VAR: 263,
+  LINREG: 217, HT: 300,
+  ROCP: 200, ROCR: 200, ROCR100: 200,
+  AROONOSC: 30,
   VWAP: 200, ZL: 160, RMA: 170, TRIMA: 210,
 };
 
