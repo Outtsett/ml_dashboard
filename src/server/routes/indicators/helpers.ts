@@ -1,26 +1,27 @@
 /**
- * Indicator helpers — QuestDB-backed indicator table queries.
+ * Indicator helpers — QuestDB-backed indicator queries.
  *
- * All indicator data lives in per-timeframe QuestDB tables:
- *   indicators_5m, indicators_15m, indicators_30m,
- *   indicators_1h, indicators_4h, indicators_1d, indicators_1w
- *
- * Tables created by scripts/upload-indicators-questdb.py.
+ * All indicator data lives in the `talib_features` QuestDB table (153M rows).
+ * Column names are lowercase in QuestDB and mapped to display names via
+ * talibMapping.ts for the frontend.
  */
 
 import { questdbHttpQuery } from "../../database/questdb/httpQuery";
+import {
+  TALIB_COLUMN_MAP,
+  talibToDisplay,
+  displayToTalib,
+} from "../../lib/indicators/talibMapping";
 
 // ============================================================================
 // SHARED CONSTANTS & TYPES
 // ============================================================================
 
-/** Valid indicator timeframes (1m excluded — too expensive to pre-compute). */
-const INDICATOR_TIMEFRAMES = new Set(["5m", "15m", "30m", "1h", "4h", "1d", "1w"]);
+/** The single QuestDB table holding all pre-computed TA-Lib indicators. */
+const TALIB_TABLE = "talib_features";
 
 /** Columns that are structural (not indicators). */
-const STRUCTURAL_COLS = new Set([
-  "timestamp", "symbol", "asset_class", "open", "high", "low", "close", "volume",
-]);
+const STRUCTURAL_COLS = new Set(["timestamp", "symbol"]);
 
 // ============================================================================
 // CACHES
@@ -30,24 +31,25 @@ export let cachedCatalog: { categories: Record<string, string[]>; total: number;
 export function clearCachedCatalog() { cachedCatalog = null; }
 export function setCachedCatalog(val: typeof cachedCatalog) { cachedCatalog = val; }
 
-/** Column cache per timeframe — avoids repeated SHOW COLUMNS queries. */
-const columnCache = new Map<string, { columns: string[]; cachedAt: number }>();
+/** Column cache — avoids repeated SHOW COLUMNS queries. */
+let columnCache: { displayNames: string[]; cachedAt: number } | null = null;
 const COLUMN_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export function clearColumnCache() {
-  columnCache.clear();
+  columnCache = null;
 }
 
 // ============================================================================
 // QuestDB INDICATOR TABLE HELPERS
 // ============================================================================
 
-/** Map timeframe string to QuestDB indicator table name. Returns null for unsupported timeframes. */
-export function getIndicatorTable(timeframe: string): string | null {
-  if (INDICATOR_TIMEFRAMES.has(timeframe)) {
-    return `indicators_${timeframe}`;
-  }
-  return null;
+/**
+ * Return the QuestDB table name for indicator queries.
+ * Always returns 'talib_features' — timeframe param accepted for API compat
+ * but ignored since the table is not timeframe-specific.
+ */
+export function getIndicatorTable(_timeframe?: string): string {
+  return TALIB_TABLE;
 }
 
 /**
@@ -59,48 +61,76 @@ export function sanitizeColumnName(name: string): string {
 }
 
 /**
- * Get all indicator column names for a timeframe.
- * Excludes structural columns (timestamp, symbol, OHLCV, asset_class).
+ * Get all indicator display names from the talib_features table.
+ * Queries QuestDB for actual columns, filters structural ones, and maps
+ * each to its display name. Only columns present in TALIB_COLUMN_MAP are
+ * returned — unknown columns are silently skipped.
+ *
+ * The _timeframe parameter is accepted for API compat but ignored.
  */
-export async function getIndicatorColumns(timeframe: string): Promise<string[]> {
-  const table = getIndicatorTable(timeframe);
-  if (!table) return [];
-
-  const cacheKey = timeframe;
-  const cached = columnCache.get(cacheKey);
-  if (cached && Date.now() - cached.cachedAt < COLUMN_CACHE_TTL_MS) {
-    return cached.columns;
+export async function getIndicatorColumns(_timeframe?: string): Promise<string[]> {
+  if (columnCache && Date.now() - columnCache.cachedAt < COLUMN_CACHE_TTL_MS) {
+    return columnCache.displayNames;
   }
 
   try {
     const rows = await questdbHttpQuery<{ column: string; type: string }>(
-      `SHOW COLUMNS FROM ${table}`
+      `SHOW COLUMNS FROM ${TALIB_TABLE}`
     );
-    const columns = rows
-      .map(r => r.column)
-      .filter(c => !STRUCTURAL_COLS.has(c));
 
-    columnCache.set(cacheKey, { columns, cachedAt: Date.now() });
-    return columns;
+    const displayNames: string[] = [];
+    for (const row of rows) {
+      const col = row.column;
+      if (STRUCTURAL_COLS.has(col)) continue;
+      // Only include columns we have a mapping for
+      if (col in TALIB_COLUMN_MAP) {
+        displayNames.push(talibToDisplay(col));
+      }
+    }
+
+    columnCache = { displayNames, cachedAt: Date.now() };
+    return displayNames;
   } catch {
     return [];
   }
 }
 
 /**
- * Build a SELECT query against a QuestDB indicator table.
+ * Build a SELECT query against the talib_features table.
+ * Accepts display-name columns, converts them to talib column names for
+ * the SQL, and aliases them back to display names in the result set.
+ *
  * Symbol and column names are sanitized to prevent SQL injection.
  */
 export function buildIndicatorQuery(
   table: string,
   symbol: string,
-  columns: string[],
+  displayColumns: string[],
   limit: number,
 ): string {
-  // Escape single quotes in symbol to prevent SQL injection
   const safeSymbol = symbol.replace(/'/g, "''");
-  // Escape double quotes in column names to prevent breakout
-  const quotedCols = columns.map(c => `"${c.replace(/"/g, '""')}"`).join(", ");
   const safeLimit = Math.min(Math.max(1, Math.floor(limit)), 100000);
-  return `SELECT "timestamp", ${quotedCols} FROM ${table} WHERE symbol = '${safeSymbol}' ORDER BY timestamp DESC LIMIT ${safeLimit}`;
+
+  // Build column select: "talib_col" AS "DisplayName" for each
+  const colExprs: string[] = [];
+  for (const display of displayColumns) {
+    let talibCol: string;
+    try {
+      talibCol = displayToTalib(display);
+    } catch {
+      // If display name can't be mapped, try using it as-is (it may already
+      // be a raw talib column name)
+      talibCol = display;
+    }
+    const safeCol = talibCol.replace(/"/g, '""');
+    const safeDisplay = display.replace(/"/g, '""');
+    // If talib col and display name differ, alias; otherwise just quote
+    if (talibCol !== display) {
+      colExprs.push(`"${safeCol}" AS "${safeDisplay}"`);
+    } else {
+      colExprs.push(`"${safeCol}"`);
+    }
+  }
+
+  return `SELECT "timestamp", ${colExprs.join(", ")} FROM ${table} WHERE symbol = '${safeSymbol}' ORDER BY timestamp DESC LIMIT ${safeLimit}`;
 }

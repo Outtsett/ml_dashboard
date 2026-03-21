@@ -2,8 +2,12 @@
  * Pre-computed indicator business logic.
  *
  * Handles catalog generation, indicator data retrieval, and candle-pattern
- * extraction from QuestDB indicator tables (indicators_5m through indicators_1w).
+ * extraction from the QuestDB `talib_features` table (153M rows).
  * Route handlers delegate here — no HTTP concerns live in this module.
+ *
+ * Column names are mapped bidirectionally:
+ *   QuestDB (lowercase) ↔ display names (uppercase with params)
+ * via talibMapping.ts.
  */
 
 import { questdbHttpQuery } from "../../database/questdb/httpQuery";
@@ -15,50 +19,33 @@ import {
   sanitizeColumnName,
   buildIndicatorQuery,
 } from "../../routes/indicators/helpers";
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-/** Category-to-prefix map used by the column classifier. */
-export const CATEGORY_PREFIXES: readonly [string, string[]][] = [
-  ["candle", ["CDL_"]],
-  ["trend", ["ADX", "DMP_", "DMN_", "AROON", "CHOP_", "CKSP_", "DPO_", "PSAR", "QS_", "VTXP_", "VTXM_", "VHF_", "RWI_", "LDECAY_", "DEC_", "INC_", "ZIGZAG", "SMC_", "EXHC_", "CHDLREXT"]],
-  ["volume", ["OBV", "ADOSC_", "AD", "CMF_", "EFI_", "EOM", "KVO_", "MFI_", "NVI_", "PVI_", "PVOL_", "PVR_", "PVT_", "VWAP_", "TSV_", "AOBV_", "VP_", "VHM_"]],
-  ["volatility", ["ATR", "NATR_", "TRUERANGE", "ABER", "THERMO", "UI_", "PDIST_", "MASSI_", "HWU_", "HWM_", "HWL_", "TOS_", "BBW_", "KCW_", "RVI_"]],
-  ["momentum", ["RSI_", "MACD", "STOCH", "CCI_", "WILLR_", "MOM_", "ROC_", "AO_", "APO_", "PPO_", "BIAS_", "BOP", "CFO_", "CG_", "CMO_", "COPC_", "CRSI_", "CTI_", "ER_", "FISHER", "INERTIA_", "KST_", "PGO_", "PSL_", "QQE", "RSX_", "RVGI_", "STC_", "TRIX_", "TSI_", "UO_", "SMI_", "TMO_", "SQZ", "K_", "D_", "J_"]],
-  ["cycle", ["EBSW_", "REFLEX_"]],
-  ["statistics", ["ENTP", "KURT", "MAD_", "MEDIAN_", "QTL_", "SKEW_", "STDEV_", "VAR_", "ZS_", "SLOPE_"]],
-  ["performance", ["LOGRET_", "PCTRET_", "CUMLOGRET_", "CUMPCTRET_"]],
-  ["overlap", ["SMA_", "EMA_", "WMA_", "DEMA_", "TEMA_", "T3_", "KAMA_", "FWMA_", "HMA_", "ALMA_", "LINREG_", "MIDPOINT_", "MIDPRICE_", "PWMA_", "RMA_", "SINWMA_", "SWMA_", "TRIMA_", "VIDYA_", "VWMA_", "HWMA_", "MCGD_", "SMMA_", "JMA_", "ZLMA_", "ZL_", "HT_", "HILO", "ISA_", "ISB_", "ITS_", "IKS_", "ICS_", "MAMA_", "FAMA_", "SSF", "BBL_", "BBM_", "BBU_", "BBB_", "BBP_", "KCL", "KCB", "KCU", "DCL_", "DCM_", "DCU_", "SUPERT", "ALPHAT", "AMAT", "ACCB"]],
-];
+import {
+  TALIB_CATEGORIES,
+  TALIB_DISPLAY_MAP,
+} from "./talibMapping";
 
 // ============================================================================
 // PURE HELPERS
 // ============================================================================
 
-/** Classify indicator column names into categories by prefix matching. */
-export function classifyColumns(indicatorCols: string[]): Record<string, string[]> {
-  const categories: Record<string, string[]> = {
-    candle: [], trend: [], volume: [], volatility: [], momentum: [],
-    cycle: [], statistics: [], performance: [], overlap: [], other: [],
-  };
+/**
+ * Classify indicator display names into categories using the TALIB_CATEGORIES
+ * map from talibMapping.ts. Falls back to prefix matching for any display name
+ * not found in the map.
+ */
+export function classifyColumns(displayCols: string[]): Record<string, string[]> {
+  const categories: Record<string, string[]> = {};
 
-  for (const col of indicatorCols) {
-    const upper = col.toUpperCase();
-    let classified = false;
-    for (const [cat, prefixes] of CATEGORY_PREFIXES) {
-      if (prefixes.some(p => upper.startsWith(p))) {
-        categories[cat]?.push(col);
-        classified = true;
-        break;
-      }
+  for (const col of displayCols) {
+    const cat = TALIB_CATEGORIES[col];
+    if (cat) {
+      if (!categories[cat]) categories[cat] = [];
+      categories[cat]!.push(col);
+    } else {
+      // Fallback: if not in the map, put in 'other'
+      if (!categories.other) categories.other = [];
+      categories.other!.push(col);
     }
-    if (!classified) categories.other?.push(col);
-  }
-
-  for (const key of Object.keys(categories)) {
-    if (categories[key]?.length === 0) delete categories[key];
   }
 
   return categories;
@@ -116,8 +103,7 @@ export interface CatalogResult {
 export async function getCatalog(): Promise<CatalogResult> {
   if (cachedCatalog) return cachedCatalog;
 
-  // Use 1d table as reference — all timeframes have the same column set
-  const columns = await getIndicatorColumns("1d");
+  const columns = await getIndicatorColumns();
   if (columns.length === 0) {
     return { categories: {}, total: 0, columns: [] };
   }
@@ -144,7 +130,10 @@ export interface IndicatorDataNotFound {
 /**
  * Load pre-computed indicator data for a symbol from QuestDB.
  * Returns `{ data: ... }` on success or `{ notFound: ... }` when the
- * requested symbol/timeframe/columns do not exist.
+ * requested symbol/columns do not exist.
+ *
+ * The timeframe parameter is accepted for API compatibility but has no
+ * effect on which table is queried — all data comes from talib_features.
  */
 export async function getIndicatorData(
   symbol: string,
@@ -153,31 +142,49 @@ export async function getIndicatorData(
   limit: number = 2000,
 ): Promise<{ data: IndicatorDataResult } | { notFound: IndicatorDataNotFound }> {
   const table = getIndicatorTable(timeframe);
-  if (!table) {
-    const available = await listAvailableIndicators(symbol);
-    return {
-      notFound: {
-        error: `No indicator table for timeframe ${timeframe}. Available: 5m, 15m, 30m, 1h, 4h, 1d, 1w`,
-        available,
-      },
-    };
-  }
 
-  const allColumns = await getIndicatorColumns(timeframe);
+  const allColumns = await getIndicatorColumns();
   if (allColumns.length === 0) {
     return {
       notFound: {
-        error: `Indicator table ${table} has no data. Run upload-indicators-questdb.py to populate.`,
+        error: `Indicator table ${table} has no data or no mapped columns.`,
       },
     };
   }
 
   let queryCols: string[];
   if (columns) {
-    const requested = columns.split(",").map(c => sanitizeColumnName(c.trim())).filter(c => /^[a-zA-Z0-9_]+$/.test(c));
-    // Filter to only columns that exist in the table
+    const requested = columns
+      .split(",")
+      .map(c => sanitizeColumnName(c.trim()))
+      .filter(c => /^[a-zA-Z0-9_]+$/.test(c));
+
+    // The caller may pass either display names (e.g. RSI_14) or talib column
+    // names (e.g. rsi). Normalise everything to display names so
+    // buildIndicatorQuery can produce the right SQL aliases.
     const colSet = new Set(allColumns);
-    queryCols = requested.filter(c => colSet.has(c));
+    queryCols = [];
+    for (const req of requested) {
+      if (colSet.has(req)) {
+        // Already a valid display name
+        queryCols.push(req);
+      } else if (TALIB_DISPLAY_MAP[req]) {
+        // It's a display name that exists in the reverse map — but check
+        // that the underlying talib col is in the available set via its
+        // display counterpart. Since allColumns are display names and we
+        // already checked, this shouldn't match, but guard anyway.
+        queryCols.push(req);
+      } else {
+        // Maybe it's a raw talib column name — look up its display name
+        // and check if that display name is in our available set.
+        const upperReq = req.toUpperCase();
+        const matchedDisplay = allColumns.find(d => d === upperReq || d === req);
+        if (matchedDisplay) {
+          queryCols.push(matchedDisplay);
+        }
+        // else: skip unknown column
+      }
+    }
 
     if (queryCols.length === 0) {
       const categories = classifyColumns(allColumns);
@@ -207,19 +214,16 @@ export interface PatternDataResult {
   data: Record<string, unknown>[];
 }
 
-/** Extract candle pattern data (CDL_* columns) for a symbol. */
+/** Extract candle pattern data (CDL_* display-name columns) for a symbol. */
 export async function getPatternData(
   symbol: string,
   timeframe: string,
   limit: number = 2000,
 ): Promise<{ data: PatternDataResult } | { notFound: { error: string } }> {
   const table = getIndicatorTable(timeframe);
-  if (!table) {
-    return { notFound: { error: `No indicator table for timeframe ${timeframe}` } };
-  }
 
-  const allColumns = await getIndicatorColumns(timeframe);
-  const patternCols = allColumns.filter(c => c.toUpperCase().startsWith("CDL_"));
+  const allColumns = await getIndicatorColumns();
+  const patternCols = allColumns.filter(c => c.startsWith("CDL_"));
 
   if (patternCols.length === 0) {
     return { notFound: { error: `No candle pattern columns in ${table}` } };
@@ -235,27 +239,21 @@ export async function getPatternData(
   };
 }
 
-/** List available indicator timeframes for a symbol by checking QuestDB tables. */
+/** Check whether a symbol has data in talib_features. */
 export async function listAvailableIndicators(symbol: string): Promise<string[]> {
-  const available: string[] = [];
-  const timeframes = ["5m", "15m", "30m", "1h", "4h", "1d", "1w"];
   const safeSymbol = symbol.replace(/'/g, "''");
+  const table = getIndicatorTable();
 
-  for (const tf of timeframes) {
-    const table = getIndicatorTable(tf);
-    if (!table) continue;
-
-    try {
-      const rows = await questdbHttpQuery<{ cnt: number }>(
-        `SELECT count() as cnt FROM ${table} WHERE symbol = '${safeSymbol}' LIMIT 0, 1`
-      );
-      if (rows.length > 0 && rows[0]!.cnt > 0) {
-        available.push(`${symbol}/${tf}`);
-      }
-    } catch {
-      // Table might not exist yet
+  try {
+    const rows = await questdbHttpQuery<{ cnt: number }>(
+      `SELECT count() as cnt FROM ${table} WHERE symbol = '${safeSymbol}' LIMIT 0, 1`
+    );
+    if (rows.length > 0 && rows[0]!.cnt > 0) {
+      return [`${symbol}/talib_features`];
     }
+  } catch {
+    // Table might not exist yet
   }
 
-  return available;
+  return [];
 }
