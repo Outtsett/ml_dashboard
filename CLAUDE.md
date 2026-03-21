@@ -181,7 +181,7 @@ client/src/
                     ConfusionMatrixHeatmap, EmbeddingScatter, ForceDirectedCluster,
                     ForecastRibbon, ResidualPlot, SimilarityMatrix
   hooks/            useMarketData, use-toast
-  lib/              queryClient, prefetch, mlModels (50+ model definitions), utils
+  lib/              queryClient, prefetch, mlModels (50+ model definitions), overlayCalculators, utils
 
 server/
   main.ts           Express app + NestJS DI bootstrap
@@ -318,7 +318,8 @@ All new code **must** follow SOLID. Apply everywhere — routes, components, hoo
 
 - **EventEmitter training**: `MLTrainer extends EventEmitter` emits progress events per epoch. Frontend connects via SSE at `GET /ml/train/stream`.
 - **Config-driven features**: `src/config/features.json` is the single source of truth for all 29 features across 8 categories. Python `features.py` reads this config via dispatch table. Adding a feature = add JSON entry.
-- **Pre-computed indicators**: pandas-ta computes 344 indicator columns (9 categories). Stored in QuestDB `indicators_{tf}` tables, served via `/api/indicators/data/:symbol`.
+- **Pre-computed indicators**: pandas-ta computes 344 indicator columns (9 categories). Stored in QuestDB `talib_features` table, served via `/api/indicators/data/:symbol`.
+- **Indicator rendering (dual-path)**: talib_features stores z-scored values — overlay indicators (SMA, EMA, BB, etc.) are computed client-side from raw OHLCV data in `lib/overlayCalculators.ts`. Subchart indicators (RSI, MACD, Stochastic) are fetched from talib_features (values on their own scale). CDL patterns fetched from talib_features patterns endpoint. All three paths converge in `useIndicatorData` hook.
 - **Rollover stitching**: Futures root symbols (ES, MNQ, M2K, etc.) are stitched at query time from per-contract OHLCV using the `rollovers` table. Frontend references root symbols only — all rollover/front-month logic is backend.
 - **Circuit breaker**: Auto-disable failing DB connections. States: closed (normal), open (failing, fast-fail), half-open (testing). Reset via `POST /circuit-breaker/reset/:name`.
 - **File-level dedup**: SHA-256 hash tracking in SQLite `ingested_files` table prevents re-ingestion.

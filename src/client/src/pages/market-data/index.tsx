@@ -63,28 +63,6 @@ export default function MarketData() {
     { label: tfLabel, icon: Clock },
   ]);
 
-  // ── Indicator overlays ──
-  const {
-    catalog,
-    selectedColumns,
-    setSelectedColumns,
-    overlays: indicatorOverlays,
-    isLoading: indicatorsLoading,
-  } = useIndicatorData(symbol, timeframe, assetType === "futures");
-
-  const handleRemoveIndicators = useCallback((columns: string[]) => {
-    const newSelection = selectedColumns.filter(c => !columns.includes(c));
-    setSelectedColumns(newSelection);
-  }, [selectedColumns, setSelectedColumns]);
-
-  // ── Label markers from sidebar workflow panel ──
-  const [sidebarLabelMarkers, setSidebarLabelMarkers] = useState<LabelMarker[]>([]);
-  const [sidebarShowLabels, setSidebarShowLabels] = useState(false);
-  const handleLabelMarkersChange = useCallback((markers: LabelMarker[], show: boolean) => {
-    setSidebarLabelMarkers(markers);
-    setSidebarShowLabels(show);
-  }, []);
-
   // ── Instrument & symbol queries ──
   const { data: rawInstruments } = useQuery<InstrumentInfo[]>({
     queryKey: ["/api/instruments"],
@@ -104,12 +82,33 @@ export default function MarketData() {
 
   const isFutures = assetType === "futures";
 
-
-  // ── Chart OHLCV data (extracted to shared hook — SRP, DIP) ──
+  // ── Chart OHLCV data (must come before indicator hook — provides bars for overlay calc) ──
   const {
     chartData, isFetching, isLoadingMore, hasMoreLeft, hasMoreRight,
     handleLoadMore, resetScrollState, resetChart, useInfiniteScroll,
   } = useChartOHLCV(symbol, timeframe);
+
+  // ── Indicator overlays (pass OHLCV data for client-side overlay computation) ──
+  const {
+    catalog,
+    selectedColumns,
+    setSelectedColumns,
+    overlays: indicatorOverlays,
+    isLoading: indicatorsLoading,
+  } = useIndicatorData(symbol, timeframe, assetType === "futures", chartData);
+
+  const handleRemoveIndicators = useCallback((columns: string[]) => {
+    const newSelection = selectedColumns.filter(c => !columns.includes(c));
+    setSelectedColumns(newSelection);
+  }, [selectedColumns, setSelectedColumns]);
+
+  // ── Label markers from sidebar workflow panel ──
+  const [sidebarLabelMarkers, setSidebarLabelMarkers] = useState<LabelMarker[]>([]);
+  const [sidebarShowLabels, setSidebarShowLabels] = useState(false);
+  const handleLabelMarkersChange = useCallback((markers: LabelMarker[], show: boolean) => {
+    setSidebarLabelMarkers(markers);
+    setSidebarShowLabels(show);
+  }, []);
 
   // ── Market Replay ──
   const replay = useLocalReplay(chartData);
