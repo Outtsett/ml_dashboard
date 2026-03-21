@@ -7,6 +7,8 @@ import {
   Layers, ZapOff, Play, Pause, PanelRightOpen, RotateCcw,
 } from "lucide-react";
 import { IndicatorSelector } from "@/components/IndicatorSelector";
+import type { ActiveIndicator } from "@/hooks/useActiveIndicators";
+import type { IndicatorCatalog } from "@/hooks/useIndicatorData";
 import type { InstrumentInfo } from "./types";
 import { TIMEFRAME_OPTIONS as timeframes } from "@/lib/timeframes";
 
@@ -24,10 +26,17 @@ interface ToolbarProps {
   // Timeframe
   timeframe: number;
   onTimeframeChange: (minutes: number) => void;
-  // Indicators
-  catalog: any;
-  selectedColumns: string[];
-  onSelectionChange: (cols: string[]) => void;
+  // Active indicators (new system)
+  activeIndicators: ActiveIndicator[];
+  onAddIndicator: (indicatorId: string) => void;
+  onRemoveIndicator: (instanceId: string) => void;
+  onUpdateParams: (instanceId: string, params: Record<string, number>) => void;
+  onToggleVisibility: (instanceId: string) => void;
+  onClearAllIndicators: () => void;
+  // CDL Patterns
+  patternCatalog: IndicatorCatalog | null;
+  selectedPatterns: string[];
+  onPatternSelectionChange: (cols: string[]) => void;
   indicatorsLoading: boolean;
   // Overlays
   showSR: boolean;
@@ -54,7 +63,10 @@ export function Toolbar({
   symbol, onSymbolSelect, symbolOpen, onSymbolOpenChange, activeSymbols,
   isFutures,
   timeframe, onTimeframeChange,
-  catalog, selectedColumns, onSelectionChange, indicatorsLoading,
+  activeIndicators, onAddIndicator, onRemoveIndicator, onUpdateParams,
+  onToggleVisibility, onClearAllIndicators,
+  patternCatalog, selectedPatterns, onPatternSelectionChange,
+  indicatorsLoading,
   showSR, onToggleSR, showZigZag, onToggleZigZag, showSwingZZ, onToggleSwingZZ,
   replayActive, onToggleReplay,
   onResetChart, isRefetching,
@@ -148,11 +160,17 @@ export function Toolbar({
 
       <div className="w-px h-5 bg-white/10" />
 
-      {/* Indicators + Overlays */}
+      {/* Indicators (new professional system) */}
       <IndicatorSelector
-        catalog={catalog}
-        selectedColumns={selectedColumns}
-        onSelectionChange={onSelectionChange}
+        activeIndicators={activeIndicators}
+        onAddIndicator={onAddIndicator}
+        onRemoveIndicator={onRemoveIndicator}
+        onUpdateParams={onUpdateParams}
+        onToggleVisibility={onToggleVisibility}
+        onClearAll={onClearAllIndicators}
+        patternCatalog={patternCatalog}
+        selectedPatterns={selectedPatterns}
+        onPatternSelectionChange={onPatternSelectionChange}
         isLoading={indicatorsLoading}
       />
 

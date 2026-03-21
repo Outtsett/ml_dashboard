@@ -1,14 +1,42 @@
 /**
  * Indicator panel grouping, labeling, and metadata for professional subchart rendering.
+ *
+ * Supports both:
+ * - Legacy column names (e.g., "RSI_14", "MACD_12_26_9")
+ * - New instance-based names (e.g., "ind_123_1_abc::value", "ind_123_1_abc::histogram")
  */
 
 import type { IndicatorOverlay } from '@/hooks/useIndicatorData';
+import { getIndicatorDefinition } from '@/lib/indicatorRegistry';
+
+/**
+ * Extract the instanceId from a new-format column name.
+ * Returns null if the column is legacy format.
+ */
+function parseInstanceColumn(column: string): { instanceId: string; outputKey: string } | null {
+  const idx = column.indexOf('::');
+  if (idx === -1) return null;
+  return {
+    instanceId: column.slice(0, idx),
+    outputKey: column.slice(idx + 2),
+  };
+}
 
 /**
  * Derive a panel key from an indicator column name.
  * Related indicators (e.g., MACD/MACDs/MACDh) share the same panel.
+ *
+ * For the new instance-based system, outputs from the same instance share a panel
+ * keyed by the instanceId.
  */
 export function getSubchartPanelKey(column: string): string {
+  // New instance-based format: "ind_123_1_abc::outputKey" → group by instanceId
+  const parsed = parseInstanceColumn(column);
+  if (parsed) {
+    return parsed.instanceId;
+  }
+
+  // Legacy column format — kept for backward compatibility
   // MACD variants: MACD_, MACDs_, MACDh_ → MACD_...
   if (/^MACD[hs]?_/.test(column)) {
     return column.replace(/^MACD[hs]?_/, 'MACD_');
@@ -83,6 +111,25 @@ export function groupSubchartIndicators(
   }
 
   return Array.from(panelMap.entries());
+}
+
+// ─── Instance label registry (populated by useActiveIndicators) ──────────────
+// Maps instanceId → display label (e.g., "RSI (14)", "MACD (12,26,9)")
+const instanceLabelMap = new Map<string, string>();
+
+/** Register an instance label for panel display */
+export function registerInstanceLabel(instanceId: string, label: string) {
+  instanceLabelMap.set(instanceId, label);
+}
+
+/** Unregister an instance label */
+export function unregisterInstanceLabel(instanceId: string) {
+  instanceLabelMap.delete(instanceId);
+}
+
+/** Clear all instance labels */
+export function clearInstanceLabels() {
+  instanceLabelMap.clear();
 }
 
 /** Display-friendly names for indicator families */
@@ -174,6 +221,11 @@ const PANEL_DISPLAY_NAMES: Record<string, string> = {
 
 /** Get a display label for a panel key like "MACD_12_26_9" → "MACD (12,26,9)" */
 export function getPanelLabel(panelKey: string): string {
+  // Check instance label registry first (new system)
+  const instanceLabel = instanceLabelMap.get(panelKey);
+  if (instanceLabel) return instanceLabel;
+
+  // Legacy column-based format
   const parts = panelKey.split('_');
   const name = parts[0]!;
   const params = parts.slice(1).filter(Boolean).join(',');
@@ -277,13 +329,38 @@ const REFERENCE_LINES: Record<string, { value: number; color: string }[]> = {
   ],
 };
 
+// ─── Instance reference lines registry ───────────────────────────────────────
+const instanceReferenceLinesMap = new Map<string, { value: number; color: string }[]>();
+
+/** Register reference lines for an instance */
+export function registerInstanceReferenceLines(instanceId: string, lines: { value: number; color: string }[]) {
+  instanceReferenceLinesMap.set(instanceId, lines);
+}
+
+/** Unregister instance reference lines */
+export function unregisterInstanceReferenceLines(instanceId: string) {
+  instanceReferenceLinesMap.delete(instanceId);
+}
+
 export function getReferenceLines(panelKey: string): { value: number; color: string }[] {
+  // Check instance registry first (new system)
+  const instanceLines = instanceReferenceLinesMap.get(panelKey);
+  if (instanceLines) return instanceLines;
+
+  // Legacy column-based format
   const family = panelKey.split('_')[0]!;
   return REFERENCE_LINES[family] || [];
 }
 
 /** Whether the indicator column should render as a histogram (colored bars). */
 export function shouldRenderAsHistogram(column: string): boolean {
+  // New instance-based format: check outputKey
+  const parsed = parseInstanceColumn(column);
+  if (parsed) {
+    return parsed.outputKey === 'histogram';
+  }
+
+  // Legacy format
   return column.startsWith('MACDh_') ||
          column.startsWith('MACDEXTh_') ||
          column.startsWith('MACDFIXh_');

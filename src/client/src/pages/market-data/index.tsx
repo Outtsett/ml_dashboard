@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { type LabelMarker } from "@/components/TradingChart";
 import { useIndicatorData } from "@/hooks/useIndicatorData";
+import { useActiveIndicators } from "@/hooks/useActiveIndicators";
 import { useBreadcrumbs } from "@/hooks/useBreadcrumbs";
 import { useDashboard } from "@/contexts/UnifiedDashboardContext";
 import { MLWorkflowSidebar } from "@/components/sidebar/MLWorkflowSidebar";
@@ -88,19 +89,45 @@ export default function MarketData() {
     handleLoadMore, resetScrollState, resetChart, useInfiniteScroll,
   } = useChartOHLCV(symbol, timeframe);
 
-  // ── Indicator overlays (pass OHLCV data for client-side overlay computation) ──
+  // ── Active indicators (new professional system) ──
+  const {
+    indicators: activeIndicators,
+    addIndicator,
+    removeIndicator,
+    updateParams,
+    toggleVisibility,
+    clearAll: clearAllIndicators,
+    overlays: indicatorOverlays,
+  } = useActiveIndicators(chartData);
+
+  // ── CDL Patterns (from talib_features API) ──
   const {
     catalog,
-    selectedColumns,
-    setSelectedColumns,
-    overlays: indicatorOverlays,
-    isLoading: indicatorsLoading,
-  } = useIndicatorData(symbol, timeframe, assetType === "futures", chartData);
+    selectedPatterns,
+    setSelectedPatterns,
+    patternOverlays,
+    isLoading: patternsLoading,
+  } = useIndicatorData(symbol, timeframe, isFutures, chartData);
+
+  // ── Merge indicator overlays + pattern overlays ──
+  const allOverlays = useMemo(() => {
+    return [...indicatorOverlays, ...patternOverlays];
+  }, [indicatorOverlays, patternOverlays]);
 
   const handleRemoveIndicators = useCallback((columns: string[]) => {
-    const newSelection = selectedColumns.filter(c => !columns.includes(c));
-    setSelectedColumns(newSelection);
-  }, [selectedColumns, setSelectedColumns]);
+    // For pattern columns (CDL_*), remove from pattern selection
+    const patternCols = columns.filter(c => c.startsWith('CDL_'));
+    if (patternCols.length > 0) {
+      const newPatterns = selectedPatterns.filter(c => !patternCols.includes(c));
+      setSelectedPatterns(newPatterns);
+    }
+    // For indicator instance columns (instanceId::outputKey), remove the instance
+    const instanceCols = columns.filter(c => c.includes('::'));
+    const instanceIds = new Set(instanceCols.map(c => c.split('::')[0]!));
+    for (const id of instanceIds) {
+      removeIndicator(id);
+    }
+  }, [selectedPatterns, setSelectedPatterns, removeIndicator]);
 
   // ── Label markers from sidebar workflow panel ──
   const [sidebarLabelMarkers, setSidebarLabelMarkers] = useState<LabelMarker[]>([]);
@@ -177,10 +204,16 @@ export default function MarketData() {
         isFutures={isFutures}
         timeframe={timeframe}
         onTimeframeChange={setTimeframe}
-        catalog={catalog}
-        selectedColumns={selectedColumns}
-        onSelectionChange={setSelectedColumns}
-        indicatorsLoading={indicatorsLoading}
+        activeIndicators={activeIndicators}
+        onAddIndicator={addIndicator}
+        onRemoveIndicator={removeIndicator}
+        onUpdateParams={updateParams}
+        onToggleVisibility={toggleVisibility}
+        onClearAllIndicators={clearAllIndicators}
+        patternCatalog={catalog}
+        selectedPatterns={selectedPatterns}
+        onPatternSelectionChange={setSelectedPatterns}
+        indicatorsLoading={patternsLoading}
         showSR={overlayToggles.showSR}
         onToggleSR={() => overlayToggles.setShowSR(v => !v)}
         showZigZag={overlayToggles.showZigZag}
@@ -253,7 +286,7 @@ export default function MarketData() {
         hasMoreLeft={!replay.active && hasMoreLeft}
         hasMoreRight={!replay.active && hasMoreRight}
         labelMarkers={sidebarShowLabels ? sidebarLabelMarkers : []}
-        indicatorOverlays={indicatorOverlays}
+        indicatorOverlays={allOverlays}
         onRemoveIndicators={handleRemoveIndicators}
         supportResistanceLevels={srLevels}
         zigZagPoints={zigZagPts}
