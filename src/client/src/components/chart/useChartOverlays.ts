@@ -28,10 +28,17 @@ export function useChartOverlays(
     if (!chart) return;
 
     const currentKeys = new Set(indicatorOverlays.map(o => o.column));
+    const markerKeys = new Set(
+      indicatorOverlays.filter(o => o.displayType === 'marker').map(o => o.column),
+    );
     const existingKeys = Array.from(overlaySeriesRef.current.keys());
 
-    // Remove series that are no longer selected
+    // Remove line series that are no longer selected.
+    // Skip __cdl_markers__ (managed separately) and marker-type overlay keys
+    // (CDL patterns don't have their own LineSeries — they share the markers primitive).
     for (const key of existingKeys) {
+      if (key === '__cdl_markers__') continue;
+      if (markerKeys.has(key)) continue;
       if (!currentKeys.has(key)) {
         const series = overlaySeriesRef.current.get(key);
         if (series) {
