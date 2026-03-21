@@ -40,18 +40,26 @@ interface OHLCVBar {
  */
 function buildColumnName(indicatorId: string, params: Record<string, number>): string | string[] {
   switch (indicatorId) {
+    // ── Overlap ──
     case 'sma': return `SMA_${params.period}`;
     case 'ema': return `EMA_${params.period}`;
     case 'wma': return `WMA_${params.period}`;
     case 'dema': return `DEMA_${params.period}`;
     case 'tema': return `TEMA_${params.period}`;
+    case 'trima': return `TRIMA_${params.period}`;
+    case 't3': return `T3_${params.period}`;
     case 'kama': return `KAMA_${params.period}`;
+    case 'midpoint': return `MIDPOINT_${params.period}`;
+    case 'midprice': return `MIDPRICE_${params.period}`;
+    case 'ht_trendline': return 'HT_TRENDLINE';
+    case 'tsf': return `TSF_${params.period}`;
+    case 'linearreg': return `LINREG_${params.period}`;
     case 'psar': return 'PSAR';
     case 'vwap': return 'VWAP';
+    case 'mama': return ['MAMA', 'FAMA'];
     case 'bbands': {
       const p = params.period;
       const sd = params.stdDev ?? 2.0;
-      // Convert 2.0 → "2_0" format
       const sdWhole = Math.floor(sd);
       const sdFrac = Math.round((sd - sdWhole) * 10);
       return [
@@ -60,6 +68,8 @@ function buildColumnName(indicatorId: string, params: Record<string, number>): s
         `BBL_${p}_${sdWhole}_${sdFrac}`,
       ];
     }
+
+    // ── Momentum ──
     case 'rsi': return `RSI_${params.period}`;
     case 'macd': {
       const f = params.fastPeriod;
@@ -71,6 +81,24 @@ function buildColumnName(indicatorId: string, params: Record<string, number>): s
         `MACDh_${f}_${s}_${sig}`,
       ];
     }
+    case 'macdext': {
+      const f = params.fastPeriod;
+      const s = params.slowPeriod;
+      const sig = params.signalPeriod;
+      return [
+        `MACDEXT_${f}_${s}_${sig}`,
+        `MACDEXTs_${f}_${s}_${sig}`,
+        `MACDEXTh_${f}_${s}_${sig}`,
+      ];
+    }
+    case 'macdfix': {
+      const sig = params.signalPeriod;
+      return [
+        `MACDFIX_${sig}`,
+        `MACDFIXs_${sig}`,
+        `MACDFIXh_${sig}`,
+      ];
+    }
     case 'stochastic': {
       const k = params.kPeriod;
       const ks = params.kSmooth;
@@ -80,10 +108,14 @@ function buildColumnName(indicatorId: string, params: Record<string, number>): s
         `STOCHd_${k}_${ks}_${ds}`,
       ];
     }
-    case 'cci': return `CCI_${params.period}`;
-    case 'willr': return `WILLR_${params.period}`;
-    case 'momentum': return `MOM_${params.period}`;
-    case 'roc': return `ROC_${params.period}`;
+    case 'stochf': {
+      const k = params.kPeriod;
+      const d = params.dPeriod;
+      return [
+        `STOCHFk_${k}_${d}`,
+        `STOCHFd_${k}_${d}`,
+      ];
+    }
     case 'stochrsi': {
       const rp = params.rsiPeriod;
       const sp = params.stochPeriod;
@@ -94,11 +126,21 @@ function buildColumnName(indicatorId: string, params: Record<string, number>): s
         `STOCHRSId_${rp}_${sp}_${ks}_${ds}`,
       ];
     }
-    case 'atr': return `ATR_${params.period}`;
-    case 'trange': return 'TRANGE';
-    case 'obv': return 'OBV';
-    case 'ad': return 'AD';
-    case 'mfi': return `MFI_${params.period}`;
+    case 'cci': return `CCI_${params.period}`;
+    case 'willr': return `WILLR_${params.period}`;
+    case 'momentum': return `MOM_${params.period}`;
+    case 'roc': return `ROC_${params.period}`;
+    case 'rocp': return `ROCP_${params.period}`;
+    case 'rocr': return `ROCR_${params.period}`;
+    case 'rocr100': return `ROCR100_${params.period}`;
+    case 'cmo': return `CMO_${params.period}`;
+    case 'apo': return `APO_${params.fastPeriod}_${params.slowPeriod}`;
+    case 'ppo': return `PPO_${params.fastPeriod}_${params.slowPeriod}`;
+    case 'trix': return `TRIX_${params.period}`;
+    case 'ultosc': return `ULTOSC_${params.period1}_${params.period2}_${params.period3}`;
+    case 'bop': return 'BOP';
+
+    // ── Trend ──
     case 'adx': {
       const p = params.period;
       return [
@@ -107,6 +149,12 @@ function buildColumnName(indicatorId: string, params: Record<string, number>): s
         `MINUS_DI_${p}`,
       ];
     }
+    case 'adxr': return `ADXR_${params.period}`;
+    case 'dx': return `DX_${params.period}`;
+    case 'plus_di': return `PLUS_DI_${params.period}`;
+    case 'minus_di': return `MINUS_DI_${params.period}`;
+    case 'plus_dm': return `PLUS_DM_${params.period}`;
+    case 'minus_dm': return `MINUS_DM_${params.period}`;
     case 'aroon': {
       const p = params.period;
       return [
@@ -114,6 +162,35 @@ function buildColumnName(indicatorId: string, params: Record<string, number>): s
         `AROON_DOWN_${p}`,
       ];
     }
+    case 'aroonosc': return `AROONOSC_${params.period}`;
+    case 'ht_trendmode': return 'HT_TRENDMODE';
+
+    // ── Volatility ──
+    case 'atr': return `ATR_${params.period}`;
+    case 'natr': return `NATR_${params.period}`;
+    case 'trange': return 'TRANGE';
+
+    // ── Volume ──
+    case 'obv': return 'OBV';
+    case 'ad': return 'AD';
+    case 'adosc': return `ADOSC_${params.fastPeriod}_${params.slowPeriod}`;
+    case 'mfi': return `MFI_${params.period}`;
+
+    // ── Statistics ──
+    case 'stddev': return `STDEV_${params.period}`;
+    case 'variance': return `VAR_${params.period}`;
+    case 'beta': return `BETA_${params.period}`;
+    case 'correl': return `CORREL_${params.period}`;
+    case 'linreg_slope': return `LINREG_SLOPE_${params.period}`;
+    case 'linreg_angle': return `LINREG_ANGLE_${params.period}`;
+    case 'linreg_intercept': return `LINREG_INTERCEPT_${params.period}`;
+
+    // ── Hilbert Transform ──
+    case 'ht_dcperiod': return 'HT_DCPERIOD';
+    case 'ht_dcphase': return 'HT_DCPHASE';
+    case 'ht_phasor': return ['HT_PHASOR_INPHASE', 'HT_PHASOR_QUADRATURE'];
+    case 'ht_sine': return ['HT_SINE_SINE', 'HT_SINE_LEADSINE'];
+
     default:
       return indicatorId.toUpperCase();
   }
@@ -133,6 +210,12 @@ function getOutputColumnMap(indicatorId: string, params: Record<string, number>)
         lower: `BBL_${p}_${sdWhole}_${sdFrac}`,
       };
     }
+    case 'mama': {
+      return {
+        mama: 'MAMA',
+        fama: 'FAMA',
+      };
+    }
     case 'macd': {
       const f = params.fastPeriod;
       const s = params.slowPeriod;
@@ -143,6 +226,24 @@ function getOutputColumnMap(indicatorId: string, params: Record<string, number>)
         histogram: `MACDh_${f}_${s}_${sig}`,
       };
     }
+    case 'macdext': {
+      const f = params.fastPeriod;
+      const s = params.slowPeriod;
+      const sig = params.signalPeriod;
+      return {
+        macd: `MACDEXT_${f}_${s}_${sig}`,
+        signal: `MACDEXTs_${f}_${s}_${sig}`,
+        histogram: `MACDEXTh_${f}_${s}_${sig}`,
+      };
+    }
+    case 'macdfix': {
+      const sig = params.signalPeriod;
+      return {
+        macd: `MACDFIX_${sig}`,
+        signal: `MACDFIXs_${sig}`,
+        histogram: `MACDFIXh_${sig}`,
+      };
+    }
     case 'stochastic': {
       const k = params.kPeriod;
       const ks = params.kSmooth;
@@ -150,6 +251,14 @@ function getOutputColumnMap(indicatorId: string, params: Record<string, number>)
       return {
         k: `STOCHk_${k}_${ks}_${ds}`,
         d: `STOCHd_${k}_${ks}_${ds}`,
+      };
+    }
+    case 'stochf': {
+      const k = params.kPeriod;
+      const d = params.dPeriod;
+      return {
+        k: `STOCHFk_${k}_${d}`,
+        d: `STOCHFd_${k}_${d}`,
       };
     }
     case 'stochrsi': {
@@ -175,6 +284,18 @@ function getOutputColumnMap(indicatorId: string, params: Record<string, number>)
       return {
         up: `AROON_UP_${p}`,
         down: `AROON_DOWN_${p}`,
+      };
+    }
+    case 'ht_phasor': {
+      return {
+        inphase: 'HT_PHASOR_INPHASE',
+        quadrature: 'HT_PHASOR_QUADRATURE',
+      };
+    }
+    case 'ht_sine': {
+      return {
+        sine: 'HT_SINE_SINE',
+        leadsine: 'HT_SINE_LEADSINE',
       };
     }
     default:
@@ -333,7 +454,7 @@ export function computeIndicator(
   const outputs: ComputedOutput[] = [];
 
   if (isMultiOutput) {
-    // Multi-output indicator (MACD, BBands, Stochastic, ADX, Aroon)
+    // Multi-output indicator (MACD, BBands, Stochastic, ADX, Aroon, HT, etc.)
     for (const output of def.outputs) {
       const colName = outputMap[output.key];
       if (!colName) continue;

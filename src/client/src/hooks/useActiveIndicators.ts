@@ -65,7 +65,21 @@ const MULTI_OUTPUT_COLORS: Record<string, Record<string, string>> = {
     signal: '#f97316',
     histogram: '#94a3b8',
   },
+  macdext: {
+    macd: '#06b6d4',
+    signal: '#f97316',
+    histogram: '#94a3b8',
+  },
+  macdfix: {
+    macd: '#06b6d4',
+    signal: '#f97316',
+    histogram: '#94a3b8',
+  },
   stochastic: {
+    k: '#f59e0b',
+    d: '#d97706',
+  },
+  stochf: {
     k: '#f59e0b',
     d: '#d97706',
   },
@@ -78,6 +92,10 @@ const MULTI_OUTPUT_COLORS: Record<string, Record<string, string>> = {
     middle: '#8b5cf6',
     lower: '#a78bfa',
   },
+  mama: {
+    mama: '#ec4899',
+    fama: '#f472b6',
+  },
   adx: {
     adx: '#ef4444',
     plusDI: '#22c55e',
@@ -86,6 +104,14 @@ const MULTI_OUTPUT_COLORS: Record<string, Record<string, string>> = {
   aroon: {
     up: '#22c55e',
     down: '#ef4444',
+  },
+  ht_phasor: {
+    inphase: '#38bdf8',
+    quadrature: '#818cf8',
+  },
+  ht_sine: {
+    sine: '#2dd4bf',
+    leadsine: '#a78bfa',
   },
 };
 
@@ -248,24 +274,66 @@ export function useActiveIndicators(ohlcvBars: OHLCVBarInput[] = []) {
 function buildDisplayColumn(indicatorId: string, outputKey: string, isMulti: boolean): string {
   if (!isMulti) {
     switch (indicatorId) {
+      // Overlap
       case 'sma': return 'SMA_20';
       case 'ema': return 'EMA_20';
       case 'wma': return 'WMA_20';
       case 'dema': return 'DEMA_20';
       case 'tema': return 'TEMA_20';
+      case 'trima': return 'TRIMA_30';
+      case 't3': return 'T3_5';
       case 'kama': return 'KAMA_10';
+      case 'midpoint': return 'MIDPOINT_14';
+      case 'midprice': return 'MIDPRICE_14';
+      case 'ht_trendline': return 'HT_TRENDLINE';
+      case 'tsf': return 'TSF_20';
+      case 'linearreg': return 'LINREG_20';
       case 'psar': return 'PSAR';
       case 'vwap': return 'VWAP';
+      // Momentum
       case 'rsi': return 'RSI_14';
       case 'cci': return 'CCI_20';
       case 'willr': return 'WILLR_14';
       case 'momentum': return 'MOM_10';
       case 'roc': return 'ROC_10';
+      case 'rocp': return 'ROCP_10';
+      case 'rocr': return 'ROCR_10';
+      case 'rocr100': return 'ROCR100_10';
+      case 'cmo': return 'CMO_14';
+      case 'apo': return 'APO_12_26';
+      case 'ppo': return 'PPO_12_26';
+      case 'trix': return 'TRIX_15';
+      case 'ultosc': return 'ULTOSC_7_14_28';
+      case 'bop': return 'BOP';
+      // Trend
+      case 'adxr': return 'ADXR_14';
+      case 'dx': return 'DX_14';
+      case 'plus_di': return 'PLUS_DI_14';
+      case 'minus_di': return 'MINUS_DI_14';
+      case 'plus_dm': return 'PLUS_DM_14';
+      case 'minus_dm': return 'MINUS_DM_14';
+      case 'aroonosc': return 'AROONOSC_25';
+      case 'ht_trendmode': return 'HT_TRENDMODE';
+      // Volatility
       case 'atr': return 'ATR_14';
+      case 'natr': return 'NATR_14';
       case 'trange': return 'TRANGE';
+      // Volume
       case 'obv': return 'OBV';
       case 'ad': return 'AD';
+      case 'adosc': return 'ADOSC_3_10';
       case 'mfi': return 'MFI_14';
+      // Statistics
+      case 'stddev': return 'STDEV_20';
+      case 'variance': return 'VAR_20';
+      case 'beta': return 'BETA_5';
+      case 'correl': return 'CORREL_20';
+      case 'linreg_slope': return 'LINREG_SLOPE_20';
+      case 'linreg_angle': return 'LINREG_ANGLE_20';
+      case 'linreg_intercept': return 'LINREG_INTERCEPT_20';
+      // Hilbert Transform
+      case 'ht_dcperiod': return 'HT_DCPERIOD';
+      case 'ht_dcphase': return 'HT_DCPHASE';
       default: return indicatorId.toUpperCase();
     }
   }
@@ -277,10 +345,24 @@ function buildDisplayColumn(indicatorId: string, outputKey: string, isMulti: boo
       if (outputKey === 'signal') return 'MACDs_12_26_9';
       if (outputKey === 'histogram') return 'MACDh_12_26_9';
       return 'MACD_12_26_9';
+    case 'macdext':
+      if (outputKey === 'macd') return 'MACDEXT_12_26_9';
+      if (outputKey === 'signal') return 'MACDEXTs_12_26_9';
+      if (outputKey === 'histogram') return 'MACDEXTh_12_26_9';
+      return 'MACDEXT_12_26_9';
+    case 'macdfix':
+      if (outputKey === 'macd') return 'MACDFIX_9';
+      if (outputKey === 'signal') return 'MACDFIXs_9';
+      if (outputKey === 'histogram') return 'MACDFIXh_9';
+      return 'MACDFIX_9';
     case 'stochastic':
       if (outputKey === 'k') return 'STOCHk_14_3_3';
       if (outputKey === 'd') return 'STOCHd_14_3_3';
       return 'STOCHk_14_3_3';
+    case 'stochf':
+      if (outputKey === 'k') return 'STOCHFk_5_3';
+      if (outputKey === 'd') return 'STOCHFd_5_3';
+      return 'STOCHFk_5_3';
     case 'stochrsi':
       if (outputKey === 'k') return 'STOCHRSIk_14_14_3_3';
       if (outputKey === 'd') return 'STOCHRSId_14_14_3_3';
@@ -290,6 +372,10 @@ function buildDisplayColumn(indicatorId: string, outputKey: string, isMulti: boo
       if (outputKey === 'middle') return 'BBM_5_2.0';
       if (outputKey === 'lower') return 'BBL_5_2.0';
       return 'BBM_5_2.0';
+    case 'mama':
+      if (outputKey === 'mama') return 'MAMA';
+      if (outputKey === 'fama') return 'FAMA';
+      return 'MAMA';
     case 'adx':
       if (outputKey === 'adx') return 'ADX_14';
       if (outputKey === 'plusDI') return 'PLUS_DI_14';
@@ -299,6 +385,14 @@ function buildDisplayColumn(indicatorId: string, outputKey: string, isMulti: boo
       if (outputKey === 'up') return 'AROON_UP_25';
       if (outputKey === 'down') return 'AROON_DOWN_25';
       return 'AROON_UP_25';
+    case 'ht_phasor':
+      if (outputKey === 'inphase') return 'HT_PHASOR_INPHASE';
+      if (outputKey === 'quadrature') return 'HT_PHASOR_QUADRATURE';
+      return 'HT_PHASOR_INPHASE';
+    case 'ht_sine':
+      if (outputKey === 'sine') return 'HT_SINE_SINE';
+      if (outputKey === 'leadsine') return 'HT_SINE_LEADSINE';
+      return 'HT_SINE_SINE';
     default:
       return indicatorId.toUpperCase();
   }
