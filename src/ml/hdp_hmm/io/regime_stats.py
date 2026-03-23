@@ -1,6 +1,13 @@
-"""Regime analysis: statistics, classification, and feature importance."""
+"""Regime analysis: statistics, classification, and feature importance.
+
+Label logic has been moved to ``shared.labeling`` (Strategy pattern).
+This module computes **statistics only** and delegates labeling to an
+injected ``RegimeLabeler``.
+"""
 
 import numpy as np
+
+from shared.labeling import RegimeLabeler, get_labeler
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -87,158 +94,20 @@ def compute_feature_importance(regime_X, global_X, feature_names):
     return {feature_names[i]: round(float(z_scores[i]), 4) for i in indices}
 
 
-def generate_regime_description(regime_features, feature_names, avg_return, avg_volatility, avg_duration, pct):
-    """
-    Classify regime by market structure using price features and swing structure.
-
-    Returns (label, nickname) where:
-      - label: Market structure type (e.g., "Bull Trend", "Choppy", "Breakout")
-      - nickname: Numeric fingerprint (e.g., "+3.2bp/bar, 1.1% vol, 12-bar swings, 6-bar hold")
-    """
-    def _feat(name):
-        if name in feature_names:
-            return float(np.mean(regime_features[:, feature_names.index(name)]))
-        return None
-
-    ret1 = _feat("return_1")       # 1-bar return
-    ret5 = _feat("return_5")       # 5-bar return
-    ret20 = _feat("return_20")     # 20-bar return (trend)
-    vol10 = _feat("volatility_10") # short vol
-    vol50 = _feat("volatility_50") # long vol
-    roc5 = _feat("roc_5")          # short momentum
-    roc20 = _feat("roc_20")        # long momentum
-    ma10 = _feat("ma_dist_10")     # distance from 10-bar MA
-    ma50 = _feat("ma_dist_50")     # distance from 50-bar MA
-    body = _feat("body_ratio")
-    bar_range = _feat("bar_range")
-    vol_ratio = _feat("volume_ratio_10")
-
-    # Swing features (causal zigzag)
-    swing_dir = _feat("swing_direction")
-    swing_pct = _feat("swing_pct")
-    swing_dur = _feat("swing_duration")
-    swing_vel = _feat("swing_velocity")
-    prev_swing_pct = _feat("prev_swing_pct")
-    retrace = _feat("retracement_ratio")
-    swing_count = _feat("swing_count_50")
-
-    ret_bps = (ret1 or 0) * 10000
-    vol_pct = avg_volatility * 100
-
-    # ── Directional alignment: short vs long ──
-    short_dir = 1 if (ret1 or 0) > 0 else -1
-    long_dir = 1 if (ret20 or 0) > 0 else -1
-    aligned = short_dir == long_dir
-    trending = abs(ret_bps) > 1.5
-
-    # Vol expansion/contraction (short vol vs long vol)
-    vol_expanding = (vol10 is not None and vol50 is not None and vol10 > vol50 * 1.2)
-    vol_contracting = (vol10 is not None and vol50 is not None and vol10 < vol50 * 0.8)
-
-    # Momentum accelerating or decelerating
-    accel = (roc5 is not None and roc20 is not None and
-             abs(roc5) > abs(roc20) * 1.3 and
-             (roc5 > 0) == (roc20 > 0))
-    decel = (roc5 is not None and roc20 is not None and
-             abs(roc5) < abs(roc20) * 0.6 and
-             (roc5 > 0) == (roc20 > 0))
-
-    # Extended from MA
-    extended = (ma50 is not None and abs(ma50) > 0.01)
-
-    # Volume surge
-    vol_surge = (vol_ratio is not None and vol_ratio > 1.5)
-
-    # ── Swing structure signals ──
-    has_swing = swing_count is not None
-    choppy = has_swing and swing_count is not None and swing_count > 8
-    long_swings = has_swing and swing_dur is not None and swing_dur > 10
-    big_swings = has_swing and swing_pct is not None and abs(swing_pct) > 0.005
-    deep_retrace = has_swing and retrace is not None and retrace > 0.6
-    shallow_retrace = has_swing and retrace is not None and retrace < 0.3
-
-    # ── Label: market structure classification ──
-    bull = short_dir > 0
-    prefix = "Bull" if bull else "Bear"
-
-    # Swing-aware classification (takes priority when swing features available)
-    if has_swing and choppy and not trending:
-        label = "Choppy"
-    elif has_swing and choppy and vol_expanding:
-        label = "Whipsaw"
-    elif not aligned and trending and vol_expanding:
-        label = f"{prefix} Reversal"
-    elif not aligned and trending:
-        label = f"{prefix} Reversal"
-    elif aligned and vol_expanding and vol_surge and trending:
-        label = f"{prefix} Breakout"
-    elif aligned and vol_expanding and trending:
-        label = f"{prefix} Breakout"
-    elif has_swing and long_swings and big_swings and aligned:
-        label = f"{prefix} Trend"
-    elif aligned and accel:
-        label = f"{prefix} Acceleration"
-    elif aligned and decel and extended:
-        label = f"{prefix} Exhaustion"
-    elif has_swing and deep_retrace and trending:
-        label = f"{prefix} Pullback"
-    elif aligned and trending:
-        label = f"{prefix} Continuation"
-    elif vol_contracting and abs(ret_bps) < 1.0:
-        label = "Compression"
-    elif has_swing and shallow_retrace and not trending:
-        label = "Coiling"
-    elif abs(ret_bps) < 0.3 and vol_pct < 0.3:
-        label = "Dead Zone"
-    elif has_swing and choppy:
-        label = "Range-Bound"
-    elif abs(ret_bps) < 1.0:
-        label = "Range-Bound"
-    elif bull:
-        label = f"{prefix} Drift"
-    else:
-        label = f"{prefix} Drift"
-
-    # ── Nickname: real numbers ──
-    ret_sign = "+" if ret_bps >= 0 else ""
-    parts = [f"{ret_sign}{ret_bps:.1f}bp/bar"]
-    parts.append(f"{vol_pct:.2f}% vol")
-
-    if vol_expanding:
-        parts.append("expanding vol")
-    elif vol_contracting:
-        parts.append("contracting vol")
-
-    if bar_range is not None:
-        parts.append(f"{bar_range * 100:.2f}% range")
-
-    if body is not None:
-        if body < 0.15:
-            parts.append("doji bars")
-        elif body > 0.7:
-            parts.append("impulse bars")
-
-    if vol_surge:
-        parts.append(f"{vol_ratio:.1f}x vol")
-
-    # Swing structure in nickname
-    if has_swing and swing_dur is not None:
-        parts.append(f"{swing_dur:.0f}-bar swings")
-    if has_swing and swing_count is not None:
-        parts.append(f"{swing_count:.0f} pivots/50bars")
-
-    parts.append(f"{avg_duration:.0f}-bar hold")
-    parts.append(f"{pct:.0f}% of data")
-
-    nickname = ", ".join(parts)
-
-    return label, nickname
-
-
 # ── Regime Stats + Transitions ───────────────────────────────────────────────
 
-def compute_regime_stats(relabeled, features, feature_names):
-    """Compute full RegimeStat[] matching the UI interface."""
+def compute_regime_stats(relabeled, features, feature_names, labeler=None):
+    """Compute full RegimeStat[] matching the UI interface.
+
+    Args:
+        relabeled:     1-D array of contiguous regime IDs.
+        features:      2-D feature matrix (T × D).
+        feature_names: Ordered feature names.
+        labeler:       Optional RegimeLabeler (defaults to StructuralLabeler).
+    """
+    if labeler is None:
+        labeler = get_labeler("structural")
+
     T = len(relabeled)
     unique_regimes = sorted(np.unique(relabeled))
 
@@ -292,9 +161,10 @@ def compute_regime_stats(relabeled, features, feature_names):
         # Feature importance (z-scores)
         characteristics = compute_feature_importance(regime_feats, features, feature_names) if count > 0 else {}
 
-        # Label + nickname
-        label, nickname = generate_regime_description(
-            regime_feats, feature_names, avg_return, avg_volatility, avg_duration, pct
+        # Label + nickname via injected labeler (Strategy pattern)
+        label_result = labeler.label(
+            regime_id, regime_feats, feature_names,
+            avg_return, avg_volatility, avg_duration, pct,
         )
 
         stats.append({
@@ -308,8 +178,9 @@ def compute_regime_stats(relabeled, features, feature_names):
             "avg_atr_ratio": avg_atr_ratio,
             "avg_duration": avg_duration,
             "max_duration": max_duration,
-            "label": label,
-            "nickname": nickname,
+            "label": label_result.label,
+            "nickname": label_result.nickname,
+            "category": label_result.category,
             "volatility_state": volatility_state,
             "bar_character": bar_character,
             "characteristics": characteristics,

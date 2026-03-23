@@ -32,6 +32,8 @@ export interface RegimeModel {
   trained_at: string;
 }
 
+export type RegimeCategory = "trend" | "reversal" | "range";
+
 export interface RegimeStat {
   regime_id: number;
   count: number;
@@ -47,6 +49,7 @@ export interface RegimeStat {
   median_duration: number;
   label: string;
   nickname?: string;
+  category?: RegimeCategory;
   volatility_state?: string;
   bar_character?: string;
   characteristics: Record<string, number>;

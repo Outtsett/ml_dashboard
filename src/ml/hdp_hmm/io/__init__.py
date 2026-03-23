@@ -6,7 +6,6 @@ All public functions are re-exported so existing
 """
 
 from .save import save_model
-from .relabel import relabel_states
-from .constants import REGIME_COLORS
+from shared.labeling import REGIME_COLORS
 
-__all__ = ["save_model", "relabel_states", "REGIME_COLORS"]
+__all__ = ["save_model", "REGIME_COLORS"]

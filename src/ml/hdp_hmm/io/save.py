@@ -11,7 +11,7 @@ from datetime import datetime
 import numpy as np
 import requests
 
-from .relabel import relabel_states
+from shared.labeling import renumber_states, assign_colors, get_labeler
 from .regime_stats import compute_regime_stats, compute_transitions
 from .evaluation import compute_oos_evaluation, compute_walk_forward
 from .shap import compute_shap_values
@@ -94,7 +94,10 @@ def save_model(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     T = len(timestamps)
-    relabeled, colors, labels, n_regimes = relabel_states(model.state_sequence, features)
+    renum = renumber_states(model.state_sequence)
+    relabeled, n_regimes = renum.states, renum.n_regimes
+    colors = assign_colors(n_regimes)
+    labeler = get_labeler("structural")
 
     # Compute rich signal columns for model_regimes (OCP — new columns, existing untouched)
     posteriors = getattr(model, "posteriors_", None)  # (T, K) if available from Gibbs/EM
@@ -111,7 +114,36 @@ def save_model(
     # Resolve close values and timestamps
     split_idx = int(T * (1 - args.test_split))
     splits = ["train"] * split_idx + ["test"] * (T - split_idx)
-    regime_label_list = [labels.get(str(int(r)), f"Regime {r}") for r in relabeled]
+
+    # Per-regime rich labels via Strategy pattern
+    unique_regimes = sorted(set(int(r) for r in relabeled))
+    regime_label_map = {}
+    regime_category_map = {}
+    for rid in unique_regimes:
+        mask = relabeled == rid
+        regime_feats = features[mask]
+        ret_col = 0
+        avg_ret = float(np.mean(regime_feats[:, ret_col])) if np.any(mask) else 0.0
+        avg_vol = float(np.std(regime_feats[:, ret_col])) if np.any(mask) else 0.0
+        runs = []
+        run_len = 0
+        for s in relabeled:
+            if int(s) == rid:
+                run_len += 1
+            else:
+                if run_len > 0:
+                    runs.append(run_len)
+                run_len = 0
+        if run_len > 0:
+            runs.append(run_len)
+        avg_dur = float(np.mean(runs)) if runs else 0.0
+        pct = round(np.sum(mask) / T * 100, 2)
+        lr = labeler.label(rid, regime_feats, feature_names, avg_ret, avg_vol, avg_dur, pct)
+        regime_label_map[rid] = lr.label
+        regime_category_map[rid] = lr.category
+
+    regime_label_list = [regime_label_map.get(int(r), f"Regime {r}") for r in relabeled]
+    regime_category_list = [regime_category_map.get(int(r), "range") for r in relabeled]
 
     if close_vals is None:
         # Fallback: zeros if not provided (shouldn't happen with new pipeline)
@@ -121,12 +153,13 @@ def save_model(
     # 1. Write regime assignments to QuestDB model_regimes table
     csv_buf = io.StringIO()
     csv_buf.write(
-        "model_id,symbol,ts,close,regime,regime_label,split,confidence,entropy,magnitude,volatility,duration_bars,transition_prob\n"
+        "model_id,symbol,ts,close,regime,regime_label,split,confidence,entropy,magnitude,volatility,duration_bars,transition_prob,category\n"
     )
     for i in range(T):
         ts_str = _fmt_ts(ts_vals[i])
         # Escape commas in regime labels
         rl = str(regime_label_list[i]).replace(",", " ")
+        cat = str(regime_category_list[i])
         conf = float(signal_cols["confidence"][i])
         ent = float(signal_cols["entropy"][i])
         mag = float(signal_cols["magnitude"][i])
@@ -134,7 +167,7 @@ def save_model(
         dur = int(signal_cols["duration_bars"][i])
         tp = float(signal_cols["transition_prob"][i])
         csv_buf.write(
-            f"{model_id},{args.symbol},{ts_str},{float(close_vals[i])},{int(relabeled[i])},{rl},{splits[i]},{conf},{ent},{mag},{vol},{dur},{tp}\n"
+            f"{model_id},{args.symbol},{ts_str},{float(close_vals[i])},{int(relabeled[i])},{rl},{splits[i]},{conf},{ent},{mag},{vol},{dur},{tp},{cat}\n"
         )
 
     try:
@@ -173,7 +206,7 @@ def save_model(
         json.dump(convergence, f)
 
     # 3. Regime stats (full RegimeStat[] matching UI interface)
-    regime_stats = compute_regime_stats(relabeled, features, feature_names)
+    regime_stats = compute_regime_stats(relabeled, features, feature_names, labeler=labeler)
 
     # 4. Transitions array
     trans_matrix = model.transition_matrix[:n_regimes, :n_regimes].tolist()

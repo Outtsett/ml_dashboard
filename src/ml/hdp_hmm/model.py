@@ -397,7 +397,7 @@ class StickyHDPHMM:
           - iteration_metrics: list of per-iteration ConvergencePoint dicts
           - wf_counts: list of 5 (T, K) int16 arrays for walk-forward stability
         """
-        from hdp_hmm.io import relabel_states
+        from shared.labeling import renumber_states, assign_colors, get_labeler
 
         T, D = X.shape
         emit_log(f"Starting Gibbs sampling: {n_iter} iter, {T} bars, {D} features, K_max={self.K}")
@@ -505,9 +505,29 @@ class StickyHDPHMM:
 
             # Emit overlay at intervals
             if timestamps is not None and it % overlay_interval == 0:
-                relabeled, colors, labels, n_rel = relabel_states(states, X)
-                emit_overlay(timestamps, relabeled, colors, labels,
-                             self.transition_matrix[:n_rel, :n_rel], n_rel)
+                _renum = renumber_states(states)
+                _colors = assign_colors(_renum.n_regimes)
+                _labeler = get_labeler("simple")
+                _ret_col = 0
+                _means = np.array([
+                    float(np.mean(X[_renum.states == rid, _ret_col]))
+                    if np.any(_renum.states == rid) else 0.0
+                    for rid in range(_renum.n_regimes)
+                ])
+                _vols = np.array([
+                    float(np.std(X[_renum.states == rid, _ret_col]))
+                    if np.any(_renum.states == rid) else 0.0
+                    for rid in range(_renum.n_regimes)
+                ])
+                _labeler.fit(_means, _vols)
+                _labels = {}
+                for rid in range(_renum.n_regimes):
+                    _mask = _renum.states == rid
+                    _pct = float(np.sum(_mask)) / len(_renum.states) * 100
+                    _lr = _labeler.label(rid, X[_mask], [], _means[rid], _vols[rid], 0.0, _pct)
+                    _labels[str(rid)] = _lr.label
+                emit_overlay(timestamps, _renum.states, _colors, _labels,
+                             self.transition_matrix[:_renum.n_regimes, :_renum.n_regimes], _renum.n_regimes)
 
             # Periodic summary log
             if it % 50 == 0:

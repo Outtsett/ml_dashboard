@@ -26,7 +26,8 @@ from shared.protocol import emit_progress, emit_metric, emit_overlay, emit_log, 
 from shared.features import compute_features, normalize_features, _load_feature_config
 from shared.data import load_ohlcv_arrays
 from hdp_hmm.model import StickyHDPHMM
-from hdp_hmm.io import relabel_states, save_model
+from hdp_hmm.io import save_model
+from shared.labeling import renumber_states, assign_colors, get_labeler
 
 try:
     from shared.wandb_logger import create_logger
@@ -232,8 +233,28 @@ def main():
                 pass
 
         # 6. Final overlay
-        relabeled, colors, labels, _ = relabel_states(model.state_sequence, features_valid)
-        emit_overlay(timestamps_valid, relabeled, colors, labels)
+        renum = renumber_states(model.state_sequence)
+        colors = assign_colors(renum.n_regimes)
+        labeler = get_labeler("simple")
+        ret_col = 0
+        regime_means = np.array([
+            float(np.mean(features_valid[renum.states == rid, ret_col]))
+            if np.any(renum.states == rid) else 0.0
+            for rid in range(renum.n_regimes)
+        ])
+        regime_vols = np.array([
+            float(np.std(features_valid[renum.states == rid, ret_col]))
+            if np.any(renum.states == rid) else 0.0
+            for rid in range(renum.n_regimes)
+        ])
+        labeler.fit(regime_means, regime_vols)
+        labels = {}
+        for rid in range(renum.n_regimes):
+            mask = renum.states == rid
+            pct = float(np.sum(mask)) / len(renum.states) * 100
+            lr = labeler.label(rid, features_valid[mask], [], regime_means[rid], regime_vols[rid], 0.0, pct)
+            labels[str(rid)] = lr.label
+        emit_overlay(timestamps_valid, renum.states, colors, labels)
 
         # 7. Done
         emit_done(model_path, diagnostics)

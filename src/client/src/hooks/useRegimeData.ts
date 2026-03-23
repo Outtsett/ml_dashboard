@@ -10,9 +10,9 @@ import { QUERY_KEYS } from '@/lib/types';
 import { instrumentApi } from '@/lib/apiService';
 import type {
   RegimeModel,
-  Diagnostics,
   ConvergencePoint,
 } from '@/components/training/types';
+import type { Diagnostics } from '@/components/regime-analytics/types';
 
 // ── Instruments (shared across regime + other pages) ─────────────────────────
 
@@ -83,6 +83,7 @@ export interface RegimeRow {
   regime: number;
   regime_label: string;
   split: string;
+  category?: "trend" | "reversal" | "range";
   [key: string]: unknown;
 }
 

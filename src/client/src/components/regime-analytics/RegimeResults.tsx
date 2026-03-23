@@ -8,8 +8,24 @@
 
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, BarChart3, Shield, Target, Activity, Layers, Zap, Settings2 } from "lucide-react";
-import type { Diagnostics } from "./types";
+import type { Diagnostics, RegimeCategory } from "./types";
 import { getRegimeColor, getRegimeIcon, getQualityColor, getQualityLabel } from "./types";
+
+const CATEGORY_STYLE: Record<RegimeCategory, { bg: string; text: string; border: string }> = {
+  trend:    { bg: "bg-emerald-500/15", text: "text-emerald-400", border: "border-emerald-500/30" },
+  reversal: { bg: "bg-orange-500/15",  text: "text-orange-400",  border: "border-orange-500/30" },
+  range:    { bg: "bg-sky-500/15",     text: "text-sky-400",     border: "border-sky-500/30" },
+};
+
+function CategoryBadge({ category }: { category?: RegimeCategory }) {
+  if (!category) return null;
+  const s = CATEGORY_STYLE[category];
+  return (
+    <Badge variant="outline" className={`text-[6px] px-1 py-0 rounded-full ${s.border} ${s.text} uppercase tracking-widest`}>
+      {category}
+    </Badge>
+  );
+}
 import { QualityScoreRing, ConvergenceCurve } from "./mini-charts";
 import { WalkForwardDisplay } from "./WalkForwardDisplay";
 import { OOSDisplay } from "./OOSDisplay";
@@ -152,6 +168,7 @@ export function RegimeResults({ diagnostics, convergenceData, assignmentsData, o
                   <span className={`text-[10px] font-medium ${color.text}`}>
                     R{r.regime_id}: {r.nickname || r.label.replace(/_/g, " ")}
                   </span>
+                  <CategoryBadge category={r.category} />
                 </div>
                 <Badge variant="outline" className={`text-[7px] px-1 py-0 ${color.border} ${color.text}`}>
                   {r.pct.toFixed(1)}%

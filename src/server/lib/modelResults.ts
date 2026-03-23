@@ -221,7 +221,7 @@ export async function getModelAssignments(
   // 1. Try QuestDB first
   try {
     const rows = await questdbHttpQuery<Record<string, unknown>>(
-      `SELECT ts, close, regime, regime_label, split
+      `SELECT ts, close, regime, regime_label, split, category
        FROM model_regimes
        WHERE model_id = '${safe}'
        ORDER BY ts ASC
@@ -252,6 +252,7 @@ export async function getModelAssignments(
   const regimeIdx = header.indexOf("regime");
   const labelIdx = header.indexOf("regime_label");
   const splitIdx = header.indexOf("split");
+  const categoryIdx = header.indexOf("category");
 
   if (tsIdx < 0 || regimeIdx < 0) return null;
 
@@ -265,6 +266,7 @@ export async function getModelAssignments(
       regime: parseInt(cols[regimeIdx]!, 10),
       regime_label: labelIdx >= 0 ? cols[labelIdx]! : `Regime ${cols[regimeIdx]}`,
       split: splitIdx >= 0 ? cols[splitIdx]! : "train",
+      category: categoryIdx >= 0 ? cols[categoryIdx]! : undefined,
     });
   }
 

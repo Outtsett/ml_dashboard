@@ -12,12 +12,11 @@ import numpy as np
 import requests
 
 # Reuse model-agnostic analysis modules from hdp_hmm.io
-from hdp_hmm.io.relabel import relabel_states
+from shared.labeling import renumber_states, assign_colors, get_labeler
 from hdp_hmm.io.regime_stats import compute_regime_stats, compute_transitions
 from hdp_hmm.io.evaluation import compute_oos_evaluation
 from hdp_hmm.io.shap import compute_shap_values
 from hdp_hmm.io.quality import compute_quality_score
-from hdp_hmm.io.constants import REGIME_COLORS
 from shared.evaluation import run_all_stages
 
 from hmm_2state.config import LABELS
@@ -71,32 +70,6 @@ def _fmt_ts(ts) -> str:
     return s
 
 
-def _relabel_bull_bear(relabeled, features, n_regimes):
-    """Override generic labels with Bullish/Bearish based on mean return."""
-    ret_col = 0  # return_1 is first feature
-    mean_returns = []
-    for k in range(n_regimes):
-        mask = relabeled == k
-        if np.sum(mask) > 0:
-            mean_returns.append(float(np.mean(features[mask, ret_col])))
-        else:
-            mean_returns.append(0.0)
-
-    # Assign: higher return = Bullish (regime 0), lower = Bearish (regime 1)
-    if n_regimes == 2 and mean_returns[0] < mean_returns[1]:
-        # Swap: relabel so state 0 = bullish (higher return)
-        swap_map = {0: 1, 1: 0}
-        relabeled = np.array([swap_map.get(int(s), s) for s in relabeled])
-
-    colors = {}
-    labels = {}
-    for k in range(n_regimes):
-        colors[str(k)] = REGIME_COLORS[k % len(REGIME_COLORS)]
-        labels[str(k)] = LABELS.get(k, f"Regime {k}")
-
-    return relabeled, colors, labels
-
-
 def save_model(
     model,
     timestamps,
@@ -117,13 +90,39 @@ def save_model(
     T = len(timestamps)
     n_regimes = model.K
 
-    # Relabel with Bull/Bear semantics
-    relabeled, colors, labels = _relabel_bull_bear(model.state_sequence, features, n_regimes)
+    # Use BullBearLabeler via Strategy pattern
+    bb_labeler = get_labeler("bull_bear")
+    regime_features_by_id = {}
+    for k in range(n_regimes):
+        mask = model.state_sequence == k
+        regime_features_by_id[k] = features[mask] if np.any(mask) else np.empty((0, features.shape[1]))
+    bb_labeler.fit(regime_features_by_id)
+
+    # Renumber states and assign colors
+    renum = renumber_states(model.state_sequence)
+    relabeled, _ = renum.states, renum.n_regimes
+    colors = assign_colors(n_regimes)
 
     # Resolve close values and splits
     split_idx = int(T * (1 - args.test_split))
     splits = ["train"] * split_idx + ["test"] * (T - split_idx)
-    regime_label_list = [labels.get(str(int(r)), f"Regime {r}") for r in relabeled]
+
+    # Per-bar labels via BullBearLabeler
+    ret_col = 0
+    regime_label_map = {}
+    regime_category_map = {}
+    for k in range(n_regimes):
+        mask = relabeled == k
+        regime_feats = features[mask]
+        avg_ret = float(np.mean(regime_feats[:, ret_col])) if np.any(mask) else 0.0
+        avg_vol = float(np.std(regime_feats[:, ret_col])) if np.any(mask) else 0.0
+        pct = float(np.sum(mask)) / T * 100
+        lr = bb_labeler.label(k, regime_feats, feature_names, avg_ret, avg_vol, 0.0, pct)
+        regime_label_map[k] = lr.label
+        regime_category_map[k] = lr.category
+
+    regime_label_list = [regime_label_map.get(int(r), f"Regime {r}") for r in relabeled]
+    regime_category_list = [regime_category_map.get(int(r), "range") for r in relabeled]
 
     if close_vals is None:
         close_vals = [0.0] * T
@@ -131,12 +130,13 @@ def save_model(
 
     # 1. Write regime assignments to QuestDB model_regimes table
     csv_buf = io.StringIO()
-    csv_buf.write("model_id,symbol,ts,close,regime,regime_label,split\n")
+    csv_buf.write("model_id,symbol,ts,close,regime,regime_label,split,category\n")
     for i in range(T):
         ts_str = _fmt_ts(ts_vals[i])
         rl = str(regime_label_list[i]).replace(",", " ")
+        cat = str(regime_category_list[i])
         csv_buf.write(
-            f"{model_id},{args.symbol},{ts_str},{float(close_vals[i])},{int(relabeled[i])},{rl},{splits[i]}\n"
+            f"{model_id},{args.symbol},{ts_str},{float(close_vals[i])},{int(relabeled[i])},{rl},{splits[i]},{cat}\n"
         )
 
     try:
@@ -174,14 +174,8 @@ def save_model(
     with open(output_dir / "convergence.json", "w") as f:
         json.dump(convergence, f, cls=_NumpyEncoder)
 
-    # 3. Regime stats (reuse from hdp_hmm.io — model-agnostic)
-    regime_stats = compute_regime_stats(relabeled, features, feature_names)
-
-    # Override labels with Bull/Bear
-    for stat in regime_stats:
-        rid = stat["regime_id"]
-        if rid in LABELS:
-            stat["label"] = LABELS[rid]
+    # 3. Regime stats (reuse from hdp_hmm.io — model-agnostic, with BullBear labeler)
+    regime_stats = compute_regime_stats(relabeled, features, feature_names, labeler=bb_labeler)
 
     # 4. Transitions
     trans_matrix = model.transition_matrix[:n_regimes, :n_regimes].tolist()
