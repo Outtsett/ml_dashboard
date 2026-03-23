@@ -5,10 +5,27 @@
  * This process opens a BrowserWindow pointing at the server, and stops
  * databases when the window closes.
  */
-const { app, BrowserWindow, shell } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  shell,
+  ipcMain,
+  dialog,
+  nativeTheme,
+  Notification,
+  globalShortcut,
+  powerMonitor,
+} = require("electron");
 const path = require("path");
 const fs = require("fs");
-const { spawn, execFileSync } = require("child_process");
+const { spawn } = require("child_process");
+const store = require("./store.cjs");
+const { setupShortcuts, unregisterAll: unregisterAllShortcuts } = require("./shortcuts.cjs");
+const { createTray, destroyTray, setTooltip, setBadge, setStatus } = require("./tray.cjs");
+const { createAppMenu } = require("./menus.cjs");
+const { setupContextMenus } = require("./contextMenus.cjs");
+const { showNotification, updatePreferences: updateNotifPrefs } = require("./notifications.cjs");
+const { setupThemeSync } = require("./themeSync.cjs");
 
 // Load .env file so DATABASE_URL and other vars are available
 const envPath = path.join(__dirname, "..", ".env");
@@ -26,16 +43,30 @@ if (fs.existsSync(envPath)) {
   }
 }
 
+const APP_ID = "com.ml-dashboard.app";
 const PORT = process.env.PORT || 5000;
 const IS_DEV = process.env.NODE_ENV === "development";
 
+// --- Windows taskbar pinning & notification identity ---
+if (process.platform === "win32") {
+  app.setAppUserModelId(APP_ID);
+}
+
+// --- Single instance lock ---
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+  process.exit(0);
+}
+
 // Database paths for shutdown
-const PG_CTL = "E:\\source\\databases\\PostgreSQL\\pgsql\\bin\\pg_ctl.exe";
-const PG_DATA = "E:\\source\\databases\\PostgreSQL\\pgsql\\data";
 const QUESTDB_PID_FILE = path.join(__dirname, ".questdb.pid");
 
 let mainWindow = null;
+let splashWindow = null;
 let serverProcess = null;
+let loadRetryCount = 0;
+const MAX_LOAD_RETRIES = 5;
 
 // --------------- Database Shutdown ---------------
 
@@ -58,51 +89,265 @@ function stopDatabases() {
     }
     try { fs.unlinkSync(QUESTDB_PID_FILE); } catch {}
   }
+}
 
-  // --- PostgreSQL ---
-  try {
-    execFileSync(PG_CTL, ["status", "-D", PG_DATA], { stdio: "pipe" });
-    // If status succeeds, PostgreSQL is running — stop it
-    console.log("[db] Stopping PostgreSQL...");
-    execFileSync(PG_CTL, ["stop", "-D", PG_DATA, "-m", "fast"], {
-      stdio: "pipe",
-      timeout: 30000,
-    });
-    console.log("[db] PostgreSQL stopped");
-  } catch {
-    // Not running or already stopped — that's fine
+// --------------- Splash Screen ---------------
+
+function createSplash() {
+  splashWindow = new BrowserWindow({
+    width: 400,
+    height: 300,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    skipTaskbar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+  splashWindow.loadFile(path.join(__dirname, "splash.html"));
+  splashWindow.center();
+  splashWindow.on("closed", () => {
+    splashWindow = null;
+  });
+}
+
+function updateSplashStatus(status) {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.webContents.postMessage("message", { status });
   }
+}
+
+// --------------- Window State Persistence ---------------
+
+let windowStateSaveTimer = null;
+
+function saveWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const maximized = mainWindow.isMaximized();
+  const bounds = maximized ? store.get("windowState", {}) : mainWindow.getBounds();
+  store.set("windowState", {
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width || 1600,
+    height: bounds.height || 1000,
+    maximized,
+  });
+}
+
+function debouncedSaveWindowState() {
+  if (windowStateSaveTimer) clearTimeout(windowStateSaveTimer);
+  windowStateSaveTimer = setTimeout(saveWindowState, 500);
+}
+
+// --------------- IPC Handlers ---------------
+
+function registerIpcHandlers() {
+  // --- Window controls ---
+  ipcMain.on("window:minimize", () => mainWindow?.minimize());
+  ipcMain.on("window:maximize", () => {
+    if (!mainWindow) return;
+    mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
+  });
+  ipcMain.on("window:close", () => mainWindow?.close());
+  ipcMain.handle("window:is-maximized", () => mainWindow?.isMaximized() ?? false);
+  ipcMain.handle("window:is-fullscreen", () => mainWindow?.isFullScreen() ?? false);
+  ipcMain.on("window:set-fullscreen", (_e, flag) => mainWindow?.setFullScreen(!!flag));
+
+  // --- Store ---
+  ipcMain.handle("store:get", (_e, key) => store.get(key));
+  ipcMain.on("store:set", (_e, { key, value }) => store.set(key, value));
+
+  // --- Dialogs ---
+  ipcMain.handle("dialog:open", async (_e, opts) => {
+    if (!mainWindow) return { canceled: true, filePaths: [] };
+    return dialog.showOpenDialog(mainWindow, opts || {});
+  });
+  ipcMain.handle("dialog:save", async (_e, opts) => {
+    if (!mainWindow) return { canceled: true, filePath: undefined };
+    return dialog.showSaveDialog(mainWindow, opts || {});
+  });
+
+  // --- Theme --- (handled by themeSync.cjs via setupThemeSync)
+
+  // --- App info ---
+  ipcMain.handle("app:version", () => app.getVersion());
+  ipcMain.handle("app:path", (_e, name) => {
+    const allowed = ["userData", "appData", "logs", "temp", "home"];
+    if (allowed.includes(name)) return app.getPath(name);
+    return "";
+  });
+  ipcMain.on("app:open-external", (_e, url) => {
+    if (typeof url === "string" && (url.startsWith("https://") || url.startsWith("http://"))) {
+      shell.openExternal(url);
+    }
+  });
+  ipcMain.on("app:open-logs", () => shell.openPath(app.getPath("logs")));
+  ipcMain.on("app:relaunch", () => {
+    app.relaunch();
+    app.exit(0);
+  });
+
+  // --- Shortcuts (handlers registered in shortcuts.cjs) ---
+
+  // --- Tray ---
+  ipcMain.on("tray:tooltip", (_e, text) => setTooltip(text));
+  ipcMain.on("tray:badge", (_e, count) => setBadge(count));
+
+  // --- Notifications (delegates to notifications.cjs) ---
+  ipcMain.on("notify:show", (_e, opts) => showNotification(opts));
+}
+
+// --------------- Power Monitor ---------------
+
+function registerPowerMonitor() {
+  powerMonitor.on("suspend", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("power:event", "suspend");
+    }
+  });
+  powerMonitor.on("resume", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("power:event", "resume");
+    }
+  });
+  powerMonitor.on("shutdown", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("power:event", "shutdown");
+    }
+  });
 }
 
 // --------------- Window ---------------
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1600,
-    height: 1000,
+  // Restore saved window bounds
+  const saved = store.get("windowState", {});
+  const windowOpts = {
+    width: saved.width || 1600,
+    height: saved.height || 1000,
     minWidth: 1024,
     minHeight: 700,
     title: "Quant AI Dashboard",
-    icon: path.join(__dirname, "..", "src", "client", "public", "favicon.svg"),
+    icon: path.join(__dirname, "..", "build", "icons", "icon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       nodeIntegration: false,
       contextIsolation: true,
     },
-    // Frameless title bar with native window controls
+    // Custom titlebar — rendered by the React app
     titleBarStyle: "hidden",
-    titleBarOverlay: {
-      color: "#0a0a0a",
-      symbolColor: "#ffffff",
-      height: 36,
-    },
+    titleBarOverlay: false,
+    frame: false,
     backgroundColor: "#0a0a0a",
     show: false,
+  };
+  if (saved.x != null && saved.y != null) {
+    windowOpts.x = saved.x;
+    windowOpts.y = saved.y;
+  }
+
+  mainWindow = new BrowserWindow(windowOpts);
+
+  // Restore maximized state
+  if (saved.maximized) {
+    mainWindow.maximize();
+  }
+
+  // --- Content load success: dismiss splash, show window ---
+  mainWindow.webContents.on("did-finish-load", () => {
+    const url = mainWindow.webContents.getURL();
+    // Don't show for the error page itself
+    if (url.includes("error.html")) return;
+
+    console.log("[window] Content loaded successfully");
+    loadRetryCount = 0;
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close();
+    }
+    if (!mainWindow.isVisible()) {
+      mainWindow.show();
+    }
   });
 
-  mainWindow.once("ready-to-show", () => {
-    mainWindow.show();
+  // --- Content load failure: retry or show error page ---
+  mainWindow.webContents.on(
+    "did-fail-load",
+    (_e, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (!isMainFrame) return; // ignore sub-frame failures
+
+      console.error(
+        `[window] Failed to load (code ${errorCode}): ${errorDescription}`
+      );
+
+      if (loadRetryCount < MAX_LOAD_RETRIES) {
+        loadRetryCount++;
+        const delay = Math.min(1000 * loadRetryCount, 4000);
+        console.log(
+          `[window] Retry ${loadRetryCount}/${MAX_LOAD_RETRIES} in ${delay}ms...`
+        );
+        updateSplashStatus(
+          `Server not ready — retry ${loadRetryCount}/${MAX_LOAD_RETRIES}...`
+        );
+        setTimeout(() => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
+          }
+        }, delay);
+      } else {
+        // All retries exhausted — show error page
+        console.error("[window] All retries exhausted, showing error page");
+        if (splashWindow && !splashWindow.isDestroyed()) {
+          splashWindow.close();
+        }
+        mainWindow.loadFile(path.join(__dirname, "error.html"), {
+          query: {
+            error: errorDescription || "Connection refused",
+            code: String(errorCode),
+            port: String(PORT),
+          },
+        });
+        mainWindow.show();
+      }
+    }
+  );
+
+  // --- Renderer crash ---
+  mainWindow.webContents.on("render-process-gone", (_e, details) => {
+    console.error("[window] Renderer process gone:", details.reason);
+    if (details.reason === "crashed" || details.reason === "killed") {
+      const choice = dialog.showMessageBoxSync(mainWindow, {
+        type: "error",
+        title: "Application Crashed",
+        message: `The renderer process ${details.reason}. Restart the app?`,
+        buttons: ["Restart", "Quit"],
+        defaultId: 0,
+      });
+      if (choice === 0) {
+        app.relaunch();
+      }
+      app.exit(0);
+    }
   });
+
+  // --- Unresponsive window ---
+  mainWindow.webContents.on("unresponsive", () => {
+    console.warn("[window] Renderer became unresponsive");
+  });
+  mainWindow.webContents.on("responsive", () => {
+    console.log("[window] Renderer became responsive again");
+  });
+
+  // Fallback: if nothing shows after 30s, force-show the window
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      console.warn("[window] Timeout — forcing window visible");
+      if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
+      mainWindow.show();
+    }
+  }, 30000);
 
   // Open external links in the system browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -113,11 +358,49 @@ function createWindow() {
     return { action: "deny" };
   });
 
+  // Track maximize/unmaximize for the renderer
+  mainWindow.on("maximize", () => {
+    mainWindow.webContents.send("window:maximize-changed", true);
+    debouncedSaveWindowState();
+  });
+  mainWindow.on("unmaximize", () => {
+    mainWindow.webContents.send("window:maximize-changed", false);
+    debouncedSaveWindowState();
+  });
+
+  // Persist window state on move/resize
+  mainWindow.on("resize", debouncedSaveWindowState);
+  mainWindow.on("move", debouncedSaveWindowState);
+  mainWindow.on("close", saveWindowState);
+
+  // Track last route for session restore
+  mainWindow.webContents.on("did-navigate-in-page", (_e, url) => {
+    try {
+      const parsed = new URL(url);
+      store.set("lastRoute", parsed.pathname + parsed.search);
+    } catch {
+      // ignore parse errors
+    }
+  });
+
   mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
+
+  // Minimize to tray instead of closing
+  mainWindow.on("close", (e) => {
+    if (!app.isQuitting) {
+      e.preventDefault();
+      mainWindow.hide();
+      return false;
+    }
+  });
 
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
+
+  // Set up native menus and context menus
+  createAppMenu(mainWindow);
+  setupContextMenus(mainWindow);
 }
 
 function startServer() {
@@ -172,30 +455,97 @@ function stopServer() {
 }
 
 // Wait for server to be reachable
-async function waitForServer(maxWait = 15000) {
+async function waitForServer(maxWait = 30000) {
   const start = Date.now();
+  let lastError = "No response";
+  let attempts = 0;
+
   while (Date.now() - start < maxWait) {
+    attempts++;
     try {
-      const resp = await fetch(`http://127.0.0.1:${PORT}/api/uploads`);
-      if (resp.ok || resp.status < 500) return true;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const resp = await fetch(`http://127.0.0.1:${PORT}/api/uploads`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (resp.ok || (resp.status >= 200 && resp.status < 500)) {
+        console.log(
+          `[server] Health check passed after ${attempts} attempts (${Date.now() - start}ms)`
+        );
+        return true;
+      }
+      lastError = `HTTP ${resp.status}`;
     } catch (e) {
-      // Not ready yet
+      lastError = e.message || "Connection refused";
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  // Try anyway even if server didn't respond cleanly
-  return true;
+
+  // Timeout — don't throw, let the loadURL retry/error page handle it
+  console.warn(
+    `[server] Not reachable after ${maxWait}ms (${attempts} attempts): ${lastError}`
+  );
+  return false;
 }
 
-app.whenReady().then(async () => {
-  try {
-    await startServer();
-    await waitForServer();
+// --- Restore existing window when a second instance is attempted ---
+app.on("second-instance", () => {
+  if (mainWindow) {
+    if (mainWindow.isDestroyed()) {
+      mainWindow = null;
+      createWindow();
+      return;
+    }
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  } else {
     createWindow();
+  }
+});
+
+app.whenReady().then(async () => {
+  console.log(
+    `[app] Starting — NODE_ENV=${process.env.NODE_ENV}, IS_DEV=${IS_DEV}, PORT=${PORT}`
+  );
+  registerIpcHandlers();
+  registerPowerMonitor();
+
+  // Apply saved theme
+  const savedTheme = store.get("theme", "system");
+  nativeTheme.themeSource = savedTheme;
+
+  createSplash();
+
+  try {
+    updateSplashStatus("Starting databases...");
+    await startServer();
+
+    updateSplashStatus("Connecting to server...");
+    const serverReady = await waitForServer();
+
+    if (serverReady) {
+      updateSplashStatus("Loading dashboard...");
+    } else {
+      updateSplashStatus("Server slow — loading anyway...");
+    }
+
+    loadRetryCount = 0;
+    createWindow();
+    setupShortcuts(mainWindow);
+    createTray(mainWindow);
+    setupThemeSync(mainWindow, store);
   } catch (err) {
     console.error("Failed to start application:", err);
+    if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
     stopServer();
     stopDatabases();
+    dialog.showErrorBox(
+      "Startup Failed",
+      `The application could not start:\n\n${err.message}`
+    );
     app.quit();
   }
 
@@ -206,6 +556,11 @@ app.whenReady().then(async () => {
   });
 });
 
+app.on("will-quit", () => {
+  unregisterAllShortcuts();
+  destroyTray();
+});
+
 app.on("window-all-closed", () => {
   stopServer();
   stopDatabases();
@@ -213,6 +568,8 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  app.isQuitting = true;
+  destroyTray();
   stopServer();
   stopDatabases();
 });
