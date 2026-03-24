@@ -48,6 +48,7 @@ const Watchlist = lazyRetry(() => import("@/pages/Watchlist"), "Watchlist");
 const News = lazyRetry(() => import("@/pages/News"), "News");
 const MLStudio = lazyRetry(() => import("@/pages/MLStudio"), "MLStudio");
 const ModelCatalog = lazyRetry(() => import("@/pages/ModelCatalog"), "ModelCatalog");
+const Curriculum = lazyRetry(() => import("@/pages/Curriculum"), "Curriculum");
 const Settings = lazyRetry(() => import("@/pages/Settings"), "Settings");
 const NotFound = lazyRetry(() => import("@/pages/not-found"), "NotFound");
 
@@ -104,6 +105,13 @@ function Router() {
           <ErrorBoundary>
             <Suspense fallback={<PageLoader />}>
               <ModelCatalog />
+            </Suspense>
+          </ErrorBoundary>
+        </Route>
+        <Route path="/curriculum">
+          <ErrorBoundary>
+            <Suspense fallback={<PageLoader />}>
+              <Curriculum />
             </Suspense>
           </ErrorBoundary>
         </Route>

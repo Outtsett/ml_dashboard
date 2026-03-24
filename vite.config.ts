@@ -2,6 +2,9 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [
@@ -14,9 +17,9 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      "@": path.resolve(import.meta.dirname, "src", "client", "src"),
-      "@shared": path.resolve(import.meta.dirname, "src", "shared"),
-      "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+      "@": path.resolve(__dirname, "src", "client", "src"),
+      "@shared": path.resolve(__dirname, "src", "shared"),
+      "@assets": path.resolve(__dirname, "attached_assets"),
     },
   },
   css: {
@@ -24,12 +27,13 @@ export default defineConfig({
       plugins: [],
     },
   },
-  root: path.resolve(import.meta.dirname, "src", "client"),
+  root: path.resolve(__dirname, "src", "client"),
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist/public"),
+    outDir: path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
     target: "es2022",
     sourcemap: true,
+    chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
         manualChunks: {
@@ -45,9 +49,11 @@ export default defineConfig({
   },
   server: {
     host: "127.0.0.1",
+    port: 5173,
     hmr: {
       protocol: "ws",
       host: "127.0.0.1",
+    port: 5173,
     },
     fs: {
       strict: true,

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Home, LineChart, Database, Settings, Server, BarChart2, List, Newspaper, ChevronRight, PanelLeftClose, PanelLeftOpen, BrainCircuit, BookOpen } from "lucide-react";
+import { Home, LineChart, Database, Settings, Server, BarChart2, List, Newspaper, ChevronRight, PanelLeftClose, PanelLeftOpen, BrainCircuit, BookOpen, GraduationCap } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { prefetchOnHover } from "@/lib/prefetch";
 import { useBreadcrumbItems } from "@/hooks/useBreadcrumbs";
@@ -26,6 +26,7 @@ const routeMeta: Record<string, { label: string; icon: typeof Home }> = {
   "/": { label: "Market Data", icon: Database },
   "/ml-studio": { label: "ML Studio", icon: BrainCircuit },
   "/model-catalog": { label: "Model Catalog", icon: BookOpen },
+  "/curriculum": { label: "Curriculum", icon: GraduationCap },
   "/portfolio": { label: "Portfolio", icon: BarChart2 },
   "/watchlist": { label: "Watchlist", icon: List },
   "/news": { label: "News", icon: Newspaper },
@@ -74,6 +75,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       items: [
         { icon: BrainCircuit, label: "ML Studio", href: "/ml-studio" },
         { icon: BookOpen, label: "Model Catalog", href: "/model-catalog" },
+        { icon: GraduationCap, label: "Curriculum", href: "/curriculum" },
       ]
     },
     {
