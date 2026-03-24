@@ -691,7 +691,7 @@ function stopServer() {
   }
 }
 
-// Wait for server to be reachable
+// Wait for server to be reachable (API + Vite client assets)
 async function waitForServer(maxWait = 30000) {
   const start = Date.now();
   let lastError = "No response";
@@ -711,6 +711,25 @@ async function waitForServer(maxWait = 30000) {
         safeLog(
           `[server] Health check passed after ${attempts} attempts (${Date.now() - start}ms)`
         );
+        // In dev mode, also verify Vite can serve the entry point
+        // (Vite may still be pre-bundling dependencies)
+        if (IS_DEV) {
+          try {
+            const vc = new AbortController();
+            const vt = setTimeout(() => vc.abort(), 3000);
+            const vr = await fetch(`http://127.0.0.1:${PORT}/src/main.tsx`, { signal: vc.signal });
+            clearTimeout(vt);
+            if (!vr.ok) {
+              safeLog("[server] Vite not ready yet, waiting...");
+              await new Promise((r) => setTimeout(r, 1000));
+              continue;
+            }
+          } catch {
+            safeLog("[server] Vite not ready yet, waiting...");
+            await new Promise((r) => setTimeout(r, 1000));
+            continue;
+          }
+        }
         return true;
       }
       lastError = `HTTP ${resp.status}`;
