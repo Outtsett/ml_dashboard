@@ -126,6 +126,7 @@ export const QUERY_KEYS = {
   labels: (symbol: string) => ["/api/labels", symbol] as const,
   backtestTrades: (params: string) => ["/api/backtest/trades", params] as const,
   uploads: ["/api/databases/uploads"] as const,
+  mlForecastsList: ["/api/ml/forecasts"] as const,
   mlForecasts: (params: string) => ["/api/ml/forecasts", params] as const,
 } as const;
 

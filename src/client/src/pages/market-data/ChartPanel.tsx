@@ -1,4 +1,4 @@
-import { Database } from "lucide-react";
+import { Database, BarChart3 } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import IndicatorChartLayout from "@/components/IndicatorChartLayout";
 import { ReplayControls } from "@/components/ReplayControls";
@@ -81,7 +81,7 @@ export function ChartPanel({
         <div className="h-full flex flex-col">
           {/* Training banner — visible whenever training is active (independent of replay) */}
           {trainingSync.isActive && (
-            <div className="px-3 py-1.5 border-b border-white/5 shrink-0">
+            <div className="px-3 py-1.5 border-b border-white/5 shrink-0 bg-gradient-to-r from-amber-500/5 via-orange-500/5 to-transparent">
               <TrainingSyncBanner
                 gibbsIter={trainingSync.gibbsIter}
                 gibbsTotal={trainingSync.gibbsTotal}
@@ -95,7 +95,7 @@ export function ChartPanel({
 
           {/* Replay controls — only when replay is active */}
           {replay.active && (
-            <div className="px-3 py-1.5 border-b border-white/5 shrink-0 flex items-center gap-3">
+            <div className="px-3 py-1.5 border-b border-white/5 border-t-2 border-t-violet-500/40 shrink-0 flex items-center gap-3 bg-violet-500/[0.03]">
               <ReplayControls
                 state={replay.state}
                 speed={replay.speed}
@@ -113,7 +113,7 @@ export function ChartPanel({
 
           {/* Regime legend */}
           {regimeLegendInfo.length > 0 && (
-            <div className="px-3 py-1 border-b border-white/5 shrink-0">
+            <div className="px-3 py-1.5 border-b border-white/5 shrink-0">
               <RegimeLegend
                 regimes={regimeLegendInfo}
                 selectedRegimes={selectedRegimes}
@@ -124,7 +124,7 @@ export function ChartPanel({
           )}
 
           {displayData.length > 0 ? (
-            <div className="flex-1 min-h-0 p-1">
+            <div className="flex-1 min-h-0 p-1 rounded-sm border border-border/30 m-0.5 bg-background/50">
               <IndicatorChartLayout
                 data={displayData}
                 symbol={symbol}
@@ -148,16 +148,23 @@ export function ChartPanel({
               />
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
-              <Database className="h-12 w-12 mb-3 opacity-20" />
-              <p className="font-mono text-sm">No data for {symbol}</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Upload {isFutures ? 'futures' : 'forex'} data to see the chart</p>
+            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground bg-gradient-to-b from-transparent via-primary/[0.02] to-transparent">
+              <div className="relative mb-5">
+                <BarChart3 className="h-16 w-16 opacity-15 text-primary" />
+                <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500/60 animate-pulse" />
+              </div>
+              <p className="font-mono text-sm font-medium tracking-wide text-muted-foreground/80">
+                Awaiting market data
+              </p>
+              <p className="text-xs text-muted-foreground/40 mt-1.5">
+                Load {isFutures ? 'futures' : 'forex'} data for <span className="text-primary/60 font-semibold">{symbol}</span> to begin
+              </p>
             </div>
           )}
         </div>
       </ResizablePanel>
 
-      <ResizableHandle withHandle />
+      <ResizableHandle className="bg-border/30 hover:bg-primary/20 data-[resize-handle-active]:bg-primary/30 transition-colors after:!h-1 after:!rounded-full after:!bg-muted-foreground/20 hover:after:!bg-primary/40" withHandle />
 
       {/* Terminal panel */}
       <ResizablePanel defaultSize={25} minSize={5} maxSize={60}>

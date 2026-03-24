@@ -50,7 +50,10 @@ export function HistoryTab({ labelSets, isLoading }: HistoryTabProps) {
               </thead>
               <tbody>
                 {labelSets.map((ls) => {
-                  const dist = ls.labelDistribution ? JSON.parse(ls.labelDistribution) : null;
+                  let dist: Record<string, number> | null = null;
+                  try {
+                    dist = ls.labelDistribution ? JSON.parse(ls.labelDistribution) : null;
+                  } catch { /* invalid JSON */ }
                   return (
                     <tr key={ls.id} className="border-b border-white/5 hover:bg-white/5">
                       <td className="px-4 py-2 font-mono">{ls.name}</td>
@@ -60,14 +63,25 @@ export function HistoryTab({ labelSets, isLoading }: HistoryTabProps) {
                         </Badge>
                       </td>
                       <td className="px-4 py-2 text-cyan-400">{ls.symbol}</td>
-                      <td className="px-4 py-2 font-mono">{ls.sampleCount.toLocaleString()}</td>
+                      <td className="px-4 py-2 font-mono">{(ls.sampleCount ?? 0).toLocaleString()}</td>
                       <td className="px-4 py-2">
-                        {dist && (
-                          <div className="flex gap-1.5 text-[10px]">
-                            {ls.positiveCount !== null && <span className="text-emerald-400">+{ls.positiveCount}</span>}
-                            {ls.neutralCount !== null && <span className="text-slate-400">0:{ls.neutralCount}</span>}
-                            {ls.negativeCount !== null && <span className="text-rose-400">-{ls.negativeCount}</span>}
+                        {dist ? (
+                          <div className="flex gap-1.5 text-[10px] flex-wrap">
+                            {Object.entries(dist)
+                              .sort(([a], [b]) => Number(a) - Number(b))
+                              .map(([label, count]) => (
+                                <span key={label} className={
+                                  label === '1' ? 'text-emerald-400' :
+                                  label === '-1' ? 'text-rose-400' :
+                                  label === '0' ? 'text-slate-400' :
+                                  'text-amber-400'
+                                }>
+                                  {label}:{count}
+                                </span>
+                              ))}
                           </div>
+                        ) : (
+                          <span className="text-muted-foreground text-[10px]">—</span>
                         )}
                       </td>
                       <td className="px-4 py-2">

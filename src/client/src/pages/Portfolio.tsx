@@ -4,25 +4,149 @@ import { Button } from "@/components/ui/button";
 import { 
   TrendingUp, DollarSign, Wallet, 
   PieChart, ArrowUpRight, ArrowDownRight, Clock,
-  Target, Activity, Sparkles
+  Target, Activity, Sparkles, Loader2
 } from "lucide-react";
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import type { Trade } from "@/lib/types";
 
 type Position = { symbol: string; name: string; quantity: number; avgPrice: number; currentPrice: number; pnl: number; pnlPercent: number };
 type AllocationEntry = { name: string; value: number; color: string };
 type EquityPoint = { date: string; value: number };
 type RecentTrade = { time: string; symbol: string; side: string; qty: number; price: number; pnl: number | null };
 
-export default function Portfolio() {
-  const [positions] = useState<Position[]>([]);
-  const [allocationData] = useState<AllocationEntry[]>([]);
-  const [equityCurve] = useState<EquityPoint[]>([]);
-  const [recentTrades] = useState<RecentTrade[]>([]);
+const COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
 
+/** Format price — forex pairs get 5 decimals, others get 2 */
+function fmtPrice(price: number): string {
+  return price < 50 ? price.toFixed(5) : price.toFixed(2);
+}
+
+export default function Portfolio() {
+  // ── Data Fetching ──────────────────────────────────────────────────────
+  const { data: openTradesRaw = [], isLoading: loadingOpen } = useQuery<Trade[]>({
+    queryKey: ['/api/ml/trades', 'open'],
+    queryFn: async () => {
+      const res = await fetch('/api/ml/trades?status=open&limit=100');
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
+  });
+
+  const { data: closedTradesRaw = [], isLoading: loadingClosed } = useQuery<Trade[]>({
+    queryKey: ['/api/ml/trades', 'closed'],
+    queryFn: async () => {
+      const res = await fetch('/api/ml/trades?status=closed&limit=50');
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
+  });
+
+  const { data: backtestRuns } = useQuery<any[]>({
+    queryKey: ['backtest-runs'],
+    queryFn: async () => {
+      const res = await fetch('/api/backtest/runs?limit=1');
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
+
+  const isLoading = loadingOpen || loadingClosed;
+
+  // ── Derived State ──────────────────────────────────────────────────────
+  const positions: Position[] = useMemo(() =>
+    openTradesRaw.map((t) => ({
+      symbol: t.symbol,
+      name: t.symbol,
+      quantity: t.side === 'BUY' ? t.quantity : -t.quantity,
+      avgPrice: t.entryPrice,
+      currentPrice: t.entryPrice, // mark-to-market fallback
+      pnl: t.pnl ?? 0,
+      pnlPercent: t.pnlPct ?? 0,
+    })),
+  [openTradesRaw]);
+
+  const allocationData: AllocationEntry[] = useMemo(() => {
+    if (positions.length === 0) return [];
+    const grouped = new Map<string, number>();
+    let totalNotional = 0;
+    for (const p of positions) {
+      const notional = Math.abs(p.quantity) * p.currentPrice;
+      grouped.set(p.symbol, (grouped.get(p.symbol) ?? 0) + notional);
+      totalNotional += notional;
+    }
+    if (totalNotional === 0) return [];
+    return Array.from(grouped.entries()).map(([name, notional], i) => ({
+      name,
+      value: Math.round((notional / totalNotional) * 1000) / 10, // 1 decimal %
+      color: COLORS[i % COLORS.length] ?? '#8b5cf6',
+    }));
+  }, [positions]);
+
+  const recentTrades: RecentTrade[] = useMemo(() =>
+    closedTradesRaw.map((t) => ({
+      time: t.exitTimestamp ? new Date(t.exitTimestamp).toLocaleString() : '--',
+      symbol: t.symbol,
+      side: t.side,
+      qty: t.quantity,
+      price: t.exitPrice ?? t.entryPrice,
+      pnl: t.pnl ?? null,
+    })),
+  [closedTradesRaw]);
+
+  const equityCurve: EquityPoint[] = useMemo(() => {
+    // Prefer backtest equity curve if available
+    const latestRun = Array.isArray(backtestRuns) && backtestRuns.length > 0 ? backtestRuns[0] : null;
+    if (latestRun?.equityCurve) {
+      try {
+        const parsed = typeof latestRun.equityCurve === 'string'
+          ? JSON.parse(latestRun.equityCurve)
+          : latestRun.equityCurve;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((pt: any) => ({
+            date: pt.date ?? new Date(pt.timestamp ?? pt.t ?? 0).toLocaleDateString(),
+            value: pt.value ?? pt.equity ?? pt.v ?? 0,
+          }));
+        }
+      } catch { /* fall through to cumulative P&L */ }
+    }
+    // Fallback: build from closed trades cumulative P&L
+    if (closedTradesRaw.length === 0) return [];
+    const sorted = [...closedTradesRaw]
+      .filter((t) => t.exitTimestamp)
+      .sort((a, b) => (a.exitTimestamp ?? 0) - (b.exitTimestamp ?? 0));
+    let cumPnL = 0;
+    return sorted.map((t) => {
+      cumPnL += t.pnl ?? 0;
+      return {
+        date: new Date(t.exitTimestamp!).toLocaleDateString(),
+        value: Math.round(cumPnL * 100) / 100,
+      };
+    });
+  }, [closedTradesRaw, backtestRuns]);
+
+  // ── KPIs ───────────────────────────────────────────────────────────────
   const totalValue = positions.reduce((sum, p) => sum + p.currentPrice * Math.abs(p.quantity), 0);
-  const totalPnL = positions.reduce((sum, p) => sum + p.pnl, 0);
-  const dailyPnL = 0;
+  const totalPnL = closedTradesRaw.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
+
+  const todayStart = useMemo(() => {
+    const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime();
+  }, []);
+  const dailyPnL = useMemo(() =>
+    closedTradesRaw
+      .filter((t) => (t.exitTimestamp ?? 0) >= todayStart)
+      .reduce((sum, t) => sum + (t.pnl ?? 0), 0),
+  [closedTradesRaw, todayStart]);
+
+  const winRate = useMemo(() => {
+    if (closedTradesRaw.length === 0) return null;
+    const wins = closedTradesRaw.filter((t) => (t.pnl ?? 0) > 0).length;
+    return Math.round((wins / closedTradesRaw.length) * 1000) / 10;
+  }, [closedTradesRaw]);
+
   const openPositions = positions.length;
 
   return (
@@ -36,15 +160,19 @@ export default function Portfolio() {
             <span className="text-sm font-medium text-violet-300/80">Portfolio Management</span>
           </div>
           <h1 className="text-4xl font-display font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Portfolio</h1>
-          <p className="text-muted-foreground text-sm mt-1">Positions, P&L tracking, and allocation analysis (not implemented)</p>
+          <p className="text-muted-foreground text-sm mt-1">Positions, P&L tracking, and allocation analysis</p>
         </div>
         <div className="flex gap-3 items-center">
           <div className="bg-gradient-to-br from-violet-500/10 to-violet-600/5 rounded-xl px-4 py-2 border border-violet-500/20 flex items-center gap-2">
             <Activity className="h-4 w-4 text-violet-400" />
             <span className="text-sm font-mono text-violet-300">{openPositions} Open Positions</span>
           </div>
-          <Button disabled className="h-10 px-5 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 text-white opacity-50 cursor-not-allowed font-medium" data-testid="button-new-order">
-            <Target className="mr-2 h-4 w-4" /> New Order (Not Implemented)
+          <Button
+            className="h-10 px-5 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 text-white font-medium hover:brightness-110 transition-all"
+            data-testid="button-new-order"
+            onClick={() => alert('Manual order entry coming soon')}
+          >
+            <Target className="mr-2 h-4 w-4" /> New Order
           </Button>
         </div>
       </div>
@@ -59,7 +187,9 @@ export default function Portfolio() {
             <div className="text-xs text-violet-300/70 uppercase tracking-wider">Portfolio Value</div>
           </div>
           <div className="flex items-end justify-between">
-            <div className="text-3xl font-bold text-violet-200">{positions.length > 0 ? `$${totalValue.toLocaleString()}` : '--'}</div>
+            <div className="text-3xl font-bold text-violet-200 font-mono">
+              {isLoading ? <Loader2 className="h-7 w-7 animate-spin opacity-40" /> : positions.length > 0 ? `$${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
+            </div>
           </div>
         </div>
         <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 rounded-xl p-5 border border-emerald-500/20">
@@ -70,8 +200,8 @@ export default function Portfolio() {
             <div className="text-xs text-emerald-300/70 uppercase tracking-wider">Total P&L</div>
           </div>
           <div className="flex items-end justify-between">
-            <div className={`text-3xl font-bold ${totalPnL >= 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
-              {positions.length > 0 ? `${totalPnL >= 0 ? '+' : ''}$${totalPnL.toLocaleString()}` : '--'}
+            <div className={`text-3xl font-bold font-mono ${totalPnL >= 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
+              {isLoading ? <Loader2 className="h-7 w-7 animate-spin opacity-40" /> : closedTradesRaw.length > 0 ? `${totalPnL >= 0 ? '+' : ''}$${totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
             </div>
           </div>
         </div>
@@ -83,8 +213,8 @@ export default function Portfolio() {
             <div className="text-xs text-cyan-300/70 uppercase tracking-wider">Today's P&L</div>
           </div>
           <div className="flex items-end justify-between">
-            <div className={`text-3xl font-bold ${dailyPnL >= 0 ? 'text-cyan-200' : 'text-rose-200'}`}>
-              {positions.length > 0 ? `${dailyPnL >= 0 ? '+' : ''}$${dailyPnL.toLocaleString()}` : '--'}
+            <div className={`text-3xl font-bold font-mono ${dailyPnL >= 0 ? 'text-cyan-200' : 'text-rose-200'}`}>
+              {isLoading ? <Loader2 className="h-7 w-7 animate-spin opacity-40" /> : closedTradesRaw.length > 0 ? `${dailyPnL >= 0 ? '+' : ''}$${dailyPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
             </div>
           </div>
         </div>
@@ -96,8 +226,15 @@ export default function Portfolio() {
             <div className="text-xs text-amber-300/70 uppercase tracking-wider">Win Rate</div>
           </div>
           <div className="flex items-end justify-between">
-            <div className="text-3xl font-bold text-amber-200">--</div>
-            <div className="text-xs text-muted-foreground/60">needs trades</div>
+            <div className="text-3xl font-bold text-amber-200 font-mono">
+              {isLoading ? <Loader2 className="h-7 w-7 animate-spin opacity-40" /> : winRate !== null ? `${winRate}%` : '--'}
+            </div>
+            {winRate !== null && (
+              <div className="text-xs text-muted-foreground/60">{closedTradesRaw.length} trades</div>
+            )}
+            {winRate === null && !isLoading && (
+              <div className="text-xs text-muted-foreground/60">no closed trades</div>
+            )}
           </div>
         </div>
       </div>
@@ -125,12 +262,19 @@ export default function Portfolio() {
                 </tr>
               </thead>
               <tbody>
-                {positions.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-muted-foreground">
+                      <Loader2 className="h-8 w-8 mx-auto mb-3 animate-spin opacity-40" />
+                      <p className="text-sm">Loading positions…</p>
+                    </td>
+                  </tr>
+                ) : positions.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-12 text-center text-muted-foreground">
                       <Wallet className="h-12 w-12 mx-auto mb-3 opacity-20" />
                       <p className="text-sm font-medium">No Open Positions</p>
-                      <p className="text-xs">Real-time positions not implemented</p>
+                      <p className="text-xs mt-1">Open positions will appear here when trades are active</p>
                     </td>
                   </tr>
                 ) : positions.map((pos, i) => (
@@ -140,8 +284,8 @@ export default function Portfolio() {
                     <td className={`py-3 px-4 text-right font-mono ${pos.quantity > 0 ? 'text-green-400' : 'text-rose-400'}`}>
                       {pos.quantity > 0 ? '+' : ''}{pos.quantity}
                     </td>
-                    <td className="py-3 px-4 text-right font-mono">{pos.avgPrice.toFixed(2)}</td>
-                    <td className="py-3 px-4 text-right font-mono">{pos.currentPrice.toFixed(2)}</td>
+                    <td className="py-3 px-4 text-right font-mono">{fmtPrice(pos.avgPrice)}</td>
+                    <td className="py-3 px-4 text-right font-mono">{fmtPrice(pos.currentPrice)}</td>
                     <td className={`py-3 px-4 text-right font-mono font-bold ${pos.pnl >= 0 ? 'text-green-400' : 'text-rose-400'}`}>
                       {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toLocaleString()}
                     </td>
@@ -171,6 +315,13 @@ export default function Portfolio() {
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 min-h-0 p-4">
+              {allocationData.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                  <PieChart className="h-10 w-10 mb-2 opacity-20" />
+                  <p className="text-xs">No positions to allocate</p>
+                </div>
+              ) : (
+                <>
               <ResponsiveContainer width="100%" height="100%">
                 <RePieChart>
                   <Pie
@@ -205,6 +356,8 @@ export default function Portfolio() {
                   </div>
                 ))}
               </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -216,6 +369,12 @@ export default function Portfolio() {
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto p-0">
+              {recentTrades.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-muted-foreground py-8">
+                  <Clock className="h-10 w-10 mb-2 opacity-20" />
+                  <p className="text-xs">{isLoading ? 'Loading trades…' : 'No recent trades'}</p>
+                </div>
+              ) : (
               <div className="divide-y divide-white/5">
                 {recentTrades.map((trade, i) => (
                   <div key={i} className="flex items-center justify-between px-4 py-2.5 text-xs" data-testid={`trade-${i}`}>
@@ -231,16 +390,17 @@ export default function Portfolio() {
                       </Badge>
                     </div>
                     <div className="flex items-center gap-4">
-                      <span className="font-mono">{trade.qty} @ {trade.price}</span>
+                      <span className="font-mono">{trade.qty} @ {fmtPrice(trade.price)}</span>
                       {trade.pnl !== null && (
                         <span className={`font-mono font-bold ${trade.pnl >= 0 ? 'text-green-400' : 'text-rose-400'}`}>
-                          {trade.pnl >= 0 ? '+' : ''}${trade.pnl}
+                          {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}
                         </span>
                       )}
                     </div>
                   </div>
                 ))}
               </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -254,6 +414,12 @@ export default function Portfolio() {
           </CardTitle>
         </CardHeader>
         <CardContent className="flex-1 min-h-0 p-2">
+          {equityCurve.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-muted-foreground">
+              <TrendingUp className="h-6 w-6 mr-2 opacity-20" />
+              <span className="text-xs">{isLoading ? 'Loading equity data…' : 'No equity data — run a backtest or close some trades'}</span>
+            </div>
+          ) : (
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={equityCurve}>
               <defs>
@@ -267,11 +433,12 @@ export default function Portfolio() {
               <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
               <Tooltip
                 contentStyle={{ backgroundColor: 'hsla(250, 25%, 14%, 0.9)', backdropFilter: 'blur(10px)', borderColor: 'hsla(260, 80%, 70%, 0.2)', borderRadius: '12px' }}
-                formatter={(value: number) => [`$${value.toLocaleString()}`, 'Value']}
+                formatter={(value: number) => [`$${value.toLocaleString()}`, 'P&L']}
               />
               <Area type="monotone" dataKey="value" stroke="hsl(260, 80%, 70%)" strokeWidth={2} fill="url(#equityGradient)" />
             </AreaChart>
           </ResponsiveContainer>
+          )}
         </CardContent>
       </Card>
     </div>

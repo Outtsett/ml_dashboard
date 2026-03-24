@@ -11,6 +11,20 @@
   app-region: no-drag;
 }
 
+/* Desktop titlebar */
+.titlebar {
+  -webkit-app-region: drag;
+  app-region: drag;
+  background: linear-gradient(180deg, hsl(220, 15%, 8%) 0%, hsl(220, 15%, 6%) 100%);
+  border-bottom: 1px solid hsl(220, 10%, 12%);
+}
+
+.titlebar .no-drag,
+.titlebar button {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 @theme inline {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -117,6 +131,9 @@
     font-feature-settings: 'tnum' 1, 'ss01' 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    background-image:
+      radial-gradient(ellipse at 20% 0%, hsla(210, 50%, 55%, 0.04) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 100%, hsla(185, 40%, 45%, 0.03) 0%, transparent 60%);
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-display tracking-tight font-medium;
@@ -177,21 +194,29 @@
 
   /* Thin scrollbars */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
   }
 
   ::-webkit-scrollbar-track {
-    background: hsl(220, 15%, 8%);
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: hsl(220, 15%, 20%);
+    background: hsl(220, 15%, 18%);
     border-radius: 2px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
     background: hsl(220, 15%, 25%);
+  }
+
+  .scrollbar-hidden {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
   }
 
   /* Data table styles */
@@ -233,6 +258,29 @@
   .chart-grid {
     stroke: hsl(220, 15%, 15%);
     stroke-dasharray: 2 4;
+  }
+
+  /* Glass morphism */
+  .glass {
+    background: hsla(220, 15%, 10%, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid hsla(220, 15%, 20%, 0.3);
+  }
+
+  /* Glow utilities */
+  .glow-primary {
+    box-shadow: 0 0 20px -5px hsla(210, 50%, 55%, 0.3);
+  }
+  .glow-success {
+    box-shadow: 0 0 20px -5px hsla(150, 50%, 50%, 0.3);
+  }
+  .text-glow {
+    text-shadow: 0 0 20px currentColor;
+  }
+
+  /* Smooth interactive transitions */
+  .transition-interactive {
+    transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
   }
 }
 

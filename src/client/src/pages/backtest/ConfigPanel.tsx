@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -6,7 +7,8 @@ import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles } from "lucide-react";
-import type { BrokerConfig } from "./types";
+import type { BrokerConfig, StrategyType, IndicatorStrategyPreset } from "./types";
+import { INDICATOR_DEFAULTS } from "./types";
 
 interface ConfigPanelProps {
   selectedModel: string;
@@ -41,6 +43,24 @@ interface ConfigPanelProps {
   onLoadRun: (run: any) => void;
 }
 
+const STRATEGY_TYPES: { value: StrategyType; label: string }[] = [
+  { value: 'ml_prediction', label: 'ML Prediction' },
+  { value: 'momentum', label: 'Momentum' },
+  { value: 'indicator', label: 'Indicator' },
+  { value: 'hybrid', label: 'Hybrid' },
+];
+
+const INDICATOR_PRESETS: { value: IndicatorStrategyPreset; label: string }[] = [
+  { value: 'sma_crossover', label: 'SMA Crossover' },
+  { value: 'ema_crossover', label: 'EMA Crossover' },
+  { value: 'rsi_reversal', label: 'RSI Reversal' },
+  { value: 'macd_signal', label: 'MACD Signal' },
+  { value: 'bollinger_breakout', label: 'Bollinger Breakout' },
+  { value: 'triple_ma', label: 'Triple MA' },
+];
+
+const SESSIONS = ['London', 'New York', 'Tokyo', 'Sydney'];
+
 export function ConfigPanel({
   selectedModel, onModelChange,
   selectedSymbol, onSymbolChange,
@@ -57,6 +77,40 @@ export function ConfigPanel({
   models, instruments, brokers,
   previousRuns, selectedRunId, onLoadRun,
 }: ConfigPanelProps) {
+  const [strategyType, setStrategyType] = useState<StrategyType>('ml_prediction');
+  const [indicatorPreset, setIndicatorPreset] = useState<IndicatorStrategyPreset>('sma_crossover');
+  const [indicatorParams, setIndicatorParams] = useState<Record<string, number>>(INDICATOR_DEFAULTS.sma_crossover);
+  const [selectedSessions, setSelectedSessions] = useState<string[]>(['London', 'New York']);
+
+  const selectedInstrument = instruments.find((i) => i.symbol === selectedSymbol);
+  const isForex = selectedInstrument?.assetType === 'forex';
+  const showModelSelector = strategyType === 'ml_prediction' || strategyType === 'hybrid';
+  const showIndicatorSelector = strategyType === 'indicator' || strategyType === 'hybrid';
+
+  const handleStrategyTypeChange = (type: StrategyType) => {
+    setStrategyType(type);
+    if (type === 'momentum') {
+      onModelChange('momentum');
+    } else if (type === 'ml_prediction') {
+      onModelChange('__last_trained__');
+    }
+  };
+
+  const handlePresetChange = (preset: IndicatorStrategyPreset) => {
+    setIndicatorPreset(preset);
+    setIndicatorParams({ ...INDICATOR_DEFAULTS[preset] });
+  };
+
+  const handleParamChange = (key: string, value: number) => {
+    setIndicatorParams((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const toggleSession = (session: string) => {
+    setSelectedSessions((prev) =>
+      prev.includes(session) ? prev.filter((s) => s !== session) : [...prev, session]
+    );
+  };
+
   return (
     <div className="lg:col-span-1 space-y-3 overflow-y-auto pr-1">
       <Card className="glass rounded-2xl gradient-border">
@@ -66,24 +120,78 @@ export function ConfigPanel({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 pt-3 text-xs">
-          {/* Model Selection */}
+          {/* Strategy Type */}
           <div className="space-y-1.5">
-            <Label className="text-[10px] text-muted-foreground">Model</Label>
-            <Select value={selectedModel} onValueChange={onModelChange}>
+            <Label className="text-[10px] text-muted-foreground">Strategy Type</Label>
+            <Select value={strategyType} onValueChange={(v) => handleStrategyTypeChange(v as StrategyType)}>
               <SelectTrigger className="h-8 rounded-lg bg-white/5 border-white/10 text-xs">
-                <SelectValue placeholder="Select model" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="momentum">Momentum (no ML)</SelectItem>
-                <SelectItem value="__last_trained__">Last Trained (in-memory)</SelectItem>
-                {models.map(m => (
-                  <SelectItem key={m.id} value={String(m.id)}>
-                    {m.name} ({m.architecture})
-                  </SelectItem>
+                {STRATEGY_TYPES.map((st) => (
+                  <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+
+          {/* Model Selection (shown for ml_prediction and hybrid) */}
+          {showModelSelector && (
+            <div className="space-y-1.5">
+              <Label className="text-[10px] text-muted-foreground">Model</Label>
+              <Select value={selectedModel} onValueChange={onModelChange}>
+                <SelectTrigger className="h-8 rounded-lg bg-white/5 border-white/10 text-xs">
+                  <SelectValue placeholder="Select model" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__last_trained__">Last Trained (in-memory)</SelectItem>
+                  {models.map(m => (
+                    <SelectItem key={m.id} value={String(m.id)}>
+                      {m.name} ({m.architecture})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Indicator Preset (shown for indicator and hybrid) */}
+          {showIndicatorSelector && (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-muted-foreground">Indicator Preset</Label>
+                <Select value={indicatorPreset} onValueChange={(v) => handlePresetChange(v as IndicatorStrategyPreset)}>
+                  <SelectTrigger className="h-8 rounded-lg bg-white/5 border-white/10 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INDICATOR_PRESETS.map((ip) => (
+                      <SelectItem key={ip.value} value={ip.value}>{ip.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Dynamic indicator parameters */}
+              <div className="space-y-1.5 pl-2 border-l-2 border-[hsl(185,40%,45%)]/30">
+                {Object.entries(indicatorParams).map(([key, value]) => (
+                  <div key={key} className="space-y-1">
+                    <Label className="text-[10px] text-muted-foreground capitalize">
+                      {key.replace(/([A-Z])/g, ' $1').trim()}
+                    </Label>
+                    <Input
+                      type="number"
+                      value={value}
+                      onChange={(e) => handleParamChange(key, Number(e.target.value))}
+                      className="h-7 rounded-lg bg-white/5 border-white/10 text-[10px]"
+                      min={1}
+                      step={1}
+                    />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           {/* Instrument */}
           <div className="space-y-1.5">
@@ -101,6 +209,40 @@ export function ConfigPanel({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Session Filter (forex only) */}
+          {isForex && (
+            <div className="space-y-1.5">
+              <Label className="text-[10px] text-muted-foreground">Session Filter</Label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {SESSIONS.map((session) => (
+                  <label
+                    key={session}
+                    className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg cursor-pointer text-[10px] transition-colors ${
+                      selectedSessions.includes(session)
+                        ? 'bg-[hsl(185,40%,45%)]/15 border border-[hsl(185,40%,45%)]/30 text-[hsl(185,40%,45%)]'
+                        : 'bg-white/5 border border-white/10 text-muted-foreground'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedSessions.includes(session)}
+                      onChange={() => toggleSession(session)}
+                      className="sr-only"
+                    />
+                    <div className={`w-3 h-3 rounded border flex items-center justify-center ${
+                      selectedSessions.includes(session) ? 'bg-[hsl(185,40%,45%)] border-[hsl(185,40%,45%)]' : 'border-white/30'
+                    }`}>
+                      {selectedSessions.includes(session) && (
+                        <svg className="w-2 h-2 text-white" viewBox="0 0 12 12"><path d="M10 3L4.5 8.5 2 6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      )}
+                    </div>
+                    {session}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Broker */}
           <div className="space-y-1.5">

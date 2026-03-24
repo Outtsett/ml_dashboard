@@ -55,6 +55,10 @@ const CATEGORY_COLORS: Record<string, string> = {
   "reinforcement-learning": "bg-red-500/20 text-red-400 border-red-500/30",
   "simulation-decision": "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
   "statistical": "bg-teal-500/20 text-teal-400 border-teal-500/30",
+  "self-supervised": "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
+  "semi-supervised": "bg-lime-500/20 text-lime-400 border-lime-500/30",
+  "supervised": "bg-rose-500/20 text-rose-400 border-rose-500/30",
+  "unsupervised": "bg-slate-500/20 text-slate-400 border-slate-500/30",
 };
 
 function categoryColor(cat: string) {
@@ -557,5 +561,6 @@ function SectionHeader({ icon: Icon, title }: { icon: typeof BookOpen; title: st
     </h3>
   );
 }
+
 
 

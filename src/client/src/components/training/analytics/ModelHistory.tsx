@@ -6,10 +6,14 @@
  */
 
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { useQuery } from "@tanstack/react-query";
+import { Sparkles } from "lucide-react";
 import type { AnalyticsComponentProps } from "./index";
 import { CHART_GRID, CHART_AXIS, CHART_TOOLTIP } from "../types";
 import { ChartCard, EmptyState } from "./shared";
 import { useModelHistory } from "@/hooks/useModelHistory";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const GRADE_COLORS: Record<string, string> = {
   A: "bg-emerald-500/15 text-emerald-400",
@@ -28,9 +32,30 @@ function extractModelType(modelId: string): string | null {
   return parts.slice(2, -1).join("_");
 }
 
+interface HPOSession {
+  sessionId: string;
+  optimizerType: string;
+  modelType: string;
+  bestScore: number | null;
+  completedTrials: number;
+  totalTrials: number;
+  status: string;
+  startedAt: string;
+}
+
 export default function ModelHistory({ diagnostics, modelId }: AnalyticsComponentProps) {
   const modelType = extractModelType(modelId);
   const { data } = useModelHistory(diagnostics.symbol, modelType);
+
+  const { data: hpoSessions } = useQuery<HPOSession[]>({
+    queryKey: ["hpo-sessions"],
+    queryFn: async () => {
+      const res = await fetch("/api/hpo/sessions?limit=20");
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 30_000,
+  });
 
   if (!data?.sessions?.length || data.sessions.length < 2) {
     return (
@@ -98,6 +123,46 @@ export default function ModelHistory({ diagnostics, modelId }: AnalyticsComponen
           </span>
         ))}
       </div>
+
+      {/* HPO Optimization History */}
+      {hpoSessions && hpoSessions.length > 0 && (
+        <div className="mt-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="h-4 w-4 text-purple-400" />
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
+              HPO Sessions
+            </h4>
+            <Badge variant="outline" className="text-[9px]">
+              {hpoSessions.length}
+            </Badge>
+          </div>
+
+          {hpoSessions.map(session => (
+            <div key={session.sessionId} className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 border border-white/5 mb-1.5">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-[9px] capitalize">{session.optimizerType}</Badge>
+                <span className="text-xs text-muted-foreground">{session.modelType}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-mono text-emerald-400">
+                  {session.bestScore != null ? session.bestScore.toFixed(4) : '—'}
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {session.completedTrials}/{session.totalTrials} trials
+                </span>
+                <Badge variant="outline" className={cn(
+                  "text-[9px]",
+                  session.status === 'completed' ? 'text-emerald-400 border-emerald-500/20' :
+                  session.status === 'failed' ? 'text-red-400 border-red-500/20' :
+                  'text-blue-400 border-blue-500/20'
+                )}>
+                  {session.status}
+                </Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </ChartCard>
   );
 }

@@ -42,12 +42,12 @@ export default function ForecastVisualizer() {
   });
 
   const { data: forecastList = [], isLoading: isListLoading } = useQuery<ForecastListItem[]>({
-    queryKey: ["/api/ml/forecasts"],
+    queryKey: QUERY_KEYS.mlForecastsList,
     queryFn: () => fetchArray<ForecastListItem>("/api/ml/forecasts"),
   });
 
   const { data: forecastData, isLoading: isDataLoading } = useQuery<ForecastData>({
-    queryKey: [...QUERY_KEYS.mlForecasts, selectedForecast],
+    queryKey: QUERY_KEYS.mlForecasts(selectedForecast ?? ''),
     queryFn: () => mlApi.getForecastById(selectedForecast!) as Promise<ForecastData>,
     enabled: !!selectedForecast,
   });
@@ -63,7 +63,7 @@ export default function ForecastVisualizer() {
       samples: 20,
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/ml/forecasts"] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.mlForecastsList });
       const tfLabels: Record<string, string> = { "60": "1m", "300": "5m", "900": "15m", "1800": "30m", "3600": "1h", "14400": "4h", "86400": "1d" };
       const tfLabel = tfLabels[timeframe] || `${timeframe}s`;
       setSelectedForecast(`chronos_${symbol}_${tfLabel}_${modelSize}.json`);

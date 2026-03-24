@@ -22,6 +22,16 @@ data/
 # Archives
 pythonlibs.zip
 node_modules.zip
+
+# Logs
+*.log
+server_debug.log
+server_debug_err.log
+
+# PID files
+.questdb.pid
+
+# Windows artifacts
 nul
 
 # IDE & editor
@@ -44,3 +54,10 @@ Desktop.ini
 
 # Coverage
 coverage/
+
+# Python
+*.egg-info/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/

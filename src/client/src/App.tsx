@@ -16,6 +16,8 @@ import {
 } from "@/components/LoadingSkeletons";
 import { prefetchCriticalData } from "./lib/prefetch";
 import { useWebVitals } from './hooks/useWebVitals';
+import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
+import { useNativeMenu } from '@/hooks/useNativeMenu';
 
 const MarketData = lazy(() => import("@/pages/MarketData"));
 const Portfolio = lazy(() => import("@/pages/Portfolio"));
@@ -117,6 +119,8 @@ function App() {
   }, []);
 
   useWebVitals();
+  useGlobalShortcuts();
+  useNativeMenu();
 
   return (
     <QueryClientProvider client={queryClient}>

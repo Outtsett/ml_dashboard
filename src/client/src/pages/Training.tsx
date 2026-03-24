@@ -3,10 +3,11 @@ import { PhaseSidebar } from "./training/PhaseSidebar";
 import { PhasePanel } from "./training/PhasePanel";
 import { PipelineOverview } from "./training/PipelineOverview";
 import { TrainingControls } from "./training/TrainingControls";
+import { HPOWorkflow } from "./training/HPOWorkflow";
 import type { Phase, PhaseStatus } from "./training/types";
 
 export default function Training() {
-  const [activePhase, setActivePhase] = useState<Phase | "overview">("overview");
+  const [activePhase, setActivePhase] = useState<Phase | "overview" | "hpo">("overview");
   const [phaseStatuses, setPhaseStatuses] = useState<Record<Phase, PhaseStatus>>({
     A: "idle",
     B: "idle",
@@ -56,7 +57,9 @@ export default function Training() {
       <main className="flex-1 overflow-auto p-6">
         <TrainingControls />
         {activePhase === "overview" ? (
-          <PipelineOverview />
+          <PipelineOverview phaseStatuses={phaseStatuses} onSelectPhase={(p) => setActivePhase(p)} />
+        ) : activePhase === "hpo" ? (
+          <HPOWorkflow />
         ) : (
           <PhasePanel phase={activePhase} />
         )}

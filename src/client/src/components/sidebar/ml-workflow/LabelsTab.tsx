@@ -92,16 +92,16 @@ export function LabelsTab({
             Distribution ({labelDistribution.total} visible)
           </p>
           <div className="space-y-1">
-            {[
-              { label: 'BUY', count: labelDistribution.buy, pct: labelDistribution.buyPct, color: 'green' },
-              { label: 'SELL', count: labelDistribution.sell, pct: labelDistribution.sellPct, color: 'rose' },
-              { label: 'HOLD', count: labelDistribution.hold, pct: labelDistribution.holdPct, color: 'violet' },
-            ].map(({ label, count, pct, color }) => (
+            {([
+              { label: 'BUY', count: labelDistribution.buy, pct: labelDistribution.buyPct, barClass: 'bg-green-500', textClass: 'text-green-400' },
+              { label: 'SELL', count: labelDistribution.sell, pct: labelDistribution.sellPct, barClass: 'bg-rose-500', textClass: 'text-rose-400' },
+              { label: 'HOLD', count: labelDistribution.hold, pct: labelDistribution.holdPct, barClass: 'bg-violet-500', textClass: 'text-violet-400' },
+            ] as const).map(({ label, count, pct, barClass, textClass }) => (
               <div key={label} className="flex items-center gap-2">
                 <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                  <div className={`h-full bg-${color}-500 rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                  <div className={`h-full ${barClass} rounded-full transition-all`} style={{ width: `${pct}%` }} />
                 </div>
-                <span className={`text-${color}-400 text-[9px] font-mono w-16 text-right`}>
+                <span className={`${textClass} text-[9px] font-mono w-16 text-right`}>
                   {label} {count} ({pct}%)
                 </span>
               </div>

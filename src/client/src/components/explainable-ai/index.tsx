@@ -43,9 +43,9 @@ export function ExplainableAI({ symbol, modelId }: ExplainableAIProps) {
   const [params, setParams] = useState<Record<string, unknown>>({});
   const [explanation, setExplanation] = useState<XAIExplanation | null>(null);
 
-  const { data: methodsData } = useQuery({
+  const { data: methodsData } = useQuery<{ methods: Record<string, XAIMethod> }>({
     queryKey: [...QUERY_KEYS.xaiMethods],
-    queryFn: () => xaiApi.getMethods(),
+    queryFn: () => xaiApi.getMethods() as Promise<{ methods: Record<string, XAIMethod> }>,
   });
 
   const methods: Record<string, XAIMethod> = useMemo(() => {
@@ -66,14 +66,14 @@ export function ExplainableAI({ symbol, modelId }: ExplainableAIProps) {
     }
   }, [selectedMethodDef]);
 
-  const explainMutation = useMutation({
+  const explainMutation = useMutation<{ explanation: XAIExplanation }, Error>({
     mutationFn: async () => {
       return xaiApi.explain({
         symbol,
         method: selectedMethod,
         params,
         modelId: modelId || 0,
-      });
+      }) as Promise<{ explanation: XAIExplanation }>;
     },
     onSuccess: (data) => {
       setExplanation(data.explanation);

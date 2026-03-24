@@ -8,7 +8,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { useTrainingSSE, type MetricEvent } from "../../../hooks/useTrainingSSE";
+import { useMetricStream, type MetricEvent } from "../../../hooks/useTrainingSSE";
 
 function groupByEpoch(events: MetricEvent[], metricName: string) {
   const byEpoch = new Map<number, number>();
@@ -23,7 +23,7 @@ function groupByEpoch(events: MetricEvent[], metricName: string) {
 }
 
 export function PhaseCPanel() {
-  const { events, connected } = useTrainingSSE({
+  const { events, connected } = useMetricStream({
     phase: "C",
     model: "pipeline_train",
   });

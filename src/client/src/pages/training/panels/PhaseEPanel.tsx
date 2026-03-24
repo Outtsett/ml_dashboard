@@ -9,7 +9,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { useTrainingSSE, type MetricEvent } from "../../../hooks/useTrainingSSE";
+import { useMetricStream, type MetricEvent } from "../../../hooks/useTrainingSSE";
 import { EquityCurve } from "../../../components/charts/EquityCurve";
 
 function groupByEpoch(events: MetricEvent[], metricName: string) {
@@ -80,7 +80,7 @@ function useArtifact<T>(phase: string, name: string) {
 }
 
 export function PhaseEPanel() {
-  const { events, connected } = useTrainingSSE({
+  const { events, connected } = useMetricStream({
     phase: "E",
     model: "pipeline_train",
   });

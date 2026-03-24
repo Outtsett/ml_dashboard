@@ -4,10 +4,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Play, RefreshCw } from "lucide-react";
 
 interface QueryConsoleProps {
-  queryDb: "postgres" | "questdb";
+  queryDb: "questdb" | "sqlite";
   customQuery: string;
   isPending: boolean;
-  onQueryDbChange: (db: "postgres" | "questdb") => void;
+  onQueryDbChange: (db: "questdb" | "sqlite") => void;
   onCustomQueryChange: (query: string) => void;
   onRunQuery: () => void;
 }
@@ -27,18 +27,18 @@ export function QueryConsole({
           <Play className="h-5 w-5 text-primary" />
           SQL Query Console
         </CardTitle>
-        <CardDescription>Execute queries against any database</CardDescription>
+        <CardDescription>Execute queries against any database engine</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex gap-4">
           <select
             value={queryDb}
-            onChange={(e) => onQueryDbChange(e.target.value as "postgres" | "questdb")}
+            onChange={(e) => onQueryDbChange(e.target.value as "questdb" | "sqlite")}
             className="glass rounded-lg px-4 py-2 text-sm font-mono bg-transparent border border-white/10"
             data-testid="query-db-select"
           >
-            <option value="postgres">PostgreSQL</option>
-            <option value="questdb">QuestDB</option>
+            <option value="questdb" className="bg-slate-900">QuestDB (Speed)</option>
+            <option value="sqlite" className="bg-slate-900">SQLite (Metadata)</option>
           </select>
         </div>
         <Textarea
@@ -50,8 +50,8 @@ export function QueryConsole({
         />
         <div className="flex justify-between items-center">
           <p className="text-xs text-muted-foreground">
-            {queryDb === "questdb" && "Tip: Use SAMPLE BY 1h for time aggregation"}
-            {queryDb === "postgres" && "Tip: Query metadata tables for instrument info"}
+            {queryDb === "questdb" && "Tip: Use SAMPLE BY for high-frequency data aggregation"}
+            {queryDb === "sqlite" && "Tip: Access local development metadata and app config"}
           </p>
           <Button
             onClick={onRunQuery}

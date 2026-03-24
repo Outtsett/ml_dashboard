@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
-import { Home, LineChart, Database, Settings, Server, BarChart2, List, Newspaper, ChevronRight, PanelLeftClose, PanelLeftOpen, Network, Brain, FlaskConical, AudioWaveform, BookOpen } from "lucide-react";
+import { Home, LineChart, Database, Settings, Server, BarChart2, List, Newspaper, ChevronRight, PanelLeftClose, PanelLeftOpen, BrainCircuit, BookOpen } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { prefetchOnHover } from "@/lib/prefetch";
 import { useBreadcrumbItems } from "@/hooks/useBreadcrumbs";
+import { Logo } from "@/components/ui/Logo";
+import { Titlebar } from "@/components/desktop/Titlebar";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -22,10 +24,7 @@ const SIDEBAR_COLLAPSED_KEY = "sidebar_collapsed";
 
 const routeMeta: Record<string, { label: string; icon: typeof Home }> = {
   "/": { label: "Market Data", icon: Database },
-  "/training": { label: "Training", icon: Brain },
-  "/backtest": { label: "Backtest", icon: FlaskConical },
-  "/fourier": { label: "Fourier", icon: AudioWaveform },
-  "/architecture": { label: "Architecture", icon: Network },
+  "/ml-studio": { label: "ML Studio", icon: BrainCircuit },
   "/model-catalog": { label: "Model Catalog", icon: BookOpen },
   "/portfolio": { label: "Portfolio", icon: BarChart2 },
   "/watchlist": { label: "Watchlist", icon: List },
@@ -60,82 +59,111 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // Resolve the current page from the route
   const currentRoute = routeMeta[location] ?? routeMeta["/"];
 
-  const navItems = [
-    { icon: Database, label: "Market Data", href: "/" },
-    { icon: Brain, label: "Training", href: "/training" },
-    { icon: FlaskConical, label: "Backtest", href: "/backtest" },
-    { icon: AudioWaveform, label: "Fourier", href: "/fourier" },
-    { icon: Network, label: "Architecture", href: "/architecture" },
-    { icon: BookOpen, label: "Model Catalog", href: "/model-catalog" },
-    { icon: BarChart2, label: "Portfolio", href: "/portfolio" },
-    { icon: List, label: "Watchlist", href: "/watchlist" },
-    { icon: Newspaper, label: "News", href: "/news" },
-    { icon: Server, label: "Databases", href: "/databases" },
-    { icon: Settings, label: "Settings", href: "/settings" },
+  const navGroups = [
+    {
+      title: "Market & Data",
+      items: [
+        { icon: Database, label: "Market Data", href: "/" },
+        { icon: List, label: "Watchlist", href: "/watchlist" },
+        { icon: Newspaper, label: "News", href: "/news" },
+        { icon: Server, label: "Databases", href: "/databases" },
+      ]
+    },
+    {
+      title: "Analysis & Models",
+      items: [
+        { icon: BrainCircuit, label: "ML Studio", href: "/ml-studio" },
+        { icon: BookOpen, label: "Model Catalog", href: "/model-catalog" },
+      ]
+    },
+    {
+      title: "Execution",
+      items: [
+        { icon: BarChart2, label: "Portfolio", href: "/portfolio" },
+      ]
+    },
+    {
+      title: "System",
+      items: [
+        { icon: Settings, label: "Settings", href: "/settings" },
+      ]
+    }
   ];
 
   return (
     <TooltipProvider delayDuration={200}>
     <div className="min-h-screen bg-background text-foreground flex font-sans">
+      <Titlebar />
       <aside
-        className={`bg-card border-r border-border flex flex-col fixed h-full z-20 transition-all duration-200 ease-in-out ${
+        className={`border-r border-border flex flex-col fixed h-full z-20 transition-all duration-200 ease-in-out ${
           collapsed ? "w-14" : "w-56"
         }`}
+        style={{ background: 'linear-gradient(180deg, hsl(220, 15%, 7%) 0%, hsl(220, 15%, 9.5%) 100%)' }}
       >
         {/* Logo */}
-        <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-border relative">
           <div className="flex items-center gap-2 overflow-hidden">
-            <div className="h-8 w-8 min-w-[2rem] bg-primary/20 border border-primary/30 flex items-center justify-center">
-              <LineChart className="h-4 w-4 text-primary" />
+            <div className="h-8 w-8 min-w-[2rem] flex items-center justify-center">
+              <Logo className="h-full w-full" />
             </div>
             {!collapsed && (
               <div className="whitespace-nowrap">
-                <span className="text-lg font-display font-semibold">Quant<span className="text-primary">AI</span></span>
-                <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider">Trading System</p>
+                <span className="text-lg font-display font-semibold tracking-tight">Quant<span className="text-primary text-glow">AI</span></span>
+                <p className="text-[9px] font-mono text-muted-foreground uppercase tracking-widest opacity-70">Intelligence</p>
               </div>
             )}
           </div>
+          <div className="absolute bottom-0 left-3 right-3 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-2 py-3 space-y-0.5">
-          {navItems.map((item) => {
-            const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
-            const navContent = (
-              <Link key={item.href} href={item.href}>
-                <div
-                  data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                  className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-all text-sm ${
-                    isActive
-                      ? "bg-primary/10 text-foreground border-l-2 border-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                  }`}
-                  onMouseEnter={prefetchOnHover(item.href)}
-                >
-                  <item.icon className={`h-4 w-4 min-w-[1rem] ${isActive ? "text-primary" : ""}`} />
-                  {!collapsed && <span className="font-medium whitespace-nowrap">{item.label}</span>}
+        <nav className="flex-1 px-2 py-3 space-y-4 overflow-y-auto">
+          {navGroups.map((group, groupIdx) => (
+            <div key={groupIdx} className="space-y-1">
+              {!collapsed && (
+                <div className="px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  {group.title}
                 </div>
-              </Link>
-            );
+              )}
+              {group.items.map((item) => {
+                const isActive = location === item.href || (item.href !== '/' && location.startsWith(item.href));
+                const navContent = (
+                  <Link key={item.href} href={item.href}>
+                    <div
+                      data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                      className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-all text-sm rounded-md ${
+                        isActive
+                          ? "bg-primary/10 text-primary font-medium border-l-[3px] border-primary"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border-l-[3px] border-transparent"
+                      }`}
+                      onMouseEnter={prefetchOnHover(item.href)}
+                    >
+                      <item.icon className={`min-w-[1rem] transition-all ${isActive ? "h-[1.125rem] w-[1.125rem] text-primary drop-shadow-[0_0_6px_hsla(210,50%,55%,0.4)]" : "h-4 w-4"}`} />
+                      {!collapsed && <span className="whitespace-nowrap">{item.label}</span>}
+                    </div>
+                  </Link>
+                );
 
-            if (collapsed) {
-              return (
-                <Tooltip key={item.href}>
-                  <TooltipTrigger asChild>{navContent}</TooltipTrigger>
-                  <TooltipContent side="right" sideOffset={8}>
-                    <p className="text-xs font-medium">{item.label}</p>
-                  </TooltipContent>
-                </Tooltip>
-              );
-            }
-            return navContent;
-          })}
+                if (collapsed) {
+                  return (
+                    <Tooltip key={item.href}>
+                      <TooltipTrigger asChild>{navContent}</TooltipTrigger>
+                      <TooltipContent side="right" sideOffset={8}>
+                        <p className="text-xs font-medium">{item.label}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                }
+                return navContent;
+              })}
+            </div>
+          ))}
         </nav>
 
         {/* System stats — hidden when collapsed */}
         {!collapsed && (
           <div className="p-3 border-t border-border">
-            <div className="bg-muted/50 p-3 space-y-2">
+            <div className="bg-muted/50 p-3 rounded-lg space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">System</span>
                 <span className="text-[10px] font-mono text-emerald-500">Online</span>
@@ -143,19 +171,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <div className="space-y-1.5">
                 <div className="flex justify-between text-[10px] text-muted-foreground">
                   <span>CPU</span>
-                  <span className="font-mono">42%</span>
+                  <span className="font-mono">23%</span>
                 </div>
-                <div className="h-1 bg-border overflow-hidden">
-                  <div className="h-full bg-primary/60 w-[42%]" />
+                <div className="h-1.5 bg-border rounded-full overflow-hidden">
+                  <div className="h-full bg-primary/60 w-[23%] rounded-full transition-all duration-700 ease-out" />
                 </div>
               </div>
               <div className="space-y-1.5">
                 <div className="flex justify-between text-[10px] text-muted-foreground">
                   <span>GPU</span>
-                  <span className="font-mono">78%</span>
+                  <span className="font-mono">54%</span>
                 </div>
-                <div className="h-1 bg-border overflow-hidden">
-                  <div className="h-full bg-accent/60 w-[78%]" />
+                <div className="h-1.5 bg-border rounded-full overflow-hidden">
+                  <div className="h-full bg-accent/60 w-[54%] rounded-full transition-all duration-700 ease-out" />
                 </div>
               </div>
             </div>
@@ -163,15 +191,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         {/* Collapse toggle + version */}
-        <div className="p-3 border-t border-border">
-          <div className="flex items-center gap-2">
+        <div className="p-3 relative">
+          <div className="absolute top-0 left-3 right-3 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+          <div className="flex items-center gap-2 pt-1">
             {!collapsed && (
               <>
-                <div className="h-7 w-7 bg-muted flex items-center justify-center text-xs font-mono text-muted-foreground">Q</div>
+                <div className="h-7 w-7 bg-muted rounded flex items-center justify-center p-1.5">
+                  <Logo />
+                </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-foreground">v2.4.1</p>
                   <div className="flex items-center gap-1.5">
-                    <div className="h-1.5 w-1.5 bg-emerald-500 rounded-full" />
+                    <div className="h-1.5 w-1.5 bg-emerald-500 rounded-full animate-pulse" />
                     <p className="text-[10px] text-muted-foreground font-mono">Active</p>
                   </div>
                 </div>
@@ -193,9 +224,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <main className={`flex-1 min-w-0 flex flex-col h-screen overflow-hidden transition-all duration-200 ease-in-out ${collapsed ? "ml-14" : "ml-56"}`}>
         {/* Breadcrumb bar */}
         {(() => {
-          const RouteIcon = currentRoute!.icon;
+          const RouteIcon = currentRoute?.icon || Home;
           return (
-        <div className="drag-region border-b border-border bg-card/50 backdrop-blur-sm px-4 pt-10 pb-2 shrink-0 z-10">
+        <div className={`border-b border-border bg-background/95 supports-[backdrop-filter]:bg-background/60 backdrop-blur px-4 pb-2 shrink-0 z-10 sticky top-0 shadow-[0_1px_3px_0_rgba(0,0,0,0.25)] ${window.electronAPI ? 'pt-[36px]' : 'pt-4 drag-region'}`}>
           <Breadcrumb className="no-drag">
             <BreadcrumbList>
               <BreadcrumbSlot>
@@ -212,9 +243,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
               {subCrumbs.length === 0 ? (
                 <BreadcrumbSlot>
-                  <BreadcrumbPage className="flex items-center gap-1.5 text-xs font-medium">
+                  <BreadcrumbPage className="flex items-center gap-1.5 text-sm font-medium">
                     <RouteIcon className="h-3.5 w-3.5 text-primary/70" />
-                    {currentRoute!.label}
+                    {currentRoute?.label || "Page"}
                   </BreadcrumbPage>
                 </BreadcrumbSlot>
               ) : (
@@ -223,7 +254,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <BreadcrumbLink asChild>
                       <Link href={location} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
                         <RouteIcon className="h-3.5 w-3.5" />
-                        {currentRoute!.label}
+                        {currentRoute?.label || "Page"}
                       </Link>
                     </BreadcrumbLink>
                   </BreadcrumbSlot>
@@ -235,7 +266,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       </BreadcrumbSeparator>
                       <BreadcrumbSlot>
                         {i === subCrumbs.length - 1 ? (
-                          <BreadcrumbPage className="flex items-center gap-1.5 text-xs font-medium">
+                          <BreadcrumbPage className="flex items-center gap-1.5 text-sm font-medium">
                             {crumb.icon && <crumb.icon className="h-3.5 w-3.5 text-primary/70" />}
                             {crumb.label}
                           </BreadcrumbPage>
@@ -268,7 +299,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           );
         })()}
 
-        <div className="p-4 max-w-[1800px] mx-auto flex-1 min-h-0 overflow-auto">
+        <div className="p-4 flex-1 min-h-0 overflow-auto w-full">
           {children}
         </div>
       </main>

@@ -9,7 +9,7 @@ import { HistoryTab } from "./HistoryTab";
 
 export function LabelGeneration({ selectedSymbol, symbols, onSymbolChange }: LabelGenerationProps) {
   const { data: labelSets, isLoading: loadingLabelSets } = useQuery<LabelSet[]>({
-    queryKey: [...QUERY_KEYS.labels, selectedSymbol],
+    queryKey: QUERY_KEYS.labels(selectedSymbol),
     queryFn: () => labelApi.getLabels(selectedSymbol) as Promise<LabelSet[]>,
   });
 

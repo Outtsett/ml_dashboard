@@ -23,9 +23,9 @@ export function IndicatorPanel({ symbol }: IndicatorPanelProps) {
   const [preset, setPreset] = useState<string>('oscillators');
   const [enabled, setEnabled] = useState(false);
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, refetch } = useQuery<{ data: any[]; indicators: string[] }>({
     queryKey: ['indicators', symbol, preset],
-    queryFn: () => indicatorApi.compute({ symbol, preset, limit: 500 }),
+    queryFn: () => indicatorApi.compute({ symbol, preset, limit: 500 }) as Promise<{ data: any[]; indicators: string[] }>,
     enabled: enabled && !!symbol,
     staleTime: 60000,
   });

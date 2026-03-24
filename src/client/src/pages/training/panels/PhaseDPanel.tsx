@@ -8,7 +8,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { useTrainingSSE, type MetricEvent } from "../../../hooks/useTrainingSSE";
+import { useMetricStream, type MetricEvent } from "../../../hooks/useTrainingSSE";
 import { Heatmap } from "../../../components/charts/Heatmap";
 import { ReliabilityDiagram } from "../../../components/charts/ReliabilityDiagram";
 
@@ -62,7 +62,7 @@ function useArtifact<T>(phase: string, name: string) {
 }
 
 export function PhaseDPanel() {
-  const { events, connected } = useTrainingSSE({
+  const { events, connected } = useMetricStream({
     phase: "D",
     model: "pipeline_train",
   });

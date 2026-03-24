@@ -19,7 +19,7 @@ export interface TrainingConfigResponse {
 export function useTrainingConfig() {
   return useQuery<TrainingConfigResponse>({
     queryKey: [...QUERY_KEYS.trainingConfig],
-    queryFn: () => trainingApi.getConfig(),
+    queryFn: () => trainingApi.getConfig() as Promise<TrainingConfigResponse>,
     staleTime: 300_000, // 5 min
   });
 }

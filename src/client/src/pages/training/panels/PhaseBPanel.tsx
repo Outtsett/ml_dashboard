@@ -8,7 +8,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { useTrainingSSE, type MetricEvent } from "../../../hooks/useTrainingSSE";
+import { useMetricStream, type MetricEvent } from "../../../hooks/useTrainingSSE";
 import { Heatmap } from "../../../components/charts/Heatmap";
 
 function groupByEpoch(events: MetricEvent[], metricName: string) {
@@ -57,7 +57,7 @@ function useArtifact(phase: string, name: string) {
 }
 
 export function PhaseBPanel() {
-  const { events, connected } = useTrainingSSE({
+  const { events, connected } = useMetricStream({
     phase: "B",
     model: "pipeline_train",
   });

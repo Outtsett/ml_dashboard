@@ -32,21 +32,30 @@ export function useChartOHLCV(symbol: string, timeframeMinutes: number) {
   }, [symbol, timeframeMinutes]);
 
   // ── Primary data query ──
-  const { data: chartQueryData, isFetching } = useQuery({
+  const { data: chartQueryData, isFetching } = useQuery<OhlcvData[]>({
     queryKey: ['/api/charts/ohlcv', symbol, apiTimeframe],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const url = `/api/charts/ohlcv?symbol=${symbol}&timeframe=${apiTimeframe}&limit=${FETCH_LIMIT}&order=asc`;
-      const response = await fetch(url);
-      if (!response.ok) return [];
-      const data: OhlcvData[] = await response.json();
-      setVisibleData(data);
-      setHasMoreLeft(false);
-      setHasMoreRight(data.length >= FETCH_LIMIT);
-      return data;
+      const response = await fetch(url, { signal });
+      if (!response.ok) {
+        const errText = await response.text().catch(() => response.statusText);
+        throw new Error(`Failed to load chart data: ${errText}`);
+      }
+      return await response.json() as OhlcvData[];
     },
-    staleTime: 5 * 60 * 1000,
-    placeholderData: (prev: OhlcvData[] | undefined) => prev,
+    staleTime: 10 * 60 * 1000, // 10 min — historical OHLCV rarely changes
+    // Don't use placeholderData — showing a different symbol's data
+    // while the new one loads causes a confusing "cycling" effect
   });
+
+  // Sync visible state when primary query data arrives (not inside queryFn)
+  useEffect(() => {
+    if (chartQueryData) {
+      setVisibleData(chartQueryData);
+      setHasMoreLeft(false);
+      setHasMoreRight(chartQueryData.length >= FETCH_LIMIT);
+    }
+  }, [chartQueryData, FETCH_LIMIT]);
 
   // ── Infinite scroll handler ──
   const handleLoadMore = useCallback(async (direction: 'left' | 'right', timestamp: number) => {

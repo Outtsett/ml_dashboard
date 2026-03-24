@@ -220,11 +220,9 @@ function HPODashboard({ sessionId, onClose, onApplyParams }: HPODashboardProps) 
     };
 
     return () => eventSource.close();
-    // Re-subscribe only when sessionId changes — trials.length is captured at
-    // subscription time via the URL but we don't want to re-open the stream on
-    // every new trial.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]);
+    // Re-subscribe when sessionId changes or when status transitions to a
+    // terminal state so the cleanup closes the stream.
+  }, [sessionId, status]);
 
   // ---- Derived data -------------------------------------------------------
 

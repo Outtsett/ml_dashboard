@@ -70,8 +70,8 @@ export function createChartOptions() {
       fontSize: 11,
     },
     grid: {
-      vertLines: { color: 'rgba(139, 92, 246, 0.08)' },
-      horzLines: { color: 'rgba(139, 92, 246, 0.08)' },
+      vertLines: { color: 'rgba(139, 92, 246, 0.05)' },
+      horzLines: { color: 'rgba(139, 92, 246, 0.05)' },
     },
     crosshair: {
       mode: 1 as const,
@@ -79,13 +79,13 @@ export function createChartOptions() {
         color: 'rgba(139, 92, 246, 0.5)',
         width: 1 as const,
         style: 2,
-        labelBackgroundColor: 'rgba(139, 92, 246, 0.8)',
+        labelBackgroundColor: 'rgba(139, 92, 246, 0.9)',
       },
       horzLine: {
         color: 'rgba(139, 92, 246, 0.5)',
         width: 1 as const,
         style: 2,
-        labelBackgroundColor: 'rgba(139, 92, 246, 0.8)',
+        labelBackgroundColor: 'rgba(139, 92, 246, 0.9)',
       },
     },
     rightPriceScale: {
@@ -97,8 +97,8 @@ export function createChartOptions() {
       borderColor: 'rgba(139, 92, 246, 0.2)',
       timeVisible: true,
       secondsVisible: false,
-      rightOffset: 5,
-      barSpacing: 6,
+      rightOffset: 8,
+      barSpacing: 7,
       minBarSpacing: 0.5,
       fixLeftEdge: false,
       fixRightEdge: false,

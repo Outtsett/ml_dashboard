@@ -112,7 +112,7 @@ export function OverviewTab({ savedModels, tradeMetrics, models }: OverviewTabPr
         </Card>
       </div>
 
-      {/* DB Models (PostgreSQL registry) */}
+      {/* DB Models (model registry) */}
       {models.length > 0 && (
         <Card className="glass rounded-2xl gradient-border">
           <CardHeader className="border-b border-white/5 py-3 px-4">

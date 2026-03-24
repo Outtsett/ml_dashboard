@@ -127,28 +127,37 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
 
       {/* Loading overlay */}
       {isLoadingMore && (
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-violet-500/30 overflow-hidden z-10">
-          <div className="h-full bg-violet-500 animate-pulse" style={{ width: '100%' }} />
+        <div className="absolute top-0 left-0 right-0 h-[3px] bg-violet-500/20 overflow-hidden z-10 rounded-full">
+          <div
+            className="h-full bg-gradient-to-r from-violet-500 via-primary to-violet-500 rounded-full"
+            style={{
+              width: '40%',
+              animation: 'loading-slide 1.2s ease-in-out infinite',
+            }}
+          />
+          <style>{`@keyframes loading-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }`}</style>
         </div>
       )}
 
-      <div className="absolute top-2 left-2 flex items-center gap-4 text-[10px] font-mono bg-black/40 backdrop-blur-sm rounded-lg px-3 py-1.5">
-        <span className="text-primary font-bold">{symbol}</span>
-        <span className="text-muted-foreground">{tickOrPipLabel}</span>
+      {/* HUD overlay */}
+      <div className="absolute top-2 left-2 flex items-center gap-3 text-[11px] font-mono bg-black/50 backdrop-blur-md rounded-lg px-3.5 py-2 border-l-2 border-l-primary/60 border border-white/[0.06] shadow-lg">
+        <span className="text-primary font-bold text-xs tracking-wide">{symbol}</span>
+        <span className="text-muted-foreground/70 text-[10px]">{tickOrPipLabel}</span>
         {priceInfo && (
           <>
-            <span className="text-muted-foreground">O: <span className="text-white">{priceInfo.open.toFixed(decimals)}</span></span>
-            <span className="text-muted-foreground">H: <span className="text-green-400">{priceInfo.high.toFixed(decimals)}</span></span>
-            <span className="text-muted-foreground">L: <span className="text-rose-400">{priceInfo.low.toFixed(decimals)}</span></span>
-            <span className="text-muted-foreground">C: <span className="text-white">{priceInfo.close.toFixed(decimals)}</span></span>
+            <span className="text-[10px]"><span className="text-blue-400/80 font-medium">O</span> <span className="text-foreground/90">{priceInfo.open.toFixed(decimals)}</span></span>
+            <span className="text-[10px]"><span className="text-emerald-400/80 font-medium">H</span> <span className="text-emerald-300/90">{priceInfo.high.toFixed(decimals)}</span></span>
+            <span className="text-[10px]"><span className="text-rose-400/80 font-medium">L</span> <span className="text-rose-300/90">{priceInfo.low.toFixed(decimals)}</span></span>
+            <span className="text-[10px]"><span className="text-blue-400/80 font-medium">C</span> <span className="text-foreground/90">{priceInfo.close.toFixed(decimals)}</span></span>
           </>
         )}
       </div>
 
+      {/* Labels preview */}
       {labelMarkers.length > 0 && (
-        <div className="absolute top-12 right-2 flex flex-col gap-0.5 text-[8px] font-mono bg-violet-500/10 backdrop-blur-sm rounded px-2 py-1.5 border border-violet-500/20">
-          <span className="text-violet-400 font-semibold mb-1">Labels Preview</span>
-          <div className="flex gap-2">
+        <div className="absolute top-12 right-2 flex flex-col gap-0.5 text-[9px] font-mono bg-violet-500/10 backdrop-blur-md rounded-md px-2.5 py-2 border border-violet-500/20 shadow-md">
+          <span className="text-violet-400 font-semibold mb-1 text-[9px] tracking-wide">Labels</span>
+          <div className="flex gap-2.5">
             <span className="text-green-400">&#9650; {labelMarkers.filter(m => m.label === 1).length}</span>
             <span className="text-rose-400">&#9660; {labelMarkers.filter(m => m.label === -1).length}</span>
             <span className="text-gray-400">&#9679; {labelMarkers.filter(m => m.label === 0).length}</span>
@@ -156,9 +165,14 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
         </div>
       )}
 
-      <div className="absolute bottom-2 right-2 text-[9px] text-muted-foreground/50 font-mono flex items-center gap-2">
+      {/* Bottom-right help */}
+      <div className="absolute bottom-2 right-2 text-[9px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors duration-300 font-mono flex items-center gap-3">
         {dataDateRange && <span>{dataDateRange}</span>}
-        <span>Scroll to zoom &bull; Drag to pan</span>
+        <span className="flex items-center gap-1.5">
+          <kbd className="px-1 py-0.5 rounded border border-white/10 bg-white/5 text-[8px]">scroll</kbd> zoom
+          <span className="text-muted-foreground/20 mx-0.5">·</span>
+          <kbd className="px-1 py-0.5 rounded border border-white/10 bg-white/5 text-[8px]">drag</kbd> pan
+        </span>
       </div>
     </div>
   );

@@ -6,18 +6,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Play, RotateCcw, BarChart2, Target, Orbit,
   Calculator, Loader2, AlertCircle, CheckCircle2, LineChart as LineChartIcon,
+  Shuffle, Dice5, TrendingUp,
 } from "lucide-react";
 import { QUERY_KEYS } from "@/lib/types";
 import { apiRequest } from "@/lib/queryClient";
 import { fetchArray } from "@/lib/fetchArray";
 import { backtestApi } from "@/lib/apiService";
 import { useDashboard, useSymbol, type TradeMarker } from "@/contexts/UnifiedDashboardContext";
-import type { BrokerConfig, BacktestRunResult } from "./types";
+import type { BrokerConfig, BacktestRunResult, WalkForwardResult, MonteCarloResult, BenchmarkResult } from "./types";
 import { MetricBox } from "./MetricBox";
 import { ConfigPanel } from "./ConfigPanel";
 import { ResultsTab } from "./ResultsTab";
 import { TradesTab } from "./TradesTab";
 import { CostsTab } from "./CostsTab";
+import { WalkForwardTab } from "./WalkForwardTab";
+import { MonteCarloTab } from "./MonteCarloTab";
+import { BenchmarkTab } from "./BenchmarkTab";
 
 /** Embeddable backtest panel – used both standalone and inside MLHub's Backtest tab */
 export function BacktestPanel() {
@@ -42,6 +46,9 @@ export function BacktestPanel() {
   // Results state
   const [lastResult, setLastResult] = useState<BacktestRunResult | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+  const [walkForwardResult, setWalkForwardResult] = useState<WalkForwardResult | null>(null);
+  const [monteCarloResult, setMonteCarloResult] = useState<MonteCarloResult | null>(null);
+  const [benchmarkResult, setBenchmarkResult] = useState<BenchmarkResult | null>(null);
 
   // Data queries
   const { data: models = [] } = useQuery<{ id: number; name: string; architecture: string; symbol: string }[]>({
@@ -67,7 +74,7 @@ export function BacktestPanel() {
   // Trades for the selected run
   const { data: tradesData } = useQuery<{ trades: any[]; chartMarkers: any[]; count: number }>({
     queryKey: ["/api/backtest/trades", selectedRunId],
-    queryFn: () => backtestApi.getTradesForRun(selectedRunId!),
+    queryFn: () => backtestApi.getTradesForRun(selectedRunId!) as Promise<{ trades: any[]; chartMarkers: any[]; count: number }>,
     enabled: !!selectedRunId,
   });
 
@@ -111,9 +118,56 @@ export function BacktestPanel() {
     runBacktest.mutate();
   }, [selectedSymbol, runBacktest]);
 
+  // Analysis mutations
+  const runMonteCarloMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/backtest/monte-carlo", {
+        backtestRunId: selectedRunId,
+        numSimulations: 1000,
+        confidenceLevels: [0.05, 0.25, 0.50, 0.75, 0.95],
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setMonteCarloResult(data);
+      setActiveTab("montecarlo");
+    },
+  });
+
+  const runWalkForwardMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/backtest/walk-forward", {
+        backtestRunId: selectedRunId,
+        trainMonths: 6,
+        testMonths: 2,
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setWalkForwardResult(data);
+      setActiveTab("walkforward");
+    },
+  });
+
+  const runBenchmarkMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/backtest/benchmark", {
+        backtestRunId: selectedRunId,
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setBenchmarkResult(data);
+      setActiveTab("benchmark");
+    },
+  });
+
   const handleReset = useCallback(() => {
     setLastResult(null);
     setSelectedRunId(null);
+    setWalkForwardResult(null);
+    setMonteCarloResult(null);
+    setBenchmarkResult(null);
     dashboard.clearTradeMarkers('backtest');
   }, [dashboard]);
 
@@ -287,17 +341,51 @@ export function BacktestPanel() {
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            <TabsList className="glass rounded-xl p-1 h-auto shrink-0 w-fit">
-              <TabsTrigger value="results" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20">
-                <BarChart2 className="h-3 w-3 mr-1.5" /> Results
-              </TabsTrigger>
-              <TabsTrigger value="trades" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20">
-                <Target className="h-3 w-3 mr-1.5" /> Trades {trades.length > 0 && `(${trades.length})`}
-              </TabsTrigger>
-              <TabsTrigger value="costs" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20">
-                <Calculator className="h-3 w-3 mr-1.5" /> Costs
-              </TabsTrigger>
-            </TabsList>
+            <div className="flex items-center justify-between shrink-0 gap-2">
+              <TabsList className="glass rounded-xl p-1 h-auto w-fit">
+                <TabsTrigger value="results" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20">
+                  <BarChart2 className="h-3 w-3 mr-1.5" /> Results
+                </TabsTrigger>
+                <TabsTrigger value="trades" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20">
+                  <Target className="h-3 w-3 mr-1.5" /> Trades {trades.length > 0 && `(${trades.length})`}
+                </TabsTrigger>
+                <TabsTrigger value="costs" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20">
+                  <Calculator className="h-3 w-3 mr-1.5" /> Costs
+                </TabsTrigger>
+                <TabsTrigger value="walkforward" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20">
+                  <Shuffle className="h-3 w-3 mr-1.5" /> Walk-Forward
+                </TabsTrigger>
+                <TabsTrigger value="montecarlo" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20">
+                  <Dice5 className="h-3 w-3 mr-1.5" /> Monte Carlo
+                </TabsTrigger>
+                <TabsTrigger value="benchmark" className="rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-primary/20">
+                  <TrendingUp className="h-3 w-3 mr-1.5" /> Benchmark
+                </TabsTrigger>
+              </TabsList>
+
+              {selectedRunId && lastResult && (
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => runWalkForwardMutation.mutate()}
+                    disabled={runWalkForwardMutation.isPending}
+                    className="h-7 px-3 rounded-lg text-[10px] bg-black/30 border-white/10 hover:bg-white/10">
+                    {runWalkForwardMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Shuffle className="h-3 w-3 mr-1" />}
+                    Walk-Forward
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => runMonteCarloMutation.mutate()}
+                    disabled={runMonteCarloMutation.isPending}
+                    className="h-7 px-3 rounded-lg text-[10px] bg-black/30 border-white/10 hover:bg-white/10">
+                    {runMonteCarloMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Dice5 className="h-3 w-3 mr-1" />}
+                    Monte Carlo
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => runBenchmarkMutation.mutate()}
+                    disabled={runBenchmarkMutation.isPending}
+                    className="h-7 px-3 rounded-lg text-[10px] bg-black/30 border-white/10 hover:bg-white/10">
+                    {runBenchmarkMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <TrendingUp className="h-3 w-3 mr-1" />}
+                    Benchmark
+                  </Button>
+                </div>
+              )}
+            </div>
 
             <TabsContent value="results" className="flex-1 min-h-0 overflow-hidden mt-3">
               <ResultsTab
@@ -314,6 +402,18 @@ export function BacktestPanel() {
 
             <TabsContent value="costs" className="flex-1 min-h-0 overflow-hidden mt-3">
               <CostsTab trades={trades} metrics={metrics} lastResult={lastResult} />
+            </TabsContent>
+
+            <TabsContent value="walkforward" className="flex-1 min-h-0 overflow-hidden mt-3">
+              <WalkForwardTab result={walkForwardResult} isPending={runWalkForwardMutation.isPending} />
+            </TabsContent>
+
+            <TabsContent value="montecarlo" className="flex-1 min-h-0 overflow-hidden mt-3">
+              <MonteCarloTab result={monteCarloResult} isPending={runMonteCarloMutation.isPending} />
+            </TabsContent>
+
+            <TabsContent value="benchmark" className="flex-1 min-h-0 overflow-hidden mt-3">
+              <BenchmarkTab result={benchmarkResult} isPending={runBenchmarkMutation.isPending} />
             </TabsContent>
           </Tabs>
         </div>

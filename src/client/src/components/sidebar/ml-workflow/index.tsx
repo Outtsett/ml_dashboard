@@ -67,9 +67,13 @@ export function MLWorkflowSidebar({
   }, [generatorDef]);
   const currentParams = useMemo(() => ({ ...defaultParams, ...labelParams }), [defaultParams, labelParams]);
 
-  const previewMutation = useMutation({
-    mutationFn: (data: { generatorType: string; symbol: string; params: Record<string, unknown>; limit: number; startTimestamp?: number; endTimestamp?: number; timeframeMinutes?: number }) =>
-      labelApi.preview(data),
+  const previewMutation = useMutation<
+    { success: boolean; preview: Array<Record<string, unknown>>; error?: string },
+    Error,
+    { generatorType: string; symbol: string; params: Record<string, unknown>; limit: number; startTimestamp?: number; endTimestamp?: number; timeframeMinutes?: number }
+  >({
+    mutationFn: (data) =>
+      labelApi.preview(data) as Promise<{ success: boolean; preview: Array<Record<string, unknown>>; error?: string }>,
     onSuccess: (data) => {
       if (data.success && data.preview && data.preview.length > 0) {
         const markers: LabelMarker[] = data.preview

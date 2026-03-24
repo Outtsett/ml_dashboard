@@ -39,7 +39,7 @@ export function UploadTab({
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-display font-semibold">Upload Data</h2>
-          <p className="text-sm text-muted-foreground">Upload CSV, Parquet, DBN, or JSON files to PostgreSQL</p>
+          <p className="text-sm text-muted-foreground">Upload CSV, Parquet, DBN, or JSON files to QuestDB</p>
         </div>
         {selectedFiles.length > 0 && (
           <Button

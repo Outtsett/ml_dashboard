@@ -72,17 +72,17 @@ export function Toolbar({
   onResetScrollState,
 }: ToolbarProps) {
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 border-b border-white/5 shrink-0 bg-card/30 backdrop-blur-sm flex-wrap">
+    <div className="flex items-center gap-2.5 px-3 py-2 border-b border-white/[0.08] shrink-0 bg-gradient-to-r from-card/50 via-card/40 to-card/50 backdrop-blur-md flex-wrap">
       <Tabs value={assetType} onValueChange={(v) => {
         const newType = v as "futures" | "forex";
         onAssetTypeChange(newType);
       }}>
-        <TabsList className="glass rounded-lg p-0.5 h-auto">
-          <TabsTrigger value="futures" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-primary/20" data-testid="tab-futures">
-            <TrendingUp className="h-3 w-3 mr-1" /> Futures
+        <TabsList className="glass rounded-lg p-0.5 h-auto border border-white/[0.06]">
+          <TabsTrigger value="futures" className="rounded-md px-3 py-1.5 text-[11px] font-medium data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-400 data-[state=active]:shadow-[0_0_8px_rgba(16,185,129,0.1)]" data-testid="tab-futures">
+            <TrendingUp className="h-3.5 w-3.5 mr-1.5" /> Futures
           </TabsTrigger>
-          <TabsTrigger value="forex" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-primary/20" data-testid="tab-forex">
-            <DollarSign className="h-3 w-3 mr-1" /> Forex
+          <TabsTrigger value="forex" className="rounded-md px-3 py-1.5 text-[11px] font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-[0_0_8px_rgba(96,165,250,0.1)]" data-testid="tab-forex">
+            <DollarSign className="h-3.5 w-3.5 mr-1.5" /> Forex
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -93,18 +93,18 @@ export function Toolbar({
             variant="outline"
             role="combobox"
             aria-expanded={symbolOpen}
-            className="w-[220px] justify-between h-7 text-xs font-mono border-white/10 bg-black/30"
+            className="w-[230px] justify-between h-8 text-xs font-mono border-primary/20 bg-black/40 hover:bg-black/50 hover:border-primary/30 shadow-[0_0_12px_rgba(96,165,250,0.06)] border-l-2 border-l-primary/50"
             data-testid="symbol-selector"
           >
             <span className="flex items-center gap-2">
-              <span className="text-primary font-semibold">{symbol}</span>
+              <span className="text-primary font-bold text-sm tracking-wide">{symbol}</span>
               {activeSymbols.find(s => s.symbol === symbol)?.name && (
                 <span className="text-muted-foreground text-[10px] font-sans truncate">
                   {activeSymbols.find(s => s.symbol === symbol)?.name}
                 </span>
               )}
             </span>
-            <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+            <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-40" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[280px] p-0" align="start">
@@ -134,18 +134,18 @@ export function Toolbar({
         </PopoverContent>
       </Popover>
 
-      <div className="w-px h-5 bg-white/10" />
+      <div className="w-px h-5 bg-gradient-to-b from-transparent via-white/10 to-transparent" />
 
       {/* Timeframe chips */}
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-0.5 bg-white/[0.03] rounded-lg px-1 py-0.5 border border-white/[0.04]">
         {timeframes.map((tf) => (
           <Button
             key={tf.label}
             variant={timeframe === tf.minutes ? "default" : "ghost"}
             size="sm"
-            className={`h-6 px-2 text-[10px] font-mono ${
+            className={`h-6 px-2.5 text-[11px] font-mono font-medium ${
               timeframe === tf.minutes
-                ? "bg-primary/20 text-primary border border-primary/30"
+                ? "bg-primary/25 text-primary border border-primary/30 shadow-[0_0_10px_rgba(96,165,250,0.12)]"
                 : "text-muted-foreground hover:text-primary hover:bg-primary/10"
             }`}
             onClick={() => onTimeframeChange(tf.minutes)}
@@ -156,7 +156,7 @@ export function Toolbar({
         ))}
       </div>
 
-      <div className="w-px h-5 bg-white/10" />
+      <div className="w-px h-5 bg-gradient-to-b from-transparent via-white/10 to-transparent" />
 
       {/* Indicators (new professional system) */}
       <IndicatorSelector
@@ -171,13 +171,13 @@ export function Toolbar({
         isLoading={indicatorsLoading}
       />
 
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-0.5 bg-white/[0.03] rounded-lg px-1.5 py-0.5 border border-white/[0.04]">
         <Button
           variant={showSR ? "default" : "ghost"}
           size="sm"
-          className={`h-6 px-2 text-[10px] font-mono gap-1 ${
+          className={`h-6 px-2.5 text-[11px] font-mono gap-1.5 ${
             showSR
-              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-[0_0_8px_rgba(16,185,129,0.15)]"
               : "text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10"
           }`}
           onClick={onToggleSR}
@@ -188,9 +188,9 @@ export function Toolbar({
         <Button
           variant={showZigZag ? "default" : "ghost"}
           size="sm"
-          className={`h-6 px-2 text-[10px] font-mono gap-1 ${
+          className={`h-6 px-2.5 text-[11px] font-mono gap-1.5 ${
             showZigZag
-              ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+              ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 shadow-[0_0_8px_rgba(234,179,8,0.15)]"
               : "text-muted-foreground hover:text-yellow-400 hover:bg-yellow-500/10"
           }`}
           onClick={onToggleZigZag}
@@ -201,9 +201,9 @@ export function Toolbar({
         <Button
           variant={showSwingZZ ? "default" : "ghost"}
           size="sm"
-          className={`h-6 px-2 text-[10px] font-mono gap-1 ${
+          className={`h-6 px-2.5 text-[11px] font-mono gap-1.5 ${
             showSwingZZ
-              ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+              ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-[0_0_8px_rgba(34,211,238,0.15)]"
               : "text-muted-foreground hover:text-cyan-400 hover:bg-cyan-500/10"
           }`}
           onClick={onToggleSwingZZ}
@@ -211,12 +211,13 @@ export function Toolbar({
         >
           <TrendingUp className="h-3 w-3" /> SW
         </Button>
+        <div className="w-px h-4 bg-white/[0.06] mx-0.5" />
         <Button
           variant={replayActive ? "default" : "ghost"}
           size="sm"
-          className={`h-6 px-2 text-[10px] font-mono gap-1 ${
+          className={`h-6 px-2.5 text-[11px] font-mono gap-1.5 ${
             replayActive
-              ? "bg-violet-500/20 text-violet-400 border border-violet-500/30"
+              ? "bg-violet-500/20 text-violet-400 border border-violet-500/30 shadow-[0_0_8px_rgba(139,92,246,0.15)]"
               : "text-muted-foreground hover:text-violet-400 hover:bg-violet-500/10"
           }`}
           onClick={onToggleReplay}
@@ -228,7 +229,7 @@ export function Toolbar({
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 px-2 text-[10px] font-mono gap-1 text-muted-foreground hover:text-blue-400 hover:bg-blue-500/10"
+          className="h-6 px-2.5 text-[11px] font-mono gap-1.5 text-muted-foreground hover:text-blue-400 hover:bg-blue-500/10"
           onClick={onResetChart}
           title="Reset chart (reload data)"
         >
@@ -243,12 +244,12 @@ export function Toolbar({
       <Button
         variant="outline"
         size="sm"
-        className="h-7 px-3 text-[10px] font-mono border-white/10 bg-black/30 hover:bg-primary/10 hover:text-primary gap-1.5"
+        className="h-8 px-4 text-[11px] font-mono font-semibold border-primary/25 bg-gradient-to-r from-primary/10 to-primary/5 hover:from-primary/20 hover:to-primary/10 hover:border-primary/40 text-primary/90 hover:text-primary gap-2 shadow-[0_0_12px_rgba(96,165,250,0.08)]"
         onClick={onOpenMlPanel}
       >
         <PanelRightOpen className="h-3.5 w-3.5" />
         ML Tools
-        {isTrainingActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+        {isTrainingActive && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.5)]" />}
       </Button>
     </div>
   );

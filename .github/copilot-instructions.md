@@ -19,17 +19,16 @@ The user is an **extreme visual learner** who cannot process abstract math or th
 npm run dev              # Express + Vite HMR on port 5000 (requires .env with DATABASE_URL)
 npm run check            # TypeScript type-check (strict mode)
 npm test                 # Vitest (node env, 30s timeout, tests/ dir)
-npx drizzle-kit push     # Push schema changes to PostgreSQL after editing shared/schema.ts
 ```
 
-Databases must be running first: `node electron/start-databases.cjs` (PostgreSQL + QuestDB).
+Databases must be running first: `node electron/start-databases.cjs` (QuestDB).
 
 ## Code Style
 
 - **TypeScript strict**, ESM (`"type": "module"`). Server output is CJS via esbuild bundle.
 - Path aliases: `@/*` → `client/src/*`, `@shared/*` → `shared/*`.
-- Use `import type` for type-only imports. Drizzle-inferred types live in `shared/schema.ts`.
-- Prefer raw SQL strings for DuckDB queries; use Drizzle ORM for PostgreSQL.
+- Use `import type` for type-only imports. Shared types live in `shared/schema.ts`.
+- Prefer raw SQL strings for DuckDB queries.
 
 ## Naming Convention
 
@@ -194,10 +193,9 @@ router.get('/ohlcv', async (req, res) => {
 
 ## Architecture
 
-### Three Databases
+### Two Databases
 | DB | Access Pattern | When to Use |
 |----|---------------|-------------|
-| **PostgreSQL** (Drizzle) | `storage.*` methods from `server/storage.ts` | CRUD, metadata, schema-driven data |
 | **DuckDB** (raw SQL) | `marketQuery<T>(sql)` from `server/duckdb/market.ts` | Market data, analytics, indicators |
 | **QuestDB** | HTTP/ILP via `server/questdb.ts` | Chart candle aggregation (`SAMPLE BY`) |
 
@@ -230,7 +228,7 @@ router.get('/endpoint', async (req: Request, res: Response) => {
 
 ## Project Conventions
 
-- **Drizzle schema** (`shared/schema.ts`): `pgTable()` → `createInsertSchema().omit({ id: true })` → export `Insert*` type + select type. Always run `npx drizzle-kit push` after changes.
+- **Schema** (`shared/schema.ts`): Export `Insert*` type + select type for DB table definitions.
 - **Server logging**: `log(message, 'source-tag')` function from `server/index.ts`.
 - **Error boundary**: Every page route has `<ErrorBoundary>` wrapping. Non-fatal DB errors are caught and logged, not thrown — DBs can fail independently.
 - **Circuit breaker**: Auto-disables failing DB connections. Reset via `POST /api/circuit-breaker/reset/:name`.
@@ -277,6 +275,5 @@ git worktree remove ../ml_dashboard_worktrees/NAME      # Remove when done
 ## Security
 
 - Rate limiting: API 100/min, ML 50/min, upload 10/min (`server/lib/rateLimiter.ts`)
-- PostgreSQL uses trust auth locally (`postgres:postgres@localhost:5432/ml_dashboard`)
 - File uploads: 500MB max, validated extensions (CSV, ZST, Parquet, DBN)
 - Database routes expose read-only SQL query endpoint — ensure no write operations leak

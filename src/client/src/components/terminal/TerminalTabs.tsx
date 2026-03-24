@@ -164,9 +164,9 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
   if (!visible) return null;
 
   return (
-    <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0a' }}>
+    <div className="h-full w-full flex flex-col bg-[#0a0a0a]">
       {/* Tab bar */}
-      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0, background: '#111', overflowX: 'auto' }}>
+      <div className="flex items-center border-b border-white/[0.06] shrink-0 bg-[#0e0e0e] overflow-x-auto">
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
           return (
@@ -174,29 +174,19 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
               key={tab.id}
               onClick={() => setActiveTabId(tab.id)}
               onDoubleClick={(e) => startRename(tab.id, e)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
-                fontSize: '11px',
-                fontFamily: 'monospace',
-                borderRight: '1px solid rgba(255,255,255,0.05)',
-                flexShrink: 0,
-                cursor: 'pointer',
-                border: 'none',
-                background: isActive ? '#0a0a0a' : 'transparent',
-                color: isActive ? '#34d399' : '#888',
-                borderBottom: isActive ? '2px solid rgba(16,185,129,0.5)' : '2px solid transparent',
-              }}
+              className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-mono shrink-0 cursor-pointer border-none transition-colors duration-150
+                ${isActive
+                  ? "bg-[#0a0a0a] text-emerald-400 border-t-2 border-t-emerald-500/60 shadow-[inset_0_1px_8px_rgba(16,185,129,0.06)]"
+                  : "bg-transparent text-muted-foreground/60 border-t-2 border-t-transparent hover:text-muted-foreground hover:bg-white/[0.03]"
+                }`}
             >
-              <TerminalSquare style={{ width: 12, height: 12 }} />
+              <TerminalSquare className="w-3 h-3" />
 
               {editingTabId === tab.id ? (
                 <input
                   ref={editInputRef}
                   defaultValue={tab.title}
-                  style={{ background: 'transparent', border: 'none', borderBottom: '1px solid rgba(16,185,129,0.5)', outline: 'none', fontSize: '11px', fontFamily: 'monospace', width: '96px', color: '#fff' }}
+                  className="bg-transparent border-none border-b border-b-emerald-500/50 outline-none text-[11px] font-mono w-24 text-white"
                   onBlur={(e) => commitRename(tab.id, e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") commitRename(tab.id, (e.target as HTMLInputElement).value);
@@ -204,21 +194,19 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
                   }}
                 />
               ) : (
-                <span>{tab.title}</span>
+                <span className="truncate max-w-[100px]">{tab.title}</span>
               )}
 
               {/* Close button */}
               <span
                 onClick={(e) => closeTab(tab.id, e)}
-                style={{
-                  marginLeft: '4px',
-                  padding: '2px',
-                  cursor: 'pointer',
-                  color: isActive ? 'rgba(52,211,153,0.6)' : 'rgba(255,255,255,0.3)',
-                  borderRadius: '3px',
-                }}
+                className={`ml-0.5 p-0.5 cursor-pointer rounded-sm transition-colors duration-100
+                  ${isActive
+                    ? "text-emerald-400/50 hover:text-emerald-300 hover:bg-emerald-500/10"
+                    : "text-white/20 hover:text-white/50 hover:bg-white/[0.06]"
+                  }`}
               >
-                <X style={{ width: 12, height: 12 }} />
+                <X className="w-3 h-3" />
               </span>
             </button>
           );
@@ -228,20 +216,16 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
         {hasTrainingTab && (
           <button
             onClick={() => setActiveTabId("__training__")}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '6px 12px', fontSize: '11px', fontFamily: 'monospace',
-              borderRight: '1px solid rgba(255,255,255,0.05)', flexShrink: 0,
-              cursor: 'pointer', border: 'none',
-              background: activeTabId === "__training__" ? '#0a0a0a' : 'transparent',
-              color: activeTabId === "__training__" ? '#f59e0b' : '#888',
-              borderBottom: activeTabId === "__training__" ? '2px solid rgba(245,158,11,0.5)' : '2px solid transparent',
-            }}
+            className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-mono shrink-0 cursor-pointer border-none transition-colors duration-150
+              ${activeTabId === "__training__"
+                ? "bg-[#0a0a0a] text-amber-400 border-t-2 border-t-amber-500/60 shadow-[inset_0_1px_8px_rgba(245,158,11,0.06)]"
+                : "bg-transparent text-muted-foreground/60 border-t-2 border-t-transparent hover:text-muted-foreground hover:bg-white/[0.03]"
+              }`}
           >
-            <Flame style={{ width: 12, height: 12 }} />
+            <Flame className="w-3 h-3" />
             <span>Training</span>
             {training.isTraining && (
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_4px_rgba(34,197,94,0.5)]" />
             )}
           </button>
         )}
@@ -249,14 +233,15 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
         {/* Add tab button */}
         <button
           onClick={addTab}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 10px', cursor: 'pointer', border: 'none', background: 'transparent', color: '#888' }}
+          className="flex items-center justify-center px-2.5 py-2 cursor-pointer border-none bg-transparent text-muted-foreground/40 hover:text-emerald-400/70 hover:bg-white/[0.04] transition-colors duration-150 rounded-sm mx-0.5"
           title="New terminal"
         >
-          <Plus style={{ width: 14, height: 14 }} />
+          <Plus className="w-3.5 h-3.5" />
         </button>
 
-        <div style={{ marginLeft: 'auto', padding: '0 8px', fontSize: '9px', color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>
-          {tabs.length}/10
+        {/* Session counter badge */}
+        <div className="ml-auto px-2.5 py-1 text-[9px] text-muted-foreground/30 font-mono flex items-center">
+          <span className="bg-white/[0.04] rounded-full px-2 py-0.5 border border-white/[0.06]">{tabs.length}/10</span>
         </div>
       </div>
 
