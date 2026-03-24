@@ -7,13 +7,16 @@ import java.time.Instant;
 
 /**
  * Lightweight QuestDB ILP (InfluxDB Line Protocol) TCP client.
- * Sends OHLCV data directly to QuestDB port 9009, bypassing file I/O.
+ * Sends OHLCV, tick, and Level 2 DOM data directly to QuestDB port 9009.
  *
  * ILP line format:
  *   tableName,tagKey=tagVal fieldKey=fieldVal[,fieldKey=fieldVal] timestamp_ns
  *
- * Example:
- *   ohlcv,symbol=MNQZ25 open=21500.0,high=21520.5,low=21490.0,close=21510.25,volume=1234i 1711440000000000000
+ * Tables written:
+ *   ohlcv       — bar data (open, high, low, close, volume)
+ *   ticks       — individual ticks (price, volume, bid, ask, bidSize, askSize)
+ *   dom_l2      — depth of market snapshots (price, size, side, level per row)
+ *   dom_summary — aggregated book snapshot (best bid/ask, total depth, spread)
  */
 public class ILPClient implements Closeable {
 
@@ -84,6 +87,91 @@ public class ILPClient implements Closeable {
         lineBuffer.append(",volume=").append(volume).append('i');
         lineBuffer.append(' ');
         lineBuffer.append(epochMs * 1_000_000L); // ms → ns
+        lineBuffer.append('\n');
+
+        ensureConnected();
+        out.write(lineBuffer.toString().getBytes(StandardCharsets.UTF_8));
+        pendingLines++;
+        totalLinesSent++;
+    }
+
+    /**
+     * Send a single tick via ILP.
+     */
+    public void writeTick(String table, String symbol, float price, int volume,
+                          float bid, float ask, int bidSize, int askSize,
+                          boolean isAskTick, long epochMs) throws IOException {
+        lineBuffer.setLength(0);
+        lineBuffer.append(escapeTagValue(table));
+        lineBuffer.append(",symbol=").append(escapeTagValue(symbol));
+        lineBuffer.append(",side=").append(isAskTick ? "ask" : "bid");
+        lineBuffer.append(' ');
+        lineBuffer.append("price=").append(price);
+        lineBuffer.append(",volume=").append(volume).append('i');
+        lineBuffer.append(",bid=").append(bid);
+        lineBuffer.append(",ask=").append(ask);
+        lineBuffer.append(",bid_size=").append(bidSize).append('i');
+        lineBuffer.append(",ask_size=").append(askSize).append('i');
+        lineBuffer.append(",spread=").append(ask - bid);
+        lineBuffer.append(' ');
+        lineBuffer.append(epochMs * 1_000_000L);
+        lineBuffer.append('\n');
+
+        ensureConnected();
+        out.write(lineBuffer.toString().getBytes(StandardCharsets.UTF_8));
+        pendingLines++;
+        totalLinesSent++;
+    }
+
+    /**
+     * Send a single Level 2 DOM row via ILP.
+     *
+     * @param level  Depth level (0 = best bid/ask, 1 = next, etc.)
+     */
+    public void writeDOMRow(String table, String symbol, String side,
+                            int level, float price, float size,
+                            int orderCount, long epochMs) throws IOException {
+        lineBuffer.setLength(0);
+        lineBuffer.append(escapeTagValue(table));
+        lineBuffer.append(",symbol=").append(escapeTagValue(symbol));
+        lineBuffer.append(",side=").append(side);
+        lineBuffer.append(' ');
+        lineBuffer.append("level=").append(level).append('i');
+        lineBuffer.append(",price=").append(price);
+        lineBuffer.append(",size=").append(size);
+        lineBuffer.append(",order_count=").append(orderCount).append('i');
+        lineBuffer.append(' ');
+        lineBuffer.append(epochMs * 1_000_000L);
+        lineBuffer.append('\n');
+
+        ensureConnected();
+        out.write(lineBuffer.toString().getBytes(StandardCharsets.UTF_8));
+        pendingLines++;
+        totalLinesSent++;
+    }
+
+    /**
+     * Send an aggregated DOM summary (spread, depth totals, imbalance) via ILP.
+     */
+    public void writeDOMSummary(String table, String symbol,
+                                float bestBid, float bestAsk, float spread,
+                                float totalBidSize, float totalAskSize,
+                                int bidLevels, int askLevels,
+                                float imbalance, long epochMs) throws IOException {
+        lineBuffer.setLength(0);
+        lineBuffer.append(escapeTagValue(table));
+        lineBuffer.append(",symbol=").append(escapeTagValue(symbol));
+        lineBuffer.append(' ');
+        lineBuffer.append("best_bid=").append(bestBid);
+        lineBuffer.append(",best_ask=").append(bestAsk);
+        lineBuffer.append(",spread=").append(spread);
+        lineBuffer.append(",total_bid_size=").append(totalBidSize);
+        lineBuffer.append(",total_ask_size=").append(totalAskSize);
+        lineBuffer.append(",bid_levels=").append(bidLevels).append('i');
+        lineBuffer.append(",ask_levels=").append(askLevels).append('i');
+        lineBuffer.append(",imbalance=").append(imbalance);
+        lineBuffer.append(' ');
+        lineBuffer.append(epochMs * 1_000_000L);
         lineBuffer.append('\n');
 
         ensureConnected();
