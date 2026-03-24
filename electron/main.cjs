@@ -246,7 +246,7 @@ function registerIpcHandlers() {
   // --- Beta mode: renderer-requested reload ---
   ipcMain.on("beta:reload", () => {
     safeLog("[beta] Renderer requested reload");
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow && !mainWindow.isDestroyed() && !userHidWindow) {
       mainWindow.webContents.reload();
     }
   });
@@ -369,7 +369,7 @@ function createWindow() {
           `Server not ready — retry ${loadRetryCount}/${MAX_LOAD_RETRIES}...`
         );
         setTimeout(() => {
-          if (mainWindow && !mainWindow.isDestroyed()) {
+          if (mainWindow && !mainWindow.isDestroyed() && !userHidWindow) {
             mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
           }
         }, delay);
@@ -386,7 +386,7 @@ function createWindow() {
             port: String(PORT),
           },
         });
-        mainWindow.show();
+        if (!userHidWindow) mainWindow.show();
       }
     }
   );
@@ -459,7 +459,7 @@ function createWindow() {
 
   // Fallback: if nothing shows after 30s, force-show the window
   setTimeout(() => {
-    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible() && !userHidWindow) {
       safeWarn("[window] Timeout — forcing window visible");
       if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
       mainWindow.show();
