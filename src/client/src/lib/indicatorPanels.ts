@@ -352,6 +352,49 @@ export function getReferenceLines(panelKey: string): { value: number; color: str
   return REFERENCE_LINES[family] || [];
 }
 
+/** Get a display title for an individual series within a subchart panel.
+ *  column format: "instanceId::outputKey" e.g. "ind_123_1_abc::value"
+ *  Returns e.g. "RSI (14)" for single-output or "MACD Signal" for multi-output indicators. */
+export function getSeriesTitle(column: string): string {
+  const parsed = parseInstanceColumn(column);
+  if (!parsed) {
+    // Legacy format — use column as-is
+    const parts = column.split('_');
+    return PANEL_DISPLAY_NAMES[parts[0]!] || parts[0]!;
+  }
+
+  const panelLabel = instanceLabelMap.get(parsed.instanceId) || parsed.instanceId;
+  const key = parsed.outputKey;
+
+  // Single-output indicators just use the panel label
+  if (key === 'value' || key === 'default' || key === '') return panelLabel;
+
+  // Multi-output: build "MACD Signal", "MACD Histogram", etc.
+  const OUTPUT_LABELS: Record<string, string> = {
+    signal: 'Signal',
+    histogram: 'Histogram',
+    slowk: '%K',
+    slowd: '%D',
+    fastk: 'Fast %K',
+    fastd: 'Fast %D',
+    macd: 'MACD',
+    macdsignal: 'Signal',
+    macdhist: 'Histogram',
+    aroondown: 'Down',
+    aroonup: 'Up',
+    upperband: 'Upper',
+    middleband: 'Middle',
+    lowerband: 'Lower',
+    plus_di: '+DI',
+    minus_di: '-DI',
+  };
+
+  const friendlyKey = OUTPUT_LABELS[key.toLowerCase()] || key;
+  // Extract base indicator name (before params parenthetical)
+  const baseName = panelLabel.replace(/\s*\(.*\)$/, '');
+  return `${baseName} ${friendlyKey}`;
+}
+
 /** Whether the indicator column should render as a histogram (colored bars). */
 export function shouldRenderAsHistogram(column: string): boolean {
   // New instance-based format: check outputKey

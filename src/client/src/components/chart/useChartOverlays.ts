@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { LineSeries, createSeriesMarkers, type IChartApi, type Time } from 'lightweight-charts';
 import type { IndicatorOverlay } from '@/hooks/useIndicatorData';
 import { getPatternDisplayName } from '@/lib/candlePatterns';
+import { getSeriesTitle } from '@/lib/indicatorPanels';
 import { dedupByTime } from './chartConfig';
 
 /**
@@ -111,6 +112,7 @@ export function useChartOverlays(
           priceLineVisible: false,
           crosshairMarkerVisible: true,
           crosshairMarkerRadius: 3,
+          title: getSeriesTitle(overlay.column),
         });
 
         series.setData(dedupByTime(overlay.data.map(d => ({ time: d.time as Time, value: d.value }))));

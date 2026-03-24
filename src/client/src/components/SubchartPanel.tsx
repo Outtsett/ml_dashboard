@@ -20,7 +20,7 @@ import {
   type LogicalRange,
 } from 'lightweight-charts';
 import type { IndicatorOverlay } from '@/hooks/useIndicatorData';
-import { getPanelLabel, getReferenceLines, shouldRenderAsHistogram } from '@/lib/indicatorPanels';
+import { getPanelLabel, getReferenceLines, shouldRenderAsHistogram, getSeriesTitle } from '@/lib/indicatorPanels';
 
 /** Deduplicate & sort series data by time (last-write-wins for dupes) */
 function dedupByTime<T extends { time: Time }>(arr: T[]): T[] {
@@ -217,11 +217,13 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
         if (existing) {
           existing.setData(buildData());
         } else {
+          const seriesTitle = getSeriesTitle(indicator.column);
           const series = isHisto
             ? chart.addSeries(HistogramSeries, {
                 priceScaleId: 'right',
                 lastValueVisible: false,
                 priceLineVisible: false,
+                title: seriesTitle,
               })
             : chart.addSeries(LineSeries, {
                 color: indicator.color,
@@ -231,6 +233,7 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
                 priceLineVisible: false,
                 crosshairMarkerVisible: true,
                 crosshairMarkerRadius: 2,
+                title: seriesTitle,
               });
 
           series.setData(buildData());
