@@ -46,16 +46,25 @@ public class QuestDBStreamStudy extends Study implements DOMListener {
     private static final String DOM_DEPTH = "domDepth";
     private static final String DOM_THROTTLE_MS = "domThrottleMs";
 
-    // Runtime state
+    // Thread safety: update(DOM) fires on market data thread while
+    // onTick/onBarClose fire on the study thread. All ILPClient access
+    // must be synchronized through this lock.
+    private final Object clientLock = new Object();
+
+    // Runtime state (guarded by clientLock)
     private ILPClient client;
-    private int lastWrittenIndex = -1;
-    private long totalBarsSent;
-    private long totalTicksSent;
-    private long totalDomUpdates;
     private boolean connectionFailed;
     private int failCount;
+
+    // Study-thread state (no sync needed — single-threaded access)
+    private int lastWrittenIndex = -1;
     private Instrument subscribedInstrument;
-    private long lastDomSendTime;
+
+    // Counters — volatile for cross-thread visibility in debug logging
+    private volatile long totalBarsSent;
+    private volatile long totalTicksSent;
+    private volatile long totalDomUpdates;
+    private volatile long lastDomSendTime;
 
     @Override
     public void initialize(Defaults defaults) {
@@ -93,34 +102,36 @@ public class QuestDBStreamStudy extends Study implements DOMListener {
         int lastIndex = series.size() - 2;
         if (lastIndex < 0 || lastIndex <= lastWrittenIndex) return;
 
-        try {
-            ensureClient();
+        // Read bar data outside the lock (DataSeries is study-thread only)
+        String symbol = instrument.getSymbol();
+        String table = getSetting(TABLE_OHLCV, "ohlcv");
+        long timestamp = series.getStartTime(lastIndex);
+        float open = series.getOpen(lastIndex);
+        float high = series.getHigh(lastIndex);
+        float low = series.getLow(lastIndex);
+        float close = series.getClose(lastIndex);
+        long volume = series.getVolume(lastIndex);
 
-            String symbol = instrument.getSymbol();
-            String table = getSetting(TABLE_OHLCV, "ohlcv");
-
-            long timestamp = series.getStartTime(lastIndex);
-            float open = series.getOpen(lastIndex);
-            float high = series.getHigh(lastIndex);
-            float low = series.getLow(lastIndex);
-            float close = series.getClose(lastIndex);
-            long volume = series.getVolume(lastIndex);
-
-            client.writeOHLCV(table, symbol, open, high, low, close, volume, timestamp);
-            client.flush();
-
-            lastWrittenIndex = lastIndex;
-            totalBarsSent++;
-            connectionFailed = false;
-            failCount = 0;
-
-            if (totalBarsSent % 100 == 0) {
-                debug("QuestDB Stream: " + totalBarsSent + " bars, "
-                    + totalTicksSent + " ticks, " + totalDomUpdates + " DOM snapshots"
-                    + " for " + symbol);
+        synchronized (clientLock) {
+            try {
+                ensureClient();
+                client.writeOHLCV(table, symbol, open, high, low, close, volume, timestamp);
+                client.flush();
+                connectionFailed = false;
+                failCount = 0;
+            } catch (IOException e) {
+                handleConnectionError(e);
+                return;
             }
-        } catch (IOException e) {
-            handleConnectionError(e);
+        }
+
+        lastWrittenIndex = lastIndex;
+        totalBarsSent++;
+
+        if (totalBarsSent % 100 == 0) {
+            debug("QuestDB Stream: " + totalBarsSent + " bars, "
+                + totalTicksSent + " ticks, " + totalDomUpdates + " DOM snapshots"
+                + " for " + symbol);
         }
     }
 
@@ -133,26 +144,27 @@ public class QuestDBStreamStudy extends Study implements DOMListener {
         if (instrument == null) return;
         subscribeToDom(instrument);
 
-        try {
-            ensureClient();
+        String symbol = instrument.getSymbol();
+        String table = getSetting(TABLE_TICKS, "ticks");
 
-            String symbol = instrument.getSymbol();
-            String table = getSetting(TABLE_TICKS, "ticks");
+        synchronized (clientLock) {
+            try {
+                ensureClient();
+                client.writeTick(table, symbol,
+                    tick.getPrice(), tick.getVolume(),
+                    tick.getBidPrice(), tick.getAskPrice(),
+                    tick.getBidSize(), tick.getAskSize(),
+                    tick.isAskTick(), tick.getTime());
 
-            client.writeTick(table, symbol,
-                tick.getPrice(), tick.getVolume(),
-                tick.getBidPrice(), tick.getAskPrice(),
-                tick.getBidSize(), tick.getAskSize(),
-                tick.isAskTick(), tick.getTime());
+                totalTicksSent++;
 
-            totalTicksSent++;
-
-            // Batch flush ticks every 50 to reduce syscalls
-            if (totalTicksSent % 50 == 0) {
-                client.flush();
+                // Batch flush ticks every 50 to reduce syscalls
+                if (totalTicksSent % 50 == 0) {
+                    client.flush();
+                }
+            } catch (IOException e) {
+                handleConnectionError(e);
             }
-        } catch (IOException e) {
-            handleConnectionError(e);
         }
     }
 
@@ -175,8 +187,6 @@ public class QuestDBStreamStudy extends Study implements DOMListener {
         if (instrument == null) return;
 
         try {
-            ensureClient();
-
             String symbol = instrument.getSymbol();
             String domTable = getSetting(TABLE_DOM, "dom_l2");
             String summaryTable = getSetting(TABLE_DOM_SUMMARY, "dom_summary");
@@ -190,63 +200,69 @@ public class QuestDBStreamStudy extends Study implements DOMListener {
             float bestBid = 0;
             float bestAsk = 0;
 
-            // Stream bid levels
-            if (bidRows != null) {
-                int levels = Math.min(bidRows.size(), maxDepth);
-                for (int i = 0; i < levels; i++) {
-                    DOMRow row = (DOMRow) bidRows.get(i);
-                    float price = row.getPrice();
-                    float size = row.getSize();
-                    int orderCount = row.getOrderCount();
-
-                    client.writeDOMRow(domTable, symbol, "bid",
-                        i, price, size, orderCount, now);
-
-                    totalBidSize += size;
-                    if (i == 0) bestBid = price;
-                }
-            }
-
-            // Stream ask levels
-            if (askRows != null) {
-                int levels = Math.min(askRows.size(), maxDepth);
-                for (int i = 0; i < levels; i++) {
-                    DOMRow row = (DOMRow) askRows.get(i);
-                    float price = row.getPrice();
-                    float size = row.getSize();
-                    int orderCount = row.getOrderCount();
-
-                    client.writeDOMRow(domTable, symbol, "ask",
-                        i, price, size, orderCount, now);
-
-                    totalAskSize += size;
-                    if (i == 0) bestAsk = price;
-                }
-            }
-
-            // Compute and send summary
-            float spread = (bestAsk > 0 && bestBid > 0) ? bestAsk - bestBid : 0;
-            float totalSize = totalBidSize + totalAskSize;
-            float imbalance = totalSize > 0
-                ? (totalBidSize - totalAskSize) / totalSize
-                : 0;
-
+            // Pre-compute sizes outside the lock
             int bidLevels = bidRows != null ? Math.min(bidRows.size(), maxDepth) : 0;
             int askLevels = askRows != null ? Math.min(askRows.size(), maxDepth) : 0;
 
-            client.writeDOMSummary(summaryTable, symbol,
-                bestBid, bestAsk, spread,
-                totalBidSize, totalAskSize,
-                bidLevels, askLevels,
-                imbalance, now);
+            synchronized (clientLock) {
+                ensureClient();
 
-            client.flush();
+                // Stream bid levels
+                if (bidRows != null) {
+                    for (int i = 0; i < bidLevels; i++) {
+                        DOMRow row = (DOMRow) bidRows.get(i);
+                        float price = row.getPrice();
+                        float size = row.getSize();
+                        int orderCount = row.getOrderCount();
+
+                        client.writeDOMRow(domTable, symbol, "bid",
+                            i, price, size, orderCount, now);
+
+                        totalBidSize += size;
+                        if (i == 0) bestBid = price;
+                    }
+                }
+
+                // Stream ask levels
+                if (askRows != null) {
+                    for (int i = 0; i < askLevels; i++) {
+                        DOMRow row = (DOMRow) askRows.get(i);
+                        float price = row.getPrice();
+                        float size = row.getSize();
+                        int orderCount = row.getOrderCount();
+
+                        client.writeDOMRow(domTable, symbol, "ask",
+                            i, price, size, orderCount, now);
+
+                        totalAskSize += size;
+                        if (i == 0) bestAsk = price;
+                    }
+                }
+
+                // Compute and send summary
+                float spread = (bestAsk > 0 && bestBid > 0) ? bestAsk - bestBid : 0;
+                float totalSize = totalBidSize + totalAskSize;
+                float imbalance = totalSize > 0
+                    ? (totalBidSize - totalAskSize) / totalSize
+                    : 0;
+
+                client.writeDOMSummary(summaryTable, symbol,
+                    bestBid, bestAsk, spread,
+                    totalBidSize, totalAskSize,
+                    bidLevels, askLevels,
+                    imbalance, now);
+
+                client.flush();
+                connectionFailed = false;
+                failCount = 0;
+            }
+
             totalDomUpdates++;
-            connectionFailed = false;
-            failCount = 0;
 
         } catch (IOException e) {
-            handleConnectionError(e);
+            synchronized (clientLock) {
+                handleConnectionError(e);
+            }
         }
     }
 
@@ -281,6 +297,7 @@ public class QuestDBStreamStudy extends Study implements DOMListener {
     }
 
     private void handleConnectionError(IOException e) {
+        // Called inside synchronized(clientLock) — no additional lock needed
         failCount++;
         if (!connectionFailed || failCount % 10 == 0) {
             error("QuestDB Stream: connection error (" + failCount + "x): " + e.getMessage());
@@ -299,19 +316,21 @@ public class QuestDBStreamStudy extends Study implements DOMListener {
         totalBarsSent = 0;
         totalTicksSent = 0;
         totalDomUpdates = 0;
-        connectionFailed = false;
-        failCount = 0;
         lastDomSendTime = 0;
 
-        // Unsubscribe from DOM
+        // Unsubscribe from DOM (study-thread only)
         if (subscribedInstrument != null) {
             subscribedInstrument.removeListener((DOMListener) this);
             subscribedInstrument = null;
         }
 
-        if (client != null) {
-            try { client.close(); } catch (IOException ignored) {}
-            client = null;
+        synchronized (clientLock) {
+            connectionFailed = false;
+            failCount = 0;
+            if (client != null) {
+                try { client.close(); } catch (IOException ignored) {}
+                client = null;
+            }
         }
     }
 }
