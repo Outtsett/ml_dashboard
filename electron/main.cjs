@@ -27,6 +27,20 @@ const { setupContextMenus } = require("./contextMenus.cjs");
 const { showNotification, updatePreferences: updateNotifPrefs } = require("./notifications.cjs");
 const { setupThemeSync } = require("./themeSync.cjs");
 
+// Prevent EPIPE crashes when launched without a console (desktop shortcut)
+// When there's no terminal, stdout/stderr pipes can close unexpectedly.
+function safeLog(...args) {
+  try { console.log(...args); } catch {}
+}
+function safeError(...args) {
+  try { console.error(...args); } catch {}
+}
+function safeWarn(...args) {
+  try { console.warn(...args); } catch {}
+}
+process.stdout?.on?.("error", () => {});
+process.stderr?.on?.("error", () => {});
+
 // Load .env file so DATABASE_URL and other vars are available
 const envPath = path.join(__dirname, "..", ".env");
 if (fs.existsSync(envPath)) {
@@ -46,6 +60,28 @@ if (fs.existsSync(envPath)) {
 const APP_ID = "com.ml-dashboard.app";
 const PORT = process.env.PORT || 5000;
 const IS_DEV = process.env.NODE_ENV === "development";
+
+// Resolve the system Node.js binary — process.execPath is electron.exe which
+// cannot spawn server scripts as a plain Node process.
+function findNodeBinary() {
+  const { execFileSync } = require("child_process");
+  try {
+    const result = execFileSync("where.exe", ["node"], { encoding: "utf-8" });
+    const first = result.split("\n").map((l) => l.trim()).find((l) => l && !l.includes("electron"));
+    if (first && fs.existsSync(first)) return first;
+  } catch {}
+  // Fallback common locations
+  for (const p of [
+    "C:\\Program Files\\nodejs\\node.exe",
+    path.join(process.env.LOCALAPPDATA || "", "fnm_multishells", "node.exe"),
+  ]) {
+    if (fs.existsSync(p)) return p;
+  }
+  return "node"; // hope it's in PATH
+}
+
+const NODE_BIN = findNodeBinary();
+safeLog(`[app] Node binary: ${NODE_BIN}`);
 
 // --- Windows taskbar pinning & notification identity ---
 if (process.platform === "win32") {
@@ -76,16 +112,16 @@ function stopDatabases() {
     if (fs.existsSync(QUESTDB_PID_FILE)) {
       const pid = parseInt(fs.readFileSync(QUESTDB_PID_FILE, "utf-8").trim(), 10);
       if (pid) {
-        console.log(`[db] Stopping QuestDB (PID: ${pid})...`);
+        safeLog(`[db] Stopping QuestDB (PID: ${pid})...`);
         process.kill(pid);
         fs.unlinkSync(QUESTDB_PID_FILE);
-        console.log("[db] QuestDB stopped");
+        safeLog("[db] QuestDB stopped");
       }
     }
   } catch (err) {
     // ESRCH = process doesn't exist (already stopped)
     if (err.code !== "ESRCH") {
-      console.error("[db] Error stopping QuestDB:", err.message);
+      safeError("[db] Error stopping QuestDB:", err.message);
     }
     try { fs.unlinkSync(QUESTDB_PID_FILE); } catch {}
   }
@@ -262,7 +298,7 @@ function createWindow() {
     // Don't show for the error page itself
     if (url.includes("error.html")) return;
 
-    console.log("[window] Content loaded successfully");
+    safeLog("[window] Content loaded successfully");
     loadRetryCount = 0;
     if (splashWindow && !splashWindow.isDestroyed()) {
       splashWindow.close();
@@ -278,14 +314,14 @@ function createWindow() {
     (_e, errorCode, errorDescription, validatedURL, isMainFrame) => {
       if (!isMainFrame) return; // ignore sub-frame failures
 
-      console.error(
+      safeError(
         `[window] Failed to load (code ${errorCode}): ${errorDescription}`
       );
 
       if (loadRetryCount < MAX_LOAD_RETRIES) {
         loadRetryCount++;
         const delay = Math.min(1000 * loadRetryCount, 4000);
-        console.log(
+        safeLog(
           `[window] Retry ${loadRetryCount}/${MAX_LOAD_RETRIES} in ${delay}ms...`
         );
         updateSplashStatus(
@@ -298,7 +334,7 @@ function createWindow() {
         }, delay);
       } else {
         // All retries exhausted — show error page
-        console.error("[window] All retries exhausted, showing error page");
+        safeError("[window] All retries exhausted, showing error page");
         if (splashWindow && !splashWindow.isDestroyed()) {
           splashWindow.close();
         }
@@ -316,7 +352,7 @@ function createWindow() {
 
   // --- Renderer crash ---
   mainWindow.webContents.on("render-process-gone", (_e, details) => {
-    console.error("[window] Renderer process gone:", details.reason);
+    safeError("[window] Renderer process gone:", details.reason);
     if (details.reason === "crashed" || details.reason === "killed") {
       const choice = dialog.showMessageBoxSync(mainWindow, {
         type: "error",
@@ -334,16 +370,16 @@ function createWindow() {
 
   // --- Unresponsive window ---
   mainWindow.webContents.on("unresponsive", () => {
-    console.warn("[window] Renderer became unresponsive");
+    safeWarn("[window] Renderer became unresponsive");
   });
   mainWindow.webContents.on("responsive", () => {
-    console.log("[window] Renderer became responsive again");
+    safeLog("[window] Renderer became responsive again");
   });
 
   // Fallback: if nothing shows after 30s, force-show the window
   setTimeout(() => {
     if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
-      console.warn("[window] Timeout — forcing window visible");
+      safeWarn("[window] Timeout — forcing window visible");
       if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
       mainWindow.show();
     }
@@ -404,46 +440,146 @@ function createWindow() {
 }
 
 function startServer() {
-  if (IS_DEV) {
-    // In dev mode, server is started externally via concurrently
-    return Promise.resolve();
-  }
+  // First check if a server is already running (e.g. from `npm run dev`)
+  return new Promise(async (resolve, reject) => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      const resp = await fetch(`http://127.0.0.1:${PORT}/api/uploads`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (resp.ok || (resp.status >= 200 && resp.status < 500)) {
+        safeLog("[server] Already running on port", PORT);
+        return resolve();
+      }
+    } catch {
+      // Not running — we need to start it
+    }
 
-  return new Promise((resolve, reject) => {
-    const serverPath = path.join(__dirname, "..", "dist", "index.cjs");
-    serverProcess = spawn(process.execPath, [serverPath], {
-      env: {
-        ...process.env,
-        NODE_ENV: "production",
-        PORT: String(PORT),
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    if (IS_DEV) {
+      // Dev mode: start the TypeScript server directly
+      safeLog("[server] Starting dev server...");
+      const serverArgs = [
+        "--import",
+        "tsx",
+        path.join(__dirname, "..", "src", "server", "main.ts"),
+      ];
+      serverProcess = spawn(NODE_BIN, serverArgs, {
+        cwd: path.join(__dirname, ".."),
+        env: {
+          ...process.env,
+          NODE_ENV: "development",
+          PORT: String(PORT),
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } else {
+      // Production: try the built bundle first, fall back to dev server
+      const serverPath = path.join(__dirname, "..", "dist", "index.cjs");
+      if (!fs.existsSync(serverPath)) {
+        safeWarn("[server] No production build found, falling back to dev server");
+        const serverArgs = [
+          "--import",
+          "tsx",
+          path.join(__dirname, "..", "src", "server", "main.ts"),
+        ];
+        serverProcess = spawn(NODE_BIN, serverArgs, {
+          cwd: path.join(__dirname, ".."),
+          env: {
+            ...process.env,
+            NODE_ENV: "development",
+            PORT: String(PORT),
+          },
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+      } else {
+        safeLog("[server] Starting production server...");
+        serverProcess = spawn(NODE_BIN, [serverPath], {
+          cwd: path.join(__dirname, ".."),
+          env: {
+            ...process.env,
+            NODE_ENV: "production",
+            PORT: String(PORT),
+          },
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+      }
+    }
+
+    let resolved = false;
 
     serverProcess.stdout.on("data", (data) => {
       const msg = data.toString();
-      console.log("[server]", msg.trim());
-      if (msg.includes("serving on port")) {
+      safeLog("[server]", msg.trim());
+      if (!resolved && msg.includes("serving on port")) {
+        resolved = true;
         resolve();
       }
     });
 
     serverProcess.stderr.on("data", (data) => {
-      console.error("[server:err]", data.toString().trim());
+      const msg = data.toString().trim();
+      safeError("[server:err]", msg);
+      // If the production build crashes, fall back to dev server
+      if (
+        !resolved &&
+        !IS_DEV &&
+        (msg.includes("ERR_INVALID_ARG_TYPE") ||
+          msg.includes("Cannot find module") ||
+          msg.includes("SyntaxError"))
+      ) {
+        safeWarn("[server] Production build failed, falling back to dev server...");
+        serverProcess.kill();
+        const serverArgs = [
+          "--import",
+          "tsx",
+          path.join(__dirname, "..", "src", "server", "main.ts"),
+        ];
+        serverProcess = spawn(NODE_BIN, serverArgs, {
+          cwd: path.join(__dirname, ".."),
+          env: {
+            ...process.env,
+            NODE_ENV: "development",
+            PORT: String(PORT),
+          },
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        serverProcess.stdout.on("data", (d) => {
+          const m = d.toString();
+          safeLog("[server:fallback]", m.trim());
+          if (!resolved && m.includes("serving on port")) {
+            resolved = true;
+            resolve();
+          }
+        });
+        serverProcess.stderr.on("data", (d) => {
+          safeError("[server:fallback:err]", d.toString().trim());
+        });
+        serverProcess.on("error", (err) => {
+          if (!resolved) { resolved = true; reject(err); }
+        });
+        serverProcess.on("exit", (code) => {
+          safeLog("[server:fallback] Exited with code:", code);
+          serverProcess = null;
+        });
+      }
     });
 
     serverProcess.on("error", (err) => {
-      console.error("[server] Failed to start:", err);
-      reject(err);
+      safeError("[server] Failed to start:", err);
+      if (!resolved) { resolved = true; reject(err); }
     });
 
     serverProcess.on("exit", (code) => {
-      console.log("[server] Exited with code:", code);
+      safeLog("[server] Exited with code:", code);
       serverProcess = null;
     });
 
-    // Fallback: resolve after 8 seconds even if we didn't see the ready message
-    setTimeout(resolve, 8000);
+    // Fallback: resolve after 15 seconds even if we didn't see the ready message
+    setTimeout(() => {
+      if (!resolved) { resolved = true; resolve(); }
+    }, 15000);
   });
 }
 
@@ -471,7 +607,7 @@ async function waitForServer(maxWait = 30000) {
       clearTimeout(timeout);
 
       if (resp.ok || (resp.status >= 200 && resp.status < 500)) {
-        console.log(
+        safeLog(
           `[server] Health check passed after ${attempts} attempts (${Date.now() - start}ms)`
         );
         return true;
@@ -484,7 +620,7 @@ async function waitForServer(maxWait = 30000) {
   }
 
   // Timeout — don't throw, let the loadURL retry/error page handle it
-  console.warn(
+  safeWarn(
     `[server] Not reachable after ${maxWait}ms (${attempts} attempts): ${lastError}`
   );
   return false;
@@ -507,7 +643,7 @@ app.on("second-instance", () => {
 });
 
 app.whenReady().then(async () => {
-  console.log(
+  safeLog(
     `[app] Starting — NODE_ENV=${process.env.NODE_ENV}, IS_DEV=${IS_DEV}, PORT=${PORT}`
   );
   registerIpcHandlers();
@@ -538,7 +674,7 @@ app.whenReady().then(async () => {
     createTray(mainWindow);
     setupThemeSync(mainWindow, store);
   } catch (err) {
-    console.error("Failed to start application:", err);
+    safeError("Failed to start application:", err);
     if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
     stopServer();
     stopDatabases();
