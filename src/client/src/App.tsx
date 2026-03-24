@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect, type ComponentType } from "react";
 import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -19,15 +19,37 @@ import { useWebVitals } from './hooks/useWebVitals';
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
 import { useNativeMenu } from '@/hooks/useNativeMenu';
 
-const MarketData = lazy(() => import("@/pages/MarketData"));
-const Portfolio = lazy(() => import("@/pages/Portfolio"));
-const Databases = lazy(() => import("@/pages/Databases"));
-const Watchlist = lazy(() => import("@/pages/Watchlist"));
-const News = lazy(() => import("@/pages/News"));
-const MLStudio = lazy(() => import("@/pages/MLStudio"));
-const ModelCatalog = lazy(() => import("@/pages/ModelCatalog"));
-const Settings = lazy(() => import("@/pages/Settings"));
-const NotFound = lazy(() => import("@/pages/not-found"));
+// Retry wrapper for dynamic imports — handles stale chunks after HMR updates
+function lazyRetry(
+  factory: () => Promise<{ default: ComponentType<any> }>,
+  name: string,
+  retries = 2,
+): ReturnType<typeof lazy> {
+  return lazy(() =>
+    factory().catch((err: Error) => {
+      if (retries > 0 && /dynamically imported module|fetch/i.test(err.message)) {
+        console.warn(`[beta] Chunk stale for ${name}, retrying (${retries} left)…`);
+        return new Promise<{ default: ComponentType<any> }>((resolve) =>
+          setTimeout(() => resolve(lazyRetry(factory, name, retries - 1) as any), 800),
+        );
+      }
+      // Final retry failed — force full reload to pick up new manifest
+      console.error(`[beta] Chunk load failed for ${name} after retries, reloading…`);
+      window.location.reload();
+      return { default: (() => null) as unknown as ComponentType<any> };
+    }),
+  );
+}
+
+const MarketData = lazyRetry(() => import("@/pages/MarketData"), "MarketData");
+const Portfolio = lazyRetry(() => import("@/pages/Portfolio"), "Portfolio");
+const Databases = lazyRetry(() => import("@/pages/Databases"), "Databases");
+const Watchlist = lazyRetry(() => import("@/pages/Watchlist"), "Watchlist");
+const News = lazyRetry(() => import("@/pages/News"), "News");
+const MLStudio = lazyRetry(() => import("@/pages/MLStudio"), "MLStudio");
+const ModelCatalog = lazyRetry(() => import("@/pages/ModelCatalog"), "ModelCatalog");
+const Settings = lazyRetry(() => import("@/pages/Settings"), "Settings");
+const NotFound = lazyRetry(() => import("@/pages/not-found"), "NotFound");
 
 function Router() {
   return (

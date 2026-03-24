@@ -23,6 +23,12 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     console.error("[ErrorBoundary]", error, errorInfo);
+    // Dynamic import failures (stale chunks) → auto-reload
+    if (/dynamically imported module|Failed to fetch|Loading chunk/i.test(error.message)) {
+      console.warn("[beta] Dynamic import failure — reloading page…");
+      window.location.reload();
+      return;
+    }
     this.props.onError?.(error, errorInfo);
   }
 

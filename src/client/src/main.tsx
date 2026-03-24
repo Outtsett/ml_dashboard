@@ -8,15 +8,32 @@ if (api?.onHeartbeatPing) {
   api.onHeartbeatPing(); // auto-responds with pong
 }
 
-// Catch truly fatal errors and auto-reload after a brief delay
+// Beta mode: auto-recover from fatal errors
 let reloadScheduled = false;
+function scheduleReload(reason: string, delayMs = 2000) {
+  if (reloadScheduled) return;
+  reloadScheduled = true;
+  console.warn(`[beta] ${reason} — reloading in ${delayMs}ms…`);
+  setTimeout(() => window.location.reload(), delayMs);
+}
+
+// Catch synchronous errors (React render crashes, etc.)
 window.addEventListener("error", (event) => {
   console.error("[beta] Uncaught error:", event.error);
-  // Only auto-reload for fatal rendering errors, not network/resource errors
-  if (!reloadScheduled && event.error?.stack?.includes("React")) {
-    reloadScheduled = true;
-    console.warn("[beta] Fatal React error — reloading in 3s...");
-    setTimeout(() => window.location.reload(), 3000);
+  const msg = event.error?.message || "";
+  if (/dynamically imported module|Failed to fetch|Loading chunk/i.test(msg)) {
+    scheduleReload("Stale chunk detected", 500);
+  } else if (event.error?.stack?.includes("React")) {
+    scheduleReload("Fatal React error", 3000);
+  }
+});
+
+// Catch async failures (dynamic import() rejections)
+window.addEventListener("unhandledrejection", (event) => {
+  const msg = event.reason?.message || String(event.reason);
+  console.error("[beta] Unhandled rejection:", msg);
+  if (/dynamically imported module|Failed to fetch|Loading chunk/i.test(msg)) {
+    scheduleReload("Dynamic import rejection", 500);
   }
 });
 
