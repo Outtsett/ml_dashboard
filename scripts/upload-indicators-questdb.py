@@ -41,7 +41,7 @@ QUESTDB_URL = os.environ.get("QUESTDB_URL", "http://localhost:9000")
 QUESTDB_IMPORT_DIR = Path(
     os.environ.get(
         "QUESTDB_IMPORT_DIR",
-        r"E:\source\databases\questdb-9.3.1-rt-windows-x86-64\import",
+        str(Path.home() / "questdb" / "import"),
     )
 )
 OHLCV_COLS = {"open", "high", "low", "close", "volume"}

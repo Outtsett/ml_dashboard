@@ -95,6 +95,32 @@ router.get("/labels", async (req: Request, res: Response) => {
   }
 });
 
+// Get label history (MUST be before /:id to avoid route shadowing)
+router.get("/labels/history", async (req: Request, res: Response) => {
+  try {
+    const labelService = await getLabelService();
+    const labelSets = await labelService.getLabelSets({
+      symbol: getString(req.query.symbol as string) || undefined,
+      limit: req.query.limit ? parseInt(getString(req.query.limit as string)) : 50,
+    });
+    res.json({ history: labelSets ?? [] });
+  } catch (error) {
+    console.error("Error fetching label history:", error);
+    res.json({ history: [] });
+  }
+});
+
+// Get available label generators (MUST be before /:id to avoid route shadowing)
+router.get("/labels/generators", async (_req: Request, res: Response) => {
+  try {
+    const { LABEL_GENERATORS } = await import('@shared/mlTaxonomy');
+    res.json(LABEL_GENERATORS);
+  } catch (error) {
+    console.error("Error fetching generators:", error);
+    res.status(500).json({ error: "Failed to fetch generators" });
+  }
+});
+
 // Get specific label set
 router.get("/labels/:id", async (req: Request<{ id: string }>, res: Response) => {
   try {
@@ -139,17 +165,6 @@ router.delete("/labels/:id", async (req: Request<{ id: string }>, res: Response)
   } catch (error) {
     console.error("Error deleting label set:", error);
     res.status(500).json({ error: "Failed to delete label set" });
-  }
-});
-
-// Get available label generators
-router.get("/labels/generators", async (_req: Request, res: Response) => {
-  try {
-    const { LABEL_GENERATORS } = await import('@shared/mlTaxonomy');
-    res.json(LABEL_GENERATORS);
-  } catch (error) {
-    console.error("Error fetching generators:", error);
-    res.status(500).json({ error: "Failed to fetch generators" });
   }
 });
 

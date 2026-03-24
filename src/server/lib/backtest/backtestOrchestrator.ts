@@ -8,6 +8,9 @@
 import { storage, getAssetType } from '../../storage';
 import { queryQuestDB as marketQuery } from '../../database/questdb';
 import { runBacktest, type Signal, type InstrumentSpec, type BacktestConfig } from './tradeSimulator';
+import { generateModelSignals, generateMomentumSignals } from './modelInference';
+import { executeStrategy } from './strategyEngine';
+import type { StrategyDefinition, SignalSource } from '@shared/strategyTypes';
 
 // ─── Request / Response Types ───────────────────────────────────────────────
 
@@ -28,6 +31,10 @@ export interface BacktestRequest {
   minConfidence?: number;
   start?: string;
   end?: string;
+  /** Full strategy definition — takes precedence over bare modelId. */
+  strategy?: StrategyDefinition;
+  /** Override signal source label for the run record. */
+  signalSource?: SignalSource;
 }
 
 export interface BacktestResult {
@@ -145,35 +152,39 @@ export async function runBacktestJob(req: BacktestRequest): Promise<BacktestResu
   const trainBars = ohlcvData.slice(0, splitIdx);
   const testBars = ohlcvData.slice(splitIdx);
 
-  // 5. Generate momentum-based signals
-  const signals: Signal[] = [];
-  const resolvedModelId: number | undefined = modelId;
+  // 5. Generate signals based on strategy / model / fallback
+  let signals: Signal[];
+  let signalSource: SignalSource;
 
-  console.log(`[Backtest] Using momentum-based signals for ${symbol}`);
-  const lookback = 20;
-  for (let i = lookback; i < testBars.length; i++) {
-    const returns = (testBars[i]!.close - testBars[i - lookback]!.close) / testBars[i - lookback]!.close;
-    const absReturn = Math.abs(returns);
-    let prediction: number;
-    if (returns > 0.001) prediction = 2;       // up/long
-    else if (returns < -0.001) prediction = 0; // down/short
-    else prediction = 1;                       // neutral
-
-    signals.push({
-      timestamp: testBars[i]!.ts,
-      prediction,
-      confidence: Math.min(0.5 + absReturn * 10, 0.99),
-    });
+  if (req.strategy) {
+    signals = await executeStrategy(testBars, req.strategy);
+    signalSource = req.strategy.type === 'hybrid'
+      ? 'hybrid'
+      : req.strategy.type === 'ml_prediction'
+        ? 'model'
+        : req.strategy.type === 'indicator'
+          ? 'indicator'
+          : 'momentum';
+  } else if (modelId) {
+    signals = await generateModelSignals(testBars, modelId, minConfidence);
+    signalSource = 'model';
+  } else {
+    console.log(`[Backtest] Using momentum-based signals for ${symbol}`);
+    signals = generateMomentumSignals(testBars);
+    signalSource = 'momentum';
   }
+  const resolvedModelId: number | undefined = req.strategy?.modelId ?? modelId;
 
   if (signals.length === 0) {
     throw new BacktestError('No signals generated. Check model or data.', 400);
   }
 
   // 6. Create backtest run record
-  const backtestName = resolvedModelId
-    ? `Backtest ${symbol} Model#${resolvedModelId}`
-    : `Backtest ${symbol} Momentum`;
+  const backtestName = req.strategy
+    ? `Backtest ${symbol} ${req.strategy.name}`
+    : resolvedModelId
+      ? `Backtest ${symbol} Model#${resolvedModelId}`
+      : `Backtest ${symbol} Momentum`;
 
   const run = await storage.createBacktestRun({
     name: backtestName,
@@ -193,6 +204,8 @@ export async function runBacktestJob(req: BacktestRequest): Promise<BacktestResu
     takeProfitTicks,
     trailingStopTicks,
     maxDrawdownPct,
+    signalSource,
+    strategyConfig: req.strategy ? JSON.stringify(req.strategy) : null,
   });
 
   // 7. Update status to running

@@ -16,9 +16,12 @@ import {
   CONTRASTIVE_SQL_GENERATORS,
   type ContrastiveGeneratorType,
   type ContrastivePairConfig,
+  type ContrastiveWindow,
+  type AugmentationPairParams,
   type TemporalPairParams,
   type StatisticalPairParams,
   generateContrastivePairsFromSQL,
+  generateAugmentationPairs,
 } from './contrastivePairs';
 import { queryLabels, buildMetaLabelSQL } from './labelHelpers';
 import type { MetaLabelParams } from './sqlLabelGenerators';
@@ -188,6 +191,78 @@ async function generateContrastiveLabels(
       config,
       false
     );
+  } else if (genType === 'contrastive_augmentation') {
+    // Augmentation-based contrastive learning uses in-memory data augmentation,
+    // not SQL pair generation. Fetch OHLCV windows, apply augmentations in JS.
+    const windowSize = (request.params.windowSize as number) || 60;
+    const fetchSQL = `
+      SELECT close
+      FROM ohlcv
+      WHERE symbol = '${request.symbol}'
+      ORDER BY timestamp
+      LIMIT ${windowSize * 200}
+    `;
+    const rawRows = await queryLabels(fetchSQL);
+    const closes = rawRows.map(r => Number(r.close)).filter(v => !isNaN(v));
+
+    // Build sliding windows
+    const windows: ContrastiveWindow[] = [];
+    for (let i = 0; i <= closes.length - windowSize; i += Math.max(1, Math.floor(windowSize / 2))) {
+      windows.push({ startIdx: i, endIdx: i + windowSize - 1, data: closes.slice(i, i + windowSize) });
+    }
+
+    if (windows.length < 2) {
+      await db.update(generatedLabels)
+        .set({ status: 'completed', sampleCount: 0, generationTimeMs: Date.now() - startTime, updatedAt: new Date() })
+        .where(eq(generatedLabels.id, labelSetId));
+      return { success: true, labelSetId, sampleCount: 0, preview: [], generationTimeMs: Date.now() - startTime };
+    }
+
+    const augResult = generateAugmentationPairs(windows, {
+      jitterScale: (request.params.jitterScale as number) || 0.01,
+      scalingRange: (request.params.scalingRange as [number, number]) || [0.8, 1.2],
+      cropRatio: (request.params.cropRatio as number) || 0.8,
+    }, (request.params.samplesPerAnchor as number) || 4);
+
+    // Store as contrastive pairs (anchorIdx=window start, negativeIdx=negative window start)
+    if (augResult.pairs.length > 0) {
+      const batchSize = 500;
+      for (let i = 0; i < augResult.pairs.length; i += batchSize) {
+        const batch = augResult.pairs.slice(i, i + batchSize);
+        await db.insert(contrastivePairs).values(
+          batch.map(p => ({
+            labelSetId,
+            anchorIdx: p.anchor.startIdx,
+            positiveIdx: p.anchor.startIdx, // positive is augmented version of anchor
+            negativeIdx: p.negativeIdx,
+            pairType: 'augmentation',
+          }))
+        );
+      }
+    }
+
+    await db.update(generatedLabels)
+      .set({
+        status: 'completed',
+        sampleCount: augResult.pairs.length,
+        labelDistribution: JSON.stringify(augResult.stats),
+        generationTimeMs: Date.now() - startTime,
+        updatedAt: new Date(),
+      })
+      .where(eq(generatedLabels.id, labelSetId));
+
+    return {
+      success: true,
+      labelSetId,
+      sampleCount: augResult.pairs.length,
+      labelDistribution: augResult.stats as unknown as Record<string, number>,
+      preview: augResult.pairs.slice(0, 100).map(p => ({
+        anchor_start: p.anchor.startIdx,
+        augmentation: p.positive.augmentationType,
+        negative_start: p.negativeIdx,
+      })),
+      generationTimeMs: Date.now() - startTime,
+    };
   } else {
     throw new Error(`Unknown contrastive generator: ${genType}`);
   }

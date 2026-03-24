@@ -21,6 +21,26 @@ export interface HyperparameterDef {
   max: number;
   step: number;
   label: string;
+  /** Parameter data type (default inferred from step: step>=1 → int, else float) */
+  type?: 'int' | 'float' | 'categorical' | 'bool';
+  /** Whether to sample in log space during HPO */
+  logScale?: boolean;
+  /** Valid choices for categorical parameters */
+  choices?: (string | number | boolean)[];
+  /** Tooltip / help text */
+  description?: string;
+  /** UI grouping (e.g. "Architecture", "Training", "Regularization") */
+  group?: string;
+  /** Only show this param when another param has a specific value */
+  conditionalOn?: { param: string; value: string | number | boolean };
+  /** HPO-specific search range (may differ from manual slider range) */
+  searchSpace?: {
+    min?: number;
+    max?: number;
+    step?: number;
+    logScale?: boolean;
+    distribution?: 'uniform' | 'loguniform' | 'normal' | 'choice';
+  };
 }
 
 export interface ModelRegistryEntry {
@@ -38,6 +58,24 @@ export interface ModelRegistryEntry {
   includeIndicators?: boolean;    // default for including pre-computed indicators
   allFeatures?: boolean;          // default for using all available features
   cliFlags?: Record<string, string>;  // hyperparameter name → CLI flag mapping (OCP)
+  /** Links to model catalog spec file */
+  catalogId?: string;
+  /** Model description */
+  description?: string;
+  /** Reference paper URL */
+  paperUrl?: string;
+  /** Searchable tags (e.g. ["bayesian", "regime-detection", "unsupervised"]) */
+  tags?: string[];
+  /** Model family for template matching */
+  family?: 'sklearn' | 'pytorch' | 'xgboost' | 'lightgbm' | 'catboost' | 'transformer' | 'custom';
+  /** Whether model requires GPU */
+  gpuRequired?: boolean;
+  /** Estimated training time (e.g. "5-30 min per trial") */
+  estimatedTrainingTime?: string;
+  /** Supported optimization objectives (e.g. ["log_likelihood", "silhouette_score"]) */
+  supportedObjectives?: string[];
+  /** Reference to model-templates.json */
+  templateId?: string;
 }
 
 export interface ModelRegistry {
@@ -82,6 +120,12 @@ export interface TrainingRequest {
     testMonths: number;
     stepMonths?: number;
   };
+  /** Training optimization mode (defaults to 'manual') */
+  optimizationMode?: 'manual' | 'hpo' | 'wandb_sweep';
+  /** Whether to log to Weights & Biases */
+  wandbEnabled?: boolean;
+  /** W&B project name override */
+  wandbProject?: string;
 }
 
 // ─── Standardized SSE Event Types ────────────────────────────────────────────
@@ -96,7 +140,12 @@ export type TrainingEventType =
   | 'error'
   | 'walk-forward-window-start'
   | 'walk-forward-window-done'
-  | 'walk-forward-summary';
+  | 'walk-forward-summary'
+  | 'hpo-trial-start'
+  | 'hpo-trial-done'
+  | 'hpo-trial-pruned'
+  | 'hpo-best-update'
+  | 'hpo-complete';
 
 export interface TrainingEvent {
   type: TrainingEventType;
@@ -143,6 +192,38 @@ export interface DonePayload {
   modelId: string;
   elapsedSec: number;
   diagnostics?: unknown;
+}
+
+// ── hpo:trial-start — HPO trial began
+export interface HPOTrialStartPayload {
+  trialId: number;
+  params: Record<string, number | string | boolean>;
+}
+
+// ── hpo:trial-done — HPO trial finished (or pruned)
+export interface HPOTrialDonePayload {
+  trialId: number;
+  params: Record<string, number | string | boolean>;
+  score: number;
+  metrics: Record<string, number>;
+  duration: number;
+  pruned: boolean;
+}
+
+// ── hpo:best-update — new best trial found
+export interface HPOBestUpdatePayload {
+  trialId: number;
+  bestScore: number;
+  bestParams: Record<string, number | string | boolean>;
+}
+
+// ── hpo:complete — HPO study finished
+export interface HPOCompletePayload {
+  totalTrials: number;
+  bestTrialId: number;
+  bestScore: number;
+  bestParams: Record<string, number | string | boolean>;
+  elapsedSec: number;
 }
 
 // ── training:error
@@ -253,6 +334,32 @@ export interface TrainingLive {
   metrics: Record<string, number>;
   iterationHistory: Array<{ iteration: number; metrics: Record<string, number> }>;
   logs: string[];
+  liveRegimeTimestamps: number[];
+  liveRegimeAssignments: number[];
+  overlayData: OverlayPayload | null;
+  overlayType: string | null;
+  elapsedSec: number;
+  totalBars: number;
+  dataRange: { start: string; end: string } | null;
+  diagnostics: unknown | null;
+}
+
+// ── Granular sub-slices of TrainingLive ───────────────────────────────────────
+// Split by consumer need so components only re-render for the data they read.
+
+/** Metrics sub-slice — per-iteration numeric data. Updates every iteration. */
+export interface TrainingMetricsSlice {
+  metrics: Record<string, number>;
+  iterationHistory: Array<{ iteration: number; metrics: Record<string, number> }>;
+}
+
+/** Logs sub-slice — append-only log lines. Updates on every log event. */
+export interface TrainingLogsSlice {
+  logs: string[];
+}
+
+/** Overlays sub-slice — chart overlays + session metadata. Updates sporadically. */
+export interface TrainingOverlaysSlice {
   liveRegimeTimestamps: number[];
   liveRegimeAssignments: number[];
   overlayData: OverlayPayload | null;

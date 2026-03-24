@@ -18,6 +18,7 @@ import json
 import os
 import numpy as np
 
+from .normalizer import rolling_zscore as _rolling_zscore_1d  # noqa: F401 — 1D per-column z-score
 from .swing import compute_swing_features
 
 
@@ -179,7 +180,11 @@ def compute_features(data, categories=None):
 
 
 def normalize_features(X, lookback=250, clip_range=(-5, 5)):
-    """Rolling z-score normalization (vectorized). Clips to configured range."""
+    """Rolling z-score normalization (vectorized 2D matrix). Clips to configured range.
+
+    For per-column 1D rolling z-score (used by indicator normalization), see
+    ml.shared.normalizer.rolling_zscore (imported as _rolling_zscore_1d).
+    """
     from numpy.lib.stride_tricks import sliding_window_view
 
     T, D = X.shape

@@ -507,6 +507,30 @@ export type InsertBrokerConfig = z.infer<typeof insertBrokerConfigSchema>;
 export type BrokerConfig = typeof brokerConfigs.$inferSelect;
 
 // ============================================================
+// STRATEGIES
+// ============================================================
+
+export const strategies = sqliteTable("strategies", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  type: text("type").notNull(), // 'ml_prediction' | 'momentum' | 'indicator' | 'hybrid'
+  description: text("description"),
+  config: text("config").notNull(), // JSON of full StrategyDefinition
+  modelId: integer("model_id").references(() => mlModels.id, { onDelete: 'set null' }),
+  symbol: text("symbol"),
+  isDefault: integer("is_default").default(0),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+}, (table) => ({
+  typeIdx: index("strategies_type_idx").on(table.type),
+  symbolIdx: index("strategies_symbol_idx").on(table.symbol),
+}));
+
+export const insertStrategySchema = createInsertSchema(strategies).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertStrategy = z.infer<typeof insertStrategySchema>;
+export type Strategy = typeof strategies.$inferSelect;
+
+// ============================================================
 // BACKTESTING
 // ============================================================
 
@@ -532,6 +556,13 @@ export const backtestRuns = sqliteTable("backtest_runs", {
   takeProfitTicks: real("take_profit_ticks"),
   trailingStopTicks: real("trailing_stop_ticks"),
   maxDrawdownPct: real("max_drawdown_pct"),
+
+  signalSource: text("signal_source"), // 'model' | 'momentum' | 'indicator' | 'hybrid'
+  strategyConfig: text("strategy_config"), // JSON of StrategyDefinition
+  walkForwardGroupId: text("walk_forward_group_id"), // groups WF windows
+  walkForwardWindowIndex: integer("walk_forward_window_index"),
+  totalSpreadCost: real("total_spread_cost"),
+  calmarRatio: real("calmar_ratio"),
 
   status: text("status").notNull().default("pending"),
   totalTrades: integer("total_trades"),
@@ -641,3 +672,142 @@ export const events = sqliteTable("events", {
 }));
 
 export type EventRow = typeof events.$inferSelect;
+
+// ============================================================
+// HPO (HYPERPARAMETER OPTIMIZATION) SCHEMA
+// ============================================================
+
+export const hpoSessions = sqliteTable("hpo_sessions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  sessionId: text("session_id").notNull().unique(),
+  modelType: text("model_type").notNull(),
+  symbol: text("symbol").notNull(),
+  timeframe: text("timeframe").notNull(),
+
+  status: text("status").notNull().default("pending"),
+
+  optimizerType: text("optimizer_type").notNull(),
+  optimizerConfig: text("optimizer_config").notNull(),
+  objectiveMetric: text("objective_metric").notNull(),
+  objectiveDirection: text("objective_direction").notNull().default("minimize"),
+  searchSpace: text("search_space").notNull(),
+  fixedHyperparameters: text("fixed_hyperparameters"),
+
+  totalTrials: integer("total_trials").notNull().default(0),
+  completedTrials: integer("completed_trials").notNull().default(0),
+  prunedTrials: integer("pruned_trials").notNull().default(0),
+  failedTrials: integer("failed_trials").notNull().default(0),
+
+  bestTrialId: integer("best_trial_id"),
+  bestScore: real("best_score"),
+  bestParams: text("best_params"),
+
+  wandbEnabled: integer("wandb_enabled").notNull().default(0),
+  wandbProject: text("wandb_project"),
+  wandbRunId: text("wandb_run_id"),
+
+  dateRangeStart: text("date_range_start"),
+  dateRangeEnd: text("date_range_end"),
+  maxBars: integer("max_bars"),
+  featureCategories: text("feature_categories"),
+
+  errorMessage: text("error_message"),
+
+  startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+  completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+  elapsedSec: real("elapsed_sec"),
+}, (table) => ({
+  sessionIdIdx: index("hpo_s_session_id_idx").on(table.sessionId),
+  modelTypeIdx: index("hpo_s_model_type_idx").on(table.modelType),
+  symbolIdx: index("hpo_s_symbol_idx").on(table.symbol),
+  statusIdx: index("hpo_s_status_idx").on(table.status),
+  optimizerTypeIdx: index("hpo_s_optimizer_type_idx").on(table.optimizerType),
+}));
+
+export const insertHpoSessionSchema = createInsertSchema(hpoSessions).omit({ id: true, startedAt: true, updatedAt: true });
+export type InsertHpoSession = z.infer<typeof insertHpoSessionSchema>;
+export type HpoSession = typeof hpoSessions.$inferSelect;
+
+export const hpoTrials = sqliteTable("hpo_trials", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  sessionId: text("session_id").notNull(),
+  trialId: integer("trial_id").notNull(),
+
+  status: text("status").notNull().default("running"),
+
+  params: text("params").notNull(),
+  score: real("score"),
+  metrics: text("metrics"),
+
+  pruned: integer("pruned").notNull().default(0),
+  prunedAtStep: integer("pruned_at_step"),
+  error: text("error"),
+
+  durationSec: real("duration_sec"),
+  iterationHistory: text("iteration_history"),
+
+  modelPath: text("model_path"),
+  trainedModelId: text("trained_model_id"),
+
+  startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+  completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+}, (table) => ({
+  sessionIdIdx: index("hpo_t_session_id_idx").on(table.sessionId),
+  sessionTrialIdx: index("hpo_t_session_trial_idx").on(table.sessionId, table.trialId),
+  statusIdx: index("hpo_t_status_idx").on(table.status),
+  scoreIdx: index("hpo_t_score_idx").on(table.score),
+}));
+
+export const insertHpoTrialSchema = createInsertSchema(hpoTrials).omit({ id: true, startedAt: true });
+export type InsertHpoTrial = z.infer<typeof insertHpoTrialSchema>;
+export type HpoTrial = typeof hpoTrials.$inferSelect;
+
+export const hpoSearchSpaces = sqliteTable("hpo_search_spaces", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  description: text("description"),
+  modelType: text("model_type").notNull(),
+  searchSpace: text("search_space").notNull(),
+  optimizerType: text("optimizer_type"),
+  optimizerConfig: text("optimizer_config"),
+
+  timesUsed: integer("times_used").notNull().default(0),
+  bestScoreEver: real("best_score_ever"),
+
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+}, (table) => ({
+  modelTypeIdx: index("hpo_ss_model_type_idx").on(table.modelType),
+  nameIdx: index("hpo_ss_name_idx").on(table.name),
+}));
+
+export const insertHpoSearchSpaceSchema = createInsertSchema(hpoSearchSpaces).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertHpoSearchSpace = z.infer<typeof insertHpoSearchSpaceSchema>;
+export type HpoSearchSpace = typeof hpoSearchSpaces.$inferSelect;
+
+// User preferences — key/value store for UI and app settings
+export const userPreferences = sqliteTable("user_preferences", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull(), // JSON-encoded value
+  category: text("category").notNull().default("general"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+});
+
+export const insertUserPreferenceSchema = createInsertSchema(userPreferences).omit({ id: true });
+export type UserPreference = typeof userPreferences.$inferSelect;
+
+// MotiveWave file state tracking — persists incremental ingest progress across restarts
+export const mwFileStates = sqliteTable("mw_file_states", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  filePath: text("file_path").notNull().unique(),
+  fileSize: integer("file_size").notNull(),
+  lastModified: real("last_modified").notNull(),
+  rowsImported: integer("rows_imported").notNull().default(0),
+  symbol: text("symbol"),
+  timeframe: text("timeframe"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+});
+
+export type MwFileState = typeof mwFileStates.$inferSelect;

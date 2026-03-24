@@ -37,6 +37,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import duckdb
+import numpy as np
 import pandas as pd
 import pandas_ta as ta
 
@@ -340,6 +341,7 @@ CATEGORY_PREFIXES = [
             "AOBV_",
             "VP_",
             "VHM_",
+            "VPOC_",
         ],
     ),
     (
@@ -625,6 +627,68 @@ def build_forex_ohlcv(
 # ==============================================================================
 # Indicator Computation
 # ==============================================================================
+
+
+def _compute_vpoc(df: pd.DataFrame, windows: tuple[int, ...] = (20, 50)) -> None:
+    """Compute Volume Point of Control (VPOC) for rolling windows.
+
+    Uses pandas-ta ta.vp() per rolling window to build volume profile, then
+    extracts the POC (bin with highest total volume) as the VPOC price level.
+    Outputs per window:
+        VPOC_{N}       — price level of the point of control
+        VPOC_DIST_{N}  — (close - VPOC) / ATR, normalized distance from VPOC
+    """
+    if len(df) < 30:
+        return
+
+    close_arr = df["close"].values
+    volume_s = df["volume"]
+    close_s = df["close"]
+
+    # Pre-compute ATR(14) for distance normalization (reuse if already computed)
+    atr_col = None
+    for c in df.columns:
+        if c.startswith("ATR") and "NATR" not in c:
+            atr_col = c
+            break
+    if atr_col is not None:
+        atr = df[atr_col].values.astype(np.float64)
+    else:
+        atr = ta.atr(df["high"], df["low"], close_s, length=14).values
+
+    n_bars = len(df)
+
+    for window in windows:
+        vpoc_prices = np.full(n_bars, np.nan)
+        vpoc_dist = np.full(n_bars, np.nan)
+
+        for i in range(window - 1, n_bars):
+            start = i - window + 1
+            w_close = close_s.iloc[start : i + 1].reset_index(drop=True)
+            w_vol = volume_s.iloc[start : i + 1].reset_index(drop=True)
+
+            try:
+                profile = ta.vp(w_close, w_vol, width=10)
+            except Exception:
+                continue
+
+            if profile is None or profile.empty:
+                continue
+
+            # POC = bin with highest total volume
+            # Column names vary by pandas-ta version
+            total_col = "total_volume" if "total_volume" in profile.columns else "total_1"
+            mean_col = "mean_close" if "mean_close" in profile.columns else "mean_0"
+            poc_row = profile.loc[profile[total_col].idxmax()]
+            poc_price = poc_row[mean_col]
+
+            vpoc_prices[i] = poc_price
+            a = atr[i]
+            if a > 0 and not np.isnan(a):
+                vpoc_dist[i] = (close_arr[i] - poc_price) / a
+
+        df[f"VPOC_{window}"] = vpoc_prices.astype(np.float32)
+        df[f"VPOC_DIST_{window}"] = vpoc_dist.astype(np.float32)
 
 
 def compute_indicators(df: pd.DataFrame, symbol: str, tf_name: str) -> pd.DataFrame:

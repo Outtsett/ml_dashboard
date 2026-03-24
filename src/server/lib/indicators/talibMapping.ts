@@ -131,6 +131,10 @@ function buildColumnMap(): Record<string, string> {
     ad:                    'AD',
     adosc:                 'ADOSC_3_10',
     obv:                   'OBV',
+    vpoc_20:               'VPOC_20',
+    vpoc_50:               'VPOC_50',
+    vpoc_dist_20:          'VPOC_DIST_20',
+    vpoc_dist_50:          'VPOC_DIST_50',
 
     // ── Statistics (subchart) ──
     beta:                  'BETA_5',
@@ -177,6 +181,7 @@ function buildCategoryMap(): Record<string, TalibCategory> {
     'sar', 'sarext', 'midpoint', 'midprice', 'mama_mama', 'mama_fama',
     'tsf', 'linearreg',
     'bbands_upperband', 'bbands_middleband', 'bbands_lowerband',
+    'vpoc_20', 'vpoc_50',
   ]);
 
   const trendCols = new Set([
@@ -196,7 +201,7 @@ function buildCategoryMap(): Record<string, TalibCategory> {
 
   const volatilityCols = new Set(['atr', 'natr', 'trange']);
 
-  const volumeCols = new Set(['ad', 'adosc', 'obv']);
+  const volumeCols = new Set(['ad', 'adosc', 'obv', 'vpoc_dist_20', 'vpoc_dist_50']);
 
   const statsCols = new Set([
     'beta', 'correl', 'stddev', 'var',
