@@ -1,19 +1,7 @@
 /**
  * Ingest futures data from analytics.duckdb ohlcv_1s view into QuestDB.
  *
- * The ohlcv_1s VIEW already has clean data:
- *   - timestamp: TIMESTAMPTZ (already converted from ts_event nanoseconds)
- *   - instrument_id: VARCHAR (already string)
- *   - open/high/low/close: DOUBLE (already divided by 1B)
- *   - volume: BIGINT
- *
- * The instruments table maps instrument_id -> symbol.
- *
- * Reads from source DuckDB (analytics.duckdb) via ephemeral DuckDB.
- * Writes to QuestDB via ILP (InfluxDB Line Protocol).
- * Tracks ingestion in PostgreSQL (optional -- requires running PG).
- *
- * Run: npx tsx scripts/ingest-futures.ts
+ * Modified to write to the 'futures_ohlcv' table and extract 'root' symbol.
  */
 import { Sender } from '@questdb/nodejs-client';
 import { initDuckDB, runQuery } from '../server/duckdb';
@@ -23,12 +11,19 @@ const BATCH_SIZE = 50_000;
 const QUESTDB_HTTP_PORT = process.env.QUESTDB_HTTP_PORT || '9000';
 const QUESTDB_HOST = process.env.QUESTDB_HOST || 'localhost';
 
+/**
+ * Extracts the root symbol from a futures contract (e.g., 'MNQZ24' -> 'MNQ')
+ */
+function getRootSymbol(symbol: string): string {
+  const match = symbol.match(/^([A-Z]+)[FGHJKMNQUVXZ]\d{1,2}$/i);
+  return match ? match[1].toUpperCase() : symbol.split(/[0-9]/)[0].toUpperCase();
+}
+
 async function main() {
   await initDuckDB();
 
   const analyticsPath = 'E:/source/repos/ml_dashboard/data/sources/analytics.duckdb';
 
-  // Dedup check via PostgreSQL (optional)
   let alreadyIngested = false;
   try {
     const hash = await computeFileHash(analyticsPath);
@@ -46,34 +41,17 @@ async function main() {
   console.log('[ingest] Attaching analytics.duckdb...');
   await runQuery(`ATTACH '${analyticsPath}' AS src (READ_ONLY)`);
 
-  // Build instrument_id -> symbol mapping from the instruments table
   console.log('[ingest] Loading instrument mapping...');
   const instruments = await runQuery<{ instrument_id: string; symbol: string }>(
     `SELECT instrument_id, symbol FROM src.instruments`
   );
-  console.log(`[ingest] Found ${instruments.length} instrument mappings`);
-
-  // Show sample mappings
-  const sampleMappings = instruments.slice(0, 10);
-  console.log('[ingest] Sample mappings:');
-  sampleMappings.forEach(m => console.log(`  ${m.instrument_id} -> ${m.symbol}`));
-
-  // Build lookup map
   const symbolMap = new Map(instruments.map(m => [m.instrument_id, m.symbol]));
 
-  // Get distinct instrument_ids in ohlcv_1s
-  const distinctIds = await runQuery<{ instrument_id: string }>(
-    `SELECT DISTINCT instrument_id FROM src.ohlcv_1s LIMIT 50`
-  );
-  console.log(`[ingest] Found ${distinctIds.length} distinct instrument_ids in ohlcv_1s`);
-
-  // Count total rows
   const totalResult = await runQuery<{ cnt: number }>(
     `SELECT COUNT(*) as cnt FROM src.ohlcv_1s`
   );
   const totalRows = Number(totalResult[0].cnt);
-  console.log(`[ingest] Starting futures ingestion from ohlcv_1s (${totalRows.toLocaleString()} rows)...`);
-  console.log('[ingest] This may take several minutes...');
+  console.log(`[ingest] Starting futures ingestion to 'futures_ohlcv' (${totalRows.toLocaleString()} rows)...`);
 
   const start = Date.now();
   const configStr = `http::addr=${QUESTDB_HOST}:${QUESTDB_HTTP_PORT};auto_flush=off;`;
@@ -111,11 +89,13 @@ async function main() {
 
     for (const row of batch) {
       const symbol = symbolMap.get(row.instrument_id) || row.instrument_id;
+      const root = getRootSymbol(symbol);
       const tsMs = new Date(row.timestamp).getTime();
 
       await sender
-        .table('ohlcv')
+        .table('futures_ohlcv')
         .symbol('symbol', symbol)
+        .symbol('root', root)
         .floatColumn('open', row.open)
         .floatColumn('high', row.high)
         .floatColumn('low', row.low)
@@ -143,27 +123,7 @@ async function main() {
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
   console.log(`[ingest] Futures ingestion complete: ${rowCount.toLocaleString()} rows in ${elapsed}s`);
 
-  // Record ingestion in PostgreSQL (optional)
-  try {
-    const hash = await computeFileHash(analyticsPath);
-    const fs = await import('fs');
-    const fileSize = fs.statSync(analyticsPath).size;
-    await recordIngestion(
-      analyticsPath,
-      hash,
-      fileSize,
-      rowCount,
-      'FUTURES_ALL',
-      new Date(tsMin),
-      new Date(tsMax),
-    );
-    console.log('[ingest] Recorded ingestion in PostgreSQL');
-  } catch (err) {
-    console.log('[ingest] Could not record ingestion in PostgreSQL (DB may not be running)');
-  }
-
   await runQuery("DETACH src");
-  console.log('[ingest] Done.');
 }
 
 main().catch(console.error);

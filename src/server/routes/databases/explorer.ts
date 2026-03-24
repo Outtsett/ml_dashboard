@@ -5,7 +5,6 @@
  *
  * Routes:
  *   GET  /api/databases/sqlite/stats
- *   GET  /api/databases/postgres/stats (legacy redirect)
  *   GET  /api/databases/questdb/stats
  *   GET  /api/databases/preview/:db/:table
  *   POST /api/databases/query
@@ -102,16 +101,6 @@ router.get('/databases/sqlite/stats', async (_req: Request, res: Response) => {
   }
 });
 
-// Legacy endpoint — redirect to SQLite
-router.get('/databases/postgres/stats', (_req: Request, res: Response) => {
-  res.json({
-    connected: false,
-    tables: 0,
-    tableDetails: [],
-    error: 'PostgreSQL removed. Use /databases/sqlite/stats',
-  });
-});
-
 // QuestDB Stats
 router.get('/databases/questdb/stats', async (_req: Request, res: Response) => {
   try {
@@ -130,7 +119,7 @@ router.get('/databases/preview/:db/:table', async (req: Request, res: Response) 
     const table = getString(req.params.table);
     const limit = Math.min(Math.max(1, parseInt(req.query.limit as string) || 100), 1000);
 
-    if (!['sqlite', 'postgres', 'questdb'].includes(dbParam)) {
+    if (!['sqlite', 'questdb'].includes(dbParam)) {
       return res.status(400).json({ error: 'Invalid database specified' });
     }
     if (!isValidIdentifier(table)) {
@@ -139,7 +128,7 @@ router.get('/databases/preview/:db/:table', async (req: Request, res: Response) 
 
     let rows: any[] = [];
 
-    if (dbParam === 'sqlite' || dbParam === 'postgres') {
+    if (dbParam === 'sqlite') {
       const escapedTable = table.replace(/"/g, '""');
       const { db: sqliteDb } = await import('../../database/db');
       rows = sqliteDb.all(drizzleSql.raw(`SELECT * FROM "${escapedTable}" LIMIT ${limit}`));
@@ -166,7 +155,7 @@ router.post('/databases/query', async (req: Request, res: Response) => {
     if (sql.length > 10000) {
       return res.status(400).json({ error: 'Query too long (max 10000 characters)' });
     }
-    if (!['sqlite', 'postgres', 'questdb'].includes(dbParam)) {
+    if (!['sqlite', 'questdb'].includes(dbParam)) {
       return res.status(400).json({ error: 'Invalid database specified' });
     }
 
@@ -177,8 +166,7 @@ router.post('/databases/query', async (req: Request, res: Response) => {
 
     let rows: any[] = [];
 
-    if (dbParam === 'sqlite' || dbParam === 'postgres') {
-      // Use read-only connection — prevents writes even if blocklist is bypassed
+    if (dbParam === 'sqlite') {
       rows = dbReadOnly.all<Record<string, unknown>>(drizzleSql.raw(sql)) as any[];
     } else if (dbParam === 'questdb') {
       const { queryQuestDB } = await import('../../database/questdb');

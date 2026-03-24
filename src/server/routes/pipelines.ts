@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { EventStore } from '../events/event-store.js';
 import { db } from '../database/db.js';
+import { getString } from './helpers';
 import type { StoredEvent, PipelineStatus, PipelineType } from '@shared/event-types';
 
 const router = Router();
@@ -124,7 +125,7 @@ router.get('/pipelines', async (_req: Request, res: Response) => {
 // ── GET /api/pipelines/:id/events — event log for a pipeline
 router.get('/pipelines/:id/events', async (req: Request, res: Response) => {
   try {
-    const streamId = req.params.id!;
+    const streamId = getString(req.params.id);
     const events = await eventStore.readStream(streamId);
 
     if (events.length === 0) {
@@ -142,7 +143,7 @@ router.get('/pipelines/:id/events', async (req: Request, res: Response) => {
 // ── GET /api/pipelines/:id/state — derived current state ────
 router.get('/pipelines/:id/state', async (req: Request, res: Response) => {
   try {
-    const streamId = req.params.id!;
+    const streamId = getString(req.params.id);
     const events = await eventStore.readStream(streamId);
 
     if (events.length === 0) {

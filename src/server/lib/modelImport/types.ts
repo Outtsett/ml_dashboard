@@ -1,15 +1,15 @@
 /**
- * Model Import Types — Structures parsed from algo_model markdown specs.
+ * Model Import Types � Structures parsed from algo_model markdown specs.
  *
  * These types describe the shape of data extracted from the
- * `E:\source\documents\algo_models` directory tree. Each .md file
+ * \E:\source\documents\algo_models\ directory tree. Each .md file
  * follows a consistent template: Overview, Principles, Algorithm,
  * Training Methodology, Key Features, Applications, Implementation.
  *
  * The folder hierarchy encodes: TopCategory / Subcategory / ModelName.md
  */
 
-// ─── Top-level category (from folder names) ─────────────────────────────────
+// --- Top-level category (from folder names) ---------------------------------
 
 export type AlgoModelCategory =
   | 'generative'
@@ -20,13 +20,17 @@ export type AlgoModelCategory =
   | 'probabilistic-symbolic'
   | 'reinforcement-learning'
   | 'simulation-decision'
-  | 'statistical';
+  | 'statistical'
+  | 'self-supervised'
+  | 'semi-supervised'
+  | 'supervised'
+  | 'unsupervised';
 
-// ─── Subcategory mapping (second-level folders) ─────────────────────────────
+// --- Subcategory mapping (second-level folders) ------------------------------
 
-export type AlgoModelSubcategory = string; // open-ended — derived from folder names
+export type AlgoModelSubcategory = string; // open-ended � derived from folder names        
 
-// ─── Hyperparameter extracted from markdown code blocks ─────────────────────
+// --- Hyperparameter extracted from markdown code blocks ----------------------
 
 export interface ExtractedHyperparameter {
   name: string;
@@ -39,7 +43,7 @@ export interface ExtractedHyperparameter {
   description: string;
 }
 
-// ─── Full parsed model spec ─────────────────────────────────────────────────
+// --- Full parsed model spec --------------------------------------------------     
 
 export interface ParsedModelSpec {
   /** Slugified ID: e.g. "xgboost", "convolutional-neural-network-cnn" */
@@ -88,7 +92,7 @@ export interface ParsedModelSpec {
   rawMarkdown?: string;
 }
 
-// ─── Scan result for the entire directory ───────────────────────────────────
+// --- Scan result for the entire directory -----------------------------------
 
 export interface ModelCatalog {
   /** Total .md files found */
@@ -103,14 +107,14 @@ export interface ModelCatalog {
   /** All parsed models (content only or include placeholders) */
   models: ParsedModelSpec[];
 
-  /** Category → subcategory → model count */
+  /** Category ? subcategory ? model count */
   taxonomy: Record<string, Record<string, number>>;
 
   /** Timestamp of last scan */
   scannedAt: number;
 }
 
-// ─── Folder name → category key mapping ─────────────────────────────────────
+// --- Folder name ? category key mapping --------------------------------------
 
 export const FOLDER_TO_CATEGORY: Record<string, AlgoModelCategory> = {
   'Generative Models': 'generative',
@@ -122,6 +126,10 @@ export const FOLDER_TO_CATEGORY: Record<string, AlgoModelCategory> = {
   'Reinforcement Learning (RL)': 'reinforcement-learning',
   'Simulation & Decision Models': 'simulation-decision',
   'Statistical Models': 'statistical',
+  'Self-Supervised Learning': 'self-supervised',
+  'Semi-Supervised Learning': 'semi-supervised',
+  'Supervised Learning': 'supervised',
+  'Unsupervised Learning': 'unsupervised',
 };
 
 export const CATEGORY_LABELS: Record<AlgoModelCategory, string> = {
@@ -134,4 +142,8 @@ export const CATEGORY_LABELS: Record<AlgoModelCategory, string> = {
   'reinforcement-learning': 'Reinforcement Learning',
   'simulation-decision': 'Simulation & Decision',
   'statistical': 'Statistical Models',
+  'self-supervised': 'Self-Supervised',
+  'semi-supervised': 'Semi-Supervised',
+  'supervised': 'Supervised Learning',
+  'unsupervised': 'Unsupervised Learning',
 };

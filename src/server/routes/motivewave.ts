@@ -2,9 +2,10 @@
  * MotiveWave Integration API Routes
  *
  * Endpoints:
- *   GET  /motivewave/status     — Watcher state, watched files, recent imports
- *   POST /motivewave/configure  — Set watch directory, enable/disable
- *   POST /motivewave/import     — Manual single-file import
+ *   GET  /motivewave/status     — Watcher state, config, tracked files, recent imports
+ *   POST /motivewave/configure  — Set watch directory, enable/disable, auto-start, debounce
+ *   POST /motivewave/import     — Manual single-file import (multipart upload)
+ *   POST /motivewave/import-path — Import from a local file path
  *   POST /motivewave/start      — Start the file watcher
  *   POST /motivewave/stop       — Stop the file watcher
  */
@@ -44,7 +45,7 @@ router.get("/motivewave/status", (_req, res) => {
 // ── POST /motivewave/configure ──────────────────────────────────────────────
 
 router.post("/motivewave/configure", (req, res) => {
-  const { watchDir, enabled, debounceMs } = req.body;
+  const { watchDir, enabled, debounceMs, autoStart } = req.body;
 
   if (watchDir !== undefined && typeof watchDir !== "string") {
     res.status(400).json({ error: "watchDir must be a string" });
@@ -60,7 +61,9 @@ router.post("/motivewave/configure", (req, res) => {
   if (watchDir !== undefined) update.watchDir = watchDir;
   if (enabled !== undefined) update.enabled = !!enabled;
   if (debounceMs !== undefined) update.debounceMs = Math.max(50, Number(debounceMs));
+  if (autoStart !== undefined) update.autoStart = !!autoStart;
 
+  // configure() persists to SQLite automatically
   watcher.configure(update);
 
   // Auto-start/stop based on enabled flag

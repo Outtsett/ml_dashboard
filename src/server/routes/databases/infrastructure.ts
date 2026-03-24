@@ -11,7 +11,7 @@
  *   GET  /api/questdb/symbols
  *   GET  /api/questdb/:symbol/stats
  *   GET  /api/questdb/status
- *   POST /api/questdb/start|stop|init
+ *   POST /api/questdb/start|stop|init|restart|maintenance
  *   GET  /api/questdb/ohlcv/:symbol
  *   GET  /api/cache/stats
  *   POST /api/cache/clear|invalidate/:symbol
@@ -59,8 +59,7 @@ router.get('/ohlcv/:symbol', queryRateLimiter, async (req: Request, res: Respons
 
 router.get('/health', CACHE_SEMI, async (_req: Request, res: Response) => {
   try {
-    const { getNestApp } = await import('../../main');
-    const { HealthService } = await import('../../core/health/health.service');
+    const { getNestApp } = await import('../../nest-context');
     const healthService = getNestApp().get(HealthService);
     const result = await healthService.check();
     res.status(result.status === 'ok' ? 200 : 503).json(result);
@@ -180,6 +179,37 @@ router.post('/questdb/init', async (_req: Request, res: Response) => {
     const { initializeQuestDB } = await import('../../database/questdb/integration');
     const result = await initializeQuestDB();
     res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Institutional Restart: Kills and restarts the QuestDB process
+ * via the QuestDBAutomationService.
+ */
+router.post('/questdb/restart', async (_req: Request, res: Response) => {
+  try {
+    const { getNestApp } = await import('../../main');
+    const { QuestDBAutomationService } = await import('../../database/questdb/automation.service');
+    const automation = getNestApp().get(QuestDBAutomationService);
+    const result = await automation.restartQuestDB();
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Triggers manual database maintenance (rollover sync, view refresh).
+ */
+router.post('/questdb/maintenance', async (_req: Request, res: Response) => {
+  try {
+    const { getNestApp } = await import('../../main');
+    const { QuestDBAutomationService } = await import('../../database/questdb/automation.service');
+    const automation = getNestApp().get(QuestDBAutomationService);
+    await automation.runDailyMaintenance();
+    res.json({ success: true, message: 'Maintenance tasks triggered' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

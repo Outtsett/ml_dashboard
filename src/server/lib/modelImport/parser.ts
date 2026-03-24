@@ -127,7 +127,7 @@ function extractBullets(text: string): string[] {
   for (const line of text.split('\n')) {
     const match = line.match(/^[-*]\s+\*\*(.+?)\*\*[:\s]*(.+)/);
     if (match) {
-      bullets.push(`${match[1]}: ${match[2].trim()}`);
+      bullets.push(`${match[1]!}: ${match[2]!.trim()}`);
       continue;
     }
     const simpleBullet = line.match(/^[-*]\s+(.+)/);
@@ -245,7 +245,12 @@ export function parseModelSpec(
 ): ParsedModelSpec | null {
   const stat = fs.statSync(filePath);
   const relativePath = path.relative(algoModelsRoot, filePath).replace(/\\/g, '/');
-  const parts = relativePath.split('/');
+  let parts = relativePath.split('/');
+
+  // If the first part is 'Deep Learning' or 'Machine Learning', skip it for category determination
+  if (parts[0] === 'Deep Learning' || parts[0] === 'Machine Learning') {
+    parts = parts.slice(1);
+  }
 
   // Need at least: Category/Name.md or Category/Subcategory/Name.md
   if (parts.length < 2) return null;
@@ -370,3 +375,4 @@ export function scanModelCatalog(
     scannedAt: Date.now(),
   };
 }
+
