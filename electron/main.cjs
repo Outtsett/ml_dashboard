@@ -102,6 +102,7 @@ let mainWindow = null;
 let splashWindow = null;
 let serverProcess = null;
 let loadRetryCount = 0;
+let userHidWindow = false; // tracks if user intentionally hid via close button
 const MAX_LOAD_RETRIES = 5;
 
 // --------------- Beta Mode (auto-recovery) ---------------
@@ -342,7 +343,8 @@ function createWindow() {
     if (splashWindow && !splashWindow.isDestroyed()) {
       splashWindow.close();
     }
-    if (!mainWindow.isVisible()) {
+    // Only auto-show if the user didn't intentionally hide the window
+    if (!mainWindow.isVisible() && !userHidWindow) {
       mainWindow.show();
     }
   });
@@ -498,6 +500,8 @@ function createWindow() {
   mainWindow.on("close", (e) => {
     if (!app.isQuitting) {
       e.preventDefault();
+      userHidWindow = true;
+      stopHeartbeat(); // don't ping a hidden renderer
       mainWindow.hide();
       return false;
     }
@@ -505,6 +509,12 @@ function createWindow() {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+  });
+
+  // When window becomes visible again (tray click, taskbar, etc.) — resume heartbeat
+  mainWindow.on("show", () => {
+    userHidWindow = false;
+    startHeartbeat();
   });
 
   // Set up native menus and context menus
