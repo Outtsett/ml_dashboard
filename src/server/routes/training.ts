@@ -26,7 +26,7 @@ import fs from "fs";
 import path from "path";
 import { z } from "zod";
 import { CACHE_SEMI } from "../lib/cacheHeaders";
-import { getNestApp } from "../main";
+import { getNestApp } from "../nest-context";
 import { TrainingService } from "../training/training.service";
 import { RegistryService } from "../training/registry.service";
 import type { TrainingRequest, TrainingEvent } from "@shared/trainingTypes";

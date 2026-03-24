@@ -17,6 +17,7 @@ import type { AdjustmentMode } from '@shared/ohlcv';
 import { cachedQuery, OHLCVCache } from '../lib/ohlcvCache';
 import { normalizeTimestamp, parseTimestampParam } from '../lib/normalize';
 import { isFuturesRoot } from '../lib/futures';
+import { detectInstrumentType, getBaseTableForType } from '../database/questdb/marketData';
 import { CACHE_SEMI } from '../lib/cacheHeaders';
 import { SYMBOL_REGEX } from '@shared/schema';
 
@@ -93,8 +94,9 @@ async function isQuestDBHealthy(): Promise<boolean> {
 router.get('/ohlcv', async (req: Request, res: Response) => {
   try {
     const symbol = (req.query.symbol as string)?.trim()?.toUpperCase();
-    if (!symbol) return res.status(400).json({ error: 'symbol is required' });
-    if (!SYMBOL_REGEX.test(symbol)) return res.status(400).json({ error: 'Invalid symbol format' });
+    if (!symbol || typeof symbol !== 'string' || symbol.length > 20 || !SYMBOL_REGEX.test(symbol)) {
+      return res.status(400).json({ error: 'Invalid symbol parameter' });
+    }
 
     const tfMinutes = parseTimeframeMinutes(req.query.timeframe as string);
     const startMs = parseTimestamp(req.query.startTime as string) ?? parseTimestamp(req.query.start as string);
@@ -110,29 +112,57 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
       || '1m';
 
     // ── Estimate a reasonable time window when none is provided ──
-    // Without this, SAMPLE BY scans ALL data for the symbol (millions of rows)
-    // For DESC order (initial chart load), find the symbol's latest timestamp first,
-    // then estimate a window backwards from that point.
+    // Without this, SAMPLE BY scans ALL data for the symbol (millions of rows).
+    // ALWAYS compute a window when no explicit bounds are given, regardless of order.
     let effectiveStart = startMs;
     let effectiveEnd   = endMs;
-    if (!effectiveStart && !effectiveEnd && orderDesc) {
-      let anchorMs = Date.now();
-      try {
-        const safeEsc = symbol.replace(/'/g, "''");
-        let anchorQuery: string;
-        if (isFuturesRoot(symbol)) {
-          // For futures roots, find latest bar across all matching contracts
-          const contractRegex = `^${safeEsc}[FGHJKMNQUVXZ][0-9]{1,2}$`;
-          anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE symbol ~ '${contractRegex}'`;
-        } else {
-          anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE symbol = '${safeEsc}'`;
-        }
-        const [row] = await queryQuestDB(anchorQuery);
-        if (row?.latest) {
-          const latestDate = row.latest instanceof Date ? row.latest.getTime() : new Date(String(row.latest)).getTime();
-          if (!isNaN(latestDate)) anchorMs = latestDate;
-        }
-      } catch { /* fall through to Date.now() anchor */ }
+
+    // Start health check + anchor query in parallel (avoid sequential await)
+    const healthPromise = isQuestDBHealthy();
+    let anchorPromise: Promise<number> | null = null;
+
+    if (!effectiveStart && !effectiveEnd) {
+      anchorPromise = (async () => {
+        try {
+          const safeEsc = symbol.replace(/'/g, "''");
+          const table = getBaseTableForType(detectInstrumentType(symbol));
+          let anchorQuery: string;
+          if (isFuturesRoot(symbol)) {
+            // Use rollovers table to find the current contract — O(1) instead of regex scan on 159M+ rows
+            const rolloverQuery = `SELECT to_contract FROM rollovers WHERE root = '${safeEsc}' ORDER BY rollover_date DESC LIMIT 1`;
+            const rollRows = await queryQuestDB<{ to_contract: string }>(rolloverQuery);
+            if (rollRows.length > 0) {
+              const currentContract = rollRows[0]!.to_contract.replace(/'/g, "''");
+              anchorQuery = `SELECT max(timestamp) as latest FROM ${table} WHERE symbol = '${currentContract}'`;
+            } else {
+              // No rollover schedule — use regex (slower but correct)
+              const contractRegex = `^${safeEsc}[FGHJKMNQUVXZ][0-9]{1,2}$`;
+              anchorQuery = `SELECT max(timestamp) as latest FROM ${table} WHERE symbol ~ '${contractRegex}'`;
+            }
+          } else {
+            anchorQuery = `SELECT max(timestamp) as latest FROM ${table} WHERE symbol = '${safeEsc}'`;
+          }
+          const [row] = await queryQuestDB(anchorQuery);
+          if (row?.latest) {
+            const latestDate = row.latest instanceof Date ? row.latest.getTime() : new Date(String(row.latest)).getTime();
+            if (!isNaN(latestDate)) return latestDate;
+          }
+        } catch { /* fall through */ }
+        return Date.now();
+      })();
+    }
+
+    // Await both in parallel
+    const [healthy, anchorMs] = await Promise.all([
+      healthPromise,
+      anchorPromise ?? Promise.resolve(null),
+    ]);
+
+    if (!healthy) {
+      return res.status(503).json({ error: 'QuestDB is not available' });
+    }
+
+    if (anchorMs !== null) {
       const estimatedMinutesNeeded = rowLimit * tfMinutes * 3;
       effectiveStart = anchorMs - estimatedMinutesNeeded * 60_000;
     }
@@ -142,12 +172,9 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
       extra: isFuturesRoot(symbol) ? adjustment : undefined,
     });
 
-    const healthy = await isQuestDBHealthy();
-    if (!healthy) {
-      return res.status(503).json({ error: 'QuestDB is not available' });
-    }
+    const isFR = isFuturesRoot(symbol);
 
-    const queryFn = isFuturesRoot(symbol)
+    const queryFn = isFR
       ? () => getStitchedOHLCV(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit, adjustment)
       : () => getOHLCVSampleBy(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit);
 

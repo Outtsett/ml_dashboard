@@ -190,7 +190,7 @@ router.post('/questdb/init', async (_req: Request, res: Response) => {
  */
 router.post('/questdb/restart', async (_req: Request, res: Response) => {
   try {
-    const { getNestApp } = await import('../../main');
+    const { getNestApp } = await import('../../nest-context');
     const { QuestDBAutomationService } = await import('../../database/questdb/automation.service');
     const automation = getNestApp().get(QuestDBAutomationService);
     const result = await automation.restartQuestDB();
@@ -205,7 +205,7 @@ router.post('/questdb/restart', async (_req: Request, res: Response) => {
  */
 router.post('/questdb/maintenance', async (_req: Request, res: Response) => {
   try {
-    const { getNestApp } = await import('../../main');
+    const { getNestApp } = await import('../../nest-context');
     const { QuestDBAutomationService } = await import('../../database/questdb/automation.service');
     const automation = getNestApp().get(QuestDBAutomationService);
     await automation.runDailyMaintenance();
