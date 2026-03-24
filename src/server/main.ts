@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import 'reflect-metadata';
 import express, { type Request, Response, NextFunction } from 'express';
 import cors from 'cors';
@@ -13,6 +14,7 @@ import { getStaticOpenApiSpec } from './core/swagger/swagger.config';
 import { log } from './lib/log';
 import { db } from './database/db';
 import { setNestApp } from './nest-context';
+import { shutdownAllPtySessions } from './lib/ptyServer';
 
 // Re-export for backward compat
 export { log } from './lib/log';
@@ -90,8 +92,15 @@ async function bootstrap() {
     next();
   });
 
-  // ── Start QuestDB process if not running (must happen before NestJS DB services init) ──
-  await runStartupSequence();
+  // ── Start QuestDB process if not running (timeout so app can start without QuestDB) ──
+  try {
+    await Promise.race([
+      runStartupSequence(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('QuestDB startup timeout')), 30_000)),
+    ]);
+  } catch (e: any) {
+    console.warn('[startup] QuestDB unavailable — app will run with limited functionality:', e.message);
+  }
 
   // ── NestJS DI container (initializes DB connections via lifecycle hooks) ──
   const nestApp = await NestFactory.createApplicationContext(AppModule, {
@@ -172,6 +181,7 @@ async function bootstrap() {
   // ── Graceful shutdown ──
   const shutdown = async () => {
     log('Graceful shutdown initiated...', 'nest');
+    shutdownAllPtySessions();
     try { await nestApp.close(); } catch {}
     httpServer.close();
     process.exit(0);

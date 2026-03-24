@@ -112,6 +112,22 @@ const MAX_LOAD_RETRIES = 5;
 //  - F12 always opens DevTools for debugging
 //  - Ctrl+R / F5 always reloads the page
 
+// --- Global error handlers (must be registered early) ---
+process.on('unhandledRejection', (reason, promise) => {
+  safeError('[main] Unhandled Rejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  safeError('[main] Uncaught Exception:', err);
+  // Attempt graceful shutdown
+  try {
+    stopDatabases();
+  } catch (e) {
+    safeError('[main] Failed to stop databases during crash:', e);
+  }
+  process.exit(1);
+});
+
 let unresponsiveTimer = null;
 let heartbeatInterval = null;
 let lastHeartbeat = Date.now();
@@ -631,38 +647,55 @@ function startServer() {
           msg.includes("SyntaxError"))
       ) {
         safeWarn("[server] Production build failed, falling back to dev server...");
-        serverProcess.kill();
-        const serverArgs = [
-          "--import",
-          "tsx",
-          path.join(__dirname, "..", "src", "server", "main.ts"),
-        ];
-        serverProcess = spawn(NODE_BIN, serverArgs, {
-          cwd: path.join(__dirname, ".."),
-          env: {
-            ...process.env,
-            NODE_ENV: "development",
-            PORT: String(PORT),
-          },
-          stdio: ["ignore", "pipe", "pipe"],
-        });
-        serverProcess.stdout.on("data", (d) => {
-          const m = d.toString();
-          safeLog("[server:fallback]", m.trim());
-          if (!resolved && m.includes("serving on port")) {
-            resolved = true;
-            resolve();
-          }
-        });
-        serverProcess.stderr.on("data", (d) => {
-          safeError("[server:fallback:err]", d.toString().trim());
-        });
-        serverProcess.on("error", (err) => {
-          if (!resolved) { resolved = true; reject(err); }
-        });
-        serverProcess.on("exit", (code) => {
-          safeLog("[server:fallback] Exited with code:", code);
-          serverProcess = null;
+        const dyingProcess = serverProcess;
+        serverProcess = null;
+        dyingProcess.kill();
+
+        // Wait for the old process to fully exit before spawning replacement
+        const spawnFallback = () => {
+          const serverArgs = [
+            "--import",
+            "tsx",
+            path.join(__dirname, "..", "src", "server", "main.ts"),
+          ];
+          serverProcess = spawn(NODE_BIN, serverArgs, {
+            cwd: path.join(__dirname, ".."),
+            env: {
+              ...process.env,
+              NODE_ENV: "development",
+              PORT: String(PORT),
+            },
+            stdio: ["ignore", "pipe", "pipe"],
+          });
+          serverProcess.stdout.on("data", (d) => {
+            const m = d.toString();
+            safeLog("[server:fallback]", m.trim());
+            if (!resolved && m.includes("serving on port")) {
+              resolved = true;
+              resolve();
+            }
+          });
+          serverProcess.stderr.on("data", (d) => {
+            safeError("[server:fallback:err]", d.toString().trim());
+          });
+          serverProcess.on("error", (err) => {
+            if (!resolved) { resolved = true; reject(err); }
+          });
+          serverProcess.on("exit", (code) => {
+            safeLog("[server:fallback] Exited with code:", code);
+            serverProcess = null;
+          });
+        };
+
+        // Wait for the dying process to exit, with a safety timeout
+        const exitTimeout = setTimeout(() => {
+          safeWarn("[server] Old process did not exit in time, spawning fallback anyway");
+          spawnFallback();
+        }, 5000);
+
+        dyingProcess.on("exit", () => {
+          clearTimeout(exitTimeout);
+          spawnFallback();
         });
       }
     });
@@ -816,6 +849,8 @@ app.on("will-quit", () => {
   stopHeartbeat();
   unregisterAllShortcuts();
   destroyTray();
+  stopServer();
+  stopDatabases();
 });
 
 app.on("window-all-closed", () => {

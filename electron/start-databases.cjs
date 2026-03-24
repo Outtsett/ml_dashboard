@@ -31,6 +31,59 @@ if (fs.existsSync(envPath)) {
 
 const QUESTDB_HTTP_PORT = parseInt(process.env.QUESTDB_HTTP_PORT || "9000", 10);
 
+// --- Stale PID cleanup on module load ---
+// If a previous run crashed without cleaning up, kill the zombie QuestDB process.
+function cleanupStalePid() {
+  try {
+    if (fs.existsSync(QUESTDB_PID_FILE)) {
+      const pid = parseInt(fs.readFileSync(QUESTDB_PID_FILE, "utf-8").trim(), 10);
+      if (pid) {
+        try {
+          // Check if process is still alive (signal 0 = no-op, just checks existence)
+          process.kill(pid, 0);
+          console.log(`[db] Found stale QuestDB process (PID: ${pid}), killing...`);
+          process.kill(pid);
+          console.log(`[db] Stale QuestDB process killed`);
+        } catch (e) {
+          if (e.code === "ESRCH") {
+            console.log(`[db] Stale PID file found but process ${pid} already dead, cleaning up`);
+          }
+          // EPERM means process exists but we can't kill it — leave it
+          else if (e.code !== "EPERM") {
+            console.warn(`[db] Error checking stale PID ${pid}:`, e.message);
+          }
+        }
+        try { fs.unlinkSync(QUESTDB_PID_FILE); } catch {}
+      }
+    }
+  } catch (err) {
+    console.warn("[db] Error during stale PID cleanup:", err.message);
+  }
+}
+
+/** Stop QuestDB by killing its saved PID. Exported for use by crash handlers. */
+function cleanupDatabases() {
+  try {
+    if (fs.existsSync(QUESTDB_PID_FILE)) {
+      const pid = parseInt(fs.readFileSync(QUESTDB_PID_FILE, "utf-8").trim(), 10);
+      if (pid) {
+        console.log(`[db] cleanupDatabases: stopping QuestDB (PID: ${pid})...`);
+        process.kill(pid);
+        try { fs.unlinkSync(QUESTDB_PID_FILE); } catch {}
+        console.log("[db] QuestDB stopped via cleanupDatabases");
+      }
+    }
+  } catch (err) {
+    if (err.code !== "ESRCH") {
+      console.error("[db] cleanupDatabases error:", err.message);
+    }
+    try { fs.unlinkSync(QUESTDB_PID_FILE); } catch {}
+  }
+}
+
+// Run stale PID cleanup on module load
+cleanupStalePid();
+
 async function waitForQuestDB(timeout = 30000) {
   const start = Date.now();
   while (Date.now() - start < timeout) {
@@ -82,8 +135,14 @@ async function main() {
   console.log("[db] QuestDB started");
 }
 
-main().catch((err) => {
-  console.error("[db] Database startup error:", err.message);
-  // Don't exit with error code — let the app try to start anyway
-  process.exit(0);
-});
+// Export cleanup for use by other modules (e.g. Electron crash handler)
+module.exports = { cleanupDatabases };
+
+// Only run main() when executed directly (not when required as a module)
+if (require.main === module) {
+  main().catch((err) => {
+    console.error("[db] Database startup error:", err.message);
+    // Don't exit with error code — let the app try to start anyway
+    process.exit(0);
+  });
+}

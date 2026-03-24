@@ -6,6 +6,14 @@
  */
 const { contextBridge, ipcRenderer } = require("electron");
 
+// Whitelist of allowed electron-store keys (prevents arbitrary key access from renderer)
+const ALLOWED_STORE_KEYS = [
+  'theme', 'windowState', 'windowBounds', 'sidebarCollapsed',
+  'lastSymbol', 'lastTimeframe', 'recentSymbols', 'settings',
+  'motiveWaveConfig', 'terminalSessions', 'chartLayout',
+  'betaMode', 'devToolsEnabled', 'fontSize', 'locale', 'lastRoute',
+];
+
 contextBridge.exposeInMainWorld("electronAPI", {
   // Platform info
   platform: process.platform,
@@ -28,9 +36,21 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getWindowState: () => ipcRenderer.invoke("store:get", "windowState"),
   setWindowState: (state) => ipcRenderer.send("store:set", { key: "windowState", value: state }),
 
-  // Generic store (for preferences)
-  storeGet: (key) => ipcRenderer.invoke("store:get", key),
-  storeSet: (key, value) => ipcRenderer.send("store:set", { key, value }),
+  // Generic store (for preferences) — key-whitelisted
+  storeGet: (key) => {
+    if (!ALLOWED_STORE_KEYS.includes(key)) {
+      console.warn(`[preload] Blocked store access for key: ${key}`);
+      return Promise.resolve(undefined);
+    }
+    return ipcRenderer.invoke("store:get", key);
+  },
+  storeSet: (key, value) => {
+    if (!ALLOWED_STORE_KEYS.includes(key)) {
+      console.warn(`[preload] Blocked store write for key: ${key}`);
+      return;
+    }
+    ipcRenderer.send("store:set", { key, value });
+  },
 
   // File dialogs
   showOpenDialog: (opts) => ipcRenderer.invoke("dialog:open", opts),

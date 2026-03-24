@@ -162,6 +162,21 @@ function getOrCreateSession(id: string): PtySession {
   return sessions.get(id) ?? createSession(id);
 }
 
+// ── Shutdown ─────────────────────────────────────────────────────────────────
+
+/** Kill all active PTY sessions. Call on server shutdown to prevent orphaned processes. */
+export function shutdownAllPtySessions(): void {
+  for (const [id, session] of sessions) {
+    try {
+      session.pty.kill();
+      clearTimeout(session.idleTimer);
+    } catch (e) {
+      console.warn(`[pty] Failed to kill session ${id}:`, e);
+    }
+  }
+  sessions.clear();
+}
+
 // ── REST API ─────────────────────────────────────────────────────────────────
 
 export function registerTerminalRoutes(app: Express): void {
