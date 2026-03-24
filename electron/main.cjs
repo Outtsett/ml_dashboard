@@ -394,11 +394,15 @@ function createWindow() {
   // --- Beta Mode: Auto-recovery on renderer crash ---
   mainWindow.webContents.on("render-process-gone", (_e, details) => {
     safeError(`[beta] Renderer gone: ${details.reason} (exit ${details.exitCode})`);
+    if (userHidWindow) {
+      safeLog("[beta] Window is hidden — skipping auto-reload");
+      return;
+    }
     if (mainWindow && !mainWindow.isDestroyed()) {
       // Auto-reload instead of showing a dialog — beta mode stays alive
       safeLog("[beta] Auto-reloading after crash...");
       setTimeout(() => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
+        if (mainWindow && !mainWindow.isDestroyed() && !userHidWindow) {
           mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
         }
       }, 1500);
@@ -407,14 +411,16 @@ function createWindow() {
 
   // --- Beta Mode: Auto-reload on sustained unresponsive ---
   mainWindow.webContents.on("unresponsive", () => {
+    if (userHidWindow) return; // don't recover hidden windows
     safeWarn("[beta] Renderer unresponsive — starting recovery timer...");
     if (unresponsiveTimer) clearTimeout(unresponsiveTimer);
     unresponsiveTimer = setTimeout(() => {
+      if (userHidWindow) return; // user closed while timer was running
       safeError("[beta] Renderer still unresponsive — force reloading");
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.forcefullyCrashRenderer();
         setTimeout(() => {
-          if (mainWindow && !mainWindow.isDestroyed()) {
+          if (mainWindow && !mainWindow.isDestroyed() && !userHidWindow) {
             mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
           }
         }, 1000);
@@ -502,6 +508,11 @@ function createWindow() {
       e.preventDefault();
       userHidWindow = true;
       stopHeartbeat(); // don't ping a hidden renderer
+      // Cancel unresponsive recovery timer — user chose to close, not recover
+      if (unresponsiveTimer) {
+        clearTimeout(unresponsiveTimer);
+        unresponsiveTimer = null;
+      }
       mainWindow.hide();
       return false;
     }
