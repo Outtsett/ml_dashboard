@@ -16,6 +16,7 @@ import * as path from 'path';
 import { getString } from '../helpers';
 import { db, dbReadOnly } from '../../database/db';
 import { sql as drizzleSql } from 'drizzle-orm';
+import { queryRateLimiter } from '../../lib/rateLimiter';
 
 export const DATA_DIR = path.join(process.cwd(), 'data');
 
@@ -145,7 +146,7 @@ router.get('/databases/preview/:db/:table', async (req: Request, res: Response) 
 });
 
 // Custom query execution
-router.post('/databases/query', async (req: Request, res: Response) => {
+router.post('/databases/query', queryRateLimiter, async (req: Request, res: Response) => {
   try {
     const { db: dbParam, sql } = req.body;
 

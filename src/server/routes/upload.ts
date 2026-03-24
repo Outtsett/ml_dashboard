@@ -35,6 +35,22 @@ router.post("/upload/ohlcv", uploadRateLimiter, upload.single("file"), async (re
       return res.status(400).json({ error: "No file uploaded" });
     }
 
+    // Validate file type by extension
+    const ALLOWED_EXTENSIONS = ['.csv', '.json', '.txt', '.tsv'];
+    const ALLOWED_MIMETYPES = [
+      'text/csv', 'text/plain', 'application/json',
+      'text/tab-separated-values', 'application/octet-stream'
+    ];
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      fs.promises.unlink(req.file.path).catch(() => {});
+      return res.status(400).json({ error: `File type ${ext} not allowed. Allowed: ${ALLOWED_EXTENSIONS.join(', ')}` });
+    }
+    if (req.file.mimetype && !ALLOWED_MIMETYPES.includes(req.file.mimetype)) {
+      fs.promises.unlink(req.file.path).catch(() => {});
+      return res.status(400).json({ error: `MIME type ${req.file.mimetype} not allowed` });
+    }
+
     const { symbol } = req.body;
     if (!symbol) {
       return res.status(400).json({ error: "Symbol is required" });

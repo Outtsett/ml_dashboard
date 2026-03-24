@@ -23,6 +23,7 @@ import { computeBenchmark } from '../lib/backtest/benchmarkComparison';
 import { runBacktest, type InstrumentSpec, type BacktestConfig, type Signal } from '../lib/backtest/tradeSimulator';
 import { queryQuestDB as marketQuery } from '../database/questdb';
 import { backtestEmitter, type BacktestProgress } from '../lib/backtest/backtestSSE';
+import { isValidSymbol } from '@shared/validation';
 
 const router = Router();
 
@@ -56,6 +57,9 @@ router.post('/backtest/run', async (req: Request, res: Response) => {
     if (!req.body.symbol) {
       return res.status(400).json({ error: 'symbol is required' });
     }
+    if (!isValidSymbol(req.body.symbol)) {
+      return res.status(400).json({ error: 'Invalid symbol format' });
+    }
 
     const result = await runBacktestJob(req.body);
     res.json(result);
@@ -73,7 +77,7 @@ router.get('/backtest/runs', async (req: Request, res: Response) => {
     const symbol = getString(req.query.symbol as string) || undefined;
     const modelId = req.query.modelId ? parseInt(req.query.modelId as string) : undefined;
     const status = getString(req.query.status as string) || undefined;
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+    const limit = Math.min(req.query.limit ? parseInt(req.query.limit as string) : 50, 10000);
     const runs = await storage.getBacktestRuns({ symbol, modelId, status, limit });
     res.json(runs);
   } catch (error: any) {
@@ -98,7 +102,7 @@ router.get('/backtest/trades/:runId', async (req: Request, res: Response) => {
     const runId = parseInt(req.params.runId as string);
     if (isNaN(runId)) return res.status(400).json({ error: 'Invalid run ID' });
 
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : 10000;
+    const limit = Math.min(req.query.limit ? parseInt(req.query.limit as string) : 10000, 10000);
     const trades = await storage.getBacktestTrades(runId, limit);
 
     const chartMarkers = trades.flatMap((t: any) => {
@@ -193,6 +197,7 @@ router.post('/backtest/walk-forward', async (req: Request, res: Response) => {
     } = req.body;
 
     if (!symbol) return res.status(400).json({ error: 'symbol is required' });
+    if (!isValidSymbol(symbol)) return res.status(400).json({ error: 'Invalid symbol format' });
     if (!walkForwardConfig || !walkForwardConfig.trainMonths || !walkForwardConfig.testMonths) {
       return res.status(400).json({ error: 'walkForwardConfig with trainMonths and testMonths is required' });
     }

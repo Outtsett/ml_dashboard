@@ -27,6 +27,7 @@ import path from "path";
 import { z } from "zod";
 import { CACHE_SEMI } from "../lib/cacheHeaders";
 import { getNestApp } from "../nest-context";
+import { mlRateLimiter } from "../lib/rateLimiter";
 import { TrainingService } from "../training/training.service";
 import { RegistryService } from "../training/registry.service";
 import type { TrainingRequest, TrainingEvent } from "@shared/trainingTypes";
@@ -101,7 +102,7 @@ router.post("/training/config/reload", (_req: Request, res: Response) => {
 
 // ─── Start Training ──────────────────────────────────────────────────────────
 
-router.post("/training/start", async (req: Request, res: Response) => {
+router.post("/training/start", mlRateLimiter, async (req: Request, res: Response) => {
   try {
     // Validate + parse request body via Zod schema (DIP — single source of truth)
     const parseResult = trainingRequestSchema.safeParse(req.body);
@@ -251,7 +252,7 @@ router.get("/training/models/:id/assignments", async (req: Request, res: Respons
   try {
     const id = String(req.params.id);
     const result = await getModelAssignments(MODELS_DIR, id, {
-      limit: Number(req.query.limit) || undefined,
+      limit: Math.min(Number(req.query.limit) || 10000, 10000),
       offset: Number(req.query.offset) || undefined,
     });
     if (!result) return res.status(404).json({ error: `Assignments not found for '${id}'` });
@@ -269,7 +270,7 @@ router.get("/training/models/:id/shap", async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const result = await getModelShap(MODELS_DIR, id, {
       regime: req.query.regime !== undefined ? Number(req.query.regime) : undefined,
-      limit: Number(req.query.limit) || undefined,
+      limit: Math.min(Number(req.query.limit) || 10000, 10000),
       offset: Number(req.query.offset) || undefined,
     });
     if (!result) return res.status(404).json({ error: `SHAP data not found for '${id}'` });
@@ -321,7 +322,7 @@ router.get("/training/sessions", (_req: Request, res: Response) => {
       symbol: symbol as string | undefined,
       modelType: modelType as string | undefined,
       status: status as string | undefined,
-      limit: limit ? Number(limit) : 50,
+      limit: limit ? Math.min(Number(limit), 10000) : 50,
     });
     res.json({ sessions });
   } catch (err: any) {

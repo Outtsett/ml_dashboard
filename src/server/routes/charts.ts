@@ -20,6 +20,7 @@ import { isFuturesRoot } from '../lib/futures';
 import { detectInstrumentType, getBaseTableForType } from '../database/questdb/marketData';
 import { CACHE_SEMI } from '../lib/cacheHeaders';
 import { SYMBOL_REGEX } from '@shared/schema';
+import { isValidSymbol } from '@shared/validation';
 
 const router = Router();
 
@@ -94,14 +95,14 @@ async function isQuestDBHealthy(): Promise<boolean> {
 router.get('/ohlcv', async (req: Request, res: Response) => {
   try {
     const symbol = (req.query.symbol as string)?.trim()?.toUpperCase();
-    if (!symbol || typeof symbol !== 'string' || symbol.length > 20 || !SYMBOL_REGEX.test(symbol)) {
+    if (!symbol || typeof symbol !== 'string' || !isValidSymbol(symbol)) {
       return res.status(400).json({ error: 'Invalid symbol parameter' });
     }
 
     const tfMinutes = parseTimeframeMinutes(req.query.timeframe as string);
     const startMs = parseTimestamp(req.query.startTime as string) ?? parseTimestamp(req.query.start as string);
     const endMs   = parseTimestamp(req.query.endTime as string)   ?? parseTimestamp(req.query.end as string);
-    const rowLimit = Math.min(parseInt(req.query.limit as string) || 5000, 50000);
+    const rowLimit = Math.min(parseInt(req.query.limit as string) || 5000, 10000);
     const orderDesc = (req.query.order as string)?.toLowerCase() !== 'asc';
     const adjustmentRaw = (req.query.adjustment as string)?.toLowerCase();
     const adjustment: AdjustmentMode = adjustmentRaw === 'panama' ? 'panama'

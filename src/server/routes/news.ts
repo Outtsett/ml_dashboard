@@ -11,6 +11,7 @@ import { insertNewsArticleSchema } from "@shared/schema";
 import { z } from "zod";
 import { getString } from "./helpers";
 import { fetchYahooNews, fetchAlphaVantageNews, fetchCombinedNews } from "../lib/news/newsFetcher";
+import { isValidSymbol } from "@shared/validation";
 
 const router = Router();
 
@@ -18,6 +19,9 @@ const router = Router();
 router.get("/news/:symbol", async (req: Request, res: Response) => {
   try {
     const symbol = getString(req.params.symbol);
+    if (!isValidSymbol(symbol)) {
+      return res.status(400).json({ error: 'Invalid symbol format' });
+    }
     const items = await fetchYahooNews(symbol);
     res.json(items);
   } catch (error) {
@@ -30,6 +34,9 @@ router.get("/news/:symbol", async (req: Request, res: Response) => {
 router.get("/news/alphavantage/:symbol", async (req: Request, res: Response) => {
   try {
     const symbol = getString(req.params.symbol);
+    if (!isValidSymbol(symbol)) {
+      return res.status(400).json({ error: 'Invalid symbol format' });
+    }
     const items = await fetchAlphaVantageNews(symbol);
     res.json(items);
   } catch (error) {
@@ -42,6 +49,9 @@ router.get("/news/alphavantage/:symbol", async (req: Request, res: Response) => 
 router.get("/news/combined/:symbol", async (req: Request, res: Response) => {
   try {
     const symbol = getString(req.params.symbol);
+    if (!isValidSymbol(symbol)) {
+      return res.status(400).json({ error: 'Invalid symbol format' });
+    }
     const combined = await fetchCombinedNews(symbol);
     res.json(combined);
   } catch (error) {
@@ -53,6 +63,9 @@ router.get("/news/combined/:symbol", async (req: Request, res: Response) => {
 // SSE endpoint for real-time news streaming
 router.get("/news/stream/:symbol", async (req: Request, res: Response) => {
   const symbol = getString(req.params.symbol);
+  if (!isValidSymbol(symbol)) {
+    return res.status(400).json({ error: 'Invalid symbol format' });
+  }
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -185,6 +198,9 @@ router.put("/news-db/:id/sentiment", async (req: Request, res: Response) => {
 router.get("/news-db/symbol/:symbol", async (req: Request, res: Response) => {
   try {
     const symbol = getString(req.params.symbol);
+    if (!isValidSymbol(symbol)) {
+      return res.status(400).json({ error: 'Invalid symbol format' });
+    }
     const limit = parseInt(getString(req.query.limit as string) || '50');
 
     const articles = await storage.getNewsBySymbol(symbol, limit);
