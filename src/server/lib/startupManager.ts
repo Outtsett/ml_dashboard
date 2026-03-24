@@ -15,11 +15,12 @@ import path from 'path';
 import { log } from './log';
 import { getMotiveWaveWatcher } from './motivewave';
 
-// ── Paths (Windows-specific) ──
-const QUESTDB_JAVA = 'E:\\source\\databases\\questdb-9.3.3-rt-windows-x86-64\\bin\\java.exe';
-const QUESTDB_ROOT = 'E:\\source\\databases\\questdb-9.3.3-rt-windows-x86-64';
+// ── Paths (configurable via env, fallback to legacy defaults) ──
+const QUESTDB_ROOT = process.env.QUESTDB_ROOT || '';
+const QUESTDB_JAVA = process.env.QUESTDB_JAVA || (QUESTDB_ROOT ? path.join(QUESTDB_ROOT, 'bin', 'java.exe') : '');
 const QUESTDB_PID_FILE = path.join(process.cwd(), '.questdb.pid');
 
+const QUESTDB_HOST = process.env.QUESTDB_HOST || 'localhost';
 const QUESTDB_HTTP_PORT = parseInt(process.env.QUESTDB_HTTP_PORT || '9000', 10);
 
 export interface DbStatus {
@@ -68,7 +69,7 @@ function cleanStalePidFile(pidFile: string, label: string): boolean {
 // ── QuestDB ──
 async function isQuestDBReady(): Promise<boolean> {
   try {
-    const resp = await fetch(`http://localhost:${QUESTDB_HTTP_PORT}/exec?query=SELECT%201`);
+    const resp = await fetch(`http://${QUESTDB_HOST}:${QUESTDB_HTTP_PORT}/exec?query=SELECT%201`);
     return resp.ok;
   } catch {
     return false;

@@ -811,3 +811,26 @@ export const mwFileStates = sqliteTable("mw_file_states", {
 });
 
 export type MwFileState = typeof mwFileStates.$inferSelect;
+
+// ============================================================
+// CURRICULUM & EDUCATION
+// ============================================================
+
+export const curriculumProgress = sqliteTable("curriculum_progress", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  moduleId: text("module_id").notNull(),
+  lessonId: text("lesson_id").notNull(),
+  status: text("status").notNull().default("not_started"), // not_started, in_progress, completed
+  score: real("score"),
+  completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+}, (table) => ({
+  userModuleIdx: index("cp_user_module_idx").on(table.userId, table.moduleId),
+  userLessonIdx: index("cp_user_lesson_idx").on(table.userId, table.lessonId),
+  uniqueProgress: index("cp_unique_idx").on(table.userId, table.moduleId, table.lessonId),
+}));
+
+export const insertCurriculumProgressSchema = createInsertSchema(curriculumProgress).omit({ id: true, updatedAt: true });
+export type InsertCurriculumProgress = z.infer<typeof insertCurriculumProgressSchema>;
+export type CurriculumProgress = typeof curriculumProgress.$inferSelect;

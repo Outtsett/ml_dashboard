@@ -79,7 +79,12 @@ export class SSEAdapter {
       const payload = `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
       const clients = this.clients.get(channel)!;
       for (const client of clients) {
-        client.res.write(payload);
+        try {
+          client.res.write(payload);
+        } catch (e) {
+          console.warn('[sse] Dead client, removing:', (e as Error).message);
+          clients.delete(client);
+        }
       }
     }
   }
@@ -90,7 +95,12 @@ export class SSEAdapter {
     for (const channel of ALL_CHANNELS) {
       const clients = this.clients.get(channel)!;
       for (const client of clients) {
-        client.res.write(comment);
+        try {
+          client.res.write(comment);
+        } catch (e) {
+          console.warn('[sse] Stale client detected during keepalive, removing:', (e as Error).message);
+          clients.delete(client);
+        }
       }
     }
   }

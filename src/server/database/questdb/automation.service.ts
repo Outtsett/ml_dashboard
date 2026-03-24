@@ -7,8 +7,8 @@ import path from 'path';
 import { spawn } from 'child_process';
 
 const QUESTDB_PID_FILE = path.join(process.cwd(), '.questdb.pid');
-const QUESTDB_JAVA = 'E:\\source\\databases\\questdb-9.3.3-rt-windows-x86-64\\bin\\java.exe';
-const QUESTDB_ROOT = 'E:\\source\\databases\\questdb-9.3.3-rt-windows-x86-64';
+const QUESTDB_ROOT = process.env.QUESTDB_ROOT || '';
+const QUESTDB_JAVA = process.env.QUESTDB_JAVA || (QUESTDB_ROOT ? path.join(QUESTDB_ROOT, 'bin', 'java.exe') : '');
 
 @Injectable()
 export class QuestDBAutomationService implements OnModuleInit {

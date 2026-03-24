@@ -13,6 +13,7 @@ import databasesRouter from "../routes/databases";
 import chartRouter from "../routes/charts";
 import backtestRouter from "../routes/backtest";
 import modelCatalogRouter from "../routes/modelCatalog";
+import curriculumRouter from "../routes/curriculum";
 
 import trainingRouter from "../routes/training";
 import eventsRouter from "../routes/events";
@@ -51,6 +52,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api/charts", chartRouter);
   app.use("/api", backtestRouter);
   app.use("/api", modelCatalogRouter);
+  app.use("/api", curriculumRouter);
   app.use("/api", settingsRouter);
   app.use("/api", motiveWaveRouter);
   app.use("/api", eventsRouter);

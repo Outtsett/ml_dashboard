@@ -205,6 +205,20 @@ export class PythonRunner implements ITrainerRunner {
     const session = this.sessions.get(sessionId);
     if (session?.child && !session.finished) {
       session.child.kill("SIGTERM");
+
+      // SIGKILL fallback if process doesn't exit within 30s
+      const killTimeout = setTimeout(() => {
+        try {
+          if (session.child?.exitCode === null) {
+            session.child.kill("SIGKILL");
+            console.warn(`[training] Force-killed session ${sessionId} after SIGTERM timeout`);
+          }
+        } catch (e) {
+          // Process may already be dead
+        }
+      }, 30_000);
+      killTimeout.unref();
+
       emitSessionEvent(session, "error", { message: "Training stopped by user" });
       session.finished = true;
       session.exitCode = -1;

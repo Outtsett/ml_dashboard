@@ -60,6 +60,7 @@ router.get('/ohlcv/:symbol', queryRateLimiter, async (req: Request, res: Respons
 router.get('/health', CACHE_SEMI, async (_req: Request, res: Response) => {
   try {
     const { getNestApp } = await import('../../nest-context');
+    const { HealthService } = await import('../../core/health/health.service');
     const healthService = getNestApp().get(HealthService);
     const result = await healthService.check();
     res.status(result.status === 'ok' ? 200 : 503).json(result);

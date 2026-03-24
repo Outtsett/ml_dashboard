@@ -7,6 +7,10 @@
  */
 
 import type { ResolvedTrainingConfig, TrainingEvent, TrainingSession } from "@shared/trainingTypes";
+import { getEventBus } from "../../events";
+
+/** Maximum number of events buffered per session to prevent unbounded memory growth. */
+const MAX_EVENT_BUFFER = 1000;
 
 export interface ITrainerRunner {
   /** Start training, return a session handle. If existingSession provided, reuse it. */
@@ -42,6 +46,7 @@ export function createSession(
 }
 
 /** Emit an event to a session's listeners + buffer */
+/** Emit an event to a session's listeners + buffer + Global Event Bus */
 export function emitSessionEvent(
   session: TrainingSession,
   type: TrainingEvent["type"],
@@ -49,7 +54,25 @@ export function emitSessionEvent(
 ) {
   const evt: TrainingEvent = { type, data, ts: Date.now() };
   session.events.push(evt);
+
+  // Cap event buffer: keep first event (start marker) + most recent events
+  if (session.events.length > MAX_EVENT_BUFFER) {
+    session.events = [session.events[0], ...session.events.slice(-(MAX_EVENT_BUFFER - 1))];
+  }
+  
+  // 1. Notify local session listeners (legacy/specific)
   for (const listener of Array.from(session.listeners)) {
     try { listener(evt); } catch { /* dead listener */ }
   }
+
+  // 2. Broadcast to Global Event Bus (High-performance SSE backbone)
+  const bus = getEventBus();
+  bus.emit({
+    type: "training.event",
+    data: {
+      sessionId: session.sessionId,
+      modelId: session.modelId,
+      ...evt
+    }
+  });
 }
