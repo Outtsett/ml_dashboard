@@ -247,13 +247,33 @@ export function parseModelSpec(
   const relativePath = path.relative(algoModelsRoot, filePath).replace(/\\/g, '/');
   let parts = relativePath.split('/');
 
-  // If the first part is 'Deep Learning' or 'Machine Learning', skip it for category determination
+  // The top-level folders are wrappers: 'Deep Learning' and 'Machine Learning'.
+  // Strip them to get the actual category folder, but record the parent
+  // so models can also be aggregated under the wrapper.
+  let parentCategory: AlgoModelCategory | undefined;
   if (parts[0] === 'Deep Learning' || parts[0] === 'Machine Learning') {
+    parentCategory = FOLDER_TO_CATEGORY[parts[0]!];
     parts = parts.slice(1);
   }
 
   // Need at least: Category/Name.md or Category/Subcategory/Name.md
-  if (parts.length < 2) return null;
+  if (parts.length < 2) {
+    // File is directly inside a wrapper with no subfolder — use wrapper as category
+    if (parentCategory && parts.length === 1) {
+      const fileName = path.basename(filePath, '.md');
+      const hasContent = stat.size > 0;
+      if (!hasContent && !includeRaw) {
+        return {
+          id: slugify(fileName), name: fileName, shortName: extractShortName(fileName),
+          category: parentCategory, subcategory: 'general', parentCategory,
+          relativePath, overview: '', principles: [], applications: [],
+          keyFeatures: [], variants: [], hyperparameters: [],
+          hasContent: false, fileSize: 0,
+        };
+      }
+    }
+    if (!parentCategory) return null;
+  }
 
   const topFolder = parts[0]!;
   const category = FOLDER_TO_CATEGORY[topFolder];
@@ -273,6 +293,7 @@ export function parseModelSpec(
       name: fileName,
       shortName: extractShortName(fileName),
       category,
+      ...(parentCategory ? { parentCategory } : {}),
       subcategory,
       relativePath,
       overview: '',
@@ -297,6 +318,7 @@ export function parseModelSpec(
     name,
     shortName: extractShortName(name),
     category,
+    ...(parentCategory ? { parentCategory } : {}),
     subcategory,
     relativePath,
     overview: sections.overview.slice(0, 1000), // cap for API response
@@ -359,11 +381,18 @@ export function scanModelCatalog(
     }
   }
 
-  // Build taxonomy tree
+  // Build taxonomy tree — also count models under parent categories
   const taxonomy: Record<string, Record<string, number>> = {};
   for (const m of models) {
     if (!taxonomy[m.category]) taxonomy[m.category] = {};
     taxonomy[m.category]![m.subcategory] = (taxonomy[m.category]![m.subcategory] ?? 0) + 1;
+
+    // Roll up into parent category (e.g. machine-learning, deep-learning)
+    if (m.parentCategory && m.parentCategory !== m.category) {
+      if (!taxonomy[m.parentCategory]) taxonomy[m.parentCategory] = {};
+      const subKey = m.category; // use the child category as subcategory name under the parent
+      taxonomy[m.parentCategory]![subKey] = (taxonomy[m.parentCategory]![subKey] ?? 0) + 1;
+    }
   }
 
   return {

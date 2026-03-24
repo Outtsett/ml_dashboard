@@ -87,7 +87,7 @@ export function getCatalogModels(filter: CatalogFilter = {}): CatalogListResult 
   let models = catalog.models;
 
   if (category) {
-    models = models.filter(m => m.category === category);
+    models = models.filter(m => m.category === category || m.parentCategory === category);
   }
   if (subcategory) {
     models = models.filter(m => m.subcategory === subcategory);

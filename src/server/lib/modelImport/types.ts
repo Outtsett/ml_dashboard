@@ -12,6 +12,7 @@
 // --- Top-level category (from folder names) ---------------------------------
 
 export type AlgoModelCategory =
+  | 'deep-learning'
   | 'generative'
   | 'hybrid-composite'
   | 'machine-learning'
@@ -57,6 +58,9 @@ export interface ParsedModelSpec {
 
   /** Top-level folder category */
   category: AlgoModelCategory;
+
+  /** Parent wrapper category (e.g. 'machine-learning' for models under Machine Learning/) */
+  parentCategory?: AlgoModelCategory;
 
   /** Subfolder category: "boosting-methods", "convolutional-networks" */
   subcategory: string;
@@ -117,6 +121,7 @@ export interface ModelCatalog {
 // --- Folder name ? category key mapping --------------------------------------
 
 export const FOLDER_TO_CATEGORY: Record<string, AlgoModelCategory> = {
+  'Deep Learning': 'deep-learning',
   'Generative Models': 'generative',
   'Hybrid & Composite Architectures': 'hybrid-composite',
   'Machine Learning': 'machine-learning',
@@ -134,6 +139,7 @@ export const FOLDER_TO_CATEGORY: Record<string, AlgoModelCategory> = {
 };
 
 export const CATEGORY_LABELS: Record<AlgoModelCategory, string> = {
+  'deep-learning': 'Deep Learning',
   'generative': 'Generative Models',
   'hybrid-composite': 'Hybrid & Composite',
   'machine-learning': 'Machine Learning',
