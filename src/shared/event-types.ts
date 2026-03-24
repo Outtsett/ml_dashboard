@@ -138,6 +138,22 @@ export type SystemEvent =
     }>
   | BaseEvent<'system.shutdown', {
       reason: string;
+    }>
+  | BaseEvent<'system.motivewave-update', {
+      symbol: string;
+      timeframe: string;
+      rowCount: number;
+      durationMs: number;
+      source: string;
+    }>
+  | BaseEvent<'system.motivewave-status', {
+      status: string;
+      watchDir: string;
+    }>
+  | BaseEvent<'system.motivewave-error', {
+      symbol: string;
+      error: string;
+      source: string;
     }>;
 
 // ── Union of all domain events ─────────────────────────────
