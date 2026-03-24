@@ -110,6 +110,8 @@ export const xaiApi = {
 export const labelApi = {
   getLabels: (symbol: string) =>
     getArray(`/api/labels?symbol=${symbol}`),
+  generate:  (body: unknown) =>
+    mutate('POST', '/api/labels/generate', body),
   preview:   (body: unknown) =>
     mutate('POST', '/api/labels/preview', body),
   delete:    (id: number) =>
@@ -135,4 +137,40 @@ export const backtestApi = {
   getTrades: (params: Record<string, string>) =>
     getArray(`/api/backtest/trades?${new URLSearchParams(params)}`),
   getTradesForRun: (runId: number) => get(`/api/backtest/trades/${runId}`),
+} as const;
+
+// ── MotiveWave ───────────────────────────────────────────────────────────────
+
+export interface MwStatus {
+  running: boolean;
+  config: {
+    watchDir: string;
+    enabled: boolean;
+    debounceMs: number;
+    autoStart: boolean;
+    patterns: string[];
+  };
+  trackedFiles: number;
+  recentImports: MwImportRecord[];
+}
+
+export interface MwImportRecord {
+  filename: string;
+  symbol: string;
+  timeframe: string;
+  rowsImported: number;
+  rowsSkipped: number;
+  timestamp: number;
+  durationMs: number;
+  status: "success" | "error";
+  error?: string;
+}
+
+export const motiveWaveApi = {
+  getStatus:   () => get<MwStatus>("/api/motivewave/status"),
+  configure:   (body: Partial<MwStatus["config"]>) => mutate("POST", "/api/motivewave/configure", body),
+  start:       () => mutate("POST", "/api/motivewave/start"),
+  stop:        () => mutate("POST", "/api/motivewave/stop"),
+  importPath:  (filePath: string, symbol?: string) =>
+    mutate("POST", "/api/motivewave/import-path", { filePath, symbol }),
 } as const;
