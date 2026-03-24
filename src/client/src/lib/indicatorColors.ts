@@ -2,6 +2,67 @@
  * Deterministic color mapping for indicator overlay lines.
  */
 
+/**
+ * Parse any CSS color (hex, rgb, hsl) into {r, g, b} values.
+ * Falls back to a default teal if parsing fails.
+ */
+function parseColor(color: string): { r: number; g: number; b: number } {
+  // Hex (#abc or #aabbcc)
+  const hexMatch = color.match(/^#([0-9a-f]{3,8})$/i);
+  if (hexMatch) {
+    let hex = hexMatch[1]!;
+    if (hex.length === 3) hex = hex[0]! + hex[0]! + hex[1]! + hex[1]! + hex[2]! + hex[2]!;
+    return {
+      r: parseInt(hex.slice(0, 2), 16),
+      g: parseInt(hex.slice(2, 4), 16),
+      b: parseInt(hex.slice(4, 6), 16),
+    };
+  }
+  // hsl(h, s%, l%)
+  const hslMatch = color.match(/hsl\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%/);
+  if (hslMatch) {
+    const h = parseFloat(hslMatch[1]!) / 360;
+    const s = parseFloat(hslMatch[2]!) / 100;
+    const l = parseFloat(hslMatch[3]!) / 100;
+    const hue2rgb = (p: number, q: number, t: number) => {
+      if (t < 0) t += 1; if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    if (s === 0) {
+      const v = Math.round(l * 255);
+      return { r: v, g: v, b: v };
+    }
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    return {
+      r: Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
+      g: Math.round(hue2rgb(p, q, h) * 255),
+      b: Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
+    };
+  }
+  // rgba/rgb
+  const rgbMatch = color.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/);
+  if (rgbMatch) {
+    return { r: parseInt(rgbMatch[1]!), g: parseInt(rgbMatch[2]!), b: parseInt(rgbMatch[3]!) };
+  }
+  return { r: 6, g: 182, b: 212 }; // fallback teal
+}
+
+/**
+ * Get positive/negative histogram bar colors derived from an indicator's base color.
+ * Positive bars use the base color; negative bars use a dimmed/reddened variant.
+ */
+export function getHistogramColors(baseColor: string): { positive: string; negative: string } {
+  const { r, g, b } = parseColor(baseColor);
+  return {
+    positive: `rgba(${r}, ${g}, ${b}, 0.7)`,
+    negative: `rgba(${Math.min(255, r + 60)}, ${Math.max(0, g - 40)}, ${Math.max(0, b - 40)}, 0.45)`,
+  };
+}
+
 // Named color palettes per indicator family
 const INDICATOR_COLORS: Record<string, string> = {
   // Moving Averages — Blues

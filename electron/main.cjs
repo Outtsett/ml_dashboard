@@ -104,6 +104,21 @@ let serverProcess = null;
 let loadRetryCount = 0;
 const MAX_LOAD_RETRIES = 5;
 
+// --------------- Beta Mode (auto-recovery) ---------------
+// The app always runs in resilient "beta mode":
+//  - Auto-reloads on renderer crash (no dialog)
+//  - Auto-reloads after sustained unresponsive state
+//  - Heartbeat watchdog detects frozen renderer
+//  - F12 always opens DevTools for debugging
+//  - Ctrl+R / F5 always reloads the page
+
+let unresponsiveTimer = null;
+let heartbeatInterval = null;
+let lastHeartbeat = Date.now();
+const UNRESPONSIVE_TIMEOUT_MS = 12000; // auto-reload after 12s unresponsive
+const HEARTBEAT_INTERVAL_MS = 5000;    // ping renderer every 5s
+const HEARTBEAT_DEAD_MS = 30000;       // if no pong for 30s, force reload
+
 // --------------- Database Shutdown ---------------
 
 function stopDatabases() {
@@ -210,6 +225,14 @@ function registerIpcHandlers() {
 
   // --- App info ---
   ipcMain.handle("app:version", () => app.getVersion());
+
+  // --- Beta mode: renderer-requested reload ---
+  ipcMain.on("beta:reload", () => {
+    safeLog("[beta] Renderer requested reload");
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.reload();
+    }
+  });
   ipcMain.handle("app:path", (_e, name) => {
     const allowed = ["userData", "appData", "logs", "temp", "home"];
     if (allowed.includes(name)) return app.getPath(name);
@@ -266,7 +289,7 @@ function createWindow() {
     height: saved.height || 1000,
     minWidth: 1024,
     minHeight: 700,
-    title: "Quant AI Dashboard",
+    title: "Quant AI Dashboard (Beta)",
     icon: path.join(__dirname, "..", "build", "icons", "icon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -350,31 +373,65 @@ function createWindow() {
     }
   );
 
-  // --- Renderer crash ---
+  // --- Beta Mode: Auto-recovery on renderer crash ---
   mainWindow.webContents.on("render-process-gone", (_e, details) => {
-    safeError("[window] Renderer process gone:", details.reason);
-    if (details.reason === "crashed" || details.reason === "killed") {
-      const choice = dialog.showMessageBoxSync(mainWindow, {
-        type: "error",
-        title: "Application Crashed",
-        message: `The renderer process ${details.reason}. Restart the app?`,
-        buttons: ["Restart", "Quit"],
-        defaultId: 0,
-      });
-      if (choice === 0) {
-        app.relaunch();
-      }
-      app.exit(0);
+    safeError(`[beta] Renderer gone: ${details.reason} (exit ${details.exitCode})`);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      // Auto-reload instead of showing a dialog — beta mode stays alive
+      safeLog("[beta] Auto-reloading after crash...");
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
+        }
+      }, 1500);
     }
   });
 
-  // --- Unresponsive window ---
+  // --- Beta Mode: Auto-reload on sustained unresponsive ---
   mainWindow.webContents.on("unresponsive", () => {
-    safeWarn("[window] Renderer became unresponsive");
+    safeWarn("[beta] Renderer unresponsive — starting recovery timer...");
+    if (unresponsiveTimer) clearTimeout(unresponsiveTimer);
+    unresponsiveTimer = setTimeout(() => {
+      safeError("[beta] Renderer still unresponsive — force reloading");
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.forcefullyCrashRenderer();
+        setTimeout(() => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
+          }
+        }, 1000);
+      }
+    }, UNRESPONSIVE_TIMEOUT_MS);
   });
   mainWindow.webContents.on("responsive", () => {
-    safeLog("[window] Renderer became responsive again");
+    safeLog("[beta] Renderer responsive again");
+    if (unresponsiveTimer) {
+      clearTimeout(unresponsiveTimer);
+      unresponsiveTimer = null;
+    }
   });
+
+  // --- Beta Mode: DevTools & Reload shortcuts ---
+  mainWindow.webContents.on("before-input-event", (_e, input) => {
+    if (input.type !== "keyDown") return;
+    // F12 → toggle DevTools
+    if (input.key === "F12") {
+      mainWindow.webContents.toggleDevTools();
+    }
+    // Ctrl+R or F5 → reload
+    if (input.key === "F5" || (input.control && input.key === "r")) {
+      safeLog("[beta] Manual reload triggered");
+      mainWindow.webContents.reload();
+    }
+    // Ctrl+Shift+R → hard reload (clear cache)
+    if (input.control && input.shift && input.key === "R") {
+      safeLog("[beta] Hard reload (cache clear) triggered");
+      mainWindow.webContents.reloadIgnoringCache();
+    }
+  });
+
+  // --- Beta Mode: Heartbeat watchdog ---
+  startHeartbeat();
 
   // Fallback: if nothing shows after 30s, force-show the window
   setTimeout(() => {
@@ -438,6 +495,50 @@ function createWindow() {
   createAppMenu(mainWindow);
   setupContextMenus(mainWindow);
 }
+
+// --------------- Beta Mode: Heartbeat Watchdog ---------------
+
+function startHeartbeat() {
+  stopHeartbeat();
+  lastHeartbeat = Date.now();
+
+  // Listen for pong from renderer
+  ipcMain.removeAllListeners("beta:pong");
+  ipcMain.on("beta:pong", () => {
+    lastHeartbeat = Date.now();
+  });
+
+  heartbeatInterval = setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+
+    // Send ping to renderer
+    try {
+      mainWindow.webContents.send("beta:ping");
+    } catch {}
+
+    // Check if renderer has gone silent
+    const elapsed = Date.now() - lastHeartbeat;
+    if (elapsed > HEARTBEAT_DEAD_MS) {
+      safeError(`[beta] No heartbeat for ${Math.round(elapsed / 1000)}s — force reloading`);
+      lastHeartbeat = Date.now(); // reset to avoid repeated reloads
+      try {
+        mainWindow.webContents.reload();
+      } catch {
+        // renderer may be completely dead — reload URL
+        mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
+      }
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+}
+
+function stopHeartbeat() {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
+}
+
+// --------------- Server ---------------
 
 function startServer() {
   // First check if a server is already running (e.g. from `npm run dev`)
@@ -693,6 +794,7 @@ app.whenReady().then(async () => {
 });
 
 app.on("will-quit", () => {
+  stopHeartbeat();
   unregisterAllShortcuts();
   destroyTray();
 });

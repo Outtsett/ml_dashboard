@@ -21,6 +21,7 @@ import {
 } from 'lightweight-charts';
 import type { IndicatorOverlay } from '@/hooks/useIndicatorData';
 import { getPanelLabel, getReferenceLines, shouldRenderAsHistogram, getSeriesTitle } from '@/lib/indicatorPanels';
+import { getHistogramColors } from '@/lib/indicatorColors';
 
 /** Deduplicate & sort series data by time (last-write-wins for dupes) */
 function dedupByTime<T extends { time: Time }>(arr: T[]): T[] {
@@ -206,11 +207,14 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
         const buildData = () =>
           dedupByTime(
             isHisto
-              ? indicator.data.map(d => ({
-                  time: d.time as Time,
-                  value: d.value,
-                  color: d.value >= 0 ? 'rgba(34, 197, 94, 0.6)' : 'rgba(239, 68, 68, 0.6)',
-                }))
+              ? (() => {
+                  const { positive, negative } = getHistogramColors(indicator.color);
+                  return indicator.data.map(d => ({
+                    time: d.time as Time,
+                    value: d.value,
+                    color: d.value >= 0 ? positive : negative,
+                  }));
+                })()
               : indicator.data.map(d => ({ time: d.time as Time, value: d.value }))
           );
 
@@ -220,6 +224,7 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
           const seriesTitle = getSeriesTitle(indicator.column);
           const series = isHisto
             ? chart.addSeries(HistogramSeries, {
+                color: indicator.color,
                 priceScaleId: 'right',
                 lastValueVisible: false,
                 priceLineVisible: false,
