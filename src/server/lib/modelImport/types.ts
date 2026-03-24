@@ -1,5 +1,5 @@
 /**
- * Model Import Types — Structures parsed from algo_model markdown specs.
+ * Model Import Types ï¿½ Structures parsed from algo_model markdown specs.
  *
  * These types describe the shape of data extracted from the
  * \E:\source\documents\algo_models\ directory tree. Each .md file
@@ -28,7 +28,7 @@ export type AlgoModelCategory =
 
 // --- Subcategory mapping (second-level folders) ------------------------------
 
-export type AlgoModelSubcategory = string; // open-ended — derived from folder names        
+export type AlgoModelSubcategory = string; // open-ended ï¿½ derived from folder names        
 
 // --- Hyperparameter extracted from markdown code blocks ----------------------
 
@@ -123,6 +123,7 @@ export const FOLDER_TO_CATEGORY: Record<string, AlgoModelCategory> = {
   'Neural Network Architectures': 'neural-network',
   'Optimization-Based Models': 'optimization',
   'Probabilistic & Symbolic Models': 'probabilistic-symbolic',
+  'Reinforcement Learning': 'reinforcement-learning',
   'Reinforcement Learning (RL)': 'reinforcement-learning',
   'Simulation & Decision Models': 'simulation-decision',
   'Statistical Models': 'statistical',
