@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.mldashboard</groupId>
+    <artifactId>motivewave-plugin</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>ML Dashboard MotiveWave Plugin</name>
+    <description>
+        MotiveWave studies that stream OHLCV data to ML Dashboard via CSV export
+        and direct QuestDB ILP ingestion.
+    </description>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!-- MotiveWave SDK (local JAR, provided at runtime by MotiveWave) -->
+        <dependency>
+            <groupId>com.motivewave</groupId>
+            <artifactId>mwave-sdk</artifactId>
+            <version>7.0</version>
+            <scope>system</scope>
+            <systemPath>E:/MotiveWave/lib/mwave_sdk.jar</systemPath>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <source>17</source>
+                    <target>17</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
+                <configuration>
+                    <archive>
+                        <manifestEntries>
+                            <Built-By>ML Dashboard</Built-By>
+                        </manifestEntries>
+                    </archive>
+                    <outputDirectory>${project.basedir}/dist</outputDirectory>
+                    <finalName>MLDashboardPlugin</finalName>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!-- Deploy profile: copies JAR to MotiveWave Extensions -->
+        <profile>
+            <id>deploy-mw</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <phase>install</phase>
+                                <goals><goal>run</goal></goals>
+                                <configuration>
+                                    <target>
+                                        <copy file="${project.basedir}/dist/MLDashboardPlugin.jar"
+                                              todir="${user.home}/MotiveWave Extensions"
+                                              overwrite="true"/>
+                                        <echo message="Deployed MLDashboardPlugin.jar to MotiveWave Extensions"/>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>
