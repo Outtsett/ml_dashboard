@@ -1,7 +1,7 @@
 /**
  * QuestDB Market Data Queries — OHLCV, rollover stitching, symbol stats.
  *
- * Used by chart rendering, training export, and analytics.
+ * Updated to support separate tables for Forex and Futures.
  */
 
 import { validateSymbol } from "@shared/schema";
@@ -17,14 +17,45 @@ import {
 // ─── Materialized View Lookup ───────────────────────────────────────────────
 
 const MATERIALIZED_VIEWS: Record<string, string> = {
-  "5m": "ohlcv_5m",
-  "15m": "ohlcv_15m",
-  "30m": "ohlcv_30m",
-  "1h": "ohlcv_1h",
-  "4h": "ohlcv_4h",
-  "1d": "ohlcv_1d",
-  "1w": "ohlcv_1w",
+  "1m": "_1m",
+  "5m": "_5m",
+  "15m": "_15m",
+  "30m": "_30m",
+  "1h": "_1h",
+  "4h": "_4h",
+  "1d": "_1d",
+  "1w": "_1w",
 };
+
+// ─── Instrument Detection ───────────────────────────────────────────────────
+
+export type InstrumentType = "forex" | "futures_contract" | "futures_root" | "generic";
+
+export function detectInstrumentType(symbol: string): InstrumentType {
+  const s = symbol.toUpperCase();
+  // Forex: AUDUSD, EURJPY, etc. (6 chars) or EUR/USD
+  if (s.length === 6 && !/\d/.test(s)) return "forex";
+  if (s.includes("/")) return "forex";
+
+  // Futures Contract: MNQZ24 (Root + Month + Year)
+  const futuresContractMatch = s.match(/^([A-Z]+)[FGHJKMNQUVXZ]\d{1,2}$/);
+  if (futuresContractMatch) return "futures_contract";
+
+  // Futures Root: ES, MNQ, NQ, CL (1-4 uppercase letters)
+  const futuresRootMatch = s.match(/^[A-Z]{1,4}$/);
+  if (futuresRootMatch) return "futures_root";
+
+  return "generic";
+}
+
+export function getBaseTableForType(type: InstrumentType): string {
+  switch (type) {
+    case "forex": return "ohlcv_forex";
+    case "futures_contract":
+    case "futures_root": return "ohlcv";  // futures data lives in legacy ohlcv table
+    default: return "ohlcv";
+  }
+}
 
 // ─── Validation Helpers ─────────────────────────────────────────────────────
 
@@ -46,6 +77,15 @@ export async function getOHLCVSampleBy(
   endTime?: number,
   limit?: number
 ): Promise<any[]> {
+  const type = detectInstrumentType(symbol);
+  
+  // If it's a futures root, we must use the stitching logic instead
+  if (type === "futures_root") {
+    const bars = await getStitchedOHLCV(symbol, timeframe, startTime, endTime, limit);
+    return bars;
+  }
+
+  const baseTable = getBaseTableForType(type);
   const safeSymbol = validateSymbol(symbol);
   const safeStartTime = startTime ? validatePositiveInt(startTime, Number.MAX_SAFE_INTEGER) : undefined;
   const safeEndTime = endTime ? validatePositiveInt(endTime, Number.MAX_SAFE_INTEGER) : undefined;
@@ -62,9 +102,10 @@ export async function getOHLCVSampleBy(
 
   const limitClause = safeLimit ? `LIMIT ${safeLimit}` : "";
 
-  // Try materialized view first
-  const matView = MATERIALIZED_VIEWS[timeframe];
-  if (matView) {
+  // Try materialized view first (e.g. ohlcv_forex_5m, ohlcv_5m)
+  const suffix = MATERIALIZED_VIEWS[timeframe];
+  if (suffix) {
+    const matView = `${baseTable}${suffix}`;
     const sql = `
       SELECT symbol, timestamp, open, high, low, close, volume
       FROM ${matView}
@@ -72,8 +113,12 @@ export async function getOHLCVSampleBy(
       ORDER BY timestamp
       ${limitClause}
     `;
-    const rows = await queryQuestDB(sql);
-    if (rows.length > 0) return rows;
+    try {
+      const rows = await queryQuestDB(sql);
+      if (rows.length > 0) return rows;
+    } catch {
+      // Fallback to sample by if view doesn't exist
+    }
   }
 
   // Fallback: SAMPLE BY on base table
@@ -95,7 +140,7 @@ export async function getOHLCVSampleBy(
       min(low) as low,
       last(close) as close,
       sum(volume) as volume
-    FROM ohlcv
+    FROM ${baseTable}
     ${whereClause}
     ${sampleByClause}
     ALIGN TO CALENDAR
@@ -122,8 +167,6 @@ export async function getFrontMonthRanges(
     const escaped = safeRoot.replace(/'/g, "''");
     const contractRegex = `^${escaped}[FGHJKMNQUVXZ][0-9]{1,2}$`;
 
-    // Floor start / ceil end to day boundaries — ohlcv_1d bars sit at midnight,
-    // so a sub-day startTime would miss the current day's daily bar.
     let timeFilter = '';
     if (startTime) {
       const dayStart = new Date(startTime);
@@ -137,8 +180,9 @@ export async function getFrontMonthRanges(
     }
 
     const dailyBars = await queryQuestDB<{ symbol: string; timestamp: Date | string; volume: number }>(
-      `SELECT symbol, timestamp, volume FROM ohlcv_1d
+      `SELECT symbol, timestamp, sum(volume) as volume FROM ohlcv
        WHERE symbol ~ '${contractRegex}'${timeFilter}
+       SAMPLE BY 1d ALIGN TO CALENDAR
        ORDER BY timestamp`
     );
 
@@ -184,7 +228,7 @@ export async function getFrontMonthOHLCV(
   const ranges = await getFrontMonthRanges(root, startTime, endTime);
   if (ranges.length === 0) return [];
 
-  const matView = MATERIALIZED_VIEWS[timeframe];
+  const suffix = MATERIALIZED_VIEWS[timeframe];
   const validTimeframes: Record<string, string> = {
     '1m': 'SAMPLE BY 1m', '5m': 'SAMPLE BY 5m',
     '15m': 'SAMPLE BY 15m', '30m': 'SAMPLE BY 30m', '1h': 'SAMPLE BY 1h',
@@ -196,7 +240,8 @@ export async function getFrontMonthOHLCV(
     const s = range.start + 'T00:00:00.000Z';
     const e = range.end + 'T23:59:59.999Z';
 
-    if (matView) {
+    if (suffix) {
+      const matView = `ohlcv${suffix}`;
       return queryQuestDB(
         `SELECT symbol, timestamp, open, high, low, close, volume
          FROM ${matView}
@@ -237,16 +282,6 @@ export async function getFrontMonthOHLCV(
 
 // ─── Rollover-Driven Stitching ───────────────────────────────────────────────
 
-/**
- * Fetch rollover-stitched OHLCV bars for a futures root symbol.
- *
- * Uses the pre-computed `rollovers` table (near-instant lookup) instead of
- * volume-based front-month scanning. Applies Panama additive or ratio
- * back-adjustment so chart prices are gap-free across roll boundaries.
- *
- * Falls back to volume-based `getFrontMonthOHLCV()` when no rollover data
- * exists for the requested root.
- */
 export async function getStitchedOHLCV(
   root: string,
   timeframe: string,
@@ -257,26 +292,22 @@ export async function getStitchedOHLCV(
 ): Promise<StitchedOHLCVBar[]> {
   const safeLimit = limit ? Math.min(Math.floor(limit), 100000) : undefined;
 
-  // Step 1: Get rollover schedule from cache (24h TTL)
   let schedule: import("../../lib/rollover").RolloverRecord[] = [];
   try {
     schedule = await getRolloverSchedule(root);
   } catch {
-    // rollovers table may not exist — fall back
+    // fall back
   }
 
-  // Fall back to volume-based stitching if no rollover data
   if (schedule.length === 0) {
     const fallbackBars = await getFrontMonthOHLCV(root, timeframe, startTime, endTime, limit);
     return fallbackBars.map((r: any) => ({ ...r, activeContract: r.symbol }));
   }
 
-  // Step 2: Build per-contract segments from roll boundaries
   const segments = buildContractSegments(schedule, startTime, endTime);
   if (segments.length === 0) return [];
 
-  // Step 3: Query each segment's bars and apply adjustment
-  const matView = MATERIALIZED_VIEWS[timeframe];
+  const suffix = MATERIALIZED_VIEWS[timeframe];
   const validTimeframes: Record<string, string> = {
     "1m": "SAMPLE BY 1m", "5m": "SAMPLE BY 5m",
     "15m": "SAMPLE BY 15m", "30m": "SAMPLE BY 30m", "1h": "SAMPLE BY 1h",
@@ -288,7 +319,8 @@ export async function getStitchedOHLCV(
     const s = seg.start;
     const e = seg.end;
 
-    if (matView) {
+    if (suffix) {
+      const matView = `ohlcv${suffix}`;
       return queryQuestDB(
         `SELECT symbol, timestamp, open, high, low, close, volume
          FROM ${matView}
@@ -337,9 +369,17 @@ export async function getStitchedOHLCV(
 // ─── Symbol Stats ───────────────────────────────────────────────────────────
 
 export async function getSymbolsInQuestDB(): Promise<string[]> {
-  const sql = `SELECT DISTINCT symbol FROM ohlcv`;
-  const result = await queryQuestDB<{ symbol: string }>(sql);
-  return result.map(r => r.symbol);
+  const forex = await queryQuestDB<{ symbol: string }>(`SELECT DISTINCT symbol FROM ohlcv_forex`);
+  const futures = await queryQuestDB<{ symbol: string }>(`SELECT DISTINCT symbol FROM ohlcv WHERE symbol ~ '^[A-Z]{1,4}[FGHJKMNQUVXZ][0-9]{1,2}$'`);
+  const legacy = await queryQuestDB<{ symbol: string }>(`SELECT DISTINCT symbol FROM ohlcv`);
+  
+  const all = new Set([
+    ...forex.map(r => r.symbol),
+    ...futures.map(r => r.symbol),
+    ...legacy.map(r => r.symbol)
+  ]);
+  
+  return [...all];
 }
 
 export async function getSymbolStats(symbol: string): Promise<{
@@ -350,6 +390,8 @@ export async function getSymbolStats(symbol: string): Promise<{
   timeSpanDays: number;
 }> {
   const safeSymbol = validateSymbol(symbol);
+  const type = detectInstrumentType(symbol);
+  const baseTable = getBaseTableForType(type);
   const escapedSymbol = safeSymbol.replace(/'/g, "''");
 
   const sql = `
@@ -358,7 +400,7 @@ export async function getSymbolStats(symbol: string): Promise<{
       count() as row_count,
       min(timestamp) as earliest,
       max(timestamp) as latest
-    FROM ohlcv
+    FROM ${baseTable}
     WHERE symbol = '${escapedSymbol}'
   `;
 
@@ -381,3 +423,4 @@ export async function getSymbolStats(symbol: string): Promise<{
     timeSpanDays: Math.round(timeSpanDays * 100) / 100
   };
 }
+

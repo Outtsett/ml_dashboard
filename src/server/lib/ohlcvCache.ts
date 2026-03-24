@@ -28,7 +28,7 @@ interface CacheStats {
 }
 
 const DEFAULT_MAX_ENTRIES = 500;
-const DEFAULT_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const DEFAULT_TTL_MS = 15 * 60 * 1000; // 15 minutes — OHLCV data is historical, safe to cache longer
 const MAX_SIZE_MB = 200; // hard cap
 
 class OHLCVCache {
@@ -219,6 +219,11 @@ export async function cachedQuery<T>(
   if (cached !== undefined) return cached;
 
   const result = await fetcher();
-  ohlcvCache.set(key, result);
+  // Don't cache empty arrays — they may indicate a transient issue
+  // (e.g., wrong table routing). Let the next request retry fresh.
+  const isEmpty = Array.isArray(result) && result.length === 0;
+  if (!isEmpty) {
+    ohlcvCache.set(key, result);
+  }
   return result;
 }

@@ -2,13 +2,13 @@
  * OHLCV Query Orchestration — health check, time-window estimation,
  * caching, and row normalization.
  *
- * Pure business logic for querying OHLCV data from QuestDB.
- * Extracted from the /ohlcv/:symbol route handler (SRP).
+ * Updated to handle separate Forex/Futures markets and automated rollover stitching.
  */
 
 import { checkQuestDBHealth, getOHLCVSampleBy, queryQuestDB } from '.';
-import { ohlcvCache, cachedQuery, OHLCVCache } from '../../lib/ohlcvCache';
+import { cachedQuery, OHLCVCache } from '../../lib/ohlcvCache';
 import { normalizeTimestamp } from '../../lib/normalize';
+import { detectInstrumentType, getBaseTableForType } from './marketData';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -27,14 +27,11 @@ export interface NormalizedOHLCVRow {
   low: number;
   close: number;
   volume: number;
+  activeContract?: string; // For stitched futures
 }
 
 // ─── Timeframe Parsing ──────────────────────────────────────
 
-/**
- * Parse a timeframe string (e.g. "1m", "5m", "1h", "1d", "30s") into minutes.
- * Defaults to 1 minute for unrecognised formats.
- */
 export function parseTimeframeMinutes(tf: string): number {
   const match = tf.match(/^(\d+)(s|m|h|d)?$/i);
   if (!match) return 1;
@@ -53,14 +50,6 @@ export function parseTimeframeMinutes(tf: string): number {
 
 // ─── Time Window Estimation ─────────────────────────────────
 
-/**
- * When the caller provides no start/end time, estimate a reasonable window
- * by looking up the latest timestamp for the symbol in QuestDB and working
- * backwards based on the requested bar count and timeframe.
- *
- * Returns the estimated start timestamp (epoch-ms), or undefined if
- * estimation is not possible (QuestDB unhealthy, no data, etc.).
- */
 export async function estimateTimeWindow(
   symbol: string,
   tfLabel: string,
@@ -70,10 +59,19 @@ export async function estimateTimeWindow(
   if (!qdbHealthy) return undefined;
 
   try {
+    const type = detectInstrumentType(symbol);
+    const baseTable = getBaseTableForType(type);
     const safeEsc = symbol.replace(/'/g, "''");
-    const [row] = await queryQuestDB(
-      `SELECT max(timestamp) as latest FROM ohlcv WHERE symbol = '${safeEsc}'`,
-    );
+    
+    // For futures roots, we might not have data in the base table with that symbol
+    // but the stitching logic handles it. We'll check the base table for the root
+    // or one of its contracts.
+    let sql = `SELECT max(timestamp) as latest FROM ${baseTable} WHERE symbol = '${safeEsc}'`;
+    if (type === "futures_root") {
+      sql = `SELECT max(timestamp) as latest FROM ${baseTable} WHERE root = '${safeEsc}'`;
+    }
+
+    const [row] = await queryQuestDB(sql);
     if (!row?.latest) return undefined;
 
     const latestMs =
@@ -82,11 +80,8 @@ export async function estimateTimeWindow(
         : new Date(String(row.latest)).getTime();
 
     const tfMinutes = parseTimeframeMinutes(tfLabel);
-
-    // 3x multiplier provides a comfortable buffer to ensure we fetch enough bars
     return latestMs - limitNum * tfMinutes * 3 * 60_000;
   } catch {
-    /* fall through without estimation */
     return undefined;
   }
 }
@@ -94,11 +89,13 @@ export async function estimateTimeWindow(
 // ─── Main OHLCV Query ───────────────────────────────────────
 
 /**
- * Full OHLCV query pipeline: health check, time-window estimation,
- * cache lookup, QuestDB SAMPLE BY query, and row normalization.
- *
- * Returns an array of normalized OHLCV rows. Returns an empty array
- * when QuestDB is unavailable or the query fails.
+ * Full OHLCV query pipeline:
+ * 1. Health check
+ * 2. Instrument detection (Forex vs Futures vs Root)
+ * 3. Time-window estimation
+ * 4. Cache lookup
+ * 5. QuestDB Query (Sampled or Stitched)
+ * 6. Normalization
  */
 export async function queryOHLCV(params: OHLCVQueryParams): Promise<NormalizedOHLCVRow[]> {
   const {
@@ -112,13 +109,13 @@ export async function queryOHLCV(params: OHLCVQueryParams): Promise<NormalizedOH
   const tfLabel = timeframe || '1m';
   const limitNum = limit ?? 500;
 
-  // Check QuestDB availability
   let qdbHealthy = false;
   try {
     qdbHealthy = await checkQuestDBHealth();
   } catch {}
 
-  // Estimate time window when no start/end provided
+  if (!qdbHealthy) return [];
+
   let effectiveStart = startMs;
   let effectiveEnd = endMs;
   if (!effectiveStart && !effectiveEnd) {
@@ -128,14 +125,12 @@ export async function queryOHLCV(params: OHLCVQueryParams): Promise<NormalizedOH
     }
   }
 
-  // Build cache key
   const cacheKey = OHLCVCache.key('ohlcv', symbol, 0, {
     startTime: effectiveStart,
     endTime: effectiveEnd,
     limit: limitNum,
+    extra: tfLabel,
   });
-
-  if (!qdbHealthy) return [];
 
   try {
     const data = await cachedQuery(cacheKey, () =>
@@ -149,6 +144,7 @@ export async function queryOHLCV(params: OHLCVQueryParams): Promise<NormalizedOH
       low: Number(r.low),
       close: Number(r.close),
       volume: Number(r.volume),
+      activeContract: r.activeContract || r.symbol,
     }));
   } catch (qdbErr: any) {
     console.warn('[ohlcv] QuestDB query failed:', qdbErr.message);

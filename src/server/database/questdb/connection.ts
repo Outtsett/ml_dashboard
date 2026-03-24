@@ -1,12 +1,16 @@
 import { Sender } from "@questdb/nodejs-client";
 import pg from "pg";
+import { z } from "zod";
 
 const { Pool } = pg;
 
 export const QUESTDB_HOST = process.env.QUESTDB_HOST || "localhost";
-export const QUESTDB_ILP_PORT = process.env.QUESTDB_ILP_PORT || "9009";
 export const QUESTDB_PG_PORT = process.env.QUESTDB_PG_PORT || "8812";
 export const QUESTDB_HTTP_PORT = process.env.QUESTDB_HTTP_PORT || "9000";
+export const QUESTDB_USER = process.env.QUESTDB_USER || "admin";
+export const QUESTDB_PASSWORD = process.env.QUESTDB_PASSWORD || "quest";
+
+const SLOW_QUERY_THRESHOLD_MS = 1000;
 
 let sender: Sender | null = null;
 let queryPool: pg.Pool | null = null;
@@ -19,14 +23,15 @@ export async function getQuestDBSender(): Promise<Sender> {
   return sender;
 }
 
-export function getQuestDBQueryPool(): pg.Pool {
+/** Initialize the connection pool eagerly (call at startup). */
+export function initQueryPool(): pg.Pool {
   if (!queryPool) {
     queryPool = new Pool({
       host: QUESTDB_HOST,
       port: parseInt(QUESTDB_PG_PORT),
       database: "qdb",
-      user: "admin",
-      password: "quest",
+      user: QUESTDB_USER,
+      password: QUESTDB_PASSWORD,
       max: 20,
       connectionTimeoutMillis: 10000,
       idleTimeoutMillis: 30000,
@@ -35,15 +40,106 @@ export function getQuestDBQueryPool(): pg.Pool {
     queryPool.on("error", (err) => {
       console.error("[questdb] Idle client error:", err.message);
     });
+    console.log(`[questdb] Connection pool initialized (host=${QUESTDB_HOST}, port=${QUESTDB_PG_PORT}, max=20)`);
   }
   return queryPool;
 }
 
+export function getQuestDBQueryPool(): pg.Pool {
+  return initQueryPool();
+}
+
 export async function queryQuestDB<T = any>(sql: string): Promise<T[]> {
   const pool = getQuestDBQueryPool();
+  const start = performance.now();
   const result = await pool.query(sql);
+  const durationMs = performance.now() - start;
+
+  const preview = sql.length > 120 ? sql.slice(0, 120) + "…" : sql;
+  if (durationMs > SLOW_QUERY_THRESHOLD_MS) {
+    console.warn(`[questdb] SLOW QUERY (${durationMs.toFixed(0)}ms, ${result.rowCount} rows): ${preview}`);
+  } else if (process.env.QUESTDB_QUERY_LOG === "verbose") {
+    console.log(`[questdb] query (${durationMs.toFixed(0)}ms, ${result.rowCount} rows): ${preview}`);
+  }
+
   return result.rows as T[];
 }
+
+/**
+ * Stream large result sets using a PG cursor.
+ * Processes rows in chunks to avoid loading everything into memory.
+ * @param sql - The SQL query
+ * @param onChunk - Callback receiving each chunk of rows
+ * @param chunkSize - Rows per chunk (default 5000)
+ */
+export async function queryQuestDBStream<T = any>(
+  sql: string,
+  onChunk: (rows: T[]) => void | Promise<void>,
+  chunkSize = 5000,
+): Promise<{ totalRows: number; durationMs: number }> {
+  const pool = getQuestDBQueryPool();
+  const client = await pool.connect();
+  const start = performance.now();
+  let totalRows = 0;
+
+  try {
+    // Use a portal-based cursor via DECLARE/FETCH
+    await client.query('BEGIN');
+    await client.query(`DECLARE qdb_cursor NO SCROLL CURSOR FOR ${sql}`);
+
+    let done = false;
+    while (!done) {
+      const result = await client.query(`FETCH ${chunkSize} FROM qdb_cursor`);
+      if (result.rows.length === 0) {
+        done = true;
+      } else {
+        totalRows += result.rows.length;
+        await onChunk(result.rows as T[]);
+        if (result.rows.length < chunkSize) done = true;
+      }
+    }
+
+    await client.query('CLOSE qdb_cursor');
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+
+  const durationMs = performance.now() - start;
+  console.log(`[questdb] streamed ${totalRows} rows in ${durationMs.toFixed(0)}ms (${chunkSize}/chunk)`);
+  return { totalRows, durationMs };
+}
+
+/**
+ * Execute a query with Zod runtime validation on each row.
+ * Provides type safety at runtime — slower than raw queryQuestDB but catches schema drift.
+ */
+export async function queryQuestDBValidated<T>(sql: string, schema: z.ZodType<T>): Promise<T[]> {
+  const rows = await queryQuestDB(sql);
+  return rows.map((row, i) => {
+    const parsed = schema.safeParse(row);
+    if (!parsed.success) {
+      console.warn(`[questdb] Row ${i} validation failed: ${parsed.error.message}`);
+      throw new Error(`QuestDB result validation failed at row ${i}: ${parsed.error.message}`);
+    }
+    return parsed.data;
+  });
+}
+
+/** Zod schema for OHLCV query results (coerces QuestDB string numerics) */
+export const OHLCVRowSchema = z.object({
+  symbol: z.string(),
+  timestamp: z.coerce.date(),
+  open: z.coerce.number(),
+  high: z.coerce.number(),
+  low: z.coerce.number(),
+  close: z.coerce.number(),
+  volume: z.coerce.number(),
+});
+export type ValidatedOHLCVRow = z.infer<typeof OHLCVRowSchema>;
 
 export interface OHLCVRow {
   symbol: string;

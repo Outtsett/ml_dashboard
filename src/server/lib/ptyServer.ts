@@ -37,6 +37,10 @@ interface PtySession {
   createdAt: number;
   /** Connected WebSocket clients. */
   clients: Set<WebSocket>;
+  /** Last activity timestamp for idle timeout. */
+  lastActivity: number;
+  /** Timer handle for idle session cleanup. */
+  idleTimer: ReturnType<typeof setTimeout>;
 }
 
 /** Messages from client → server */
@@ -50,7 +54,8 @@ interface ClientMessage {
 // ── State ────────────────────────────────────────────────────────────────────
 
 const MAX_SCROLLBACK = 100_000;
-const MAX_SESSIONS = 10;
+const MAX_SESSIONS = parseInt(process.env.MAX_PTY_SESSIONS ?? '10', 10);
+const IDLE_TIMEOUT_MS = parseInt(process.env.PTY_IDLE_TIMEOUT_MS ?? '1800000', 10); // 30 min default
 const sessions = new Map<string, PtySession>();
 let sessionCounter = 0;
 
@@ -73,6 +78,17 @@ function getShellArgs(): string[] {
 
 function generateId(): string {
   return `term-${++sessionCounter}`;
+}
+
+/** Reset the idle timer for a session; closes the session if it stays idle. */
+function resetIdleTimer(session: PtySession): void {
+  session.lastActivity = Date.now();
+  clearTimeout(session.idleTimer);
+  session.idleTimer = setTimeout(() => {
+    log(`PTY [${session.id}] idle for ${IDLE_TIMEOUT_MS / 1000}s — closing`, "pty");
+    session.pty.kill();
+    sessions.delete(session.id);
+  }, IDLE_TIMEOUT_MS);
 }
 
 function createSession(id?: string): PtySession {
@@ -108,10 +124,14 @@ function createSession(id?: string): PtySession {
     title: `${shellName} ${sessionCounter}`,
     createdAt: Date.now(),
     clients: new Set(),
+    lastActivity: Date.now(),
+    idleTimer: setTimeout(() => {}, 0), // placeholder, reset below
   };
+  resetIdleTimer(session);
 
   // Buffer output + broadcast to connected clients
   ptyProcess.onData((data: string) => {
+    resetIdleTimer(session);
     session.scrollback += data;
     if (session.scrollback.length > MAX_SCROLLBACK) {
       session.scrollback = session.scrollback.slice(-MAX_SCROLLBACK);
@@ -125,6 +145,7 @@ function createSession(id?: string): PtySession {
 
   ptyProcess.onExit(({ exitCode }) => {
     log(`PTY [${sessionId}] exited with code ${exitCode}`, "pty");
+    clearTimeout(session.idleTimer);
     for (const ws of session.clients) {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(`\r\n\x1b[90m[Process exited with code ${exitCode}]\x1b[0m\r\n`);
@@ -168,6 +189,7 @@ export function registerTerminalRoutes(app: Express): void {
     if (!session) {
       return res.status(404).json({ error: "Session not found" });
     }
+    clearTimeout(session.idleTimer);
     session.pty.kill();
     sessions.delete(session.id);
     res.json({ ok: true });
@@ -233,7 +255,10 @@ export function attachPtyWebSocket(httpServer: Server): void {
         );
         switch (msg.type) {
           case "input":
-            if (msg.data) session.pty.write(msg.data);
+            if (msg.data) {
+              resetIdleTimer(session);
+              session.pty.write(msg.data);
+            }
             break;
           case "resize":
             if (msg.cols && msg.rows) {

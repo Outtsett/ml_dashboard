@@ -1,4 +1,4 @@
-import { insertOHLCVBatch, OHLCVRow, getOHLCVSampleBy, checkQuestDBHealth, createOHLCVTable } from ".";
+import { insertOHLCVBatch, OHLCVRow, getOHLCVSampleBy, checkQuestDBHealth, createOHLCVTable, initQueryPool } from ".";
 import { getCircuitBreaker } from "../../lib/circuitBreaker";
 import { pipelineMetrics } from "../../lib/metrics";
 
@@ -76,7 +76,7 @@ export async function queryOHLCVFromQuestDB(
   startTime?: number,
   endTime?: number,
   limit?: number
-): Promise<{ success: boolean; data: any[]; source: 'questdb' | 'postgres' | 'none'; error?: string }> {
+): Promise<{ success: boolean; data: any[]; source: 'questdb' | 'none'; error?: string }> {
   if (!config.enableQuestDB) {
     return { success: false, data: [], source: 'none', error: 'QuestDB disabled' };
   }
@@ -106,23 +106,36 @@ export async function queryOHLCVFromQuestDB(
 }
 
 export async function initializeQuestDB(): Promise<{ success: boolean; error?: string }> {
-  try {
-    const healthy = await checkQuestDBHealth();
-    if (!healthy) {
-      return { success: false, error: 'QuestDB not responding' };
+  // Eagerly initialize the connection pool
+  initQueryPool();
+
+  const MAX_RETRIES = 5;
+  const BASE_DELAY_MS = 2000;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const healthy = await checkQuestDBHealth();
+      if (!healthy) {
+        throw new Error('QuestDB not responding');
+      }
+
+      await createOHLCVTable();
+      console.log(`[QuestDB] Initialized on attempt ${attempt}/${MAX_RETRIES}`);
+      return { success: true };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (attempt < MAX_RETRIES) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1); // exponential backoff: 2s, 4s, 8s, 16s
+        console.warn(`[QuestDB] Startup attempt ${attempt}/${MAX_RETRIES} failed (${msg}). Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        console.error(`[QuestDB] All ${MAX_RETRIES} startup attempts failed. Last error: ${msg}`);
+        return { success: false, error: msg };
+      }
     }
-
-    await createOHLCVTable();
-    console.log('[QuestDB] OHLCV table initialized');
-
-    return { success: true };
-  } catch (error) {
-    console.error('[QuestDB] Initialization failed:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error)
-    };
   }
+
+  return { success: false, error: 'Unexpected: exhausted retries' };
 }
 
 export async function getQuestDBIntegrationStatus(): Promise<{

@@ -1,5 +1,8 @@
-import { EventEmitter2 } from 'eventemitter2';
 import type { DomainEvent } from '@shared/event-types';
+import EventEmitter2Pkg from 'eventemitter2';
+
+// eventemitter2 exports { EventEmitter2 } as default in CJS — handle both shapes
+const EventEmitter2 = (EventEmitter2Pkg as any).EventEmitter2 ?? EventEmitter2Pkg;
 
 // ── Handler type ─────────────────────────────────────────────
 export type EventHandler = (event: DomainEvent) => void;
@@ -13,7 +16,7 @@ const EMITTER_CONFIG = {
 
 // ── EventBus ─────────────────────────────────────────────────
 export class EventBus {
-  private emitter: EventEmitter2;
+  private emitter: InstanceType<typeof EventEmitter2>;
 
   constructor() {
     this.emitter = new EventEmitter2(EMITTER_CONFIG);

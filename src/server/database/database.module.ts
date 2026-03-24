@@ -1,12 +1,11 @@
 import { Module, Global } from '@nestjs/common';
 import { QuestDBService } from './questdb.service';
+import { QuestDBAutomationService } from './questdb/automation.service';
 import { SQLiteService } from './sqlite.service';
-import { TypeOrmConfigModule } from './typeorm.module';
 
 @Global()
 @Module({
-  imports: [TypeOrmConfigModule],
-  providers: [QuestDBService, SQLiteService],
-  exports: [QuestDBService, SQLiteService],
+  providers: [QuestDBService, QuestDBAutomationService, SQLiteService],
+  exports: [QuestDBService, QuestDBAutomationService, SQLiteService],
 })
 export class DatabaseModule {}

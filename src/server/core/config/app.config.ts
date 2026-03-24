@@ -84,7 +84,6 @@ const TrainingConfigSchema = z.object({
 export const AppConfigSchema = z.object({
   port: z.number().default(5000),
   nodeEnv: z.enum(['development', 'production', 'test']).default('development'),
-  databaseUrl: z.string().default('postgresql://postgres:postgres@localhost:5432/ml_dashboard'),
 
   questdb: z.object({
     host: z.string().default('localhost'),
@@ -114,7 +113,6 @@ export function loadAppConfig(): AppConfig {
   const raw = {
     port: parseInt(process.env.PORT || '5000', 10),
     nodeEnv: process.env.NODE_ENV || 'development',
-    databaseUrl: process.env.DATABASE_URL,
     questdb: {
       host: process.env.QUESTDB_HOST,
       httpPort: parseInt(process.env.QUESTDB_HTTP_PORT || '9000', 10),

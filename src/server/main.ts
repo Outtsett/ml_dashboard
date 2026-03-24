@@ -12,23 +12,16 @@ import { runStartupSequence, getStartupReport } from './lib/startupManager';
 import { getStaticOpenApiSpec } from './core/swagger/swagger.config';
 import { log } from './lib/log';
 import { db } from './database/db';
+import { setNestApp } from './nest-context';
 
-// Re-export log for backward compat
+// Re-export for backward compat
 export { log } from './lib/log';
+export { getNestApp } from './nest-context';
 
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown;
   }
-}
-
-/** NestJS application context — DI container + lifecycle, no HTTP handling. */
-let appContext: INestApplicationContext | null = null;
-
-/** Access the NestJS DI container from outside (bridge for non-NestJS code). */
-export function getNestApp(): INestApplicationContext {
-  if (!appContext) throw new Error('NestJS not initialized yet');
-  return appContext;
 }
 
 async function bootstrap() {
@@ -57,6 +50,7 @@ async function bootstrap() {
 
   expressApp.use(
     express.json({
+      limit: '1mb',
       verify: (req, _res, buf) => {
         req.rawBody = buf;
       },
@@ -100,10 +94,11 @@ async function bootstrap() {
   await runStartupSequence();
 
   // ── NestJS DI container (initializes DB connections via lifecycle hooks) ──
-  appContext = await NestFactory.createApplicationContext(AppModule, {
+  const nestApp = await NestFactory.createApplicationContext(AppModule, {
     logger: ['log', 'warn', 'error'],
   });
-  const config = appContext.get(ConfigService);
+  setNestApp(nestApp);
+  const config = nestApp.get(ConfigService);
   log('NestJS initialized (databases ready)', 'nest');
 
   // ── Recover incomplete pipelines from prior crash ──
@@ -177,9 +172,7 @@ async function bootstrap() {
   // ── Graceful shutdown ──
   const shutdown = async () => {
     log('Graceful shutdown initiated...', 'nest');
-    if (appContext) {
-      await appContext.close();
-    }
+    try { await nestApp.close(); } catch {}
     httpServer.close();
     process.exit(0);
   };

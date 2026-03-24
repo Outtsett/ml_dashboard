@@ -13,10 +13,11 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { log } from './log';
+import { getMotiveWaveWatcher } from './motivewave';
 
 // ── Paths (Windows-specific) ──
-const QUESTDB_JAVA = 'E:\\source\\databases\\questdb-9.3.1-rt-windows-x86-64\\bin\\java.exe';
-const QUESTDB_ROOT = 'E:\\source\\databases\\questdb-9.3.1-rt-windows-x86-64';
+const QUESTDB_JAVA = 'E:\\source\\databases\\questdb-9.3.3-rt-windows-x86-64\\bin\\java.exe';
+const QUESTDB_ROOT = 'E:\\source\\databases\\questdb-9.3.3-rt-windows-x86-64';
 const QUESTDB_PID_FILE = path.join(process.cwd(), '.questdb.pid');
 
 const QUESTDB_HTTP_PORT = parseInt(process.env.QUESTDB_HTTP_PORT || '9000', 10);
@@ -144,6 +145,24 @@ export async function runStartupSequence(): Promise<StartupReport> {
     overallHealthy: sqliteStatus.status === 'running' && questStatus.status === 'running',
     timestamp: new Date().toISOString(),
   };
+
+  // MotiveWave auto-start: if config has autoStart=true and QuestDB is ready, start watcher
+  if (questStatus.status === 'running') {
+    try {
+      const watcher = getMotiveWaveWatcher(); // loads persisted config on first call
+      const config = watcher.getConfig();
+      if (config.autoStart && config.watchDir) {
+        log(`Auto-starting MotiveWave watcher on: ${config.watchDir}`, 'startup');
+        watcher.start().then(() => {
+          log('  + MotiveWave watcher started', 'startup');
+        }).catch((err: any) => {
+          log(`  x MotiveWave watcher failed: ${err.message}`, 'startup');
+        });
+      }
+    } catch (err: any) {
+      log(`  x MotiveWave auto-start check failed: ${err.message}`, 'startup');
+    }
+  }
 
   // Pretty-print status
   const icon = (s: DbStatus) => s.status === 'running' ? '+' : s.status === 'skipped' ? 'o' : 'x';

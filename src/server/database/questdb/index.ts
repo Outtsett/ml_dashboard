@@ -3,19 +3,24 @@
 
 export {
   QUESTDB_HOST,
-  QUESTDB_ILP_PORT,
   QUESTDB_PG_PORT,
   QUESTDB_HTTP_PORT,
+  QUESTDB_USER,
+  QUESTDB_PASSWORD,
   getQuestDBSender,
   getQuestDBQueryPool,
+  initQueryPool,
   queryQuestDB,
+  queryQuestDBStream,
+  queryQuestDBValidated,
+  OHLCVRowSchema,
   insertOHLCVBatch,
   insertOHLCVStream,
   closeQuestDB,
   checkQuestDBHealth,
 } from "./connection";
 
-export type { OHLCVRow } from "./connection";
+export type { OHLCVRow, ValidatedOHLCVRow } from "./connection";
 
 export {
   createOHLCVTable,
