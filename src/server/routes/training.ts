@@ -100,6 +100,18 @@ router.post("/training/config/reload", (_req: Request, res: Response) => {
   }
 });
 
+// ─── Metric Descriptions (config-driven metric annotations for UI) ──────────
+
+router.get("/training/metric-descriptions", CACHE_SEMI, async (_req: Request, res: Response) => {
+  try {
+    const configPath = path.resolve(process.cwd(), "src", "config", "metric-descriptions.json");
+    const raw = await fs.promises.readFile(configPath, "utf-8");
+    res.json(JSON.parse(raw));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Start Training ──────────────────────────────────────────────────────────
 
 router.post("/training/start", mlRateLimiter, async (req: Request, res: Response) => {
