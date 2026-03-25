@@ -1,6 +1,13 @@
 # ML Dashboard
 
-Full-stack ML Dashboard for quantitative trading research. Electron desktop app + web (React 19 + Express 5) with a 2-database architecture (SQLite + QuestDB). QuestDB uses a unified multi-asset schema — single `ohlcv` table for all instrument types with `asset_class` and `root` SYMBOL INDEX columns.
+Full-stack ML Dashboard for quantitative trading research. Electron desktop app + web (React 19 + Express 5 + NestJS 11) with a 2-database architecture (SQLite 35 tables + QuestDB 61 tables). HDP-HMM regime detection trained on 2.3M MNQ 1m bars. No external experiment tracking — all metrics via built-in SSE protocol.
+
+## Project Scale
+- **182 React components**, 63 pages, 30 route files, 45 Python ML files, 53 scripts
+- **99 npm dependencies**, 40 devDependencies, 7 config JSONs
+- **Node 22.20**, Python 3.13, TypeScript, Numba JIT, Polars
+- **157 commits** on `feat/event-architecture` branch (pushed to GitHub)
+- **Trained models**: MNQ_1m (6 regimes, 2.3M bars, quality 87), EURUSD_1h (3 regimes), EURUSD_1h_2state, MNQZ5_1m (11 regimes, quality 91)
 
 ## User Learning Style
 
@@ -249,16 +256,18 @@ ml/                 Python ML model packages
   hdp_hmm/          Sticky HDP-HMM regime detection package
     main.py         Entry point spawned by pythonRunner.ts (CLI + orchestration)
     model.py        StickyHDPHMM class + Numba JIT FFBS. Vectorized emission LL (BLAS matmul), vectorized NIG sampling, vectorized transition counting, vectorized dwell computation.
-    config.py       Model constants (K_TRUNC=20, NIG priors)
+    config.py       Model constants (K_TRUNC=4, NIG priors)
     io/             Model-specific I/O (save, relabel, SHAP, evaluation, quality)
 
 shared/
-  schema.ts         22 SQLite tables (Drizzle definitions + Zod validation)
+  schema.ts         35 SQLite tables (Drizzle definitions + Zod validation)
   mlTaxonomy.ts     ML categories, subcategories, metrics, XAI method registry (~1600 lines)
   trainingTypes.ts  Universal training types (TrainingRequest, SSE events, overlay payloads)
 
 config/
   models.json       Model registry (hdp-hmm, 2-state-hmm — runner, script, hyperparams, CLI flags)
+  metric-descriptions.json  v2 metric annotations (7 HDP-HMM metrics, 4 2-state metrics) with title, format, description, detects, purpose, usage, crossMetrics, healthy ranges
+  model-templates.json      Model architecture templates
   features.json     Feature registry (29 features, 8 categories, normalization config, featureSets: full-344, research-recommended)
   feature_extraction.json  Per-indicator transform specs (13 categories: bounded_oscillators, bollinger, macd, atr_volatility, moving_averages, volume_flow, trend_strength, momentum_misc, hilbert_cycle, statistics)
   metric-descriptions.json  Per-model-type metric annotations (title, description, effect, healthy range, display format). UI reads this to annotate live training metrics.
@@ -280,10 +289,25 @@ electron/
   preload.cjs          Preload script
 
 data/
-  ml_dashboard.db      SQLite database (WAL mode)
-  models/              Trained model checkpoints (HDP-HMM diagnostics, convergence, assignments)
-  .cache/              Parquet cache for QuestDB data (auto-populated, 24h TTL). Feature research parquet cache.
-  feature_research/    Feature engineering research outputs (per symbol/timeframe): extracted_features.parquet, correlation_matrix.parquet, importance_ranking.json, recommended_features.json
+  ml_dashboard.db      SQLite database (WAL mode, 35 tables)
+  models/              Trained model checkpoints (diagnostics.json, convergence.json, assignments.csv)
+  .cache/              Parquet cache for QuestDB data (auto-populated, 24h TTL)
+  feature_research/    Feature engineering research outputs (per symbol/timeframe)
+
+## Trained Models (as of 2026-03-25)
+
+| Model ID | Symbol | TF | Regimes | Bars | Quality | Grade | Key Finding |
+|----------|--------|----|---------|------|---------|-------|-------------|
+| MNQ_1m | MNQ | 1m | 6 | 2.34M | 87 | D | return_20 + swing_direction dominate SHAP. Bull Reversal Sharpe 6.07. OOS similarity 1.000. |
+| EURUSD_1h | EURUSD | 1h | 3 | 37K | 85 | D | 3-regime forex structure |
+| EURUSD_1h_2state | EURUSD | 1h | 2 | 750 | 78 | D | 2-state bull/bear baseline |
+| MNQZ5_1m_hdp-hmm_20260302T015913 | MNQZ5 | 1m | 11 | 140K | 91 | D | 11 regimes with K_TRUNC=20. Superseded by MNQ_1m with K_TRUNC=4. |
+
+### Feature Research Results (MNQ 1m, 1.95M bars)
+- **209 derived features** extracted from 148 talib indicators in 12.3s (numba+parallel)
+- **Top features by MI**: bop_z50, bop_pctrnk, trange_pctrnk, stochf_fastk_pctrnk, stddev_pctrnk
+- **Redundancy**: 64 pairs with |r| > 0.90, reduced to 68/107 features after drops
+- **95% importance** captured by 95 features out of 209
 
 mcp_server/              FastMCP server (Python) for Claude.ai web + Claude Code
   server.py              FastMCP instance, lifespan, auth, health
