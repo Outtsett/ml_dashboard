@@ -1,4 +1,12 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { QueryClient, QueryCache, MutationCache, QueryFunction } from "@tanstack/react-query";
+
+// ─── Fetch listener for speed audit instrumentation ─────────────────────────
+type FetchListener = (url: string, durationMs: number, sizeBytes: number | null) => void;
+let fetchListener: FetchListener | null = null;
+export function setFetchListener(listener: FetchListener | null) {
+  fetchListener = listener;
+}
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -12,12 +20,16 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const start = performance.now();
   const res = await fetch(url, {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
+  const durationMs = performance.now() - start;
+  const contentLength = res.headers.get("content-length");
+  fetchListener?.(url, durationMs, contentLength ? parseInt(contentLength) : null);
 
   await throwIfResNotOk(res);
   return res;
@@ -42,6 +54,28 @@ export const getQueryFn: <T>(options: {
   };
 
 export const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      // Only toast on background refetch failures — not initial loads
+      if (query.state.data !== undefined) {
+        toast.error("Data refresh failed", {
+          description: error.message?.slice(0, 120) || "An unexpected error occurred",
+          duration: 5000,
+        });
+      }
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      // Only toast if the mutation doesn't handle errors itself
+      if (!mutation.options.onError) {
+        toast.error("Action failed", {
+          description: error.message?.slice(0, 120) || "An unexpected error occurred",
+          duration: 5000,
+        });
+      }
+    },
+  }),
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),

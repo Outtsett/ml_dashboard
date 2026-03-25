@@ -7,6 +7,7 @@
  */
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,7 @@ export default function ForecastVisualizer() {
       samples: 20,
     }),
     onSuccess: () => {
+      toast.success("Forecast complete");
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.mlForecastsList });
       const tfLabels: Record<string, string> = { "60": "1m", "300": "5m", "900": "15m", "1800": "30m", "3600": "1h", "14400": "4h", "86400": "1d" };
       const tfLabel = tfLabels[timeframe] || `${timeframe}s`;

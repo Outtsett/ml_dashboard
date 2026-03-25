@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ export function HistoryTab({ labelSets, isLoading }: HistoryTabProps) {
       return res.json();
     },
     onSuccess: () => {
+      toast.success("Label set deleted");
       queryClient.invalidateQueries({ queryKey: ["/api/labels"] });
     },
   });

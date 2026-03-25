@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +55,7 @@ export function GenerateTab({ selectedSymbol, symbols, onSymbolChange }: Generat
       return res.json();
     },
     onSuccess: () => {
+      toast.success("Labels generated");
       queryClient.invalidateQueries({ queryKey: ["/api/labels"] });
       setLabelName("");
     },

@@ -9,6 +9,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { toast } from "sonner";
 import type {
   CatalogStats,
   CatalogTaxonomy,
@@ -86,6 +87,7 @@ export function useRefreshCatalog() {
   return useMutation({
     mutationFn: () => apiRequest("POST", "/api/model-catalog/refresh"),
     onSuccess: () => {
+      toast.success("Catalog refreshed");
       // Invalidate all catalog queries so they refetch
       qc.invalidateQueries({ queryKey: ["/api/model-catalog"] });
       qc.invalidateQueries({ queryKey: KEYS.stats });

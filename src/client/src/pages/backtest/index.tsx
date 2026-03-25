@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -109,6 +110,7 @@ export function BacktestPanel() {
       setLastResult(data);
       setSelectedRunId(data.run.id);
       queryClient.invalidateQueries({ queryKey: ["/api/backtest/runs"] });
+      toast.success("Backtest complete", { description: `${data.metrics.totalTrades} trades, ${data.metrics.winRate.toFixed(1)}% win rate` });
       dashboard.addLog({ level: 'success', source: 'backtest', message: `Backtest completed: ${data.metrics.totalTrades} trades, ${data.metrics.winRate.toFixed(1)}% win rate` });
     },
   });
