@@ -474,9 +474,17 @@ export class MotiveWaveWatcher {
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
       const batch = rows.slice(i, i + BATCH_SIZE);
       for (const row of batch) {
+        const instrumentType = detectInstrumentType(row.symbol);
+        const assetClass = instrumentType === "forex" ? "forex" : "futures";
+        const rootVal = instrumentType === "futures_contract"
+          ? (row.symbol.match(/^([A-Z][A-Z0-9]*)[FGHJKMNQUVXZ]\d/)?.[1] ?? row.symbol)
+          : row.symbol;
+
         await sender
           .table(tableName)
           .symbol("symbol", row.symbol)
+          .symbol("asset_class", assetClass)
+          .symbol("root", rootVal)
           .floatColumn("open", row.open)
           .floatColumn("high", row.high)
           .floatColumn("low", row.low)

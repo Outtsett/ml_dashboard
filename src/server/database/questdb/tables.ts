@@ -12,10 +12,11 @@ const INDICATOR_TIMEFRAMES: { suffix: string; partition: string }[] = [
 ];
 
 export async function createOHLCVTable(): Promise<void> {
-  // Original ohlcv table (kept for compatibility during migration)
   await queryQuestDB(`
     CREATE TABLE IF NOT EXISTS ohlcv (
-      symbol SYMBOL CAPACITY 50 CACHE INDEX,
+      symbol SYMBOL CAPACITY 200 CACHE INDEX,
+      asset_class SYMBOL CAPACITY 10 CACHE INDEX,
+      root SYMBOL CAPACITY 50 CACHE INDEX,
       timestamp TIMESTAMP,
       open DOUBLE,
       high DOUBLE,
@@ -26,21 +27,6 @@ export async function createOHLCVTable(): Promise<void> {
     DEDUP UPSERT KEYS(symbol, timestamp);
   `);
 
-  // New Separate Forex Table (Aligned with your existing ohlcv_forex)
-  await queryQuestDB(`
-    CREATE TABLE IF NOT EXISTS ohlcv_forex (
-      symbol SYMBOL CAPACITY 100 CACHE INDEX,
-      timestamp TIMESTAMP,
-      open DOUBLE,
-      high DOUBLE,
-      low DOUBLE,
-      close DOUBLE,
-      volume DOUBLE
-    ) timestamp(timestamp) PARTITION BY DAY WAL
-    DEDUP UPSERT KEYS(symbol, timestamp);
-  `);
-
-  // Rollovers Table (Aligned with your existing rollovers)
   await queryQuestDB(`
     CREATE TABLE IF NOT EXISTS rollovers (
       root SYMBOL CAPACITY 50 CACHE INDEX,
@@ -54,69 +40,34 @@ export async function createOHLCVTable(): Promise<void> {
     ) timestamp(rollover_date) PARTITION BY YEAR WAL
     DEDUP UPSERT KEYS(root, rollover_date);
   `);
-}
-
-export async function createTradesTable(): Promise<void> {
-  await queryQuestDB(`
-    CREATE TABLE IF NOT EXISTS trades (
-      ts_event TIMESTAMP,
-      rtype SHORT,
-      publisher_id INT,
-      instrument_id LONG,
-      action SYMBOL CAPACITY 10 CACHE,
-      side SYMBOL CAPACITY 10 CACHE,
-      depth SHORT,
-      price DOUBLE,
-      size LONG,
-      flags SHORT,
-      ts_in_delta INT,
-      sequence LONG,
-      symbol SYMBOL CAPACITY 200 CACHE INDEX,
-      ts_recv TIMESTAMP
-    ) timestamp(ts_event) PARTITION BY DAY WAL
-    DEDUP UPSERT KEYS(symbol, ts_event, sequence);
-  `);
-}
-
-export async function createMBP10Table(): Promise<void> {
-  const bookLevels = Array.from({ length: 10 }, (_, i) => {
-    const pad = String(i).padStart(2, '0');
-    return `bid_px_${pad} DOUBLE, ask_px_${pad} DOUBLE, bid_sz_${pad} LONG, ask_sz_${pad} LONG, bid_ct_${pad} INT, ask_ct_${pad} INT`;
-  }).join(',\n      ');
 
   await queryQuestDB(`
-    CREATE TABLE IF NOT EXISTS mbp10 (
-      ts_recv TIMESTAMP,
-      ts_event TIMESTAMP,
-      rtype SHORT,
-      publisher_id INT,
-      instrument_id LONG,
-      action SYMBOL CAPACITY 10 CACHE,
-      side SYMBOL CAPACITY 10 CACHE,
-      depth SHORT,
-      price DOUBLE,
-      size LONG,
-      flags SHORT,
-      ts_in_delta INT,
-      sequence LONG,
-      ${bookLevels},
-      symbol SYMBOL CAPACITY 200 CACHE INDEX
-    ) timestamp(ts_event) PARTITION BY DAY WAL
-    DEDUP UPSERT KEYS(symbol, ts_event, sequence);
+    CREATE TABLE IF NOT EXISTS symbols (
+      symbol SYMBOL CAPACITY 500 CACHE INDEX,
+      asset_class SYMBOL CAPACITY 10 CACHE INDEX,
+      root SYMBOL CAPACITY 50 CACHE,
+      exchange SYMBOL CAPACITY 20 CACHE,
+      currency SYMBOL CAPACITY 10 CACHE,
+      tick_size DOUBLE,
+      point_value DOUBLE,
+      pip_size DOUBLE,
+      contract_size DOUBLE,
+      decimal_places SHORT,
+      timestamp TIMESTAMP
+    ) timestamp(timestamp) PARTITION BY YEAR WAL
+    DEDUP UPSERT KEYS(symbol, timestamp);
   `);
 }
 
 export async function initQuestDBTables(): Promise<void> {
   await createOHLCVTable();
-  await createTradesTable();
-  await createMBP10Table();
   await createIndicatorTables();
 }
 
 /**
- * Create indicator materialized-view tables if they don't exist.
+ * Create indicator tables if they don't exist.
  * These mirror the schema used by scripts/upload-indicators-questdb.py.
- * Only OHLCV + symbol + asset_class columns are created here — the full
+ * Only OHLCV + symbol + asset_class + root columns are created here — the full
  * 344-column schema is extended by the upload script via ALTER TABLE.
  */
 async function createIndicatorTables(): Promise<void> {
@@ -124,8 +75,9 @@ async function createIndicatorTables(): Promise<void> {
     try {
       await queryQuestDB(`
         CREATE TABLE IF NOT EXISTS indicators_${suffix} (
-          symbol SYMBOL CAPACITY 50 CACHE INDEX,
-          asset_class SYMBOL CAPACITY 5 CACHE,
+          symbol SYMBOL CAPACITY 200 CACHE INDEX,
+          asset_class SYMBOL CAPACITY 10 CACHE,
+          root SYMBOL CAPACITY 50 CACHE INDEX,
           timestamp TIMESTAMP,
           open DOUBLE,
           high DOUBLE,

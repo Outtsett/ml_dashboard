@@ -17,7 +17,6 @@ import type { AdjustmentMode } from '@shared/ohlcv';
 import { cachedQuery, OHLCVCache } from '../lib/ohlcvCache';
 import { normalizeTimestamp, parseTimestampParam } from '../lib/normalize';
 import { isFuturesRoot } from '../lib/futures';
-import { detectInstrumentType, getBaseTableForType } from '../database/questdb/marketData';
 import { CACHE_SEMI } from '../lib/cacheHeaders';
 import { SYMBOL_REGEX } from '@shared/schema';
 import { isValidSymbol } from '@shared/validation';
@@ -126,22 +125,20 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
       anchorPromise = (async () => {
         try {
           const safeEsc = symbol.replace(/'/g, "''");
-          const table = getBaseTableForType(detectInstrumentType(symbol));
           let anchorQuery: string;
           if (isFuturesRoot(symbol)) {
-            // Use rollovers table to find the current contract — O(1) instead of regex scan on 159M+ rows
+            // Use rollovers table to find the current contract — O(1)
             const rolloverQuery = `SELECT to_contract FROM rollovers WHERE root = '${safeEsc}' ORDER BY rollover_date DESC LIMIT 1`;
             const rollRows = await queryQuestDB<{ to_contract: string }>(rolloverQuery);
             if (rollRows.length > 0) {
               const currentContract = rollRows[0]!.to_contract.replace(/'/g, "''");
-              anchorQuery = `SELECT max(timestamp) as latest FROM ${table} WHERE symbol = '${currentContract}'`;
+              anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE symbol = '${currentContract}'`;
             } else {
-              // No rollover schedule — use regex (slower but correct)
-              const contractRegex = `^${safeEsc}[FGHJKMNQUVXZ][0-9]{1,2}$`;
-              anchorQuery = `SELECT max(timestamp) as latest FROM ${table} WHERE symbol ~ '${contractRegex}'`;
+              // No rollover schedule — use root column (SYMBOL INDEX)
+              anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE root = '${safeEsc}' AND asset_class = 'futures'`;
             }
           } else {
-            anchorQuery = `SELECT max(timestamp) as latest FROM ${table} WHERE symbol = '${safeEsc}'`;
+            anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE symbol = '${safeEsc}'`;
           }
           const [row] = await queryQuestDB(anchorQuery);
           if (row?.latest) {
@@ -210,15 +207,18 @@ router.get('/symbols', CACHE_SEMI, async (_req: Request, res: Response) => {
     }
 
     const symbols = await queryQuestDB(`
-      SELECT symbol,
+      SELECT symbol, asset_class, root,
              count() as row_count,
              min(timestamp) as first_bar,
              max(timestamp) as last_bar
-      FROM ohlcv
+      FROM ohlcv_1d
+      GROUP BY symbol, asset_class, root
       ORDER BY symbol
     `);
     return res.json(symbols.map((s: any) => ({
       symbol: s.symbol,
+      asset_class: s.asset_class,
+      root: s.root,
       row_count: Number(s.row_count),
       first_bar: s.first_bar instanceof Date ? s.first_bar.toISOString() : String(s.first_bar),
       last_bar: s.last_bar instanceof Date ? s.last_bar.toISOString() : String(s.last_bar),

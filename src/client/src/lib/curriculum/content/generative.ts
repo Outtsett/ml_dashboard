@@ -24,115 +24,270 @@ export const generativePath: LearningPath = {
           id: "gen-vae",
           title: "Variational Autoencoders",
           description:
-            "Understand the encoder-decoder framework, latent space geometry, the ELBO objective, and the reparameterization trick — then apply VAEs to anomaly detection and synthetic return generation.",
-          estimatedMinutes: 55,
+            "Master the encoder-decoder probabilistic framework, derive the ELBO from first principles, implement the reparameterization trick, and apply VAEs to forex anomaly detection and synthetic scenario generation.",
+          estimatedMinutes: 75,
           difficulty: "advanced",
           relatedModels: ["vae", "autoencoder"],
           sections: [
             {
               type: "objective",
-              content:
-                "By the end of this lesson you will be able to explain the VAE objective (ELBO), implement the reparameterization trick in PyTorch, and train a VAE that generates synthetic forex return distributions for anomaly detection.",
+              title: "Learning Objectives",
+              description:
+                "By the end of this lesson you will derive the ELBO from the log-likelihood lower bound, explain β-VAE and disentanglement, implement a production-grade VAE in PyTorch with mixed precision, and deploy it for forex anomaly detection and synthetic market scenario generation.",
               keyTakeaways: [
-                "VAEs learn a continuous latent space z ∈ ℝᵈ that captures the generating factors of market data",
-                "The ELBO = 𝔼[log p(x|z)] − KL(q(z|x) ‖ p(z)) balances reconstruction fidelity and latent regularization",
-                "The reparameterization trick z = μ + σ ⊙ ε enables gradient flow through stochastic sampling",
-                "High reconstruction error flags anomalous price action — regime changes, flash crashes, liquidity gaps",
+                "VAEs learn a continuous latent space z ∈ ℝᵈ that captures the independent generating factors of market data (regime, volatility, trend strength)",
+                "The ELBO = 𝔼_q[log p(x|z)] − KL(q(z|x) ‖ p(z)) is a tractable lower bound on log p(x), balancing reconstruction fidelity and latent regularization",
+                "The reparameterization trick z = μ + σ ⊙ ε (ε ~ 𝒩(0,I)) enables gradient flow through stochastic sampling, turning a non-differentiable sampling operation into a differentiable computation",
+                "β-VAE introduces β ≥ 1 as a KL weight to encourage disentangled representations where each latent dimension captures one independent factor",
+                "Anomaly detection: reconstruction error or negative ELBO flags out-of-distribution regimes (flash crashes, regime shifts, liquidity gaps)",
+                "Synthetic generation: sample z ~ 𝒩(0,I), decode to x̂, use for stress testing and data augmentation in low-data regimes",
+                "For time series: use 1D convolutions or small LSTMs in encoder/decoder to capture temporal dependencies and volatility clustering",
+                "Latent space interpolation produces smooth regime transitions useful for backtesting strategy robustness across market conditions",
               ],
             },
             {
               type: "theory",
-              title: "From Autoencoders to Variational Inference",
+              title: "Deriving the ELBO: From Intractable Likelihood to Variational Bound",
               content:
-                "A standard autoencoder compresses input x into a bottleneck code and reconstructs x̂. The latent space, however, is unstructured — nearby codes may decode to wildly different outputs, making generation unreliable.\n\nVAEs impose probabilistic structure. The encoder outputs parameters μ and log σ² of a Gaussian q(z|x) = 𝒩(μ, σ²I). We sample z ~ q(z|x) and decode. Training maximizes the Evidence Lower Bound:\n\n  ELBO = 𝔼_q[log p(x|z)] − KL(q(z|x) ‖ p(z))\n\nThe first term is reconstruction likelihood; the second is a regularizer that keeps the approximate posterior close to the prior p(z) = 𝒩(0, I). For financial returns r ∈ ℝᵀ the decoder learns to reproduce the temporal correlation structure, fat tails, and volatility clustering that characterize real markets.\n\nAnomaly scoring is straightforward: compute reconstruction error ‖x − x̂‖² or the negative ELBO for a new sample — values above a threshold θ indicate out-of-distribution regimes.",
+                "The generative model assumes:\n  p(x, z) = p(x|z)p(z)\nwhere p(z) = 𝒩(0, I) is the prior over latent codes and p(x|z) is the decoder likelihood. The marginal log-likelihood is:\n  log p(x) = log ∫ p(x|z)p(z)dz\nwhich is intractable for complex decoders (deep neural nets). Introduce an approximate posterior q(z|x; φ) parameterized by the encoder with parameters φ. By Jensen's inequality (log is concave):\n\n  log p(x) = log 𝔼_q[(p(x,z)/q(z|x))]\n          ≥ 𝔼_q[log p(x,z)] − 𝔼_q[log q(z|x)]\n          = 𝔼_q[log p(x|z)] + 𝔼_q[log p(z)] − 𝔼_q[log q(z|x)]\n          = 𝔼_q[log p(x|z)] − KL(q(z|x) ‖ p(z))\n          := ELBO(x; θ, φ)\n\nMaximizing the ELBO w.r.t. (θ, φ) simultaneously:\n  1. Maximizes 𝔼_q[log p(x|z)] — reconstruction likelihood (decoder accuracy)\n  2. Minimizes KL(q(z|x) ‖ p(z)) — keeps q(z|x) close to the prior p(z)\n\nThe gap between log p(x) and the ELBO is KL(q(z|x) ‖ p(z|x)), which measures how well q approximates the true posterior. As q improves, the ELBO tightens.\n\nFor Gaussian encoder q(z|x) = 𝒩(μ(x), diag(σ²(x))) and prior p(z) = 𝒩(0, I), the KL has a closed form:\n  KL(q ‖ p) = ½ Σ_i (σ²ᵢ + μᵢ² − 1 − log σ²ᵢ)\nFor Gaussian decoder p(x|z) = 𝒩(f(z), σ²I), the reconstruction term simplifies to MSE: ‖x − f(z)‖².\n\nFor financial returns, the decoder learns correlations, fat tails (via flexible neural density), and volatility clustering (temporal structure in the latent space).",
+            },
+            {
+              type: "theory",
+              title: "The Reparameterization Trick: Making Sampling Differentiable",
+              content:
+                "The gradient ∇_φ 𝔼_{z~q(z|x;φ)}[log p(x|z)] cannot be computed directly because sampling z ~ q(z|x; φ) is non-differentiable. The reparameterization trick rewrites:\n  z ~ 𝒩(μ(x), σ²(x)) as z = μ(x) + σ(x) ⊙ ε,  where ε ~ 𝒩(0, I)\nNow z is a deterministic function of μ, σ, and the independent noise ε. The gradient becomes:\n  ∇_φ 𝔼_ε[log p(x|z)] where z = μ(x;φ) + σ(x;φ) ⊙ ε\nwhich is tractable via Monte Carlo: sample ε ~ 𝒩(0,I), compute z, backpropagate through μ(x), σ(x), and the decoder.\n\nNumerical example (1D latent):\n  μ = 0.5, log σ² = −1.0 ⇒ σ = exp(−0.5) ≈ 0.606\n  ε ∼ 𝒩(0,1) (sample: ε = 0.734)\n  z = 0.5 + 0.606 × 0.734 = 0.945\nBackprop flows through μ and log σ² to encoder weights, enabling end-to-end training.\n\nFor multivariate z ∈ ℝᵈ, the operation is element-wise:\n  zᵢ = μᵢ + exp(½ log σ²ᵢ) · εᵢ,  εᵢ ~ 𝒩(0,1)  independently",
+            },
+            {
+              type: "theory",
+              title: "β-VAE: Disentangling Independent Factors of Variation",
+              content:
+                "Standard VAE (β=1) often entangles latent dimensions — multiple zᵢ jointly encode regime, volatility, and trend. β-VAE introduces a hyperparameter β ≥ 1 to weight the KL term:\n  ℒ_β = 𝔼_q[log p(x|z)] − β · KL(q(z|x) ‖ p(z))\nHigher β increases pressure on the encoder to compress information into fewer, independent dimensions.\n\nIntuition: Under stronger KL constraint, the encoder can't afford to spread information redundantly. It learns a disentangled representation where z₁ might encode volatility regime, z₂ encodes trend direction, z₃ encodes mean-reversion speed, etc.\n\nConcrete forex example with β=4 and d=8:\n  - z₁, z₂: high/low volatility regime (captures whether σ ≈ 50bps or 200bps)\n  - z₃: trend strength (ranging vs trending)\n  - z₄: skewness/tail asymmetry\n  - z₅₋₈: residual microstructure and noise\n\nDisentanglement is crucial for interpretability and controllable generation — you can sample z₁ ∈ [−2, 2] to sweep volatility while holding other factors fixed, enabling targeted stress tests.",
             },
             {
               type: "intuition",
               title: "The Latent Space as a Map of Market Regimes",
-              analogy:
-                "Think of the latent space as a map of a city. Each neighborhood (cluster in z-space) represents a distinct market regime — trending, mean-reverting, high-volatility, low-volatility. The encoder tells you which neighborhood a given price window belongs to. The decoder lets you generate realistic 'street views' (synthetic returns) from any point on the map. If a new observation lands in an empty lot — far from any known neighborhood — the VAE flags it as anomalous.",
               content:
-                "The KL term acts like urban planning: it prevents the encoder from cramming all observations into a single block (mode collapse) and ensures smooth interpolation. Walking between two regime clusters produces plausible intermediate dynamics, which is essential for data augmentation and stress testing.",
+                "Think of the latent space z ∈ ℝᵈ as a topographic map of market conditions. Each point (z₁, z₂, ..., zᵈ) represents a unique combination of regime factors:\n  • High-volatility trending: z = [2.0, 1.5, ...]\n  • Low-volatility mean-reverting: z = [−1.0, −0.8, ...]\n  • Transition state (choppy): z = [0.2, −0.1, ...]\n\nThe encoder is a navigation system that takes a price window x and tells you 'You are here' (μ, σ) on the map. The decoder is a renderer that takes coordinates z and generates a realistic view (synthetic return sequence) from that location.\n\nAnomaly detection: A flash crash or unprecedented regime shift lands you in uncharted territory — high reconstruction error because the decoder has never seen that region. The KL term is like guardrails preventing the encoder from putting every observation at the exact same GPS coordinate (mode collapse).\n\nInterpolation: Walk smoothly between two regime points z_A and z_B via z(t) = (1−t)z_A + t·z_B, t ∈ [0,1]. The decoder produces a plausible transition path from regime A to B, invaluable for stress testing and 'what-if' scenario analysis.",
               emoji: "🗺️",
             },
             {
+              type: "intuition",
+              title: "Why ELBO Works: The Free Energy Perspective",
+              content:
+                "The ELBO can be interpreted as minimizing variational free energy from statistical physics. The reconstruction term 𝔼_q[log p(x|z)] is 'energy' — how well the model explains the data. The KL term is 'entropy' — how much the approximate posterior q deviates from the prior p.\n\nMinimizing free energy = maximizing log p(x) under constraints. The VAE finds a balance: the encoder can't make q(z|x) arbitrarily complex (it would overfit), and the decoder must generate diverse outputs (to cover the prior p(z) = 𝒩(0,I)).\n\nIn trading terms: The VAE must faithfully reproduce your training returns (reconstruction) while maintaining a 'baseline belief' (prior) that markets generally look Gaussian. Deviations from Gaussian (fat tails, skew) are encoded in the decoder's learned nonlinearities, not in q(z|x) drifting arbitrarily far from 𝒩(0,I).",
+              emoji: "⚖️",
+            },
+            {
               type: "code",
-              title: "PyTorch VAE for Synthetic Forex Returns",
+              title: "Production VAE: Temporal Convolutions + β-VAE + Mixed Precision",
               language: "python",
               code: `import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.cuda.amp import autocast, GradScaler
 import numpy as np
 
-class ForexVAE(nn.Module):
-    """VAE that learns to generate synthetic forex return windows."""
-
-    def __init__(self, window: int = 60, latent_dim: int = 8):
+class ConvForexVAE(nn.Module):
+    """
+    VAE with 1D convolutions for temporal structure.
+    Supports β-VAE for disentanglement.
+    """
+    def __init__(self, window=60, latent_dim=8, beta=1.0):
         super().__init__()
-        # Encoder: x → (μ, log σ²)
-        self.enc = nn.Sequential(
-            nn.Linear(window, 128), nn.ReLU(),
-            nn.Linear(128, 64), nn.ReLU(),
+        self.beta = beta
+        # Encoder: [B, 1, T] → latent params
+        self.enc_conv = nn.Sequential(
+            nn.Conv1d(1, 32, kernel_size=4, stride=2, padding=1),  # T/2
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            nn.Conv1d(32, 64, kernel_size=4, stride=2, padding=1), # T/4
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Flatten(),
         )
-        self.fc_mu = nn.Linear(64, latent_dim)
-        self.fc_logvar = nn.Linear(64, latent_dim)
-        # Decoder: z → x̂
-        self.dec = nn.Sequential(
-            nn.Linear(latent_dim, 64), nn.ReLU(),
-            nn.Linear(64, 128), nn.ReLU(),
-            nn.Linear(128, window),
+        conv_out_dim = 64 * (window // 4)
+        self.fc_mu = nn.Linear(conv_out_dim, latent_dim)
+        self.fc_logvar = nn.Linear(conv_out_dim, latent_dim)
+        
+        # Decoder: latent → [B, 1, T]
+        self.fc_dec = nn.Linear(latent_dim, conv_out_dim)
+        self.dec_conv = nn.Sequential(
+            nn.ConvTranspose1d(64, 32, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            nn.ConvTranspose1d(32, 1, kernel_size=4, stride=2, padding=1),
         )
+        self.window = window
 
-    def encode(self, x: torch.Tensor):
-        h = self.enc(x)
+    def encode(self, x):
+        # x: [B, T] → [B, 1, T]
+        x = x.unsqueeze(1)
+        h = self.enc_conv(x)
         return self.fc_mu(h), self.fc_logvar(h)
 
-    def reparameterize(self, mu: torch.Tensor, logvar: torch.Tensor):
-        # z = μ + σ ⊙ ε,  ε ~ 𝒩(0, I)
+    def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return mu + std * eps
 
-    def decode(self, z: torch.Tensor):
-        return self.dec(z)
+    def decode(self, z):
+        h = self.fc_dec(z)
+        h = h.view(-1, 64, self.window // 4)
+        out = self.dec_conv(h)  # [B, 1, T]
+        return out.squeeze(1)
 
     def forward(self, x):
         mu, logvar = self.encode(x)
         z = self.reparameterize(mu, logvar)
         return self.decode(z), mu, logvar
 
-
-def vae_loss(x_hat, x, mu, logvar):
-    """ELBO = reconstruction + KL divergence."""
-    recon = F.mse_loss(x_hat, x, reduction="sum")
-    kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    return recon + kl
+    def loss_function(self, x_recon, x, mu, logvar):
+        recon_loss = F.mse_loss(x_recon, x, reduction='sum')
+        kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        return recon_loss + self.beta * kl_loss, recon_loss, kl_loss
 
 
-# ── Training loop ────────────────────────────────────────────
-returns = np.random.randn(5000, 60).astype(np.float32) * 0.01
-dataset = torch.from_numpy(returns)
-loader = torch.utils.data.DataLoader(dataset, batch_size=128, shuffle=True)
+# ── Data: Replace with real QuestDB forex returns ──────────
+def generate_synthetic_returns(n_samples=10000, window=60):
+    """Simulate fat-tailed returns with autocorrelation."""
+    # Student-t with df=5 for fat tails
+    base = np.random.standard_t(df=5, size=(n_samples, window)) * 0.003
+    # Add GARCH-like volatility clustering (simple AR)
+    for i in range(1, window):
+        base[:, i] += 0.15 * base[:, i-1]
+    return base.astype(np.float32)
 
-model = ForexVAE(window=60, latent_dim=8)
-optim = torch.optim.Adam(model.parameters(), lr=1e-3)
+returns = generate_synthetic_returns(n_samples=10000, window=60)
+train_data = torch.from_numpy(returns)
+loader = torch.utils.data.DataLoader(train_data, batch_size=256, shuffle=True)
 
-for epoch in range(20):
-    total = 0.0
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = ConvForexVAE(window=60, latent_dim=8, beta=2.0).to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=2e-4)
+scaler = GradScaler()
+
+# ── Training with mixed precision ───────────────────────────
+for epoch in range(50):
+    model.train()
+    total_loss, total_recon, total_kl = 0, 0, 0
     for batch in loader:
-        x_hat, mu, logvar = model(batch)
-        loss = vae_loss(x_hat, batch, mu, logvar)
-        optim.zero_grad(); loss.backward(); optim.step()
-        total += loss.item()
-    print(f"Epoch {epoch+1:02d}  ELBO ≈ {total / len(dataset):.4f}")
+        batch = batch.to(device)
+        optimizer.zero_grad()
+        
+        with autocast():
+            x_recon, mu, logvar = model(batch)
+            loss, recon, kl = model.loss_function(x_recon, batch, mu, logvar)
+        
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+        
+        total_loss += loss.item()
+        total_recon += recon.item()
+        total_kl += kl.item()
+    
+    avg_loss = total_loss / len(train_data)
+    avg_recon = total_recon / len(train_data)
+    avg_kl = total_kl / len(train_data)
+    
+    if (epoch + 1) % 10 == 0:
+        print(f"[Epoch {epoch+1:02d}] ELBO={avg_loss:.4f} | Recon={avg_recon:.4f} | KL={avg_kl:.4f}")
 
-# Generate synthetic returns from the prior p(z)
+# ── Anomaly Detection ───────────────────────────────────────
+model.eval()
+test_returns = generate_synthetic_returns(n_samples=500, window=60)
+test_tensor = torch.from_numpy(test_returns).to(device)
+
 with torch.no_grad():
-    z_sample = torch.randn(256, 8)
-    synthetic = model.decode(z_sample).numpy()
-    print(f"Synthetic shape: {synthetic.shape}  μ={synthetic.mean():.5f}  σ={synthetic.std():.5f}")`,
+    x_recon, mu, logvar = model(test_tensor)
+    anomaly_scores = F.mse_loss(x_recon, test_tensor, reduction='none').mean(dim=1)
+
+threshold = torch.quantile(anomaly_scores, 0.95)
+anomalies = (anomaly_scores > threshold).cpu().numpy()
+print(f"Detected {anomalies.sum()} anomalies out of {len(test_tensor)} samples (threshold={threshold:.5f})")
+
+# ── Synthetic Generation ────────────────────────────────────
+with torch.no_grad():
+    z_samples = torch.randn(100, 8).to(device)
+    synthetic = model.decode(z_samples).cpu().numpy()
+    print(f"Synthetic: shape={synthetic.shape}, mean={synthetic.mean():.5f}, std={synthetic.std():.5f}")
+    print(f"Real:      mean={returns.mean():.5f}, std={returns.std():.5f}")`,
               explanation:
-                "The ForexVAE encodes 60-bar return windows into an 8-dimensional latent space. The reparameterization trick (z = μ + σ ⊙ ε) keeps the sampling differentiable. The combined loss balances MSE reconstruction against KL divergence from 𝒩(0, I). After training, sampling z ~ 𝒩(0, I) and decoding produces synthetic return sequences whose statistical properties (mean ≈ 0, realistic σ) mirror the training data.",
+                "The ConvForexVAE uses 1D convolutions to capture temporal dependencies in the return sequence. β=2.0 encourages disentanglement. Mixed precision (autocast + GradScaler) speeds up training on GPU. Anomaly detection thresholds reconstruction error at the 95th percentile. Synthetic generation samples z ~ 𝒩(0,I) and decodes — the output statistics should match real data if the VAE has learned the distribution well.",
+            },
+            {
+              type: "code",
+              title: "Latent Space Interpolation & Regime Analysis",
+              language: "python",
+              code: `import torch
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Assume 'model' is the trained ConvForexVAE from the previous section
+model.eval()
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# ── Find two distinct regime windows ────────────────────────
+# Example: low-vol window and high-vol window
+low_vol_idx = np.argmin(returns.std(axis=1))
+high_vol_idx = np.argmax(returns.std(axis=1))
+
+x_low = torch.from_numpy(returns[low_vol_idx:low_vol_idx+1]).to(device)
+x_high = torch.from_numpy(returns[high_vol_idx:high_vol_idx+1]).to(device)
+
+with torch.no_grad():
+    mu_low, _ = model.encode(x_low)
+    mu_high, _ = model.encode(x_high)
+
+# ── Interpolate between the two latent codes ───────────────
+n_steps = 10
+alphas = torch.linspace(0, 1, n_steps).to(device)
+interpolated_samples = []
+
+with torch.no_grad():
+    for alpha in alphas:
+        z_interp = (1 - alpha) * mu_low + alpha * mu_high
+        x_interp = model.decode(z_interp)
+        interpolated_samples.append(x_interp.cpu().numpy().flatten())
+
+# ── Visualize interpolation ─────────────────────────────────
+fig, axes = plt.subplots(2, 5, figsize=(15, 6))
+axes = axes.flatten()
+for i, sample in enumerate(interpolated_samples):
+    axes[i].plot(sample, linewidth=0.8)
+    axes[i].set_title(f"α={alphas[i].item():.2f}")
+    axes[i].set_ylim(-0.02, 0.02)
+    axes[i].grid(alpha=0.3)
+plt.suptitle("Latent Interpolation: Low Vol → High Vol")
+plt.tight_layout()
+plt.savefig("vae_interpolation.png", dpi=150)
+print("Saved interpolation plot to vae_interpolation.png")
+
+# ── Latent space clustering (t-SNE) ─────────────────────────
+from sklearn.manifold import TSNE
+
+# Encode all training samples
+with torch.no_grad():
+    all_mu = []
+    for batch in loader:
+        mu, _ = model.encode(batch.to(device))
+        all_mu.append(mu.cpu())
+    latent_codes = torch.cat(all_mu, dim=0).numpy()
+
+# Reduce to 2D for visualization
+tsne = TSNE(n_components=2, random_state=42, perplexity=30)
+z_2d = tsne.fit_transform(latent_codes[:2000])  # subsample for speed
+
+plt.figure(figsize=(8, 8))
+plt.scatter(z_2d[:, 0], z_2d[:, 1], c=returns[:2000].std(axis=1), cmap='viridis', s=5, alpha=0.6)
+plt.colorbar(label='Return Volatility')
+plt.title('VAE Latent Space (t-SNE): Color = Volatility')
+plt.xlabel('t-SNE 1')
+plt.ylabel('t-SNE 2')
+plt.savefig("vae_latent_tsne.png", dpi=150)
+print("Saved t-SNE plot to vae_latent_tsne.png")`,
+              explanation:
+                "This code demonstrates two key VAE capabilities: (1) Latent interpolation between a low-volatility and high-volatility regime produces smooth intermediate regimes — useful for stress testing strategies across a continuum of market conditions. (2) t-SNE visualization of the latent space reveals clustering by volatility regime, validating that the VAE has learned a meaningful representation. Colors in the t-SNE plot show that nearby points in latent space correspond to similar volatility levels.",
             },
             {
               type: "quiz",
@@ -140,39 +295,128 @@ with torch.no_grad():
                 {
                   id: "gen-vae-q1",
                   question:
-                    "What does the KL divergence term in the ELBO objective accomplish?",
+                    "What does the KL divergence term KL(q(z|x) ‖ p(z)) in the ELBO objective accomplish?",
                   options: [
-                    { id: "gen-vae-q1-a", text: "Minimizes reconstruction error between input and output" },
-                    { id: "gen-vae-q1-b", text: "Regularizes the encoder posterior q(z|x) toward the prior p(z) = 𝒩(0, I)" },
-                    { id: "gen-vae-q1-c", text: "Maximizes the mutual information between x and z" },
-                    { id: "gen-vae-q1-d", text: "Prevents vanishing gradients in deep decoder networks" },
+                    { id: "gen-vae-q1-a", text: "Minimizes reconstruction error between input x and output x̂" },
+                    { id: "gen-vae-q1-b", text: "Regularizes the encoder posterior q(z|x) toward the prior p(z) = 𝒩(0, I), ensuring the latent space is smooth and suitable for sampling" },
+                    { id: "gen-vae-q1-c", text: "Maximizes the mutual information I(x; z) between observations and latent codes" },
+                    { id: "gen-vae-q1-d", text: "Prevents vanishing gradients in deep decoder networks by scaling activations" },
                   ],
                   correctOptionId: "gen-vae-q1-b",
                   explanation:
-                    "The KL(q(z|x) ‖ p(z)) term penalizes the encoder for producing posteriors that deviate from the standard normal prior. This ensures the latent space is smooth, continuous, and suitable for generation by sampling z ~ 𝒩(0, I).",
+                    "The KL term penalizes the encoder for producing posteriors q(z|x) that deviate from the prior p(z) = 𝒩(0, I). Without this regularization, the encoder could map different x to non-overlapping regions of z-space (posterior collapse), making it impossible to generate samples by sampling z ~ 𝒩(0, I). The KL ensures the latent space remains continuous and well-structured.",
                 },
                 {
                   id: "gen-vae-q2",
                   question:
-                    "Why is the reparameterization trick essential for training VAEs?",
+                    "Why is the reparameterization trick z = μ + σ ⊙ ε essential for training VAEs via backpropagation?",
                   options: [
-                    { id: "gen-vae-q2-a", text: "It reduces the memory footprint of the latent space" },
-                    { id: "gen-vae-q2-b", text: "It converts the discrete sampling step into a continuous function of μ and σ so gradients can flow through z" },
-                    { id: "gen-vae-q2-c", text: "It eliminates the need for a decoder network" },
-                    { id: "gen-vae-q2-d", text: "It normalizes the input data to zero mean and unit variance" },
+                    { id: "gen-vae-q2-a", text: "It reduces the memory footprint of the latent space by using a smaller noise dimension" },
+                    { id: "gen-vae-q2-b", text: "It converts the non-differentiable stochastic sampling operation z ~ 𝒩(μ, σ²) into a differentiable function of μ and σ, enabling gradients to flow through the encoder" },
+                    { id: "gen-vae-q2-c", text: "It eliminates the need for a separate decoder network by inverting the encoder" },
+                    { id: "gen-vae-q2-d", text: "It normalizes the input data x to zero mean and unit variance before encoding" },
                   ],
                   correctOptionId: "gen-vae-q2-b",
                   explanation:
-                    "Sampling z ~ 𝒩(μ, σ²) is a stochastic node that blocks backpropagation. The reparameterization z = μ + σ ⊙ ε moves the randomness to ε ~ 𝒩(0, I), making z a deterministic, differentiable function of the encoder outputs.",
+                    "Sampling z ~ 𝒩(μ, σ²) is a stochastic operation with no gradient w.r.t. μ or σ. The reparameterization trick rewrites z as a deterministic function of the encoder outputs (μ, σ) and independent noise ε ~ 𝒩(0, I). This makes the computational graph differentiable, allowing gradients to backpropagate from the decoder loss through z to the encoder parameters.",
+                },
+                {
+                  id: "gen-vae-q3",
+                  question:
+                    "In β-VAE, what is the effect of increasing β > 1 on the learned latent representation?",
+                  options: [
+                    { id: "gen-vae-q3-a", text: "It always increases reconstruction accuracy by allocating more capacity to the decoder" },
+                    { id: "gen-vae-q3-b", text: "It encourages the encoder to learn disentangled representations where each latent dimension captures an independent factor of variation (e.g., volatility, trend, skew)" },
+                    { id: "gen-vae-q3-c", text: "It reduces the latent dimension d automatically by pruning unused dimensions" },
+                    { id: "gen-vae-q3-d", text: "It guarantees that the latent space will be uniformly distributed over [−1, 1]ᵈ" },
+                  ],
+                  correctOptionId: "gen-vae-q3-b",
+                  explanation:
+                    "Increasing β > 1 increases the weight on the KL term, forcing the encoder to use latent capacity more efficiently. Under strong KL pressure, the model cannot afford to spread information redundantly across dimensions. This encourages disentanglement: each zᵢ specializes in encoding one independent factor (volatility, trend, mean-reversion strength, etc.). However, too large β can degrade reconstruction quality.",
+                },
+                {
+                  id: "gen-vae-q4",
+                  question:
+                    "Given a trained VAE, how would you detect anomalous market conditions (e.g., flash crash, unprecedented regime shift)?",
+                  options: [
+                    { id: "gen-vae-q4-a", text: "Compute the KL divergence KL(q(z|x) ‖ p(z)) — high KL indicates anomaly" },
+                    { id: "gen-vae-q4-b", text: "Compute reconstruction error ‖x − x̂‖² or negative ELBO — values above a learned threshold flag out-of-distribution samples" },
+                    { id: "gen-vae-q4-c", text: "Check if the latent code z has any dimension outside [−3, 3] (3σ rule)" },
+                    { id: "gen-vae-q4-d", text: "Compare the input variance to the decoder output variance" },
+                  ],
+                  correctOptionId: "gen-vae-q4-b",
+                  explanation:
+                    "Anomaly detection with VAEs relies on reconstruction error or negative ELBO. If a new sample x is far from the training distribution, the decoder (trained to reconstruct typical market behavior) will fail to reproduce it accurately, yielding high ‖x − x̂‖² or low ELBO. A threshold is typically set at the 95th or 99th percentile of reconstruction errors on the training set. High KL (option A) measures encoder deviation from prior but doesn't directly indicate whether x is anomalous.",
+                },
+                {
+                  id: "gen-vae-q5",
+                  question:
+                    "You train a VAE on EUR/USD returns and observe that all latent codes μ(x) collapse to near-zero with very small σ. What is the likely cause and solution?",
+                  options: [
+                    { id: "gen-vae-q5-a", text: "The decoder is too weak — increase decoder capacity (more layers, wider hidden dims)" },
+                    { id: "gen-vae-q5-b", text: "KL weight is too high (β ≫ 1) — reduce β or increase decoder capacity to improve reconstruction so the encoder can use latent space" },
+                    { id: "gen-vae-q5-c", text: "Learning rate is too low — increase it by 10×" },
+                    { id: "gen-vae-q5-d", text: "The prior p(z) should be changed from 𝒩(0, I) to uniform distribution" },
+                  ],
+                  correctOptionId: "gen-vae-q5-b",
+                  explanation:
+                    "Posterior collapse (all μ ≈ 0, σ ≈ 0) occurs when the KL penalty dominates, forcing the encoder to output q(z|x) ≈ p(z) = 𝒩(0, I) regardless of x. The decoder then ignores z and learns a fixed 'average' reconstruction. Solutions: (1) reduce β (KL annealing), (2) increase decoder capacity so it benefits from using z, (3) use free bits (don't penalize KL below a minimum threshold per dimension). The goal is to make the model use the latent code, not ignore it.",
+                },
+                {
+                  id: "gen-vae-q6",
+                  question:
+                    "Why are 1D convolutional layers often preferred over fully-connected layers in the encoder/decoder for time series like forex returns?",
+                  options: [
+                    { id: "gen-vae-q6-a", text: "Convolutions require fewer parameters and reduce overfitting" },
+                    { id: "gen-vae-q6-b", text: "Convolutions are translation-invariant and capture local temporal patterns (short-term autocorrelations, volatility clusters) more efficiently than dense layers" },
+                    { id: "gen-vae-q6-c", text: "Convolutions guarantee that the latent space will be disentangled" },
+                    { id: "gen-vae-q6-d", text: "Convolutions automatically handle missing data and irregular sampling" },
+                  ],
+                  correctOptionId: "gen-vae-q6-b",
+                  explanation:
+                    "1D convolutions exploit the sequential structure of time series by learning local filters (e.g., 3-5 timesteps) that detect patterns like momentum, reversals, or volatility clusters. Translation invariance means the same pattern is detected regardless of where it appears in the window. Fully-connected layers treat each timestep independently (or with full connectivity), which is parameter-heavy and ignores the temporal inductive bias. For forex returns, capturing short-range dependencies (lags 1-10) is critical, making convolutions a natural fit.",
+                },
+                {
+                  id: "gen-vae-q7",
+                  question:
+                    "You interpolate between two latent codes z_A (low vol) and z_B (high vol) via z(t) = (1−t)z_A + t·z_B. What does the decoder output for intermediate t ∈ (0,1) represent?",
+                  options: [
+                    { id: "gen-vae-q7-a", text: "A random sample unrelated to either regime" },
+                    { id: "gen-vae-q7-b", text: "A smooth transition between low-volatility and high-volatility regimes, representing plausible intermediate market conditions" },
+                    { id: "gen-vae-q7-c", text: "The arithmetic average of the two original return sequences" },
+                    { id: "gen-vae-q7-d", text: "An out-of-distribution sample that the decoder cannot reconstruct" },
+                  ],
+                  correctOptionId: "gen-vae-q7-b",
+                  explanation:
+                    "The VAE latent space is continuous and smooth (enforced by the KL regularizer). Linear interpolation z(t) = (1−t)z_A + t·z_B produces intermediate codes that lie on the geodesic between z_A and z_B. The decoder, trained to map the entire latent space to valid data, generates plausible return sequences with volatility and other characteristics transitioning smoothly from regime A to regime B. This is invaluable for stress testing: you can generate a continuum of scenarios from calm to crisis conditions.",
                 },
               ],
             },
             {
               type: "practice",
-              title: "Anomaly Detection on Live Forex Data",
+              title: "End-to-End VAE Pipeline: QuestDB → Training → Anomaly Detection",
               description:
-                "Train a VAE on EUR/USD 1-hour returns from your QuestDB pipeline. Score each window by reconstruction error and visualize the anomaly timeline against realized volatility spikes. Experiment with latent dimensions d ∈ {4, 8, 16} and observe how it affects the anomaly threshold.",
-              catalogModelId: "vae",
+                "Build a complete pipeline: (1) Extract 1-hour EUR/USD returns from QuestDB (or CSV if QuestDB unavailable), compute rolling 60-bar windows. (2) Train ConvForexVAE with β=2.0, latent_dim=8, 50 epochs. (3) Evaluate reconstruction error on a held-out test set; set anomaly threshold at 95th percentile. (4) Backtest a simple strategy that goes flat (or reduces position size) when anomaly score exceeds threshold. (5) Visualize: (a) anomaly timeline overlaid on realized volatility, (b) t-SNE of latent space colored by volatility, (c) interpolation between two extreme regimes. (6) Experiment: try β ∈ {1, 2, 4, 8} and report how disentanglement (qualitative via interpolation) and reconstruction error change.",
+              tasks: [
+                "Load EUR/USD 1-hour returns from QuestDB (or CSV) spanning 2020-2023 (~26k bars). Create sliding windows of 60 bars with stride 1. Split 80/20 train/test.",
+                "Train ConvForexVAE (window=60, latent_dim=8, beta=2.0) for 50 epochs with lr=2e-4, batch_size=256. Log ELBO, reconstruction loss, and KL loss every 10 epochs. Use mixed precision (GradScaler) if on GPU.",
+                "On test set: compute reconstruction error per window. Set threshold θ at 95th percentile of test errors. Flag windows where error > θ as anomalies.",
+                "Backtest: Compare Sharpe ratio of a baseline strategy (always in market) vs. a 'risk-off' variant that exits (or halves position) when anomaly detected. Report Sharpe, max drawdown, and number of anomaly triggers.",
+                "Visualize: (a) Plot anomaly score vs. time, overlay with realized 24h volatility. Do anomalies align with vol spikes? (b) t-SNE of latent codes (2000 samples), color by volatility — do high-vol regimes cluster? (c) Interpolate between lowest-vol and highest-vol windows (10 steps), plot the 10 generated sequences.",
+                "Ablation: Retrain with β ∈ {1, 4}. Compare: (1) test reconstruction MSE, (2) qualitative disentanglement (do interpolations look smooth and interpretable?), (3) anomaly detection precision (visual inspection of flagged windows). Summarize trade-offs in 2-3 sentences.",
+              ],
+            },
+            {
+              type: "practice",
+              title: "Synthetic Scenario Generation for Stress Testing",
+              description:
+                "Use the trained VAE to generate 1000 synthetic 60-bar return sequences. Validate that synthetic data matches real data in key statistics (mean, std, skewness, kurtosis, autocorrelation at lags 1-5). Then conduct a stress test: sample from extreme regions of the latent space (z ~ 𝒩(0, I) but with amplified magnitude, e.g., ‖z‖ ∈ [2, 3]) to generate 'tail scenarios'. Backtest your strategy on these synthetic tail events and report performance degradation vs. normal conditions.",
+              tasks: [
+                "Generate 1000 synthetic sequences: sample z ~ 𝒩(0, I), decode with trained VAE. Compute: mean, std, skewness (scipy.stats.skew), kurtosis, and lag-1 to lag-5 autocorrelations (numpy.corrcoef).",
+                "Compare synthetic vs. real statistics (use 1000 random real windows). Create a table: Real | Synthetic for each metric. Are they within 10% of each other? If not, diagnose: is decoder capacity too low? Is β too high (posterior collapse)?",
+                "Stress test: sample z ~ 𝒩(0, I) but reject samples with ‖z‖ < 2 (keep only tail samples). Decode 200 tail scenarios. Compute their realized volatility — it should be higher than typical.",
+                "Backtest a simple moving-average crossover strategy on: (a) 500 normal synthetic sequences, (b) 200 tail synthetic sequences. Report Sharpe, max drawdown, and win rate for each. Quantify: 'In tail regimes, Sharpe drops from X to Y, and max drawdown increases from A% to B%.'",
+              ],
             },
           ],
         },
@@ -182,118 +426,305 @@ with torch.no_grad():
           id: "gen-gan",
           title: "GANs for Financial Data",
           description:
-            "Master adversarial training dynamics, understand mode collapse and training instability, and implement Wasserstein GANs tailored for generating realistic financial return distributions.",
-          estimatedMinutes: 50,
+            "Master adversarial training dynamics from first principles, derive the Wasserstein objective, diagnose and fix mode collapse, implement WGAN-GP and TimeGAN for realistic forex paths with fat tails and volatility clustering.",
+          estimatedMinutes: 70,
           difficulty: "advanced",
           relatedModels: ["gan", "wgan"],
           prerequisites: ["gen-vae"],
           sections: [
             {
               type: "objective",
-              content:
-                "By the end of this lesson you will understand the minimax GAN objective, diagnose training instabilities, implement a Wasserstein GAN with gradient penalty, and generate synthetic return distributions that preserve the fat tails and volatility clustering of real forex data.",
+              title: "Learning Objectives",
+              description:
+                "By the end of this lesson you will derive the minimax GAN objective, explain why JS divergence causes vanishing gradients, implement Wasserstein GAN with gradient penalty, extend to TimeGAN for temporal coherence, and generate synthetic forex return distributions matching real data in kurtosis, autocorrelation, and tail behavior.",
               keyTakeaways: [
-                "GANs pit a generator G(z) against a discriminator D(x) in a minimax game: min_G max_D 𝔼[log D(x)] + 𝔼[log(1 − D(G(z)))]",
-                "Mode collapse occurs when G produces only a narrow subset of the true distribution — critical for financial data where tail events matter",
-                "Wasserstein distance (Earth Mover's) provides smoother gradients and more stable training than JS divergence",
-                "TimeGAN extends the framework with an embedding network and supervised loss to preserve temporal dynamics",
+                "GANs frame generation as a minimax game: min_G max_D 𝔼[log D(x)] + 𝔼[log(1 − D(G(z)))], seeking a Nash equilibrium where G fools D",
+                "JS divergence saturates when p_data and p_G have disjoint supports (common early in training), causing vanishing gradients for G",
+                "Wasserstein distance W(p_data, p_G) = sup_{‖f‖_L≤1} 𝔼[f(x)] − 𝔼[f(G(z))] provides smooth, informative gradients everywhere via the 1-Lipschitz critic",
+                "Gradient penalty λ 𝔼[(‖∇_x̂ D(x̂)‖₂ − 1)²] enforces Lipschitz constraint softly; x̂ = αx + (1−α)G(z) samples critical points between real and fake",
+                "Mode collapse: G maps all z to a single (or few) high-quality output, ignoring the diversity of p_data — fatal for financial data where tails define risk",
+                "TimeGAN adds an embedding network e(·) and supervised loss to preserve step-wise temporal dynamics, critical for autocorrelation and volatility clustering",
+                "For financial time series: use 1D conv or LSTM in G and D; validate via kurtosis, autocorrelation function (ACF), and quantile-quantile (Q-Q) plots",
+                "Training tips: n_critic=5 (train D more often), low lr (1e-4), batch normalization in G (not D), LeakyReLU in D",
               ],
             },
             {
               type: "theory",
-              title: "Adversarial Training & the Wasserstein Objective",
+              title: "The Minimax Game: Derivation and JS Divergence Limitations",
               content:
-                "The original GAN objective minimizes the Jensen-Shannon divergence between the real distribution p_data and the generated distribution p_G. When the supports of these distributions don't overlap — common in early training — JS divergence saturates and gradients vanish.\n\nThe Wasserstein GAN (WGAN) replaces JS with the Earth Mover's distance W(p_data, p_G), which metrizes weak convergence and provides informative gradients everywhere:\n\n  W(p_data, p_G) = sup_{‖f‖_L ≤ 1} 𝔼_{x~p_data}[f(x)] − 𝔼_{x~p_G}[f(x)]\n\nThe Lipschitz constraint ‖f‖_L ≤ 1 is enforced via gradient penalty (WGAN-GP):\n\n  λ 𝔼_{x̂}[(‖∇_{x̂} D(x̂)‖₂ − 1)²]\n\nwhere x̂ = αx + (1−α)G(z) is an interpolation between real and fake samples. For financial time series, the critic D should process temporal structure — 1D convolutions or small LSTMs work well. The generator should output sequences whose autocorrelation, kurtosis, and volatility clustering statistics match real market data.",
+                "The original GAN objective is:\n  min_G max_D V(G,D) = 𝔼_{x~p_data}[log D(x)] + 𝔼_{z~p_z}[log(1 − D(G(z)))]\nThe discriminator D: 𝒳 → [0,1] estimates the probability that x is real. At the optimum D*:\n  D*(x) = p_data(x) / (p_data(x) + p_G(x))\nSubstituting into V yields:\n  V(G, D*) = −2 log 2 + 2 · JS(p_data ‖ p_G)\nwhere JS is the Jensen-Shannon divergence:\n  JS(p ‖ q) = ½ KL(p ‖ m) + ½ KL(q ‖ m),  m = ½(p + q)\n\nCritical flaw: When p_data and p_G have disjoint supports (lie on non-overlapping low-dimensional manifolds in high-dim space), there exists a perfect discriminator D* = 1 on supp(p_data) and 0 on supp(p_G). Then JS = log 2 (saturated) and gradients vanish.\n\nNumerical example: p_data = 𝒩(5, 0.1), p_G = 𝒩(0, 0.1) in ℝ¹. With σ=0.1, supports don't overlap. D learns a step function near x=2.5. Gradient ∇_θ 𝔼[log(1−D(G(z)))] ≈ 0 because D is locally flat.\n\nFor forex: early in training, synthetic returns have wrong volatility/skew and lie far from real data. JS divergence gives no signal to improve — the generator is lost in a flat loss landscape.",
+            },
+            {
+              type: "theory",
+              title: "Wasserstein Distance: Earth Mover's Metric and Lipschitz Constraints",
+              content:
+                "The Wasserstein-1 (Earth Mover's) distance is:\n  W(p, q) = inf_{γ ∈ Π(p,q)} 𝔼_{(x,y)~γ} [‖x − y‖]\nwhere Π(p,q) is the set of all joint distributions with marginals p and q. Intuitively: the minimum cost to transport mass from p to q, where cost = distance.\n\nKantorovich-Rubinstein duality gives a tractable form:\n  W(p, q) = sup_{‖f‖_L ≤ 1} 𝔼_{x~p}[f(x)] − 𝔼_{y~q}[f(y)]\nwhere the supremum is over all 1-Lipschitz functions f (|f(x)−f(y)| ≤ ‖x−y‖ for all x,y).\n\nWGAN replaces the discriminator with a critic f_w and maximizes:\n  max_w  𝔼_{x~p_data}[f_w(x)] − 𝔼_{z~p_z}[f_w(G(z))]\nsubject to ‖f_w‖_L ≤ 1. The generator minimizes −𝔼[f_w(G(z))].\n\nOriginal WGAN enforced Lipschitz via weight clipping (w ∈ [−c, c]). WGAN-GP uses a soft penalty:\n  ℒ_GP = λ 𝔼_{x̂ ~ p_{x̂}} [(‖∇_{x̂} f_w(x̂)‖₂ − 1)²]\nwhere x̂ = αx_real + (1−α)x_fake, α ~ Uniform(0,1). The critic is penalized for having gradients ≠ 1 along straight lines between real and fake samples — where violations are most likely.\n\nWhy it helps: Even when p_data and p_G are far apart, W(p_data, p_G) scales linearly with the distance, providing non-zero gradients. For forex: even crude early samples get useful feedback on how to move closer to real returns.",
+            },
+            {
+              type: "theory",
+              title: "Mode Collapse: Causes, Detection, and Mitigation",
+              content:
+                "Mode collapse occurs when G maps multiple (or all) inputs z to the same output x, covering only a fraction of p_data. Formally: G(z₁) ≈ G(z₂) ≈ ... for diverse z.\n\nCauses:\n  1. Discriminator overfits: If D memorizes real samples and outputs low scores everywhere else, G finds one 'safe' fake that D hasn't seen, then exploits it repeatedly.\n  2. Generator lacks capacity: G cannot represent the full complexity of p_data, so it focuses on one easy mode.\n  3. Gradient pathology: In vanilla GAN, when D is too good, log(1−D(G(z))) saturates, removing gradients for underrepresented modes.\n\nDetection for financial data:\n  • Visual: Generate 1000 samples, plot histograms of returns, realized volatility, skewness. If all look identical or span a narrow range, mode collapse is present.\n  • Quantitative: Compute the effective sample size via k-NN entropy or the 'inception score' analog (for time series: autocorrelation diversity across generated batches).\n  • Birthday paradox test: Sample two sets of 100 returns from G(z). If many duplicates exist, collapse is severe.\n\nMitigation:\n  1. Use WGAN-GP (better gradients prevent premature convergence to one mode).\n  2. Minibatch discrimination: Let D compare a sample to others in the batch, penalizing lack of diversity.\n  3. Unrolled GAN: Optimize G against a D that has taken k future steps, stabilizing against transient D overfitting.\n  4. Regularize G: Add diversity-encouraging losses, e.g., repulsion between G(z₁) and G(z₂) when ‖z₁ − z₂‖ is large.\n\nFor forex: Mode collapse typically manifests as generating only low-volatility returns (the 'easy mode') while ignoring tail events (crashes, spikes). This renders the GAN useless for risk modeling — you must validate coverage of the full distribution.",
             },
             {
               type: "intuition",
               title: "The Counterfeiter and the Detective",
-              analogy:
-                "Imagine a counterfeiter (Generator) trying to print banknotes and a detective (Discriminator) inspecting them. Early on, the fakes are obvious — wrong paper, blurry ink. The detective catches everything. But each round, the counterfeiter improves. In WGAN terms, instead of a binary 'real/fake' verdict, the detective gives a continuous quality score — 'this note scores 7.2, real ones score 9.5' — which gives the counterfeiter actionable feedback even when all notes are still clearly fake.",
               content:
-                "Mode collapse is like the counterfeiter discovering that one denomination (say $20) fools the detective most often and only printing $20s — ignoring $5s, $10s, $50s, and $100s. Gradient penalty forces the detective to remain calibrated across the full range, preventing this degenerate equilibrium. For markets, this means the GAN must faithfully reproduce both calm periods and extreme tail events.",
+                "Imagine a counterfeiter (Generator) printing fake currency and a detective (Discriminator/Critic) inspecting it. In vanilla GAN: The detective issues a binary pass/fail. Early on, all fakes fail — the counterfeiter gets no useful signal on whether a note is 'almost convincing' or 'terrible.' In WGAN: The detective gives a continuous quality score: 'This note scores 3.2 on my rubric, real ones average 9.1.' Even a terrible fake gets a score, and the gap provides a direction to improve.\n\nMode collapse analogy: The counterfeiter discovers that $20 bills fool the detective most often and only prints $20s — ignoring $5, $10, $50, $100 denominations. The detective notices 'I only see $20s, that's suspicious,' but if it's not explicitly penalized (as in vanilla GAN), the counterfeiter has no incentive to diversify. Minibatch discrimination is like the detective checking 'Are all your notes the same denomination?' and penalizing uniformity.\n\nFor markets: The GAN must print a full 'currency set' spanning calm days, moderate vol, and tail events — not just one denomination (low-volatility returns).",
               emoji: "🕵️",
             },
             {
+              type: "intuition",
+              title: "Why Lipschitz Constraint Matters: Gradient Smoothness",
+              content:
+                "The 1-Lipschitz constraint ‖f_w‖_L ≤ 1 means the critic's output cannot change faster than the input distance: |f(x₁)−f(x₂)| ≤ ‖x₁−x₂‖. This prevents the critic from being 'too sharp' — having vertical cliffs in its decision boundary.\n\nWithout Lipschitz: The critic could output +1000 for real data and −1000 for fake data, with a razor-thin boundary. Gradients ∇_x f(x) would be zero almost everywhere (flat) or explode near the boundary (cliff). The generator receives no smooth guidance.\n\nWith Lipschitz: The critic is forced to have bounded gradients (specifically ‖∇f‖ ≤ 1). This ensures smooth transitions — moving a fake sample x_fake slightly toward x_real produces a consistent increase in f(x_fake), giving the generator a reliable learning signal.\n\nGradient penalty specifically targets the interpolated region x̂ = αx_real + (1−α)x_fake because that's where the critic transitions from 'real' to 'fake' scores — the critical region for G's learning. Penalizing ‖∇_{x̂} f‖₂ ≠ 1 keeps that transition smooth.",
+              emoji: "📏",
+            },
+            {
               type: "code",
-              title: "WGAN-GP for Synthetic Return Distributions",
+              title: "WGAN-GP with 1D Convolutions for Temporal Structure",
               language: "python",
               code: `import torch
 import torch.nn as nn
+from torch.cuda.amp import autocast, GradScaler
 import numpy as np
 
-class Generator(nn.Module):
-    def __init__(self, noise_dim: int = 16, out_dim: int = 60):
+class ConvGenerator(nn.Module):
+    """Generator with upsampling for temporal coherence."""
+    def __init__(self, noise_dim=64, out_len=60):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(noise_dim, 64), nn.ReLU(),
-            nn.Linear(64, 128), nn.ReLU(),
-            nn.Linear(128, out_dim),
+        # Project noise to (B, 128, out_len//4)
+        self.fc = nn.Linear(noise_dim, 128 * (out_len // 4))
+        self.conv = nn.Sequential(
+            nn.ConvTranspose1d(128, 64, kernel_size=4, stride=2, padding=1),  # 2x
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.ConvTranspose1d(64, 32, kernel_size=4, stride=2, padding=1),   # 2x
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            nn.Conv1d(32, 1, kernel_size=3, padding=1),
         )
+        self.out_len = out_len
 
     def forward(self, z):
-        return self.net(z)
+        h = self.fc(z).view(-1, 128, self.out_len // 4)
+        return self.conv(h).squeeze(1)  # [B, out_len]
 
 
-class Critic(nn.Module):
-    def __init__(self, in_dim: int = 60):
+class ConvCritic(nn.Module):
+    """Critic with 1D conv to process temporal dependencies."""
+    def __init__(self, in_len=60):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(in_dim, 128), nn.LeakyReLU(0.2),
-            nn.Linear(128, 64), nn.LeakyReLU(0.2),
-            nn.Linear(64, 1),
+        # No batch norm in critic (interferes with Lipschitz constraint)
+        self.conv = nn.Sequential(
+            nn.Conv1d(1, 32, kernel_size=4, stride=2, padding=1),  # /2
+            nn.LeakyReLU(0.2),
+            nn.Conv1d(32, 64, kernel_size=4, stride=2, padding=1), # /2
+            nn.LeakyReLU(0.2),
+            nn.Conv1d(64, 128, kernel_size=4, stride=2, padding=1),# /2
+            nn.LeakyReLU(0.2),
+            nn.Flatten(),
         )
+        conv_out = 128 * (in_len // 8)
+        self.fc = nn.Linear(conv_out, 1)
 
     def forward(self, x):
-        return self.net(x)
+        # x: [B, T] → [B, 1, T]
+        x = x.unsqueeze(1)
+        h = self.conv(x)
+        return self.fc(h).squeeze(1)
 
 
-def gradient_penalty(critic, real, fake, device="cpu", lam=10.0):
-    """WGAN-GP: penalize ‖∇_x̂ D(x̂)‖₂ deviating from 1."""
+def gradient_penalty(critic, real, fake, device):
+    """WGAN-GP: penalize ‖∇_{x̂} C(x̂)‖₂ ≠ 1."""
     alpha = torch.rand(real.size(0), 1, device=device)
-    x_hat = (alpha * real + (1 - alpha) * fake).requires_grad_(True)
+    x_hat = (alpha * real + (1 - alpha) * fake).detach().requires_grad_(True)
     scores = critic(x_hat)
     grads = torch.autograd.grad(
-        scores, x_hat, grad_outputs=torch.ones_like(scores),
-        create_graph=True, retain_graph=True,
+        outputs=scores,
+        inputs=x_hat,
+        grad_outputs=torch.ones_like(scores),
+        create_graph=True,
+        retain_graph=True,
     )[0]
-    return lam * ((grads.norm(2, dim=1) - 1) ** 2).mean()
+    penalty = ((grads.norm(2, dim=1) - 1) ** 2).mean()
+    return penalty
 
 
-# ── Synthetic data (replace with real OHLCV returns) ─────────
-real_returns = np.random.standard_t(df=5, size=(4000, 60)).astype(np.float32) * 0.005
+# ── Data: fat-tailed returns with autocorrelation ───────────
+def generate_stylized_returns(n_samples=8000, T=60, df=5):
+    """Student-t with AR(1) autocorrelation."""
+    base = np.random.standard_t(df=df, size=(n_samples, T)).astype(np.float32) * 0.003
+    for t in range(1, T):
+        base[:, t] += 0.12 * base[:, t-1]  # mild autocorrelation
+    return base
+
+real_returns = generate_stylized_returns(n_samples=8000, T=60, df=5)
 real_tensor = torch.from_numpy(real_returns)
 
-G = Generator(noise_dim=16, out_dim=60)
-C = Critic(in_dim=60)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+G = ConvGenerator(noise_dim=64, out_len=60).to(device)
+C = ConvCritic(in_len=60).to(device)
+
 opt_G = torch.optim.Adam(G.parameters(), lr=1e-4, betas=(0.0, 0.9))
 opt_C = torch.optim.Adam(C.parameters(), lr=1e-4, betas=(0.0, 0.9))
+scaler = GradScaler()
 
 n_critic = 5
-for epoch in range(30):
+lambda_gp = 10.0
+
+for epoch in range(100):
     idx = torch.randperm(len(real_tensor))
-    for i in range(0, len(idx) - 128, 128):
-        batch = real_tensor[idx[i:i + 128]]
+    G.train(); C.train()
+    for i in range(0, len(idx) - 256, 256):
+        real_batch = real_tensor[idx[i:i+256]].to(device)
+        
         # ── Train Critic n_critic times ──
         for _ in range(n_critic):
-            z = torch.randn(128, 16)
+            z = torch.randn(256, 64, device=device)
             fake = G(z).detach()
-            loss_C = C(fake).mean() - C(batch).mean() + gradient_penalty(C, batch, fake)
-            opt_C.zero_grad(); loss_C.backward(); opt_C.step()
-        # ── Train Generator ──
-        z = torch.randn(128, 16)
+            loss_C = C(fake).mean() - C(real_batch).mean() + lambda_gp * gradient_penalty(C, real_batch, fake, device)
+            opt_C.zero_grad()
+            loss_C.backward()
+            opt_C.step()
+        
+        # ── Train Generator once ──
+        z = torch.randn(256, 64, device=device)
         loss_G = -C(G(z)).mean()
-        opt_G.zero_grad(); loss_G.backward(); opt_G.step()
-    print(f"Epoch {epoch+1:02d}  W ≈ {-loss_C.item():.4f}  G_loss = {loss_G.item():.4f}")
+        opt_G.zero_grad()
+        loss_G.backward()
+        opt_G.step()
+    
+    if (epoch + 1) % 20 == 0:
+        print(f"[Epoch {epoch+1:03d}] W_dist ≈ {-loss_C.item():.4f} | G_loss = {loss_G.item():.4f}")
 
-# ── Evaluate: compare kurtosis of real vs synthetic ──────────
+# ── Evaluation: kurtosis, ACF, Q-Q plot ─────────────────────
 from scipy.stats import kurtosis
+from statsmodels.tsa.stattools import acf
+import matplotlib.pyplot as plt
+
+G.eval()
 with torch.no_grad():
-    synth = G(torch.randn(1000, 16)).numpy()
-print(f"Real kurtosis:  {kurtosis(real_returns.flatten()):.2f}")
-print(f"Synth kurtosis: {kurtosis(synth.flatten()):.2f}")`,
+    z_test = torch.randn(2000, 64, device=device)
+    synth = G(z_test).cpu().numpy()
+
+real_flat = real_returns.flatten()
+synth_flat = synth.flatten()
+
+print(f"Real:  kurtosis={kurtosis(real_flat):.2f}  mean={real_flat.mean():.5f}  std={real_flat.std():.5f}")
+print(f"Synth: kurtosis={kurtosis(synth_flat):.2f}  mean={synth_flat.mean():.5f}  std={synth_flat.std():.5f}")
+
+# Autocorrelation
+acf_real = acf(real_returns[0], nlags=20, fft=True)
+acf_synth = acf(synth[0], nlags=20, fft=True)
+print(f"ACF lag 1: Real={acf_real[1]:.3f}, Synth={acf_synth[1]:.3f}")
+
+# Q-Q plot
+fig, ax = plt.subplots(1, 1, figsize=(6,6))
+sorted_real = np.sort(np.random.choice(real_flat, 5000))
+sorted_synth = np.sort(np.random.choice(synth_flat, 5000))
+ax.scatter(sorted_real, sorted_synth, s=1, alpha=0.3)
+ax.plot([sorted_real.min(), sorted_real.max()], [sorted_real.min(), sorted_real.max()], 'r--', lw=2)
+ax.set_xlabel("Real Returns Quantiles")
+ax.set_ylabel("Synthetic Returns Quantiles")
+ax.set_title("Q-Q Plot: Real vs Synthetic")
+plt.savefig("wgan_gp_qq.png", dpi=150)
+print("Saved Q-Q plot to wgan_gp_qq.png")`,
               explanation:
-                "The Critic outputs an unbounded score (not a probability) — the Wasserstein objective maximizes the gap between real and fake scores. Gradient penalty constrains the critic to be 1-Lipschitz by penalizing gradient norms along interpolations x̂. The generator is trained less frequently (1:5 ratio) to let the critic converge first. We validate by comparing the kurtosis of synthetic returns to the heavy-tailed real data (Student-t with df=5).",
+                "The ConvGenerator uses transposed convolutions (upsampling) to build temporal structure from noise. Batch normalization is in G (helps stabilize) but not in C (would violate Lipschitz). The ConvCritic uses 1D convolutions and LeakyReLU (no BatchNorm). Gradient penalty is computed on interpolations x̂. Training: C updates 5× per G update. Evaluation checks kurtosis (fat tails), ACF lag-1 (autocorrelation), and Q-Q plot (full distribution match). If Q-Q plot is a diagonal line, synthetic distribution matches real.",
+            },
+            {
+              type: "code",
+              title: "TimeGAN: Adding Temporal Supervision for Dynamics",
+              language: "python",
+              code: `import torch
+import torch.nn as nn
+
+class Embedder(nn.Module):
+    """Embed real sequence x → latent h."""
+    def __init__(self, in_dim=1, hidden=64):
+        super().__init__()
+        self.rnn = nn.GRU(in_dim, hidden, batch_first=True)
+    
+    def forward(self, x):
+        # x: [B, T] → [B, T, 1]
+        out, _ = self.rnn(x.unsqueeze(-1))
+        return out  # [B, T, hidden]
+
+
+class Recovery(nn.Module):
+    """Recover sequence h → x̂."""
+    def __init__(self, hidden=64, out_dim=1):
+        super().__init__()
+        self.fc = nn.Linear(hidden, out_dim)
+    
+    def forward(self, h):
+        return self.fc(h).squeeze(-1)  # [B, T]
+
+
+class Generator(nn.Module):
+    """Generate latent sequence z → h_fake."""
+    def __init__(self, noise_dim=32, hidden=64):
+        super().__init__()
+        self.rnn = nn.GRU(noise_dim, hidden, batch_first=True)
+    
+    def forward(self, z):
+        # z: [B, T, noise_dim]
+        out, _ = self.rnn(z)
+        return out  # [B, T, hidden]
+
+
+class Discriminator(nn.Module):
+    """Discriminate real h vs fake h_gen."""
+    def __init__(self, hidden=64):
+        super().__init__()
+        self.rnn = nn.GRU(hidden, hidden, batch_first=True)
+        self.fc = nn.Linear(hidden, 1)
+    
+    def forward(self, h):
+        _, h_n = self.rnn(h)
+        return self.fc(h_n.squeeze(0)).squeeze(1)  # [B]
+
+
+class Supervisor(nn.Module):
+    """Predict next latent step: h_t → h_{t+1}."""
+    def __init__(self, hidden=64):
+        super().__init__()
+        self.rnn = nn.GRU(hidden, hidden, batch_first=True)
+    
+    def forward(self, h):
+        out, _ = self.rnn(h)
+        return out
+
+
+# ── TimeGAN Training Skeleton ───────────────────────────────
+T = 60
+hidden_dim = 64
+noise_dim = 32
+
+E = Embedder(in_dim=1, hidden=hidden_dim)
+R = Recovery(hidden=hidden_dim, out_dim=1)
+G = Generator(noise_dim=noise_dim, hidden=hidden_dim)
+D = Discriminator(hidden=hidden_dim)
+S = Supervisor(hidden=hidden_dim)
+
+# Phase 1: Train E+R (autoencoder) on real data
+# Phase 2: Train S to predict h_{t+1} given h_{:t}
+# Phase 3: Train G+D adversarially in latent space
+# Phase 4: Joint training with supervised loss on step-wise predictions
+
+# Simplified joint loss (pseudocode):
+# ℒ_total = ℒ_recon + ℒ_supervised + ℒ_adversarial
+# where:
+#   ℒ_recon = ‖x − R(E(x))‖²
+#   ℒ_supervised = ‖h_{real,t+1} − S(h_{real,:t})‖² + ‖h_{fake,t+1} − S(h_{fake,:t})‖²
+#   ℒ_adversarial = WGAN or vanilla GAN loss on D(E(x)) vs D(G(z))
+
+# For full implementation, see https://github.com/jsyoon0823/TimeGAN
+print("TimeGAN requires phased training: (1) E+R, (2) S, (3) G+D, (4) joint.")
+print("Key insight: Supervised loss on step-wise dynamics ensures G produces temporally coherent paths, not just marginal distributions.")`,
+              explanation:
+                "TimeGAN extends WGAN to time series by operating in an embedded latent space. The Embedder E maps real sequences to latent h. The Recovery R inverts E (autoencoder). The Supervisor S learns the one-step dynamics h_t → h_{t+1}. The Generator G produces fake latent sequences h_fake, and the Discriminator D distinguishes real from fake in latent space. Training is phased: first learn E+R, then S, then adversarial G+D, finally joint. The supervised loss forces G to respect temporal dynamics (autocorrelation), not just match marginals. This is critical for forex where step-wise correlations define volatility clustering. Full code is complex; see the original TimeGAN paper (Yoon et al. 2019).",
             },
             {
               type: "quiz",
@@ -301,53 +732,511 @@ print(f"Synth kurtosis: {kurtosis(synth.flatten()):.2f}")`,
                 {
                   id: "gen-gan-q1",
                   question:
-                    "What problem does the Wasserstein distance solve compared to JS divergence in GANs?",
+                    "What problem does the Wasserstein distance solve compared to JS divergence in standard GANs?",
                   options: [
-                    { id: "gen-gan-q1-a", text: "It requires less training data" },
-                    { id: "gen-gan-q1-b", text: "It provides meaningful gradients even when real and generated distributions have non-overlapping supports" },
-                    { id: "gen-gan-q1-c", text: "It eliminates the need for a discriminator network" },
-                    { id: "gen-gan-q1-d", text: "It guarantees convergence in a fixed number of epochs" },
+                    { id: "gen-gan-q1-a", text: "It requires less training data to converge" },
+                    { id: "gen-gan-q1-b", text: "It provides meaningful, non-zero gradients even when real and generated distributions have non-overlapping supports (disjoint manifolds)" },
+                    { id: "gen-gan-q1-c", text: "It eliminates the need for a discriminator/critic network" },
+                    { id: "gen-gan-q1-d", text: "It guarantees convergence to the global optimum in a fixed number of epochs" },
                   ],
                   correctOptionId: "gen-gan-q1-b",
                   explanation:
-                    "When p_data and p_G have disjoint supports (common early in training), JS divergence saturates at log 2, yielding zero gradients. The Wasserstein (Earth Mover's) distance varies smoothly with the distance between supports, providing informative gradients throughout training.",
+                    "When p_data and p_G have disjoint supports (common early in GAN training on high-dim data), JS divergence saturates at log 2, yielding zero gradients for the generator. Wasserstein distance scales linearly with the distance between distributions, providing a smooth, informative gradient signal throughout training. This is why WGAN is more stable and less prone to mode collapse.",
                 },
                 {
                   id: "gen-gan-q2",
                   question:
-                    "Why is mode collapse especially dangerous when generating financial data?",
+                    "Why is mode collapse especially dangerous when generating financial return distributions?",
                   options: [
-                    { id: "gen-gan-q2-a", text: "It causes the model to overfit to the training set" },
-                    { id: "gen-gan-q2-b", text: "It makes the generator produce only calm-market returns, omitting critical tail events like crashes and squeezes" },
-                    { id: "gen-gan-q2-c", text: "It increases the computational cost of training" },
-                    { id: "gen-gan-q2-d", text: "It prevents the discriminator from converging" },
+                    { id: "gen-gan-q2-a", text: "It causes the model to overfit to the training set, memorizing exact historical returns" },
+                    { id: "gen-gan-q2-b", text: "It makes the generator produce only calm, low-volatility returns while omitting critical tail events (crashes, spikes) that define portfolio risk" },
+                    { id: "gen-gan-q2-c", text: "It increases the computational cost of training exponentially" },
+                    { id: "gen-gan-q2-d", text: "It prevents the discriminator from converging, causing training to diverge" },
                   ],
                   correctOptionId: "gen-gan-q2-b",
                   explanation:
-                    "Mode collapse means the generator covers only a fraction of the true distribution. For financial data, this typically means generating only normal-volatility returns while failing to reproduce the fat tails — extreme drawdowns, gap opens, and volatility spikes — that are essential for realistic risk assessment.",
+                    "Mode collapse means the generator covers only a fraction of the true data distribution. For financial time series, this typically means generating only 'normal' market conditions (low volatility, small returns) while failing to reproduce the fat tails — extreme losses, gap opens, flash crashes — that are rare but define the majority of portfolio risk. A GAN with mode collapse is useless for stress testing or risk modeling.",
                 },
                 {
                   id: "gen-gan-q3",
                   question:
-                    "In WGAN-GP, the gradient penalty is computed over which samples?",
+                    "In WGAN-GP, the gradient penalty term λ 𝔼[(‖∇_{x̂} C(x̂)‖₂ − 1)²] is computed over which samples?",
                   options: [
-                    { id: "gen-gan-q3-a", text: "Only real samples from the training set" },
-                    { id: "gen-gan-q3-b", text: "Only fake samples from the generator" },
-                    { id: "gen-gan-q3-c", text: "Random interpolations x̂ = αx_real + (1−α)x_fake between real and generated samples" },
-                    { id: "gen-gan-q3-d", text: "The latent noise vectors z fed to the generator" },
+                    { id: "gen-gan-q3-a", text: "Only real samples x ~ p_data from the training set" },
+                    { id: "gen-gan-q3-b", text: "Only fake samples x_fake ~ p_G from the generator" },
+                    { id: "gen-gan-q3-c", text: "Random linear interpolations x̂ = αx_real + (1−α)x_fake between real and generated samples, with α ~ Uniform(0,1)" },
+                    { id: "gen-gan-q3-d", text: "The latent noise vectors z ~ p_z fed to the generator" },
                   ],
                   correctOptionId: "gen-gan-q3-c",
                   explanation:
-                    "The gradient penalty enforces the 1-Lipschitz constraint on the critic by sampling points x̂ along straight lines between real and generated samples — where violations are most likely to occur — and penalizing ‖∇_{x̂} D(x̂)‖₂ deviating from 1.",
+                    "The gradient penalty enforces the 1-Lipschitz constraint by penalizing the critic's gradient norm deviating from 1. It samples points x̂ along straight lines between real and fake samples (x̂ = αx_real + (1−α)x_fake) because that is the critical region where the critic transitions from 'real' to 'fake' scores — where violations of the Lipschitz constraint are most likely. Penalizing only real or only fake samples would miss the boundary.",
+                },
+                {
+                  id: "gen-gan-q4",
+                  question:
+                    "Given a WGAN-GP, you observe that the generator loss is stable but the generated returns all have volatility ~0.5% when real data spans 0.3%-2.5%. What is the likely issue and solution?",
+                  options: [
+                    { id: "gen-gan-q4-a", text: "Learning rate is too high — reduce it by 10×" },
+                    { id: "gen-gan-q4-b", text: "Mode collapse: the generator has converged to the 'average volatility' mode. Increase critic capacity, add diversity regularization, or use minibatch discrimination." },
+                    { id: "gen-gan-q4-c", text: "Gradient penalty λ is too small — increase it from 10 to 100" },
+                    { id: "gen-gan-q4-d", text: "The dataset has too few samples — collect 10× more data" },
+                  ],
+                  correctOptionId: "gen-gan-q4-b",
+                  explanation:
+                    "If all generated samples have similar volatility (narrow range), this is a classic symptom of mode collapse — the generator has found one 'safe' mode that fools the critic and ignores the diversity of the training data. Solutions: (1) increase critic capacity so it can distinguish subtle differences, (2) add minibatch discrimination so the critic penalizes lack of diversity, (3) use spectral normalization or other regularization to stabilize training, (4) verify the training data actually spans that range and isn't filtered.",
+                },
+                {
+                  id: "gen-gan-q5",
+                  question:
+                    "Why does TimeGAN add a Supervisor network S(h_t) → h_{t+1} and a supervised loss in addition to the adversarial loss?",
+                  options: [
+                    { id: "gen-gan-q5-a", text: "To reduce training time by pretraining the generator" },
+                    { id: "gen-gan-q5-b", text: "To enforce step-wise temporal dynamics (autocorrelation, volatility clustering), ensuring the generator produces sequences with realistic temporal structure, not just correct marginals" },
+                    { id: "gen-gan-q5-c", text: "To eliminate the need for a discriminator, making training more stable" },
+                    { id: "gen-gan-q5-d", text: "To allow the model to handle missing data and irregular time steps" },
+                  ],
+                  correctOptionId: "gen-gan-q5-b",
+                  explanation:
+                    "Standard GANs (including WGAN) only match marginal distributions — the generator could produce sequences where each timestep looks realistic but the step-to-step transitions are wrong (no autocorrelation). TimeGAN's Supervisor S learns the one-step dynamics h_t → h_{t+1} from real data, and the supervised loss penalizes the generator for producing sequences whose step-wise transitions deviate from S. This forces the generator to capture temporal dependencies (autocorrelation, volatility persistence) critical for financial time series.",
+                },
+                {
+                  id: "gen-gan-q6",
+                  question:
+                    "You train a WGAN-GP with n_critic=1 (update G and C equally often) and observe training instability — C loss oscillates wildly. What should you do?",
+                  options: [
+                    { id: "gen-gan-q6-a", text: "Increase n_critic to 5 or more, giving the critic more updates per generator update so it stays ahead and provides stable gradients" },
+                    { id: "gen-gan-q6-b", text: "Decrease the gradient penalty λ from 10 to 1" },
+                    { id: "gen-gan-q6-c", text: "Add BatchNorm to the critic network" },
+                    { id: "gen-gan-q6-d", text: "Switch from LeakyReLU to ReLU in the critic" },
+                  ],
+                  correctOptionId: "gen-gan-q6-a",
+                  explanation:
+                    "WGAN theory requires the critic to be near-optimal for the generator gradient to be valid (approximate the Wasserstein distance). If the critic is updated only as often as the generator, it lags behind and provides noisy gradients. Increasing n_critic (e.g., 5 critic updates per 1 generator update) gives the critic time to converge before the generator moves, stabilizing training. Never add BatchNorm to the critic — it violates the Lipschitz constraint. LeakyReLU is preferred over ReLU in the critic for better gradient flow.",
+                },
+                {
+                  id: "gen-gan-q7",
+                  question:
+                    "How would you validate that a trained GAN captures the 'fat tails' of a forex return distribution?",
+                  options: [
+                    { id: "gen-gan-q7-a", text: "Compare mean and standard deviation of real vs synthetic returns" },
+                    { id: "gen-gan-q7-b", text: "Compute excess kurtosis (4th moment) and plot a Q-Q plot (quantile-quantile) of real vs synthetic — both should show heavy tails and the Q-Q plot should be linear across quantiles, especially in the tails" },
+                    { id: "gen-gan-q7-c", text: "Check that the synthetic returns pass a Kolmogorov-Smirnov test against a Gaussian distribution" },
+                    { id: "gen-gan-q7-d", text: "Visualize the generator loss curve — if it's decreasing, tails are captured" },
+                  ],
+                  correctOptionId: "gen-gan-q7-b",
+                  explanation:
+                    "Mean and std (first two moments) don't capture tail behavior. Kurtosis (4th moment) quantifies tail heaviness — forex returns typically have kurtosis > 3 (leptokurtic). The Q-Q plot compares quantiles of real vs synthetic distributions. If the GAN captures tails, the Q-Q plot should be linear across the entire range, including extreme quantiles (e.g., 1st and 99th percentiles). If it curves away from the diagonal in the tails, the GAN is underestimating tail risk. K-S test against Gaussian is irrelevant (we know returns aren't Gaussian). Generator loss doesn't directly indicate tail coverage.",
                 },
               ],
             },
             {
               type: "practice",
-              title: "TimeGAN for Multi-Asset Synthetic Series",
+              title: "WGAN-GP on Real Forex Data: Full Pipeline",
               description:
-                "Extend the WGAN-GP to a TimeGAN architecture: add an embedding network and a supervised loss that captures step-by-step temporal dynamics. Train on 4-hour returns from EUR/USD, GBP/USD, and USD/JPY. Evaluate using t-SNE visualization of real vs. synthetic embeddings and compare autocorrelation functions at lags 1–20.",
-              catalogModelId: "gan",
+                "Build an end-to-end WGAN-GP pipeline for EUR/USD 1h returns from QuestDB. Train ConvGenerator and ConvCritic for 100 epochs. Validate synthetic data by comparing kurtosis, ACF (lags 1-10), and Q-Q plots. Diagnose mode collapse by generating 1000 samples and plotting return histograms + realized vol histograms. Ablate: compare vanilla GAN vs WGAN-GP, and n_critic ∈ {1, 3, 5} to quantify stability gains.",
+              tasks: [
+                "Extract EUR/USD 1h returns from QuestDB (2020-2023, ~26k bars). Create sliding 60-bar windows. Split 80/20 train/test.",
+                "Train ConvGenerator (noise_dim=64, T=60) and ConvCritic with WGAN-GP (λ=10, n_critic=5, lr=1e-4, 100 epochs). Log Wasserstein distance estimate and generator loss every 10 epochs.",
+                "Generate 2000 synthetic sequences. Compute: (a) kurtosis (real vs synth), (b) ACF for lags 1-10 (compare via bar plot), (c) Q-Q plot (scatter of sorted quantiles). Are tails matched?",
+                "Mode collapse check: Plot histograms of (1) all returns, (2) per-window realized volatility. Do synthetic histograms span the same range as real? If narrow, mode collapse is present.",
+                "Ablation 1: Train a vanilla GAN (no gradient penalty, no Wasserstein) for 100 epochs. Compare stability (loss curves) and quality (kurtosis, Q-Q). Does it collapse?",
+                "Ablation 2: WGAN-GP with n_critic ∈ {1, 3, 5}. Plot Wasserstein distance over epochs for each. Does n_critic=1 show oscillations?",
+                "Summarize in 3-4 sentences: 'WGAN-GP with n_critic=5 converged stably with W_dist ≈ X. Synthetic kurtosis matched real (Y vs Z). Vanilla GAN suffered mode collapse by epoch 40. Q-Q plot shows WGAN-GP captures tails accurately.'",
+              ],
+            },
+            {
+              type: "practice",
+              title: "TimeGAN for Multi-Asset Correlation",
+              description:
+                "Implement a simplified TimeGAN for 3-asset returns (EUR/USD, GBP/USD, USD/JPY). The challenge: capture not only marginal distributions but also cross-asset correlations and temporal dynamics. Train Embedder, Recovery, Supervisor, Generator, Discriminator in phases. Validate by comparing the correlation matrix and cross-autocorrelation (CCF) of real vs synthetic.",
+              tasks: [
+                "Prepare 3-asset data: extract synchronized 4h returns for EUR/USD, GBP/USD, USD/JPY (2020-2023). Each sample is [60, 3] (60 timesteps, 3 assets). Split 80/20.",
+                "Implement TimeGAN modules: Embedder (GRU: [B,T,3] → [B,T,64]), Recovery (Linear: [B,T,64] → [B,T,3]), Supervisor (GRU: [B,T,64] → [B,T,64]), Generator (GRU: [B,T,32] → [B,T,64]), Discriminator (GRU + FC: [B,T,64] → [B]).",
+                "Phase 1: Train E+R as autoencoder on real data for 20 epochs. Loss = MSE(x, R(E(x))). Verify reconstruction error < 1e-4.",
+                "Phase 2: Train Supervisor S on latent codes h=E(x) to predict h_{t+1} given h_{:t}. Loss = MSE(h_{t+1}, S(h_{:t})). Train 20 epochs.",
+                "Phase 3: Train G+D adversarially in latent space. G produces h_fake = G(z), D discriminates h_real=E(x) vs h_fake. Use WGAN-GP loss. Train 50 epochs.",
+                "Phase 4: Joint training — update all networks with combined loss: ℒ = ℒ_recon + ℒ_supervised + ℒ_adversarial. Balance with weights (e.g., 1:1:0.1). Train 50 epochs.",
+                "Validation: Generate 1000 synthetic sequences x_synth = R(G(z)). Compute: (a) correlation matrix (3×3) for real vs synth, (b) cross-autocorrelation (CCF) between EUR and GBP at lags 0-5. Are correlations preserved?",
+                "Visual: Plot one real and one synthetic [60,3] sample side-by-side (3 subplots for 3 assets). Does the synthetic show realistic co-movement?",
+              ],
+            },
+          ],
+        },
+
+        // ── Lesson 3: Normalizing Flows ─────────────────────────
+        {
+          id: "gen-normalizing-flows",
+          title: "Normalizing Flows for Distribution Modeling",
+          description:
+            "Master invertible transformations, derive the change-of-variables formula, implement coupling and autoregressive flows (RealNVP, MAF, Glow), and apply normalizing flows to model fat-tailed forex return distributions with exact likelihood evaluation for precise VaR/CVaR calculation.",
+          estimatedMinutes: 65,
+          difficulty: "advanced",
+          relatedModels: ["vae"],
+          prerequisites: ["gen-vae"],
+          sections: [
+            {
+              type: "objective",
+              content:
+                "By the end of this lesson you will understand the change-of-variables formula, implement coupling layers (RealNVP), compare coupling vs autoregressive flows, and train a normalizing flow to model fat-tailed forex return distributions with exact likelihood evaluation.",
+              keyTakeaways: [
+                "Normalizing flows transform z ~ p(z) through invertible functions f to produce x = f(z) with exact density p(x) = p(z)|det ∂f⁻¹/∂x|",
+                "Coupling layers (RealNVP): split input, transform one half conditioned on the other — invertible by construction",
+                "Autoregressive flows (MAF, IAF): each dimension conditioned on previous ones — more expressive but sequential",
+                "Flows provide exact log-likelihood training, unlike VAEs (ELBO bound) or GANs (adversarial)",
+                "Ideal for modeling fat-tailed return distributions where Gaussian assumptions fail catastrophically",
+              ],
+            },
+            {
+              type: "theory",
+              title: "Invertible Transformations & the Change of Variables",
+              content:
+                "Normalizing flows construct complex distributions by composing a sequence of invertible, differentiable transformations f = fₖ ∘ ⋯ ∘ f₁ that map a simple base distribution p(z) (typically 𝒩(0, I)) to the target data distribution p(x). The **change of variables formula** gives the exact density: p(x) = p(z) · |det(∂z/∂x)| = p(f⁻¹(x)) · |det(∂f⁻¹/∂x)|. The log-likelihood decomposes as: log p(x) = log p(z₀) + ∑ᵢ log|det(∂fᵢ/∂zᵢ₋₁)|, where z₀ = f⁻¹(x). This means we need transformations that are (1) invertible, (2) have tractable Jacobian determinants, and (3) are expressive enough to model complex distributions.\n\n**RealNVP** (Dinh et al., 2017) uses affine coupling layers: split input z = [z₁, z₂], then x₁ = z₁ (identity), x₂ = z₂ ⊙ exp(s(z₁)) + t(z₁), where s and t are arbitrary neural networks. The Jacobian is triangular with determinant exp(∑ sⱼ(z₁)), making both forward pass and log-det computation O(D). Inversion is trivial: z₂ = (x₂ − t(x₁)) ⊙ exp(−s(x₁)). **Glow** (Kingma & Dhariwal, 2018) adds 1×1 invertible convolutions and actnorm for better expressivity. **Autoregressive flows** like MAF (Masked Autoregressive Flow) condition each dimension xᵢ on all previous dimensions x₁:ᵢ₋₁ via xᵢ = zᵢ · σᵢ(x₁:ᵢ₋₁) + μᵢ(x₁:ᵢ₋₁). MAF has fast density evaluation (parallel) but slow sampling (sequential); IAF (Inverse Autoregressive Flow) reverses this tradeoff.\n\nFor financial applications, flows excel at modeling the heavy tails, skewness, and time-varying volatility that characterize return distributions. Unlike Gaussian copulas (which infamously failed during the 2008 crisis), flows learn the full joint distribution non-parametrically. Tail risk metrics like VaR and CVaR can be computed by transforming quantiles through the learned flow.",
+            },
+            {
+              type: "theory",
+              title: "Mathematical Derivation of the Change of Variables Formula",
+              content:
+                "Let's derive the change of variables formula from first principles. Given a random variable Z ~ p_Z(z) and an invertible transformation x = f(z), we want to find p_X(x). Consider a small volume dz around z that maps to dx around x = f(z). Probability mass is conserved: p_X(x)dx = p_Z(z)dz. The key is that dx and dz are related by the Jacobian determinant: dx = |det(∂f/∂z)| dz. Therefore:\n\n  p_X(x) = p_Z(z) |det(∂f/∂z)|⁻¹ = p_Z(f⁻¹(x)) |det(∂f⁻¹/∂x)|\n\nFor multiple composed transformations x = f_K ∘ f_{K-1} ∘ ⋯ ∘ f_1(z), the chain rule for determinants gives:\n  |det(∂x/∂z)| = ∏ᵢ |det(∂f_i/∂z_{i-1})|\nTaking logarithms (for numerical stability and training with gradient descent):\n  log p_X(x) = log p_Z(z_0) + ∑ᵢ log|det(∂f_i/∂z_{i-1})| where z_0 = f⁻¹(x)\n\nNumerical example (1D): Let f(z) = 2z + 1, z ~ 𝒩(0,1). Then ∂f/∂z = 2, so p_X(x) = p_Z((x-1)/2) · (1/2) = (1/2)𝒩((x-1)/2; 0,1) = 𝒩(x; 1, 4). The scale factor 1/2 appears because f stretches the domain by 2×, compressing density by 2×.\n\nFor forex returns x ∈ ℝᵈ (d=10 days), if we use K=6 coupling layers with hidden dim=64, each Jacobian is triangular with diagonal elements exp(s_j). The log-determinant sums the log-diagonal entries: log|det J_i| = ∑_j s_j(z₁), typically 10-40 values. Training maximizes ∑_data log p(x), pushing the flow to assign high likelihood to observed returns while keeping z = f⁻¹(x) close to 𝒩(0,I).",
+            },
+            {
+              type: "theory",
+              title: "Affine Coupling Layers: Architecture and Invertibility Proof",
+              content:
+                "An affine coupling layer splits the input z ∈ ℝᵈ into two parts z = [z_A, z_B] where A and B are disjoint index sets (e.g., first d/2 and last d/2 dimensions). The transformation is:\n  x_A = z_A   (identity)\n  x_B = z_B ⊙ exp(s(z_A)) + t(z_A)   (scale-and-shift)\nwhere s, t : ℝ^{|A|} → ℝ^{|B|} are arbitrary neural networks. The Jacobian of this transformation is:\n  J = [ I_A    0      ]\n      [ ∂t/∂z_A  diag(exp(s(z_A))) ]\nwhich is triangular, so det(J) = ∏_j exp(s_j(z_A)) = exp(∑_j s_j(z_A)). The log-determinant is just ∑_j s_j(z_A), computed in O(d) time.\n\n**Invertibility**: Given x = [x_A, x_B], the inverse is trivial:\n  z_A = x_A\n  z_B = (x_B − t(x_A)) ⊙ exp(−s(x_A))\nSince s and t are deterministic functions of z_A = x_A, the inverse is exact and has the same O(d) cost.\n\n**Expressivity**: A single coupling layer only transforms z_B, leaving z_A unchanged. To transform all dimensions, we alternate the partition A/B across layers — RealNVP uses a checkerboard pattern for images and simple even/odd splits for vectors. After K layers with alternating masks, every dimension has been transformed K/2 times.\n\nNumerical example (d=4, one layer): z = [0.5, -0.3, 1.2, -0.8], partition A = {0,1}, B = {2,3}. Neural nets output s([0.5, -0.3]) = [0.2, -0.1], t([0.5, -0.3]) = [0.05, 0.03]. Then:\n  x = [0.5, -0.3, 1.2·exp(0.2)+0.05, -0.8·exp(-0.1)+0.03] ≈ [0.5, -0.3, 1.51, -0.69]\n  log|det J| = 0.2 + (−0.1) = 0.1\nThis layer preserved x_A = z_A while scaling/shifting z_B. Next layer would use partition A={2,3}, B={0,1} to transform the first two dimensions.",
+            },
+            {
+              type: "theory",
+              title: "Autoregressive Flows vs Coupling Flows: Tradeoffs and Use Cases",
+              content:
+                "While coupling flows partition dimensions spatially, **autoregressive flows** impose a sequential ordering: x_i depends on x_{1:i-1}. Masked Autoregressive Flow (MAF) defines:\n  x_i = z_i · σ_i(x_{<i}) + μ_i(x_{<i})\nwhere μ_i, σ_i are outputs of a masked neural network (MADE) that ensures causality. The Jacobian is triangular with diagonal σ_i, so log|det J| = ∑ log σ_i(x_{<i}).\n\n**MAF advantages**: (1) Each x_i is conditioned on all previous dimensions, making it more expressive per layer than coupling (which conditions only on a fixed subset). (2) Density evaluation is parallel via a single forward pass through the masked network.\n\n**MAF disadvantages**: Sampling is **sequential**: to generate x, we must first sample x_1, then use it to compute μ_2, σ_2 and sample x_2, etc. This O(d) sampling cost (vs O(1) parallel for coupling) makes MAF slow for high-d generation.\n\n**Inverse Autoregressive Flow (IAF)** reverses the roles:\n  z_i = (x_i − μ_i(z_{<i})) / σ_i(z_{<i})\nNow sampling from z ~ 𝒩(0,I) is parallel (compute all μ_i, σ_i in one pass, then x = σ ⊙ z + μ), but density evaluation requires sequential inversion. IAF is preferred when generation speed matters more than likelihood evaluation (e.g., VAE decoders).\n\n**Forex trading context**: For risk modeling (VaR/CVaR estimation), we need fast likelihood evaluation p(x) for observed returns x — favor MAF. For synthetic data generation (stress tests, data augmentation), we need fast sampling — favor RealNVP or IAF. In practice, RealNVP offers the best balance: fast training, fast sampling, and moderate expressivity. For maximum expressivity, use Neural Spline Flows (monotonic rational-quadratic splines instead of affine transforms) — each coupling layer becomes a piecewise nonlinear bijection while remaining O(d) tractable.",
+            },
+            {
+              type: "intuition",
+              title: "Origami: Folding Simple into Complex",
+              analogy:
+                "Imagine you start with a perfectly flat, square sheet of paper (a 2D Gaussian distribution). Through a series of precise, reversible folds (coupling layers), you transform this flat sheet into an intricate origami crane — a complex, multi-modal shape with sharp edges and thin tails. Each fold is invertible: you can always unfold back to the original flat sheet. The magic of normalizing flows is that you can calculate exactly how much each fold compressed or stretched the paper at every point (the Jacobian determinant), so you know the precise density of the resulting shape.",
+              content:
+                "For forex returns, the 'flat sheet' is a standard Gaussian, and the 'origami crane' is the actual return distribution with fat tails (kurtosis > 3), negative skew (more extreme drops than jumps), and volatility clustering. The flow learns folds that stretch the Gaussian tails outward (to capture extreme moves) and squeeze the center (to capture the excess peak). Unlike a VAE, which optimizes a lower bound, the flow gives you the exact probability of any return value — essential for precise VaR calculations.",
+              emoji: "🦢",
+            },
+            {
+              type: "intuition",
+              title: "Why Exact Likelihoods Matter for Risk Management",
+              content:
+                "VAEs and GANs are 'generative' but don't give you exact probabilities — VAEs optimize a lower bound (ELBO), and GANs don't even have a likelihood. For research and exploration, that's often fine. But when you're calculating tail risk (1% VaR, 0.1% CVaR) for a $100M portfolio, approximate densities can be catastrophic — underestimating P(loss > 10M) by 2× means your risk capital is off by millions.\n\nNormalizing flows give you the EXACT log p(x) for any return vector x. Want the probability that all 5 FX pairs in your basket simultaneously drop more than 2σ tomorrow? Just evaluate p(x) at that point. Need to integrate P(portfolio loss > threshold)? Sample from the flow, compute losses, and you have an unbiased Monte Carlo estimate with known variance. VAEs can't do this — their decoded samples come from an approximation q(z|x), not the true p(x). GANs can generate plausible returns but have no notion of 'this scenario is 10× more likely than that one.'\n\nIn regulatory contexts (Basel III market risk), auditors demand calibrated risk models. A flow trained on 2 years of data, then tested on the next 6 months, should have its predicted 99% quantile violated ~1% of the time. If your flow says 'EUR/USD will drop >150 bps with probability 0.001' but it happens 5× in 1000 days, your model is mis-specified and your capital requirements will be increased. Exact likelihoods enable rigorous backtesting via probability integral transforms (PIT): if the flow is well-calibrated, the CDF values F(x_t) over time should be uniform [0,1].",
+              emoji: "📊",
+            },
+            {
+              type: "code",
+              title: "RealNVP Flow for Forex Return Distribution",
+              language: "python",
+              code: `import torch
+import torch.nn as nn
+import numpy as np
+
+class CouplingLayer(nn.Module):
+    """RealNVP affine coupling: x₁ = z₁, x₂ = z₂ ⊙ exp(s(z₁)) + t(z₁)."""
+
+    def __init__(self, dim: int, hidden: int = 64, mask_even: bool = True):
+        super().__init__()
+        self.mask_even = mask_even
+        half = dim // 2
+        self.scale_net = nn.Sequential(
+            nn.Linear(half, hidden), nn.ReLU(),
+            nn.Linear(hidden, hidden), nn.ReLU(),
+            nn.Linear(hidden, dim - half), nn.Tanh(),  # bounded scale
+        )
+        self.translate_net = nn.Sequential(
+            nn.Linear(half, hidden), nn.ReLU(),
+            nn.Linear(hidden, hidden), nn.ReLU(),
+            nn.Linear(hidden, dim - half),
+        )
+
+    def _split(self, x):
+        d = x.shape[-1] // 2
+        if self.mask_even:
+            return x[..., :d], x[..., d:]
+        return x[..., d:], x[..., :d]
+
+    def _merge(self, x1, x2):
+        if self.mask_even:
+            return torch.cat([x1, x2], dim=-1)
+        return torch.cat([x2, x1], dim=-1)
+
+    def forward(self, z):
+        z1, z2 = self._split(z)
+        s = self.scale_net(z1)
+        t = self.translate_net(z1)
+        x2 = z2 * torch.exp(s) + t
+        log_det = s.sum(dim=-1)
+        return self._merge(z1, x2), log_det
+
+    def inverse(self, x):
+        x1, x2 = self._split(x)
+        s = self.scale_net(x1)
+        t = self.translate_net(x1)
+        z2 = (x2 - t) * torch.exp(-s)
+        return self._merge(x1, z2)
+
+
+class RealNVPFlow(nn.Module):
+    """Stack of coupling layers for density estimation."""
+
+    def __init__(self, dim: int = 10, n_layers: int = 6, hidden: int = 64):
+        super().__init__()
+        self.layers = nn.ModuleList([
+            CouplingLayer(dim, hidden, mask_even=(i % 2 == 0))
+            for i in range(n_layers)
+        ])
+
+    def forward(self, z):
+        """z → x with accumulated log-det Jacobian."""
+        log_det_total = 0.0
+        x = z
+        for layer in self.layers:
+            x, ld = layer(x)
+            log_det_total = log_det_total + ld
+        return x, log_det_total
+
+    def log_prob(self, x):
+        """Exact log p(x) = log p(z) + log|det dz/dx|."""
+        z = x
+        log_det = 0.0
+        for layer in reversed(self.layers):
+            z = layer.inverse(z)
+        # p(z) = N(0, I)
+        log_pz = -0.5 * (z.pow(2).sum(-1) + z.shape[-1] * np.log(2 * np.pi))
+        # For inverse pass: log_det is negative of forward
+        _, fwd_log_det = self.forward(z)
+        return log_pz + fwd_log_det
+
+    def sample(self, n: int):
+        z = torch.randn(n, self.layers[0].scale_net[0].in_features * 2)
+        x, _ = self.forward(z)
+        return x.detach()
+
+
+# ── Train on simulated fat-tailed forex returns ──────────────
+np.random.seed(42)
+torch.manual_seed(42)
+dim = 10  # 10-day return windows
+
+# Simulate fat-tailed returns (Student-t with df=4)
+from scipy.stats import t as student_t
+raw_returns = student_t.rvs(df=4, size=(5000, dim)).astype(np.float32) * 0.008
+data = torch.from_numpy(raw_returns)
+
+flow = RealNVPFlow(dim=dim, n_layers=6, hidden=64)
+optimizer = torch.optim.Adam(flow.parameters(), lr=1e-3)
+
+for epoch in range(40):
+    idx = torch.randperm(len(data))
+    total_nll = 0.0
+    for i in range(0, len(data) - 128, 128):
+        batch = data[idx[i : i + 128]]
+        nll = -flow.log_prob(batch).mean()
+        optimizer.zero_grad()
+        nll.backward()
+        nn.utils.clip_grad_norm_(flow.parameters(), 1.0)
+        optimizer.step()
+        total_nll += nll.item()
+    if (epoch + 1) % 10 == 0:
+        print(f"Epoch {epoch+1:02d}  NLL: {total_nll / (len(data) // 128):.4f}")
+
+# ── Compare tail probabilities ───────────────────────────────
+from scipy.stats import kurtosis, skew
+samples = flow.sample(5000).numpy()
+print(f"\\nReal  — mean: {raw_returns.mean():.5f}  std: {raw_returns.std():.5f}  "
+      f"kurtosis: {kurtosis(raw_returns.flatten()):.2f}  skew: {skew(raw_returns.flatten()):.3f}")
+print(f"Flow  — mean: {samples.mean():.5f}  std: {samples.std():.5f}  "
+      f"kurtosis: {kurtosis(samples.flatten()):.2f}  skew: {skew(samples.flatten()):.3f}")`,
+              explanation:
+                "A complete RealNVP normalizing flow for forex return distributions. CouplingLayer implements the affine coupling transform with split/scale/translate — invertible by construction. RealNVPFlow stacks 6 layers with alternating masks. Training minimizes negative log-likelihood (exact, not a bound). We compare kurtosis and skew of generated vs real data to verify the flow captures the fat tails and asymmetry of Student-t distributed returns.",
+            },
+            {
+              type: "quiz",
+              questions: [
+                {
+                  id: "gen-flow-q1",
+                  question: "Why must normalizing flow transformations be invertible?",
+                  options: [
+                    { id: "gen-flow-q1-a", text: "To reduce computational cost during training" },
+                    { id: "gen-flow-q1-b", text: "The change-of-variables formula requires f⁻¹ to compute exact likelihoods; non-invertible maps cannot map densities bijectively" },
+                    { id: "gen-flow-q1-c", text: "To ensure the output distribution is always Gaussian" },
+                    { id: "gen-flow-q1-d", text: "Invertibility is optional — it only speeds up convergence" },
+                  ],
+                  correctOptionId: "gen-flow-q1-b",
+                  explanation:
+                    "The change-of-variables formula p(x) = p(f⁻¹(x)) · |det(∂f⁻¹/∂x)| requires an inverse f⁻¹ to map data back to the base distribution and compute exact log-likelihoods. A non-invertible transformation would collapse multiple inputs to the same output, making density computation impossible.",
+                },
+                {
+                  id: "gen-flow-q2",
+                  question: "What is the key architectural difference between coupling flows (RealNVP) and autoregressive flows (MAF)?",
+                  options: [
+                    { id: "gen-flow-q2-a", text: "Coupling flows use convolutional layers while autoregressive flows use recurrent layers" },
+                    { id: "gen-flow-q2-b", text: "Coupling flows split dimensions and transform one half; autoregressive flows condition each dimension on all previous ones sequentially" },
+                    { id: "gen-flow-q2-c", text: "Coupling flows can only model Gaussian distributions" },
+                    { id: "gen-flow-q2-d", text: "Autoregressive flows don't require invertibility" },
+                  ],
+                  correctOptionId: "gen-flow-q2-b",
+                  explanation:
+                    "RealNVP splits z into two halves and transforms one conditioned on the other — both forward and inverse are parallel, making it fast for both training and sampling. MAF conditions xᵢ on x₁:ᵢ₋₁, giving more expressivity per layer but making sampling sequential (each dimension depends on previous ones).",
+                },
+                {
+                  id: "gen-flow-q3",
+                  question: "Why do normalizing flows outperform Gaussian mixture models for tail risk modeling?",
+                  options: [
+                    { id: "gen-flow-q3-a", text: "Flows always converge faster than GMMs" },
+                    { id: "gen-flow-q3-b", text: "Flows use fewer parameters than GMMs" },
+                    { id: "gen-flow-q3-c", text: "Flows learn arbitrary density shapes including fat tails and asymmetric skew, while GMMs are limited to mixtures of Gaussian components that underestimate extreme quantiles" },
+                    { id: "gen-flow-q3-d", text: "GMMs cannot be trained with maximum likelihood" },
+                  ],
+                  correctOptionId: "gen-flow-q3-c",
+                  explanation:
+                    "GMMs approximate distributions as weighted sums of Gaussians. Each component has exponentially decaying tails, so capturing fat-tailed returns requires many components and still underestimates P(|r| > 4σ). Flows learn the full non-parametric density via invertible transforms, naturally capturing the excess kurtosis and tail asymmetry critical for VaR/CVaR estimation.",
+                },
+              ],
+            },
+            {
+              type: "practice",
+              title: "Flow-Based Tail Risk Assessment",
+              description:
+                "Train a RealNVP flow on EUR/USD daily returns (2+ years). Compare the learned 1% and 0.1% VaR (Value at Risk) quantiles against empirical quantiles and a Gaussian assumption. Visualize the learned density vs a kernel density estimate and highlight where the flow captures tail events that the Gaussian misses. Experiment with flow depth (4, 8, 12 layers) and report log-likelihood on held-out data.",
+              catalogModelId: "vae",
+            },
+            {
+              type: "code",
+              title: "MAF (Masked Autoregressive Flow) for Higher Expressivity",
+              language: "python",
+              code: `import torch
+import torch.nn as nn
+import numpy as np
+
+class MADE(nn.Module):
+    """Masked Autoencoder for Distribution Estimation."""
+    def __init__(self, dim, hidden_dim=128):
+        super().__init__()
+        self.dim = dim
+        # Create mask for autoregressive structure
+        self.fc1 = nn.Linear(dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc_mu = nn.Linear(hidden_dim, dim)
+        self.fc_sigma = nn.Linear(hidden_dim, dim)
+        self._create_masks()
+        
+    def _create_masks(self):
+        """Ensure x_i only depends on x_{<i}."""
+        dim, h = self.dim, self.fc1.out_features
+        # Input connections: each hidden unit sees inputs up to some max_degree < dim
+        self.m1 = torch.randint(1, dim, (h,))
+        # Hidden-to-hidden: preserve causality
+        self.m2 = torch.randint(1, dim, (h,))
+        # Output connections: μ_i, σ_i depend on x_{<i}
+        self.m_out = torch.arange(dim)
+        
+        # Create actual masks
+        mask1 = (self.m_out.unsqueeze(1) > torch.arange(dim).unsqueeze(0)).float()
+        mask2 = (self.m2.unsqueeze(1) >= self.m1.unsqueeze(0)).float()
+        mask_mu = (self.m_out.unsqueeze(1) >= self.m2.unsqueeze(0)).float()
+        
+        self.register_buffer('mask1', mask1.T)
+        self.register_buffer('mask2', mask2.T)
+        self.register_buffer('mask_mu', mask_mu.T)
+        
+    def forward(self, x):
+        h = torch.relu(self.fc1(x) * self.mask1.T)
+        h = torch.relu(self.fc2(h) * self.mask2.T)
+        mu = self.fc_mu(h) * self.mask_mu.T
+        log_sigma = self.fc_sigma(h) * self.mask_mu.T
+        return mu, log_sigma
+
+class MAFlow(nn.Module):
+    """Masked Autoregressive Flow with K layers."""
+    def __init__(self, dim=10, n_layers=4, hidden=128):
+        super().__init__()
+        self.layers = nn.ModuleList([MADE(dim, hidden) for _ in range(n_layers)])
+        self.dim = dim
+    
+    def forward(self, z):
+        """z ~ N(0,I) → x via autoregressive transforms."""
+        x = z.clone()
+        log_det = 0.0
+        for made in self.layers:
+            mu, log_sigma = made(x)
+            sigma = torch.exp(log_sigma)
+            x = z * sigma + mu
+            log_det = log_det + log_sigma.sum(dim=-1)
+        return x, log_det
+    
+    def log_prob(self, x):
+        """Evaluate log p(x) via inverse (sequential)."""
+        z = x.clone()
+        log_det = 0.0
+        # Inverse must be computed sequentially dim-by-dim
+        for made in reversed(self.layers):
+            for i in range(self.dim):
+                mu, log_sigma = made(z)
+                sigma = torch.exp(log_sigma[:, i])
+                z[:, i] = (z[:, i] - mu[:, i]) / sigma
+                log_det = log_det - log_sigma[:, i]
+        log_pz = -0.5 * (z.pow(2).sum(-1) + self.dim * np.log(2*np.pi))
+        return log_pz + log_det
+    
+    def sample(self, n):
+        z = torch.randn(n, self.dim)
+        x, _ = self.forward(z)
+        return x.detach()
+
+# ── Train MAF on EUR/USD returns ─────────────────────────────
+np.random.seed(42)
+torch.manual_seed(42)
+
+# Simulate student-t returns (heavier tails than RealNVP example)
+from scipy.stats import t as student_t
+dim = 5
+data = torch.from_numpy(
+    student_t.rvs(df=3, size=(3000, dim)).astype(np.float32) * 0.01
+)
+
+maf = MAFlow(dim=dim, n_layers=4, hidden=64)
+optimizer = torch.optim.Adam(maf.parameters(), lr=5e-4)
+
+for epoch in range(50):
+    idx = torch.randperm(len(data))
+    total_nll = 0.0
+    for i in range(0, len(data)-64, 64):
+        batch = data[idx[i:i+64]]
+        nll = -maf.log_prob(batch).mean()
+        optimizer.zero_grad()
+        nll.backward()
+        nn.utils.clip_grad_norm_(maf.parameters(), 1.0)
+        optimizer.step()
+        total_nll += nll.item()
+    if (epoch+1) % 10 == 0:
+        print(f"Epoch {epoch+1}  NLL: {total_nll / (len(data)//64):.4f}")
+
+# Compare tail statistics
+samples = maf.sample(3000).numpy()
+from scipy.stats import kurtosis
+print(f"\\nReal kurtosis: {kurtosis(data.numpy().flatten()):.2f}")
+print(f"MAF kurtosis:  {kurtosis(samples.flatten()):.2f}")
+print(f"Excess kurtosis > 0 indicates heavier-than-Gaussian tails")`,
+              explanation:
+                "Masked Autoregressive Flow (MAF) for higher expressivity per layer. MADE (Masked Autoencoder for Distribution Estimation) implements autoregressive conditioning via carefully designed weight masks that ensure x_i only depends on x_{<i}. MAF composes multiple MADE layers. Forward pass (sampling) is parallel, but inverse (density evaluation) requires sequential computation. MAF captures complex dependencies better than coupling flows but at the cost of slower likelihood evaluation. For forex risk modeling where we evaluate log p(x) frequently, RealNVP may be preferable despite lower expressivity.",
+            },
+            {
+              type: "practice",
+              title: "Copula-Flow Hybrid for Multi-Asset Portfolios",
+              description:
+                "Build a hybrid model: use marginal flows (one per asset) to model univariate return distributions, then a Gaussian copula or vine copula to capture correlations. Train 5 separate RealNVP flows for EUR/USD, GBP/USD, USD/JPY, AUD/USD, USD/CHF. Extract pseudo-observations via probability integral transform. Fit a copula to the joint structure. Sample correlated returns and compute portfolio VaR. Compare against a multivariate flow and against a Gaussian assumption.",
+              catalogModelId: "vae",
+              tasks: [
+                "Train individual normalizing flows for each currency pair's return distribution",
+                "Transform returns to uniform [0,1] via CDF: u_i = F_i(x_i) where F_i is the flow CDF",
+                "Fit a Gaussian or t-copula to the pseudo-observations {u_1, ..., u_5}",
+                "Sample from the copula, inverse-transform via F_i^{-1} to get correlated returns",
+                "Compute 1% and 0.1% portfolio VaR and compare to empirical and Gaussian baselines",
+              ],
             },
           ],
         },
@@ -389,6 +1278,24 @@ print(f"Synth kurtosis: {kurtosis(synth.flatten()):.2f}")`,
               title: "From Priors to Posteriors via MCMC",
               content:
                 "Bayesian inference treats model parameters θ as random variables. We start with a prior belief p(θ) — perhaps that the mean daily return μ of EUR/USD is close to zero — and update it with observed data D via Bayes' theorem:\n\n  p(θ|D) ∝ p(D|θ) · p(θ)\n\nFor a Gaussian likelihood with known variance σ² and a Gaussian prior μ ~ 𝒩(μ₀, τ₀²), the posterior is also Gaussian:\n\n  μ|D ~ 𝒩( (τ₀⁻² μ₀ + n σ⁻² x̄) / (τ₀⁻² + n σ⁻²) ,  1 / (τ₀⁻² + n σ⁻²) )\n\nThe posterior mean is a precision-weighted average of the prior mean and the sample mean — more data pulls the estimate toward x̄.\n\nWhen conjugacy is unavailable (e.g., regime-switching models, non-linear signal functions), MCMC constructs a Markov chain whose stationary distribution is p(θ|D). Metropolis-Hastings proposes θ* ~ q(θ*|θ) and accepts with probability min(1, [p(θ*|D) q(θ|θ*)] / [p(θ|D) q(θ*|θ)]). After a burn-in period, the chain samples approximate the posterior.",
+            },
+            {
+              type: "theory",
+              title: "Conjugate Priors: Normal-Normal Worked Example with Real Numbers",
+              content:
+                "**Setup**: You observe n=5 daily EUR/USD returns: y = [0.0008, -0.0012, 0.0015, 0.0003, -0.0005]. You want to estimate the mean μ assuming known σ=0.001 (100 bps daily vol). Your prior belief is μ ~ 𝒩(μ₀=0, τ₀²=0.0005²) — you think the drift is near zero with ±50 bps uncertainty.\n\n**Likelihood**: y ~ 𝒩(μ, σ²=0.001²). The log-likelihood is: log p(y|μ) = −n/2 log(2πσ²) − (1/2σ²)∑(y_i − μ)². Sample mean: ȳ = 0.00018.\n\n**Posterior**: Since both prior and likelihood are Gaussian, the posterior is Gaussian with precision (inverse variance) equal to the sum of prior and likelihood precisions:\n  Precision: τ_post⁻² = τ₀⁻² + n/σ² = (1/0.0005²) + (5/0.001²) = 4,000,000 + 5,000,000 = 9,000,000\n  Variance: τ_post² = 1/9,000,000 ≈ 1.11×10⁻⁷  ⇒  τ_post ≈ 0.000333\n\nPosterior mean (precision-weighted average):\n  μ_post = (τ₀⁻² μ₀ + (n/σ²) ȳ) / (τ₀⁻² + n/σ²)\n         = (4,000,000 × 0 + 5,000,000 × 0.00018) / 9,000,000\n         = 900 / 9,000,000 = 0.0001\n\nSo μ|y ~ 𝒩(0.0001, 0.000333²). The 95% credible interval is [0.0001 − 1.96×0.000333, 0.0001 + 1.96×0.000333] = [−0.00055, 0.00075].\n\n**Interpretation**: The data pulled the mean estimate from 0 (prior) toward 0.00018 (sample mean), but not all the way — the posterior mean 0.0001 is a compromise weighted by the respective precisions. The posterior uncertainty (±0.00033) is tighter than both the prior (±0.0005) and the sampling uncertainty (σ/√n = 0.001/√5 ≈ 0.00045) because we combined both sources of information.",
+            },
+            {
+              type: "theory",
+              title: "Bayes Factors and Model Comparison: Trend vs Mean-Reversion",
+              content:
+                "Bayesian inference isn't just about estimating parameters — it's also about comparing models. Suppose you want to decide: 'Is EUR/USD trending or mean-reverting this month?' Define two models:\n  M₁ (trend): y_t = μ + ε_t,  ε ~ 𝒩(0, σ²)  where μ ≠ 0\n  M₂ (mean-rev): y_t = θ(μ_ref − y_{t-1}) + ε_t  where μ_ref is a reference level\n\nThe **Bayes factor** is the posterior odds ratio:\n  BF₁₂ = p(D|M₁) / p(D|M₂)\nwhere p(D|M_i) is the **marginal likelihood** (evidence) for model i:\n  p(D|M) = ∫ p(D|θ,M) p(θ|M) dθ\nIntegrating over θ automatically penalizes complexity — a model that fits many parameter values equally well (flat likelihood) gets lower marginal likelihood than a model with a sharp peak.\n\n**Interpretation**:\n  BF₁₂ > 10:  Strong evidence for M₁ (trending)\n  BF₁₂ ≈ 1:   Models equally supported\n  BF₁₂ < 0.1: Strong evidence for M₂ (mean-reverting)\n\nNumerical example: You observe 20 returns with ȳ=0.0005, s=0.008. Model M₁ with prior μ ~ 𝒩(0, 0.01²) yields log p(D|M₁) = −25.3. Model M₂ with θ ~ Gamma(2,10) yields log p(D|M₂) = −27.1. BF₁₂ = exp(−25.3 + 27.1) = exp(1.8) ≈ 6.0 — moderate evidence for trending over mean-reversion.\n\n**Credible vs Confidence Intervals**: A Bayesian 95% credible interval [θ_L, θ_U] means 'given the data, there's a 95% probability θ ∈ [θ_L, θ_U].' A frequentist 95% confidence interval means 'if we repeated this experiment infinitely, 95% of intervals would contain the true θ' — the probability statement is about the procedure, not the parameter. For a trader deciding 'Is my Sharpe ratio > 1.5?', the Bayesian statement is directly actionable; the frequentist statement is a philosophical abstraction.",
+            },
+            {
+              type: "theory",
+              title: "Posterior Predictive Distribution: Forecasting with Uncertainty",
+              content:
+                "After inferring p(θ|D), we often want to predict new data ỹ. The **posterior predictive distribution** marginalizes over parameter uncertainty:\n  p(ỹ|D) = ∫ p(ỹ|θ) p(θ|D) dθ\nThis is NOT just plugging in a point estimate θ̂ — it integrates over all plausible θ values, weighted by their posterior probability.\n\n**Example (Normal model)**: If θ=(μ,σ²) and the posterior is μ|D ~ 𝒩(μ_post, τ_post²), σ²|D ~ InvGamma(α, β), then:\n  p(ỹ|D) = ∫∫ 𝒩(ỹ; μ, σ²) 𝒩(μ; μ_post, τ_post²) InvGamma(σ²; α, β) dμ dσ²\nThe inner integral over μ yields a Student-t distribution with fatter tails than the likelihood alone because it accounts for uncertainty in μ.\n\nConcrete forex example: You've estimated the posterior for EUR/USD daily returns: μ|D ~ 𝒩(0.0002, 0.0004²), σ|D ~ HalfNormal(0.007). To forecast tomorrow's return:\n  1. Sample μ* ~ 𝒩(0.0002, 0.0004²)  →  e.g., μ* = 0.00015\n  2. Sample σ* ~ HalfNormal(0.007)  →  e.g., σ* = 0.0068\n  3. Sample ỹ ~ 𝒩(μ*, σ*²)  →  e.g., ỹ = −0.0032\nRepeat 10,000 times to approximate p(ỹ|D). The resulting distribution is wider than 𝒩(μ_post, σ_est²) because it includes parameter uncertainty.\n\n**Predictive intervals**: The 95% predictive interval for ỹ covers 95% of future observations given current knowledge. For risk management: if your model says P(loss > $1M tomorrow) = 0.02, and you observe a $1.2M loss, that's a 2% event — painful but not evidence of model failure. If such events happen 10× in 500 days (2% observed vs 2% predicted), the model is well-calibrated.",
             },
             {
               type: "intuition",
@@ -483,11 +1390,172 @@ print(f"σ  posterior: μ={np.exp(posterior[:,2]).mean():.5f}")`,
               ],
             },
             {
+              type: "intuition",
+              title: "Why Priors Aren't 'Cheating' — The Regularization Perspective",
+              content:
+                "Critics of Bayesian methods often say 'You're just encoding your biases in the prior!' But in trading, we KNOW certain constraints hold: Sharpe ratios above 5 are essentially impossible (unless you have inside information or are taking hidden risks), daily forex vol is never 0.001% or 50%, mean-reversion half-lives aren't 1 second or 10 years. Ignoring this domain knowledge and fitting parameters purely from data is naive — you'll overfit to noise.\n\nFrom a machine learning perspective, priors are **regularization**. A 𝒩(0, σ_p²) prior on regression coefficients is exactly L2 (ridge) regularization with penalty λ = 1/σ_p². The difference: Bayesian inference gives you a full posterior distribution p(θ|D), not just a point estimate. You get error bars for free — no need for bootstrap or cross-validation to quantify uncertainty.\n\n**When priors dominate** (small n): You're trading EUR/USD with only 50 days of data. A flat prior would allow wild estimates: 'The mean return is +10% per day!' An informative prior μ ~ 𝒩(0, 0.0005²) says 'Historically, major FX pairs have near-zero drift.' The posterior blends your weak data with strong prior knowledge, yielding a sensible estimate.\n\n**When data dominates** (large n): After 5 years (1250 days), the likelihood overwhelms any reasonable prior. The posterior converges to the MLE. Your prior belief that μ=0 is overridden by strong evidence that μ≈0.0002.\n\n**The honesty of Bayesian intervals**: A frequentist 95% CI for a momentum factor beta might be [0.002, 0.008]. If you ask 'What's the probability beta > 0.005?', the frequentist must shrug — the CI is a statement about the procedure, not about beta. A Bayesian can compute P(beta > 0.005 | D) = 0.73 directly from the posterior samples. This is actionable: 'There's a 73% chance my signal has positive edge above my threshold.'",
+              emoji: "⚖️",
+            },
+            {
+              type: "code",
+              title: "Conjugate Prior: Beta-Binomial for Win Rate Estimation",
+              language: "python",
+              code: `import numpy as np
+from scipy.stats import beta
+import matplotlib.pyplot as plt
+
+np.random.seed(42)
+
+# ── Scenario: estimating win rate of a trading strategy ──────
+# You've run a backtest: out of n=50 trades, you won w=32.
+# Estimate the true win rate p with Bayesian inference.
+
+n_trades = 50
+n_wins = 32
+
+# ── Prior: Beta(α₀, β₀) ──────────────────────────────────────
+# α₀=2, β₀=2 is a weak prior centered at 0.5 (no edge assumption)
+# α₀=5, β₀=3 is an optimistic prior (mean = 5/(5+3) ≈ 0.625)
+# Let's use the neutral prior:
+alpha0, beta0 = 2, 2
+
+# ── Likelihood: Binomial(w | n, p) ───────────────────────────
+# p(w | n, p) ∝ p^w (1-p)^{n-w}
+
+# ── Posterior: Beta(α₀ + w, β₀ + (n - w)) ────────────────────
+# (Beta is conjugate to Binomial — posterior is also Beta)
+alpha_post = alpha0 + n_wins
+beta_post = beta0 + (n_trades - n_wins)
+
+print(f"Observed: {n_wins}/{n_trades} wins")
+print(f"\\nPrior: Beta({alpha0}, {beta0})  →  mean={alpha0/(alpha0+beta0):.3f}")
+print(f"Posterior: Beta({alpha_post}, {beta_post})  →  mean={alpha_post/(alpha_post+beta_post):.3f}")
+
+# Posterior mean
+p_mean = alpha_post / (alpha_post + beta_post)
+# 95% credible interval
+p_lower = beta.ppf(0.025, alpha_post, beta_post)
+p_upper = beta.ppf(0.975, alpha_post, beta_post)
+
+print(f"\\nPosterior mean win rate: {p_mean:.3f}")
+print(f"95% credible interval: [{p_lower:.3f}, {p_upper:.3f}]")
+
+# Probability that true win rate > 0.6 (better than random + edge)
+prob_gt_60 = 1 - beta.cdf(0.6, alpha_post, beta_post)
+print(f"\\nP(win rate > 0.6 | data) = {prob_gt_60:.2%}")
+
+# ── Visualize prior vs posterior ─────────────────────────────
+p_grid = np.linspace(0, 1, 200)
+prior_pdf = beta.pdf(p_grid, alpha0, beta0)
+posterior_pdf = beta.pdf(p_grid, alpha_post, beta_post)
+
+plt.figure(figsize=(8, 4))
+plt.plot(p_grid, prior_pdf, label=f'Prior Beta({alpha0},{beta0})', linestyle='--', alpha=0.7)
+plt.plot(p_grid, posterior_pdf, label=f'Posterior Beta({alpha_post},{beta_post})', linewidth=2)
+plt.axvline(n_wins/n_trades, color='red', linestyle=':', label=f'Sample proportion {n_wins/n_trades:.2f}')
+plt.axvspan(p_lower, p_upper, alpha=0.2, color='green', label='95% credible interval')
+plt.xlabel('Win rate p')
+plt.ylabel('Density')
+plt.title('Bayesian Win Rate Estimation (Beta-Binomial)')
+plt.legend()
+plt.grid(alpha=0.3)
+plt.tight_layout()
+plt.savefig('win_rate_posterior.png', dpi=100)
+print("\\nPlot saved: win_rate_posterior.png")`,
+              explanation:
+                "Beta-Binomial conjugate pair for estimating a trading strategy's win rate. The Beta prior encodes our belief about p before seeing data. After observing w wins in n trades, the posterior is Beta(α₀+w, β₀+(n−w)) — we simply add counts to the prior pseudocounts. The posterior mean (α_post)/(α_post+β_post) shrinks the sample proportion toward the prior mean, with shrinkage decreasing as n grows. The 95% credible interval gives a direct probability statement: 'There's a 95% chance the true win rate lies in this range.' We also compute P(p>0.6|data) — a question frequentist methods cannot answer without additional assumptions.",
+            },
+            {
+              type: "code",
+              title: "Posterior Predictive Check: Model Validation",
+              language: "python",
+              code: `import numpy as np
+from scipy.stats import norm
+import matplotlib.pyplot as plt
+
+np.random.seed(42)
+
+# ── Observed data: EUR/USD daily returns ─────────────────────
+n_obs = 100
+true_mu = 0.0001
+true_sigma = 0.0080
+returns = np.random.normal(true_mu, true_sigma, n_obs)
+
+# ── Bayesian inference: Normal model with conjugate prior ────
+# Prior: μ ~ N(0, 0.005²), σ known (for simplicity)
+mu0 = 0.0
+tau0 = 0.005
+sigma = 0.008  # assume known (in practice, infer jointly)
+
+# Posterior for μ (conjugate Normal-Normal)
+tau_post_sq = 1 / (1/tau0**2 + n_obs/sigma**2)
+mu_post = tau_post_sq * (mu0/tau0**2 + returns.sum()/sigma**2)
+tau_post = np.sqrt(tau_post_sq)
+
+print(f"Posterior: μ ~ N({mu_post:.5f}, {tau_post:.5f})")
+
+# ── Posterior Predictive: p(ỹ|D) ─────────────────────────────
+# For each posterior sample of μ, generate data
+n_pred_samples = 1000
+mu_samples = np.random.normal(mu_post, tau_post, n_pred_samples)
+
+# Generate predicted returns (each from a different μ)
+y_pred = np.random.normal(mu_samples, sigma)
+
+# ── Posterior predictive checks ──────────────────────────────
+# Compare observed vs predicted distributions
+def test_statistic(y):
+    \"\"\"Example: mean absolute return.\"\"\"
+    return np.abs(y).mean()
+
+T_obs = test_statistic(returns)
+T_pred = np.array([test_statistic(np.random.normal(mu_samples, sigma, n_obs)) 
+                   for _ in range(1000)])
+
+p_value = (T_pred >= T_obs).mean()
+print(f"\\nPosterior predictive check:")
+print(f"  T(observed) = {T_obs:.5f}")
+print(f"  P(T(pred) ≥ T(obs)) = {p_value:.3f}")
+print(f"  → Model {'fits well' if 0.05 < p_value < 0.95 else 'may be misspecified'}")
+
+# Visualize observed vs posterior predictive distribution
+plt.figure(figsize=(10, 4))
+
+plt.subplot(1, 2, 1)
+plt.hist(returns, bins=20, alpha=0.5, label='Observed', density=True, color='blue')
+plt.hist(y_pred, bins=20, alpha=0.5, label='Post. pred. sample', density=True, color='red')
+plt.xlabel('Return')
+plt.ylabel('Density')
+plt.legend()
+plt.title('Observed vs Posterior Predictive')
+
+plt.subplot(1, 2, 2)
+plt.hist(T_pred, bins=30, alpha=0.7, color='gray', label='Predicted T')
+plt.axvline(T_obs, color='red', linewidth=2, label=f'Observed T={T_obs:.4f}')
+plt.xlabel('Test statistic T (mean abs return)')
+plt.ylabel('Frequency')
+plt.legend()
+plt.title('Posterior Predictive P-value')
+plt.tight_layout()
+plt.savefig('posterior_predictive_check.png', dpi=100)
+print("Plot saved: posterior_predictive_check.png")`,
+              explanation:
+                "Posterior predictive checks validate the model by comparing observed data to data simulated from the posterior predictive distribution p(ỹ|D). We compute a test statistic T (here, mean absolute return) on the observed data and on many datasets generated from p(ỹ|D). If T(observed) is an extreme outlier relative to T(predicted), the model is misspecified. A p-value near 0.5 means the observed data looks typical under the fitted model — good! This is more robust than simply checking 'does the posterior mean match the sample mean' because it validates the entire predictive distribution, including tails and higher moments.",
+            },
+            {
               type: "practice",
-              title: "Bayesian Regime Detection with PyMC",
+              title: "Bayesian Sharpe Ratio Estimation with Uncertainty",
               description:
-                "Use PyMC to build a Bayesian regime-switching model for EUR/USD daily returns. Define two latent states (trending, mean-reverting), each with its own μ and σ, plus a transition matrix. Sample the posterior with NUTS (No-U-Turn Sampler) and visualize the posterior probability of each regime over time. Compare with a frequentist HMM fit.",
+                "Use Bayesian inference to estimate the Sharpe ratio of a momentum strategy with full uncertainty quantification. Assume returns r_t ~ N(μ, σ²). Place priors μ ~ N(0, 0.01²), σ ~ HalfNormal(0.05). Use MCMC (or PyMC) to sample the posterior p(μ, σ | data). Compute the posterior distribution of Sharpe = (μ / σ) √252 and report the median, 95% credible interval, and P(Sharpe > 1.0). Compare against the frequentist point estimate and bootstrap CI.",
               catalogModelId: "bayesian-regression",
+              tasks: [
+                "Load 1 year of strategy returns (daily PnL)",
+                "Define Bayesian model: r ~ Normal(μ, σ), with priors μ ~ Normal(0, 0.01²), σ ~ HalfNormal(0.05)",
+                "Sample posterior using MCMC (4 chains, 2000 samples each, 500 burn-in)",
+                "Compute Sharpe = (μ/σ)√252 for each posterior sample",
+                "Report posterior median Sharpe, 95% credible interval, P(Sharpe>1), and visualize the Sharpe posterior distribution",
+                "Compare Bayesian credible interval to frequentist bootstrap 95% CI",
+              ],
             },
           ],
         },
@@ -519,6 +1587,24 @@ print(f"σ  posterior: μ={np.exp(posterior[:,2]).mean():.5f}")`,
               title: "Functions as Random Variables: The GP Framework",
               content:
                 "A Gaussian Process places a prior over functions: any finite collection of function values f(x₁), …, f(xₙ) is jointly Gaussian. The kernel k(xᵢ, xⱼ) specifies how correlated function values at different inputs are.\n\nGiven training inputs X and outputs y = f(X) + ε with noise variance σ²_n, the posterior predictive at test points x* is:\n\n  μ* = K(x*, X) [K(X, X) + σ²_n I]⁻¹ y\n  Σ* = K(x*, x*) − K(x*, X) [K(X, X) + σ²_n I]⁻¹ K(X, x*)\n\nThe RBF kernel k(x, x′) = σ² exp(−‖x − x′‖² / 2ℓ²) produces smooth functions; the length-scale ℓ controls how quickly correlations decay with distance. The Matérn kernel generalizes this with a roughness parameter ν — Matérn-3/2 and Matérn-5/2 are popular for financial data because they allow the function to be less smooth than RBF assumes.\n\nFor volatility surface modeling, kernels can be composed: a product of RBF (over moneyness) and Matérn (over time-to-expiry) captures different smoothness scales along each axis. Kernel hyperparameters are optimized by maximizing the log marginal likelihood log p(y|X, θ).",
+            },
+            {
+              type: "theory",
+              title: "Deriving the GP Posterior: Conditional Gaussian Identities",
+              content:
+                "The GP posterior follows from standard multivariate Gaussian conditioning. Suppose we have training data (X, y) and test inputs X*. The joint distribution is:\n  [y  ]   ~ 𝒩( [0],  [K(X,X) + σ²I    K(X,X*)  ] )\n  [f*]        [0]   [K(X*,X)        K(X*,X*) ]\n\nConditioning f* on y (Gaussian conditional formula):\n  f*|y ~ 𝒩(μ*, Σ*)  where:\n    μ* = K(X*,X)[K(X,X) + σ²I]⁻¹ y\n    Σ* = K(X*,X*) − K(X*,X)[K(X,X) + σ²I]⁻¹ K(X,X*)\n\nNumerical example (1D, 3 training points): x=[0, 1, 2], y=[0.5, 0.8, 0.6]. RBF kernel with ℓ=1, σ²=1, noise σ_n²=0.01. We want to predict at x*=1.5.\n\nK(X,X) = [[1.00, 0.61, 0.14],\n          [0.61, 1.00, 0.61],\n          [0.14, 0.61, 1.00]] + 0.01 I\n\nK(x*, X) = [0.78, 0.88, 0.78]\n\nSolving: [K+σ²I]⁻¹ y ≈ [0.46, 0.68, 0.53]\n\nμ*(1.5) = [0.78, 0.88, 0.78] · [0.46, 0.68, 0.53] ≈ 0.95 × 0.68 ≈ 0.65\n\nσ²*(1.5) = 1.0 − [0.78, 0.88, 0.78] [K+σ²I]⁻¹ [0.78, 0.88, 0.78]ᵀ ≈ 0.12  ⇒  σ* ≈ 0.35\n\nSo f*(1.5) ~ 𝒩(0.65, 0.35²). The prediction at 1.5 (midway between x=1 and x=2) interpolates smoothly, with uncertainty smaller than the prior σ²=1 but nonzero because we don't observe x=1.5 directly.",
+            },
+            {
+              type: "theory",
+              title: "Kernel Design: RBF vs Matérn vs Periodic for Financial Data",
+              content:
+                "Kernel choice encodes assumptions about the unknown function. The **RBF (squared exponential) kernel** k(x,x′) = σ² exp(−‖x−x′‖²/2ℓ²) is infinitely differentiable, producing very smooth functions. For forex prices, this is often unrealistic — market microstructure, news events, and liquidity gaps cause jumps and kinks.\n\nThe **Matérn kernel** k(x,x′) = σ² (2^{1-ν}/Γ(ν)) (√(2ν) r/ℓ)^ν K_ν(√(2ν) r/ℓ), where r=‖x−x′‖ and K_ν is a modified Bessel function, allows tunable smoothness via ν:\n  - ν = 1/2: Ornstein-Uhlenbeck process (roughest, not differentiable)\n  - ν = 3/2: Once differentiable (appropriate for returns, which have autocorrelated volatility)\n  - ν = 5/2: Twice differentiable (smooth but not unrealistically so)\n  - ν → ∞: Recovers RBF\n\nFor forex returns and volatility, Matérn-5/2 is empirically well-calibrated.\n\nThe **Periodic kernel** k(x,x′) = σ² exp(−2 sin²(π|x−x′|/p) / ℓ²) with period p captures repeating patterns. For intraday FX data with session effects (Tokyo, London, NY), use: k = Matérn(trend) × Periodic(daily_cycle) to model 'smooth daily drift modulated by intraday seasonality.'\n\nKernel hyperparameters (ℓ, σ², ν) are learned by maximizing log marginal likelihood: log p(y|X, θ) = −½ yᵀ K⁻¹ y − ½ log|K| − n/2 log 2π. This automatically trades off fit (first term) vs complexity (second term) without a validation set.",
+            },
+            {
+              type: "theory",
+              title: "Sparse GPs: Inducing Points for Scalability",
+              content:
+                "Standard GP regression has O(n³) training cost (matrix inversion) and O(n²) prediction cost, limiting it to n<5000. For forex tick data or multi-year daily datasets, this is prohibitive. **Sparse GP approximations** introduce M inducing points u at locations Z (M << n) and approximate:\n  p(f|X,y) ≈ ∫ p(f|u)p(u|X,y) du\n\nThe **FITC (Fully Independent Training Conditional)** approximation assumes training points are conditionally independent given u:\n  q(f|u) = ∏ᵢ p(fᵢ|u)\nThis reduces cost to O(M²n) training and O(M²) prediction. Inducing point locations Z can be learned jointly with kernel hyperparameters or initialized via k-means on X.\n\nNumerical trade-off: For EUR/USD with n=10,000 hourly observations, using M=500 inducing points gives 20× speedup with <5% loss in predictive accuracy (measured by log-likelihood on held-out data). The key is placing Z where the function is complex (high curvature regions) and spacing them more sparsely in flat regions.\n\n**SVGP (Stochastic Variational GP)** goes further, using minibatch SGD to scale to n>1M. This is essential for high-frequency data or multi-asset portfolios with joint GP models.",
             },
             {
               type: "intuition",
@@ -628,11 +1714,650 @@ print(f"\\n95% CI coverage: {coverage:.0%}")`,
               ],
             },
             {
+              type: "intuition",
+              title: "GP Uncertainty: A Built-In Risk Management Tool",
+              content:
+                "Unlike neural networks or boosted trees, which output a single prediction without error bars, GPs give you μ(x) ± σ(x) for free. This is invaluable in trading:\n\n**Out-of-sample detection**: If you ask a GP trained on EUR/USD returns in the range [−200bps, +150bps] to predict at an input corresponding to a +400bps move, σ(x) will be HUGE. The model says 'I have no idea — this is outside my training distribution.' A neural net would confidently extrapolate nonsense.\n\n**Adaptive position sizing**: If your GP volatility forecast has μ*=80bps with σ*=5bps (tight), you can size positions confidently. If σ*=40bps (wide uncertainty), reduce exposure — the model is unsure. Traditional point forecasts can't distinguish 'confident prediction of 80bps' from 'wild guess averaging 80bps.'\n\n**Bayesian optimization**: GPs power Bayesian hyperparameter tuning (covered in gen-bayesian-optimization). The uncertainty σ(x) tells you where to explore next — regions with high σ are underexplored and might contain better hyperparameters.\n\n**Calibration reality check**: If your GP predicts μ±2σ intervals and real prices fall outside them >10% of the time, your model is misspecified (wrong kernel, missing features, or non-stationary regime shift). This is immediate feedback that a pure point-prediction model can't provide.",
+              emoji: "📏",
+            },
+            {
+              type: "code",
+              title: "Multi-Output GP for Correlated FX Pairs",
+              language: "python",
+              code: `import numpy as np
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, WhiteKernel
+
+np.random.seed(42)
+
+# ── Simulate 2 correlated FX pairs (EUR/USD, GBP/USD) ─────────
+n = 80
+t = np.arange(n).reshape(-1, 1)
+
+# Latent factor (global risk-on/risk-off)
+factor = np.cumsum(np.random.randn(n)) * 0.002
+
+eur_usd = 1.08 + 0.6 * factor + np.random.normal(0, 0.001, n)
+gbp_usd = 1.25 + 0.5 * factor + np.random.normal(0, 0.0012, n)
+
+# ── Train separate GPs (independent, ignoring correlation) ───
+kernel = RBF(length_scale=10.0) + WhiteKernel(noise_level=1e-5)
+
+gp_eur = GaussianProcessRegressor(kernel=kernel)
+gp_gbp = GaussianProcessRegressor(kernel=kernel)
+
+gp_eur.fit(t[:60], eur_usd[:60])
+gp_gbp.fit(t[:60], gbp_usd[:60])
+
+t_test = t[60:]
+mu_eur, std_eur = gp_eur.predict(t_test, return_std=True)
+mu_gbp, std_gbp = gp_gbp.predict(t_test, return_std=True)
+
+print("=== Independent GPs (ignore correlation) ===")
+for i in range(len(t_test)):
+    print(f"Day {60+i}: EUR/USD={mu_eur[i]:.5f}±{std_eur[i]:.5f}  "
+          f"GBP/USD={mu_gbp[i]:.5f}±{std_gbp[i]:.5f}")
+
+# ── Better: Use a multi-output GP or copula-GP hybrid ────────
+# (For simplicity, we show the independent GP limitation here.
+#  True multi-output GP uses Intrinsic Coregionalization Model
+#  or LMC, available in GPy or gpytorch.)
+
+# Correlation of forecast errors
+err_eur = eur_usd[60:] - mu_eur
+err_gbp = gbp_usd[60:] - mu_gbp
+actual_corr = np.corrcoef(err_eur, err_gbp)[0,1]
+print(f"\\nActual error correlation: {actual_corr:.3f}")
+print("Independent GPs assume 0 correlation — underestimate joint risk!")
+
+# ── Quick fix: Empirical correlation adjustment ──────────────
+# Scale joint uncertainty by observed correlation
+joint_std = np.sqrt(std_eur**2 + std_gbp**2 + 2*actual_corr*std_eur*std_gbp)
+print(f"\\nCorrected joint uncertainty (EUR+GBP basket): {joint_std.mean():.5f}")`,
+              explanation:
+                "Independent GPs for correlated assets (EUR/USD, GBP/USD) underestimate portfolio risk because they ignore cross-asset correlation. A proper **multi-output GP** models outputs jointly via a cross-covariance kernel. This example trains separate GPs and shows the limitation: forecast errors are correlated (EUR and GBP both respond to USD strength), but the independent models treat them as independent. For multi-asset portfolios, use GP libraries like GPy or gpytorch that support Intrinsic Coregionalization Model (ICM) or Linear Model of Coregionalization (LMC) to capture cross-asset dependencies and get realistic portfolio-level uncertainty bands.",
+            },
+            {
               type: "practice",
-              title: "GP Volatility Surface Modeling",
+              title: "GP-Based Adaptive Trading with Uncertainty Thresholds",
               description:
-                "Build a 2D Gaussian Process to model the implied volatility surface of EUR/USD options. Use moneyness (strike/spot) and time-to-expiry as inputs. Experiment with product kernels: Matérn(moneyness) × RBF(expiry). Visualize the posterior mean surface and ±2σ uncertainty bands as a 3D plot. Compare GP-predicted IVs against market quotes.",
+                "Build a GP-based momentum strategy that only trades when forecast uncertainty is below a threshold. Train a GP to predict next-day EUR/USD returns using features: 5-day lagged returns, 10-day vol, RSI. At each time step, generate μ* ± σ*. Enter a long position if μ* > 0 AND σ* < threshold (e.g., 0.002). Otherwise, stay flat. Backtest with varying thresholds and plot: Sharpe ratio vs uncertainty threshold, number of trades vs threshold. Compare to a baseline that ignores σ* and always trades on sign(μ*).",
               catalogModelId: "gaussian-process",
+              tasks: [
+                "Train GP on rolling window of 200 days",
+                "Predict μ*, σ* for next day",
+                "Enter long if μ*>0 & σ*<threshold; short if μ*<0 & σ*<threshold; else flat",
+                "Sweep threshold ∈ [0.0005, 0.005] and record Sharpe, # trades, win rate",
+                "Plot Sharpe vs threshold — find optimal threshold that balances signal confidence and trade frequency",
+              ],
+            },
+          ],
+        },
+
+        // ── Lesson 3: MCMC & Bayesian Parameter Estimation ──────
+        {
+          id: "gen-mcmc-sampling",
+          title: "MCMC & Bayesian Parameter Estimation",
+          description:
+            "Master Markov Chain Monte Carlo methods — from Metropolis-Hastings to Hamiltonian Monte Carlo and NUTS — for estimating trading strategy parameters with full posterior uncertainty quantification.",
+          estimatedMinutes: 55,
+          difficulty: "advanced",
+          relatedModels: ["bayesian-regression"],
+          prerequisites: ["gen-bayesian"],
+          sections: [
+            {
+              type: "objective",
+              content:
+                "Understand MCMC theory (Metropolis-Hastings, HMC, NUTS), diagnose chain convergence with R̂ and ESS, implement Bayesian parameter estimation for forex strategy parameters, and interpret posterior predictive checks.",
+              keyTakeaways: [
+                "MCMC constructs a Markov chain whose stationary distribution is the posterior p(θ|D)",
+                "Metropolis-Hastings: propose θ* ~ q(θ*|θ), accept with probability min(1, p(θ*|D)q(θ|θ*) / p(θ|D)q(θ*|θ))",
+                "HMC uses gradient ∇θ log p(θ|D) to make informed proposals via Hamiltonian dynamics — much faster mixing",
+                "NUTS (No-U-Turn Sampler) automatically tunes HMC's trajectory length — the default in PyMC and Stan",
+                "Convergence diagnostics: R̂ < 1.01, ESS > 400, no divergences, visual trace plot stationarity",
+              ],
+            },
+            {
+              type: "theory",
+              title: "From Random Walks to Hamiltonian Dynamics",
+              content:
+                "When the posterior p(θ|D) ∝ p(D|θ)p(θ) lacks a closed-form solution — which is the case for most real trading models (regime-switching, stochastic volatility, non-linear signals) — **Markov Chain Monte Carlo** constructs a sequence of samples θ₁, θ₂, … whose empirical distribution converges to p(θ|D). **Metropolis-Hastings** proposes θ* from a proposal distribution q(θ*|θₜ) (often a Gaussian centered at θₜ) and accepts with probability α = min(1, [p(θ*|D) · q(θₜ|θ*)] / [p(θₜ|D) · q(θ*|θₜ)]). For symmetric proposals, α simplifies to the posterior ratio. The chain is guaranteed to converge to the target distribution under mild ergodicity conditions, but convergence can be glacially slow in high dimensions — the random walk mixes poorly when parameters are correlated.\n\n**Hamiltonian Monte Carlo (HMC)** addresses this by introducing auxiliary momentum variables p and simulating Hamiltonian dynamics on the joint distribution H(θ, p) = −log p(θ|D) + ½pᵀM⁻¹p. The leapfrog integrator alternates: p ← p − (ε/2)∇θ U(θ), θ ← θ + εM⁻¹p, p ← p − (ε/2)∇θ U(θ), for L steps. This proposes distant points in parameter space that are likely to have high posterior density, dramatically improving mixing. HMC requires tuning step size ε and trajectory length L — too short yields random-walk behavior, too long wastes computation. **NUTS** (Hoffman & Gelman, 2014) eliminates L by dynamically extending the trajectory until it starts doubling back (the 'no U-turn' criterion), and uses dual averaging to adapt ε during warmup. NUTS is the default sampler in PyMC, Stan, and NumPyro.\n\n**Convergence diagnostics**: Run M ≥ 4 independent chains. **R̂** (Gelman-Rubin) compares between-chain and within-chain variance — R̂ < 1.01 indicates convergence. **Effective Sample Size (ESS)** measures the number of independent samples after accounting for autocorrelation — ESS > 400 per chain is the minimum. **Divergences** (in HMC/NUTS) indicate the integrator failed to track the posterior geometry — often due to funnel-shaped posteriors requiring reparameterization. Posterior predictive checks simulate data from the fitted model and compare to observed data — the ultimate model validation.",
+            },
+            {
+              type: "intuition",
+              title: "Exploring Mountains Blindfolded",
+              analogy:
+                "Imagine you're dropped onto a mountain range blindfolded and tasked with mapping the peaks (high-probability regions of the posterior). Metropolis-Hastings is like taking random steps in any direction and staying put if you step downhill too far — you'll eventually map the peaks, but slowly. HMC gives you a pair of rocket boots: you push off (add momentum), glide along the surface following the terrain's slope (gradient ∇ log p), and only stop when you start coming back (NUTS criterion). The rocket boots let you traverse valleys between peaks effortlessly — crucial when parameters like mean and volatility are correlated.",
+              content:
+                "Convergence diagnostics are like having multiple blindfolded explorers start from different locations. If they all end up mapping the same peaks with the same frequencies (R̂ ≈ 1), you're confident the map is correct. If one explorer is stuck in a local valley (high R̂), the map is unreliable. Divergences are like the rocket boots malfunctioning on steep cliffs — you need to reparameterize (reshape the terrain) to make it navigable.",
+              emoji: "⛰️",
+            },
+            {
+              type: "code",
+              title: "Bayesian Volatility & Mean Estimation with PyMC",
+              language: "python",
+              code: `import numpy as np
+
+# ── Bayesian estimation of forex return parameters ───────────
+# We estimate mean μ, volatility σ, and degrees of freedom ν
+# of a Student-t model for EUR/USD daily returns using MCMC.
+
+np.random.seed(42)
+
+# Simulate 500 days of EUR/USD returns (Student-t with fat tails)
+true_mu = 0.0002      # small positive drift
+true_sigma = 0.0065   # ~65 bps daily vol
+true_nu = 5.0         # degrees of freedom (fat tails)
+n_obs = 500
+
+from scipy.stats import t as student_t
+returns = true_mu + true_sigma * student_t.rvs(df=true_nu, size=n_obs)
+
+# ── Manual Metropolis-Hastings (no external PPL required) ────
+def log_student_t_likelihood(data, mu, sigma, nu):
+    """Log-likelihood of Student-t distribution."""
+    from scipy.special import gammaln
+    z = (data - mu) / sigma
+    ll = (gammaln((nu + 1) / 2) - gammaln(nu / 2)
+          - 0.5 * np.log(nu * np.pi) - np.log(sigma)
+          - (nu + 1) / 2 * np.log(1 + z**2 / nu))
+    return ll.sum()
+
+def log_prior(mu, log_sigma, log_nu):
+    """Weakly informative priors: μ ~ N(0, 0.01), σ ~ LogNormal, ν ~ Exp."""
+    lp_mu = -0.5 * (mu / 0.01) ** 2
+    lp_sigma = -0.5 * (log_sigma + 5) ** 2  # log σ ~ N(-5, 1)
+    lp_nu = -np.exp(log_nu) / 30            # ν ~ Exp(1/30)
+    return lp_mu + lp_sigma + lp_nu
+
+def log_posterior(params, data):
+    mu, log_sigma, log_nu = params
+    sigma, nu = np.exp(log_sigma), np.exp(log_nu)
+    if sigma < 1e-8 or nu < 2.0:
+        return -np.inf
+    return log_student_t_likelihood(data, mu, sigma, nu) + log_prior(mu, log_sigma, log_nu)
+
+# ── Run 4 chains with different initializations ─────────────
+n_samples = 8000
+burn_in = 2000
+n_chains = 4
+proposal_scale = np.array([0.0005, 0.05, 0.1])
+all_chains = []
+
+for chain_id in range(n_chains):
+    current = np.array([
+        np.random.normal(0, 0.001),
+        np.log(0.005 + np.random.uniform(0, 0.005)),
+        np.log(3 + np.random.uniform(0, 10)),
+    ])
+    current_lp = log_posterior(current, returns)
+    samples = np.zeros((n_samples, 3))
+    accepted = 0
+
+    for i in range(n_samples):
+        proposal = current + proposal_scale * np.random.randn(3)
+        prop_lp = log_posterior(proposal, returns)
+        if np.log(np.random.rand()) < prop_lp - current_lp:
+            current, current_lp = proposal, prop_lp
+            accepted += 1
+        samples[i] = current
+
+    all_chains.append(samples[burn_in:])
+    print(f"Chain {chain_id+1}: acceptance rate = {accepted / n_samples:.1%}")
+
+# ── Convergence diagnostics ─────────────────────────────────
+def compute_rhat(chains):
+    """Gelman-Rubin R̂ diagnostic."""
+    M = len(chains)
+    N = len(chains[0])
+    chain_means = np.array([c.mean(axis=0) for c in chains])
+    grand_mean = chain_means.mean(axis=0)
+    B = N / (M - 1) * np.sum((chain_means - grand_mean) ** 2, axis=0)
+    W = np.mean([c.var(axis=0) for c in chains], axis=0)
+    var_hat = (1 - 1/N) * W + (1/N) * B
+    return np.sqrt(var_hat / W)
+
+def effective_sample_size(chain):
+    """Estimate ESS using autocorrelation."""
+    n = len(chain)
+    mean = chain.mean()
+    var = chain.var()
+    if var < 1e-12:
+        return n
+    autocorr = np.correlate(chain - mean, chain - mean, mode='full')[n-1:]
+    autocorr /= autocorr[0]
+    cutoff = np.argmax(autocorr < 0.05)
+    if cutoff == 0:
+        cutoff = 1
+    return n / (1 + 2 * autocorr[1:cutoff].sum())
+
+rhat = compute_rhat(all_chains)
+posterior = np.concatenate(all_chains)  # pool all chains
+
+param_names = ["μ", "log σ", "log ν"]
+true_vals = [true_mu, np.log(true_sigma), np.log(true_nu)]
+
+print(f"\\n{'Param':>8s} | {'True':>10s} | {'Post Mean':>10s} | {'95% CI':>24s} | {'R̂':>6s} | {'ESS':>6s}")
+print("-" * 80)
+for j, name in enumerate(param_names):
+    ci_lo, ci_hi = np.percentile(posterior[:, j], [2.5, 97.5])
+    ess = effective_sample_size(posterior[:, j])
+    print(f"{name:>8s} | {true_vals[j]:>+10.5f} | {posterior[:, j].mean():>+10.5f} | "
+          f"[{ci_lo:>+10.5f}, {ci_hi:>+10.5f}] | {rhat[j]:>6.3f} | {ess:>6.0f}")
+
+# Transform back to natural scale
+sigma_post = np.exp(posterior[:, 1])
+nu_post = np.exp(posterior[:, 2])
+print(f"\\nσ posterior: mean={sigma_post.mean():.5f}  (true={true_sigma:.5f})")
+print(f"ν posterior: mean={nu_post.mean():.2f}  (true={true_nu:.1f})")`,
+              explanation:
+                "Full Bayesian estimation of Student-t distribution parameters for forex returns using Metropolis-Hastings MCMC. We run 4 independent chains with different initializations and compute R̂ (Gelman-Rubin) convergence diagnostics and effective sample size (ESS). The model estimates drift μ, volatility σ, and tail thickness ν with full posterior uncertainty. Working in log-space for σ and ν ensures positivity. The 95% credible intervals capture the true parameter values, and R̂ ≈ 1.0 confirms convergence across chains.",
+            },
+            {
+              type: "quiz",
+              questions: [
+                {
+                  id: "gen-mcmc-q1",
+                  question: "Why does HMC mix much faster than Metropolis-Hastings in high-dimensional parameter spaces?",
+                  options: [
+                    { id: "gen-mcmc-q1-a", text: "HMC uses a smaller step size" },
+                    { id: "gen-mcmc-q1-b", text: "HMC uses gradient information ∇θ log p(θ|D) to make informed, long-range proposals that follow the posterior geometry instead of random walks" },
+                    { id: "gen-mcmc-q1-c", text: "HMC runs more chains in parallel" },
+                    { id: "gen-mcmc-q1-d", text: "HMC uses a conjugate prior that simplifies computation" },
+                  ],
+                  correctOptionId: "gen-mcmc-q1-b",
+                  explanation:
+                    "Metropolis-Hastings takes random steps, which in D dimensions leads to acceptance rates that decay exponentially and mixing times that grow polynomially. HMC simulates Hamiltonian dynamics using ∇θ log p, proposing distant points that remain on high-density contours. This makes exploration nearly independent of dimensionality — essential when estimating many correlated trading parameters.",
+                },
+                {
+                  id: "gen-mcmc-q2",
+                  question: "What does R̂ > 1.1 indicate about MCMC chains?",
+                  options: [
+                    { id: "gen-mcmc-q2-a", text: "The chains have converged to the posterior distribution" },
+                    { id: "gen-mcmc-q2-b", text: "The between-chain variance exceeds within-chain variance, indicating chains haven't mixed — they may be stuck in different modes" },
+                    { id: "gen-mcmc-q2-c", text: "The model has too many parameters" },
+                    { id: "gen-mcmc-q2-d", text: "The prior is too informative" },
+                  ],
+                  correctOptionId: "gen-mcmc-q2-b",
+                  explanation:
+                    "R̂ compares between-chain variance B to within-chain variance W. When R̂ ≈ 1, chains agree — they've converged to the same distribution. R̂ > 1.1 means chains are exploring different regions, suggesting insufficient burn-in, poor initialization, or multi-modality. Run longer, use more warmup, or reparameterize the model.",
+                },
+                {
+                  id: "gen-mcmc-q3",
+                  question: "When should you use informative priors vs uninformative (flat) priors in a trading context?",
+                  options: [
+                    { id: "gen-mcmc-q3-a", text: "Always use uninformative priors to let the data speak" },
+                    { id: "gen-mcmc-q3-b", text: "Use informative priors when you have domain knowledge (e.g., Sharpe ratios are typically < 3, daily vol is 50-150 bps for majors) to regularize estimation with limited data" },
+                    { id: "gen-mcmc-q3-c", text: "Use informative priors only when the dataset has more than 10,000 samples" },
+                    { id: "gen-mcmc-q3-d", text: "Informative priors should never be used because they introduce bias" },
+                  ],
+                  correctOptionId: "gen-mcmc-q3-b",
+                  explanation:
+                    "In trading, data is limited (a few years of daily data ≈ 500-750 points) and parameters are inherently constrained by market reality. Informative priors encode this domain knowledge: daily forex vol is 30-150 bps, mean returns are near zero, half-lives of mean reversion are 1-60 days. These priors regularize estimation and prevent overfitting to noise while being transparent about assumptions.",
+                },
+              ],
+            },
+            {
+              type: "code",
+              title: "Diagnosing MCMC Convergence: Trace Plots and R̂",
+              language: "python",
+              code: `import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(42)
+
+# ── Run 4 independent chains ─────────────────────────────────
+def log_posterior(theta):
+    \"\"\"Toy bimodal posterior (two Gaussians).\"\"\"
+    mode1 = -0.5 * ((theta - 2.0) ** 2) / 0.5**2
+    mode2 = -0.5 * ((theta + 2.0) ** 2) / 0.7**2
+    return np.logaddexp(mode1, mode2)  # log(exp(mode1) + exp(mode2))
+
+def metropolis_chain(n_samples, init):
+    samples = np.zeros(n_samples)
+    current = init
+    current_lp = log_posterior(current)
+    for i in range(n_samples):
+        proposal = current + np.random.randn() * 0.8
+        prop_lp = log_posterior(proposal)
+        if np.log(np.random.rand()) < prop_lp - current_lp:
+            current, current_lp = proposal, prop_lp
+        samples[i] = current
+    return samples
+
+n_samples = 5000
+n_chains = 4
+chains = [metropolis_chain(n_samples, init=np.random.randn()*5) for _ in range(n_chains)]
+
+# ── Trace plots ──────────────────────────────────────────────
+fig, axes = plt.subplots(2, 1, figsize=(10, 6))
+for i, chain in enumerate(chains):
+    axes[0].plot(chain, alpha=0.7, label=f'Chain {i+1}')
+axes[0].set_ylabel('θ')
+axes[0].set_title('Trace Plot (all chains)')
+axes[0].legend()
+axes[0].grid(alpha=0.3)
+
+# Histogram
+for chain in chains:
+    axes[1].hist(chain[1000:], bins=50, alpha=0.5, density=True)
+axes[1].set_xlabel('θ')
+axes[1].set_ylabel('Density')
+axes[1].set_title('Posterior Distribution (after burn-in)')
+axes[1].grid(alpha=0.3)
+plt.tight_layout()
+plt.savefig('mcmc_trace.png', dpi=100)
+print("Trace plot saved: mcmc_trace.png")
+
+# ── Compute R̂ (Gelman-Rubin diagnostic) ──────────────────────
+def compute_rhat(chains, burn_in=1000):
+    chains_post = [c[burn_in:] for c in chains]
+    M = len(chains_post)
+    N = len(chains_post[0])
+    chain_means = np.array([c.mean() for c in chains_post])
+    grand_mean = chain_means.mean()
+    B = N / (M - 1) * ((chain_means - grand_mean) ** 2).sum()
+    W = np.mean([c.var() for c in chains_post])
+    var_hat = (1 - 1/N) * W + (1/N) * B
+    rhat = np.sqrt(var_hat / W)
+    return rhat
+
+rhat = compute_rhat(chains, burn_in=1000)
+print(f"\\nGelman-Rubin R̂: {rhat:.4f}")
+if rhat < 1.01:
+    print("✓ Chains have converged (R̂ < 1.01)")
+elif rhat < 1.1:
+    print("⚠ Marginal convergence (1.01 < R̂ < 1.1) — consider longer burn-in")
+else:
+    print("✗ Chains have NOT converged (R̂ > 1.1) — run longer or reparameterize")`,
+              explanation:
+                "Complete MCMC diagnostics workflow. We run 4 independent Metropolis-Hastings chains on a bimodal toy posterior. Trace plots show whether chains are stationary (horizontal scatter) or still exploring (trending up/down). If chains start from different initializations and converge to the same distribution, that's evidence of convergence. The Gelman-Rubin R̂ statistic compares between-chain variance to within-chain variance — R̂ ≈ 1 means chains have mixed well. R̂ > 1.1 indicates non-convergence (chains stuck in different modes or insufficient burn-in). Always run multiple chains and check R̂ before trusting posterior summaries!",
+            },
+            {
+              type: "practice",
+              title: "Hierarchical Bayesian Model for Multi-Asset Volatility",
+              description:
+                "Build a hierarchical model for daily volatility across 5 FX pairs (EUR/USD, GBP/USD, USD/JPY, AUD/USD, NZD/USD). Assume each pair i has volatility σᵢ ~ HalfNormal(μ_σ, τ_σ), where the hyperparameters μ_σ, τ_σ are themselves inferred from data (hierarchical prior). Use MCMC to sample the full posterior p(σ₁,...,σ₅, μ_σ, τ_σ | returns). Hierarchical models 'borrow strength' across pairs — volatility estimates for low-liquidity pairs (NZD) benefit from data on high-liquidity pairs (EUR). Compare posterior vol estimates to sample standard deviations and show shrinkage toward the common mean.",
+              catalogModelId: "bayesian-regression",
+              tasks: [
+                "Load 1 year of daily returns for 5 FX pairs",
+                "Define hierarchical model: r_{i,t} ~ N(0, σᵢ²), σᵢ ~ HalfNormal(μ_σ, τ_σ)",
+                "Place hyperpriors: μ_σ ~ HalfNormal(0.01), τ_σ ~ HalfNormal(0.005)",
+                "Sample posterior with NUTS (4 chains × 2000 samples)",
+                "Compare σᵢ posterior means to sample std devs — observe shrinkage for volatile pairs",
+                "Plot posterior densities of all σᵢ on one axis to visualize cross-pair information sharing",
+              ],
+            },
+          ],
+        },
+
+        // ── Lesson 4: Bayesian Optimization ─────────────────────
+        {
+          id: "gen-bayesian-optimization",
+          title: "Bayesian Optimization for Hyperparameters",
+          description:
+            "Replace grid search and random search with intelligent, sample-efficient Bayesian optimization — using Gaussian Process surrogates and acquisition functions to tune trading model hyperparameters in fewer iterations.",
+          estimatedMinutes: 50,
+          difficulty: "advanced",
+          relatedModels: ["gaussian-process"],
+          prerequisites: ["gen-gp"],
+          sections: [
+            {
+              type: "objective",
+              content:
+                "Understand surrogate-based optimization with Gaussian Processes, implement acquisition functions (EI, UCB, PI), and use Optuna's TPE sampler to efficiently tune trading model hyperparameters — achieving better results in fewer evaluations than random search.",
+              keyTakeaways: [
+                "Bayesian optimization models the objective f(x) with a surrogate (GP or TPE) and selects the next query point by maximizing an acquisition function",
+                "Expected Improvement: EI(x) = 𝔼[max(f(x) − f_best, 0)] — balances exploitation near the current best and exploration in uncertain regions",
+                "UCB (Upper Confidence Bound): μ(x) + κσ(x) — direct control over explore/exploit via κ",
+                "TPE (Tree-structured Parzen Estimator) models p(x|y < y*) and p(x|y ≥ y*) — scales better to high dimensions than GP",
+                "Bayesian optimization achieves near-optimal hyperparameters in 50-100 evaluations vs 1000+ for random search",
+              ],
+            },
+            {
+              type: "theory",
+              title: "Surrogate Models & Acquisition Functions",
+              content:
+                "Hyperparameter optimization (HPO) for trading models is expensive: each evaluation requires a full backtest (minutes to hours). **Bayesian Optimization (BO)** minimizes the number of evaluations by building a cheap-to-evaluate surrogate model of the objective function f(x) (e.g., Sharpe ratio as a function of hyperparameters x) and using it to decide where to evaluate next.\n\nThe standard BO loop is: (1) Fit a **Gaussian Process** surrogate to observed {(xᵢ, yᵢ)} pairs, yielding posterior μ(x) and σ(x). (2) Maximize an **acquisition function** α(x) to select xₙₑₓₜ = argmax α(x). (3) Evaluate yₙₑₓₜ = f(xₙₑₓₜ). (4) Update the GP and repeat. The acquisition function encodes the explore-exploit tradeoff: **Expected Improvement** EI(x) = (μ(x) − f_best) Φ(Z) + σ(x) φ(Z), where Z = (μ(x) − f_best) / σ(x) and Φ, φ are the standard normal CDF/PDF. EI is zero where the surrogate predicts f < f_best with high confidence (no improvement expected), high where μ is large (exploitation), and high where σ is large (exploration). **UCB**: α(x) = μ(x) + κσ(x) directly sums predicted value and uncertainty with tunable κ. **Probability of Improvement**: PI(x) = Φ(Z) — aggressive exploitation, useful late in optimization.\n\nGP-based BO scales as O(n³) with observations, limiting it to ~1000 evaluations. **Optuna's TPE** (Tree-structured Parzen Estimator) is a Bayesian alternative: it models p(x|y < y*) and p(x|y ≥ y*) as kernel density estimates and selects x maximizing p(x|y < y*) / p(x|y ≥ y*) — the ratio of 'good' to 'bad' parameter density. TPE handles conditional, categorical, and high-dimensional hyperparameters better than GPs and is the go-to method for tuning XGBoost, neural network, and RL agent hyperparameters in trading pipelines. **Multi-fidelity** methods like Hyperband run cheap, truncated evaluations first and allocate more budget to promising configurations — combining with TPE gives ASHA (Asynchronous Successive Halving), Optuna's default pruner.",
+            },
+            {
+              type: "intuition",
+              title: "The Smart Treasure Hunt",
+              analogy:
+                "Imagine you're searching for buried treasure (optimal hyperparameters) on a beach. Grid search digs holes in a rigid grid — most holes find nothing. Random search digs randomly — better coverage but still wasteful. Bayesian optimization is smarter: after each dig, you update a treasure map (GP surrogate) that predicts where gold is likely buried. The acquisition function tells you where to dig next: near promising spots (exploitation) or in unexplored areas (exploration). After just 50 holes, you've found the treasure that grid search needed 1000 holes to locate.",
+              content:
+                "The GP's uncertainty σ(x) is crucial: it's high in unexplored regions and low where you've already dug. EI naturally decreases σ by exploring, while also chasing high μ. TPE is like having two teams of analysts: one studies what made past good configurations good (p(x|y < y*)), and the other studies what made bad ones bad. You dig where the first team's map is dense but the second team's map is sparse — maximizing the odds of a new discovery.",
+              emoji: "🗺️",
+            },
+            {
+              type: "code",
+              title: "Optuna TPE & GP-Based HPO for XGBoost Forex Prediction",
+              language: "python",
+              code: `import numpy as np
+import optuna
+from sklearn.model_selection import TimeSeriesSplit
+
+# Suppress Optuna info logging for clean output
+optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+# ── Simulate forex features and target ───────────────────────
+np.random.seed(42)
+n_samples = 2000
+n_features = 15
+
+# Features: lagged returns, volatility, momentum, etc.
+X = np.random.randn(n_samples, n_features).astype(np.float32)
+# Target: next-day return direction (binary)
+true_weights = np.random.randn(n_features) * 0.1
+signal = X @ true_weights + np.random.normal(0, 0.5, n_samples)
+y = (signal > 0).astype(int)
+
+# ── Objective function: time-series CV Sharpe ratio ──────────
+def objective(trial):
+    """Optuna objective: tune XGBoost with time-series cross-validation."""
+    import xgboost as xgb
+
+    params = {
+        "max_depth": trial.suggest_int("max_depth", 2, 8),
+        "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
+        "n_estimators": trial.suggest_int("n_estimators", 50, 500),
+        "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
+        "subsample": trial.suggest_float("subsample", 0.5, 1.0),
+        "colsample_bytree": trial.suggest_float("colsample_bytree", 0.3, 1.0),
+        "reg_alpha": trial.suggest_float("reg_alpha", 1e-4, 10.0, log=True),
+        "reg_lambda": trial.suggest_float("reg_lambda", 1e-4, 10.0, log=True),
+        "gamma": trial.suggest_float("gamma", 0.0, 5.0),
+    }
+
+    # Time-series cross-validation (no shuffling!)
+    tscv = TimeSeriesSplit(n_splits=3)
+    sharpes = []
+
+    for train_idx, val_idx in tscv.split(X):
+        model = xgb.XGBClassifier(**params, use_label_encoder=False,
+                                   eval_metric="logloss", verbosity=0)
+        model.fit(X[train_idx], y[train_idx])
+        proba = model.predict_proba(X[val_idx])[:, 1]
+
+        # Convert predictions to trading signals and compute Sharpe
+        positions = (proba - 0.5) * 2  # continuous [-1, 1]
+        sim_returns = positions * np.random.randn(len(val_idx)) * 0.008
+        if sim_returns.std() > 0:
+            sharpe = sim_returns.mean() / sim_returns.std() * np.sqrt(252)
+        else:
+            sharpe = 0.0
+        sharpes.append(sharpe)
+
+        # Optuna pruning: stop early if intermediate result is poor
+        trial.report(np.mean(sharpes), step=len(sharpes))
+        if trial.should_prune():
+            raise optuna.TrialPruned()
+
+    return np.mean(sharpes)
+
+# ── TPE-based Bayesian Optimization ──────────────────────────
+print("=== TPE (Tree-Structured Parzen Estimator) ===")
+tpe_study = optuna.create_study(
+    direction="maximize",
+    sampler=optuna.samplers.TPESampler(seed=42),
+    pruner=optuna.pruners.MedianPruner(n_warmup_steps=1),
+)
+tpe_study.optimize(objective, n_trials=50, show_progress_bar=False)
+
+print(f"Best Sharpe (TPE, 50 trials): {tpe_study.best_value:+.4f}")
+print(f"Best params: { {k: round(v, 4) if isinstance(v, float) else v for k, v in tpe_study.best_params.items()} }")
+
+# ── Random Search baseline ───────────────────────────────────
+print("\\n=== Random Search Baseline ===")
+random_study = optuna.create_study(
+    direction="maximize",
+    sampler=optuna.samplers.RandomSampler(seed=42),
+)
+random_study.optimize(objective, n_trials=50, show_progress_bar=False)
+
+print(f"Best Sharpe (Random, 50 trials): {random_study.best_value:+.4f}")
+
+# ── Compare convergence ─────────────────────────────────────
+tpe_best_so_far = np.maximum.accumulate([t.value for t in tpe_study.trials if t.value is not None])
+rand_best_so_far = np.maximum.accumulate([t.value for t in random_study.trials if t.value is not None])
+
+print(f"\\nConvergence comparison (best Sharpe found by trial N):")
+for n in [10, 20, 30, 50]:
+    tpe_val = tpe_best_so_far[min(n-1, len(tpe_best_so_far)-1)]
+    rand_val = rand_best_so_far[min(n-1, len(rand_best_so_far)-1)]
+    print(f"  Trial {n:3d}: TPE={tpe_val:+.4f}  Random={rand_val:+.4f}  "
+          f"Δ={tpe_val - rand_val:+.4f}")
+
+print(f"\\nTPE found better config in {len(tpe_study.trials)} trials "
+      f"vs random search in {len(random_study.trials)} trials.")`,
+              explanation:
+                "Complete Bayesian hyperparameter optimization pipeline: (1) Define an XGBoost objective with 9 hyperparameters tuned via Optuna's suggest API. (2) Use time-series cross-validation (not random split!) to compute Sharpe ratio as the objective. (3) Compare TPE (Bayesian) vs random search over 50 trials. TPE builds kernel density estimates of 'good' vs 'bad' parameter regions and samples proportionally, typically finding better hyperparameters 2-3x faster than random search. Optuna's pruner stops unpromising trials early, further saving compute.",
+            },
+            {
+              type: "quiz",
+              questions: [
+                {
+                  id: "gen-bo-q1",
+                  question: "Why does Bayesian optimization outperform random search for hyperparameter tuning?",
+                  options: [
+                    { id: "gen-bo-q1-a", text: "It uses a larger search space" },
+                    { id: "gen-bo-q1-b", text: "It builds a surrogate model of the objective and queries points with the highest expected improvement, learning from past evaluations instead of ignoring them" },
+                    { id: "gen-bo-q1-c", text: "It always finds the global optimum" },
+                    { id: "gen-bo-q1-d", text: "It requires fewer hyperparameters to tune" },
+                  ],
+                  correctOptionId: "gen-bo-q1-b",
+                  explanation:
+                    "Random search draws configurations independently — it doesn't learn from past results. BO builds a surrogate (GP or TPE) that models how the objective varies with hyperparameters, then uses this model to select the most informative next evaluation. This sequential, informed approach typically matches random search's best result in 3-5x fewer evaluations.",
+                },
+                {
+                  id: "gen-bo-q2",
+                  question: "What is the tradeoff between Expected Improvement (EI) and Upper Confidence Bound (UCB) acquisition functions?",
+                  options: [
+                    { id: "gen-bo-q2-a", text: "EI is faster to compute than UCB" },
+                    { id: "gen-bo-q2-b", text: "EI automatically balances explore/exploit via the improvement threshold; UCB provides explicit control via the κ parameter but requires tuning" },
+                    { id: "gen-bo-q2-c", text: "UCB always finds better optima than EI" },
+                    { id: "gen-bo-q2-d", text: "EI only works with Gaussian Processes while UCB works with any surrogate" },
+                  ],
+                  correctOptionId: "gen-bo-q2-b",
+                  explanation:
+                    "EI naturally balances exploration (high σ regions) and exploitation (high μ regions) through the integral over possible improvements. UCB uses α(x) = μ(x) + κσ(x) where κ explicitly controls the tradeoff — higher κ means more exploration. EI is plug-and-play; UCB is more flexible but requires choosing κ appropriately.",
+                },
+                {
+                  id: "gen-bo-q3",
+                  question: "When should you use TPE (Optuna) instead of GP-based Bayesian optimization?",
+                  options: [
+                    { id: "gen-bo-q3-a", text: "When you have fewer than 10 hyperparameters and need exact posterior uncertainty" },
+                    { id: "gen-bo-q3-b", text: "When the search space includes conditional, categorical, or high-dimensional hyperparameters where GP covariance structure is difficult to define" },
+                    { id: "gen-bo-q3-c", text: "When the objective function is convex" },
+                    { id: "gen-bo-q3-d", text: "When you want to minimize the number of trials" },
+                  ],
+                  correctOptionId: "gen-bo-q3-b",
+                  explanation:
+                    "GPs model correlations via kernels designed for continuous spaces and scale as O(n³) with observations. TPE models 'good' and 'bad' parameter densities independently, naturally handling categorical variables (optimizer type), conditional parameters (layers only if architecture = 'deep'), and 20+ dimensions. For most ML/trading HPO with mixed types, TPE is the practical default.",
+                },
+              ],
+            },
+            {
+              type: "code",
+              title: "Custom Acquisition Function: Expected Improvement from Scratch",
+              language: "python",
+              code: `import numpy as np
+from scipy.stats import norm
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import Matern
+
+np.random.seed(42)
+
+# ── Toy objective: Sharpe ratio as f(lookback_window, signal_threshold) ──
+def sharpe_objective(lookback, threshold):
+    \"\"\"Simulated Sharpe — in reality this would run a backtest.\"\"\"
+    # Toy landscape with a peak around (20, 0.5)
+    return -((lookback - 20)**2 / 100 + (threshold - 0.5)**2 * 10) + 2.5 + np.random.randn()*0.1
+
+# ── GP Surrogate ─────────────────────────────────────────────
+X_obs = np.array([[10, 0.3], [30, 0.7], [15, 0.5], [25, 0.4]])
+y_obs = np.array([sharpe_objective(*x) for x in X_obs])
+
+gp = GaussianProcessRegressor(kernel=Matern(nu=2.5), n_restarts_optimizer=5)
+gp.fit(X_obs, y_obs)
+
+# ── Expected Improvement Acquisition Function ────────────────
+def expected_improvement(X, gp, y_best, xi=0.01):
+    \"\"\"EI(x) = E[max(f(x) - f_best, 0)]\"\"\"
+    mu, sigma = gp.predict(X, return_std=True)
+    sigma = sigma.reshape(-1, 1)
+    
+    imp = mu - y_best - xi
+    Z = imp / (sigma + 1e-9)
+    ei = imp * norm.cdf(Z) + sigma * norm.pdf(Z)
+    ei[sigma == 0.0] = 0.0
+    return ei.ravel()
+
+# ── Bayesian Optimization Loop ──────────────────────────────
+y_best = y_obs.max()
+print(f"Initial best Sharpe: {y_best:.3f} at {X_obs[y_obs.argmax()]}")
+
+for iteration in range(10):
+    # Grid search over acquisition function
+    lookback_grid = np.linspace(5, 40, 50)
+    threshold_grid = np.linspace(0.1, 0.9, 50)
+    X_grid = np.array([[lb, th] for lb in lookback_grid for th in threshold_grid])
+    
+    ei_values = expected_improvement(X_grid, gp, y_best)
+    x_next = X_grid[ei_values.argmax()]
+    
+    # Evaluate objective at new point
+    y_next = sharpe_objective(*x_next)
+    
+    # Update GP
+    X_obs = np.vstack([X_obs, x_next])
+    y_obs = np.append(y_obs, y_next)
+    gp.fit(X_obs, y_obs)
+    
+    if y_next > y_best:
+        y_best = y_next
+        print(f"Iter {iteration+1}: NEW BEST Sharpe={y_best:.3f} at lookback={x_next[0]:.1f}, threshold={x_next[1]:.2f}")
+    else:
+        print(f"Iter {iteration+1}: Sharpe={y_next:.3f} at lookback={x_next[0]:.1f}, threshold={x_next[1]:.2f}")
+
+print(f"\\nFinal best: Sharpe={y_best:.3f} found in {len(y_obs)} evaluations")`,
+              explanation:
+                "Complete Bayesian optimization from scratch using a GP surrogate and Expected Improvement acquisition function. EI(x) = E[max(f(x)−f_best, 0)] balances exploitation (high μ) and exploration (high σ). We evaluate EI on a grid and query the point with maximum EI. After each evaluation, we update the GP and repeat. This converges to near-optimal hyperparameters in ~10-20 evaluations vs 100s for random search. The xi parameter (default 0.01) adds a small exploration bonus — larger xi encourages more exploration early on. For production, use Optuna or Ax instead of coding from scratch, but understanding the EI derivation is crucial for debugging and customizing acquisition strategies.",
+            },
+            {
+              type: "practice",
+              title: "Multi-Objective BO: Sharpe vs Max Drawdown Pareto Front",
+              description:
+                "Many trading strategies have conflicting objectives: maximize Sharpe ratio while minimizing maximum drawdown. Use multi-objective Bayesian optimization (Optuna supports this via TPE) to find the Pareto frontier of hyperparameter configurations. Tune a momentum strategy with 4 hyperparameters (lookback, signal threshold, stop-loss %, position sizing). Define two objectives: f1 = Sharpe ratio (maximize), f2 = max drawdown % (minimize). Run 200 trials and visualize the Pareto front (Sharpe vs drawdown). Identify 'knee point' configurations offering the best Sharpe-drawdown tradeoff.",
+              catalogModelId: "gaussian-process",
+              tasks: [
+                "Define multi-objective study in Optuna: study = optuna.create_study(directions=['maximize', 'minimize'])",
+                "Implement objective function returning (sharpe, max_dd_pct)",
+                "Run 200 trials with TPE sampler",
+                "Extract Pareto-optimal trials: study.best_trials",
+                "Plot Sharpe vs max_dd scatter, highlight Pareto front",
+                "Identify knee point using distance-to-utopia metric: argmax(sharpe − α·max_dd)",
+              ],
             },
           ],
         },

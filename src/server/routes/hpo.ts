@@ -239,7 +239,7 @@ export default router;
 
 router.delete("/hpo/trial/:id", async (req: Request, res: Response) => {
   try {
-    const trialId = parseInt(req.params.id);
+    const trialId = parseInt(req.params.id as string);
     if (isNaN(trialId)) {
       return res.status(400).json({ error: "Invalid trial ID" });
     }
@@ -251,9 +251,7 @@ router.delete("/hpo/trial/:id", async (req: Request, res: Response) => {
 
     const [trial] = await db.update(hpoTrials)
       .set({ 
-        status: "stopped",
-        updatedAt: new Date()
-      })
+        status: "stopped"})
       .where(eq(hpoTrials.id, trialId))
       .returning();
 

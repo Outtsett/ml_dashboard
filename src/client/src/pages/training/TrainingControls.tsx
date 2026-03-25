@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export function TrainingControls() {
   const [running, setRunning] = useState(false);
@@ -47,28 +48,47 @@ export function TrainingControls() {
       <h1 className="text-base font-mono font-semibold">Training</h1>
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${running ? "bg-emerald-500 animate-pulse" : "bg-neutral-500"}`} />
+          <motion.div 
+            className={`w-2 h-2 rounded-full ${running ? "bg-emerald-500" : "bg-neutral-500"}`}
+            animate={running ? { 
+              scale: [1, 1.3, 1],
+              boxShadow: ["0 0 0px rgba(16,185,129,0)", "0 0 8px rgba(16,185,129,0.6)", "0 0 0px rgba(16,185,129,0)"]
+            } : {}}
+            transition={running ? { duration: 2, repeat: Infinity, ease: "easeInOut" } : {}}
+          />
           <span className="text-xs font-mono text-muted-foreground">
             {running ? `PID ${pid}` : "Idle"}
           </span>
         </div>
-        {running ? (
-          <button
-            onClick={stop}
-            disabled={loading}
-            className="px-3 py-1 text-xs font-mono bg-red-600/80 text-white rounded hover:bg-red-600 disabled:opacity-50 transition-colors"
-          >
-            Stop
-          </button>
-        ) : (
-          <button
-            onClick={start}
-            disabled={loading}
-            className="px-3 py-1 text-xs font-mono bg-emerald-600/80 text-white rounded hover:bg-emerald-600 disabled:opacity-50 transition-colors"
-          >
-            Start Training
-          </button>
-        )}
+        <AnimatePresence mode="wait">
+          {running ? (
+            <motion.button
+              key="stop"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.2 }}
+              onClick={stop}
+              disabled={loading}
+              className="px-3 py-1 text-xs font-mono bg-red-600/80 text-white rounded hover:bg-red-600 disabled:opacity-50 transition-colors"
+            >
+              Stop
+            </motion.button>
+          ) : (
+            <motion.button
+              key="start"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.2 }}
+              onClick={start}
+              disabled={loading}
+              className="px-3 py-1 text-xs font-mono bg-emerald-600/80 text-white rounded hover:bg-emerald-600 disabled:opacity-50 transition-colors"
+            >
+              Start Training
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

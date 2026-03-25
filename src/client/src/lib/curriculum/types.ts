@@ -131,6 +131,7 @@ export interface LessonProgress {
   status: LessonStatus;
   score?: number;
   completedAt?: number;
+  timeSpentMs?: number;
 }
 
 export interface PathProgress {
@@ -150,4 +151,13 @@ export interface CurriculumStats {
   completedLessons: number;
   averageScore: number;
   streakDays: number;
+}
+
+export interface CurriculumBookmark {
+  id: number;
+  userId: string;
+  lessonId: string;
+  note: string | null;
+  createdAt: Date | number;
+  updatedAt: Date | number;
 }

@@ -1,10 +1,11 @@
 import { useState, useCallback, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { CurriculumOverview } from "@/components/curriculum/CurriculumOverview";
 import { LearningPathView } from "@/components/curriculum/LearningPathView";
 import { LessonViewer } from "@/components/curriculum/LessonViewer";
 import { useCurriculumProgress, usePathProgress, useUpdateProgress } from "@/hooks/useCurriculum";
 import { allPaths } from "@/lib/curriculum/paths";
-import type { LessonProgress } from "@/lib/curriculum/types";
+import type { LessonProgress, Lesson } from "@/lib/curriculum/types";
 
 type CurriculumView =
   | { kind: "overview" }
@@ -21,13 +22,48 @@ export default function Curriculum() {
     setView({ kind: "path", pathId });
   }, []);
 
+  const handleSearchSelectLesson = useCallback((pathId: string, lessonId: string) => {
+    setView({ kind: "lesson", pathId, lessonId });
+  }, []);
+
   const handleSelectLesson = useCallback(
     (lessonId: string) => {
-      if (view.kind === "path") {
-        setView({ kind: "lesson", pathId: view.pathId, lessonId });
+      if (view.kind !== "path") return;
+
+      // Find the lesson to check prerequisites
+      const path = allPaths.find((p) => p.id === view.pathId);
+      if (!path) return;
+      let lesson: Lesson | undefined;
+      for (const mod of path.modules) {
+        lesson = mod.lessons.find((l) => l.id === lessonId);
+        if (lesson) break;
       }
+      if (!lesson) return;
+
+      // Guard: block navigation if prerequisites are unmet (unless user confirms)
+      if (lesson.prerequisites?.length) {
+        const progressMap = new Map(progress.map((p) => [p.lessonId, p]));
+        const unmet = lesson.prerequisites.filter(
+          (id) => progressMap.get(id)?.status !== "completed"
+        );
+        if (unmet.length > 0) {
+          const lessonMap = new Map<string, Lesson>();
+          for (const m of path.modules)
+            for (const l of m.lessons) lessonMap.set(l.id, l);
+          const names = unmet.map((id) => lessonMap.get(id)?.title ?? id);
+          if (
+            !window.confirm(
+              `This lesson has unmet prerequisites.\n\nComplete ${names.map((t) => `'${t}'`).join(", ")} first.\n\nContinue anyway?`
+            )
+          ) {
+            return;
+          }
+        }
+      }
+
+      setView({ kind: "lesson", pathId: view.pathId, lessonId });
     },
-    [view]
+    [view, progress]
   );
 
   const handleBack = useCallback(() => {
@@ -79,41 +115,100 @@ export default function Curriculum() {
     return progress.filter((p) => pathLessonIds.has(p.lessonId));
   }, [currentPath, progress]);
 
+  // Flat ordered lesson list for prev/next navigation
+  const flatLessons = useMemo(() => {
+    if (!currentPath) return [];
+    return currentPath.modules.flatMap((m) => m.lessons);
+  }, [currentPath]);
+
+  const { prevLesson, nextLesson } = useMemo(() => {
+    if (view.kind !== "lesson" || flatLessons.length === 0) {
+      return { prevLesson: undefined, nextLesson: undefined };
+    }
+    const idx = flatLessons.findIndex((l) => l.id === view.lessonId);
+    return {
+      prevLesson: idx > 0 ? flatLessons[idx - 1] : undefined,
+      nextLesson: idx >= 0 && idx < flatLessons.length - 1 ? flatLessons[idx + 1] : undefined,
+    };
+  }, [view, flatLessons]);
+
+  const handlePrevLesson = useCallback(() => {
+    if (view.kind === "lesson" && prevLesson) {
+      setView({ kind: "lesson", pathId: view.pathId, lessonId: prevLesson.id });
+    }
+  }, [view, prevLesson]);
+
+  const handleNextLesson = useCallback(() => {
+    if (view.kind === "lesson" && nextLesson) {
+      setView({ kind: "lesson", pathId: view.pathId, lessonId: nextLesson.id });
+    }
+  }, [view, nextLesson]);
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {view.kind === "overview" && (
-        <div className="flex-1 overflow-auto p-6">
-          <div className="mb-6">
-            <h1 className="text-2xl font-display font-bold tracking-tight">Curriculum</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Structured learning paths for quantitative trading &amp; machine learning
-            </p>
-          </div>
-          <CurriculumOverview
-            paths={allPaths}
-            pathProgress={pathProgress}
-            onSelectPath={handleSelectPath}
-          />
-        </div>
-      )}
+      <AnimatePresence mode="wait">
+        {view.kind === "overview" && (
+          <motion.div
+            key="overview"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="flex-1 overflow-auto p-6"
+          >
+            <div className="mb-6">
+              <h1 className="text-2xl font-display font-bold tracking-tight">Curriculum</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Structured learning paths for quantitative trading &amp; machine learning
+              </p>
+            </div>
+            <CurriculumOverview
+              paths={allPaths}
+              pathProgress={pathProgress}
+              onSelectPath={handleSelectPath}
+              onSelectLesson={handleSearchSelectLesson}
+            />
+          </motion.div>
+        )}
 
-      {view.kind === "path" && currentPath && (
-        <LearningPathView
-          path={currentPath}
-          progress={lessonProgressForPath}
-          onBack={handleBack}
-          onSelectLesson={handleSelectLesson}
-        />
-      )}
+        {view.kind === "path" && currentPath && (
+          <motion.div
+            key="path"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+          >
+            <LearningPathView
+              path={currentPath}
+              progress={lessonProgressForPath}
+              onBack={handleBack}
+              onSelectLesson={handleSelectLesson}
+            />
+          </motion.div>
+        )}
 
-      {view.kind === "lesson" && currentLesson && (
-        <LessonViewer
-          lesson={currentLesson}
-          progress={progress.find((p) => p.lessonId === currentLesson.id)}
-          onBack={handleBack}
-          onComplete={(score: number) => handleLessonComplete(currentLesson.id, score)}
-        />
-      )}
+        {view.kind === "lesson" && currentLesson && (
+          <motion.div
+            key="lesson"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+          >
+            <LessonViewer
+              lesson={currentLesson}
+              progress={progress.find((p) => p.lessonId === currentLesson.id)}
+              onBack={handleBack}
+              onComplete={(score: number) => handleLessonComplete(currentLesson.id, score)}
+              onPrevLesson={prevLesson ? handlePrevLesson : undefined}
+              onNextLesson={nextLesson ? handleNextLesson : undefined}
+              prevLessonTitle={prevLesson?.title}
+              nextLessonTitle={nextLesson?.title}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

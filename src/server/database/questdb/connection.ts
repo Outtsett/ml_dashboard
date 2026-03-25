@@ -143,6 +143,8 @@ export type ValidatedOHLCVRow = z.infer<typeof OHLCVRowSchema>;
 
 export interface OHLCVRow {
   symbol: string;
+  assetClass?: string;
+  root?: string;
   timestamp: Date;
   open: number;
   high: number;
@@ -151,13 +153,37 @@ export interface OHLCVRow {
   volume: number;
 }
 
+/** Derive asset_class and root from a symbol string. */
+function deriveAssetFields(symbol: string): { assetClass: string; root: string } {
+  const s = symbol.toUpperCase();
+  // Forex: 6 uppercase letters, no digits
+  if (s.length === 6 && !/\d/.test(s)) return { assetClass: "forex", root: s };
+  if (s.includes("/")) return { assetClass: "forex", root: s.replace("/", "") };
+  // Futures contract: extract root (before month code)
+  const m = s.match(/^([A-Z][A-Z0-9]*)[FGHJKMNQUVXZ]\d{1,2}/);
+  if (m) return { assetClass: "futures", root: m[1] };
+  // Spread: extract root from first leg
+  const sp = s.match(/^([A-Z][A-Z0-9]*[FGHJKMNQUVXZ]\d{1,2})-/);
+  if (sp) {
+    const legRoot = sp[1].match(/^([A-Z][A-Z0-9]*)[FGHJKMNQUVXZ]\d{1,2}$/);
+    if (legRoot) return { assetClass: "futures", root: legRoot[1] };
+  }
+  return { assetClass: "futures", root: s };
+}
+
 export async function insertOHLCVBatch(rows: OHLCVRow[]): Promise<void> {
   const sender = await getQuestDBSender();
-  
+
   for (const row of rows) {
+    const { assetClass, root } = row.assetClass && row.root
+      ? { assetClass: row.assetClass, root: row.root }
+      : deriveAssetFields(row.symbol);
+
     await sender
       .table("ohlcv")
       .symbol("symbol", row.symbol)
+      .symbol("asset_class", assetClass)
+      .symbol("root", root)
       .floatColumn("open", row.open)
       .floatColumn("high", row.high)
       .floatColumn("low", row.low)
@@ -165,7 +191,7 @@ export async function insertOHLCVBatch(rows: OHLCVRow[]): Promise<void> {
       .floatColumn("volume", row.volume)
       .at(row.timestamp.getTime(), "ms");
   }
-  
+
   await sender.flush();
 }
 
@@ -176,20 +202,27 @@ export async function insertOHLCVStream(
   high: number,
   low: number,
   close: number,
-  volume: number
+  volume: number,
+  assetClass?: string,
+  root?: string,
 ): Promise<void> {
   const sender = await getQuestDBSender();
-  
+  const derived = assetClass && root
+    ? { assetClass, root }
+    : deriveAssetFields(symbol);
+
   await sender
     .table("ohlcv")
     .symbol("symbol", symbol)
+    .symbol("asset_class", derived.assetClass)
+    .symbol("root", derived.root)
     .floatColumn("open", open)
     .floatColumn("high", high)
     .floatColumn("low", low)
     .floatColumn("close", close)
     .floatColumn("volume", volume)
     .at(timestamp, "ms");
-  
+
   await sender.flush();
 }
 

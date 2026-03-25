@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   ArrowLeft,
   ChevronDown,
@@ -38,6 +38,10 @@ function LessonStatusIcon({ status }: { status?: string }) {
   return <Circle className="h-4 w-4 text-muted-foreground/30" />;
 }
 
+function formatMinutes(ms: number): string {
+  return Math.round(ms / 60000) + "m";
+}
+
 export function LearningPathView({
   path,
   progress,
@@ -61,6 +65,23 @@ export function LearningPathView({
   const totalLessons = path.modules.reduce((s, m) => s + m.lessons.length, 0);
   const completedLessons = progress.filter((p) => p.status === "completed").length;
   const pct = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+
+  // Build a flat map of all lessons for prerequisite title lookups
+  const lessonMap = useMemo(() => {
+    const map = new Map<string, Lesson>();
+    for (const mod of path.modules) {
+      for (const l of mod.lessons) map.set(l.id, l);
+    }
+    return map;
+  }, [path]);
+
+  /** Returns titles of unmet prerequisites, or empty array if all met */
+  const getUnmetPrereqs = (lesson: Lesson): string[] => {
+    if (!lesson.prerequisites?.length) return [];
+    return lesson.prerequisites
+      .filter((id) => progressMap.get(id)?.status !== "completed")
+      .map((id) => lessonMap.get(id)?.title ?? id);
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -150,13 +171,38 @@ export function LearningPathView({
                   <div className="border-t border-border/20">
                     {mod.lessons.map((lesson, lesIdx) => {
                       const lp = progressMap.get(lesson.id);
+                      const unmet = getUnmetPrereqs(lesson);
+                      const isLocked = unmet.length > 0;
+                      const lockTooltip = isLocked
+                        ? `Complete ${unmet.map((t) => `'${t}'`).join(", ")} first`
+                        : undefined;
+
                       return (
                         <button
                           key={lesson.id}
-                          onClick={() => onSelectLesson(lesson.id)}
-                          className="w-full px-5 py-3 flex items-center gap-3 hover:bg-muted/15 transition-colors border-b border-border/10 last:border-b-0"
+                          onClick={() => {
+                            if (isLocked) {
+                              if (
+                                window.confirm(
+                                  `This lesson has unmet prerequisites.\n\n${lockTooltip}\n\nContinue anyway?`
+                                )
+                              ) {
+                                onSelectLesson(lesson.id);
+                              }
+                              return;
+                            }
+                            onSelectLesson(lesson.id);
+                          }}
+                          title={lockTooltip}
+                          className={`w-full px-5 py-3 flex items-center gap-3 hover:bg-muted/15 transition-colors border-b border-border/10 last:border-b-0${
+                            isLocked ? " opacity-50" : ""
+                          }`}
                         >
-                          <LessonStatusIcon status={lp?.status} />
+                          {isLocked ? (
+                            <Lock className="h-4 w-4 text-muted-foreground/50" />
+                          ) : (
+                            <LessonStatusIcon status={lp?.status} />
+                          )}
                           <div className="flex-1 text-left">
                             <span className="text-sm font-medium">
                               {lesson.title}
@@ -174,7 +220,9 @@ export function LearningPathView({
                             </Badge>
                             <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                               <Clock className="h-2.5 w-2.5" />
-                              {lesson.estimatedMinutes}m
+                              {lp?.timeSpentMs && lp.timeSpentMs > 0
+                                ? `${formatMinutes(lp.timeSpentMs)} / ${lesson.estimatedMinutes}m`
+                                : `${lesson.estimatedMinutes}m`}
                             </span>
                             {lp?.score != null && (
                               <Badge

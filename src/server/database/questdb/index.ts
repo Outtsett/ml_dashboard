@@ -24,8 +24,6 @@ export type { OHLCVRow, ValidatedOHLCVRow } from "./connection";
 
 export {
   createOHLCVTable,
-  createTradesTable,
-  createMBP10Table,
   initQuestDBTables,
 } from "./tables";
 

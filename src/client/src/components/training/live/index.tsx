@@ -1,132 +1,314 @@
 /**
- * LiveTrainingDashboard — Adaptive grid composing live training panels.
+ * LiveTrainingDashboard — Config-driven, model-adaptive training metrics grid.
  *
- * Panels render based on what metrics the SSE stream provides (OCP).
- * IterationMetrics always shows. Other panels appear when their data arrives.
+ * Reads metric-descriptions.json to determine which metrics to display and in
+ * what order. Each metric renders as a MetricPanel (chart + description).
+ * Fully adaptive: new model types just need a config entry — no UI changes.
  *
- * 1 panel  → full width
- * 2 panels → 1x2
- * 3 panels → 2+1 (top row: 2, bottom row: 1 spanning)
- * 4 panels → 2x2
+ * Layout modes:
+ *   - "detailed" (default): MetricPanels with description sidebars, vertical stack
+ *   - "compact": Small charts in a 2-3 column grid, no descriptions
+ *   - "split": Top half = IterationMetrics + TransitionMatrix, bottom = metric panels
  */
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useTrainingControl, useTrainingLive } from "@/contexts/TrainingContext";
-import { ConvergenceChart } from "./ConvergenceChart";
-import { RegimeCountTracker } from "./RegimeCountTracker";
-import { TransitionMatrixHeatmap } from "./TransitionMatrixHeatmap";
+import { useMetricDescriptions } from "@/hooks/useMetricDescriptions";
+import { MetricPanel } from "./MetricPanel";
 import { IterationMetrics } from "./IterationMetrics";
+import { TransitionMatrixHeatmap } from "./TransitionMatrixHeatmap";
+import { LayoutGrid, List, Columns } from "lucide-react";
+
+type LayoutMode = "detailed" | "compact" | "split";
 
 export function LiveTrainingDashboard() {
-  const { isTraining, completedModelId, config, progress, phase } = useTrainingControl();
+  const { isTraining, completedModelId, config, progress, phase, selectedModelType } = useTrainingControl();
   const { iterationHistory, overlayData, diagnostics, elapsedSec } = useTrainingLive();
+  const [layout, setLayout] = useState<LayoutMode>("detailed");
+
+  const modelType = selectedModelType || "hdp-hmm";
+  const { descriptions, metricOrder } = useMetricDescriptions(modelType);
+
+  // Build per-metric time series from iterationHistory
+  const metricSeries = useMemo(() => {
+    const series: Record<string, Array<{ iteration: number; value: number }>> = {};
+
+    for (const key of metricOrder) {
+      series[key] = [];
+    }
+
+    for (const entry of (iterationHistory ?? [])) {
+      for (const key of metricOrder) {
+        const val = entry.metrics[key] ?? entry.metrics[camelToSnake(key)];
+        if (val != null) {
+          series[key]?.push({ iteration: entry.iteration, value: val });
+        }
+      }
+    }
+
+    return series;
+  }, [iterationHistory, metricOrder]);
+
+  // Which metrics have data?
+  const activeMetrics = metricOrder.filter(k => (metricSeries[k]?.length ?? 0) > 0);
 
   if (!isTraining && !completedModelId) return null;
 
-  // Safe cast — diagnostics shape is model-dependent
+  // Overlay data for transition matrix
   const diag = diagnostics as Record<string, unknown> | null;
   const overlay = overlayData?.payload as Record<string, unknown> | undefined;
-
-  // Detect which panels have data
-  const hasConvergence = (iterationHistory?.length ?? 0) > 0
-    && iterationHistory?.some(h => h.metrics.logLikelihood != null);
-  const hasRegimeCount = (iterationHistory?.length ?? 0) > 0
-    && iterationHistory?.some(h => h.metrics.activeStates != null);
   const hasTransitionMatrix = !!(overlay?.transition_matrix ?? diag?.transition_matrix);
 
-  // Build panel list dynamically
-  const panels = useMemo(() => {
-    const items: { key: string; node: ReactNode }[] = [];
-
-    if (hasConvergence) {
-      items.push({
-        key: "convergence",
-        node: (
-          <ConvergenceChart
-            iterationHistory={iterationHistory || []}
-            burnIn={(config?.hyperparameters?.burnIn as number) ?? 100}
-            isTraining={isTraining}
-          />
-        ),
-      });
-    }
-
-    if (hasRegimeCount) {
-      items.push({
-        key: "regimeCount",
-        node: (
-          <RegimeCountTracker
-            iterationHistory={iterationHistory || []}
-            isTraining={isTraining}
-          />
-        ),
-      });
-    }
-
-    if (hasTransitionMatrix) {
-      items.push({
-        key: "transitionMatrix",
-        node: (
-          <TransitionMatrixHeatmap
-            matrix={(overlay?.transition_matrix ?? diag?.transition_matrix) as number[][] | null ?? null}
-            nRegimes={typeof (overlay?.n_regimes ?? diag?.n_regimes) === 'number'
-              ? (overlay?.n_regimes ?? diag?.n_regimes) as number : 0}
-            regimeLabels={overlay?.labels as Record<string, string> | undefined}
-            regimeColors={overlay?.colors as Record<string, string> | undefined}
-          />
-        ),
-      });
-    }
-
-    // IterationMetrics always shows
-    items.push({
-      key: "iterationMetrics",
-      node: (
-        <IterationMetrics
-          isTraining={isTraining}
-          progress={progress ?? 0}
-          phase={phase ?? ''}
-          iterationHistory={iterationHistory || []}
-          elapsedSec={elapsedSec ?? 0}
-        />
-      ),
-    });
-
-    return items;
-  }, [hasConvergence, hasRegimeCount, hasTransitionMatrix, iterationHistory, config, isTraining, overlay, diag, progress, phase, elapsedSec]);
-
-  // Adaptive grid: 1→1col, 2→2col, 3→2col+span, 4→2x2
-  const gridClass = panels.length <= 1
-    ? "grid grid-cols-1"
-    : "grid grid-cols-2";
-
   return (
-    <div className="h-full border border-white/5 rounded-xl overflow-hidden bg-black/20">
-      <div className={`${gridClass} h-full min-h-0`}>
-        {panels.map((panel, i) => {
-          // Last panel spans full width if odd count
-          const isLastOdd = panels.length > 1 && panels.length % 2 === 1 && i === panels.length - 1;
-          const hasRight = !isLastOdd && (i % 2 === 0) && i + 1 < panels.length;
-          const isTopRow = panels.length > 2 ? i < 2 : true;
+    <div className="h-full border border-white/5 rounded-xl overflow-hidden bg-black/20 flex flex-col">
+      {/* Header bar */}
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/5 shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-blue-400 font-medium uppercase tracking-wider">
+            Live Training
+          </span>
+          <span className="text-[10px] font-mono text-muted-foreground/40">
+            {descriptions[activeMetrics[0] ?? ""]?.title ? `${activeMetrics.length} metrics` : "waiting..."}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <LayoutButton
+            active={layout === "detailed"}
+            onClick={() => setLayout("detailed")}
+            icon={<List className="h-3 w-3" />}
+            title="Detailed (chart + description)"
+          />
+          <LayoutButton
+            active={layout === "compact"}
+            onClick={() => setLayout("compact")}
+            icon={<LayoutGrid className="h-3 w-3" />}
+            title="Compact grid"
+          />
+          <LayoutButton
+            active={layout === "split"}
+            onClick={() => setLayout("split")}
+            icon={<Columns className="h-3 w-3" />}
+            title="Split view"
+          />
+        </div>
+      </div>
 
-          return (
-            <div
-              key={panel.key}
-              className={`
-                ${isLastOdd ? 'col-span-2' : ''}
-                ${hasRight ? 'border-r border-white/5' : ''}
-                ${isTopRow && panels.length > 2 ? 'border-b border-white/5' : ''}
-              `}
-            >
-              {panel.node}
-            </div>
-          );
-        })}
+      {/* Content */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {layout === "detailed" && (
+          <DetailedLayout
+            activeMetrics={activeMetrics}
+            metricSeries={metricSeries}
+            descriptions={descriptions}
+            isTraining={isTraining}
+          />
+        )}
+        {layout === "compact" && (
+          <CompactLayout
+            activeMetrics={activeMetrics}
+            metricSeries={metricSeries}
+            descriptions={descriptions}
+            isTraining={isTraining}
+            iterationHistory={iterationHistory ?? []}
+            progress={progress ?? 0}
+            phase={phase ?? ""}
+            elapsedSec={elapsedSec ?? 0}
+          />
+        )}
+        {layout === "split" && (
+          <SplitLayout
+            activeMetrics={activeMetrics}
+            metricSeries={metricSeries}
+            descriptions={descriptions}
+            isTraining={isTraining}
+            iterationHistory={iterationHistory ?? []}
+            progress={progress ?? 0}
+            phase={phase ?? ""}
+            elapsedSec={elapsedSec ?? 0}
+            hasTransitionMatrix={hasTransitionMatrix}
+            overlay={overlay}
+            diag={diag}
+          />
+        )}
       </div>
     </div>
   );
+}
+
+// ── Layout variants ─────────────────────────────────────────────────────────
+
+interface LayoutProps {
+  activeMetrics: string[];
+  metricSeries: Record<string, Array<{ iteration: number; value: number }>>;
+  descriptions: Record<string, import("@/hooks/useMetricDescriptions").MetricDescription>;
+  isTraining: boolean;
+}
+
+function DetailedLayout({ activeMetrics, metricSeries, descriptions, isTraining }: LayoutProps) {
+  if (activeMetrics.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center text-muted-foreground/40">
+        <p className="text-xs font-mono">Waiting for training metrics...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col divide-y divide-white/5">
+      {activeMetrics.map(key => (
+        <div key={key} className="h-44">
+          <MetricPanel
+            metricKey={key}
+            desc={descriptions[key]!}
+            data={metricSeries[key] ?? []}
+            isTraining={isTraining}
+            showDescription={true}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CompactLayout({
+  activeMetrics,
+  metricSeries,
+  descriptions,
+  isTraining,
+  iterationHistory,
+  progress,
+  phase,
+  elapsedSec,
+}: LayoutProps & {
+  iterationHistory: Array<{ iteration: number; metrics: Record<string, number> }>;
+  progress: number;
+  phase: string;
+  elapsedSec: number;
+}) {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-3 h-full min-h-0">
+      {/* Iteration metrics card always first */}
+      <div className="border-r border-b border-white/5 h-44">
+        <IterationMetrics
+          isTraining={isTraining}
+          progress={progress}
+          phase={phase}
+          iterationHistory={iterationHistory}
+          elapsedSec={elapsedSec}
+        />
+      </div>
+      {activeMetrics.map(key => (
+        <div key={key} className="border-r border-b border-white/5 h-44">
+          <MetricPanel
+            metricKey={key}
+            desc={descriptions[key]!}
+            data={metricSeries[key] ?? []}
+            isTraining={isTraining}
+            compact={true}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SplitLayout({
+  activeMetrics,
+  metricSeries,
+  descriptions,
+  isTraining,
+  iterationHistory,
+  progress,
+  phase,
+  elapsedSec,
+  hasTransitionMatrix,
+  overlay,
+  diag,
+}: LayoutProps & {
+  iterationHistory: Array<{ iteration: number; metrics: Record<string, number> }>;
+  progress: number;
+  phase: string;
+  elapsedSec: number;
+  hasTransitionMatrix: boolean;
+  overlay: Record<string, unknown> | undefined;
+  diag: Record<string, unknown> | null;
+}) {
+  return (
+    <div className="flex flex-col h-full">
+      {/* Top: iteration metrics + transition matrix */}
+      <div className="grid grid-cols-2 h-52 shrink-0 border-b border-white/5">
+        <div className="border-r border-white/5">
+          <IterationMetrics
+            isTraining={isTraining}
+            progress={progress}
+            phase={phase}
+            iterationHistory={iterationHistory}
+            elapsedSec={elapsedSec}
+          />
+        </div>
+        <div>
+          {hasTransitionMatrix ? (
+            <TransitionMatrixHeatmap
+              matrix={(overlay?.transition_matrix ?? diag?.transition_matrix) as number[][] | null ?? null}
+              nRegimes={typeof (overlay?.n_regimes ?? diag?.n_regimes) === "number"
+                ? (overlay?.n_regimes ?? diag?.n_regimes) as number : 0}
+              regimeLabels={overlay?.labels as Record<string, string> | undefined}
+              regimeColors={overlay?.colors as Record<string, string> | undefined}
+            />
+          ) : (
+            <div className="h-full flex items-center justify-center text-muted-foreground/30">
+              <p className="text-[10px] font-mono">Transition matrix pending...</p>
+            </div>
+          )}
+        </div>
+      </div>
+      {/* Bottom: metric panels scrollable */}
+      <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+        {activeMetrics.map(key => (
+          <div key={key} className="h-40">
+            <MetricPanel
+              metricKey={key}
+              desc={descriptions[key]!}
+              data={metricSeries[key] ?? []}
+              isTraining={isTraining}
+              showDescription={true}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function LayoutButton({ active, onClick, icon, title }: {
+  active: boolean;
+  onClick: () => void;
+  icon: ReactNode;
+  title: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`p-1 rounded transition-colors ${
+        active
+          ? "bg-white/10 text-blue-400"
+          : "text-muted-foreground/40 hover:text-muted-foreground/60 hover:bg-white/5"
+      }`}
+    >
+      {icon}
+    </button>
+  );
+}
+
+/** Convert camelCase to snake_case for metric key lookup. */
+function camelToSnake(s: string): string {
+  return s.replace(/[A-Z]/g, m => `_${m.toLowerCase()}`);
 }
 
 export { ConvergenceChart } from "./ConvergenceChart";
 export { RegimeCountTracker } from "./RegimeCountTracker";
 export { TransitionMatrixHeatmap } from "./TransitionMatrixHeatmap";
 export { IterationMetrics } from "./IterationMetrics";
+export { MetricPanel } from "./MetricPanel";

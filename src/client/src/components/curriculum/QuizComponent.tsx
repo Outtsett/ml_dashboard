@@ -1,8 +1,27 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, XCircle, HelpCircle, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { QuizQuestion } from "@/lib/curriculum/types";
+
+function AnimatedScore({ value }: { value: number }) {
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    let frame: number;
+    const start = performance.now();
+    const duration = 800;
+    const animate = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplay(Math.round(eased * value));
+      if (progress < 1) frame = requestAnimationFrame(animate);
+    };
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+  return <>{display}</>;
+}
 
 interface QuizComponentProps {
   questions: QuizQuestion[];
@@ -52,32 +71,59 @@ export function QuizComponent({ questions, onComplete }: QuizComponentProps) {
     const score = Math.round((correctCount / questions.length) * 100);
     const emoji = score >= 80 ? "🎉" : score >= 50 ? "👍" : "📚";
     return (
-      <Card className="border-border/40 bg-card/60">
-        <CardContent className="p-6 text-center space-y-4">
-          <div className="text-4xl">{emoji}</div>
-          <h3 className="text-xl font-semibold">Quiz Complete!</h3>
-          <p className="text-muted-foreground">
-            You got{" "}
-            <span className="text-foreground font-bold">
-              {correctCount}/{questions.length}
-            </span>{" "}
-            correct ({score}%)
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setCurrentIdx(0);
-              setSelectedId(null);
-              setAnswered(false);
-              setCorrectCount(0);
-              setFinished(false);
-            }}
-          >
-            Retry Quiz
-          </Button>
-        </CardContent>
-      </Card>
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 200, damping: 20 }}
+      >
+        <Card className="border-border/40 bg-card/60">
+          <CardContent className="p-6 text-center space-y-4">
+            <div className="text-4xl">{emoji}</div>
+            {score >= 80 && (
+              <motion.div
+                className="flex justify-center gap-1"
+                initial="hidden"
+                animate="show"
+                variants={{ hidden: {}, show: { transition: { staggerChildren: 0.04 } } }}
+              >
+                {["🎊", "⭐", "✨", "🌟", "⭐", "✨", "🎊"].map((e, i) => (
+                  <motion.span
+                    key={i}
+                    variants={{
+                      hidden: { opacity: 0, y: 20, scale: 0 },
+                      show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 300, damping: 15 } },
+                    }}
+                    className="text-lg"
+                  >
+                    {e}
+                  </motion.span>
+                ))}
+              </motion.div>
+            )}
+            <h3 className="text-xl font-semibold">Quiz Complete!</h3>
+            <p className="text-muted-foreground">
+              You got{" "}
+              <span className="text-foreground font-bold">
+                {correctCount}/{questions.length}
+              </span>{" "}
+              correct (<AnimatedScore value={score} />%)
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setCurrentIdx(0);
+                setSelectedId(null);
+                setAnswered(false);
+                setCorrectCount(0);
+                setFinished(false);
+              }}
+            >
+              Retry Quiz
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
     );
   }
 
@@ -126,9 +172,11 @@ export function QuizComponent({ questions, onComplete }: QuizComponentProps) {
             }
 
             return (
-              <button
+              <motion.button
                 key={opt.id}
                 onClick={() => handleSelect(opt.id)}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
                 className={`w-full text-left px-4 py-3 rounded-lg border text-sm transition-all ${optionStyle}`}
               >
                 <div className="flex items-center gap-3">
@@ -150,26 +198,35 @@ export function QuizComponent({ questions, onComplete }: QuizComponentProps) {
                   </div>
                   <span>{opt.text}</span>
                 </div>
-              </button>
+              </motion.button>
             );
           })}
         </div>
 
         {/* Explanation */}
-        {answered && (
-          <div
-            className={`rounded-lg p-4 text-sm ${
-              isCorrect
-                ? "bg-emerald-500/10 border border-emerald-500/30"
-                : "bg-amber-500/10 border border-amber-500/30"
-            }`}
-          >
-            <p className="font-medium mb-1">
-              {isCorrect ? "✓ Correct!" : "✗ Not quite."}
-            </p>
-            <p className="text-muted-foreground">{q.explanation}</p>
-          </div>
-        )}
+        <AnimatePresence>
+          {answered && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            >
+              <div
+                className={`rounded-lg p-4 text-sm ${
+                  isCorrect
+                    ? "bg-emerald-500/10 border border-emerald-500/30"
+                    : "bg-amber-500/10 border border-amber-500/30"
+                }`}
+              >
+                <p className="font-medium mb-1">
+                  {isCorrect ? "✓ Correct!" : "✗ Not quite."}
+                </p>
+                <p className="text-muted-foreground">{q.explanation}</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Actions */}
         <div className="flex justify-end">

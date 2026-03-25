@@ -1,7 +1,7 @@
 /**
  * Ingest forex data from forex.duckdb and loose Parquet files into QuestDB.
  *
- * Modified to write to the 'ohlcv_forex' table.
+ * Writes to unified 'ohlcv' table with asset_class='forex'.
  */
 import { Sender } from '@questdb/nodejs-client';
 import { initDuckDB, runQuery } from '../server/duckdb';
@@ -39,7 +39,7 @@ async function main() {
       `SELECT COUNT(*) as cnt FROM forex.native_bars WHERE timeframe = 'M1'`
     );
     const totalM1 = Number(m1Count[0].cnt);
-    console.log(`[ingest] M1 rows to ingest to 'ohlcv_forex': ${totalM1.toLocaleString()}`);
+    console.log(`[ingest] M1 rows to ingest to 'ohlcv' (forex): ${totalM1.toLocaleString()}`);
 
     const start = Date.now();
     const configStr = `http::addr=${QUESTDB_HOST}:${QUESTDB_HTTP_PORT};auto_flush=off;`;
@@ -77,8 +77,10 @@ async function main() {
         const tsMs = new Date(row.ts).getTime();
 
         await sender
-          .table('ohlcv_forex')
+          .table('ohlcv')
           .symbol('symbol', symbol)
+          .symbol('asset_class', 'forex')
+          .symbol('root', symbol)
           .floatColumn('open', row.open)
           .floatColumn('high', row.high)
           .floatColumn('low', row.low)
@@ -155,8 +157,10 @@ async function main() {
           const tsMs = new Date(row.time).getTime();
 
           await sender
-            .table('ohlcv_forex')
+            .table('ohlcv')
             .symbol('symbol', symbol)
+            .symbol('asset_class', 'forex')
+            .symbol('root', symbol)
             .floatColumn('open', Number(row.open))
             .floatColumn('high', Number(row.high))
             .floatColumn('low', Number(row.low))

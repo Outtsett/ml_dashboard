@@ -1,7 +1,7 @@
 /**
  * Ingest futures data from analytics.duckdb ohlcv_1s view into QuestDB.
  *
- * Modified to write to the 'futures_ohlcv' table and extract 'root' symbol.
+ * Writes to unified 'ohlcv' table with asset_class='futures' and extracted root.
  */
 import { Sender } from '@questdb/nodejs-client';
 import { initDuckDB, runQuery } from '../server/duckdb';
@@ -51,7 +51,7 @@ async function main() {
     `SELECT COUNT(*) as cnt FROM src.ohlcv_1s`
   );
   const totalRows = Number(totalResult[0].cnt);
-  console.log(`[ingest] Starting futures ingestion to 'futures_ohlcv' (${totalRows.toLocaleString()} rows)...`);
+  console.log(`[ingest] Starting futures ingestion to 'ohlcv' (${totalRows.toLocaleString()} rows)...`);
 
   const start = Date.now();
   const configStr = `http::addr=${QUESTDB_HOST}:${QUESTDB_HTTP_PORT};auto_flush=off;`;
@@ -93,8 +93,9 @@ async function main() {
       const tsMs = new Date(row.timestamp).getTime();
 
       await sender
-        .table('futures_ohlcv')
+        .table('ohlcv')
         .symbol('symbol', symbol)
+        .symbol('asset_class', 'futures')
         .symbol('root', root)
         .floatColumn('open', row.open)
         .floatColumn('high', row.high)

@@ -38,6 +38,7 @@ export interface ModelSummary {
   n_bars_train_val: number;
   n_bars_test: number;
   quality_score: number;
+  evaluation_grade: string;
   date_range: { start: string; end: string } | null;
   training_config: Record<string, unknown>;
   training_time_sec: number;
@@ -88,6 +89,7 @@ export function listTrainedModels(baseDir: string): ModelSummary[] {
         training_config: diag.training_config,
         training_time_sec: diag.training_time_sec,
         trained_at: diag.trained_at,
+        evaluation_grade: diag.evaluation?.grade || "N/A",
       });
     } catch { /* skip corrupted */ }
   }
