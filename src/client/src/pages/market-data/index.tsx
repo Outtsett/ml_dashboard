@@ -1,7 +1,9 @@
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { TrendingUp, DollarSign, Clock } from "lucide-react";
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from "@/components/ui/empty";
+import { TrendingUp, DollarSign, Clock, LineChart } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { motion } from "framer-motion";
 import { type LabelMarker } from "@/components/TradingChart";
 import { useIndicatorData } from "@/hooks/useIndicatorData";
 import { useActiveIndicators } from "@/hooks/useActiveIndicators";
@@ -10,7 +12,7 @@ import { useDashboard } from "@/contexts/UnifiedDashboardContext";
 import { MLWorkflowSidebar } from "@/components/sidebar/MLWorkflowSidebar";
 import { useLocalReplay } from "@/hooks/useLocalReplay";
 import { useTrainingSync } from "@/hooks/useTrainingSync";
-import { useTrainingContext } from "@/contexts/TrainingContext";
+import { useTrainingContext, useTrainingControl } from "@/contexts/TrainingContext";
 import { useRegimeModels } from "@/hooks/useRegimeData";
 import type { Trade } from "@/lib/types";
 import { useMLTrades } from "@/hooks/useMLData";
@@ -179,6 +181,23 @@ export default function MarketData() {
   }, [quickTrades]);
 
   const isTrainingActive = training.isTraining;
+  const { startTraining, stopTraining, availableModels, selectedModelType, isPending: isTrainingStarting } = useTrainingControl();
+
+  const handleStartTraining = useCallback(() => {
+    const modelType = selectedModelType || "hdp-hmm";
+    const modelDef = availableModels[modelType];
+    const hyperparameters: Record<string, number | string | boolean> = {};
+    if (modelDef?.defaultHyperparameters) {
+      for (const [k, v] of Object.entries(modelDef.defaultHyperparameters)) {
+        hyperparameters[k] = v.value;
+      }
+    }
+    startTraining({ modelType, symbol, timeframe: tfLabel, hyperparameters });
+  }, [selectedModelType, availableModels, symbol, tfLabel, startTraining]);
+
+  const handleStopTraining = useCallback(() => {
+    stopTraining();
+  }, [stopTraining]);
 
   const selectSymbol = async (sym: string, type: "futures" | "forex") => {
     setSymbol(sym);
@@ -218,16 +237,29 @@ export default function MarketData() {
         onToggleZigZag={() => overlayToggles.setShowZigZag(v => !v)}
         showSwingZZ={overlayToggles.showSwingZZ}
         onToggleSwingZZ={() => overlayToggles.setShowSwingZZ(v => !v)}
-        replayActive={replay.active}
-        onToggleReplay={replay.toggleReplay}
-        onResetChart={resetChart}
-        isRefetching={isFetching}
         isTrainingActive={isTrainingActive}
         onOpenMlPanel={() => setMlPanelOpen(true)}
+        onStartTraining={handleStartTraining}
+        onStopTraining={handleStopTraining}
+        isTrainingStarting={isTrainingStarting}
         onResetScrollState={resetScrollState}
       />
 
       {/* Analytics Strip */}
+      {!isFetching && chartData.length === 0 ? (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 min-h-0 flex items-center justify-center">
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <LineChart />
+              </EmptyMedia>
+              <EmptyTitle>Select an instrument</EmptyTitle>
+              <EmptyDescription>Choose a symbol from the toolbar above to view charts, indicators, and market data.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        </motion.div>
+      ) : (
+      <>
       <AnalyticsStrip
         symbol={symbol}
         displayDataLength={displayData.length}
@@ -292,6 +324,8 @@ export default function MarketData() {
         tradeMarkers={dashboard.overlays.tradeMarkers}
         predictionMarkers={dashboard.overlays.predictionMarkers}
       />
+      </>
+      )}
 
       {/* ML Tools Sheet */}
       <Sheet open={mlPanelOpen} onOpenChange={setMlPanelOpen}>

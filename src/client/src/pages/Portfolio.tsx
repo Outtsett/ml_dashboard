@@ -1,14 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from "@/components/ui/empty";
+import { ErrorCard } from "@/components/ui/error-card";
 import { 
   TrendingUp, DollarSign, Wallet, 
   PieChart, ArrowUpRight, ArrowDownRight, Clock,
-  Target, Activity, Sparkles, Loader2
+  Target, Activity, Sparkles, Loader2, BarChart2
 } from "lucide-react";
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 import type { Trade } from "@/lib/types";
 
 type Position = { symbol: string; name: string; quantity: number; avgPrice: number; currentPrice: number; pnl: number; pnlPercent: number };
@@ -25,7 +28,7 @@ function fmtPrice(price: number): string {
 
 export default function Portfolio() {
   // ── Data Fetching ──────────────────────────────────────────────────────
-  const { data: openTradesRaw = [], isLoading: loadingOpen } = useQuery<Trade[]>({
+  const { data: openTradesRaw = [], isLoading: loadingOpen, isError: isErrorOpen, error: errorOpen, refetch: refetchOpen } = useQuery<Trade[]>({
     queryKey: ['/api/ml/trades', 'open'],
     queryFn: async () => {
       const res = await fetch('/api/ml/trades?status=open&limit=100');
@@ -35,7 +38,7 @@ export default function Portfolio() {
     },
   });
 
-  const { data: closedTradesRaw = [], isLoading: loadingClosed } = useQuery<Trade[]>({
+  const { data: closedTradesRaw = [], isLoading: loadingClosed, isError: isErrorClosed, error: errorClosed, refetch: refetchClosed } = useQuery<Trade[]>({
     queryKey: ['/api/ml/trades', 'closed'],
     queryFn: async () => {
       const res = await fetch('/api/ml/trades?status=closed&limit=50');
@@ -55,6 +58,7 @@ export default function Portfolio() {
   });
 
   const isLoading = loadingOpen || loadingClosed;
+  const isError = isErrorOpen || isErrorClosed;
 
   // ── Derived State ──────────────────────────────────────────────────────
   const positions: Position[] = useMemo(() =>
@@ -149,6 +153,19 @@ export default function Portfolio() {
 
   const openPositions = positions.length;
 
+  if (isError) {
+    return (
+      <div className="space-y-5 h-[calc(100vh-8.5rem)] flex flex-col overflow-hidden">
+        <ErrorCard
+          title="Failed to load portfolio"
+          description="Could not fetch trade data from the server."
+          error={errorOpen ?? errorClosed}
+          onRetry={() => { refetchOpen(); refetchClosed(); }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5 h-[calc(100vh-8.5rem)] flex flex-col overflow-hidden">
       <div className="flex justify-between items-center shrink-0">
@@ -240,6 +257,20 @@ export default function Portfolio() {
       </div>
 
       {/* Main Content */}
+      {!isLoading && positions.length === 0 && closedTradesRaw.length === 0 ? (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 min-h-0 flex items-center justify-center">
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <BarChart2 />
+              </EmptyMedia>
+              <EmptyTitle>No positions yet</EmptyTitle>
+              <EmptyDescription>Your portfolio is empty. Start trading to see your positions and performance here.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        </motion.div>
+      ) : (
+      <>
       <div className="grid grid-cols-3 gap-4 flex-1 min-h-0 overflow-hidden">
         {/* Positions Table */}
         <Card className="col-span-2 glass rounded-2xl flex flex-col gradient-border overflow-hidden">
@@ -441,6 +472,8 @@ export default function Portfolio() {
           )}
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   );
 }

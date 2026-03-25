@@ -2,8 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from "@/components/ui/empty";
+import { ErrorCard } from "@/components/ui/error-card";
 import { Search, Star, List } from "lucide-react";
 import { useState, useMemo } from "react";
+import { motion } from "framer-motion";
 
 interface Instrument {
   id: number;
@@ -26,7 +29,7 @@ export default function Watchlist() {
   const [selectedType, setSelectedType] = useState<string>("all");
   const [favorites, setFavorites] = useState<number[]>([]);
 
-  const { data: instruments = [], isLoading } = useQuery<Instrument[]>({
+  const { data: instruments = [], isLoading, isError, error, refetch } = useQuery<Instrument[]>({
     queryKey: ["/api/instruments"],
   });
 
@@ -98,8 +101,31 @@ export default function Watchlist() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <ErrorCard
+          title="Failed to load instruments"
+          description="Could not fetch the instrument list from the server."
+          error={error}
+          onRetry={() => refetch()}
+        />
+      ) : isLoading ? (
         <div className="text-center py-12 text-muted-foreground text-sm">Loading instruments...</div>
+      ) : instruments.length === 0 ? (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <Card className="bg-card border-border">
+            <CardContent className="py-12">
+              <Empty>
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <List />
+                  </EmptyMedia>
+                  <EmptyTitle>Your watchlist is empty</EmptyTitle>
+                  <EmptyDescription>Add instruments to your watchlist to monitor their prices and performance.</EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            </CardContent>
+          </Card>
+        </motion.div>
       ) : (
         <div className="space-y-4">
           {groupedInstruments.favorites.length > 0 && (

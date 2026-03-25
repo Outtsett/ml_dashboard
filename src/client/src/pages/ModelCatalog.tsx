@@ -18,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent, EmptyMedia } from "@/components/ui/empty";
+import { ErrorCard } from "@/components/ui/error-card";
 import {
   Search,
   BookOpen,
@@ -34,6 +36,7 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import type { CatalogModelSummary, CatalogModelDetail } from "@/lib/catalogTypes";
 import {
   useCatalogStats,
@@ -79,7 +82,7 @@ export default function ModelCatalog() {
 
   const { data: stats } = useCatalogStats();
   const { data: taxonomy } = useCatalogTaxonomy();
-  const { data: catalog, isLoading } = useCatalogList({
+  const { data: catalog, isLoading, isError, error, refetch } = useCatalogList({
     category: selectedCategory,
     subcategory: selectedSubcategory,
     search,
@@ -273,6 +276,17 @@ export default function ModelCatalog() {
         {/* Model grid */}
         <ScrollArea className="flex-1">
           <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
+            {isError ? (
+              <div className="col-span-full">
+                <ErrorCard
+                  title="Failed to load model catalog"
+                  description="Could not fetch the model list from the server."
+                  error={error}
+                  onRetry={() => refetch()}
+                />
+              </div>
+            ) : (
+            <>
             {models.map((m) => (
               <ModelCard
                 key={m.id}
@@ -283,13 +297,40 @@ export default function ModelCatalog() {
             ))}
 
             {!isLoading && models.length === 0 && (
-              <div className="col-span-full text-center py-20 text-muted-foreground">
-                <Brain className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">No models found</p>
-                <p className="text-xs mt-1 opacity-60">
-                  Try adjusting your search or category filters
-                </p>
-              </div>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="col-span-full flex items-center justify-center py-20">
+                {(search.trim().length >= 2 || selectedCategory) ? (
+                  <Empty>
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <BookOpen />
+                      </EmptyMedia>
+                      <EmptyTitle>No models match your filters</EmptyTitle>
+                      <EmptyDescription>Try adjusting your search or filter criteria.</EmptyDescription>
+                    </EmptyHeader>
+                    <EmptyContent>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { setSearch(""); setSelectedCategory(null); setSelectedSubcategory(null); }}
+                      >
+                        Clear filters
+                      </Button>
+                    </EmptyContent>
+                  </Empty>
+                ) : (
+                  <Empty>
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <BookOpen />
+                      </EmptyMedia>
+                      <EmptyTitle>No models registered</EmptyTitle>
+                      <EmptyDescription>Train your first model in ML Studio to see it appear in the catalog.</EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                )}
+              </motion.div>
+            )}
+            </>
             )}
           </div>
         </ScrollArea>

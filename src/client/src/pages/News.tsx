@@ -3,9 +3,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from "@/components/ui/empty";
+import { ErrorCard } from "@/components/ui/error-card";
 import { Newspaper, Search, ExternalLink, Clock, RefreshCw, Star, Sparkles, Radio } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { motion } from "framer-motion";
 import { useInstruments } from "@/hooks/useRegimeData";
 import { logError } from "../lib/errorLogger";
 
@@ -39,10 +42,12 @@ export default function News() {
   );
   const [newsData, setNewsData] = useState<NewsItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [connectionError, setConnectionError] = useState<Error | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const eventSourceRef = useRef<EventSource | null>(null);
   const seenNewsRef = useRef<Set<string>>(new Set());
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const retryCountRef = useRef(0);
 
   const cleanupConnection = useCallback(() => {
     if (retryTimeoutRef.current) {
@@ -60,6 +65,7 @@ export default function News() {
     
     seenNewsRef.current.clear();
     setConnectionStatus('connecting');
+    setConnectionError(null);
     setIsLoading(true);
     
     const eventSource = new EventSource(`/api/news/stream/${symbol}`);
@@ -67,6 +73,8 @@ export default function News() {
 
     eventSource.onopen = () => {
       setConnectionStatus('connected');
+      retryCountRef.current = 0;
+      setConnectionError(null);
     };
 
     eventSource.addEventListener('news', (event) => {
@@ -95,8 +103,14 @@ export default function News() {
     });
 
     eventSource.onerror = () => {
+      retryCountRef.current += 1;
       logError('News', 'SSE connection error, retrying in 5s', { symbol });
       setConnectionStatus('disconnected');
+      if (retryCountRef.current >= 3) {
+        setConnectionError(new Error(`News stream connection failed after ${retryCountRef.current} attempts`));
+        setIsLoading(false);
+        return;
+      }
       retryTimeoutRef.current = setTimeout(() => {
         if (eventSourceRef.current) {
           connectToStream(symbol);
@@ -262,7 +276,17 @@ export default function News() {
           </CardHeader>
           <ScrollArea className="flex-1">
             <div className="p-4 space-y-4">
-              {isLoading ? (
+              {connectionError ? (
+                <ErrorCard
+                  title="News stream unavailable"
+                  description={`Could not connect to the news stream for ${selectedSymbol}.`}
+                  error={connectionError}
+                  onRetry={() => {
+                    retryCountRef.current = 0;
+                    connectToStream(selectedSymbol);
+                  }}
+                />
+              ) : isLoading ? (
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                   <RefreshCw className="h-8 w-8 animate-spin mb-4 text-primary" />
                   <p className="font-mono text-sm">Fetching news...</p>
@@ -306,11 +330,17 @@ export default function News() {
                   </a>
                 ))
               ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <Newspaper className="h-12 w-12 mb-4 opacity-30" />
-                  <p className="font-mono text-sm">No news found for {selectedSymbol}</p>
-                  <p className="text-xs mt-2">Try selecting a different symbol or refresh</p>
-                </div>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-12">
+                  <Empty>
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <Newspaper />
+                      </EmptyMedia>
+                      <EmptyTitle>No news articles</EmptyTitle>
+                      <EmptyDescription>News articles will appear here as they become available from configured feeds.</EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                </motion.div>
               )}
             </div>
           </ScrollArea>
