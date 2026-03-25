@@ -225,7 +225,7 @@ export function LessonViewer({
           {section.type === "objective" && (
             <Card className="border-blue-500/20 bg-blue-500/5">
               <CardContent className="p-4 space-y-3">
-                <p className="text-sm leading-relaxed">{section.content}</p>
+                <p className="text-sm leading-relaxed">{section.content || section.description}</p>
                 <div className="space-y-1.5">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Key Takeaways

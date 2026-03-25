@@ -8,7 +8,7 @@
 import { spawn, ChildProcess } from "child_process";
 import path from "path";
 import fs from "fs";
-import type { ResolvedTrainingConfig, TrainingSession } from "@shared/trainingTypes";
+import type { ResolvedTrainingConfig, TrainingSession, TrainingDiagnostics } from "@shared/trainingTypes";
 import { createSession, emitSessionEvent } from "./types";
 import type { ITrainerRunner } from "./types";
 import { getTrainingConfig } from "../registry";
@@ -150,7 +150,7 @@ export class PythonRunner implements ITrainerRunner {
         });
 
         // Finalize failed session in SQLite
-        const dbSessId = (session as any).dbSessionId;
+        const dbSessId = session.dbSessionId;
         if (dbSessId != null) {
           trainingStorage.finalizeSession(dbSessId, {
             status: "failed",
@@ -160,7 +160,7 @@ export class PythonRunner implements ITrainerRunner {
         }
       } else {
         console.log(`[training] Python process completed successfully for ${session.sessionId}`);
-        let diagnostics = null;
+        let diagnostics: TrainingDiagnostics | null = null;
         const jsonMarker = "__JSON_OUTPUT__";
         const jsonIdx = session.stdout.indexOf(jsonMarker);
         if (jsonIdx >= 0) {
@@ -179,13 +179,13 @@ export class PythonRunner implements ITrainerRunner {
         });
 
         // Finalize completed session in SQLite (DIP — storage abstraction)
-        const dbSessId = (session as any).dbSessionId;
+        const dbSessId = session.dbSessionId;
         if (dbSessId != null) {
           trainingStorage.finalizeSession(dbSessId, {
             status: "completed",
             diagnostics: diagnostics as Record<string, unknown> ?? undefined,
-            qualityScore: (diagnostics as any)?.quality_score as number ?? undefined,
-            evaluationGrade: (diagnostics as any)?.evaluation?.grade as string ?? undefined,
+            qualityScore: diagnostics?.quality_score ?? undefined,
+            evaluationGrade: diagnostics?.evaluation?.grade ?? undefined,
             modelPath: `${config.outputDir}/${config.modelId}`,
             elapsedSec: parseFloat(((Date.now() - session.startedAt) / 1000).toFixed(1)),
           });
@@ -223,7 +223,7 @@ export class PythonRunner implements ITrainerRunner {
       session.finished = true;
       session.exitCode = -1;
 
-      const dbSessId = (session as any).dbSessionId;
+      const dbSessId = session.dbSessionId;
       if (dbSessId != null) {
         trainingStorage.finalizeSession(dbSessId, {
           status: "stopped",

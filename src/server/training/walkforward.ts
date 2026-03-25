@@ -7,6 +7,9 @@
 
 import crypto from "crypto";
 
+/** Maximum number of walk-forward windows to prevent runaway computation */
+const MAX_WALK_FORWARD_WINDOWS = 50;
+
 export interface WalkForwardConfig {
   trainMonths: number;
   testMonths: number;
@@ -35,7 +38,7 @@ export function computeWindows(
   let windowStart = new Date(start);
   let index = 0;
 
-  while (index < 50) { // Safety cap
+  while (index < MAX_WALK_FORWARD_WINDOWS) {
     const trainEnd = addMonths(windowStart, config.trainMonths);
     const testStart = new Date(trainEnd);
     const testEnd = addMonths(testStart, config.testMonths);

@@ -57,8 +57,8 @@ function camelToSnakeCase(str: string): string {
   return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 }
 
-function normalizeKeysToSnakeCase(obj: Record<string, any>): Record<string, any> {
-  const result: Record<string, any> = {};
+function normalizeKeysToSnakeCase(obj: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
     result[camelToSnakeCase(key)] = value;
   }
@@ -67,17 +67,24 @@ function normalizeKeysToSnakeCase(obj: Record<string, any>): Record<string, any>
 
 // ─── In-memory Session State ─────────────────────────────────────────────────
 
+/** A single HPO SSE event (buffered for replay). */
+interface HPOEvent {
+  type: string;
+  data: Record<string, unknown>;
+  ts: number;
+}
+
 /** Runtime state for a single HPO session. */
 interface HPOSessionState {
   sessionId: string;
   dbId: number;
   child: ChildProcess | null;
   status: "pending" | "running" | "completed" | "failed" | "stopped";
-  events: Array<{ type: string; data: any; ts: number }>;
-  listeners: Set<(evt: any) => void>;
+  events: HPOEvent[];
+  listeners: Set<(evt: HPOEvent) => void>;
   finished: boolean;
   bestScore: number | null;
-  bestParams: Record<string, any> | null;
+  bestParams: Record<string, unknown> | null;
   completedTrials: number;
   prunedTrials: number;
   failedTrials: number;
@@ -237,7 +244,7 @@ function spawnHPORunner(
     symbol: request.symbol,
     timeframe: request.timeframe ?? "1h",
     optimizer: request.optimizer.type,
-    optimizer_config: normalizeKeysToSnakeCase(request.optimizer.config as Record<string, any>),
+    optimizer_config: normalizeKeysToSnakeCase(request.optimizer.config as unknown as Record<string, unknown>),
     objective_metric: request.objectiveMetric,
     direction: getDirection(request),
     search_space: request.searchSpace,
@@ -289,7 +296,7 @@ function getTimeout(request: HPORequest): number {
  */
 const EVENT_HANDLERS: Record<
   string,
-  (session: HPOSessionState, data: any) => void
+  (session: HPOSessionState, data: Record<string, unknown>) => void
 > = {
   "hpo-started": handleHPOStarted,
   "hpo-trial-start": handleTrialStart,
@@ -301,7 +308,7 @@ const EVENT_HANDLERS: Record<
   "hpo-log": handleHPOLog,
 };
 
-function handleHPOStarted(session: HPOSessionState, data: any): void {
+function handleHPOStarted(session: HPOSessionState, data: Record<string, unknown>): void {
   session.status = "running";
   dbUpdateSession(session.sessionId, { status: "running" });
 
@@ -311,10 +318,10 @@ function handleHPOStarted(session: HPOSessionState, data: any): void {
   );
 }
 
-function handleTrialStart(session: HPOSessionState, data: any): void {
+function handleTrialStart(session: HPOSessionState, data: Record<string, unknown>): void {
   dbInsertTrial({
     sessionId: session.sessionId,
-    trialId: data.trialId,
+    trialId: data.trialId as number,
     status: "running",
     params: JSON.stringify(data.params ?? {}),
   });
@@ -324,19 +331,19 @@ function handleTrialStart(session: HPOSessionState, data: any): void {
   );
 }
 
-function handleTrialDone(session: HPOSessionState, data: any): void {
+function handleTrialDone(session: HPOSessionState, data: Record<string, unknown>): void {
   session.completedTrials += 1;
 
-  dbUpdateTrial(session.sessionId, data.trialId, {
+  dbUpdateTrial(session.sessionId, data.trialId as number, {
     status: "completed",
-    score: data.score ?? undefined,
+    score: (data.score as number) ?? undefined,
     metrics: data.metrics ? JSON.stringify(data.metrics) : undefined,
-    durationSec: data.durationSec ?? undefined,
+    durationSec: (data.durationSec as number) ?? undefined,
     iterationHistory: data.iterationHistory
       ? JSON.stringify(data.iterationHistory)
       : undefined,
-    modelPath: data.modelPath ?? undefined,
-    trainedModelId: data.trainedModelId ?? undefined,
+    modelPath: (data.modelPath as string) ?? undefined,
+    trainedModelId: (data.trainedModelId as string) ?? undefined,
     completedAt: new Date(),
   });
 
@@ -349,14 +356,14 @@ function handleTrialDone(session: HPOSessionState, data: any): void {
   );
 }
 
-function handleTrialPruned(session: HPOSessionState, data: any): void {
+function handleTrialPruned(session: HPOSessionState, data: Record<string, unknown>): void {
   session.prunedTrials += 1;
 
-  dbUpdateTrial(session.sessionId, data.trialId, {
+  dbUpdateTrial(session.sessionId, data.trialId as number, {
     status: "pruned",
-    score: data.score ?? undefined,
+    score: (data.score as number) ?? undefined,
     pruned: 1,
-    prunedAtStep: data.prunedAtStep ?? undefined,
+    prunedAtStep: (data.prunedAtStep as number) ?? undefined,
     completedAt: new Date(),
   });
 
@@ -369,13 +376,13 @@ function handleTrialPruned(session: HPOSessionState, data: any): void {
   );
 }
 
-function handleBestUpdate(session: HPOSessionState, data: any): void {
-  session.bestScore = data.bestScore ?? null;
-  session.bestParams = data.bestParams ?? null;
+function handleBestUpdate(session: HPOSessionState, data: Record<string, unknown>): void {
+  session.bestScore = (data.bestScore as number) ?? null;
+  session.bestParams = (data.bestParams as Record<string, unknown>) ?? null;
 
   dbUpdateSession(session.sessionId, {
-    bestTrialId: data.trialId,
-    bestScore: data.bestScore,
+    bestTrialId: data.trialId as number | undefined,
+    bestScore: data.bestScore as number | undefined,
     bestParams: JSON.stringify(data.bestParams ?? {}),
   });
 
@@ -384,7 +391,7 @@ function handleBestUpdate(session: HPOSessionState, data: any): void {
   );
 }
 
-function handleHPOComplete(session: HPOSessionState, data: any): void {
+function handleHPOComplete(session: HPOSessionState, data: Record<string, unknown>): void {
   session.status = "completed";
   session.finished = true;
 
@@ -396,9 +403,9 @@ function handleHPOComplete(session: HPOSessionState, data: any): void {
     status: "completed",
     elapsedSec,
     completedAt: new Date(),
-    completedTrials: data.completedTrials ?? session.completedTrials,
-    prunedTrials: data.prunedTrials ?? session.prunedTrials,
-    bestScore: data.bestScore ?? session.bestScore ?? undefined,
+    completedTrials: (data.completedTrials as number) ?? session.completedTrials,
+    prunedTrials: (data.prunedTrials as number) ?? session.prunedTrials,
+    bestScore: (data.bestScore as number) ?? session.bestScore ?? undefined,
     bestParams: data.bestParams
       ? JSON.stringify(data.bestParams)
       : undefined,
@@ -409,12 +416,12 @@ function handleHPOComplete(session: HPOSessionState, data: any): void {
   );
 }
 
-function handleHPOError(session: HPOSessionState, data: any): void {
+function handleHPOError(session: HPOSessionState, data: Record<string, unknown>): void {
   const message = data.message ?? "Unknown HPO error";
   console.error(`[hpo] Session ${session.sessionId} error — ${message}`);
 }
 
-function handleHPOLog(session: HPOSessionState, data: any): void {
+function handleHPOLog(session: HPOSessionState, data: Record<string, unknown>): void {
   // Log messages are emitted to SSE but not persisted to DB
   const msg = data.message ?? data;
   console.log(`[hpo] Session ${session.sessionId} log — ${msg}`);
@@ -425,7 +432,7 @@ function handleHPOLog(session: HPOSessionState, data: any): void {
  * Non-JSON lines are silently ignored (Python may emit warnings to stdout).
  */
 function parseAndDispatch(session: HPOSessionState, line: string): void {
-  let parsed: { type?: string; data?: any };
+  let parsed: { type?: string; data?: Record<string, unknown> };
   try {
     parsed = JSON.parse(line);
   } catch {
@@ -436,14 +443,16 @@ function parseAndDispatch(session: HPOSessionState, line: string): void {
   const { type, data } = parsed;
   if (!type) return;
 
+  const payload = data ?? {};
+
   // Dispatch to handler if registered, otherwise treat as generic log
   const handler = EVENT_HANDLERS[type];
   if (handler) {
-    handler(session, data ?? {});
+    handler(session, payload);
   }
 
   // All events → SSE broadcast + buffer (including unrecognised types)
-  emitHPOEvent(session, type, data ?? {});
+  emitHPOEvent(session, type, payload);
 }
 
 // ─── Process Lifecycle ───────────────────────────────────────────────────────
@@ -835,7 +844,7 @@ export function listPastSessions(opts?: {
  */
 export function applyBestParams(
   sessionId: string,
-): { modelType: string; hyperparameters: Record<string, any> } {
+): { modelType: string; hyperparameters: Record<string, unknown> } {
   const row = db
     .select()
     .from(hpoSessions)
@@ -852,9 +861,9 @@ export function applyBestParams(
     );
   }
 
-  const bestParams = JSON.parse(row.bestParams) as Record<string, any>;
+  const bestParams = JSON.parse(row.bestParams) as Record<string, unknown>;
   const fixed = row.fixedHyperparameters
-    ? (JSON.parse(row.fixedHyperparameters) as Record<string, any>)
+    ? (JSON.parse(row.fixedHyperparameters) as Record<string, unknown>)
     : {};
 
   // Merge: fixed params as base, best (optimised) params override
@@ -921,7 +930,7 @@ export class HpoService {
   /** Extract best params from a completed session for a new training run. */
   applyBestParams(
     sessionId: string,
-  ): { modelType: string; hyperparameters: Record<string, any> } {
+  ): { modelType: string; hyperparameters: Record<string, unknown> } {
     return applyBestParams(sessionId);
   }
 }

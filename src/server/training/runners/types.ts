@@ -1,4 +1,5 @@
 import type { ResolvedTrainingConfig, TrainingEvent, TrainingSession } from "@shared/trainingTypes";
+import type { DomainEvent } from "@shared/event-types";
 import { getEventBus } from "../../events";
 
 export interface ITrainerRunner {

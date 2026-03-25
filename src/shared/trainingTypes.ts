@@ -261,6 +261,21 @@ export interface TrainingSession {
   listeners: Set<(event: TrainingEvent) => void>;
   finished: boolean;
   exitCode: number | null;
+  /** SQLite row ID for metric persistence and session finalization */
+  dbSessionId?: number;
+}
+
+/** Shape of the diagnostics JSON written by Python training scripts */
+export interface TrainingDiagnostics {
+  quality_score?: number;
+  evaluation?: {
+    grade?: string;
+    tests?: Array<{ name: string; passed: boolean; pValue?: number }>;
+  };
+  num_regimes?: number;
+  log_likelihood?: number;
+  convergence?: Record<string, number[]>;
+  [key: string]: unknown;
 }
 
 // ─── Client-Side Training State ──────────────────────────────────────────────

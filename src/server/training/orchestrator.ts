@@ -117,8 +117,7 @@ export async function startTraining(request: TrainingRequest): Promise<{
       hyperparameters: hyperparameters as Record<string, unknown>,
       featureCategories: resolved.featureCategories,
     });
-    // Attach DB session ID for metric persistence and finalization
-    (session as any).dbSessionId = dbSession.id;
+    session.dbSessionId = dbSession.id;
   } catch (err) {
     console.error(`[training] Failed to persist session to SQLite:`, err);
   }
@@ -242,7 +241,7 @@ async function launchWalkForwardPipeline(
 
     const windowModelId = appendWindowIndex(resolved.modelId, window.index);
 
-    emitSessionEvent(session, "walk-forward-window-start" as any, {
+    emitSessionEvent(session, "walk-forward-window-start", {
       window: window.index,
       totalWindows: windows.length,
       trainRange: { start: window.trainStart, end: window.trainEnd },
@@ -278,14 +277,14 @@ async function launchWalkForwardPipeline(
     console.log(`[training] WF window ${window.index}/${windows.length}: ${window.trainStart}→${window.testEnd}`);
     await runner.start(windowConfig, session);
 
-    emitSessionEvent(session, "walk-forward-window-done" as any, {
+    emitSessionEvent(session, "walk-forward-window-done", {
       window: window.index,
       totalWindows: windows.length,
     });
   }
 
   // Emit walk-forward summary
-  emitSessionEvent(session, "walk-forward-summary" as any, {
+  emitSessionEvent(session, "walk-forward-summary", {
     groupId,
     totalWindows: windows.length,
     windows: windows.map(w => ({

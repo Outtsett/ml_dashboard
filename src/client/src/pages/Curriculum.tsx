@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { CurriculumOverview } from "@/components/curriculum/CurriculumOverview";
 import { LearningPathView } from "@/components/curriculum/LearningPathView";
 import { LessonViewer } from "@/components/curriculum/LessonViewer";
-import { useCurriculumProgress, usePathProgress, useUpdateProgress } from "@/hooks/useCurriculum";
+import { useCurriculumProgress, usePathProgress, useUpdateProgress, useCurriculumStats } from "@/hooks/useCurriculum";
 import { allPaths } from "@/lib/curriculum/paths";
 import type { LessonProgress, Lesson } from "@/lib/curriculum/types";
 
@@ -16,6 +16,7 @@ export default function Curriculum() {
   const [view, setView] = useState<CurriculumView>({ kind: "overview" });
   const { data: progress = [] } = useCurriculumProgress();
   const pathProgress = usePathProgress(progress);
+  const stats = useCurriculumStats(progress);
   const updateProgress = useUpdateProgress();
 
   const handleSelectPath = useCallback((pathId: string) => {
@@ -161,6 +162,22 @@ export default function Curriculum() {
               <p className="text-sm text-muted-foreground mt-1">
                 Structured learning paths for quantitative trading &amp; machine learning
               </p>
+              {/* Stats badges */}
+              <div className="flex flex-wrap items-center gap-3 mt-3">
+                {stats.streakDays > 0 && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    🔥 {stats.streakDays} day streak
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  ✓ {stats.completedLessons}/{stats.totalLessons} lessons
+                </span>
+                {stats.averageScore > 0 && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    📊 {stats.averageScore}% avg score
+                  </span>
+                )}
+              </div>
             </div>
             <CurriculumOverview
               paths={allPaths}

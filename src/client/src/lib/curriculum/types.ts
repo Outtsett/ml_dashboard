@@ -45,7 +45,9 @@ export interface QuizQuestion {
 export interface ObjectiveSection {
   type: "objective";
   title?: string;
-  content: string;
+  content?: string;
+  /** Alternative content field used in some lessons */
+  description?: string;
   keyTakeaways: string[];
 }
 

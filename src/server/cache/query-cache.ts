@@ -54,7 +54,6 @@ export class QueryCache {
   // ── Event-driven invalidation ─────────────────────────────
 
   private subscribeToEvents(): void {
-    // TODO: Wire ingestion service to emit 'ingestion.completed' events
     // ingestion.completed -> invalidate all keys containing `:${symbol}:`
     this.bus.on('ingestion.completed', (event: DomainEvent) => {
       if (event.type !== 'ingestion.completed') return;
