@@ -61,3 +61,14 @@ dist/
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
+
+# Experiment tracking artifacts
+wandb/
+
+# Build artifacts
+build/
+
+# Temporary/generated files
+tsc_output.txt
+*.csv
+*.bak
