@@ -1,0 +1,3056 @@
+
+########## com.motivewave.platform.sdk.study.Study ##########
+Compiled from "Study.java"
+public class com.motivewave.platform.sdk.study.Study implements java.lang.Cloneable {
+  public static final int SHIFT_DOWN;
+    descriptor: I
+  public static final int CTRL_DOWN;
+    descriptor: I
+  public static final int META_DOWN;
+    descriptor: I
+  public static final int ALT_DOWN;
+    descriptor: I
+  private java.util.Map figureMap;
+    descriptor: Ljava/util/Map;
+  private com.motivewave.platform.sdk.study.RuntimeDescriptor runtimeDescriptor;
+    descriptor: Lcom/motivewave/platform/sdk/study/RuntimeDescriptor;
+  private com.motivewave.platform.sdk.common.desc.SettingsDescriptor settingsDescriptor;
+    descriptor: Lcom/motivewave/platform/sdk/common/desc/SettingsDescriptor;
+  private com.motivewave.platform.sdk.common.Settings settings;
+    descriptor: Lcom/motivewave/platform/sdk/common/Settings;
+  private com.motivewave.platform.databean.StudyInfo info;
+    descriptor: Lcom/motivewave/platform/databean/StudyInfo;
+  private int minBars;
+    descriptor: I
+  private java.util.Map minBarMap;
+    descriptor: Ljava/util/Map;
+  private java.lang.Long minStartTime;
+    descriptor: Ljava/lang/Long;
+  private int figureUpdateCount;
+    descriptor: I
+  private boolean figureUpdatePending;
+    descriptor: Z
+  private boolean cancelInProgress;
+    descriptor: Z
+  private boolean ignoreFigureUpdates;
+    descriptor: Z
+  private boolean vetoClosePosition;
+    descriptor: Z
+  private boolean destroyed;
+    descriptor: Z
+  private com.motivewave.platform.sdk.common.Enums$StrategyState state;
+    descriptor: Lcom/motivewave/platform/sdk/common/Enums$StrategyState;
+  private com.motivewave.platform.sdk.common.Enums$EntryState entryState;
+    descriptor: Lcom/motivewave/platform/sdk/common/Enums$EntryState;
+  private java.lang.Boolean iLong;
+    descriptor: Ljava/lang/Boolean;
+  private java.util.Map labelMap;
+    descriptor: Ljava/util/Map;
+  private java.lang.Float stopPrice;
+    descriptor: Ljava/lang/Float;
+  private java.lang.Float targetPrice;
+    descriptor: Ljava/lang/Float;
+  private com.motivewave.platform.sdk.common.DataContext dataCtx;
+    descriptor: Lcom/motivewave/platform/sdk/common/DataContext;
+  private int lastSize;
+    descriptor: I
+  private com.motivewave.common.util.ar weakSupport;
+    descriptor: Lcom/motivewave/common/util/ar;
+  private java.lang.Boolean overlay;
+    descriptor: Ljava/lang/Boolean;
+  private long lastRangeUpdate;
+    descriptor: J
+  private long lastRedraw;
+    descriptor: J
+  private long lastValuesUpdated;
+    descriptor: J
+  public com.motivewave.platform.sdk.study.Study();
+    descriptor: ()V
+
+  public void initialize(com.motivewave.platform.sdk.common.Defaults);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Defaults;)V
+
+  public void onLoad(com.motivewave.platform.sdk.common.Defaults);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Defaults;)V
+
+  protected void precalculate(com.motivewave.platform.sdk.common.DataContext);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataContext;)V
+
+  protected void postcalculate(com.motivewave.platform.sdk.common.DataContext);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataContext;)V
+
+  protected void calculate(int, com.motivewave.platform.sdk.common.DataContext);
+    descriptor: (ILcom/motivewave/platform/sdk/common/DataContext;)V
+
+  protected void calculateValues(com.motivewave.platform.sdk.common.DataContext);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataContext;)V
+
+  public boolean isRepaintAllOnUpdate();
+    descriptor: ()Z
+
+  public boolean hasFooter();
+    descriptor: ()Z
+
+  public void onBarOpen(com.motivewave.platform.sdk.common.DataContext);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataContext;)V
+
+  public void onBarUpdate(com.motivewave.platform.sdk.common.DataContext);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataContext;)V
+
+  public void onTick(com.motivewave.platform.sdk.common.DataContext, com.motivewave.platform.sdk.common.Tick);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataContext;Lcom/motivewave/platform/sdk/common/Tick;)V
+
+  public void onBarClose(com.motivewave.platform.sdk.common.DataContext);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataContext;)V
+
+  public void onDataSeriesMoved(com.motivewave.platform.sdk.common.DataContext);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataContext;)V
+
+  public void onDataSeriesUpdated(com.motivewave.platform.sdk.common.DataContext);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataContext;)V
+
+  public void onNewDataSeries(com.motivewave.platform.sdk.common.DataContext);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataContext;)V
+
+  public void onSettingsUpdated(com.motivewave.platform.sdk.common.DataContext);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataContext;)V
+
+  public void recalculate(com.motivewave.platform.sdk.common.DataContext);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataContext;)V
+
+  public com.motivewave.platform.sdk.common.menu.MenuDescriptor onMenu(java.lang.String, java.awt.Point, com.motivewave.
+.platform.sdk.common.DrawContext);
+    descriptor: (Ljava/lang/String;Ljava/awt/Point;Lcom/motivewave/platform/sdk/common/DrawContext;)Lcom/motivewave/plat
+tform/sdk/common/menu/MenuDescriptor;
+
+  public void onBeginResize(com.motivewave.platform.sdk.draw.ResizePoint, com.motivewave.platform.sdk.common.DrawContext
+t);
+    descriptor: (Lcom/motivewave/platform/sdk/draw/ResizePoint;Lcom/motivewave/platform/sdk/common/DrawContext;)V       
+
+  public void onResize(com.motivewave.platform.sdk.draw.ResizePoint, com.motivewave.platform.sdk.common.DrawContext);   
+    descriptor: (Lcom/motivewave/platform/sdk/draw/ResizePoint;Lcom/motivewave/platform/sdk/common/DrawContext;)V       
+
+  public void onEndResize(com.motivewave.platform.sdk.draw.ResizePoint, com.motivewave.platform.sdk.common.DrawContext);
+    descriptor: (Lcom/motivewave/platform/sdk/draw/ResizePoint;Lcom/motivewave/platform/sdk/common/DrawContext;)V       
+
+  public boolean supportsDrag();
+    descriptor: ()Z
+
+  public void onHover(java.awt.geom.Point2D, int, com.motivewave.platform.sdk.common.DrawContext);
+    descriptor: (Ljava/awt/geom/Point2D;ILcom/motivewave/platform/sdk/common/DrawContext;)V
+
+  public void onHoverLost(java.awt.geom.Point2D, int, com.motivewave.platform.sdk.common.DrawContext);
+    descriptor: (Ljava/awt/geom/Point2D;ILcom/motivewave/platform/sdk/common/DrawContext;)V
+
+  public void onBeginDrag(java.awt.geom.Point2D, int, com.motivewave.platform.sdk.common.DrawContext);
+    descriptor: (Ljava/awt/geom/Point2D;ILcom/motivewave/platform/sdk/common/DrawContext;)V
+
+  public void onDrag(java.awt.geom.Point2D, int, com.motivewave.platform.sdk.common.DrawContext);
+    descriptor: (Ljava/awt/geom/Point2D;ILcom/motivewave/platform/sdk/common/DrawContext;)V
+
+  public void onEndDrag(java.awt.geom.Point2D, int, com.motivewave.platform.sdk.common.DrawContext);
+    descriptor: (Ljava/awt/geom/Point2D;ILcom/motivewave/platform/sdk/common/DrawContext;)V
+
+  public boolean onDoubleClick(java.awt.Point, int);
+    descriptor: (Ljava/awt/Point;I)Z
+
+  public boolean onClick(java.awt.Point, int);
+    descriptor: (Ljava/awt/Point;I)Z
+
+  public boolean onWheelMoved(java.awt.Point, int, int);
+    descriptor: (Ljava/awt/Point;II)Z
+
+  public void clearState();
+    descriptor: ()V
+
+  public final com.motivewave.platform.sdk.study.RuntimeDescriptor createRD();
+    descriptor: ()Lcom/motivewave/platform/sdk/study/RuntimeDescriptor;
+
+  public final com.motivewave.platform.sdk.study.RuntimeDescriptor getRuntimeDescriptor();
+    descriptor: ()Lcom/motivewave/platform/sdk/study/RuntimeDescriptor;
+
+  public final void setRuntimeDescriptor(com.motivewave.platform.sdk.study.RuntimeDescriptor);
+    descriptor: (Lcom/motivewave/platform/sdk/study/RuntimeDescriptor;)V
+
+  public final com.motivewave.platform.sdk.common.desc.SettingsDescriptor createSD();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/desc/SettingsDescriptor;
+
+  public final com.motivewave.platform.sdk.common.desc.SettingsDescriptor getSettingsDescriptor();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/desc/SettingsDescriptor;
+
+  public final void setSettingsDescriptor(com.motivewave.platform.sdk.common.desc.SettingsDescriptor);
+    descriptor: (Lcom/motivewave/platform/sdk/common/desc/SettingsDescriptor;)V
+
+  public final com.motivewave.platform.sdk.common.Settings getSettings();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Settings;
+
+  public final void setSettings(com.motivewave.platform.sdk.common.Settings);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Settings;)V
+
+  public java.util.List getBarSizes();
+    descriptor: ()Ljava/util/List;
+
+  public java.util.List getInstruments();
+    descriptor: ()Ljava/util/List;
+
+  private void updateDefaultGuides();
+    descriptor: ()V
+
+  public java.lang.String getPopupMessage(double, double, com.motivewave.platform.sdk.common.DrawContext);
+    descriptor: (DDLcom/motivewave/platform/sdk/common/DrawContext;)Ljava/lang/String;
+
+  public final com.motivewave.platform.sdk.study.StudyHeader getHeader();
+    descriptor: ()Lcom/motivewave/platform/sdk/study/StudyHeader;
+
+  public java.lang.String getLabel();
+    descriptor: ()Ljava/lang/String;
+
+  public java.lang.String getLabel(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/lang/String;
+
+  protected final void clearFigures();
+    descriptor: ()V
+
+  protected final void clearFigures(java.lang.String);
+    descriptor: (Ljava/lang/String;)V
+
+  public void onFiguresLaidOut(com.motivewave.platform.sdk.common.DrawContext);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DrawContext;)V
+
+  protected final void addFigure(com.motivewave.platform.sdk.draw.Figure);
+    descriptor: (Lcom/motivewave/platform/sdk/draw/Figure;)V
+
+  protected final void setFigures(java.util.List);
+    descriptor: (Ljava/util/List;)V
+
+  protected final void addFigureFront(com.motivewave.platform.sdk.draw.Figure);
+    descriptor: (Lcom/motivewave/platform/sdk/draw/Figure;)V
+
+  protected final void addFigure(java.lang.String, com.motivewave.platform.sdk.draw.Figure);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/draw/Figure;)V
+
+  protected final void setFigures(java.lang.String, java.util.List);
+    descriptor: (Ljava/lang/String;Ljava/util/List;)V
+
+  protected final void addFigures(java.util.Collection);
+    descriptor: (Ljava/util/Collection;)V
+
+  protected final void addFigures(java.lang.String, java.util.Collection);
+    descriptor: (Ljava/lang/String;Ljava/util/Collection;)V
+
+  protected final void addFigure(int, com.motivewave.platform.sdk.draw.Figure);
+    descriptor: (ILcom/motivewave/platform/sdk/draw/Figure;)V
+
+  protected final void addFigure(java.lang.String, int, com.motivewave.platform.sdk.draw.Figure);
+    descriptor: (Ljava/lang/String;ILcom/motivewave/platform/sdk/draw/Figure;)V
+
+  protected final void addFigureFront(java.lang.String, com.motivewave.platform.sdk.draw.Figure);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/draw/Figure;)V
+
+  protected final void removeFigure(com.motivewave.platform.sdk.draw.Figure);
+    descriptor: (Lcom/motivewave/platform/sdk/draw/Figure;)V
+
+  protected final void removeFigure(java.lang.String, com.motivewave.platform.sdk.draw.Figure);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/draw/Figure;)V
+
+  private boolean contains(java.util.List, com.motivewave.platform.sdk.draw.Figure);
+    descriptor: (Ljava/util/List;Lcom/motivewave/platform/sdk/draw/Figure;)Z
+
+  protected final void removeFigures(java.util.Collection);
+    descriptor: (Ljava/util/Collection;)V
+
+  protected final void removeFigures(java.lang.String, java.util.Collection);
+    descriptor: (Ljava/lang/String;Ljava/util/Collection;)V
+
+  public final java.util.List getFigures();
+    descriptor: ()Ljava/util/List;
+
+  public final java.util.List getFigures(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/util/List;
+
+  public int getMinBars();
+    descriptor: ()I
+
+  public int getMinBars(com.motivewave.platform.sdk.common.DataContext);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataContext;)I
+
+  public int getMinBars(com.motivewave.platform.sdk.common.DataContext, com.motivewave.platform.sdk.common.BarSize);    
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataContext;Lcom/motivewave/platform/sdk/common/BarSize;)I
+
+  public void setMinBars(int);
+    descriptor: (I)V
+
+  public void setMinBars(int, com.motivewave.platform.sdk.common.BarSize);
+    descriptor: (ILcom/motivewave/platform/sdk/common/BarSize;)V
+
+  public java.lang.Long getMinStartTime();
+    descriptor: ()Ljava/lang/Long;
+
+  public java.lang.Long getMinStartTime(com.motivewave.platform.sdk.common.DataContext);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataContext;)Ljava/lang/Long;
+
+  public void setMinStartTime(java.lang.Long);
+    descriptor: (Ljava/lang/Long;)V
+
+  public void onActivate(com.motivewave.platform.sdk.order_mgmt.OrderContext);
+    descriptor: (Lcom/motivewave/platform/sdk/order_mgmt/OrderContext;)V
+
+  public void onSessionStarted(com.motivewave.platform.sdk.order_mgmt.OrderContext, com.motivewave.platform.sdk.common.T
+TimeFrame);
+    descriptor: (Lcom/motivewave/platform/sdk/order_mgmt/OrderContext;Lcom/motivewave/platform/sdk/common/TimeFrame;)V  
+
+  public void onSessionEnded(com.motivewave.platform.sdk.order_mgmt.OrderContext, com.motivewave.platform.sdk.common.Tim
+meFrame);
+    descriptor: (Lcom/motivewave/platform/sdk/order_mgmt/OrderContext;Lcom/motivewave/platform/sdk/common/TimeFrame;)V  
+
+  public void onBarOpen(com.motivewave.platform.sdk.order_mgmt.OrderContext);
+    descriptor: (Lcom/motivewave/platform/sdk/order_mgmt/OrderContext;)V
+
+  public void onBarUpdate(com.motivewave.platform.sdk.order_mgmt.OrderContext);
+    descriptor: (Lcom/motivewave/platform/sdk/order_mgmt/OrderContext;)V
+
+  public void onBarClose(com.motivewave.platform.sdk.order_mgmt.OrderContext);
+    descriptor: (Lcom/motivewave/platform/sdk/order_mgmt/OrderContext;)V
+
+  public void onSignal(com.motivewave.platform.sdk.order_mgmt.OrderContext, java.lang.Object);
+    descriptor: (Lcom/motivewave/platform/sdk/order_mgmt/OrderContext;Ljava/lang/Object;)V
+
+  public void onDeactivate(com.motivewave.platform.sdk.order_mgmt.OrderContext);
+    descriptor: (Lcom/motivewave/platform/sdk/order_mgmt/OrderContext;)V
+
+  public void setVetoCloseOnDeactivate(boolean);
+    descriptor: (Z)V
+
+  public void onReset(com.motivewave.platform.sdk.order_mgmt.OrderContext);
+    descriptor: (Lcom/motivewave/platform/sdk/order_mgmt/OrderContext;)V
+
+  public void onPositionClosed(com.motivewave.platform.sdk.order_mgmt.OrderContext);
+    descriptor: (Lcom/motivewave/platform/sdk/order_mgmt/OrderContext;)V
+
+  public void onEnterNow(com.motivewave.platform.sdk.order_mgmt.OrderContext);
+    descriptor: (Lcom/motivewave/platform/sdk/order_mgmt/OrderContext;)V
+
+  public void onOrderFilled(com.motivewave.platform.sdk.order_mgmt.OrderContext, com.motivewave.platform.sdk.order_mgmt.
+.Order);
+    descriptor: (Lcom/motivewave/platform/sdk/order_mgmt/OrderContext;Lcom/motivewave/platform/sdk/order_mgmt/Order;)V  
+
+  public void onOrderCancelled(com.motivewave.platform.sdk.order_mgmt.OrderContext, com.motivewave.platform.sdk.order_mg
+gmt.Order);
+    descriptor: (Lcom/motivewave/platform/sdk/order_mgmt/OrderContext;Lcom/motivewave/platform/sdk/order_mgmt/Order;)V  
+
+  public void onOrderRejected(com.motivewave.platform.sdk.order_mgmt.OrderContext, com.motivewave.platform.sdk.order_mgm
+mt.Order);
+    descriptor: (Lcom/motivewave/platform/sdk/order_mgmt/OrderContext;Lcom/motivewave/platform/sdk/order_mgmt/Order;)V  
+
+  public void onOrderModified(com.motivewave.platform.sdk.order_mgmt.OrderContext, com.motivewave.platform.sdk.order_mgm
+mt.Order);
+    descriptor: (Lcom/motivewave/platform/sdk/order_mgmt/OrderContext;Lcom/motivewave/platform/sdk/order_mgmt/Order;)V  
+
+  public final com.motivewave.platform.sdk.common.Enums$StrategyState getState();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Enums$StrategyState;
+
+  public final void setState(com.motivewave.platform.sdk.common.Enums$StrategyState);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$StrategyState;)V
+
+  public final com.motivewave.platform.sdk.common.Enums$EntryState getEntryState();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Enums$EntryState;
+
+  public final void setEntryState(com.motivewave.platform.sdk.common.Enums$EntryState);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$EntryState;)V
+
+  public final boolean isLong();
+    descriptor: ()Z
+
+  public final boolean isShort();
+    descriptor: ()Z
+
+  public final void setLong(java.lang.Boolean);
+    descriptor: (Ljava/lang/Boolean;)V
+
+  public final boolean isCancelInProgress();
+    descriptor: ()Z
+
+  public final void setCancelInProgress(boolean);
+    descriptor: (Z)V
+
+  public final java.lang.Float getStopPrice();
+    descriptor: ()Ljava/lang/Float;
+
+  public final void setStopPrice(java.lang.Float);
+    descriptor: (Ljava/lang/Float;)V
+
+  public final java.lang.Float getTargetPrice();
+    descriptor: ()Ljava/lang/Float;
+
+  public final void setTargetPrice(java.lang.Float);
+    descriptor: (Ljava/lang/Float;)V
+
+  public final void setDataContext(com.motivewave.platform.sdk.common.DataContext);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataContext;)V
+
+  public com.motivewave.platform.sdk.common.DataContext getDataContext();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/DataContext;
+
+  public final java.lang.String get(java.lang.String, java.lang.Object...);
+    descriptor: (Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;
+
+  public final double round(double);
+    descriptor: (D)D
+
+  public final java.lang.String format(double);
+    descriptor: (D)Ljava/lang/String;
+
+  public final boolean crossedAbove(java.lang.Object, java.lang.Object);
+    descriptor: (Ljava/lang/Object;Ljava/lang/Object;)Z
+
+  public final boolean crossedAbove(com.motivewave.platform.sdk.common.DataSeries, int, java.lang.Object, java.lang.Obje
+ect);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataSeries;ILjava/lang/Object;Ljava/lang/Object;)Z
+
+  public final boolean crossedAbove(java.lang.Object, double);
+    descriptor: (Ljava/lang/Object;D)Z
+
+  public final boolean crossedAbove(com.motivewave.platform.sdk.common.DataSeries, int, java.lang.Object, double);      
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataSeries;ILjava/lang/Object;D)Z
+
+  public final boolean crossedBelow(java.lang.Object, java.lang.Object);
+    descriptor: (Ljava/lang/Object;Ljava/lang/Object;)Z
+
+  public final boolean crossedBelow(com.motivewave.platform.sdk.common.DataSeries, int, java.lang.Object, java.lang.Obje
+ect);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataSeries;ILjava/lang/Object;Ljava/lang/Object;)Z
+
+  public final boolean crossedBelow(java.lang.Object, double);
+    descriptor: (Ljava/lang/Object;D)Z
+
+  public final boolean crossedBelow(com.motivewave.platform.sdk.common.DataSeries, int, java.lang.Object, double);      
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataSeries;ILjava/lang/Object;D)Z
+
+  private double[] getNonEqualPair(com.motivewave.platform.sdk.common.DataSeries, int, java.lang.Object, java.lang.Objec
+ct);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataSeries;ILjava/lang/Object;Ljava/lang/Object;)[D
+
+  private java.lang.Double getNonEqualValue(com.motivewave.platform.sdk.common.DataSeries, int, java.lang.Object, double
+e);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DataSeries;ILjava/lang/Object;D)Ljava/lang/Double;
+
+  private final double round2(double);
+    descriptor: (D)D
+
+  public final void debug(java.lang.String);
+    descriptor: (Ljava/lang/String;)V
+
+  public final void info(java.lang.String);
+    descriptor: (Ljava/lang/String;)V
+
+  public final void warning(java.lang.String);
+    descriptor: (Ljava/lang/String;)V
+
+  public final void error(java.lang.String);
+    descriptor: (Ljava/lang/String;)V
+
+  public void addPropertyChangeListener(java.beans.PropertyChangeListener);
+    descriptor: (Ljava/beans/PropertyChangeListener;)V
+
+  public void addPropertyChangeListener(java.lang.String, java.beans.PropertyChangeListener);
+    descriptor: (Ljava/lang/String;Ljava/beans/PropertyChangeListener;)V
+
+  public void removePropertyChangeListener(java.beans.PropertyChangeListener);
+    descriptor: (Ljava/beans/PropertyChangeListener;)V
+
+  public void removePropertyChangeListener(java.lang.String, java.beans.PropertyChangeListener);
+    descriptor: (Ljava/lang/String;Ljava/beans/PropertyChangeListener;)V
+
+  protected void firePropertyChange(java.lang.String, java.lang.Object, java.lang.Object);
+    descriptor: (Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V
+
+  public void destroy();
+    descriptor: ()V
+
+  protected void notifyRangeUpdated();
+    descriptor: ()V
+
+  protected void notifyValuesUpdated();
+    descriptor: ()V
+
+  protected void notifyRedraw();
+    descriptor: ()V
+
+  public com.motivewave.platform.sdk.study.Study clone();
+    descriptor: ()Lcom/motivewave/platform/sdk/study/Study;
+
+  private com.motivewave.platform.databean.StudyInfo getInfo();
+    descriptor: ()Lcom/motivewave/platform/databean/StudyInfo;
+
+  private boolean isOverlay();
+    descriptor: ()Z
+
+  public void beginFigureUpdate();
+    descriptor: ()V
+
+  public void endFigureUpdate();
+    descriptor: ()V
+
+  private void notifyFiguresUpdated();
+    descriptor: ()V
+
+  public java.lang.Object clone();
+    descriptor: ()Ljava/lang/Object;
+}
+
+########## com.motivewave.platform.sdk.study.StudyHeader ##########
+Compiled from "StudyHeader.java"
+public interface com.motivewave.platform.sdk.study.StudyHeader extends java.lang.annotation.Annotation {
+  public abstract java.lang.String namespace();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract boolean secured();
+    descriptor: ()Z
+
+  public abstract java.lang.String id();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract java.lang.String rb();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract java.lang.String helpLink();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract java.lang.String name();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract java.lang.String menu();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract java.lang.String desc();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract java.lang.String label();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract boolean overlay();
+    descriptor: ()Z
+
+  public abstract boolean underlayByDefault();
+    descriptor: ()Z
+
+  public abstract boolean studyOverlay();
+    descriptor: ()Z
+
+  public abstract boolean signals();
+    descriptor: ()Z
+
+  public abstract boolean strategy();
+    descriptor: ()Z
+
+  public abstract java.lang.String menu2();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract java.lang.String menu3();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract java.lang.String tabName();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract boolean requiresVolume();
+    descriptor: ()Z
+
+  public abstract boolean multipleInstrument();
+    descriptor: ()Z
+
+  public abstract boolean supportsBarUpdates();
+    descriptor: ()Z
+
+  public abstract boolean requiresBarUpdates();
+    descriptor: ()Z
+
+  public abstract boolean barUpdatesByDefault();
+    descriptor: ()Z
+
+  public abstract boolean allowTickAggregate();
+    descriptor: ()Z
+
+  public abstract boolean allowTickFilter();
+    descriptor: ()Z
+
+  public abstract boolean supportsUseAccountPosition();
+    descriptor: ()Z
+
+  public abstract boolean requiresUseAccountPosition();
+    descriptor: ()Z
+
+  public abstract boolean requiresBidAskHistory();
+    descriptor: ()Z
+
+  public abstract boolean autoEntry();
+    descriptor: ()Z
+
+  public abstract boolean manualEntry();
+    descriptor: ()Z
+
+  public abstract boolean supportsLongShort();
+    descriptor: ()Z
+
+  public abstract boolean supportsEntryPrice();
+    descriptor: ()Z
+
+  public abstract boolean supportsPosition();
+    descriptor: ()Z
+
+  public abstract boolean supportsCurrentPL();
+    descriptor: ()Z
+
+  public abstract boolean supportsTotalPL();
+    descriptor: ()Z
+
+  public abstract boolean supportsRiskRatio();
+    descriptor: ()Z
+
+  public abstract boolean supportsStopPL();
+    descriptor: ()Z
+
+  public abstract boolean supportsTargetPL();
+    descriptor: ()Z
+
+  public abstract boolean supportsRealizedPL();
+    descriptor: ()Z
+
+  public abstract boolean supportsUnrealizedPL();
+    descriptor: ()Z
+
+  public abstract boolean showTradeOptions();
+    descriptor: ()Z
+
+  public abstract boolean supportsTradeLots();
+    descriptor: ()Z
+
+  public abstract boolean supportsPositionType();
+    descriptor: ()Z
+
+  public abstract boolean supportsEnterOnActivate();
+    descriptor: ()Z
+
+  public abstract boolean supportsCloseOnDeactivate();
+    descriptor: ()Z
+
+  public abstract boolean supportsTIF();
+    descriptor: ()Z
+
+  public abstract boolean supportsSessions();
+    descriptor: ()Z
+
+  public abstract int sessions();
+    descriptor: ()I
+
+  public abstract boolean supportsEnterOnSessionStart();
+    descriptor: ()Z
+
+  public abstract boolean supportsCloseOnSessionEnd();
+    descriptor: ()Z
+}
+
+########## com.motivewave.platform.sdk.common.DataSeries ##########
+Compiled from "DataSeries.java"
+public interface com.motivewave.platform.sdk.common.DataSeries {
+  public abstract int size();
+    descriptor: ()I
+
+  public abstract com.motivewave.platform.sdk.common.BarSize getBarSize();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/BarSize;
+
+  public abstract boolean hasData(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)Z
+
+  public abstract boolean hasData();
+    descriptor: ()Z
+
+  public abstract com.motivewave.platform.sdk.common.Enums$BarData getBarData();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Enums$BarData;
+
+  public abstract com.motivewave.platform.sdk.common.Instrument getInstrument();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Instrument;
+
+  public abstract float getHigh(int);
+    descriptor: (I)F
+
+  public abstract float getHigh();
+    descriptor: ()F
+
+  public abstract float getHigh(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getHigh(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getAskHigh(int);
+    descriptor: (I)F
+
+  public abstract float getAskHigh();
+    descriptor: ()F
+
+  public abstract float getAskHigh(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getAskHigh(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getBidHigh(int);
+    descriptor: (I)F
+
+  public abstract float getBidHigh();
+    descriptor: ()F
+
+  public abstract float getBidHigh(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getBidHigh(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getRealHigh(int);
+    descriptor: (I)F
+
+  public abstract float getRealHigh();
+    descriptor: ()F
+
+  public abstract float getLow(int);
+    descriptor: (I)F
+
+  public abstract float getLow();
+    descriptor: ()F
+
+  public abstract float getAskLow(int);
+    descriptor: (I)F
+
+  public abstract float getAskLow();
+    descriptor: ()F
+
+  public abstract float getBidLow(int);
+    descriptor: (I)F
+
+  public abstract float getBidLow();
+    descriptor: ()F
+
+  public abstract float getLow(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getLow(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getAskLow(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getAskLow(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getBidLow(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getBidLow(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getRealLow(int);
+    descriptor: (I)F
+
+  public abstract float getRealLow();
+    descriptor: ()F
+
+  public abstract float getOpen(int);
+    descriptor: (I)F
+
+  public abstract float getOpen();
+    descriptor: ()F
+
+  public abstract float getAskOpen(int);
+    descriptor: (I)F
+
+  public abstract float getAskOpen();
+    descriptor: ()F
+
+  public abstract float getBidOpen(int);
+    descriptor: (I)F
+
+  public abstract float getBidOpen();
+    descriptor: ()F
+
+  public abstract float getOpen(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getOpen(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getAskOpen(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getAskOpen(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getBidOpen(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getBidOpen(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getClose(int);
+    descriptor: (I)F
+
+  public abstract float getClose();
+    descriptor: ()F
+
+  public abstract float getAskClose(int);
+    descriptor: (I)F
+
+  public abstract float getAskClose();
+    descriptor: ()F
+
+  public abstract float getBidClose(int);
+    descriptor: (I)F
+
+  public abstract float getBidClose();
+    descriptor: ()F
+
+  public abstract float getClose(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getClose(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getAskClose(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getAskClose(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getBidClose(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract float getBidClose(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract long getVolume(int);
+    descriptor: (I)J
+
+  public abstract float getVolumeAsFloat(int);
+    descriptor: (I)F
+
+  public abstract long getVolume();
+    descriptor: ()J
+
+  public abstract float getVolumeAsFloat();
+    descriptor: ()F
+
+  public abstract long getVolume(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)J
+
+  public abstract float getVolumeAsFloat(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract long getVolume(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)J
+
+  public abstract float getVolumeAsFloat(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract long getOpenInterest(int);
+    descriptor: (I)J
+
+  public abstract long getOpenInterest();
+    descriptor: ()J
+
+  public abstract long getOpenInterest(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)J
+
+  public abstract long getOpenInterest(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)J
+
+  public abstract long getStartTime();
+    descriptor: ()J
+
+  public abstract long getStartTime(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)J
+
+  public abstract long getStartTime(int);
+    descriptor: (I)J
+
+  public abstract long getEndTime();
+    descriptor: ()J
+
+  public abstract long getEndTime(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)J
+
+  public abstract long getEndTime(int);
+    descriptor: (I)J
+
+  public abstract int getStartIndex();
+    descriptor: ()I
+
+  public abstract long getVisibleStartTime();
+    descriptor: ()J
+
+  public abstract int getEndIndex();
+    descriptor: ()I
+
+  public abstract long getVisibleEndTime();
+    descriptor: ()J
+
+  public abstract boolean isLatestData();
+    descriptor: ()Z
+
+  public abstract void setComplete(int);
+    descriptor: (I)V
+
+  public abstract void setComplete(int, boolean);
+    descriptor: (IZ)V
+
+  public abstract boolean isComplete(int);
+    descriptor: (I)Z
+
+  public abstract boolean isLastBarComplete();
+    descriptor: ()Z
+
+  public abstract boolean isBarComplete(int);
+    descriptor: (I)Z
+
+  public abstract void setComplete(int, java.lang.Object);
+    descriptor: (ILjava/lang/Object;)V
+
+  public abstract void setComplete(int, java.lang.Object, boolean);
+    descriptor: (ILjava/lang/Object;Z)V
+
+  public abstract boolean isComplete(int, java.lang.Object);
+    descriptor: (ILjava/lang/Object;)Z
+
+  public abstract void setDouble(int, java.lang.Object, java.lang.Double);
+    descriptor: (ILjava/lang/Object;Ljava/lang/Double;)V
+
+  public abstract void setDouble(java.lang.Object, java.lang.Double);
+    descriptor: (Ljava/lang/Object;Ljava/lang/Double;)V
+
+  public abstract java.lang.Double getDouble(int, java.lang.Object);
+    descriptor: (ILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double getDouble(int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.plat
+tform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lja
+ava/lang/Double;
+
+  public abstract double getDouble(int, java.lang.Object, double);
+    descriptor: (ILjava/lang/Object;D)D
+
+  public abstract java.lang.Double getDouble(long, java.lang.Object);
+    descriptor: (JLjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double getDouble(long, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.pla
+atform.sdk.common.Instrument);
+    descriptor: (JLcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lja
+ava/lang/Double;
+
+  public abstract java.lang.Double getDouble(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double getDouble(com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.platform.
+.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Ljav
+va/lang/Double;
+
+  public abstract void setFloat(int, java.lang.Object, java.lang.Float);
+    descriptor: (ILjava/lang/Object;Ljava/lang/Float;)V
+
+  public abstract void setFloat(java.lang.Object, java.lang.Float);
+    descriptor: (Ljava/lang/Object;Ljava/lang/Float;)V
+
+  public abstract java.lang.Float getFloat(int, java.lang.Object);
+    descriptor: (ILjava/lang/Object;)Ljava/lang/Float;
+
+  public abstract java.lang.Float getFloat(int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.platfo
+orm.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lja
+ava/lang/Float;
+
+  public abstract float getFloat(int, java.lang.Object, float);
+    descriptor: (ILjava/lang/Object;F)F
+
+  public abstract java.lang.Float getFloat(long, java.lang.Object);
+    descriptor: (JLjava/lang/Object;)Ljava/lang/Float;
+
+  public abstract java.lang.Float getFloat(long, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.platf
+form.sdk.common.Instrument);
+    descriptor: (JLcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lja
+ava/lang/Float;
+
+  public abstract java.lang.Float getFloat(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)Ljava/lang/Float;
+
+  public default java.lang.Float getFloat(java.lang.Object, float);
+    descriptor: (Ljava/lang/Object;F)Ljava/lang/Float;
+
+  public abstract java.lang.Float getFloat(com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.platform.sd
+dk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Ljav
+va/lang/Float;
+
+  public abstract int findIndex(long);
+    descriptor: (J)I
+
+  public abstract int getInt(int, java.lang.Object);
+    descriptor: (ILjava/lang/Object;)I
+
+  public abstract int getInt(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)I
+
+  public abstract void setInt(int, java.lang.Object, int);
+    descriptor: (ILjava/lang/Object;I)V
+
+  public abstract void setInt(java.lang.Object, int);
+    descriptor: (Ljava/lang/Object;I)V
+
+  public abstract void setBoolean(int, java.lang.Object, java.lang.Boolean);
+    descriptor: (ILjava/lang/Object;Ljava/lang/Boolean;)V
+
+  public abstract void setBoolean(java.lang.Object, java.lang.Boolean);
+    descriptor: (Ljava/lang/Object;Ljava/lang/Boolean;)V
+
+  public abstract java.lang.Boolean getBoolean(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)Ljava/lang/Boolean;
+
+  public abstract boolean getBoolean(java.lang.Object, boolean);
+    descriptor: (Ljava/lang/Object;Z)Z
+
+  public abstract java.lang.Boolean getBoolean(int, java.lang.Object);
+    descriptor: (ILjava/lang/Object;)Ljava/lang/Boolean;
+
+  public abstract boolean getBoolean(int, java.lang.Object, boolean);
+    descriptor: (ILjava/lang/Object;Z)Z
+
+  public abstract void setValue(int, java.lang.Object, java.lang.Object);
+    descriptor: (ILjava/lang/Object;Ljava/lang/Object;)V
+
+  public abstract void setValue(java.lang.Object, java.lang.Object);
+    descriptor: (Ljava/lang/Object;Ljava/lang/Object;)V
+
+  public abstract java.lang.Object getValue(int, java.lang.Object);
+    descriptor: (ILjava/lang/Object;)Ljava/lang/Object;
+
+  public abstract java.lang.Object getValue(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)Ljava/lang/Object;
+
+  public abstract java.lang.Object getValue(com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.platform.s
+sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Ljav
+va/lang/Object;
+
+  public abstract java.lang.Object getValue(int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.platf
+form.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lja
+ava/lang/Object;
+
+  public abstract void setPriceBarColor(int, java.awt.Color);
+    descriptor: (ILjava/awt/Color;)V
+
+  public abstract void setPriceBarColor(java.awt.Color);
+    descriptor: (Ljava/awt/Color;)V
+
+  public abstract java.awt.Color getPriceBarColor(int);
+    descriptor: (I)Ljava/awt/Color;
+
+  public abstract java.awt.Color getPriceBarColor();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract void setBarColor(int, java.lang.Object, java.awt.Color);
+    descriptor: (ILjava/lang/Object;Ljava/awt/Color;)V
+
+  public abstract void setBarColor(java.lang.Object, java.awt.Color);
+    descriptor: (Ljava/lang/Object;Ljava/awt/Color;)V
+
+  public abstract java.awt.Color getBarColor(int, java.lang.Object);
+    descriptor: (ILjava/lang/Object;)Ljava/awt/Color;
+
+  public abstract java.awt.Color getBarColor(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)Ljava/awt/Color;
+
+  public abstract void setPathColor(int, java.lang.Object, java.awt.Color);
+    descriptor: (ILjava/lang/Object;Ljava/awt/Color;)V
+
+  public abstract void setPathColor(java.lang.Object, java.awt.Color);
+    descriptor: (Ljava/lang/Object;Ljava/awt/Color;)V
+
+  public abstract java.awt.Color getPathColor(int, java.lang.Object);
+    descriptor: (ILjava/lang/Object;)Ljava/awt/Color;
+
+  public abstract java.awt.Color getPathColor(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)Ljava/awt/Color;
+
+  public abstract java.lang.Float getTrueRange(int);
+    descriptor: (I)Ljava/lang/Float;
+
+  public abstract java.lang.Float getTrueRange();
+    descriptor: ()Ljava/lang/Float;
+
+  public abstract java.lang.Float getTrueRange(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)Ljava/lang/Float;
+
+  public abstract java.lang.Float getTrueRange(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)Ljava/lang/Float;
+
+  public abstract java.lang.Float getTypicalPrice(int);
+    descriptor: (I)Ljava/lang/Float;
+
+  public abstract java.lang.Float getTypicalPrice();
+    descriptor: ()Ljava/lang/Float;
+
+  public abstract java.lang.Float getTypicalPrice(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)Ljava/lang/Float;
+
+  public abstract java.lang.Float getTypicalPrice(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)Ljava/lang/Float;
+
+  public abstract java.lang.Float getRange();
+    descriptor: ()Ljava/lang/Float;
+
+  public abstract java.lang.Float getRange(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)Ljava/lang/Float;
+
+  public abstract java.lang.Float getRange(int);
+    descriptor: (I)Ljava/lang/Float;
+
+  public abstract java.lang.Float getRange(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)Ljava/lang/Float;
+
+  public abstract java.lang.Float getPositiveDM();
+    descriptor: ()Ljava/lang/Float;
+
+  public abstract java.lang.Float getPositiveDM(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)Ljava/lang/Float;
+
+  public abstract java.lang.Float getPositiveDM(int);
+    descriptor: (I)Ljava/lang/Float;
+
+  public abstract java.lang.Float getPositiveDM(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)Ljava/lang/Float;
+
+  public abstract java.lang.Float getNegativeDM();
+    descriptor: ()Ljava/lang/Float;
+
+  public abstract java.lang.Float getNegativeDM(int);
+    descriptor: (I)Ljava/lang/Float;
+
+  public abstract java.lang.Float getNegativeDM(com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Instrument;)Ljava/lang/Float;
+
+  public abstract java.lang.Float getNegativeDM(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)Ljava/lang/Float;
+
+  public abstract java.lang.Double atr(int);
+    descriptor: (I)Ljava/lang/Double;
+
+  public abstract java.lang.Double atr(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)Ljava/lang/Double;
+
+  public abstract java.lang.Double atr(int, int);
+    descriptor: (II)Ljava/lang/Double;
+
+  public abstract java.lang.Double atr(int, int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Instrument;)Ljava/lang/Double;
+
+  public abstract java.lang.Double ma(com.motivewave.platform.sdk.common.Enums$MAMethod, int, int, java.lang.Object);   
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$MAMethod;IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double ma(com.motivewave.platform.sdk.common.Enums$MAMethod, int, int, com.motivewave.platfo
+orm.sdk.common.Enums$BarInput, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$MAMethod;IILcom/motivewave/platform/sdk/common/Enums$BarInput
+t;Lcom/motivewave/platform/sdk/common/Instrument;)Ljava/lang/Double;
+
+  public abstract java.lang.Double stochasticK(int, int, java.lang.Object);
+    descriptor: (IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double stochasticK(int, int);
+    descriptor: (II)Ljava/lang/Double;
+
+  public abstract java.lang.Double stochasticK(int, int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewa
+ave.platform.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lj
+java/lang/Double;
+
+  public abstract java.lang.Double stochasticK(int, int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Instrument;)Ljava/lang/Double;
+
+  public abstract float mfm(int);
+    descriptor: (I)F
+
+  public abstract float mfm(int, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Instrument;)F
+
+  public abstract java.lang.Double roc(int, int, java.lang.Object);
+    descriptor: (IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double roc(int, int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.platf
+form.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lj
+java/lang/Double;
+
+  public abstract java.lang.Double std(int, int, java.lang.Object);
+    descriptor: (IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double std(int, int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.platf
+form.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lj
+java/lang/Double;
+
+  public abstract java.lang.Double sma(int, int, java.lang.Object);
+    descriptor: (IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double sma(int, int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.platf
+form.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lj
+java/lang/Double;
+
+  public abstract java.lang.Double wma(int, int, java.lang.Object);
+    descriptor: (IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double wma(int, int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.platf
+form.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lj
+java/lang/Double;
+
+  public abstract java.lang.Double ema(int, int, java.lang.Object);
+    descriptor: (IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double ema(int, int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.platf
+form.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lj
+java/lang/Double;
+
+  public abstract java.lang.Double dema(int, int, java.lang.Object);
+    descriptor: (IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double dema(int, int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.plat
+tform.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lj
+java/lang/Double;
+
+  public abstract java.lang.Double tema(int, int, java.lang.Object);
+    descriptor: (IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double tema(int, int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.plat
+tform.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lj
+java/lang/Double;
+
+  public abstract java.lang.Double tma(int, int, java.lang.Object);
+    descriptor: (IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double tma(int, int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.platf
+form.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lj
+java/lang/Double;
+
+  public abstract java.lang.Double mema(int, int, java.lang.Object);
+    descriptor: (IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double mema(int, int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.plat
+tform.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lj
+java/lang/Double;
+
+  public abstract java.lang.Double smma(int, int, java.lang.Object);
+    descriptor: (IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double smma(int, int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.plat
+tform.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lj
+java/lang/Double;
+
+  public abstract java.lang.Double vwma(int, int, java.lang.Object);
+    descriptor: (IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double vwma(int, int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.plat
+tform.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lj
+java/lang/Double;
+
+  public abstract java.lang.Double kama(int, int, java.lang.Object);
+    descriptor: (IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double kama(int, int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.plat
+tform.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lj
+java/lang/Double;
+
+  public abstract java.lang.Double kama(int, int, double, java.lang.Object);
+    descriptor: (IIDLjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double kama(int, int, double, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivew
+wave.platform.sdk.common.Instrument);
+    descriptor: (IIDLcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)L
+Ljava/lang/Double;
+
+  public abstract java.lang.Double highest(int, int, java.lang.Object);
+    descriptor: (IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double lowest(int, int, java.lang.Object);
+    descriptor: (IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double highestVisible(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double lowestVisible(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double highest(int, int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.p
+platform.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lj
+java/lang/Double;
+
+  public abstract java.lang.Double lowest(int, int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.pl
+latform.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lj
+java/lang/Double;
+
+  public abstract java.lang.Double lowest(int, int, com.motivewave.platform.sdk.common.Enums$BarInput);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;)Ljava/lang/Double;
+
+  public abstract java.lang.Double highestVisible(com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.plat
+tform.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Ljav
+va/lang/Double;
+
+  public abstract java.lang.Double lowestVisible(com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.platf
+form.sdk.common.Instrument);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Ljav
+va/lang/Double;
+
+  public abstract java.lang.Double sum(int, int, java.lang.Object);
+    descriptor: (IILjava/lang/Object;)Ljava/lang/Double;
+
+  public abstract java.lang.Double sum(int, int, com.motivewave.platform.sdk.common.Enums$BarInput, com.motivewave.platf
+form.sdk.common.Instrument);
+    descriptor: (IILcom/motivewave/platform/sdk/common/Enums$BarInput;Lcom/motivewave/platform/sdk/common/Instrument;)Lj
+java/lang/Double;
+
+  public abstract java.util.List calcSwingPoints(boolean, int);
+    descriptor: (ZI)Ljava/util/List;
+
+  public abstract java.util.List calcSwingPoints(boolean, int, int);
+    descriptor: (ZII)Ljava/util/List;
+
+  public abstract java.util.List calcSwingPoints(int);
+    descriptor: (I)Ljava/util/List;
+
+  public abstract java.util.List calcSwingPoints(int, int);
+    descriptor: (II)Ljava/util/List;
+
+  public abstract boolean isSignalTriggered(int, java.lang.Object);
+    descriptor: (ILjava/lang/Object;)Z
+
+  public abstract void setSignalTriggered(int, java.lang.Object, boolean);
+    descriptor: (ILjava/lang/Object;Z)V
+
+  public abstract boolean isPathBreak(int, java.lang.Object);
+    descriptor: (ILjava/lang/Object;)Z
+
+  public abstract void setPathBreak(int, java.lang.Object, boolean);
+    descriptor: (ILjava/lang/Object;Z)V
+}
+
+########## com.motivewave.platform.sdk.common.DataContext ##########
+Compiled from "DataContext.java"
+public interface com.motivewave.platform.sdk.common.DataContext {
+  public abstract com.motivewave.platform.sdk.common.DataSeries getDataSeries();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/DataSeries;
+
+  public abstract com.motivewave.platform.sdk.common.BarSize getChartBarSize();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/BarSize;
+
+  public abstract com.motivewave.platform.sdk.common.DataSeries getDataSeries(com.motivewave.platform.sdk.common.BarSize
+e);
+    descriptor: (Lcom/motivewave/platform/sdk/common/BarSize;)Lcom/motivewave/platform/sdk/common/DataSeries;
+
+  public abstract com.motivewave.platform.sdk.common.Instrument getInstrument();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Instrument;
+
+  public abstract com.motivewave.platform.sdk.common.Instrument getTradeInstrument();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Instrument;
+
+  public abstract java.util.List getInstruments();
+    descriptor: ()Ljava/util/List;
+
+  public abstract void signal(int, java.lang.Object, java.lang.String, java.lang.Object);
+    descriptor: (ILjava/lang/Object;Ljava/lang/String;Ljava/lang/Object;)V
+
+  public abstract void clearSignal(int, java.lang.Object);
+    descriptor: (ILjava/lang/Object;)V
+
+  public abstract boolean isSignalEnabled(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)Z
+
+  public abstract boolean isRTH();
+    descriptor: ()Z
+
+  public abstract long getCurrentTime();
+    descriptor: ()J
+
+  public abstract java.util.TimeZone getTimeZone();
+    descriptor: ()Ljava/util/TimeZone;
+
+  public abstract com.motivewave.platform.sdk.common.Defaults getDefaults();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Defaults;
+
+  public abstract boolean isLoadingData();
+    descriptor: ()Z
+
+  public abstract boolean isReplayMode();
+    descriptor: ()Z
+
+  public abstract java.lang.Object addNote(float, java.lang.String, com.motivewave.platform.sdk.common.TextStyle);      
+    descriptor: (FLjava/lang/String;Lcom/motivewave/platform/sdk/common/TextStyle;)Ljava/lang/Object;
+
+  public default java.lang.Object addNote(float, java.lang.String, java.awt.Color);
+    descriptor: (FLjava/lang/String;Ljava/awt/Color;)Ljava/lang/Object;
+
+  public abstract boolean updateNote(java.lang.Object, float, java.lang.String, com.motivewave.platform.sdk.common.TextS
+Style);
+    descriptor: (Ljava/lang/Object;FLjava/lang/String;Lcom/motivewave/platform/sdk/common/TextStyle;)Z
+
+  public abstract boolean removeNote(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)Z
+
+  public abstract void removeAllNotes();
+    descriptor: ()V
+
+  public abstract void clearBarWidths();
+    descriptor: ()V
+
+  public abstract void setBarWidthAt(int, double);
+    descriptor: (ID)V
+
+  public abstract double getBarWidthAt(int);
+    descriptor: (I)D
+}
+
+########## com.motivewave.platform.sdk.common.Instrument ##########
+Compiled from "Instrument.java"
+public interface com.motivewave.platform.sdk.common.Instrument {
+  public abstract java.lang.String getUnderlying();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract java.lang.String getSymbol();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract java.lang.String getExchangeSymbol();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract com.motivewave.platform.sdk.common.Enums$InstrumentType getType();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Enums$InstrumentType;
+
+  public abstract com.motivewave.platform.sdk.common.Enums$Service getBroker();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Enums$Service;
+
+  public abstract com.motivewave.platform.sdk.common.Enums$Service getDataSource();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Enums$Service;
+
+  public abstract float round(float);
+    descriptor: (F)F
+
+  public abstract double round(double);
+    descriptor: (D)D
+
+  public abstract java.lang.String format(float);
+    descriptor: (F)Ljava/lang/String;
+
+  public abstract java.lang.String format(double);
+    descriptor: (D)Ljava/lang/String;
+
+  public abstract int getDefaultQuantity();
+    descriptor: ()I
+
+  public abstract float getDefaultQuantityAsFloat();
+    descriptor: ()F
+
+  public abstract float getQuantityInc();
+    descriptor: ()F
+
+  public abstract double getPointSize();
+    descriptor: ()D
+
+  public abstract double getPointValue();
+    descriptor: ()D
+
+  public abstract double getTickSize();
+    descriptor: ()D
+
+  public abstract double calcPnL(double, int);
+    descriptor: (DI)D
+
+  public abstract double calcPnL(double, float);
+    descriptor: (DF)D
+
+  public abstract double calcCommission(int);
+    descriptor: (I)D
+
+  public abstract double calcCommission(float);
+    descriptor: (F)D
+
+  public abstract float getLastPrice();
+    descriptor: ()F
+
+  public abstract float getBidPrice();
+    descriptor: ()F
+
+  public abstract float getAskPrice();
+    descriptor: ()F
+
+  public abstract float getMidpoint();
+    descriptor: ()F
+
+  public abstract float getBuyPrice();
+    descriptor: ()F
+
+  public abstract float getSellPrice();
+    descriptor: ()F
+
+  public abstract float getChange();
+    descriptor: ()F
+
+  public abstract int getLastSize();
+    descriptor: ()I
+
+  public abstract float getLastSizeAsFloat();
+    descriptor: ()F
+
+  public abstract int getAskSize();
+    descriptor: ()I
+
+  public abstract float getAskSizeAsFloat();
+    descriptor: ()F
+
+  public abstract int getBidSize();
+    descriptor: ()I
+
+  public abstract float getBidSizeAsFloat();
+    descriptor: ()F
+
+  public abstract float getSpread();
+    descriptor: ()F
+
+  public abstract float getHigh();
+    descriptor: ()F
+
+  public abstract float getLow();
+    descriptor: ()F
+
+  public abstract float getOpen();
+    descriptor: ()F
+
+  public abstract float getPreviousClose();
+    descriptor: ()F
+
+  public abstract long getLastTimestamp();
+    descriptor: ()J
+
+  public abstract long getStartOfDay(long, boolean);
+    descriptor: (JZ)J
+
+  public abstract long getEndOfDay(long, boolean);
+    descriptor: (JZ)J
+
+  public abstract long getStartOfWeek(long, boolean);
+    descriptor: (JZ)J
+
+  public abstract long getStartOfEveningSession(long);
+    descriptor: (J)J
+
+  public abstract long getEndOfWeek(long, boolean);
+    descriptor: (JZ)J
+
+  public abstract long getStartOfMonth(long, boolean);
+    descriptor: (JZ)J
+
+  public abstract long getEndOfMonth(long, boolean);
+    descriptor: (JZ)J
+
+  public abstract long getStartOfYear(long, boolean);
+    descriptor: (JZ)J
+
+  public abstract long getEndOfYear(long, boolean);
+    descriptor: (JZ)J
+
+  public abstract boolean isInsideTradingHours(long, boolean);
+    descriptor: (JZ)Z
+
+  public abstract java.util.TimeZone getTimeZone();
+    descriptor: ()Ljava/util/TimeZone;
+
+  public default java.util.List getTicks(long, long);
+    descriptor: (JJ)Ljava/util/List;
+
+  public default java.util.List getTicks(long, long, boolean);
+    descriptor: (JJZ)Ljava/util/List;
+
+  public abstract java.util.List getTicks(long, long, boolean, boolean);
+    descriptor: (JJZZ)Ljava/util/List;
+
+  public default void forEachTick(long, long, boolean, com.motivewave.platform.sdk.common.TickOperation);
+    descriptor: (JJZLcom/motivewave/platform/sdk/common/TickOperation;)V
+
+  public abstract void forEachTick(long, long, boolean, boolean, com.motivewave.platform.sdk.common.TickOperation);     
+    descriptor: (JJZZLcom/motivewave/platform/sdk/common/TickOperation;)V
+
+  public default void forEachTick(long, long, com.motivewave.platform.sdk.common.TickOperation);
+    descriptor: (JJLcom/motivewave/platform/sdk/common/TickOperation;)V
+
+  public abstract void forEachBar(long, long, com.motivewave.platform.sdk.common.BarSize, boolean, com.motivewave.platfo
+orm.sdk.common.BarOperation);
+    descriptor: (JJLcom/motivewave/platform/sdk/common/BarSize;ZLcom/motivewave/platform/sdk/common/BarOperation;)V     
+
+  public abstract java.util.List getBars(long, long, com.motivewave.platform.sdk.common.BarSize, boolean);
+    descriptor: (JJLcom/motivewave/platform/sdk/common/BarSize;Z)Ljava/util/List;
+
+  public abstract java.util.List getBars(long, int, com.motivewave.platform.sdk.common.BarSize, boolean);
+    descriptor: (JILcom/motivewave/platform/sdk/common/BarSize;Z)Ljava/util/List;
+
+  public abstract void addListener(com.motivewave.platform.sdk.common.TickOperation);
+    descriptor: (Lcom/motivewave/platform/sdk/common/TickOperation;)V
+
+  public abstract void removeListener(com.motivewave.platform.sdk.common.TickOperation);
+    descriptor: (Lcom/motivewave/platform/sdk/common/TickOperation;)V
+
+  public abstract void addListener(com.motivewave.platform.sdk.common.DOMListener);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DOMListener;)V
+
+  public abstract void removeListener(com.motivewave.platform.sdk.common.DOMListener);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DOMListener;)V
+
+  public abstract void addPropertyChangeListener(java.beans.PropertyChangeListener);
+    descriptor: (Ljava/beans/PropertyChangeListener;)V
+
+  public abstract void removePropertyChangeListener(java.beans.PropertyChangeListener);
+    descriptor: (Ljava/beans/PropertyChangeListener;)V
+
+  public abstract java.util.List getDOMHistory();
+    descriptor: ()Ljava/util/List;
+
+  public abstract com.motivewave.platform.sdk.common.DOMSnapshot getLatestDOMHistory();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/DOMSnapshot;
+}
+
+########## com.motivewave.platform.sdk.common.Tick ##########
+Compiled from "Tick.java"
+public interface com.motivewave.platform.sdk.common.Tick {
+  public abstract float getPrice();
+    descriptor: ()F
+
+  public abstract int getVolume();
+    descriptor: ()I
+
+  public abstract float getVolumeAsFloat();
+    descriptor: ()F
+
+  public abstract float getAskPrice();
+    descriptor: ()F
+
+  public abstract int getAskSize();
+    descriptor: ()I
+
+  public abstract float getAskSizeAsFloat();
+    descriptor: ()F
+
+  public abstract float getBidPrice();
+    descriptor: ()F
+
+  public abstract int getBidSize();
+    descriptor: ()I
+
+  public abstract float getBidSizeAsFloat();
+    descriptor: ()F
+
+  public abstract long getTime();
+    descriptor: ()J
+
+  public abstract boolean isAskTick();
+    descriptor: ()Z
+
+  public abstract float getPrice(com.motivewave.platform.sdk.common.Enums$BarData);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarData;)F
+
+  public abstract long getExchOrderId();
+    descriptor: ()J
+
+  public abstract long getAggExchOrderId();
+    descriptor: ()J
+}
+
+########## com.motivewave.platform.sdk.common.Defaults ##########
+Compiled from "Defaults.java"
+public interface com.motivewave.platform.sdk.common.Defaults {
+  public abstract java.awt.Font getFont();
+    descriptor: ()Ljava/awt/Font;
+
+  public abstract java.awt.Color getTextColor();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getBackgroundColor();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getLineColor();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getBarColor();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getBarUpColor();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getBarDownColor();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getBarNeutralColor();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getBarInsideColor();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getBarOutsideColor();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getTopFillColor();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getBottomFillColor();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getFillColor();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getRed();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getGreen();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getBlue();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getYellow();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getGrey();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getPurple();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getBrown();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getOrange();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getRedLine();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getGreenLine();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getBlueLine();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Color getYellowLine();
+    descriptor: ()Ljava/awt/Color;
+
+  public abstract java.awt.Stroke getSolidLine();
+    descriptor: ()Ljava/awt/Stroke;
+
+  public abstract java.awt.Stroke getDashedLine();
+    descriptor: ()Ljava/awt/Stroke;
+
+  public abstract java.lang.String getEmailAddress();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract java.lang.String getVersion();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract long getCurrentTime();
+    descriptor: ()J
+
+  public abstract boolean isDarkTheme();
+    descriptor: ()Z
+}
+
+########## com.motivewave.platform.sdk.common.BarSize ##########
+Compiled from "BarSize.java"
+public class com.motivewave.platform.sdk.common.BarSize implements java.lang.Comparable {
+  private int interval;
+    descriptor: I
+  private int reverseInterval;
+    descriptor: I
+  private long sizeMillis;
+    descriptor: J
+  private boolean intervalPoints;
+    descriptor: Z
+  private com.motivewave.platform.sdk.common.Enums$BarSizeType type;
+    descriptor: Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;
+  private com.motivewave.platform.sdk.common.Enums$IntervalType intervalType;
+    descriptor: Lcom/motivewave/platform/sdk/common/Enums$IntervalType;
+  private java.lang.String key;
+    descriptor: Ljava/lang/String;
+  static java.util.Map key2BarSize;
+    descriptor: Ljava/util/Map;
+  private com.motivewave.platform.sdk.common.BarSize(com.motivewave.platform.sdk.common.Enums$BarSizeType, com.motivewav
+ve.platform.sdk.common.Enums$IntervalType, int, int, boolean);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;Lcom/motivewave/platform/sdk/common/Enums$Interva
+alType;IIZ)V
+
+  public int getIntervalMinutes();
+    descriptor: ()I
+
+  public int getIntervalSeconds();
+    descriptor: ()I
+
+  public long getIntervalMillis();
+    descriptor: ()J
+
+  public int getInterval();
+    descriptor: ()I
+
+  public int getReverseInterval();
+    descriptor: ()I
+
+  public long getSizeMillis();
+    descriptor: ()J
+
+  public boolean isLinear();
+    descriptor: ()Z
+
+  public boolean isFixedSize();
+    descriptor: ()Z
+
+  public boolean isIntraday();
+    descriptor: ()Z
+
+  public com.motivewave.platform.sdk.common.Enums$IntervalType getIntervalType();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Enums$IntervalType;
+
+  public com.motivewave.platform.sdk.common.Enums$BarSizeType getType();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;
+
+  public boolean isRenko();
+    descriptor: ()Z
+
+  public boolean isPointAndFigure();
+    descriptor: ()Z
+
+  public boolean isReversal();
+    descriptor: ()Z
+
+  public boolean isRange();
+    descriptor: ()Z
+
+  public boolean isConstantVolume();
+    descriptor: ()Z
+
+  public boolean isTick();
+    descriptor: ()Z
+
+  public boolean isIntervalPoints();
+    descriptor: ()Z
+
+  public boolean isBidAsk();
+    descriptor: ()Z
+
+  public boolean isHybridRenko();
+    descriptor: ()Z
+
+  public boolean isOFAProbe();
+    descriptor: ()Z
+
+  public boolean isOFALinear();
+    descriptor: ()Z
+
+  public boolean isOFA();
+    descriptor: ()Z
+
+  public java.lang.String getKey();
+    descriptor: ()Ljava/lang/String;
+
+  public boolean equals(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)Z
+
+  public java.lang.String getName();
+    descriptor: ()Ljava/lang/String;
+
+  private java.lang.String getLinearName();
+    descriptor: ()Ljava/lang/String;
+
+  public java.lang.String getShortName();
+    descriptor: ()Ljava/lang/String;
+
+  private static java.lang.String printInterval(int, com.motivewave.platform.sdk.common.Enums$IntervalType);
+    descriptor: (ILcom/motivewave/platform/sdk/common/Enums$IntervalType;)Ljava/lang/String;
+
+  public java.lang.String toString();
+    descriptor: ()Ljava/lang/String;
+
+  public int compareTo(com.motivewave.platform.sdk.common.BarSize);
+    descriptor: (Lcom/motivewave/platform/sdk/common/BarSize;)I
+
+  public static com.motivewave.platform.sdk.common.BarSize getBarSize(int);
+    descriptor: (I)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  public static com.motivewave.platform.sdk.common.BarSize getBarSize(com.motivewave.platform.sdk.common.Enums$BarSizeTy
+ype, int);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;I)Lcom/motivewave/platform/sdk/common/BarSize;   
+
+  public static com.motivewave.platform.sdk.common.BarSize getBarSize(com.motivewave.platform.sdk.common.Enums$BarSizeTy
+ype, int, boolean);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;IZ)Lcom/motivewave/platform/sdk/common/BarSize;  
+
+  public static com.motivewave.platform.sdk.common.BarSize getBarSize(com.motivewave.platform.sdk.common.Enums$BarSizeTy
+ype, com.motivewave.platform.sdk.common.Enums$IntervalType, int);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;Lcom/motivewave/platform/sdk/common/Enums$Interva
+alType;I)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  public static com.motivewave.platform.sdk.common.BarSize getBarSize(com.motivewave.platform.sdk.common.Enums$BarSizeTy
+ype, com.motivewave.platform.sdk.common.Enums$IntervalType, int, boolean);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;Lcom/motivewave/platform/sdk/common/Enums$Interva
+alType;IZ)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  public static com.motivewave.platform.sdk.common.BarSize getBarSize(com.motivewave.platform.sdk.common.Enums$BarSizeTy
+ype, int, int);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;II)Lcom/motivewave/platform/sdk/common/BarSize;  
+
+  public static com.motivewave.platform.sdk.common.BarSize getBarSize(com.motivewave.platform.sdk.common.Enums$BarSizeTy
+ype, int, int, boolean);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;IIZ)Lcom/motivewave/platform/sdk/common/BarSize; 
+
+  public static com.motivewave.platform.sdk.common.BarSize getBarSize(com.motivewave.platform.sdk.common.Enums$BarSizeTy
+ype, com.motivewave.platform.sdk.common.Enums$IntervalType, int, int);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;Lcom/motivewave/platform/sdk/common/Enums$Interva
+alType;II)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  public static com.motivewave.platform.sdk.common.BarSize getBarSize(com.motivewave.platform.sdk.common.Enums$BarSizeTy
+ype, com.motivewave.platform.sdk.common.Enums$IntervalType, int, int, boolean);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;Lcom/motivewave/platform/sdk/common/Enums$Interva
+alType;IIZ)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  private static java.lang.String get(java.lang.String, java.lang.Object...);
+    descriptor: (Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;
+
+  private static java.lang.String _genKey(com.motivewave.platform.sdk.common.Enums$BarSizeType, com.motivewave.platform.
+.sdk.common.Enums$IntervalType, int, int);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;Lcom/motivewave/platform/sdk/common/Enums$Interva
+alType;II)Ljava/lang/String;
+
+  static com.motivewave.platform.sdk.common.BarSize _from(com.motivewave.platform.sdk.common.Enums$BarSizeType, com.moti
+ivewave.platform.sdk.common.Enums$IntervalType, int, int);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;Lcom/motivewave/platform/sdk/common/Enums$Interva
+alType;II)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  static com.motivewave.platform.sdk.common.BarSize _from(com.motivewave.platform.sdk.common.Enums$BarSizeType, com.moti
+ivewave.platform.sdk.common.Enums$IntervalType, int, int, boolean);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;Lcom/motivewave/platform/sdk/common/Enums$Interva
+alType;IIZ)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  static com.motivewave.platform.sdk.common.BarSize fromLinear(com.motivewave.platform.sdk.common.Enums$IntervalType);  
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$IntervalType;)Lcom/motivewave/platform/sdk/common/BarSize;   
+
+  static com.motivewave.platform.sdk.common.BarSize fromLinear(com.motivewave.platform.sdk.common.Enums$IntervalType, in
+nt);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$IntervalType;I)Lcom/motivewave/platform/sdk/common/BarSize;  
+
+  static com.motivewave.platform.sdk.common.BarSize fromType(com.motivewave.platform.sdk.common.Enums$BarSizeType);     
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;)Lcom/motivewave/platform/sdk/common/BarSize;    
+
+  static com.motivewave.platform.sdk.common.BarSize fromType(com.motivewave.platform.sdk.common.Enums$BarSizeType, int);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;I)Lcom/motivewave/platform/sdk/common/BarSize;   
+
+  static com.motivewave.platform.sdk.common.BarSize fromType(com.motivewave.platform.sdk.common.Enums$BarSizeType, int, 
+ int);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$BarSizeType;II)Lcom/motivewave/platform/sdk/common/BarSize;  
+
+  public static com.motivewave.platform.sdk.common.BarSize hour(int);
+    descriptor: (I)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  public static com.motivewave.platform.sdk.common.BarSize minute(int);
+    descriptor: (I)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  public static com.motivewave.platform.sdk.common.BarSize second(int);
+    descriptor: (I)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  public static com.motivewave.platform.sdk.common.BarSize millisecond(int);
+    descriptor: (I)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  public static com.motivewave.platform.sdk.common.BarSize day(int);
+    descriptor: (I)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  public static com.motivewave.platform.sdk.common.BarSize week(int);
+    descriptor: (I)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  public static com.motivewave.platform.sdk.common.BarSize month(int);
+    descriptor: (I)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  public static com.motivewave.platform.sdk.common.BarSize year(int);
+    descriptor: (I)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  public static com.motivewave.platform.sdk.common.BarSize fromKey(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  public int compareTo(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)I
+
+  static {};
+    descriptor: ()V
+}
+
+########## com.motivewave.platform.sdk.common.DOM ##########
+Compiled from "DOM.java"
+public interface com.motivewave.platform.sdk.common.DOM {
+  public abstract com.motivewave.platform.sdk.common.Instrument getInstrument();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Instrument;
+
+  public abstract java.util.List getAskRows();
+    descriptor: ()Ljava/util/List;
+
+  public abstract java.util.List getBidRows();
+    descriptor: ()Ljava/util/List;
+}
+
+########## com.motivewave.platform.sdk.common.DOMListener ##########
+Compiled from "DOMListener.java"
+public interface com.motivewave.platform.sdk.common.DOMListener {
+  public abstract void update(com.motivewave.platform.sdk.common.DOM);
+    descriptor: (Lcom/motivewave/platform/sdk/common/DOM;)V
+}
+
+########## com.motivewave.platform.sdk.common.DOMRow ##########
+Compiled from "DOMRow.java"
+public interface com.motivewave.platform.sdk.common.DOMRow {
+  public abstract boolean isAsk();
+    descriptor: ()Z
+
+  public abstract float getPrice();
+    descriptor: ()F
+
+  public abstract float getSize();
+    descriptor: ()F
+
+  public abstract int getOrderCount();
+    descriptor: ()I
+
+  public abstract java.util.List getOrders();
+    descriptor: ()Ljava/util/List;
+}
+
+########## com.motivewave.platform.sdk.common.DOMSnapshot ##########
+Compiled from "DOMSnapshot.java"
+public interface com.motivewave.platform.sdk.common.DOMSnapshot {
+  public abstract long getTime();
+    descriptor: ()J
+
+  public abstract float[] getAskPrices();
+    descriptor: ()[F
+
+  public abstract float[] getAskSizes();
+    descriptor: ()[F
+
+  public abstract float[] getBidPrices();
+    descriptor: ()[F
+
+  public abstract float[] getBidSizes();
+    descriptor: ()[F
+}
+
+########## com.motivewave.platform.sdk.common.DOMOrder ##########
+Compiled from "DOMOrder.java"
+public interface com.motivewave.platform.sdk.common.DOMOrder {
+  public abstract java.lang.String getExchangeOrderId();
+    descriptor: ()Ljava/lang/String;
+
+  public abstract float getQuantity();
+    descriptor: ()F
+}
+
+########## com.motivewave.platform.sdk.common.TickOperation ##########
+Compiled from "TickOperation.java"
+public interface com.motivewave.platform.sdk.common.TickOperation {
+  public abstract void onTick(com.motivewave.platform.sdk.common.Tick);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Tick;)V
+}
+
+########## com.motivewave.platform.sdk.common.desc.SettingsDescriptor ##########
+Compiled from "SettingsDescriptor.java"
+public class com.motivewave.platform.sdk.common.desc.SettingsDescriptor {
+  private java.util.List tabs;
+    descriptor: Ljava/util/List;
+  private java.util.List dependencies;
+    descriptor: Ljava/util/List;
+  private java.util.List invisibleSettings;
+    descriptor: Ljava/util/List;
+  private java.util.List strategySettings;
+    descriptor: Ljava/util/List;
+  private java.util.List quickSettings;
+    descriptor: Ljava/util/List;
+  private java.util.List displaySettings;
+    descriptor: Ljava/util/List;
+  private java.util.Map qsHandlers;
+    descriptor: Ljava/util/Map;
+  private java.util.List rowAligns;
+    descriptor: Ljava/util/List;
+  private java.util.List settings;
+    descriptor: Ljava/util/List;
+  private java.util.Map settingMap;
+    descriptor: Ljava/util/Map;
+  public com.motivewave.platform.sdk.common.desc.SettingsDescriptor();
+    descriptor: ()V
+
+  public void clear();
+    descriptor: ()V
+
+  public java.util.List getSettings();
+    descriptor: ()Ljava/util/List;
+
+  public com.motivewave.platform.sdk.common.desc.SettingDescriptor getSetting(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;
+
+  public java.lang.Object getDefaultValue(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/lang/Object;
+
+  void clearSettingCache();
+    descriptor: ()V
+
+  public java.util.List getTabs();
+    descriptor: ()Ljava/util/List;
+
+  public void addTab(com.motivewave.platform.sdk.common.desc.SettingTab);
+    descriptor: (Lcom/motivewave/platform/sdk/common/desc/SettingTab;)V
+
+  public com.motivewave.platform.sdk.common.desc.SettingTab addTab(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/desc/SettingTab;
+
+  public com.motivewave.platform.sdk.common.desc.SettingTab addTab(java.lang.String, java.lang.String);
+    descriptor: (Ljava/lang/String;Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/desc/SettingTab;
+
+  public void addDependency(com.motivewave.platform.sdk.common.desc.InputDependency);
+    descriptor: (Lcom/motivewave/platform/sdk/common/desc/InputDependency;)V
+
+  public java.util.List getDependencies();
+    descriptor: ()Ljava/util/List;
+
+  public java.util.List getDependencies(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/util/List;
+
+  public void addInvisibleSetting(com.motivewave.platform.sdk.common.desc.SettingDescriptor);
+    descriptor: (Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)V
+
+  public void addInvisible(com.motivewave.platform.sdk.common.desc.SettingDescriptor...);
+    descriptor: ([Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)V
+
+  public void addQuickSettings(java.lang.String...);
+    descriptor: ([Ljava/lang/String;)V
+
+  public void addQuickSettings(com.motivewave.platform.sdk.common.desc.SettingDescriptor...);
+    descriptor: ([Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)V
+
+  public java.util.List getQuickSettings();
+    descriptor: ()Ljava/util/List;
+
+  public void setOnQSUpdated(java.lang.String, com.motivewave.platform.sdk.common.desc.SettingsDescriptor$OnUpdated);   
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/desc/SettingsDescriptor$OnUpdated;)V
+
+  public com.motivewave.platform.sdk.common.desc.SettingsDescriptor$OnUpdated getOnQSUpdated(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/desc/SettingsDescriptor$OnUpdated;
+
+  public void addDisplaySettings(java.lang.String...);
+    descriptor: ([Ljava/lang/String;)V
+
+  public java.util.List getDisplaySettings();
+    descriptor: ()Ljava/util/List;
+
+  public void rowAlign(java.lang.String...);
+    descriptor: ([Ljava/lang/String;)V
+
+  public java.util.List getRowAligns();
+    descriptor: ()Ljava/util/List;
+
+  public java.util.List getStrategySettings();
+    descriptor: ()Ljava/util/List;
+
+  public void setStrategySettings(java.util.List);
+    descriptor: (Ljava/util/List;)V
+
+  public void addStrategySetting(com.motivewave.platform.sdk.common.desc.SettingDescriptor);
+    descriptor: (Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)V
+}
+
+########## com.motivewave.platform.sdk.common.desc.SettingTab ##########
+Compiled from "SettingTab.java"
+public class com.motivewave.platform.sdk.common.desc.SettingTab {
+  private java.lang.String header;
+    descriptor: Ljava/lang/String;
+  private java.lang.String name;
+    descriptor: Ljava/lang/String;
+  private java.util.List groups;
+    descriptor: Ljava/util/List;
+  private java.util.List columnBreaks;
+    descriptor: Ljava/util/List;
+  private int columnSpacing;
+    descriptor: I
+  public com.motivewave.platform.sdk.common.desc.SettingTab(java.lang.String);
+    descriptor: (Ljava/lang/String;)V
+
+  public com.motivewave.platform.sdk.common.desc.SettingTab(java.lang.String, java.lang.String);
+    descriptor: (Ljava/lang/String;Ljava/lang/String;)V
+
+  public java.lang.String getName();
+    descriptor: ()Ljava/lang/String;
+
+  public java.lang.String getHeader();
+    descriptor: ()Ljava/lang/String;
+
+  public void addGroup(com.motivewave.platform.sdk.common.desc.SettingGroup);
+    descriptor: (Lcom/motivewave/platform/sdk/common/desc/SettingGroup;)V
+
+  public com.motivewave.platform.sdk.common.desc.SettingGroup addGroup(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/desc/SettingGroup;
+
+  public com.motivewave.platform.sdk.common.desc.SettingGroup addGroup(java.lang.String, boolean);
+    descriptor: (Ljava/lang/String;Z)Lcom/motivewave/platform/sdk/common/desc/SettingGroup;
+
+  public com.motivewave.platform.sdk.common.desc.SettingTab add(java.lang.String, com.motivewave.platform.sdk.common.des
+sc.SettingDescriptor...);
+    descriptor: (Ljava/lang/String;[Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Lcom/motivewave/platform
+m/sdk/common/desc/SettingTab;
+
+  public com.motivewave.platform.sdk.common.desc.SettingGroup addGroup(java.lang.String, com.motivewave.platform.sdk.com
+mmon.desc.SettingDescriptor...);
+    descriptor: (Ljava/lang/String;[Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Lcom/motivewave/platform
+m/sdk/common/desc/SettingGroup;
+
+  public java.util.List getGroups();
+    descriptor: ()Ljava/util/List;
+
+  public void addColumnBreak();
+    descriptor: ()V
+
+  public java.util.List getColumnBreaks();
+    descriptor: ()Ljava/util/List;
+
+  public int getColumnSpacing();
+    descriptor: ()I
+
+  public void setColumnSpacing(int);
+    descriptor: (I)V
+}
+
+########## com.motivewave.platform.sdk.common.desc.SettingGroup ##########
+Compiled from "SettingGroup.java"
+public class com.motivewave.platform.sdk.common.desc.SettingGroup {
+  private java.lang.String name;
+    descriptor: Ljava/lang/String;
+  private java.util.List rows;
+    descriptor: Ljava/util/List;
+  private boolean gridLayout;
+    descriptor: Z
+  private java.util.Map gridMap;
+    descriptor: Ljava/util/Map;
+  public com.motivewave.platform.sdk.common.desc.SettingGroup(java.lang.String);
+    descriptor: (Ljava/lang/String;)V
+
+  public com.motivewave.platform.sdk.common.desc.SettingGroup(java.lang.String, boolean);
+    descriptor: (Ljava/lang/String;Z)V
+
+  public java.lang.String getName();
+    descriptor: ()Ljava/lang/String;
+
+  public void addRow(com.motivewave.platform.sdk.common.desc.SettingDescriptor...);
+    descriptor: ([Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)V
+
+  public void addGrid(int, com.motivewave.platform.sdk.common.desc.SettingDescriptor...);
+    descriptor: (I[Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)V
+
+  public void addRows(com.motivewave.platform.sdk.common.desc.SettingDescriptor...);
+    descriptor: ([Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)V
+
+  public java.util.List getRows();
+    descriptor: ()Ljava/util/List;
+
+  public boolean isGridLayout();
+    descriptor: ()Z
+
+  public void setGridLayout(boolean);
+    descriptor: (Z)V
+
+  public boolean isGrid(int);
+    descriptor: (I)Z
+
+  public int getGridColumns(int);
+    descriptor: (I)I
+}
+
+########## com.motivewave.platform.sdk.common.desc.StringDescriptor ##########
+Compiled from "StringDescriptor.java"
+public class com.motivewave.platform.sdk.common.desc.StringDescriptor extends com.motivewave.platform.sdk.common.desc.Se
+ettingDescriptor {
+  private int width;
+    descriptor: I
+  private int height;
+    descriptor: I
+  private boolean required;
+    descriptor: Z
+  private java.util.List notInValues;
+    descriptor: Ljava/util/List;
+  private java.lang.String notInMessage;
+    descriptor: Ljava/lang/String;
+  public com.motivewave.platform.sdk.common.desc.StringDescriptor(java.lang.String, java.lang.String, java.lang.String);
+    descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+
+  public com.motivewave.platform.sdk.common.desc.StringDescriptor(java.lang.String, java.lang.String, java.lang.String, 
+ int);
+    descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V
+
+  public com.motivewave.platform.sdk.common.desc.StringDescriptor(java.lang.String, java.lang.String, java.lang.String, 
+ boolean, boolean);
+    descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZZ)V
+
+  public com.motivewave.platform.sdk.common.desc.StringDescriptor(java.lang.String, java.lang.String, java.lang.String, 
+ int, boolean, boolean);
+    descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IZZ)V
+
+  public java.lang.String getDefaultValue();
+    descriptor: ()Ljava/lang/String;
+
+  public int getHeight();
+    descriptor: ()I
+
+  public com.motivewave.platform.sdk.common.desc.StringDescriptor setHeight(int);
+    descriptor: (I)Lcom/motivewave/platform/sdk/common/desc/StringDescriptor;
+
+  public javafx.scene.Node createControl(com.motivewave.platform.sdk.common.SettingsBase, boolean);
+    descriptor: (Lcom/motivewave/platform/sdk/common/SettingsBase;Z)Ljavafx/scene/Node;
+
+  public boolean isRequired();
+    descriptor: ()Z
+
+  public void setRequired(boolean);
+    descriptor: (Z)V
+
+  public java.util.List getNotInValues();
+    descriptor: ()Ljava/util/List;
+
+  public void setNotInValues(java.util.List);
+    descriptor: (Ljava/util/List;)V
+
+  public java.lang.String getNotInMessage();
+    descriptor: ()Ljava/lang/String;
+
+  public void setNotInMessage(java.lang.String);
+    descriptor: (Ljava/lang/String;)V
+
+  public boolean isDisplaySetting();
+    descriptor: ()Z
+
+  public java.lang.String getString();
+    descriptor: ()Ljava/lang/String;
+
+  public java.lang.Object fromJson(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)Ljava/lang/Object;
+
+  public java.lang.Object getDefaultValue();
+    descriptor: ()Ljava/lang/Object;
+
+  private void lambda$createControl$0(com.motivewave.platform.sdk.common.SettingsBase, javafx.beans.value.ObservableValu
+ue, java.lang.String, java.lang.String);
+    descriptor: (Lcom/motivewave/platform/sdk/common/SettingsBase;Ljavafx/beans/value/ObservableValue;Ljava/lang/String;
+;Ljava/lang/String;)V
+}
+
+########## com.motivewave.platform.sdk.common.desc.IntegerDescriptor ##########
+Compiled from "IntegerDescriptor.java"
+public class com.motivewave.platform.sdk.common.desc.IntegerDescriptor extends com.motivewave.platform.sdk.common.desc.S
+SettingDescriptor {
+  private int minValue;
+    descriptor: I
+  private int maxValue;
+    descriptor: I
+  private int step;
+    descriptor: I
+  public com.motivewave.platform.sdk.common.desc.IntegerDescriptor(java.lang.String, java.lang.String, int, int, int, in
+nt);
+    descriptor: (Ljava/lang/String;Ljava/lang/String;IIII)V
+
+  public java.lang.Integer getDefaultValue();
+    descriptor: ()Ljava/lang/Integer;
+
+  public javafx.scene.Node createControl(com.motivewave.platform.sdk.common.SettingsBase, boolean);
+    descriptor: (Lcom/motivewave/platform/sdk/common/SettingsBase;Z)Ljavafx/scene/Node;
+
+  public int getMinValue();
+    descriptor: ()I
+
+  public int getMaxValue();
+    descriptor: ()I
+
+  public int getStep();
+    descriptor: ()I
+
+  public java.lang.Object fromJson(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)Ljava/lang/Object;
+
+  public java.lang.Object getDefaultValue();
+    descriptor: ()Ljava/lang/Object;
+
+  private void lambda$createControl$0(com.motivewave.platform.sdk.common.SettingsBase, javafx.scene.control.Spinner, jav
+vafx.beans.Observable);
+    descriptor: (Lcom/motivewave/platform/sdk/common/SettingsBase;Ljavafx/scene/control/Spinner;Ljavafx/beans/Observable
+e;)V
+}
+
+########## com.motivewave.platform.sdk.common.desc.BooleanDescriptor ##########
+Compiled from "BooleanDescriptor.java"
+public class com.motivewave.platform.sdk.common.desc.BooleanDescriptor extends com.motivewave.platform.sdk.common.desc.S
+SettingDescriptor {
+  public com.motivewave.platform.sdk.common.desc.BooleanDescriptor(java.lang.String, java.lang.String, java.lang.Boolean
+n);
+    descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;)V
+
+  public com.motivewave.platform.sdk.common.desc.BooleanDescriptor(java.lang.String, java.lang.String, java.lang.Boolean
+n, boolean);
+    descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Z)V
+
+  public com.motivewave.platform.sdk.common.desc.BooleanDescriptor(java.lang.String, java.lang.String, java.lang.Boolean
+n, boolean, int);
+    descriptor: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;ZI)V
+
+  public java.lang.Boolean getDefaultValue();
+    descriptor: ()Ljava/lang/Boolean;
+
+  public javafx.scene.Node createControl(com.motivewave.platform.sdk.common.SettingsBase, boolean);
+    descriptor: (Lcom/motivewave/platform/sdk/common/SettingsBase;Z)Ljavafx/scene/Node;
+
+  public java.lang.Object fromJson(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)Ljava/lang/Object;
+
+  public java.lang.Object getDefaultValue();
+    descriptor: ()Ljava/lang/Object;
+
+  private void lambda$createControl$0(com.motivewave.platform.sdk.common.SettingsBase, javafx.scene.control.CheckBox, ja
+avafx.event.ActionEvent);
+    descriptor: (Lcom/motivewave/platform/sdk/common/SettingsBase;Ljavafx/scene/control/CheckBox;Ljavafx/event/ActionEve
+ent;)V
+}
+
+########## com.motivewave.platform.sdk.common.Settings ##########
+Compiled from "Settings.java"
+public class com.motivewave.platform.sdk.common.Settings extends com.motivewave.platform.sdk.common.SettingsBase {
+  private java.util.Set instruments;
+    descriptor: Ljava/util/Set;
+  private java.util.Set barSizes;
+    descriptor: Ljava/util/Set;
+  private java.util.Set bars;
+    descriptor: Ljava/util/Set;
+  private java.util.Set colors;
+    descriptor: Ljava/util/Set;
+  private java.util.Set exitPoints;
+    descriptor: Ljava/util/Set;
+  private java.util.Set files;
+    descriptor: Ljava/util/Set;
+  private java.util.Set fonts;
+    descriptor: Ljava/util/Set;
+  private java.util.Set guides;
+    descriptor: Ljava/util/Set;
+  private java.util.Set indicators;
+    descriptor: Ljava/util/Set;
+  private java.util.Set inputs;
+    descriptor: Ljava/util/Set;
+  private java.util.Set maMethods;
+    descriptor: Ljava/util/Set;
+  private java.util.Set markers;
+    descriptor: Ljava/util/Set;
+  private java.util.Set paths;
+    descriptor: Ljava/util/Set;
+  private java.util.Set priceBars;
+    descriptor: Ljava/util/Set;
+  private java.util.Set shades;
+    descriptor: Ljava/util/Set;
+  private java.util.Set timeFrames;
+    descriptor: Ljava/util/Set;
+  private com.motivewave.common.util.g sessions;
+    descriptor: Lcom/motivewave/common/util/g;
+  private java.util.List tbEditorNames;
+    descriptor: Ljava/util/List;
+  private boolean barUpdates;
+    descriptor: Z
+  private boolean useAccountPosition;
+    descriptor: Z
+  private boolean autoEntry;
+    descriptor: Z
+  private boolean enterOnActivate;
+    descriptor: Z
+  private boolean closeOnDeactivate;
+    descriptor: Z
+  private boolean enterOnSessionStart;
+    descriptor: Z
+  private boolean closeOnSessionEnd;
+    descriptor: Z
+  private boolean triggerOTH;
+    descriptor: Z
+  private com.motivewave.platform.sdk.common.Enums$TIF timeInForce;
+    descriptor: Lcom/motivewave/platform/sdk/common/Enums$TIF;
+  private int tradeLots;
+    descriptor: I
+  private com.motivewave.platform.sdk.common.Enums$PositionType positionType;
+    descriptor: Lcom/motivewave/platform/sdk/common/Enums$PositionType;
+  private java.util.TimeZone timeZone;
+    descriptor: Ljava/util/TimeZone;
+  public com.motivewave.platform.sdk.common.Settings();
+    descriptor: ()V
+
+  public com.motivewave.platform.sdk.common.Settings(com.motivewave.platform.sdk.common.desc.SettingsDescriptor);       
+    descriptor: (Lcom/motivewave/platform/sdk/common/desc/SettingsDescriptor;)V
+
+  protected void clearSets();
+    descriptor: ()V
+
+  public void setPath(java.lang.String, com.motivewave.platform.sdk.common.PathInfo);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/PathInfo;)V
+
+  public java.util.Set getPaths();
+    descriptor: ()Ljava/util/Set;
+
+  public void setMarker(java.lang.String, com.motivewave.platform.sdk.common.MarkerInfo);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/MarkerInfo;)V
+
+  public java.util.Set getMarkers();
+    descriptor: ()Ljava/util/Set;
+
+  public void setIndicator(java.lang.String, com.motivewave.platform.sdk.common.IndicatorInfo);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/IndicatorInfo;)V
+
+  public java.util.Set getIndicators();
+    descriptor: ()Ljava/util/Set;
+
+  public void setBars(java.lang.String, com.motivewave.platform.sdk.common.BarInfo);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/BarInfo;)V
+
+  public java.util.Set getBars();
+    descriptor: ()Ljava/util/Set;
+
+  public void setPriceBar(java.lang.String, com.motivewave.platform.sdk.common.PriceBarInfo);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/PriceBarInfo;)V
+
+  public java.util.Set getPriceBars();
+    descriptor: ()Ljava/util/Set;
+
+  public void setShade(java.lang.String, com.motivewave.platform.sdk.common.ShadeInfo);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/ShadeInfo;)V
+
+  public java.util.Set getShades();
+    descriptor: ()Ljava/util/Set;
+
+  public void setGuide(java.lang.String, com.motivewave.platform.sdk.common.GuideInfo);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/GuideInfo;)V
+
+  public java.util.Set getGuides();
+    descriptor: ()Ljava/util/Set;
+
+  public void setFont(java.lang.String, com.motivewave.platform.sdk.common.FontInfo);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/FontInfo;)V
+
+  public java.util.Set getFonts();
+    descriptor: ()Ljava/util/Set;
+
+  public void setFile(java.lang.String, java.io.File);
+    descriptor: (Ljava/lang/String;Ljava/io/File;)V
+
+  public java.util.Set getFiles();
+    descriptor: ()Ljava/util/Set;
+
+  public void setColor(java.lang.String, java.awt.Color);
+    descriptor: (Ljava/lang/String;Ljava/awt/Color;)V
+
+  public void setColor(java.lang.String, com.motivewave.platform.sdk.common.ColorInfo);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/ColorInfo;)V
+
+  public java.util.Set getColors();
+    descriptor: ()Ljava/util/Set;
+
+  public java.util.Set getInputs();
+    descriptor: ()Ljava/util/Set;
+
+  public com.motivewave.platform.sdk.common.Enums$MAMethod getMAMethod(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/Enums$MAMethod;
+
+  public com.motivewave.platform.sdk.common.Enums$MAMethod getMAMethod(java.lang.String, com.motivewave.platform.sdk.com
+mmon.Enums$MAMethod);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/Enums$MAMethod;)Lcom/motivewave/platform/sdk/comm
+mon/Enums$MAMethod;
+
+  public void setMAMethod(java.lang.String, com.motivewave.platform.sdk.common.Enums$MAMethod);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/Enums$MAMethod;)V
+
+  public java.util.Set getMAMethods();
+    descriptor: ()Ljava/util/Set;
+
+  public java.util.Set getBarSizes();
+    descriptor: ()Ljava/util/Set;
+
+  public void setInstrument(java.lang.String, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/Instrument;)V
+
+  public java.util.Set getInstruments();
+    descriptor: ()Ljava/util/Set;
+
+  public boolean hasInstruments();
+    descriptor: ()Z
+
+  public com.motivewave.platform.sdk.common.ExitPoint getExitPoint(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/ExitPoint;
+
+  public void setExitPoint(java.lang.String, com.motivewave.platform.sdk.common.ExitPoint);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/ExitPoint;)V
+
+  public java.util.Set getExitPoints();
+    descriptor: ()Ljava/util/Set;
+
+  public com.motivewave.platform.sdk.common.TimeFrame getTimeFrame(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/TimeFrame;
+
+  public void setTimeFrame(java.lang.String, com.motivewave.platform.sdk.common.TimeFrame);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/TimeFrame;)V
+
+  public java.util.Set getTimeFrames();
+    descriptor: ()Ljava/util/Set;
+
+  public com.motivewave.platform.sdk.common.Enums$OrderType getOrderType(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/Enums$OrderType;
+
+  public void setOrderType(java.lang.String, com.motivewave.platform.sdk.common.Enums$OrderType);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/Enums$OrderType;)V
+
+  public com.motivewave.platform.sdk.common.Enums$TIF getTIF(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/Enums$TIF;
+
+  public void setTIF(java.lang.String, com.motivewave.platform.sdk.common.Enums$TIF);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/Enums$TIF;)V
+
+  public java.util.Set getValues();
+    descriptor: ()Ljava/util/Set;
+
+  public void setDouble(java.lang.String, java.lang.Double);
+    descriptor: (Ljava/lang/String;Ljava/lang/Double;)V
+
+  public void setInteger(java.lang.String, java.lang.Integer);
+    descriptor: (Ljava/lang/String;Ljava/lang/Integer;)V
+
+  public void setLong(java.lang.String, java.lang.Long);
+    descriptor: (Ljava/lang/String;Ljava/lang/Long;)V
+
+  public java.lang.Boolean getBoolean(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/lang/Boolean;
+
+  public boolean getBoolean(java.lang.String, boolean);
+    descriptor: (Ljava/lang/String;Z)Z
+
+  public void setBoolean(java.lang.String, java.lang.Boolean);
+    descriptor: (Ljava/lang/String;Ljava/lang/Boolean;)V
+
+  public void setString(java.lang.String, java.lang.String);
+    descriptor: (Ljava/lang/String;Ljava/lang/String;)V
+
+  public java.lang.Object getSetting(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/lang/Object;
+
+  public void update(com.motivewave.platform.sdk.common.Settings);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Settings;)V
+
+  public boolean isBarUpdates();
+    descriptor: ()Z
+
+  public void setBarUpdates(boolean);
+    descriptor: (Z)V
+
+  public boolean isUseAccountPosition();
+    descriptor: ()Z
+
+  public void setUseAccountPosition(boolean);
+    descriptor: (Z)V
+
+  public boolean isAutoEntry();
+    descriptor: ()Z
+
+  public void setAutoEntry(boolean);
+    descriptor: (Z)V
+
+  public com.motivewave.platform.sdk.common.Enums$PositionType getPositionType();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Enums$PositionType;
+
+  public void setPositionType(com.motivewave.platform.sdk.common.Enums$PositionType);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$PositionType;)V
+
+  public boolean isEnterOnActivate();
+    descriptor: ()Z
+
+  public void setEnterOnActivate(boolean);
+    descriptor: (Z)V
+
+  public boolean isCloseOnDeactivate();
+    descriptor: ()Z
+
+  public void setCloseOnDeactivate(boolean);
+    descriptor: (Z)V
+
+  public void setTimeInForce(com.motivewave.platform.sdk.common.Enums$TIF);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Enums$TIF;)V
+
+  public com.motivewave.platform.sdk.common.Enums$TIF getTimeInForce();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Enums$TIF;
+
+  public void setTradeLots(int);
+    descriptor: (I)V
+
+  public int getTradeLots();
+    descriptor: ()I
+
+  public java.util.List getSessions();
+    descriptor: ()Ljava/util/List;
+
+  public void addSession(com.motivewave.platform.sdk.common.TimeFrame);
+    descriptor: (Lcom/motivewave/platform/sdk/common/TimeFrame;)V
+
+  public void clearSessions();
+    descriptor: ()V
+
+  public boolean isEnterOnSessionStart();
+    descriptor: ()Z
+
+  public void setEnterOnSessionStart(boolean);
+    descriptor: (Z)V
+
+  public boolean isCloseOnSessionEnd();
+    descriptor: ()Z
+
+  public void setCloseOnSessionEnd(boolean);
+    descriptor: (Z)V
+
+  public boolean isTriggerOTH();
+    descriptor: ()Z
+
+  public void setTriggerOTH(boolean);
+    descriptor: (Z)V
+
+  public java.util.TimeZone getTimeZone();
+    descriptor: ()Ljava/util/TimeZone;
+
+  public void setTimeZone(java.util.TimeZone);
+    descriptor: (Ljava/util/TimeZone;)V
+
+  public java.util.List getTbEditorNames();
+    descriptor: ()Ljava/util/List;
+
+  public void setTbEditorNames(java.util.List);
+    descriptor: (Ljava/util/List;)V
+
+  public com.motivewave.platform.sdk.common.Settings clone();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/Settings;
+
+  public boolean equals(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)Z
+
+  public java.util.Map toJson();
+    descriptor: ()Ljava/util/Map;
+
+  public void fromJson(java.util.Map);
+    descriptor: (Ljava/util/Map;)V
+
+  private java.util.Set getIds(com.motivewave.platform.sdk.common.Settings$TypeFilter);
+    descriptor: (Lcom/motivewave/platform/sdk/common/Settings$TypeFilter;)Ljava/util/Set;
+
+  public com.motivewave.platform.sdk.common.SettingsBase clone();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/SettingsBase;
+
+  public java.lang.Object clone();
+    descriptor: ()Ljava/lang/Object;
+
+  private static boolean lambda$getTimeFrames$0(java.lang.Object, com.motivewave.platform.sdk.common.desc.SettingDescrip
+ptor);
+    descriptor: (Ljava/lang/Object;Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Z
+
+  private static boolean lambda$getExitPoints$0(java.lang.Object, com.motivewave.platform.sdk.common.desc.SettingDescrip
+ptor);
+    descriptor: (Ljava/lang/Object;Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Z
+
+  private static boolean lambda$getInstruments$0(java.lang.Object, com.motivewave.platform.sdk.common.desc.SettingDescri
+iptor);
+    descriptor: (Ljava/lang/Object;Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Z
+
+  private static boolean lambda$getBarSizes$0(java.lang.Object, com.motivewave.platform.sdk.common.desc.SettingDescripto
+or);
+    descriptor: (Ljava/lang/Object;Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Z
+
+  private static boolean lambda$getMAMethods$0(java.lang.Object, com.motivewave.platform.sdk.common.desc.SettingDescript
+tor);
+    descriptor: (Ljava/lang/Object;Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Z
+
+  private static boolean lambda$getInputs$0(java.lang.Object, com.motivewave.platform.sdk.common.desc.SettingDescriptor)
+);
+    descriptor: (Ljava/lang/Object;Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Z
+
+  private static boolean lambda$getColors$0(java.lang.Object, com.motivewave.platform.sdk.common.desc.SettingDescriptor)
+);
+    descriptor: (Ljava/lang/Object;Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Z
+
+  private static boolean lambda$getFiles$0(java.lang.Object, com.motivewave.platform.sdk.common.desc.SettingDescriptor);
+    descriptor: (Ljava/lang/Object;Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Z
+
+  private static boolean lambda$getFonts$0(java.lang.Object, com.motivewave.platform.sdk.common.desc.SettingDescriptor);
+    descriptor: (Ljava/lang/Object;Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Z
+
+  private static boolean lambda$getGuides$0(java.lang.Object, com.motivewave.platform.sdk.common.desc.SettingDescriptor)
+);
+    descriptor: (Ljava/lang/Object;Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Z
+
+  private static boolean lambda$getShades$0(java.lang.Object, com.motivewave.platform.sdk.common.desc.SettingDescriptor)
+);
+    descriptor: (Ljava/lang/Object;Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Z
+
+  private static boolean lambda$getPriceBars$0(java.lang.Object, com.motivewave.platform.sdk.common.desc.SettingDescript
+tor);
+    descriptor: (Ljava/lang/Object;Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Z
+
+  private static boolean lambda$getBars$0(java.lang.Object, com.motivewave.platform.sdk.common.desc.SettingDescriptor); 
+    descriptor: (Ljava/lang/Object;Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Z
+
+  private static boolean lambda$getIndicators$0(java.lang.Object, com.motivewave.platform.sdk.common.desc.SettingDescrip
+ptor);
+    descriptor: (Ljava/lang/Object;Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Z
+
+  private static boolean lambda$getMarkers$0(java.lang.Object, com.motivewave.platform.sdk.common.desc.SettingDescriptor
+r);
+    descriptor: (Ljava/lang/Object;Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Z
+
+  private static boolean lambda$getPaths$0(java.lang.Object, com.motivewave.platform.sdk.common.desc.SettingDescriptor);
+    descriptor: (Ljava/lang/Object;Lcom/motivewave/platform/sdk/common/desc/SettingDescriptor;)Z
+}
+
+########## com.motivewave.platform.sdk.common.SettingsBase ##########
+Compiled from "SettingsBase.java"
+public class com.motivewave.platform.sdk.common.SettingsBase implements java.lang.Cloneable {
+  protected java.util.Map values;
+    descriptor: Ljava/util/Map;
+  protected com.motivewave.platform.sdk.common.desc.SettingsDescriptor descriptor;
+    descriptor: Lcom/motivewave/platform/sdk/common/desc/SettingsDescriptor;
+  private com.motivewave.common.util.ar weakSupport;
+    descriptor: Lcom/motivewave/common/util/ar;
+  private java.util.List updateListeners;
+    descriptor: Ljava/util/List;
+  java.lang.Runnable notifyUpdates;
+    descriptor: Ljava/lang/Runnable;
+  public com.motivewave.platform.sdk.common.SettingsBase();
+    descriptor: ()V
+
+  public com.motivewave.platform.sdk.common.SettingsBase(com.motivewave.platform.sdk.common.desc.SettingsDescriptor);   
+    descriptor: (Lcom/motivewave/platform/sdk/common/desc/SettingsDescriptor;)V
+
+  protected void onUpdated();
+    descriptor: ()V
+
+  public void setDescriptor(com.motivewave.platform.sdk.common.desc.SettingsDescriptor);
+    descriptor: (Lcom/motivewave/platform/sdk/common/desc/SettingsDescriptor;)V
+
+  public com.motivewave.platform.sdk.common.desc.SettingsDescriptor getDescriptor();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/desc/SettingsDescriptor;
+
+  public com.motivewave.platform.sdk.common.PathInfo getPath(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/PathInfo;
+
+  public java.lang.Object getInput(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/lang/Object;
+
+  public java.lang.Object getInput(java.lang.String, java.lang.Object);
+    descriptor: (Ljava/lang/String;Ljava/lang/Object;)Ljava/lang/Object;
+
+  public void setInput(java.lang.String, java.lang.Object);
+    descriptor: (Ljava/lang/String;Ljava/lang/Object;)V
+
+  private java.lang.Object resolveInput(java.lang.String, java.lang.Object);
+    descriptor: (Ljava/lang/String;Ljava/lang/Object;)Ljava/lang/Object;
+
+  public com.motivewave.platform.sdk.common.Enums$MAMethod getMAMethod(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/Enums$MAMethod;
+
+  public com.motivewave.platform.sdk.common.Enums$MAMethod getMAMethod(java.lang.String, com.motivewave.platform.sdk.com
+mmon.Enums$MAMethod);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/Enums$MAMethod;)Lcom/motivewave/platform/sdk/comm
+mon/Enums$MAMethod;
+
+  public void setMAMethod(java.lang.String, com.motivewave.platform.sdk.common.Enums$MAMethod);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/Enums$MAMethod;)V
+
+  public com.motivewave.platform.sdk.common.BarSize getBarSize(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/BarSize;
+
+  public void setBarSize(java.lang.String, com.motivewave.platform.sdk.common.BarSize);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/BarSize;)V
+
+  public com.motivewave.platform.sdk.common.Instrument getInstrument(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/Instrument;
+
+  public void setInstrument(java.lang.String, com.motivewave.platform.sdk.common.Instrument);
+    descriptor: (Ljava/lang/String;Lcom/motivewave/platform/sdk/common/Instrument;)V
+
+  public com.motivewave.platform.sdk.common.MarkerInfo getMarker(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/MarkerInfo;
+
+  public com.motivewave.platform.sdk.common.IndicatorInfo getIndicator(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/IndicatorInfo;
+
+  public com.motivewave.platform.sdk.common.BarInfo getBars(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/BarInfo;
+
+  public com.motivewave.platform.sdk.common.PriceBarInfo getPriceBar(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/PriceBarInfo;
+
+  public com.motivewave.platform.sdk.common.ShadeInfo getShade(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/ShadeInfo;
+
+  public com.motivewave.platform.sdk.common.GuideInfo getGuide(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/GuideInfo;
+
+  public com.motivewave.platform.sdk.common.FontInfo getFont(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/FontInfo;
+
+  public java.io.File getFile(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/io/File;
+
+  public java.awt.Color getColor(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/awt/Color;
+
+  public com.motivewave.platform.sdk.common.ColorInfo getColorInfo(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/ColorInfo;
+
+  public java.awt.Color getColor(java.lang.String, java.awt.Color);
+    descriptor: (Ljava/lang/String;Ljava/awt/Color;)Ljava/awt/Color;
+
+  public java.lang.Object getEnum(java.lang.String, java.lang.Object);
+    descriptor: (Ljava/lang/String;Ljava/lang/Object;)Ljava/lang/Object;
+
+  public java.lang.Object getEnum(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/lang/Object;
+
+  public v.k getEnumInfo(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lv/k;
+
+  public java.lang.Object get(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/lang/Object;
+
+  public java.lang.Object get(java.lang.String, java.lang.Object);
+    descriptor: (Ljava/lang/String;Ljava/lang/Object;)Ljava/lang/Object;
+
+  public java.lang.Object getDefault(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/lang/Object;
+
+  public void set(java.lang.String, java.lang.Object);
+    descriptor: (Ljava/lang/String;Ljava/lang/Object;)V
+
+  public void setValue(java.lang.String, java.lang.Object);
+    descriptor: (Ljava/lang/String;Ljava/lang/Object;)V
+
+  public java.lang.Object getValue(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/lang/Object;
+
+  public java.lang.Double getDouble(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/lang/Double;
+
+  public com.motivewave.platform.sdk.common.TextStyle getTextStyle(java.lang.String);
+    descriptor: (Ljava/lang/String;)Lcom/motivewave/platform/sdk/common/TextStyle;
+
+  public java.awt.geom.Point2D getPoint2D(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/awt/geom/Point2D;
+
+  public double getDouble(java.lang.String, double);
+    descriptor: (Ljava/lang/String;D)D
+
+  public void setDouble(java.lang.String, java.lang.Double);
+    descriptor: (Ljava/lang/String;Ljava/lang/Double;)V
+
+  public java.lang.Integer getInteger(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/lang/Integer;
+
+  public int getInteger(java.lang.String, int);
+    descriptor: (Ljava/lang/String;I)I
+
+  public int getInt(java.lang.String);
+    descriptor: (Ljava/lang/String;)I
+
+  public int getInt(java.lang.String, int);
+    descriptor: (Ljava/lang/String;I)I
+
+  public java.lang.Long getLong(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/lang/Long;
+
+  public boolean is(java.lang.String);
+    descriptor: (Ljava/lang/String;)Z
+
+  public boolean has(java.lang.String);
+    descriptor: (Ljava/lang/String;)Z
+
+  public boolean is(java.lang.String, boolean);
+    descriptor: (Ljava/lang/String;Z)Z
+
+  public java.lang.String getString(java.lang.String);
+    descriptor: (Ljava/lang/String;)Ljava/lang/String;
+
+  public java.lang.String getString(java.lang.String, java.lang.String);
+    descriptor: (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+
+  public void update(com.motivewave.platform.sdk.common.SettingsBase);
+    descriptor: (Lcom/motivewave/platform/sdk/common/SettingsBase;)V
+
+  public com.motivewave.platform.sdk.common.SettingsBase clone();
+    descriptor: ()Lcom/motivewave/platform/sdk/common/SettingsBase;
+
+  public boolean equals(java.lang.Object);
+    descriptor: (Ljava/lang/Object;)Z
+
+  public void addPropertyChangeListener(java.beans.PropertyChangeListener);
+    descriptor: (Ljava/beans/PropertyChangeListener;)V
+
+  public void removePropertyChangeListener(java.beans.PropertyChangeListener);
+    descriptor: (Ljava/beans/PropertyChangeListener;)V
+
+  public void removeAllPropertyChangeListeners();
+    descriptor: ()V
+
+  public void addListener(java.lang.Runnable);
+    descriptor: (Ljava/lang/Runnable;)V
+
+  public void removeListener(java.lang.Runnable);
+    descriptor: (Ljava/lang/Runnable;)V
+
+  public void notifyUpdatedLater();
+    descriptor: ()V
+
+  public final void notifyUpdated();
+    descriptor: ()V
+
+  public void fromJson(java.util.Map);
+    descriptor: (Ljava/util/Map;)V
+
+  public java.lang.String toJsonStr();
+    descriptor: ()Ljava/lang/String;
+
+  public java.util.Map toJson();
+    descriptor: ()Ljava/util/Map;
+
+  protected void clearSets();
+    descriptor: ()V
+
+  protected void notifyProperty(java.lang.Object, java.lang.String, java.lang.Object, java.lang.Object);
+    descriptor: (Ljava/lang/Object;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V
+
+  public java.lang.Object clone();
+    descriptor: ()Ljava/lang/Object;
+
+  private void lambda$new$0();
+    descriptor: ()V
+}
+___BEGIN___COMMAND_DONE_MARKER___0
+PS C:\Users\tyler>

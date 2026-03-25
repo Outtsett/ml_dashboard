@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "ml_dashboard": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "mcp_server.run"],
+      "cwd": "E:\\source\\repos\\ml_dashboard"
+    }
+  }
+}
