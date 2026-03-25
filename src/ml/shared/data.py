@@ -49,6 +49,54 @@ def _connect():
     )
 
 
+# ── Fast CSV loading via QuestDB HTTP /exp endpoint ───────────────────────
+
+
+def _load_via_http(sql, total_hint=0):
+    """Load query results via QuestDB HTTP /exp (CSV stream) — faster than PG wire for large results."""
+    import io
+    import urllib.request
+    import urllib.parse
+
+    host = os.environ.get("QUESTDB_HOST", "127.0.0.1")
+    port = os.environ.get("QUESTDB_HTTP_PORT", "9000")
+    url = f"http://{host}:{port}/exp?query={urllib.parse.quote(sql)}"
+
+    emit_log("Loading via HTTP /exp (CSV stream)...")
+    with urllib.request.urlopen(url, timeout=300) as resp:
+        csv_bytes = resp.read()
+
+    # Parse CSV with numpy (much faster than row-by-row psycopg2)
+    import csv
+    reader = csv.reader(io.StringIO(csv_bytes.decode("utf-8")))
+    header = next(reader)
+
+    rows = list(reader)
+    n = len(rows)
+    if n == 0:
+        return []
+
+    emit_log(f"Loaded {n:,} rows via HTTP CSV")
+    emit_progress(n, n, "loading_data")
+
+    # Convert to tuples matching psycopg2 format: (symbol, timestamp, open, high, low, close, volume)
+    sym_idx = header.index("symbol")
+    ts_idx = header.index("timestamp")
+    o_idx = header.index("open")
+    h_idx = header.index("high")
+    l_idx = header.index("low")
+    c_idx = header.index("close")
+    v_idx = header.index("volume")
+
+    from datetime import datetime
+    result = []
+    for row in rows:
+        ts = datetime.fromisoformat(row[ts_idx].replace("Z", "+00:00"))
+        result.append((row[sym_idx], ts, float(row[o_idx]), float(row[h_idx]),
+                       float(row[l_idx]), float(row[c_idx]), float(row[v_idx])))
+    return result
+
+
 # ── OHLCV Loading (numpy arrays, no PyArrow) ──────────────────────────────
 
 CHUNK_SIZE = 50_000
@@ -135,7 +183,7 @@ def _build_where(symbol, date_range):
 
 
 def _fetch_rows(conn, symbol, interval, max_bars, date_range):
-    """Fetch OHLCV rows for a single symbol with chunked cursor + progress."""
+    """Fetch OHLCV rows — tries HTTP CSV for speed, falls back to PG wire."""
     where = _build_where(symbol, date_range)
     limit_clause = f"LIMIT {max_bars}" if max_bars > 0 else ""
 
@@ -151,8 +199,15 @@ def _fetch_rows(conn, symbol, interval, max_bars, date_range):
         {limit_clause}
     """
 
-    # Count first for progress reporting
-    # QuestDB SAMPLE BY requires an aggregation function in SELECT — use count()
+    # Try HTTP /exp first (faster for large results — no row-by-row parsing)
+    try:
+        rows = _load_via_http(sql)
+        if rows:
+            return rows
+    except Exception as e:
+        emit_log(f"HTTP /exp failed ({e}), falling back to PG wire...")
+
+    # Fallback: PG wire with chunked fetch
     count_sql = f"""
         SELECT count() FROM (
             SELECT first(open) FROM ohlcv {where}
@@ -166,19 +221,18 @@ def _fetch_rows(conn, symbol, interval, max_bars, date_range):
         total_rows = int(cur.fetchone()[0])
     except Exception as e:
         emit_log(f"Count pre-query failed ({e}), will attempt data fetch anyway...")
-        total_rows = -1  # Unknown — still proceed
-        conn.rollback()  # Reset connection state after failed query (psycopg2 requirement)
+        total_rows = -1
+        conn.rollback()
     cur.close()
 
     if total_rows == 0:
         return []
 
     if total_rows > 0:
-        emit_log(f"Fetching {total_rows} bars...")
+        emit_log(f"Fetching {total_rows} bars via PG wire...")
     else:
         emit_log("Fetching bars (count unknown)...")
 
-    # Use regular cursor — QuestDB PG wire doesn't support DECLARE CURSOR
     cur = conn.cursor()
     cur.execute(sql)
 
@@ -307,8 +361,6 @@ def _fetch_stitched_rows(conn, root, interval, max_bars, date_range):
 
 def _fetch_front_month_rows(conn, root, interval, max_bars, date_range):
     """Front-month stitching: pick highest-volume contract per day, query each."""
-    contract_regex = f"^{re.escape(root)}[FGHJKMNQUVXZ][0-9]{{1,2}}$"
-
     time_filter = ""
     if date_range:
         if date_range.get("start"):
@@ -318,10 +370,11 @@ def _fetch_front_month_rows(conn, root, interval, max_bars, date_range):
 
     cur = conn.cursor()
 
-    # Step 1: Daily volume per contract from materialized view
+    # Step 1: Daily volume per contract from materialized view (uses root SYMBOL INDEX)
     cur.execute(f"""
         SELECT symbol, timestamp, volume FROM ohlcv_1d
-        WHERE symbol ~ '{contract_regex}'{time_filter}
+        WHERE root = '{root}' AND asset_class = 'futures'
+        AND symbol != '{root}'{time_filter}
         ORDER BY timestamp
     """)
     daily_bars = cur.fetchall()

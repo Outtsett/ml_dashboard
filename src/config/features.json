@@ -64,6 +64,10 @@
     "full-344": {
       "description": "All available pre-computed indicators",
       "columns": "*"
+    },
+    "research-recommended": {
+      "description": "Features selected by feature-research pipeline (correlation + importance analysis)",
+      "columns": "*"
     }
   }
 }

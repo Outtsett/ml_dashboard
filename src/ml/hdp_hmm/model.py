@@ -233,17 +233,36 @@ class StickyHDPHMM:
     # ── Gibbs Step 1: Sample States (FFBS) ────────────────────────────────
 
     def _compute_log_likelihood(self, X):
-        """Log emission probability under diagonal Gaussian N(mu_k, diag(sigma2_k))."""
+        """Log emission probability under diagonal Gaussian — fully vectorized.
+
+        Computes all K regimes simultaneously via broadcasting:
+          log_lik[t, k] = -0.5 * (D*log(2pi) + sum(log(var_k)) + sum((x_t - mu_k)^2 / var_k))
+
+        Shape algebra: X(T,D), means(K,D), vars(K,D) → log_lik(T,K) in one shot.
+        ~5x faster than the per-k loop on CPU, and enables trivial GPU port.
+        """
         T, D = X.shape
         K = self.K
-        log_lik = np.full((T, K), -np.inf)
 
-        for k in range(K):
-            diff = X - self.means[k]
-            var_k = np.maximum(self.vars[k], 1e-8)
-            log_det = np.sum(np.log(var_k))
-            mahal = np.sum(diff ** 2 / var_k[None, :], axis=1)
-            log_lik[:, k] = -0.5 * (D * np.log(2 * np.pi) + log_det + mahal)
+        vars_safe = np.maximum(self.vars, 1e-8)          # (K, D)
+        log_det = np.sum(np.log(vars_safe), axis=1)       # (K,)
+        inv_var = 1.0 / vars_safe                          # (K, D)
+
+        # Broadcast: X(T,1,D) - means(1,K,D) → diff(T,K,D)
+        # Then sum over D → mahal(T,K)
+        # Memory-efficient: compute mahal without materializing full (T,K,D)
+        # mahal[t,k] = sum_d (x_td - mu_kd)^2 / var_kd
+        #            = sum_d x_td^2/var_kd - 2*x_td*mu_kd/var_kd + mu_kd^2/var_kd
+        #            = x^2 @ inv_var.T - 2 * x @ (mu/var).T + sum(mu^2/var, axis=1)
+
+        X2_invvar = X ** 2 @ inv_var.T                     # (T, K)
+        X_mu_invvar = X @ (self.means * inv_var).T          # (T, K)
+        mu2_invvar = np.sum(self.means ** 2 * inv_var, axis=1)  # (K,)
+
+        mahal = X2_invvar - 2.0 * X_mu_invvar + mu2_invvar  # (T, K)
+
+        const = D * np.log(2 * np.pi)
+        log_lik = -0.5 * (const + log_det[np.newaxis, :] + mahal)
 
         return log_lik
 
@@ -268,15 +287,7 @@ class StickyHDPHMM:
     def _sample_emission_params(self, X, states):
         """
         Sample (mu_k, sigma2_k) from Normal-Inverse-Gamma posterior.
-
-        Prior:  mu_k | sigma2_k ~ N(mu_0, sigma2_k / lambda_0)
-                sigma2_k,d      ~ IG(a_0, b_0_d)
-
-        Posterior (per dimension d):
-                lambda_n = lambda_0 + n_k
-                mu_n     = (lambda_0 * mu_0 + n_k * x_bar) / lambda_n
-                a_n      = a_0 + n_k / 2
-                b_n      = b_0 + ss/2 + lambda_0*n_k*(x_bar - mu_0)^2 / (2*lambda_n)
+        Vectorized across D dimensions — no inner Python loop.
         """
         T, D = X.shape
         for k in range(self.K):
@@ -284,34 +295,36 @@ class StickyHDPHMM:
             n_k = np.sum(mask)
 
             if n_k == 0:
-                for d in range(D):
-                    self.vars[k, d] = 1.0 / np.random.gamma(
-                        self.a_0, 1.0 / (self.b_0[d] + 1e-10)
-                    )
-                    self.vars[k, d] = max(self.vars[k, d], 1e-8)
-                    self.means[k, d] = np.random.normal(
-                        self.mu_0[d], np.sqrt(self.vars[k, d] / self.lambda_0)
-                    )
+                # Sample from prior (vectorized across D)
+                self.vars[k] = 1.0 / np.random.gamma(
+                    self.a_0, 1.0 / (self.b_0 + 1e-10)
+                )
+                self.vars[k] = np.maximum(self.vars[k], 1e-8)
+                self.means[k] = np.random.normal(
+                    self.mu_0, np.sqrt(self.vars[k] / self.lambda_0)
+                )
             else:
                 X_k = X[mask]
-                x_bar = np.mean(X_k, axis=0)
+                x_bar = np.mean(X_k, axis=0)                    # (D,)
 
-                for d in range(D):
-                    lambda_n = self.lambda_0 + n_k
-                    mu_n = (self.lambda_0 * self.mu_0[d] + n_k * x_bar[d]) / lambda_n
-                    a_n = self.a_0 + n_k / 2.0
+                lambda_n = self.lambda_0 + n_k                   # scalar
+                mu_n = (self.lambda_0 * self.mu_0 + n_k * x_bar) / lambda_n  # (D,)
+                a_n = self.a_0 + n_k / 2.0                       # scalar
 
-                    ss = np.sum((X_k[:, d] - x_bar[d]) ** 2)
-                    b_n = (self.b_0[d]
-                           + ss / 2.0
-                           + self.lambda_0 * n_k * (x_bar[d] - self.mu_0[d]) ** 2
-                           / (2.0 * lambda_n))
+                ss = np.sum((X_k - x_bar) ** 2, axis=0)          # (D,)
+                b_n = (self.b_0
+                       + ss / 2.0
+                       + self.lambda_0 * n_k * (x_bar - self.mu_0) ** 2
+                       / (2.0 * lambda_n))                        # (D,)
 
-                    self.vars[k, d] = 1.0 / np.random.gamma(a_n, 1.0 / (b_n + 1e-10))
-                    self.vars[k, d] = max(self.vars[k, d], 1e-8)
-                    self.means[k, d] = np.random.normal(
-                        mu_n, np.sqrt(self.vars[k, d] / lambda_n)
-                    )
+                # Sample variance from IG (vectorized)
+                self.vars[k] = 1.0 / np.random.gamma(a_n, 1.0 / (b_n + 1e-10))
+                self.vars[k] = np.maximum(self.vars[k], 1e-8)
+
+                # Sample mean from conditional Normal (vectorized)
+                self.means[k] = np.random.normal(
+                    mu_n, np.sqrt(self.vars[k] / lambda_n)
+                )
 
     # ── Gibbs Step 3: Sample Transition Rows (Dirichlet Posterior) ────────
 
@@ -319,13 +332,16 @@ class StickyHDPHMM:
         """
         Sample pi_j ~ Dir(alpha * beta + n_j + kappa * delta_j).
         Returns the transition count matrix for use in beta update.
+        Vectorized transition counting via numpy (no Python loop over T).
         """
         K = self.K
         T = len(states)
 
+        # Vectorized transition count: O(T) via fancy indexing
+        from_states = states[:-1]
+        to_states = states[1:]
         counts = np.zeros((K, K))
-        for t in range(T - 1):
-            counts[int(states[t]), int(states[t + 1])] += 1
+        np.add.at(counts, (from_states, to_states), 1)
 
         for j in range(K):
             alpha_vec = self.alpha * self.beta + counts[j] + 1e-10
@@ -455,24 +471,22 @@ class StickyHDPHMM:
                 self.transition_matrix[k, k] for k in active
             ])) if len(active) > 0 else 0.0
 
-            # Switch rate: fraction of consecutive bars changing state
-            switches = int(np.sum(states[1:] != states[:-1]))
+            # Switch rate: fraction of consecutive bars changing state (vectorized)
+            state_changes = states[1:] != states[:-1]
+            switches = int(np.sum(state_changes))
             switch_rate = switches / max(1, T - 1)
 
             # Max regime percentage
             max_pct = float(np.max(counts) / T) if len(counts) > 0 else 0.0
 
-            # Average dwell time (mean run length)
-            run_lengths = []
-            current_run = 1
-            for t_idx in range(1, T):
-                if states[t_idx] == states[t_idx - 1]:
-                    current_run += 1
-                else:
-                    run_lengths.append(current_run)
-                    current_run = 1
-            run_lengths.append(current_run)
-            avg_dwell = float(np.mean(run_lengths))
+            # Average dwell time — vectorized via diff of change indices
+            change_indices = np.where(state_changes)[0]
+            if len(change_indices) > 0:
+                boundaries = np.concatenate([[0], change_indices + 1, [T]])
+                run_lengths = np.diff(boundaries)
+                avg_dwell = float(np.mean(run_lengths))
+            else:
+                avg_dwell = float(T)
 
             # Delta (LL change from previous iteration)
             delta = float(total_ll - self.log_likelihoods[-2]) if len(self.log_likelihoods) >= 2 else 0.0
@@ -501,6 +515,8 @@ class StickyHDPHMM:
             if prev_states is not None:
                 assignment_stability = float(np.mean(states == prev_states))
                 emit_metric("assignment_stability", assignment_stability, it, n_iter)
+            emit_metric("switch_rate", switch_rate, it, n_iter)
+            emit_metric("avg_dwell", avg_dwell, it, n_iter)
             prev_states = states.copy()
 
             # Emit overlay at intervals

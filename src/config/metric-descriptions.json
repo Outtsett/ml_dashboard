@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "_comment": "Metric descriptions per model type. UI reads this to annotate live training metrics with plain-English descriptions of what each metric measures and how it affects model behavior.",
+
+  "global": {
+    "log_likelihood": {
+      "title": "Log-Likelihood",
+      "unit": "millions",
+      "color": "#3b82f6",
+      "format": "millions",
+      "description": "How well the model explains the observed data. Higher means the model's learned states fit actual price patterns better.",
+      "effect": "Rapid early rise means the model is learning structure. Plateau means it found the best fit it can with the current state count.",
+      "healthy": "Plateaus = converged. Still rising = still learning."
+    },
+    "assignment_stability": {
+      "title": "Assignment Stability",
+      "unit": "percent",
+      "color": "#22c55e",
+      "format": "percent",
+      "description": "What percentage of bars kept the same state label between consecutive iterations.",
+      "effect": "Low stability means the model is still unsure which state each bar belongs to. High stability means confident, settled assignments. This is the single best convergence indicator.",
+      "healthy": "Target >95%. Oscillation means some bars are ambiguous between states.",
+      "target": 95,
+      "targetDirection": "above"
+    }
+  },
+
+  "models": {
+    "hdp-hmm": {
+      "metrics": {
+        "log_likelihood": {},
+        "num_regimes": {
+          "title": "Active Regimes (K)",
+          "unit": "count",
+          "color": "#ef4444",
+          "format": "integer",
+          "description": "How many distinct market states the model discovered. The HDP prior lets the model create and kill regimes automatically — no fixed K.",
+          "effect": "Too few = underfitting (lumping different behaviors together). Too many = overfitting (splitting noise into fake regimes).",
+          "healthy": "Stable count = model settled on structure. 5-15 typical for forex."
+        },
+        "assignment_stability": {},
+        "mean_self_transition": {
+          "title": "Self-Transition Rate",
+          "unit": "percent",
+          "color": "#eab308",
+          "format": "percent",
+          "description": "How likely the model is to stay in the same regime on the next bar. Driven by kappa (sticky prior).",
+          "effect": "High = persistent regimes (long stretches of one state). Low = rapid flipping (noisy, possibly meaningless).",
+          "healthy": "50-80% healthy for 1m bars. Below 50% = noise. Above 90% = too sticky."
+        },
+        "beta_entropy": {
+          "title": "Beta Entropy",
+          "unit": "nats",
+          "color": "#a855f7",
+          "format": "decimal3",
+          "description": "How evenly the model distributes bars across regimes. Controlled by gamma (concentration parameter).",
+          "effect": "High entropy = bars spread evenly (all regimes used equally). Low = a few dominant regimes hog most bars.",
+          "healthy": "Stable is good. Dropping = regimes consolidating. Spiking = instability."
+        },
+        "switch_rate": {
+          "title": "Switch Rate",
+          "unit": "percent",
+          "color": "#f97316",
+          "format": "percent",
+          "description": "Fraction of consecutive bars that change regime. Measures how often the model detects a state transition.",
+          "effect": "High = noisy, rapid flipping between states. Low = stable, long-duration regimes. Should decrease as sampler converges.",
+          "healthy": "20-50% for 1m bars. Below 10% = over-sticky. Above 60% = noise."
+        },
+        "avg_dwell": {
+          "title": "Avg Dwell Time",
+          "unit": "bars",
+          "color": "#14b8a6",
+          "format": "decimal3",
+          "description": "Mean number of consecutive bars the model stays in one regime before switching. Longer dwell = more meaningful structure.",
+          "effect": "Short dwell (<2 bars) means regimes are too noisy to trade. Long dwell (>10) means stable, actionable regime assignments.",
+          "healthy": "2-5 bars at 1m. Higher at slower timeframes."
+        }
+      },
+      "metricOrder": ["log_likelihood", "num_regimes", "assignment_stability", "mean_self_transition", "switch_rate", "avg_dwell", "beta_entropy"]
+    },
+
+    "2-state-hmm": {
+      "metrics": {
+        "log_likelihood": {},
+        "convergence_delta": {
+          "title": "Convergence Delta",
+          "unit": "decimal",
+          "color": "#06b6d4",
+          "format": "scientific",
+          "description": "Change in log-likelihood between EM iterations. Measures how much the model is still learning per step.",
+          "effect": "Large delta = model actively improving. Near-zero = converged. Negative = possible numerical instability.",
+          "healthy": "Drops below 1e-6 = converged."
+        },
+        "assignment_stability": {},
+        "mean_self_transition": {
+          "title": "Self-Transition Rate",
+          "unit": "percent",
+          "color": "#eab308",
+          "format": "percent",
+          "description": "Probability of staying in bull or bear state on the next bar.",
+          "effect": "High = long bull/bear runs. Low = rapid regime switching (noise).",
+          "healthy": "60-90% typical for hourly data."
+        }
+      },
+      "metricOrder": ["log_likelihood", "convergence_delta", "assignment_stability", "mean_self_transition"]
+    }
+  }
+}

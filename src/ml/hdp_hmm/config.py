@@ -2,7 +2,7 @@
 
 # Truncation level (max possible regimes in the DP approximation).
 # Unused components naturally collapse to their prior during Gibbs sampling.
-K_TRUNC = 20
+K_TRUNC = 4
 
 # Normal-Inverse-Gamma prior hyperparameters.
 # mu_0 and b_0 are set from data at init time; these are structural constants.

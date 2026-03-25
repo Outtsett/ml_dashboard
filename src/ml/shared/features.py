@@ -17,17 +17,60 @@ Also provides rolling z-score normalization (params configurable via features.js
 import json
 import os
 import numpy as np
+from numba import njit, prange
 
 from .normalizer import rolling_zscore as _rolling_zscore_1d  # noqa: F401 — 1D per-column z-score
 from .swing import compute_swing_features
 
 
-def _rolling_stat(arr, window, func):
-    """Compute a rolling statistic over an array."""
-    result = np.full_like(arr, np.nan, dtype=np.float64)
-    for i in range(window, len(arr)):
-        result[i] = func(arr[i - window : i])
-    return result
+# ── Numba-JIT rolling statistics (replaces Python for-loop) ─────────────────
+
+@njit(cache=True, parallel=True)
+def _rolling_mean(arr, window):
+    """Rolling mean — O(n) via cumsum, Numba-compiled."""
+    n = len(arr)
+    out = np.empty(n, dtype=np.float64)
+    out[:window] = np.nan
+    cs = np.cumsum(arr)
+    for i in prange(window, n):
+        out[i] = (cs[i] - (cs[i - window] if i >= window else 0.0)) / window
+    return out
+
+
+@njit(cache=True, parallel=True)
+def _rolling_std(arr, window):
+    """Rolling std — two-pass (mean then variance), Numba-compiled."""
+    n = len(arr)
+    out = np.empty(n, dtype=np.float64)
+    out[:window] = np.nan
+    for i in prange(window, n):
+        s = arr[i - window:i]
+        m = 0.0
+        for j in range(window):
+            m += s[j]
+        m /= window
+        v = 0.0
+        for j in range(window):
+            d = s[j] - m
+            v += d * d
+        out[i] = np.sqrt(v / (window - 1)) if window > 1 else 0.0
+    return out
+
+
+@njit(cache=True, parallel=True)
+def _rolling_parkinson(log_hl, window):
+    """Rolling Parkinson volatility — Numba-compiled."""
+    n = len(log_hl)
+    out = np.empty(n, dtype=np.float64)
+    out[:window] = np.nan
+    inv_4ln2 = 1.0 / (4.0 * np.log(2.0))
+    for i in prange(window, n):
+        s = 0.0
+        for j in range(window):
+            v = log_hl[i - window + j]
+            s += v * v
+        out[i] = np.sqrt(s / window * inv_4ln2)
+    return out
 
 
 # ── Individual compute functions (one per type) ─────────────────────────────
@@ -40,17 +83,17 @@ def _compute_log_return(close, horizon, **_):
 
 def _compute_realized_vol(close, window, **_):
     ret1 = np.concatenate([np.zeros(1), np.diff(np.log(close + 1e-10))])
-    return _rolling_stat(ret1, window, np.std)
+    return _rolling_std(ret1, window)
 
 
 def _compute_parkinson_vol(high, low, window, **_):
     log_hl = np.log(high / (low + 1e-10))
-    return _rolling_stat(log_hl, window, lambda x: np.sqrt(np.mean(x**2) / (4 * np.log(2))))
+    return _rolling_parkinson(log_hl, window)
 
 
 def _compute_volume_ratio(volume, window, **_):
     vol_safe = np.where(volume > 0, volume, 1.0)
-    vol_ma = _rolling_stat(vol_safe, window, np.mean)
+    vol_ma = _rolling_mean(vol_safe, window)
     return vol_safe / np.where(vol_ma > 0, vol_ma, 1.0)
 
 
@@ -80,8 +123,8 @@ def _compute_rate_of_change(close, horizon, **_):
 
 
 def _compute_ma_distance(close, window, **_):
-    ma = _rolling_stat(close, window, np.mean)
-    return (close - ma) / (ma + 1e-10)
+    ma = _rolling_mean(close, window)
+    return (close - ma) / (np.where(np.isnan(ma), 1.0, ma) + 1e-10)
 
 
 # ── Dispatch table: type → function ─────────────────────────────────────────
@@ -180,29 +223,40 @@ def compute_features(data, categories=None):
 
 
 def normalize_features(X, lookback=250, clip_range=(-5, 5)):
-    """Rolling z-score normalization (vectorized 2D matrix). Clips to configured range.
+    """Rolling z-score normalization (2D matrix). Clips to configured range.
+
+    Uses O(1) memory online algorithm per column instead of sliding_window_view
+    which allocates O(T*D*lookback) — critical for >500K rows.
 
     For per-column 1D rolling z-score (used by indicator normalization), see
     ml.shared.normalizer.rolling_zscore (imported as _rolling_zscore_1d).
     """
-    from numpy.lib.stride_tricks import sliding_window_view
-
     T, D = X.shape
     X_norm = np.full_like(X, np.nan)
 
     if T <= lookback:
         return np.clip(X_norm, clip_range[0], clip_range[1])
 
-    # Shape: (T - lookback + 1, D, lookback)
-    # windows[i, d, :] = X[i:i+lookback, d]
-    # windows[0] covers X[0:lookback], used to normalize X[lookback]
-    windows = sliding_window_view(X, window_shape=lookback, axis=0)
+    # Try numba-accelerated path (O(n) per column, O(1) memory)
+    try:
+        from .feature_extract import _rolling_zscore_numba, _HAS_NUMBA
+        if _HAS_NUMBA:
+            for d in range(D):
+                X_norm[:, d] = _rolling_zscore_numba(
+                    X[:, d], lookback, clip_range[0], clip_range[1]
+                )
+            return X_norm
+    except ImportError:
+        pass
 
-    n_valid = T - lookback
-    mu = np.nanmean(windows[:n_valid], axis=2)  # (n_valid, D)
-    sigma = np.nanstd(windows[:n_valid], axis=2)  # (n_valid, D)
-    sigma = np.where(sigma < 1e-10, 1.0, sigma)
+    # Pandas fallback — still O(n) per column, no giant view allocation
+    import pandas as pd
+    for d in range(D):
+        series = pd.Series(X[:, d], dtype=np.float64)
+        rolling_mean = series.rolling(lookback, min_periods=5).mean()
+        rolling_std = series.rolling(lookback, min_periods=5).std()
+        z = (series - rolling_mean) / rolling_std.replace(0, np.nan)
+        z = z.clip(clip_range[0], clip_range[1])
+        X_norm[:, d] = z.values
 
-    X_norm[lookback:] = (X[lookback:] - mu) / sigma
-    X_norm = np.clip(X_norm, clip_range[0], clip_range[1])
     return X_norm
