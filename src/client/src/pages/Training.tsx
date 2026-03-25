@@ -62,6 +62,12 @@ export default function Training() {
 
   const { data: trainedModels } = useQuery<any[]>({
     queryKey: ["/api/training/models"],
+    queryFn: async () => {
+      const r = await fetch("/api/training/models");
+      if (!r.ok) return [];
+      const d = await r.json();
+      return d?.models ?? d ?? [];
+    },
     staleTime: 30_000,
   });
 
@@ -78,6 +84,11 @@ export default function Training() {
   // Fetch diagnostics for the active model (from disk, not SSE)
   const { data: savedDiagnostics } = useQuery<Record<string, any>>({
     queryKey: ["/api/training/models", activeModelId, "diagnostics"],
+    queryFn: async () => {
+      const r = await fetch(`/api/training/models/${activeModelId}/diagnostics`);
+      if (!r.ok) return null;
+      return r.json();
+    },
     enabled: !!activeModelId,
     staleTime: 60_000,
   });
@@ -444,20 +455,21 @@ export default function Training() {
                   <div key={key} className="rounded-xl border border-white/5 bg-black/20 p-4 flex gap-4">
                     <div className="w-1 rounded-full shrink-0" style={{background:d.color}} />
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 mb-2">
                         <span className="text-xs font-mono font-semibold" style={{color:d.color}}>{d.title}</span>
                         <span className="text-[9px] font-mono text-muted-foreground/30 px-1.5 py-0.5 rounded bg-white/3 border border-white/5">{d.unit}</span>
                       </div>
-                      <p className="text-[11px] text-muted-foreground/60 leading-relaxed mb-2">{d.description}</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <span className="text-[9px] font-mono text-amber-400/60 uppercase tracking-wider">Model Effect</span>
-                          <p className="text-[10px] text-muted-foreground/40 leading-relaxed mt-0.5">{d.effect}</p>
-                        </div>
-                        <div>
-                          <span className="text-[9px] font-mono text-emerald-400/60 uppercase tracking-wider">Healthy</span>
-                          <p className="text-[10px] text-muted-foreground/40 leading-relaxed mt-0.5">{d.healthy}</p>
-                        </div>
+                      <p className="text-[11px] text-muted-foreground/70 leading-relaxed mb-3">{d.description}</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+                        <DescBox label="Detects" color="text-cyan-400/60" text={d.detects} />
+                        <DescBox label="Purpose" color="text-blue-400/60" text={d.purpose} />
+                        <DescBox label="How to Read" color="text-amber-400/60" text={d.usage} />
+                        <DescBox label="Healthy" color="text-emerald-400/60" text={d.healthy} />
+                        {d.crossMetrics && (
+                          <div className="col-span-2">
+                            <DescBox label="Cross-Metric Relationships" color="text-purple-400/60" text={d.crossMetrics} />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -486,6 +498,16 @@ function Sel({value,onChange,options,disabled}:{value:string;onChange:(v:string)
         {options.map(o => <option key={o.value} value={o.value} className="bg-[#1a1a2e]">{o.label}</option>)}
       </select>
       <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/40 pointer-events-none" />
+    </div>
+  );
+}
+
+function DescBox({ label, color, text }: { label: string; color: string; text: string }) {
+  if (!text) return null;
+  return (
+    <div>
+      <span className={`text-[9px] font-mono ${color} uppercase tracking-wider`}>{label}</span>
+      <p className="text-[10px] text-muted-foreground/50 leading-relaxed mt-0.5">{text}</p>
     </div>
   );
 }

@@ -15,6 +15,10 @@ export interface MetricDescription {
   color: string;
   format: "millions" | "percent" | "integer" | "decimal3" | "scientific" | "raw";
   description: string;
+  detects: string;
+  purpose: string;
+  usage: string;
+  crossMetrics: string;
   effect: string;
   healthy: string;
   target?: number;
@@ -63,6 +67,10 @@ export function useMetricDescriptions(modelType: string) {
         color: model.color ?? global.color ?? "#6b7280",
         format: (model.format ?? global.format ?? "raw") as MetricDescription["format"],
         description: model.description ?? global.description ?? "",
+        detects: model.detects ?? global.detects ?? "",
+        purpose: model.purpose ?? global.purpose ?? "",
+        usage: model.usage ?? global.usage ?? "",
+        crossMetrics: model.crossMetrics ?? global.crossMetrics ?? "",
         effect: model.effect ?? global.effect ?? "",
         healthy: model.healthy ?? global.healthy ?? "",
         target: model.target ?? global.target,

@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "_comment": "Metric descriptions per model type. UI reads this to annotate live training metrics with plain-English descriptions of what each metric measures and how it affects model behavior.",
+  "version": 2,
+  "_comment": "Every metric must have: description (what it is), detects (what signal it catches), purpose (why it matters for trading), usage (how to read it), crossMetrics (how it relates to other metrics). This applies to ALL models, ALL projects, ALL future metrics.",
 
   "global": {
     "log_likelihood": {
@@ -9,16 +9,24 @@
       "color": "#3b82f6",
       "format": "millions",
       "description": "How well the model explains the observed data. Higher means the model's learned states fit actual price patterns better.",
-      "effect": "Rapid early rise means the model is learning structure. Plateau means it found the best fit it can with the current state count.",
-      "healthy": "Plateaus = converged. Still rising = still learning."
+      "detects": "Whether the model has found meaningful structure in the data vs. random noise. A model that can't explain the data will have low LL.",
+      "purpose": "The fundamental measure of model quality. If LL is low, nothing downstream (regimes, transitions, SHAP) can be trusted.",
+      "usage": "Watch the curve shape: rapid rise = learning, plateau = converged, declining = numerical issues. Compare final LL across runs — higher is better for the same dataset.",
+      "crossMetrics": "Converges WITH assignment_stability. If LL plateaus but stability is low, the model found structure but can't decide which bars belong where. If both plateau together, the model is confident and done.",
+      "healthy": "Plateaus = converged. Still rising = still learning.",
+      "target": null,
+      "targetDirection": null
     },
     "assignment_stability": {
       "title": "Assignment Stability",
       "unit": "percent",
       "color": "#22c55e",
       "format": "percent",
-      "description": "What percentage of bars kept the same state label between consecutive iterations.",
-      "effect": "Low stability means the model is still unsure which state each bar belongs to. High stability means confident, settled assignments. This is the single best convergence indicator.",
+      "description": "What percentage of bars kept the same regime label between consecutive Gibbs iterations.",
+      "detects": "Convergence confidence. When the sampler stops changing its mind about which regime each bar belongs to, training is done.",
+      "purpose": "The single best convergence indicator. More reliable than log-likelihood because it measures what you actually care about — are the regime assignments settled?",
+      "usage": "Watch for it to cross 95%. Below 90% = still exploring. 90-95% = close but some ambiguous bars. Above 95% = converged. If it never reaches 95%, some bars genuinely sit between two regimes.",
+      "crossMetrics": "Should rise together with log_likelihood. If stability is high but num_regimes keeps changing, the model is stable within each K but hasn't settled on how many regimes to use. Pair with switch_rate — high stability + low switch_rate = clean, tradeable regimes.",
       "healthy": "Target >95%. Oscillation means some bars are ambiguous between states.",
       "target": 95,
       "targetDirection": "above"
@@ -35,7 +43,10 @@
           "color": "#ef4444",
           "format": "integer",
           "description": "How many distinct market states the model discovered. The HDP prior lets the model create and kill regimes automatically — no fixed K.",
-          "effect": "Too few = underfitting (lumping different behaviors together). Too many = overfitting (splitting noise into fake regimes).",
+          "detects": "The natural number of market states in the data. The model births new regimes when existing ones can't explain a pattern, and kills regimes that become redundant.",
+          "purpose": "Tells you the complexity of the market structure the model found. Too few regimes = the model is blind to important distinctions. Too many = it's hallucinating structure in noise.",
+          "usage": "Should stabilize within the first 20% of iterations. If it keeps fluctuating, try increasing kappa (stickier) or decreasing alpha (fewer states). For forex, 3-8 regimes is typical. For futures, 5-15.",
+          "crossMetrics": "Directly affects beta_entropy — more regimes = higher possible entropy. Watch num_regimes + self_transition together: if K is high but self_transition is low, you have too many noisy micro-regimes. If K is low but self_transition is very high, the model might be missing real structure.",
           "healthy": "Stable count = model settled on structure. 5-15 typical for forex."
         },
         "assignment_stability": {},
@@ -45,17 +56,11 @@
           "color": "#eab308",
           "format": "percent",
           "description": "How likely the model is to stay in the same regime on the next bar. Driven by kappa (sticky prior).",
-          "effect": "High = persistent regimes (long stretches of one state). Low = rapid flipping (noisy, possibly meaningless).",
+          "detects": "Regime persistence — are the discovered states real market conditions that last multiple bars, or noise that flips every bar?",
+          "purpose": "Directly determines if regimes are tradeable. You can't act on a regime that lasts 1-2 bars. Self-transition rate tells you the average regime duration before the model expects a switch.",
+          "usage": "Higher = longer regime durations. At 1m bars: 50% = ~2 bar average hold, 80% = ~5 bar hold, 90% = ~10 bar hold. If too low, increase kappa. If too high, decrease kappa or the model only sees one dominant regime.",
+          "crossMetrics": "Inverse of switch_rate (1 - self_transition ≈ switch_rate). Pair with avg_dwell for the actual bar count. If self_transition is high but avg_dwell is low, there's a mismatch — check for one dominant regime with many tiny regimes.",
           "healthy": "50-80% healthy for 1m bars. Below 50% = noise. Above 90% = too sticky."
-        },
-        "beta_entropy": {
-          "title": "Beta Entropy",
-          "unit": "nats",
-          "color": "#a855f7",
-          "format": "decimal3",
-          "description": "How evenly the model distributes bars across regimes. Controlled by gamma (concentration parameter).",
-          "effect": "High entropy = bars spread evenly (all regimes used equally). Low = a few dominant regimes hog most bars.",
-          "healthy": "Stable is good. Dropping = regimes consolidating. Spiking = instability."
         },
         "switch_rate": {
           "title": "Switch Rate",
@@ -63,7 +68,10 @@
           "color": "#f97316",
           "format": "percent",
           "description": "Fraction of consecutive bars that change regime. Measures how often the model detects a state transition.",
-          "effect": "High = noisy, rapid flipping between states. Low = stable, long-duration regimes. Should decrease as sampler converges.",
+          "detects": "Regime transition frequency — how choppy or smooth the regime assignments are. High switch rate = the model sees constant state changes.",
+          "purpose": "Trading signal quality. Each regime switch is a potential trade signal. Too many switches = false signals. Too few = you miss real transitions. This metric tells you the signal-to-noise ratio of regime changes.",
+          "usage": "Should decrease as the sampler converges (early iterations are noisy). Final value tells you expected trade frequency. At 30% on 1m bars = ~18 switches per hour = too noisy for most strategies. At 5% = ~3 switches per hour = actionable.",
+          "crossMetrics": "Mirror of self_transition (switch_rate ≈ 1 - self_transition). Compare with avg_dwell — if switch_rate is 20% but avg_dwell is only 2 bars, transitions cluster in bursts rather than spreading evenly. Pair with assignment_stability — if stability is high but switch_rate is still high, the model confidently assigns rapid regime changes (real market chop).",
           "healthy": "20-50% for 1m bars. Below 10% = over-sticky. Above 60% = noise."
         },
         "avg_dwell": {
@@ -72,8 +80,23 @@
           "color": "#14b8a6",
           "format": "decimal3",
           "description": "Mean number of consecutive bars the model stays in one regime before switching. Longer dwell = more meaningful structure.",
-          "effect": "Short dwell (<2 bars) means regimes are too noisy to trade. Long dwell (>10) means stable, actionable regime assignments.",
+          "detects": "Regime duration — the average holding period of a market state. This is what determines if regimes are actionable for trading.",
+          "purpose": "The most direct measure of tradeability. If avg dwell is 2 bars at 1m, you have 2 minutes per regime — barely enough to enter and exit. At 10 bars, you have 10-minute windows to act on the regime signal.",
+          "usage": "Multiply by your timeframe to get real duration: 5 bars × 1m = 5 minutes per regime. For scalping strategies, 3-5 bars is enough. For swing strategies, you want 10+. If dwell is too short, increase kappa.",
+          "crossMetrics": "Directly computed from self_transition: avg_dwell ≈ 1/(1 - self_transition). But the actual value accounts for regime-specific persistence — some regimes may have 2-bar dwell while others have 20-bar. Compare with switch_rate for consistency. If avg_dwell is 5 but switch_rate is 40%, some regimes are much stickier than others.",
           "healthy": "2-5 bars at 1m. Higher at slower timeframes."
+        },
+        "beta_entropy": {
+          "title": "Beta Entropy",
+          "unit": "nats",
+          "color": "#a855f7",
+          "format": "decimal3",
+          "description": "How evenly the model distributes bars across regimes. Controlled by gamma (concentration parameter).",
+          "detects": "Regime balance — whether all regimes are used meaningfully or if one regime dominates while others are nearly empty. High entropy = balanced usage.",
+          "purpose": "Identifies degenerate models. If one regime has 90% of bars and the rest split 10%, the model essentially found one state (useless). Healthy entropy means each regime captures a distinct, meaningful portion of the market.",
+          "usage": "Stable entropy = good. If it drops during training, regimes are consolidating (the model is killing weak regimes). If it spikes, the model is redistributing bars (instability). Compare the final value across runs — lower entropy with same K means more concentrated assignments.",
+          "crossMetrics": "Directly tied to num_regimes — more regimes allows higher maximum entropy. If K=10 but entropy is low, most regimes are empty shells. If K=3 and entropy is high, all three regimes are well-populated and distinct. Watch entropy + num_regimes together to distinguish 'found 3 strong regimes' from 'found 10 weak ones'.",
+          "healthy": "Stable is good. Dropping = regimes consolidating. Spiking = instability."
         }
       },
       "metricOrder": ["log_likelihood", "num_regimes", "assignment_stability", "mean_self_transition", "switch_rate", "avg_dwell", "beta_entropy"]
@@ -88,7 +111,10 @@
           "color": "#06b6d4",
           "format": "scientific",
           "description": "Change in log-likelihood between EM iterations. Measures how much the model is still learning per step.",
-          "effect": "Large delta = model actively improving. Near-zero = converged. Negative = possible numerical instability.",
+          "detects": "Learning rate — whether each iteration is still improving the model or if it has converged. The EM algorithm guarantees this never goes negative (if it does, there's a numerical bug).",
+          "purpose": "Tells you when to stop training. Once delta drops below threshold, additional iterations waste compute without improving the model.",
+          "usage": "Starts large, decays toward zero. When it drops below 1e-6, the model is converged. If it oscillates instead of decaying, try more random restarts — the model may be stuck in a local optimum.",
+          "crossMetrics": "Leads log_likelihood — when delta approaches zero, LL has plateaued. If delta is near zero but assignment_stability is low, the EM converged to a bad optimum. Increase n_restarts.",
           "healthy": "Drops below 1e-6 = converged."
         },
         "assignment_stability": {},
@@ -98,7 +124,10 @@
           "color": "#eab308",
           "format": "percent",
           "description": "Probability of staying in bull or bear state on the next bar.",
-          "effect": "High = long bull/bear runs. Low = rapid regime switching (noise).",
+          "detects": "How persistent the two states are. In a 2-state model this directly determines the average length of bull and bear runs.",
+          "purpose": "With only 2 states, this metric is especially important — it determines if the model found meaningful trend/counter-trend structure or just noise.",
+          "usage": "For a useful 2-state model, you want 70-90%. Below 60% means the states flip too fast to be tradeable. Above 95% means the model barely switches — it found one dominant state.",
+          "crossMetrics": "In a 2-state model, self_transition directly gives you the transition matrix (the off-diagonal is 1 - self_transition). Compare with log_likelihood — if LL is high but self_transition is near 50%, the model fits the data but doesn't find directional structure.",
           "healthy": "60-90% typical for hourly data."
         }
       },
