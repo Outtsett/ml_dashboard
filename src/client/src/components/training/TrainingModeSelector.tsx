@@ -13,7 +13,7 @@ import type { LucideIcon } from "lucide-react";
 // Types
 // ---------------------------------------------------------------------------
 
-export type TrainingMode = "manual" | "hpo" | "wandb_sweep";
+export type TrainingMode = "manual" | "hpo";
 
 export interface TrainingModeSelectorProps {
   mode: TrainingMode;
@@ -52,15 +52,6 @@ const MODES: ModeConfig[] = [
     description:
       "Define search spaces and let an optimizer find the best hyperparameters",
     note: "6 optimizers available",
-  },
-  {
-    key: "wandb_sweep",
-    icon: BarChart3,
-    label: "W&B Sweep",
-    badge: "Cloud",
-    description:
-      "Use W&B's distributed sweep infrastructure for cloud-scale optimization",
-    note: "Requires W&B account",
   },
 ];
 

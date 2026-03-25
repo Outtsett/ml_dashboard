@@ -190,15 +190,12 @@ export function HPOWorkflow() {
             modelType: selectedModelId,
             symbol,
             timeframe: minutesToLabel(timeframeMinutes),
-            optimizerType:
-              mode === "wandb_sweep" ? "wandb_sweep" : optimizerType,
+            optimizerType,
             optimizerConfig,
             searchSpace,
             objectiveMetric: "score",
             direction: optimizerConfig.direction ?? "minimize",
             nTrials: optimizerConfig.nTrials || 50,
-            wandbEnabled:
-              mode === "wandb_sweep" || optimizerConfig.wandbEnabled,
             fixedHyperparameters: hyperparamValues,
           }),
         });
@@ -363,11 +360,9 @@ export function HPOWorkflow() {
               />
             )}
 
-            {(mode === "hpo" || mode === "wandb_sweep") && (
+            {mode === "hpo" && (
               <HPOConfigPanel
-                optimizerType={
-                  mode === "wandb_sweep" ? "wandb_sweep" : optimizerType
-                }
+                optimizerType={optimizerType}
                 onOptimizerTypeChange={setOptimizerType}
                 optimizerConfig={optimizerConfig}
                 onOptimizerConfigChange={setOptimizerConfig}

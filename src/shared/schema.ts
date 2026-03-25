@@ -702,10 +702,6 @@ export const hpoSessions = sqliteTable("hpo_sessions", {
   bestScore: real("best_score"),
   bestParams: text("best_params"),
 
-  wandbEnabled: integer("wandb_enabled").notNull().default(0),
-  wandbProject: text("wandb_project"),
-  wandbRunId: text("wandb_run_id"),
-
   dateRangeStart: text("date_range_start"),
   dateRangeEnd: text("date_range_end"),
   maxBars: integer("max_bars"),
@@ -823,6 +819,7 @@ export const curriculumProgress = sqliteTable("curriculum_progress", {
   lessonId: text("lesson_id").notNull(),
   status: text("status").notNull().default("not_started"), // not_started, in_progress, completed
   score: real("score"),
+  timeSpentMs: integer("time_spent_ms").notNull().default(0),
   completedAt: integer("completed_at", { mode: "timestamp_ms" }),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
 }, (table) => ({
@@ -834,3 +831,36 @@ export const curriculumProgress = sqliteTable("curriculum_progress", {
 export const insertCurriculumProgressSchema = createInsertSchema(curriculumProgress).omit({ id: true, updatedAt: true });
 export type InsertCurriculumProgress = z.infer<typeof insertCurriculumProgressSchema>;
 export type CurriculumProgress = typeof curriculumProgress.$inferSelect;
+
+// ─── Section-level progress (tracks which sections within a lesson have been viewed) ───
+export const curriculumSectionProgress = sqliteTable("curriculum_section_progress", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  lessonId: text("lesson_id").notNull(),
+  sectionIndex: integer("section_index").notNull(),
+  viewedAt: integer("viewed_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+}, (table) => ({
+  uniqueSection: index("csp_unique_idx").on(table.userId, table.lessonId, table.sectionIndex),
+  userLessonIdx: index("csp_user_lesson_idx").on(table.userId, table.lessonId),
+}));
+
+export const insertCurriculumSectionProgressSchema = createInsertSchema(curriculumSectionProgress).omit({ id: true });
+export type InsertCurriculumSectionProgress = z.infer<typeof insertCurriculumSectionProgressSchema>;
+export type CurriculumSectionProgress = typeof curriculumSectionProgress.$inferSelect;
+
+// ─── Bookmarks & notes ──────────────────────────────────────────
+export const curriculumBookmarks = sqliteTable("curriculum_bookmarks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  lessonId: text("lesson_id").notNull(),
+  note: text("note"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+}, (table) => ({
+  uniqueBookmark: index("cb_unique_idx").on(table.userId, table.lessonId),
+  userIdx: index("cb_user_idx").on(table.userId),
+}));
+
+export const insertCurriculumBookmarkSchema = createInsertSchema(curriculumBookmarks).omit({ id: true, updatedAt: true });
+export type InsertCurriculumBookmark = z.infer<typeof insertCurriculumBookmarkSchema>;
+export type CurriculumBookmark = typeof curriculumBookmarks.$inferSelect;

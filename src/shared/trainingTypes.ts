@@ -121,11 +121,7 @@ export interface TrainingRequest {
     stepMonths?: number;
   };
   /** Training optimization mode (defaults to 'manual') */
-  optimizationMode?: 'manual' | 'hpo' | 'wandb_sweep';
-  /** Whether to log to Weights & Biases */
-  wandbEnabled?: boolean;
-  /** W&B project name override */
-  wandbProject?: string;
+  optimizationMode?: 'manual' | 'hpo';
 }
 
 // ─── Standardized SSE Event Types ────────────────────────────────────────────

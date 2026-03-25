@@ -123,12 +123,6 @@ const OPTIMIZER_META: Record<OptimizerType, OptimizerMeta> = {
     icon: Sparkles,
     color: "text-orange-400",
   },
-  wandb_sweep: {
-    label: "W&B Sweep",
-    description: "Weights & Biases managed sweeps",
-    icon: Waves,
-    color: "text-cyan-400",
-  },
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -151,8 +145,6 @@ function estimateEvaluations(
       return (config.budget as number) ?? 100;
     case "bohb":
       return (config.nTrials as number) ?? 50;
-    case "wandb_sweep":
-      return (config.maxRuns as number) ?? 50;
     default:
       return 50;
   }
@@ -698,7 +690,6 @@ const OPTIMIZER_FORMS: Record<
   montecarlo: MonteCarloForm,
   evolutionary: EvolutionaryForm,
   bohb: BOHBForm,
-  wandb_sweep: WandbSweepForm,
 };
 
 // ─── Search Space Param Row ─────────────────────────────────────────────────

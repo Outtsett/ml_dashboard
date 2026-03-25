@@ -23,8 +23,7 @@ export type OptimizerType =
   | 'pso'
   | 'montecarlo'
   | 'evolutionary'
-  | 'bohb'
-  | 'wandb_sweep';
+  | 'bohb';
 
 // ─── Search Space Definitions ────────────────────────────────────────────────
 
@@ -141,16 +140,6 @@ export interface BOHBConfig {
   seed?: number;
 }
 
-// ── W&B Sweep
-
-/** Weights & Biases managed sweep configuration. */
-export interface WandbSweepConfig {
-  method: 'bayes' | 'grid' | 'random';
-  metricName: string;
-  metricGoal: 'minimize' | 'maximize';
-  maxRuns?: number;
-}
-
 // ── Discriminated union over all optimizer backends
 
 /** Tagged union — the `type` field selects the optimizer and narrows `config`. */
@@ -160,8 +149,7 @@ export type OptimizerConfig =
   | { type: 'pso'; config: PSOConfig }
   | { type: 'montecarlo'; config: MonteCarloConfig }
   | { type: 'evolutionary'; config: EvolutionaryConfig }
-  | { type: 'bohb'; config: BOHBConfig }
-  | { type: 'wandb_sweep'; config: WandbSweepConfig };
+  | { type: 'bohb'; config: BOHBConfig };
 
 // ─── HPO Request (client → server) ──────────────────────────────────────────
 
@@ -184,8 +172,6 @@ export interface HPORequest {
 
   // Optional overrides
   fixedHyperparameters?: Record<string, number | string | boolean>;  // params NOT being optimised
-  wandbEnabled?: boolean;
-  wandbProject?: string;
 }
 
 // ─── Trial & Session Result Types ────────────────────────────────────────────
@@ -422,15 +408,6 @@ export const bohbConfigSchema = z.object({
   seed: z.number().int().optional(),
 });
 
-// ── W&B Sweep
-
-export const wandbSweepConfigSchema = z.object({
-  method: z.enum(['bayes', 'grid', 'random']),
-  metricName: z.string().min(1),
-  metricGoal: z.enum(['minimize', 'maximize']),
-  maxRuns: z.number().int().positive().optional(),
-});
-
 // ── Discriminated union across all optimizers
 
 export const optimizerConfigSchema = z.discriminatedUnion('type', [
@@ -440,7 +417,6 @@ export const optimizerConfigSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('montecarlo'), config: monteCarloConfigSchema }),
   z.object({ type: z.literal('evolutionary'), config: evolutionaryConfigSchema }),
   z.object({ type: z.literal('bohb'), config: bohbConfigSchema }),
-  z.object({ type: z.literal('wandb_sweep'), config: wandbSweepConfigSchema }),
 ]);
 
 // ── Full HPO request schema
@@ -456,8 +432,6 @@ export const hpoRequestSchema = z.object({
   searchSpace: searchSpaceSchema,
   optimizer: optimizerConfigSchema,
   fixedHyperparameters: z.record(z.string(), hyperparamValue).optional(),
-  wandbEnabled: z.boolean().optional(),
-  wandbProject: z.string().optional(),
 });
 
 /** Validated HPO request type inferred from the Zod schema. */
@@ -500,10 +474,5 @@ export const DEFAULT_OPTIMIZER_CONFIGS: Record<OptimizerType, Record<string, unk
     minResource: 1,
     maxResource: 100,
     reductionFactor: 3,
-  },
-  wandb_sweep: {
-    method: 'bayes',
-    metricGoal: 'minimize',
-    maxRuns: 50,
   },
 };

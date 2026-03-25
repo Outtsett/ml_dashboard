@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import useSpeedAudit from "@/hooks/useSpeedAudit";
+import { SpeedAuditContent } from "@/components/SpeedAuditPanel";
 import {
   Card,
   CardContent,
@@ -40,7 +42,8 @@ import {
   XCircle,
   RefreshCw,
   Trash2,
-  Activity
+  Activity,
+  Gauge,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -54,7 +57,6 @@ interface ServerConfig {
     maxBarsDefault: number;
     maxTrainingDurationSec: number;
   };
-  wandb: { entity: string; enabled: boolean };
   nodeEnv: string;
   port: number;
 }
@@ -86,6 +88,7 @@ const AVAILABLE_TIMEFRAMES = [
 export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const speedMetrics = useSpeedAudit();
 
   const { data: config, isLoading: configLoading } = useQuery<ServerConfig>({
     queryKey: ["/api/settings/config"],
@@ -149,7 +152,7 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="database" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="database" className="gap-1.5">
             <Database className="h-3.5 w-3.5" />
             Database
@@ -158,10 +161,6 @@ export default function Settings() {
             <FlaskConical className="h-3.5 w-3.5" />
             Training
           </TabsTrigger>
-          <TabsTrigger value="wandb" className="gap-1.5">
-            <BarChart3 className="h-3.5 w-3.5" />
-            W&B
-          </TabsTrigger>
           <TabsTrigger value="system" className="gap-1.5">
             <Activity className="h-3.5 w-3.5" />
             System
@@ -169,6 +168,10 @@ export default function Settings() {
           <TabsTrigger value="ui" className="gap-1.5">
             <Server className="h-3.5 w-3.5" />
             UI
+          </TabsTrigger>
+          <TabsTrigger value="performance" className="gap-1.5">
+            <Gauge className="h-3.5 w-3.5" />
+            Performance
           </TabsTrigger>
         </TabsList>
 
@@ -189,16 +192,6 @@ export default function Settings() {
           />
         </TabsContent>
 
-        <TabsContent value="wandb">
-          <WandbTab
-            config={config}
-            preferences={preferences}
-            getPref={getPref}
-            savePreference={savePreference}
-            saving={saveMutation.isPending}
-          />
-        </TabsContent>
-
         <TabsContent value="system">
           <SystemTab />
         </TabsContent>
@@ -209,6 +202,10 @@ export default function Settings() {
             savePreference={savePreference}
             saving={saveMutation.isPending}
           />
+        </TabsContent>
+
+        <TabsContent value="performance">
+          <SpeedAuditContent metrics={speedMetrics} />
         </TabsContent>
       </Tabs>
     </div>
@@ -543,108 +540,6 @@ function TrainingTab({
             </span>
           )}
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── W&B Tab ────────────────────────────────────────────────────────────────
-
-function WandbTab({
-  config,
-  preferences,
-  getPref,
-  savePreference,
-  saving,
-}: {
-  config?: ServerConfig;
-  preferences?: Preferences;
-  getPref: (key: string, fallback?: unknown) => unknown;
-  savePreference: (key: string, value: unknown, category: string) => void;
-  saving: boolean;
-}) {
-  const [apiKey, setApiKey] = useState("");
-  const [entity, setEntity] = useState("");
-  const [project, setProject] = useState("");
-  const [enabled, setEnabled] = useState(true);
-
-  useEffect(() => {
-    if (!preferences) return;
-    setApiKey((getPref("wandb.apiKey", "") as string) || "");
-    setEntity((getPref("wandb.entity", "") as string) || config?.wandb.entity || "tyler-lundeen1995-");
-    setProject((getPref("wandb.project", "") as string) || "ml-dashboard");
-    setEnabled(getPref("wandb.enabled", config?.wandb.enabled ?? true) as boolean);
-  }, [preferences, config, getPref]);
-
-  const handleSave = () => {
-    if (apiKey) savePreference("wandb.apiKey", apiKey, "wandb");
-    savePreference("wandb.entity", entity, "wandb");
-    savePreference("wandb.project", project, "wandb");
-    savePreference("wandb.enabled", enabled, "wandb");
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Weights & Biases Integration</CardTitle>
-        <CardDescription>
-          Configure W&B for experiment tracking, metric logging, and model artifact management.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label>Enable W&B Logging</Label>
-            <p className="text-xs text-muted-foreground">
-              Log training metrics, loss curves, and model checkpoints to W&B.
-            </p>
-          </div>
-          <Switch checked={enabled} onCheckedChange={setEnabled} />
-        </div>
-
-        <Separator />
-
-        <div className="space-y-2">
-          <Label htmlFor="wandbApiKey">API Key</Label>
-          <Input
-            id="wandbApiKey"
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Enter your W&B API key"
-          />
-          <p className="text-xs text-muted-foreground">
-            Your API key is stored locally and never sent to third parties.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="wandbEntity">Entity</Label>
-            <Input
-              id="wandbEntity"
-              value={entity}
-              onChange={(e) => setEntity(e.target.value)}
-              placeholder="tyler-lundeen1995-"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="wandbProject">Default Project</Label>
-            <Input
-              id="wandbProject"
-              value={project}
-              onChange={(e) => setProject(e.target.value)}
-              placeholder="ml-dashboard"
-            />
-          </div>
-        </div>
-
-        <Separator />
-
-        <Button onClick={handleSave} disabled={saving} size="sm">
-          {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          Save W&B Settings
-        </Button>
       </CardContent>
     </Card>
   );
