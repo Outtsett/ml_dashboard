@@ -4,7 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
   TrendingUp, DollarSign, ChevronsUpDown, Check,
-  Layers, ZapOff, Play, Pause, PanelRightOpen, RotateCcw,
+  Layers, ZapOff, PanelRightOpen, Play, Square,
 } from "lucide-react";
 import { IndicatorSelector } from "@/components/IndicatorSelector";
 import type { ActiveIndicator } from "@/hooks/useActiveIndicators";
@@ -43,15 +43,13 @@ interface ToolbarProps {
   onToggleZigZag: () => void;
   showSwingZZ: boolean;
   onToggleSwingZZ: () => void;
-  // Replay
-  replayActive: boolean;
-  onToggleReplay: () => void;
-  // Chart reset
-  onResetChart: () => void;
-  isRefetching: boolean;
   // ML Panel
   isTrainingActive: boolean;
   onOpenMlPanel: () => void;
+  // Training triggers (shared with ML Studio via TrainingContext)
+  onStartTraining: () => void;
+  onStopTraining: () => void;
+  isTrainingStarting: boolean;
   // Data reset callback
   onResetScrollState: () => void;
 }
@@ -66,9 +64,8 @@ export function Toolbar({
   selectedPatterns, onPatternSelectionChange,
   indicatorsLoading,
   showSR, onToggleSR, showZigZag, onToggleZigZag, showSwingZZ, onToggleSwingZZ,
-  replayActive, onToggleReplay,
-  onResetChart, isRefetching,
   isTrainingActive, onOpenMlPanel,
+  onStartTraining, onStopTraining, isTrainingStarting,
   onResetScrollState,
 }: ToolbarProps) {
   return (
@@ -211,34 +208,32 @@ export function Toolbar({
         >
           <TrendingUp className="h-3 w-3" /> SW
         </Button>
-        <div className="w-px h-4 bg-white/[0.06] mx-0.5" />
-        <Button
-          variant={replayActive ? "default" : "ghost"}
-          size="sm"
-          className={`h-6 px-2.5 text-[11px] font-mono gap-1.5 ${
-            replayActive
-              ? "bg-violet-500/20 text-violet-400 border border-violet-500/30 shadow-[0_0_8px_rgba(139,92,246,0.15)]"
-              : "text-muted-foreground hover:text-violet-400 hover:bg-violet-500/10"
-          }`}
-          onClick={onToggleReplay}
-          title={replayActive ? "Exit replay mode" : "Enter replay mode"}
-        >
-          {replayActive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-          Replay
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2.5 text-[11px] font-mono gap-1.5 text-muted-foreground hover:text-blue-400 hover:bg-blue-500/10"
-          onClick={onResetChart}
-          title="Reset chart (reload data)"
-        >
-          <RotateCcw className={`h-3 w-3 ${isRefetching ? 'animate-spin' : ''}`} />
-          Reset
-        </Button>
       </div>
 
       <div className="flex-1" />
+
+      {/* Train / Stop button */}
+      {isTrainingActive ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 px-3 text-[11px] font-mono font-semibold border-red-500/25 bg-red-500/10 hover:bg-red-500/20 hover:border-red-500/40 text-red-400 gap-1.5"
+          onClick={onStopTraining}
+        >
+          <Square className="h-3 w-3" /> Stop
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.5)]" />
+        </Button>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isTrainingStarting}
+          className="h-8 px-3 text-[11px] font-mono font-semibold border-emerald-500/25 bg-emerald-500/10 hover:bg-emerald-500/20 hover:border-emerald-500/40 text-emerald-400 gap-1.5 disabled:opacity-40"
+          onClick={onStartTraining}
+        >
+          <Play className="h-3 w-3" /> Train
+        </Button>
+      )}
 
       {/* ML Tools drawer trigger */}
       <Button
