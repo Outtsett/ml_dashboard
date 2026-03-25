@@ -426,10 +426,12 @@ export default function Training() {
                         </ResponsiveContainer>
                       </div>
                     </div>
-                    <div className="w-56 shrink-0 border-l border-white/5 p-2.5 flex flex-col justify-center overflow-y-auto">
-                      <p className="text-[10px] text-muted-foreground/60 leading-relaxed mb-1.5">{desc.description}</p>
-                      <p className="text-[9px] text-amber-400/50 leading-relaxed"><b>Effect:</b> {desc.effect}</p>
-                      <p className="text-[9px] text-emerald-400/50 leading-relaxed mt-0.5"><b>Healthy:</b> {desc.healthy}</p>
+                    <div className="w-64 shrink-0 border-l border-white/5 p-2.5 flex flex-col justify-start overflow-y-auto gap-1.5">
+                      <p className="text-[10px] text-muted-foreground/60 leading-relaxed">{desc.description}</p>
+                      {desc.detects && <p className="text-[9px] leading-relaxed"><span className="text-cyan-400/50 font-mono">DETECTS:</span> <span className="text-muted-foreground/40">{desc.detects}</span></p>}
+                      {desc.usage && <p className="text-[9px] leading-relaxed"><span className="text-amber-400/50 font-mono">READ:</span> <span className="text-muted-foreground/40">{desc.usage}</span></p>}
+                      <p className="text-[9px] leading-relaxed"><span className="text-emerald-400/50 font-mono">HEALTHY:</span> <span className="text-muted-foreground/40">{desc.healthy}</span></p>
+                      {desc.crossMetrics && <p className="text-[9px] leading-relaxed"><span className="text-purple-400/50 font-mono">CROSS:</span> <span className="text-muted-foreground/40">{desc.crossMetrics}</span></p>}
                     </div>
                   </div>
                 );
