@@ -80,6 +80,31 @@ export function useChartSeries({
     let lastTimeKey = -1;
     const hasRegimeColors = regimeColorMap && regimeColorMap.size > 0;
 
+    // Build sorted timestamp array for nearest-regime lookup when bars fall outside assignment range
+    let sortedRegimeKeys: number[] | null = null;
+    let sortedRegimeVals: number[] | null = null;
+    if (hasRegimeColors) {
+      const entries = Array.from(regimeColorMap!.entries()).sort((a, b) => a[0] - b[0]);
+      sortedRegimeKeys = entries.map(e => e[0]);
+      sortedRegimeVals = entries.map(e => e[1]);
+    }
+
+    // Binary search for nearest regime assignment
+    const findNearestRegime = (timeKey: number): number | undefined => {
+      if (!sortedRegimeKeys || !sortedRegimeVals || sortedRegimeKeys.length === 0) return undefined;
+      let lo = 0, hi = sortedRegimeKeys.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (sortedRegimeKeys[mid]! < timeKey) lo = mid + 1;
+        else hi = mid;
+      }
+      // Pick closest between lo and lo-1
+      if (lo === 0) return sortedRegimeVals[0];
+      const distLo = Math.abs(sortedRegimeKeys[lo]! - timeKey);
+      const distPrev = Math.abs(sortedRegimeKeys[lo - 1]! - timeKey);
+      return distPrev <= distLo ? sortedRegimeVals[lo - 1] : sortedRegimeVals[lo];
+    };
+
     for (let i = 0; i < data.length; i++) {
       const d = data[i]!;
       const ts = typeof d.timestamp === 'string' ? parseInt(d.timestamp, 10) : d.timestamp;
@@ -89,7 +114,12 @@ export function useChartSeries({
       if (timeKey === lastTimeKey) continue;
       lastTimeKey = timeKey;
 
-      const regimeIdx = hasRegimeColors ? regimeColorMap!.get(timeKey) : undefined;
+      // Exact match first, then nearest regime for bars outside assignment range
+      let regimeIdx = hasRegimeColors ? regimeColorMap!.get(timeKey) : undefined;
+      if (regimeIdx === undefined && hasRegimeColors) {
+        regimeIdx = findNearestRegime(timeKey);
+      }
+
       if (regimeIdx !== undefined) {
         const fill = REGIME_FILLS[regimeIdx % REGIME_FILLS.length];
         candles.push({

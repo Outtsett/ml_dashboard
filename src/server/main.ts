@@ -55,7 +55,7 @@ async function bootstrap() {
   // ── Gzip compression (reduces OHLCV/chart responses ~80%) ──
   expressApp.use(compression({
     threshold: 1024,  // Only compress responses > 1KB
-    filter: (req) => !req.path.includes('/stream/'),  // Skip SSE streams
+    filter: (req: Request) => !req.path.includes('/stream/'),  // Skip SSE streams
   }));
 
   // ── Request ID (unique per request, propagated in headers + logs) ──

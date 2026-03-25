@@ -36,7 +36,13 @@ export function QuizComponent({ questions, onComplete }: QuizComponentProps) {
   const [finished, setFinished] = useState(false);
 
   const q = questions[currentIdx];
-  const isCorrect = selectedId === q?.correctOptionId;
+
+  // Derive the correct option ID — supports both explicit correctOptionId and option-level flags
+  const correctOptionId = q
+    ? q.correctOptionId ?? q.options.find((o) => o.isCorrect || o.correct)?.id ?? ""
+    : "";
+  const questionText = q ? (q.question ?? q.text ?? "") : "";
+  const isCorrect = selectedId === correctOptionId;
 
   const handleSelect = useCallback(
     (optionId: string) => {
@@ -47,12 +53,12 @@ export function QuizComponent({ questions, onComplete }: QuizComponentProps) {
   );
 
   const handleSubmit = useCallback(() => {
-    if (!selectedId) return;
+    if (!selectedId || !q) return;
     setAnswered(true);
-    if (selectedId === q.correctOptionId) {
+    if (selectedId === correctOptionId) {
       setCorrectCount((c) => c + 1);
     }
-  }, [selectedId, q]);
+  }, [selectedId, q, correctOptionId]);
 
   const handleNext = useCallback(() => {
     if (currentIdx + 1 >= questions.length) {
@@ -127,6 +133,8 @@ export function QuizComponent({ questions, onComplete }: QuizComponentProps) {
     );
   }
 
+  if (!q) return null;
+
   return (
     <Card className="border-border/40 bg-card/60">
       <CardContent className="p-6 space-y-4">
@@ -153,14 +161,14 @@ export function QuizComponent({ questions, onComplete }: QuizComponentProps) {
         </div>
 
         {/* Question */}
-        <p className="text-sm font-medium leading-relaxed">{q.question}</p>
+        <p className="text-sm font-medium leading-relaxed">{questionText}</p>
 
         {/* Options */}
         <div className="space-y-2">
           {q.options.map((opt) => {
             let optionStyle = "border-border/30 hover:border-primary/40 hover:bg-primary/5";
             if (answered) {
-              if (opt.id === q.correctOptionId) {
+              if (opt.id === correctOptionId) {
                 optionStyle = "border-emerald-500/60 bg-emerald-500/10";
               } else if (opt.id === selectedId) {
                 optionStyle = "border-red-500/60 bg-red-500/10";
@@ -187,12 +195,12 @@ export function QuizComponent({ questions, onComplete }: QuizComponentProps) {
                         : "border-muted-foreground/30"
                     }`}
                   >
-                    {answered && opt.id === q.correctOptionId && (
+                    {answered && opt.id === correctOptionId && (
                       <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                     )}
                     {answered &&
                       opt.id === selectedId &&
-                      opt.id !== q.correctOptionId && (
+                      opt.id !== correctOptionId && (
                         <XCircle className="h-4 w-4 text-red-500" />
                       )}
                   </div>

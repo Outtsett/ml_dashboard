@@ -23,13 +23,20 @@ export type SectionType =
 export interface QuizOption {
   id: string;
   text: string;
+  /** Some content marks correct answer on each option */
+  isCorrect?: boolean;
+  correct?: boolean;
 }
 
 export interface QuizQuestion {
   id: string;
-  question: string;
+  /** Primary question text field */
+  question?: string;
+  /** Alternative question text used in some content files */
+  text?: string;
   options: QuizOption[];
-  correctOptionId: string;
+  /** Correct option ID — may be derived from option-level isCorrect/correct flags */
+  correctOptionId?: string;
   explanation: string;
 }
 
@@ -37,6 +44,7 @@ export interface QuizQuestion {
 
 export interface ObjectiveSection {
   type: "objective";
+  title?: string;
   content: string;
   keyTakeaways: string[];
 }
@@ -50,7 +58,7 @@ export interface TheorySection {
 export interface IntuitionSection {
   type: "intuition";
   title: string;
-  analogy: string;
+  analogy?: string;
   content: string;
   emoji?: string;
 }
@@ -72,6 +80,8 @@ export interface PracticeSection {
   type: "practice";
   title: string;
   description: string;
+  /** Structured practice tasks */
+  tasks?: string[];
   /** Model catalog ID to link to (e.g., "xgboost", "lstm") */
   catalogModelId?: string;
   /** External resource URL */

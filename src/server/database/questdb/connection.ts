@@ -161,12 +161,12 @@ function deriveAssetFields(symbol: string): { assetClass: string; root: string }
   if (s.includes("/")) return { assetClass: "forex", root: s.replace("/", "") };
   // Futures contract: extract root (before month code)
   const m = s.match(/^([A-Z][A-Z0-9]*)[FGHJKMNQUVXZ]\d{1,2}/);
-  if (m) return { assetClass: "futures", root: m[1] };
+  if (m) return { assetClass: "futures", root: m[1]! };
   // Spread: extract root from first leg
   const sp = s.match(/^([A-Z][A-Z0-9]*[FGHJKMNQUVXZ]\d{1,2})-/);
   if (sp) {
-    const legRoot = sp[1].match(/^([A-Z][A-Z0-9]*)[FGHJKMNQUVXZ]\d{1,2}$/);
-    if (legRoot) return { assetClass: "futures", root: legRoot[1] };
+    const legRoot = sp[1]!.match(/^([A-Z][A-Z0-9]*)[FGHJKMNQUVXZ]\d{1,2}$/);
+    if (legRoot) return { assetClass: "futures", root: legRoot[1]! };
   }
   return { assetClass: "futures", root: s };
 }
