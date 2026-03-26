@@ -122,10 +122,6 @@ export class XAIService {
 
     let prediction: { class: number; confidence: number; probabilities: number[]; direction: 'up' | 'down' | 'neutral' };
     let featureContributions: FeatureContribution[] = [];
-    let attentionWeights: number[] | undefined;
-    let calibration: { expectedConfidence: number; actualAccuracy: number; reliabilityDiagram: CalibrationBin[] } | undefined;
-    let counterfactuals: CounterfactualExample[] | undefined;
-    let summary: string;
 
     if (modelLoaded && this.model) {
       const inputTensor = tf.tensor3d([input]);
@@ -154,10 +150,10 @@ export class XAIService {
       : { featureContributions: computeSHAP(input, prediction, {}), summary: 'Default SHAP-based explanation' };
 
     featureContributions = result.featureContributions;
-    attentionWeights = result.attentionWeights;
-    calibration = result.calibration;
-    counterfactuals = result.counterfactuals;
-    summary = result.summary;
+    const attentionWeights = result.attentionWeights;
+    const calibration = result.calibration;
+    const counterfactuals = result.counterfactuals;
+    const summary = result.summary;
 
     const explanation: XAIExplanation = {
       method: config.method,

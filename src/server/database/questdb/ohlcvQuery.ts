@@ -6,7 +6,7 @@
  */
 
 import { checkQuestDBHealth, getOHLCVSampleBy, queryQuestDB } from '.';
-import { cachedQuery, OHLCVCache } from '../../lib/ohlcvCache';
+import { cachedQuery, OHLCVCache } from '../../cache/ohlcv';
 import { normalizeTimestamp } from '../../lib/normalize';
 import { detectInstrumentType, getBaseTableForType } from './marketData';
 
@@ -117,7 +117,7 @@ export async function queryOHLCV(params: OHLCVQueryParams): Promise<NormalizedOH
   if (!qdbHealthy) return [];
 
   let effectiveStart = startMs;
-  let effectiveEnd = endMs;
+  const effectiveEnd = endMs;
   if (!effectiveStart && !effectiveEnd) {
     const estimated = await estimateTimeWindow(symbol, tfLabel, limitNum, qdbHealthy);
     if (estimated !== undefined) {

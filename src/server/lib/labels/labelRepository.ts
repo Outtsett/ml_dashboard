@@ -13,7 +13,7 @@ export async function getLabelSets(filters?: {
   status?: string;
   limit?: number;
 }) {
-  let query = db.select().from(generatedLabels).orderBy(desc(generatedLabels.createdAt));
+  const query = db.select().from(generatedLabels).orderBy(desc(generatedLabels.createdAt));
 
   const results = await query.limit(filters?.limit || 50);
 

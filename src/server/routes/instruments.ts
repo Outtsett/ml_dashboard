@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { storage } from "../storage";
 import { getString } from "./helpers";
-import { CACHE_STATIC } from "../lib/cacheHeaders";
+import { CACHE_STATIC } from "../cache/headers";
 
 const router = Router();
 

@@ -20,7 +20,7 @@ import { runBacktestJob, BacktestError } from '../lib/backtest/backtestOrchestra
 import { runWalkForwardBacktest } from '../lib/backtest/walkForwardBacktest';
 import { runMonteCarloAnalysis } from '../lib/backtest/monteCarloAnalysis';
 import { computeBenchmark } from '../lib/backtest/benchmarkComparison';
-import { runBacktest, type InstrumentSpec, type BacktestConfig, type Signal } from '../lib/backtest/tradeSimulator';
+import { type InstrumentSpec, type BacktestConfig, type Signal } from '../lib/backtest/tradeSimulator';
 import { queryQuestDB as marketQuery } from '../database/questdb';
 import { backtestEmitter, type BacktestProgress } from '../lib/backtest/backtestSSE';
 import { isValidSymbol } from '@shared/validation';

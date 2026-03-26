@@ -32,15 +32,15 @@ export function initQueryPool(): pg.Pool {
       database: "qdb",
       user: QUESTDB_USER,
       password: QUESTDB_PASSWORD,
-      max: 20,
+      max: 50,
       connectionTimeoutMillis: 10000,
       idleTimeoutMillis: 30000,
-      statement_timeout: 30000,
+      statement_timeout: 60000,
     });
     queryPool.on("error", (err) => {
       console.error("[questdb] Idle client error:", err.message);
     });
-    console.log(`[questdb] Connection pool initialized (host=${QUESTDB_HOST}, port=${QUESTDB_PG_PORT}, max=20)`);
+    console.log(`[questdb] Connection pool initialized (host=${QUESTDB_HOST}, port=${QUESTDB_PG_PORT}, max=50)`);
   }
   return queryPool;
 }

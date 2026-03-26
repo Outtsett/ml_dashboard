@@ -2,7 +2,7 @@ import { db } from "../database/db";
 import {
   curriculumProgress, type CurriculumProgress, type InsertCurriculumProgress,
   curriculumSectionProgress, type CurriculumSectionProgress,
-  curriculumBookmarks, type CurriculumBookmark, type InsertCurriculumBookmark,
+  curriculumBookmarks, type CurriculumBookmark,
 } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 

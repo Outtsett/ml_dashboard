@@ -8,15 +8,42 @@
  */
 
 import { parse } from "csv-parse";
+import { spawn } from "child_process";
 import { decompress } from "fzstd";
 import { Readable } from "stream";
 import * as fs from "fs";
 import * as path from "path";
+import { randomUUID } from "node:crypto";
 import { storage } from "../../storage";
 import { parseTimestamp } from "../../routes/helpers";
-import { ohlcvCache } from "../ohlcvCache";
+import { ohlcvCache } from "../../cache/ohlcv";
+import { clearParquetCacheForSymbol } from "../../cache/parquet";
+import { getEventBus } from "../../events";
 
 const DATA_DIR = path.join(process.cwd(), "data");
+
+/** Emit ingestion.completed event and clear parquet cache for the symbol. */
+function onIngestionComplete(symbol: string, uploadId: number, rowCount: number): void {
+  // Clear Python parquet cache for this symbol
+  clearParquetCacheForSymbol(symbol);
+
+  // Emit ingestion.completed so QueryCache and other subscribers invalidate
+  const bus = getEventBus();
+  bus.emit({
+    type: 'ingestion.completed',
+    data: {
+      uploadId: String(uploadId),
+      symbol,
+      timeframe: '1m', // upload processor doesn't know timeframe; default to 1m
+      rowCount,
+    },
+    metadata: {
+      correlationId: randomUUID(),
+      causationId: `upload-${uploadId}`,
+      timestamp: Date.now(),
+    },
+  });
+}
 
 // ─── Primary Entry Point ────────────────────────────────────────────────────
 
@@ -107,6 +134,7 @@ export async function processOhlcvFile(
 
       await storage.updateUploadStatus(uploadId, "completed", recordCount);
       ohlcvCache.invalidateSymbol(symbol);
+      onIngestionComplete(symbol, uploadId, recordCount);
       console.log(`File processing complete. ${recordCount} records -> QuestDB ohlcv`);
       resolve();
     });
@@ -142,7 +170,6 @@ export async function processOhlcvFileFromDisk(
 
     if (filename.endsWith('.zst')) {
       console.log("Using streaming zstd decompression...");
-      const { spawn } = require('child_process');
       const zstd = spawn('zstd', ['-d', '-c', filePath], {
         stdio: ['ignore', 'pipe', 'pipe']
       });
@@ -230,6 +257,7 @@ export async function processOhlcvFileFromDisk(
 
         await storage.updateUploadStatus(uploadId, "completed", recordCount);
         ohlcvCache.invalidateSymbol(symbol);
+        onIngestionComplete(symbol, uploadId, recordCount);
         console.log(`File processing complete. Total records: ${recordCount} -> QuestDB ohlcv`);
         resolve();
       } catch (err) {
@@ -304,6 +332,7 @@ async function processParquetFile(
 
     await storage.updateUploadStatus(uploadId, "completed", count);
     ohlcvCache.invalidateSymbol(symbol);
+    onIngestionComplete(symbol, uploadId, count);
     console.log(`Processing complete. ${count} records -> QuestDB ohlcv`);
   } finally {
     try { fs.unlinkSync(tempPath); }

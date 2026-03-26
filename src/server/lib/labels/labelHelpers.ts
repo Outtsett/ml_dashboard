@@ -6,19 +6,9 @@
 
 import type { MetaLabelParams } from './sqlLabelGenerators';
 
-/** Map timeframe in minutes to QuestDB materialized view name. */
-export function getTimeframeTable(timeframeMinutes?: number): string {
-  if (!timeframeMinutes || timeframeMinutes <= 1) return 'ohlcv';
-  const map: Record<number, string> = {
-    5: 'ohlcv_5m',
-    15: 'ohlcv_15m',
-    30: 'ohlcv_30m',
-    60: 'ohlcv_1h',
-    240: 'ohlcv_4h',
-    1440: 'ohlcv_1d',
-    10080: 'ohlcv_1w',
-  };
-  return map[timeframeMinutes] || 'ohlcv';
+/** All timeframes use the base ohlcv table with SAMPLE BY at query time. */
+export function getTimeframeTable(_timeframeMinutes?: number): string {
+  return 'ohlcv';
 }
 
 /** Convert a timestamp value (Date, string, number, bigint) to epoch milliseconds. */

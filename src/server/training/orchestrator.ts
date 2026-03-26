@@ -5,6 +5,7 @@
  * Each model's script handles its own data loading — no server-side export blocking.
  */
 
+import { Logger } from "@nestjs/common";
 import type {
   TrainingRequest,
   TrainingSession,
@@ -22,6 +23,8 @@ import type { ITrainerRunner } from "./runners/types";
 import { generateVersionedModelId, getBaseModelId, appendWindowIndex } from "./versioning";
 import * as trainingStorage from "../storage/trainingStorage";
 import { computeWindows, generateGroupId } from "./walkforward";
+
+const logger = new Logger("Training");
 
 // ─── Active sessions index ───────────────────────────────────────────────────
 
@@ -119,13 +122,13 @@ export async function startTraining(request: TrainingRequest): Promise<{
     });
     session.dbSessionId = dbSession.id;
   } catch (err) {
-    console.error(`[training] Failed to persist session to SQLite:`, err);
+    logger.error(`Failed to persist session to SQLite: ${err}`);
   }
 
   // 5. Launch background pipeline: export (if needed) → spawn runner
   //    The API returns NOW — progress streams over SSE.
   launchTrainingPipeline(session, runner, resolved, registry, trainingCfg, request).catch(err => {
-    console.error(`[training] Pipeline failed for ${modelId}:`, err);
+    logger.error(`Pipeline failed for ${modelId}: ${err}`);
     if (!session.finished) {
       emitSessionEvent(session, "error", { message: err.message ?? "Training pipeline failed" });
       session.finished = true;
@@ -165,7 +168,7 @@ async function launchTrainingPipeline(
     await launchWalkForwardPipeline(session, runner, resolved, request);
   } else {
     // Single-run mode (original path)
-    console.log(`[training] Starting ${request.modelType} for ${modelId} via ${registry.runner} runner`);
+    logger.log(`Starting ${request.modelType} for ${modelId} via ${registry.runner} runner`);
     await runner.start(resolved, session);
   }
 }
@@ -264,7 +267,7 @@ async function launchWalkForwardPipeline(
         windowIndex: window.index,
       });
     } catch (err) {
-      console.error(`[training] Failed to persist WF window session:`, err);
+      logger.error(`Failed to persist WF window session: ${err}`);
     }
 
     // Per-window config with window-specific date range
@@ -274,7 +277,7 @@ async function launchWalkForwardPipeline(
       dateRange: { start: window.trainStart, end: window.testEnd },
     };
 
-    console.log(`[training] WF window ${window.index}/${windows.length}: ${window.trainStart}→${window.testEnd}`);
+    logger.log(`WF window ${window.index}/${windows.length}: ${window.trainStart}->${window.testEnd}`);
     await runner.start(windowConfig, session);
 
     emitSessionEvent(session, "walk-forward-window-done", {

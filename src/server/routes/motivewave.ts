@@ -12,7 +12,7 @@
 
 import { Router } from "express";
 import multer from "multer";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { readFile, unlink } from "node:fs/promises";
 import { resolve, basename } from "node:path";
 import { getMotiveWaveWatcher, parseMotiveWaveFilename, parseMotiveWaveCSV } from "../lib/motivewave";
@@ -24,8 +24,7 @@ const UPLOAD_DIR = resolve(process.cwd(), "tmp", "motivewave");
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => {
-      const fs = require("node:fs");
-      fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+      mkdirSync(UPLOAD_DIR, { recursive: true });
       cb(null, UPLOAD_DIR);
     },
     filename: (_req, file, cb) => {

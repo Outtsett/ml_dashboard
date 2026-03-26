@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { sanitizeModelId, getModelShap } from "../../lib/modelResults";
-import { CACHE_STATIC } from "../../lib/cacheHeaders";
+import { CACHE_STATIC } from "../../cache/headers";
 
 const router = Router();
 
@@ -146,7 +146,7 @@ router.get("/xai/regime-importance/:modelId", async (req: Request, res: Response
   }
 });
 
-// ── Per-bar SHAP values from QuestDB model_shap table ───────────────────────
+// ── Per-bar SHAP values (model_shap QuestDB table removed — always returns 404)
 
 router.get("/xai/shap/:modelId", async (req: Request, res: Response) => {
   try {
@@ -157,7 +157,7 @@ router.get("/xai/shap/:modelId", async (req: Request, res: Response) => {
       offset: Number(req.query.offset) || undefined,
     });
     if (!result) return res.status(404).json({ error: `SHAP data not found for '${modelId}'` });
-    res.json({ success: true, ...result });
+    res.json({ success: true, ...(result as Record<string, unknown>) });
   } catch (error: any) {
     const status = error.message?.includes("Invalid model ID") ? 400 : 500;
     res.status(status).json({ error: error.message || "Failed to get SHAP data" });

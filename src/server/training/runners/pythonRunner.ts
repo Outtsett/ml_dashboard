@@ -5,6 +5,7 @@
  * New models add a parser file in ./parsers/ — no modification here needed.
  */
 
+import { Logger } from "@nestjs/common";
 import { spawn, ChildProcess } from "child_process";
 import path from "path";
 import fs from "fs";
@@ -14,6 +15,8 @@ import type { ITrainerRunner } from "./types";
 import { getTrainingConfig } from "../registry";
 import { getParser } from "./parsers/index";
 import * as trainingStorage from "../../storage/trainingStorage";
+
+const logger = new Logger("PythonRunner");
 
 // ─── Python Runner ───────────────────────────────────────────────────────────
 
@@ -87,7 +90,7 @@ export class PythonRunner implements ITrainerRunner {
       args.push("--all-features");
     }
 
-    console.log(`[training] Spawning: ${pythonExe} ${args.join(" ")}`);
+    logger.log(`Spawning: ${pythonExe} ${args.join(" ")}`);
 
     const child = spawn(pythonExe, args, {
       cwd: process.cwd(),
@@ -95,16 +98,22 @@ export class PythonRunner implements ITrainerRunner {
     });
     session.child = child;
 
+    // Persist PID to SQLite for recovery/cleanup (DIP — storage abstraction)
+    const dbSessId = (session as any).dbSessionId;
+    if (dbSessId != null && child.pid) {
+      trainingStorage.updateSessionPid(dbSessId, child.pid);
+    }
+
     // Training timeout: SIGTERM then SIGKILL after grace period
     const maxDurationSec = trainingCfg.limits.maxTrainingDurationSec ?? 7200;
     const timeoutHandle = setTimeout(() => {
       if (!session.finished) {
-        console.warn(`[training] Session ${session.sessionId} exceeded ${maxDurationSec}s timeout, sending SIGTERM`);
+        logger.warn(`Session ${session.sessionId} exceeded ${maxDurationSec}s timeout, sending SIGTERM`);
         child.kill("SIGTERM");
         // If still alive after 30s, force kill
         setTimeout(() => {
           if (!session.finished) {
-            console.warn(`[training] Session ${session.sessionId} did not exit after SIGTERM, sending SIGKILL`);
+            logger.warn(`Session ${session.sessionId} did not exit after SIGTERM, sending SIGKILL`);
             child.kill("SIGKILL");
           }
         }, 30_000);
@@ -142,8 +151,8 @@ export class PythonRunner implements ITrainerRunner {
 
       if (code !== 0) {
         const details = (session.stderr || session.stdout).slice(-2000);
-        console.error(`[training] Python process exited with code ${code} for ${session.sessionId}`);
-        if (details) console.error(`[training] Last output: ${details.slice(0, 500)}`);
+        logger.error(`Python process exited with code ${code} for ${session.sessionId}`);
+        if (details) logger.error(`Last output: ${details.slice(0, 500)}`);
         emitSessionEvent(session, "error", {
           message: `Training failed (exit code ${code})`,
           details,
@@ -159,7 +168,7 @@ export class PythonRunner implements ITrainerRunner {
           });
         }
       } else {
-        console.log(`[training] Python process completed successfully for ${session.sessionId}`);
+        logger.log(`Python process completed successfully for ${session.sessionId}`);
         let diagnostics: TrainingDiagnostics | null = null;
         const jsonMarker = "__JSON_OUTPUT__";
         const jsonIdx = session.stdout.indexOf(jsonMarker);
@@ -183,7 +192,7 @@ export class PythonRunner implements ITrainerRunner {
         if (dbSessId != null) {
           trainingStorage.finalizeSession(dbSessId, {
             status: "completed",
-            diagnostics: diagnostics as Record<string, unknown> ?? undefined,
+            diagnostics: diagnostics ?? undefined,
             qualityScore: diagnostics?.quality_score ?? undefined,
             evaluationGrade: diagnostics?.evaluation?.grade ?? undefined,
             modelPath: `${config.outputDir}/${config.modelId}`,
@@ -211,7 +220,7 @@ export class PythonRunner implements ITrainerRunner {
         try {
           if (session.child?.exitCode === null) {
             session.child.kill("SIGKILL");
-            console.warn(`[training] Force-killed session ${sessionId} after SIGTERM timeout`);
+            logger.warn(`Force-killed session ${sessionId} after SIGTERM timeout`);
           }
         } catch (e) {
           // Process may already be dead

@@ -6,7 +6,6 @@ import compression from 'compression';
 import crypto from 'crypto';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
-import type { INestApplicationContext } from '@nestjs/common';
 import { createServer } from 'http';
 import { AppModule } from './app.module';
 import { registerRoutes } from './core/routes';
@@ -17,6 +16,8 @@ import { log } from './lib/log';
 import { db } from './database/db';
 import { setNestApp } from './nest-context';
 import { shutdownAllPtySessions } from './lib/ptyServer';
+import { shutdownGpuMonitor } from './routes/system';
+import { warmSymbolsCatalog } from './cache/symbols';
 
 // Re-export for backward compat
 export { log } from './lib/log';
@@ -29,6 +30,25 @@ declare module 'http' {
 }
 
 async function bootstrap() {
+  // ── Global Process Resilience (Production-like stability in local dev) ──
+  process.on('unhandledRejection', (reason, promise) => {
+    const errorMsg = reason instanceof Error ? reason.stack : String(reason);
+    log(`[UNHANDLED REJECTION] ${errorMsg}`, 'process');
+    // In dev, we keep the process alive. In true production, we'd log and exit(1) after cleanup.
+    if (process.env.NODE_ENV === 'production') {
+       console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+       // process.exit(1); 
+    }
+  });
+
+  process.on('uncaughtException', (err) => {
+    log(`[UNCAUGHT EXCEPTION] ${err.stack || err.message}`, 'process');
+    // In dev, we don't exit to allow for HMR/updates.
+    if (process.env.NODE_ENV === 'production') {
+      // process.exit(1); 
+    }
+  });
+
   const expressApp = express();
   const httpServer = createServer(expressApp);
 
@@ -98,7 +118,7 @@ async function bootstrap() {
     next();
   });
 
-  // ── Health endpoint (liveness + readiness) ──
+  // ── Liveness probe (always 200 if process is alive) ──
   expressApp.get('/health', (_req: Request, res: Response) => {
     res.json({
       status: 'ok',
@@ -110,6 +130,21 @@ async function bootstrap() {
       },
       timestamp: new Date().toISOString(),
     });
+  });
+
+  // ── Readiness probe (503 until startup complete + databases healthy) ──
+  let serverReady = false;
+  expressApp.get('/api/readiness', (_req: Request, res: Response) => {
+    const report = getStartupReport();
+    if (serverReady && report?.overallHealthy) {
+      res.json({ ready: true, uptime: Math.round(process.uptime()), ...report });
+    } else {
+      res.status(503).json({
+        ready: false,
+        reason: !serverReady ? 'Server still bootstrapping' : 'Databases not healthy',
+        report: report ?? null,
+      });
+    }
   });
 
   // ── Request logging (with request ID + concise output) ──
@@ -230,17 +265,50 @@ async function bootstrap() {
     await setupVite(httpServer, expressApp);
   }
 
-  // ── Listen ──
+  // ── Listen (with EADDRINUSE detection) ──
   const port = config.get<number>('port') || 5000;
-  httpServer.listen({ port, host: '127.0.0.1' }, () => {
-    log(`serving on port ${port}`);
+
+  httpServer.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      log(`[FATAL] Port ${port} is already in use. Kill the process on that port or set a different PORT in .env`, 'express');
+      process.exit(1);
+    }
+    log(`[FATAL] Server error: ${err.message}`, 'express');
+    process.exit(1);
   });
 
-  // ── Graceful shutdown ──
+  httpServer.listen({ port, host: '127.0.0.1' }, () => {
+    serverReady = true;
+    log(`serving on port ${port}`, 'express');
+
+    // Fire-and-forget cache warming — don't block startup
+    warmSymbolsCatalog().catch(err => {
+      console.warn('[startup] Cache warming failed:', err.message);
+    });
+  });
+
+  // ── Graceful shutdown (with 10s timeout) ──
+  let isShuttingDown = false;
   const shutdown = async () => {
+    if (isShuttingDown) return; // prevent double shutdown
+    isShuttingDown = true;
     log('Graceful shutdown initiated...', 'nest');
+
+    shutdownGpuMonitor();
     shutdownAllPtySessions();
-    try { await nestApp.close(); } catch {}
+
+    // Race nestApp.close() against a 10s timeout
+    const closeNest = async () => {
+      try { await nestApp.close(); } catch {}
+    };
+    const timeout = new Promise<void>((resolve) =>
+      setTimeout(() => {
+        log('NestJS shutdown timed out after 10s — forcing exit', 'nest');
+        resolve();
+      }, 10_000),
+    );
+    await Promise.race([closeNest(), timeout]);
+
     httpServer.close();
     process.exit(0);
   };
@@ -249,6 +317,9 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-  console.error('Bootstrap failed:', err);
-  process.exit(1);
+  console.error('[CRITICAL BOOTSTRAP FAILURE]', err);
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+  // Keep process alive in dev to allow HMR/tsx to restart on fix
 });

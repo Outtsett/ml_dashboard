@@ -3,12 +3,17 @@
  *
  * Used by the chart overlay to show labels on the trading chart.
  * Queries QuestDB directly with CTE-based label generation.
+ *
+ * Caching: Preview results are cached for 15 minutes (max 50 entries).
+ * Same symbol + generatorType + params + timeframe = same result.
  */
 
 import type { LabelGeneratorType } from './sqlLabelGenerators';
+import { wrapWithSampleBy } from './sqlLabelGenerators';
 import type { MetaLabelParams } from './sqlLabelGenerators';
 import { queryLabels, getTimeframeTable, buildMetaLabelSQL } from './labelHelpers';
 import { generateLabelSQL } from './labelGenerator';
+import { previewCacheKey, previewCacheGet, previewCacheSet } from '../../cache/labels';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -39,23 +44,30 @@ export async function previewLabels(
       };
     }
 
+    // Check preview cache
+    const cKey = previewCacheKey(request);
+    const cached = previewCacheGet<{ success: boolean; preview: Array<Record<string, unknown>>; count: number; generatorType: string }>(cKey);
+    if (cached) return cached;
+
     const tableName = getTimeframeTable(request.timeframeMinutes);
+    const timeframeMinutes = request.timeframeMinutes || 1;
     const limit = request.limit || 500;
 
     let labelSQL: string | null;
 
     // For meta_label, build combined SQL with direction labels as CTE
     if (request.generatorType === 'meta_label') {
-      labelSQL = buildMetaLabelSQL(
+      const rawSQL = buildMetaLabelSQL(
         request.params as unknown as MetaLabelParams,
         request.symbol,
         tableName,
       );
+      labelSQL = wrapWithSampleBy(rawSQL, { symbol: request.symbol, tableName, timeframeMinutes });
     } else {
       labelSQL = generateLabelSQL(
         request.generatorType,
         request.params,
-        { symbol: request.symbol, tableName }
+        { symbol: request.symbol, tableName, timeframeMinutes }
       );
     }
 
@@ -78,12 +90,17 @@ export async function previewLabels(
 
     const normalizedResults = normalizeLabelsForPreview(request.generatorType, sortedResults);
 
-    return {
-      success: true,
+    const result = {
+      success: true as const,
       preview: normalizedResults,
       count: normalizedResults.length,
       generatorType: request.generatorType,
     };
+
+    // Cache successful preview results
+    previewCacheSet(cKey, result);
+
+    return result;
 
   } catch (error) {
     return {

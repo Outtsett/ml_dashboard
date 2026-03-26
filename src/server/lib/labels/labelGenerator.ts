@@ -9,6 +9,7 @@ import { generatedLabels, contrastivePairs } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import {
   LABEL_SQL_GENERATORS,
+  wrapWithSampleBy,
   type LabelGeneratorType,
   type LabelGeneratorConfig,
 } from './sqlLabelGenerators';
@@ -17,7 +18,6 @@ import {
   type ContrastiveGeneratorType,
   type ContrastivePairConfig,
   type ContrastiveWindow,
-  type AugmentationPairParams,
   type TemporalPairParams,
   type StatisticalPairParams,
   generateContrastivePairsFromSQL,
@@ -34,6 +34,7 @@ export interface LabelGenerationRequest {
   symbol: string;
   modelId?: number;
   params: Record<string, unknown>;
+  timeframeMinutes?: number;
 }
 
 export interface LabelGenerationResult {
@@ -72,17 +73,19 @@ export async function generateLabels(
       }
 
       // For meta_label, build combined SQL with direction labels as CTE
+      const timeframeMinutes = request.timeframeMinutes || 1;
       let labelSQL: string | null;
       if (request.generatorType === 'meta_label') {
-        labelSQL = buildMetaLabelSQL(
+        const rawSQL = buildMetaLabelSQL(
           request.params as unknown as MetaLabelParams,
           request.symbol,
         );
+        labelSQL = wrapWithSampleBy(rawSQL, { symbol: request.symbol, timeframeMinutes });
       } else {
         labelSQL = generateLabelSQL(
           request.generatorType as LabelGeneratorType,
           request.params,
-          { symbol: request.symbol }
+          { symbol: request.symbol, timeframeMinutes }
         );
       }
 
@@ -340,7 +343,7 @@ export function generateLabelSQL(
 ): string | null {
   // Special case: meta_label needs a primary labels CTE reference
   if (generatorType === 'meta_label') {
-    return LABEL_SQL_GENERATORS.meta_label(
+    const rawSQL = LABEL_SQL_GENERATORS.meta_label(
       {
         ...(params as unknown as MetaLabelParams),
         primarySignalColumn: (params as unknown as MetaLabelParams).primarySignalColumn || 'label',
@@ -348,13 +351,15 @@ export function generateLabelSQL(
       config,
       (params as { primaryLabelsTable?: string }).primaryLabelsTable || 'primary_labels'
     );
+    return wrapWithSampleBy(rawSQL, config);
   }
 
   // OCP: dispatch via registry — adding a new generator = add entry to LABEL_SQL_GENERATORS
   const generator = LABEL_SQL_GENERATORS[generatorType];
   if (!generator) return null;
 
-  return (generator as (p: unknown, c: LabelGeneratorConfig) => string)(params, config);
+  const rawSQL = (generator as (p: unknown, c: LabelGeneratorConfig) => string)(params, config);
+  return wrapWithSampleBy(rawSQL, config);
 }
 
 // ─── Generator Category Map (OCP: add new generator = add entry here) ────────

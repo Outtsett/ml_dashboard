@@ -51,7 +51,7 @@ export class HdpHmmParser implements IOutputParser {
         });
 
         // Persist metric to SQLite for post-training convergence analysis (DIP)
-        const dbSessionId = (session as any).dbSessionId;
+        const dbSessionId = session.dbSessionId;
         if (dbSessionId != null) {
           trainingStorage.insertMetric({
             sessionId: dbSessionId,
@@ -94,6 +94,65 @@ export class HdpHmmParser implements IOutputParser {
           details: msg.details,
         });
         break;
+
+      case 'model_state': {
+        // Forward full snapshot to SSE clients
+        emitSessionEvent(session, 'model_state', msg);
+
+        // Persist to SQLite for post-training retrieval
+        const msDbSessionId = session.dbSessionId;
+        if (msDbSessionId != null) {
+          trainingStorage.insertModelStateSnapshot({
+            sessionId: msDbSessionId,
+            iteration: Number(msg.iteration ?? 0),
+            snapshot: JSON.stringify(msg.snapshot),
+          });
+        }
+        break;
+      }
+
+      case 'sampler_diagnostics': {
+        const diag = msg.diagnostics as Record<string, unknown> | undefined;
+        if (!diag) break;
+
+        const sdIteration = Number(msg.iteration ?? 0);
+        const sdTotal = Number(msg.total ?? 0);
+        const stepTiming = diag.step_timing as Record<string, number> | undefined;
+
+        // Forward individual scalar metrics to SSE as regular metric events
+        const metricsMap: Record<string, number> = {
+          ess: Number(diag.ess ?? 0),
+          autocorrelation_lag1: Number(diag.autocorrelation_lag1 ?? 0),
+        };
+        if (stepTiming) {
+          metricsMap['step_timing_ffbs_ms'] = Number(stepTiming.ffbs_ms ?? 0);
+          metricsMap['step_timing_emission_ms'] = Number(stepTiming.emission_ms ?? 0);
+          metricsMap['step_timing_transition_ms'] = Number(stepTiming.transition_ms ?? 0);
+        }
+
+        // Emit each metric as a separate SSE metric event
+        for (const [name, value] of Object.entries(metricsMap)) {
+          emitSessionEvent(session, 'metric', {
+            iteration: sdIteration,
+            totalIterations: sdTotal,
+            metrics: { [name]: value },
+          });
+        }
+
+        // Persist each metric to the existing trainingMetrics table
+        const sdDbSessionId = session.dbSessionId;
+        if (sdDbSessionId != null) {
+          for (const [name, value] of Object.entries(metricsMap)) {
+            trainingStorage.insertMetric({
+              sessionId: sdDbSessionId,
+              iteration: sdIteration,
+              metricName: name,
+              metricValue: value,
+            });
+          }
+        }
+        break;
+      }
 
       default:
         // Unknown type — emit as log

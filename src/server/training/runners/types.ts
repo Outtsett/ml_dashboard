@@ -42,17 +42,23 @@ export function emitSessionEvent(
   }
   
   for (const listener of Array.from(session.listeners)) {
-    try { listener(evt); } catch { /* dead listener */ }
+    try { listener(evt); } catch { session.listeners.delete(listener); }
   }
 
   const bus = getEventBus();
-  const payload: any = {
-    type: "training.event",
+  bus.emit({
+    type: "training.event" as const,
     data: {
       sessionId: session.sessionId,
       modelId: session.modelId,
-      ...evt
-    }
-  };
-  bus.emit(payload);
+      type: evt.type,
+      data: evt.data,
+      ts: evt.ts,
+    },
+    metadata: {
+      correlationId: session.sessionId,
+      causationId: `training-${type}`,
+      timestamp: evt.ts,
+    },
+  } satisfies DomainEvent);
 }

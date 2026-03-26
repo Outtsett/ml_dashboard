@@ -25,7 +25,7 @@ import { Router, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import { z } from "zod";
-import { CACHE_SEMI } from "../lib/cacheHeaders";
+import { CACHE_SEMI } from "../cache/headers";
 import { getNestApp } from "../nest-context";
 import { mlRateLimiter } from "../lib/rateLimiter";
 import { TrainingService } from "../training/training.service";
@@ -258,7 +258,7 @@ router.get("/training/models/:id/convergence", (req: Request, res: Response) => 
   }
 });
 
-// ─── Assignments (QuestDB model_regimes table) ──────────────────────────────
+// ─── Assignments (stored in model checkpoint JSON) ──────────────────────────
 
 router.get("/training/models/:id/assignments", async (req: Request, res: Response) => {
   try {
@@ -301,6 +301,34 @@ router.get("/training/models/:id/benchmarks", async (req: Request, res: Response
     const result = await getModelBenchmarks(MODELS_DIR, id);
     if (!result) return res.status(404).json({ error: "Benchmark data unavailable" });
     res.json(result);
+  } catch (err: any) {
+    const status = err.message.includes("Invalid model ID") ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// ─── Model State Snapshots (live model introspection) ────────────────────────
+
+router.get("/training/models/:id/model-state", (req: Request, res: Response) => {
+  try {
+    const id = sanitizeModelId(String(req.params.id));
+
+    // Look up the training session for this model
+    const session = trainingStorage.getSessionByVersionedId(id);
+    if (!session) {
+      return res.status(404).json({ error: `No training session found for model '${id}'` });
+    }
+
+    const snapshot = trainingStorage.getLatestModelStateSnapshot(session.id);
+    if (!snapshot) {
+      return res.status(404).json({ error: `No model state snapshot found for '${id}'` });
+    }
+
+    res.json({
+      sessionId: session.id,
+      iteration: snapshot.iteration,
+      snapshot: JSON.parse(snapshot.snapshot),
+    });
   } catch (err: any) {
     const status = err.message.includes("Invalid model ID") ? 400 : 500;
     res.status(status).json({ error: err.message });

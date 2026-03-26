@@ -22,7 +22,9 @@ export async function setupVite(server: Server, app: Express) {
       ...viteLogger,
       error: (msg, options) => {
         viteLogger.error(msg, options);
-        process.exit(1);
+        // Do NOT process.exit(1) here in local mode, otherwise the server crashes
+        // and the dashboard loses connection on every syntax error during dev.
+        console.warn('[vite] Error detected, but keeping server alive for HMR.');
       },
     },
     server: serverOptions,

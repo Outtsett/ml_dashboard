@@ -19,10 +19,10 @@
 
 import { Router, Request, Response } from 'express';
 import { queryRateLimiter } from '../../lib/rateLimiter';
-import { ohlcvCache } from '../../lib/ohlcvCache';
+import { ohlcvCache, clearAllCaches, getCacheStats } from '../../cache';
 import { queryOHLCV } from '../../database/questdb/ohlcvQuery';
 import { getString } from '../helpers';
-import { CACHE_SEMI } from '../../lib/cacheHeaders';
+import { CACHE_SEMI } from '../../cache/headers';
 
 const router = Router();
 
@@ -202,7 +202,7 @@ router.post('/questdb/restart', async (_req: Request, res: Response) => {
 });
 
 /**
- * Triggers manual database maintenance (rollover sync, view refresh).
+ * Triggers manual database maintenance (view refresh).
  */
 router.post('/questdb/maintenance', async (_req: Request, res: Response) => {
   try {
@@ -254,12 +254,12 @@ router.get('/questdb/ohlcv/:symbol', queryRateLimiter, async (req: Request, res:
 // ============================================================
 
 router.get('/cache/stats', (_req: Request, res: Response) => {
-  res.json(ohlcvCache.getStats());
+  res.json(getCacheStats());
 });
 
 router.post('/cache/clear', (_req: Request, res: Response) => {
-  ohlcvCache.clear();
-  res.json({ message: 'Cache cleared' });
+  clearAllCaches();
+  res.json({ message: 'All caches cleared (OHLCV, query, anchor, symbols, model, labels, parquet)' });
 });
 
 router.post('/cache/invalidate/:symbol', (req: Request, res: Response) => {

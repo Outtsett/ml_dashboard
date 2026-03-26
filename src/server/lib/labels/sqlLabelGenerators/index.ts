@@ -3,7 +3,7 @@
  */
 
 export type { LabelGeneratorConfig } from './helpers';
-export { DEFAULT_CONFIG, partitionClause, orderClause, windowOver, rowsBetween } from './helpers';
+export { DEFAULT_CONFIG, partitionClause, orderClause, windowOver, rowsBetween, minutesToSampleBy, wrapWithSampleBy } from './helpers';
 
 export type { DirectionParams } from './direction';
 export type { TripleBarrierParams } from './tripleBarrier';

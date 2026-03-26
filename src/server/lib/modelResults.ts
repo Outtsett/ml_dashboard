@@ -2,13 +2,20 @@
  * Model Results Service (SRP)
  *
  * Pure functions for trained-model CRUD: list, read diagnostics/convergence,
- * read assignments (QuestDB model_regimes table), and delete.
+ * read assignments (disk CSV), and delete.
  * Consumed by routes/training.ts — no HTTP or Express types here.
+ *
+ * Caching: Diagnostics, convergence, and assignment files are immutable after
+ * training completes. An LRU cache (max 100 entries) avoids redundant disk I/O.
  */
 
 import path from "path";
 import fs from "fs";
+import { modelCacheGet, modelCacheSet, clearModelCache } from "../cache/model";
 import { questdbHttpQuery } from "../database/questdb/httpQuery";
+
+// Re-export clearModelCache for backward compat
+export { clearModelCache } from "../cache/model";
 
 // ─── Security ────────────────────────────────────────────────────────────────
 
@@ -173,38 +180,52 @@ function migrateLegacyDiagnostics(diag: Record<string, unknown>): Record<string,
 
 export function getModelDiagnostics(baseDir: string, id: string): object | null {
   const safe = sanitizeModelId(id);
+  const cacheKey = `diagnostics:${safe}`;
+  const cached = modelCacheGet<object>(cacheKey);
+  if (cached) return cached;
+
   const diagPath = path.join(baseDir, safe, "diagnostics.json");
   if (!fs.existsSync(diagPath)) return null;
   const raw = JSON.parse(fs.readFileSync(diagPath, "utf-8"));
-  return migrateLegacyDiagnostics(raw);
+  const result = migrateLegacyDiagnostics(raw);
+  modelCacheSet(cacheKey, result);
+  return result;
 }
 
 // ─── Convergence ─────────────────────────────────────────────────────────────
 
 export function getModelConvergence(baseDir: string, id: string): object | null {
   const safe = sanitizeModelId(id);
+  const cacheKey = `convergence:${safe}`;
+  const cached = modelCacheGet<object>(cacheKey);
+  if (cached) return cached;
+
   const convPath = path.join(baseDir, safe, "convergence.json");
   if (!fs.existsSync(convPath)) return null;
   const raw = JSON.parse(fs.readFileSync(convPath, "utf-8"));
 
+  let result: object;
   // New format: already has "gibbs" key with ConvergencePoint[]
-  if (raw.gibbs) return raw;
-
-  // Legacy format: { log_likelihoods: number[] } → convert to ConvergencePoint[]
-  if (raw.log_likelihoods) {
-    return {
+  if (raw.gibbs) {
+    result = raw;
+  } else if (raw.log_likelihoods) {
+    // Legacy format: { log_likelihoods: number[] } → convert to ConvergencePoint[]
+    result = {
       gibbs: (raw.log_likelihoods as number[]).map((ll: number, i: number) => ({
         iter: i + 1,
         log_likelihood: ll,
       })),
       n_iterations: raw.n_iterations || raw.log_likelihoods.length,
     };
+  } else {
+    result = raw;
   }
 
-  return raw;
+  modelCacheSet(cacheKey, result);
+  return result;
 }
 
-// ─── Assignments (QuestDB model_regimes table) ──────────────────────────────
+// ─── Assignments (disk CSV) ──────────────────────────────────────────────────
 
 export interface AssignmentsOptions {
   limit?: number;
@@ -220,56 +241,46 @@ export async function getModelAssignments(
   const limit = Math.min(Number(opts.limit) || 50000, 500000);
   const offset = Number(opts.offset) || 0;
 
-  // 1. Try QuestDB first
-  try {
-    const rows = await questdbHttpQuery<Record<string, unknown>>(
-      `SELECT ts, close, regime, regime_label, split, category
-       FROM model_regimes
-       WHERE model_id = '${safe}'
-       ORDER BY ts ASC
-       LIMIT ${offset}, ${limit}`
-    );
+  // Cache the full parsed row array; slice from cache on each call
+  const cacheKey = `assignments:${safe}`;
+  let allRows = modelCacheGet<Record<string, unknown>[]>(cacheKey);
 
-    if (rows.length > 0) {
-      const total = await questdbHttpQuery<{ cnt: number }>(
-        `SELECT count() as cnt FROM model_regimes WHERE model_id = '${safe}'`
-      );
-      return { rows, total: Number(total[0]?.cnt ?? rows.length), limit, offset };
+  if (!allRows) {
+    // Read assignments from disk (assignments.csv in model directory)
+    const csvPath = path.join(_baseDir, safe, "assignments.csv");
+    if (!fs.existsSync(csvPath)) return null;
+
+    const csvText = fs.readFileSync(csvPath, "utf-8");
+    const lines = csvText.split("\n").filter(l => l.trim());
+    if (lines.length < 2) return null;
+
+    const header = lines[0]!.split(",");
+    const tsIdx = header.indexOf("ts");
+    const closeIdx = header.indexOf("close");
+    const regimeIdx = header.indexOf("regime");
+    const labelIdx = header.indexOf("regime_label");
+    const splitIdx = header.indexOf("split");
+    const categoryIdx = header.indexOf("category");
+
+    if (tsIdx < 0 || regimeIdx < 0) return null;
+
+    allRows = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i]!.split(",");
+      if (cols.length < Math.max(tsIdx, regimeIdx) + 1) continue;
+      allRows.push({
+        ts: cols[tsIdx]!,
+        close: closeIdx >= 0 ? parseFloat(cols[closeIdx]!) : 0,
+        regime: parseInt(cols[regimeIdx]!, 10),
+        regime_label: labelIdx >= 0 ? cols[labelIdx]! : `Regime ${cols[regimeIdx]}`,
+        split: splitIdx >= 0 ? cols[splitIdx]! : "train",
+        category: categoryIdx >= 0 ? cols[categoryIdx]! : undefined,
+      });
     }
-  } catch {
-    // QuestDB unavailable — fall through to disk fallback
-  }
 
-  // 2. Disk-based fallback: read assignments.csv from model directory
-  const csvPath = path.join(_baseDir, safe, "assignments.csv");
-  if (!fs.existsSync(csvPath)) return null;
-
-  const csvText = fs.readFileSync(csvPath, "utf-8");
-  const lines = csvText.split("\n").filter(l => l.trim());
-  if (lines.length < 2) return null;
-
-  const header = lines[0]!.split(",");
-  const tsIdx = header.indexOf("ts");
-  const closeIdx = header.indexOf("close");
-  const regimeIdx = header.indexOf("regime");
-  const labelIdx = header.indexOf("regime_label");
-  const splitIdx = header.indexOf("split");
-  const categoryIdx = header.indexOf("category");
-
-  if (tsIdx < 0 || regimeIdx < 0) return null;
-
-  const allRows: Record<string, unknown>[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i]!.split(",");
-    if (cols.length < Math.max(tsIdx, regimeIdx) + 1) continue;
-    allRows.push({
-      ts: cols[tsIdx]!,
-      close: closeIdx >= 0 ? parseFloat(cols[closeIdx]!) : 0,
-      regime: parseInt(cols[regimeIdx]!, 10),
-      regime_label: labelIdx >= 0 ? cols[labelIdx]! : `Regime ${cols[regimeIdx]}`,
-      split: splitIdx >= 0 ? cols[splitIdx]! : "train",
-      category: categoryIdx >= 0 ? cols[categoryIdx]! : undefined,
-    });
+    if (allRows.length > 0) {
+      modelCacheSet(cacheKey, allRows);
+    }
   }
 
   const totalCount = allRows.length;
@@ -290,29 +301,12 @@ export interface ShapOptions {
 export async function getModelShap(
   _baseDir: string,
   id: string,
-  opts: ShapOptions = {},
+  _opts: ShapOptions = {},
 ) {
-  const safe = sanitizeModelId(id);
-  const limit = Math.min(Number(opts.limit) || 50000, 100000);
-  const offset = Number(opts.offset) || 0;
-  const regimeFilter = opts.regime !== undefined
-    ? ` AND regime = ${Math.floor(Number(opts.regime))}`
-    : "";
-
-  const rows = await questdbHttpQuery<Record<string, unknown>>(
-    `SELECT * FROM model_shap
-     WHERE model_id = '${safe}'${regimeFilter}
-     ORDER BY ts ASC
-     LIMIT ${offset}, ${limit}`
-  );
-
-  if (rows.length === 0) return null;
-
-  const total = await questdbHttpQuery<{ cnt: number }>(
-    `SELECT count() as cnt FROM model_shap WHERE model_id = '${safe}'${regimeFilter}`
-  );
-
-  return { rows, total: Number(total[0]?.cnt ?? rows.length), limit, offset };
+  // Per-bar SHAP data was stored in QuestDB model_shap table (now dropped).
+  // SHAP summary is still available in diagnostics.json under shap_summary key.
+  void _baseDir; void id;
+  return null;
 }
 
 // ─── Benchmarks ─────────────────────────────────────────────────────────
@@ -410,13 +404,6 @@ export async function deleteModel(baseDir: string, id: string): Promise<boolean>
   }
   fs.rmdirSync(modelDir);
 
-  // Clean up QuestDB rows (fire-and-forget — disk deletion is the primary action)
-  try {
-    await questdbHttpQuery(`DELETE FROM model_regimes WHERE model_id = '${safe}'`);
-    await questdbHttpQuery(`DELETE FROM model_shap WHERE model_id = '${safe}'`);
-  } catch (err) {
-    console.warn(`[modelResults] Failed to delete QuestDB rows for ${safe}:`, err);
-  }
-
+  clearModelCache(safe);
   return true;
 }

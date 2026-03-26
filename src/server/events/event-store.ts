@@ -1,4 +1,4 @@
-import { eq, gt, and, asc, sql, like, notInArray } from 'drizzle-orm';
+import { eq, gt, and, asc, sql, like } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { events } from '@shared/schema';
 import type { StoredEvent, NewEvent, EventMetadata } from '@shared/event-types';

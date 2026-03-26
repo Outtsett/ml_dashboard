@@ -34,6 +34,7 @@ import {
   detectInstrumentType,
   getBaseTableForType,
 } from "../../database/questdb/marketData";
+import { clearParquetCacheForSymbol } from "../../cache/parquet";
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
@@ -431,9 +432,13 @@ export class MotiveWaveWatcher {
           `${rowsSkipped > 0 ? ` (${rowsSkipped} skipped)` : ""} in ${durationMs.toFixed(0)}ms`,
       );
 
+      // Invalidate parquet cache for ML training pipelines
+      clearParquetCacheForSymbol(meta.symbol);
+
       // Emit SSE events: data update + cache invalidation
       this.emitUpdateEvent(meta.symbol, meta.timeframe, rowsToIngest.length, durationMs);
       this.emitCacheInvalidation(meta.symbol);
+      this.emitIngestionCompleted(meta.symbol, meta.timeframe, rowsToIngest.length);
 
       return {
         symbol: meta.symbol,
@@ -525,6 +530,21 @@ export class MotiveWaveWatcher {
     (bus as any).emit({
       type: "cache.invalidate",
       data: { queryKey: ["/api/databases/questdb/stats"] },
+      metadata: { correlationId: randomUUID(), causationId: "motivewave-watcher", timestamp: Date.now() },
+    });
+  }
+
+  /** Emit ingestion.completed so QueryCache and other subscribers invalidate. */
+  private emitIngestionCompleted(symbol: string, timeframe: string, rowCount: number): void {
+    const bus = getEventBus();
+    bus.emit({
+      type: "ingestion.completed",
+      data: {
+        uploadId: randomUUID(),
+        symbol,
+        timeframe,
+        rowCount,
+      },
       metadata: { correlationId: randomUUID(), causationId: "motivewave-watcher", timestamp: Date.now() },
     });
   }

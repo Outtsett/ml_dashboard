@@ -10,10 +10,7 @@ import { queryQuestDB } from "./connection";
 
 /** Allowlist of known QuestDB tables. Dynamic table names must match this list. */
 const TABLE_ALLOWLIST = new Set([
-  'ohlcv', 'rollovers', 'symbols',
-  'labels', 'swing_labels', 'triple_barrier_labels',
-  'indicators_5m', 'indicators_15m', 'indicators_30m',
-  'indicators_1h', 'indicators_4h', 'indicators_1d', 'indicators_1w',
+  'ohlcv', 'symbols',
 ]);
 
 function validateTableName(tableName: string): string {

@@ -14,12 +14,17 @@
 import { Router, Request, Response } from 'express';
 import { getOHLCVSampleBy, getStitchedOHLCV, checkQuestDBHealth, queryQuestDB } from '../database/questdb';
 import type { AdjustmentMode } from '@shared/ohlcv';
-import { cachedQuery, OHLCVCache } from '../lib/ohlcvCache';
+import { cachedQuery, OHLCVCache } from '../cache/ohlcv';
+import { getCachedAnchor, setCachedAnchor } from '../cache/anchor';
+import { getSymbolsCatalogCache, setSymbolsCatalogCache } from '../cache/symbols';
+import { CACHE_SEMI } from '../cache/headers';
 import { normalizeTimestamp, parseTimestampParam } from '../lib/normalize';
 import { isFuturesRoot } from '../lib/futures';
-import { CACHE_SEMI } from '../lib/cacheHeaders';
-import { SYMBOL_REGEX } from '@shared/schema';
 import { isValidSymbol } from '@shared/validation';
+
+// Re-export cache functions for backward compat (infrastructure.ts imports from here)
+export { clearAnchorCache } from '../cache/anchor';
+export { clearSymbolsCatalogCache, warmSymbolsCatalog } from '../cache/symbols';
 
 const router = Router();
 
@@ -115,7 +120,7 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
     // Without this, SAMPLE BY scans ALL data for the symbol (millions of rows).
     // ALWAYS compute a window when no explicit bounds are given, regardless of order.
     let effectiveStart = startMs;
-    let effectiveEnd   = endMs;
+    const effectiveEnd   = endMs;
 
     // Start health check + anchor query in parallel (avoid sequential await)
     const healthPromise = isQuestDBHealthy();
@@ -123,27 +128,25 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
 
     if (!effectiveStart && !effectiveEnd) {
       anchorPromise = (async () => {
+        // Check in-memory cache first (5-min TTL)
+        const cached = getCachedAnchor(symbol);
+        if (cached !== undefined) return cached;
+
         try {
           const safeEsc = symbol.replace(/'/g, "''");
           let anchorQuery: string;
           if (isFuturesRoot(symbol)) {
-            // Use rollovers table to find the current contract — O(1)
-            const rolloverQuery = `SELECT to_contract FROM rollovers WHERE root = '${safeEsc}' ORDER BY rollover_date DESC LIMIT 1`;
-            const rollRows = await queryQuestDB<{ to_contract: string }>(rolloverQuery);
-            if (rollRows.length > 0) {
-              const currentContract = rollRows[0]!.to_contract.replace(/'/g, "''");
-              anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE symbol = '${currentContract}'`;
-            } else {
-              // No rollover schedule — use root column (SYMBOL INDEX)
-              anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE root = '${safeEsc}' AND asset_class = 'futures'`;
-            }
+            anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE root = '${safeEsc}' AND asset_class = 'futures'`;
           } else {
             anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE symbol = '${safeEsc}'`;
           }
           const [row] = await queryQuestDB(anchorQuery);
           if (row?.latest) {
             const latestDate = row.latest instanceof Date ? row.latest.getTime() : new Date(String(row.latest)).getTime();
-            if (!isNaN(latestDate)) return latestDate;
+            if (!isNaN(latestDate)) {
+              setCachedAnchor(symbol, latestDate);
+              return latestDate;
+            }
           }
         } catch { /* fall through */ }
         return Date.now();
@@ -197,7 +200,8 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
 
 /**
  * GET /api/charts/symbols
- * Returns available symbols with row counts and time ranges from QuestDB.
+ * Returns available symbols from the `symbols` table (904 rows, instant).
+ * Cached for 1 hour — symbol catalog rarely changes.
  */
 router.get('/symbols', CACHE_SEMI, async (_req: Request, res: Response) => {
   try {
@@ -206,23 +210,24 @@ router.get('/symbols', CACHE_SEMI, async (_req: Request, res: Response) => {
       return res.status(503).json({ error: 'QuestDB is not available' });
     }
 
+    const cached = getSymbolsCatalogCache();
+    if (cached) {
+      return res.json(cached.data);
+    }
+
     const symbols = await queryQuestDB(`
-      SELECT symbol, asset_class, root,
-             count() as row_count,
-             min(timestamp) as first_bar,
-             max(timestamp) as last_bar
-      FROM ohlcv_1d
-      GROUP BY symbol, asset_class, root
+      SELECT symbol, asset_class, root
+      FROM symbols
       ORDER BY symbol
     `);
-    return res.json(symbols.map((s: any) => ({
+    const result = symbols.map((s: any) => ({
       symbol: s.symbol,
       asset_class: s.asset_class,
       root: s.root,
-      row_count: Number(s.row_count),
-      first_bar: s.first_bar instanceof Date ? s.first_bar.toISOString() : String(s.first_bar),
-      last_bar: s.last_bar instanceof Date ? s.last_bar.toISOString() : String(s.last_bar),
-    })));
+    }));
+
+    setSymbolsCatalogCache(result);
+    return res.json(result);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

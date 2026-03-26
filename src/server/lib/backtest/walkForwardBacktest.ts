@@ -21,7 +21,6 @@ import {
   type BacktestMetrics,
 } from './tradeSimulator';
 import type { BrokerConfig } from '@shared/schema';
-import { computeMetrics } from './metricsCalculator';
 
 // ============================================================
 // TYPES

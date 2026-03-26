@@ -18,7 +18,7 @@
  * standalone functions (for framework-agnostic usage / testing).
  */
 
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { spawn, type ChildProcess } from "child_process";
 import path from "path";
 import crypto from "crypto";
@@ -38,6 +38,8 @@ import {
 import { getTrainingConfig } from "./registry";
 
 // ─── Configuration ───────────────────────────────────────────────────────────
+
+const logger = new Logger("HPO");
 
 /** Maximum number of concurrent HPO sessions. */
 const MAX_CONCURRENT_HPO_SESSIONS = 1;
@@ -258,8 +260,8 @@ function spawnHPORunner(
 
   const args = ["-m", "src.ml.shared.hpo_runner", "--config", configPayload];
 
-  console.log(
-    `[hpo] Spawning Python HPO runner: ${pythonExe} ${args.slice(0, 3).join(" ")} --config <${configPayload.length} bytes>`,
+  logger.log(
+    `Spawning Python HPO runner: ${pythonExe} ${args.slice(0, 3).join(" ")} --config <${configPayload.length} bytes>`,
   );
 
   const child = spawn(pythonExe, args, {
@@ -313,8 +315,8 @@ function handleHPOStarted(session: HPOSessionState, data: Record<string, unknown
   dbUpdateSession(session.sessionId, { status: "running" });
 
 
-  console.log(
-    `[hpo] Session ${session.sessionId} started — optimizer=${data.optimizer}, nTrials=${data.nTrials}`,
+  logger.log(
+    `Session ${session.sessionId} started — optimizer=${data.optimizer}, nTrials=${data.nTrials}`,
   );
 }
 
@@ -326,8 +328,8 @@ function handleTrialStart(session: HPOSessionState, data: Record<string, unknown
     params: JSON.stringify(data.params ?? {}),
   });
 
-  console.log(
-    `[hpo] Session ${session.sessionId} trial ${data.trialId} started — params=${JSON.stringify(data.params)}`,
+  logger.log(
+    `Session ${session.sessionId} trial ${data.trialId} started — params=${JSON.stringify(data.params)}`,
   );
 }
 
@@ -351,8 +353,8 @@ function handleTrialDone(session: HPOSessionState, data: Record<string, unknown>
     completedTrials: session.completedTrials,
   });
 
-  console.log(
-    `[hpo] Session ${session.sessionId} trial ${data.trialId} done — score=${data.score}, elapsed=${data.durationSec}s`,
+  logger.log(
+    `Session ${session.sessionId} trial ${data.trialId} done — score=${data.score}, elapsed=${data.durationSec}s`,
   );
 }
 
@@ -371,8 +373,8 @@ function handleTrialPruned(session: HPOSessionState, data: Record<string, unknow
     prunedTrials: session.prunedTrials,
   });
 
-  console.log(
-    `[hpo] Session ${session.sessionId} trial ${data.trialId} pruned at step ${data.prunedAtStep} — score=${data.score}`,
+  logger.log(
+    `Session ${session.sessionId} trial ${data.trialId} pruned at step ${data.prunedAtStep} — score=${data.score}`,
   );
 }
 
@@ -386,8 +388,8 @@ function handleBestUpdate(session: HPOSessionState, data: Record<string, unknown
     bestParams: JSON.stringify(data.bestParams ?? {}),
   });
 
-  console.log(
-    `[hpo] Session ${session.sessionId} new best — trial=${data.trialId}, score=${data.bestScore}`,
+  logger.log(
+    `Session ${session.sessionId} new best — trial=${data.trialId}, score=${data.bestScore}`,
   );
 }
 
@@ -411,20 +413,20 @@ function handleHPOComplete(session: HPOSessionState, data: Record<string, unknow
       : undefined,
   });
 
-  console.log(
-    `[hpo] Session ${session.sessionId} completed — bestScore=${data.bestScore}, totalTrials=${data.totalTrials}, elapsed=${elapsedSec}s`,
+  logger.log(
+    `Session ${session.sessionId} completed — bestScore=${data.bestScore}, totalTrials=${data.totalTrials}, elapsed=${elapsedSec}s`,
   );
 }
 
 function handleHPOError(session: HPOSessionState, data: Record<string, unknown>): void {
   const message = data.message ?? "Unknown HPO error";
-  console.error(`[hpo] Session ${session.sessionId} error — ${message}`);
+  logger.error(`Session ${session.sessionId} error — ${message}`);
 }
 
 function handleHPOLog(session: HPOSessionState, data: Record<string, unknown>): void {
   // Log messages are emitted to SSE but not persisted to DB
   const msg = data.message ?? data;
-  console.log(`[hpo] Session ${session.sessionId} log — ${msg}`);
+  logger.log(`Session ${session.sessionId} log — ${msg}`);
 }
 
 /**
@@ -501,8 +503,8 @@ function attachProcessHandlers(
   // ── Overall timeout: SIGTERM → grace → SIGKILL ──
   const timeoutHandle = setTimeout(() => {
     if (!session.finished) {
-      console.warn(
-        `[hpo] Session ${session.sessionId} exceeded ${timeoutSec}s timeout, sending SIGTERM`,
+      logger.warn(
+        `Session ${session.sessionId} exceeded ${timeoutSec}s timeout, sending SIGTERM`,
       );
       child.kill("SIGTERM");
       emitHPOEvent(session, "hpo-timeout", {
@@ -512,8 +514,8 @@ function attachProcessHandlers(
 
       setTimeout(() => {
         if (!session.finished) {
-          console.warn(
-            `[hpo] Session ${session.sessionId} did not exit after SIGTERM, sending SIGKILL`,
+          logger.warn(
+            `Session ${session.sessionId} did not exit after SIGTERM, sending SIGKILL`,
           );
           child.kill("SIGKILL");
         }
@@ -539,7 +541,7 @@ function attachProcessHandlers(
     if (code !== 0) {
       session.status = "failed";
       const errorMessage = `HPO process exited with code ${code}`;
-      console.error(`[hpo] ${errorMessage} — session=${session.sessionId}`);
+      logger.error(`${errorMessage} — session=${session.sessionId}`);
 
       dbUpdateSession(session.sessionId, {
         status: "failed",
@@ -562,8 +564,8 @@ function attachProcessHandlers(
         completedAt: new Date(),
       });
 
-      console.log(
-        `[hpo] Session ${session.sessionId} process exited cleanly (code 0), elapsed=${elapsedSec}s`,
+      logger.log(
+        `Session ${session.sessionId} process exited cleanly (code 0), elapsed=${elapsedSec}s`,
       );
     }
 
@@ -577,7 +579,7 @@ function attachProcessHandlers(
     session.status = "failed";
 
     const errorMessage = `Failed to spawn HPO process: ${err.message}`;
-    console.error(`[hpo] ${errorMessage}`);
+    logger.error(`${errorMessage}`);
 
     dbUpdateSession(session.sessionId, {
       status: "failed",
@@ -594,8 +596,8 @@ function attachProcessHandlers(
 function scheduleCleanup(session: HPOSessionState): void {
   setTimeout(() => {
     activeSessions.delete(session.sessionId);
-    console.log(
-      `[hpo] Session ${session.sessionId} removed from memory after retention period`,
+    logger.log(
+      `Session ${session.sessionId} removed from memory after retention period`,
     );
   }, SESSION_RETENTION_MS);
 }
@@ -639,8 +641,8 @@ export async function startHPO(
   const nTrials = getNTrials(request);
   const direction = getDirection(request);
 
-  console.log(
-    `[hpo] Starting HPO session ${sessionId} — model=${request.modelType}, symbol=${request.symbol}, ` +
+  logger.log(
+    `Starting HPO session ${sessionId} — model=${request.modelType}, symbol=${request.symbol}, ` +
       `optimizer=${request.optimizer.type}, nTrials=${nTrials}, metric=${request.objectiveMetric}`,
   );
 
@@ -693,14 +695,15 @@ export async function startHPO(
     const child = spawnHPORunner(session, request);
     session.child = child;
     attachProcessHandlers(session, child, request);
-  } catch (err: any) {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     session.status = "failed";
     session.finished = true;
     dbUpdateSession(sessionId, {
       status: "failed",
-      errorMessage: `Spawn error: ${err.message}`,
+      errorMessage: `Spawn error: ${message}`,
     });
-    throw new Error(`Failed to start HPO session: ${err.message}`);
+    throw new Error(`Failed to start HPO session: ${message}`);
   }
 
   return { sessionId };
@@ -717,23 +720,23 @@ export async function startHPO(
 export function stopHPO(sessionId: string): boolean {
   const session = activeSessions.get(sessionId);
   if (!session) {
-    console.warn(`[hpo] stopHPO: session ${sessionId} not found`);
+    logger.warn(`stopHPO: session ${sessionId} not found`);
     return false;
   }
 
   if (session.finished) {
-    console.warn(`[hpo] stopHPO: session ${sessionId} already finished`);
+    logger.warn(`stopHPO: session ${sessionId} already finished`);
     return false;
   }
 
-  console.log(`[hpo] Stopping session ${sessionId}, sending SIGTERM`);
+  logger.log(`Stopping session ${sessionId}, sending SIGTERM`);
   session.child?.kill("SIGTERM");
 
   // Grace period → SIGKILL
   setTimeout(() => {
     if (!session.finished) {
-      console.warn(
-        `[hpo] Session ${sessionId} did not exit after SIGTERM, sending SIGKILL`,
+      logger.warn(
+        `Session ${sessionId} did not exit after SIGTERM, sending SIGKILL`,
       );
       session.child?.kill("SIGKILL");
     }
@@ -869,8 +872,8 @@ export function applyBestParams(
   // Merge: fixed params as base, best (optimised) params override
   const merged = { ...fixed, ...bestParams };
 
-  console.log(
-    `[hpo] applyBestParams for session ${sessionId} — modelType=${row.modelType}, ` +
+  logger.log(
+    `applyBestParams for session ${sessionId} — modelType=${row.modelType}, ` +
       `bestScore=${row.bestScore}, paramCount=${Object.keys(merged).length}`,
   );
 

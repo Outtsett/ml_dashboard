@@ -128,8 +128,8 @@ function parseTimestamp(raw: string, preferDDMM = false): Date | null {
   const dateFields = datePart.split("/");
   if (dateFields.length !== 3) return null;
 
-  let f1 = parseInt(dateFields[0] ?? "0", 10);
-  let f2 = parseInt(dateFields[1] ?? "0", 10);
+  const f1 = parseInt(dateFields[0] ?? "0", 10);
+  const f2 = parseInt(dateFields[1] ?? "0", 10);
   let year = parseInt(dateFields[2] ?? "0", 10);
   if (isNaN(f1) || isNaN(f2) || isNaN(year)) return null;
 

@@ -12,6 +12,7 @@ import {
   trainingSessions,
   trainingMetrics,
   evaluationResults,
+  modelStateSnapshots,
   type InsertTrainingMetric,
   type InsertEvaluationResult,
 } from "@shared/schema";
@@ -62,6 +63,14 @@ export function updateSessionProgress(id: number, data: {
 }) {
   db.update(trainingSessions)
     .set({ ...data, updatedAt: sql`(unixepoch() * 1000)` })
+    .where(eq(trainingSessions.id, id))
+    .run();
+}
+
+/** Store the process PID for recovery/cleanup. */
+export function updateSessionPid(id: number, pid: number) {
+  db.update(trainingSessions)
+    .set({ pid, updatedAt: sql`(unixepoch() * 1000)` })
     .where(eq(trainingSessions.id, id))
     .run();
 }
@@ -161,6 +170,23 @@ export function getQualityHistory(symbol: string, modelType: string) {
 
 /** Mark any "running" sessions as "failed" — call on server startup to clean up orphans. */
 export function markOrphanedSessionsFailed(): number {
+  // Find PIDs of orphaned sessions to kill them (production-like resilience)
+  const orphans = db.select({ id: trainingSessions.id, pid: trainingSessions.pid })
+    .from(trainingSessions)
+    .where(eq(trainingSessions.status, "running"))
+    .all();
+
+  for (const orphan of orphans) {
+    if (orphan.pid) {
+      try {
+        // Best effort kill — prevent zombie python processes from eating GPU/RAM
+        process.kill(orphan.pid, "SIGTERM");
+      } catch {
+        // Already dead or permission denied
+      }
+    }
+  }
+
   const result = db.update(trainingSessions)
     .set({
       status: "failed",
@@ -241,4 +267,47 @@ export function getEvaluationSummary(sessionId: number) {
     .where(eq(evaluationResults.sessionId, sessionId))
     .groupBy(evaluationResults.stage)
     .all();
+}
+
+// ─── Model State Snapshots ────────────────────────────────────────────────────
+
+/** Insert a single model state snapshot (full model state at a given iteration). */
+export function insertModelStateSnapshot(data: {
+  sessionId: number;
+  iteration: number;
+  snapshot: string;
+}) {
+  db.insert(modelStateSnapshots).values(data).run();
+}
+
+/** Get model state snapshots for a session, ordered by iteration descending. */
+export function getModelStateSnapshots(sessionId: number, limit?: number) {
+  let query = db.select().from(modelStateSnapshots)
+    .where(eq(modelStateSnapshots.sessionId, sessionId))
+    .orderBy(desc(modelStateSnapshots.iteration));
+
+  if (limit) {
+    query = query.limit(limit) as typeof query;
+  }
+
+  return query.all();
+}
+
+/** Get a specific model state snapshot by session + iteration. */
+export function getModelStateSnapshot(sessionId: number, iteration: number) {
+  return db.select().from(modelStateSnapshots)
+    .where(and(
+      eq(modelStateSnapshots.sessionId, sessionId),
+      eq(modelStateSnapshots.iteration, iteration),
+    ))
+    .get();
+}
+
+/** Get the latest (highest iteration) model state snapshot for a session. */
+export function getLatestModelStateSnapshot(sessionId: number) {
+  return db.select().from(modelStateSnapshots)
+    .where(eq(modelStateSnapshots.sessionId, sessionId))
+    .orderBy(desc(modelStateSnapshots.iteration))
+    .limit(1)
+    .get();
 }

@@ -1,7 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { QuestDBService } from '../questdb.service';
-import { syncRollovers } from '../../lib/futures/rolloverManager';
-import { log } from '../../lib/log';
 import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
@@ -79,42 +77,11 @@ export class QuestDBAutomationService implements OnModuleInit {
   }
 
   /**
-   * Synchronizes rollovers for all known root symbols.
-   */
-  async syncAllRollovers(): Promise<void> {
-    this.logger.log('Starting global rollover synchronization...');
-    try {
-      const roots = await this.questdb.query<{ root: string }>(
-        "SELECT DISTINCT root FROM rollovers"
-      );
-      
-      for (const { root } of roots) {
-        this.logger.log(`Syncing rollovers for ${root}...`);
-        await syncRollovers(root);
-      }
-      this.logger.log('Rollover synchronization complete');
-    } catch (err) {
-      this.logger.error(`Rollover sync failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
-  /**
-   * Refreshes all institutional materialized views.
-   */
-  async refreshMaterializedViews(): Promise<void> {
-    this.logger.log('Refreshing materialized views...');
-    // In QuestDB 9.3, materialized views refresh automatically based on configuration,
-    // but we can trigger a refresh if needed via SQL if supported or just check status.
-    // Since we manually manage them in some scripts, we'll just log health here.
-  }
-
-  /**
    * Runs daily maintenance tasks.
+   * Previous no-ops (syncAllRollovers, refreshMaterializedViews) removed —
+   * front-month detection is query-time, materialized views auto-refresh.
    */
   async runDailyMaintenance(): Promise<void> {
-    this.logger.log('Running daily maintenance...');
-    await this.syncAllRollovers();
-    await this.refreshMaterializedViews();
-    this.logger.log('Daily maintenance complete');
+    this.logger.log('Daily maintenance ran — no pending tasks');
   }
 }

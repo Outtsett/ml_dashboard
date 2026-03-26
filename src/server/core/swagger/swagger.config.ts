@@ -50,9 +50,6 @@ export function getStaticOpenApiSpec() {
       '/api/charts/ohlcv/{symbol}': {
         get: { summary: 'OHLCV candles', tags: ['charts'], parameters: [{ name: 'symbol', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'OHLCV data' } } },
       },
-      '/api/indicators/list': {
-        get: { summary: 'List core indicator definitions', tags: ['indicators'], responses: { '200': { description: 'Indicator list' } } },
-      },
       '/api/training/config': {
         get: { summary: 'Model registry + feature pipelines', tags: ['training'], responses: { '200': { description: 'Training config' } } },
       },

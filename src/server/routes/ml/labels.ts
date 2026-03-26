@@ -21,7 +21,7 @@ async function getLabelService() {
 router.post("/labels/generate", mlRateLimiter, async (req: Request, res: Response) => {
   try {
     const labelService = await getLabelService();
-    const { name, generatorType, symbol, modelId, params } = req.body;
+    const { name, generatorType, symbol, modelId, params, timeframeMinutes } = req.body;
 
     if (!name || !generatorType || !symbol) {
       return res.status(400).json({
@@ -35,6 +35,7 @@ router.post("/labels/generate", mlRateLimiter, async (req: Request, res: Respons
       symbol,
       modelId,
       params: params || {},
+      timeframeMinutes: timeframeMinutes || 1,
     });
 
     if (!result.success) {

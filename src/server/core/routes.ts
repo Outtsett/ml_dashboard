@@ -6,7 +6,6 @@ import { attachPtyWebSocket, registerTerminalRoutes } from "../lib/ptyServer";
 import uploadRouter from "../routes/upload";
 
 import instrumentsRouter from "../routes/instruments";
-import indicatorsRouter from "../routes/indicators";
 import mlRouter from "../routes/ml";
 import newsRouter from "../routes/news";
 import databasesRouter from "../routes/databases";
@@ -20,6 +19,7 @@ import eventsRouter from "../routes/events";
 import pipelinesRouter from "../routes/pipelines";
 import hpoRouter from "../routes/hpo";
 import settingsRouter from "../routes/settings";
+import systemRouter from "../routes/system";
 import motiveWaveRouter from "../routes/motivewave";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
@@ -43,7 +43,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", uploadRouter);
 
   app.use("/api", instrumentsRouter);
-  app.use("/api", indicatorsRouter);
   app.use("/api", trainingRouter);  // before mlRouter — static routes must match before ml's /training/:id
   app.use("/api", hpoRouter);      // before mlRouter — HPO static routes must match before catch-all
   app.use("/api", mlRouter);
@@ -54,6 +53,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", modelCatalogRouter);
   app.use("/api", curriculumRouter);
   app.use("/api", settingsRouter);
+  app.use("/api", systemRouter);
   app.use("/api", motiveWaveRouter);
   app.use("/api", eventsRouter);
   app.use("/api", pipelinesRouter);
