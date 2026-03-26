@@ -2,7 +2,7 @@
  * Client-side overlay indicator calculators.
  *
  * Overlay indicators (SMA, EMA, Bollinger Bands, etc.) must be computed from
- * raw OHLCV data because the talib_features QuestDB table stores z-scored
+ * raw OHLCV data because server-side indicator tables stored z-scored
  * (normalized) values that cannot be plotted on a price chart.
  *
  * Each calculator takes an array of close prices and returns an array of

@@ -75,6 +75,44 @@ const INDICATOR_COLORS: Record<string, string> = {
   'WMA_10': '#f59e0b', 'WMA_20': '#d97706',
   'DEMA_20': '#06b6d4', 'TEMA_20': '#0891b2',
   'HMA_20': '#ec4899', 'ALMA_9_6.0_0.85': '#f472b6',
+  // ALMA (short key alias)
+  'ALMA_9': '#f472b6',
+  // Keltner Channels
+  'KC_UPPER_20': '#38bdf8', 'KC_MIDDLE_20': '#0284c7', 'KC_LOWER_20': '#38bdf8',
+  // Donchian Channels
+  'DC_UPPER_20': '#a3e635', 'DC_MIDDLE_20': '#65a30d', 'DC_LOWER_20': '#a3e635',
+  // SuperTrend
+  'SUPERTREND_10': '#f59e0b',
+  // Ichimoku
+  'TENKAN_9': '#ef4444', 'KIJUN_26': '#3b82f6', 'SENKOUA_26': '#22c55e', 'SENKOUB_52': '#f97316', 'CHIKOU_26': '#a78bfa',
+  // Awesome Oscillator
+  'AO_5_34': '#22c55e',
+  // Fisher
+  'FISHER_9': '#e879f9', 'FISHER_TRIGGER_9': '#c084fc',
+  // KST
+  'KST': '#06b6d4', 'KST_SIGNAL': '#f97316',
+  // QQE
+  'QQE_14': '#a78bfa', 'QQE_RSI_14': '#22d3ee',
+  // RVGI
+  'RVGI_10': '#38bdf8', 'RVGI_SIGNAL_10': '#f97316',
+  // TSI
+  'TSI_25_13': '#22c55e', 'TSI_SIGNAL': '#ef4444',
+  // SMI
+  'SMI_14': '#c084fc', 'SMI_SIGNAL': '#f59e0b',
+  // KDJ
+  'KDJ_K_9': '#f59e0b', 'KDJ_D_9': '#3b82f6', 'KDJ_J_9': '#ef4444',
+  // Vortex
+  'VI_PLUS_14': '#22c55e', 'VI_MINUS_14': '#ef4444',
+  // KVO
+  'KVO_34_55': '#06b6d4', 'KVO_SIGNAL': '#f97316',
+  // CKSP
+  'CKSP_LONG': '#22c55e', 'CKSP_SHORT': '#ef4444',
+  // Squeeze
+  'SQZ_MOM': '#06b6d4', 'SQZ_SQUEEZE': '#ef4444',
+  // HWC
+  'HWC_UPPER': '#38bdf8', 'HWC_MIDDLE': '#0284c7', 'HWC_LOWER': '#38bdf8',
+  // AccBands
+  'ACCB_UPPER': '#c084fc', 'ACCB_MIDDLE': '#8b5cf6', 'ACCB_LOWER': '#c084fc',
   // Bollinger
   'BBM_5_2.0': '#8b5cf6', 'BBU_5_2.0': '#a78bfa', 'BBL_5_2.0': '#a78bfa',
   // RSI
@@ -110,6 +148,7 @@ const INDICATOR_COLORS: Record<string, string> = {
   'LINREG_SLOPE_20': '#60a5fa', 'LINREG_ANGLE_20': '#93c5fd',
   // Others
   'ADX_14': '#ef4444', 'ATRr_14': '#f97316',
+  'VPOC_20': '#f59e0b',
   'OBV': '#06b6d4', 'WILLR_14': '#ec4899',
   'CCI_20': '#8b5cf6', 'CCI_14': '#a78bfa',
   'MFI_14': '#22d3ee',
@@ -119,9 +158,12 @@ const INDICATOR_COLORS: Record<string, string> = {
 const FAMILY_HUES: Record<string, number> = {
   SMA: 217, EMA: 142, WMA: 38, DEMA: 187, TEMA: 187,
   HMA: 330, ALMA: 330, KAMA: 270, FWMA: 200,
-  BB: 263, KC: 200, DONCH: 170, ACCB: 160,
+  VIDYA: 270, VWMA: 200, HWMA: 330, MCGD: 170, JMA: 280, SINWMA: 200, SWMA: 210,
+  SSF: 200, HILO: 340,
+  BB: 263, KC: 200, DONCH: 170, ACCB: 270,
   SUPERTREND: 45, PSAR: 340,
   ISA: 280, ISB: 280, ITS: 320, IKS: 320, ICS: 300,
+  TENKAN: 0, KIJUN: 217, SENKOUA: 142, SENKOUB: 25, CHIKOU: 263,
   RSI: 263, MACD: 187, STOCH: 38, CCI: 263,
   ADX: 0, ADXR: 25, DX: 38, AROON: 30, ATR: 25, OBV: 187,
   CDL: 50, MOM: 200, ROC: 200, CMO: 270, APO: 170, PPO: 170,
@@ -135,6 +177,21 @@ const FAMILY_HUES: Record<string, number> = {
   ROCP: 200, ROCR: 200, ROCR100: 200,
   AROONOSC: 30,
   VWAP: 200, ZL: 160, RMA: 170, TRIMA: 210,
+  // New subchart families
+  AO: 142, BIAS: 200, CFO: 170, CG: 263, COPPOCK: 217,
+  CRSI: 263, ER: 38, FISHER: 290, INERTIA: 200, KST: 187,
+  PGO: 170, PSL: 38, QQE: 263, RSX: 263, RVGI: 200,
+  STC: 330, TSI: 142, SMI: 270, SQZ: 187, KDJ: 38,
+  WAD: 187, CHOP: 38, CKSP: 142, DPO: 217, QSTICK: 170,
+  VI: 142, VHF: 200, DECAY: 38, ZIGZAG: 25,
+  ABERRATION: 25, MASSI: 200, UI: 330, PDIST: 25,
+  BBW: 263, KCW: 200, RVI: 263, HWC: 200,
+  CMF: 187, EFI: 142, EOM: 200, KVO: 187,
+  NVI: 170, PVI: 142, PVR: 38, PVT: 187, VPCI: 200, VPOC: 38,
+  ENTROPY: 263, KURTOSIS: 200, MAD: 170, MEDIAN: 200,
+  QUANTILE: 200, SKEW: 200, ZSCORE: 263,
+  EBSW: 300, REFLEX: 330,
+  LOGRET: 142, PCTRET: 142, CUMLOGRET: 142, CUMPCTRET: 142,
 };
 
 /**
@@ -176,9 +233,31 @@ export function getIndicatorColor(column: string): string {
  * Get line width for an indicator (thicker for important MAs, thinner for bands).
  */
 export function getIndicatorLineWidth(column: string): number {
-  if (column.startsWith('SMA_200') || column.startsWith('EMA_200')) return 2;
-  if (column.startsWith('SMA_50') || column.startsWith('EMA_50')) return 2;
-  if (column.startsWith('BBL_') || column.startsWith('BBU_')) return 1;
+  // Major MAs — thick
+  if (/^(SMA|EMA)_(50|100|200)/.test(column)) return 2;
+  // VWAP — prominent
+  if (column === 'VWAP') return 2;
+  // SuperTrend — prominent
+  if (column.startsWith('SUPERTREND') && !column.includes('DIR')) return 2;
+  // Band upper/lower — thin
+  if (/^(BBU|BBL|KC_(UPPER|LOWER)|DC_(UPPER|LOWER)|ACCB_(UPPER|LOWER)|HWC_(UPPER|LOWER))/.test(column)) return 1;
+  // Band middle — standard
+  if (/^(BBM|KC_MIDDLE|DC_MIDDLE|ACCB_MIDDLE|HWC_MIDDLE)/.test(column)) return 1;
+  // Ichimoku — thin
+  if (/^(TENKAN|KIJUN|SENKOU|CHIKOU)/.test(column)) return 1;
+  // PSAR dots — thin
+  if (column === 'PSAR') return 1;
+  // CDL patterns — thin
   if (column.startsWith('CDL_')) return 1;
+  // Default
   return 1;
+}
+
+/**
+ * Convert any CSS color to rgba() string with a given alpha.
+ * Reuses parseColor internally.
+ */
+export function colorToRgba(color: string, alpha: number): string {
+  const { r, g, b } = parseColor(color);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }

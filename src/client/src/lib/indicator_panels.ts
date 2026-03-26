@@ -7,7 +7,6 @@
  */
 
 import type { IndicatorOverlay } from '@/hooks/useIndicatorData';
-import { getIndicatorDefinition } from '@/lib/indicatorRegistry';
 
 /**
  * Extract the instanceId from a new-format column name.
@@ -217,6 +216,37 @@ const PANEL_DISPLAY_NAMES: Record<string, string> = {
   STDEV: 'Std Dev',
   VARIANCE: 'Variance',
   TSV: 'Time Seg. Volume',
+  BIAS: 'Bias',
+  CFO: 'CFO',
+  CG: 'Center of Gravity',
+  COPPOCK: 'Coppock',
+  CRSI: 'Connors RSI',
+  ER: 'Efficiency Ratio',
+  INERTIA: 'Inertia',
+  PGO: 'PGO',
+  PSL: 'Psych Line',
+  RSX: 'RSX',
+  SMI: 'SMI',
+  WAD: 'Williams AD',
+  CKSP: 'Chande Kroll',
+  QSTICK: 'QStick',
+  VI: 'Vortex',
+  ZIGZAG: 'ZigZag',
+  DECAY: 'Linear Decay',
+  MASSI: 'Mass Index',
+  UI: 'Ulcer Index',
+  PDIST: 'Price Distance',
+  BBW: 'BB Width',
+  KCW: 'KC Width',
+  RVI: 'RVI',
+  EOM: 'Ease of Movement',
+  PVR: 'Price Vol Rank',
+  PVT: 'Price Vol Trend',
+  VPCI: 'VPCI',
+  VPOC: 'VPOC',
+  CUMLOGRET: 'Cum Log Return',
+  CUMPCTRET: 'Cum Pct Return',
+  SQZPRO: 'Squeeze Pro',
 };
 
 /** Get a display label for a panel key like "MACD_12_26_9" → "MACD (12,26,9)" */
@@ -236,97 +266,127 @@ export function getPanelLabel(panelKey: string): string {
 /** Reference / guide lines for well-known oscillators */
 const REFERENCE_LINES: Record<string, { value: number; color: string }[]> = {
   RSI: [
-    { value: 70, color: 'rgba(239, 68, 68, 0.3)' },
-    { value: 30, color: 'rgba(34, 197, 94, 0.3)' },
-    { value: 50, color: 'rgba(255, 255, 255, 0.06)' },
+    { value: 70, color: 'rgba(239, 68, 68, 0.45)' },
+    { value: 30, color: 'rgba(34, 197, 94, 0.45)' },
+    { value: 50, color: 'rgba(255, 255, 255, 0.15)' },
   ],
   STOCH: [
-    { value: 80, color: 'rgba(239, 68, 68, 0.3)' },
-    { value: 20, color: 'rgba(34, 197, 94, 0.3)' },
+    { value: 80, color: 'rgba(239, 68, 68, 0.45)' },
+    { value: 20, color: 'rgba(34, 197, 94, 0.45)' },
   ],
   STOCHRSI: [
-    { value: 80, color: 'rgba(239, 68, 68, 0.3)' },
-    { value: 20, color: 'rgba(34, 197, 94, 0.3)' },
+    { value: 80, color: 'rgba(239, 68, 68, 0.45)' },
+    { value: 20, color: 'rgba(34, 197, 94, 0.45)' },
   ],
   CCI: [
-    { value: 100, color: 'rgba(239, 68, 68, 0.3)' },
-    { value: -100, color: 'rgba(34, 197, 94, 0.3)' },
-    { value: 0, color: 'rgba(255, 255, 255, 0.06)' },
+    { value: 100, color: 'rgba(239, 68, 68, 0.45)' },
+    { value: -100, color: 'rgba(34, 197, 94, 0.45)' },
+    { value: 0, color: 'rgba(255, 255, 255, 0.15)' },
   ],
   WILLR: [
-    { value: -20, color: 'rgba(239, 68, 68, 0.3)' },
-    { value: -80, color: 'rgba(34, 197, 94, 0.3)' },
+    { value: -20, color: 'rgba(239, 68, 68, 0.45)' },
+    { value: -80, color: 'rgba(34, 197, 94, 0.45)' },
   ],
   MFI: [
-    { value: 80, color: 'rgba(239, 68, 68, 0.3)' },
-    { value: 20, color: 'rgba(34, 197, 94, 0.3)' },
+    { value: 80, color: 'rgba(239, 68, 68, 0.45)' },
+    { value: 20, color: 'rgba(34, 197, 94, 0.45)' },
   ],
   MACD: [
-    { value: 0, color: 'rgba(255, 255, 255, 0.1)' },
+    { value: 0, color: 'rgba(255, 255, 255, 0.2)' },
   ],
   AO: [
-    { value: 0, color: 'rgba(255, 255, 255, 0.1)' },
+    { value: 0, color: 'rgba(255, 255, 255, 0.2)' },
   ],
   TSI: [
-    { value: 0, color: 'rgba(255, 255, 255, 0.1)' },
+    { value: 0, color: 'rgba(255, 255, 255, 0.2)' },
   ],
   PPO: [
-    { value: 0, color: 'rgba(255, 255, 255, 0.1)' },
+    { value: 0, color: 'rgba(255, 255, 255, 0.2)' },
   ],
   APO: [
-    { value: 0, color: 'rgba(255, 255, 255, 0.1)' },
+    { value: 0, color: 'rgba(255, 255, 255, 0.2)' },
   ],
   ROC: [
-    { value: 0, color: 'rgba(255, 255, 255, 0.1)' },
+    { value: 0, color: 'rgba(255, 255, 255, 0.2)' },
   ],
   MOM: [
-    { value: 0, color: 'rgba(255, 255, 255, 0.1)' },
+    { value: 0, color: 'rgba(255, 255, 255, 0.2)' },
   ],
   CHOP: [
-    { value: 61.8, color: 'rgba(239, 68, 68, 0.25)' },
-    { value: 38.2, color: 'rgba(34, 197, 94, 0.25)' },
+    { value: 61.8, color: 'rgba(239, 68, 68, 0.4)' },
+    { value: 38.2, color: 'rgba(34, 197, 94, 0.4)' },
   ],
   ADX: [
-    { value: 25, color: 'rgba(255, 255, 255, 0.1)' },
+    { value: 25, color: 'rgba(255, 255, 255, 0.2)' },
   ],
   ADXR: [
-    { value: 25, color: 'rgba(255, 255, 255, 0.1)' },
+    { value: 25, color: 'rgba(255, 255, 255, 0.2)' },
   ],
   DX: [
-    { value: 25, color: 'rgba(255, 255, 255, 0.1)' },
+    { value: 25, color: 'rgba(255, 255, 255, 0.2)' },
   ],
   STOCHF: [
-    { value: 80, color: 'rgba(239, 68, 68, 0.3)' },
-    { value: 20, color: 'rgba(34, 197, 94, 0.3)' },
+    { value: 80, color: 'rgba(239, 68, 68, 0.45)' },
+    { value: 20, color: 'rgba(34, 197, 94, 0.45)' },
   ],
   AROON: [
-    { value: 70, color: 'rgba(239, 68, 68, 0.25)' },
-    { value: 30, color: 'rgba(34, 197, 94, 0.25)' },
+    { value: 70, color: 'rgba(239, 68, 68, 0.4)' },
+    { value: 30, color: 'rgba(34, 197, 94, 0.4)' },
   ],
   AROONOSC: [
-    { value: 0, color: 'rgba(255, 255, 255, 0.1)' },
+    { value: 0, color: 'rgba(255, 255, 255, 0.2)' },
   ],
   CMO: [
-    { value: 50, color: 'rgba(239, 68, 68, 0.25)' },
-    { value: -50, color: 'rgba(34, 197, 94, 0.25)' },
-    { value: 0, color: 'rgba(255, 255, 255, 0.06)' },
+    { value: 50, color: 'rgba(239, 68, 68, 0.4)' },
+    { value: -50, color: 'rgba(34, 197, 94, 0.4)' },
+    { value: 0, color: 'rgba(255, 255, 255, 0.15)' },
   ],
   BOP: [
-    { value: 0, color: 'rgba(255, 255, 255, 0.1)' },
+    { value: 0, color: 'rgba(255, 255, 255, 0.2)' },
   ],
   ULTOSC: [
-    { value: 70, color: 'rgba(239, 68, 68, 0.3)' },
-    { value: 30, color: 'rgba(34, 197, 94, 0.3)' },
+    { value: 70, color: 'rgba(239, 68, 68, 0.45)' },
+    { value: 30, color: 'rgba(34, 197, 94, 0.45)' },
   ],
   TRIX: [
-    { value: 0, color: 'rgba(255, 255, 255, 0.1)' },
+    { value: 0, color: 'rgba(255, 255, 255, 0.2)' },
   ],
   MACDEXT: [
-    { value: 0, color: 'rgba(255, 255, 255, 0.1)' },
+    { value: 0, color: 'rgba(255, 255, 255, 0.2)' },
   ],
   MACDFIX: [
-    { value: 0, color: 'rgba(255, 255, 255, 0.1)' },
+    { value: 0, color: 'rgba(255, 255, 255, 0.2)' },
   ],
+  BIAS: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  CFO: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  COPPOCK: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  CRSI: [{ value: 70, color: 'rgba(239,68,68,0.45)' }, { value: 30, color: 'rgba(34,197,94,0.45)' }],
+  INERTIA: [{ value: 50, color: 'rgba(255,255,255,0.2)' }],
+  KST: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  PGO: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  PSL: [{ value: 50, color: 'rgba(255,255,255,0.2)' }],
+  RSX: [{ value: 70, color: 'rgba(239,68,68,0.45)' }, { value: 30, color: 'rgba(34,197,94,0.45)' }],
+  STC: [{ value: 75, color: 'rgba(239,68,68,0.45)' }, { value: 25, color: 'rgba(34,197,94,0.45)' }],
+  SMI: [{ value: 40, color: 'rgba(239,68,68,0.45)' }, { value: -40, color: 'rgba(34,197,94,0.45)' }],
+  KDJ: [{ value: 80, color: 'rgba(239,68,68,0.45)' }, { value: 20, color: 'rgba(34,197,94,0.45)' }],
+  DPO: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  QSTICK: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  VHF: [{ value: 0.5, color: 'rgba(255,255,255,0.2)' }],
+  MASSI: [{ value: 27, color: 'rgba(239,68,68,0.45)' }, { value: 26.5, color: 'rgba(34,197,94,0.45)' }],
+  RVI: [{ value: 50, color: 'rgba(255,255,255,0.2)' }],
+  CMF: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  EFI: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  EOM: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  KVO: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  VPCI: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  VPOC_DIST: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  ZSCORE: [{ value: 2, color: 'rgba(239,68,68,0.45)' }, { value: -2, color: 'rgba(34,197,94,0.45)' }, { value: 0, color: 'rgba(255,255,255,0.15)' }],
+  REFLEX: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  LOGRET: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  PCTRET: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  FISHER: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  RVGI: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
+  WAD: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
 };
 
 // ─── Instance reference lines registry ───────────────────────────────────────
@@ -387,6 +447,26 @@ export function getSeriesTitle(column: string): string {
     lowerband: 'Lower',
     plus_di: '+DI',
     minus_di: '-DI',
+    trigger: 'Trigger',
+    fisher: 'Fisher',
+    kst: 'KST',
+    qqe: 'QQE',
+    rsismooth: 'RSI Smooth',
+    rvgi: 'RVGI',
+    tsi: 'TSI',
+    smi: 'SMI',
+    kvo: 'KVO',
+    viplus: 'VI+',
+    viminus: 'VI-',
+    stoplong: 'Stop Long',
+    stopshort: 'Stop Short',
+    squeeze: 'Squeeze',
+    tenkan: 'Tenkan',
+    kijun: 'Kijun',
+    senkoua: 'Senkou A',
+    senkoub: 'Senkou B',
+    chikou: 'Chikou',
+    momentum: 'Momentum',
   };
 
   const friendlyKey = OUTPUT_LABELS[key.toLowerCase()] || key;
@@ -400,11 +480,47 @@ export function shouldRenderAsHistogram(column: string): boolean {
   // New instance-based format: check outputKey
   const parsed = parseInstanceColumn(column);
   if (parsed) {
-    return parsed.outputKey === 'histogram';
+    if (parsed.outputKey === 'histogram' || parsed.outputKey === 'momentum') return true;
+    // Check if the instance's indicator has histogram style for this output
+    const instLabel = instanceLabelMap.get(parsed.instanceId);
+    if (instLabel) {
+      const family = instLabel.replace(/\s*\(.*\)$/, '');
+      if (HISTOGRAM_VALUE_INDICATORS.has(family) && parsed.outputKey === 'value') return true;
+    }
+    return false;
   }
 
   // Legacy format
   return column.startsWith('MACDh_') ||
          column.startsWith('MACDEXTh_') ||
-         column.startsWith('MACDFIXh_');
+         column.startsWith('MACDFIXh_') ||
+         column.startsWith('AO_');
+}
+
+/** Indicators where outputKey 'value' should render as histogram */
+const HISTOGRAM_VALUE_INDICATORS = new Set([
+  'Awesome Osc', 'AO', 'PDIST', 'Price Distance',
+  'Log Return', 'LOGRET', 'Pct Return', 'PCTRET',
+]);
+
+/**
+ * Histogram coloring style for directional per-bar colors.
+ * Returns 'ao' for Awesome Oscillator style (green=increasing, red=decreasing)
+ * Returns 'squeeze' for Squeeze Momentum style (4-color momentum intensity)
+ * Returns null for standard positive/negative coloring.
+ */
+export function getHistogramStyle(column: string): 'ao' | 'squeeze' | null {
+  const parsed = parseInstanceColumn(column);
+  if (parsed) {
+    const instLabel = instanceLabelMap.get(parsed.instanceId) || '';
+    const family = instLabel.replace(/\s*\(.*\)$/, '');
+    if (family === 'Awesome Osc' || family === 'AO') return 'ao';
+    if ((family === 'Squeeze' || family === 'SQZ' || family === 'Squeeze Pro' || family === 'SQZ Pro')
+        && parsed.outputKey === 'momentum') return 'squeeze';
+    return null;
+  }
+  // Legacy format
+  if (column.startsWith('AO_')) return 'ao';
+  if (column.startsWith('SQZ_MOM') || column.startsWith('SQZPRO_MOM')) return 'squeeze';
+  return null;
 }

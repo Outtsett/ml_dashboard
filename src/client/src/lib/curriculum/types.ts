@@ -1,7 +1,6 @@
 // ─── Curriculum Content Types ────────────────────────────────────
 // Defines the full content model: Learning Paths → Modules → Lessons → Sections
 
-import type { LucideIcon } from "lucide-react";
 
 /** Difficulty level for paths, modules, or lessons */
 export type Difficulty = "beginner" | "intermediate" | "advanced";

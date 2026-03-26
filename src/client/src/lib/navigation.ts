@@ -1,16 +1,16 @@
-import { 
-  Home, 
-  Database, 
-  Settings, 
-  Server, 
-  BarChart2, 
-  List, 
-  Newspaper, 
-  BrainCircuit, 
-  BookOpen, 
-  AudioWaveform, 
+import {
+  Database,
+  Settings,
+  Server,
+  BarChart2,
+  List,
+  Newspaper,
+  BrainCircuit,
+  BookOpen,
+  AudioWaveform,
   Network,
-  LucideIcon 
+  Gpu,
+  LucideIcon
 } from "lucide-react";
 
 export interface NavItem {
@@ -53,6 +53,7 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
   {
     title: "System",
     items: [
+      { icon: Gpu, label: "GPU Monitor", href: "/gpu" },
       { icon: Settings, label: "Settings", href: "/settings" },
     ]
   }

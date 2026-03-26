@@ -8,7 +8,7 @@
  * OCP: Add new endpoints here — consumers don't change.
  */
 
-import { apiRequest } from './queryClient';
+import { apiRequest } from './query_client';
 import type { Instrument } from '@shared/schema';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -65,19 +65,6 @@ export const trainingApi = {
 
 /** @deprecated Use `trainingApi` instead — consolidated to avoid DRY violation. */
 export const regimeApi = trainingApi;
-
-// ── Indicators ───────────────────────────────────────────────────────────────
-
-export const indicatorApi = {
-  getCatalog:  (symbol: string) =>
-    get(`/api/indicators/catalog?symbol=${symbol}`),
-  getData:     (symbol: string, tf: string) =>
-    get(`/api/indicators/data/${symbol}?timeframe=${tf}`),
-  getPatterns: (symbol: string, tf: string) =>
-    get(`/api/indicators/patterns/${symbol}?timeframe=${tf}`),
-  compute:     (body: unknown) =>
-    mutate('POST', '/api/indicators/compute', body),
-} as const;
 
 // ── Charts ───────────────────────────────────────────────────────────────────
 

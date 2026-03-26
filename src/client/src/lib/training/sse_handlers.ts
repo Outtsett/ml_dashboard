@@ -6,6 +6,7 @@
  */
 
 import type { TrainingSSECallbacks } from "@/hooks/useTrainingSSE";
+import type { ModelStatePayload } from "@shared/trainingTypes";
 
 export interface TrainingStateSetters {
   setDataRange: (v: { start: string; end: string } | null) => void;
@@ -23,6 +24,8 @@ export interface TrainingStateSetters {
   setCompletedModelId: (v: string | null) => void;
   setDiagnostics: (v: unknown) => void;
   setElapsedSec: (v: number) => void;
+  setModelState: (v: ModelStatePayload | null) => void;
+  setModelStateHistory: (updater: (prev: Array<{ iteration: number; state: ModelStatePayload }>) => Array<{ iteration: number; state: ModelStatePayload }>) => void;
   setError: (v: string | null) => void;
   setIsTraining: (v: boolean) => void;
   clearElapsedTimer: () => void;
@@ -71,6 +74,15 @@ export function buildSSECallbacks(s: TrainingStateSetters): TrainingSSECallbacks
     },
     onLog(d) {
       if (d.message) s.setLogs(prev => [...prev.slice(-500), d.message!]);
+    },
+    onModelState(d) {
+      const payload = d as ModelStatePayload;
+      s.setModelState(payload);
+      s.setModelStateHistory(prev => {
+        const next = [...prev, { iteration: payload.iteration, state: payload }];
+        // Cap history at 100 entries — drop oldest when exceeding
+        return next.length > 100 ? next.slice(-100) : next;
+      });
     },
     onDone(d) {
       s.setCompletedModelId(d.modelId ?? null);

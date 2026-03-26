@@ -1,5 +1,5 @@
-import { queryClient } from "./queryClient";
-import { fetchArray } from "./fetchArray";
+import { queryClient } from "./query_client";
+import { fetchArray } from "./fetch_array";
 
 const prefetchedRoutes = new Set<string>();
 
