@@ -1,9 +1,9 @@
 # ML Dashboard
 
-Full-stack ML Dashboard for quantitative trading research. Electron desktop app + web (React 19 + Express 5 + NestJS 11) with a 2-database architecture (SQLite 35 tables + QuestDB 61 tables). HDP-HMM regime detection trained on 2.3M MNQ 1m bars. No external experiment tracking — all metrics via built-in SSE protocol.
+Full-stack ML Dashboard for quantitative trading research. Electron desktop app + web (React 19 + Express 5 + NestJS 11) with a 2-database architecture (SQLite 35 tables + QuestDB 2 tables). HDP-HMM regime detection trained on 2.3M MNQ 1m bars. No external experiment tracking — all metrics via built-in SSE protocol.
 
 ## Project Scale
-- **182 React components**, 63 pages, 30 route files, 45 Python ML files, 53 scripts
+- **182 React components**, 63 pages, 30 route files, 45 Python ML files, 51 scripts
 - **99 npm dependencies**, 40 devDependencies, 7 config JSONs
 - **Node 22.20**, Python 3.13, TypeScript, Numba JIT, Polars
 - **157 commits** on `feat/event-architecture` branch (pushed to GitHub)
@@ -41,8 +41,8 @@ The user is an **extreme visual learner** who cannot process abstract math or th
 - **Frontend**: React 19, Wouter router, TanStack Query, Tailwind v4, shadcn/ui (Radix), Recharts, Lightweight Charts, Three.js/R3F, D3, Framer Motion
 - **Backend**: Express 5, TypeScript, Node.js
 - **ORM**: Drizzle ORM with Zod validation
-- **ML**: TensorFlow.js-node (CNN models), technical indicators, label generation, XAI (9 methods)
-- **Indicators**: pandas-ta (Python, 344 pre-computed columns) + TypeScript SQL generators (13 core indicators for realtime)
+- **ML**: TensorFlow.js-node (CNN models), label generation, XAI (9 methods)
+- **Indicators**: 151 technical indicators computed 100% client-side from raw OHLCV bars (no server-side indicator code)
 - **Desktop**: Electron 34
 - **Testing**: Vitest
 - **Build**: Vite 7, esbuild, tsx
@@ -65,7 +65,7 @@ Plus file-based stores:
 ### When to Use Which
 
 - **SQLite**: All CRUD, relationships, metadata — model registry, trade logs, backtest results, instruments, uploads, labels, ensembles, training sessions, news
-- **QuestDB**: ALL time-series queries — chart rendering (`SAMPLE BY`), training data (Python reads via PG wire), pre-computed indicators (`indicators_{tf}` tables), labels, model outputs (`model_regimes`, `model_shap`). Unified `ohlcv` table with `asset_class`/`root` columns for all instruments.
+- **QuestDB**: ALL time-series queries — chart rendering (`SAMPLE BY`), training data (Python reads via PG wire). Unified `ohlcv` table with `asset_class`/`root` columns for all instruments. OHLCV-only — no feature/indicator tables.
 
 ### Database Paths (Local Installs)
 ```
@@ -80,52 +80,21 @@ QuestDB:    E:\source\databases\questdb-9.3.3-rt-windows-x86-64\
 
 Single unified `ohlcv` table for ALL asset classes (futures, forex, equities, crypto) with `asset_class` and `root` SYMBOL INDEX columns. No per-asset-class table splitting. PostgreSQL eliminated.
 
-**Base Tables (10)**:
+**Base Tables (2)**:
 
 | Table | Rows | Partition | Dedup | Key Columns |
 | ----- | ---- | --------- | ----- | ----------- |
 | `ohlcv` | 856M | DAY | yes | symbol, asset_class, root, timestamp, open, high, low, close, volume |
-| `rollovers` | 353 | YEAR | yes | root, rollover_date, from_contract, to_contract, from_close, to_close, price_gap, cumulative_adjustment |
 | `symbols` | 904 | YEAR | yes | symbol, asset_class, root, exchange, currency, tick_size, point_value, pip_size, contract_size, decimal_places, timestamp |
-| `labels` | 77.8M | MONTH | yes | symbol, asset_class, timestamp, close, regime/trend/exec, confluence, reversal, volatility (15 cols) |
-| `swing_labels` | 2.0M | MONTH | yes | symbol, asset_class, timestamp, dir at 7 horizons, proximity, magnitude, transition (13 cols) |
-| `triple_barrier_labels` | 2.0M | MONTH | yes | symbol, asset_class, timestamp, tb_label, tb_holding_period, tb_return, tb_upper, tb_lower |
-| `talib_features` | 153M | MONTH | no | 141 cols: timestamp, symbol + 139 TA-Lib indicators |
-| `model_regimes` | 100K | YEAR | yes | model_id, symbol, ts, close, regime, regime_label, split |
-| `model_shap` | 530K | YEAR | yes | 32 cols: model_id, symbol, ts, regime, shap_* for 28 features |
-| `training_metrics` | 2.5K | DAY | no | phase, model, metric, value, step, epoch, fold, timestamp |
-
-Indicator tables (`indicators_5m` through `indicators_1w`) are created on demand by `upload-indicators-questdb.py` with ~344 columns each.
 
 **Asset classes**: futures (817.6M rows, 8 roots: ES, NQ, MNQ, MES, YM, MYM, RTY, M2K), forex (38.6M rows, 18 pairs)
 
-**Materialized Views (7)** — unified, one set for all asset classes, `immediate` refresh:
-
-| View | SAMPLE BY | Partition | TTL |
-| ---- | --------- | --------- | --- |
-| `ohlcv_5m` | 5m | MONTH | 2 YEARS |
-| `ohlcv_15m` | 15m | MONTH | 2 YEARS |
-| `ohlcv_30m` | 30m | MONTH | 3 YEARS |
-| `ohlcv_1h` | 1h | MONTH | 3 YEARS |
-| `ohlcv_4h` | 4h | YEAR | 5 YEARS |
-| `ohlcv_1d` | 1d | YEAR | 10 YEARS |
-| `ohlcv_1w` | 1w | YEAR | 10 YEARS |
-
-All include `asset_class` and `root` columns for filtered queries.
-
-**Regular Views (4)**:
-
-| View | Purpose |
-| ---- | ------- |
-| `view_current_front_month` | Current front-month contract per root (LATEST ON timestamp WHERE asset_class='futures') |
-| `view_instrument_inventory` | Symbol count/date range per asset class (GROUP BY from ohlcv_1d) |
-| `view_latest_rollovers` | Most recent rollover per root (LATEST ON rollover_date) |
-| `view_latest_prices` | Latest price per symbol (LATEST ON from ohlcv_1d) |
+No materialized views — all timeframe aggregation done on-the-fly via `SAMPLE BY` from the base `ohlcv` table.
 
 **Data Ingestion**: ILP protocol (port 9009) via Node.js Sender. File dedup tracked in SQLite `ingested_files`.
 
 **QuestDB Performance Features**:
-- `SAMPLE BY` aggregation for chart timeframes
+- `SAMPLE BY` aggregation for any timeframe on the fly (5m, 15m, 1h, 4h, 1d, 1w)
 - `LATEST ON` for instant last-value-per-symbol lookup
 - `ASOF JOIN + TOLERANCE` for trade-to-quote matching
 - JIT-compiled WHERE filters (SIMD/AVX2, ~3.3 GB/s)
@@ -151,7 +120,7 @@ All market data in unified `ohlcv` table: `symbol` (SYMBOL), `asset_class` (SYMB
 - `asset_class`: `futures`, `forex`, `equity`, `crypto` — adding new asset classes requires zero DDL
 - `root`: `ES`, `MNQ` for futures contracts/spreads; same as symbol for forex/equities — enables `WHERE root = 'ES'` instead of regex
 - ILP ingestion auto-derives `asset_class` and `root` from symbol via `deriveAssetFields()` in `connection.ts`
-- Futures: Rollover stitching via `rollovers` table (353 rows, 8 roots). TypeScript query-time stitching via `rollover.ts`. Default: raw prices. Optional: `?adjustment=panama|ratio`
+- Futures: Continuous contracts built by volume-based front-month detection from OHLCV data. No separate rollovers table — `getFrontMonthOHLCV()` picks the highest-volume contract per day.
 - Forex: `pipSize` varies (0.0001 standard, 0.01 for JPY pairs)
 
 ### Data Pipeline
@@ -165,47 +134,48 @@ QuestDB OHLCV (source of truth, 856M rows, unified multi-asset)
     |    features.py computes 29 inline features from raw OHLCV
     |        |
     |        v
-    |    HDP-HMM regime discovery → writes model_regimes + model_shap to QuestDB
+    |    HDP-HMM regime discovery → saves artifacts to data/models/
     |
-    +--> Offline indicator pipeline
-    |        |
-    |        v
-    |    compute-indicators.py (344 pandas-ta indicators)
-    |        |
-    |        v
-    |    upload-indicators-questdb.py → QuestDB indicators_{tf} tables
-    |
-    +--> Chart API (SAMPLE BY, materialized views)
+    +--> Chart API (SAMPLE BY on base ohlcv table)
 ```
 
 ## Project Structure
 
 ```
 client/src/
-  pages/            12 pages: Dashboard, DataSets, MLHub, Portfolio, Watchlist,
-                    News, Databases, Observatory, Training, Signals, Backtest, not-found
+  pages/            13 pages: Dashboard, DataSets, MLHub, Portfolio, Watchlist,
+                    News, Databases, Observatory, Training, Signals, Backtest, Gpu, not-found
   components/       shadcn/ui + domain components (ExplainableAI, IndicatorPanel,
                     LabelGeneration, LossSurface3D, TradingChart, VisualizationOrchestrator)
   components/training/
     live/           LiveTrainingDashboard (config-driven, 3 layout modes: detailed/compact/split),
                     MetricPanel (recharts chart + description sidebar, reads metric-descriptions.json),
-                    ConvergenceChart, RegimeCountTracker, TransitionMatrixHeatmap, IterationMetrics
+                    ConvergenceChart, RegimeCountTracker, TransitionMatrixHeatmap (animate prop), IterationMetrics
+    analytics/      QualityGatePanel (gate status row), MetricScorecard (sparkline grid),
+                    RecommendationEngine (warn/fail cards), EmissionHeatmap (K×D SVG heatmap),
+                    BetaWeightArea (stacked area), RegimeCentroidScatter (PCA 2D scatter),
+                    ParameterTraces (3 stacked line charts: self-transition, beta, regime count)
+    tabs/           OverviewTab (QualityGatePanel + MetricScorecard + RecommendationEngine),
+                    ModelStateTab (QualityGatePanel + EmissionHeatmap + TransitionMatrix + BetaWeight + Centroids + Traces)
     ModelBrowser.tsx  Navigable tree: Model Type → Instrument → Checkpoints with grade badges
   components/visualizations/  8 types: AnomalyTimeline, ComponentLoadings,
                     ConfusionMatrixHeatmap, EmbeddingScatter, ForceDirectedCluster,
                     ForecastRibbon, ResidualPlot, SimilarityMatrix
   hooks/            useMarketData, useActiveIndicators (professional indicator system), use-toast,
                     useMetricDescriptions (config-driven metric annotations per model type),
-                    useTrainedModels (multi-instrument model grouping: type → instrument → checkpoints)
-  lib/              queryClient, prefetch, mlModels (50+ model definitions), indicatorRegistry (all indicator definitions),
-                    indicatorCompute (dispatcher), overlayCalculators, subchartCalculators, candlePatterns (26 client-side CDL patterns),
+                    useTrainedModels (multi-instrument model grouping: type → instrument → checkpoints),
+                    useGpuMetrics (SSE-driven GPU telemetry: snapshot, history, device info)
+  lib/              queryClient, prefetch, mlModels (50+ model definitions), indicatorRegistry (151 indicator definitions),
+                    indicatorCompute (dispatcher), candlePatterns (60 client-side CDL patterns),
                     indicatorPanels, indicatorColors, utils
+                    calculators/  mathPrimitives, overlayExtra, momentumExtra, volatilityExtra,
+                                  volumeExtra, trendExtra, statisticsExtra, cyclePerformance
 
 server/
   main.ts           Express app + NestJS DI bootstrap
   core/routes.ts    Route registration (11 routers)
-  routes/           upload, instruments, indicators, ml, news, databases, charts,
-                    backtest, agent, regime, training
+  routes/           upload, instruments, ml, news, databases, charts,
+                    backtest, agent, regime, training, system (GPU monitoring)
   database/
     db.ts           Drizzle SQLite connection (better-sqlite3, WAL mode)
     health.ts       Cross-DB health monitoring (SQLite + QuestDB, circuit breaker)
@@ -215,7 +185,7 @@ server/
     typeorm.module.ts   TypeORM config
     questdb/
       connection.ts   Low-level clients (Sender, pg.Pool, queryQuestDB, insertOHLCVBatch — auto-derives asset_class/root)
-      marketData.ts   Unified OHLCV queries (single table, no multi-table routing), rollover stitching via root column
+      marketData.ts   Unified OHLCV queries (single table), front-month stitching via volume detection
       introspection.ts  Schema metadata (SHOW TABLES, columns, partitions, stats)
       httpQuery.ts    QuestDB HTTP API (questdbHttpQuery, questdbExportParquet, questdbImportCSV)
       export.ts       Parquet export via /exp endpoint
@@ -224,6 +194,16 @@ server/
       integration.ts  Circuit-breaker-wrapped insert/query + pipeline metrics
       ohlcvQuery.ts   OHLCV query orchestration (health check, time-window estimation, caching)
       index.ts        Barrel re-exporting all sub-modules
+  cache/            Unified server-side cache layer
+    index.ts        Barrel exports + clearAllCaches() + getCacheStats()
+    ohlcv.ts        OHLCV bar LRU cache (500 entries, 60min TTL, 200MB cap)
+    query.ts        Event-driven query cache (LRU, 5min TTL, auto-invalidation)
+    anchor.ts       Chart anchor timestamp cache (per-symbol, 5min TTL)
+    symbols.ts      QuestDB symbols catalog cache (1hr TTL, warm on startup)
+    model.ts        Model results disk I/O cache (100 entries LRU)
+    labels.ts       Label preview cache (50 entries, 15min TTL)
+    parquet.ts      Python parquet cache invalidation (data/.cache/)
+    headers.ts      HTTP Cache-Control middleware (CACHE_STATIC, CACHE_SEMI)
   storage/          Drizzle queries for all SQLite tables (domain sub-interfaces)
   training/
     registry.ts     Config reader (config/models.json, features.json, training.json)
@@ -234,7 +214,6 @@ server/
       tfjsRunner.ts    Wraps TF.js MLTrainer EventEmitter
   lib/
     ingestion/      fileTracker (SHA-256 dedup), standardize, uploadProcessor
-    indicators/     registry (344 indicators via pandas-ta), sqlGenerator, precomputedService
     labels/         sqlLabelGenerators (15+ types), contrastivePairs, labelService
     xai/            xaiService (9 methods: SHAP, LIME, GradCAM, Integrated Gradients,
                     Saliency, Permutation, Feature Interaction, Calibration, Counterfactual)
@@ -268,16 +247,14 @@ config/
   models.json       Model registry (hdp-hmm, 2-state-hmm — runner, script, hyperparams, CLI flags)
   metric-descriptions.json  v2 metric annotations (7 HDP-HMM metrics, 4 2-state metrics) with title, format, description, detects, purpose, usage, crossMetrics, healthy ranges
   model-templates.json      Model architecture templates
-  features.json     Feature registry (29 features, 8 categories, normalization config, featureSets: full-344, research-recommended)
+  features.json     Feature registry (29 features, 8 categories, normalization config)
   feature_extraction.json  Per-indicator transform specs (13 categories: bounded_oscillators, bollinger, macd, atr_volatility, moving_averages, volume_flow, trend_strength, momentum_misc, hilbert_cycle, statistics)
   metric-descriptions.json  Per-model-type metric annotations (title, description, effect, healthy range, display format). UI reads this to annotate live training metrics.
   training.json     Infrastructure: paths, limits, timeframe map
 
 scripts/
-  compute-indicators.py        Batch compute ALL pandas-ta indicators (344 columns, 25 symbols × 8 timeframes)
-  normalize-indicators.py      Normalize indicator parquets (imports classification + transforms from src/ml/shared/normalizer.py)
-  upload-indicators-questdb.py Upload indicator parquets to QuestDB indicators_{tf} tables
   feature-research.py          Feature engineering research: extract derived features from indicators, correlation analysis, importance testing. Output: data/feature_research/{symbol}/{tf}/
+  cleanup_questdb.py           Drop non-OHLCV tables from QuestDB (idempotent, --dry-run supported)
   dump-questdb-parquet.py      One-time QuestDB table export to parquet (monthly partition fetch). Output: data/.cache/{table}_{symbol}.parquet
   visualize-regimes.py         HDP-HMM regime visualization: 9-panel analysis (convergence, distribution, transitions, timeline, returns/vol, dwell, OOS, profiles, SHAP). Output: data/models/{id}/analysis.png + panels/
   seed-instruments.ts          Upsert 25 instruments (8 futures + 17 forex)
@@ -337,13 +314,13 @@ All new code **must** follow SOLID. Apply everywhere — routes, components, hoo
 - **`storage.ts` methods**: DB query only — no HTTP, no formatting, no side-effects.
 - **React components**: Render only. Data-fetching → custom hooks. Business logic → utils.
 - **Hooks**: One hook per data concern. Never a mega-hook that fetches everything.
-- **Python scripts**: Each script does one pipeline step (`compute-indicators.py` → indicators only, `normalize-indicators.py` → normalization only).
+- **Python scripts**: Each script does one pipeline step (`feature-research.py` → feature extraction only, `visualize-regimes.py` → visualization only).
 
 ### OCP — Open/Closed
 > Add new behavior by adding new code, not by editing existing code.
 
 - **ML models**: New model = new directory in `src/ml/` following `hdp_hmm/` pattern (main.py, model.py, config.py, io/) + entry in `config/models.json`. Shared utils live in `src/ml/shared/`.
-- **Indicators**: Add SQL indicator entry to `sqlGenerator.ts` registry map — never add `if (name === 'x')` branches.
+- **Indicators**: Add calculator function in `src/client/src/lib/calculators/` + entry in `indicatorRegistry.ts` — never add `if (name === 'x')` branches.
 - **Label generators**: Add to `sqlLabelGenerators.ts` registry — callers iterate the registry, never reference specific types.
 - **React pages**: New file in `client/src/pages/` + one route entry in `App.tsx` — no other files change.
 
@@ -374,15 +351,24 @@ All new code **must** follow SOLID. Apply everywhere — routes, components, hoo
 
 - **EventEmitter training**: `MLTrainer extends EventEmitter` emits progress events per epoch. Frontend connects via SSE at `GET /ml/train/stream`.
 - **Config-driven features**: `src/config/features.json` is the single source of truth for all 29 features across 8 categories. Python `features.py` reads this config via dispatch table. Adding a feature = add JSON entry.
-- **Pre-computed indicators**: pandas-ta computes 344 indicator columns (9 categories). Stored in QuestDB `talib_features` table, served via `/api/indicators/data/:symbol`.
-- **Professional indicator system**: Indicators are configurable entities (like TradingView), not database columns. `lib/indicatorRegistry.ts` defines 24 indicators across 5 categories with typed params (period, stdDev, etc.). Users add/configure/remove indicator instances via `useActiveIndicators` hook. Each instance is independently parameterized. `lib/indicatorCompute.ts` dispatches computation to `overlayCalculators.ts` (overlay) and `subchartCalculators.ts` (subchart). CDL_* candlestick patterns (26 patterns) are computed client-side from OHLCV data via `lib/candlePatterns.ts` — no API dependency on talib_features. Pattern catalog is always available regardless of API connectivity. Panel grouping via `indicatorPanels.ts` uses instance IDs for the new system, legacy column names for backward compatibility.
-- **Rollover stitching**: Futures root symbols (ES, MNQ, M2K, etc.) are stitched at query time from per-contract OHLCV using the `rollovers` table. Frontend references root symbols only — all rollover/front-month logic is backend.
+- **Indicator system**: 151 technical indicators computed 100% client-side from raw OHLCV bars. Calculator files in `src/client/src/lib/calculators/` (mathPrimitives, overlayExtra, momentumExtra, volatilityExtra, volumeExtra, trendExtra, statisticsExtra, cyclePerformance). Registry in `src/client/src/lib/indicatorRegistry.ts`, dispatch in `src/client/src/lib/indicatorCompute.ts`. Users add/configure/remove indicator instances via `useActiveIndicators` hook. Each instance is independently parameterized. CDL_* candlestick patterns (60 patterns) via `lib/candlePatterns.ts`. NO server-side indicator calculation — removed: `src/server/lib/indicators/`, `src/server/routes/indicators/`, `src/server/indicators/`. `technicalindicators` npm package uninstalled. `feature_extraction.json` still used by ML training pipeline (reads from QuestDB talib_features).
+- **Front-month stitching**: Futures root symbols (ES, MNQ, M2K, etc.) are stitched at query time by volume-based front-month detection from OHLCV data. No separate rollovers table — the active contract is whichever had the highest daily volume. Frontend references root symbols only.
 - **Circuit breaker**: Auto-disable failing DB connections. States: closed (normal), open (failing, fast-fail), half-open (testing). Reset via `POST /circuit-breaker/reset/:name`.
 - **File-level dedup**: SHA-256 hash tracking in SQLite `ingested_files` table prevents re-ingestion.
-- **Chart data flow**: QuestDB `SAMPLE BY` for chart candles. Futures roots use rollover stitching (`getStitchedOHLCV`, default: no price adjustment); forex uses direct queries.
-- **Training data flow**: Python reads QuestDB directly via PG wire (psycopg2), computes features inline, writes results back to QuestDB via HTTP `/imp`. No external experiment tracking — all metrics flow via stdout JSON protocol → SSE → browser + SQLite persistence.
+- **Chart data flow**: QuestDB `SAMPLE BY` for chart candles. Futures roots use front-month stitching (`getStitchedOHLCV` → `getFrontMonthOHLCV`); forex uses direct queries.
+- **Training data flow**: Python reads QuestDB directly via PG wire (psycopg2), computes features inline, saves model artifacts to disk (`data/models/`). No external experiment tracking — all metrics flow via stdout JSON protocol → SSE → browser + SQLite persistence.
 - **Live training metrics**: Python `emit_metric()` → stdout JSON → `HdpHmmParser` → SSE `event: metric` → `useTrainingSSE` → `TrainingMetricsCtx` → `MetricPanel` Recharts charts. 7 HDP-HMM metrics: log_likelihood, num_regimes, assignment_stability, mean_self_transition, switch_rate, avg_dwell, beta_entropy. Descriptions in `src/config/metric-descriptions.json`.
-- **Regime candle painting**: `regimeColorMap` prop on `TradingChart` colors candle body/wick/volume by regime. Built from live SSE overlay events during training, or from `model_regimes` QuestDB table for completed models. 16-color palette in `chartConfig.ts`.
+- **Live model state**: Python `emit_model_state()` → stdout JSON → `HdpHmmParser` → SSE `event: model_state` → `useTrainingSSE` → `TrainingModelStateCtx` → visualization components. Full snapshot every 25-50 iterations: emission heatmap, transition matrix, regime profiles, feature attribution, cluster quality, quality gates. History capped at 100 entries.
+- **Regime candle painting**: `regimeColorMap` prop on `TradingChart` colors candle body/wick/volume by regime. Built from live SSE overlay events during training, or from `assignments.csv` for completed models. 16-color palette in `chartConfig.ts`.
+- **Band fill rendering**: Band/channel indicators (Bollinger, Keltner, Donchian, Ichimoku, AccBands, HWC) render upper/lower bands as `AreaSeries` with subtle 6% opacity fills. Upper bands fill downward, lower bands fill upward via `invertFilledArea`. Middle lines render at width 2, signal/trigger lines use `LineStyle.Dashed`, chikou span uses `LineStyle.Dotted` at 0.5 opacity. Band lines at 0.7 opacity, signals at 0.8. Reference lines with increased visibility (0.45 opacity for OB/OS, 0.2 for zero lines). AO directional histogram coloring (green increasing, red decreasing). Squeeze 4-color momentum histogram. Category-colored dots in IndicatorSelector. Panel color dots for multi-output subchart indicators. Min panel height 100px, scrollable subchart area (50vh max). Logic in `useChartOverlays.ts`, color utility `colorToRgba()` in `indicatorColors.ts`.
+
+### Indicator UI Improvements (2026-03-25)
+- Band/channel fills via AreaSeries (Bollinger, Keltner, Donchian, Ichimoku, AccBands) with 6% opacity
+- Line style differentiation: dashed signal lines, dotted chikou span, tiered opacity levels
+- Enhanced reference line visibility (0.45 opacity for OB/OS levels, 0.2 for zero lines)
+- Directional histogram coloring: AO (green increasing, red decreasing), Squeeze (4-color momentum)
+- Category-colored indicator selector with colored dots per category
+- Multi-output panel label dots for subchart indicators with multiple outputs
 
 ## API Route Map (11 routers on `/api`)
 
@@ -391,7 +377,6 @@ All new code **must** follow SOLID. Apply everywhere — routes, components, hoo
 | upload      | `/api/upload`      | File upload + OHLCV ingestion (CSV, ZST, Parquet, DBN; 500MB max)                    |
 | parquet     | `/api/parquet`     | Parquet file queries, aggregation, cursor pagination, export, rollovers              |
 | instruments | `/api/instruments` | Instrument metadata, rollovers                                                       |
-| indicators  | `/api/indicators`  | 344 pre-computed indicators (catalog, data, patterns), SQL generation, realtime calc |
 | training    | `/api/training`    | Universal training: start, stop, stream SSE, config (model registry)                 |
 | ml          | `/api/ml`          | Models, features, predictions, ensembles, regimes, trades, labels, XAI               |
 | news        | `/api/news`        | News articles + sentiment (Yahoo Finance RSS, Alpha Vantage)                         |
@@ -400,6 +385,7 @@ All new code **must** follow SOLID. Apply everywhere — routes, components, hoo
 | backtest    | `/api/backtest`    | Backtesting engine                                                                   |
 | agent       | `/api/agent`       | Trading agent predictions, signals, backtesting                                      |
 | regime      | `/api/regime`      | Legacy HDP-HMM training + regime queries                                             |
+| system      | `/api/system`      | GPU telemetry (nvidia-smi), hardware monitoring, SSE system channel broadcast         |
 
 ## Dev Commands
 
@@ -427,11 +413,8 @@ npm run build
 
 # Offline scripts
 npx tsx scripts/seed-instruments.ts        # Upsert 25 instruments
-python scripts/compute-indicators.py       # ALL pandas-ta indicators (344 columns, 200 files)
-python scripts/compute-indicators.py --symbol ES --timeframe 1d  # Single combo
-python scripts/upload-indicators-questdb.py  # Upload indicator parquets to QuestDB
-python scripts/feature-research.py --symbol MNQ --timeframe 1m --source questdb  # Feature research pipeline
-python scripts/dump-questdb-parquet.py --tables talib_features --symbols MNQ    # Export QuestDB to parquet
+python scripts/feature-research.py --symbol MNQ --timeframe 1m --source parquet  # Feature research pipeline
+python scripts/dump-questdb-parquet.py --tables ohlcv --symbols MNQ             # Export QuestDB to parquet
 python scripts/visualize-regimes.py --model latest                              # Generate regime analysis plots
 ```
 
@@ -451,6 +434,33 @@ python scripts/visualize-regimes.py --model latest                              
 | `test`           | Vitest run                                  |
 | `test:watch`     | Vitest watch mode                           |
 
+## Git Workflow
+
+**Hooks (Husky):**
+- `pre-commit`: lint-staged (ESLint on `.ts`/`.tsx`, Ruff on `.py` staged files)
+- `commit-msg`: Conventional Commits enforced on subject line only (feat/fix/docs/chore/refactor/perf/test/build/ci/style/revert). Multi-line messages and trailers (Co-Authored-By, Signed-off-by) are allowed.
+- `pre-push`: TypeScript type check (`tsc --noEmit`)
+
+**Commit format:**
+```
+<type>(<scope>): <description>
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+```
+
+**Branch strategy:**
+- `master`: stable
+- `feature/<description>`: new features
+- `fix/<description>`: bug fixes
+
+**PR workflow:**
+- All PRs use the template in `.github/pull_request_template.md`
+- CI runs lint + typecheck + test on every PR
+
+**Claude Code hooks:**
+- `.claude/settings.json` defines a PostToolUse hook that auto-lints files after Edit/Write operations
+- `.claude/hooks/auto-lint.py`: runs `ruff check --fix` on `.py` files, `npx eslint --fix` on `.ts`/`.tsx` files
+
 ## Environment Variables (.env)
 
 ```
@@ -462,23 +472,28 @@ PORT=5000
 NODE_ENV=development
 ```
 
-## Indicators (344 columns via pandas-ta)
+## Indicators (151 client-side)
 
-Pre-computed for all 25 symbols × 8 timeframes via `scripts/compute-indicators.py`.
+All 151 technical indicators computed 100% client-side from raw OHLCV bars. No server-side indicator code remains.
 
-| Category            | Count | Examples                                                                                                   |
-| ------------------- | ----- | ---------------------------------------------------------------------------------------------------------- |
-| **Candle Patterns** | 62    | CDL_DOJI, CDL_HAMMER, CDL_ENGULFING, CDL_MORNINGSTAR, CDL_SHOOTINGSTAR                                     |
-| **Overlap**         | 36    | SMA, EMA, WMA, DEMA, TEMA, T3, KAMA, HMA, ALMA, Ichimoku, Supertrend, Bollinger, Keltner, Donchian         |
-| **Momentum**        | 43    | RSI, MACD, Stochastic, StochRSI, CCI, Williams %R, ROC, AO, APO, PPO, Fisher, KDJ, Squeeze, STC, TRIX, TSI |
-| **Volatility**      | 16    | ATR, NATR, True Range, Keltner, Aberration, Thermo, Ulcer Index, HWC                                       |
-| **Volume**          | 19    | OBV, AD, ADOSC, CMF, EFI, EMV, KVO, MFI, NVI, PVI, VWAP, TSV                                               |
-| **Trend**           | 20    | ADX, AROON, CHOP, DPO, PSAR, Vortex, VHF, ZigZag, Chandelier Exit                                          |
-| **Statistics**      | 10    | Entropy, Kurtosis, MAD, Median, Quantile, Skew, StdDev, Variance, Z-Score                                  |
-| **Cycle**           | 2     | EBSW, Reflex                                                                                               |
-| **Performance**     | 2     | Log Return, Percent Return                                                                                 |
+**Calculator modules** in `src/client/src/lib/calculators/`:
 
-Also available: 13 core indicators via TypeScript SQL generators for realtime computation (RSI, MACD, Bollinger, ATR, Stochastic, CCI, Williams %R, ROC, Momentum, SMA, EMA, WMA, StdDev).
+| Module | Coverage |
+| ------ | -------- |
+| `mathPrimitives.ts` | SMA, EMA, WMA, DEMA, TEMA, StdDev, rolling stats |
+| `overlayExtra.ts` | Bollinger, Keltner, Donchian, Ichimoku, Supertrend, envelope overlays |
+| `momentumExtra.ts` | RSI, MACD, Stochastic, StochRSI, CCI, Williams %R, ROC, AO, PPO, TSI, Fisher, KDJ, Squeeze, STC, TRIX |
+| `volatilityExtra.ts` | ATR, NATR, True Range, Ulcer Index, Chaikin Volatility |
+| `volumeExtra.ts` | OBV, AD, ADOSC, CMF, EFI, EMV, KVO, MFI, NVI, PVI, VWAP, VPOC |
+| `trendExtra.ts` | ADX, Aroon, CHOP, DPO, PSAR, Vortex, VHF |
+| `statisticsExtra.ts` | Entropy, Kurtosis, MAD, Median, Skew, Variance, Z-Score |
+| `cyclePerformance.ts` | EBSW, Reflex, Log Return, Percent Return |
+
+**Registry**: `src/client/src/lib/indicatorRegistry.ts` — all indicator definitions with typed params
+**Dispatch**: `src/client/src/lib/indicatorCompute.ts` — routes each indicator to its calculator
+**Candle patterns**: 60 CDL_* patterns via `src/client/src/lib/candlePatterns.ts`
+
+`feature_extraction.json` remains for the ML training pipeline (reads pre-computed talib_features from QuestDB).
 
 ## ML Taxonomy Reference
 
@@ -563,6 +578,8 @@ No token budget constraints. Always prioritize high-end performance and thorough
 - `useSSEConnection` — shared hook with exponential backoff reconnection (1s/2s/4s/8s, max 30s), supports both `onMessage` and named `eventMap`
 - `useTrainingSSE` — ring buffer (5000 slots) + 50ms microbatch + `startTransition` flush (~2-3 renders/sec vs old ~50/sec)
 - `useEventStream` — pipeline/training/system channels with auto-reconnection via named event listeners
+- `useGpuMetrics` — subscribes to `system.gpu` SSE events, maintains 300-point rolling history for charts
+- GPU monitor auto-starts on server boot (2s interval), broadcasts via `system` SSE channel
 - All SSE errors logged via `logError()` from `lib/errorLogger.ts`
 
 ### Query Layer
@@ -583,7 +600,7 @@ No token budget constraints. Always prioritize high-end performance and thorough
 - Web Vitals monitoring in dev mode (LCP, FID, CLS) via `useWebVitals()` hook
 - `useDeferredFilter()` hook for search/filter inputs (wraps `useDeferredValue`)
 - `RingBuffer<T>` class in `lib/ringBuffer.ts` for O(1) push event accumulation
-- Training context split: `useTrainingMetrics()`, `useTrainingLogs()`, `useTrainingOverlays()` for granular subscriptions
+- Training context split: `useTrainingMetrics()`, `useTrainingLogs()`, `useTrainingOverlays()`, `useTrainingModelState()` for granular subscriptions
 
 ### API Infrastructure
 - **Compression**: gzip via `compression` middleware (threshold 1KB, skips SSE streams). ~80% reduction on OHLCV/chart responses.
@@ -597,7 +614,8 @@ No token budget constraints. Always prioritize high-end performance and thorough
 
 ### ML Pipeline Performance
 - **Numba JIT**: Rolling z-score, rolling std, rolling mean, ROC, percentile rank all Numba-compiled. ~50x vs pandas on 500k+ rows.
-- **Parquet cache**: QuestDB fetch cached to `data/.cache/` as zstd parquet. First fetch ~280s, subsequent reads <1s. 24h TTL.
+- **Parquet cache**: QuestDB fetch cached to `data/.cache/` as zstd parquet. First fetch ~280s, subsequent reads <1s. 24h TTL. Auto-invalidated on ingestion (upload + MotiveWave watcher) via `cache/parquet.ts`.
+- **Cache warming**: Symbol catalog pre-fetched on server startup (fire-and-forget after listen). See `warmSymbolsCatalog()` in `cache/symbols.ts`.
 - **Monthly partition fetch**: QuestDB large table queries split into monthly chunks to avoid PG wire timeout on 150M+ row tables.
 - **Vectorized emission LL**: HDP-HMM `_compute_log_likelihood` uses 3 BLAS matmuls instead of K-loop. ~3-5x speedup on 2M+ bars.
 - **Joblib parallel**: Feature extraction parallelized across indicator categories. Permutation importance parallelized across features.
@@ -622,7 +640,7 @@ No token budget constraints. Always prioritize high-end performance and thorough
 - **Schema push**: Always run `npx drizzle-kit push` after modifying `shared/schema.ts`
 - **Indicator column names**: pandas-ta naming convention with dots/percent sanitized (e.g., `BBL_20_2.0` → `BBL_20_2_0`, `%` → `pct`)
 - **Numba cache corruption**: After changing `@njit` function signatures, delete `__pycache__/` dirs under `src/ml/`. Stale `.nbi`/`.nbc` files cause `ModuleNotFoundError`.
-- **QuestDB large table scans**: `SELECT * FROM talib_features WHERE symbol='X'` times out on 153M rows even with SYMBOL index. Use monthly partition fetch or parquet cache (see `feature_extract.py`).
+- **QuestDB OHLCV-only**: Only 2 tables remain: `ohlcv` (856M rows, 1-minute bars) and `symbols` (instrument metadata). All materialized views dropped. All timeframe aggregation uses `SAMPLE BY` on the base table. Label generators use `wrapWithSampleBy()` to inject a `sampled_ohlcv` CTE when `timeframeMinutes > 1`. All features computed from parquet files or in-memory. Continuous contracts derived from OHLCV volume at query time.
 - **Unicode in Python print**: Windows cp1252 can't encode arrows/special chars. Use ASCII in all print statements (`to` not `→`).
 - **No W&B**: Weights & Biases removed entirely. All experiment tracking flows through the dashboard SSE protocol → SQLite + browser. No `wandb` imports anywhere.
 

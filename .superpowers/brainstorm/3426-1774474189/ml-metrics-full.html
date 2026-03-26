@@ -1,0 +1,217 @@
+<h2>Complete Metric System — Model Performance + SHAP + DL-Grade Analytics</h2>
+<p class="subtitle">Every metric organized by what it measures about the model. SHAP is a first-class citizen, not an afterthought.</p>
+
+<!-- ═══ MODEL PERFORMANCE METRICS ═══ -->
+<div style="margin: 2rem 0;">
+  <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+    <div style="height: 2px; flex: 1; background: linear-gradient(to right, transparent, #3b82f6, transparent);"></div>
+    <h3 style="margin: 0; color: #3b82f6; white-space: nowrap;">Model Performance</h3>
+    <div style="height: 2px; flex: 1; background: linear-gradient(to right, transparent, #3b82f6, transparent);"></div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem;">
+    <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 1rem; border-top: 2px solid #3b82f6;">
+      <div style="color: #60a5fa; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Silhouette Score</div>
+      <div style="font-size: 1.5rem; font-weight: 700; color: white; margin: 0.25rem 0;">0.42</div>
+      <div style="font-size: 0.75rem; color: rgba(255,255,255,0.4);">Cluster separation quality. >0.5 = strong, 0.25-0.5 = reasonable, <0.25 = overlapping regimes</div>
+      <div style="margin-top: 0.5rem; font-size: 0.7rem; padding: 3px 8px; background: rgba(234,179,8,0.15); color: #eab308; border-radius: 4px; display: inline-block;">LIVE — updated every 50 iter</div>
+    </div>
+    <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 1rem; border-top: 2px solid #3b82f6;">
+      <div style="color: #60a5fa; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Calinski-Harabasz</div>
+      <div style="font-size: 1.5rem; font-weight: 700; color: white; margin: 0.25rem 0;">847</div>
+      <div style="font-size: 0.75rem; color: rgba(255,255,255,0.4);">Ratio of between-cluster to within-cluster variance. Higher = more distinct regimes. Scale-dependent.</div>
+      <div style="margin-top: 0.5rem; font-size: 0.7rem; padding: 3px 8px; background: rgba(234,179,8,0.15); color: #eab308; border-radius: 4px; display: inline-block;">LIVE — updated every 50 iter</div>
+    </div>
+    <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 1rem; border-top: 2px solid #3b82f6;">
+      <div style="color: #60a5fa; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Davies-Bouldin</div>
+      <div style="font-size: 1.5rem; font-weight: 700; color: white; margin: 0.25rem 0;">0.83</div>
+      <div style="font-size: 0.75rem; color: rgba(255,255,255,0.4);">Average similarity between clusters. Lower = better. >1.5 = regimes bleed into each other.</div>
+      <div style="margin-top: 0.5rem; font-size: 0.7rem; padding: 3px 8px; background: rgba(34,197,94,0.15); color: #22c55e; border-radius: 4px; display: inline-block;">PASS</div>
+    </div>
+    <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 1rem; border-top: 2px solid #3b82f6;">
+      <div style="color: #60a5fa; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Regime Purity (ARI)</div>
+      <div style="font-size: 1.5rem; font-weight: 700; color: white; margin: 0.25rem 0;">0.71</div>
+      <div style="font-size: 0.75rem; color: rgba(255,255,255,0.4);">Adjusted Rand Index between consecutive iterations. 1.0 = identical assignments. Measures assignment stability independent of relabeling.</div>
+      <div style="margin-top: 0.5rem; font-size: 0.7rem; padding: 3px 8px; background: rgba(234,179,8,0.15); color: #eab308; border-radius: 4px; display: inline-block;">LIVE</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SHAP & INTERPRETABILITY ═══ -->
+<div style="margin: 2rem 0;">
+  <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+    <div style="height: 2px; flex: 1; background: linear-gradient(to right, transparent, #22c55e, transparent);"></div>
+    <h3 style="margin: 0; color: #22c55e; white-space: nowrap;">SHAP & Feature Attribution</h3>
+    <div style="height: 2px; flex: 1; background: linear-gradient(to right, transparent, #22c55e, transparent);"></div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+
+    <!-- SHAP Summary -->
+    <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 1.25rem;">
+      <h4 style="color: #4ade80; margin: 0 0 0.5rem;">Global SHAP Summary (beeswarm)</h4>
+      <p style="color: rgba(255,255,255,0.5); font-size: 0.8rem; margin: 0 0 0.75rem;">Feature importance ranked by mean |SHAP| across all regime assignments. Shows which features the model relies on most.</p>
+      <div style="font-family: monospace; font-size: 0.75rem; line-height: 2;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="width: 100px; color: rgba(255,255,255,0.7);">log_return</span>
+          <div style="flex: 1; height: 12px; background: linear-gradient(to right, #ef4444 0%, #ef4444 20%, rgba(255,255,255,0.1) 20%, rgba(255,255,255,0.1) 50%, #3b82f6 50%, #3b82f6 85%); border-radius: 3px;"></div>
+          <span style="width: 40px; text-align: right; color: rgba(255,255,255,0.5);">0.82</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="width: 100px; color: rgba(255,255,255,0.7);">volatility</span>
+          <div style="flex: 1; height: 12px; background: linear-gradient(to right, #ef4444 0%, #ef4444 15%, rgba(255,255,255,0.1) 15%, rgba(255,255,255,0.1) 45%, #3b82f6 45%, #3b82f6 72%); border-radius: 3px;"></div>
+          <span style="width: 40px; text-align: right; color: rgba(255,255,255,0.5);">0.68</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="width: 100px; color: rgba(255,255,255,0.7);">RSI_14</span>
+          <div style="flex: 1; height: 12px; background: linear-gradient(to right, #ef4444 0%, #ef4444 10%, rgba(255,255,255,0.1) 10%, rgba(255,255,255,0.1) 40%, #3b82f6 40%, #3b82f6 55%); border-radius: 3px;"></div>
+          <span style="width: 40px; text-align: right; color: rgba(255,255,255,0.5);">0.43</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="width: 100px; color: rgba(255,255,255,0.7);">ATR_norm</span>
+          <div style="flex: 1; height: 12px; background: linear-gradient(to right, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.1) 35%, #3b82f6 35%, #3b82f6 48%); border-radius: 3px;"></div>
+          <span style="width: 40px; text-align: right; color: rgba(255,255,255,0.5);">0.31</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="width: 100px; color: rgba(255,255,255,0.6);">spread_pct</span>
+          <div style="flex: 1; height: 12px; background: linear-gradient(to right, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.1) 30%, #3b82f6 30%, #3b82f6 35%); border-radius: 3px;"></div>
+          <span style="width: 40px; text-align: right; color: rgba(255,255,255,0.4);">0.08</span>
+        </div>
+      </div>
+      <p style="color: rgba(255,255,255,0.3); font-size: 0.7rem; margin: 0.5rem 0 0;">Red = pushes toward lower regimes, Blue = pushes toward higher regimes. Width = impact magnitude.</p>
+    </div>
+
+    <!-- Per-Regime SHAP -->
+    <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 1.25rem;">
+      <h4 style="color: #4ade80; margin: 0 0 0.5rem;">Per-Regime SHAP Decomposition</h4>
+      <p style="color: rgba(255,255,255,0.5); font-size: 0.8rem; margin: 0 0 0.75rem;">Which features define each regime? SHAP values broken down by regime assignment.</p>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; font-size: 0.75rem;">
+        <div style="background: rgba(34,197,94,0.08); border-radius: 6px; padding: 0.75rem;">
+          <div style="color: #22c55e; font-weight: 600; margin-bottom: 0.5rem;">Regime 0 (Bull)</div>
+          <div style="color: rgba(255,255,255,0.6); line-height: 1.8;">
+            log_return: <span style="color: #22c55e;">+0.34</span><br>
+            RSI_14: <span style="color: #22c55e;">+0.21</span><br>
+            volatility: <span style="color: #60a5fa;">-0.18</span><br>
+            ATR_norm: <span style="color: #60a5fa;">-0.09</span>
+          </div>
+        </div>
+        <div style="background: rgba(239,68,68,0.08); border-radius: 6px; padding: 0.75rem;">
+          <div style="color: #ef4444; font-weight: 600; margin-bottom: 0.5rem;">Regime 1 (Selloff)</div>
+          <div style="color: rgba(255,255,255,0.6); line-height: 1.8;">
+            volatility: <span style="color: #22c55e;">+0.41</span><br>
+            log_return: <span style="color: #ef4444;">-0.38</span><br>
+            ATR_norm: <span style="color: #22c55e;">+0.25</span><br>
+            RSI_14: <span style="color: #ef4444;">-0.12</span>
+          </div>
+        </div>
+        <div style="background: rgba(234,179,8,0.08); border-radius: 6px; padding: 0.75rem;">
+          <div style="color: #eab308; font-weight: 600; margin-bottom: 0.5rem;">Regime 2 (Range)</div>
+          <div style="color: rgba(255,255,255,0.6); line-height: 1.8;">
+            volatility: <span style="color: #ef4444;">-0.05</span><br>
+            log_return: <span style="color: #22c55e;">+0.03</span><br>
+            RSI_14: <span style="color: #22c55e;">+0.02</span><br>
+            ATR_norm: <span style="color: #ef4444;">-0.01</span>
+          </div>
+        </div>
+      </div>
+      <p style="color: rgba(255,255,255,0.3); font-size: 0.7rem; margin: 0.5rem 0 0;">Shows exactly what the model "sees" in each regime. Low all-around values = regime defined by absence of signal.</p>
+    </div>
+
+    <!-- SHAP Interaction -->
+    <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 1.25rem;">
+      <h4 style="color: #4ade80; margin: 0 0 0.5rem;">SHAP Feature Interactions</h4>
+      <p style="color: rgba(255,255,255,0.5); font-size: 0.8rem; margin: 0 0 0.75rem;">Which feature pairs jointly influence regime assignment? Identifies non-linear combinations the model uses.</p>
+      <div style="font-family: monospace; font-size: 0.8rem; color: rgba(255,255,255,0.7); line-height: 2;">
+        <div>log_return × volatility: <strong style="color: #f97316;">0.31</strong> (strongest)</div>
+        <div>RSI_14 × log_return: <strong style="color: #eab308;">0.18</strong></div>
+        <div>ATR × spread: <strong style="color: rgba(255,255,255,0.5);">0.04</strong> (negligible)</div>
+      </div>
+      <p style="color: rgba(255,255,255,0.4); font-size: 0.75rem; margin: 0.5rem 0 0;">High interaction = these features define regimes TOGETHER, not independently. If return is negative AND vol is high → selloff regime. Neither alone triggers it.</p>
+    </div>
+
+    <!-- SHAP Temporal -->
+    <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 1.25rem;">
+      <h4 style="color: #4ade80; margin: 0 0 0.5rem;">SHAP Evolution Over Training</h4>
+      <p style="color: rgba(255,255,255,0.5); font-size: 0.8rem; margin: 0 0 0.75rem;">How feature importance shifts as the model trains. Early iterations = random. Later = stable feature hierarchy.</p>
+      <ul style="color: rgba(255,255,255,0.6); font-size: 0.8rem; padding-left: 1.25rem; margin: 0; line-height: 1.8;">
+        <li>If SHAP rankings keep shuffling after burn-in → model hasn't decided what matters</li>
+        <li>If one feature dominates all regimes → model might be overrelying on one signal</li>
+        <li>Stable SHAP hierarchy + stable assignments = converged model</li>
+        <li>Computed from emission parameter divergence (fast, no tree SHAP needed)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DL-GRADE MODEL INTERNALS ═══ -->
+<div style="margin: 2rem 0;">
+  <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+    <div style="height: 2px; flex: 1; background: linear-gradient(to right, transparent, #a855f7, transparent);"></div>
+    <h3 style="margin: 0; color: #a855f7; white-space: nowrap;">DL-Grade Model Internals</h3>
+    <div style="height: 2px; flex: 1; background: linear-gradient(to right, transparent, #a855f7, transparent);"></div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;">
+    <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 1rem;">
+      <div style="color: #c084fc; font-weight: 600; margin-bottom: 0.5rem;">Emission Param Heatmap</div>
+      <p style="color: rgba(255,255,255,0.5); font-size: 0.8rem; margin: 0;">K×D matrix of mu_k values. Each cell = how regime k differs from global mean on feature d. The "weights" of the model. Live-updating. Equivalent to weight histograms in neural nets.</p>
+    </div>
+    <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 1rem;">
+      <div style="color: #c084fc; font-weight: 600; margin-bottom: 0.5rem;">Transition Matrix Evolution</div>
+      <p style="color: rgba(255,255,255,0.5); font-size: 0.8rem; margin: 0;">K×K transition probabilities animated over iterations. Watch regime dynamics crystallize. Equivalent to attention maps in transformers — shows what the model predicts follows what.</p>
+    </div>
+    <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 1rem;">
+      <div style="color: #c084fc; font-weight: 600; margin-bottom: 0.5rem;">Regime Centroid Scatter (PCA/t-SNE)</div>
+      <p style="color: rgba(255,255,255,0.5); font-size: 0.8rem; margin: 0;">Feature-space projection of regime centroids. See how regimes separate in 2D. Overlap = model can't distinguish. Clean separation = distinct market states. Equivalent to embedding visualizations.</p>
+    </div>
+    <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 1rem;">
+      <div style="color: #c084fc; font-weight: 600; margin-bottom: 0.5rem;">Confidence Calibration</div>
+      <p style="color: rgba(255,255,255,0.5); font-size: 0.8rem; margin: 0;">Is the model's confidence calibrated? Plot: predicted confidence vs actual accuracy. Overconfident models produce bad signals. Equivalent to temperature scaling analysis in DL.</p>
+    </div>
+    <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 1rem;">
+      <div style="color: #c084fc; font-weight: 600; margin-bottom: 0.5rem;">Per-Regime Return Distributions</div>
+      <p style="color: rgba(255,255,255,0.5); font-size: 0.8rem; margin: 0;">Violin/histogram of log returns per regime. Shows if regimes capture genuinely different market conditions. If distributions overlap → regimes aren't useful for trading.</p>
+    </div>
+    <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 1rem;">
+      <div style="color: #c084fc; font-weight: 600; margin-bottom: 0.5rem;">Dead Feature / Dead Regime Detection</div>
+      <p style="color: rgba(255,255,255,0.5); font-size: 0.8rem; margin: 0;">Features with near-zero SHAP across all regimes = dead weight. Regimes with <1% bar allocation = empty shells. Equivalent to dead neuron detection in DL. Auto-flags for removal.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONVERGENCE + SAMPLER (still needed, just lower priority) ═══ -->
+<div style="margin: 2rem 0;">
+  <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+    <div style="height: 2px; flex: 1; background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);"></div>
+    <h3 style="margin: 0; color: rgba(255,255,255,0.5); white-space: nowrap;">Convergence & Sampler (existing, enhanced)</h3>
+    <div style="height: 2px; flex: 1; background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);"></div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; font-size: 0.8rem;">
+    <div style="background: rgba(0,0,0,0.15); border-radius: 6px; padding: 0.75rem;">
+      <strong style="color: rgba(255,255,255,0.7);">Log-Likelihood</strong>
+      <span style="color: rgba(255,255,255,0.3);"> (exists)</span>
+    </div>
+    <div style="background: rgba(0,0,0,0.15); border-radius: 6px; padding: 0.75rem;">
+      <strong style="color: rgba(255,255,255,0.7);">Assignment Stability</strong>
+      <span style="color: rgba(255,255,255,0.3);"> (exists)</span>
+    </div>
+    <div style="background: rgba(0,0,0,0.15); border-radius: 6px; padding: 0.75rem;">
+      <strong style="color: rgba(255,255,255,0.7);">Effective Sample Size</strong>
+      <span style="color: #22c55e;"> (new)</span>
+    </div>
+    <div style="background: rgba(0,0,0,0.15); border-radius: 6px; padding: 0.75rem;">
+      <strong style="color: rgba(255,255,255,0.7);">Autocorrelation</strong>
+      <span style="color: #22c55e;"> (new)</span>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top: 1.5rem; padding: 1.25rem; background: linear-gradient(135deg, rgba(34,197,94,0.05), rgba(59,130,246,0.05)); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;">
+  <h3 style="margin: 0 0 0.5rem; color: rgba(255,255,255,0.9);">Implementation Summary</h3>
+  <div style="font-size: 0.85rem; color: rgba(255,255,255,0.6); line-height: 1.8;">
+    <strong>Python side:</strong> Emit model state (mu_k, var_k, transition_matrix, beta, per-regime stats, SHAP values) at overlay_interval. The data already exists in model.py — we just need to emit it.<br>
+    <strong>Frontend side:</strong> New visualization components — emission heatmap, SHAP beeswarm, regime profiles, centroid scatter, confidence calibration, return distributions. All recharts/d3.<br>
+    <strong>Protocol change:</strong> New event type <code>model_state</code> carrying the full model snapshot. Parsed by HdpHmmParser, stored in SQLite for post-hoc analysis.
+  </div>
+</div>

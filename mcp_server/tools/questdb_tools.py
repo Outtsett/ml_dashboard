@@ -19,7 +19,6 @@ from fastmcp import FastMCP
 
 from ..db import questdb_conn
 from ..db.validation import (
-    QUESTDB_MAT_VIEWS,
     enforce_row_limit,
     get_row_limit,
     validate_questdb_table,
@@ -27,15 +26,10 @@ from ..db.validation import (
     validate_table_name,
 )
 
-# Timeframe -> unified materialized view mapping (all asset classes)
-_OHLCV_VIEW_MAP: dict[str, str] = {
-    "5m": "ohlcv_5m",
-    "15m": "ohlcv_15m",
-    "30m": "ohlcv_30m",
-    "1h": "ohlcv_1h",
-    "4h": "ohlcv_4h",
-    "1d": "ohlcv_1d",
-    "1w": "ohlcv_1w",
+# SAMPLE BY intervals for OHLCV timeframe aggregation (no materialized views)
+_SAMPLE_BY_MAP: dict[str, str] = {
+    "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m",
+    "1h": "1h", "4h": "4h", "1d": "1d", "1w": "7d",
 }
 
 
@@ -69,7 +63,7 @@ def register(mcp: FastMCP) -> None:
 
         Unified schema: single ohlcv table (895M+ rows) for all asset classes
         (futures, forex, equities, crypto) with asset_class and root columns.
-        Also: indicators, labels, rollovers, symbols.
+        Also: symbols table for instrument metadata.
         """
         is_safe, error = validate_readonly_sql(sql)
         if not is_safe:
@@ -85,9 +79,9 @@ def register(mcp: FastMCP) -> None:
         tags={"questdb", "schema"},
     )
     def questdb_tables() -> str:
-        """List all QuestDB tables, materialized views, and views with row counts.
+        """List all QuestDB tables with row counts.
 
-        Returns type classification: BASE TABLE, MATERIALIZED VIEW, or VIEW.
+        Returns type classification for each table object found.
         """
         objects = questdb_conn.query(
             "SELECT table_name, table_type FROM information_schema.tables "
@@ -155,8 +149,7 @@ def register(mcp: FastMCP) -> None:
     ) -> str:
         """Get OHLCV candlestick data for a symbol at a specific timeframe.
 
-        Routes to pre-computed materialized views when available for best performance.
-        Falls back to SAMPLE BY aggregation on the unified ohlcv table.
+        Uses SAMPLE BY aggregation on the unified ohlcv table.
 
         Available timeframes: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w
         All asset classes in one table: futures (ESH5), forex (EURUSD), equities, crypto.
@@ -173,31 +166,17 @@ def register(mcp: FastMCP) -> None:
             where_parts.append(f"timestamp <= '{end_date}'")
         where_clause = " AND ".join(where_parts)
 
-        # Try materialized view first
-        view_name = _OHLCV_VIEW_MAP.get(tf)
-        if view_name and view_name in QUESTDB_MAT_VIEWS:
-            sql = (
-                f"SELECT * FROM {view_name} "
-                f"WHERE {where_clause} "
-                f"ORDER BY timestamp "
-                f"LIMIT {limit};"
-            )
-        else:
-            sample_by_map = {
-                "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m",
-                "1h": "1h", "4h": "4h", "1d": "1d", "1w": "7d",
-            }
-            sample_interval = sample_by_map.get(tf, "1d")
-            sql = (
-                f"SELECT timestamp, symbol, "
-                f"first(open) as open, max(high) as high, "
-                f"min(low) as low, last(close) as close, "
-                f"sum(volume) as volume "
-                f"FROM ohlcv "
-                f"WHERE {where_clause} "
-                f"SAMPLE BY {sample_interval} "
-                f"LIMIT {limit};"
-            )
+        sample_interval = _SAMPLE_BY_MAP.get(tf, "1d")
+        sql = (
+            f"SELECT timestamp, symbol, "
+            f"first(open) as open, max(high) as high, "
+            f"min(low) as low, last(close) as close, "
+            f"sum(volume) as volume "
+            f"FROM ohlcv "
+            f"WHERE {where_clause} "
+            f"SAMPLE BY {sample_interval} "
+            f"LIMIT {limit};"
+        )
 
         rows = questdb_conn.query(sql)
         return _serialize(rows)
@@ -211,15 +190,10 @@ def register(mcp: FastMCP) -> None:
     ) -> str:
         """Get distinct trading symbols available in a QuestDB table.
 
-        For large tables (ohlcv), uses the daily materialized view
-        for faster DISTINCT queries instead of scanning the full base table.
+        Queries DISTINCT symbol directly from the base table.
         """
         safe_table = validate_questdb_table(table)
-
-        # For massive base tables, query from a smaller mat view instead
-        fast_table_map = {"ohlcv": "ohlcv_1d"}
-        query_table = fast_table_map.get(safe_table, safe_table)
-        rows = questdb_conn.query(f"SELECT DISTINCT symbol FROM {query_table};")
+        rows = questdb_conn.query(f"SELECT DISTINCT symbol FROM {safe_table};")
         symbols = sorted([row["symbol"] for row in rows])
         return json.dumps({"symbols": symbols, "count": len(symbols)})
 
@@ -233,18 +207,14 @@ def register(mcp: FastMCP) -> None:
         """Get per-symbol data coverage: date ranges and row counts.
 
         Useful for understanding what data is available before querying.
-        For large tables, uses daily materialized views for faster aggregation.
+        Uses SAMPLE BY 1d to aggregate before GROUP BY for performance on large tables.
         """
         safe_table = validate_questdb_table(table)
-
-        # For massive base tables, use daily mat view for faster GROUP BY
-        fast_table_map = {"ohlcv": "ohlcv_1d"}
-        query_table = fast_table_map.get(safe_table, safe_table)
 
         rows = questdb_conn.query(
             f"SELECT symbol, count() as rows, "
             f"min(timestamp) as first_ts, max(timestamp) as last_ts "
-            f"FROM {query_table} "
+            f"FROM {safe_table} "
             f"GROUP BY symbol ORDER BY symbol;"
         )
         return json.dumps({"table": safe_table, "inventory": rows}, default=str)

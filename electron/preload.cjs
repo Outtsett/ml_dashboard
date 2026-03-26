@@ -11,7 +11,7 @@ const ALLOWED_STORE_KEYS = [
   'theme', 'windowState', 'windowBounds', 'sidebarCollapsed',
   'lastSymbol', 'lastTimeframe', 'recentSymbols', 'settings',
   'motiveWaveConfig', 'terminalSessions', 'chartLayout',
-  'betaMode', 'devToolsEnabled', 'fontSize', 'locale', 'lastRoute',
+  'betaMode', 'devToolsEnabled', 'fontSize', 'zoomFactor', 'locale', 'lastRoute',
 ];
 
 contextBridge.exposeInMainWorld("electronAPI", {
@@ -68,6 +68,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("theme:changed", handler);
   },
 
+  // Zoom controls
+  getZoom: () => ipcRenderer.invoke("zoom:get"),
+  setZoom: (factor) => ipcRenderer.send("zoom:set", factor),
+  resetZoom: () => ipcRenderer.send("zoom:reset"),
+
   // App info
   getVersion: () => ipcRenderer.invoke("app:version"),
   getPath: (name) => ipcRenderer.invoke("app:path", name),
@@ -113,4 +118,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     });
   },
   requestReload: () => ipcRenderer.send("beta:reload"),
+  hardReload: () => ipcRenderer.send("app:hard-reload"),
+  restart: () => ipcRenderer.send("app:restart"),
 });

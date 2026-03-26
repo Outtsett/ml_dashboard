@@ -120,40 +120,15 @@ def build_target(
         return y.astype(np.float64)
 
     elif target_type == "regime":
-        # Load regime assignments from QuestDB
-        try:
-            from ml.shared.data import _connect
-
-            conn = _connect()
-            query = (
-                f"SELECT timestamp, regime FROM model_regimes "
-                f"WHERE symbol = '{symbol}' "
-                f"ORDER BY timestamp"
-            )
-            regime_df = pd.read_sql(query, conn)
-            conn.close()
-
-            if len(regime_df) == 0:
-                print("[target] No regime assignments found in model_regimes table")
-                return None
-
-            # Align by timestamp if df has timestamp column
-            if "timestamp" in df.columns:
-                merged = df[["timestamp"]].merge(regime_df, on="timestamp", how="left")
-                y = merged["regime"].values.astype(np.float64)
-                nan_count = np.sum(np.isnan(y))
-                if nan_count > 0:
-                    print(f"[target] {nan_count}/{len(y)} bars have no regime assignment")
-                return y
-            else:
-                # Fall back to positional alignment
-                n = min(len(close), len(regime_df))
-                y = np.full(len(close), np.nan)
-                y[:n] = regime_df["regime"].values[:n].astype(np.float64)
-                return y
-        except Exception as e:
-            print(f"[target] Failed to load regime assignments: {e}")
-            return None
+        # model_regimes QuestDB table has been dropped.
+        # Regime assignments are now saved as CSV files in model output directories.
+        # Look for the latest assignments.csv in data/models/ or checkpoints/.
+        print(
+            "[target] model_regimes QuestDB table no longer exists. "
+            "Regime assignments are saved as assignments.csv in model output dirs. "
+            "Use --target return_5 or return_10 instead."
+        )
+        return None
 
     elif target_type == "none":
         return None

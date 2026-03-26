@@ -4,7 +4,7 @@ Signal Contract — Compute rich regime metadata from model outputs.
 SRP: Computes signal columns only. Does NOT write to QuestDB.
 OCP: Add new columns by adding functions here — save.py calls compute_signal_columns().
 
-Adds 6 columns to model_regimes:
+Produces 6 columns for regime assignment CSVs:
   confidence      — max(posterior[t]), probability of chosen regime (0-1)
   entropy         — normalized Shannon entropy of posterior (0-1), high = uncertain
   magnitude       — mean log return in current regime (expected return)

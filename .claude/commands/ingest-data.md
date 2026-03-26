@@ -14,23 +14,16 @@ Upload market data files via the web UI or API:
 - SHA-256 file dedup tracked in SQLite `ingested_files` table
 
 ### indicators
-Compute all pandas-ta indicators for every symbol × timeframe, then upload to QuestDB:
+Compute all pandas-ta indicators for every symbol x timeframe (output: parquet files only):
 
-**Step 1 — Compute indicators** (outputs parquet files):
 ```bash
 python scripts/compute-indicators.py
 python scripts/compute-indicators.py --symbol ES --timeframe 1d
 ```
-- 25 symbols × 8 timeframes, ~344 columns each (9 category parquets per combo)
+- 25 symbols x 8 timeframes, ~344 columns each (9 category parquets per combo)
 - Requires: `pip install pandas-ta duckdb pyarrow` (in .venv; duckdb used by offline script only)
-
-**Step 2 — Upload to QuestDB**:
-```bash
-python scripts/upload-indicators-questdb.py
-python scripts/upload-indicators-questdb.py --symbol ES --timeframe 1d
-```
-- Writes to `indicators_{tf}` tables in QuestDB
-- Column name sanitization: dots → underscores, `%` → `pct`
+- Output: `data/{futures|forex}/{symbol}/{timeframe}/all.parquet`
+- QuestDB indicator tables have been removed — indicators are stored as parquet files only
 
 ### seed
 Seed instruments table with 25 known instruments:
@@ -41,7 +34,7 @@ npx tsx scripts/seed-instruments.ts
 
 ### status
 Check ingestion status:
-1. Query QuestDB for row counts per table (`ohlcv`, `trades`, `mbp10`, `indicators_*`)
+1. Query QuestDB for row counts per table (`ohlcv`, `trades`, `mbp10`)
 2. Query QuestDB for distinct symbol counts
 3. Check SQLite `ingested_files` table for processed file history
 
@@ -52,14 +45,12 @@ All data normalizes to: `symbol`, `timestamp`, `open`, `high`, `low`, `close`, `
 ## Data Volumes
 | Table | Rows | Description |
 |-------|------|-------------|
-| QuestDB ohlcv | 759.5M | Futures + forex 1s bars |
+| QuestDB ohlcv | 856M | Futures + forex 1m bars |
 | QuestDB trades | 12.9M | Tick-level trade data |
 | QuestDB mbp10 | 408.8M | 10-level order book |
-| QuestDB indicators_{tf} | Varies | 7 timeframe tables, 344 columns each |
 
 ## Scripts Reference
 | Script | Language | Purpose |
 |--------|----------|---------|
 | `compute-indicators.py` | Python | OHLCV → indicator parquet files |
-| `upload-indicators-questdb.py` | Python | Indicator parquets → QuestDB tables |
 | `seed-instruments.ts` | TypeScript | Populate SQLite instruments table |

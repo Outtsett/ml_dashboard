@@ -86,6 +86,13 @@ export type TrainingEvent =
       sessionId: string;
       epoch: number;
       progress: number; // 0-1
+    }>
+  | BaseEvent<'training.event', {
+      sessionId: string;
+      modelId: string;
+      type: string;
+      data: Record<string, unknown>;
+      ts: number;
     }>;
 
 // ── Ingestion events ───────────────────────────────────────
@@ -138,6 +145,22 @@ export type SystemEvent =
     }>
   | BaseEvent<'system.shutdown', {
       reason: string;
+    }>
+  | BaseEvent<'system.gpu', {
+      name: string;
+      temperatureC: number;
+      utilizationGpu: number;
+      utilizationMemory: number;
+      memoryUsedMB: number;
+      memoryFreeMB: number;
+      memoryTotalMB: number;
+      memoryUsedPct: number;
+      powerDrawW: number;
+      powerLimitW: number;
+      fanSpeedPct: number;
+      clockGraphicsMHz: number;
+      clockMemoryMHz: number;
+      timestamp: number;
     }>
   | BaseEvent<'system.motivewave-update', {
       symbol: string;

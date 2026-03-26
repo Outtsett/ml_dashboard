@@ -1,9 +1,9 @@
 """
 Indicator-to-feature derivation transforms — high-performance pipeline.
 
-Reads pre-computed indicators (QuestDB talib_features or parquet) and derives
-model-ready features using vectorized numpy/numba operations with parallel
-execution via joblib.
+Reads pre-computed indicators (parquet files) and derives model-ready features
+using vectorized numpy/numba operations with parallel execution via joblib.
+(The QuestDB talib_features table has been dropped.)
 
 Performance architecture:
   - QuestDB fetch: chunked cursor, parquet cache for repeat runs
@@ -610,148 +610,12 @@ def load_indicators_from_questdb(
     max_bars: int = 0,
     date_range: dict | None = None,
 ) -> pd.DataFrame:
-    """Load pre-computed indicators from QuestDB talib_features table.
+    """DEPRECATED: talib_features QuestDB table has been dropped.
 
-    Uses chunked cursor fetching + parquet cache for repeat runs.
-    Derives close price from wclprice/typprice columns already in the table
-    to avoid slow cross-table joins.
+    Use load_indicators_from_parquet() instead.
+    This function is kept for API compatibility but raises immediately.
     """
-    import psycopg2
-    import re
-
-    # Check cache first
-    cached = _load_from_cache(symbol, timeframe, max_bars, "questdb")
-    if cached is not None:
-        return cached
-
-    if not re.match(r"^[A-Za-z0-9_\-/]+$", symbol):
-        raise ValueError(f"Invalid symbol: {symbol!r}")
-
-    conn = psycopg2.connect(
-        host=os.environ.get("QUESTDB_HOST", "127.0.0.1"),
-        port=int(os.environ.get("QUESTDB_PG_PORT", "8812")),
-        user=os.environ.get("QUESTDB_USER", "admin"),
-        password=os.environ.get("QUESTDB_PASSWORD", "quest"),
-        database="qdb",
+    raise RuntimeError(
+        "talib_features QuestDB table no longer exists. "
+        "Use load_indicators_from_parquet() instead."
     )
-
-    CHUNK = 100_000
-
-    try:
-        cur = conn.cursor()
-
-        # Check schema
-        cur.execute("SELECT * FROM talib_features LIMIT 0")
-        talib_col_set = {d[0] for d in cur.description}
-        has_timeframe = "timeframe" in talib_col_set
-        has_close = "close" in talib_col_set
-
-        where_parts = [f"symbol = '{symbol}'"]
-        if has_timeframe:
-            where_parts.append(f"timeframe = '{timeframe}'")
-        if date_range:
-            if date_range.get("start"):
-                where_parts.append(f"timestamp >= '{date_range['start']}'")
-            if date_range.get("end"):
-                where_parts.append(f"timestamp <= '{date_range['end']}'")
-
-        where_clause = " AND ".join(where_parts)
-        t0 = time.time()
-
-        # Get timestamp range for partitioned monthly fetching
-        cur.execute(f"SELECT min(timestamp), max(timestamp) FROM talib_features WHERE {where_clause}")
-        ts_range = cur.fetchone()
-        if ts_range[0] is None:
-            cur.close()
-            conn.close()
-            return pd.DataFrame()
-
-        ts_min, ts_max = ts_range
-        print(f"[questdb] Range: {ts_min} to {ts_max}")
-
-        # Build monthly partition boundaries
-        from datetime import datetime, timedelta
-        month_starts = []
-        current = datetime(ts_min.year, ts_min.month, 1)
-        end_boundary = datetime(ts_max.year, ts_max.month, 1)
-        if ts_max.month == 12:
-            end_boundary = datetime(ts_max.year + 1, 1, 1)
-        else:
-            end_boundary = datetime(ts_max.year, ts_max.month + 1, 1)
-
-        while current <= end_boundary:
-            month_starts.append(current)
-            if current.month == 12:
-                current = datetime(current.year + 1, 1, 1)
-            else:
-                current = datetime(current.year, current.month + 1, 1)
-
-        col_names = None
-        all_chunks = []
-        total = 0
-        bars_limit = max_bars if max_bars > 0 else float("inf")
-
-        for i in range(len(month_starts) - 1):
-            if total >= bars_limit:
-                break
-
-            m_start = month_starts[i].strftime("%Y-%m-%dT%H:%M:%S.000000Z")
-            m_end = month_starts[i + 1].strftime("%Y-%m-%dT%H:%M:%S.000000Z")
-
-            month_query = (
-                f"SELECT * FROM talib_features "
-                f"WHERE {where_clause} "
-                f"AND timestamp >= '{m_start}' AND timestamp < '{m_end}' "
-                f"ORDER BY timestamp"
-            )
-            cur.execute(month_query)
-
-            if col_names is None:
-                col_names = [d[0] for d in cur.description]
-
-            while True:
-                rows = cur.fetchmany(CHUNK)
-                if not rows:
-                    break
-                all_chunks.append(rows)
-                total += len(rows)
-
-            elapsed = time.time() - t0
-            label = month_starts[i].strftime("%Y-%m")
-            print(f"\r[questdb] {total:,} rows through {label} ({elapsed:.0f}s)", end="", flush=True)
-
-        cur.close()
-        print()
-
-        if not all_chunks or col_names is None:
-            df = pd.DataFrame()
-        else:
-            import itertools
-            all_rows = list(itertools.chain.from_iterable(all_chunks))
-            if max_bars > 0 and len(all_rows) > max_bars:
-                all_rows = all_rows[:max_bars]
-            df = pd.DataFrame(all_rows, columns=col_names)
-            del all_rows, all_chunks
-
-        # Derive close from existing price columns (no cross-table join)
-        if not has_close and len(df) > 0:
-            for proxy_col, label in [
-                ("wclprice", "wclprice"), ("typprice", "typprice"),
-                ("medprice", "medprice"), ("avgprice", "avgprice"),
-            ]:
-                if proxy_col in df.columns:
-                    df["close"] = df[proxy_col]
-                    print(f"[questdb] Using {label} as close proxy")
-                    break
-
-        fetch_time = time.time() - t0
-        print(f"[questdb] {len(df):,} rows, {len(df.columns)} cols in {fetch_time:.1f}s")
-
-    finally:
-        conn.close()
-
-    # Cache for next run
-    if len(df) > 0:
-        _save_to_cache(df, symbol, timeframe, max_bars, "questdb")
-
-    return df

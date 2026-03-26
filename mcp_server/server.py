@@ -57,10 +57,8 @@ def create_server() -> FastMCP:
         name="ml_dashboard",
         instructions=(
             "ML Dashboard database server providing read-only access to two databases:\n\n"
-            "1. **QuestDB** (time-series): 856M+ OHLCV candlestick rows across futures and forex, "
-            "400M order book depth rows (10-level bid/ask), 12.7M tick trades, "
-            "344-column technical indicator sets at multiple timeframes, "
-            "labels, model outputs, and training metrics. "
+            "1. **QuestDB** (time-series): 856M+ OHLCV candlestick rows across futures and forex "
+            "in a unified `ohlcv` table, plus a `symbols` table for instrument metadata. "
             "Use questdb_* tools. QuestDB SQL supports SAMPLE BY, LATEST ON, ASOF JOIN.\n\n"
             "2. **SQLite** (app metadata): ML model registry, training sessions with epoch-level metrics, "
             "feature sets, feature importance rankings, backtest runs and trades, "

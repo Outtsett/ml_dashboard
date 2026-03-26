@@ -9,12 +9,7 @@ Actions: features, labels, train, models, explain
 ### features
 Two tiers of features:
 
-**Tier 1 — Pre-computed indicators** (344 columns in QuestDB `indicators_{tf}` tables):
-- Served via `/api/indicators/data/:symbol`
-- Computed offline by `scripts/compute-indicators.py` + `scripts/upload-indicators-questdb.py`
-- 9 categories: candle, overlap, momentum, volatility, volume, trend, statistics, cycle, performance
-
-**Tier 2 — Config-driven inline features** (29 features in `src/config/features.json`):
+**Config-driven inline features** (29 features in `src/config/features.json`):
 - Computed at training time by `src/ml/features.py` from raw OHLCV
 - 8 categories: returns, volatility, parkinson, volume, price_structure, momentum, ma_distance, swing
 - Dispatch table maps feature type → compute function
@@ -24,7 +19,7 @@ Key files:
 - `src/config/features.json` — single source of truth for inline feature registry
 - `src/ml/shared/features.py` — config-driven computation with dispatch table
 - `src/ml/shared/swing.py` — causal zigzag swing features (no lookahead)
-- `server/lib/indicators/precomputedService.ts` — serves pre-computed indicators from QuestDB
+- `server/routes/indicators/helpers.ts` — indicator query helpers (pre-computed tables removed)
 
 ### labels
 Generate labels for supervised learning:
@@ -47,8 +42,8 @@ Training pipeline:
 2. PythonRunner spawns `src/ml/hdp_hmm/main.py` with CLI args
 3. Python reads QuestDB directly via PG wire (`shared/data.py`, psycopg2)
 4. `shared/features.py` computes 29 inline features from raw OHLCV
-5. Model trains, writes `model_regimes` + `model_shap` to QuestDB via HTTP `/imp`
-6. Server reads results from QuestDB for UI display
+5. Model trains, saves artifacts to `data/models/` (assignments.csv, diagnostics.json, convergence.json)
+6. Server reads results from disk for UI display
 
 Key files:
 - `server/training/orchestrator.ts` — central coordinator
@@ -56,7 +51,7 @@ Key files:
 - `src/ml/hdp_hmm/main.py` — HDP-HMM entry point (CLI + orchestration)
 - `src/ml/hdp_hmm/model.py` — StickyHDPHMM class + Numba JIT kernels
 - `src/ml/shared/features.py` — config-driven feature computation
-- `src/ml/hdp_hmm/io/save.py` — writes results to QuestDB
+- `src/ml/hdp_hmm/io/save.py` — writes results to disk
 
 ### models
 CRUD operations on ML models:
@@ -69,7 +64,7 @@ CRUD operations on ML models:
 Run XAI explanations:
 - POST `/api/xai/explain` with { method, input, modelId, symbol }
 - GET `/api/xai/methods` — list available methods
-- GET `/api/xai/shap/:modelId` — real per-bar SHAP values from QuestDB `model_shap` table
+- GET `/api/xai/shap/:modelId` — SHAP summary from diagnostics.json (per-bar SHAP table removed)
 - GET `/api/xai/regime-importance/:modelId` — feature importance for regime models
 
 Methods: shap, permutation, gradcam, lime, integratedGradients, saliency, featureInteractions, calibration, counterfactual

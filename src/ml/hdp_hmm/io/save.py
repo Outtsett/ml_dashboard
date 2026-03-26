@@ -2,14 +2,12 @@
 
 import io
 import json
-import os
 import time
 from pathlib import Path
 
 from datetime import datetime
 
 import numpy as np
-import requests
 
 from shared.labeling import renumber_states, assign_colors, get_labeler
 from .regime_stats import compute_regime_stats, compute_transitions
@@ -41,30 +39,6 @@ class _NumpyEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-QUESTDB_HTTP_URL = os.environ.get("QUESTDB_URL", "http://127.0.0.1:9000")
-
-
-def _write_to_questdb(table_name: str, csv_content: str, ts_col: str = "ts"):
-    """Upload CSV data to QuestDB via /imp endpoint.
-
-    Must pass a schema form field specifying the timestamp pattern so QuestDB
-    can parse the designated timestamp column on existing WAL tables.
-    Schema must come BEFORE data in the multipart form.
-    """
-    schema = json.dumps(
-        [{"name": ts_col, "type": "TIMESTAMP", "pattern": "yyyy-MM-ddTHH:mm:ss.SSSUUUz"}]
-    )
-    resp = requests.post(
-        f"{QUESTDB_HTTP_URL}/imp?name={table_name}",
-        files=[
-            ("schema", (None, schema, "text/plain")),
-            ("data", ("data.csv", csv_content, "text/csv")),
-        ],
-        timeout=60,
-    )
-    resp.raise_for_status()
-
-
 def _fmt_ts(ts) -> str:
     """Format timestamp for QuestDB /imp: yyyy-MM-ddTHH:mm:ss.000000Z"""
     if isinstance(ts, datetime):
@@ -86,7 +60,7 @@ def save_model(
     wf_counts=None,
     close_vals=None,
 ):
-    """Save model artifacts to data/models/<modelId>/ and QuestDB tables."""
+    """Save model artifacts to data/models/<modelId>/."""
     # save.py is at src/ml/hdp_hmm/io/ — use cwd (set by Node runner) for reliability
     project_root = Path.cwd()
     model_id = args.model_id if args.model_id else f"{args.symbol}_{args.timeframe}"
@@ -150,7 +124,7 @@ def save_model(
         close_vals = [0.0] * T
     ts_vals = timestamps
 
-    # 1. Write regime assignments to QuestDB model_regimes table
+    # 1. Write regime assignments to disk CSV
     csv_buf = io.StringIO()
     csv_buf.write(
         "model_id,symbol,ts,close,regime,regime_label,split,confidence,entropy,magnitude,volatility,duration_bars,transition_prob,category\n"
@@ -170,15 +144,7 @@ def save_model(
             f"{model_id},{args.symbol},{ts_str},{float(close_vals[i])},{int(relabeled[i])},{rl},{splits[i]},{conf},{ent},{mag},{vol},{dur},{tp},{cat}\n"
         )
 
-    try:
-        _write_to_questdb("model_regimes", csv_buf.getvalue())
-    except Exception as e:
-        print(
-            f"[save] Warning: Failed to write model_regimes to QuestDB: {e}",
-            file=__import__("sys").stderr,
-        )
-
-    # 1b. Also save assignments to disk as CSV (durable fallback)
+    # 1b. Save assignments to disk as CSV
     assignments_path = output_dir / "assignments.csv"
     try:
         assignments_path.write_text(csv_buf.getvalue(), encoding="utf-8")
@@ -218,26 +184,10 @@ def save_model(
     # 6. Walk-forward stability from windowed mode counters
     walk_forward = compute_walk_forward(wf_counts, n_regimes, n_windows=5)
 
-    # 7. SHAP values (analytical for diagonal Gaussian HMM) → QuestDB
+    # 7. SHAP values (analytical for diagonal Gaussian HMM) → diagnostics.json
     shap_matrix, shap_summary = compute_shap_values(
         model, features, relabeled, feature_names, n_regimes
     )
-
-    csv_buf = io.StringIO()
-    shap_cols = [f"shap_{name}" for name in feature_names]
-    csv_buf.write(f"model_id,symbol,ts,regime,{','.join(shap_cols)}\n")
-    for i in range(T):
-        ts_str = _fmt_ts(ts_vals[i])
-        shap_vals = ",".join(str(float(shap_matrix[i, d])) for d in range(len(feature_names)))
-        csv_buf.write(f"{model_id},{args.symbol},{ts_str},{int(relabeled[i])},{shap_vals}\n")
-
-    try:
-        _write_to_questdb("model_shap", csv_buf.getvalue())
-    except Exception as e:
-        print(
-            f"[save] Warning: Failed to write model_shap to QuestDB: {e}",
-            file=__import__("sys").stderr,
-        )
 
     # 8. Quality score (incorporating OOS + WF)
     quality_score = compute_quality_score(

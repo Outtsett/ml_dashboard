@@ -30,6 +30,76 @@
       "healthy": "Target >95%. Oscillation means some bars are ambiguous between states.",
       "target": 95,
       "targetDirection": "above"
+    },
+    "silhouette_score": {
+      "title": "Silhouette Score",
+      "unit": "score",
+      "color": "#06b6d4",
+      "format": "decimal3",
+      "description": "How similar each bar is to its assigned regime versus the nearest other regime. Range [-1, 1]. Higher means cleaner, more distinct clusters.",
+      "detects": "Whether regimes are genuinely separated in feature space or overlapping. Low silhouette means regimes bleed into each other.",
+      "purpose": "The gold-standard cluster quality metric. If silhouette is low, the model's regime distinctions may be arbitrary rather than reflecting real market structure.",
+      "usage": "Watch for it to stabilize above 0.30. Below 0.20 = regimes overlap significantly. Above 0.50 = excellent separation.",
+      "crossMetrics": "Compare with davies_bouldin (should be inverse). If silhouette is high but return_separation p-values are >0.05, regimes separate in feature space but not in returns — check feature selection.",
+      "healthy": "> 0.30 = good. > 0.50 = excellent.",
+      "target": 0.30,
+      "targetDirection": "above"
+    },
+    "calinski_harabasz": {
+      "title": "Calinski-Harabasz Index",
+      "unit": "score",
+      "color": "#8b5cf6",
+      "format": "integer",
+      "description": "Ratio of between-cluster to within-cluster variance. Higher means tighter clusters that are farther apart.",
+      "detects": "Overall cluster compactness and separation. Scale-dependent, so compare across runs on the same data, not across different datasets.",
+      "purpose": "Complements silhouette — penalizes loose, overlapping clusters more aggressively. Good for detecting when regimes are 'smeared' across feature space.",
+      "usage": "Higher is better. Compare across runs with same data. Drops significantly if a noisy regime is added that doesn't capture real structure.",
+      "crossMetrics": "Tends to favor more clusters up to a point. If CH keeps rising as K increases, there may be genuine sub-structure. If it peaks and drops, that peak K is the natural number of regimes.",
+      "healthy": "> 500 for well-separated regimes.",
+      "target": 500,
+      "targetDirection": "above"
+    },
+    "davies_bouldin": {
+      "title": "Davies-Bouldin Index",
+      "unit": "score",
+      "color": "#f43f5e",
+      "format": "decimal3",
+      "description": "Average similarity between each cluster and its most similar cluster. Lower means less overlap between regimes.",
+      "detects": "Which pairs of regimes are too similar. High DB means at least one pair of regimes is nearly indistinguishable.",
+      "purpose": "Directly identifies redundant regimes. If DB > 1.5, the model has regimes that should be merged — reducing K would improve quality.",
+      "usage": "Lower is better. Below 1.0 = good separation. Above 1.5 = significant overlap. Above 2.0 = regimes are barely distinguishable.",
+      "crossMetrics": "Inverse of silhouette. If DB is high, check the emission heatmap for rows that look identical — those regimes should merge.",
+      "healthy": "< 1.0 = good. < 0.5 = excellent.",
+      "target": 1.0,
+      "targetDirection": "below"
+    },
+    "adjusted_rand_index": {
+      "title": "Adjusted Rand Index",
+      "unit": "score",
+      "color": "#10b981",
+      "format": "decimal3",
+      "description": "Measures assignment stability between consecutive model state snapshots, adjusted for chance. 1.0 = identical assignments.",
+      "detects": "Whether the model has settled on a consistent regime structure or is still rearranging assignments between snapshots.",
+      "purpose": "More robust than raw assignment_stability because it's invariant to regime relabeling. Two runs that discover the same structure but number regimes differently will still show ARI = 1.0.",
+      "usage": "Watch for convergence toward 1.0. Below 0.70 after burn-in = model hasn't settled. Above 0.85 = stable.",
+      "crossMetrics": "Should converge alongside assignment_stability. If stability is high but ARI is low, regime labels are swapping (label switching problem) — the model is consistent but numbering changes.",
+      "healthy": "> 0.85 after burn-in.",
+      "target": 0.85,
+      "targetDirection": "above"
+    },
+    "ess": {
+      "title": "Effective Sample Size",
+      "unit": "samples",
+      "color": "#0ea5e9",
+      "format": "integer",
+      "description": "Number of effectively independent samples in the Gibbs chain. Accounts for autocorrelation between consecutive iterations.",
+      "detects": "Sampler efficiency. If ESS is 50 out of 500 iterations, 90% of compute was wasted on correlated samples. If ESS is 200, the sampler is exploring efficiently.",
+      "purpose": "Determines how much useful information your training run actually produced. Low ESS means the sampler is stuck and you need more iterations or different priors.",
+      "usage": "ESS / total_iterations > 0.20 is good. Below 0.10 = poor mixing — consider changing alpha or kappa.",
+      "crossMetrics": "Low ESS with high autocorrelation = sampler stuck. Low ESS with oscillating LL = multimodal posterior.",
+      "healthy": "> 20% of total iterations.",
+      "target": null,
+      "targetDirection": null
     }
   },
 
@@ -97,9 +167,14 @@
           "usage": "Stable entropy = good. If it drops during training, regimes are consolidating (the model is killing weak regimes). If it spikes, the model is redistributing bars (instability). Compare the final value across runs — lower entropy with same K means more concentrated assignments.",
           "crossMetrics": "Directly tied to num_regimes — more regimes allows higher maximum entropy. If K=10 but entropy is low, most regimes are empty shells. If K=3 and entropy is high, all three regimes are well-populated and distinct. Watch entropy + num_regimes together to distinguish 'found 3 strong regimes' from 'found 10 weak ones'.",
           "healthy": "Stable is good. Dropping = regimes consolidating. Spiking = instability."
-        }
+        },
+        "silhouette_score": {},
+        "calinski_harabasz": {},
+        "davies_bouldin": {},
+        "adjusted_rand_index": {},
+        "ess": {}
       },
-      "metricOrder": ["log_likelihood", "num_regimes", "assignment_stability", "mean_self_transition", "switch_rate", "avg_dwell", "beta_entropy"]
+      "metricOrder": ["log_likelihood", "num_regimes", "assignment_stability", "mean_self_transition", "switch_rate", "avg_dwell", "beta_entropy", "silhouette_score", "calinski_harabasz", "davies_bouldin", "adjusted_rand_index", "ess"]
     },
 
     "2-state-hmm": {

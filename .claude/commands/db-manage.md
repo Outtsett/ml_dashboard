@@ -17,9 +17,6 @@ Actions: start, stop, status, reset, migrate
 | QuestDB ohlcv | OHLCV (1s bars) | 759.5M rows |
 | QuestDB trades | Tick trades | 12.9M rows |
 | QuestDB mbp10 | MBP-10 book | 408.8M rows |
-| QuestDB indicators_{tf} | Pre-computed pandas-ta (7 tables) | 344 columns each |
-| QuestDB model_regimes | HDP-HMM regime assignments | Var. |
-| QuestDB model_shap | Per-bar SHAP values | Var. |
 | SQLite | 22 Drizzle tables | 25 instruments |
 
 ## Actions
@@ -37,7 +34,7 @@ Actions: start, stop, status, reset, migrate
 ### status
 Check and report:
 - QuestDB: HTTP health check on port 9000, ILP port 9009, PG wire port 8812
-- QuestDB tables: Query row counts for ohlcv, trades, mbp10, indicators_* tables
+- QuestDB tables: Query row counts for ohlcv, rollovers, symbols, trades, mbp10
 - SQLite: Check if data/ml_dashboard.db exists and report file size
 
 ### reset

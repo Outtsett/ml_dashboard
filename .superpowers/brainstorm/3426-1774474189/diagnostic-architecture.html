@@ -1,0 +1,165 @@
+<h2>Training Diagnostic Architecture</h2>
+<p class="subtitle">4-tier system — each tier answers a progressively deeper question about model quality</p>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 2rem 0;">
+
+  <!-- Tier 1: Sampler Health -->
+  <div style="background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.3); border-radius: 12px; padding: 1.5rem;">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+      <div style="width: 36px; height: 36px; background: rgba(59,130,246,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #3b82f6;">1</div>
+      <div>
+        <h3 style="margin: 0; color: #3b82f6;">Sampler Health</h3>
+        <p style="margin: 0; font-size: 0.8rem; color: rgba(255,255,255,0.5);">"Is the algorithm working correctly?"</p>
+      </div>
+    </div>
+    <div style="font-size: 0.85rem; line-height: 1.6;">
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #60a5fa;">Effective Sample Size (ESS)</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">Are Gibbs samples independent? ESS &lt; 50 = poor mixing, wasted iterations. Tells you if 500 iterations produced 500 useful samples or 50.</p>
+      </div>
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #60a5fa;">Autocorrelation (lag-k)</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">How correlated are consecutive samples? High autocorrelation = sampler stuck in a mode. Directly determines thinning interval.</p>
+      </div>
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #60a5fa;">Burn-in Adequacy</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">Has the chain left initialization influence? Detects Geweke diagnostic: compare first 10% vs last 50% of chain. If statistically different, burn-in too short.</p>
+      </div>
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #60a5fa;">Iteration Timing</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">Per-step wall clock (FFBS time, emission sampling time, transition sampling time). Identifies bottlenecks.</p>
+      </div>
+      <div style="padding: 0.5rem; background: rgba(59,130,246,0.1); border-radius: 6px; font-size: 0.8rem;">
+        <strong>Existing metrics kept:</strong> log_likelihood, assignment_stability (already working)
+      </div>
+    </div>
+  </div>
+
+  <!-- Tier 2: Regime Discovery -->
+  <div style="background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.3); border-radius: 12px; padding: 1.5rem;">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+      <div style="width: 36px; height: 36px; background: rgba(34,197,94,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #22c55e;">2</div>
+      <div>
+        <h3 style="margin: 0; color: #22c55e;">Regime Discovery</h3>
+        <p style="margin: 0; font-size: 0.8rem; color: rgba(255,255,255,0.5);">"What is the model finding?" — ENTIRELY NEW</p>
+      </div>
+    </div>
+    <div style="font-size: 0.85rem; line-height: 1.6;">
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #4ade80;">Per-Regime Profile Cards</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">For each active regime: mean return, volatility, Sharpe ratio, bar count, dwell distribution, top transition targets. Updated every N iterations. THIS is what tells you if the regimes make sense.</p>
+      </div>
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #4ade80;">Regime Separation Heatmap</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">Pairwise Bhattacharyya distance between regime emission distributions. Shows which regimes are distinct vs. overlapping. If two regimes overlap &gt;70%, the model is over-segmenting.</p>
+      </div>
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #4ade80;">Feature Attribution per Regime</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">Which features define each regime? Computed from emission parameter divergence (mu_k differences across regimes weighted by 1/var_k). Identifies dead features contributing nothing.</p>
+      </div>
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #4ade80;">Regime Birth/Death Timeline</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">When did regimes appear, stabilize, or collapse during sampling? Tracks active count over iterations with lifecycle events. Shows model exploration path.</p>
+      </div>
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #4ade80;">Beta Weight Evolution</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">Stacked area chart of stick-breaking weights over iterations. Shows how the model redistributes probability mass across regimes as it trains.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tier 3: Regime Quality -->
+  <div style="background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.3); border-radius: 12px; padding: 1.5rem;">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+      <div style="width: 36px; height: 36px; background: rgba(234,179,8,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #eab308;">3</div>
+      <div>
+        <h3 style="margin: 0; color: #eab308;">Regime Quality</h3>
+        <p style="margin: 0; font-size: 0.8rem; color: rgba(255,255,255,0.5);">"Is what it found useful for trading?" — MOVED FROM POST-HOC TO LIVE</p>
+      </div>
+    </div>
+    <div style="font-size: 0.85rem; line-height: 1.6;">
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #fbbf24;">Tradeability Score (composite)</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">Combines dwell time adequacy + return separation + regime count balance into a single 0-100 score. Updated every 25 iterations. If this doesn't improve, you know the model isn't finding tradeable structure.</p>
+      </div>
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #fbbf24;">Signal-to-Noise Ratio</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">Ratio of "real" regime transitions (sustained 5+ bars) to noise transitions (flip-back within 2 bars). High SNR = clean signals. Low = your transition signals are mostly noise.</p>
+      </div>
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #fbbf24;">Assignment Confidence Distribution</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">Histogram of per-bar assignment confidence (posterior probability of assigned regime). Bimodal = some bars are ambiguous. Uniform high confidence = model is sure of every bar.</p>
+      </div>
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #fbbf24;">Live Silhouette Score</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">Cluster separation metric computed every 50 iterations on the current assignments. Currently only runs post-hoc — moving it to live lets you see quality evolve.</p>
+      </div>
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #fbbf24;">Per-Regime Return Distributions</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">Violin/box plots showing log-return distribution per regime. If distributions overlap heavily, regimes aren't distinguishing different market conditions.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tier 4: Parameter Guidance -->
+  <div style="background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.3); border-radius: 12px; padding: 1.5rem;">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+      <div style="width: 36px; height: 36px; background: rgba(168,85,247,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #a855f7;">4</div>
+      <div>
+        <h3 style="margin: 0; color: #a855f7;">Parameter Guidance</h3>
+        <p style="margin: 0; font-size: 0.8rem; color: rgba(255,255,255,0.5);">"What should I change?" — THE MISSING PIECE</p>
+      </div>
+    </div>
+    <div style="font-size: 0.85rem; line-height: 1.6;">
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #c084fc;">Automated Recommendations</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">Rule engine that watches metrics and generates actionable text: "K=12 regimes detected but silhouette=0.15 — regimes overlap. Reduce alpha from 1.0 to 0.3 to consolidate." Not predictions — deterministic rules based on metric thresholds.</p>
+      </div>
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #c084fc;">Convergence Forecast</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">Exponential fit to stability curve → projects when 95% stability will be reached. "At current rate, converges at iteration 420. You set 500 — sufficient." or "Won't converge before iteration limit — increase gibbs_iter."</p>
+      </div>
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #c084fc;">Quality Gates (live)</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">Pass/fail indicators that update during training. Red/yellow/green for: regime count in range, stability above threshold, dwell time adequate, separation sufficient. Gives instant visual read on model health.</p>
+      </div>
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #c084fc;">Anomaly Detection</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">Detects training pathologies: LL drops &gt;10% between iterations (mode collapse), K oscillates without settling (mixing failure), stability plateau then crash (prior conflict). Alerts with diagnosis.</p>
+      </div>
+      <div style="margin-bottom: 0.5rem;">
+        <strong style="color: #c084fc;">Cross-Run Comparison</strong>
+        <p style="margin: 0.25rem 0 0; color: rgba(255,255,255,0.6);">Side-by-side table: "Run #7 (alpha=0.5, kappa=50) → K=4, silhouette=0.42, dwell=8.3 vs Run #8 (alpha=1.0, kappa=50) → K=9, silhouette=0.18, dwell=2.1". Tracks which configs work.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top: 1.5rem; padding: 1.25rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;">
+  <h3 style="margin: 0 0 0.75rem; color: rgba(255,255,255,0.9);">What This Changes</h3>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 0.85rem;">
+    <div>
+      <p style="color: rgba(255,255,255,0.4); margin: 0 0 0.5rem; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.05em;">Before (current)</p>
+      <ul style="color: rgba(255,255,255,0.6); padding-left: 1.25rem; margin: 0;">
+        <li>7 convergence line charts during training</li>
+        <li>Post-hoc evaluation gives a letter grade</li>
+        <li>No regime-level insight during training</li>
+        <li>No parameter recommendations</li>
+        <li>No cross-run comparison</li>
+        <li>"Grade D" with no explanation of why</li>
+      </ul>
+    </div>
+    <div>
+      <p style="color: rgba(255,255,255,0.4); margin: 0 0 0.5rem; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.05em;">After (proposed)</p>
+      <ul style="color: rgba(255,255,255,0.6); padding-left: 1.25rem; margin: 0;">
+        <li>4-tier diagnostic system with 20+ metrics</li>
+        <li>Live regime profiles updating during training</li>
+        <li>Feature attribution showing what drives each regime</li>
+        <li>Automated parameter recommendations</li>
+        <li>Quality gates with real-time pass/fail</li>
+        <li>"Alpha too high → 12 overlapping regimes. Reduce to 0.3."</li>
+      </ul>
+    </div>
+  </div>
+</div>

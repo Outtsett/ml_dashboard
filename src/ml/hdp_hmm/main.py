@@ -107,6 +107,9 @@ def main():
             sys.exit(1)
 
         # 4. Train
+        # Resolve close values before training (needed for diagnostics + save pipeline)
+        close_valid = [float(c) for c, v in zip(data["close"], valid_mask) if v]
+
         model = StickyHDPHMM(
             alpha=args.alpha,
             gamma=args.gamma,
@@ -118,10 +121,9 @@ def main():
             burn_in=args.burn_in,
             overlay_interval=args.overlay_interval,
             timestamps=timestamps_valid,
+            feature_names=feature_names,
+            close_vals=close_valid,
         )
-
-        # 4b. Resolve close values for save pipeline
-        close_valid = [float(c) for c, v in zip(data["close"], valid_mask) if v]
 
         # 5. Save (includes evaluation pipeline Stages 1-5)
         emit_progress(args.gibbs_iter, args.gibbs_iter, "saving")

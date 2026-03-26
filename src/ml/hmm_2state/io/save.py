@@ -2,14 +2,12 @@
 
 import io
 import json
-import os
 import time
 from pathlib import Path
 
 from datetime import datetime
 
 import numpy as np
-import requests
 
 # Reuse model-agnostic analysis modules from hdp_hmm.io
 from shared.labeling import renumber_states, assign_colors, get_labeler
@@ -41,25 +39,6 @@ class _NumpyEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-QUESTDB_HTTP_URL = os.environ.get("QUESTDB_URL", "http://127.0.0.1:9000")
-
-
-def _write_to_questdb(table_name: str, csv_content: str, ts_col: str = "ts"):
-    """Upload CSV data to QuestDB via /imp endpoint."""
-    schema = json.dumps(
-        [{"name": ts_col, "type": "TIMESTAMP", "pattern": "yyyy-MM-ddTHH:mm:ss.SSSUUUz"}]
-    )
-    resp = requests.post(
-        f"{QUESTDB_HTTP_URL}/imp?name={table_name}",
-        files=[
-            ("schema", (None, schema, "text/plain")),
-            ("data", ("data.csv", csv_content, "text/csv")),
-        ],
-        timeout=60,
-    )
-    resp.raise_for_status()
-
-
 def _fmt_ts(ts) -> str:
     """Format timestamp for QuestDB /imp: yyyy-MM-ddTHH:mm:ss.000000Z"""
     if isinstance(ts, datetime):
@@ -80,7 +59,7 @@ def save_model(
     iteration_metrics=None,
     close_vals=None,
 ):
-    """Save model artifacts to data/models/<modelId>/ and QuestDB tables."""
+    """Save model artifacts to data/models/<modelId>/."""
     # Use cwd (set by Node runner) for reliable path resolution
     project_root = Path.cwd()
     model_id = args.model_id if args.model_id else f"{args.symbol}_{args.timeframe}_2state"
@@ -128,7 +107,7 @@ def save_model(
         close_vals = [0.0] * T
     ts_vals = timestamps
 
-    # 1. Write regime assignments to QuestDB model_regimes table
+    # 1. Write regime assignments to disk CSV
     csv_buf = io.StringIO()
     csv_buf.write("model_id,symbol,ts,close,regime,regime_label,split,category\n")
     for i in range(T):
@@ -139,15 +118,7 @@ def save_model(
             f"{model_id},{args.symbol},{ts_str},{float(close_vals[i])},{int(relabeled[i])},{rl},{splits[i]},{cat}\n"
         )
 
-    try:
-        _write_to_questdb("model_regimes", csv_buf.getvalue())
-    except Exception as e:
-        print(
-            f"[save] Warning: Failed to write model_regimes to QuestDB: {e}",
-            file=__import__("sys").stderr,
-        )
-
-    # 1b. Also save assignments to disk as CSV (durable fallback)
+    # 1b. Save assignments to disk as CSV
     assignments_path = output_dir / "assignments.csv"
     try:
         assignments_path.write_text(csv_buf.getvalue(), encoding="utf-8")
@@ -184,26 +155,10 @@ def save_model(
     # 5. OOS evaluation
     oos = compute_oos_evaluation(relabeled, features, split_idx, n_regimes)
 
-    # 6. SHAP values → QuestDB
+    # 6. SHAP values → diagnostics.json
     shap_matrix, shap_summary = compute_shap_values(
         model, features, relabeled, feature_names, n_regimes
     )
-
-    csv_buf = io.StringIO()
-    shap_cols = [f"shap_{name}" for name in feature_names]
-    csv_buf.write(f"model_id,symbol,ts,regime,{','.join(shap_cols)}\n")
-    for i in range(T):
-        ts_str = _fmt_ts(ts_vals[i])
-        shap_vals = ",".join(str(float(shap_matrix[i, d])) for d in range(len(feature_names)))
-        csv_buf.write(f"{model_id},{args.symbol},{ts_str},{int(relabeled[i])},{shap_vals}\n")
-
-    try:
-        _write_to_questdb("model_shap", csv_buf.getvalue())
-    except Exception as e:
-        print(
-            f"[save] Warning: Failed to write model_shap to QuestDB: {e}",
-            file=__import__("sys").stderr,
-        )
 
     # 7. Quality score
     quality_score = compute_quality_score(model, relabeled, n_regimes, T, oos=oos)

@@ -251,112 +251,13 @@ def _fetch_rows(conn, symbol, interval, max_bars, date_range):
 
 
 def _fetch_stitched_rows(conn, root, interval, max_bars, date_range):
-    """Rollover-table-driven stitching using raw per-contract prices.
+    """DEPRECATED: rollovers table has been dropped from QuestDB.
 
-    Uses the pre-computed `rollovers` table for roll boundaries (which
-    contract was active when). Much faster than volume-based scanning.
-    Returns raw prices with no adjustment — price gaps at roll boundaries.
-    Returns empty list if no rollover data exists for this root.
+    Always returns [] so the caller falls through to _fetch_front_month_rows()
+    which detects front-month contracts via volume from the base ohlcv table.
     """
-    _validate_sql_input(root, "root")
-    cur = conn.cursor()
-
-    # Step 1: Fetch rollover schedule
-    try:
-        cur.execute(f"""
-            SELECT root, rollover_date, from_contract, to_contract,
-                   from_close, to_close, price_gap, cumulative_adjustment
-            FROM rollovers
-            WHERE root = '{root}'
-            ORDER BY rollover_date
-        """)
-        schedule = cur.fetchall()
-    except Exception as e:
-        emit_log(f"Rollovers table query failed ({e}), skipping...")
-        cur.close()
-        conn.rollback()
-        return []
-
-    if not schedule:
-        cur.close()
-        return []
-
-    emit_log(f"Rollover schedule: {len(schedule)} roll dates for {root}")
-
-    # Step 2: Build per-contract segments from roll boundaries
-    # Each schedule row: (root, rollover_date, from_contract, to_contract,
-    #                      from_close, to_close, price_gap, cumulative_adj)
-    segments = []
-
-    # Pre-first-rollover segment: from_contract of first roll
-    first = schedule[0]
-    segments.append((first[2], None, first[1]))  # (contract, start, end)
-
-    # Segments between rollovers
-    for i, row in enumerate(schedule):
-        seg_start = row[1]  # rollover_date
-        seg_end = schedule[i + 1][1] if i + 1 < len(schedule) else None
-        segments.append((row[3], seg_start, seg_end))  # to_contract
-
-    # Step 3: Build time filter
-    time_start = date_range.get("start") if date_range else None
-    time_end = date_range.get("end") if date_range else None
-
-    # Step 4: Query each segment (raw prices, no adjustment)
-    all_rows = []
-    total_segs = len(segments)
-
-    for idx, (contract, seg_start, seg_end) in enumerate(segments):
-        # Build time bounds for this segment (intersection of segment + requested range)
-        where_parts = [f"symbol = '{contract}'"]
-
-        # Segment time bounds
-        if seg_start is not None:
-            seg_start_iso = seg_start.strftime("%Y-%m-%dT%H:%M:%S.000Z") if hasattr(seg_start, "strftime") else str(seg_start)
-            where_parts.append(f"timestamp >= '{seg_start_iso}'")
-        if seg_end is not None:
-            seg_end_iso = seg_end.strftime("%Y-%m-%dT%H:%M:%S.000Z") if hasattr(seg_end, "strftime") else str(seg_end)
-            where_parts.append(f"timestamp < '{seg_end_iso}'")
-
-        # Requested date range bounds
-        if time_start:
-            where_parts.append(f"timestamp >= '{time_start}'")
-        if time_end:
-            where_parts.append(f"timestamp <= '{time_end}'")
-
-        where = " AND ".join(where_parts)
-
-        try:
-            cur.execute(f"""
-                SELECT '{contract}' as symbol, timestamp,
-                    first(open) as open, max(high) as high,
-                    min(low) as low, last(close) as close,
-                    sum(volume) as volume
-                FROM ohlcv
-                WHERE {where}
-                SAMPLE BY {interval} ALIGN TO CALENDAR
-                ORDER BY timestamp
-            """)
-            rows = cur.fetchall()
-        except Exception:
-            conn.rollback()
-            continue
-
-        all_rows.extend(rows)
-        emit_progress(idx + 1, total_segs, "loading_data")
-
-    cur.close()
-
-    if not all_rows:
-        return []
-
-    # Sort by timestamp and limit
-    all_rows.sort(key=lambda r: r[1])
-    if max_bars > 0 and len(all_rows) > max_bars:
-        all_rows = all_rows[:max_bars]
-
-    emit_log(f"Rollover stitching complete: {len(all_rows)} bars, {len(segments)} segments")
-    return all_rows
+    emit_log("Rollovers table no longer exists, skipping rollover stitching...")
+    return []
 
 
 def _fetch_front_month_rows(conn, root, interval, max_bars, date_range):
@@ -370,11 +271,12 @@ def _fetch_front_month_rows(conn, root, interval, max_bars, date_range):
 
     cur = conn.cursor()
 
-    # Step 1: Daily volume per contract from materialized view (uses root SYMBOL INDEX)
+    # Step 1: Daily volume per contract via SAMPLE BY on base table
     cur.execute(f"""
-        SELECT symbol, timestamp, volume FROM ohlcv_1d
+        SELECT symbol, timestamp, sum(volume) as volume FROM ohlcv
         WHERE root = '{root}' AND asset_class = 'futures'
         AND symbol != '{root}'{time_filter}
+        SAMPLE BY 1d ALIGN TO CALENDAR
         ORDER BY timestamp
     """)
     daily_bars = cur.fetchall()

@@ -1,0 +1,72 @@
+<h2>Training Diagnostic Categories</h2>
+<p class="subtitle">Which categories of diagnostics matter most for your training workflow? Select all that apply.</p>
+
+<div class="options" data-multiselect>
+
+  <div class="option" data-choice="convergence" onclick="toggleSelect(this)">
+    <div class="letter">1</div>
+    <div class="content">
+      <h3>Convergence Diagnostics</h3>
+      <p><strong>What it answers:</strong> "Is the model converging? How fast? Is it stuck in a local optimum?"</p>
+      <p><em>Metrics:</em> Log-likelihood trace, effective sample size (ESS), autocorrelation plots, Gelman-Rubin R-hat, mixing rate, burn-in detection, convergence speed estimation, chain diagnostics</p>
+      <p><em>Actionable output:</em> "Burn-in too short — stability hasn't plateaued. Extend to 200 iterations." / "ESS is 12 — sampler isn't mixing. Reduce alpha."</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="regime-quality" onclick="toggleSelect(this)">
+    <div class="letter">2</div>
+    <div class="content">
+      <h3>Regime Quality Analytics</h3>
+      <p><strong>What it answers:</strong> "Are detected regimes meaningful? Well-separated? Tradeable?"</p>
+      <p><em>Metrics:</em> Per-regime statistics (mean return, volatility, Sharpe, win rate, avg trade duration), silhouette scores, Calinski-Harabasz index, regime separation heatmap, regime overlap analysis, inter-regime transition quality, dwell time distributions</p>
+      <p><em>Actionable output:</em> "Regimes 2 and 4 overlap 73% — effectively the same state. Reduce K_TRUNC." / "Regime 1 has 94% of bars — model isn't discriminating."</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="feature-diagnostics" onclick="toggleSelect(this)">
+    <div class="letter">3</div>
+    <div class="content">
+      <h3>Feature Diagnostics</h3>
+      <p><strong>What it answers:</strong> "Which features are driving regime distinctions? Any dead features? Feature interactions?"</p>
+      <p><em>Metrics:</em> SHAP importance per regime, feature correlation with regime assignments, feature contribution evolution over training, dead feature detection, feature redundancy analysis, per-regime feature distributions (violin plots)</p>
+      <p><em>Actionable output:</em> "RSI_14 contributes &lt;0.1% to any regime — drop it." / "ATR and Bollinger bandwidth are 0.94 correlated — keep one."</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="parameter-sensitivity" onclick="toggleSelect(this)">
+    <div class="letter">4</div>
+    <div class="content">
+      <h3>Parameter Sensitivity & Recommendations</h3>
+      <p><strong>What it answers:</strong> "How do hyperparameters affect outcomes? What should I adjust next?"</p>
+      <p><em>Metrics:</em> Prior sensitivity analysis (alpha, gamma, kappa traces), hyperparameter impact heatmaps, stick-breaking weight evolution, parameter interaction effects, automated recommendation engine</p>
+      <p><em>Actionable output:</em> "Alpha=1.0 produces 6 regimes, alpha=0.1 produces 3. Your data supports 3-4 distinct states." / "Kappa (stickiness) is too low — regimes flip every 2 bars."</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="generalization" onclick="toggleSelect(this)">
+    <div class="letter">5</div>
+    <div class="content">
+      <h3>Generalization & Overfitting Detection</h3>
+      <p><strong>What it answers:</strong> "Is the model overfitting to training data? Will it generalize?"</p>
+      <p><em>Metrics:</em> Walk-forward OOS regime consistency, train vs validation metric divergence, regime stability across time windows, distribution shift detection, temporal coherence scores, cross-validation regime agreement</p>
+      <p><em>Actionable output:</em> "Regime assignments in OOS window diverge 40% from training — model is overfitting to recent volatility regime." / "Regimes are stable across 5/6 walk-forward windows."</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="comparison" onclick="toggleSelect(this)">
+    <div class="letter">6</div>
+    <div class="content">
+      <h3>Run Comparison & History</h3>
+      <p><strong>What it answers:</strong> "How does this run compare to previous runs? Am I making progress?"</p>
+      <p><em>Metrics:</em> Side-by-side metric comparison across runs, parameter diff between runs, regime quality trend over training history, best-run highlighting, regression detection</p>
+      <p><em>Actionable output:</em> "Run #7 regressed on silhouette score (0.45 → 0.31) after increasing gibbs_iter. Previous alpha=0.5 performed better."</p>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top: 2rem; padding: 1rem; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; background: rgba(255,255,255,0.02);">
+  <p style="color: rgba(255,255,255,0.5); font-size: 0.85rem; margin: 0;">
+    <strong>Note:</strong> Select all categories you want. "All of them" is a valid answer — I'll prioritize implementation order based on diagnostic value and dependency chain.
+  </p>
+</div>

@@ -26,6 +26,7 @@ const { createAppMenu } = require("./menus.cjs");
 const { setupContextMenus } = require("./contextMenus.cjs");
 const { showNotification, updatePreferences: updateNotifPrefs } = require("./notifications.cjs");
 const { setupThemeSync } = require("./themeSync.cjs");
+const { screen } = require("electron");
 
 // Prevent EPIPE crashes when launched without a console (desktop shortcut)
 // When there's no terminal, stdout/stderr pipes can close unexpectedly.
@@ -136,22 +137,113 @@ const UNRESPONSIVE_TIMEOUT_MS = 12000; // auto-reload after 12s unresponsive
 const HEARTBEAT_INTERVAL_MS = 5000;    // ping renderer every 5s
 const HEARTBEAT_DEAD_MS = 30000;       // if no pong for 30s, force reload
 
+// ── Backend health monitoring ──
+let backendHealthInterval = null;
+let backendHealthy = true;
+let backendFailCount = 0;
+const BACKEND_HEALTH_INTERVAL_MS = 10000; // poll /health every 10s
+const BACKEND_FAIL_THRESHOLD = 3;         // 3 consecutive failures = dead
+
+function startBackendHealthCheck() {
+  stopBackendHealthCheck();
+  backendFailCount = 0;
+  backendHealthy = true;
+
+  backendHealthInterval = setInterval(async () => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const resp = await fetch(`http://127.0.0.1:${PORT}/health`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (resp.ok) {
+        if (!backendHealthy) {
+          safeLog("[health] Backend recovered");
+          backendHealthy = true;
+          setStatus("online");
+          setTooltip("ML Dashboard — Online");
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("backend:status", { healthy: true });
+          }
+        }
+        backendFailCount = 0;
+        return;
+      }
+    } catch {}
+
+    // Failed
+    backendFailCount++;
+    if (backendFailCount >= BACKEND_FAIL_THRESHOLD && backendHealthy) {
+      backendHealthy = false;
+      safeError(`[health] Backend unreachable after ${BACKEND_FAIL_THRESHOLD} consecutive checks`);
+      setStatus("offline");
+      setTooltip("ML Dashboard — Server Down");
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("backend:status", { healthy: false });
+      }
+
+      // Attempt server restart if we own the process
+      if (serverProcess === null) {
+        safeLog("[health] Server process is dead — attempting restart...");
+        try {
+          await startServer();
+          safeLog("[health] Server restarted successfully");
+          backendFailCount = 0;
+          backendHealthy = true;
+          setStatus("online");
+          setTooltip("ML Dashboard — Online");
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("backend:status", { healthy: true });
+            mainWindow.webContents.reload();
+          }
+        } catch (err) {
+          safeError("[health] Server restart failed:", err.message || err);
+        }
+      }
+    }
+  }, BACKEND_HEALTH_INTERVAL_MS);
+}
+
+function stopBackendHealthCheck() {
+  if (backendHealthInterval) {
+    clearInterval(backendHealthInterval);
+    backendHealthInterval = null;
+  }
+}
+
 // --------------- Database Shutdown ---------------
 
+let dbsStopped = false;
 function stopDatabases() {
+  if (dbsStopped) return;
+  dbsStopped = true;
+
   // --- QuestDB (kill by saved PID) ---
   try {
     if (fs.existsSync(QUESTDB_PID_FILE)) {
       const pid = parseInt(fs.readFileSync(QUESTDB_PID_FILE, "utf-8").trim(), 10);
       if (pid) {
         safeLog(`[db] Stopping QuestDB (PID: ${pid})...`);
-        process.kill(pid);
-        fs.unlinkSync(QUESTDB_PID_FILE);
-        safeLog("[db] QuestDB stopped");
+        try {
+          process.kill(pid, "SIGTERM");
+        } catch (e) {
+          if (e.code !== "ESRCH") safeError("[db] SIGTERM failed:", e.message);
+        }
+        // Force kill after 5s
+        setTimeout(() => {
+          try {
+            process.kill(pid, 0); // test alive
+            safeWarn(`[db] QuestDB SIGTERM timeout — force killing PID ${pid}`);
+            process.kill(pid, "SIGKILL");
+          } catch {} // already dead
+        }, 5000);
+        try { fs.unlinkSync(QUESTDB_PID_FILE); } catch {}
+        safeLog("[db] QuestDB stop signal sent");
       }
     }
   } catch (err) {
-    // ESRCH = process doesn't exist (already stopped)
     if (err.code !== "ESRCH") {
       safeError("[db] Error stopping QuestDB:", err.message);
     }
@@ -228,6 +320,27 @@ function registerIpcHandlers() {
   ipcMain.handle("store:get", (_e, key) => store.get(key));
   ipcMain.on("store:set", (_e, { key, value }) => store.set(key, value));
 
+  // --- Zoom controls ---
+  ipcMain.handle("zoom:get", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return 1.0;
+    return mainWindow.webContents.getZoomFactor();
+  });
+  ipcMain.on("zoom:set", (_e, factor) => {
+    const clamped = Math.max(0.5, Math.min(3.0, factor));
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.setZoomFactor(clamped);
+      store.set("zoomFactor", clamped);
+      safeLog(`[window] Zoom set to ${clamped}`);
+    }
+  });
+  ipcMain.on("zoom:reset", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.setZoomFactor(1.0);
+      store.set("zoomFactor", 1.0);
+      safeLog("[window] Zoom reset to 1.0");
+    }
+  });
+
   // --- Dialogs ---
   ipcMain.handle("dialog:open", async (_e, opts) => {
     if (!mainWindow) return { canceled: true, filePaths: [] };
@@ -243,12 +356,23 @@ function registerIpcHandlers() {
   // --- App info ---
   ipcMain.handle("app:version", () => app.getVersion());
 
-  // --- Beta mode: renderer-requested reload ---
+  // --- Reload controls ---
   ipcMain.on("beta:reload", () => {
     safeLog("[beta] Renderer requested reload");
     if (mainWindow && !mainWindow.isDestroyed() && !userHidWindow) {
       mainWindow.webContents.reload();
     }
+  });
+  ipcMain.on("app:hard-reload", () => {
+    safeLog("[app] Hard reload (clear cache) requested");
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.reloadIgnoringCache();
+    }
+  });
+  ipcMain.on("app:restart", () => {
+    safeLog("[app] Full restart requested");
+    app.relaunch();
+    app.exit(0);
   });
   ipcMain.handle("app:path", (_e, name) => {
     const allowed = ["userData", "appData", "logs", "temp", "home"];
@@ -326,6 +450,30 @@ function createWindow() {
   }
 
   mainWindow = new BrowserWindow(windowOpts);
+
+  // --- DPI-aware zoom: auto-detect display scale, apply user override ---
+  const savedZoom = store.get("zoomFactor");
+  if (savedZoom && savedZoom > 0) {
+    mainWindow.webContents.setZoomFactor(savedZoom);
+    safeLog(`[window] Restored zoom factor: ${savedZoom}`);
+  } else {
+    // Auto-detect: on high-DPI displays, scale up if the OS scale factor > 1
+    const display = screen.getPrimaryDisplay();
+    const scaleFactor = display.scaleFactor || 1;
+    // If Windows scaling is 100% but resolution is high (e.g. 2560x1440+), bump zoom
+    const { width: screenW } = display.workAreaSize;
+    let autoZoom = 1.0;
+    if (scaleFactor > 1) {
+      // OS is already scaling — use a moderate bump
+      autoZoom = Math.min(scaleFactor * 0.9, 2.0);
+    } else if (screenW >= 2560) {
+      autoZoom = 1.25; // Large monitor at 100% scaling
+    } else if (screenW >= 1920) {
+      autoZoom = 1.1; // Standard 1080p, slight bump
+    }
+    mainWindow.webContents.setZoomFactor(autoZoom);
+    safeLog(`[window] Auto zoom: ${autoZoom} (display: ${screenW}x${display.workAreaSize.height}, scale: ${scaleFactor})`);
+  }
 
   // Restore maximized state
   if (saved.maximized) {
@@ -456,6 +604,7 @@ function createWindow() {
 
   // --- Beta Mode: Heartbeat watchdog ---
   startHeartbeat();
+  startBackendHealthCheck();
 
   // Fallback: if nothing shows after 30s, force-show the window
   setTimeout(() => {
@@ -739,10 +888,22 @@ function startServer() {
 }
 
 function stopServer() {
-  if (serverProcess) {
-    serverProcess.kill("SIGTERM");
-    serverProcess = null;
-  }
+  if (!serverProcess) return;
+  const proc = serverProcess;
+  serverProcess = null;
+
+  try { proc.kill("SIGTERM"); } catch {}
+
+  // Force kill after 5s if still alive
+  const forceKillTimer = setTimeout(() => {
+    try {
+      process.kill(proc.pid, 0); // test if alive
+      safeWarn(`[server] SIGTERM timeout — force killing PID ${proc.pid}`);
+      proc.kill("SIGKILL");
+    } catch {} // already dead
+  }, 5000);
+
+  proc.on("exit", () => clearTimeout(forceKillTimer));
 }
 
 // Wait for server to be reachable (API + Vite client assets)
@@ -866,28 +1027,33 @@ app.whenReady().then(async () => {
   });
 });
 
-app.on("will-quit", () => {
+// ── Idempotent cleanup (safe to call multiple times) ──
+let cleanedUp = false;
+function runCleanup() {
+  if (cleanedUp) return;
+  cleanedUp = true;
+  safeLog("[lifecycle] Running cleanup...");
   stopHeartbeat();
+  stopBackendHealthCheck();
   unregisterAllShortcuts();
   destroyTray();
   stopServer();
   stopDatabases();
-});
-
-app.on("window-all-closed", () => {
-  stopServer();
-  stopDatabases();
-  app.quit();
-});
+}
 
 app.on("before-quit", () => {
   app.isQuitting = true;
-  destroyTray();
-  stopServer();
-  stopDatabases();
 });
 
-// Safety net
+app.on("will-quit", () => {
+  runCleanup();
+});
+
+app.on("window-all-closed", () => {
+  app.quit();
+});
+
+// Safety net — stopDatabases is idempotent
 process.on("exit", () => {
   stopDatabases();
 });

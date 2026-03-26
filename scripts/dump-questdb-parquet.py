@@ -1,5 +1,5 @@
 """
-One-time QuestDB → Parquet export for batch analytics.
+One-time QuestDB -> Parquet export for batch analytics.
 
 Dumps entire tables (or symbol subsets) to parquet files for fast local reads.
 Eliminates PG wire bottleneck for repeat analytics runs.
@@ -7,8 +7,8 @@ Eliminates PG wire bottleneck for repeat analytics runs.
 Output: data/.cache/{table}_{symbol}.parquet
 
 Usage:
-    python scripts/dump-questdb-parquet.py                          # All tables
-    python scripts/dump-questdb-parquet.py --tables talib_features   # Single table
+    python scripts/dump-questdb-parquet.py                          # Dump ohlcv (default)
+    python scripts/dump-questdb-parquet.py --tables ohlcv            # Single table
     python scripts/dump-questdb-parquet.py --tables ohlcv --symbols MNQ,ES
 """
 
@@ -138,8 +138,8 @@ def dump_symbol(conn, table, symbol, output_path, chunk_size=100_000):
 
 def main():
     parser = argparse.ArgumentParser(description="Dump QuestDB tables to parquet")
-    parser.add_argument("--tables", type=str, default="talib_features",
-                        help="Comma-separated table names (default: talib_features)")
+    parser.add_argument("--tables", type=str, default="ohlcv",
+                        help="Comma-separated table names (default: ohlcv)")
     parser.add_argument("--symbols", type=str, default=None,
                         help="Comma-separated symbols (default: all)")
     parser.add_argument("--output-dir", type=str, default=str(CACHE_DIR),

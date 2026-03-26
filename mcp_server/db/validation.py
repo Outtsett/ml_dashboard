@@ -15,36 +15,17 @@ from typing import Literal
 # Table allowlists
 # ---------------------------------------------------------------------------
 
-# Base tables — unified multi-asset schema
+# Base tables — simplified schema (ohlcv + symbols only)
 QUESTDB_BASE_TABLES: set[str] = {
     "ohlcv",
-    "rollovers",
     "symbols",
-    "labels",
-    "swing_labels",
-    "triple_barrier_labels",
-    "indicators_5m",
-    "indicators_15m",
-    "indicators_30m",
-    "indicators_1h",
-    "indicators_4h",
-    "indicators_1d",
-    "indicators_1w",
 }
 
-# Materialized views (SAMPLE BY aggregations — unified, one set for all assets)
-QUESTDB_MAT_VIEWS: set[str] = {
-    "ohlcv_5m", "ohlcv_15m", "ohlcv_30m",
-    "ohlcv_1h", "ohlcv_4h", "ohlcv_1d", "ohlcv_1w",
-}
+# Materialized views — none remain (use SAMPLE BY on ohlcv directly)
+QUESTDB_MAT_VIEWS: set[str] = set()
 
-# Regular views
-QUESTDB_VIEWS: set[str] = {
-    "view_current_front_month",
-    "view_instrument_inventory",
-    "view_latest_rollovers",
-    "view_latest_prices",
-}
+# Regular views — none remain
+QUESTDB_VIEWS: set[str] = set()
 
 QUESTDB_TABLE_ALLOWLIST: set[str] = QUESTDB_BASE_TABLES | QUESTDB_MAT_VIEWS | QUESTDB_VIEWS
 
@@ -136,18 +117,7 @@ def validate_readonly_sql(sql: str) -> tuple[bool, str | None]:
 
 QUESTDB_ROW_LIMITS: dict[str, int] = {
     "ohlcv": 50_000,
-    "rollovers": 50_000,
     "symbols": 50_000,
-    "labels": 50_000,
-    "swing_labels": 50_000,
-    "triple_barrier_labels": 50_000,
-    "indicators_5m": 50_000,
-    "indicators_15m": 50_000,
-    "indicators_30m": 50_000,
-    "indicators_1h": 50_000,
-    "indicators_4h": 50_000,
-    "indicators_1d": 50_000,
-    "indicators_1w": 50_000,
 }
 
 QUESTDB_DEFAULT_LIMIT = 100_000

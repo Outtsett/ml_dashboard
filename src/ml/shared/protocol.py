@@ -6,12 +6,14 @@ pipeline via stdout. Each function emits a JSON line that the parser
 registry (server/training/runners/parsers/) knows how to handle.
 
 Event types:
-  progress  — iteration / phase progress
-  metric    — per-iteration numeric metric
-  overlay   — chart overlay update (regime zones, predictions, etc.)
-  log       — human-readable log message
-  done      — training complete + diagnostics
-  error     — training failed
+  progress             — iteration / phase progress
+  metric               — per-iteration numeric metric
+  overlay              — chart overlay update (regime zones, predictions, etc.)
+  model_state          — full model state snapshot (cluster quality, feature attribution, etc.)
+  sampler_diagnostics  — sampler health metrics (ESS, autocorrelation, step timing)
+  log                  — human-readable log message
+  done                 — training complete + diagnostics
+  error                — training failed
 """
 
 import json
@@ -67,6 +69,14 @@ def emit_log(message: str, level: str = "info"):
 
 def emit_done(model_path: str, diagnostics: dict):
     emit({"type": "done", "modelPath": model_path, "diagnostics": diagnostics})
+
+
+def emit_model_state(iteration: int, total: int, snapshot: dict):
+    emit({"type": "model_state", "iteration": iteration, "total": total, "snapshot": snapshot})
+
+
+def emit_sampler_diagnostics(iteration: int, total: int, diagnostics: dict):
+    emit({"type": "sampler_diagnostics", "iteration": iteration, "total": total, "diagnostics": diagnostics})
 
 
 def emit_error(message: str, details: str = ""):

@@ -141,7 +141,9 @@ export type TrainingEventType =
   | 'hpo-trial-done'
   | 'hpo-trial-pruned'
   | 'hpo-best-update'
-  | 'hpo-complete';
+  | 'hpo-complete'
+  | 'model_state'
+  | 'sampler_diagnostics';
 
 export interface TrainingEvent {
   type: TrainingEventType;
@@ -222,6 +224,69 @@ export interface HPOCompletePayload {
   elapsedSec: number;
 }
 
+// ── training:model_state — full model snapshot (emission params, transitions, regime profiles, SHAP, quality)
+export interface ModelStatePayload {
+  iteration: number;
+  total: number;
+  snapshot: {
+    emission_heatmap: number[][];
+    transition_matrix: number[][];
+    beta_weights: number[];
+    regime_profiles: Array<{
+      regime_id: number;
+      label: string;
+      mean_return: number;
+      volatility: number;
+      sharpe: number;
+      bar_count: number;
+      bar_pct: number;
+      mean_dwell: number;
+      max_dwell: number;
+      transition_targets: Array<{ to: number; prob: number }>;
+    }>;
+    assignment_confidence: number[];  // 10-bin histogram
+    feature_names: string[];
+    feature_attribution: {
+      per_regime: Array<{
+        regime_id: number;
+        features: Array<{ feature: string; importance: number }>;
+      }>;
+      global: Array<{ feature: string; importance: number }>;
+      interactions: Array<{ f1: string; f2: string; score: number }>;
+      dead_features: string[];
+    };
+    cluster_quality: {
+      silhouette: number;
+      calinski_harabasz: number;
+      davies_bouldin: number;
+      ari_vs_previous: number | null;
+      return_separation_pvalues: Array<{ pair: string; p_value: number }>;
+      bhattacharyya_distances: number[][];
+    };
+    quality_gates: Array<{
+      metric: string;
+      value: number;
+      status: 'pass' | 'fail' | 'warn';
+      recommendation: string | null;
+    }>;
+  };
+}
+
+// ── training:sampler_diagnostics — ESS, autocorrelation, step timing
+export interface SamplerDiagnosticsPayload {
+  iteration: number;
+  total: number;
+  diagnostics: {
+    ess: number;
+    autocorrelation_lag1: number;
+    step_timing: {
+      ffbs_ms: number;
+      emission_ms: number;
+      transition_ms: number;
+    };
+  };
+}
+
 // ── training:error
 export interface ErrorPayload {
   message: string;
@@ -299,6 +364,10 @@ export interface TrainingState {
   metrics: Record<string, number>;
   iterationHistory: Array<{ iteration: number; metrics: Record<string, number> }>;
 
+  // Model state snapshots (every 25-50 iterations)
+  modelState: ModelStatePayload | null;
+  modelStateHistory: Array<{ iteration: number; state: ModelStatePayload }>;
+
   // Chart alignment
   dataRange: { start: string; end: string } | null;
   totalBars: number;
@@ -353,6 +422,8 @@ export interface TrainingLive {
   totalBars: number;
   dataRange: { start: string; end: string } | null;
   diagnostics: unknown | null;
+  modelState: ModelStatePayload | null;
+  modelStateHistory: Array<{ iteration: number; state: ModelStatePayload }>;
 }
 
 // ── Granular sub-slices of TrainingLive ───────────────────────────────────────
@@ -379,4 +450,10 @@ export interface TrainingOverlaysSlice {
   totalBars: number;
   dataRange: { start: string; end: string } | null;
   diagnostics: unknown | null;
+}
+
+/** Model state sub-slice — full model snapshots. Updates every 25-50 iterations. */
+export interface TrainingModelStateSlice {
+  modelState: ModelStatePayload | null;
+  modelStateHistory: Array<{ iteration: number; state: ModelStatePayload }>;
 }

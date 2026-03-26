@@ -62,6 +62,7 @@ export const trainingSessions = sqliteTable("training_sessions", {
   // ── Original columns (unchanged) ──
   modelName: text("model_name").notNull(),
   status: text("status").notNull().default("running"), // running, paused, completed, failed, stopped
+  pid: integer("pid"),
   currentEpoch: integer("current_epoch").notNull().default(0),
   maxEpochs: integer("max_epochs").notNull(),
   currentLoss: real("current_loss"),
@@ -157,6 +158,22 @@ export const evaluationResults = sqliteTable("evaluation_results", {
 export const insertEvaluationResultSchema = createInsertSchema(evaluationResults).omit({ id: true, computedAt: true });
 export type InsertEvaluationResult = z.infer<typeof insertEvaluationResultSchema>;
 export type EvaluationResult = typeof evaluationResults.$inferSelect;
+
+// Model state snapshots — full model state captured every N iterations for live visualization
+export const modelStateSnapshots = sqliteTable("model_state_snapshots", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  sessionId: integer("session_id").notNull(),
+  iteration: integer("iteration").notNull(),
+  snapshot: text("snapshot").notNull(),  // JSON string
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+}, (table) => ({
+  sessionIterationIdx: index("mss_session_iteration_idx").on(table.sessionId, table.iteration),
+  sessionIdx: index("mss_session_idx").on(table.sessionId),
+}));
+
+export const insertModelStateSnapshotSchema = createInsertSchema(modelStateSnapshots).omit({ id: true, createdAt: true });
+export type InsertModelStateSnapshot = z.infer<typeof insertModelStateSnapshotSchema>;
+export type ModelStateSnapshot = typeof modelStateSnapshots.$inferSelect;
 
 // Instrument metadata - tick/pip sizes, contract specs
 export const instruments = sqliteTable("instruments", {

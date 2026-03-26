@@ -144,40 +144,8 @@ bid_sz_00..bid_sz_09, ask_sz_00..ask_sz_09,
 bid_ct_00..bid_ct_09, ask_ct_00..ask_ct_09
 ```
 
-**indicators_{tf}** — 7 tables (5m, 15m, 30m, 1h, 4h, 1d, 1w)
-```sql
-timestamp TIMESTAMP, symbol SYMBOL INDEX, [344 indicator columns]
-```
-
-**model_regimes** — PARTITION BY YEAR, WAL, DEDUP UPSERT KEYS(model_id, ts)
-```sql
-model_id SYMBOL INDEX, symbol SYMBOL INDEX, ts TIMESTAMP,
-close DOUBLE, regime INT, regime_label VARCHAR, split VARCHAR
-```
-
-**model_shap** — PARTITION BY YEAR, WAL, DEDUP UPSERT KEYS(model_id, ts)
-```sql
-model_id SYMBOL INDEX, symbol SYMBOL INDEX, ts TIMESTAMP,
-regime INT, [29 shap_* columns]
-```
-
 **Materialized Views** (auto-refresh on insert):
 `ohlcv_5m`, `ohlcv_15m`, `ohlcv_30m`, `ohlcv_1h`, `ohlcv_4h`, `ohlcv_1d`, `ohlcv_1w`
-
-## Pre-computed Indicators (QuestDB `indicators_{tf}` tables)
-
-~344 indicator columns across 9 categories:
-- **Candle** (62): CDL_DOJI, CDL_HAMMER, CDL_ENGULFING, etc.
-- **Overlap** (36): SMA, EMA, WMA, DEMA, TEMA, HMA, ICHIMOKU, SUPERTREND, etc.
-- **Momentum** (43): RSI, MACD, STOCH, STOCHRSI, CCI, WILLR, MOM, ROC, etc.
-- **Volatility** (28): BBANDS, ATR, NATR, KC, DONCHIAN, etc.
-- **Volume** (17): OBV, AD, ADOSC, CMF, MFI, KVO, etc.
-- **Trend** (23): ADX, AROON, CHOP, PSAR, VORTEX, etc.
-- **Statistics** (12): ENTROPY, KURTOSIS, SKEW, STDEV, ZSCORE, etc.
-- **Cycle** (4): EBSW, etc.
-- **Performance** (3): LOG_RETURN, PERCENT_RETURN, etc.
-
-Computed by `scripts/compute-indicators.py`, uploaded by `scripts/upload-indicators-questdb.py`.
 
 ## Database Selection Rules
 
@@ -190,9 +158,8 @@ Computed by `scripts/compute-indicators.py`, uploaded by `scripts/upload-indicat
 | Ensemble configs | SQLite | JSON + relational hybrid |
 | OHLCV chart rendering | QuestDB | SAMPLE BY, materialized views |
 | Training data source | QuestDB | Python reads via PG wire |
-| Pre-computed indicators | QuestDB | `indicators_{tf}` tables |
 | Tick trades + book data | QuestDB | Time-partitioned columnar |
-| Model outputs | QuestDB | `model_regimes`, `model_shap` |
+| Model outputs | Disk | `data/models/{id}/` (assignments.csv, diagnostics.json) |
 
 ## Data Flow
 
@@ -202,12 +169,8 @@ QuestDB OHLCV (source of truth, 759.5M rows)
     +--> Chart API (SAMPLE BY, materialized views)
     |
     +--> Python training (PG wire :8812)
-    |        |-- features.py: 29 inline features from config
-    |        |-- HDP-HMM → model_regimes + model_shap
-    |
-    +--> Indicator pipeline (offline)
-         |-- compute-indicators.py → parquet
-         |-- upload-indicators-questdb.py → indicators_{tf}
+             |-- features.py: 29 inline features from config
+             |-- HDP-HMM → data/models/{id}/ (disk)
 ```
 
 ## Frontend Page Structure

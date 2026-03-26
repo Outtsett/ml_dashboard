@@ -11,7 +11,17 @@ import time
 import numpy as np
 from numba import njit
 
-from shared.protocol import emit_progress, emit_metric, emit_overlay, emit_log
+from shared.protocol import (
+    emit_progress, emit_metric, emit_overlay, emit_log,
+    emit_model_state, emit_sampler_diagnostics,
+)
+from shared.diagnostics import (
+    compute_cluster_quality,
+    compute_feature_attribution,
+    compute_emission_heatmap,
+    evaluate_quality_gates,
+    compute_sampler_diagnostics as _compute_sampler_diagnostics,
+)
 from hdp_hmm.config import K_TRUNC, NIG_PRIOR
 
 
@@ -96,6 +106,126 @@ def _backward_sample(log_lik, log_A, log_alpha, T, K):
                 break
 
     return states
+
+
+# ── Diagnostic Helpers ─────────────────────────────────────────────────────
+
+def _build_regime_profiles(X, states, active_regimes, transition_matrix, close_vals):
+    """
+    Per-regime summary statistics for the model state snapshot.
+
+    For each active regime: mean_return, volatility (annualized), Sharpe,
+    bar_count, mean_dwell, max_dwell, top transition targets.
+
+    Args:
+        X:                 (T, D) feature matrix
+        states:            (T,) state assignments
+        active_regimes:    array of active regime indices
+        transition_matrix: (K, K) transition probabilities
+        close_vals:        (T,) raw close prices
+
+    Returns dict keyed by regime id.
+    """
+    T = len(states)
+    close_arr = np.asarray(close_vals, dtype=np.float64)
+
+    # Log returns from close prices
+    if len(close_arr) > 1 and np.any(close_arr > 0):
+        log_returns = np.diff(np.log(np.maximum(close_arr, 1e-10)))
+        lr_padded = np.concatenate([[0.0], log_returns])
+    else:
+        lr_padded = np.zeros(T)
+
+    # Compute dwell runs per regime
+    change_points = np.where(np.diff(states) != 0)[0] + 1
+    boundaries = np.concatenate([[0], change_points, [T]])
+    run_lengths = np.diff(boundaries)
+    run_regimes = states[boundaries[:-1]]
+
+    profiles = {}
+    for k in active_regimes:
+        k_int = int(k)
+        mask = states == k
+        bar_count = int(np.sum(mask))
+
+        if bar_count == 0:
+            continue
+
+        # Return statistics
+        regime_lr = lr_padded[mask]
+        mean_ret = float(np.mean(regime_lr))
+        vol = float(np.std(regime_lr) * np.sqrt(252))  # annualized
+        sharpe = float(mean_ret * np.sqrt(252) / max(np.std(regime_lr), 1e-10))
+
+        # Dwell statistics
+        regime_runs = run_lengths[run_regimes == k]
+        mean_dwell = float(np.mean(regime_runs)) if len(regime_runs) > 0 else float(bar_count)
+        max_dwell = int(np.max(regime_runs)) if len(regime_runs) > 0 else bar_count
+
+        # Top transition targets (up to 3)
+        K_mat = transition_matrix.shape[0]
+        if k_int < K_mat:
+            row = transition_matrix[k_int].copy()
+            row[k_int] = 0.0  # exclude self-transition
+            top_targets = []
+            for _ in range(min(3, K_mat)):
+                j = int(np.argmax(row))
+                prob = float(row[j])
+                if prob < 0.01:
+                    break
+                top_targets.append({"regime": j, "probability": round(prob, 4)})
+                row[j] = 0.0
+        else:
+            top_targets = []
+
+        profiles[str(k_int)] = {
+            "mean_return": round(mean_ret, 6),
+            "volatility": round(vol, 4),
+            "sharpe": round(sharpe, 4),
+            "bar_count": bar_count,
+            "mean_dwell": round(mean_dwell, 2),
+            "max_dwell": max_dwell,
+            "top_transitions": top_targets,
+        }
+
+    return profiles
+
+
+def _compute_confidence_histogram(log_lik, states):
+    """
+    Confidence histogram from softmax of log-likelihoods.
+
+    For each bar, softmax the log-likelihood across regimes to get
+    P(k | x_t) for all k, then extract P(assigned state). Bin these
+    probabilities into 10 buckets [0-0.1, 0.1-0.2, ..., 0.9-1.0].
+
+    Args:
+        log_lik: (T, K) log-likelihood matrix
+        states:  (T,) assigned state indices
+
+    Returns dict with: bins (list of 10 floats), edges (list of 11 floats),
+    mean_confidence (float)
+    """
+    T, K = log_lik.shape
+
+    # Softmax per row (numerically stable)
+    max_ll = np.max(log_lik, axis=1, keepdims=True)
+    exp_ll = np.exp(log_lik - max_ll)
+    probs = exp_ll / (np.sum(exp_ll, axis=1, keepdims=True) + 1e-300)
+
+    # Extract probability of assigned state for each bar
+    assigned_probs = probs[np.arange(T), states]
+
+    # Histogram into 10 bins
+    edges = np.linspace(0.0, 1.0, 11)
+    hist_counts, _ = np.histogram(assigned_probs, bins=edges)
+    hist_fractions = hist_counts.astype(np.float64) / max(T, 1)
+
+    return {
+        "bins": [round(float(f), 4) for f in hist_fractions],
+        "edges": [round(float(e), 2) for e in edges],
+        "mean_confidence": round(float(np.mean(assigned_probs)), 4),
+    }
 
 
 # ── Sticky HDP-HMM Model ───────────────────────────────────────────────────
@@ -399,7 +529,8 @@ class StickyHDPHMM:
 
     # ── Main Gibbs Sampler ────────────────────────────────────────────────
 
-    def fit(self, X, n_iter=500, burn_in=100, overlay_interval=25, timestamps=None):
+    def fit(self, X, n_iter=500, burn_in=100, overlay_interval=25, timestamps=None,
+            feature_names=None, close_vals=None):
         """
         Fit via Gibbs sampling, emitting JSON events on stdout.
 
@@ -432,21 +563,39 @@ class StickyHDPHMM:
 
         iteration_metrics = []
         prev_states = None
+        prev_states_for_ari = None  # separate tracker for ARI (not overwritten each iter)
+        stability_history = []      # assignment stability per iteration
         t_start = time.time()
 
+        # Resolve close values for diagnostics
+        if close_vals is not None:
+            close_arr = np.asarray(close_vals, dtype=np.float64)
+        else:
+            close_arr = np.zeros(T, dtype=np.float64)
+
+        # Default feature names if not provided
+        if feature_names is None:
+            feature_names = [f"f{i}" for i in range(D)]
+
         for it in range(1, n_iter + 1):
-            # Step 1: Sample state sequence
+            # Step 1: Sample state sequence (timed)
+            t0 = time.perf_counter()
             log_lik = self._compute_log_likelihood(X)
             states, total_ll = self._sample_states(X, log_lik)
+            ffbs_ms = (time.perf_counter() - t0) * 1000.0
             self.state_sequence = states
             self.log_likelihoods.append(total_ll)
 
-            # Step 2: Sample emission parameters from NIG posterior
+            # Step 2: Sample emission parameters from NIG posterior (timed)
+            t0 = time.perf_counter()
             self._sample_emission_params(X, states)
+            emission_ms = (time.perf_counter() - t0) * 1000.0
 
-            # Steps 3-6: Sample transitions and beta
+            # Steps 3-6: Sample transitions and beta (timed)
+            t0 = time.perf_counter()
             transition_counts = self._sample_transitions(states)
             self._sample_beta(transition_counts)
+            transition_ms = (time.perf_counter() - t0) * 1000.0
 
             # Count active regimes (> 1% of bars)
             unique, counts = np.unique(states, return_counts=True)
@@ -515,8 +664,23 @@ class StickyHDPHMM:
             if prev_states is not None:
                 assignment_stability = float(np.mean(states == prev_states))
                 emit_metric("assignment_stability", assignment_stability, it, n_iter)
+                stability_history.append(assignment_stability)
             emit_metric("switch_rate", switch_rate, it, n_iter)
             emit_metric("avg_dwell", avg_dwell, it, n_iter)
+
+            # ── Sampler diagnostics every 10 iterations ────────────────────
+            if it % 10 == 0 and it > 1:
+                diag = _compute_sampler_diagnostics(
+                    self.log_likelihoods, stability_history
+                )
+                diag["step_timing"] = {
+                    "ffbs_ms": round(ffbs_ms, 2),
+                    "emission_ms": round(emission_ms, 2),
+                    "transition_ms": round(transition_ms, 2),
+                }
+                emit_sampler_diagnostics(it, n_iter, diag)
+
+            prev_states_for_ari = prev_states
             prev_states = states.copy()
 
             # Emit overlay at intervals
@@ -544,6 +708,60 @@ class StickyHDPHMM:
                     _labels[str(rid)] = _lr.label
                 emit_overlay(timestamps, _renum.states, _colors, _labels,
                              self.transition_matrix[:_renum.n_regimes, :_renum.n_regimes], _renum.n_regimes)
+
+            # ── Full model state snapshot at overlay intervals ─────────────
+            if it % overlay_interval == 0:
+                try:
+                    active_mask = np.zeros(self.K, dtype=bool)
+                    for k in active:
+                        active_mask[k] = True
+
+                    # Cluster quality metrics
+                    cluster_metrics = compute_cluster_quality(
+                        X, states, prev_states_for_ari,
+                        self.means, self.vars, close_arr,
+                    )
+                    cluster_metrics["max_regime_pct"] = max_pct
+
+                    # Feature attribution
+                    attribution = compute_feature_attribution(
+                        self.means, self.vars, feature_names, active_mask,
+                    )
+
+                    # Emission heatmap
+                    heatmap = compute_emission_heatmap(
+                        self.means, self.vars, active_mask,
+                    )
+
+                    # Quality gates
+                    gates = evaluate_quality_gates(
+                        cluster_metrics, n_active, active_self_trans,
+                        switch_rate, avg_dwell, beta_entropy,
+                        {"alpha": self.alpha, "gamma": self.gamma, "kappa": self.kappa},
+                    )
+
+                    # Regime profiles
+                    regime_profiles = _build_regime_profiles(
+                        X, states, active, self.transition_matrix, close_arr,
+                    )
+
+                    # Confidence histogram
+                    confidence_hist = _compute_confidence_histogram(log_lik, states)
+
+                    snapshot = {
+                        "cluster_quality": cluster_metrics,
+                        "feature_attribution": attribution,
+                        "emission_heatmap": heatmap,
+                        "quality_gates": gates,
+                        "regime_profiles": regime_profiles,
+                        "confidence_histogram": confidence_hist,
+                        "feature_names": feature_names,
+                        "n_active_regimes": int(n_active),
+                        "active_regime_ids": [int(k) for k in active],
+                    }
+                    emit_model_state(it, n_iter, snapshot)
+                except Exception as e:
+                    emit_log(f"Model state snapshot failed at iter {it}: {e}", level="warn")
 
             # Periodic summary log
             if it % 50 == 0:
