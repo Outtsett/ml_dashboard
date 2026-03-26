@@ -6,7 +6,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { SlidersHorizontal, Sparkles, BarChart3, Info } from "lucide-react";
+import { SlidersHorizontal, Sparkles, Info } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 // ---------------------------------------------------------------------------

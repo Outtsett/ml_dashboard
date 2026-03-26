@@ -21,6 +21,7 @@ export interface TrainingSSECallbacks {
   onMetric(data: any): void;
   onOverlay(data: any): void;
   onLog(data: any): void;
+  onModelState(data: any): void;
   onDone(data: any): void;
   onError(data: any): void;
 }
@@ -47,13 +48,14 @@ export function useTrainingSSE(callbacks: TrainingSSECallbacks): UseTrainingSSER
   cbRef.current = callbacks;
 
   const eventMap = useMemo<Record<string, (data: unknown) => void>>(() => ({
-    started:  (d) => cbRef.current.onStarted(d),
-    progress: (d) => cbRef.current.onProgress(d),
-    metric:   (d) => cbRef.current.onMetric(d),
-    overlay:  (d) => cbRef.current.onOverlay(d),
-    log:      (d) => cbRef.current.onLog(d),
-    done:     (d) => cbRef.current.onDone(d),
-    error:    (d) => cbRef.current.onError(d),
+    started:     (d) => cbRef.current.onStarted(d),
+    progress:    (d) => cbRef.current.onProgress(d),
+    metric:      (d) => cbRef.current.onMetric(d),
+    overlay:     (d) => cbRef.current.onOverlay(d),
+    log:         (d) => cbRef.current.onLog(d),
+    model_state: (d) => cbRef.current.onModelState(d),
+    done:        (d) => cbRef.current.onDone(d),
+    error:       (d) => cbRef.current.onError(d),
   }), []);
 
   const url = modelId

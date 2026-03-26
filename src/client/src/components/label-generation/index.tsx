@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tag, BarChart3 } from "lucide-react";
-import { labelApi } from "@/lib/apiService";
+import { labelApi } from "@/lib/api_service";
 import { QUERY_KEYS } from "@/lib/types";
 import type { LabelGenerationProps, LabelSet } from "./types";
 import { GenerateTab } from "./GenerateTab";

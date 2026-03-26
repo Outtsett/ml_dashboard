@@ -7,14 +7,16 @@
  *   - TrainingMetricsCtx: per-iteration metrics only
  *   - TrainingLogsCtx: log lines only
  *   - TrainingOverlaysCtx: chart overlays + session metadata
+ *   - TrainingModelStateCtx: model state snapshots (every 25-50 iterations)
  *
  * Components pick the narrowest hook they need:
- *   useTrainingControl()  → isTraining, progress, start/stop
- *   useTrainingLive()     → all live data (backward compat)
- *   useTrainingMetrics()  → metrics, iterationHistory
- *   useTrainingLogs()     → logs
- *   useTrainingOverlays() → overlays, regime data, elapsed, diagnostics
- *   useTrainingContext()  → everything merged (backward compat)
+ *   useTrainingControl()    → isTraining, progress, start/stop
+ *   useTrainingLive()       → all live data (backward compat)
+ *   useTrainingMetrics()    → metrics, iterationHistory
+ *   useTrainingLogs()       → logs
+ *   useTrainingOverlays()   → overlays, regime data, elapsed, diagnostics
+ *   useTrainingModelState() → model state snapshots, history
+ *   useTrainingContext()    → everything merged (backward compat)
  */
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
@@ -27,15 +29,18 @@ import type {
   TrainingMetricsSlice,
   TrainingLogsSlice,
   TrainingOverlaysSlice,
+  TrainingModelStateSlice,
 } from "@shared/trainingTypes";
 import { TrainingMetricsProvider } from "./TrainingMetricsCtx";
 import { TrainingLogsProvider } from "./TrainingLogsCtx";
 import { TrainingOverlaysProvider } from "./TrainingOverlaysCtx";
+import { TrainingModelStateProvider } from "./TrainingModelStateCtx";
 
 // Re-export sub-context hooks for convenience
 export { useTrainingMetrics } from "./TrainingMetricsCtx";
 export { useTrainingLogs } from "./TrainingLogsCtx";
 export { useTrainingOverlays } from "./TrainingOverlaysCtx";
+export { useTrainingModelState } from "./TrainingModelStateCtx";
 
 // ── Full context type (backward compat) ─────────────────────────────────────
 type TrainingContextValue = TrainingState & {
@@ -97,11 +102,14 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     totalBars: state.totalBars,
     dataRange: state.dataRange,
     diagnostics: state.diagnostics,
+    modelState: state.modelState,
+    modelStateHistory: state.modelStateHistory,
   }), [
     state.metrics, state.iterationHistory, state.logs,
     state.liveRegimeTimestamps, state.liveRegimeAssignments,
     state.overlayData, state.overlayType,
     state.elapsedSec, state.totalBars, state.dataRange, state.diagnostics,
+    state.modelState, state.modelStateHistory,
   ]);
 
   // ── Sub-slices: memoized independently so each context only triggers
@@ -131,13 +139,20 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     state.elapsedSec, state.totalBars, state.dataRange, state.diagnostics,
   ]);
 
+  const modelStateSlice = useMemo<TrainingModelStateSlice>(() => ({
+    modelState: state.modelState,
+    modelStateHistory: state.modelStateHistory,
+  }), [state.modelState, state.modelStateHistory]);
+
   return (
     <TrainingControlCtx.Provider value={control}>
       <TrainingLiveCtx.Provider value={live}>
         <TrainingMetricsProvider value={metricsSlice}>
           <TrainingLogsProvider value={logsSlice}>
             <TrainingOverlaysProvider value={overlaysSlice}>
-              {children}
+              <TrainingModelStateProvider value={modelStateSlice}>
+                {children}
+              </TrainingModelStateProvider>
             </TrainingOverlaysProvider>
           </TrainingLogsProvider>
         </TrainingMetricsProvider>

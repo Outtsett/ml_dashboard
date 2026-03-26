@@ -179,7 +179,7 @@ export function useLocalReplay(data: any[]) {
         });
       }, SPEED_MS[speed]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [speed]);
 
   // Reset when data changes (new symbol/timeframe)

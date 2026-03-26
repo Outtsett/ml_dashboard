@@ -1,4 +1,4 @@
-import { Database, BarChart3 } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import IndicatorChartLayout from "@/components/IndicatorChartLayout";
 import { ReplayControls } from "@/components/ReplayControls";

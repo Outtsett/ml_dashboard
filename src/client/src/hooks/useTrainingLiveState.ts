@@ -9,7 +9,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { OverlayPayload } from "@shared/trainingTypes";
+import type { OverlayPayload, ModelStatePayload } from "@shared/trainingTypes";
 
 export interface TrainingLiveState {
   // Live data
@@ -22,6 +22,10 @@ export interface TrainingLiveState {
   liveRegimeAssignments: number[];
   diagnostics: unknown | null;
   elapsedSec: number;
+
+  // Model state snapshots (every 25-50 iterations)
+  modelState: ModelStatePayload | null;
+  modelStateHistory: Array<{ iteration: number; state: ModelStatePayload }>;
 
   // Chart alignment
   dataRange: { start: string; end: string } | null;
@@ -38,6 +42,8 @@ export interface TrainingLiveSetters {
   setLiveRegimeAssignments: React.Dispatch<React.SetStateAction<number[]>>;
   setDiagnostics: React.Dispatch<React.SetStateAction<unknown | null>>;
   setElapsedSec: React.Dispatch<React.SetStateAction<number>>;
+  setModelState: React.Dispatch<React.SetStateAction<ModelStatePayload | null>>;
+  setModelStateHistory: React.Dispatch<React.SetStateAction<Array<{ iteration: number; state: ModelStatePayload }>>>;
   setDataRange: React.Dispatch<React.SetStateAction<{ start: string; end: string } | null>>;
   setTotalBars: React.Dispatch<React.SetStateAction<number>>;
 }
@@ -52,6 +58,8 @@ export function useTrainingLiveState() {
   const [liveRegimeAssignments, setLiveRegimeAssignments] = useState<number[]>([]);
   const [diagnostics, setDiagnostics] = useState<unknown | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [modelState, setModelState] = useState<ModelStatePayload | null>(null);
+  const [modelStateHistory, setModelStateHistory] = useState<Array<{ iteration: number; state: ModelStatePayload }>>([]);
   const [dataRange, setDataRange] = useState<{ start: string; end: string } | null>(null);
   const [totalBars, setTotalBars] = useState(0);
 
@@ -84,6 +92,8 @@ export function useTrainingLiveState() {
     setLiveRegimeTimestamps([]);
     setLiveRegimeAssignments([]);
     setDiagnostics(null);
+    setModelState(null);
+    setModelStateHistory([]);
     setDataRange(null);
     setTotalBars(0);
     setElapsedSec(0);
@@ -99,6 +109,7 @@ export function useTrainingLiveState() {
     overlayType, overlayData,
     liveRegimeTimestamps, liveRegimeAssignments,
     diagnostics, elapsedSec,
+    modelState, modelStateHistory,
     dataRange, totalBars,
   };
 
@@ -107,6 +118,7 @@ export function useTrainingLiveState() {
     setOverlayType, setOverlayData,
     setLiveRegimeTimestamps, setLiveRegimeAssignments,
     setDiagnostics, setElapsedSec,
+    setModelState, setModelStateHistory,
     setDataRange, setTotalBars,
   };
 

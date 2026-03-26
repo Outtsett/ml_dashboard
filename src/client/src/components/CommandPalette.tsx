@@ -11,8 +11,7 @@ import {
 } from "@/components/ui/command";
 import {
   Database, List, Newspaper, Server, BrainCircuit, BookOpen,
-  AudioWaveform, Network, BarChart2, Settings,
-  Search, Keyboard,
+  AudioWaveform, Network, BarChart2, Settings, Keyboard,
 } from "lucide-react";
 
 const NAV_ITEMS = [

@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { LABEL_GENERATORS, type LabelGeneratorKey } from "@shared/mlTaxonomy";
 import { type LabelMarker } from "@/components/TradingChart";
 import { QUERY_KEYS } from "@/lib/types";
-import { labelApi, mlApi } from "@/lib/apiService";
+import { labelApi, mlApi } from "@/lib/api_service";
 
 import type {
   MlModel, XAIResult,

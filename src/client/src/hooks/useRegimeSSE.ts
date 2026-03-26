@@ -11,11 +11,11 @@
  */
 
 import { useRef, useCallback, useEffect } from "react";
-import type { TrainingProgress, LiveMetrics, ConvergencePoint } from "../components/training/types";
+import type { TrainingProgress } from "../components/training/types";
 
 // ─── Event data shapes ──────────────────────────────────────────────────────
 
-export interface RegimeSSEProgressData extends TrainingProgress {}
+export type RegimeSSEProgressData = TrainingProgress;
 
 export interface RegimeSSEGibbsData {
   iteration: number;

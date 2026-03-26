@@ -19,7 +19,6 @@ import {
   Clock,
   Layers,
   Trash2,
-  ExternalLink,
   Star,
 } from "lucide-react";
 import { useTrainedModels, useDeleteModel, type ModelGroup, type InstrumentGroup, type TrainedModel } from "@/hooks/useTrainedModels";
@@ -58,7 +57,7 @@ export function ModelBrowser({ onSelectModel, filterModelType, filterSymbol }: M
   const toggleType = (type: string) => {
     setExpandedTypes(prev => {
       const next = new Set(prev);
-      next.has(type) ? next.delete(type) : next.add(type);
+      if (next.has(type)) next.delete(type); else next.add(type);
       return next;
     });
   };
@@ -66,7 +65,7 @@ export function ModelBrowser({ onSelectModel, filterModelType, filterSymbol }: M
   const toggleInstrument = (key: string) => {
     setExpandedInstruments(prev => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   };

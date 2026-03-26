@@ -67,9 +67,18 @@ interface ElectronAPI {
   // Context menus
   showContextMenu(opts: { type: 'titlebar' | 'chart' | 'table' | 'model' | 'terminal' | 'general'; data?: unknown }): Promise<string | null>;
 
-  // Beta mode: heartbeat + recovery
-  onHeartbeatPing(cb: () => void): void;
+  // Reload + restart
   requestReload(): void;
+  hardReload(): void;
+  restart(): void;
+
+  // Zoom
+  getZoom(): Promise<number>;
+  setZoom(factor: number): void;
+  resetZoom(): void;
+
+  // Beta mode: heartbeat
+  onHeartbeatPing(cb: () => void): void;
 
   // Power
   onPowerEvent(cb: (event: 'suspend' | 'resume' | 'shutdown') => void): () => void;

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { LineSeries, createSeriesMarkers, type IChartApi, type Time } from 'lightweight-charts';
-import type { SupportResistanceLevel, ZigZagPoint } from '@/lib/chartOverlays';
+import type { SupportResistanceLevel, ZigZagPoint } from '@/lib/chart_overlays';
 import { dedupByTime } from './chartConfig';
 
 // ── Types ──────────────────────────────────────────────────────────────────

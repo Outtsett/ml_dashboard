@@ -10,9 +10,9 @@ import {
   Shuffle, Dice5, TrendingUp,
 } from "lucide-react";
 import { QUERY_KEYS } from "@/lib/types";
-import { apiRequest } from "@/lib/queryClient";
-import { fetchArray } from "@/lib/fetchArray";
-import { backtestApi } from "@/lib/apiService";
+import { apiRequest } from "@/lib/query_client";
+import { fetchArray } from "@/lib/fetch_array";
+import { backtestApi } from "@/lib/api_service";
 import { useDashboard, useSymbol, type TradeMarker } from "@/contexts/UnifiedDashboardContext";
 import type { BrokerConfig, BacktestRunResult, WalkForwardResult, MonteCarloResult, BenchmarkResult } from "./types";
 import { MetricBox } from "./MetricBox";

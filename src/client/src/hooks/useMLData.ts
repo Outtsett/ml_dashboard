@@ -9,7 +9,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { mlApi } from '@/lib/apiService';
+import { mlApi } from '@/lib/api_service';
 import { QUERY_KEYS } from '@/lib/types';
 import type { MlModel, Trade } from '@/lib/types';
 

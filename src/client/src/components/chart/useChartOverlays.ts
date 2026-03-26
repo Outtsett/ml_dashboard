@@ -1,9 +1,48 @@
 import { useEffect, useRef } from 'react';
-import { LineSeries, createSeriesMarkers, type IChartApi, type Time } from 'lightweight-charts';
+import {
+  LineSeries, AreaSeries, createSeriesMarkers,
+  LineStyle, type IChartApi, type Time,
+} from 'lightweight-charts';
 import type { IndicatorOverlay } from '@/hooks/useIndicatorData';
-import { getPatternDisplayName } from '@/lib/candlePatterns';
-import { getSeriesTitle } from '@/lib/indicatorPanels';
+import { getPatternDisplayName } from '@/lib/candle_patterns';
+import { getSeriesTitle } from '@/lib/indicator_panels';
+import { colorToRgba } from '@/lib/indicator_colors';
 import { dedupByTime } from './chartConfig';
+
+// ─── Band / line classification helpers ──────────────────────────────────────
+
+/** Output keys that represent the upper boundary of a band indicator */
+const UPPER_BAND_KEYS = new Set(['upper', 'senkouA']);
+/** Output keys that represent the lower boundary of a band indicator */
+const LOWER_BAND_KEYS = new Set(['lower', 'senkouB']);
+/** Output keys for the center / middle line of a band indicator */
+const MIDDLE_BAND_KEYS = new Set(['middle', 'kijun']);
+/** Output keys for signal / trigger lines (subordinate) */
+const SIGNAL_KEYS = new Set(['signal', 'trigger']);
+/** Output keys that get low-opacity treatment */
+const FAINT_KEYS = new Set(['chikou']);
+
+/**
+ * Parse an instance-based column ("instanceId::outputKey") and return the
+ * outputKey, or '' for legacy column formats.
+ */
+function extractOutputKey(column: string): string {
+  const idx = column.indexOf('::');
+  if (idx === -1) return '';
+  return column.slice(idx + 2);
+}
+
+/**
+ * Determine the opacity multiplier for a given output key.
+ * Band edges and subordinate lines are rendered at reduced opacity
+ * so they don't compete visually with the main price action.
+ */
+function getLineOpacity(outputKey: string): number {
+  if (FAINT_KEYS.has(outputKey)) return 0.5;
+  if (UPPER_BAND_KEYS.has(outputKey) || LOWER_BAND_KEYS.has(outputKey)) return 0.7;
+  if (SIGNAL_KEYS.has(outputKey)) return 0.8;
+  return 1.0;
+}
 
 /**
  * Snap a marker timestamp to the nearest candle time.
@@ -98,24 +137,66 @@ export function useChartOverlays(
     // Add or update overlay series
     for (const overlay of indicatorOverlays) {
       const existing = overlaySeriesRef.current.get(overlay.column);
+      const seriesData = dedupByTime(overlay.data.map(d => ({ time: d.time as Time, value: d.value })));
 
       if (existing) {
-        existing.setData(dedupByTime(overlay.data.map(d => ({ time: d.time as Time, value: d.value }))));
+        existing.setData(seriesData);
       } else if (overlay.displayType === 'marker') {
         // CDL pattern markers — handled via createSeriesMarkers below
       } else {
-        const series = chart.addSeries(LineSeries, {
-          color: overlay.color,
-          lineWidth: overlay.lineWidth as 1 | 2 | 3 | 4,
-          priceScaleId: 'right',
-          lastValueVisible: false,
-          priceLineVisible: false,
-          crosshairMarkerVisible: true,
-          crosshairMarkerRadius: 3,
-          title: getSeriesTitle(overlay.column),
-        });
+        const outputKey = extractOutputKey(overlay.column);
+        const isUpper = UPPER_BAND_KEYS.has(outputKey);
+        const isLower = LOWER_BAND_KEYS.has(outputKey);
+        const isMiddle = MIDDLE_BAND_KEYS.has(outputKey);
+        const isSignal = SIGNAL_KEYS.has(outputKey);
 
-        series.setData(dedupByTime(overlay.data.map(d => ({ time: d.time as Time, value: d.value }))));
+        // Apply opacity to the line color for subordinate lines
+        const opacity = getLineOpacity(outputKey);
+        const effectiveColor = opacity < 1.0
+          ? colorToRgba(overlay.color, opacity)
+          : overlay.color;
+
+        let series: any;
+
+        if (isUpper || isLower) {
+          // Band boundary lines — use AreaSeries for subtle shaded fill
+          const fillColor = colorToRgba(overlay.color, 0.06);
+          const transparent = 'rgba(0, 0, 0, 0)';
+
+          series = chart.addSeries(AreaSeries, {
+            lineColor: effectiveColor,
+            lineWidth: overlay.lineWidth as 1 | 2 | 3 | 4,
+            lineStyle: LineStyle.Solid,
+            // Upper band: fill downward (topColor transparent, bottomColor shaded)
+            // Lower band: fill upward (topColor shaded, bottomColor transparent)
+            topColor: isUpper ? transparent : fillColor,
+            bottomColor: isUpper ? fillColor : transparent,
+            // For lower bands, invert so fill extends above the line
+            invertFilledArea: isLower,
+            priceScaleId: 'right',
+            lastValueVisible: false,
+            priceLineVisible: false,
+            crosshairMarkerVisible: false,
+            title: getSeriesTitle(overlay.column),
+          });
+        } else {
+          // Regular LineSeries for middle, signal, and all other lines
+          series = chart.addSeries(LineSeries, {
+            color: effectiveColor,
+            lineWidth: (isMiddle ? 2 : overlay.lineWidth) as 1 | 2 | 3 | 4,
+            lineStyle: isSignal ? LineStyle.Dashed
+                     : FAINT_KEYS.has(outputKey) ? LineStyle.Dotted
+                     : LineStyle.Solid,
+            priceScaleId: 'right',
+            lastValueVisible: false,
+            priceLineVisible: false,
+            crosshairMarkerVisible: true,
+            crosshairMarkerRadius: 3,
+            title: getSeriesTitle(overlay.column),
+          });
+        }
+
+        series.setData(seriesData);
         overlaySeriesRef.current.set(overlay.column, series);
       }
     }

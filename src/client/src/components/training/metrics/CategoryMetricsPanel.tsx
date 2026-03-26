@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Check, X, Minus, ArrowUp, ArrowDown, Info } from "lucide-react";
 import type { CategoryMetricsConfig, MetricDefinition } from "@shared/categoryMetrics";
-import type { MetricSnapshot, MetricValue } from "@/lib/metricExtractors";
+import type { MetricSnapshot, MetricValue } from "@/lib/metric_extractors";
 
 interface CategoryMetricsPanelProps {
   config: CategoryMetricsConfig;

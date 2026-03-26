@@ -97,7 +97,7 @@ export function useChartSetup({
       resizeObserver.disconnect();
       chart.remove();
     };
-  }, [decimals, isFutures, tickInfo, minMove]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [decimals, isFutures, tickInfo, minMove]);  
 
   // ── Toggle time axis visibility ────────────────────────────────────────
 

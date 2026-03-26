@@ -1,6 +1,6 @@
 import type { CandlestickData, LogicalRange, Time } from 'lightweight-charts';
 import type { IndicatorOverlay } from '@/hooks/useIndicatorData';
-import type { SupportResistanceLevel, ZigZagPoint } from '@/lib/chartOverlays';
+import type { SupportResistanceLevel, ZigZagPoint } from '@/lib/chart_overlays';
 import type { TradeMarker, PredictionMarker } from '@/contexts/UnifiedDashboardContext';
 import type { StitchedOHLCVBar } from '@shared/ohlcv';
 

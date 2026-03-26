@@ -18,10 +18,11 @@ import type { Trade } from "@/lib/types";
 import { useMLTrades } from "@/hooks/useMLData";
 import { useChartOHLCV } from "@/hooks/useChartOHLCV";
 import { useChartOverlayData } from "./useChartOverlayData";
-import { type OhlcvData, type InstrumentInfo } from "./types";
-import { TIMEFRAME_OPTIONS as timeframes, minutesToLabel } from "@/lib/timeframes";
+import { type InstrumentInfo } from "./types";
+import { minutesToLabel } from "@/lib/timeframes";
 import { Toolbar } from "./Toolbar";
 import { AnalyticsStrip } from "./AnalyticsStrip";
+import { TrainingStatusStrip } from "@/components/training/market-data/TrainingStatusStrip";
 import { ChartPanel } from "./ChartPanel";
 
 export default function MarketData() {
@@ -244,6 +245,9 @@ export default function MarketData() {
         isTrainingStarting={isTrainingStarting}
         onResetScrollState={resetScrollState}
       />
+
+      {/* Training Status Strip — compact quality gates + progress when training */}
+      {isTrainingActive && <TrainingStatusStrip />}
 
       {/* Analytics Strip */}
       {!isFetching && chartData.length === 0 ? (

@@ -29,9 +29,8 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { motiveWaveApi, type MwStatus, type MwImportRecord } from "@/lib/apiService";
+import { motiveWaveApi, type MwStatus, type MwImportRecord } from "@/lib/api_service";
 
 // ── Status Badge ─────────────────────────────────────────────────────────────
 

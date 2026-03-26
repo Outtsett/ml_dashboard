@@ -7,7 +7,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/types';
-import { instrumentApi } from '@/lib/apiService';
+import { instrumentApi } from '@/lib/api_service';
 import type {
   RegimeModel,
   ConvergencePoint,

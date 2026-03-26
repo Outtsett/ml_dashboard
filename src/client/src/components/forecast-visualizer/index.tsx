@@ -12,8 +12,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useSymbol } from "@/contexts/UnifiedDashboardContext";
-import { fetchArray } from "@/lib/fetchArray";
-import { mlApi } from "@/lib/apiService";
+import { fetchArray } from "@/lib/fetch_array";
+import { mlApi } from "@/lib/api_service";
 import { QUERY_KEYS } from "@/lib/types";
 import {
   Brain, TrendingUp, TrendingDown, Target,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { setFetchListener } from "@/lib/queryClient";
+import { setFetchListener } from "@/lib/query_client";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

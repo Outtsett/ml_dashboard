@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, startTransition } from 'react';
-import { logError, logWarn } from '../lib/errorLogger';
+import { logError, logWarn } from '../lib/error_logger';
 
 export interface SSEConnectionOptions {
   url: string;

@@ -9,7 +9,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { UNIVERSAL_METRICS, type MetricDefinition } from "@shared/categoryMetrics";
-import type { MetricSnapshot, MetricValue } from "@/lib/metricExtractors";
+import type { MetricSnapshot, MetricValue } from "@/lib/metric_extractors";
 
 interface UniversalMetricsStripProps {
   snapshots: MetricSnapshot[];

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Minus, Square, X, Copy } from 'lucide-react';
+import { Minus, Square, X, Copy, RotateCw, RefreshCcw } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { useLocation } from 'wouter';
 
@@ -69,11 +69,28 @@ export function Titlebar() {
         </span>
       </div>
 
-      {/* Right: Window controls */}
+      {/* Right: Reload + Window controls */}
       <div
         className="flex items-center h-full"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
+        <button
+          onClick={() => api.requestReload()}
+          className="h-full w-10 flex items-center justify-center text-muted-foreground/40 hover:bg-white/10 hover:text-muted-foreground transition-colors"
+          aria-label="Reload (Ctrl+R)"
+          title="Reload (Ctrl+R)"
+        >
+          <RotateCw className="h-3 w-3" />
+        </button>
+        <button
+          onClick={() => api.hardReload?.()}
+          className="h-full w-10 flex items-center justify-center text-muted-foreground/40 hover:bg-white/10 hover:text-muted-foreground transition-colors"
+          aria-label="Hard Reload (Ctrl+Shift+R)"
+          title="Hard Reload — clear cache (Ctrl+Shift+R)"
+        >
+          <RefreshCcw className="h-3 w-3" />
+        </button>
+        <div className="w-px h-4 bg-white/10 mx-0.5" />
         <button
           onClick={() => api.minimize()}
           className="h-full w-12 flex items-center justify-center text-muted-foreground hover:bg-white/10 transition-colors"

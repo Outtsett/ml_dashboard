@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Layers, Clock } from "lucide-react";
 import type { RegimeModel } from "@/components/training/types";
-import { getQualityColor, getQualityLabel } from "@/components/training/types";
+import { getQualityColor } from "@/components/training/types";
 
 interface ModelComparisonSelectorProps {
   models: RegimeModel[];

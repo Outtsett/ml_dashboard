@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { getIndicatorColor } from '@/lib/indicatorColors';
-import { scanPatterns } from '@/lib/candlePatterns';
+import { getIndicatorColor } from '@/lib/indicator_colors';
+import { scanPatterns } from '@/lib/candle_patterns';
 
 // --- Types ---
 

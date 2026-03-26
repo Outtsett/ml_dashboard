@@ -195,7 +195,7 @@ export function useChartSeries({
       timeScale.unsubscribeVisibleLogicalRangeChange(handleVisibleTimeRangeChange);
       if (loadMoreTimerRef.current) clearTimeout(loadMoreTimerRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [data.length, processedData.candles]);
 
   // ── Data update logic ──────────────────────────────────────────────────

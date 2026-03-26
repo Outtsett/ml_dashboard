@@ -10,7 +10,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
-import { CATEGORY_METRICS, resolveMetricsConfig } from "@shared/categoryMetrics";
+import { CATEGORY_METRICS } from "@shared/categoryMetrics";
 import { useModelComparison } from "@/hooks/useModelComparison";
 import type { RegimeModel } from "@/components/training/types";
 import ModelComparisonSelector from "./ModelComparisonSelector";

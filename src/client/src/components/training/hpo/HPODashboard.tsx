@@ -1,59 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ScatterChart,
-  Scatter,
-  ZAxis,
-} from "recharts";
-import { cn } from "@/lib/utils";
-import { logError } from "../../../lib/errorLogger";
-
-// shadcn UI components
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableCell,
-} from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Tooltip as UITooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { logError } from "../../../lib/error_logger";
 
-// Icons
-import {
-  Activity,
-  Trophy,
-  Clock,
-  TrendingUp,
-  Hash,
-  AlertTriangle,
-  Pause,
-  X,
-  ChevronDown,
-} from "lucide-react";
+// Sub-components
+import { HPOMetricsCards } from "./HPOMetricsCards";
+import { HPOChartsSection } from "./HPOChartsSection";
+import { HPOTrialsList } from "./HPOTrialsList";
 
 // Shared types
 import type { TrialResult, HPOSession } from "@shared/hpoTypes";
@@ -220,15 +173,12 @@ function HPODashboard({ sessionId, onClose, onApplyParams }: HPODashboardProps) 
     };
 
     return () => eventSource.close();
-    // Re-subscribe when sessionId changes or when status transitions to a
-    // terminal state so the cleanup closes the stream.
   }, [sessionId, status]);
 
   // ---- Derived data -------------------------------------------------------
 
   const isMaximize = useMemo(() => {
     if (!sessionData) return true;
-    // Convention: if objectiveMetric contains "loss" or "error", minimize
     const metric = sessionData.objectiveMetric?.toLowerCase() ?? "";
     return !(metric.includes("loss") || metric.includes("error") || metric.includes("mse") || metric.includes("mae"));
   }, [sessionData]);
@@ -251,8 +201,6 @@ function HPODashboard({ sessionId, onClose, onApplyParams }: HPODashboardProps) 
       };
     });
   }, [trials, compareFn, isMaximize]);
-
-  const totalTrials = sessionData?.totalTrials ?? 0;
 
   // Param names for the scatter section
   const paramNames = useMemo(() => {
@@ -352,463 +300,44 @@ function HPODashboard({ sessionId, onClose, onApplyParams }: HPODashboardProps) 
 
   return (
     <div className="flex flex-col gap-3">
-      {/* ================================================================= */}
-      {/* Section 1 — Header Bar                                            */}
-      {/* ================================================================= */}
-      <Card className="bg-black/20 border-white/5 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3">
-          {/* Left: session info */}
-          <div className="flex items-center gap-3 min-w-0">
-            <Activity className="h-4 w-4 text-blue-400 shrink-0" />
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium truncate">
-                  {sessionData?.modelType ?? "HPO"}
-                </span>
-                {sessionData?.optimizerType && (
-                  <Badge
-                    variant="outline"
-                    className="text-[9px] bg-blue-500/10 text-blue-400 border-blue-500/20"
-                  >
-                    {sessionData.optimizerType}
-                  </Badge>
-                )}
-                <Badge
-                  variant="outline"
-                  className={cn("text-[9px]", STATUS_STYLES[status] ?? STATUS_STYLES.pending)}
-                >
-                  {status}
-                </Badge>
-              </div>
-              {sessionData?.objectiveMetric && (
-                <p className="text-[9px] text-muted-foreground/50 mt-0.5">
-                  Optimizing: {sessionData.objectiveMetric}
-                  {sessionData.symbol && ` · ${sessionData.symbol}`}
-                  {sessionData.timeframe && ` / ${sessionData.timeframe}`}
-                </p>
-              )}
-            </div>
-          </div>
+      <HPOMetricsCards
+        sessionData={sessionData ?? null}
+        status={status}
+        trialsCount={trials.length}
+        prunedCount={prunedCount}
+        elapsedSec={elapsedSec}
+        bestScore={bestTrial?.bestScore}
+        isRunning={isRunning}
+        isDone={isDone}
+        stopping={stopping}
+        applying={applying}
+        handleStop={handleStop}
+        handleApplyBest={handleApplyBest}
+        onClose={onClose}
+      />
 
-          {/* Center: stats */}
-          <div className="flex items-center gap-5">
-            <TooltipProvider delayDuration={200}>
-              <UITooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Hash className="h-3 w-3" />
-                    <span className="text-xs font-mono">
-                      {trials.length}
-                      {totalTrials > 0 && <span className="text-muted-foreground/50">/{totalTrials}</span>}
-                    </span>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-[10px]">
-                  Completed trials
-                </TooltipContent>
-              </UITooltip>
-            </TooltipProvider>
+      <HPOChartsSection
+        chartData={chartData}
+        scatterData={scatterData}
+        paramNames={paramNames}
+        selectedParam={selectedParam}
+        setSelectedParam={setSelectedParam}
+        formatScore={formatScore}
+        trialsCount={trials.length}
+      />
 
-            {prunedCount > 0 && (
-              <TooltipProvider delayDuration={200}>
-                <UITooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1.5 text-amber-400/70">
-                      <AlertTriangle className="h-3 w-3" />
-                      <span className="text-xs font-mono">{prunedCount}</span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="text-[10px]">
-                    Pruned trials
-                  </TooltipContent>
-                </UITooltip>
-              </TooltipProvider>
-            )}
-
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <Clock className="h-3 w-3" />
-              <span className="text-xs font-mono">{formatDuration(elapsedSec)}</span>
-            </div>
-
-            {bestTrial && (
-              <div className="flex items-center gap-1.5">
-                <Trophy className="h-3 w-3 text-amber-400" />
-                <span className="text-lg font-bold text-emerald-400">
-                  {formatScore(bestTrial.bestScore)}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Right: actions */}
-          <div className="flex items-center gap-2">
-            {isRunning && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-[10px] border-red-500/30 text-red-400 hover:bg-red-500/10"
-                onClick={handleStop}
-                disabled={stopping}
-              >
-                <Pause className="h-3 w-3 mr-1" />
-                {stopping ? "Stopping…" : "Stop"}
-              </Button>
-            )}
-            {isDone && bestTrial && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-[10px] border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
-                onClick={handleApplyBest}
-                disabled={applying}
-              >
-                <TrendingUp className="h-3 w-3 mr-1" />
-                {applying ? "Applying…" : "Apply Best Params"}
-              </Button>
-            )}
-            {onClose && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-white"
-                onClick={onClose}
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            )}
-          </div>
-        </div>
-      </Card>
-
-      {/* ================================================================= */}
-      {/* Section 2 — Optimization History Chart                            */}
-      {/* ================================================================= */}
-      <Card className="bg-black/20 border-white/5 overflow-hidden">
-        <div className="flex items-center justify-between px-4 pt-3 pb-1">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
-            Optimization History
-          </h4>
-          {chartData.length > 0 && (
-            <div className="flex items-center gap-3 text-[9px] text-muted-foreground/50">
-              <span className="flex items-center gap-1">
-                <span className="inline-block w-2.5 h-0.5 rounded bg-[#3b82f680]" />
-                Per-trial
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="inline-block w-2.5 h-0.5 rounded bg-emerald-500" />
-                Best so far
-              </span>
-            </div>
-          )}
-        </div>
-        <div className="px-4 pb-3" style={{ minHeight: 220 }}>
-          {chartData.length === 0 ? (
-            <div className="w-full h-full flex items-center justify-center text-muted-foreground min-h-[200px]">
-              <div className="text-center">
-                <Activity className="h-5 w-5 mx-auto mb-2 opacity-30" />
-                <p className="text-xs">Waiting for trial results…</p>
-                <p className="text-[10px] opacity-60 mt-1">
-                  Data will appear as trials complete.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis
-                  dataKey="trial"
-                  tick={{ fontSize: 10, fill: "#888" }}
-                  tickLine={false}
-                  label={{ value: "Trial", position: "insideBottomRight", offset: -4, fontSize: 9, fill: "#666" }}
-                />
-                <YAxis
-                  tick={{ fontSize: 10, fill: "#888" }}
-                  tickLine={false}
-                  width={65}
-                  tickFormatter={(v: number) => formatScore(v)}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: "#1a1a1a",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    fontSize: 11,
-                    borderRadius: 6,
-                  }}
-                  formatter={(value: number, name: string) => [
-                    formatScore(value),
-                    name === "bestSoFar" ? "Best so far" : "Score",
-                  ]}
-                  labelFormatter={(label) => `Trial ${label}`}
-                />
-                {/* Per-trial score */}
-                <Line
-                  type="monotone"
-                  dataKey="score"
-                  stroke="#3b82f680"
-                  dot={(props: any) => {
-                    const { cx, cy, payload } = props;
-                    if (payload?.pruned) {
-                      return (
-                        <g key={`pruned-${payload.trial}`}>
-                          <line x1={cx - 3} y1={cy - 3} x2={cx + 3} y2={cy + 3} stroke="#ef4444" strokeWidth={1.5} />
-                          <line x1={cx + 3} y1={cy - 3} x2={cx - 3} y2={cy + 3} stroke="#ef4444" strokeWidth={1.5} />
-                        </g>
-                      );
-                    }
-                    return (
-                      <circle
-                        key={`dot-${payload?.trial}`}
-                        cx={cx}
-                        cy={cy}
-                        r={2.5}
-                        fill="#3b82f6"
-                        stroke="none"
-                      />
-                    );
-                  }}
-                  strokeWidth={1}
-                  isAnimationActive={false}
-                />
-                {/* Best-so-far stepped line */}
-                <Line
-                  type="stepAfter"
-                  dataKey="bestSoFar"
-                  stroke="#10b981"
-                  dot={false}
-                  strokeWidth={2}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </Card>
-
-      {/* ================================================================= */}
-      {/* Section 3 — Trial Results Table                                   */}
-      {/* ================================================================= */}
-      <Card className="bg-black/20 border-white/5 overflow-hidden">
-        <div className="flex items-center justify-between px-4 pt-3 pb-1">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
-            Trial Results
-          </h4>
-          <span className="text-[9px] text-muted-foreground/40 font-mono">
-            {trials.length} trial{trials.length !== 1 ? "s" : ""}
-          </span>
-        </div>
-        <div className="px-4 pb-3">
-          {trials.length === 0 ? (
-            <div className="w-full flex items-center justify-center text-muted-foreground min-h-[100px]">
-              <p className="text-xs">No trials yet.</p>
-            </div>
-          ) : (
-            <ScrollArea className="max-h-[300px]">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-white/5 hover:bg-transparent">
-                    <TableHead
-                      className="text-[10px] cursor-pointer select-none w-16"
-                      onClick={() => toggleSort("trialId")}
-                    >
-                      <span className="flex items-center gap-1">
-                        Trial
-                        {sortField === "trialId" && (
-                          <ChevronDown
-                            className={cn("h-3 w-3 transition-transform", sortDir === "asc" && "rotate-180")}
-                          />
-                        )}
-                      </span>
-                    </TableHead>
-                    <TableHead
-                      className="text-[10px] cursor-pointer select-none w-28"
-                      onClick={() => toggleSort("score")}
-                    >
-                      <span className="flex items-center gap-1">
-                        Score
-                        {sortField === "score" && (
-                          <ChevronDown
-                            className={cn("h-3 w-3 transition-transform", sortDir === "asc" && "rotate-180")}
-                          />
-                        )}
-                      </span>
-                    </TableHead>
-                    <TableHead className="text-[10px] w-20">Status</TableHead>
-                    <TableHead
-                      className="text-[10px] cursor-pointer select-none w-20"
-                      onClick={() => toggleSort("durationSec")}
-                    >
-                      <span className="flex items-center gap-1">
-                        Duration
-                        {sortField === "durationSec" && (
-                          <ChevronDown
-                            className={cn("h-3 w-3 transition-transform", sortDir === "asc" && "rotate-180")}
-                          />
-                        )}
-                      </span>
-                    </TableHead>
-                    <TableHead className="text-[10px]">Key Params</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedTrials.map((trial) => {
-                    const isBest = bestTrial?.trialId === trial.trialId;
-                    const trialStatus = trial.error
-                      ? "failed"
-                      : trial.pruned
-                        ? "pruned"
-                        : "completed";
-
-                    return (
-                      <TableRow
-                        key={trial.trialId}
-                        className={cn(
-                          "border-white/5",
-                          isBest && "bg-amber-500/5 border-l-2 border-l-amber-500/40",
-                        )}
-                      >
-                        <TableCell className="text-xs font-mono">
-                          <span className="flex items-center gap-1.5">
-                            {isBest && <Trophy className="h-3 w-3 text-amber-400" />}
-                            #{trial.trialId}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-xs font-mono">
-                          <span className={cn(isBest && "text-emerald-400 font-semibold")}>
-                            {formatScore(trial.score)}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={cn("text-[9px]", STATUS_STYLES[trialStatus])}
-                          >
-                            {trialStatus}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs font-mono text-muted-foreground">
-                          {formatDuration(trial.durationSec)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1 flex-wrap">
-                            {topParamKeys.map((key) => {
-                              const val = trial.params[key];
-                              if (val == null) return null;
-                              const display =
-                                typeof val === "number"
-                                  ? Number.isInteger(val)
-                                    ? String(val)
-                                    : val.toPrecision(3)
-                                  : String(val);
-                              return (
-                                <Badge
-                                  key={key}
-                                  variant="outline"
-                                  className="text-[8px] bg-zinc-500/10 text-zinc-400 border-zinc-500/20 font-mono"
-                                >
-                                  {key}={display}
-                                </Badge>
-                              );
-                            })}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          )}
-        </div>
-      </Card>
-
-      {/* ================================================================= */}
-      {/* Section 4 — Parameter Distribution Scatter                        */}
-      {/* ================================================================= */}
-      <Card className="bg-black/20 border-white/5 overflow-hidden">
-        <div className="flex items-center justify-between px-4 pt-3 pb-1">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
-            Parameter vs Score
-          </h4>
-          {paramNames.length > 0 && (
-            <Select value={selectedParam} onValueChange={setSelectedParam}>
-              <SelectTrigger className="h-6 w-[160px] text-[10px] bg-black/30 border-white/10">
-                <SelectValue placeholder="Select param" />
-              </SelectTrigger>
-              <SelectContent>
-                {paramNames.map((p) => (
-                  <SelectItem key={p} value={p} className="text-[10px]">
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-        <div className="px-4 pb-3" style={{ minHeight: 200 }}>
-          {scatterData.length === 0 ? (
-            <div className="w-full h-full flex items-center justify-center text-muted-foreground min-h-[180px]">
-              <div className="text-center">
-                <TrendingUp className="h-5 w-5 mx-auto mb-2 opacity-30" />
-                <p className="text-xs">
-                  {trials.length === 0
-                    ? "Awaiting trial data…"
-                    : "No numeric data for this parameter."}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <ScatterChart margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis
-                  dataKey="value"
-                  type="number"
-                  tick={{ fontSize: 10, fill: "#888" }}
-                  tickLine={false}
-                  name={selectedParam}
-                  label={{
-                    value: selectedParam,
-                    position: "insideBottomRight",
-                    offset: -4,
-                    fontSize: 9,
-                    fill: "#666",
-                  }}
-                />
-                <YAxis
-                  dataKey="score"
-                  type="number"
-                  tick={{ fontSize: 10, fill: "#888" }}
-                  tickLine={false}
-                  width={65}
-                  tickFormatter={(v: number) => formatScore(v)}
-                  name="Score"
-                />
-                <ZAxis range={[20, 20]} />
-                <Tooltip
-                  contentStyle={{
-                    background: "#1a1a1a",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    fontSize: 11,
-                    borderRadius: 6,
-                  }}
-                  formatter={(value: number, name: string) => [
-                    name === "Score" ? formatScore(value) : value,
-                    name,
-                  ]}
-                  labelFormatter={() => ""}
-                />
-                <Scatter
-                  data={scatterData}
-                  fill="#3b82f6"
-                  fillOpacity={0.7}
-                  strokeWidth={0}
-                />
-              </ScatterChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </Card>
+      <HPOTrialsList
+        trials={trials}
+        sortedTrials={sortedTrials}
+        bestTrialId={bestTrial?.trialId}
+        sortField={sortField}
+        sortDir={sortDir}
+        toggleSort={toggleSort}
+        formatScore={formatScore}
+        formatDuration={formatDuration}
+        topParamKeys={topParamKeys}
+        statusStyles={STATUS_STYLES}
+      />
     </div>
   );
 }

@@ -10,7 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useInstruments } from "@/hooks/useRegimeData";
-import { logError } from "../lib/errorLogger";
+import { logError } from "../lib/error_logger";
 
 interface NewsItem {
   title: string;

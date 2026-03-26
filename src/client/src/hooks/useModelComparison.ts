@@ -13,7 +13,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/types';
 import type { Diagnostics, RegimeModel } from '@/components/training/types';
-import { buildMetricSnapshot, type MetricSnapshot } from '@/lib/metricExtractors';
+import { buildMetricSnapshot, type MetricSnapshot } from '@/lib/metric_extractors';
 import { resolveMetricsConfig } from '@shared/categoryMetrics';
 
 const MAX_SELECTIONS = 4;

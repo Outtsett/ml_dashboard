@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSSEConnection } from './useSSEConnection';
-import { logError, logWarn } from '../lib/errorLogger';
+import { logError, logWarn } from '../lib/error_logger';
 
 type SSEChannel = 'pipeline' | 'training' | 'system';
 

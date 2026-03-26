@@ -6,7 +6,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { trainingApi } from "@/lib/apiService";
+import { trainingApi } from "@/lib/api_service";
 import { QUERY_KEYS } from "@/lib/types";
 import type { ModelRegistryEntry } from "@shared/trainingTypes";
 

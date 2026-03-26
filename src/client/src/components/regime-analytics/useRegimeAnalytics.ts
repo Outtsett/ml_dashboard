@@ -8,7 +8,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useDashboard } from "@/contexts/UnifiedDashboardContext";
 import { useRegimeModels, useRegimeDiagnostics, useRegimeConvergence, useRegimeAssignments } from "@/hooks/useRegimeData";
-import { regimeApi } from "@/lib/apiService";
+import { regimeApi } from "@/lib/api_service";
 import type { TrainingProgress } from "./types";
 
 // ── Config state shape ──

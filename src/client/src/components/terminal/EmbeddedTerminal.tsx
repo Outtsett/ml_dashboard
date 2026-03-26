@@ -161,7 +161,7 @@ export function EmbeddedTerminal({ sessionId, visible = true }: EmbeddedTerminal
       termRef.current = null;
       fitRef.current = null;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   // ── Resize handling ────────────────────────────────────────────────────────
 

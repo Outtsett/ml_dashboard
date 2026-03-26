@@ -8,14 +8,14 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/query_client";
 import { toast } from "sonner";
 import type {
   CatalogStats,
   CatalogTaxonomy,
   CatalogListResponse,
   CatalogModelDetail,
-} from "@/lib/catalogTypes";
+} from "@/lib/catalog_types";
 
 // ─── Query keys (mirror API paths per project convention) ───────────────────
 

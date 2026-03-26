@@ -23,7 +23,7 @@ import TradingChart from '@/components/TradingChart';
 import type { TradingChartHandle, TradingChartProps } from '@/components/TradingChart';
 import SubchartPanel from '@/components/SubchartPanel';
 import type { SubchartPanelHandle } from '@/components/SubchartPanel';
-import { groupSubchartIndicators } from '@/lib/indicatorPanels';
+import { groupSubchartIndicators } from '@/lib/indicator_panels';
 import type { LogicalRange } from 'lightweight-charts';
 
 interface IndicatorChartLayoutProps extends Omit<TradingChartProps, 'onVisibleLogicalRangeChange' | 'showTimeAxis'> {
@@ -55,12 +55,12 @@ export default function IndicatorChartLayout({
     [indicatorOverlays],
   );
 
-  // Dynamic height: shrink panels when there are many
+  // Dynamic height: shrink panels when there are many, minimum 100px
   const panelHeight = useMemo(() => {
     const count = subchartPanels.length;
     if (count <= 3) return BASE_PANEL_HEIGHT;
-    // Cap total subchart area at ~360px
-    return Math.max(80, Math.floor(360 / count));
+    // Cap total subchart area at ~400px, but never go below 100px per panel
+    return Math.max(100, Math.floor(400 / count));
   }, [subchartPanels.length]);
 
   // ---------- Time-axis sync ----------
@@ -152,19 +152,23 @@ export default function IndicatorChartLayout({
         />
       </div>
 
-      {/* Subchart panels — each gets its own chart instance */}
-      {subchartPanels.map(([key, indicators], idx) => (
-        <SubchartPanel
-          key={key}
-          ref={getSubchartRef(key)}
-          panelKey={key}
-          indicators={indicators}
-          height={panelHeight}
-          showTimeAxis={idx === subchartPanels.length - 1}
-          onClose={handlePanelClose}
-          onVisibleLogicalRangeChange={(range) => handleSubchartRangeChange(key, range)}
-        />
-      ))}
+      {/* Subchart panels — each gets its own chart instance, scrollable when many */}
+      {subchartPanels.length > 0 && (
+        <div className="overflow-y-auto shrink-0" style={{ maxHeight: '50vh' }}>
+          {subchartPanels.map(([key, indicators], idx) => (
+            <SubchartPanel
+              key={key}
+              ref={getSubchartRef(key)}
+              panelKey={key}
+              indicators={indicators}
+              height={panelHeight}
+              showTimeAxis={idx === subchartPanels.length - 1}
+              onClose={handlePanelClose}
+              onVisibleLogicalRangeChange={(range) => handleSubchartRangeChange(key, range)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,15 +1,14 @@
 import { useState } from "react";
 import type { Upload as UploadRecord } from "@shared/schema";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Clock, Upload, HardDrive, RefreshCw, Server, FileCode, Zap } from "lucide-react";
+import { Clock, Upload, RefreshCw, Server, FileCode, Zap } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { databaseApi } from "@/lib/apiService";
-import { extractSymbolFromFilename, detectAssetType } from "@/lib/uploadUtils";
+import { databaseApi } from "@/lib/api_service";
+import { extractSymbolFromFilename, detectAssetType } from "@/lib/upload_utils";
 import type { DatabaseStats, FileUploadItem } from "./types";
 import { formatNumber } from "./types";
 import { TableList } from "./TableList";

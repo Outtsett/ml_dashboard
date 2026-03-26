@@ -14,7 +14,6 @@ import type { RegimeModel, Diagnostics, ConvergencePoint } from "../types";
 import {
   getQualityLabel, getQualityVerdict, getRegimeColor,
   getLLConvergenceVerdict, getFitVerdict, getStabilityVerdict,
-  REGIME_COLORS,
 } from "../types";
 
 // ── Feature category mapping (for SHAP chart) ──

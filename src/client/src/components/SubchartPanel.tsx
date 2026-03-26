@@ -20,8 +20,8 @@ import {
   type LogicalRange,
 } from 'lightweight-charts';
 import type { IndicatorOverlay } from '@/hooks/useIndicatorData';
-import { getPanelLabel, getReferenceLines, shouldRenderAsHistogram, getSeriesTitle } from '@/lib/indicatorPanels';
-import { getHistogramColors } from '@/lib/indicatorColors';
+import { getPanelLabel, getReferenceLines, shouldRenderAsHistogram, getSeriesTitle, getHistogramStyle } from '@/lib/indicator_panels';
+import { getHistogramColors } from '@/lib/indicator_colors';
 
 /** Deduplicate & sort series data by time (last-write-wins for dupes) */
 function dedupByTime<T extends { time: Time }>(arr: T[]): T[] {
@@ -170,7 +170,7 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
         chart.remove();
         chartRef.current = null;
       };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     }, []); // Deliberately stable — showTimeAxis handled via applyOptions below
 
     // Toggle time axis visibility without recreating the chart
@@ -208,6 +208,40 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
           dedupByTime(
             isHisto
               ? (() => {
+                  const histoStyle = getHistogramStyle(indicator.column);
+                  if (histoStyle === 'ao') {
+                    // Awesome Oscillator: green when increasing, red when decreasing
+                    return indicator.data.map((d, i) => ({
+                      time: d.time as Time,
+                      value: d.value,
+                      color: i > 0 && d.value > indicator.data[i - 1]!.value
+                        ? 'rgba(34, 197, 94, 0.7)'   // green (increasing)
+                        : 'rgba(239, 68, 68, 0.7)',   // red (decreasing)
+                    }));
+                  }
+                  if (histoStyle === 'squeeze') {
+                    // Squeeze momentum: 4-color intensity
+                    return indicator.data.map((d, i) => {
+                      const prev = i > 0 ? indicator.data[i - 1]!.value : 0;
+                      if (d.value >= 0) {
+                        return {
+                          time: d.time as Time,
+                          value: d.value,
+                          color: d.value > prev
+                            ? 'rgba(6, 182, 212, 0.85)'   // bright cyan (increasing positive)
+                            : 'rgba(6, 182, 212, 0.4)',    // dim cyan (decreasing positive)
+                        };
+                      }
+                      return {
+                        time: d.time as Time,
+                        value: d.value,
+                        color: d.value < prev
+                          ? 'rgba(239, 68, 68, 0.85)'   // bright red (decreasing negative)
+                          : 'rgba(239, 68, 68, 0.4)',    // dim red (increasing negative)
+                      };
+                    });
+                  }
+                  // Default: positive/negative coloring
                   const { positive, negative } = getHistogramColors(indicator.color);
                   return indicator.data.map(d => ({
                     time: d.time as Time,
@@ -266,7 +300,8 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
                 color: line.color,
                 lineWidth: 1,
                 lineStyle: 2, // Dashed
-                axisLabelVisible: false,
+                axisLabelVisible: true,
+                axisLabelColor: line.color,
                 title: '',
               });
             } catch {
@@ -289,22 +324,18 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
       >
         {/* Panel header label */}
         <div className="absolute top-1 left-2 z-10 flex items-center gap-1.5 pointer-events-none select-none">
-          <span className="text-[10px] font-mono font-semibold text-violet-400/90 bg-black/50 backdrop-blur-sm rounded px-1.5 py-0.5">
-            {label}
-          </span>
-          {indicators.length > 1 &&
-            indicators.map(ind => (
-              <span
-                key={ind.column}
-                className="text-[8px] font-mono text-muted-foreground/50 flex items-center gap-0.5"
-              >
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold font-mono text-violet-400/90 bg-black/50 backdrop-blur-sm rounded px-1.5 py-0.5">
+            <span>{label}</span>
+            {indicators.length > 1 &&
+              indicators.map(ind => (
                 <span
-                  className="inline-block w-2 h-[2px] rounded-full"
+                  key={ind.column}
+                  className="inline-block w-2 h-2 rounded-full shrink-0"
                   style={{ backgroundColor: ind.color }}
+                  title={getSeriesTitle(ind.column)}
                 />
-                {ind.column.split('_')[0]}
-              </span>
-            ))}
+              ))}
+          </div>
         </div>
 
         {/* Close button */}

@@ -39,7 +39,7 @@ export function QuestDBControls() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Maintenance Triggered", description: "Syncing rollovers and checking views..." });
+      toast({ title: "Maintenance Triggered", description: "Running health checks and cleanup..." });
     },
     onError: (err: Error) => {
       toast({ title: "Maintenance Failed", description: err.message, variant: "destructive" });
@@ -73,7 +73,7 @@ export function QuestDBControls() {
           disabled={maintenanceMutation.isPending}
         >
           <Activity className={`h-4 w-4 mr-2 ${maintenanceMutation.isPending ? "animate-spin" : ""}`} />
-          Sync Rollovers
+          Run Maintenance
         </Button>
 
         <Button 

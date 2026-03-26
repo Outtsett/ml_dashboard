@@ -8,7 +8,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Layers, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import type { RegimeModel } from "./types";
 import { QualityScoreRing } from "./mini-charts";
 

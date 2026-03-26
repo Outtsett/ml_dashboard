@@ -13,9 +13,9 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDashboard } from "@/contexts/UnifiedDashboardContext";
-import { trainingApi } from "@/lib/apiService";
+import { trainingApi } from "@/lib/api_service";
 import { minutesToLabel } from "@/lib/timeframes";
-import { buildSSECallbacks } from "@/lib/training/sseHandlers";
+import { buildSSECallbacks } from "@/lib/training/sse_handlers";
 import { useTrainingConfig } from "./useTrainingConfig";
 import { useTrainingSSE } from "./useTrainingSSE";
 import { useTrainingLiveState } from "./useTrainingLiveState";
@@ -111,6 +111,8 @@ export function useTraining(): TrainingState & {
       setLiveRegimeAssignments: liveSetters.setLiveRegimeAssignments,
       setDiagnostics: liveSetters.setDiagnostics,
       setElapsedSec: liveSetters.setElapsedSec,
+      setModelState: liveSetters.setModelState,
+      setModelStateHistory: liveSetters.setModelStateHistory,
       clearElapsedTimer,
       // External side effects
       setTrainingContext: dashboard.setTrainingContext,

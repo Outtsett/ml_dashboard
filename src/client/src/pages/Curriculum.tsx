@@ -5,7 +5,7 @@ import { LearningPathView } from "@/components/curriculum/LearningPathView";
 import { LessonViewer } from "@/components/curriculum/LessonViewer";
 import { useCurriculumProgress, usePathProgress, useUpdateProgress, useCurriculumStats } from "@/hooks/useCurriculum";
 import { allPaths } from "@/lib/curriculum/paths";
-import type { LessonProgress, Lesson } from "@/lib/curriculum/types";
+import type { Lesson } from "@/lib/curriculum/types";
 
 type CurriculumView =
   | { kind: "overview" }

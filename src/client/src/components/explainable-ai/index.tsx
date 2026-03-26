@@ -13,7 +13,7 @@ import {
   Brain, Eye, Lightbulb, HelpCircle, BarChart3, Zap, Target,
   Layers, RefreshCw, CheckCircle2, ArrowRight, Info
 } from "lucide-react";
-import { xaiApi } from "@/lib/apiService";
+import { xaiApi } from "@/lib/api_service";
 import { QUERY_KEYS } from "@/lib/types";
 
 import type { ExplainableAIProps, XAIExplanation, XAIMethod } from "./types";

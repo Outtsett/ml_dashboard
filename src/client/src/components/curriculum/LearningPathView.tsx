@@ -8,14 +8,13 @@ import {
   Circle,
   PlayCircle,
   Lock,
-  BookOpen,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ProgressRing } from "./ProgressRing";
-import type { LearningPath, LessonProgress, Module, Lesson } from "@/lib/curriculum/types";
+import type { LearningPath, LessonProgress, Lesson } from "@/lib/curriculum/types";
 
 interface LearningPathViewProps {
   path: LearningPath;

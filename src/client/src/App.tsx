@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, type ComponentType } from "react";
 import { Switch, Route, Redirect } from "wouter";
-import { queryClient } from "./lib/queryClient";
+import { queryClient } from "./lib/query_client";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "sonner";
@@ -54,6 +54,7 @@ const ModelCatalog = lazyRetry(() => import("@/pages/ModelCatalog"), "ModelCatal
 const FourierTransform = lazyRetry(() => import("@/pages/FourierTransform"), "FourierTransform");
 const ArchitectureExplorer = lazyRetry(() => import("@/pages/ArchitectureExplorer"), "ArchitectureExplorer");
 const Settings = lazyRetry(() => import("@/pages/Settings"), "Settings");
+const Gpu = lazyRetry(() => import("@/pages/Gpu"), "Gpu");
 const NotFound = lazyRetry(() => import("@/pages/not-found"), "NotFound");
 
 /**
@@ -92,6 +93,7 @@ function Router() {
         <AppRoute path="/model-catalog" component={ModelCatalog} />
         <AppRoute path="/fourier" component={FourierTransform} />
         <AppRoute path="/architecture" component={ArchitectureExplorer} />
+        <AppRoute path="/gpu" component={Gpu} />
         <AppRoute path="/settings" component={Settings} />
         
         {/* Catch-all */}
@@ -128,6 +130,30 @@ function App() {
   useWebVitals();
   useGlobalShortcuts();
   useNativeMenu();
+
+  // Zoom keyboard shortcuts: Ctrl+= (zoom in), Ctrl+- (zoom out), Ctrl+0 (reset)
+  useEffect(() => {
+    const api = (window as any).electronAPI;
+    if (!api?.getZoom) return; // Not in Electron
+
+    const handler = async (e: KeyboardEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      if (e.key === "=" || e.key === "+") {
+        e.preventDefault();
+        const current = await api.getZoom();
+        api.setZoom(Math.min(current + 0.1, 3.0));
+      } else if (e.key === "-") {
+        e.preventDefault();
+        const current = await api.getZoom();
+        api.setZoom(Math.max(current - 0.1, 0.5));
+      } else if (e.key === "0") {
+        e.preventDefault();
+        api.resetZoom();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

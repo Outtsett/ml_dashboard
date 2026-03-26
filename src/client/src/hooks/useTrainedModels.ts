@@ -7,7 +7,7 @@
 
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/query_client";
 import { toast } from "sonner";
 
 export interface TrainedModel {

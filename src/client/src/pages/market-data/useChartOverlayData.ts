@@ -8,7 +8,7 @@
  */
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { computeSupportResistance, computeZigZag, computeSwingZigZag } from "@/lib/chartOverlays";
+import { computeSupportResistance, computeZigZag, computeSwingZigZag } from "@/lib/chart_overlays";
 import { useRegimeAssignments } from "@/hooks/useRegimeData";
 import type { RegimeInfo } from "@/components/RegimeLegend";
 import type { OhlcvData } from "./types";

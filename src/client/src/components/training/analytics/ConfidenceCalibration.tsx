@@ -6,7 +6,7 @@
  */
 
 import { useState } from "react";
-import { CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { CheckCircle, XCircle } from "lucide-react";
 import type { AnalyticsComponentProps } from "./index";
 import type { EvaluationTestResult } from "../types";
 import { ChartCard, EmptyState } from "./shared";
