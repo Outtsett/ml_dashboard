@@ -1,5 +1,5 @@
 {
-  "include": ["src/client/src/**/*", "src/shared/**/*", "src/server/**/*", "src/ml/**/*"],
+  "include": ["src/client/src/**/*", "src/shared/**/*", "src/server/**/*", "src/ml/**/*", "src/scripts/**/*"],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
   "compilerOptions": {
     /* Emit */

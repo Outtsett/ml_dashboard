@@ -1,5 +1,6 @@
 import tseslint from "typescript-eslint";
 import unusedImports from "eslint-plugin-unused-imports";
+import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
   { ignores: ["node_modules", "dist", "build", "**/*.cjs"] },
@@ -13,6 +14,7 @@ export default [
     plugins: {
       "@typescript-eslint": tseslint.plugin,
       "unused-imports": unusedImports,
+      "react-hooks": reactHooks,
     },
     rules: {
       "unused-imports/no-unused-imports": "error",
