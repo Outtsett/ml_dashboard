@@ -1,0 +1,18 @@
+{
+  "MNQ": {
+    "tick_size": 0.25,
+    "tick_value": 0.50,
+    "point_value": 2.00,
+    "fees_per_side": {
+      "exchange_cme": 0.35,
+      "nfa": 0.02,
+      "clearing": 0.13,
+      "cqg_transfer": 0.10,
+      "commission_amp": 0.30
+    },
+    "slippage_ticks_per_side": 1,
+    "total_per_side": 1.40,
+    "total_round_trip": 2.80,
+    "total_round_trip_points": 1.40
+  }
+}
