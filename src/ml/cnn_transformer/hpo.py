@@ -17,7 +17,11 @@ from ml.cnn_transformer.evaluate import compute_profit_factor, simulate_barrier_
 from ml.cnn_transformer.label_utils import apply_split_mask
 from ml.cnn_transformer.model import CnnTransformerModel
 from ml.cnn_transformer.train import LossHeadConfig, TrainConfig, train_model
-from shared.protocol import emit_metric
+
+try:
+    from shared.protocol import emit_metric
+except ModuleNotFoundError:
+    from ml.shared.protocol import emit_metric
 
 
 def run_hpo(

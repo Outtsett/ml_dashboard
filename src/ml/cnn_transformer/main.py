@@ -48,8 +48,13 @@ from cnn_transformer.label_utils import apply_split_mask
 from cnn_transformer.model import CnnTransformerModel
 from cnn_transformer.train import LossHeadConfig, TrainConfig, train_model
 from cnn_transformer.walk_forward import generate_folds
-from shared.data import load_ohlcv_arrays
-from shared.protocol import emit_done, emit_error, emit_log, emit_metric, emit_progress
+
+try:
+    from shared.data import load_ohlcv_arrays
+    from shared.protocol import emit_done, emit_error, emit_log, emit_metric, emit_progress
+except ModuleNotFoundError:
+    from ml.shared.data import load_ohlcv_arrays
+    from ml.shared.protocol import emit_done, emit_error, emit_log, emit_metric, emit_progress
 
 
 def parse_args():
@@ -83,6 +88,7 @@ def parse_args():
                         help="Run HPO instead of single training run")
     parser.add_argument("--n-trials", type=int, default=30,
                         help="Number of Optuna trials (HPO mode only)")
+    parser.add_argument("--use-l2", action="store_true", help="Use MBP10 Level 2 depth data")
 
     return parser.parse_args()
 
@@ -194,7 +200,7 @@ def run_single(args, device: torch.device):
         sys.exit(1)
 
     # ── 9. Build model ───────────────────────────────────────────────────────
-    model = CnnTransformerModel(window_size=args.window_size)
+    model = CnnTransformerModel(window_size=args.window_size, d_input=X.shape[1])
     model = model.to(device)
     param_count = model.param_count()
     emit_log(f"Model: {param_count:,} parameters, window={args.window_size}")
@@ -485,7 +491,7 @@ def run_hpo_mode(args, device: torch.device):
         ohlcv, labels_dict, start=split_idx, end=n_bars, window_size=args.window_size
     )
 
-    model = CnnTransformerModel(window_size=args.window_size)
+    model = CnnTransformerModel(window_size=args.window_size, d_input=X.shape[1])
     model = model.to(device)
 
     valid_train = shifted_barrier[:split_idx]

@@ -19,7 +19,10 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
-from shared.protocol import emit_log, emit_metric, emit_progress
+try:
+    from shared.protocol import emit_log, emit_metric, emit_progress
+except ModuleNotFoundError:
+    from ml.shared.protocol import emit_log, emit_metric, emit_progress
 
 
 @dataclass
