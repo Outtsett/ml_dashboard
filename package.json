@@ -5,7 +5,8 @@
   "license": "MIT",
   "main": "electron/main.cjs",
   "scripts": {
-    "dev": "cross-env NODE_ENV=development node --env-file=.env --import tsx src/server/main.ts",
+    "dev": "cross-env NODE_ENV=development tsx --watch --env-file=.env src/server/main.ts",
+    "dev:no-watch": "cross-env NODE_ENV=development node --env-file=.env --import tsx src/server/main.ts",
     "dev:client": "vite dev --port 5000",
     "build": "tsx build.ts",
     "build:electron": "tsx build.ts && electron-builder",
@@ -18,7 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "npm run lint:py && npm run lint:ts",
-    "lint:py": "ruff check --fix src/ml/ scripts/",
+    "lint:py": "python -m ruff check --fix src/ml/ scripts/",
     "lint:ts": "eslint --fix src/",
     "check:architecture": "tsx src/scripts/architecture_validator.ts",
     "prepare": "husky"
@@ -28,10 +29,10 @@
       "eslint --fix --max-warnings 0"
     ],
     "src/ml/**/*.py": [
-      "ruff check --fix"
+      "python -m ruff check --fix"
     ],
     "scripts/**/*.py": [
-      "ruff check --fix"
+      "python -m ruff check --fix"
     ]
   },
   "dependencies": {
@@ -121,6 +122,7 @@
     "reflect-metadata": "^0.2.2",
     "shiki": "^4.0.2",
     "sonner": "^2.0.7",
+    "systeminformation": "^5.31.5",
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.182.0",
@@ -170,6 +172,7 @@
     "eslint-plugin-unused-imports": "^4.4.1",
     "husky": "9.1.7",
     "lint-staged": "16.4.0",
+    "playwright": "^1.58.2",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.20.5",
