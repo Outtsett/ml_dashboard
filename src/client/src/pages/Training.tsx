@@ -27,7 +27,7 @@ import type { TrainingRequest } from "@shared/trainingTypes";
 export default function Training() {
   const dashboard = useDashboard();
   const {
-    isTraining, isPending, phase, progress, error,
+    isTraining, isPending, progress, error,
     startTraining, stopTraining,
     availableModels, selectedModelType, setSelectedModelType,
     completedModelId, timeframeLabel,
@@ -42,7 +42,7 @@ export default function Training() {
   // ── Load existing trained models so the page always has data ──
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
 
-  const { data: trainedModels } = useQuery<any[]>({
+  const { data: trainedModels } = useQuery<unknown[]>({
     queryKey: ["/api/training/models"],
     queryFn: async () => {
       const r = await fetch("/api/training/models");
@@ -56,7 +56,8 @@ export default function Training() {
   // Auto-select latest model on first load
   useEffect(() => {
     if (!selectedModelId && !completedModelId && trainedModels?.length) {
-      setSelectedModelId(trainedModels[0].id);
+      const first = trainedModels[0] as { id: string };
+      setSelectedModelId(first.id);
     }
   }, [trainedModels, selectedModelId, completedModelId]);
 
@@ -64,7 +65,7 @@ export default function Training() {
   const activeModelId = completedModelId || selectedModelId;
 
   // Fetch diagnostics for the active model (from disk, not SSE)
-  const { data: savedDiagnostics } = useQuery<Record<string, any>>({
+  const { data: savedDiagnostics } = useQuery<Record<string, unknown>>({
     queryKey: ["/api/training/models", activeModelId, "diagnostics"],
     queryFn: async () => {
       const r = await fetch(`/api/training/models/${activeModelId}/diagnostics`);
@@ -76,7 +77,7 @@ export default function Training() {
   });
 
   // Fetch convergence data for the active model
-  const { data: convergenceData } = useQuery<any[]>({
+  const { data: convergenceData } = useQuery<unknown[]>({
     queryKey: ["/api/training/models", activeModelId, "convergence"],
     queryFn: async () => {
       const r = await fetch(`/api/training/models/${activeModelId}/convergence`);
@@ -89,7 +90,7 @@ export default function Training() {
   });
 
   // Use SSE diagnostics during live session, saved diagnostics otherwise
-  const diag = (diagnostics as Record<string, any> | null) ?? savedDiagnostics ?? null;
+  const diag = (diagnostics as Record<string, unknown> | null) ?? savedDiagnostics ?? null;
 
   // Compute live metric presence for state detection
   const metricSeries = useMemo(() => {
@@ -143,7 +144,7 @@ export default function Training() {
         {/* Trained model selector */}
         {trainedModels && trainedModels.length > 0 && !isTraining && (
           <Sel value={activeModelId ?? ""} onChange={(v) => setSelectedModelId(v)} disabled={isTraining}
-            options={trainedModels.map((m: any) => ({ value: m.id, label: `${m.symbol} ${m.timeframe} (${m.evaluation_grade ?? "?"})` }))} />
+            options={(trainedModels as Array<{ id: string; symbol: string; timeframe: string; evaluation_grade?: string }>).map(m => ({ value: m.id, label: `${m.symbol} ${m.timeframe} (${m.evaluation_grade ?? "?"})` }))} />
         )}
         <div className="flex-1" />
         {isTraining && stats && (
@@ -197,6 +198,7 @@ export default function Training() {
             hasLiveData={hasLiveData}
             symbol={symbol}
             timeframe={timeframe}
+            selectedModelType={selectedModelType ?? undefined}
           />
         </div>
 

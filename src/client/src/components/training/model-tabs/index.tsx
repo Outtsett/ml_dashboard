@@ -189,8 +189,8 @@ function ModelPanel({
   const profileCorrelation = oos?.avg_profile_correlation ?? 0;
   const quality = diagnostics?.quality_score ?? 0;
 
-  // Filter sub-tabs based on available diagnostics keys (OCP)
-  const visibleTabs = getVisibleSubTabs(diagnostics);
+  // Filter sub-tabs by model type config AND available diagnostics keys
+  const visibleTabs = getVisibleSubTabs(diagnostics, model.modelType);
   // Auto-reset to "overview" if current tab is no longer visible
   const effectiveSubTab = visibleTabs.some(t => t.id === activeSubTab) ? activeSubTab : "overview";
 

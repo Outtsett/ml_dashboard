@@ -6,6 +6,7 @@ import { Activity, Layers, TrendingUp, Shield, Target, BarChart3, BarChart2, Ter
 import { useQuery } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/types";
 import type { Diagnostics, ConvergencePoint } from "../types";
+import { getModelTypeConfig } from "@/config/model-types";
 
 // ─── Sub-tab definitions ─────────────────────────────────────────────────────
 
@@ -23,13 +24,21 @@ export const SUB_TABS = [
 
 export type SubTabId = typeof SUB_TABS[number]["id"];
 
-/** Filter sub-tabs to only those with data in diagnostics */
-export function getVisibleSubTabs(diagnostics: Diagnostics | undefined) {
-  if (!diagnostics) return SUB_TABS; // Show all tabs while loading
+/** Filter sub-tabs by model type config AND available diagnostics keys */
+export function getVisibleSubTabs(diagnostics: Diagnostics | undefined, modelType?: string) {
+  const config = getModelTypeConfig(modelType);
+  const allowedIds = new Set(config.subTabs);
+
+  // No diagnostics yet — show all model-type-allowed tabs
+  if (!diagnostics) {
+    return SUB_TABS.filter(tab => allowedIds.has(tab.id));
+  }
+
   const d = diagnostics as unknown as Record<string, unknown>;
-  return SUB_TABS.filter(tab =>
-    tab.requiredKeys.length === 0 || tab.requiredKeys.every(key => d[key] != null)
-  );
+  return SUB_TABS.filter(tab => {
+    if (!allowedIds.has(tab.id)) return false;
+    return tab.requiredKeys.length === 0 || tab.requiredKeys.every(key => d[key] != null);
+  });
 }
 
 // ─── Per-model diagnostics hook ──────────────────────────────────────────────
