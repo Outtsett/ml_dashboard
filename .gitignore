@@ -72,3 +72,6 @@ build/
 tsc_output.txt
 *.csv
 *.bak
+
+# Git worktrees
+.worktrees/
