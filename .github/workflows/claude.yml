@@ -21,8 +21,6 @@ jobs:
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
       (github.event_name == 'issues' && contains(github.event.issue.body, '@claude'))
     runs-on: ubuntu-latest
-    env:
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     permissions:
       contents: write
       pull-requests: write
@@ -36,7 +34,6 @@ jobs:
 
       - uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY || '' }}
           trigger_phrase: "@claude"
           timeout_minutes: "30"
 
@@ -46,8 +43,6 @@ jobs:
       github.event_name == 'pull_request' &&
       (github.event.action == 'opened' || github.event.action == 'synchronize')
     runs-on: ubuntu-latest
-    env:
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     permissions:
       contents: read
       pull-requests: write
@@ -59,7 +54,6 @@ jobs:
 
       - uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY || '' }}
           prompt: |
             Review this pull request. Focus on:
             1. Code correctness and potential bugs
@@ -76,8 +70,6 @@ jobs:
       github.event_name == 'issues' &&
       (github.event.action == 'labeled' && github.event.label.name == 'claude')
     runs-on: ubuntu-latest
-    env:
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     permissions:
       contents: write
       pull-requests: write
@@ -90,6 +82,5 @@ jobs:
 
       - uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY || '' }}
           label_trigger: "claude"
           timeout_minutes: "60"
