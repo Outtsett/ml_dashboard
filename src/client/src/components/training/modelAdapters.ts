@@ -43,30 +43,6 @@ export interface ModelAdapter {
 // ── Adapter Registry ──
 
 export const MODEL_ADAPTERS: Record<string, ModelAdapter> = {
-  "hdp-hmm": {
-    name: "HDP-HMM",
-    activeLabel: "HDP-HMM Sampling",
-    idleLabel: "Ready to Train",
-    pipelineDescription: "a Bayesian sampler that discovers market regimes automatically",
-    trainingStepLabel: "Gibbs",
-    outputStepLabel: "Regimes",
-    outputDefault: "auto-K",
-    outputComplete: "discovered",
-    activePhases: ["gibbs_sampling"],
-    pipelineSteps: [],
-  },
-  "2-state-hmm": {
-    name: "2-State HMM",
-    activeLabel: "Baum-Welch EM Training",
-    idleLabel: "Ready to Train",
-    pipelineDescription: "a classic HMM that classifies bars into bullish and bearish regimes",
-    trainingStepLabel: "EM Training",
-    outputStepLabel: "Bull/Bear",
-    outputDefault: "K=2",
-    outputComplete: "classified",
-    activePhases: ["em_training"],
-    pipelineSteps: [],
-  },
 };
 
 const FALLBACK_ADAPTER: ModelAdapter = {

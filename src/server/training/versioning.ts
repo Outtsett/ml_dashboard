@@ -5,7 +5,7 @@
  * OCP: If format changes, only this module changes.
  *
  * Format: {SYMBOL}_{TIMEFRAME}_{MODEL-TYPE}_{YYYYMMDDTHHMMSS}
- * Example: ES_1h_hdp-hmm_20260227T143022
+ * Example: ES_1h_primitives-discovery_20260227T143022
  */
 
 /** Generate a versioned model ID with current timestamp. */
@@ -23,7 +23,7 @@ export function generateVersionedModelId(
 }
 
 /** Extract the base model ID (without version timestamp).
- *  ES_1h_hdp-hmm_20260227T143022 → ES_1h_hdp-hmm */
+ *  ES_1h_primitives-discovery_20260227T143022 → ES_1h_primitives-discovery */
 export function getBaseModelId(versionedModelId: string): string {
   const parts = versionedModelId.split("_");
   const tsPattern = /^\d{8}T\d{6}$/;
@@ -47,7 +47,7 @@ export function getVersionTimestamp(versionedModelId: string): Date | null {
 }
 
 /** Append walk-forward window index to versioned model ID.
- *  ES_1h_hdp-hmm_20260227T143022 → ES_1h_hdp-hmm_20260227T143022_w0 */
+ *  ES_1h_primitives-discovery_20260227T143022 → ES_1h_primitives-discovery_20260227T143022_w0 */
 export function appendWindowIndex(versionedModelId: string, windowIndex: number): string {
   return `${versionedModelId}_w${windowIndex}`;
 }

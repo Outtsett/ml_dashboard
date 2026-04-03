@@ -21,11 +21,11 @@ import { LayoutGrid, List, Columns } from "lucide-react";
 type LayoutMode = "detailed" | "compact" | "split";
 
 export function LiveTrainingDashboard() {
-  const { isTraining, completedModelId, config, progress, phase, selectedModelType } = useTrainingControl();
+  const { isTraining, completedModelId, config: _config, progress, phase, selectedModelType } = useTrainingControl();
   const { iterationHistory, overlayData, diagnostics, elapsedSec } = useTrainingLive();
   const [layout, setLayout] = useState<LayoutMode>("detailed");
 
-  const modelType = selectedModelType || "hdp-hmm";
+  const modelType = selectedModelType || "primitives-discovery";
   const { descriptions, metricOrder } = useMetricDescriptions(modelType);
 
   // Build per-metric time series from iterationHistory

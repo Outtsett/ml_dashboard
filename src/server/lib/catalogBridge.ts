@@ -152,7 +152,7 @@ const FAMILY_TEMPLATES: Record<string, FamilyTemplate> = {
     defaultFeatureCategories: ['returns', 'volatility'],
     keywords: [
       'hidden markov', 'hmm', 'regime detection', 'regime switching',
-      'baum-welch', 'viterbi', 'hdp-hmm', 'bayesian nonparametric',
+      'baum-welch', 'viterbi', 'bayesian nonparametric',
     ],
   },
   reinforcement: {
@@ -182,7 +182,8 @@ const FAMILY_TEMPLATES: Record<string, FamilyTemplate> = {
  */
 function convertHyperparameter(extracted: ExtractedHyperparameter): HyperparameterDef {
   const base: HyperparameterDef = {
-    value: typeof extracted.default === 'number' ? extracted.default : 0,
+    default: typeof extracted.default === 'number' ? extracted.default : 0,
+    type: 'float',
     min: extracted.min ?? 0,
     max: extracted.max ?? 100,
     step: extracted.step ?? inferStep(extracted),
@@ -199,7 +200,7 @@ function convertHyperparameter(extracted: ExtractedHyperparameter): Hyperparamet
       base.type = 'categorical';
       if (extracted.options) {
         base.choices = extracted.options;
-        base.value = typeof extracted.default === 'number'
+        base.default = typeof extracted.default === 'number'
           ? extracted.default
           : 0;
       }
@@ -215,13 +216,13 @@ function convertHyperparameter(extracted: ExtractedHyperparameter): Hyperparamet
   }
 
   // Add log-scale hint for params that span orders of magnitude
-  if (base.type === 'float' && base.max > 0 && base.min > 0) {
-    const ratio = base.max / base.min;
+  if (base.type === 'float' && (base.max ?? 0) > 0 && (base.min ?? 0) > 0) {
+    const ratio = base.max! / base.min!;
     if (ratio >= 100) {
       base.logScale = true;
       base.searchSpace = {
-        min: base.min,
-        max: base.max,
+        min: base.min!,
+        max: base.max!,
         logScale: true,
         distribution: 'loguniform',
       };

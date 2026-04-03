@@ -1,7 +1,6 @@
 {
   "version": 2,
   "_comment": "Every metric must have: description (what it is), detects (what signal it catches), purpose (why it matters for trading), usage (how to read it), crossMetrics (how it relates to other metrics). This applies to ALL models, ALL projects, ALL future metrics.",
-
   "global": {
     "log_likelihood": {
       "title": "Log-Likelihood",
@@ -11,7 +10,7 @@
       "description": "How well the model explains the observed data. Higher means the model's learned states fit actual price patterns better.",
       "detects": "Whether the model has found meaningful structure in the data vs. random noise. A model that can't explain the data will have low LL.",
       "purpose": "The fundamental measure of model quality. If LL is low, nothing downstream (regimes, transitions, SHAP) can be trusted.",
-      "usage": "Watch the curve shape: rapid rise = learning, plateau = converged, declining = numerical issues. Compare final LL across runs — higher is better for the same dataset.",
+      "usage": "Watch the curve shape: rapid rise = learning, plateau = converged, declining = numerical issues. Compare final LL across runs \u00e2\u20ac\u201d higher is better for the same dataset.",
       "crossMetrics": "Converges WITH assignment_stability. If LL plateaus but stability is low, the model found structure but can't decide which bars belong where. If both plateau together, the model is confident and done.",
       "healthy": "Plateaus = converged. Still rising = still learning.",
       "target": null,
@@ -24,9 +23,9 @@
       "format": "percent",
       "description": "What percentage of bars kept the same regime label between consecutive Gibbs iterations.",
       "detects": "Convergence confidence. When the sampler stops changing its mind about which regime each bar belongs to, training is done.",
-      "purpose": "The single best convergence indicator. More reliable than log-likelihood because it measures what you actually care about — are the regime assignments settled?",
+      "purpose": "The single best convergence indicator. More reliable than log-likelihood because it measures what you actually care about \u00e2\u20ac\u201d are the regime assignments settled?",
       "usage": "Watch for it to cross 95%. Below 90% = still exploring. 90-95% = close but some ambiguous bars. Above 95% = converged. If it never reaches 95%, some bars genuinely sit between two regimes.",
-      "crossMetrics": "Should rise together with log_likelihood. If stability is high but num_regimes keeps changing, the model is stable within each K but hasn't settled on how many regimes to use. Pair with switch_rate — high stability + low switch_rate = clean, tradeable regimes.",
+      "crossMetrics": "Should rise together with log_likelihood. If stability is high but num_regimes keeps changing, the model is stable within each K but hasn't settled on how many regimes to use. Pair with switch_rate \u00e2\u20ac\u201d high stability + low switch_rate = clean, tradeable regimes.",
       "healthy": "Target >95%. Oscillation means some bars are ambiguous between states.",
       "target": 95,
       "targetDirection": "above"
@@ -40,9 +39,9 @@
       "detects": "Whether regimes are genuinely separated in feature space or overlapping. Low silhouette means regimes bleed into each other.",
       "purpose": "The gold-standard cluster quality metric. If silhouette is low, the model's regime distinctions may be arbitrary rather than reflecting real market structure.",
       "usage": "Watch for it to stabilize above 0.30. Below 0.20 = regimes overlap significantly. Above 0.50 = excellent separation.",
-      "crossMetrics": "Compare with davies_bouldin (should be inverse). If silhouette is high but return_separation p-values are >0.05, regimes separate in feature space but not in returns — check feature selection.",
+      "crossMetrics": "Compare with davies_bouldin (should be inverse). If silhouette is high but return_separation p-values are >0.05, regimes separate in feature space but not in returns \u00e2\u20ac\u201d check feature selection.",
       "healthy": "> 0.30 = good. > 0.50 = excellent.",
-      "target": 0.30,
+      "target": 0.3,
       "targetDirection": "above"
     },
     "calinski_harabasz": {
@@ -52,7 +51,7 @@
       "format": "integer",
       "description": "Ratio of between-cluster to within-cluster variance. Higher means tighter clusters that are farther apart.",
       "detects": "Overall cluster compactness and separation. Scale-dependent, so compare across runs on the same data, not across different datasets.",
-      "purpose": "Complements silhouette — penalizes loose, overlapping clusters more aggressively. Good for detecting when regimes are 'smeared' across feature space.",
+      "purpose": "Complements silhouette \u00e2\u20ac\u201d penalizes loose, overlapping clusters more aggressively. Good for detecting when regimes are 'smeared' across feature space.",
       "usage": "Higher is better. Compare across runs with same data. Drops significantly if a noisy regime is added that doesn't capture real structure.",
       "crossMetrics": "Tends to favor more clusters up to a point. If CH keeps rising as K increases, there may be genuine sub-structure. If it peaks and drops, that peak K is the natural number of regimes.",
       "healthy": "> 500 for well-separated regimes.",
@@ -66,9 +65,9 @@
       "format": "decimal3",
       "description": "Average similarity between each cluster and its most similar cluster. Lower means less overlap between regimes.",
       "detects": "Which pairs of regimes are too similar. High DB means at least one pair of regimes is nearly indistinguishable.",
-      "purpose": "Directly identifies redundant regimes. If DB > 1.5, the model has regimes that should be merged — reducing K would improve quality.",
+      "purpose": "Directly identifies redundant regimes. If DB > 1.5, the model has regimes that should be merged \u00e2\u20ac\u201d reducing K would improve quality.",
       "usage": "Lower is better. Below 1.0 = good separation. Above 1.5 = significant overlap. Above 2.0 = regimes are barely distinguishable.",
-      "crossMetrics": "Inverse of silhouette. If DB is high, check the emission heatmap for rows that look identical — those regimes should merge.",
+      "crossMetrics": "Inverse of silhouette. If DB is high, check the emission heatmap for rows that look identical \u00e2\u20ac\u201d those regimes should merge.",
       "healthy": "< 1.0 = good. < 0.5 = excellent.",
       "target": 1.0,
       "targetDirection": "below"
@@ -82,7 +81,7 @@
       "detects": "Whether the model has settled on a consistent regime structure or is still rearranging assignments between snapshots.",
       "purpose": "More robust than raw assignment_stability because it's invariant to regime relabeling. Two runs that discover the same structure but number regimes differently will still show ARI = 1.0.",
       "usage": "Watch for convergence toward 1.0. Below 0.70 after burn-in = model hasn't settled. Above 0.85 = stable.",
-      "crossMetrics": "Should converge alongside assignment_stability. If stability is high but ARI is low, regime labels are swapping (label switching problem) — the model is consistent but numbering changes.",
+      "crossMetrics": "Should converge alongside assignment_stability. If stability is high but ARI is low, regime labels are swapping (label switching problem) \u00e2\u20ac\u201d the model is consistent but numbering changes.",
       "healthy": "> 0.85 after burn-in.",
       "target": 0.85,
       "targetDirection": "above"
@@ -95,118 +94,179 @@
       "description": "Number of effectively independent samples in the Gibbs chain. Accounts for autocorrelation between consecutive iterations.",
       "detects": "Sampler efficiency. If ESS is 50 out of 500 iterations, 90% of compute was wasted on correlated samples. If ESS is 200, the sampler is exploring efficiently.",
       "purpose": "Determines how much useful information your training run actually produced. Low ESS means the sampler is stuck and you need more iterations or different priors.",
-      "usage": "ESS / total_iterations > 0.20 is good. Below 0.10 = poor mixing — consider changing alpha or kappa.",
+      "usage": "ESS / total_iterations > 0.20 is good. Below 0.10 = poor mixing \u00e2\u20ac\u201d consider changing alpha or kappa.",
       "crossMetrics": "Low ESS with high autocorrelation = sampler stuck. Low ESS with oscillating LL = multimodal posterior.",
       "healthy": "> 20% of total iterations.",
       "target": null,
       "targetDirection": null
     }
   },
-
   "models": {
-    "hdp-hmm": {
+    "primitives-discovery": {
       "metrics": {
-        "log_likelihood": {},
-        "num_regimes": {
-          "title": "Active Regimes (K)",
-          "unit": "count",
+        "train_loss": {
+          "title": "Training Loss",
+          "unit": "loss",
+          "color": "#3b82f6",
+          "format": "decimal3",
+          "description": "Weighted composite loss across all three heads: 0.4 * direction_loss + 0.4 * forward_loss + 0.2 * magnitude_loss. Lower means the model is fitting training data better.",
+          "detects": "Whether the model is learning to combine primitives into useful trading signals. Rapid initial drop = the model found exploitable structure. Plateau = converged or stuck.",
+          "purpose": "Primary training quality signal. If train_loss doesn't decrease, the model can't find predictive patterns in the 584 primitives \u00e2\u20ac\u201d check data quality or architecture.",
+          "usage": "Should drop rapidly in first 10-20 epochs, then gradually level off. If it plateaus above 0.5, the primitives may not contain enough signal for the current label scheme.",
+          "crossMetrics": "Compare with val_loss \u00e2\u20ac\u201d if train_loss drops but val_loss doesn't, the model is overfitting to training primitives. The gap between them is the generalization gap.",
+          "effect": "Drives all downstream metrics (accuracy, AUC). A model that can't minimize train_loss can't predict anything.",
+          "healthy": "Decreasing. Final value depends on label quality \u00e2\u20ac\u201d 0.3-0.5 typical for direction prediction."
+        },
+        "val_loss": {
+          "title": "Validation Loss",
+          "unit": "loss",
+          "color": "#22c55e",
+          "format": "decimal3",
+          "description": "Same composite loss computed on out-of-sample data the model never trained on. The single most important metric \u00e2\u20ac\u201d measures real predictive ability.",
+          "detects": "Generalization: can the model's discovered primitive combinations predict on unseen data? If val_loss rises while train_loss falls, the model memorized training patterns.",
+          "purpose": "This is the metric that determines if the model is usable for live trading. A model with low val_loss has found genuine market structure in the primitives.",
+          "usage": "Early stopping triggers on val_loss. Watch the gap between train and val \u00e2\u20ac\u201d small gap = good generalization, growing gap = overfitting. Best checkpoint is saved at minimum val_loss.",
+          "crossMetrics": "Early stopping patience is controlled by val_loss. When val_loss stops improving for N epochs, training ends. Compare val_loss with dir_accuracy \u00e2\u20ac\u201d low val_loss should correspond to high accuracy.",
+          "effect": "Best model checkpoint is saved at the epoch with lowest val_loss.",
+          "healthy": "Decreasing, then flat. Uptick = overfitting, early stopping should trigger.",
+          "target": null,
+          "targetDirection": "below"
+        },
+        "dir_accuracy": {
+          "title": "Direction Accuracy (Swing)",
+          "unit": "percent",
           "color": "#ef4444",
-          "format": "integer",
-          "description": "How many distinct market states the model discovered. The HDP prior lets the model create and kill regimes automatically — no fixed K.",
-          "detects": "The natural number of market states in the data. The model births new regimes when existing ones can't explain a pattern, and kills regimes that become redundant.",
-          "purpose": "Tells you the complexity of the market structure the model found. Too few regimes = the model is blind to important distinctions. Too many = it's hallucinating structure in noise.",
-          "usage": "Should stabilize within the first 20% of iterations. If it keeps fluctuating, try increasing kappa (stickier) or decreasing alpha (fewer states). For forex, 3-8 regimes is typical. For futures, 5-15.",
-          "crossMetrics": "Directly affects beta_entropy — more regimes = higher possible entropy. Watch num_regimes + self_transition together: if K is high but self_transition is low, you have too many noisy micro-regimes. If K is low but self_transition is very high, the model might be missing real structure.",
-          "healthy": "Stable count = model settled on structure. 5-15 typical for forex."
-        },
-        "assignment_stability": {},
-        "mean_self_transition": {
-          "title": "Self-Transition Rate",
-          "unit": "percent",
-          "color": "#eab308",
           "format": "percent",
-          "description": "How likely the model is to stay in the same regime on the next bar. Driven by kappa (sticky prior).",
-          "detects": "Regime persistence — are the discovered states real market conditions that last multiple bars, or noise that flips every bar?",
-          "purpose": "Directly determines if regimes are tradeable. You can't act on a regime that lasts 1-2 bars. Self-transition rate tells you the average regime duration before the model expects a switch.",
-          "usage": "Higher = longer regime durations. At 1m bars: 50% = ~2 bar average hold, 80% = ~5 bar hold, 90% = ~10 bar hold. If too low, increase kappa. If too high, decrease kappa or the model only sees one dominant regime.",
-          "crossMetrics": "Inverse of switch_rate (1 - self_transition ≈ switch_rate). Pair with avg_dwell for the actual bar count. If self_transition is high but avg_dwell is low, there's a mismatch — check for one dominant regime with many tiny regimes.",
-          "healthy": "50-80% healthy for 1m bars. Below 50% = noise. Above 90% = too sticky."
+          "description": "Fraction of correctly predicted swing direction labels (up/down) on validation data. The model's discovered primitive combinations are tested against causal zigzag pivots.",
+          "detects": "Whether the learned primitive attention weights capture directional market structure. 50% = random guessing (no signal). Above 55% on OOS data = statistically meaningful.",
+          "purpose": "Direct measure of directional prediction quality from the model's self-discovered indicators. This is what matters for trading \u00e2\u20ac\u201d can the model call direction?",
+          "usage": "Above 50% = better than chance. 55-60% on validation = strong signal for intraday data. Above 65% on OOS = exceptional (verify not overfitting). Below 50% = the model's feature attention is not finding directional signal.",
+          "crossMetrics": "Should track with dir_auc. If accuracy is high but AUC is near 0.5, the model is right on easy cases but wrong on ambiguous ones. Compare train accuracy vs val accuracy for overfitting signal.",
+          "effect": "Higher accuracy = more profitable direction calls in live trading.",
+          "healthy": "> 52% on validation = learning. > 55% = strong.",
+          "target": 0.55,
+          "targetDirection": "above"
         },
-        "switch_rate": {
-          "title": "Switch Rate",
-          "unit": "percent",
+        "dir_auc": {
+          "title": "Direction AUC (Swing)",
+          "unit": "score",
           "color": "#f97316",
-          "format": "percent",
-          "description": "Fraction of consecutive bars that change regime. Measures how often the model detects a state transition.",
-          "detects": "Regime transition frequency — how choppy or smooth the regime assignments are. High switch rate = the model sees constant state changes.",
-          "purpose": "Trading signal quality. Each regime switch is a potential trade signal. Too many switches = false signals. Too few = you miss real transitions. This metric tells you the signal-to-noise ratio of regime changes.",
-          "usage": "Should decrease as the sampler converges (early iterations are noisy). Final value tells you expected trade frequency. At 30% on 1m bars = ~18 switches per hour = too noisy for most strategies. At 5% = ~3 switches per hour = actionable.",
-          "crossMetrics": "Mirror of self_transition (switch_rate ≈ 1 - self_transition). Compare with avg_dwell — if switch_rate is 20% but avg_dwell is only 2 bars, transitions cluster in bursts rather than spreading evenly. Pair with assignment_stability — if stability is high but switch_rate is still high, the model confidently assigns rapid regime changes (real market chop).",
-          "healthy": "20-50% for 1m bars. Below 10% = over-sticky. Above 60% = noise."
+          "format": "decimal3",
+          "description": "Area Under ROC Curve for swing direction predictions. Measures discriminative power across all classification thresholds, not just the default 0.5.",
+          "detects": "The model's ability to rank bars by directional probability. AUC = 0.5 means the model has zero discriminative power. AUC = 1.0 means perfect separation of up/down.",
+          "purpose": "More robust than accuracy \u00e2\u20ac\u201d invariant to class imbalance and threshold choice. Tells you if the model's primitive-based features contain directional information at any confidence level.",
+          "usage": "0.5 = random. 0.55 = weak signal. 0.60+ = strong signal for financial data. Above 0.65 on OOS = very strong, verify it's not leaking future information.",
+          "crossMetrics": "Should be >= dir_accuracy (AUC captures more than accuracy). If AUC is high but accuracy is low, adjust the classification threshold away from 0.5.",
+          "effect": "Higher AUC = better probability calibration for position sizing.",
+          "healthy": "> 0.55 = signal detected.",
+          "target": 0.55,
+          "targetDirection": "above"
         },
-        "avg_dwell": {
-          "title": "Avg Dwell Time",
-          "unit": "bars",
+        "fwd_accuracy": {
+          "title": "Forward Return Accuracy",
+          "unit": "percent",
+          "color": "#8b5cf6",
+          "format": "percent",
+          "description": "Fraction of correctly predicted forward N-bar return direction on validation data. Uses the confidence head, testing if the model's primitive discovery generalizes to raw return prediction.",
+          "detects": "Whether the model's learned representations predict short-term returns independent of swing structure. This is a harder task than swing direction \u00e2\u20ac\u201d forward returns are noisier.",
+          "purpose": "Second validation signal. If swing direction accuracy is high but forward return accuracy is near 50%, the model may be fitting structural patterns that don't translate to return prediction.",
+          "usage": "Above 50% = better than chance. Typically lower than dir_accuracy because raw returns are noisier than swing labels. 52-55% on OOS = meaningful.",
+          "crossMetrics": "Compare with dir_accuracy \u00e2\u20ac\u201d if both are high, the model found robust signal. If only dir_accuracy is high, the model learned swing patterns but can't predict raw returns (still useful for swing trading).",
+          "effect": "High fwd_accuracy + high dir_accuracy = the model's discovered indicators work for both swing and momentum strategies.",
+          "healthy": "> 51% = some signal."
+        },
+        "fwd_auc": {
+          "title": "Forward Return AUC",
+          "unit": "score",
+          "color": "#06b6d4",
+          "format": "decimal3",
+          "description": "Area Under ROC Curve for forward N-bar return direction predictions. Measures the confidence head's discriminative ability across all thresholds.",
+          "detects": "Whether the model can rank bars by expected forward return direction. This is the most rigorous test of the model's primitive discovery \u00e2\u20ac\u201d can it predict raw price movement?",
+          "purpose": "The hardest metric to achieve above 0.5 on financial data. If this metric is meaningfully above chance, the model has genuinely discovered predictive primitive combinations.",
+          "usage": "0.5 = no signal. Even 0.52 is meaningful for forward return prediction on minute data. Compare across training runs to identify which hyperparameters produce the best forward-looking signal.",
+          "crossMetrics": "Compare with dir_auc \u00e2\u20ac\u201d forward AUC is typically lower. If forward AUC equals or exceeds dir_auc, the confidence head is learning independently useful representations.",
+          "effect": "Directly measures potential PnL \u00e2\u20ac\u201d higher AUC = better risk-adjusted returns.",
+          "healthy": "> 0.52 = meaningful signal."
+        },
+        "dir_loss": {
+          "title": "Direction Loss",
+          "unit": "loss",
+          "color": "#eab308",
+          "format": "decimal3",
+          "description": "Binary cross-entropy loss for the swing direction head on validation data. Measures how well the direction predictions are calibrated.",
+          "detects": "Calibration quality \u00e2\u20ac\u201d a well-calibrated model outputs 70% confidence when it's right 70% of the time. High dir_loss means overconfident or underconfident direction predictions.",
+          "purpose": "Decomposing total loss into per-head losses shows which task the model is struggling with. If dir_loss is high but fwd_loss is low, the direction head needs more capacity.",
+          "usage": "Lower is better. Compare dir_loss vs fwd_loss vs mag_loss to see which head drives total loss. If one head dominates, consider adjusting loss weights (currently 0.4/0.4/0.2).",
+          "crossMetrics": "Contributes 40% to total val_loss. If dir_loss is high but dir_accuracy is also high, the model is poorly calibrated but directionally correct \u00e2\u20ac\u201d calibration can be fixed post-hoc.",
+          "effect": "Lower dir_loss = better calibrated direction probabilities for position sizing.",
+          "healthy": "Decreasing alongside val_loss."
+        },
+        "fwd_loss": {
+          "title": "Forward Loss",
+          "unit": "loss",
           "color": "#14b8a6",
           "format": "decimal3",
-          "description": "Mean number of consecutive bars the model stays in one regime before switching. Longer dwell = more meaningful structure.",
-          "detects": "Regime duration — the average holding period of a market state. This is what determines if regimes are actionable for trading.",
-          "purpose": "The most direct measure of tradeability. If avg dwell is 2 bars at 1m, you have 2 minutes per regime — barely enough to enter and exit. At 10 bars, you have 10-minute windows to act on the regime signal.",
-          "usage": "Multiply by your timeframe to get real duration: 5 bars × 1m = 5 minutes per regime. For scalping strategies, 3-5 bars is enough. For swing strategies, you want 10+. If dwell is too short, increase kappa.",
-          "crossMetrics": "Directly computed from self_transition: avg_dwell ≈ 1/(1 - self_transition). But the actual value accounts for regime-specific persistence — some regimes may have 2-bar dwell while others have 20-bar. Compare with switch_rate for consistency. If avg_dwell is 5 but switch_rate is 40%, some regimes are much stickier than others.",
-          "healthy": "2-5 bars at 1m. Higher at slower timeframes."
+          "description": "Binary cross-entropy loss for the forward return direction (confidence) head on validation data.",
+          "detects": "Whether the confidence head is learning to predict forward returns. High fwd_loss indicates the model struggles with raw return prediction (expected \u00e2\u20ac\u201d it's harder than swing prediction).",
+          "purpose": "Identifies the confidence head's learning progress independently from the direction head. If fwd_loss is much higher than dir_loss, forward returns may require different primitive combinations.",
+          "usage": "Typically higher than dir_loss. If it doesn't decrease at all, consider increasing the forward horizon (--forward-n) to give the model a clearer signal.",
+          "crossMetrics": "Contributes 40% to total val_loss. Compare with fwd_accuracy \u00e2\u20ac\u201d if fwd_loss is high but fwd_accuracy > 50%, the model has weak but present signal.",
+          "effect": "Lower fwd_loss = better forward return predictions for trade timing.",
+          "healthy": "Decreasing, even slowly."
         },
-        "beta_entropy": {
-          "title": "Beta Entropy",
-          "unit": "nats",
+        "mag_loss": {
+          "title": "Magnitude Loss (MSE)",
+          "unit": "loss",
           "color": "#a855f7",
           "format": "decimal3",
-          "description": "How evenly the model distributes bars across regimes. Controlled by gamma (concentration parameter).",
-          "detects": "Regime balance — whether all regimes are used meaningfully or if one regime dominates while others are nearly empty. High entropy = balanced usage.",
-          "purpose": "Identifies degenerate models. If one regime has 90% of bars and the rest split 10%, the model essentially found one state (useless). Healthy entropy means each regime captures a distinct, meaningful portion of the market.",
-          "usage": "Stable entropy = good. If it drops during training, regimes are consolidating (the model is killing weak regimes). If it spikes, the model is redistributing bars (instability). Compare the final value across runs — lower entropy with same K means more concentrated assignments.",
-          "crossMetrics": "Directly tied to num_regimes — more regimes allows higher maximum entropy. If K=10 but entropy is low, most regimes are empty shells. If K=3 and entropy is high, all three regimes are well-populated and distinct. Watch entropy + num_regimes together to distinguish 'found 3 strong regimes' from 'found 10 weak ones'.",
-          "healthy": "Stable is good. Dropping = regimes consolidating. Spiking = instability."
+          "description": "Mean squared error for the magnitude head \u00e2\u20ac\u201d predicts expected move size (absolute return) over the forward horizon.",
+          "detects": "Whether the model can estimate how far price will move, not just which direction. High mag_loss means the model can't size expected moves from the primitive space.",
+          "purpose": "Enables position sizing and risk management. A model that knows direction + magnitude can size positions proportional to expected move \u00e2\u20ac\u201d critical for risk-adjusted returns.",
+          "usage": "Scale depends on the asset's typical returns. Compare across epochs \u00e2\u20ac\u201d should decrease. If it plateaus early, the magnitude head may need more primitive features related to volatility and range.",
+          "crossMetrics": "Contributes 20% to total val_loss. If mag_loss is high while dir_loss is low, the model predicts direction well but can't estimate move size \u00e2\u20ac\u201d the volatility/range primitives may need more weight.",
+          "effect": "Lower mag_loss = better position sizing in live trading.",
+          "healthy": "Decreasing."
         },
-        "silhouette_score": {},
-        "calinski_harabasz": {},
-        "davies_bouldin": {},
-        "adjusted_rand_index": {},
-        "ess": {}
-      },
-      "metricOrder": ["log_likelihood", "num_regimes", "assignment_stability", "mean_self_transition", "switch_rate", "avg_dwell", "beta_entropy", "silhouette_score", "calinski_harabasz", "davies_bouldin", "adjusted_rand_index", "ess"]
-    },
-
-    "2-state-hmm": {
-      "metrics": {
-        "log_likelihood": {},
-        "convergence_delta": {
-          "title": "Convergence Delta",
-          "unit": "decimal",
-          "color": "#06b6d4",
+        "learning_rate": {
+          "title": "Learning Rate",
+          "unit": "rate",
+          "color": "#6b7280",
           "format": "scientific",
-          "description": "Change in log-likelihood between EM iterations. Measures how much the model is still learning per step.",
-          "detects": "Learning rate — whether each iteration is still improving the model or if it has converged. The EM algorithm guarantees this never goes negative (if it does, there's a numerical bug).",
-          "purpose": "Tells you when to stop training. Once delta drops below threshold, additional iterations waste compute without improving the model.",
-          "usage": "Starts large, decays toward zero. When it drops below 1e-6, the model is converged. If it oscillates instead of decaying, try more random restarts — the model may be stuck in a local optimum.",
-          "crossMetrics": "Leads log_likelihood — when delta approaches zero, LL has plateaued. If delta is near zero but assignment_stability is low, the EM converged to a bad optimum. Increase n_restarts.",
-          "healthy": "Drops below 1e-6 = converged."
+          "description": "Current learning rate from the OneCycleLR scheduler. Starts low (warmup), peaks at max_lr, then anneals to near zero via cosine decay.",
+          "detects": "Training phase \u00e2\u20ac\u201d warmup phase has rising LR (model exploring), peak phase (maximum learning speed), annealing phase (fine-tuning learned representations).",
+          "purpose": "Diagnostic for training dynamics. If the model is still improving when LR hits near-zero, training may need more epochs. If loss spikes during peak LR, max_lr is too high.",
+          "usage": "Expected shape: ramp up \u00e2\u2020\u2019 peak \u00e2\u2020\u2019 cosine decay. If loss spikes at peak, reduce --learning-rate. If model hasn't converged when LR \u00e2\u2020\u2019 0, increase --epochs.",
+          "crossMetrics": "Loss dynamics correlate with LR schedule. Expect fastest loss reduction during early annealing (right after peak). If loss stalls during high LR, the model may be oscillating.",
+          "effect": "Controls training dynamics \u00e2\u20ac\u201d too high causes instability, too low causes slow convergence.",
+          "healthy": "Follows OneCycleLR schedule. No manual intervention needed."
         },
-        "assignment_stability": {},
-        "mean_self_transition": {
-          "title": "Self-Transition Rate",
-          "unit": "percent",
-          "color": "#eab308",
-          "format": "percent",
-          "description": "Probability of staying in bull or bear state on the next bar.",
-          "detects": "How persistent the two states are. In a 2-state model this directly determines the average length of bull and bear runs.",
-          "purpose": "With only 2 states, this metric is especially important — it determines if the model found meaningful trend/counter-trend structure or just noise.",
-          "usage": "For a useful 2-state model, you want 70-90%. Below 60% means the states flip too fast to be tradeable. Above 95% means the model barely switches — it found one dominant state.",
-          "crossMetrics": "In a 2-state model, self_transition directly gives you the transition matrix (the off-diagonal is 1 - self_transition). Compare with log_likelihood — if LL is high but self_transition is near 50%, the model fits the data but doesn't find directional structure.",
-          "healthy": "60-90% typical for hourly data."
+        "epoch_time_sec": {
+          "title": "Epoch Time",
+          "unit": "seconds",
+          "color": "#78716c",
+          "format": "decimal3",
+          "description": "Wall-clock time for one complete training + validation epoch. Includes primitive feature forwarding, gradient computation, and metric calculation.",
+          "detects": "Computational bottlenecks. Sudden increases suggest GPU memory pressure (swapping), DataLoader stalls, or system resource contention.",
+          "purpose": "Training time estimation. Multiply by remaining epochs for ETA. Also useful for comparing architecture variants \u00e2\u20ac\u201d more parameters = longer epochs.",
+          "usage": "Should be roughly constant per epoch. If it increases over time, check GPU memory usage. Typical: 2-10s for 100K bars with 584 primitives on RTX 5060 Ti.",
+          "crossMetrics": "Independent of other metrics \u00e2\u20ac\u201d purely computational. If epoch time is high, consider reducing batch_size or window_size to fit in GPU memory.",
+          "effect": "Determines total training time. Faster epochs = more hyperparameter exploration possible.",
+          "healthy": "Stable. Large variance = system instability."
         }
       },
-      "metricOrder": ["log_likelihood", "convergence_delta", "assignment_stability", "mean_self_transition"]
+      "metricOrder": [
+        "train_loss",
+        "val_loss",
+        "dir_accuracy",
+        "dir_auc",
+        "fwd_accuracy",
+        "fwd_auc",
+        "dir_loss",
+        "fwd_loss",
+        "mag_loss",
+        "learning_rate",
+        "epoch_time_sec"
+      ]
     }
   }
 }

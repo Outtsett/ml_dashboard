@@ -37,7 +37,8 @@ export type RendererType =
   | 'distribution'       // Histogram / distribution chart
   | 'table'              // Key-value or tabular data
   | 'ring'               // Donut/ring chart (class distribution, etc.)
-  | 'text';              // Plain text with optional severity coloring
+  | 'text'               // Plain text with optional severity coloring
+  | 'surface_3d';        // 3D loss surface / trajectory (Three.js/R3F)
 
 // ── Metric Context ──────────────────────────────────────────────────────────
 
@@ -73,8 +74,10 @@ export interface MetricContext {
 
 /** A single self-describing metric emitted by a trained model. */
 export interface MetricDeclaration {
-  /** The metric value. Can be number, object, array, or nested structure. */
-  value: number | Record<string, number> | number[] | number[][];
+  /** The metric value. Null = declaration-only (awaiting training).
+   *  Scalar for gauge/number/percent, array for bars/distribution,
+   *  2D array for heatmap/confusion_matrix, object for surface_3d/complex renderers. */
+  value?: number | Record<string, number> | number[] | number[][] | Record<string, unknown> | null;
   /** Which renderer component to use */
   renderer: RendererType;
   /** The question this metric answers — displayed as the card title */
@@ -91,7 +94,7 @@ export interface MetricDeclaration {
 
 /** Self-describing diagnostics emitted by any trained model. */
 export interface SelfDescribingDiagnostics {
-  /** Model architecture identifier (e.g., "cnn-transformer", "hdp-hmm", "xgboost") */
+  /** Model architecture identifier (e.g., "cnn-transformer", "primitives-discovery", "xgboost") */
   model_type: string;
   /** Human-readable model label */
   model_label?: string;
@@ -156,11 +159,16 @@ export function getMetricSeverity(
   return 'neutral';
 }
 
-/** Format a metric value for display. */
+/** Format a metric value for display. Abbreviates large numbers. */
 export function formatMetricValue(value: number, context: MetricContext): string {
   const decimals = context.decimals ?? 2;
   const unit = context.unit ?? '';
   if (unit === '%') return `${(value * 100).toFixed(decimals)}%`;
+  // Abbreviate large numbers
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B${unit ? ' ' + unit : ''}`;
+  if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M${unit ? ' ' + unit : ''}`;
+  if (abs >= 10_000) return `${(value / 1_000).toFixed(1)}K${unit ? ' ' + unit : ''}`;
   return `${value.toFixed(decimals)}${unit ? ' ' + unit : ''}`;
 }
 

@@ -89,15 +89,15 @@ function extractClusteringMetrics(d: Diagnostics): MetricValue[] {
   const s5 = e?.stage5 ?? {};
   const oos = d.out_of_sample;
 
-  const val = (stage: Record<string, any>, key: string): MetricValue => {
-    const test = stage[key];
+  const val = (stage: Record<string, unknown>, key: string): MetricValue => {
+    const test = stage[key] as Record<string, unknown> | undefined;
     if (!test) return { id: key, value: null };
     return {
       id: key,
-      value: test.value ?? null,
-      passed: test.passed,
-      pValue: test.p_value ?? null,
-      details: test.details,
+      value: (test.value as number | null) ?? null,
+      passed: test.passed as boolean | undefined,
+      pValue: (test.p_value as number | null) ?? null,
+      details: test.details as string | undefined,
     };
   };
 
@@ -112,8 +112,8 @@ function extractClusteringMetrics(d: Diagnostics): MetricValue[] {
     val(s1, 'return_separation'),
     val(s1, 'volatility_separation'),
     // cluster_significance
-    { id: 'permutation_p', value: numOrNull(safeGet(s2, 'permutation_test.p_value')), passed: (s2 as any)?.permutation_test?.passed },
-    { id: 'bootstrap_ci_low', value: numOrNull(safeGet(s2, 'bootstrap_ci.details.ci_low')), passed: (s2 as any)?.bootstrap_ci?.passed },
+    { id: 'permutation_p', value: numOrNull(safeGet(s2, 'permutation_test.p_value')), passed: (s2 as Record<string, Record<string, unknown>>)?.permutation_test?.passed as boolean | undefined },
+    { id: 'bootstrap_ci_low', value: numOrNull(safeGet(s2, 'bootstrap_ci.details.ci_low')), passed: (s2 as Record<string, Record<string, unknown>>)?.bootstrap_ci?.passed as boolean | undefined },
     // cluster_oos
     { id: 'oos_distribution_similarity', value: oos?.distribution_similarity ?? null },
     val(s3, 'oos_confidence_calibration'),
@@ -142,7 +142,7 @@ const CATEGORY_EXTRACTORS: Record<string, MetricExtractor> = {
   'anomaly-detection': () => [],
   sequence: () => [],
   'reinforcement-learning': () => [],
-  probabilistic: extractClusteringMetrics, // HDP-HMM uses clustering metrics
+  probabilistic: extractClusteringMetrics,
   generative: () => [],
   statistical: () => [],
 };

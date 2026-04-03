@@ -111,7 +111,7 @@ export function useRegimeAnalytics(): RegimeAnalyticsState {
 
     try {
       const result = await regimeApi.start({
-        modelType: "hdp-hmm",
+        modelType: "primitives-discovery",
         symbol: selectedSymbol,
         timeframe: selectedTimeframe,
         hyperparameters: { gibbsIter, burnIn, testSplit, wfWindows, alpha, gamma, kappa },

@@ -881,3 +881,110 @@ export const curriculumBookmarks = sqliteTable("curriculum_bookmarks", {
 export const insertCurriculumBookmarkSchema = createInsertSchema(curriculumBookmarks).omit({ id: true, updatedAt: true });
 export type InsertCurriculumBookmark = z.infer<typeof insertCurriculumBookmarkSchema>;
 export type CurriculumBookmark = typeof curriculumBookmarks.$inferSelect;
+
+// ============================================================
+// MODEL CHECKPOINTS — self-describing diagnostics storage
+// ============================================================
+
+/**
+ * Stores model checkpoints with their self-describing diagnostics JSON.
+ * Each checkpoint represents a trained model snapshot with full metric declarations.
+ * The diagnostics column contains a SelfDescribingDiagnostics JSON blob that the
+ * dashboard renders dynamically — different models produce different metric sets.
+ */
+export const modelCheckpoints = sqliteTable("model_checkpoints", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** Versioned model ID: {symbol}_{timeframe}_{modelType}_{timestamp} */
+  modelId: text("model_id").notNull().unique(),
+  /** Model architecture type (e.g., "cnn-transformer", "primitives-discovery", "xgboost") */
+  modelType: text("model_type").notNull(),
+  /** Trading symbol */
+  symbol: text("symbol").notNull(),
+  /** Timeframe */
+  timeframe: text("timeframe").notNull(),
+  /** Full self-describing diagnostics JSON (SelfDescribingDiagnostics schema) */
+  diagnosticsJson: text("diagnostics_json").notNull(),
+  /** Filesystem path to checkpoint file (.pt, .pkl, .joblib, etc.) */
+  checkpointPath: text("checkpoint_path").notNull(),
+  /** Filesystem path to diagnostics.json on disk */
+  diagnosticsPath: text("diagnostics_path"),
+  /** Primary quality metric value for quick sorting (e.g., profit_factor, accuracy) */
+  primaryMetric: real("primary_metric"),
+  /** Name of the primary metric (e.g., "profit_factor", "sharpe_ratio") */
+  primaryMetricName: text("primary_metric_name"),
+  /** Total parameter count */
+  paramCount: integer("param_count"),
+  /** Training duration in seconds */
+  trainingDurationSec: real("training_duration_sec"),
+  /** Number of training bars */
+  nBarsTrain: integer("n_bars_train"),
+  /** Number of validation bars */
+  nBarsVal: integer("n_bars_val"),
+  /** Whether this is the active/deployed checkpoint for its symbol+timeframe */
+  isActive: integer("is_active").notNull().default(0),
+  /** FK to training session that produced this checkpoint */
+  sessionId: integer("session_id"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+}, (table) => ({
+  modelTypeIdx: index("mc_model_type_idx").on(table.modelType),
+  symbolIdx: index("mc_symbol_idx").on(table.symbol),
+  symbolTimeframeIdx: index("mc_symbol_tf_idx").on(table.symbol, table.timeframe),
+  activeIdx: index("mc_active_idx").on(table.isActive),
+  primaryMetricIdx: index("mc_primary_metric_idx").on(table.primaryMetric),
+  createdAtIdx: index("mc_created_at_idx").on(table.createdAt),
+}));
+
+export const insertModelCheckpointSchema = createInsertSchema(modelCheckpoints).omit({ id: true, createdAt: true });
+export type InsertModelCheckpoint = z.infer<typeof insertModelCheckpointSchema>;
+export type ModelCheckpoint = typeof modelCheckpoints.$inferSelect;
+
+// ============================================================
+// PREDICTION LOG — per-bar predictions for backtesting + live
+// ============================================================
+
+/**
+ * SQLite prediction log for offline analysis.
+ * QuestDB prediction_log (created in questdb/tables.ts) handles the hot path
+ * for live streaming predictions. This table stores finalized results for
+ * dashboard queries and backtesting analysis.
+ */
+export const predictionLog = sqliteTable("prediction_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** FK to model checkpoint */
+  checkpointId: integer("checkpoint_id").notNull(),
+  /** Model ID string for quick filtering without join */
+  modelId: text("model_id").notNull(),
+  /** Trading symbol */
+  symbol: text("symbol").notNull(),
+  /** Bar timestamp (epoch ms) */
+  barTimestamp: integer("bar_timestamp").notNull(),
+  /** Predicted class (0=SL, 1=timeout, 2=TP for triple barrier) */
+  predictedClass: integer("predicted_class").notNull(),
+  /** Actual class (filled after barrier resolution, null if pending) */
+  actualClass: integer("actual_class"),
+  /** Confidence/probability of predicted class */
+  confidence: real("confidence"),
+  /** Full probability vector as JSON array */
+  probabilities: text("probabilities"),
+  /** Realized return at barrier exit (null if pending) */
+  realizedReturn: real("realized_return"),
+  /** Number of bars until barrier hit (null if pending) */
+  exitBars: integer("exit_bars"),
+  /** Which barrier was hit: "tp", "sl", "timeout" (null if pending) */
+  barrierHit: text("barrier_hit"),
+  /** Walk-forward fold index (for OOS tracking) */
+  foldIndex: integer("fold_index"),
+  /** "train", "val", or "oos" */
+  splitType: text("split_type").notNull().default("oos"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+}, (table) => ({
+  modelIdIdx: index("pl_model_id_idx").on(table.modelId),
+  symbolTimestampIdx: index("pl_symbol_ts_idx").on(table.symbol, table.barTimestamp),
+  checkpointIdx: index("pl_checkpoint_idx").on(table.checkpointId),
+  splitIdx: index("pl_split_idx").on(table.splitType),
+  predictedClassIdx: index("pl_predicted_class_idx").on(table.predictedClass),
+}));
+
+export const insertPredictionLogSchema = createInsertSchema(predictionLog).omit({ id: true, createdAt: true });
+export type InsertPredictionLog = z.infer<typeof insertPredictionLogSchema>;
+export type PredictionLog = typeof predictionLog.$inferSelect;

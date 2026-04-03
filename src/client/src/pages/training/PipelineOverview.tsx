@@ -143,7 +143,7 @@ export function PipelineOverview({ phaseStatuses, onSelectPhase }: PipelineOverv
             <div className="text-muted-foreground text-[10px] uppercase tracking-wider">Structure</div>
             <div>SOM + GAT (Relations)</div>
             <div>ICA + DCC (Correlations)</div>
-            <div>HDP-HMM (Regime)</div>
+            <div>Clustering (Regime)</div>
             <div>MoE Gating</div>
           </div>
           <div className="space-y-1.5">

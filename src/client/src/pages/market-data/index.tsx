@@ -1,7 +1,7 @@
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+﻿
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from "@/components/ui/empty";
-import { TrendingUp, DollarSign, Clock, LineChart } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { TrendingUp, DollarSign, BarChart3, Clock, LineChart } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import { type LabelMarker } from "@/components/TradingChart";
@@ -9,7 +9,6 @@ import { useIndicatorData } from "@/hooks/useIndicatorData";
 import { useActiveIndicators } from "@/hooks/useActiveIndicators";
 import { useBreadcrumbs } from "@/hooks/useBreadcrumbs";
 import { useDashboard } from "@/contexts/UnifiedDashboardContext";
-import { MLWorkflowSidebar } from "@/components/sidebar/MLWorkflowSidebar";
 import { useLocalReplay } from "@/hooks/useLocalReplay";
 import { useTrainingSync } from "@/hooks/useTrainingSync";
 import { useTrainingContext, useTrainingControl } from "@/contexts/TrainingContext";
@@ -23,41 +22,32 @@ import { minutesToLabel } from "@/lib/timeframes";
 import { Toolbar } from "./Toolbar";
 import { AnalyticsStrip } from "./AnalyticsStrip";
 import { TrainingStatusStrip } from "@/components/training/market-data/TrainingStatusStrip";
-import { ChartPanel } from "./ChartPanel";
+import IndicatorChartLayout from "@/components/IndicatorChartLayout";
+import { ReplayControls } from "@/components/ReplayControls";
+import { RegimeLegend } from "@/components/RegimeLegend";
+import { TrainingSyncBanner } from "@/components/TrainingSyncBanner";
 
 export default function MarketData() {
-  // ── Unified context: local state syncs bidirectionally with dashboard-wide context ──
   const dashboard = useDashboard();
+  const queryClient = useQueryClient();
   const training = useTrainingContext();
   const { models } = useRegimeModels(training.isTraining);
-  const [symbol, setSymbolLocal] = useState(dashboard.symbol);
-  const [assetType, setAssetTypeLocal] = useState<"futures" | "forex">(dashboard.assetType);
-  const [timeframe, setTimeframeLocal] = useState(dashboard.timeframeMinutes);
-  const [symbolOpen, setSymbolOpen] = useState(false);
-  const [mlPanelOpen, setMlPanelOpen] = useState(false);
 
-  // Sync local → context when user changes symbol/tf here
-  const setSymbol = useCallback((s: string) => {
-    setSymbolLocal(s);
+  // Use dashboard context state directly to avoid redundant local state sync
+  const { symbol, assetType, timeframeMinutes: timeframe } = dashboard;
+  
+  const [symbolOpen, setSymbolOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("price");
+
+  // Memoized setters that update dashboard context
+  const _setSymbol = useCallback((s: string) => {
     dashboard.setSymbol(s);
   }, [dashboard]);
 
-  const setAssetType = useCallback((t: "futures" | "forex") => {
-    setAssetTypeLocal(t);
-    dashboard.setAssetType(t);
-  }, [dashboard]);
-
   const setTimeframe = useCallback((m: number) => {
-    setTimeframeLocal(m);
+    queryClient.cancelQueries({ queryKey: ['/api/charts/ohlcv'] });
     dashboard.setTimeframeMinutes(m);
-  }, [dashboard]);
-
-  // Sync context → local when another page changes symbol
-  useEffect(() => {
-    if (dashboard.symbol !== symbol) setSymbolLocal(dashboard.symbol);
-    if (dashboard.assetType !== assetType) setAssetTypeLocal(dashboard.assetType);
-    if (dashboard.timeframeMinutes !== timeframe) setTimeframeLocal(dashboard.timeframeMinutes);
-  }, [dashboard.symbol, dashboard.assetType, dashboard.timeframeMinutes]);
+  }, [queryClient, dashboard]);
 
   const tfLabel = minutesToLabel(timeframe);
   useBreadcrumbs([
@@ -67,7 +57,24 @@ export default function MarketData() {
     { label: tfLabel, icon: Clock },
   ]);
 
-  // ── Instrument & symbol queries ──
+  // Global Keyboard Shortcuts for Tab Switching
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only trigger if not typing in an input/textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      switch (e.key) {
+        case "1": setActiveTab("price"); break;
+        case "2": setActiveTab("ml-studio"); break;
+        case "3": setActiveTab("terminal"); break;
+        case "4": setActiveTab("chat"); break;
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // â”€â”€ Instrument & symbol queries â”€â”€
   const { data: rawInstruments } = useQuery<InstrumentInfo[]>({
     queryKey: ["/api/instruments"],
   });
@@ -86,13 +93,29 @@ export default function MarketData() {
 
   const isFutures = assetType === "futures";
 
-  // ── Chart OHLCV data (must come before indicator hook — provides bars for overlay calc) ──
+  // â”€â”€ Chart OHLCV data (must come before indicator hook â€” provides bars for overlay calc) â”€â”€
   const {
     chartData, isFetching, isLoadingMore, hasMoreLeft, hasMoreRight,
-    handleLoadMore, resetScrollState, resetChart, useInfiniteScroll,
+    handleLoadMore, triggerPrefetch, resetScrollState, resetChart: _resetChart, useInfiniteScroll,
   } = useChartOHLCV(symbol, timeframe);
 
-  // ── Active indicators (new professional system) ──
+  // Asset type switch: cancel in-flight queries, auto-select first symbol of new type
+  const setAssetType = useCallback((t: "futures" | "forex") => {
+    // Kill any in-flight OHLCV queries immediately â€” prevents stale stitching
+    // queries from hogging QuestDB resources while the new symbol loads
+    queryClient.cancelQueries({ queryKey: ['/api/charts/ohlcv'] });
+    dashboard.setAssetType(t);
+    const symbols = t === "futures" ? futuresSymbols : forexSymbols;
+    if (symbols.length > 0) {
+      const currentInList = symbols.some(i => i.symbol === symbol);
+      if (!currentInList) {
+        dashboard.setSymbol(symbols[0]!.symbol);
+        resetScrollState();
+      }
+    }
+  }, [queryClient, dashboard, symbol, futuresSymbols, forexSymbols, resetScrollState]);
+
+  // â”€â”€ Active indicators (new professional system) â”€â”€
   const {
     indicators: activeIndicators,
     addIndicator,
@@ -103,7 +126,7 @@ export default function MarketData() {
     overlays: indicatorOverlays,
   } = useActiveIndicators(chartData);
 
-  // ── CDL Patterns (computed client-side from OHLCV data) ──
+  // â”€â”€ CDL Patterns (computed client-side from OHLCV data) â”€â”€
   const {
     selectedPatterns,
     setSelectedPatterns,
@@ -111,7 +134,7 @@ export default function MarketData() {
     isLoading: patternsLoading,
   } = useIndicatorData(symbol, timeframe, isFutures, chartData);
 
-  // ── Merge indicator overlays + pattern overlays ──
+  // â”€â”€ Merge indicator overlays + pattern overlays â”€â”€
   const allOverlays = useMemo(() => {
     return [...indicatorOverlays, ...patternOverlays];
   }, [indicatorOverlays, patternOverlays]);
@@ -131,28 +154,28 @@ export default function MarketData() {
     }
   }, [selectedPatterns, setSelectedPatterns, removeIndicator]);
 
-  // ── Label markers from sidebar workflow panel ──
+  // â”€â”€ Label markers from sidebar workflow panel â”€â”€
   const [sidebarLabelMarkers, setSidebarLabelMarkers] = useState<LabelMarker[]>([]);
   const [sidebarShowLabels, setSidebarShowLabels] = useState(false);
-  const handleLabelMarkersChange = useCallback((markers: LabelMarker[], show: boolean) => {
+  const _handleLabelMarkersChange = useCallback((markers: LabelMarker[], show: boolean) => {
     setSidebarLabelMarkers(markers);
     setSidebarShowLabels(show);
   }, []);
 
-  // ── Market Replay ──
+  // â”€â”€ Market Replay â”€â”€
   const replay = useLocalReplay(chartData);
 
-  // ── Training Sync (live stabilization — no auto-replay) ──
+  // â”€â”€ Training Sync (live stabilization â€” no auto-replay) â”€â”€
   const trainingSync = useTrainingSync(training, symbol);
 
   const displayData = replay.active ? replay.snapshot.visibleBars : chartData;
 
-  // ── Chart overlay data (regime colors, SR, zigzag — extracted to hook) ──
+  // â”€â”€ Chart overlay data (regime colors, SR, microstructure â€” extracted to hook) â”€â”€
   const {
     overlayToggles, regimeColorMap, regimeLegendInfo,
     selectedRegimes, toggleRegime, showAllRegimes,
     trainTestSplitTime, regimeQualityScore, matchedModelId,
-    srLevels, zigZagPts, swingZZPts,
+    srLevels, zigZagPts, structurePts,
   } = useChartOverlayData(chartData, symbol, tfLabel, {
     liveTimestamps: training.liveRegimeTimestamps,
     liveAssignments: training.liveRegimeAssignments,
@@ -164,7 +187,7 @@ export default function MarketData() {
     },
   });
 
-  // ── Quick stats ──
+  // â”€â”€ Quick stats â”€â”€
   const modelCount = models.length;
 
   const { data: quickTrades = [] } = useMLTrades();
@@ -185,12 +208,12 @@ export default function MarketData() {
   const { startTraining, stopTraining, availableModels, selectedModelType, isPending: isTrainingStarting } = useTrainingControl();
 
   const handleStartTraining = useCallback(() => {
-    const modelType = selectedModelType || "hdp-hmm";
+    const modelType = selectedModelType || "primitives-discovery";
     const modelDef = availableModels[modelType];
     const hyperparameters: Record<string, number | string | boolean> = {};
     if (modelDef?.defaultHyperparameters) {
       for (const [k, v] of Object.entries(modelDef.defaultHyperparameters)) {
-        hyperparameters[k] = v.value;
+        hyperparameters[k] = v.default;
       }
     }
     startTraining({ modelType, symbol, timeframe: tfLabel, hyperparameters });
@@ -200,21 +223,25 @@ export default function MarketData() {
     stopTraining();
   }, [stopTraining]);
 
-  const selectSymbol = async (sym: string, type: "futures" | "forex") => {
-    setSymbol(sym);
-    setAssetType(type);
+  const selectSymbol = useCallback(async (sym: string, type: "futures" | "forex") => {
+    queryClient.cancelQueries({ queryKey: ['/api/charts/ohlcv'] });
+    dashboard.setSymbol(sym);
+    dashboard.setAssetType(type);
     resetScrollState();
-  };
+  }, [queryClient, dashboard, resetScrollState]);
+
+  // Memoize toolbar callbacks to prevent unnecessary Toolbar re-renders
+  const handleToggleSR = useCallback(() => overlayToggles.setShowSR(v => !v), [overlayToggles]);
+  const handleToggleZigZag = useCallback(() => overlayToggles.setShowZigZag(v => !v), [overlayToggles]);
+  const handleToggleStructure = useCallback(() => overlayToggles.setShowStructure((v: boolean) => !v), [overlayToggles]);
+  const handleOpenMlPanel = useCallback(() => setActiveTab("ml-studio"), []);
 
   return (
-    <div className="h-[calc(100vh-4.5rem)] flex flex-col overflow-hidden -m-4">
+    <div className="h-screen flex flex-col overflow-hidden">
       {/* Toolbar */}
       <Toolbar
         assetType={assetType}
-        onAssetTypeChange={(newType) => {
-          setAssetType(newType);
-          setSymbol(newType === "futures" ? "ES" : "EURUSD");
-        }}
+        onAssetTypeChange={setAssetType}
         symbol={symbol}
         onSymbolSelect={selectSymbol}
         symbolOpen={symbolOpen}
@@ -233,20 +260,21 @@ export default function MarketData() {
         onPatternSelectionChange={setSelectedPatterns}
         indicatorsLoading={patternsLoading}
         showSR={overlayToggles.showSR}
-        onToggleSR={() => overlayToggles.setShowSR(v => !v)}
+        onToggleSR={handleToggleSR}
         showZigZag={overlayToggles.showZigZag}
-        onToggleZigZag={() => overlayToggles.setShowZigZag(v => !v)}
-        showSwingZZ={overlayToggles.showSwingZZ}
-        onToggleSwingZZ={() => overlayToggles.setShowSwingZZ(v => !v)}
+        onToggleZigZag={handleToggleZigZag}
+        showStructure={overlayToggles.showStructure}
+        onToggleStructure={handleToggleStructure}
         isTrainingActive={isTrainingActive}
-        onOpenMlPanel={() => setMlPanelOpen(true)}
+        activeTab={activeTab} onTabChange={setActiveTab}
         onStartTraining={handleStartTraining}
         onStopTraining={handleStopTraining}
         isTrainingStarting={isTrainingStarting}
+        onOpenMlPanel={handleOpenMlPanel}
         onResetScrollState={resetScrollState}
       />
 
-      {/* Training Status Strip — compact quality gates + progress when training */}
+      {/* Training Status Strip â€” compact quality gates + progress when training */}
       {isTrainingActive && <TrainingStatusStrip />}
 
       {/* Analytics Strip */}
@@ -279,71 +307,91 @@ export default function MarketData() {
         isTrainingActive={isTrainingActive}
       />
 
-      {/* Chart + Terminal */}
-      <ChartPanel
-        displayData={displayData}
-        chartData={chartData}
-        symbol={symbol}
-        isFutures={isFutures}
-        timeframe={timeframe}
-        replay={{
-          active: replay.active,
-          state: replay.state,
-          speed: replay.speed,
-          snapshot: replay.snapshot,
-          play: replay.play,
-          pause: replay.pause,
-          stepForward: replay.stepForward,
-          stepBackward: replay.stepBackward,
-          seekTo: replay.seekTo,
-          changeSpeed: replay.changeSpeed,
-          reset: replay.reset,
-        }}
-        trainingSync={{
-          isActive: trainingSync.isActive,
-          gibbsIter: trainingSync.gibbsIter,
-          gibbsTotal: trainingSync.gibbsTotal,
-          activeRegimes: trainingSync.activeRegimes,
-          regimeLegend: trainingSync.regimeLegend,
-          trainingPhase: trainingSync.trainingPhase,
-          stability: trainingSync.stability,
-        }}
-        regimeLegendInfo={regimeLegendInfo}
-        selectedRegimes={selectedRegimes}
-        onToggleRegime={toggleRegime}
-        onShowAllRegimes={showAllRegimes}
-        regimeColorMap={regimeColorMap}
-        trainTestSplitTime={trainTestSplitTime}
-        useInfiniteScroll={useInfiniteScroll}
-        onLoadMore={!replay.active && useInfiniteScroll ? handleLoadMore : undefined}
-        isLoadingMore={isLoadingMore}
-        hasMoreLeft={!replay.active && hasMoreLeft}
-        hasMoreRight={!replay.active && hasMoreRight}
-        labelMarkers={sidebarShowLabels ? sidebarLabelMarkers : []}
-        indicatorOverlays={allOverlays}
-        onRemoveIndicators={handleRemoveIndicators}
-        supportResistanceLevels={srLevels}
-        zigZagPoints={zigZagPts}
-        swingZigZagPoints={swingZZPts}
-        tradeMarkers={dashboard.overlays.tradeMarkers}
-        predictionMarkers={dashboard.overlays.predictionMarkers}
-      />
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        {/* Training banner */}
+        {trainingSync.isActive && (
+          <div className="px-3 py-1.5 border-b border-white/5 shrink-0 bg-gradient-to-r from-amber-500/5 via-orange-500/5 to-transparent">
+            <TrainingSyncBanner
+              gibbsIter={trainingSync.gibbsIter}
+              gibbsTotal={trainingSync.gibbsTotal}
+              activeRegimes={trainingSync.activeRegimes}
+              regimeLegend={trainingSync.regimeLegend}
+              trainingPhase={trainingSync.trainingPhase}
+              stability={trainingSync.stability}
+            />
+          </div>
+        )}
+
+        {/* Replay controls */}
+        {replay.active && (
+          <div className="px-3 py-1.5 border-b border-white/5 border-t-2 border-t-violet-500/40 shrink-0 flex items-center gap-3 bg-violet-500/[0.03]">
+            <ReplayControls
+              state={replay.state}
+              speed={replay.speed}
+              snapshot={replay.snapshot}
+              onPlay={replay.play}
+              onPause={replay.pause}
+              onStepForward={replay.stepForward}
+              onStepBackward={replay.stepBackward}
+              onSeekTo={replay.seekTo}
+              onChangeSpeed={replay.changeSpeed}
+              onReset={replay.reset}
+            />
+          </div>
+        )}
+
+        {/* Regime legend */}
+        {regimeLegendInfo.length > 0 && (
+          <div className="px-3 py-1.5 border-b border-white/5 shrink-0">
+            <RegimeLegend
+              regimes={regimeLegendInfo}
+              selectedRegimes={selectedRegimes}
+              onToggleRegime={toggleRegime}
+              onShowAll={showAllRegimes}
+            />
+          </div>
+        )}
+
+        {displayData.length > 0 ? (
+          <div className="flex-1 min-h-0">
+            <IndicatorChartLayout
+              data={displayData}
+              symbol={symbol}
+              isFutures={isFutures}
+              timeframe={timeframe}
+              isReplayActive={replay.active}
+              onLoadMore={!replay.active && useInfiniteScroll ? handleLoadMore : undefined}
+              onPrefetch={!replay.active && useInfiniteScroll ? triggerPrefetch : undefined}
+              isLoadingMore={isLoadingMore}
+              hasMoreLeft={!replay.active && hasMoreLeft}
+              hasMoreRight={!replay.active && hasMoreRight}
+              labelMarkers={sidebarShowLabels ? sidebarLabelMarkers : []}
+              indicatorOverlays={allOverlays}
+              onRemoveIndicators={handleRemoveIndicators}
+              supportResistanceLevels={srLevels}
+              zigZagPoints={zigZagPts}
+              swingZigZagPoints={structurePts}
+              tradeMarkers={dashboard.overlays.tradeMarkers}
+              predictionMarkers={dashboard.overlays.predictionMarkers}
+              regimeColorMap={regimeColorMap}
+              trainTestSplitTime={trainTestSplitTime}
+            />
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground bg-gradient-to-b from-transparent via-primary/[0.02] to-transparent">
+            <div className="relative mb-5">
+              <BarChart3 className="h-16 w-16 opacity-15 text-primary" />
+              <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500/60 animate-pulse" />
+            </div>
+            <p className="font-mono text-sm font-medium tracking-wide text-muted-foreground/80">
+              Awaiting market data
+            </p>
+          </div>
+        )}
+      </div>
       </>
       )}
-
-      {/* ML Tools Sheet */}
-      <Sheet open={mlPanelOpen} onOpenChange={setMlPanelOpen}>
-        <SheetContent side="right" className="w-[380px] sm:w-[420px] sm:max-w-[420px] p-0 border-l border-white/10 bg-background/95 backdrop-blur-xl flex flex-col">
-          <SheetTitle className="sr-only">ML Tools — {symbol}</SheetTitle>
-          <MLWorkflowSidebar
-            chartData={chartData}
-            symbol={symbol}
-            isFutures={isFutures}
-            timeframe={timeframe}
-            onLabelMarkersChange={handleLabelMarkersChange}
-          />
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }
+

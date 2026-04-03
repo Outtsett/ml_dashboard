@@ -1,7 +1,7 @@
 /**
  * ElbowBicCurve — Regime count and balance summary.
  *
- * For nonparametric models (HDP-HMM), shows discovered K and balance.
+ * For nonparametric models, shows discovered K and balance.
  * SRP: Renders regime count quality only.
  */
 

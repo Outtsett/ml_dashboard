@@ -1,6 +1,3 @@
-import hdpHmm from './hdp-hmm.json';
-import cnnTransformer from './cnn-transformer.json';
-
 export interface ModelTypeConfig {
   id: string;
   label: string;
@@ -11,10 +8,6 @@ export interface ModelTypeConfig {
 }
 
 const MODEL_TYPE_CONFIGS: Record<string, ModelTypeConfig> = {
-  'hdp-hmm': hdpHmm as ModelTypeConfig,
-  '2-state-hmm': hdpHmm as ModelTypeConfig,
-  'cnn-transformer': cnnTransformer as ModelTypeConfig,
-  'cnn-transformer-fp': cnnTransformer as ModelTypeConfig,
 };
 
 // Fallback: minimal tabs — backwards compatible for unknown model types

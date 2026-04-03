@@ -1,8 +1,0 @@
-{
-  "id": "hdp-hmm",
-  "label": "HDP-HMM",
-  "mainTabs": ["overview", "performance", "shap", "model-state", "convergence"],
-  "subTabs": ["overview", "regimes", "convergence", "walkforward", "oos", "fit", "compare", "analytics", "log"],
-  "overviewCells": ["quality_score", "regime_distribution", "shap_importance", "walk_forward_heatmap", "oos_comparison"],
-  "primaryMetric": "quality_score"
-}

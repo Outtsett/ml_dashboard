@@ -17,8 +17,8 @@ export const PHASES: PhaseInfo[] = [
   {
     id: "B",
     name: "Unsupervised Structure",
-    description: "Slot Attention, SOM+GAT, ICA+DCC, HDP-HMM, MoE, Statistical",
-    models: ["slot_attention", "som", "gat", "ica", "dcc", "hdp_hmm", "moe", "garch", "kde", "gmm"],
+    description: "Slot Attention, SOM+GAT, ICA+DCC, MoE, Statistical",
+    models: ["slot_attention", "som", "gat", "ica", "dcc", "moe", "garch", "kde", "gmm"],
   },
   {
     id: "C",

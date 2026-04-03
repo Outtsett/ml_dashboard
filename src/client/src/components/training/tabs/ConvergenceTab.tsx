@@ -19,9 +19,9 @@ import { TrendingUp } from "lucide-react";
 
 export interface ConvergenceTabProps {
   /** Saved convergence data points from /api/training/models/:id/convergence */
-  convergenceData: any[] | null | undefined;
+  convergenceData: Record<string, unknown>[] | null | undefined;
   /** Merged diagnostics (live SSE or saved) */
-  diagnostics: Record<string, any> | null;
+  diagnostics: Record<string, unknown> | null;
   /** Whether a completed or selected model is active */
   hasCompleted: boolean;
   /** Whether live streaming data exists */
@@ -52,7 +52,7 @@ function DescBox({ label, color, text }: { label: string; color: string; text: s
 
 export function ConvergenceTab({
   convergenceData,
-  diagnostics,
+  diagnostics: _diagnostics,
   hasCompleted,
   hasLiveData,
   symbol,
@@ -61,9 +61,9 @@ export function ConvergenceTab({
   const { selectedModelType } = useTrainingControl();
   const { iterationHistory } = useTrainingLive();
   const { logs } = useTrainingLogs();
-  const { descriptions, metricOrder } = useMetricDescriptions(selectedModelType || "hdp-hmm");
+  const { descriptions, metricOrder } = useMetricDescriptions(selectedModelType || "primitives-discovery");
 
-  const modelName = selectedModelType || "hdp-hmm";
+  const modelName = selectedModelType || "primitives-discovery";
 
   // ── Live metric series from iterationHistory ──────────────────────────────
   const metricSeries = useMemo(() => {

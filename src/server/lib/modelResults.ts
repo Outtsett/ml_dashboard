@@ -53,8 +53,8 @@ export interface ModelSummary {
 }
 
 /** Extract model type from versioned ID.
- *  MNQZ5_1m_hdp-hmm_20260302T000850 → hdp-hmm
- *  ES_1h_2-state-hmm_20260301T143022 → 2-state-hmm */
+ *  MNQZ5_1m_primitives-discovery_20260302T000850 → primitives-discovery
+ *  ES_1h_cnn-transformer_20260301T143022 → cnn-transformer */
 function extractModelType(id: string): string {
   const parts = id.split("_");
   const tsPattern = /^\d{8}T\d{6}$/;
@@ -81,21 +81,26 @@ export function listTrainedModels(baseDir: string): ModelSummary[] {
     if (!fs.existsSync(diagPath)) continue;
     try {
       const diag = JSON.parse(fs.readFileSync(diagPath, "utf-8"));
+      // Map quality score from best_metrics if top-level quality_score is missing
+      const quality = diag.quality_score ?? 
+                     (diag.best_metrics?.swing_accuracy ? diag.best_metrics.swing_accuracy * 100 : 
+                      diag.metrics?.accuracy ? diag.metrics.accuracy * 100 : 0);
+
       models.push({
         id: dir,
         modelType: diag.model_type || extractModelType(dir),
         symbol: diag.symbol,
         timeframe: diag.timeframe,
-        n_regimes: diag.n_regimes,
-        n_bars: diag.n_bars || diag.n_bars_total,
-        n_bars_total: diag.n_bars_total,
-        n_bars_train_val: diag.n_bars_train_val,
-        n_bars_test: diag.n_bars_test,
-        quality_score: diag.quality_score,
-        date_range: diag.date_range,
-        training_config: diag.training_config,
-        training_time_sec: diag.training_time_sec,
-        trained_at: diag.trained_at,
+        n_regimes: diag.n_regimes || 0,
+        n_bars: diag.n_bars || diag.n_bars_total || diag.data?.n_train || 0,
+        n_bars_total: diag.n_bars_total || (diag.data?.n_train + diag.data?.n_val) || 0,
+        n_bars_train_val: diag.n_bars_train_val || diag.data?.n_train || 0,
+        n_bars_test: diag.n_bars_test || diag.data?.n_val || 0,
+        quality_score: quality,
+        date_range: diag.date_range || { start: diag.data?.train_date_range?.[0], end: diag.data?.val_date_range?.[1] },
+        training_config: diag.training_config || diag.hyperparameters,
+        training_time_sec: diag.training_time_sec || diag.training?.total_time_sec,
+        trained_at: diag.trained_at || (fs.statSync(diagPath).mtime.toISOString()),
         evaluation_grade: diag.evaluation?.grade || "N/A",
       });
     } catch { /* skip corrupted */ }
@@ -137,7 +142,7 @@ function migrateLegacyDiagnostics(diag: Record<string, unknown>): Record<string,
     const stats = diag.regime_stats as Array<Record<string, unknown>>;
     for (const s of stats) {
       const count = s.count as number;
-      const nRegimes = (diag.n_regimes as number) || 1;
+      const _nRegimes = (diag.n_regimes as number) || 1;
       // Rough avg duration: total bars per regime / estimated number of visits
       const estVisits = Math.max(1, nBarsTotal / (count > 0 ? nBarsTotal / count : 1) / 10);
       s.avg_duration = Math.round(count / estVisits * 10) / 10;

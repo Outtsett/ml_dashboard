@@ -7,15 +7,12 @@
 
 import type { IOutputParser } from './types';
 import { DefaultParser } from './defaultParser';
-import { HdpHmmParser } from './hdpHmmParser';
 
 export type { IOutputParser, ParserContext } from './types';
 
 const defaultParser = new DefaultParser();
 
 const PARSERS: Record<string, IOutputParser> = {
-  'hdp-hmm': new HdpHmmParser(),
-  '2-state-hmm': new HdpHmmParser(),  // same JSON protocol
 };
 
 /** Get the parser for a model type, falling back to the default log-emitter. */

@@ -1,9 +1,9 @@
 /**
  * Model Resolver — Pure model-type → category/metricsKey lookup.
  *
- * Think of it as: a phone book. You give it a model type like "hdp-hmm"
- * and it tells you "that's an unsupervised/clustering model, use the
- * clustering metrics dashboard."
+ * Think of it as: a phone book. You give it a model type string
+ * and it tells you the category, subcategory, and which
+ * metrics dashboard to use.
  *
  * SRP: Pure lookup logic. No rendering, no fetching, no side effects.
  * OCP: New model type = add one entry to KNOWN_MODEL_TYPES. Nothing else changes.
@@ -42,8 +42,6 @@ export interface CategoryGroup<T = { id: string; modelType: string }> {
 // Mirrors config/models.json. OCP: add entry here when a new model type is created.
 
 const KNOWN_MODEL_TYPES: Record<string, { category: string; subcategory: string }> = {
-  'hdp-hmm': { category: 'unsupervised', subcategory: 'clustering' },
-  '2-state-hmm': { category: 'unsupervised', subcategory: 'clustering' },
 };
 
 // ── Resolver ─────────────────────────────────────────────────────────────────
@@ -54,7 +52,7 @@ const KNOWN_MODEL_TYPES: Record<string, { category: string; subcategory: string 
  * Checks static registry first, then optional dynamic registry
  * (e.g., from training context's availableModels loaded at runtime).
  *
- * @param modelType - e.g. "hdp-hmm", "2-state-hmm"
+ * @param modelType - e.g. "primitives-discovery", "cnn-transformer"
  * @param dynamicRegistry - Optional runtime registry (from /api/training/config)
  */
 export function resolveModelCategory(

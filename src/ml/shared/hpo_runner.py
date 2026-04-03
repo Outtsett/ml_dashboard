@@ -2,7 +2,7 @@
 
 Spawned by the TypeScript server as::
 
-    python -m src.ml.shared.hpo_runner --config '{"model_type": "hdp-hmm", ...}'
+    python -m src.ml.shared.hpo_runner --config '{"model_type": "...", ...}'
 
 Workflow:
   1. Parses ``--config`` JSON (or ``--config-file``) from CLI
@@ -11,8 +11,8 @@ Workflow:
   4. Builds an objective function that spawns the model's training script
      as a subprocess, capturing the objective metric from stdout
   5. Attaches ``SSECallback`` for real-time trial events to the Node server
-  6. Initializes ``WandbLogger`` for experiment tracking
-  7. Runs ``optimizer.optimize(objective_fn)``
+  6. Runs ``optimizer.optimize(objective_fn)``
+  7. Emits trial events via SSE for real-time dashboard updates
   8. Emits ``hpo-complete`` with the final ``OptimizationResult`` summary
 """
 
@@ -21,38 +21,35 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import math
 import os
 import re
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 from typing import Any
+
+# Import every optimizer module so their ``@OptimizerRegistry.register``
+# decorators execute before we try to instantiate one.
+from ..optimizers import (  # noqa: F401
+    bayesian_optimizer,
+    bohb_optimizer,
+    evolutionary_optimizer,
+    montecarlo_optimizer,
+    optuna_optimizer,
+    pso_optimizer,
+)
 
 # ---------------------------------------------------------------------------
 # Relative imports — works when run via ``python -m src.ml.shared.hpo_runner``
 # ---------------------------------------------------------------------------
 from .optimizer import (
-    OptimizerRegistry,
     OptimizationResult,
+    OptimizerRegistry,
     SearchSpace,
     SSECallback,
-    TrialResult,
 )
 from .protocol import emit, emit_error, emit_log
-
-# Import every optimizer module so their ``@OptimizerRegistry.register``
-# decorators execute before we try to instantiate one.
-from ..optimizers import (  # noqa: F401
-    optuna_optimizer,
-    bayesian_optimizer,
-    pso_optimizer,
-    montecarlo_optimizer,
-    evolutionary_optimizer,
-    bohb_optimizer,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -64,11 +61,6 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[3]  # …/ml_dashboard
 
 # Model type → relative path from project root to the training entry point.
 _MODEL_ENTRYPOINTS: dict[str, str] = {
-    "hdp-hmm":      "src/ml/hdp_hmm/main.py",
-    "hdp_hmm":      "src/ml/hdp_hmm/main.py",
-    "sticky_hdp_hmm": "src/ml/hdp_hmm/main.py",
-    "hmm_2state":   "src/ml/hmm_2state/main.py",
-    "hmm-2state":   "src/ml/hmm_2state/main.py",
 }
 
 # ---------------------------------------------------------------------------
@@ -89,7 +81,7 @@ def _build_subprocess_objective(
     containing diagnostics, then extracts ``objective_metric`` from it.
 
     Args:
-        model_type: Model identifier (e.g. ``"hdp-hmm"``).
+        model_type: Model identifier (e.g. ``"primitives-discovery"``).
         objective_metric: Key to extract from the training diagnostics.
         direction: ``"minimize"`` or ``"maximize"`` — controls the failure
             sentinel value.
@@ -245,29 +237,6 @@ def _build_dry_run_objective(
         return 1.0 - score
 
     return objective
-
-
-# ---------------------------------------------------------------------------
-# W&B callback adapter — bridges OptimizerCallback → WandbLogger
-# ---------------------------------------------------------------------------
-
-
-
-    def on_best_update(self, result: TrialResult) -> None:
-        pass  # WandbLogger.log_hpo_trial already tracks the best internally.
-
-    def on_optimization_complete(self, result: OptimizationResult) -> None:
-        all_trials = [
-            {"trial_id": t.trial_id, "params": t.params, "score": t.score}
-            for t in result.all_trials
-        ]
-        self._logger.log_hpo_summary(
-            best_params=result.best_params,
-            best_score=result.best_score,
-            all_trials=all_trials,
-            search_space=result.search_space.to_dict(),
-            direction=self._direction,
-        )
 
 
 # ---------------------------------------------------------------------------

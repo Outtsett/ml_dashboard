@@ -36,7 +36,7 @@ interface PipelineStep {
 }
 
 export default function DataPipelineFlow({
-  modelType = 'hdp-hmm',
+  modelType = 'primitives-discovery',
   symbol,
   timeframe,
   numBars,

@@ -1,10 +1,8 @@
-"""Simple regime labeler — lightweight percentile-based fallback.
+"""Simple regime labeler -- lightweight percentile-based fallback.
 
-Classifies regimes into 7 categories using a 2×2 return × volatility
+Classifies regimes into 7 categories using a 2x2 return x volatility
 matrix with percentile-adaptive thresholds.  Useful when the full
-feature set (swing, ROC, MA-distance) is unavailable.
-
-Moved from ``hdp_hmm.io.relabel.relabel_states()`` label logic.
+feature set (microstructure, ROC, MA-distance) is unavailable.
 """
 
 from __future__ import annotations
@@ -18,8 +16,7 @@ from .base import (
     LabelResult,
 )
 
-
-# Label → category mapping for the 7 simple buckets
+# Label -> category mapping for the 7 simple buckets
 _CATEGORY_MAP: dict[str, str] = {
     "Low Vol Bull": CATEGORY_TREND,
     "High Vol Bull": CATEGORY_TREND,
@@ -32,7 +29,7 @@ _CATEGORY_MAP: dict[str, str] = {
 
 
 class SimpleLabeler:
-    """Percentile-based 2×2 (return × volatility) regime labeler.
+    """Percentile-based 2x2 (return x volatility) regime labeler.
 
     Requires pre-computed percentile thresholds across all regimes.
     Call :meth:`fit` once with all regime means/vols, then :meth:`label`

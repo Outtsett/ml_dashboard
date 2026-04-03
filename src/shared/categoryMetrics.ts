@@ -410,7 +410,7 @@ export const CATEGORY_METRICS: Record<string, CategoryMetricsConfig> = {
   probabilistic: {
     id: 'probabilistic',
     label: 'Probabilistic',
-    description: 'HMMs, Bayesian Networks, HDP-HMM — hidden state inference',
+    description: 'Bayesian Networks, probabilistic graphical models — hidden state inference',
     groups: [
       {
         id: 'prob_fit',

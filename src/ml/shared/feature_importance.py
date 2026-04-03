@@ -24,7 +24,6 @@ Usage:
 
 import numpy as np
 
-
 # ── Permutation importance (supervised) ───────────────────────────────────
 
 
@@ -78,7 +77,7 @@ def permutation_importance(
     return results
 
 
-# ── Unsupervised permutation importance (for HMM/regime models) ──────────
+# ── Unsupervised permutation importance (for clustering models) ──────────
 
 
 def unsupervised_permutation_importance(
@@ -88,15 +87,14 @@ def unsupervised_permutation_importance(
     n_repeats: int = 10,
     random_state: int = 42,
 ) -> list[dict]:
-    """Permutation importance for unsupervised models (HMM, clustering).
+    """Permutation importance for unsupervised models (clustering).
 
-    Instead of comparing predictions to labels, measures regime assignment
+    Instead of comparing predictions to labels, measures assignment
     stability via Adjusted Rand Index (ARI). Features that cause large ARI
-    drops when permuted are important to the regime structure.
+    drops when permuted are important to the cluster structure.
 
     Args:
-        model_assign_fn: Callable(X) -> regime_labels (T,).
-            For HMM: the Viterbi/MAP assignment function.
+        model_assign_fn: Callable(X) -> cluster_labels (T,).
         X: Feature matrix (T, D).
         feature_names: Column names.
         n_repeats: Number of shuffle repeats per feature.
@@ -157,6 +155,7 @@ def mutual_information_analysis(
         [{"feature": str, "mi_score": float}] sorted by mi_score descending.
     """
     import time
+
     from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
 
     t0 = time.time()
@@ -221,7 +220,7 @@ def shap_importance(
         model: Trained model object.
         X: Feature matrix (T, D).
         feature_names: Column names.
-        model_type: "tree" (TreeExplainer), "hmm" (analytical SHAP), "kernel" (KernelExplainer).
+        model_type: "tree" (TreeExplainer), "kernel" (KernelExplainer).
         max_samples: Max samples for KernelExplainer (slow method).
 
     Returns:
@@ -232,8 +231,6 @@ def shap_importance(
     """
     if model_type == "tree":
         return _shap_tree(model, X, feature_names)
-    elif model_type == "hmm":
-        return _shap_hmm(model, X, feature_names)
     elif model_type == "kernel":
         return _shap_kernel(model, X, feature_names, max_samples)
     else:
@@ -263,35 +260,6 @@ def _shap_tree(model, X, feature_names):
     return {
         "mean_abs_shap": results,
         "shap_values": shap_values,
-    }
-
-
-def _shap_hmm(model, X, feature_names):
-    """Analytical SHAP for HMM — delegates to hdp_hmm/io/shap.py."""
-    # Import the existing analytical SHAP
-    from ml.hdp_hmm.io.shap import compute_shap_values
-
-    if not hasattr(model, "state_sequence") or not hasattr(model, "means"):
-        return {"mean_abs_shap": [], "shap_values": None}
-
-    # Need relabeled assignments and n_regimes
-    relabeled = getattr(model, "relabeled", model.state_sequence)
-    n_regimes = len(np.unique(relabeled))
-
-    shap_matrix, shap_summary = compute_shap_values(
-        model, X, relabeled, feature_names, n_regimes
-    )
-
-    mean_abs = np.mean(np.abs(shap_matrix), axis=0)
-    results = [
-        {"feature": feature_names[d], "value": round(float(mean_abs[d]), 6)}
-        for d in range(len(feature_names))
-    ]
-    results.sort(key=lambda r: r["value"], reverse=True)
-
-    return {
-        "mean_abs_shap": results,
-        "shap_values": shap_matrix,
     }
 
 
@@ -510,7 +478,7 @@ def run_importance_analysis(
             n_repeats=n_repeats, scoring=scoring, random_state=random_state,
         )
 
-    # 2. Unsupervised permutation importance (for HMM/clustering)
+    # 2. Unsupervised permutation importance (for clustering models)
     if model_assign_fn is not None:
         unsup_results = unsupervised_permutation_importance(
             model_assign_fn, X, feature_names,

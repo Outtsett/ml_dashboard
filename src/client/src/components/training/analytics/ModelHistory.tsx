@@ -25,7 +25,7 @@ const GRADE_COLORS: Record<string, string> = {
 
 function extractModelType(modelId: string): string | null {
   // Format: SYMBOL_TIMEFRAME_MODELTYPE_TIMESTAMP
-  // E.g.: ES_1h_hdp-hmm_20260227T143022
+  // E.g.: ES_1h_primitives-discovery_20260227T143022
   const parts = modelId.split("_");
   if (parts.length < 4) return null;
   // Remove first (symbol), second (timeframe), and last (timestamp)

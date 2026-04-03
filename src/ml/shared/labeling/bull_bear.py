@@ -1,10 +1,8 @@
-"""Bull/Bear labeler for 2-state HMM models.
+"""Bull/Bear labeler for 2-state clustering models.
 
-Assigns exactly two labels — Bullish and Bearish — based on which
+Assigns exactly two labels -- Bullish and Bearish -- based on which
 regime has a higher mean return.  Wraps the output in a structured
 LabelResult so the rest of the pipeline treats it identically.
-
-Moved from ``hmm_2state.io.save._relabel_bull_bear()``.
 """
 
 from __future__ import annotations

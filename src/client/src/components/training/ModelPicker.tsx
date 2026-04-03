@@ -19,8 +19,6 @@ import type { ModelRegistryEntry, HyperparameterDef } from "@shared/trainingType
 
 /** Distinct accent color per model type (dot + ring). */
 const MODEL_COLORS: Record<string, { dot: string; ring: string; text: string }> = {
-  "hdp-hmm":      { dot: "bg-violet-500",  ring: "ring-violet-500/30", text: "text-violet-400" },
-  "2-state-hmm":  { dot: "bg-amber-500",   ring: "ring-amber-500/30",  text: "text-amber-400"  },
 };
 const DEFAULT_COLOR = { dot: "bg-cyan-500", ring: "ring-cyan-500/30", text: "text-cyan-400" };
 
@@ -196,7 +194,7 @@ export default function ModelPicker({
               key={key}
               paramKey={key}
               def={def}
-              value={hyperparameterOverrides[key] ?? def.value}
+              value={hyperparameterOverrides[key] ?? def.default}
               onChange={(val) => onHyperparameterChange(key, val)}
               disabled={isTraining}
             />
@@ -210,7 +208,7 @@ export default function ModelPicker({
 // ─── Individual Hyperparameter Input ─────────────────────────────────────────
 
 function HyperparamInput({
-  paramKey,
+  paramKey: _paramKey,
   def,
   value,
   onChange,
@@ -222,7 +220,7 @@ function HyperparamInput({
   onChange: (value: number) => void;
   disabled: boolean;
 }) {
-  const numValue = typeof value === "number" ? value : def.value;
+  const numValue = typeof value === "number" ? value : Number(def.default);
 
   return (
     <div className="flex items-center gap-3">
@@ -231,16 +229,16 @@ function HyperparamInput({
       </label>
       <input
         type="range"
-        min={def.min}
-        max={def.max}
-        step={def.step}
+        min={def.min ?? 0}
+        max={def.max ?? 100}
+        step={def.step ?? 1}
         value={numValue}
         onChange={(e) => onChange(parseFloat(e.target.value))}
         disabled={disabled}
         className="flex-1 h-1 accent-orange-500 disabled:opacity-40"
       />
       <span className="text-xs font-mono text-foreground/80 w-16 text-right">
-        {def.step < 1 ? numValue.toFixed(2) : numValue}
+        {(def.step ?? 1) < 1 ? numValue.toFixed(2) : numValue}
       </span>
     </div>
   );
