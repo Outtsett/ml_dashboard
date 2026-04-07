@@ -106,7 +106,7 @@ export function buildDisplayColumn(indicatorId: string, outputKey: string, isMul
       case 'qstick': return 'QSTICK_14';
       case 'vhf': return 'VHF_28';
       case 'decay': return 'DECAY_5';
-      case 'zigzag': return 'ZIGZAG';
+      case 'microstructure': return 'microstructure';
       // New volatility
       case 'aberration': return 'ABERRATION_20';
       case 'massi': return 'MASSI_25';
@@ -287,3 +287,4 @@ export function buildDisplayColumn(indicatorId: string, outputKey: string, isMul
       return indicatorId.toUpperCase();
   }
 }
+

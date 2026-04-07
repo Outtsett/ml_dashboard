@@ -1,0 +1,71 @@
+<h2>Workforce Architecture — 100% Local LLMs</h2>
+<p class="subtitle">Zero API cost. All models run via Ollama on your hardware (16GB VRAM, 128GB RAM).</p>
+
+<div class="mockup" style="margin-bottom:24px">
+  <div class="mockup-header">Full System Architecture — $0/day</div>
+  <div class="mockup-body" style="font-family:monospace;font-size:12px;line-height:1.5;white-space:pre;overflow-x:auto">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        DOCKER CONTAINER                                     │
+│                        "tyler-workforce"                                    │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                      ORCHESTRATOR (Python asyncio)                    │  │
+│  │                                                                       │  │
+│  │  ┌─────────────┐    ┌──────────────┐    ┌──────────────────────────┐  │  │
+│  │  │ CLI Server  │    │ Task Queue   │    │ Guardrail Engine         │  │  │
+│  │  │ (Unix sock) │───▶│ (asyncio.Q)  │───▶│ • No real $ trades      │  │  │
+│  │  │             │    │              │    │ • No force push main    │  │  │
+│  │  │ tyler types │    │ Priority:    │    │ • No delete production  │  │  │
+│  │  │ directives  │    │  CRITICAL    │    │ • Log all actions       │  │  │
+│  │  │ here        │    │  HIGH/NORM   │    │ • Escalate on unknown   │  │  │
+│  │  └─────────────┘    └──────┬───────┘                              │  │  │
+│  │                            │              └──────────────────────────┘  │  │
+│  │           ┌────────────────┼────────────────┐                          │  │
+│  │           ▼                ▼                ▼                          │  │
+│  │  ┌────────────────┐ ┌──────────┐ ┌─────────────────────────────────┐  │  │
+│  │  │   CEO AGENT    │ │ SENTINEL │ │       SKILL WORKERS             │  │  │
+│  │  │ (On-Demand)    │ │ (Daemon) │ │                                 │  │  │
+│  │  │                │ │          │ │  ┌─────────┐  ┌───────────┐     │  │  │
+│  │  │ qwen3-coder    │ │ llama3.2 │ │  │ BUILDER │  │ ANALYZER  │     │  │  │
+│  │  │ :30b           │ │ :8b      │ │  │         │  │           │     │  │  │
+│  │  │                │ │          │ │  │ qwen3   │  │ qwen3     │     │  │  │
+│  │  │ Breaks down    │ │ Polls:   │ │  │ -coder  │  │ -coder    │     │  │  │
+│  │  │ directives     │ │ • QuestDB│ │  │ :30b    │  │ :30b      │     │  │  │
+│  │  │ into tasks     │ │ • Crons  │ │  │         │  │           │     │  │  │
+│  │  │                │ │ • Builds │ │  │ javac   │  │ Models    │     │  │  │
+│  │  │ Plans multi-   │ │ • Metrics│ │  │ cargo   │  │ Features  │     │  │  │
+│  │  │ step work      │ │ • Health │ │  │ npm     │  │ Market    │     │  │  │
+│  │  │                │ │          │ │  │ pytest  │  │ Data QA   │     │  │  │
+│  │  │ Routes to      │ │ Actions: │ │  └─────────┘  └───────────┘     │  │  │
+│  │  │ workers        │ │ • Alert  │ │                                 │  │  │
+│  │  │                │ │ • Log    │ │  ┌──────────┐  ┌────────────┐   │  │  │
+│  │  │                │ │ • Fix    │ │  │ DEPLOYER │  │  REPORTER  │   │  │  │
+│  │  │                │ │ • Escal. │ │  │          │  │            │   │  │  │
+│  │  │                │ │   to CEO │ │  │ qwen3    │  │ llama3.2   │   │  │  │
+│  │  │                │ │          │ │  │ -coder   │  │ :8b        │   │  │  │
+│  │  │                │ │          │ │  │ :30b     │  │            │   │  │  │
+│  │  │                │ │          │ │  │ MW Ext   │  │ Summaries  │   │  │  │
+│  │  │                │ │          │ │  │ Shopify  │  │ Digests    │   │  │  │
+│  │  │                │ │          │ │  │ Models   │  │ Alerts     │   │  │  │
+│  │  └────────────────┘ └──────────┘ │  └──────────┘  └────────────┘   │  │  │
+│  │                                  └─────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  BIND MOUNTS:                          NETWORK:                             │
+│  • E:\source\repos\* → /repos/*        • host.docker.internal:11434 Ollama  │
+│  • C:\Shopify\* → /shopify/*           • host.docker.internal:9000  QuestDB │
+│  • data/ → /data/                      • host.docker.internal:8812  QDB PG  │
+│  • checkpoints/ → /checkpoints/        • host.docker.internal:9009  QDB ILP │
+│                                        • Unix socket for CLI                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+MODEL ALLOCATION (16GB VRAM target 50-60%):
+┌──────────────────────────────────────────────────────────────────┐
+│  Only ONE 30B model loaded at a time (~9-10GB VRAM Q4)          │
+│  Sentinel uses 8B model (~5GB) — can coexist with 30B           │
+│                                                                  │
+│  Scheduling:                                                     │
+│  • Sentinel (8B) — always loaded, lightweight polling            │
+│  • CEO/Workers (30B) — loaded on-demand, unloaded when idle      │
+│  • Ollama handles model swapping automatically via keep_alive    │
+└──────────────────────────────────────────────────────────────────┘

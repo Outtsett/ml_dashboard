@@ -1,11 +1,11 @@
-/**
- * Client-side chart overlay computations: Support/Resistance levels and ZigZag.
- * These run in the browser on visible OHLCV data — no server round-trip.
+﻿/**
+ * Client-side chart overlay computations: Support/Resistance levels and microstructure.
+ * These run in the browser on visible OHLCV data â€” no server round-trip.
  */
 
-// ────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Types
-// ────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface SupportResistanceLevel {
   price: number;
@@ -31,9 +31,9 @@ export interface ZigZagSegment {
   value: number;
 }
 
-// ────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Support & Resistance
-// ────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface OhlcBar {
   time: number;
@@ -44,9 +44,9 @@ interface OhlcBar {
 }
 
 /**
- * Detect swing highs and lows using a lookback window.
+ * Detect microstructure highs and lows using a lookback window.
  */
-function findSwingPoints(bars: OhlcBar[], lookback: number = 5): { highs: { time: number; price: number }[]; lows: { time: number; price: number }[] } {
+function findStructuralPivots(bars: OhlcBar[], lookback: number = 5): { highs: { time: number; price: number }[]; lows: { time: number; price: number }[] } {
   const highs: { time: number; price: number }[] = [];
   const lows: { time: number; price: number }[] = [];
 
@@ -118,7 +118,7 @@ function clusterLevels(
 /**
  * Compute support and resistance levels from OHLCV bars.
  * @param bars - Array of {time (sec), open, high, low, close}
- * @param lookback - Swing detection window (default 5)
+ * @param lookback - microstructure detection window (default 5)
  * @param maxLevels - Max S/R lines to return (default 10)
  */
 export function computeSupportResistance(
@@ -128,9 +128,9 @@ export function computeSupportResistance(
 ): SupportResistanceLevel[] {
   if (bars.length < lookback * 2 + 1) return [];
 
-  const { highs, lows } = findSwingPoints(bars, lookback);
+  const { highs, lows } = findStructuralPivots(bars, lookback);
 
-  // Tolerance = 0.5 × average true range
+  // Tolerance = 0.5 Ã— average true range
   let atrSum = 0;
   for (let i = 1; i < bars.length; i++) {
     atrSum += Math.max(
@@ -154,12 +154,12 @@ export function computeSupportResistance(
 }
 
 
-// ────────────────────────────────────────────────────────
-// ZigZag
-// ────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// microstructure
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
- * Compute ZigZag turning points.
+ * Compute microstructure turning points.
  * @param bars - OHLCV bars sorted by time
  * @param threshold - If > 0, used as a fixed % threshold. If 0, auto-computed from ATR.
  */
@@ -187,7 +187,7 @@ export function computeZigZag(
     }
     const avgTR = atrSum / (bars.length - 1);
     const avgPrice = priceSum / (bars.length - 1);
-    // Threshold = ~2x ATR as % of price — catches intermediate swings on intraday
+    // Threshold = ~2x ATR as % of price â€” catches intermediate swings on intraday
     // (was 5x, which only showed weekly-scale moves on 30m charts)
     thresholdRatio = Math.max((avgTR * 2) / avgPrice, 0.0005); // floor at 0.05%
   }
@@ -260,20 +260,20 @@ export function computeZigZag(
 }
 
 /**
- * Convert ZigZag points to a line series format for lightweight-charts.
+ * Convert microstructure points to a line series format for lightweight-charts.
  */
 export function zigZagToLineSeries(points: ZigZagPoint[]): ZigZagSegment[] {
   return points.map(p => ({ time: p.time, value: p.value }));
 }
 
 
-// ────────────────────────────────────────────────────────
-// Swing ZigZag (every swing high/low, no filtering)
-// ────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// microstructure microstructure (every microstructure high/low, no filtering)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
- * Compute a raw swing ZigZag that captures EVERY swing high and low,
- * alternating between them. No minimum-move threshold — this shows
+ * Compute a raw microstructure microstructure that captures EVERY microstructure high and low,
+ * alternating between them. No minimum-move threshold â€” this shows
  * every single zig and zag in the price action.
  *
  * Uses a bar-by-bar directional tracking approach: tracks whether
@@ -282,7 +282,7 @@ export function zigZagToLineSeries(points: ZigZagPoint[]): ZigZagSegment[] {
  *
  * @param bars - OHLCV bars sorted by time
  */
-export function computeSwingZigZag(
+export function computeMicroStructure(
   bars: OhlcBar[],
 ): ZigZagPoint[] {
   if (bars.length < 3) return [];
@@ -330,11 +330,11 @@ export function computeSwingZigZag(
       }
     } else if (direction === 'up') {
       if (bar.high >= lastHigh) {
-        // Continue up — extend the current high
+        // Continue up â€” extend the current high
         lastHigh = bar.high;
         lastHighTime = bar.time;
       } else if (bar.low < bars[i - 1]!.low) {
-        // Reversal: bar made a lower low than previous bar → we were going up, now going down
+        // Reversal: bar made a lower low than previous bar â†’ we were going up, now going down
         // Record the high point
         points.push({ time: lastHighTime, value: lastHigh, type: 'high' });
         direction = 'down';
@@ -344,11 +344,11 @@ export function computeSwingZigZag(
     } else {
       // direction === 'down'
       if (bar.low <= lastLow) {
-        // Continue down — extend the current low
+        // Continue down â€” extend the current low
         lastLow = bar.low;
         lastLowTime = bar.time;
       } else if (bar.high > bars[i - 1]!.high) {
-        // Reversal: bar made a higher high than previous bar → we were going down, now going up
+        // Reversal: bar made a higher high than previous bar â†’ we were going down, now going up
         // Record the low point
         points.push({ time: lastLowTime, value: lastLow, type: 'low' });
         direction = 'up';
@@ -367,3 +367,4 @@ export function computeSwingZigZag(
 
   return points;
 }
+

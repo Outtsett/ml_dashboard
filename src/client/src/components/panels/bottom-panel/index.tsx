@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import {
-  Brain, BarChart3, Wand2, Terminal, TerminalSquare, Trash2,
+  Brain, BarChart3, Wand2, Terminal, TerminalSquare, Trash2, MessageSquare,
 } from "lucide-react";
 
 import { useDashboard } from "@/contexts/UnifiedDashboardContext";
@@ -13,6 +13,7 @@ import { PageLoader } from "@/components/LoadingSkeletons";
 import { useTradeMetrics } from "@/hooks/useTradeMetrics";
 import { useMLModels, useMLTrades } from "@/hooks/useMLData";
 import { useRegimeModels } from "@/hooks/useRegimeData";
+import { ChatTab } from "@/components/panels/chat/ChatTab";
 import { TerminalTabs } from "@/components/terminal/TerminalTabs";
 
 import { LogEntry } from "./TradeRow";
@@ -82,6 +83,9 @@ export function BottomPanel({ isCollapsed }: BottomPanelProps) {
             <TabsTrigger value="terminal" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-400 gap-1">
               <TerminalSquare className="h-3 w-3" /> Terminal
             </TabsTrigger>
+            <TabsTrigger value="chat" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-400 gap-1">
+              <MessageSquare className="h-3 w-3" /> Chat
+            </TabsTrigger>
             <TabsTrigger value="logs" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-violet-500/15 data-[state=active]:text-violet-400 gap-1">
               <Terminal className="h-3 w-3" /> Log
               {logs.length > 0 && <Badge variant="outline" className="text-[8px] px-1 py-0 rounded-full ml-0.5">{logs.length}</Badge>}
@@ -121,6 +125,10 @@ export function BottomPanel({ isCollapsed }: BottomPanelProps) {
         {/* ─── Terminal Tab (real PTY) ──────────────────────── */}
         <TabsContent value="terminal" className="flex-1 min-h-0 overflow-hidden mt-0">
           <TerminalTabs visible={activeTab === "terminal"} />
+        </TabsContent>
+        {/* ─── Chat Tab (Ollama LLM) ─────────────────────────── */}
+        <TabsContent value="chat" className="flex-1 min-h-0 overflow-hidden mt-0">
+          <ChatTab />
         </TabsContent>
         {/* ─── Training Log Tab ────────────────────────────────── */}
         <TabsContent value="logs" className="flex-1 min-h-0 overflow-hidden mt-0 flex flex-col">

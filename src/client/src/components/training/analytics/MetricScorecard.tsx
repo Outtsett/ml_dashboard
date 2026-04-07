@@ -1,164 +1,144 @@
-/**
- * MetricScorecard — Grid of metric value cards with sparklines and status colors.
- *
- * 4-column grid. Each card: metric name, current value (large), status dot, mini sparkline.
- * Pulls cluster_quality metrics + regime count from modelState, history from modelStateHistory.
- */
-
 import { memo, useMemo } from "react";
 import { useTrainingModelState } from "@/contexts/TrainingModelStateCtx";
-import { LineChart, Line, ResponsiveContainer } from "recharts";
-import { ChartCard } from "./shared";
+import { useTrainingControl } from "@/contexts/TrainingContext";
+import { useMetricDescriptions, formatMetricValue } from "@/hooks/useMetricDescriptions";
+import { RadialGauge } from "./RadialGauge";
+import { Clock, Activity, Settings2, Target, HelpCircle, AlertTriangle, ShieldCheck, Microscope } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 const STATUS_COLORS: Record<string, string> = {
-  pass: "#22c55e",
-  warn: "#eab308",
+  pass: "#10b981",
+  warn: "#f59e0b",
   fail: "#ef4444",
 };
 
-interface MetricDef {
-  key: string;
-  label: string;
-  /** Extract the value from a model state snapshot */
-  extract: (snap: any) => number | null;
-  /** Format for display */
-  format: (v: number) => string;
-  /** Quality gate metric name to look up status color */
-  gateKey?: string;
-}
+function MetricScorecardInner({ diagnostics }: { diagnostics?: Record<string, any> | null }) {
+  const { modelState } = useTrainingModelState();
+  const { selectedModelType, availableModels } = useTrainingControl();
+  const { descriptions } = useMetricDescriptions(selectedModelType);
 
-const METRICS: MetricDef[] = [
-  {
-    key: "silhouette",
-    label: "Silhouette",
-    extract: (s) => s.cluster_quality?.silhouette ?? null,
-    format: (v) => v.toFixed(3),
-    gateKey: "silhouette",
-  },
-  {
-    key: "calinski_harabasz",
-    label: "Calinski-Harabasz",
-    extract: (s) => s.cluster_quality?.calinski_harabasz ?? null,
-    format: (v) => v.toFixed(1),
-    gateKey: "calinski_harabasz",
-  },
-  {
-    key: "davies_bouldin",
-    label: "Davies-Bouldin",
-    extract: (s) => s.cluster_quality?.davies_bouldin ?? null,
-    format: (v) => v.toFixed(3),
-    gateKey: "davies_bouldin",
-  },
-  {
-    key: "ari_vs_previous",
-    label: "ARI vs Previous",
-    extract: (s) => s.cluster_quality?.ari_vs_previous ?? null,
-    format: (v) => v.toFixed(3),
-    gateKey: "ari_vs_previous",
-  },
-  {
-    key: "n_regimes",
-    label: "Regimes",
-    extract: (s) => s.regime_profiles?.length ?? null,
-    format: (v) => String(Math.round(v)),
-  },
-  {
-    key: "avg_dwell",
-    label: "Avg Dwell",
-    extract: (s) => {
-      const profiles = s.regime_profiles as Array<{ mean_dwell: number; bar_count: number }> | undefined;
-      if (!profiles || profiles.length === 0) return null;
-      const totalBars = profiles.reduce((acc, p) => acc + p.bar_count, 0);
-      if (totalBars === 0) return null;
-      return profiles.reduce((acc, p) => acc + p.mean_dwell * p.bar_count, 0) / totalBars;
-    },
-    format: (v) => v.toFixed(1),
-  },
-];
+  const modelDef = availableModels[selectedModelType];
+  const snap = (modelState?.snapshot ?? diagnostics ?? null) as Record<string, any> | null;
+  
+  // DYNAMIC ADAPTATION: Derive UI purely from Registry + Snapshots
+  // No hardcoded model-type lists.
+  const activeMetrics = useMemo(() => {
+    if (!modelDef?.outputs) return [];
+    
+    const outputKeys = Array.isArray(modelDef.outputs) 
+      ? modelDef.outputs 
+      : Object.keys(modelDef.outputs);
+      
+    // Filter to metrics that actually exist in the current snapshot
+    const metricsInSnap = snap?.best_metrics || snap?.metrics || {};
+    return outputKeys.filter(k => metricsInSnap[k] !== undefined || descriptions[k]);
+  }, [modelDef, snap, descriptions]);
 
-function MetricScorecardInner() {
-  const { modelState, modelStateHistory } = useTrainingModelState();
+  if (!snap) return null;
 
-  // Build sparkline data: last 20 values per metric from history
-  const sparklines = useMemo(() => {
-    const result: Record<string, number[]> = {};
-    if (!modelStateHistory || modelStateHistory.length === 0) return result;
-
-    const recent = modelStateHistory.slice(-20);
-    for (const def of METRICS) {
-      result[def.key] = recent
-        .map((entry) => def.extract(entry.state.snapshot))
-        .filter((v): v is number => v !== null);
-    }
-    return result;
-  }, [modelStateHistory]);
-
-  const snap = modelState?.snapshot ?? null;
-  const gateMap = new Map(
-    (snap?.quality_gates ?? []).map((g) => [g.metric, g.status])
-  );
-
-  const iterLabel = modelState
-    ? `Iteration ${modelState.iteration}/${modelState.total}`
-    : undefined;
+  const gateMap = new Map((snap?.quality_gates ?? []).map((g: any) => [g.metric, g.status]));
+  const currentMetrics = snap.best_metrics || snap.metrics || {};
 
   return (
-    <ChartCard title="Metrics" subtitle={iterLabel} minHeight={80}>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        {METRICS.map((def) => {
-          const value = snap ? def.extract(snap) : null;
-          const status = def.gateKey ? gateMap.get(def.gateKey) : undefined;
-          const dotColor = status ? STATUS_COLORS[status] ?? "#6b7280" : "#6b7280";
-          const spark = sparklines[def.key] ?? [];
+    <div className="space-y-12 animate-in fade-in duration-1000">
+      {/* 1. Adaptive Performance Gauges (Top 3 Primary Outputs) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+        {activeMetrics.slice(0, 3).map((key) => {
+          const value = currentMetrics[key] ?? 0;
+          const desc = descriptions[key];
+          const status = String(gateMap.get(key) || 'pass');
+          const color = STATUS_COLORS[status] || "#3b82f6";
+          
+          const isPct = desc?.unit === 'percent' || key.includes('accuracy');
+          const displayValue = isPct ? value * 100 : value;
+          const displayMax = desc?.target ? (desc.target > 1 ? desc.target * 1.5 : 100) : 100;
 
           return (
-            <div
-              key={def.key}
-              className="bg-white/[0.02] rounded-lg border border-white/5 px-3 py-2"
-            >
-              <div className="flex items-center gap-1.5 mb-1">
-                <span
-                  className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
-                  style={{ backgroundColor: dotColor }}
-                />
-                <span className="text-[9px] font-mono text-muted-foreground/50 truncate">
-                  {def.label}
-                </span>
-              </div>
-
-              <div className="flex items-end justify-between gap-2">
-                <span
-                  className="text-sm font-mono font-semibold"
-                  style={{ color: dotColor }}
-                >
-                  {value !== null ? def.format(value) : "\u2014"}
-                </span>
-
-                {spark.length >= 2 && (
-                  <div className="w-16 h-[30px] shrink-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart
-                        data={spark.map((v, i) => ({ i, v }))}
-                        margin={{ top: 2, right: 2, bottom: 2, left: 2 }}
-                      >
-                        <Line
-                          type="monotone"
-                          dataKey="v"
-                          stroke={dotColor}
-                          strokeWidth={1.5}
-                          dot={false}
-                          isAnimationActive={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </div>
+            <div key={key} className="relative group">
+              <RadialGauge
+                value={displayValue}
+                min={0}
+                max={displayMax}
+                label={desc?.title || key.replace(/_/g, ' ')}
+                unit={desc?.unit === 'percent' ? '%' : ''}
+                color={color}
+                sublabel={status === 'fail' ? "BELOW TARGET" : "VERIFIED"}
+              />
+              {desc?.target !== undefined && (
+                <div className="absolute top-0 right-0 p-2 text-right opacity-40 group-hover:opacity-100 transition-opacity">
+                   <div className="text-[8px] font-black uppercase tracking-widest text-muted-foreground/20">Target</div>
+                   <div className="text-xs font-mono font-bold text-foreground/20">
+                      {desc.targetDirection === 'above' ? '≥' : '≤'} {isPct ? (desc.target * 100).toFixed(0) : desc.target}{isPct ? '%' : ''}
+                   </div>
+                </div>
+              )}
             </div>
           );
         })}
       </div>
-    </ChartCard>
+
+      {/* 2. Adaptive Diagnostic Grid (Remaining Outputs) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-12 gap-y-10 px-4">
+        {activeMetrics.slice(3).map((key) => {
+          const value = currentMetrics[key];
+          const desc = descriptions[key];
+          if (value === undefined) return null;
+
+          return (
+            <div key={key} className="flex flex-col gap-2 group relative">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground/30 group-hover:text-primary/50 transition-colors">
+                  {desc?.title || key.replace(/_/g, ' ')}
+                </span>
+                {desc && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="w-3.5 h-3.5 text-muted-foreground/10 hover:text-primary/60 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[320px] bg-zinc-950 border-white/10 p-5 shadow-2xl glass rounded-2xl">
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <div className="text-[10px] font-black text-primary uppercase tracking-widest italic">Diagnostic Intent</div>
+                          <p className="text-[11px] text-foreground/80 font-mono leading-relaxed">{desc.purpose || desc.description}</p>
+                        </div>
+                        {desc.controlParameters && desc.controlParameters.length > 0 && (
+                          <div className="space-y-2 pt-3 border-t border-white/5">
+                            <div className="text-[10px] font-black text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
+                              <Settings2 className="w-3 h-3" /> Control Flags
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {desc.controlParameters.map(p => (
+                                <span key={p} className="text-[9px] font-mono bg-primary/5 px-2 py-0.5 rounded border border-primary/10 text-primary/80">--{p.replace(/_/g, '-')}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+              <div className="flex items-baseline gap-3">
+                <span className="text-2xl font-mono font-black text-foreground/80 tabular-nums tracking-tighter">
+                  {desc ? formatMetricValue(value, desc.format) : value.toFixed(3)}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+        
+        {/* Dynamic System Stats */}
+        <div className="flex flex-col gap-2 group">
+          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground/30">Total Compute</span>
+          <div className="flex items-center gap-2 text-cyan-400/20">
+            <Clock className="w-4 h-4" />
+            <span className="text-2xl font-mono font-black text-foreground/80 tracking-tighter">
+              {snap?.training?.total_time_sec ? `${(snap.training.total_time_sec / 60).toFixed(1)}m` : "0.0m"}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

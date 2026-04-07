@@ -3,7 +3,7 @@
  *
  * Reads from config/metric-descriptions.json (served via /api/training/config).
  * Merges global defaults with model-specific overrides.
- * Returns a map of metric key → description object.
+ * Returns a map of metric key — description object.
  */
 
 import { useMemo } from "react";
@@ -23,6 +23,14 @@ export interface MetricDescription {
   healthy: string;
   target?: number;
   targetDirection?: "above" | "below";
+  controlParameters?: string[];
+  prescriptive?: {
+    flags: Array<{ name: string; direction: string }>;
+    low_signal_action?: string;
+    high_overfit_action?: string;
+    poor_calibration_action?: string;
+    no_trades_action?: string;
+  };
 }
 
 interface MetricDescriptionsConfig {
@@ -31,11 +39,12 @@ interface MetricDescriptionsConfig {
   models: Record<string, {
     metrics: Record<string, Partial<MetricDescription>>;
     metricOrder: string[];
+    controlParameters?: Record<string, string[]>;
   }>;
 }
 
-async function fetchMetricDescriptions(): Promise<MetricDescriptionsConfig> {
-  const resp = await fetch("/api/training/metric-descriptions");
+async function fetchMetricDescriptions(signal?: AbortSignal): Promise<MetricDescriptionsConfig> {
+  const resp = await fetch("/api/training/metric-descriptions", { signal });
   if (!resp.ok) throw new Error(`Failed to load metric descriptions: ${resp.status}`);
   return resp.json();
 }
@@ -43,7 +52,7 @@ async function fetchMetricDescriptions(): Promise<MetricDescriptionsConfig> {
 export function useMetricDescriptions(modelType: string) {
   const { data: config } = useQuery({
     queryKey: ["metric-descriptions"],
-    queryFn: fetchMetricDescriptions,
+    queryFn: ({ signal }) => fetchMetricDescriptions(signal),
     staleTime: 60 * 60 * 1000, // 1 hour — config rarely changes
   });
 
@@ -54,6 +63,7 @@ export function useMetricDescriptions(modelType: string) {
     const modelConfig = config.models?.[modelType];
     const modelMetrics = modelConfig?.metrics ?? {};
     const metricOrder = modelConfig?.metricOrder ?? Object.keys(modelMetrics);
+    const modelControls = modelConfig?.controlParameters ?? {};
 
     // Merge: model-specific overrides global
     const descriptions: Record<string, MetricDescription> = {};
@@ -75,6 +85,8 @@ export function useMetricDescriptions(modelType: string) {
         healthy: model.healthy ?? global.healthy ?? "",
         target: model.target ?? global.target,
         targetDirection: model.targetDirection ?? global.targetDirection,
+        controlParameters: modelControls[key] ?? [],
+        prescriptive: (model as any).prescriptive ?? (global as any).prescriptive,
       };
     }
 

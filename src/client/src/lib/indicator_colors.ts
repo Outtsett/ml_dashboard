@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Deterministic color mapping for indicator overlay lines.
  */
 
@@ -65,10 +65,10 @@ export function getHistogramColors(baseColor: string): { positive: string; negat
 
 // Named color palettes per indicator family
 const INDICATOR_COLORS: Record<string, string> = {
-  // Moving Averages — Blues
+  // Moving Averages â€” Blues
   'SMA_5': '#93c5fd', 'SMA_10': '#60a5fa', 'SMA_20': '#3b82f6',
   'SMA_50': '#2563eb', 'SMA_100': '#1d4ed8', 'SMA_200': '#1e40af',
-  // EMAs — Greens
+  // EMAs â€” Greens
   'EMA_5': '#86efac', 'EMA_10': '#4ade80', 'EMA_20': '#22c55e',
   'EMA_50': '#16a34a', 'EMA_100': '#15803d', 'EMA_200': '#166534',
   // Other MAs
@@ -154,7 +154,7 @@ const INDICATOR_COLORS: Record<string, string> = {
   'MFI_14': '#22d3ee',
 };
 
-// Family prefix → base hue (HSL)
+// Family prefix â†’ base hue (HSL)
 const FAMILY_HUES: Record<string, number> = {
   SMA: 217, EMA: 142, WMA: 38, DEMA: 187, TEMA: 187,
   HMA: 330, ALMA: 330, KAMA: 270, FWMA: 200,
@@ -183,7 +183,7 @@ const FAMILY_HUES: Record<string, number> = {
   PGO: 170, PSL: 38, QQE: 263, RSX: 263, RVGI: 200,
   STC: 330, TSI: 142, SMI: 270, SQZ: 187, KDJ: 38,
   WAD: 187, CHOP: 38, CKSP: 142, DPO: 217, QSTICK: 170,
-  VI: 142, VHF: 200, DECAY: 38, ZIGZAG: 25,
+  VI: 142, VHF: 200, DECAY: 38, microstructure: 25,
   ABERRATION: 25, MASSI: 200, UI: 330, PDIST: 25,
   BBW: 263, KCW: 200, RVI: 263, HWC: 200,
   CMF: 187, EFI: 142, EOM: 200, KVO: 187,
@@ -233,21 +233,21 @@ export function getIndicatorColor(column: string): string {
  * Get line width for an indicator (thicker for important MAs, thinner for bands).
  */
 export function getIndicatorLineWidth(column: string): number {
-  // Major MAs — thick
+  // Major MAs â€” thick
   if (/^(SMA|EMA)_(50|100|200)/.test(column)) return 2;
-  // VWAP — prominent
+  // VWAP â€” prominent
   if (column === 'VWAP') return 2;
-  // SuperTrend — prominent
+  // SuperTrend â€” prominent
   if (column.startsWith('SUPERTREND') && !column.includes('DIR')) return 2;
-  // Band upper/lower — thin
+  // Band upper/lower â€” thin
   if (/^(BBU|BBL|KC_(UPPER|LOWER)|DC_(UPPER|LOWER)|ACCB_(UPPER|LOWER)|HWC_(UPPER|LOWER))/.test(column)) return 1;
-  // Band middle — standard
+  // Band middle â€” standard
   if (/^(BBM|KC_MIDDLE|DC_MIDDLE|ACCB_MIDDLE|HWC_MIDDLE)/.test(column)) return 1;
-  // Ichimoku — thin
+  // Ichimoku â€” thin
   if (/^(TENKAN|KIJUN|SENKOU|CHIKOU)/.test(column)) return 1;
-  // PSAR dots — thin
+  // PSAR dots â€” thin
   if (column === 'PSAR') return 1;
-  // CDL patterns — thin
+  // CDL patterns â€” thin
   if (column.startsWith('CDL_')) return 1;
   // Default
   return 1;
@@ -261,3 +261,4 @@ export function colorToRgba(color: string, alpha: number): string {
   const { r, g, b } = parseColor(color);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
+

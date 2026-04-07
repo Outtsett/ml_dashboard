@@ -16,7 +16,7 @@ import { log } from './lib/log';
 import { db } from './database/db';
 import { setNestApp } from './nest-context';
 import { shutdownAllPtySessions } from './lib/ptyServer';
-import { shutdownGpuMonitor } from './routes/system';
+import { shutdownHardwareNode } from './routes/system';
 import { warmSymbolsCatalog } from './cache/symbols';
 
 // Re-export for backward compat
@@ -50,6 +50,7 @@ async function bootstrap() {
   });
 
   const expressApp = express();
+  expressApp.set('etag', 'weak'); // Enable weak ETags for conditional 304 responses
   const httpServer = createServer(expressApp);
 
   // ── Express middleware (preserved from index.ts) ──
@@ -73,9 +74,14 @@ async function bootstrap() {
   }));
 
   // ── Gzip compression (reduces OHLCV/chart responses ~80%) ──
+  // Skip SSE streams (incompatible) and /assets/ in production (pre-compressed at build time)
   expressApp.use(compression({
-    threshold: 1024,  // Only compress responses > 1KB
-    filter: (req: Request) => !req.path.includes('/stream/'),  // Skip SSE streams
+    threshold: 1024,
+    filter: (req: Request) => {
+      if (req.path.includes('/stream/')) return false;
+      if (process.env.NODE_ENV === 'production' && req.path.startsWith('/assets/')) return false;
+      return true;
+    },
   }));
 
   // ── Request ID (unique per request, propagated in headers + logs) ──
@@ -294,7 +300,7 @@ async function bootstrap() {
     isShuttingDown = true;
     log('Graceful shutdown initiated...', 'nest');
 
-    shutdownGpuMonitor();
+    shutdownHardwareNode();
     shutdownAllPtySessions();
 
     // Race nestApp.close() against a 10s timeout

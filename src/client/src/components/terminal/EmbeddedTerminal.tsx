@@ -214,7 +214,7 @@ export function EmbeddedTerminal({ sessionId, visible = true }: EmbeddedTerminal
       {/* Terminal viewport */}
       <div
         ref={containerRef}
-        style={{ flex: '1 1 0%', minHeight: 0, padding: '4px 0 0 4px' }}
+        style={{ flex: '1 1 0%', minHeight: 0, padding: 0 }}
       />
     </div>
   );

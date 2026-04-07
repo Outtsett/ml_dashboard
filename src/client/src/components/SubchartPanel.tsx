@@ -23,10 +23,13 @@ import type { IndicatorOverlay } from '@/hooks/useIndicatorData';
 import { getPanelLabel, getReferenceLines, shouldRenderAsHistogram, getSeriesTitle, getHistogramStyle } from '@/lib/indicator_panels';
 import { getHistogramColors } from '@/lib/indicator_colors';
 
-/** Deduplicate & sort series data by time (last-write-wins for dupes) */
+/** Deduplicate & sort series data by time (last-write-wins for dupes). Filters out invalid entries. */
 function dedupByTime<T extends { time: Time }>(arr: T[]): T[] {
   const map = new Map<number, T>();
-  for (const item of arr) map.set(item.time as number, item);
+  for (const item of arr) {
+    if (item.time == null) continue; // skip entries with missing time
+    map.set(item.time as number, item);
+  }
   const result: T[] = [];
   map.forEach(v => result.push(v));
   return result.sort((a, b) => (a.time as number) - (b.time as number));
@@ -249,7 +252,7 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
                     color: d.value >= 0 ? positive : negative,
                   }));
                 })()
-              : indicator.data.map(d => ({ time: d.time as Time, value: d.value }))
+              : indicator.data.filter(d => d.time != null).map(d => ({ time: d.time as Time, value: d.value }))
           );
 
         if (existing) {

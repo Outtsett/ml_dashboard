@@ -1,0 +1,138 @@
+<h2>Agent Workforce Architecture — 3 Approaches</h2>
+<p class="subtitle">Click the approach that resonates. Each has distinct cost/complexity/capability tradeoffs.</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Claude Agent SDK Workforce</h3>
+      <p>Every agent is a Claude Agent SDK <code>query()</code> call with custom system prompts and tools. CEO orchestrates via subagents. Built-in file/web/shell tools.</p>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">Architecture A — Full Agent SDK</div>
+        <div class="mockup-body" style="font-family:monospace;font-size:13px;line-height:1.6;white-space:pre">
+Tyler (CLI)
+  │
+  ▼
+┌─────────────────────────────────┐
+│  CEO Agent (Claude Opus 4.6)    │
+│  Agent SDK + full tool access   │
+│  Spawns subagents via Agent()   │
+└──────────┬──────────────────────┘
+           │ Agent SDK subagents
+     ┌─────┼─────┬──────────┐
+     ▼     ▼     ▼          ▼
+  Monitor Builder Analyzer Deployer
+  (Opus)  (Opus)  (Opus)   (Opus)
+     │      │       │        │
+     ▼      ▼       ▼        ▼
+  QuestDB  Git    Models   Shopify
+  Metrics  Build  Data     MW Ext</div>
+      </div>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Built-in Read/Write/Bash/Grep/Glob tools</li>
+          <li>MCP server support</li>
+          <li>Permission system included</li>
+          <li>Subagent spawning native</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li><strong>Every agent call = Claude API cost</strong></li>
+          <li>No Ollama support — all Opus/Sonnet</li>
+          <li>$50-200/day for continuous monitoring</li>
+          <li>Requires Claude Code CLI in Docker</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Custom Python Framework</h3>
+      <p>Build everything from scratch with Anthropic SDK + Ollama. Custom tool definitions, custom routing, full control over which model handles each task.</p>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">Architecture B — Custom Python</div>
+        <div class="mockup-body" style="font-family:monospace;font-size:13px;line-height:1.6;white-space:pre">
+Tyler (CLI)
+  │
+  ▼
+┌─────────────────────────────────┐
+│  CEO Agent (Claude Opus 4.6)    │
+│  Anthropic SDK + custom tools   │
+│  Routes tasks to workers        │
+└──────────┬──────────────────────┘
+           │ Custom dispatch
+     ┌─────┼─────┬──────────┐
+     ▼     ▼     ▼          ▼
+  Monitor Builder Analyzer Deployer
+ (Ollama) (API)  (Ollama)  (API)
+     │      │       │        │
+     ▼      ▼       ▼        ▼
+  QuestDB  Git    Models   Shopify
+  Metrics  Build  Data     MW Ext</div>
+      </div>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li><strong>Ollama for cheap monitoring</strong></li>
+          <li>Full model routing control per task</li>
+          <li>Custom tools per domain</li>
+          <li>~$5-15/day (mostly Ollama)</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Must build all tool infra from scratch</li>
+          <li>No built-in file/shell/web tools</li>
+          <li>More code to write and maintain</li>
+          <li>No Agent SDK permission system</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Hybrid — Agent SDK CEO + Custom Workers (Recommended)</h3>
+      <p>CEO uses Agent SDK for full Claude intelligence when you give directives. Workers are lightweight Python services using Ollama for monitoring and Claude API (via tool_runner) only when escalating complex decisions.</p>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">Architecture C — Hybrid</div>
+        <div class="mockup-body" style="font-family:monospace;font-size:13px;line-height:1.6;white-space:pre">
+Tyler (CLI)──────────────────────────┐
+  │                                  │
+  ▼ (directives)              (monitoring)
+┌──────────────────────┐  ┌──────────────────────┐
+│ CEO Agent            │  │ Sentinel (daemon)    │
+│ Agent SDK (Opus 4.6) │  │ Python + Ollama      │
+│ Full tool access     │  │ Polls every 1-5 min  │
+│ On-demand only       │  │ Always-on            │
+└────────┬─────────────┘  └────────┬─────────────┘
+         │                         │
+         │  Agent SDK subagents    │  Lightweight workers
+         │  (Claude API)           │  (Ollama / escalate)
+   ┌─────┼─────┐            ┌─────┼─────┐
+   ▼     ▼     ▼            ▼     ▼     ▼
+Builder Analyzer Deployer Monitor Watch  Alert
+(Opus)  (Opus)   (Opus)  (Ollama)(Ollama)(→CEO)
+   │      │       │         │      │      │
+   ▼      ▼       ▼         ▼      ▼      ▼
+  Git   Models  Targets   QuestDB Crons  Escalate
+ Build  Data    Deploy    Health  Status  to CEO</div>
+      </div>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li><strong>Best cost/capability ratio (~$5-15/day)</strong></li>
+          <li>Ollama handles 90% of monitoring (free)</li>
+          <li>CEO gets full Agent SDK power on demand</li>
+          <li>Workers escalate to Claude only when needed</li>
+          <li>Clean separation: daemon vs on-demand</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Two frameworks (Agent SDK + custom Python)</li>
+          <li>More complex initial setup</li>
+          <li>Need to define escalation boundaries</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>

@@ -171,24 +171,24 @@ export default function Databases() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500/30 to-cyan-500/30 flex items-center justify-center">
-              <Server className="h-5 w-5 text-emerald-300" />
+            <div className="w-10 h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] flex items-center justify-center">
+              <Server className="h-5 w-5 text-foreground/80" />
             </div>
-            <span className="text-sm font-medium text-emerald-300/80">Institutional Data Architecture</span>
+            <span className="text-sm font-medium text-foreground/80/80">Institutional Data Architecture</span>
           </div>
-          <h1 className="text-4xl font-display font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Database Explorer</h1>
+          <h1 className="text-4xl font-display font-bold bg-gradient-to-r from-foreground/90 to-foreground/40 bg-clip-text text-transparent">Database Explorer</h1>
           <p className="text-muted-foreground text-sm mt-1">QuestDB (Speed) and SQLite (Metadata)</p>
         </div>
         <div className="flex gap-3">
-          <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 rounded-xl px-4 py-2 border border-emerald-500/20 text-center">
-            <div className="text-[10px] text-emerald-300/70 uppercase tracking-wider mb-0.5">Active Tables</div>
-            <div className="text-xl font-bold text-emerald-300">
+          <div className="bg-white/[0.02] border-white/[0.05] rounded-xl px-4 py-2 border border-emerald-500/20 text-center">
+            <div className="text-[10px] text-foreground/80/70 uppercase tracking-wider mb-0.5">Active Tables</div>
+            <div className="text-xl font-bold text-foreground/80">
               {(sqliteStats?.tables || 0) + (questdbStats?.tables || 0)}
             </div>
           </div>
-          <div className="bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 rounded-xl px-4 py-2 border border-cyan-500/20 text-center">
-            <div className="text-[10px] text-cyan-300/70 uppercase tracking-wider mb-0.5">Active Rows</div>
-            <div className="text-xl font-bold text-cyan-300">{formatNumber(totalRows)}</div>
+          <div className="bg-white/[0.02] border-white/[0.05] rounded-xl px-4 py-2 border border-cyan-500/20 text-center">
+            <div className="text-[10px] text-foreground/80/70 uppercase tracking-wider mb-0.5">Active Rows</div>
+            <div className="text-xl font-bold text-foreground/80">{formatNumber(totalRows)}</div>
           </div>
         </div>
       </div>
@@ -197,37 +197,37 @@ export default function Databases() {
         <TabsList className="bg-black/30 backdrop-blur-xl border border-white/10 rounded-xl p-1 h-auto">
           <TabsTrigger
             value="questdb"
-            className="rounded-lg px-5 py-2.5 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300"
+            className="rounded-lg px-5 py-2.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground"
             data-testid="tab-questdb"
           >
             <Clock className="h-4 w-4 mr-2" />
             QuestDB (Speed)
-            <Badge className="ml-2 text-[10px] bg-amber-500/20 text-amber-300">{questdbStats?.tables || 0}</Badge>
+            <Badge className="ml-2 text-[10px] bg-white/5 text-muted-foreground/60 border-white/5">{questdbStats?.tables || 0}</Badge>
           </TabsTrigger>
           
           <TabsTrigger
             value="sqlite"
-            className="rounded-lg px-5 py-2.5 data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300"
+            className="rounded-lg px-5 py-2.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground"
             data-testid="tab-sqlite"
           >
             <FileCode className="h-4 w-4 mr-2" />
             SQLite (Meta)
-            <Badge className="ml-2 text-[10px] bg-blue-500/20 text-blue-300">{sqliteStats?.tables || 0}</Badge>
+            <Badge className="ml-2 text-[10px] bg-white/5 text-muted-foreground/60 border-white/5">{sqliteStats?.tables || 0}</Badge>
           </TabsTrigger>
           <TabsTrigger
             value="upload"
-            className="rounded-lg px-5 py-2.5 data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-300"
+            className="rounded-lg px-5 py-2.5 data-[state=active]:bg-emerald-500/20 data-[state=active]:text-foreground/80"
             data-testid="tab-upload"
           >
             <Upload className="h-4 w-4 mr-2" />
             Upload
             {selectedFiles.length > 0 && (
-              <Badge className="ml-2 text-[10px] bg-emerald-500/20 text-emerald-300">{selectedFiles.length}</Badge>
+              <Badge className="ml-2 text-[10px] bg-emerald-500/20 text-foreground/80">{selectedFiles.length}</Badge>
             )}
           </TabsTrigger>
           <TabsTrigger
             value="motivewave"
-            className="rounded-lg px-5 py-2.5 data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-300"
+            className="rounded-lg px-5 py-2.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground"
             data-testid="tab-motivewave"
           >
             <Zap className="h-4 w-4 mr-2" />

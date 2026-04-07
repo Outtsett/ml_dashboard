@@ -1,0 +1,91 @@
+<h2>Where does configuration live?</h2>
+<p class="subtitle">Model picker, hyperparameters, data settings</p>
+
+<div class="split">
+  <div class="mockup" data-choice="left-rail" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="mockup-header">A: Left Rail Sidebar</div>
+    <div class="mockup-body" style="display:flex; gap:0; padding:0; min-height: 300px;">
+      <div style="width:240px; background:rgba(255,255,255,0.03); border-right:1px solid rgba(255,255,255,0.08); padding:12px; flex-shrink:0;">
+        <div style="font-size:9px; color:#666; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">Model</div>
+        <div style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:8px; font-size:11px; margin-bottom:12px;">CNN+Transformer</div>
+        <div style="font-size:9px; color:#666; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">Symbol</div>
+        <div style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:8px; font-size:11px; margin-bottom:12px;">MNQ 1m</div>
+        <div style="font-size:9px; color:#666; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">Hyperparameters</div>
+        <div style="font-size:10px; color:#555; line-height:1.8;">
+          Window: 128<br>Epochs: 30<br>Batch: 4096<br>LR: 1e-4<br>ATR: 14<br>TP: 2.0x<br>SL: 2.0x
+        </div>
+        <div style="margin-top:16px;">
+          <div style="background:#3b82f6; color:white; text-align:center; padding:8px; border-radius:6px; font-size:11px; font-weight:600;">RUN TRAINING</div>
+        </div>
+      </div>
+      <div style="flex:1; padding:12px;">
+        <div style="font-size:10px; color:#666; margin-bottom:8px;">METRICS & RESULTS</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; height:60px;"></div>
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; height:60px;"></div>
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; height:60px;"></div>
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; height:60px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup" data-choice="inline-cards" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="mockup-header">C: Inline Config Cards (recommended)</div>
+    <div class="mockup-body" style="padding:12px; min-height:300px;">
+      <div style="display:flex; gap:8px; margin-bottom:16px;">
+        <div style="flex:1; background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.2); border-radius:8px; padding:10px;">
+          <div style="font-size:9px; color:#3b82f6; text-transform:uppercase; letter-spacing:2px; margin-bottom:4px;">Model</div>
+          <div style="font-size:13px; font-weight:700; color:#e5e5e5;">CNN+Transformer</div>
+          <div style="font-size:10px; color:#666; margin-top:2px;">Triple Barrier Classification</div>
+        </div>
+        <div style="flex:1; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px;">
+          <div style="font-size:9px; color:#666; text-transform:uppercase; letter-spacing:2px; margin-bottom:4px;">Market</div>
+          <div style="font-size:13px; font-weight:700; color:#e5e5e5;">MNQ · 1m</div>
+          <div style="font-size:10px; color:#666; margin-top:2px;">468K bars available</div>
+        </div>
+        <div style="flex:1; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px;">
+          <div style="font-size:9px; color:#666; text-transform:uppercase; letter-spacing:2px; margin-bottom:4px;">Config</div>
+          <div style="font-size:10px; color:#999; line-height:1.6;">Win:128 · Ep:30 · BS:4096 · LR:1e-4</div>
+          <div style="font-size:9px; color:#3b82f6; margin-top:4px; cursor:pointer;">Edit hyperparameters...</div>
+        </div>
+        <div style="width:120px; display:flex; align-items:center; justify-content:center;">
+          <div style="background:#3b82f6; color:white; padding:10px 20px; border-radius:8px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px;">Run</div>
+        </div>
+      </div>
+
+      <div style="font-size:10px; color:#666; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">Deep Learning</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:16px;">
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; height:70px;"></div>
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; height:70px;"></div>
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; height:70px;"></div>
+      </div>
+      <div style="font-size:10px; color:#666; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">Machine Learning</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; height:70px;"></div>
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; height:70px;"></div>
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; height:70px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup" data-choice="top-drawer" onclick="toggleSelect(this)" style="cursor:pointer; margin-top:1rem;">
+  <div class="mockup-header">B: Top Strip + Expandable Drawer</div>
+  <div class="mockup-body" style="padding:0; min-height:200px;">
+    <div style="background:rgba(255,255,255,0.03); border-bottom:1px solid rgba(255,255,255,0.08); padding:10px 16px; display:flex; align-items:center; justify-content:space-between;">
+      <div style="display:flex; gap:16px; align-items:center;">
+        <span style="font-size:12px; font-weight:700; color:#e5e5e5;">CNN+Transformer</span>
+        <span style="font-size:10px; color:#666;">MNQ · 1m</span>
+        <span style="font-size:10px; color:#555;">Win:128 Ep:30</span>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span style="font-size:10px; color:#3b82f6; cursor:pointer;">Configure ▼</span>
+        <div style="background:#3b82f6; color:white; padding:6px 16px; border-radius:6px; font-size:10px; font-weight:600;">RUN</div>
+      </div>
+    </div>
+    <div style="padding:12px; font-size:10px; color:#555; text-align:center;">
+      Metrics fill the full height below. Config drawer slides down on click.
+    </div>
+  </div>
+</div>

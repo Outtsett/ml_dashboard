@@ -19,7 +19,12 @@
 
 import { Router, Request, Response } from 'express';
 import { queryRateLimiter } from '../../lib/rateLimiter';
-import { ohlcvCache, clearAllCaches, getCacheStats } from '../../cache';
+import {
+  ohlcvCache, clearAllCaches, getCacheStats,
+  invalidateAnchorForSymbol, invalidatePreviewCacheForSymbol,
+  clearParquetCacheForSymbol,
+} from '../../cache';
+import { getQueryCache } from '../../cache';
 import { queryOHLCV } from '../../database/questdb/ohlcvQuery';
 import { getString } from '../helpers';
 import { CACHE_SEMI } from '../../cache/headers';
@@ -264,8 +269,18 @@ router.post('/cache/clear', (_req: Request, res: Response) => {
 
 router.post('/cache/invalidate/:symbol', (req: Request, res: Response) => {
   const symbol = getString(req.params.symbol);
-  const removed = ohlcvCache.invalidateSymbol(symbol);
-  res.json({ symbol, entriesRemoved: removed });
+  const ohlcvRemoved = ohlcvCache.invalidateSymbol(symbol);
+  invalidateAnchorForSymbol(symbol);
+  invalidatePreviewCacheForSymbol(symbol);
+  getQueryCache().invalidateBySymbol(symbol);
+  const parquetRemoved = clearParquetCacheForSymbol(symbol);
+
+  res.json({
+    symbol,
+    invalidated: ['ohlcv', 'query', 'anchor', 'labels', 'parquet'],
+    ohlcvEntriesRemoved: ohlcvRemoved,
+    parquetFilesRemoved: parquetRemoved,
+  });
 });
 
 export default router;

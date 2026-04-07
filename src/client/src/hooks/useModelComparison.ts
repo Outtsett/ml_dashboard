@@ -70,8 +70,8 @@ export function useModelComparison(
   const diagnosticsQueries = useQueries({
     queries: selectedArray.map((modelId) => ({
       queryKey: [...QUERY_KEYS.regimeDiagnostics(modelId)],
-      queryFn: async (): Promise<Diagnostics> => {
-        const res = await fetch(`/api/training/models/${modelId}/diagnostics`);
+      queryFn: async ({ signal }: { signal: AbortSignal }): Promise<Diagnostics> => {
+        const res = await fetch(`/api/training/models/${modelId}/diagnostics`, { signal });
         if (!res.ok) throw new Error(`Failed to load diagnostics for ${modelId}`);
         return res.json();
       },

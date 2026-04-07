@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Brain, Layers, Loader2, Play } from "lucide-react";
 import type { RegimeInfo } from "@/components/RegimeLegend";
@@ -24,7 +25,7 @@ interface AnalyticsStripProps {
   isTrainingActive: boolean;
 }
 
-export function AnalyticsStrip({
+export const AnalyticsStrip = memo(function AnalyticsStrip({
   symbol, displayDataLength, chartDataLength,
   replayActive, isLoadingMore,
   tradeMetrics, modelCount,
@@ -101,4 +102,4 @@ export function AnalyticsStrip({
       )}
     </div>
   );
-}
+});

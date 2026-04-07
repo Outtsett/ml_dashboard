@@ -1,4 +1,4 @@
-export type WaveType = 'square' | 'sawtooth' | 'triangle' | 'custom' | 'price';
+export type WaveType = 'price' | 'square' | 'sawtooth' | 'triangle' | 'custom';
 export type TransformMode = 'fourier' | 'hilbert';
 
 export interface FourierCoeff {

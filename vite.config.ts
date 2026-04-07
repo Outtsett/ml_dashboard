@@ -1,10 +1,13 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { compression } from "vite-plugin-compression2";
+import { visualizer } from "rollup-plugin-visualizer";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const isAnalyze = process.env.ANALYZE === "true";
 
 export default defineConfig({
   plugins: [
@@ -14,6 +17,17 @@ export default defineConfig({
       },
     }),
     tailwindcss(),
+    // Pre-compress static assets at build time (gzip + brotli)
+    compression({ algorithms: ["gzip", "brotliCompress"], threshold: 1024, deleteOriginalAssets: false }),
+    // Bundle analysis (opt-in via ANALYZE=true)
+    ...(isAnalyze
+      ? [visualizer({
+          filename: path.resolve(__dirname, "dist", "bundle-analysis.html"),
+          gzipSize: true,
+          brotliSize: true,
+          open: true,
+        })]
+      : []),
   ],
   resolve: {
     alias: {
@@ -38,11 +52,11 @@ export default defineConfig({
       output: {
         manualChunks: {
           "vendor-react": ["react", "react-dom"],
-          "vendor-charts": ["recharts", "lightweight-charts"],
+          "vendor-lightweight-charts": ["lightweight-charts"],
+          "vendor-recharts": ["recharts"],
           "vendor-3d": ["three", "@react-three/fiber", "@react-three/drei"],
           "vendor-ui": ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-popover", "@radix-ui/react-tabs", "@radix-ui/react-select", "@radix-ui/react-tooltip"],
           "vendor-query": ["@tanstack/react-query"],
-          "vendor-d3": ["d3"],
         },
       },
     },

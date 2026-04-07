@@ -11,6 +11,7 @@
 
 import fs from "fs";
 import path from "path";
+import { z } from "zod";
 import type {
   ModelRegistry,
   ModelRegistryEntry,
@@ -21,6 +22,21 @@ import type {
 const CONFIG_DIR = path.join(process.cwd(), "src", "config");
 
 // ─── Cached configs (auto-reload on file change in dev mode) ────────────────
+
+
+const ModelSpecSchema = z.object({
+  version: z.string().optional(),
+  metadata: z.record(z.any()).optional(),
+  models: z.record(z.object({
+    name: z.string(),
+    architecture: z.string().optional(),
+    entry_point: z.string().optional(),
+    status: z.string().optional(),
+    tier: z.string().optional(),
+    outputs: z.union([z.array(z.string()), z.record(z.string())]),
+    hyperparameter_map: z.record(z.array(z.string())).optional(),
+  }).passthrough())
+});
 
 const IS_DEV = process.env.NODE_ENV !== "production";
 
@@ -74,7 +90,15 @@ function ensureLoaded() {
   }
 
   if (!modelsConfig) {
-    modelsConfig = loadJSON<ModelRegistry>("models.json");
+    const raw = loadJSON<any>("models.json");
+    const parsed = ModelSpecSchema.safeParse(raw);
+    if (!parsed.success) {
+      console.error("[registry] models.json validation failed:", parsed.error.message);
+      // Fallback to raw if validation is too strict during migration
+      modelsConfig = raw as ModelRegistry;
+    } else {
+      modelsConfig = parsed.data as unknown as ModelRegistry;
+    }
   }
   if (!featuresConfig) {
     featuresConfig = loadJSON<FeaturesConfig>("features.json");
@@ -173,7 +197,7 @@ export function resolveHyperparameters(
 
   // Start with defaults
   for (const [key, def] of Object.entries(defaults)) {
-    result[key] = def.value;
+    result[key] = def.default;
   }
 
   // Apply overrides (only for known keys with valid values)

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Indicator panel grouping, labeling, and metadata for professional subchart rendering.
  *
  * Supports both:
@@ -29,56 +29,56 @@ function parseInstanceColumn(column: string): { instanceId: string; outputKey: s
  * keyed by the instanceId.
  */
 export function getSubchartPanelKey(column: string): string {
-  // New instance-based format: "ind_123_1_abc::outputKey" → group by instanceId
+  // New instance-based format: "ind_123_1_abc::outputKey" â†’ group by instanceId
   const parsed = parseInstanceColumn(column);
   if (parsed) {
     return parsed.instanceId;
   }
 
-  // Legacy column format — kept for backward compatibility
-  // MACD variants: MACD_, MACDs_, MACDh_ → MACD_...
+  // Legacy column format â€” kept for backward compatibility
+  // MACD variants: MACD_, MACDs_, MACDh_ â†’ MACD_...
   if (/^MACD[hs]?_/.test(column)) {
     return column.replace(/^MACD[hs]?_/, 'MACD_');
   }
-  // Stochastic: STOCHk_, STOCHd_ → STOCH_...
+  // Stochastic: STOCHk_, STOCHd_ â†’ STOCH_...
   if (/^STOCH[kd]_/.test(column)) {
     return column.replace(/^STOCH[kd]_/, 'STOCH_');
   }
-  // StochRSI: STOCHRSIk_, STOCHRSId_ → STOCHRSI_...
+  // StochRSI: STOCHRSIk_, STOCHRSId_ â†’ STOCHRSI_...
   if (/^STOCHRSI[kd]_/.test(column)) {
     return column.replace(/^STOCHRSI[kd]_/, 'STOCHRSI_');
   }
-  // MACDEXT variants: MACDEXT_, MACDEXTs_, MACDEXTh_ → MACDEXT_...
+  // MACDEXT variants: MACDEXT_, MACDEXTs_, MACDEXTh_ â†’ MACDEXT_...
   if (/^MACDEXT[hs]?_/.test(column)) {
     return column.replace(/^MACDEXT[hs]?_/, 'MACDEXT_');
   }
-  // MACDFIX variants: MACDFIX_, MACDFIXs_, MACDFIXh_ → MACDFIX_...
+  // MACDFIX variants: MACDFIX_, MACDFIXs_, MACDFIXh_ â†’ MACDFIX_...
   if (/^MACDFIX[hs]?_/.test(column)) {
     return column.replace(/^MACDFIX[hs]?_/, 'MACDFIX_');
   }
-  // Fast Stochastic: STOCHFk_, STOCHFd_ → STOCHF_...
+  // Fast Stochastic: STOCHFk_, STOCHFd_ â†’ STOCHF_...
   if (/^STOCHF[kd]_/.test(column)) {
     return column.replace(/^STOCHF[kd]_/, 'STOCHF_');
   }
-  // Aroon: AROON_UP_, AROON_DOWN_ → AROON_...
+  // Aroon: AROON_UP_, AROON_DOWN_ â†’ AROON_...
   if (/^AROON_(UP|DOWN)_/.test(column)) {
     return column.replace(/^AROON_(UP|DOWN)_/, 'AROON_');
   }
-  // Aroon: AROONd_, AROONu_ → AROON_...
+  // Aroon: AROONd_, AROONu_ â†’ AROON_...
   if (/^AROON[du]_/.test(column)) {
     return column.replace(/^AROON[du]_/, 'AROON_');
   }
-  // PLUS_DI / MINUS_DI → DI panel (group with ADX)
+  // PLUS_DI / MINUS_DI â†’ DI panel (group with ADX)
   if (/^(PLUS|MINUS)_DI_/.test(column)) {
     const period = column.match(/_(\d+)$/)?.[1] ?? '14';
     return `ADX_${period}`;
   }
-  // PLUS_DM / MINUS_DM → DM panel
+  // PLUS_DM / MINUS_DM â†’ DM panel
   if (/^(PLUS|MINUS)_DM_/.test(column)) {
     const period = column.match(/_(\d+)$/)?.[1] ?? '14';
     return `DM_${period}`;
   }
-  // Directional Movement: DMP_, DMN_ → DM_...
+  // Directional Movement: DMP_, DMN_ â†’ DM_...
   if (/^DM[NP]_/.test(column)) {
     return column.replace(/^DM[NP]_/, 'DM_');
   }
@@ -112,8 +112,8 @@ export function groupSubchartIndicators(
   return Array.from(panelMap.entries());
 }
 
-// ─── Instance label registry (populated by useActiveIndicators) ──────────────
-// Maps instanceId → display label (e.g., "RSI (14)", "MACD (12,26,9)")
+// â”€â”€â”€ Instance label registry (populated by useActiveIndicators) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Maps instanceId â†’ display label (e.g., "RSI (14)", "MACD (12,26,9)")
 const instanceLabelMap = new Map<string, string>();
 
 /** Register an instance label for panel display */
@@ -231,7 +231,7 @@ const PANEL_DISPLAY_NAMES: Record<string, string> = {
   CKSP: 'Chande Kroll',
   QSTICK: 'QStick',
   VI: 'Vortex',
-  ZIGZAG: 'ZigZag',
+  microstructure: 'microstructure',
   DECAY: 'Linear Decay',
   MASSI: 'Mass Index',
   UI: 'Ulcer Index',
@@ -249,7 +249,7 @@ const PANEL_DISPLAY_NAMES: Record<string, string> = {
   SQZPRO: 'Squeeze Pro',
 };
 
-/** Get a display label for a panel key like "MACD_12_26_9" → "MACD (12,26,9)" */
+/** Get a display label for a panel key like "MACD_12_26_9" â†’ "MACD (12,26,9)" */
 export function getPanelLabel(panelKey: string): string {
   // Check instance label registry first (new system)
   const instanceLabel = instanceLabelMap.get(panelKey);
@@ -389,7 +389,7 @@ const REFERENCE_LINES: Record<string, { value: number; color: string }[]> = {
   WAD: [{ value: 0, color: 'rgba(255,255,255,0.2)' }],
 };
 
-// ─── Instance reference lines registry ───────────────────────────────────────
+// â”€â”€â”€ Instance reference lines registry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const instanceReferenceLinesMap = new Map<string, { value: number; color: string }[]>();
 
 /** Register reference lines for an instance */
@@ -418,7 +418,7 @@ export function getReferenceLines(panelKey: string): { value: number; color: str
 export function getSeriesTitle(column: string): string {
   const parsed = parseInstanceColumn(column);
   if (!parsed) {
-    // Legacy format — use column as-is
+    // Legacy format â€” use column as-is
     const parts = column.split('_');
     return PANEL_DISPLAY_NAMES[parts[0]!] || parts[0]!;
   }
@@ -524,3 +524,4 @@ export function getHistogramStyle(column: string): 'ao' | 'squeeze' | null {
   if (column.startsWith('SQZ_MOM') || column.startsWith('SQZPRO_MOM')) return 'squeeze';
   return null;
 }
+

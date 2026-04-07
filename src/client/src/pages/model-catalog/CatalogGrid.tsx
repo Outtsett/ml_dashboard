@@ -178,8 +178,8 @@ function ModelCard({
             </div>
           </>
         ) : (
-          <p className="text-xs text-muted-foreground/50 italic">
-            Placeholder — content not yet written
+          <p className="text-xs text-muted-foreground/50">
+            {model.category} · {model.subcategory}
           </p>
         )}
       </CardContent>

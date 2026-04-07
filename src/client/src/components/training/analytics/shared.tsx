@@ -20,11 +20,11 @@ interface ChartCardProps {
 
 export function ChartCard({ title, subtitle, badge, children, className, minHeight = 200 }: ChartCardProps) {
   return (
-    <Card className={`bg-black/20 border-white/5 overflow-hidden ${className ?? ""}`}>
+    <Card className={`glass-elevated gradient-accent-top overflow-hidden ${className ?? ""}`}>
       <div className="flex items-center justify-between px-4 pt-3 pb-1">
         <div>
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">{title}</h4>
-          {subtitle && <p className="text-[9px] text-muted-foreground/40 mt-0.5">{subtitle}</p>}
+          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-foreground/70">{title}</h4>
+          {subtitle && <p className="text-[9px] text-muted-foreground/60 mt-0.5">{subtitle}</p>}
         </div>
         {badge}
       </div>
@@ -45,8 +45,8 @@ export function EmptyState({ icon, message, hint }: EmptyStateProps) {
   return (
     <div className="w-full h-full flex items-center justify-center text-muted-foreground min-h-[120px]">
       <div className="text-center">
-        {icon && <div className="mx-auto mb-2 opacity-30">{icon}</div>}
-        <p className="text-xs">{message}</p>
+        {icon && <div className="mx-auto mb-2 opacity-40">{icon}</div>}
+        <p className="text-xs font-medium">{message}</p>
         {hint && <p className="text-[10px] opacity-60 mt-1">{hint}</p>}
       </div>
     </div>

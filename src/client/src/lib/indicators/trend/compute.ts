@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Trend Indicators Compute Module
  */
 
@@ -11,7 +11,7 @@ import {
 
 export function isSpecialized(indicatorId: string): boolean {
   const specialized = [
-    'choppiness', 'dpo', 'qstick', 'vhf', 'decay', 'zigzag',
+    'choppiness', 'dpo', 'qstick', 'vhf', 'decay', 'microstructure',
     'cksp', 'vortex',
   ];
   return specialized.includes(indicatorId);
@@ -48,11 +48,11 @@ export function computeSpecialized(indicator: ActiveIndicator, calcBars: any[]):
     if (data.length === 0) return null;
     return { instanceId: indicator.instanceId, indicatorId: indicator.indicatorId, displayType: 'overlay', outputs: [{ outputKey: 'value', label: 'Decay', data, style: 'line' }] };
   }
-  if (indicator.indicatorId === 'zigzag') {
+  if (indicator.indicatorId === 'microstructure') {
     const deviation = indicator.params.deviation ?? 5;
     const data = calcZigZag(calcBars, deviation);
     if (data.length === 0) return null;
-    return { instanceId: indicator.instanceId, indicatorId: indicator.indicatorId, displayType: 'overlay', outputs: [{ outputKey: 'value', label: 'ZigZag', data, style: 'line' }] };
+    return { instanceId: indicator.instanceId, indicatorId: indicator.indicatorId, displayType: 'overlay', outputs: [{ outputKey: 'value', label: 'microstructure', data, style: 'line' }] };
   }
   if (indicator.indicatorId === 'cksp') {
     const atrPeriod = indicator.params.atrPeriod ?? 10;
@@ -128,3 +128,4 @@ export function getTrendOutputColumnMap(indicatorId: string, params: Record<stri
       return {};
   }
 }
+

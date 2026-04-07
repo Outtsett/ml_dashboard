@@ -9,11 +9,16 @@
     "data-quality-panel",
     "resource-usage",
     "benchmark-comparison",
-    "model-history"
+    "model-history",
+    "microstructure-analytics"
   ],
   "groups": {
     "clustering": {
-      "subcategories": ["clustering", "self-organizing", "probabilistic-mixture"],
+      "subcategories": [
+        "clustering",
+        "self-organizing",
+        "probabilistic-mixture"
+      ],
       "components": [
         "regime-timeline",
         "transition-sankey",
@@ -24,12 +29,18 @@
         "elbow-bic-curve"
       ],
       "conditional": {
-        "hierarchical": ["dendrogram"],
-        "som": ["som-grid"]
+        "hierarchical": [
+          "dendrogram"
+        ],
+        "som": [
+          "som-grid"
+        ]
       }
     },
     "dimensionality-reduction": {
-      "subcategories": ["dimensionality-reduction"],
+      "subcategories": [
+        "dimensionality-reduction"
+      ],
       "components": [
         "scatter-2d-3d",
         "explained-variance-bar",
@@ -38,13 +49,21 @@
         "biplot"
       ],
       "conditional": {
-        "manifold": ["manifold-surface"],
-        "umap": ["neighborhood-graph"],
-        "tsne": ["neighborhood-graph"]
+        "manifold": [
+          "manifold-surface"
+        ],
+        "umap": [
+          "neighborhood-graph"
+        ],
+        "tsne": [
+          "neighborhood-graph"
+        ]
       }
     },
     "anomaly-detection": {
-      "subcategories": ["anomaly-detection"],
+      "subcategories": [
+        "anomaly-detection"
+      ],
       "components": [
         "anomaly-timeline",
         "score-distribution",
@@ -54,7 +73,10 @@
       ]
     },
     "classification": {
-      "subcategories": ["classification", "meta-learner"],
+      "subcategories": [
+        "classification",
+        "meta-learner"
+      ],
       "components": [
         "confusion-matrix-heatmap",
         "roc-curve",
@@ -69,7 +91,11 @@
       ]
     },
     "regression": {
-      "subcategories": ["regression", "linear", "regression-techniques"],
+      "subcategories": [
+        "regression",
+        "linear",
+        "regression-techniques"
+      ],
       "components": [
         "residual-plot",
         "prediction-vs-actual",
@@ -80,13 +106,24 @@
         "quantile-fan"
       ],
       "conditional": {
-        "lasso-regression": ["regularization-path"],
-        "ridge-regression": ["regularization-path"],
-        "elasticnet-regression": ["regularization-path"]
+        "lasso-regression": [
+          "regularization-path"
+        ],
+        "ridge-regression": [
+          "regularization-path"
+        ],
+        "elasticnet-regression": [
+          "regularization-path"
+        ]
       }
     },
     "sequence": {
-      "subcategories": ["sequence", "time-series", "recurrent-and-sequential", "attention-based"],
+      "subcategories": [
+        "sequence",
+        "time-series",
+        "recurrent-and-sequential",
+        "attention-based"
+      ],
       "components": [
         "forecast-ribbon",
         "attention-heatmap",
@@ -98,7 +135,10 @@
       ]
     },
     "ensemble-boosting": {
-      "subcategories": ["ensemble", "boosting"],
+      "subcategories": [
+        "ensemble",
+        "boosting"
+      ],
       "components": [
         "boosting-loss-curve",
         "tree-count-vs-error",
@@ -111,7 +151,12 @@
       ]
     },
     "deep-learning": {
-      "subcategories": ["deep-learning", "convolutional-networks", "feedforward-and-mlps", "generative-and-latent-models"],
+      "subcategories": [
+        "deep-learning",
+        "convolutional-networks",
+        "feedforward-and-mlps",
+        "generative-and-latent-models"
+      ],
       "components": [
         "loss-surface-3d",
         "training-curves",

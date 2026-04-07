@@ -1,22 +1,24 @@
 /**
- * TerminalTabs — Multi-tab terminal manager (like Windows Terminal).
+ * TerminalTabs â€” Multi-tab terminal manager (like Windows Terminal).
  *
  * Each tab is a separate PowerShell session backed by its own PTY on the server.
  * Sessions survive browser refreshes: reopening the page restores existing tabs.
  *
  * REST API:
- *   GET    /api/terminal/sessions       — list sessions
- *   POST   /api/terminal/sessions       — create session
- *   DELETE /api/terminal/sessions/:id   — kill session
- *   PATCH  /api/terminal/sessions/:id   — rename session
+ *   GET    /api/terminal/sessions       â€” list sessions
+ *   POST   /api/terminal/sessions       â€” create session
+ *   DELETE /api/terminal/sessions/:id   â€” kill session
+ *   PATCH  /api/terminal/sessions/:id   â€” rename session
  */
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Plus, X, TerminalSquare, Flame } from "lucide-react";
-import { EmbeddedTerminal } from "./EmbeddedTerminal";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { Plus, X, TerminalSquare, Flame, ChevronDown, LayoutGrid, Maximize2, Monitor, Minimize2, Sparkles } from "lucide-react";
+import { EmbeddedTerminal } from './EmbeddedTerminal';
+import { motion, AnimatePresence } from 'framer-motion';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { TrainingLogTab } from "./TrainingLogTab";
 import { useTrainingContext } from "@/contexts/TrainingContext";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface TerminalSession {
   id: string;
@@ -30,7 +32,7 @@ interface TerminalTabsProps {
   showTrainingTab?: boolean;
 }
 
-// ── API helpers ──────────────────────────────────────────────────────────────
+// â”€â”€ API helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function fetchSessions(): Promise<TerminalSession[]> {
   const res = await fetch("/api/terminal/sessions");
@@ -38,8 +40,8 @@ async function fetchSessions(): Promise<TerminalSession[]> {
   return res.json();
 }
 
-async function createSessionOnServer(): Promise<TerminalSession | null> {
-  const res = await fetch("/api/terminal/sessions", { method: "POST" });
+async function createSessionOnServer(shell?: string): Promise<TerminalSession | null> {
+  const res = await fetch("/api/terminal/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shell }) });
   if (!res.ok) return null;
   return res.json();
 }
@@ -56,25 +58,37 @@ async function renameSessionOnServer(id: string, title: string): Promise<void> {
   });
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
+// â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsProps) {
   const [tabs, setTabs] = useState<TerminalSession[]>([]);
   const [activeTabId, setActiveTabId] = useState<string>("");
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [isGridLayout, setIsGridLayout] = useState(false);
+  const [isZenMode, setIsZenMode] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
   const training = useTrainingContext();
   const hasTrainingTab = !!showTrainingTab;
 
-  // Auto-switch to training tab when training starts (only if tab is shown)
+  // Escape to exit Zen Mode
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isZenMode) setIsZenMode(false);
+    };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [isZenMode]);
+
+
+    // Auto-switch to training tab when training starts (only if tab is shown)
   useEffect(() => {
     if (showTrainingTab && training.isTraining) {
       setActiveTabId("__training__");
     }
   }, [showTrainingTab, training.isTraining]);
 
-  // ── Init: load existing sessions or create the first one ───────────────────
+  // â”€â”€ Init: load existing sessions or create the first one â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   useEffect(() => {
     if (initialized.current) return;
@@ -95,10 +109,10 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
     })();
   }, []);
 
-  // ── Tab actions ────────────────────────────────────────────────────────────
+  // â”€â”€ Tab actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  const addTab = useCallback(async () => {
-    const session = await createSessionOnServer();
+  const addTab = useCallback(async (shell?: string) => {
+    const session = await createSessionOnServer(shell);
     if (session) {
       setTabs((prev) => [...prev, session]);
       setActiveTabId(session.id);
@@ -111,12 +125,12 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
       await deleteSessionOnServer(id);
       setTabs((prev) => {
         const next = prev.filter((t) => t.id !== id);
-        // If we closed the active tab, switch to the last one — or create a new one
+        // If we closed the active tab, switch to the last one â€” or create a new one
         if (id === activeTabId) {
           if (next.length > 0) {
             setActiveTabId(next[next.length - 1]!.id);
           } else {
-            // No tabs left — create a fresh one
+            // No tabs left â€” create a fresh one
             createSessionOnServer().then((s) => {
               if (s) {
                 setTabs([s]);
@@ -159,14 +173,14 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
     }
   }, [editingTabId]);
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   if (!visible) return null;
 
   return (
-    <div className="h-full w-full flex flex-col bg-[#0a0a0a]">
+    <div className={`h-full w-full flex flex-col transition-all duration-500 ${isZenMode ? "fixed inset-0 z-50 p-0 m-0" : "relative"}`}>
       {/* Tab bar */}
-      <div className="flex items-center border-b border-white/[0.06] shrink-0 bg-[#0e0e0e] overflow-x-auto">
+      <div className="flex items-center border-b border-white/[0.06] shrink-0 bg-black/20 overflow-x-auto">
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
           return (
@@ -230,14 +244,49 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
           </button>
         )}
 
-        {/* Add tab button */}
+                                {/* Zen Mode Toggle */}
         <button
-          onClick={addTab}
-          className="flex items-center justify-center px-2.5 py-2 cursor-pointer border-none bg-transparent text-muted-foreground/40 hover:text-emerald-400/70 hover:bg-white/[0.04] transition-colors duration-150 rounded-sm mx-0.5"
-          title="New terminal"
+          onClick={() => setIsZenMode(!isZenMode)}
+          className={`flex items-center justify-center px-2.5 py-2 cursor-pointer border-none transition-all duration-300 rounded-sm mx-0.5 ${isZenMode ? "text-amber-400 bg-amber-500/10 scale-110" : "bg-transparent text-muted-foreground/40 hover:text-amber-400/70 hover:bg-white/[0.04]"}`}
+          title={isZenMode ? "Exit Zen Mode (Esc)" : "Enter Zen Mode (Immersive)"}
         >
-          <Plus className="w-3.5 h-3.5" />
+          {isZenMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Monitor className="w-3.5 h-3.5" />}
         </button>
+
+        {/* Layout Toggle */}
+        <button
+          onClick={() => setIsGridLayout(!isGridLayout)}
+          className={`flex items-center justify-center px-2.5 py-2 cursor-pointer border-none transition-all duration-300 rounded-sm mx-0.5 ${isGridLayout ? "text-emerald-400 bg-emerald-500/10" : "bg-transparent text-muted-foreground/40 hover:text-emerald-400/70 hover:bg-white/[0.04]"}`}
+          title={isGridLayout ? "Switch to Tab View" : "Switch to Grid View"}
+        >
+          {isGridLayout ? <Sparkles className="w-3.5 h-3.5 animate-pulse" /> : <LayoutGrid className="w-3.5 h-3.5" />}
+        </button>
+        {/* Add tab button with dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="flex items-center justify-center px-2 py-2 cursor-pointer border-none bg-transparent text-muted-foreground/40 hover:text-emerald-400/70 hover:bg-white/[0.04] transition-colors duration-150 rounded-sm mx-0.5"
+              title="New terminal"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <ChevronDown className="w-2.5 h-2.5 ml-0.5 opacity-30" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="bg-[#1a1a1a] border-white/[0.08] text-white">
+            <DropdownMenuItem onClick={() => addTab("powershell.exe")} className="text-[11px] font-mono hover:bg-emerald-500/10 focus:bg-emerald-500/10 cursor-pointer">
+              <TerminalSquare className="w-3 h-3 mr-2 text-emerald-400" />
+              PowerShell
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => addTab("cmd.exe")} className="text-[11px] font-mono hover:bg-emerald-500/10 focus:bg-emerald-500/10 cursor-pointer">
+              <TerminalSquare className="w-3 h-3 mr-2 text-blue-400" />
+              Command Prompt
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => addTab("node")} className="text-[11px] font-mono hover:bg-emerald-500/10 focus:bg-emerald-500/10 cursor-pointer">
+              <TerminalSquare className="w-3 h-3 mr-2 text-yellow-400" />
+              Node.js REPL
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* Session counter badge */}
         <div className="ml-auto px-2.5 py-1 text-[9px] text-muted-foreground/30 font-mono flex items-center">
@@ -245,14 +294,68 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
         </div>
       </div>
 
-      {/* Terminals — direct flex children, hidden ones have display:none */}
-      {tabs.map((tab) => (
-        <EmbeddedTerminal
-          key={tab.id}
-          sessionId={tab.id}
-          visible={tab.id === activeTabId}
-        />
-      ))}
+                  {/* Terminals Container */}
+      <div className={`flex-1 min-h-0 w-full overflow-hidden ${isGridLayout ? "p-3" : ""}`}>
+        <motion.div 
+          layout
+          className={`h-full w-full ${isGridLayout ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" : "relative"}`}
+        >
+          <AnimatePresence mode="popLayout">
+            {tabs.map((tab) => {
+              const isActive = tab.id === activeTabId;
+              const isVisible = isGridLayout || isActive;
+              if (!isVisible) return null;
+              
+              return (
+                <motion.div 
+                  key={tab.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  className={`relative flex flex-col min-h-0 transition-shadow duration-300 ${
+                    isGridLayout 
+                      ? "border border-white/[0.08] rounded-xl bg-black/60 backdrop-blur-xl overflow-hidden shadow-lg" 
+                      : "absolute inset-0 z-10"
+                  } ${isActive && isGridLayout ? "ring-2 ring-primary/40 shadow-[0_0_20px_rgba(var(--primary),0.15)]" : ""}`}
+                >
+                  {isGridLayout && (
+                    <div className="flex items-center justify-between px-3 py-2 bg-white/[0.04] border-b border-white/[0.08] shrink-0">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-emerald-500 animate-pulse" : "bg-white/20"}`} />
+                        <span className={`text-[10px] font-mono font-bold tracking-tight ${isActive ? "text-emerald-400" : "text-muted-foreground/60"}`}>
+                          {tab.title.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => { setActiveTabId(tab.id); setIsGridLayout(false); }}
+                          className="p-1 hover:bg-white/[0.08] rounded transition-colors text-muted-foreground/40 hover:text-white"
+                          title="Focus"
+                        >
+                          <Maximize2 className="w-3 h-3" />
+                        </button>
+                        <button 
+                          onClick={(e) => closeTab(tab.id, e as any)}
+                          className="p-1 hover:bg-red-500/20 rounded transition-colors text-muted-foreground/40 hover:text-red-400"
+                          title="Kill Session"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <EmbeddedTerminal
+                    sessionId={tab.id}
+                    visible={true}
+                  />
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </motion.div>
+      </div>
 
       {/* Training log terminal (SSE-driven, read-only) */}
       {hasTrainingTab && (
@@ -261,3 +364,7 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
     </div>
   );
 }
+
+
+
+

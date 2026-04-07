@@ -88,7 +88,8 @@ export class QueryCache {
     });
   }
 
-  private invalidateBySymbol(symbol: string): void {
+  /** Invalidate all cache entries containing `:symbol:` in their key. */
+  invalidateBySymbol(symbol: string): void {
     const pattern = `:${symbol}:`;
     const invalidatedPrefixes = new Set<string>();
 

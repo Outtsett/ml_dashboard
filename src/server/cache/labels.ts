@@ -2,19 +2,32 @@
  * Label preview cache — caches preview results for 15 minutes (max 50 entries).
  *
  * Same symbol + generatorType + params + timeframe = same result.
- * LRU eviction when at capacity.
+ * O(1) LRU eviction via lru-cache v11.
+ * Invalidated on ingestion.completed events for the affected symbol.
  */
+
+import { LRUCache } from 'lru-cache';
+import type { DomainEvent } from '@shared/event-types';
+import { getEventBus } from '../events/event-bus';
 
 const PREVIEW_CACHE_MAX = 50;
 const PREVIEW_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
-interface PreviewCacheEntry {
-  value: unknown;
-  createdAt: number;
-  accessedAt: number;
-}
+type CacheValue = NonNullable<unknown>;
 
-const previewCache = new Map<string, PreviewCacheEntry>();
+const previewCache = new LRUCache<string, CacheValue>({
+  max: PREVIEW_CACHE_MAX,
+  ttl: PREVIEW_CACHE_TTL_MS,
+  dispose: (_value, _key, reason) => {
+    if (reason === 'evict') labelStats.evictions++;
+  },
+});
+
+// Track which keys belong to which symbol (for invalidation)
+const keyToSymbol = new Map<string, string>();
+
+// ── Stats ──────────────────────────────────────────────────
+let labelStats = { hits: 0, misses: 0, evictions: 0, invalidations: 0 };
 
 export interface PreviewCacheKeyRequest {
   symbol: string;
@@ -33,35 +46,78 @@ export function previewCacheKey(req: PreviewCacheKeyRequest): string {
 }
 
 export function previewCacheGet<T>(key: string): T | undefined {
-  const entry = previewCache.get(key);
-  if (!entry) return undefined;
-  if (Date.now() - entry.createdAt > PREVIEW_CACHE_TTL_MS) {
-    previewCache.delete(key);
-    return undefined;
+  const value = previewCache.get(key) as T | undefined;
+  if (value !== undefined) {
+    labelStats.hits++;
+  } else {
+    labelStats.misses++;
+    // Clean up stale symbol mapping if entry was TTL-expired
+    keyToSymbol.delete(key);
   }
-  entry.accessedAt = Date.now();
-  return entry.value as T;
+  return value;
 }
 
-export function previewCacheSet(key: string, value: unknown): void {
-  // Evict LRU if at capacity
-  while (previewCache.size >= PREVIEW_CACHE_MAX) {
-    let oldestKey: string | undefined;
-    let oldestAccess = Infinity;
-    for (const [k, e] of previewCache) {
-      if (e.accessedAt < oldestAccess) {
-        oldestAccess = e.accessedAt;
-        oldestKey = k;
-      }
+export function previewCacheSet(key: string, value: CacheValue, symbol: string): void {
+  previewCache.set(key, value);
+  keyToSymbol.set(key, symbol);
+}
+
+/** Invalidate all label preview entries for a symbol. */
+export function invalidatePreviewCacheForSymbol(symbol: string): number {
+  let removed = 0;
+  const keysToDelete: string[] = [];
+  for (const [key, sym] of keyToSymbol) {
+    if (sym === symbol) {
+      keysToDelete.push(key);
     }
-    if (oldestKey) previewCache.delete(oldestKey);
-    else break;
   }
-  const now = Date.now();
-  previewCache.set(key, { value, createdAt: now, accessedAt: now });
+  for (const key of keysToDelete) {
+    previewCache.delete(key);
+    keyToSymbol.delete(key);
+    removed++;
+  }
+  if (removed > 0) labelStats.invalidations += removed;
+  return removed;
 }
 
 /** Clear all label preview cache entries. */
 export function clearPreviewCache(): void {
   previewCache.clear();
+  keyToSymbol.clear();
+  labelStats = { hits: 0, misses: 0, evictions: 0, invalidations: 0 };
 }
+
+/** Get label preview cache stats. */
+export function getPreviewCacheStats(): {
+  hits: number;
+  misses: number;
+  entries: number;
+  evictions: number;
+  invalidations: number;
+  hitRate: string;
+  maxSize: number;
+} {
+  const total = labelStats.hits + labelStats.misses;
+  const hitRate = total > 0 ? ((labelStats.hits / total) * 100).toFixed(1) + '%' : '0.0%';
+  return {
+    hits: labelStats.hits,
+    misses: labelStats.misses,
+    entries: previewCache.size,
+    evictions: labelStats.evictions,
+    invalidations: labelStats.invalidations,
+    hitRate,
+    maxSize: PREVIEW_CACHE_MAX,
+  };
+}
+
+// ── Event-driven invalidation ──────────────────────────────
+function subscribeToEvents(): void {
+  const bus = getEventBus();
+  bus.on('ingestion.completed', (event: DomainEvent) => {
+    if (event.type !== 'ingestion.completed') return;
+    const { symbol } = event.data;
+    invalidatePreviewCacheForSymbol(symbol);
+  });
+}
+
+subscribeToEvents();

@@ -162,6 +162,13 @@ export type SystemEvent =
       clockMemoryMHz: number;
       timestamp: number;
     }>
+  | BaseEvent<'system.matrix', {
+      cpu: { load: number; cores: number[]; temp: number; speed: number };
+      mem: { total: number; active: number; used: number; swaptotal: number; swapused: number };
+      network: { tx_sec: number; rx_sec: number };
+      gpu?: any;
+      timestamp: number;
+    }>
   | BaseEvent<'system.motivewave-update', {
       symbol: string;
       timeframe: string;

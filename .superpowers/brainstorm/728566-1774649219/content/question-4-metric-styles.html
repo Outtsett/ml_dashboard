@@ -1,0 +1,253 @@
+<h2>Metric Rendering Styles</h2>
+<p class="subtitle">Each metric category gets its own visual language. Which combination feels right?</p>
+
+<div class="mockup">
+  <div class="mockup-header">Full Page Layout: Scrollable Command Center</div>
+  <div class="mockup-body" style="padding:16px; background:#0a0a0f;">
+
+    <!-- Config Strip -->
+    <div style="display:flex; gap:8px; margin-bottom:20px; align-items:stretch;">
+      <div style="flex:1; background:rgba(59,130,246,0.06); border:1px solid rgba(59,130,246,0.15); border-radius:8px; padding:10px 14px;">
+        <div style="font-size:8px; color:#3b82f6; text-transform:uppercase; letter-spacing:2px;">Model</div>
+        <div style="font-size:14px; font-weight:800; color:#e5e5e5; font-style:italic; margin-top:2px;">CNN+TRANSFORMER</div>
+        <div style="font-size:9px; color:#555; margin-top:1px;">Triple Barrier · 6.2M params</div>
+      </div>
+      <div style="flex:0.7; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px 14px;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:2px;">Market</div>
+        <div style="font-size:14px; font-weight:700; color:#e5e5e5; margin-top:2px;">MNQ · 1m</div>
+        <div style="font-size:9px; color:#555; margin-top:1px;">468,929 bars</div>
+      </div>
+      <div style="flex:1; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px 14px;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:2px;">Hyperparameters</div>
+        <div style="font-size:10px; color:#999; margin-top:4px; font-family:monospace; line-height:1.5;">Win:128 · Ep:30 · BS:4096 · LR:1e-4 · ATR:14 · TP:2.0 · SL:2.0</div>
+      </div>
+      <div style="width:100px; display:flex; align-items:center; justify-content:center;">
+        <div style="background:#3b82f6; color:white; padding:12px 24px; border-radius:10px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:1px; box-shadow:0 0 20px rgba(59,130,246,0.3);">Run</div>
+      </div>
+    </div>
+
+    <!-- DEEP LEARNING SECTION -->
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+      <span style="font-size:10px; font-weight:700; color:#a78bfa; text-transform:uppercase; letter-spacing:3px;">Deep Learning</span>
+      <div style="flex:1; height:1px; background:rgba(167,139,250,0.15);"></div>
+    </div>
+    <div style="display:grid; grid-template-columns:2fr 2fr 1fr 1fr; gap:8px; margin-bottom:24px;">
+      <!-- Train Loss - Time Series -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;">Train Loss</div>
+        <svg viewBox="0 0 200 60" style="width:100%; height:50px;">
+          <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a78bfa" stop-opacity="0.3"/><stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/></linearGradient></defs>
+          <path d="M0,50 Q20,48 40,40 T80,30 T120,20 T160,12 T200,8" fill="none" stroke="#a78bfa" stroke-width="1.5"/>
+          <path d="M0,50 Q20,48 40,40 T80,30 T120,20 T160,12 T200,8 L200,60 L0,60Z" fill="url(#g1)"/>
+        </svg>
+        <div style="font-size:16px; font-weight:700; color:#a78bfa; font-family:monospace;">0.342</div>
+      </div>
+      <!-- Val Loss - Time Series -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;">Val Loss</div>
+        <svg viewBox="0 0 200 60" style="width:100%; height:50px;">
+          <defs><linearGradient id="g2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f472b6" stop-opacity="0.3"/><stop offset="100%" stop-color="#f472b6" stop-opacity="0"/></linearGradient></defs>
+          <path d="M0,50 Q20,46 40,38 T80,28 T120,22 T160,18 T200,15" fill="none" stroke="#f472b6" stroke-width="1.5"/>
+          <path d="M0,50 Q20,46 40,38 T80,28 T120,22 T160,18 T200,15 L200,60 L0,60Z" fill="url(#g2)"/>
+        </svg>
+        <div style="font-size:16px; font-weight:700; color:#f472b6; font-family:monospace;">0.418</div>
+      </div>
+      <!-- Best Epoch - Number -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px; text-align:center;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Best Epoch</div>
+        <div style="font-size:28px; font-weight:800; color:#e5e5e5; font-family:monospace;">27</div>
+        <div style="font-size:9px; color:#555;">of 30</div>
+      </div>
+      <!-- Params - Number -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px; text-align:center;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Parameters</div>
+        <div style="font-size:28px; font-weight:800; color:#e5e5e5; font-family:monospace;">6.2M</div>
+        <div style="font-size:9px; color:#555;">CNN+Transformer</div>
+      </div>
+    </div>
+
+    <!-- MACHINE LEARNING SECTION -->
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+      <span style="font-size:10px; font-weight:700; color:#22d3ee; text-transform:uppercase; letter-spacing:3px;">Machine Learning</span>
+      <div style="flex:1; height:1px; background:rgba(34,211,238,0.15);"></div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-bottom:24px;">
+      <!-- Accuracy - Oscillator/Gauge -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px; text-align:center;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;">Barrier Accuracy</div>
+        <svg viewBox="0 0 100 55" style="width:90px; height:50px; margin:0 auto; display:block;">
+          <path d="M15,50 A35,35 0 0,1 85,50" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6" stroke-linecap="round"/>
+          <path d="M15,50 A35,35 0 0,1 62,18" fill="none" stroke="#22d3ee" stroke-width="6" stroke-linecap="round"/>
+          <text x="50" y="46" text-anchor="middle" font-size="14" font-weight="800" fill="#22d3ee" font-family="monospace">47%</text>
+        </svg>
+        <div style="font-size:8px; color:#555;">baseline: 33%</div>
+      </div>
+      <!-- ROC AUC - Gauge -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px; text-align:center;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;">ROC AUC</div>
+        <svg viewBox="0 0 100 55" style="width:90px; height:50px; margin:0 auto; display:block;">
+          <path d="M15,50 A35,35 0 0,1 85,50" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6" stroke-linecap="round"/>
+          <path d="M15,50 A35,35 0 0,1 70,22" fill="none" stroke="#34d399" stroke-width="6" stroke-linecap="round"/>
+          <text x="50" y="46" text-anchor="middle" font-size="14" font-weight="800" fill="#34d399" font-family="monospace">0.71</text>
+        </svg>
+        <div style="font-size:8px; color:#555;">baseline: 0.50</div>
+      </div>
+      <!-- Class Distribution - Ring -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px; text-align:center;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;">Class Balance</div>
+        <svg viewBox="0 0 80 80" style="width:60px; height:60px; margin:0 auto; display:block;">
+          <circle cx="40" cy="40" r="28" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="8"/>
+          <circle cx="40" cy="40" r="28" fill="none" stroke="#34d399" stroke-width="8" stroke-dasharray="58 118" stroke-dashoffset="0" transform="rotate(-90 40 40)"/>
+          <circle cx="40" cy="40" r="28" fill="none" stroke="#ef4444" stroke-width="8" stroke-dasharray="44 132" stroke-dashoffset="-58" transform="rotate(-90 40 40)"/>
+          <circle cx="40" cy="40" r="28" fill="none" stroke="#f59e0b" stroke-width="8" stroke-dasharray="74 102" stroke-dashoffset="-102" transform="rotate(-90 40 40)"/>
+          <text x="40" y="43" text-anchor="middle" font-size="10" font-weight="700" fill="#e5e5e5" font-family="monospace">3</text>
+        </svg>
+        <div style="display:flex; gap:6px; justify-content:center; margin-top:4px;">
+          <span style="font-size:7px; color:#34d399;">TP 33%</span>
+          <span style="font-size:7px; color:#ef4444;">SL 25%</span>
+          <span style="font-size:7px; color:#f59e0b;">TO 42%</span>
+        </div>
+      </div>
+      <!-- Log Loss - Number -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px; text-align:center;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Log Loss</div>
+        <div style="font-size:28px; font-weight:800; color:#f59e0b; font-family:monospace;">0.89</div>
+        <div style="font-size:8px; color:#555;">good &lt; 0.9</div>
+      </div>
+    </div>
+    <!-- ML wide cards -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:24px;">
+      <!-- Precision/Recall Bars -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Precision / Recall / F1</div>
+        <div style="display:flex; gap:12px;">
+          <div style="flex:1;">
+            <div style="font-size:8px; color:#34d399; margin-bottom:3px;">TP</div>
+            <div style="display:flex; gap:2px; height:14px;">
+              <div style="width:45%; background:#22d3ee; border-radius:2px;" title="Precision"></div>
+              <div style="width:38%; background:#f59e0b; border-radius:2px;" title="Recall"></div>
+              <div style="width:41%; background:#34d399; border-radius:2px;" title="F1"></div>
+            </div>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:8px; color:#ef4444; margin-bottom:3px;">SL</div>
+            <div style="display:flex; gap:2px; height:14px;">
+              <div style="width:35%; background:#22d3ee; border-radius:2px;"></div>
+              <div style="width:30%; background:#f59e0b; border-radius:2px;"></div>
+              <div style="width:32%; background:#34d399; border-radius:2px;"></div>
+            </div>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:8px; color:#f59e0b; margin-bottom:3px;">Timeout</div>
+            <div style="display:flex; gap:2px; height:14px;">
+              <div style="width:55%; background:#22d3ee; border-radius:2px;"></div>
+              <div style="width:48%; background:#f59e0b; border-radius:2px;"></div>
+              <div style="width:51%; background:#34d399; border-radius:2px;"></div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; gap:12px; margin-top:4px;">
+          <span style="font-size:7px; color:#22d3ee;">Precision</span>
+          <span style="font-size:7px; color:#f59e0b;">Recall</span>
+          <span style="font-size:7px; color:#34d399;">F1</span>
+        </div>
+      </div>
+      <!-- Confusion Matrix -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Confusion Matrix</div>
+        <div style="display:grid; grid-template-columns:20px 1fr 1fr 1fr; grid-template-rows:20px 1fr 1fr 1fr; gap:2px; width:140px;">
+          <div></div>
+          <div style="font-size:7px; color:#555; text-align:center;">TP</div>
+          <div style="font-size:7px; color:#555; text-align:center;">SL</div>
+          <div style="font-size:7px; color:#555; text-align:center;">TO</div>
+          <div style="font-size:7px; color:#555; display:flex; align-items:center;">TP</div>
+          <div style="background:rgba(34,211,153,0.4); border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:9px; color:#fff; height:32px;">142</div>
+          <div style="background:rgba(239,68,68,0.15); border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:9px; color:#888; height:32px;">23</div>
+          <div style="background:rgba(239,68,68,0.1); border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:9px; color:#888; height:32px;">18</div>
+          <div style="font-size:7px; color:#555; display:flex; align-items:center;">SL</div>
+          <div style="background:rgba(239,68,68,0.15); border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:9px; color:#888; height:32px;">31</div>
+          <div style="background:rgba(34,211,153,0.3); border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:9px; color:#fff; height:32px;">98</div>
+          <div style="background:rgba(239,68,68,0.12); border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:9px; color:#888; height:32px;">27</div>
+          <div style="font-size:7px; color:#555; display:flex; align-items:center;">TO</div>
+          <div style="background:rgba(239,68,68,0.1); border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:9px; color:#888; height:32px;">15</div>
+          <div style="background:rgba(239,68,68,0.12); border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:9px; color:#888; height:32px;">19</div>
+          <div style="background:rgba(34,211,153,0.35); border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:9px; color:#fff; height:32px;">187</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRADING SECTION -->
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+      <span style="font-size:10px; font-weight:700; color:#f59e0b; text-transform:uppercase; letter-spacing:3px;">Trading</span>
+      <div style="flex:1; height:1px; background:rgba(245,158,11,0.15);"></div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-bottom:8px;">
+      <!-- Profit Factor - Large Gauge -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px; text-align:center;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">Profit Factor</div>
+        <svg viewBox="0 0 100 55" style="width:90px; height:50px; margin:0 auto; display:block;">
+          <path d="M15,50 A35,35 0 0,1 85,50" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6" stroke-linecap="round"/>
+          <path d="M15,50 A35,35 0 0,1 55,16" fill="none" stroke="#34d399" stroke-width="6" stroke-linecap="round"/>
+          <line x1="50" y1="50" x2="50" y2="20" stroke="#f59e0b" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.5"/>
+          <text x="50" y="46" text-anchor="middle" font-size="14" font-weight="800" fill="#34d399" font-family="monospace">1.72</text>
+        </svg>
+        <div style="font-size:8px; color:#555;">breakeven: 1.0</div>
+      </div>
+      <!-- Sharpe - Gauge -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px; text-align:center;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">Sharpe Ratio</div>
+        <svg viewBox="0 0 100 55" style="width:90px; height:50px; margin:0 auto; display:block;">
+          <path d="M15,50 A35,35 0 0,1 85,50" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6" stroke-linecap="round"/>
+          <path d="M15,50 A35,35 0 0,1 48,16" fill="none" stroke="#22d3ee" stroke-width="6" stroke-linecap="round"/>
+          <text x="50" y="46" text-anchor="middle" font-size="14" font-weight="800" fill="#22d3ee" font-family="monospace">1.14</text>
+        </svg>
+        <div style="font-size:8px; color:#555;">good &gt; 1.0</div>
+      </div>
+      <!-- Win Rate - Percent Fill -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;">Win Rate</div>
+        <div style="font-size:22px; font-weight:800; color:#34d399; font-family:monospace;">57.3%</div>
+        <div style="height:4px; background:rgba(255,255,255,0.06); border-radius:2px; margin-top:6px; overflow:hidden;">
+          <div style="width:57.3%; height:100%; background:linear-gradient(90deg, #22d3ee, #34d399); border-radius:2px;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-top:3px;">
+          <span style="font-size:7px; color:#555;">0%</span>
+          <span style="font-size:7px; color:#f59e0b;">baseline 50%</span>
+          <span style="font-size:7px; color:#555;">100%</span>
+        </div>
+      </div>
+      <!-- N Trades - Number -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px; text-align:center;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Total Trades</div>
+        <div style="font-size:28px; font-weight:800; color:#34d399; font-family:monospace;">183</div>
+        <div style="font-size:8px; color:#555;">great &gt; 200</div>
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+      <!-- Cost Impact -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px; text-align:center;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Cost / Trade</div>
+        <div style="font-size:22px; font-weight:800; color:#22d3ee; font-family:monospace;">$2.80</div>
+        <div style="font-size:8px; color:#555;">AMP MNQ RT</div>
+      </div>
+      <!-- Max Drawdown -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;">Max Drawdown</div>
+        <div style="font-size:22px; font-weight:800; color:#f59e0b; font-family:monospace;">-8.4%</div>
+        <div style="height:4px; background:rgba(255,255,255,0.06); border-radius:2px; margin-top:6px; overflow:hidden;">
+          <div style="width:8.4%; height:100%; background:#ef4444; border-radius:2px;"></div>
+        </div>
+        <div style="font-size:8px; color:#555; margin-top:3px;">good &lt; 10%</div>
+      </div>
+      <!-- Avg Duration -->
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px; text-align:center;">
+        <div style="font-size:8px; color:#666; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Avg Duration</div>
+        <div style="font-size:22px; font-weight:800; color:#e5e5e5; font-family:monospace;">24</div>
+        <div style="font-size:9px; color:#555;">bars per trade</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<p style="margin-top:1rem; font-size:0.85rem; color:#888;">Each section has its own accent color: <span style="color:#a78bfa;">Deep Learning (purple)</span>, <span style="color:#22d3ee;">Machine Learning (cyan)</span>, <span style="color:#f59e0b;">Trading (amber)</span>. Gauges for bounded metrics, time series for convergence, rings for distributions, bars for per-class breakdowns, large numbers for counts.</p>

@@ -30,6 +30,7 @@ export interface TradingChartProps {
   isFutures: boolean;
   timeframe?: number;
   onLoadMore?: (direction: 'left' | 'right', timestamp: number) => void;
+  onPrefetch?: (direction: 'left' | 'right', edgeTimestamp: number) => void;
   isLoadingMore?: boolean;
   hasMoreLeft?: boolean;
   hasMoreRight?: boolean;
@@ -56,10 +57,19 @@ export interface PriceInfo {
   low: number;
   close: number;
   time: string;
+  // Anatomy
+  body_magnitude?: number;
+  upper_wick_pct?: number;
+  lower_wick_pct?: number;
+  is_bullish?: boolean;
 }
 
 /** Processed chart-ready data */
 export interface ProcessedChartData {
   candles: CandlestickData<Time>[];
   volumes: { time: Time; value: number; color: string }[];
+  /** Maps epoch-seconds → active contract symbol (for futures rollover HUD) */
+  activeContractMap?: Map<number, string>;
+  /** Maps epoch-seconds → candle anatomy data */
+  anatomyMap?: Map<number, any>;
 }

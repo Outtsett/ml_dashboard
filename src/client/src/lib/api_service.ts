@@ -13,15 +13,15 @@ import type { Instrument } from '@shared/schema';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Fire a GET and parse JSON response. */
-async function get<T = unknown>(url: string): Promise<T> {
-  const res = await apiRequest('GET', url);
+/** Fire a GET and parse JSON response. Accepts optional AbortSignal for cancellation. */
+async function get<T = unknown>(url: string, signal?: AbortSignal): Promise<T> {
+  const res = await apiRequest('GET', url, undefined, signal);
   return res.json() as Promise<T>;
 }
 
 /** Fire a GET and guarantee an array result (safe when backend returns error objects). */
-async function getArray<T = unknown>(url: string): Promise<T[]> {
-  const res = await fetch(url);
+async function getArray<T = unknown>(url: string, signal?: AbortSignal): Promise<T[]> {
+  const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`${res.status}: ${(await res.text()) || res.statusText}`);
   const data = await res.json();
   return Array.isArray(data) ? data : [];
@@ -33,6 +33,17 @@ async function mutate<T = unknown>(method: string, url: string, body?: unknown):
   const text = await res.text();
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
+
+// ── Model Checkpoints ────────────────────────────────────────────────────────
+
+export const checkpointApi = {
+  list:         (params?: Record<string, string>) =>
+    getArray(`/api/models${params ? '?' + new URLSearchParams(params) : ''}`),
+  get:          (id: number)    => get(`/api/models/${id}`),
+  diagnostics:  (id: number)    => get(`/api/models/${id}/diagnostics`),
+  activate:     (id: number)    => mutate('PATCH', `/api/models/${id}/activate`),
+  predSummary:  (id: number)    => get(`/api/models/${id}/predictions/summary`),
+} as const;
 
 // ── ML Models ────────────────────────────────────────────────────────────────
 

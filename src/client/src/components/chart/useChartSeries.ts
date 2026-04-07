@@ -16,6 +16,7 @@ interface ChartSeriesOptions {
   regimeColorMap?: Map<number, number>;
   isReplayActive: boolean;
   onLoadMore?: (direction: 'left' | 'right', timestamp: number) => void;
+  onPrefetch?: (direction: 'left' | 'right', edgeTimestamp: number) => void;
   isLoadingMore: boolean;
   hasMoreLeft: boolean;
   hasMoreRight: boolean;
@@ -39,7 +40,7 @@ export function useChartSeries({
   chartRef, candleSeriesRef, volumeSeriesRef,
   data, symbol, timeframe, isFutures,
   regimeColorMap, isReplayActive,
-  onLoadMore, isLoadingMore, hasMoreLeft, hasMoreRight,
+  onLoadMore, onPrefetch, isLoadingMore, hasMoreLeft, hasMoreRight,
 }: ChartSeriesOptions): ChartSeriesResult {
 
   // ── Internal refs ────────────────────────────────────────────────────────
@@ -47,8 +48,11 @@ export function useChartSeries({
   const isInitialLoadRef = useRef(true);
   const prevSymbolRef = useRef(symbol);
   const prevTimeframeRef = useRef(timeframe);
-  const loadingMoreRef = useRef(false);
-  const loadMoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Per-direction cooldowns (500ms) instead of a single global 2000ms lock
+  const loadingLeftRef = useRef(false);
+  const loadingRightRef = useRef(false);
+  const loadLeftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadRightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rafIdRef = useRef<number | null>(null);
   const lastDataHashRef = useRef('');
   const isLoadMoreUpdateRef = useRef(false);
@@ -57,6 +61,7 @@ export function useChartSeries({
   const prevFirstTimeRef = useRef<number | null>(null);
   const loadMoreDirectionRef = useRef<'left' | 'right'>('left');
   const hasScrolledToRegimeStartRef = useRef(false);
+  const LOAD_MORE_COOLDOWN_MS = 500;
 
   // Stable-ref bridges for values read inside effects / callbacks
   const isLoadingMoreRef = useRef(isLoadingMore);
@@ -69,14 +74,18 @@ export function useChartSeries({
   dataRef.current = data;
   const onLoadMoreRef = useRef(onLoadMore);
   onLoadMoreRef.current = onLoadMore;
+  const onPrefetchRef = useRef(onPrefetch);
+  onPrefetchRef.current = onPrefetch;
 
   // ── Process OHLCV → chart-ready arrays ─────────────────────────────────
 
   const processedData = useMemo((): ProcessedChartData => {
-    if (data.length === 0) return { candles: [], volumes: [] };
+    if (data.length === 0) return { candles: [], volumes: [], activeContractMap: new Map(), anatomyMap: new Map() };
 
     const candles: CandlestickData<Time>[] = [];
     const volumes: { time: Time; value: number; color: string }[] = [];
+    const activeContractMap = new Map<number, string>();
+    const anatomyMap = new Map<number, any>();
     let lastTimeKey = -1;
     const hasRegimeColors = regimeColorMap && regimeColorMap.size > 0;
 
@@ -114,6 +123,19 @@ export function useChartSeries({
       if (timeKey === lastTimeKey) continue;
       lastTimeKey = timeKey;
 
+      // Track active contract for rollover HUD display
+      if (d.activeContract) {
+        activeContractMap.set(timeKey, d.activeContract);
+      }
+
+      // Track candle anatomy
+      anatomyMap.set(timeKey, {
+        body_magnitude: d.body_magnitude ?? 0,
+        upper_wick_pct: d.upper_wick_pct ?? 0,
+        lower_wick_pct: d.lower_wick_pct ?? 0,
+        is_bullish: !!d.is_bullish,
+      });
+
       // Exact match first, then nearest regime for bars outside assignment range
       let regimeIdx = hasRegimeColors ? regimeColorMap!.get(timeKey) : undefined;
       if (regimeIdx === undefined && hasRegimeColors) {
@@ -138,10 +160,10 @@ export function useChartSeries({
       }
     }
 
-    return { candles, volumes };
+    return { candles, volumes, activeContractMap, anatomyMap };
   }, [data, regimeColorMap]);
 
-  // ── Infinite scroll ────────────────────────────────────────────────────
+  // ── Infinite scroll (per-direction cooldowns for smooth panning) ────────
 
   useEffect(() => {
     if (!chartRef.current || !onLoadMore || data.length === 0) return;
@@ -150,7 +172,7 @@ export function useChartSeries({
     const timeScale = chart.timeScale();
 
     const handleVisibleTimeRangeChange = () => {
-      if (loadingMoreRef.current || isLoadingMoreRef.current) return;
+      if (isLoadingMoreRef.current) return;
 
       const visibleRange = timeScale.getVisibleLogicalRange();
       if (!visibleRange) return;
@@ -160,10 +182,22 @@ export function useChartSeries({
       const { from, to } = visibleRange;
 
       const visibleBars = Math.max(1, to - from);
-      const threshold = Math.min(200, Math.max(50, Math.floor(visibleBars * 0.5)));
+      const threshold = Math.min(400, Math.max(100, Math.floor(visibleBars * 0.8)));
+      const prefetchThreshold = Math.min(400, Math.max(100, Math.floor(visibleBars * 1.0)));
 
-      if (from < threshold && hasMoreLeftRef.current) {
-        loadingMoreRef.current = true;
+      // Prefetch triggers — start background fetch when user is approaching edges
+      if (onPrefetchRef.current && currentData.length > 0) {
+        if (from < prefetchThreshold && hasMoreLeftRef.current) {
+          onPrefetchRef.current('left', currentData[0]!.timestamp);
+        }
+        if (to > dataLength - prefetchThreshold && hasMoreRightRef.current) {
+          onPrefetchRef.current('right', currentData[currentData.length - 1]!.timestamp);
+        }
+      }
+
+      // Left edge — load older data (independent cooldown)
+      if (from < threshold && hasMoreLeftRef.current && !loadingLeftRef.current) {
+        loadingLeftRef.current = true;
         savedRangeRef.current = visibleRange;
         isLoadMoreUpdateRef.current = true;
         prevDataLengthRef.current = dataLength;
@@ -172,20 +206,21 @@ export function useChartSeries({
           : null;
         loadMoreDirectionRef.current = 'left';
         onLoadMoreRef.current?.('left', currentData[0]!.timestamp);
-        if (loadMoreTimerRef.current) clearTimeout(loadMoreTimerRef.current);
-        loadMoreTimerRef.current = setTimeout(() => { loadingMoreRef.current = false; }, 2000);
+        if (loadLeftTimerRef.current) clearTimeout(loadLeftTimerRef.current);
+        loadLeftTimerRef.current = setTimeout(() => { loadingLeftRef.current = false; }, LOAD_MORE_COOLDOWN_MS);
       }
 
-      if (to > dataLength - threshold && hasMoreRightRef.current) {
-        loadingMoreRef.current = true;
+      // Right edge — load newer data (independent cooldown)
+      if (to > dataLength - threshold && hasMoreRightRef.current && !loadingRightRef.current) {
+        loadingRightRef.current = true;
         savedRangeRef.current = visibleRange;
         isLoadMoreUpdateRef.current = true;
         prevDataLengthRef.current = dataLength;
         prevFirstTimeRef.current = null;
         loadMoreDirectionRef.current = 'right';
         onLoadMoreRef.current?.('right', currentData[currentData.length - 1]!.timestamp);
-        if (loadMoreTimerRef.current) clearTimeout(loadMoreTimerRef.current);
-        loadMoreTimerRef.current = setTimeout(() => { loadingMoreRef.current = false; }, 2000);
+        if (loadRightTimerRef.current) clearTimeout(loadRightTimerRef.current);
+        loadRightTimerRef.current = setTimeout(() => { loadingRightRef.current = false; }, LOAD_MORE_COOLDOWN_MS);
       }
     };
 
@@ -193,12 +228,13 @@ export function useChartSeries({
 
     return () => {
       timeScale.unsubscribeVisibleLogicalRangeChange(handleVisibleTimeRangeChange);
-      if (loadMoreTimerRef.current) clearTimeout(loadMoreTimerRef.current);
+      if (loadLeftTimerRef.current) clearTimeout(loadLeftTimerRef.current);
+      if (loadRightTimerRef.current) clearTimeout(loadRightTimerRef.current);
     };
    
   }, [data.length, processedData.candles]);
 
-  // ── Data update logic ──────────────────────────────────────────────────
+  // ── Data update logic (smooth range restoration) ────────────────────────
 
   const updateChartData = useCallback(() => {
     if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
@@ -213,7 +249,7 @@ export function useChartSeries({
     prevSymbolRef.current = symbol;
     prevTimeframeRef.current = timeframe;
 
-    // Load-more: save range, update data, restore range offset
+    // Load-more: update data then restore view position so user doesn't lose their place
     if (isLoadMoreUpdateRef.current && savedRangeRef.current && !symbolChanged && !timeframeChanged) {
       const savedRange = savedRangeRef.current;
       const prevFirstTime = prevFirstTimeRef.current;
@@ -224,6 +260,8 @@ export function useChartSeries({
       if (chartRef.current) {
         try {
           if (loadMoreDirectionRef.current === 'left' && prevFirstTime !== null) {
+            // Time-based range restoration: find where the old first candle
+            // now sits in the new array, then offset the saved range by that count.
             const candles = processedData.candles;
             let lo = 0, hi = candles.length - 1, barsAdded = 0;
             while (lo <= hi) {
@@ -236,15 +274,20 @@ export function useChartSeries({
             if (lo > hi) barsAdded = lo;
             if (barsAdded > 0) {
               chartRef.current.timeScale().setVisibleLogicalRange({
-                from: savedRange.from + barsAdded, to: savedRange.to + barsAdded,
+                from: savedRange.from + barsAdded,
+                to: savedRange.to + barsAdded,
               });
             }
           } else {
+            // Right load-more: keep the same view position
             chartRef.current.timeScale().setVisibleLogicalRange(savedRange);
           }
         } catch { /* range errors on disposed chart */ }
       }
 
+      // Release per-direction cooldowns immediately after data arrives
+      loadingLeftRef.current = false;
+      loadingRightRef.current = false;
       isLoadMoreUpdateRef.current = false;
       savedRangeRef.current = null;
       return;

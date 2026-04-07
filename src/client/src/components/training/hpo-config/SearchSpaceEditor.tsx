@@ -18,29 +18,29 @@ import { SearchDimensionItem } from "./SearchDimensionItem";
 
 /** Derive a search dimension from a HyperparameterDef. */
 export function dimFromHpDef(hp: HyperparameterDef): SearchDimension {
-  const dimType = hp.type ?? (hp.step >= 1 ? "int" : "float");
+  const dimType = hp.type ?? ((hp.step ?? 1) >= 1 ? "int" : "float");
 
   if (dimType === "categorical") {
     return {
       type: "categorical",
       choices: hp.choices ?? [],
       distribution: "choice",
-      default: hp.value,
+      default: hp.default,
     };
   }
   if (dimType === "bool") {
-    return { type: "bool", choices: [true, false], default: hp.value };
+    return { type: "bool", choices: [true, false], default: hp.default };
   }
 
   return {
     type: dimType as "int" | "float",
-    low: hp.searchSpace?.min ?? hp.min,
-    high: hp.searchSpace?.max ?? hp.max,
-    step: hp.searchSpace?.step ?? hp.step,
+    low: hp.searchSpace?.min ?? hp.min ?? 0,
+    high: hp.searchSpace?.max ?? hp.max ?? 100,
+    step: hp.searchSpace?.step ?? hp.step ?? 1,
     logScale: hp.searchSpace?.logScale ?? hp.logScale ?? false,
     distribution:
       (hp.searchSpace?.distribution as DistributionType) ?? "uniform",
-    default: hp.value,
+    default: hp.default,
   };
 }
 

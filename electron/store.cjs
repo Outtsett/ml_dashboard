@@ -19,6 +19,7 @@ const store = new Store({
     theme: "system",
     sidebarCollapsed: false,
     minimizeToTray: true,
+    autoLaunch: false,
     notifications: {
       training: true,
       backtest: true,

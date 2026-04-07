@@ -1,228 +1,277 @@
 /**
- * Training — HDP-HMM focused training dashboard.
+ * Training — Phase-aware adaptive command center.
  *
- * Thin shell: top bar (model selector, symbol/timeframe, start/stop, stats)
- * plus <TrainingTabs /> for all content below.
+ * Layout adapts to training state:
+ *   LIVE (isTraining):
+ *     ConfigStrip → LiveTrainingView (split: metrics + log + awaiting pills)
+ *   POST (diagnostics available):
+ *     ConfigStrip → GroupTabs → MetricGrid (filtered to active group)
+ *   IDLE (no data):
+ *     ConfigStrip → ModelBrowser
  *
- * Three states flow through tabs:
- *   1. Pre-training:  metric reference cards (Convergence tab)
- *   2. Live training: streaming convergence charts (Convergence tab, auto-selected)
- *   3. Post-training: diagnostics across all tabs (Overview, Performance, SHAP, etc.)
+ * Fully model-agnostic: tabs and metrics auto-generate from
+ * metric_declarations / SelfDescribingDiagnostics. No hardcoded per-model UI.
  */
 
-import { useState, useCallback, useMemo, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  Play, Square, ChevronDown, FolderTree, Loader2,
-  Activity, Clock, Gauge, Timer,
-} from "lucide-react";
-import { useDashboard } from "@/contexts/UnifiedDashboardContext";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useTrainingControl, useTrainingLive } from "@/contexts/TrainingContext";
-import { useMetricDescriptions } from "@/hooks/useMetricDescriptions";
 import { useQuery } from "@tanstack/react-query";
+import ConfigStrip from "@/components/training/ConfigStrip";
+import { MetricGrid, METRIC_GROUP_ORDER } from "@/components/renderers/MetricGrid";
+import { GroupTabs } from "@/components/training/GroupTabs";
+import { LiveTrainingView } from "@/components/training/LiveTrainingView";
 import { ModelBrowser } from "@/components/training/ModelBrowser";
-import { TrainingTabs } from "@/components/training/tabs/TrainingTabs";
-import type { TrainingRequest } from "@shared/trainingTypes";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QUERY_KEYS } from "@/lib/types";
+import type { SelfDescribingDiagnostics } from "@/lib/diagnostics-schema";
+
+const TrainingLogTab = lazy(() =>
+  import("@/components/terminal/TrainingLogTab").then(m => ({ default: m.TrainingLogTab }))
+);
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Returns true if the object looks like SelfDescribingDiagnostics. */
+function isSelfDescribing(d: unknown): d is SelfDescribingDiagnostics {
+  if (!d || typeof d !== "object") return false;
+  const obj = d as Record<string, unknown>;
+  if (!obj.metrics || typeof obj.metrics !== "object") return false;
+  const metrics = obj.metrics as Record<string, unknown>;
+  const firstKey = Object.keys(metrics)[0];
+  if (!firstKey) return false;
+  const first = metrics[firstKey] as Record<string, unknown>;
+  return typeof first.renderer === "string" && typeof first.mission === "string";
+}
+
+/** Extract the first group name from diagnostics for default tab selection. */
+function getFirstGroup(diag: SelfDescribingDiagnostics): string {
+  const groups = new Set<string>();
+  for (const m of Object.values(diag.metrics)) {
+    groups.add(m.group ?? "general");
+  }
+  // Use GROUP_ORDER priority
+  return Array.from(groups).sort((a, b) =>
+    (METRIC_GROUP_ORDER[a] ?? 50) - (METRIC_GROUP_ORDER[b] ?? 50)
+  )[0] ?? "general";
+}
+
+// ─── Training ─────────────────────────────────────────────────────────────────
 
 export default function Training() {
-  const dashboard = useDashboard();
   const {
-    isTraining, isPending, progress, error,
-    startTraining, stopTraining,
-    availableModels, selectedModelType, setSelectedModelType,
-    completedModelId, timeframeLabel,
+    isTraining,
+    isPending,
+    progress,
+    error,
+    sseError,
+    startTraining,
+    stopTraining,
+    availableModels,
+    selectedModelType,
+    setSelectedModelType,
+    completedModelId,
   } = useTrainingControl();
-  const { iterationHistory, diagnostics, elapsedSec } = useTrainingLive();
-  const { metricOrder } = useMetricDescriptions(selectedModelType || "hdp-hmm");
 
-  const [showModels, setShowModels] = useState(false);
-  const [symbol, setSymbol] = useState(dashboard.symbol || "EURUSD");
-  const [timeframe, setTimeframe] = useState(timeframeLabel || "1m");
+  const { diagnostics, elapsedSec, logs } = useTrainingLive();
 
-  // ── Load existing trained models so the page always has data ──
+  // ── Local state ─────────────────────────────────────────────────────────────
+  const [symbol, setSymbol] = useState("MNQ");
+  const [timeframe, setTimeframe] = useState("1m");
+  const [hyperparameters, setHyperparameters] = useState<Record<string, number | string | boolean>>({});
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [modelBrowserOpen, setModelBrowserOpen] = useState(false);
+  const [activeGroup, setActiveGroup] = useState<string | null>(null);
 
-  const { data: trainedModels } = useQuery<unknown[]>({
-    queryKey: ["/api/training/models"],
+  // ── Sync hyperparameters from model defaults when model type changes ─────────
+  useEffect(() => {
+    const modelDef = availableModels[selectedModelType];
+    if (!modelDef) return;
+    const defaults: Record<string, number | string | boolean> = {};
+    for (const [key, def] of Object.entries(modelDef.defaultHyperparameters)) {
+      defaults[key] = def.default;
+    }
+    setHyperparameters(defaults);
+  }, [selectedModelType, availableModels]);
+
+  // ── Fetch trained models ─────────────────────────────────────────────────────
+  const { data: trainedModels } = useQuery<any[]>({
+    queryKey: QUERY_KEYS.regimeModels,
     queryFn: async () => {
-      const r = await fetch("/api/training/models");
-      if (!r.ok) return [];
-      const d = await r.json();
+      const res = await fetch("/api/training/models");
+      if (!res.ok) return [];
+      const d = await res.json();
       return d?.models ?? d ?? [];
     },
     staleTime: 30_000,
   });
 
-  // Auto-select latest model on first load
+  const trainedModelCount = trainedModels?.length ?? 0;
+
+  // ── Active model ID ─────────────────────────────────────────────────────────
+  const activeModelId = completedModelId ?? selectedModelId;
+
+  // ── Fetch saved diagnostics for selected model ───────────────────────────────
+  const { data: savedDiagnostics } = useQuery<unknown>({
+    queryKey: QUERY_KEYS.regimeDiagnostics(activeModelId!),
+    queryFn: async () => {
+      const res = await fetch(`/api/training/models/${activeModelId}/diagnostics`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!activeModelId,
+    staleTime: 60_000,
+  });
+
+  // ── Diagnostics: real data only (live SSE or saved model) ──────────────────
+  const activeDiagnostics: SelfDescribingDiagnostics | null = (() => {
+    if (isSelfDescribing(diagnostics)) return diagnostics;
+    if (isSelfDescribing(savedDiagnostics)) return savedDiagnostics;
+    return null;
+  })();
+
+  // ── Auto-set active group when diagnostics change ─────────────────────────
   useEffect(() => {
-    if (!selectedModelId && !completedModelId && trainedModels?.length) {
-      const first = trainedModels[0] as { id: string };
-      setSelectedModelId(first.id);
+    if (activeDiagnostics && !isTraining) {
+      setActiveGroup(prev => {
+        // Keep current group if it exists in the new diagnostics
+        if (prev) {
+          const groups = new Set(
+            Object.values(activeDiagnostics.metrics).map(m => m.group ?? 'general')
+          );
+          if (groups.has(prev)) return prev;
+        }
+        return getFirstGroup(activeDiagnostics);
+      });
     }
-  }, [trainedModels, selectedModelId, completedModelId]);
+  }, [activeDiagnostics, isTraining]);
 
-  // Active model = just-completed OR selected from list
-  const activeModelId = completedModelId || selectedModelId;
+  // ── Phase detection ─────────────────────────────────────────────────────────
+  const phase: 'live' | 'post' | 'idle' = isTraining
+    ? 'live'
+    : activeDiagnostics
+      ? 'post'
+      : 'idle';
 
-  // Fetch diagnostics for the active model (from disk, not SSE)
-  const { data: savedDiagnostics } = useQuery<Record<string, unknown>>({
-    queryKey: ["/api/training/models", activeModelId, "diagnostics"],
-    queryFn: async () => {
-      const r = await fetch(`/api/training/models/${activeModelId}/diagnostics`);
-      if (!r.ok) return null;
-      return r.json();
-    },
-    enabled: !!activeModelId,
-    staleTime: 60_000,
-  });
+  // ── Hyperparameter callbacks ─────────────────────────────────────────────────
+  function handleHyperparameterChange(key: string, value: number | string | boolean) {
+    setHyperparameters((prev) => ({ ...prev, [key]: value }));
+  }
 
-  // Fetch convergence data for the active model
-  const { data: convergenceData } = useQuery<unknown[]>({
-    queryKey: ["/api/training/models", activeModelId, "convergence"],
-    queryFn: async () => {
-      const r = await fetch(`/api/training/models/${activeModelId}/convergence`);
-      if (!r.ok) return [];
-      const d = await r.json();
-      return d?.gibbs ?? d ?? [];
-    },
-    enabled: !!activeModelId,
-    staleTime: 60_000,
-  });
-
-  // Use SSE diagnostics during live session, saved diagnostics otherwise
-  const diag = (diagnostics as Record<string, unknown> | null) ?? savedDiagnostics ?? null;
-
-  // Compute live metric presence for state detection
-  const metricSeries = useMemo(() => {
-    const series: Record<string, Array<{ iteration: number; value: number }>> = {};
-    for (const key of metricOrder) series[key] = [];
-    for (const entry of (iterationHistory ?? [])) {
-      for (const key of metricOrder) {
-        const val = entry.metrics[key] ?? entry.metrics[snake(key)];
-        if (val != null) series[key]?.push({ iteration: entry.iteration, value: val });
-      }
+  function handleResetHyperparameters() {
+    const modelDef = availableModels[selectedModelType];
+    if (!modelDef) return;
+    const defaults: Record<string, number | string | boolean> = {};
+    for (const [key, def] of Object.entries(modelDef.defaultHyperparameters)) {
+      defaults[key] = def.default;
     }
-    return series;
-  }, [iterationHistory, metricOrder]);
+    setHyperparameters(defaults);
+  }
 
-  const activeMetrics = metricOrder.filter(k => (metricSeries[k]?.length ?? 0) > 0);
+  // ── Start callback ───────────────────────────────────────────────────────────
+  function handleStart() {
+    startTraining({ modelType: selectedModelType, symbol, timeframe, hyperparameters });
+  }
 
-  // Stats bar
-  const stats = useMemo(() => {
-    if (!iterationHistory?.length) return null;
-    const latest = iterationHistory[iterationHistory.length - 1]!;
-    const iter = latest.iteration;
-    const speed = (elapsedSec ?? 0) > 0 ? iter / elapsedSec! : 0;
-    const pct = Math.max(progress ?? 0, 0.5);
-    const eta = speed > 0 && pct < 100 ? (elapsedSec ?? 0) * ((100 - pct) / pct) : 0;
-    return { iter, speed, eta, elapsed: elapsedSec ?? 0 };
-  }, [iterationHistory, elapsedSec, progress]);
+  // ── Model selection from browser ─────────────────────────────────────────────
+  function handleSelectModel(modelId: string) {
+    setSelectedModelId(modelId);
+  }
 
-  const handleStart = useCallback(() => {
-    const hp: Record<string, number | string | boolean> = {};
-    const def = availableModels[selectedModelType]?.defaultHyperparameters;
-    if (def) for (const [k, v] of Object.entries(def)) hp[k] = v.value;
-    startTraining({ modelType: selectedModelType, symbol, timeframe, hyperparameters: hp } as TrainingRequest);
-  }, [selectedModelType, symbol, timeframe, availableModels, startTraining]);
-
-  const fmt = (s: number) => s < 60 ? `${Math.round(s)}s` : s < 3600 ? `${Math.floor(s / 60)}m ${Math.round(s % 60)}s` : `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
-
-  // Determine state
-  const hasLiveData = activeMetrics.length > 0;
-  const hasCompleted = !!diag && (!!completedModelId || !!selectedModelId);
-
+  // ─── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      {/* ── Top bar ──────────────────────────────────────────────── */}
-      <div className="shrink-0 flex items-center gap-3 px-5 py-3 border-b border-white/5">
-        <Sel value={selectedModelType} onChange={setSelectedModelType} disabled={isTraining}
-          options={Object.entries(availableModels).map(([k, v]) => ({ value: k, label: v.name }))} />
-        <input value={symbol} onChange={e => setSymbol(e.target.value.toUpperCase())} disabled={isTraining}
-          className="w-24 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-mono text-foreground focus:outline-none focus:border-blue-500/50 disabled:opacity-40" />
-        <Sel value={timeframe} onChange={setTimeframe} disabled={isTraining}
-          options={["1m", "5m", "15m", "30m", "1h", "4h", "1d"].map(t => ({ value: t, label: t }))} />
-        {/* Trained model selector */}
-        {trainedModels && trainedModels.length > 0 && !isTraining && (
-          <Sel value={activeModelId ?? ""} onChange={(v) => setSelectedModelId(v)} disabled={isTraining}
-            options={(trainedModels as Array<{ id: string; symbol: string; timeframe: string; evaluation_grade?: string }>).map(m => ({ value: m.id, label: `${m.symbol} ${m.timeframe} (${m.evaluation_grade ?? "?"})` }))} />
-        )}
-        <div className="flex-1" />
-        {isTraining && stats && (
-          <div className="flex items-center gap-4 text-[10px] font-mono text-muted-foreground/60">
-            <span><Activity className="h-3 w-3 inline text-blue-400" /> {stats.iter}</span>
-            <span><Gauge className="h-3 w-3 inline text-cyan-400" /> {stats.speed.toFixed(1)} it/s</span>
-            <span><Clock className="h-3 w-3 inline text-indigo-400" /> {fmt(stats.elapsed)}</span>
-            <span><Timer className="h-3 w-3 inline text-violet-400" /> {stats.eta > 0 ? fmt(stats.eta) : "--"}</span>
+    <TooltipProvider>
+      <div className="flex flex-col">
+        {/* ── ConfigStrip ─────────────────────────────────────────────────────── */}
+        <ConfigStrip
+          selectedModelType={selectedModelType}
+          availableModels={availableModels}
+          onModelTypeChange={setSelectedModelType}
+          symbol={symbol}
+          onSymbolChange={setSymbol}
+          timeframe={timeframe}
+          onTimeframeChange={setTimeframe}
+          hyperparameters={hyperparameters}
+          onHyperparameterChange={handleHyperparameterChange}
+          onResetHyperparameters={handleResetHyperparameters}
+          isTraining={isTraining}
+          isPending={isPending}
+          progress={progress}
+          elapsedSec={elapsedSec}
+          onStart={handleStart}
+          onStop={stopTraining}
+        />
+
+        {/* ── Error banner ────────────────────────────────────────────────────── */}
+        {error && (
+          <div className="mx-6 mt-4 px-4 py-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">
+            {error}
           </div>
         )}
-        {isTraining && (
-          <div className="w-24 h-1.5 rounded-full bg-white/5 overflow-hidden">
-            <motion.div className="h-full rounded-full bg-blue-500" animate={{ width: `${progress ?? 0}%` }} transition={{ duration: 0.3 }} />
+
+        {/* ── SSE connection error banner ──────────────────────────────────────── */}
+        {sseError && (
+          <div className="mx-6 mt-4 px-4 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm">
+            SSE: {sseError}
           </div>
         )}
-        <button onClick={() => setShowModels(p => !p)} title="Model Browser"
-          className={`p-1.5 rounded-md transition-colors ${showModels ? "bg-white/10 text-blue-400" : "text-muted-foreground/40 hover:bg-white/5"}`}>
-          <FolderTree className="h-4 w-4" />
-        </button>
-        <AnimatePresence mode="wait">
-          {isTraining ? (
-            <motion.button key="stop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={stopTraining}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-red-500/20 text-red-400 text-xs font-mono hover:bg-red-500/30 border border-red-500/20">
-              <Square className="h-3 w-3" /> Stop
-            </motion.button>
-          ) : (
-            <motion.button key="start" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={handleStart} disabled={isPending || !selectedModelType}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-mono hover:bg-emerald-500/30 border border-emerald-500/20 disabled:opacity-40">
-              {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-              {isPending ? "Starting..." : "Train"}
-            </motion.button>
+
+        {/* ── LIVE PHASE: Split view with streaming metrics ──────────────────── */}
+        {phase === 'live' && (
+          <div className="px-6 py-4">
+            <LiveTrainingView />
+          </div>
+        )}
+
+        {/* ── POST PHASE: Group tabs + filtered MetricGrid ───────────────────── */}
+        {phase === 'post' && activeDiagnostics && (
+          <>
+            <GroupTabs
+              metrics={activeDiagnostics.metrics}
+              activeGroup={activeGroup ?? getFirstGroup(activeDiagnostics)}
+              onGroupChange={setActiveGroup}
+            />
+            <div className="px-6 py-6">
+              <MetricGrid
+                diagnostics={activeDiagnostics}
+                filter={activeGroup ? [activeGroup] : undefined}
+              />
+            </div>
+          </>
+        )}
+
+        {/* ── IDLE PHASE: Show log if available from recent training ──────────── */}
+        {phase === 'idle' && (logs.length > 0 || error) && (
+          <div className="mx-6 mt-4 h-64 rounded-lg overflow-hidden border border-white/5">
+            <Suspense fallback={<div className="h-full bg-black/40 animate-pulse" />}>
+              <TrainingLogTab visible />
+            </Suspense>
+          </div>
+        )}
+
+        {/* ── ModelBrowser (collapsible) ──────────────────────────────────────── */}
+        <div className="border-t border-white/5">
+          <button
+            onClick={() => setModelBrowserOpen((v) => !v)}
+            className="flex items-center justify-between w-full px-6 py-3 text-left hover:bg-white/[0.03] transition-colors"
+          >
+            <span className="text-xs font-medium text-muted-foreground/60 uppercase tracking-widest">
+              Trained Models ({trainedModelCount})
+            </span>
+            {modelBrowserOpen ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground/40" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground/40" />
+            )}
+          </button>
+
+          {modelBrowserOpen && (
+            <div className="px-6 pb-6">
+              <ModelBrowser onSelectModel={handleSelectModel} />
+            </div>
           )}
-        </AnimatePresence>
-      </div>
-
-      {error && (
-        <div className="shrink-0 mx-5 mt-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs font-mono text-red-400">{error}</div>
-      )}
-
-      {/* ── Main ─────────────────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 flex overflow-hidden">
-        <div className="flex-1 min-w-0">
-          <TrainingTabs
-            isTraining={isTraining}
-            diagnostics={diag}
-            activeModelId={activeModelId ?? null}
-            convergenceData={convergenceData}
-            hasCompleted={hasCompleted}
-            hasLiveData={hasLiveData}
-            symbol={symbol}
-            timeframe={timeframe}
-            selectedModelType={selectedModelType ?? undefined}
-          />
         </div>
-
-        {/* Right: Model Browser */}
-        {showModels && (
-          <aside className="w-80 shrink-0 border-l border-white/5 bg-card/20">
-            <ModelBrowser filterModelType={selectedModelType || undefined} />
-          </aside>
-        )}
       </div>
-    </div>
+    </TooltipProvider>
   );
 }
-
-function Sel({ value, onChange, options, disabled }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; disabled?: boolean }) {
-  return (
-    <div className="relative">
-      <select value={value} onChange={e => onChange(e.target.value)} disabled={disabled}
-        className="appearance-none px-2.5 py-1.5 pr-7 rounded-lg bg-white/5 border border-white/10 text-xs font-mono text-foreground focus:outline-none focus:border-blue-500/50 disabled:opacity-40 cursor-pointer">
-        {options.map(o => <option key={o.value} value={o.value} className="bg-[#1a1a2e]">{o.label}</option>)}
-      </select>
-      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/40 pointer-events-none" />
-    </div>
-  );
-}
-
-function snake(s: string): string { return s.replace(/[A-Z]/g, m => `_${m.toLowerCase()}`); }

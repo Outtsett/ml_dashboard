@@ -8,6 +8,7 @@ registry (server/training/runners/parsers/) knows how to handle.
 Event types:
   progress             — iteration / phase progress
   metric               — per-iteration numeric metric
+  metric_declarations  — self-describing metric schema (renderer, mission, context)
   overlay              — chart overlay update (regime zones, predictions, etc.)
   model_state          — full model state snapshot (cluster quality, feature attribution, etc.)
   sampler_diagnostics  — sampler health metrics (ESS, autocorrelation, step timing)
@@ -77,6 +78,36 @@ def emit_model_state(iteration: int, total: int, snapshot: dict):
 
 def emit_sampler_diagnostics(iteration: int, total: int, diagnostics: dict):
     emit({"type": "sampler_diagnostics", "iteration": iteration, "total": total, "diagnostics": diagnostics})
+
+
+def emit_metric_declarations(declarations: dict):
+    """Emit metric declarations so the dashboard knows how to render each metric.
+
+    Sends a single JSON event containing the full schema for all metrics
+    that will be emitted during training. This lets the dashboard pre-configure
+    renderers before metrics start flowing.
+
+    Parameters
+    ----------
+    declarations : dict
+        Maps metric names to their declaration dicts. Each declaration must
+        contain at minimum: renderer (RendererType), mission (str), context (dict).
+        Example::
+
+            {
+                "profit_factor": {
+                    "renderer": "gauge",
+                    "mission": "Is this model profitable after costs?",
+                    "context": {"breakeven": 1.0, "good": 1.5, "great": 2.0}
+                },
+                "n_trades": {
+                    "renderer": "number",
+                    "mission": "How many trades in evaluation?",
+                    "context": {"min": 0, "good": 50, "unit": "trades"}
+                }
+            }
+    """
+    emit({"type": "metric_declarations", "declarations": declarations})
 
 
 def emit_error(message: str, details: str = ""):

@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { motion, type Variants } from "framer-motion";
-import { Badge } from "@/components/ui/badge";
 import { useGpuMetrics, useGpuDeviceInfo } from "@/hooks/useGpuMetrics";
 import {
   AreaChart,
@@ -362,34 +361,24 @@ export default function Gpu() {
       initial="hidden"
       animate="show"
     >
-      {/* ── Header ────────────────────────────────────────── */}
+      {/* ── Section Title ──────────────────────────────────── */}
       <motion.div variants={fadeUp} className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-display font-bold tracking-tight">
-            {deviceInfo?.name ?? "GPU Monitor"}
-          </h1>
+          <h2 className="text-2xl font-display font-bold tracking-tight">
+            {deviceInfo?.name ?? "GPU Engine"}
+          </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             {deviceInfo
               ? `${deviceInfo.architecture} | CUDA ${deviceInfo.cudaVersion} | Driver ${deviceInfo.driverVersion}`
               : "Connecting to GPU telemetry..."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="font-mono text-[10px]">
-            CC {deviceInfo?.computeCapability ?? "--"}
-          </Badge>
-          <Badge
-            variant={connected ? "default" : "destructive"}
-            className="flex items-center gap-1.5"
-          >
-            {connected && (
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </span>
-            )}
-            {connected ? "Live" : "Disconnected"}
-          </Badge>
+        <div className="flex items-center gap-2 text-xs font-mono">
+          <div className={cn("h-2 w-2 rounded-full", connected ? "bg-emerald-400 animate-pulse" : "bg-red-400")} />
+          <span className="text-muted-foreground">
+            SSE {connected ? "live" : "offline"} · {history.length} pts
+            {current ? ` · util ${current.utilizationGpu}%` : " · no data"}
+          </span>
         </div>
       </motion.div>
 

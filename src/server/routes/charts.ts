@@ -12,7 +12,7 @@
  * This route normalises everything to a flat array of { timestamp, open, high, low, close, volume }.
  */
 import { Router, Request, Response } from 'express';
-import { getOHLCVSampleBy, getStitchedOHLCV, checkQuestDBHealth, queryQuestDB } from '../database/questdb';
+import { getOHLCVSampleBy, getStitchedOHLCV, checkQuestDBHealth, queryQuestDB, queryQuestDBFast } from '../database/questdb';
 import type { AdjustmentMode } from '@shared/ohlcv';
 import { cachedQuery, OHLCVCache } from '../cache/ohlcv';
 import { getCachedAnchor, setCachedAnchor } from '../cache/anchor';
@@ -21,6 +21,7 @@ import { CACHE_SEMI } from '../cache/headers';
 import { normalizeTimestamp, parseTimestampParam } from '../lib/normalize';
 import { isFuturesRoot } from '../lib/futures';
 import { isValidSymbol } from '@shared/validation';
+import { encode as msgpackEncode } from '@msgpack/msgpack';
 
 // Re-export cache functions for backward compat (infrastructure.ts imports from here)
 export { clearAnchorCache } from '../cache/anchor';
@@ -97,16 +98,29 @@ async function isQuestDBHealthy(): Promise<boolean> {
 //   order      "asc" | "desc" (default: desc = most-recent first)
 // ───────────────────────────────────────────────────────────────
 router.get('/ohlcv', async (req: Request, res: Response) => {
+  // Track client disconnection — abort heavy queries when the user switches symbols
+  let clientDisconnected = false;
+  req.on('close', () => { clientDisconnected = true; });
+
+  // Route-level timeout: fail fast instead of leaving UI frozen
+  const routeTimeout = setTimeout(() => {
+    if (!res.headersSent) {
+      console.warn('[charts] /ohlcv route timeout (15s):', req.query.symbol);
+      res.status(504).json({ error: 'Chart data request timed out (15s)' });
+    }
+  }, 15_000);
+
   try {
     const symbol = (req.query.symbol as string)?.trim()?.toUpperCase();
     if (!symbol || typeof symbol !== 'string' || !isValidSymbol(symbol)) {
+      clearTimeout(routeTimeout);
       return res.status(400).json({ error: 'Invalid symbol parameter' });
     }
 
     const tfMinutes = parseTimeframeMinutes(req.query.timeframe as string);
     const startMs = parseTimestamp(req.query.startTime as string) ?? parseTimestamp(req.query.start as string);
     const endMs   = parseTimestamp(req.query.endTime as string)   ?? parseTimestamp(req.query.end as string);
-    const rowLimit = Math.min(parseInt(req.query.limit as string) || 5000, 10000);
+    const rowLimit = Math.min(parseInt(req.query.limit as string) || 10000, 100000);
     const orderDesc = (req.query.order as string)?.toLowerCase() !== 'asc';
     const adjustmentRaw = (req.query.adjustment as string)?.toLowerCase();
     const adjustment: AdjustmentMode = adjustmentRaw === 'panama' ? 'panama'
@@ -140,7 +154,7 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
           } else {
             anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE symbol = '${safeEsc}'`;
           }
-          const [row] = await queryQuestDB(anchorQuery);
+          const [row] = await queryQuestDBFast(anchorQuery); // 10s timeout for anchor
           if (row?.latest) {
             const latestDate = row.latest instanceof Date ? row.latest.getTime() : new Date(String(row.latest)).getTime();
             if (!isNaN(latestDate)) {
@@ -160,10 +174,13 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
     ]);
 
     if (!healthy) {
+      clearTimeout(routeTimeout);
       return res.status(503).json({ error: 'QuestDB is not available' });
     }
 
     if (anchorMs !== null) {
+      // Multiplier accounts for non-trading hours: 3x covers weekends + overnight gaps
+      // (was 10x which caused SAMPLE BY to scan 70+ days for a 10k bar request)
       const estimatedMinutesNeeded = rowLimit * tfMinutes * 3;
       effectiveStart = anchorMs - estimatedMinutesNeeded * 60_000;
     }
@@ -172,6 +189,12 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
       startTime: effectiveStart, endTime: effectiveEnd, limit: rowLimit,
       extra: isFuturesRoot(symbol) ? adjustment : undefined,
     });
+
+    // Bail out if client already disconnected (e.g. user switched symbols)
+    if (clientDisconnected) {
+      clearTimeout(routeTimeout);
+      return;
+    }
 
     const isFR = isFuturesRoot(symbol);
 
@@ -187,12 +210,30 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
       low: Number(r.low),
       close: Number(r.close),
       volume: Number(r.volume),
+      // Anatomy
+      body_magnitude: Number(r.body_magnitude || 0),
+      upper_wick_pct: Number(r.upper_wick_pct || 0),
+      lower_wick_pct: Number(r.lower_wick_pct || 0),
+      is_bullish: !!r.is_bullish,
       ...(r.activeContract ? { activeContract: r.activeContract } : {}),
     }));
     // Sort: QuestDB returns ASC; reverse if caller wants DESC
     if (orderDesc) data.reverse();
+    clearTimeout(routeTimeout);
+    if (res.headersSent) return; // route timeout already fired
+
+    // MessagePack binary response if client requests it (~50% smaller than JSON)
+    const accept = req.headers['accept'] || '';
+    if (accept.includes('application/msgpack')) {
+      const packed = msgpackEncode(data);
+      res.setHeader('Content-Type', 'application/msgpack');
+      return res.send(Buffer.from(packed));
+    }
+
     return res.json(data);
   } catch (error: any) {
+    clearTimeout(routeTimeout);
+    if (res.headersSent) return;
     console.error('[charts]', error.message);
     return res.status(500).json({ error: error.message });
   }

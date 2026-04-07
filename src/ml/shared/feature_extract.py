@@ -22,6 +22,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import polars as pl
 
 # ── Numba-accelerated kernels ─────────────────────────────────────────────
 
@@ -428,7 +429,7 @@ def extract_derived_features(
     df: pd.DataFrame,
     close: np.ndarray,
     config: dict | None = None,
-    n_jobs: int = -1,
+    n_jobs: int = 24,
 ) -> tuple[pd.DataFrame, list[str]]:
     """Apply config-driven derivation transforms to indicator columns.
 
@@ -537,9 +538,15 @@ def _load_from_cache(symbol: str, timeframe: str, max_bars: int, source: str) ->
     if not cache_path.exists() or not meta_path.exists():
         return None
 
-    # Check staleness (24h max age)
+    # Check staleness (24h max age) — delete stale files proactively
     age_hours = (time.time() - cache_path.stat().st_mtime) / 3600
     if age_hours > 24:
+        try:
+            cache_path.unlink(missing_ok=True)
+            meta_path.unlink(missing_ok=True)
+            print(f"[cache] Stale: deleted {cache_path.name} ({age_hours:.1f}h old)")
+        except OSError:
+            pass
         return None
 
     try:
@@ -576,32 +583,41 @@ def load_indicators_from_parquet(
     data_dir: str = "data",
     asset_class: str = "futures",
 ) -> pd.DataFrame:
-    """Load all pre-computed indicator parquets for a symbol/timeframe."""
-    import pyarrow.parquet as pq
-
+    """
+    Institutional-Grade parallel parquet loader using Polars.
+    Bypasses slow pandas concat for high-performance multi-threaded joining.
+    """
     base = Path(data_dir) / asset_class / symbol / timeframe
     if not base.exists():
         raise FileNotFoundError(f"No indicator data at {base}")
 
-    frames = []
-    for parquet_file in sorted(base.glob("*.parquet")):
-        if parquet_file.name.startswith("_"):
-            continue
-        table = pq.read_table(str(parquet_file))
-        frame = table.to_pandas()
-        frames.append(frame)
-
-    if not frames:
+    parquet_files = sorted([str(f) for f in base.glob("*.parquet") if not f.name.startswith("_")])
+    if not parquet_files:
         raise FileNotFoundError(f"No parquet files found in {base}")
 
-    merged = frames[0]
-    for frame in frames[1:]:
-        overlap = set(merged.columns) & set(frame.columns)
-        if overlap:
-            frame = frame.drop(columns=list(overlap), errors="ignore")
-        merged = pd.concat([merged, frame], axis=1)
+    # Use Polars to read and join all files in a single lazy graph
+    try:
+        # First file is the base
+        main_df = pl.read_parquet(parquet_files[0])
+        
+        # Join subsequent files on timestamp if available, otherwise horizontal concat
+        for pf in parquet_files[1:]:
+            next_df = pl.read_parquet(pf)
+            # Deduplicate columns (except timestamp)
+            overlap = set(main_df.columns) & set(next_df.columns)
+            if overlap:
+                next_df = next_df.drop([c for c in overlap if c != 'timestamp'])
+            
+            if 'timestamp' in main_df.columns and 'timestamp' in next_df.columns:
+                main_df = main_df.join(next_df, on='timestamp', how='left')
+            else:
+                main_df = pl.concat([main_df, next_df], how='horizontal')
 
-    return merged
+        return main_df.to_pandas()
+    except Exception as e:
+        print(f"[load_parquet] Polars load failed: {e}")
+        # Minimal fallback
+        return pd.concat([pd.read_parquet(f) for f in parquet_files], axis=1)
 
 
 def load_indicators_from_questdb(

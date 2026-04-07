@@ -1,10 +1,13 @@
-import { BarChart3 } from "lucide-react";
+import { useState, memo } from "react";
+import { BarChart3, TerminalSquare, MessageSquare } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import IndicatorChartLayout from "@/components/IndicatorChartLayout";
 import { ReplayControls } from "@/components/ReplayControls";
 import { TrainingSyncBanner } from "@/components/TrainingSyncBanner";
 import { RegimeLegend, type RegimeInfo } from "@/components/RegimeLegend";
 import { TerminalTabs } from "@/components/terminal/TerminalTabs";
+import { ChatTab } from "@/components/panels/chat/ChatTab";
 import type { LabelMarker } from "@/components/TradingChart";
 import type { PlaybackSpeed, PlaybackState } from "@/hooks/useLocalReplay";
 import type { OhlcvData } from "./types";
@@ -50,6 +53,7 @@ interface ChartPanelProps {
   // Infinite scroll
   useInfiniteScroll: boolean;
   onLoadMore: ((direction: 'left' | 'right', timestamp: number) => Promise<void>) | undefined;
+  onPrefetch?: (direction: 'left' | 'right', edgeTimestamp: number) => void;
   isLoadingMore: boolean;
   hasMoreLeft: boolean;
   hasMoreRight: boolean;
@@ -64,16 +68,18 @@ interface ChartPanelProps {
   predictionMarkers: any[];
 }
 
-export function ChartPanel({
+export const ChartPanel = memo(function ChartPanel({
   displayData, chartData, symbol, isFutures, timeframe,
   replay, trainingSync,
   regimeLegendInfo, selectedRegimes, onToggleRegime, onShowAllRegimes,
   regimeColorMap, trainTestSplitTime,
-  useInfiniteScroll, onLoadMore, isLoadingMore, hasMoreLeft, hasMoreRight,
+  useInfiniteScroll, onLoadMore, onPrefetch, isLoadingMore, hasMoreLeft, hasMoreRight,
   labelMarkers, indicatorOverlays, onRemoveIndicators,
   supportResistanceLevels, zigZagPoints, swingZigZagPoints,
   tradeMarkers, predictionMarkers,
 }: ChartPanelProps) {
+  const [bottomTab, setBottomTab] = useState("terminal");
+
   return (
     <ResizablePanelGroup direction="vertical" className="flex-1 min-h-0">
       {/* Chart panel */}
@@ -124,7 +130,7 @@ export function ChartPanel({
           )}
 
           {displayData.length > 0 ? (
-            <div className="flex-1 min-h-0 p-1 rounded-sm border border-border/30 m-0.5 bg-background/50">
+            <div className="flex-1 min-h-0 flex-1 min-h-0">
               <IndicatorChartLayout
                 data={displayData}
                 symbol={symbol}
@@ -132,6 +138,7 @@ export function ChartPanel({
                 timeframe={timeframe}
                 isReplayActive={replay.active}
                 onLoadMore={!replay.active && useInfiniteScroll ? onLoadMore : undefined}
+                onPrefetch={!replay.active && useInfiniteScroll ? onPrefetch : undefined}
                 isLoadingMore={isLoadingMore}
                 hasMoreLeft={!replay.active && hasMoreLeft}
                 hasMoreRight={!replay.active && hasMoreRight}
@@ -166,10 +173,29 @@ export function ChartPanel({
 
       <ResizableHandle className="bg-border/30 hover:bg-primary/20 data-[resize-handle-active]:bg-primary/30 transition-colors after:!h-1 after:!rounded-full after:!bg-muted-foreground/20 hover:after:!bg-primary/40" withHandle />
 
-      {/* Terminal panel */}
+      {/* Bottom panel — Terminal + Chat */}
       <ResizablePanel defaultSize={25} minSize={5} maxSize={60}>
-        <TerminalTabs />
+        <Tabs value={bottomTab} onValueChange={setBottomTab} className="h-full flex flex-col overflow-hidden">
+          <div className="flex items-center px-2 pt-1 pb-0.5 border-b border-white/[0.06] shrink-0">
+            <TabsList className="glass rounded-lg p-0.5 h-auto w-fit">
+              <TabsTrigger value="terminal" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-400 gap-1">
+                <TerminalSquare className="h-3 w-3" /> Terminal
+              </TabsTrigger>
+              <TabsTrigger value="chat" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-400 gap-1">
+                <MessageSquare className="h-3 w-3" /> Chat
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="terminal" className="flex-1 min-h-0 overflow-hidden mt-0">
+            <TerminalTabs visible={bottomTab === "terminal"} />
+          </TabsContent>
+
+          <TabsContent value="chat" className="flex-1 min-h-0 overflow-hidden mt-0">
+            <ChatTab />
+          </TabsContent>
+        </Tabs>
       </ResizablePanel>
     </ResizablePanelGroup>
   );
-}
+});

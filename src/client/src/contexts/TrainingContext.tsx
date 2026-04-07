@@ -70,6 +70,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     phase: state.phase,
     progress: state.progress,
     error: state.error,
+    sseError: state.sseError,
     startTraining: state.startTraining,
     stopTraining: state.stopTraining,
     selectedModelType: state.selectedModelType,
@@ -83,7 +84,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     modelId: state.modelId,
   }), [
     state.isTraining, state.isPending, state.phase, state.progress, state.error,
-    state.startTraining, state.stopTraining,
+    state.sseError, state.startTraining, state.stopTraining,
     state.selectedModelType, state.setSelectedModelType,
     state.availableModels, state.completedModelId, state.config,
     state.timeframeLabel, state.modelType, state.sessionId, state.modelId,
@@ -102,6 +103,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     totalBars: state.totalBars,
     dataRange: state.dataRange,
     diagnostics: state.diagnostics,
+    metricDeclarations: state.metricDeclarations,
     modelState: state.modelState,
     modelStateHistory: state.modelStateHistory,
   }), [
@@ -109,7 +111,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     state.liveRegimeTimestamps, state.liveRegimeAssignments,
     state.overlayData, state.overlayType,
     state.elapsedSec, state.totalBars, state.dataRange, state.diagnostics,
-    state.modelState, state.modelStateHistory,
+    state.metricDeclarations, state.modelState, state.modelStateHistory,
   ]);
 
   // ── Sub-slices: memoized independently so each context only triggers
@@ -133,10 +135,12 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     totalBars: state.totalBars,
     dataRange: state.dataRange,
     diagnostics: state.diagnostics,
+    metricDeclarations: state.metricDeclarations,
   }), [
     state.liveRegimeTimestamps, state.liveRegimeAssignments,
     state.overlayData, state.overlayType,
     state.elapsedSec, state.totalBars, state.dataRange, state.diagnostics,
+    state.metricDeclarations,
   ]);
 
   const modelStateSlice = useMemo<TrainingModelStateSlice>(() => ({

@@ -1,4 +1,4 @@
-﻿import { useRef, useState, useMemo, forwardRef, useImperativeHandle } from 'react';
+﻿import { useRef, useState, useMemo, useEffect, forwardRef, useImperativeHandle } from 'react';
 import type { LogicalRange } from 'lightweight-charts';
 
 import { futuresTickInfo, forexPipInfo, getBaseSymbol } from './chart/chartConfig';
@@ -18,6 +18,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
   isFutures,
   timeframe = 1,
   onLoadMore,
+  onPrefetch,
   isLoadingMore = false,
   hasMoreLeft = true,
   hasMoreRight = false,
@@ -71,8 +72,27 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     chartRef, candleSeriesRef, volumeSeriesRef,
     data, symbol, timeframe, isFutures,
     regimeColorMap, isReplayActive,
-    onLoadMore, isLoadingMore, hasMoreLeft, hasMoreRight,
+    onLoadMore, onPrefetch, isLoadingMore, hasMoreLeft, hasMoreRight,
   });
+
+  // Track active contract at crosshair position for futures rollover HUD
+  const [activeContract, setActiveContract] = useState<string | null>(null);
+
+  // Subscribe to crosshair to update activeContract from the map
+  useEffect(() => {
+    if (!chartRef.current || !isFutures || !processedData.activeContractMap?.size) return;
+    const chart = chartRef.current;
+    const contractMap = processedData.activeContractMap;
+
+    const handler = (param: any) => {
+      if (param.time) {
+        const contract = contractMap.get(param.time as number);
+        setActiveContract(contract ?? null);
+      }
+    };
+    chart.subscribeCrosshairMove(handler);
+    return () => { chart.unsubscribeCrosshairMove(handler); };
+  }, [chartRef, isFutures, processedData.activeContractMap]);
 
   useChartMarkers({
     candleSeriesRef,
@@ -142,6 +162,12 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
       {/* HUD overlay */}
       <div className="absolute top-2 left-2 flex items-center gap-3 text-[11px] font-mono bg-black/50 backdrop-blur-md rounded-lg px-3.5 py-2 border-l-2 border-l-primary/60 border border-white/[0.06] shadow-lg">
         <span className="text-primary font-bold text-xs tracking-wide">{symbol}</span>
+        {/* Active contract badge — shows which expiration is being charted at the crosshair */}
+        {isFutures && activeContract && activeContract !== symbol && (
+          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400/90 border border-amber-500/20 font-semibold tracking-wide">
+            {activeContract}
+          </span>
+        )}
         <span className="text-muted-foreground/70 text-[10px]">{tickOrPipLabel}</span>
         {priceInfo && (
           <>

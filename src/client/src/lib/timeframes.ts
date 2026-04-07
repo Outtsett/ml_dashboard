@@ -32,13 +32,13 @@ export const TF_LABELS: Record<number, string> = Object.fromEntries(
   TIMEFRAME_OPTIONS.map(t => [t.minutes, t.label]),
 );
 
-export const MAX_BARS_IN_MEMORY = 50_000;
+export const MAX_BARS_IN_MEMORY = 100_000;
 
 /** Adaptive fetch limit: scale down for higher timeframes. */
 export function getFetchLimit(timeframe: number): number {
-  if (timeframe <= 1) return 10000;
-  if (timeframe <= 5) return 5000;
-  if (timeframe <= 15) return 3000;
+  if (timeframe <= 1) return 50000;
+  if (timeframe <= 5) return 25000;
+  if (timeframe <= 15) return 15000;
   if (timeframe <= 30) return 2000;
   if (timeframe <= 60) return 1500;
   if (timeframe <= 240) return 1000;

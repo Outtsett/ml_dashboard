@@ -9,11 +9,16 @@ import path from 'path';
 // ── JSON config sub-schemas ──
 
 const HyperparamSchema = z.object({
-  value: z.number(),
-  min: z.number(),
-  max: z.number(),
-  step: z.number(),
+  type: z.enum(['int', 'float', 'bool']),
+  default: z.union([z.number(), z.boolean()]),
+  min: z.number().optional(),
+  max: z.number().optional(),
+  step: z.number().optional(),
   label: z.string(),
+  description: z.string().optional(),
+  group: z.string().optional(),
+  logScale: z.boolean().optional(),
+  conditionalOn: z.object({ param: z.string(), value: z.unknown() }).optional(),
 });
 
 const ModelSchema = z.object({
@@ -22,14 +27,33 @@ const ModelSchema = z.object({
   subcategory: z.string(),
   runner: z.string(),
   script: z.string(),
+  featurePipeline: z.string().optional(),
   outputs: z.array(z.string()),
   chartOverlay: z.string().optional(),
   outputDir: z.string(),
+  family: z.string().optional(),
+  gpuRequired: z.boolean().optional(),
+  estimatedTrainingTime: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  description: z.string().optional(),
+  supportedObjectives: z.array(z.string()).optional(),
+  cliFlags: z.record(z.string()).optional(),
   defaultHyperparameters: z.record(HyperparamSchema),
+  metricDeclarations: z.record(z.object({
+    renderer: z.string(),
+    mission: z.string(),
+    context: z.record(z.unknown()),
+    group: z.string().optional(),
+    order: z.number().optional(),
+  })).optional(),
 });
 
 const ModelsConfigSchema = z.object({
-  version: z.number(),
+  version: z.union([z.number(), z.string()]),
+  metadata: z.object({
+    organization: z.string(),
+    last_audit: z.string(),
+  }).optional(),
   models: z.record(ModelSchema),
 });
 
@@ -75,6 +99,7 @@ const TrainingConfigSchema = z.object({
     maxTrainingDurationSec: z.number(),
     jobRetentionSec: z.number(),
   }),
+  stderrSuppressPatterns: z.array(z.string()).optional(),
   timeframes: z.record(z.number()),
   timeframeAliases: z.record(z.string()),
 });

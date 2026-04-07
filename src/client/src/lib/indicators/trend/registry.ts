@@ -1,4 +1,4 @@
-import type { IndicatorDefinition } from '../../indicator_registry';
+﻿import type { IndicatorDefinition } from '../../indicator_registry';
 
 export const TREND_INDICATORS: IndicatorDefinition[] = [
   {
@@ -231,14 +231,15 @@ export const TREND_INDICATORS: IndicatorDefinition[] = [
     outputs: [{ key: 'value', label: 'Decay', style: 'line' }],
   },
   {
-    id: 'zigzag',
-    name: 'ZigZag',
-    fullName: 'ZigZag',
+    id: 'microstructure',
+    name: 'microstructure',
+    fullName: 'microstructure',
     category: 'trend',
     renderType: 'overlay',
     params: [
       { key: 'deviation', label: 'Deviation %', type: 'number', default: 5, min: 0.1, max: 50, step: 0.1 },
     ],
-    outputs: [{ key: 'value', label: 'ZigZag', style: 'line' }],
+    outputs: [{ key: 'value', label: 'microstructure', style: 'line' }],
   },
 ];
+

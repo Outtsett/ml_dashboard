@@ -16,6 +16,7 @@ import {
   Loader2,
   Activity,
   Gauge,
+  Monitor,
 } from "lucide-react";
 
 import {
@@ -24,6 +25,7 @@ import {
   ServerStatusTab,
   PreferencesTab,
   PerformanceTab,
+  DesktopTab,
   ServerConfig,
   Preferences,
   ConnectionTestResult,
@@ -117,6 +119,10 @@ export default function Settings() {
             <Gauge className="h-3.5 w-3.5" />
             Performance
           </TabsTrigger>
+          <TabsTrigger value="desktop" className="gap-1.5">
+            <Monitor className="h-3.5 w-3.5" />
+            Desktop
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="database">
@@ -150,6 +156,14 @@ export default function Settings() {
 
         <TabsContent value="performance">
           <PerformanceTab metrics={speedMetrics} />
+        </TabsContent>
+
+        <TabsContent value="desktop">
+          <DesktopTab
+            getPref={getPref}
+            savePreference={savePreference}
+            saving={saveMutation.isPending}
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -17,7 +17,7 @@ import { CATEGORY_LABELS } from './types';
 // ─── Config (could later come from env / config file) ───────────────────────
 
 const DEFAULT_ROOT = path.resolve(
-  process.env.ALGO_MODELS_ROOT ?? 'E:/source/documents/algo_models',
+  process.env.ALGO_MODELS_ROOT ?? 'E:/documents/algo_models',
 );
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 

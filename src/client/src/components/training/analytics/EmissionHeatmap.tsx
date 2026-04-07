@@ -9,22 +9,22 @@ import { memo, useMemo, useCallback, useState, useRef, useEffect } from "react";
 import { useTrainingModelState } from "@/contexts/TrainingModelStateCtx";
 import { ChartCard } from "./shared";
 
-/** Diverging blue-white-red: val in [-1, 1] */
+/** Diverging blue-neutral-red with dark-theme-friendly midpoint */
 function divergingColor(val: number): string {
   const clamped = Math.max(-1, Math.min(1, val));
   if (clamped >= 0) {
-    // white to red
+    // neutral dark → vibrant red/amber
     const t = clamped;
-    const r = 255;
-    const g = Math.round(255 * (1 - t));
-    const b = Math.round(255 * (1 - t));
+    const r = Math.round(40 + 215 * t);
+    const g = Math.round(44 + 40 * Math.max(0, t - 0.5) * 2);
+    const b = Math.round(52 * (1 - t));
     return `rgb(${r},${g},${b})`;
   } else {
-    // blue to white
+    // vibrant blue/cyan → neutral dark
     const t = -clamped;
-    const r = Math.round(255 * (1 - t));
-    const g = Math.round(255 * (1 - t));
-    const b = 255;
+    const r = Math.round(40 * (1 - t));
+    const g = Math.round(44 + 140 * t);
+    const b = Math.round(52 + 203 * t);
     return `rgb(${r},${g},${b})`;
   }
 }
@@ -133,7 +133,7 @@ function EmissionHeatmapInner() {
               textAnchor="end"
               fontSize={7}
               fontFamily="monospace"
-              fill="rgba(255,255,255,0.35)"
+              fill="rgba(255,255,255,0.55)"
               transform={`rotate(-45 ${labelWidth + j * cellW + cellW / 2} ${labelHeight - 4})`}
             >
               {name.length > 10 ? name.slice(0, 9) + "\u2026" : name}
@@ -149,8 +149,10 @@ function EmissionHeatmapInner() {
                 y={labelHeight + i * cellH}
                 width={cellW - 1}
                 height={cellH - 1}
-                rx={1}
+                rx={2}
                 fill={divergingColor(val)}
+                stroke="rgba(255,255,255,0.06)"
+                strokeWidth={0.5}
                 onMouseMove={(e) =>
                   handleMouseMove(e, i, j, rawMatrix[i]?.[j] ?? val)
                 }
@@ -169,7 +171,7 @@ function EmissionHeatmapInner() {
               textAnchor="end"
               fontSize={8}
               fontFamily="monospace"
-              fill="rgba(255,255,255,0.5)"
+              fill="rgba(255,255,255,0.7)"
             >
               R{i}
             </text>
@@ -198,13 +200,13 @@ function EmissionHeatmapInner() {
                     />
                   );
                 })}
-                <text x={lx + lw + 3} y={ly + 6} fontSize={7} fontFamily="monospace" fill="rgba(255,255,255,0.4)">
+                <text x={lx + lw + 3} y={ly + 6} fontSize={7} fontFamily="monospace" fill="rgba(255,255,255,0.6)">
                   +
                 </text>
-                <text x={lx + lw + 3} y={ly + lh / 2 + 3} fontSize={7} fontFamily="monospace" fill="rgba(255,255,255,0.4)">
+                <text x={lx + lw + 3} y={ly + lh / 2 + 3} fontSize={7} fontFamily="monospace" fill="rgba(255,255,255,0.6)">
                   0
                 </text>
-                <text x={lx + lw + 3} y={ly + lh} fontSize={7} fontFamily="monospace" fill="rgba(255,255,255,0.4)">
+                <text x={lx + lw + 3} y={ly + lh} fontSize={7} fontFamily="monospace" fill="rgba(255,255,255,0.6)">
                   -
                 </text>
               </>
@@ -215,7 +217,7 @@ function EmissionHeatmapInner() {
         {/* Floating tooltip */}
         {tooltip && (
           <div
-            className="fixed z-50 pointer-events-none bg-black/90 border border-white/10 rounded px-2 py-1 text-[10px] font-mono text-white"
+            className="fixed z-50 pointer-events-none bg-black/95 border border-white/15 rounded-md px-2.5 py-1.5 text-[10px] font-mono text-white shadow-lg backdrop-blur-sm"
             style={{
               left: tooltip.x,
               top: tooltip.y - 30,

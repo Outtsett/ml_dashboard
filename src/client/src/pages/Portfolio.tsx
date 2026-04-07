@@ -183,13 +183,10 @@ export default function Portfolio() {
             <Activity className="h-4 w-4 text-violet-400" />
             <span className="text-sm font-mono text-violet-300">{openPositionsCount} Open Positions</span>
           </div>
-          <Button
-            className="h-10 px-5 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 text-white font-medium hover:brightness-110 transition-all"
-            data-testid="button-new-order"
-            onClick={() => alert('Manual order entry coming soon')}
-          >
-            <Target className="mr-2 h-4 w-4" /> New Order
-          </Button>
+          <div className="bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 rounded-xl px-4 py-2 border border-cyan-500/20 flex items-center gap-2">
+            <Target className="h-4 w-4 text-cyan-400" />
+            <span className="text-sm font-mono text-cyan-300">Orders via MotiveWave</span>
+          </div>
         </div>
       </div>
 

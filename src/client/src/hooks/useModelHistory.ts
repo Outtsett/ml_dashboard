@@ -19,11 +19,11 @@ interface ModelHistoryEntry {
 export function useModelHistory(symbol: string | null, modelType: string | null) {
   return useQuery<{ sessions: ModelHistoryEntry[] }>({
     queryKey: ["modelHistory", symbol, modelType],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const params = new URLSearchParams();
       if (symbol) params.set("symbol", symbol);
       if (modelType) params.set("modelType", modelType);
-      const res = await fetch(`/api/training/history?${params}`);
+      const res = await fetch(`/api/training/history?${params}`, { signal });
       if (!res.ok) throw new Error("Failed to fetch model history");
       return res.json();
     },

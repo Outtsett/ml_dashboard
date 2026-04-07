@@ -32,8 +32,8 @@ interface RegimeModelsResponse {
 export function useRegimeModels(isTraining = false) {
   const query = useQuery<RegimeModelsResponse>({
     queryKey: [...QUERY_KEYS.regimeModels],
-    queryFn: async () => {
-      const res = await fetch('/api/training/models');
+    queryFn: async ({ signal }) => {
+      const res = await fetch('/api/training/models', { signal });
       if (!res.ok) throw new Error('Failed to load regime models');
       return res.json();
     },
@@ -51,8 +51,8 @@ export function useRegimeModels(isTraining = false) {
 export function useRegimeDiagnostics(modelId: string | null) {
   return useQuery<Diagnostics>({
     queryKey: [...QUERY_KEYS.regimeDiagnostics(modelId || '')],
-    queryFn: async () => {
-      const res = await fetch(`/api/training/models/${modelId}/diagnostics`);
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`/api/training/models/${modelId}/diagnostics`, { signal });
       if (!res.ok) throw new Error('Failed to load diagnostics');
       return res.json();
     },
@@ -66,8 +66,8 @@ export function useRegimeDiagnostics(modelId: string | null) {
 export function useRegimeConvergence(modelId: string | null) {
   return useQuery<Record<string, ConvergencePoint[]> | null>({
     queryKey: [...QUERY_KEYS.regimeConvergence(modelId || '')],
-    queryFn: async () => {
-      const res = await fetch(`/api/training/models/${modelId}/convergence`);
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`/api/training/models/${modelId}/convergence`, { signal });
       if (!res.ok) return null;
       return res.json();
     },
@@ -98,8 +98,8 @@ export function useRegimeAssignments(modelId: string | null, opts?: { enabled?: 
   const limit = opts?.limit ?? 100000;
   return useQuery<RegimeAssignmentsResponse>({
     queryKey: [...QUERY_KEYS.regimeAssignments(modelId || ''), 'chart'],
-    queryFn: async () => {
-      const res = await fetch(`/api/training/models/${modelId}/assignments?limit=${limit}`);
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`/api/training/models/${modelId}/assignments?limit=${limit}`, { signal });
       if (!res.ok) throw new Error('Failed to load regime assignments');
       return res.json();
     },
@@ -113,8 +113,8 @@ export function useRegimeAssignments(modelId: string | null, opts?: { enabled?: 
 export function useRegimeTrainStatus(isTraining = false) {
   return useQuery({
     queryKey: [...QUERY_KEYS.regimeTrainStatus],
-    queryFn: async () => {
-      const res = await fetch('/api/training/status');
+    queryFn: async ({ signal }) => {
+      const res = await fetch('/api/training/status', { signal });
       if (!res.ok) return null;
       return res.json();
     },

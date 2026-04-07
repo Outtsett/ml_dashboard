@@ -29,10 +29,10 @@ interface EvaluationStageSummary {
 export function useEvaluationResults(sessionId: number | null, stage?: string) {
   return useQuery<{ results: EvaluationResultRow[] }>({
     queryKey: ["evaluationResults", sessionId, stage],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const params = new URLSearchParams();
       if (stage) params.set("stage", stage);
-      const res = await fetch(`/api/training/sessions/${sessionId}/evaluation?${params}`);
+      const res = await fetch(`/api/training/sessions/${sessionId}/evaluation?${params}`, { signal });
       if (!res.ok) throw new Error("Failed to fetch evaluation results");
       return res.json();
     },
@@ -43,8 +43,8 @@ export function useEvaluationResults(sessionId: number | null, stage?: string) {
 export function useEvaluationSummary(sessionId: number | null) {
   return useQuery<{ summary: EvaluationStageSummary[] }>({
     queryKey: ["evaluationSummary", sessionId],
-    queryFn: async () => {
-      const res = await fetch(`/api/training/sessions/${sessionId}/evaluation/summary`);
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`/api/training/sessions/${sessionId}/evaluation/summary`, { signal });
       if (!res.ok) throw new Error("Failed to fetch evaluation summary");
       return res.json();
     },

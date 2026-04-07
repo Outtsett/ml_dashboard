@@ -9,10 +9,16 @@ export default defineConfig({
     testTimeout: 30000,
     pool: 'forks',
     reporters: ['default'],
+    // Component tests use jsdom via inline environment pragma:
+    //   // @vitest-environment jsdom
+    environmentMatchGlobs: [
+      ['tests/client/**/*.test.tsx', 'jsdom'],
+      ['tests/client/**/*.test.ts', 'jsdom'],
+    ],
     coverage: {
       provider: 'v8',
-      include: ['src/server/**/*.ts', 'src/shared/**/*.ts'],
-      exclude: ['**/*.test.ts', '**/types.ts', '**/*.d.ts'],
+      include: ['src/server/**/*.ts', 'src/shared/**/*.ts', 'src/client/src/**/*.tsx'],
+      exclude: ['**/*.test.ts', '**/*.test.tsx', '**/types.ts', '**/*.d.ts'],
       thresholds: {
         statements: 30,
         branches: 30,

@@ -22,6 +22,7 @@ export interface TrainingSSECallbacks {
   onOverlay(data: any): void;
   onLog(data: any): void;
   onModelState(data: any): void;
+  onMetricDeclarations(data: any): void;
   onDone(data: any): void;
   onError(data: any): void;
 }
@@ -53,8 +54,13 @@ export function useTrainingSSE(callbacks: TrainingSSECallbacks): UseTrainingSSER
     metric:      (d) => cbRef.current.onMetric(d),
     overlay:     (d) => cbRef.current.onOverlay(d),
     log:         (d) => cbRef.current.onLog(d),
-    model_state: (d) => cbRef.current.onModelState(d),
-    done:        (d) => cbRef.current.onDone(d),
+    model_state:          (d) => cbRef.current.onModelState(d),
+    metric_declarations:  (d) => cbRef.current.onMetricDeclarations(d),
+    hpo_trial_start:      (d) => cbRef.current.onLog({ message: `HPO trial ${(d as any)?.trialNumber} started`, level: 'info' }),
+    hpo_trial_done:       (d) => cbRef.current.onMetric(d),
+    fold_start:           (d) => cbRef.current.onLog({ message: `Fold ${(d as any)?.foldIndex}/${(d as any)?.totalFolds} started`, level: 'info' }),
+    fold_done:            (d) => cbRef.current.onMetric(d),
+    done:                 (d) => cbRef.current.onDone(d),
     error:       (d) => cbRef.current.onError(d),
   }), []);
 

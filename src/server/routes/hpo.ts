@@ -23,7 +23,7 @@ import {
   getSessionResults,
   listPastSessions,
   applyBestParams,
-} from "../training/hpo.service";
+} from "../training/hpo";
 import { hpoRequestSchema } from "@shared/hpoTypes";
 
 const router = Router();

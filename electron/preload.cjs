@@ -11,7 +11,7 @@ const ALLOWED_STORE_KEYS = [
   'theme', 'windowState', 'windowBounds', 'sidebarCollapsed',
   'lastSymbol', 'lastTimeframe', 'recentSymbols', 'settings',
   'motiveWaveConfig', 'terminalSessions', 'chartLayout',
-  'betaMode', 'devToolsEnabled', 'fontSize', 'zoomFactor', 'locale', 'lastRoute',
+  'betaMode', 'devToolsEnabled', 'fontSize', 'zoomFactor', 'locale', 'lastRoute', 'autoLaunch', 'minimizeToTray',
 ];
 
 contextBridge.exposeInMainWorld("electronAPI", {
@@ -76,6 +76,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // App info
   getVersion: () => ipcRenderer.invoke("app:version"),
   getPath: (name) => ipcRenderer.invoke("app:path", name),
+  getAutoLaunch: () => ipcRenderer.invoke("app:get-auto-launch"),
+  setAutoLaunch: (flag) => ipcRenderer.invoke("app:set-auto-launch", flag),
   openExternal: (url) => ipcRenderer.send("app:open-external", url),
   openLogsFolder: () => ipcRenderer.send("app:open-logs"),
   relaunch: () => ipcRenderer.send("app:relaunch"),

@@ -18,12 +18,13 @@ import {
   getModelById,
   refreshCatalog,
 } from '../lib/modelImport';
+import { CACHE_SEMI } from '../cache/headers';
 
 const router = Router();
 
 // ─── GET /model-catalog/stats ───────────────────────────────────────────────
 
-router.get('/model-catalog/stats', (_req: Request, res: Response) => {
+router.get('/model-catalog/stats', CACHE_SEMI, (_req: Request, res: Response) => {
   try {
     res.json(getCatalogStats());
   } catch (error: any) {
@@ -33,7 +34,7 @@ router.get('/model-catalog/stats', (_req: Request, res: Response) => {
 
 // ─── GET /model-catalog/taxonomy ────────────────────────────────────────────
 
-router.get('/model-catalog/taxonomy', (_req: Request, res: Response) => {
+router.get('/model-catalog/taxonomy', CACHE_SEMI, (_req: Request, res: Response) => {
   try {
     res.json(getCatalogTaxonomy());
   } catch (error: any) {

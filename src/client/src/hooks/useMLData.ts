@@ -27,8 +27,8 @@ export function useMLModels() {
 export function useMLTrades(limit = 50) {
   return useQuery<Trade[]>({
     queryKey: [...QUERY_KEYS.mlTrades],
-    queryFn: async () => {
-      const res = await fetch(`/api/ml/trades?limit=${limit}`);
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`/api/ml/trades?limit=${limit}`, { signal });
       if (!res.ok) return [];
       const data = await res.json();
       return Array.isArray(data) ? data : [];

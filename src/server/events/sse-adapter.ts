@@ -6,7 +6,7 @@ import type { EventBus } from './event-bus';
 export type SSEChannel = 'pipeline' | 'training' | 'system';
 
 const CHANNEL_PATTERNS: Record<SSEChannel, string[]> = {
-  pipeline: ['pipeline.'],
+  pipeline: ['pipeline.', 'market.'],
   training: ['training.'],
   system: ['cache.', 'system.', 'model.', 'ingestion.'],
 };

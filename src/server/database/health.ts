@@ -58,9 +58,9 @@ export async function checkSqliteHealth(): Promise<DatabaseHealthStatus> {
 
 export async function checkQuestDBHealth(): Promise<DatabaseHealthStatus> {
   const breaker = getCircuitBreaker('questdb', {
-    failureThreshold: 2,
-    timeout: 3000,
-    resetTimeout: 60000
+    failureThreshold: 3,
+    timeout: 15000, // 15s timeout to accommodate 10s health check + safety
+    resetTimeout: 30000
   });
 
   const startTime = Date.now();

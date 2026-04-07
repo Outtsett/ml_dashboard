@@ -171,10 +171,10 @@ export async function getQuestDBRowCount(symbol: string): Promise<number> {
   }
 
   try {
-    const { queryQuestDB } = await import(".");
+    const { queryQuestDBFast } = await import(".");
     const result = await questdbCircuit.execute(async () => {
       const sql = `SELECT COUNT(*) as cnt FROM ohlcv WHERE symbol = '${safeSymbol}'`;
-      return queryQuestDB(sql);
+      return queryQuestDBFast(sql);
     });
     return result[0]?.cnt || 0;
   } catch (error) {

@@ -10,19 +10,20 @@ import Layout from "@/components/Layout";
 import { BreadcrumbProvider } from "@/hooks/useBreadcrumbs";
 import { UnifiedDashboardProvider } from "@/contexts/UnifiedDashboardContext";
 import { TrainingProvider } from "@/contexts/TrainingContext";
+import { ChatProvider } from "@/contexts/ChatContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
   DataGridSkeleton,
   ChartSkeleton,
   PageLoader
 } from "@/components/LoadingSkeletons";
-import { prefetchCriticalData } from "./lib/prefetch";
+import { prefetchCriticalData, registerComponentFactory } from "./lib/prefetch";
 import { useWebVitals } from './hooks/useWebVitals';
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
 import { useNativeMenu } from '@/hooks/useNativeMenu';
 import { CommandPalette } from "@/components/CommandPalette";
 
-// Retry wrapper for dynamic imports � handles stale chunks after HMR updates
+// Retry wrapper for dynamic imports ï¿½ handles stale chunks after HMR updates
 function lazyRetry(
   factory: () => Promise<{ default: ComponentType<any> }>,
   name: string,
@@ -31,30 +32,68 @@ function lazyRetry(
   return lazy(() =>
     factory().catch((err: Error) => {
       if (retries > 0 && /dynamically imported module|fetch/i.test(err.message)) {
-        console.warn(`[beta] Chunk stale for ${name}, retrying (${retries} left)�`);
+        console.warn(`[beta] Chunk stale for ${name}, retrying (${retries} left)ï¿½`);
         return new Promise<{ default: ComponentType<any> }>((resolve) =>
           setTimeout(() => resolve(lazyRetry(factory, name, retries - 1) as any), 800),
         );
       }
-      // Final retry failed � force full reload to pick up new manifest
-      console.error(`[beta] Chunk load failed for ${name} after retries, reloading�`);
+      // Final retry failed ï¿½ force full reload to pick up new manifest
+      console.error(`[beta] Chunk load failed for ${name} after retries, reloadingï¿½`);
       window.location.reload();
       return { default: (() => null) as unknown as ComponentType<any> };
     }),
   );
 }
 
-const MarketData = lazyRetry(() => import("@/pages/MarketData"), "MarketData");
-const Portfolio = lazyRetry(() => import("@/pages/Portfolio"), "Portfolio");
-const Databases = lazyRetry(() => import("@/pages/Databases"), "Databases");
-const Watchlist = lazyRetry(() => import("@/pages/Watchlist"), "Watchlist");
-const News = lazyRetry(() => import("@/pages/News"), "News");
-const MLStudio = lazyRetry(() => import("@/pages/MLStudio"), "MLStudio");
-const ModelCatalog = lazyRetry(() => import("@/pages/ModelCatalog"), "ModelCatalog");
-const FourierTransform = lazyRetry(() => import("@/pages/FourierTransform"), "FourierTransform");
-const ArchitectureExplorer = lazyRetry(() => import("@/pages/ArchitectureExplorer"), "ArchitectureExplorer");
-const Settings = lazyRetry(() => import("@/pages/Settings"), "Settings");
-const Gpu = lazyRetry(() => import("@/pages/Gpu"), "Gpu");
+const MarketDataFactory = () => import("@/pages/MarketData");
+const MarketData = lazyRetry(MarketDataFactory, "MarketData");
+registerComponentFactory("/", MarketDataFactory);
+
+const PortfolioFactory = () => import("@/pages/Portfolio");
+const Portfolio = lazyRetry(PortfolioFactory, "Portfolio");
+registerComponentFactory("/portfolio", PortfolioFactory);
+
+const DatabasesFactory = () => import("@/pages/Databases");
+const Databases = lazyRetry(DatabasesFactory, "Databases");
+registerComponentFactory("/databases", DatabasesFactory);
+
+const WatchlistFactory = () => import("@/pages/Watchlist");
+const Watchlist = lazyRetry(WatchlistFactory, "Watchlist");
+registerComponentFactory("/watchlist", WatchlistFactory);
+
+const NewsFactory = () => import("@/pages/News");
+const News = lazyRetry(NewsFactory, "News");
+registerComponentFactory("/news", NewsFactory);
+
+const MLStudioFactory = () => import("@/pages/MLStudio");
+const MLStudio = lazyRetry(MLStudioFactory, "MLStudio");
+registerComponentFactory("/ml-studio", MLStudioFactory);
+
+const TerminalsFactory = () => import("@/pages/Terminals");
+const Terminals = lazyRetry(TerminalsFactory, "Terminals");
+registerComponentFactory("/terminals", TerminalsFactory);
+
+const HardwareFactory = () => import("@/pages/Hardware");
+const Hardware = lazyRetry(HardwareFactory, "Hardware");
+registerComponentFactory("/hardware", HardwareFactory);
+
+
+const ModelCatalogFactory = () => import("@/pages/ModelCatalog");
+const ModelCatalog = lazyRetry(ModelCatalogFactory, "ModelCatalog");
+registerComponentFactory("/model-catalog", ModelCatalogFactory);
+
+const FourierTransformFactory = () => import("@/pages/FourierTransform");
+const FourierTransform = lazyRetry(FourierTransformFactory, "FourierTransform");
+registerComponentFactory("/fourier", FourierTransformFactory);
+
+const ArchitectureExplorerFactory = () => import("@/pages/ArchitectureExplorer");
+const ArchitectureExplorer = lazyRetry(ArchitectureExplorerFactory, "ArchitectureExplorer");
+registerComponentFactory("/architecture", ArchitectureExplorerFactory);
+
+const SettingsFactory = () => import("@/pages/Settings");
+const Settings = lazyRetry(SettingsFactory, "Settings");
+registerComponentFactory("/settings", SettingsFactory);
+
 const NotFound = lazyRetry(() => import("@/pages/not-found"), "NotFound");
 
 /**
@@ -81,7 +120,7 @@ function Router() {
         <AppRoute path="/" component={MarketData} fallback={<ChartSkeleton />} />
         
         <Route path="/ml-hub">
-          <Redirect to="/" />
+          <Redirect to="/ml-studio" />
         </Route>
         
         <AppRoute path="/portfolio" component={Portfolio} fallback={<DataGridSkeleton />} />
@@ -93,7 +132,10 @@ function Router() {
         <AppRoute path="/model-catalog" component={ModelCatalog} />
         <AppRoute path="/fourier" component={FourierTransform} />
         <AppRoute path="/architecture" component={ArchitectureExplorer} />
-        <AppRoute path="/gpu" component={Gpu} />
+        
+        <AppRoute path="/terminals" component={Terminals} />
+        <AppRoute path="/hardware" component={Hardware} />
+        
         <AppRoute path="/settings" component={Settings} />
         
         {/* Catch-all */}
@@ -160,12 +202,14 @@ function App() {
       <TooltipProvider>
         <UnifiedDashboardProvider>
           <TrainingProvider>
+            <ChatProvider>
             <BreadcrumbProvider>
               <Toaster />
               <SonnerToaster richColors position="bottom-right" />
               <CommandPalette />
               <Router />
             </BreadcrumbProvider>
+            </ChatProvider>
           </TrainingProvider>
         </UnifiedDashboardProvider>
       </TooltipProvider>
@@ -174,3 +218,6 @@ function App() {
 }
 
 export default App;
+
+
+

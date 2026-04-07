@@ -16,13 +16,14 @@ export type TrainerRunner = 'python';
 // ─── Config File Shapes (mirrors config/*.json) ─────────────────────────────
 
 export interface HyperparameterDef {
-  value: number;
-  min: number;
-  max: number;
-  step: number;
+  /** Default value for this hyperparameter */
+  default: number | boolean;
+  min?: number;
+  max?: number;
+  step?: number;
   label: string;
-  /** Parameter data type (default inferred from step: step>=1 → int, else float) */
-  type?: 'int' | 'float' | 'categorical' | 'bool';
+  /** Parameter data type */
+  type: 'int' | 'float' | 'categorical' | 'bool';
   /** Whether to sample in log space during HPO */
   logScale?: boolean;
   /** Valid choices for categorical parameters */
@@ -76,6 +77,14 @@ export interface ModelRegistryEntry {
   supportedObjectives?: string[];
   /** Reference to model-templates.json */
   templateId?: string;
+  /** Self-describing metric declarations — defines what metrics this model produces */
+  metricDeclarations?: Record<string, {
+    renderer: string;
+    mission: string;
+    context: Record<string, unknown>;
+    group?: string;
+    order?: number;
+  }>;
 }
 
 export interface ModelRegistry {
@@ -143,12 +152,53 @@ export type TrainingEventType =
   | 'hpo-best-update'
   | 'hpo-complete'
   | 'model_state'
-  | 'sampler_diagnostics';
+  | 'sampler_diagnostics'
+  | 'metric_declarations'
+  | 'hpo_trial_start'
+  | 'hpo_trial_done'
+  | 'fold_start'
+  | 'fold_done'
+  | 'checkpoint_registered';
 
 export interface TrainingEvent {
   type: TrainingEventType;
   data: Record<string, unknown>;
   ts: number;
+}
+
+// ─── Surface3D Types (loss-landscape visualization) ─────────────────────────
+
+/** 3D trajectory point from PCA-projected weight space */
+export interface Surface3DTrajectoryPoint {
+  pc1: number;
+  pc2: number;
+  loss: number;
+  epoch: number;
+}
+
+/** Live trajectory data emitted per epoch during training */
+export interface Surface3DTrajectoryData {
+  points: Surface3DTrajectoryPoint[];
+  explained_variance: number[];
+}
+
+/** Surface diagnostics computed from the loss grid */
+export interface Surface3DDiagnostics {
+  sharpness: number;
+  condition_number: number;
+  valley_width: number;
+  locally_convex: boolean;
+}
+
+/** Post-training loss surface grid data (Li et al. 2018) */
+export interface Surface3DGridData {
+  alphas: number[];
+  betas: number[];
+  losses: number[][];
+  resolution: number;
+  range: [number, number];
+  trajectory_3d?: [number, number, number][];
+  diagnostics: Surface3DDiagnostics;
 }
 
 // ── training:started — chart alignment info
@@ -328,6 +378,8 @@ export interface TrainingSession {
   exitCode: number | null;
   /** SQLite row ID for metric persistence and session finalization */
   dbSessionId?: number;
+  /** Set by parser when it handles a 'done' event — prevents pythonRunner from emitting a duplicate */
+  parserHandledDone?: boolean;
 }
 
 /** Shape of the diagnostics JSON written by Python training scripts */
@@ -382,6 +434,8 @@ export interface TrainingState {
   error: string | null;
   completedModelId: string | null;
   diagnostics: unknown | null;
+  /** Self-describing metric declarations emitted at training start (renderer hints) */
+  metricDeclarations: Record<string, unknown> | null;
   elapsedSec: number;
 
   // Actions
@@ -396,6 +450,8 @@ export interface TrainingControl {
   phase: string;
   progress: number;
   error: string | null;
+  /** SSE connection error (reconnect failures, connection lost) */
+  sseError: string | null;
   startTraining: (request: TrainingRequest) => Promise<void>;
   stopTraining: () => void;
   selectedModelType: string;
@@ -422,6 +478,7 @@ export interface TrainingLive {
   totalBars: number;
   dataRange: { start: string; end: string } | null;
   diagnostics: unknown | null;
+  metricDeclarations: Record<string, unknown> | null;
   modelState: ModelStatePayload | null;
   modelStateHistory: Array<{ iteration: number; state: ModelStatePayload }>;
 }
@@ -450,6 +507,8 @@ export interface TrainingOverlaysSlice {
   totalBars: number;
   dataRange: { start: string; end: string } | null;
   diagnostics: unknown | null;
+  /** Self-describing metric declarations emitted at training start (renderer hints) */
+  metricDeclarations: Record<string, unknown> | null;
 }
 
 /** Model state sub-slice — full model snapshots. Updates every 25-50 iterations. */

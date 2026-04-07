@@ -332,10 +332,18 @@ export function getFitLevel(llPerBar: number): number {
 
 // ─── Chart Constants ─────────────────────────────────────────────────────────
 
-export const CHART_GRID = { strokeDasharray: '3 3', stroke: 'hsla(260, 30%, 30%, 0.2)' } as const;
-export const CHART_AXIS = { stroke: 'hsl(var(--muted-foreground))', fontSize: 9, tickLine: false } as const;
+export const CHART_GRID = { strokeDasharray: '3 3', stroke: 'hsla(220, 20%, 30%, 0.15)' } as const;
+export const CHART_AXIS = { stroke: 'hsla(220, 10%, 60%, 0.8)', fontSize: 10, tickLine: false } as const;
 export const CHART_TOOLTIP = {
-  contentStyle: { backgroundColor: 'hsla(250, 25%, 14%, 0.95)', borderRadius: '8px', fontSize: '10px', border: 'none' },
+  contentStyle: {
+    backgroundColor: 'hsla(220, 20%, 10%, 0.95)',
+    backdropFilter: 'blur(12px)',
+    borderRadius: '6px',
+    fontSize: '11px',
+    border: '1px solid hsla(220, 15%, 25%, 0.4)',
+    boxShadow: '0 8px 32px -8px hsla(220, 30%, 5%, 0.6)',
+    color: 'hsla(220, 10%, 90%, 0.9)',
+  },
 } as const;
 
 // ─── Table Constants ─────────────────────────────────────────────────────────

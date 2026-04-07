@@ -473,7 +473,7 @@ recalculate(DataContext)      → full recalculation
 
 ## 8. ML Bridge Extensions
 
-Located at `E:\source\MotiveWave\Extensions\mlbridge\`:
+Located at `E:\MotiveWave\Extensions\mlbridge\`:
 
 ### DataStreamStudy
 

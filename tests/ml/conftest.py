@@ -1,7 +1,16 @@
 """Shared fixtures for ML tests."""
 
+import pathlib
+import sys
+
 import numpy as np
 import pytest
+
+# Ensure src/ml is on sys.path so `from shared.protocol import ...` resolves
+# to src/ml/shared/protocol.py (the production ML protocol module).
+_src_ml = str(pathlib.Path(__file__).resolve().parent.parent.parent / "src" / "ml")
+# Always insert — pytest may have added a different string form for the same path
+sys.path.insert(0, _src_ml)
 
 
 @pytest.fixture

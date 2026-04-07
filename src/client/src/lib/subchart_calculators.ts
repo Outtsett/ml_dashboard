@@ -90,7 +90,8 @@ export function computeSubchart(
 
   const stochrsiM = col.match(/^STOCHRSI_(\d+)$/);
   if (!values && stochrsiM) {
-    const r = calcStochRSI(closes, +stochrsiM[1]!);
+    const period = +stochrsiM[1]!;
+    const r = calcStochRSI(closes, period, period, 3, 3);
     values = r.k;
   }
 

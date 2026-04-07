@@ -1,5 +1,5 @@
-/**
- * PTY WebSocket Server — Multi-session
+﻿/**
+ * PTY WebSocket Server â€” Multi-session
  *
  * Spawns real pseudo-terminals (PowerShell on Windows, bash elsewhere)
  * and bridges them to the browser over WebSocket connections.
@@ -7,14 +7,14 @@
  * Each terminal tab gets its own session identified by ID in the URL:
  *   /ws/terminal/:sessionId
  *
- * Sessions survive browser disconnects — reconnecting to the same ID
+ * Sessions survive browser disconnects â€” reconnecting to the same ID
  * restores the scrollback buffer.
  *
  * Also exposes a REST API for session management:
- *   GET    /api/terminal/sessions       — list active sessions
- *   POST   /api/terminal/sessions       — create a new session (returns { id })
- *   DELETE  /api/terminal/sessions/:id  — kill a session
- *   PATCH  /api/terminal/sessions/:id   — rename a session
+ *   GET    /api/terminal/sessions       â€” list active sessions
+ *   POST   /api/terminal/sessions       â€” create a new session (returns { id })
+ *   DELETE  /api/terminal/sessions/:id  â€” kill a session
+ *   PATCH  /api/terminal/sessions/:id   â€” rename a session
  */
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "http";
@@ -24,7 +24,7 @@ import * as pty from "node-pty";
 import os from "os";
 import { log } from "../lib/log";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface PtySession {
   id: string;
@@ -43,7 +43,7 @@ interface PtySession {
   idleTimer: ReturnType<typeof setTimeout>;
 }
 
-/** Messages from client → server */
+/** Messages from client â†’ server */
 interface ClientMessage {
   type: "input" | "resize";
   data?: string;
@@ -51,27 +51,39 @@ interface ClientMessage {
   rows?: number;
 }
 
-// ── State ────────────────────────────────────────────────────────────────────
+// â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-const MAX_SCROLLBACK = 100_000;
+const MAX_SCROLLBACK = 500_000;
 const MAX_SESSIONS = parseInt(process.env.MAX_PTY_SESSIONS ?? '10', 10);
 const IDLE_TIMEOUT_MS = parseInt(process.env.PTY_IDLE_TIMEOUT_MS ?? '1800000', 10); // 30 min default
 const sessions = new Map<string, PtySession>();
 let sessionCounter = 0;
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function getShell(): string {
   if (os.platform() === "win32") {
+    // Prioritize PowerShell 7 (pwsh.exe), then Windows PowerShell
+    const paths = [
+      "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+      "pwsh.exe",
+      "powershell.exe"
+    ];
+    for (const p of paths) {
+      try {
+        if (require("fs").existsSync(p)) return p;
+      } catch {}
+    }
     return "powershell.exe";
   }
   return process.env.SHELL || "/bin/bash";
 }
 
-function getShellArgs(): string[] {
-  const shell = getShell();
+function getShellArgs(shellOverride?: string): string[] {
+  const shell = shellOverride ?? getShell();
   if (shell.includes("powershell") || shell.includes("pwsh")) {
-    return ["-NoLogo"];
+    // Loading with profile enabled (default behavior when no flags provided)
+    return [];
   }
   return [];
 }
@@ -85,21 +97,21 @@ function resetIdleTimer(session: PtySession): void {
   session.lastActivity = Date.now();
   clearTimeout(session.idleTimer);
   session.idleTimer = setTimeout(() => {
-    log(`PTY [${session.id}] idle for ${IDLE_TIMEOUT_MS / 1000}s — closing`, "pty");
+    log(`PTY [${session.id}] idle for ${IDLE_TIMEOUT_MS / 1000}s â€” closing`, "pty");
     session.pty.kill();
     sessions.delete(session.id);
   }, IDLE_TIMEOUT_MS);
 }
 
-function createSession(id?: string): PtySession {
+function createSession(id?: string, shellOverride?: string, titleOverride?: string): PtySession {
   const sessionId = id ?? generateId();
 
   if (sessions.size >= MAX_SESSIONS) {
     throw new Error(`Maximum terminal sessions (${MAX_SESSIONS}) reached`);
   }
 
-  const shell = getShell();
-  const args = getShellArgs();
+  const shell = shellOverride ?? getShell();
+  const args = getShellArgs(shellOverride);
   const cwd = process.cwd();
   const shellName = shell.includes("pwsh") ? "pwsh" : shell.includes("powershell") ? "PowerShell" : shell.split("/").pop() ?? "shell";
 
@@ -107,7 +119,7 @@ function createSession(id?: string): PtySession {
 
   const ptyProcess = pty.spawn(shell, args, {
     name: "xterm-256color",
-    cols: 120,
+    cols: 140,
     rows: 30,
     cwd,
     env: {
@@ -162,7 +174,7 @@ function getOrCreateSession(id: string): PtySession {
   return sessions.get(id) ?? createSession(id);
 }
 
-// ── Shutdown ─────────────────────────────────────────────────────────────────
+// â”€â”€ Shutdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /** Kill all active PTY sessions. Call on server shutdown to prevent orphaned processes. */
 export function shutdownAllPtySessions(): void {
@@ -177,7 +189,7 @@ export function shutdownAllPtySessions(): void {
   sessions.clear();
 }
 
-// ── REST API ─────────────────────────────────────────────────────────────────
+// â”€â”€ REST API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function registerTerminalRoutes(app: Express): void {
   app.get("/api/terminal/sessions", (_req, res) => {
@@ -190,9 +202,9 @@ export function registerTerminalRoutes(app: Express): void {
     res.json(list);
   });
 
-  app.post("/api/terminal/sessions", (_req, res) => {
+  app.post("/api/terminal/sessions", (req, res) => {
     try {
-      const session = createSession();
+      const { shell, title } = req.body || {}; const session = createSession(undefined, shell, title);
       res.status(201).json({ id: session.id, title: session.title });
     } catch (err: any) {
       res.status(429).json({ error: err.message });
@@ -222,7 +234,7 @@ export function registerTerminalRoutes(app: Express): void {
   });
 }
 
-// ── WebSocket Server ─────────────────────────────────────────────────────────
+// â”€â”€ WebSocket Server â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /** Allowed origins for WebSocket connections (prevents CSRF-to-RCE). */
 const ALLOWED_WS_ORIGINS = new Set([
@@ -238,7 +250,7 @@ export function attachPtyWebSocket(httpServer: Server): void {
     const match = url.match(/^\/ws\/terminal\/?([\w-]*)$/);
     if (!match) return;
 
-    // Origin validation — reject cross-origin WebSocket connections
+    // Origin validation â€” reject cross-origin WebSocket connections
     const origin = req.headers.origin ?? "";
     if (origin && !ALLOWED_WS_ORIGINS.has(origin)) {
       log(`Rejected WebSocket from origin: ${origin}`, "pty");
@@ -285,7 +297,7 @@ export function attachPtyWebSocket(httpServer: Server): void {
             break;
         }
       } catch {
-        // Drop malformed messages — do NOT pipe raw text into the shell
+        // Drop malformed messages â€” do NOT pipe raw text into the shell
         log(`Dropped malformed WebSocket message from terminal client`, "pty");
       }
     });
@@ -300,3 +312,5 @@ export function attachPtyWebSocket(httpServer: Server): void {
     });
   });
 }
+
+

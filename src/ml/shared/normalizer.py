@@ -1,4 +1,4 @@
-"""
+﻿"""
 Shared normalization constants, classification, and transform functions.
 
 Used by:
@@ -47,7 +47,7 @@ BINARY_PREFIXES = (
     "AMATe_",   # Archer MA signal: 0/1
     "AOBV_",    # Archer OBV signal: 0/1
     "EXHC_",    # exhaustion count: small integers
-    "ZIGZAGd_", # zigzag direction: -1/0/1
+    "microstructured_", # microstructure direction: -1/0/1
 )
 
 BINARY_EXACT = {
@@ -374,3 +374,4 @@ def cumulative_roc(arr: np.ndarray, window: int = ROLLING_WINDOW) -> np.ndarray:
     roc = diff / rolling_std.replace(0, np.nan)
     roc = roc.clip(-CLIP_RANGE, CLIP_RANGE)
     return roc.values
+

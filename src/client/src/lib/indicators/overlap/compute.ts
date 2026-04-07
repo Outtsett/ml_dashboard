@@ -56,14 +56,14 @@ export function computeSpecialized(indicator: ActiveIndicator, calcBars: any[]):
     return { instanceId: indicator.instanceId, indicatorId: indicator.indicatorId, displayType: 'overlay', outputs: [{ outputKey: 'value', label: 'SINWMA', data, style: 'line' }] };
   }
   if (indicator.indicatorId === 'swma') {
-    const period = indicator.params.period ?? 20;
-    const data = calcSWMA(calcBars, period);
+    const data = calcSWMA(calcBars);
     if (data.length === 0) return null;
     return { instanceId: indicator.instanceId, indicatorId: indicator.indicatorId, displayType: 'overlay', outputs: [{ outputKey: 'value', label: 'SWMA', data, style: 'line' }] };
   }
   if (indicator.indicatorId === 'vidya') {
     const period = indicator.params.period ?? 20;
-    const data = calcVIDYA(calcBars, period);
+    const cmoPeriod = indicator.params.cmoPeriod ?? 9;
+    const data = calcVIDYA(calcBars, period, cmoPeriod);
     if (data.length === 0) return null;
     return { instanceId: indicator.instanceId, indicatorId: indicator.indicatorId, displayType: 'overlay', outputs: [{ outputKey: 'value', label: 'VIDYA', data, style: 'line' }] };
   }
@@ -90,7 +90,8 @@ export function computeSpecialized(indicator: ActiveIndicator, calcBars: any[]):
   if (indicator.indicatorId === 'jma') {
     const period = indicator.params.period ?? 14;
     const phase = indicator.params.phase ?? 0;
-    const data = calcJMA(calcBars, period, phase);
+    const power = indicator.params.power ?? 2;
+    const data = calcJMA(calcBars, period, phase, power);
     if (data.length === 0) return null;
     return { instanceId: indicator.instanceId, indicatorId: indicator.indicatorId, displayType: 'overlay', outputs: [{ outputKey: 'value', label: 'JMA', data, style: 'line' }] };
   }
@@ -151,9 +152,13 @@ export function computeSpecialized(indicator: ActiveIndicator, calcBars: any[]):
   if (indicator.indicatorId === 'supertrend') {
     const period = indicator.params.period ?? 10;
     const mult = indicator.params.multiplier ?? 3;
-    const data = calcSuperTrend(calcBars, period, mult);
-    if (data.length === 0) return null;
-    return { instanceId: indicator.instanceId, indicatorId: indicator.indicatorId, displayType: 'overlay', outputs: [{ outputKey: 'value', label: 'SuperTrend', data, style: 'line' }] };
+    const result = calcSuperTrend(calcBars, period, mult);
+    if (result.supertrend.length === 0) return null;
+    const outputs: ComputedOutput[] = [
+      { outputKey: 'supertrend', label: 'SuperTrend', data: result.supertrend, style: 'line' },
+    ];
+    if (result.direction.length > 0) outputs.push({ outputKey: 'direction', label: 'Direction', data: result.direction, style: 'line' });
+    return { instanceId: indicator.instanceId, indicatorId: indicator.indicatorId, displayType: 'overlay', outputs };
   }
   if (indicator.indicatorId === 'ichimoku') {
     const tenkan = indicator.params.tenkan ?? 9;
@@ -170,12 +175,11 @@ export function computeSpecialized(indicator: ActiveIndicator, calcBars: any[]):
     return { instanceId: indicator.instanceId, indicatorId: indicator.indicatorId, displayType: 'overlay', outputs };
   }
   if (indicator.indicatorId === 'hilo') {
-    const period = indicator.params.period ?? 3;
-    const result = calcHILO(calcBars, period);
-    const outputs: ComputedOutput[] = [];
-    if (result.hilo.length > 0) outputs.push({ outputKey: 'value', label: 'HILO', data: result.hilo, style: 'line' });
-    if (outputs.length === 0) return null;
-    return { instanceId: indicator.instanceId, indicatorId: indicator.indicatorId, displayType: 'overlay', outputs };
+    const highPeriod = indicator.params.highPeriod ?? indicator.params.period ?? 3;
+    const lowPeriod = indicator.params.lowPeriod ?? indicator.params.period ?? 3;
+    const data = calcHILO(calcBars, highPeriod, lowPeriod);
+    if (data.length === 0) return null;
+    return { instanceId: indicator.instanceId, indicatorId: indicator.indicatorId, displayType: 'overlay', outputs: [{ outputKey: 'value', label: 'HILO', data, style: 'line' }] };
   }
   if (indicator.indicatorId === 'ssf') {
     const period = indicator.params.period ?? 20;

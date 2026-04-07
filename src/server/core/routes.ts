@@ -21,6 +21,8 @@ import hpoRouter from "../routes/hpo";
 import settingsRouter from "../routes/settings";
 import systemRouter from "../routes/system";
 import motiveWaveRouter from "../routes/motivewave";
+import chatRouter from "../routes/chat";
+import modelsRouter from "../routes/models";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
 
@@ -55,8 +57,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", settingsRouter);
   app.use("/api", systemRouter);
   app.use("/api", motiveWaveRouter);
+  app.use("/api", modelsRouter);
   app.use("/api", eventsRouter);
   app.use("/api", pipelinesRouter);
+  app.use("/api", chatRouter);
 
   // Catch-all 404 for unregistered API routes (must be AFTER all /api mounts)
   // Express 5 / path-to-regexp v8 requires named wildcard params

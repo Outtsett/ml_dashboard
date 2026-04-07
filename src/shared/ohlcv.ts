@@ -21,6 +21,11 @@ export interface OHLCVBar {
   low: number;
   close: number;
   volume: number;
+  // Anatomy fields (First Principles)
+  body_magnitude?: number;
+  upper_wick_pct?: number;
+  lower_wick_pct?: number;
+  is_bullish?: boolean;
 }
 
 /** An OHLCV bar that also carries its symbol — used in multi-symbol contexts. */

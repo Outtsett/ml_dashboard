@@ -9,7 +9,8 @@ import {
   BookOpen,
   AudioWaveform,
   Network,
-  Gpu,
+  Cpu,
+  TerminalSquare,
   LucideIcon
 } from "lucide-react";
 
@@ -40,7 +41,7 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
     items: [
       { icon: BrainCircuit, label: "ML Studio", href: "/ml-studio" },
       { icon: BookOpen, label: "Model Catalog", href: "/model-catalog" },
-      { icon: AudioWaveform, label: "Fourier Analysis", href: "/fourier" },
+      { icon: AudioWaveform, label: "Transform Analysis", href: "/fourier" },
       { icon: Network, label: "Architecture", href: "/architecture" },
     ]
   },
@@ -53,7 +54,8 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
   {
     title: "System",
     items: [
-      { icon: Gpu, label: "GPU Monitor", href: "/gpu" },
+      { icon: TerminalSquare, label: "Terminals", href: "/terminals", description: "Interactive shell sessions" },
+      { icon: Cpu, label: "Hardware", href: "/hardware", description: "System & GPU telemetry" },
       { icon: Settings, label: "Settings", href: "/settings" },
     ]
   }

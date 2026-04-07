@@ -99,9 +99,9 @@ _META_OFF_SCORE_SEQ:     int = 52
 # tension_delta(f32:4) + signal(i8:1) + action(u8:1) + regime_id(u8:1) +
 # weight_mode(u8:1) + confidence(f32:4) + qty(i16:2) + _pad(2:2) +
 # stop_ticks(f32:4) + target_ticks(f32:4) + score_timestamp_ms(i64:8)
-_SCORE_FMT: str = "<4fBBBBfhxx2fq"
+_SCORE_FMT: str = "<4fbBBBfhxx2fq"
 # That packs: composite(f), upzone(f), downzone(f), tension_delta(f),
-#             signal(B→i8), action(B), regime_id(B), weight_mode(B),
+#             signal(b=int8), action(B=uint8), regime_id(B), weight_mode(B),
 #             confidence(f), qty(h), [2 pad bytes via xx], stop(f), target(f),
 #             timestamp(q)
 # Byte count: 4*4 + 1+1+1+1 + 4 + 2+2 + 4+4+8 = 16+4+4+4+16 = 44 bytes
@@ -371,7 +371,7 @@ class ShmemWriter:
             float(upzone),
             float(downzone),
             float(tension_delta),
-            signal & 0xFF,        # signal is i8 — store raw byte
+            int(signal),           # signal is int8_t: -2, -1, +1, +2
             action & 0xFF,
             regime_id & 0xFF,
             weight_mode & 0xFF,

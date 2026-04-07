@@ -1,102 +1,178 @@
-# Quant AI Dashboard
+# Quant AI Dashboard: Institutional Mission Control
 
-![CI](https://img.shields.io/badge/build-passing-brightgreen)
-![License](https://img.shields.io/badge/license-MIT-blue)
-![Node](https://img.shields.io/badge/node-20%2B-green)
-![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+Full-stack ML ops and real-time execution platform for high-frequency quantitative trading. Integrated with **Mission Control HUB** (PowerShell 7 + Btop++), featuring a **Triple-Engine Data Architecture** and **SOLID-enforced** engineering standards.
 
-## Overview
+---
 
-Quant AI Dashboard is a full-stack ML dashboard for quantitative trading research. It combines real-time market data visualization, machine-learning training pipelines, and backtesting analytics in a single desktop application. The system ingests and analyzes 759M+ OHLCV rows of time-series data alongside trades and MBP-10 order-book depth.
+### 🟢 ALL SYSTEMS OPERATIONAL
+- **QuestDB Health**: [Active] (863M+ rows, zero-latency ILP stream)
+- **GPU Pulse**: [Ready] (NVIDIA RTX 5060 Ti, 12GB VRAM)
+- **Hardware Integration**: [Synchronized] (ManifestService v2.1.0)
+- **MotiveWave Edge**: [Connected] (Sub-10ms tick propagation)
 
-## Features
+---
 
-- **Market Data Visualization** — interactive candlestick charts, order-book heatmaps, and multi-timeframe analysis via Lightweight Charts and Recharts
-- **ML Training Pipelines** — CNN model training with TensorFlow.js-node, orchestrated by XState v5 state machines
-- **Backtesting Engine** — historical strategy evaluation with detailed performance metrics
-- **XAI / Explainability** — model interpretability tools for understanding prediction drivers
-- **Regime Analytics** — market regime detection and classification
-- **3D Visualizations** — immersive data exploration with Three.js and React Three Fiber
-- **Real-Time SSE Streaming** — live data updates via Server-Sent Events with a custom event bus, event store, and saga orchestrator
+## 1. Core Architecture (The Triple-Engine Lambda)
 
-## Tech Stack
+| Layer | Technology | Operational Role |
+| :--- | :--- | :--- |
+| **Speed** | **QuestDB 9.3.3** | High-frequency ILP-over-HTTP ingest. 863M+ OHLCV rows. SAMPLE BY timeframe aggregation. |
+| **Batch** | **DuckDB** | Ephemeral data wrangling. Polars-native loading of massive .parquet datasets from `D:\ml_data`. |
+| **Serving** | **PostgreSQL** | Relational metadata, **Model Registry v2.0.0** state, and complex strategy persistence. |
+
+### System Map
+```mermaid
+graph TB
+    subgraph Desktop["Electron Desktop Shell (Mission Control)"]
+        Client["React 19 Client<br/>Vite + Tailwind v4 + Radix UI"]
+    end
+
+    subgraph Server["NestJS + Express 5 Gateway"]
+        API["REST API (17 modules)"]
+        SSE["SSE Event Bus (Pipeline/Training/System)"]
+        Manifest["ManifestService (Hardware Single Source)"]
+        Cache["7-layer Cache (OHLCV, Parquet, Anchor)"]      
+        Training["Training Orchestrator (PythonRunner)"]
+    end
+
+    subgraph ML["Python ML Engine"]
+        CNN["CNN+Transformer Predictor"]
+        HDP["HDP-HMM Regime Detection (Legacy Removed)"]
+        TF["TensionFlow Signal Scorer"]
+        Shared["Shared Utils (Numba JIT, Polars)"]
+    end
+
+    subgraph Data["Unified Data Layer"]
+        SQLite["SQLite (App Metadata, 37 tables)"]
+        QuestDB["QuestDB (Time-Series, 5 tables)"]
+        Files["File Store (Model Registry v2.0.0)"]
+    end
+
+    subgraph External["Connectivity"]
+        MW["MotiveWave Platform"]
+        MWPlugin["Java ILP Plugin (Tick-to-Local Latency <10ms)"]
+    end
+
+    Client -->|REST + SSE| API
+    Client -->|SSE subscribe| SSE
+    API --> Manifest
+    API --> SQLite
+    API --> QuestDB
+    Training -->|spawn| ML
+    ML -->|stdout JSON| Training
+    Training -->|broadcast| SSE
+    MW --> MWPlugin
+    MWPlugin -->|ILP TCP :9009| QuestDB
+```
+
+---
+
+## 2. Institutional Integrity Mandates
+
+### 2.1 Terminology (Semantic Standard)
+We adhere to the **Registry v2.0.0** naming philosophy. Purge all legacy retail terminology.
+- **Directional Edge**: Replaces win-rate / directional accuracy.
+- **Confidence Edge**: Replaces AUC / model probability separation.
+- **Microstructure**: Replaces Swing ZigZag (legacy patterns).
+- **Structural Pivots**: Significant local highs/lows.
+- **RET_LOG_1M**: Forward 1-minute Log Return (Standardized Target).
+
+### 2.2 Aesthetic Standards (Mission Control HUD)
+- **Palette**: Muted Institutional (Emerald-500, Blue-500, Amber-500, Red-500).
+- **Visuals**: Borderless HUD layout, raised half-ring radial gauges.
+- **Glows**: Subtle text-shadows only; zero-vibrancy glare policy.
+
+### 2.3 Informational Architecture
+- **Models**: All models follow the **Registry v2.0.0** spec in `models.json`.
+- **Metrics**: All metrics are **Semantic** (self-describing, target-aware, and prescriptive).
+- **Telemetry**: Real-time hierarchical naming (e.g., `telemetry/activations/layer-0/mean`).
+
+---
+
+## 3. Tech Stack
 
 | Layer | Technology |
 |---|---|
-| **Frontend** | React 19, Wouter, TanStack Query, Tailwind CSS v4, shadcn/ui (Radix), Recharts, Lightweight Charts, D3, Framer Motion |
-| **3D** | Three.js, React Three Fiber |
-| **Backend** | NestJS 11, Express 5, TypeScript, Node.js |
-| **State Machines** | XState v5 (ingestion, training, deployment pipelines) |
-| **Event System** | Custom event bus, event store, SSE, saga orchestrator |
-| **ML / Data Science** | Python 3.11+ — pandas, polars, NumPy, PyArrow, pandas-ta; TensorFlow.js-node (CNN models) |
-| **Databases** | SQLite (app metadata, 22 tables), QuestDB 9.3.1 (time-series) |
+| **Frontend** | React 19, Wouter, TanStack Query, Tailwind CSS v4, Radix UI, Recharts, Lightweight Charts, Three.js, Framer Motion |
+| **Backend** | NestJS 11, Express 5, TypeScript, Node.js 22, Drizzle ORM |
+| **ML Engine** | PyTorch 2.11+CUDA 12.8, Numba JIT, Polars, Pydantic 2.12 |
+| **Databases** | QuestDB 9.3.3 (Main), SQLite (App Metadata), PostgreSQL (Relational) |     
 | **Desktop** | Electron 34 |
-| **Build** | Vite 7, esbuild, tsx, SWC |
-| **Testing** | Vitest (TypeScript), Ruff (Python linting) |
+| **Data Flow** | SSE Delta Encoding, MessagePack, IndexedDB OHLCV Cache (24h TTL) |
+| **Hardware** | RTX 5060 Ti, 24-core Ryzan, 128GB RAM |
 
-## Prerequisites
+---
 
-| Requirement | Version |
-|---|---|
-| Node.js | 20+ |
-| Python | 3.11+ |
-| QuestDB | 9.3+ |
+## 4. Operational Workflows
 
-## Getting Started
+### 4.1 Real-Time Ingestion
+1. **MotiveWave Bridge**: Java plugin streams OHLCV (with orderflow) and DOM L2 to QuestDB :9009 via ILP.
+2. **Tick-to-Local Latency**: Calculated in-plugin and broadcast to the **MW EDGE** gauge.
+3. **QuestDB Persistence**: 863M+ rows across 5 unified tables (`ohlcv`, `symbols`, `ticks`, `dom_l2`, `dom_summary`).
+
+### 4.2 Training Pipeline (Institutional Workflow)
+- **W&B Integration**: Always initialize W&B first, pre-spawn HUD with `define_metric`.
+- **Probabilistic Heads**: Default to uncertainty-aware heads (Mean + Variance) + Gaussian NLL loss.
+- **Walk-Forward Validation**: Mandatory 8-fold expanding window simulation.
+- **O(1) Memory Normalization**: Numba JIT online algorithms for massive dataset features.
+
+### 4.3 Mission Control HUD (Terminal)
+- **btop++**: Global `F8` access for hardware monitoring.
+- **vdata**: Blazing fast Polars previewer for `.parquet` and `.csv` files.
+- **Unified Gateway**: PowerShell 7 interface with health checks on startup.
+
+---
+
+## 5. Development Standards
+
+- **SOLID Principles**: Universally enforced across TS and Python.
+- **Recursive READMEs**: Mandatory `README.md` for every folder explaining purpose and linkages.
+- **Zero-Friction Autonomy**: All commands must be non-interactive and CI-compatible.
+- **Line-by-Line Commentary**: Complex logic must have inline `#` or `//` explanation.
+
+---
+
+## 6. Quick Start (Mission Control Protocol)
 
 ```bash
-# Clone the repository
-git clone <repo-url> && cd ml_dashboard
+# 1. Activate Environment (Anaconda/Conda)
+conda activate base
 
-# Configure environment
-cp .env.example .env
-# Edit .env with your QuestDB connection details and any API keys
-
-# Install Node.js dependencies
+# 2. Install Dependencies
 npm install
+pip install -e .
 
-# Install Python dependencies
-pip install -r requirements.txt
-# or, if using the pyproject.toml:
-pip install .
+# 3. Synchronize Database Schema
+npm run db:push
 
-# Start QuestDB
-# Ensure QuestDB is running on its default ports (9000 HTTP, 8812 PGWire)
+# 4. Start Mission Control (Databases + API + Electron)
+npm run electron:dev
 
-# Start the development server
-npm run dev
+# 5. Jump to Root
+dash
 ```
 
-## Scripts
+---
 
-| Script | Description |
-|---|---|
-| `npm run dev` | Start the development server (Vite + NestJS) |
-| `npm run build` | Production build |
-| `npm run test` | Run Vitest test suite |
-| `npm run lint` | Lint TypeScript and Python sources |
-| `npm run start` | Start the production server |
-
-## Architecture
+## 7. Project Structure (Domain-Driven Map)
 
 ```
-src/
-├── client/       # React 19 frontend — pages, components, hooks, stores
-├── server/       # NestJS 11 backend — modules, controllers, services, gateways
-├── ml/           # Python ML pipelines — feature engineering, model training, inference
-├── shared/       # Shared TypeScript types, schemas, and utilities
-└── config/       # Application configuration and environment helpers
+ml_dashboard/
+├── src/
+│   ├── client/       # React 19 Frontend (335 components, 28 pages)
+│   ├── server/       # NestJS/Express Backend (17 route modules)
+│   ├── ml/           # Python ML models & features (Registry v2.0.0)
+│   ├── shared/       # Shared TS types & Drizzle schemas
+│   ├── config/       # Single source of truth (models.json, features.json)
+│   └── scripts/      # Architecture & performance validators
+├── electron/         # Desktop shell integration
+├── mcp_server/       # FastMCP server for Claude.ai/Code integration
+├── data/             # SQLite DB, model checkpoints, parquet cache
+└── docs/             # Institutional specs & architectural diagrams
 ```
 
-The frontend communicates with the backend over REST and SSE. The backend coordinates ML workloads by invoking Python processes and manages state transitions through XState v5 machines. A saga orchestrator handles complex multi-step workflows (data ingestion → feature computation → training → deployment).
+---
 
-## Database Architecture
+## 8. License
 
-| Database | Role | Details |
-|---|---|---|
-| **SQLite** | Application metadata | 22 tables covering users, strategies, model configs, audit logs, and system state |
-| **QuestDB** | Time-series storage | 759M+ OHLCV rows, tick-level trades, and MBP-10 order-book depth snapshots; optimized for high-throughput ingestion and fast analytical queries via SQL over PGWire |
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
+**MIT** - Institutional Trading Research Platform

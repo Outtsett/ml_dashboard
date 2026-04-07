@@ -1,9 +1,9 @@
-import { useEffect, useRef } from 'react';
+﻿import { useEffect, useRef } from 'react';
 import { LineSeries, createSeriesMarkers, type IChartApi, type Time } from 'lightweight-charts';
 import type { SupportResistanceLevel, ZigZagPoint } from '@/lib/chart_overlays';
 import { dedupByTime } from './chartConfig';
 
-// ── Types ──────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface ChartPriceLinesOptions {
   chartRef: React.MutableRefObject<IChartApi | null>;
@@ -14,10 +14,10 @@ interface ChartPriceLinesOptions {
   decimals: number;
 }
 
-// ── Hook ───────────────────────────────────────────────────────────────────
+// â”€â”€ Hook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
- * Manages S/R price lines, ZigZag line + markers, and Swing ZigZag line + markers.
+ * Manages S/R price lines, microstructure line + markers, and microstructure microstructure line + markers.
  * Each overlay type owns its own refs and cleanup.
  */
 export function useChartPriceLines({
@@ -26,7 +26,7 @@ export function useChartPriceLines({
   decimals,
 }: ChartPriceLinesOptions): void {
 
-  // ── Refs ───────────────────────────────────────────────────────────────
+  // â”€â”€ Refs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const srPriceLinesRef = useRef<any[]>([]);
   const zigZagSeriesRef = useRef<any>(null);
@@ -34,7 +34,7 @@ export function useChartPriceLines({
   const swingZZSeriesRef = useRef<any>(null);
   const swingZZMarkersRef = useRef<any>(null);
 
-  // ── Support / Resistance price lines ───────────────────────────────────
+  // â”€â”€ Support / Resistance price lines â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   useEffect(() => {
     if (!candleSeriesRef.current) return;
@@ -64,13 +64,13 @@ export function useChartPriceLines({
     }
   }, [supportResistanceLevels, candleSeriesRef]);
 
-  // ── ZigZag line + markers ──────────────────────────────────────────────
+  // â”€â”€ microstructure line + markers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
 
-    // Clean up previous zigzag series/markers
+    // Clean up previous microstructure series/markers
     if (zigZagSeriesRef.current) {
       try { chart.removeSeries(zigZagSeriesRef.current); } catch { /* already removed */ }
       zigZagSeriesRef.current = null;
@@ -105,13 +105,13 @@ export function useChartPriceLines({
     }
   }, [zigZagPoints, decimals, chartRef]);
 
-  // ── Swing ZigZag line + markers ────────────────────────────────────────
+  // â”€â”€ microstructure microstructure line + markers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
 
-    // Clean up previous swing zigzag series/markers
+    // Clean up previous microstructure microstructure series/markers
     if (swingZZSeriesRef.current) {
       try { chart.removeSeries(swingZZSeriesRef.current); } catch { /* already removed */ }
       swingZZSeriesRef.current = null;
@@ -147,7 +147,7 @@ export function useChartPriceLines({
     }
   }, [swingZigZagPoints, chartRef]);
 
-  // ── Cleanup all overlay refs on unmount ────────────────────────────────
+  // â”€â”€ Cleanup all overlay refs on unmount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   useEffect(() => {
     return () => {
@@ -159,3 +159,4 @@ export function useChartPriceLines({
     };
   }, []);
 }
+

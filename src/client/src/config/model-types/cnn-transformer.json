@@ -1,8 +1,0 @@
-{
-  "id": "cnn-transformer",
-  "label": "CNN+Transformer",
-  "mainTabs": ["overview", "convergence"],
-  "subTabs": ["overview", "performance", "predictions", "walkforward", "convergence", "log"],
-  "overviewCells": ["profit_factor", "barrier_config", "cost_adjusted_pnl", "class_distribution", "walk_forward_summary"],
-  "primaryMetric": "profit_factor"
-}

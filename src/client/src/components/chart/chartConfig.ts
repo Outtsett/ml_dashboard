@@ -108,12 +108,12 @@ export function createChartOptions() {
     },
     handleScroll: {
       mouseWheel: true,
-      pressedMouseMove: true,
+      pressedMouseMove: true, kineticScroll: true,
       horzTouchDrag: true,
       vertTouchDrag: true,
     },
     handleScale: {
-      axisPressedMouseMove: true,
+      axisPressedMouseMove: true, shiftDragMeasure: true, timeScaleShift: true, kineticScroll: true,
       mouseWheel: true,
       pinch: true,
     },

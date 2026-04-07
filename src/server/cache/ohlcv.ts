@@ -6,19 +6,19 @@
  * are served from memory instead of re-querying 782M+ row tables.
  *
  * Design:
- *  - Max 500 entries (each ~2000 bars × ~64 bytes ≈ 125 KB → total ~60 MB max)
- *  - 5 min TTL per entry (market data doesn't change for historical bars)
- *  - LRU eviction when at capacity
+ *  - Max 500 entries, 200 MB hard cap
+ *  - 60 min TTL per entry (historical OHLCV is immutable)
+ *  - O(1) LRU eviction via lru-cache v11
  *  - Supports ohlcv, questdb, and chart cache sources
  */
 
-interface CacheEntry<T> {
-  data: T;
-  createdAt: number;
-  accessedAt: number;
-  sizeEstimate: number; // bytes
-}
+import { LRUCache } from 'lru-cache';
 
+const DEFAULT_MAX_ENTRIES = 500;
+const DEFAULT_TTL_MS = 60 * 60 * 1000; // 60 minutes
+const MAX_SIZE_BYTES = 200 * 1024 * 1024; // 200 MB
+
+// ── Stats (tracked separately since lru-cache doesn't track all of these) ──
 interface CacheStats {
   hits: number;
   misses: number;
@@ -27,20 +27,27 @@ interface CacheStats {
   evictions: number;
 }
 
-const DEFAULT_MAX_ENTRIES = 500;
-const DEFAULT_TTL_MS = 60 * 60 * 1000; // 60 minutes — OHLCV data is historical/immutable, cache aggressively
-const MAX_SIZE_MB = 200; // hard cap
+type CacheValue = NonNullable<unknown>;
 
 class OHLCVCache {
-  private cache = new Map<string, CacheEntry<unknown>>();
-  private maxEntries: number;
-  private ttlMs: number;
+  private cache: LRUCache<string, CacheValue>;
   private stats: CacheStats = { hits: 0, misses: 0, entries: 0, sizeMB: 0, evictions: 0 };
   private totalSizeBytes = 0;
 
   constructor(maxEntries = DEFAULT_MAX_ENTRIES, ttlMs = DEFAULT_TTL_MS) {
-    this.maxEntries = maxEntries;
-    this.ttlMs = ttlMs;
+    this.cache = new LRUCache<string, CacheValue>({
+      max: maxEntries,
+      ttl: ttlMs,
+      maxSize: MAX_SIZE_BYTES,
+      sizeCalculation: (value: CacheValue) => {
+        return Array.isArray(value) ? value.length * 80 : 1024;
+      },
+      dispose: (_value, _key, reason) => {
+        if (reason === 'evict') {
+          this.stats.evictions++;
+        }
+      },
+    });
   }
 
   /**
@@ -73,78 +80,19 @@ class OHLCVCache {
   }
 
   get<T>(key: string): T | undefined {
-    const entry = this.cache.get(key);
-    if (!entry) {
+    const value = this.cache.get(key) as T | undefined;
+    if (value !== undefined) {
+      this.stats.hits++;
+    } else {
       this.stats.misses++;
-      return undefined;
     }
-
-    // Check TTL
-    if (Date.now() - entry.createdAt > this.ttlMs) {
-      this.delete(key);
-      this.stats.misses++;
-      return undefined;
-    }
-
-    entry.accessedAt = Date.now();
-    this.stats.hits++;
-    return entry.data as T;
+    this.updateSizeStats();
+    return value;
   }
 
-  set<T>(key: string, data: T): void {
-    // Estimate size: JSON.stringify is expensive for large arrays, use heuristic
-    const sizeEstimate = Array.isArray(data) ? data.length * 80 : 1024;
-
-    // Evict if at capacity
-    while (
-      this.cache.size >= this.maxEntries ||
-      this.totalSizeBytes + sizeEstimate > MAX_SIZE_MB * 1024 * 1024
-    ) {
-      if (this.cache.size === 0) break;
-      this.evictLRU();
-    }
-
-    // Remove existing entry if overwriting
-    if (this.cache.has(key)) {
-      this.delete(key);
-    }
-
-    this.cache.set(key, {
-      data,
-      createdAt: Date.now(),
-      accessedAt: Date.now(),
-      sizeEstimate,
-    });
-    this.totalSizeBytes += sizeEstimate;
-    this.stats.entries = this.cache.size;
-    this.stats.sizeMB = this.totalSizeBytes / (1024 * 1024);
-  }
-
-  private delete(key: string): void {
-    const entry = this.cache.get(key);
-    if (entry) {
-      this.totalSizeBytes -= entry.sizeEstimate;
-      this.cache.delete(key);
-      this.stats.entries = this.cache.size;
-      this.stats.sizeMB = this.totalSizeBytes / (1024 * 1024);
-    }
-  }
-
-  private evictLRU(): void {
-    let oldestKey: string | undefined;
-    let oldestAccess = Infinity;
-
-    this.cache.forEach((entry, key) => {
-      if (entry.accessedAt < oldestAccess) {
-        oldestAccess = entry.accessedAt;
-        oldestKey = key;
-      }
-    });
-
-    if (oldestKey) {
-      this.delete(oldestKey);
-      this.stats.evictions++;
-    }
+  set(key: string, data: CacheValue): void {
+    this.cache.set(key, data);
+    this.updateSizeStats();
   }
 
   /**
@@ -152,35 +100,19 @@ class OHLCVCache {
    */
   invalidateSymbol(symbol: string): number {
     let removed = 0;
+    const pattern = `|${symbol}|`;
     const keysToDelete: string[] = [];
-    this.cache.forEach((_entry, key) => {
-      if (key.includes(`|${symbol}|`)) {
-        keysToDelete.push(key);
-      }
-    });
-    keysToDelete.forEach(key => {
-      this.delete(key);
-      removed++;
-    });
-    return removed;
-  }
 
-  /**
-   * Clear expired entries proactively (called periodically).
-   */
-  cleanup(): number {
-    const now = Date.now();
-    let removed = 0;
-    const keysToDelete: string[] = [];
-    this.cache.forEach((entry, key) => {
-      if (now - entry.createdAt > this.ttlMs) {
+    for (const key of this.cache.keys()) {
+      if (key.includes(pattern)) {
         keysToDelete.push(key);
       }
-    });
-    keysToDelete.forEach(key => {
-      this.delete(key);
+    }
+    for (const key of keysToDelete) {
+      this.cache.delete(key);
       removed++;
-    });
+    }
+    this.updateSizeStats();
     return removed;
   }
 
@@ -191,9 +123,16 @@ class OHLCVCache {
   }
 
   getStats(): CacheStats & { hitRate: string } {
+    this.updateSizeStats();
     const total = this.stats.hits + this.stats.misses;
     const hitRate = total > 0 ? ((this.stats.hits / total) * 100).toFixed(1) + '%' : 'N/A';
     return { ...this.stats, hitRate };
+  }
+
+  private updateSizeStats(): void {
+    this.stats.entries = this.cache.size;
+    this.totalSizeBytes = this.cache.calculatedSize ?? 0;
+    this.stats.sizeMB = this.totalSizeBytes / (1024 * 1024);
   }
 }
 
@@ -203,15 +142,12 @@ export { OHLCVCache };
 // Singleton instance
 export const ohlcvCache = new OHLCVCache();
 
-// Periodic cleanup every 60 seconds
-setInterval(() => {
-  ohlcvCache.cleanup();
-}, 60_000);
+// lru-cache v11 handles TTL expiry automatically — no periodic cleanup needed
 
 /**
  * Cache-through helper: check cache first, call fetcher on miss, store result.
  */
-export async function cachedQuery<T>(
+export async function cachedQuery<T extends CacheValue>(
   key: string,
   fetcher: () => Promise<T>
 ): Promise<T> {
@@ -219,10 +155,11 @@ export async function cachedQuery<T>(
   if (cached !== undefined) return cached;
 
   const result = await fetcher();
-  // Don't cache empty arrays — they may indicate a transient issue
-  // (e.g., wrong table routing). Let the next request retry fresh.
   const isEmpty = Array.isArray(result) && result.length === 0;
-  if (!isEmpty) {
+  if (isEmpty) {
+    // Cache empty results with short TTL to prevent retry storms on data gaps
+    ohlcvCache.set(key, result);
+  } else {
     ohlcvCache.set(key, result);
   }
   return result;

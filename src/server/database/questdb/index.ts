@@ -11,6 +11,7 @@ export {
   getQuestDBQueryPool,
   initQueryPool,
   queryQuestDB,
+  queryQuestDBFast,
   queryQuestDBStream,
   queryQuestDBValidated,
   OHLCVRowSchema,

@@ -625,7 +625,7 @@ export const supervisedModels: MLModelDefinition[] = [
     ],
     applications: [
       'Clusters market patterns achieving silhouette scores of 0.4-0.6',
-      'Groups trading behaviors (scalping vs. swing) automatically',
+      'Groups trading behaviors (scalping vs. microstructure) automatically',
       'Segments instruments by volatility/correlation characteristics',
       'Discovers hidden market regimes for strategy development'
     ],
@@ -709,5 +709,6 @@ export const defaultValidationConfig: ValidationConfig = {
     embargoRatio: 0.01,
   },
 };
+
 
 

@@ -68,9 +68,22 @@ export class PythonRunner implements ITrainerRunner {
     };
     const hypMap = { ...defaultFlags, ...config.registry.cliFlags };
 
+    // Warn about unmapped hyperparameters — catches models.json drift from main.py
+    const unmapped = Object.keys(config.hyperparameters).filter(k => !hypMap[k]);
+    if (unmapped.length > 0) {
+      const msg = `Unmapped hyperparameters for ${config.modelType}: [${unmapped.join(", ")}]. Add cliFlags entries in models.json.`;
+      logger.warn(msg);
+      emitSessionEvent(session, "log", { message: msg, level: "warning" });
+    }
+
     for (const [key, val] of Object.entries(config.hyperparameters)) {
       const flag = hypMap[key];
-      if (flag) {
+      if (!flag) continue;
+
+      const def = config.registry.defaultHyperparameters[key];
+      if (def?.type === 'bool') {
+        if (val) args.push(flag);
+      } else {
         args.push(flag, String(val));
       }
     }
@@ -181,11 +194,14 @@ export class PythonRunner implements ITrainerRunner {
             try { diagnostics = JSON.parse(fs.readFileSync(diagPath, "utf-8")); } catch { /* */ }
           }
         }
-        emitSessionEvent(session, "done", {
-          modelId: config.modelId,
-          elapsedSec: parseFloat(((Date.now() - session.startedAt) / 1000).toFixed(1)),
-          diagnostics,
-        });
+        // Only emit done if the parser didn't already handle it (prevents double-done)
+        if (!session.parserHandledDone) {
+          emitSessionEvent(session, "done", {
+            modelId: config.modelId,
+            elapsedSec: parseFloat(((Date.now() - session.startedAt) / 1000).toFixed(1)),
+            diagnostics,
+          });
+        }
 
         // Finalize completed session in SQLite (DIP — storage abstraction)
         const dbSessId = session.dbSessionId;

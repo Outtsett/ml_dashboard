@@ -50,6 +50,10 @@ export function useTraining(): TrainingState & {
   setSelectedModelType: (type: string) => void;
   /** Current timeframe label derived from chart context */
   timeframeLabel: string;
+  /** Whether the SSE EventSource is currently connected */
+  sseConnected: boolean;
+  /** SSE connection error (reconnect failures, connection lost) */
+  sseError: string | null;
 } {
   const dashboard = useDashboard();
   const queryClient = useQueryClient();
@@ -94,7 +98,7 @@ export function useTraining(): TrainingState & {
   }, [availableModels, selectedModelType, setSelectedModelType]);
 
   // ── SSE callbacks → state updates (extracted to sseHandlers.ts — SRP) ────
-  const { connect: connectSSE, disconnect: disconnectSSE } = useTrainingSSE(
+  const { connect: connectSSE, disconnect: disconnectSSE, connected: sseConnected, error: sseError } = useTrainingSSE(
     buildSSECallbacks({
       // Session setters (this hook)
       setModelType, setPhase, setProgress,
@@ -110,6 +114,7 @@ export function useTraining(): TrainingState & {
       setLiveRegimeTimestamps: liveSetters.setLiveRegimeTimestamps,
       setLiveRegimeAssignments: liveSetters.setLiveRegimeAssignments,
       setDiagnostics: liveSetters.setDiagnostics,
+      setMetricDeclarations: liveSetters.setMetricDeclarations,
       setElapsedSec: liveSetters.setElapsedSec,
       setModelState: liveSetters.setModelState,
       setModelStateHistory: liveSetters.setModelStateHistory,
@@ -184,11 +189,12 @@ export function useTraining(): TrainingState & {
       trainingApi.stop(modelId).catch(() => {});
     }
     disconnectSSE();
+    resetLiveState();
     setIsTraining(false);
     dashboard.setTrainingContext(null);
     clearElapsedTimer();
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.regimeModels });
-  }, [modelId, dashboard, disconnectSSE, clearElapsedTimer, queryClient]);
+  }, [modelId, dashboard, disconnectSSE, resetLiveState, clearElapsedTimer, queryClient]);
 
   return {
     // Session state
@@ -196,6 +202,8 @@ export function useTraining(): TrainingState & {
     isTraining, isPending,
     phase, progress, config,
     error, completedModelId,
+    // SSE connection state
+    sseConnected, sseError,
     // Live state (from sub-hook)
     ...liveState,
     // Actions

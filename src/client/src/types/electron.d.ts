@@ -51,6 +51,8 @@ interface ElectronAPI {
   openExternal(url: string): void;
   openLogsFolder(): void;
   relaunch(): void;
+  getAutoLaunch(): Promise<boolean>;
+  setAutoLaunch(enabled: boolean): Promise<void>;
 
   // Shortcuts
   registerShortcut(accelerator: string, id: string): Promise<boolean>;

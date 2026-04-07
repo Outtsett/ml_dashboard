@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { PanelLeftClose, PanelLeftOpen, Menu } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Menu, TerminalSquare } from "lucide-react";
 import { useLocation } from "wouter";
 import { useBreadcrumbItems } from "@/hooks/useBreadcrumbs";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -13,6 +13,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SystemStats } from "./layout/SystemStats";
 import { NavItemComponent } from "./layout/NavItem";
 import { BreadcrumbNavigator } from "./layout/BreadcrumbNavigator";
+import { TerminalTabs } from "./terminal/TerminalTabs";
 
 const SIDEBAR_COLLAPSED_KEY = "sidebar_collapsed";
 
@@ -21,6 +22,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const subCrumbs = useBreadcrumbItems();
   const isMobile = useIsMobile();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true"; } catch { return false; }
   });
@@ -32,6 +34,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // Keyboard shortcut: Ctrl+B to toggle sidebar
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === '`') {
+        e.preventDefault();
+        setTerminalOpen(o => !o);
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
         e.preventDefault();
         setCollapsed(c => !c);
@@ -55,6 +61,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return baseRoute ? ROUTE_META[baseRoute] : ROUTE_META["/"];
   }, [location]);
 
+    const isFullWidthPage = location === "/terminals" || location === "/hardware" || location === "/fourier";
   const effectiveCollapsed = isMobile ? false : collapsed;
   const sidebarBg = 'linear-gradient(180deg, hsl(220, 20%, 8%) 0%, hsl(220, 20%, 12%) 100%)';
 
@@ -179,12 +186,33 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             currentRoute={currentRoute} 
           />
 
-          <div className="p-4 md:p-6 flex-1 min-h-0 overflow-auto w-full scroll-smooth bg-muted/5">
-            <div className="max-w-[1600px] mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className={cn("flex-1 min-h-0 overflow-auto w-full scroll-smooth bg-muted/5", isFullWidthPage ? "p-0" : "p-0")}>
+            <div className={cn("animate-in fade-in slide-in-from-bottom-1 duration-200", isFullWidthPage ? "w-full h-full space-y-0" : "w-full h-full space-y-0")}>
               {children}
             </div>
           </div>
         </main>
+      </div>
+      {/* Global Terminal Pop-out */}
+      <div className={cn(
+        "fixed bottom-0 right-0 left-0 z-50 bg-background/95 backdrop-blur-xl border-t border-white/10 transition-all duration-500 ease-in-out transform",
+        terminalOpen ? "h-[45vh] translate-y-0" : "h-0 translate-y-full"
+      )}>
+        <div className="absolute -top-10 right-6 flex items-center gap-2">
+          <button 
+            onClick={() => setTerminalOpen(!terminalOpen)}
+            className="h-10 px-4 flex items-center gap-2 bg-primary text-primary-foreground rounded-t-xl font-bold text-[10px] uppercase tracking-widest shadow-lg hover:bg-primary/90 transition-colors"
+          >
+            <TerminalSquare className="h-3.5 w-3.5" />
+            {terminalOpen ? "Close Terminal" : "Open Terminal"}
+          </button>
+        </div>
+        
+        {terminalOpen && (
+          <div className="h-full w-full overflow-hidden p-1">
+            <TerminalTabs visible={terminalOpen} showTrainingTab={true} />
+          </div>
+        )}
       </div>
     </TooltipProvider>
   );

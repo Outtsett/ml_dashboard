@@ -1,5 +1,6 @@
 ﻿import fs from "fs";
 import path from "path";
+// @ts-expect-error — glob has no type declarations
 import glob from "glob";
 
 /**
@@ -60,8 +61,8 @@ function validate() {
 
     // Naming Convention Check (snake_case or simple words)
     const fileName = path.basename(file);
-    const nameWithoutExt = fileName.split(".")[0];
-    
+    const nameWithoutExt = fileName.split(".")[0] ?? fileName;
+
     // Server and Lib files should be snake_case or single words
     if (file.includes("server/") || (file.includes("client/src/lib/") && !file.includes("indicators/"))) {
       const isCamelCase = /[a-z][A-Z]/.test(nameWithoutExt);

@@ -1,5 +1,5 @@
-/**
- * useChartOverlayData — Computes all chart overlay layers: regime colors,
+﻿/**
+ * useChartOverlayData â€” Computes all chart overlay layers: regime colors,
  * regime legend, train/test split marker, support/resistance, and zig-zag.
  *
  * Think of it as: the "layer compositor" for the chart. It takes raw regime
@@ -8,7 +8,7 @@
  */
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { computeSupportResistance, computeZigZag, computeSwingZigZag } from "@/lib/chart_overlays";
+import { computeSupportResistance, computeZigZag, computeMicroStructure } from "@/lib/chart_overlays";
 import { useRegimeAssignments } from "@/hooks/useRegimeData";
 import type { RegimeInfo } from "@/components/RegimeLegend";
 import type { OhlcvData } from "./types";
@@ -18,8 +18,8 @@ interface OverlayToggleState {
   setShowSR: React.Dispatch<React.SetStateAction<boolean>>;
   showZigZag: boolean;
   setShowZigZag: React.Dispatch<React.SetStateAction<boolean>>;
-  showSwingZZ: boolean;
-  setShowSwingZZ: React.Dispatch<React.SetStateAction<boolean>>;
+  showStructure: boolean;
+  setShowStructure: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 interface RegimeSource {
@@ -38,7 +38,7 @@ interface RegimeSource {
 interface ChartOverlayResult {
   /** Overlay toggle state */
   overlayToggles: OverlayToggleState;
-  /** Map of timestamp → regime_id for chart bar coloring */
+  /** Map of timestamp â†’ regime_id for chart bar coloring */
   regimeColorMap: Map<number, number> | undefined;
   /** Regime legend entries for the regime badge strip */
   regimeLegendInfo: RegimeInfo[];
@@ -56,10 +56,10 @@ interface ChartOverlayResult {
   matchedModelId: string | null;
   /** Support/resistance levels */
   srLevels: ReturnType<typeof computeSupportResistance>;
-  /** ZigZag points */
+  /** microstructure points */
   zigZagPts: ReturnType<typeof computeZigZag>;
-  /** Swing ZigZag points */
-  swingZZPts: ReturnType<typeof computeSwingZigZag>;
+  /** Microstructure points */
+  structurePts: ReturnType<typeof computeMicroStructure>;
 }
 
 /**
@@ -74,12 +74,12 @@ export function useChartOverlayData(
   tfLabel: string,
   regime: RegimeSource,
 ): ChartOverlayResult {
-  // ── Overlay toggles ──
+  // â”€â”€ Overlay toggles â”€â”€
   const [showSR, setShowSR] = useState(false);
   const [showZigZag, setShowZigZag] = useState(false);
-  const [showSwingZZ, setShowSwingZZ] = useState(false);
+  const [showStructure, setShowStructure] = useState(false);
 
-  // ── Regime filter ──
+  // â”€â”€ Regime filter â”€â”€
   const [selectedRegimes, setSelectedRegimes] = useState<Set<number> | null>(null);
   const matchedModelId = useMemo(() => {
     if (regime.isTraining) return null;
@@ -107,13 +107,13 @@ export function useChartOverlayData(
     });
   }, []);
 
-  // ── Saved regime assignments ──
+  // â”€â”€ Saved regime assignments â”€â”€
   const { data: savedAssignments } = useRegimeAssignments(matchedModelId, {
     enabled: !!matchedModelId && !regime.isTraining,
     limit: 500000,
   });
 
-  // ── Regime color map (priority: live training → saved model) ──
+  // â”€â”€ Regime color map (priority: live training â†’ saved model) â”€â”€
   const regimeColorMap = useMemo(() => {
     // 1. Live training data
     const { liveTimestamps: ts, liveAssignments: assignments } = regime;
@@ -135,7 +135,7 @@ export function useChartOverlayData(
     return map.size > 0 ? map : undefined;
   }, [regime, savedAssignments, selectedRegimes]);
 
-  // ── Regime legend ──
+  // â”€â”€ Regime legend â”€â”€
   const regimeLegendInfo = useMemo((): RegimeInfo[] => {
     if (regime.trainingSync.isActive && regime.trainingSync.regimeLegend.length > 0) {
       const total = regime.trainingSync.regimeLegend.reduce((s, r) => s + r.barCount, 0);
@@ -160,7 +160,7 @@ export function useChartOverlayData(
       .map(([id, info]) => ({ id, label: info.label, count: info.count, pct: (info.count / rows.length) * 100 }));
   }, [regime.trainingSync.isActive, regime.trainingSync.regimeLegend, savedAssignments]);
 
-  // ── Train/test split boundary ──
+  // â”€â”€ Train/test split boundary â”€â”€
   const trainTestSplitTime = useMemo(() => {
     const rows = savedAssignments?.rows;
     if (!rows || rows.length === 0) return undefined;
@@ -168,12 +168,12 @@ export function useChartOverlayData(
     return testRow ? Math.floor(new Date(testRow.ts as string).getTime() / 1000) : undefined;
   }, [savedAssignments]);
 
-  // ── Quality score ──
+  // â”€â”€ Quality score â”€â”€
   const regimeQualityScore = matchedModelId
     ? regime.models.find(m => m.id === matchedModelId)?.quality_score
     : undefined;
 
-  // ── Technical overlays (SR, ZigZag) ──
+  // â”€â”€ Technical overlays (SR, microstructure) â”€â”€
   const mapBars = useCallback((data: OhlcvData[]) =>
     data.map(d => {
       const ts = typeof d.timestamp === 'string' ? parseInt(d.timestamp, 10) : d.timestamp;
@@ -192,13 +192,13 @@ export function useChartOverlayData(
     return computeZigZag(mapBars(chartData), 0);
   }, [showZigZag, chartData, mapBars]);
 
-  const swingZZPts = useMemo(() => {
-    if (!showSwingZZ || chartData.length < 10) return [];
-    return computeSwingZigZag(mapBars(chartData));
-  }, [showSwingZZ, chartData, mapBars]);
+  const structurePts = useMemo(() => {
+    if (!showStructure || chartData.length < 10) return [];
+    return computeMicroStructure(mapBars(chartData));
+  }, [showStructure, chartData, mapBars]);
 
   return {
-    overlayToggles: { showSR, setShowSR, showZigZag, setShowZigZag, showSwingZZ, setShowSwingZZ },
+    overlayToggles: { showSR, setShowSR, showZigZag, setShowZigZag, showStructure, setShowStructure },
     regimeColorMap,
     regimeLegendInfo,
     selectedRegimes,
@@ -209,6 +209,7 @@ export function useChartOverlayData(
     matchedModelId,
     srLevels,
     zigZagPts,
-    swingZZPts,
+    structurePts,
   };
 }
+

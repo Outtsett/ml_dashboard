@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Play, RotateCcw, BarChart2, Target, Orbit,
+  Play, RotateCcw, BarChart2, Target, Orbit, Zap,
   Calculator, Loader2, AlertCircle, CheckCircle2, LineChart as LineChartIcon,
   Shuffle, Dice5, TrendingUp,
 } from "lucide-react";
@@ -15,7 +15,7 @@ import { fetchArray } from "@/lib/fetch_array";
 import { backtestApi } from "@/lib/api_service";
 import { useDashboard, useSymbol, type TradeMarker } from "@/contexts/UnifiedDashboardContext";
 import type { BrokerConfig, BacktestRunResult, WalkForwardResult, MonteCarloResult, BenchmarkResult } from "./types";
-import { MetricBox } from "./MetricBox";
+import { StatCard } from "@/components/ui/stat-card";
 import { ConfigPanel } from "./ConfigPanel";
 import { ResultsTab } from "./ResultsTab";
 import { TradesTab } from "./TradesTab";
@@ -24,7 +24,7 @@ import { WalkForwardTab } from "./WalkForwardTab";
 import { MonteCarloTab } from "./MonteCarloTab";
 import { BenchmarkTab } from "./BenchmarkTab";
 
-/** Embeddable backtest panel – used both standalone and inside MLHub's Backtest tab */
+/** Embeddable backtest panel – used both standalone and inside MLHub's Backtest tab */     
 export function BacktestPanel() {
   const queryClient = useQueryClient();
   const dashboard = useDashboard();
@@ -39,7 +39,7 @@ export function BacktestPanel() {
   const [initialCapital, setInitialCapital] = useState(10000);
   const [positionSize, setPositionSize] = useState(1);
   const [stopLossTicks, setStopLossTicks] = useState<number | undefined>(undefined);
-  const [takeProfitTicks, setTakeProfitTicks] = useState<number | undefined>(undefined);
+  const [takeProfitTicks, setTakeProfitTicks] = useState<number | undefined>(undefined);      
   const [minConfidence, setMinConfidence] = useState(0.5);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -47,9 +47,9 @@ export function BacktestPanel() {
   // Results state
   const [lastResult, setLastResult] = useState<BacktestRunResult | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
-  const [walkForwardResult, setWalkForwardResult] = useState<WalkForwardResult | null>(null);
-  const [monteCarloResult, setMonteCarloResult] = useState<MonteCarloResult | null>(null);
-  const [benchmarkResult, setBenchmarkResult] = useState<BenchmarkResult | null>(null);
+  const [walkForwardResult, setWalkForwardResult] = useState<WalkForwardResult | null>(null); 
+  const [monteCarloResult, setMonteCarloResult] = useState<MonteCarloResult | null>(null);    
+  const [benchmarkResult, setBenchmarkResult] = useState<BenchmarkResult | null>(null);       
 
   // Data queries
   const { data: models = [] } = useQuery<{ id: number; name: string; architecture: string; symbol: string }[]>({
@@ -229,7 +229,7 @@ export function BacktestPanel() {
   // Push backtest trades as chart overlays when they load
   useEffect(() => {
     if (!tradesData?.chartMarkers?.length) return;
-    const markers: TradeMarker[] = tradesData.chartMarkers.map((m: any, i: number) => ({
+    const markers: TradeMarker[] = tradesData.chartMarkers.map((m: any, i: number) => ({      
       id: `bt-${selectedRunId}-${i}`,
       timestamp: m.timestamp,
       type: m.type as 'entry' | 'exit',
@@ -294,7 +294,7 @@ export function BacktestPanel() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 flex-1 min-h-0 overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 flex-1 min-h-0 overflow-hidden">  
         {/* Configuration Sidebar */}
         <ConfigPanel
           selectedModel={selectedModel} onModelChange={setSelectedModel}
@@ -307,30 +307,27 @@ export function BacktestPanel() {
           initialCapital={initialCapital} onInitialCapitalChange={setInitialCapital}
           positionSize={positionSize} onPositionSizeChange={setPositionSize}
           stopLossTicks={stopLossTicks} onStopLossTicksChange={setStopLossTicks}
-          takeProfitTicks={takeProfitTicks} onTakeProfitTicksChange={setTakeProfitTicks}
+          takeProfitTicks={takeProfitTicks} onTakeProfitTicksChange={setTakeProfitTicks}      
           minConfidence={minConfidence} onMinConfidenceChange={setMinConfidence}
           models={models} instruments={instruments} brokers={brokers}
-          previousRuns={previousRuns} selectedRunId={selectedRunId} onLoadRun={handleLoadRun}
+          previousRuns={previousRuns} selectedRunId={selectedRunId} onLoadRun={handleLoadRun} 
         />
 
         {/* Results Area */}
         <div className="lg:col-span-4 flex flex-col gap-3 min-h-0 overflow-hidden">
           {/* Metrics Row */}
           <div className="grid grid-cols-6 gap-2 shrink-0">
-            <MetricBox label="Total Return" value={metrics ? `${metrics.totalReturn >= 0 ? '+' : ''}$${metrics.totalReturn.toFixed(0)}` : '--'}
-              subValue={metrics ? `${metrics.totalReturnPct >= 0 ? '+' : ''}${metrics.totalReturnPct.toFixed(1)}%` : ''}
-              color="emerald" />
-            <MetricBox label="Max Drawdown" value={metrics ? `$${metrics.maxDrawdown.toFixed(0)}` : '--'} color="rose" />
-            <MetricBox label="Sharpe" value={metrics ? metrics.sharpeRatio.toFixed(2) : '--'} color="violet" />
-            <MetricBox label="Win Rate" value={metrics ? `${(metrics.winRate * 100).toFixed(1)}%` : '--'}
-              subValue={metrics ? `${metrics.totalTrades} trades` : ''} color="cyan" />
-            <MetricBox label="Profit Factor" value={metrics ? (metrics.profitFactor === Infinity ? '∞' : metrics.profitFactor.toFixed(2)) : '--'} color="amber" />
-            <MetricBox label="Expectancy" value={metrics ? `$${metrics.expectancy.toFixed(2)}` : '--'} color="fuchsia" />
+            <StatCard label="Total Return" value={metrics ? `${metrics.totalReturn >= 0 ? "+" : ""}$${metrics.totalReturn.toFixed(0)}` : "--"} subValue={metrics ? `${metrics.totalReturnPct >= 0 ? "+" : ""}${metrics.totalReturnPct.toFixed(1)}%` : ""} color="emerald" icon={TrendingUp} />
+            <StatCard label="Max Drawdown" value={metrics ? `$${metrics.maxDrawdown.toFixed(0)}` : "--"} color="rose" icon={Target} />
+            <StatCard label="Sharpe" value={metrics ? metrics.sharpeRatio.toFixed(2) : "--"} color="violet" icon={BarChart2} />
+            <StatCard label="Win Rate" value={metrics ? `${(metrics.winRate * 100).toFixed(1)}%` : "--"} subValue={metrics ? `${metrics.totalTrades} trades` : ""} color="cyan" icon={Zap} />
+            <StatCard label="Profit Factor" value={metrics ? (metrics.profitFactor === Infinity ? "∞" : metrics.profitFactor.toFixed(2)) : "--"} color="amber" icon={Calculator} />
+            <StatCard label="Expectancy" value={metrics ? `$${metrics.expectancy.toFixed(2)}` : "--"} color="fuchsia" icon={Orbit} />
           </div>
 
           {/* Data Summary */}
           {lastResult?.dataSummary && lastResult.dataSummary.totalBars > 0 && (
-            <div className="flex gap-4 text-[10px] text-muted-foreground shrink-0 px-1">
+            <div className="flex gap-4 text-[10px] text-muted-foreground shrink-0 px-1">      
               <span>Total bars: <span className="font-mono text-foreground">{lastResult.dataSummary.totalBars.toLocaleString()}</span></span>
               <span>Train: <span className="font-mono text-primary">{lastResult.dataSummary.trainBars.toLocaleString()}</span></span>
               <span>Test: <span className="font-mono text-accent">{lastResult.dataSummary.testBars.toLocaleString()}</span></span>
@@ -389,7 +386,7 @@ export function BacktestPanel() {
               )}
             </div>
 
-            <TabsContent value="results" className="flex-1 min-h-0 overflow-hidden mt-3">
+            <TabsContent value="results" className="flex-1 min-h-0 overflow-hidden mt-3">     
               <ResultsTab
                 equityCurveData={equityCurveData}
                 metrics={metrics}
@@ -402,19 +399,19 @@ export function BacktestPanel() {
               <TradesTab trades={trades} isPending={runBacktest.isPending} />
             </TabsContent>
 
-            <TabsContent value="costs" className="flex-1 min-h-0 overflow-hidden mt-3">
+            <TabsContent value="costs" className="flex-1 min-h-0 overflow-hidden mt-3">       
               <CostsTab trades={trades} metrics={metrics} lastResult={lastResult} />
             </TabsContent>
 
-            <TabsContent value="walkforward" className="flex-1 min-h-0 overflow-hidden mt-3">
+            <TabsContent value="walkforward" className="flex-1 min-h-0 overflow-hidden mt-3"> 
               <WalkForwardTab result={walkForwardResult} isPending={runWalkForwardMutation.isPending} />
             </TabsContent>
 
-            <TabsContent value="montecarlo" className="flex-1 min-h-0 overflow-hidden mt-3">
+            <TabsContent value="montecarlo" className="flex-1 min-h-0 overflow-hidden mt-3">  
               <MonteCarloTab result={monteCarloResult} isPending={runMonteCarloMutation.isPending} />
             </TabsContent>
 
-            <TabsContent value="benchmark" className="flex-1 min-h-0 overflow-hidden mt-3">
+            <TabsContent value="benchmark" className="flex-1 min-h-0 overflow-hidden mt-3">   
               <BenchmarkTab result={benchmarkResult} isPending={runBenchmarkMutation.isPending} />
             </TabsContent>
           </Tabs>
@@ -427,3 +424,4 @@ export function BacktestPanel() {
 export default function Backtest() {
   return <BacktestPanel />;
 }
+

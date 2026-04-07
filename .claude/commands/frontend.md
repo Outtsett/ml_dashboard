@@ -27,34 +27,57 @@ const NewPage = lazy(() => import("./pages/NewPage"));
 Add navigation entry in `client/src/components/Layout.tsx` sidebar (icon from `lucide-react`).
 
 ### Data Fetching
-Use React Query hooks with the established query client:
+Use React Query hooks with the established query client. **Always pass signal for request cancellation:**
 ```tsx
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-// Query
+// Query — ALWAYS destructure signal in queryFn
 const { data, isLoading, error } = useQuery({
   queryKey: ["models"],
-  queryFn: () => fetch("/api/ml/models").then(r => r.json()),
+  queryFn: async ({ signal }) => {
+    const res = await fetch("/api/ml/models", { signal });
+    if (!res.ok) throw new Error("Failed");
+    return res.json();
+  },
 });
 
-// Mutation with cache invalidation
+// Mutation with optimistic update + rollback
+const qc = useQueryClient();
 const mutation = useMutation({
-  mutationFn: (data) => fetch("/api/ml/models", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  }),
-  onSuccess: () => queryClient.invalidateQueries({ queryKey: ["models"] }),
+  mutationFn: (id: string) => apiRequest("DELETE", `/api/models/${id}`),
+  onMutate: async (id) => {
+    await qc.cancelQueries({ queryKey: ["models"] });
+    const previous = qc.getQueryData(["models"]);
+    qc.setQueryData(["models"], (old: any[]) => old?.filter(m => m.id !== id) ?? []);
+    return { previous };
+  },
+  onError: (_err, _id, ctx) => { if (ctx?.previous) qc.setQueryData(["models"], ctx.previous); },
+  onSettled: () => qc.invalidateQueries({ queryKey: ["models"] }),
 });
 ```
 
-**Query client config:** 60s staleTime, 10min gcTime, 1 retry, exponential backoff.
+**Query client config:** 5min staleTime, 10min gcTime, 1 retry, exponential backoff. AbortSignal auto-passed.
 
 ### Prefetching
 Use hover-based prefetching from `client/src/lib/prefetch.ts` for nav links.
 
-### Client-Side Caching
-Use Dexie (IndexedDB) for persistent client-side caching. See existing patterns in `client/src/lib/indexeddb.ts` and `client/src/lib/cacheManager.ts`.
+### Client-Side Caching (IndexedDB)
+Use `idb` library for persistent client-side caching. See pattern in `client/src/lib/ohlcv_cache.ts`:
+- `getCachedBars(symbol, timeframe)` — check cache before network
+- `storeBars(symbol, timeframe, bars)` — persist after fetch (fire-and-forget)
+- 24h TTL, range merging, dedup by timestamp
+
+### MessagePack for Bulk Data
+For large array responses (>10KB), request binary MessagePack:
+```tsx
+import { decode as msgpackDecode } from '@msgpack/msgpack';
+const res = await fetch(url, { signal, headers: { 'Accept': 'application/msgpack' } });
+const contentType = res.headers.get('content-type') || '';
+if (contentType.includes('application/msgpack')) {
+  return msgpackDecode(new Uint8Array(await res.arrayBuffer()));
+}
+return res.json();
+```
 
 ## Visualization Components
 

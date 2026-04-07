@@ -135,8 +135,31 @@ export function useDeleteModel() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (modelId: string) => apiRequest("DELETE", `/api/training/models/${encodeURIComponent(modelId)}`),
+    // Optimistic update: remove model from cache immediately (don't wait for round-trip)
+    onMutate: async (modelId: string) => {
+      // Cancel in-flight refetches to prevent race conditions
+      await qc.cancelQueries({ queryKey: ["/api/training/models"] });
+      // Snapshot previous state for rollback
+      const previous = qc.getQueryData<TrainedModel[]>(["/api/training/models"]);
+      // Optimistically remove the model
+      qc.setQueryData<TrainedModel[]>(
+        ["/api/training/models"],
+        (old) => old?.filter(m => m.id !== modelId) ?? [],
+      );
+      return { previous };
+    },
     onSuccess: () => {
       toast.success("Model deleted");
+    },
+    onError: (_err, _modelId, context) => {
+      // Rollback on failure
+      if (context?.previous) {
+        qc.setQueryData(["/api/training/models"], context.previous);
+      }
+      toast.error("Failed to delete model");
+    },
+    onSettled: () => {
+      // Always refetch to ensure consistency
       qc.invalidateQueries({ queryKey: ["/api/training/models"] });
     },
   });

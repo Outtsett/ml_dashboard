@@ -29,6 +29,7 @@ const COMPONENT_MAP: Record<string, React.LazyExoticComponent<React.ComponentTyp
   "elbow-bic-curve":             lazy(() => import("./ElbowBicCurve")),
   "benchmark-comparison":        lazy(() => import("./BenchmarkComparison")),
   "model-history":               lazy(() => import("./ModelHistory")),
+  "microstructure-analytics":    lazy(() => import("./MicrostructureAnalytics")),
 };
 
 export interface AnalyticsComponentProps {

@@ -1,3 +1,4 @@
+import fetch from "node-fetch";
 import { Sender } from "@questdb/nodejs-client";
 import pg from "pg";
 import { z } from "zod";
@@ -13,6 +14,29 @@ export const QUESTDB_PASSWORD = process.env.QUESTDB_PASSWORD || "quest";
 const SLOW_QUERY_THRESHOLD_MS = 1000;
 
 let sender: Sender | null = null;
+/**
+ * Simple async mutex to prevent concurrent access to the singleton Sender.
+ * The QuestDB NodeJS client is NOT thread-safe for concurrent table/symbol/at calls.
+ */
+class SenderMutex {
+  private queue: Promise<void> = Promise.resolve();
+
+  async run<T>(fn: (sender: Sender) => Promise<T>): Promise<T> {
+    const result = this.queue.then(async () => {
+      if (!sender) {
+        const configStr = `http::addr=${QUESTDB_HOST}:${QUESTDB_HTTP_PORT};`;
+        sender = await Sender.fromConfig(configStr);
+      }
+      return await fn(sender);
+    });
+    // Ensure the queue continues even if the function fails
+    this.queue = result.then(() => {}).catch(() => {});
+    return result;
+  }
+}
+
+const senderMutex = new SenderMutex();
+
 let queryPool: pg.Pool | null = null;
 
 export async function getQuestDBSender(): Promise<Sender> {
@@ -49,13 +73,80 @@ export function getQuestDBQueryPool(): pg.Pool {
   return initQueryPool();
 }
 
-export async function queryQuestDB<T = any>(sql: string): Promise<T[]> {
+
+/**
+ * ULTRA-FAST QuestDB Reader via HTTP REST API.
+ * 
+ * Performance:
+ * 1. Bypasses PG wire overhead.
+ * 2. Streams result sets directly as JSON/CSV.
+ * 3. Ideal for bulk data pulls (100k+ bars).
+ */
+export async function queryQuestDBFast<T = any>(sql: string, signal?: AbortSignal): Promise<T[]> {
+  const start = performance.now();
+  const url = `http://${QUESTDB_HOST}:${QUESTDB_HTTP_PORT}/exec?query=${encodeURIComponent(sql)}&nm=true`;
+
+  try {
+    const response = await fetch(url, signal ? { signal: signal as any } : undefined);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`QuestDB HTTP Error: ${errorText}`);
+    }
+    
+    const data: any = await response.json();
+    
+    // Map array-of-arrays to array-of-objects using columns metadata
+    const columns = data.columns.map((c: any) => c.name);
+    const result = data.dataset.map((row: any[]) => {
+      const obj: any = {};
+      for (let i = 0; i < columns.length; i++) {
+        obj[columns[i]] = row[i];
+      }
+      return obj as T;
+    });
+
+    const durationMs = performance.now() - start;
+    if (durationMs > 1000) {
+      console.warn(`[questdb-fast] LARGE QUERY (${durationMs.toFixed(0)}ms, ${result.length} rows)`);
+    }
+    
+    return result;
+  } catch (error: any) {
+    console.error("[questdb-fast] HTTP Query failed:", error.message);
+    // Fallback to PG if HTTP fails
+    return queryQuestDB(sql);
+  }
+}
+
+export async function queryQuestDB<T = any>(sql: string, timeoutMs?: number): Promise<T[]> {
   const pool = getQuestDBQueryPool();
   const start = performance.now();
-  const result = await pool.query(sql);
-  const durationMs = performance.now() - start;
 
-  const preview = sql.length > 120 ? sql.slice(0, 120) + "…" : sql;
+  let result: pg.QueryResult;
+  if (timeoutMs && timeoutMs > 0) {
+    // Per-query timeout: race the query against an AbortController
+    const client = await pool.connect();
+    try {
+      await client.query(`SET statement_timeout = ${Math.floor(timeoutMs)}`);
+      result = await client.query(sql);
+      await client.query('SET statement_timeout = 0'); // reset for pool reuse
+    } catch (err: any) {
+      // QuestDB/PG fires '57014' (query_canceled) on timeout
+      if (err.code === '57014') {
+        const preview = sql.length > 120 ? sql.slice(0, 120) + '…' : sql;
+        console.warn(`[questdb] QUERY TIMEOUT (${timeoutMs}ms): ${preview}`);
+        throw new Error(`Query timed out after ${timeoutMs}ms`);
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  } else {
+    result = await pool.query(sql);
+  }
+
+  const durationMs = performance.now() - start;
+  const preview = sql.length > 120 ? sql.slice(0, 120) + '…' : sql;
   if (durationMs > SLOW_QUERY_THRESHOLD_MS) {
     console.warn(`[questdb] SLOW QUERY (${durationMs.toFixed(0)}ms, ${result.rowCount} rows): ${preview}`);
   } else if (process.env.QUESTDB_QUERY_LOG === "verbose") {
@@ -153,6 +244,19 @@ export interface OHLCVRow {
   volume: number;
 }
 
+
+/** Validates table names to prevent garbage table creation from malformed ILP data. */
+function validateTableName(table: string): string {
+  const allowed = ["ohlcv", "ticks", "dom_l2", "dom_summary", "symbols", "mbp10", "trades"];
+  if (allowed.includes(table)) return table;
+  // If table looks like a number or is missing, default to ohlcv
+  if (/^\d/.test(table) || table.length < 2) {
+    console.warn(`[questdb] Blocked garbage table name: "${table}", defaulting to "ohlcv"`);
+    return "ohlcv";
+  }
+  return table;
+}
+
 /** Derive asset_class and root from a symbol string. */
 function deriveAssetFields(symbol: string): { assetClass: string; root: string } {
   const s = symbol.toUpperCase();
@@ -172,27 +276,26 @@ function deriveAssetFields(symbol: string): { assetClass: string; root: string }
 }
 
 export async function insertOHLCVBatch(rows: OHLCVRow[]): Promise<void> {
-  const sender = await getQuestDBSender();
+  return senderMutex.run(async (s) => {
+    for (const row of rows) {
+      const { assetClass, root } = row.assetClass && row.root
+        ? { assetClass: row.assetClass, root: row.root }
+        : deriveAssetFields(row.symbol);
 
-  for (const row of rows) {
-    const { assetClass, root } = row.assetClass && row.root
-      ? { assetClass: row.assetClass, root: row.root }
-      : deriveAssetFields(row.symbol);
-
-    await sender
-      .table("ohlcv")
-      .symbol("symbol", row.symbol)
-      .symbol("asset_class", assetClass)
-      .symbol("root", root)
-      .floatColumn("open", row.open)
-      .floatColumn("high", row.high)
-      .floatColumn("low", row.low)
-      .floatColumn("close", row.close)
-      .floatColumn("volume", row.volume)
-      .at(row.timestamp.getTime(), "ms");
-  }
-
-  await sender.flush();
+      await s
+        .table(validateTableName("ohlcv"))
+        .symbol("symbol", row.symbol)
+        .symbol("asset_class", assetClass)
+        .symbol("root", root)
+        .floatColumn("open", row.open)
+        .floatColumn("high", row.high)
+        .floatColumn("low", row.low)
+        .floatColumn("close", row.close)
+        .floatColumn("volume", row.volume)
+        .at(row.timestamp.getTime(), "ms");
+    }
+    await s.flush();
+  });
 }
 
 export async function insertOHLCVStream(
@@ -206,24 +309,25 @@ export async function insertOHLCVStream(
   assetClass?: string,
   root?: string,
 ): Promise<void> {
-  const sender = await getQuestDBSender();
-  const derived = assetClass && root
-    ? { assetClass, root }
-    : deriveAssetFields(symbol);
+  return senderMutex.run(async (s) => {
+    const derived = assetClass && root
+      ? { assetClass, root }
+      : deriveAssetFields(symbol);
 
-  await sender
-    .table("ohlcv")
-    .symbol("symbol", symbol)
-    .symbol("asset_class", derived.assetClass)
-    .symbol("root", derived.root)
-    .floatColumn("open", open)
-    .floatColumn("high", high)
-    .floatColumn("low", low)
-    .floatColumn("close", close)
-    .floatColumn("volume", volume)
-    .at(timestamp, "ms");
+    await s
+      .table(validateTableName("ohlcv"))
+      .symbol("symbol", symbol)
+      .symbol("asset_class", derived.assetClass)
+      .symbol("root", derived.root)
+      .floatColumn("open", open)
+      .floatColumn("high", high)
+      .floatColumn("low", low)
+      .floatColumn("close", close)
+      .floatColumn("volume", volume)
+      .at(timestamp, "ms");
 
-  await sender.flush();
+    await s.flush();
+  });
 }
 
 export async function closeQuestDB(): Promise<void> {
@@ -240,14 +344,16 @@ export async function closeQuestDB(): Promise<void> {
 export async function checkQuestDBHealth(): Promise<boolean> {
   try {
     const pool = getQuestDBQueryPool();
-    // Race against a 3-second timeout to prevent hanging
-    await Promise.race([
+    console.log(`[questdb-debug] Checking health on ${QUESTDB_HOST}:${QUESTDB_PG_PORT}...`);
+    // Race against a 10-second timeout to prevent hanging (QuestDB can be slow on large WAL flush)
+    const result = await Promise.race([
       pool.query("SELECT 1;"),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('QuestDB health check timeout')), 3000)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('QuestDB health check timeout')), 10000)),
     ]);
+    console.log('[questdb-debug] Health check success');
     return true;
   } catch (error: any) {
-    console.warn("[questdb] Health check failed:", error.message);
+    console.warn("[questdb] Health check failed:", error.message, "at", `${QUESTDB_HOST}:${QUESTDB_PG_PORT}`);
     return false;
   }
 }

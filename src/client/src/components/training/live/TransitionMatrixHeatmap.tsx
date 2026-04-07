@@ -84,9 +84,9 @@ function TransitionMatrixHeatmapInner({
           }
         `}</style>
       )}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-white/5">
-        <span className="text-[10px] font-mono text-emerald-400 font-medium">Transition Matrix</span>
-        <span className="text-[9px] font-mono text-muted-foreground/50">{N}x{N}</span>
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-white/[0.08]">
+        <span className="text-[10px] font-mono text-emerald-400 font-semibold">Transition Matrix</span>
+        <span className="text-[9px] font-mono text-foreground/50">{N}x{N}</span>
       </div>
       <div className="flex-1 p-2 flex items-center justify-center overflow-auto">
         <div
@@ -104,9 +104,10 @@ function TransitionMatrixHeatmapInner({
               key={`h-${j}`}
               style={{
                 textAlign: 'center',
-                fontSize: '8px',
+                fontSize: '9px',
+                fontWeight: 600,
                 fontFamily: 'monospace',
-                color: regimeColors?.[String(j)] ?? '#888',
+                color: regimeColors?.[String(j)] ?? '#aaa',
                 padding: '2px',
               }}
             >
@@ -120,9 +121,10 @@ function TransitionMatrixHeatmapInner({
               {/* Row label */}
               <div
                 style={{
-                  fontSize: '8px',
+                  fontSize: '9px',
+                  fontWeight: 600,
                   fontFamily: 'monospace',
-                  color: regimeColors?.[String(i)] ?? '#888',
+                  color: regimeColors?.[String(i)] ?? '#aaa',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'flex-end',
@@ -135,10 +137,10 @@ function TransitionMatrixHeatmapInner({
               {Array.from({ length: N }, (_, j) => {
                 const val = matrix[i]?.[j] ?? 0;
                 const isDiag = i === j;
-                const alpha = Math.min(1, val * 1.5);
+                const alpha = Math.min(1, val * 1.8);
                 const bg = isDiag
-                  ? `rgba(34, 197, 94, ${alpha})`
-                  : `rgba(59, 130, 246, ${alpha * 0.8})`;
+                  ? `rgba(34, 197, 94, ${Math.max(alpha, 0.08)})`
+                  : `rgba(59, 130, 246, ${Math.max(alpha * 0.9, 0.04)})`;
                 const cellKey = `${i}-${j}`;
                 const isPulsing = changedCells?.has(cellKey);
 
@@ -150,16 +152,18 @@ function TransitionMatrixHeatmapInner({
                     style={{
                       width: '100%',
                       aspectRatio: '1',
-                      minWidth: '18px',
-                      maxWidth: '36px',
+                      minWidth: '22px',
+                      maxWidth: '40px',
                       background: bg,
-                      borderRadius: '2px',
+                      borderRadius: '3px',
+                      border: isDiag ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(255,255,255,0.04)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '7px',
+                      fontSize: '8px',
+                      fontWeight: isDiag ? 600 : 400,
                       fontFamily: 'monospace',
-                      color: alpha > 0.5 ? '#fff' : 'rgba(255,255,255,0.3)',
+                      color: alpha > 0.3 ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)',
                       transition: animate ? 'background 0.3s ease' : undefined,
                     }}
                   >

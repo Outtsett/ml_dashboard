@@ -78,6 +78,39 @@ export interface EnsembleConfig {
   updatedAt?: string;
 }
 
+/** Model checkpoint from /api/models — includes self-describing diagnostics. */
+export interface ModelCheckpoint {
+  id: number;
+  modelId: string;
+  modelType: string;
+  symbol: string;
+  timeframe: string;
+  diagnosticsJson: string | null;   // JSON string of self-describing metrics
+  primaryMetric: number | null;
+  primaryMetricName: string | null;
+  paramCount: number | null;
+  trainingDurationSec: number | null;
+  nBarsTrain: number | null;
+  nBarsVal: number | null;
+  isActive: number;                 // 0 or 1
+  sessionId: number | null;
+  createdAt: number;                // epoch-ms
+}
+
+/** Parsed key performance metrics extracted from diagnosticsJson. */
+export interface CheckpointPerformance {
+  profitFactor: number | null;
+  sharpeRatio: number | null;
+  winRate: number | null;
+  nTrades: number | null;
+  maxDrawdown: number | null;
+  accuracy: number | null;
+  valLoss: number | null;
+  trainLoss: number | null;
+  rocAuc: number | null;
+  codebookUtilization: number | null;
+}
+
 export interface FeatureImportance {
   feature: string;
   importance: number;
@@ -106,6 +139,7 @@ export interface SavedModel {
  * Use these constants to ensure cache sharing across pages.
  */
 export const QUERY_KEYS = {
+  modelCheckpoints: ["/api/models"] as const,
   mlModels: ["/api/ml/models"] as const,
   mlTrades: ["/api/ml/trades"] as const,
   mlRegimes: ["/api/ml/regimes"] as const,

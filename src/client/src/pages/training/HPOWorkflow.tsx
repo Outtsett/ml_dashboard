@@ -103,7 +103,7 @@ export function HPOWorkflow() {
         for (const [key, def] of Object.entries(
           model.defaultHyperparameters,
         )) {
-          defaults[key] = def.value;
+          defaults[key] = def.default;
         }
       }
       setHyperparamValues(defaults);
@@ -125,7 +125,7 @@ export function HPOWorkflow() {
     for (const [key, def] of Object.entries(
       selectedModel.defaultHyperparameters,
     )) {
-      defaults[key] = def.value;
+      defaults[key] = def.default;
     }
     setHyperparamValues(defaults);
   }, [selectedModel]);

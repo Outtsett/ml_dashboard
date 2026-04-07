@@ -6,7 +6,7 @@ Institutional-grade, modular trading and analysis platform adhering to SOLID pri
 
 | Layer | Technology | Role |
 | :--- | :--- | :--- |
-| **Speed** | **QuestDB** | High-frequency tick ingest, L2 Order Book, fast OHLCV. |
+| **Speed** | **QuestDB** | High-frequency ILP-over-HTTP ingestion, fast OHLCV via REST fast-path. |
 | **Batch** | **DuckDB** | Ephemeral data wrangling, massive .parquet loading for training. |
 | **Serving** | **PostgreSQL** | Relational metadata, Model Catalog state, strategy querying. |
 
@@ -38,3 +38,9 @@ graph TD
 1. **Ingest**: Ticks arrive from QuestDB -> normalized by the Server -> served via API.
 2. **Training**: User triggers via UI -> SAGA in Server orchestrates Python process -> Progress streamed via SSE.
 3. **Audit**: Indicators and TA calculations are audited via `audit_and_calculate_ta.py` for precision.
+
+## 5. Connectivity & Speed
+
+- **MotiveWave Bridge**: Optimized Java ILP client using async batching and `TCP_NODELAY`.
+- **Fast-Pulse Logic**: Sub-10ms UI propagation via `/api/motivewave/pulse` endpoint and SSE broadcast.
+- **Bulk Access**: High-speed HTTP REST path for Node.js and Python, bypassing standard PG wire overhead for 1.5x throughput gains.

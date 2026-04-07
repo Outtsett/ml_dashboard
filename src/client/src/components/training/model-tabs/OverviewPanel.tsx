@@ -1,5 +1,5 @@
-/**
- * OverviewPanel — Chart-first diagnostics overview in a responsive grid.
+﻿/**
+ * OverviewPanel â€” Chart-first diagnostics overview in a responsive grid.
  *
  * Each cell renders based on which diagnostics keys exist (model-agnostic).
  * Any model that outputs regime_stats gets the distribution chart,
@@ -16,7 +16,7 @@ import {
   getLLConvergenceVerdict, getFitVerdict, getStabilityVerdict,
 } from "../types";
 
-// ── Feature category mapping (for SHAP chart) ──
+// â”€â”€ Feature category mapping (for SHAP chart) â”€â”€
 
 function getFeatureCategory(name: string): { label: string; fill: string } {
   if (name.startsWith('return_'))           return { label: 'Returns',    fill: '#3b82f6' };
@@ -28,11 +28,11 @@ function getFeatureCategory(name: string): { label: string; fill: string } {
   if (name.startsWith('roc_'))              return { label: 'Momentum',   fill: '#06b6d4' };
   if (name.startsWith('ma_dist_'))          return { label: 'MA Dist',    fill: '#f59e0b' };
   if (name.startsWith('swing_') || name.startsWith('prev_swing_') || name === 'retracement_ratio')
-                                            return { label: 'Swing',      fill: '#f43f5e' };
+                                            return { label: 'microstructure',      fill: '#f43f5e' };
   return { label: 'Other', fill: '#64748b' };
 }
 
-// ── Cell wrapper ──
+// â”€â”€ Cell wrapper â”€â”€
 
 function ChartCell({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
@@ -46,7 +46,7 @@ function CellHeader({ children }: { children: React.ReactNode }) {
   return <div className="text-[9px] text-muted-foreground/50 uppercase tracking-widest mb-2 shrink-0">{children}</div>;
 }
 
-// ── Quality Ring Cell ──
+// â”€â”€ Quality Ring Cell â”€â”€
 
 function QualityCell({ quality }: { quality: number }) {
   const verdict = getQualityVerdict(quality);
@@ -76,7 +76,7 @@ function QualityCell({ quality }: { quality: number }) {
   );
 }
 
-// ── Regime Distribution Cell ──
+// â”€â”€ Regime Distribution Cell â”€â”€
 
 function RegimeDistributionCell({ regimeStats }: { regimeStats: Diagnostics['regime_stats'] }) {
   if (!regimeStats?.length) return null;
@@ -112,7 +112,7 @@ function RegimeDistributionCell({ regimeStats }: { regimeStats: Diagnostics['reg
   );
 }
 
-// ── Walk-Forward Heatmap Cell ──
+// â”€â”€ Walk-Forward Heatmap Cell â”€â”€
 
 function WalkForwardCell({ walkForward }: { walkForward: NonNullable<Diagnostics['walk_forward']> }) {
   const windows = walkForward.window_results;
@@ -148,7 +148,7 @@ function WalkForwardCell({ walkForward }: { walkForward: NonNullable<Diagnostics
   );
 }
 
-// ── LL Convergence Sparkline Cell ──
+// â”€â”€ LL Convergence Sparkline Cell â”€â”€
 
 function ConvergenceCell({ convergencePoints, llPerBar }: { convergencePoints: ConvergencePoint[]; llPerBar: number }) {
   const verdict = convergencePoints.length > 1
@@ -174,7 +174,7 @@ function ConvergenceCell({ convergencePoints, llPerBar }: { convergencePoints: C
   );
 }
 
-// ── OOS Distribution Comparison Cell ──
+// â”€â”€ OOS Distribution Comparison Cell â”€â”€
 
 function OOSComparisonCell({ oos }: { oos: NonNullable<Diagnostics['out_of_sample']> }) {
   const data = useMemo(() => {
@@ -220,7 +220,7 @@ function OOSComparisonCell({ oos }: { oos: NonNullable<Diagnostics['out_of_sampl
   );
 }
 
-// ── Top SHAP Features Cell ──
+// â”€â”€ Top SHAP Features Cell â”€â”€
 
 function ShapFeaturesCell({ diagnostics }: { diagnostics: Diagnostics }) {
   const topFeatures = useMemo(() => {
@@ -277,7 +277,7 @@ function ShapFeaturesCell({ diagnostics }: { diagnostics: Diagnostics }) {
   );
 }
 
-// ── Model Info Bar ──
+// â”€â”€ Model Info Bar â”€â”€
 
 function ModelInfoBar({ diagnostics, model }: { diagnostics: Diagnostics; model: RegimeModel }) {
   const timeSec = diagnostics.training_time_sec ?? 0;
@@ -298,14 +298,14 @@ function ModelInfoBar({ diagnostics, model }: { diagnostics: Diagnostics; model:
   );
 }
 
-// ── Main OverviewPanel ──
+// â”€â”€ Main OverviewPanel â”€â”€
 
 export function OverviewPanel({ diagnostics, model, llPerBar, convergencePoints }: {
   diagnostics: Diagnostics; model: RegimeModel; llPerBar: number; convergencePoints: ConvergencePoint[];
 }) {
   const quality = diagnostics.quality_score ?? 0;
 
-  // Diagnostics-driven cell visibility — each cell checks its own keys
+  // Diagnostics-driven cell visibility â€” each cell checks its own keys
   const hasRegimeStats = diagnostics.regime_stats?.length > 0;
   const hasWalkForward = !!diagnostics.walk_forward?.window_results?.length;
   const hasConvergence = convergencePoints.length > 1 || llPerBar !== 0;
@@ -338,7 +338,7 @@ export function OverviewPanel({ diagnostics, model, llPerBar, convergencePoints 
     cells.push({ key: 'shap', node: <ShapFeaturesCell diagnostics={diagnostics} /> });
   }
 
-  // Adaptive column count: 1→1, 2→2, 3→3, 4+→3
+  // Adaptive column count: 1â†’1, 2â†’2, 3â†’3, 4+â†’3
   const colClass = cells.length <= 1 ? 'grid-cols-1'
     : cells.length === 2 ? 'grid-cols-2'
     : 'grid-cols-3';
@@ -356,3 +356,4 @@ export function OverviewPanel({ diagnostics, model, llPerBar, convergencePoints 
     </div>
   );
 }
+

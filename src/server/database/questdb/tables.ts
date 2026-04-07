@@ -34,6 +34,29 @@ export async function createOHLCVTable(): Promise<void> {
   `);
 }
 
+export async function createPredictionLogTable(): Promise<void> {
+  await queryQuestDB(`
+    CREATE TABLE IF NOT EXISTS prediction_log (
+      model_id SYMBOL CAPACITY 100 CACHE INDEX,
+      symbol SYMBOL CAPACITY 200 CACHE INDEX,
+      predicted_class SHORT,
+      actual_class SHORT,
+      confidence DOUBLE,
+      prob_tp DOUBLE,
+      prob_sl DOUBLE,
+      prob_timeout DOUBLE,
+      realized_return DOUBLE,
+      exit_bars INT,
+      barrier_hit SYMBOL CAPACITY 10 CACHE,
+      fold_index SHORT,
+      split_type SYMBOL CAPACITY 5 CACHE,
+      timestamp TIMESTAMP
+    ) timestamp(timestamp) PARTITION BY MONTH WAL
+    DEDUP UPSERT KEYS(model_id, symbol, timestamp);
+  `);
+}
+
 export async function initQuestDBTables(): Promise<void> {
   await createOHLCVTable();
+  await createPredictionLogTable();
 }

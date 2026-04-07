@@ -1,6 +1,6 @@
-/**
+﻿/**
  * Trend indicators: Choppiness, Chande Kroll Stop, DPO, QStick,
- * Vortex, VHF, Linear Decay, ZigZag.
+ * Vortex, VHF, Linear Decay, microstructure.
  */
 
 import type { Bar, IndicatorPoint } from './math_primitives';
@@ -15,7 +15,7 @@ import {
   toTimeSec,
 } from './math_primitives';
 
-// ─── Choppiness Index ────────────────────────────────────────────────────────
+// â”€â”€â”€ Choppiness Index â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Choppiness Index.
@@ -59,10 +59,10 @@ export function calcChoppiness(bars: Bar[], period = 14): IndicatorPoint[] {
   return toPoints(result, bars);
 }
 
-// ─── Chande Kroll Stop ───────────────────────────────────────────────────────
+// â”€â”€â”€ Chande Kroll Stop â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
- * Chande Kroll Stop — ATR-based trailing stop.
+ * Chande Kroll Stop â€” ATR-based trailing stop.
  *
  * Step 1: ATR = Wilder's smoothed true range over atrPeriod.
  * Step 2: first_high_stop = highest_high(atrPeriod) - atrMult * ATR
@@ -114,7 +114,7 @@ export function calcCKSP(
   };
 }
 
-// ─── Detrended Price Oscillator ──────────────────────────────────────────────
+// â”€â”€â”€ Detrended Price Oscillator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Detrended Price Oscillator.
@@ -147,10 +147,10 @@ export function calcDPO(bars: Bar[], period = 20): IndicatorPoint[] {
   return toPoints(result, bars);
 }
 
-// ─── QStick ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ QStick â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
- * QStick — SMA of (close - open).
+ * QStick â€” SMA of (close - open).
  *
  * Positive values indicate buying pressure (closes above opens).
  * Negative values indicate selling pressure.
@@ -167,7 +167,7 @@ export function calcQStick(bars: Bar[], period = 14): IndicatorPoint[] {
   return toPoints(result, bars);
 }
 
-// ─── Vortex Indicator ────────────────────────────────────────────────────────
+// â”€â”€â”€ Vortex Indicator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Vortex Indicator.
@@ -217,7 +217,7 @@ export function calcVortex(
   };
 }
 
-// ─── Vertical Horizontal Filter ──────────────────────────────────────────────
+// â”€â”€â”€ Vertical Horizontal Filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Vertical Horizontal Filter.
@@ -255,10 +255,10 @@ export function calcVHF(bars: Bar[], period = 28): IndicatorPoint[] {
   return toPoints(result, bars);
 }
 
-// ─── Linear Decay ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Linear Decay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
- * Linear Decay — linearly declining weights applied to close prices.
+ * Linear Decay â€” linearly declining weights applied to close prices.
  *
  * Weight for offset j (0 = most recent) = (period - j) / sum(1..period).
  * Equivalent to WMA but conceptually framed as a decay function.
@@ -289,17 +289,17 @@ export function calcDecayLinear(bars: Bar[], period = 5): IndicatorPoint[] {
   return toPoints(result, bars);
 }
 
-// ─── ZigZag ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ microstructure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
- * ZigZag — identifies significant swing highs and lows with at least
+ * microstructure â€” identifies significant microstructure highs and lows with at least
  * `deviation`% price change between pivots.
  *
  * Returns only the pivot points (not every bar). Useful for identifying
  * trend structure, wave counts, and support/resistance.
  *
  * @param bars       OHLCV bar array
- * @param deviation  Minimum % change to register a new swing (default 5)
+ * @param deviation  Minimum % change to register a new microstructure (default 5)
  */
 export function calcZigZag(bars: Bar[], deviation = 5): IndicatorPoint[] {
   const n = bars.length;
@@ -353,7 +353,7 @@ export function calcZigZag(bars: Bar[], deviation = 5): IndicatorPoint[] {
       // Check for reversal down
       const drop = 1 - l / highPrice;
       if (drop >= thresh) {
-        // Swing high confirmed
+        // microstructure high confirmed
         points.push({ time: toTimeSec(bars[highIdx]!.timestamp), value: highPrice });
         lastPivotIdx = highIdx;
         // Start tracking downtrend from here
@@ -370,7 +370,7 @@ export function calcZigZag(bars: Bar[], deviation = 5): IndicatorPoint[] {
       // Check for reversal up
       const rise = h / lowPrice - 1;
       if (rise >= thresh) {
-        // Swing low confirmed
+        // microstructure low confirmed
         points.push({ time: toTimeSec(bars[lowIdx]!.timestamp), value: lowPrice });
         lastPivotIdx = lowIdx;
         // Start tracking uptrend
@@ -390,4 +390,5 @@ export function calcZigZag(bars: Bar[], deviation = 5): IndicatorPoint[] {
 
   return points;
 }
+
 

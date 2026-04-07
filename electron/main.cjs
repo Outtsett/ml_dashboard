@@ -60,7 +60,11 @@ if (fs.existsSync(envPath)) {
 
 const APP_ID = "com.ml-dashboard.app";
 const PORT = process.env.PORT || 5000;
-const IS_DEV = process.env.NODE_ENV === "development";
+// Always run in development mode — this is a local tool, not distributed.
+// Ensures Vite HMR + tsx --watch are active regardless of launch method
+// (taskbar shortcut, start:desktop, electron:dev all behave the same).
+const IS_DEV = true;
+process.env.NODE_ENV = "development";
 
 // Resolve the system Node.js binary — process.execPath is electron.exe which
 // cannot spawn server scripts as a plain Node process.
@@ -355,6 +359,17 @@ function registerIpcHandlers() {
 
   // --- App info ---
   ipcMain.handle("app:version", () => app.getVersion());
+  ipcMain.handle("app:set-auto-launch", (_e, flag) => {
+    app.setLoginItemSettings({
+      openAtLogin: !!flag,
+      path: app.getPath("exe"),
+    });
+    store.set("autoLaunch", !!flag);
+    return true;
+  });
+  ipcMain.handle("app:get-auto-launch", () => {
+    return app.getLoginItemSettings().openAtLogin;
+  });
 
   // --- Reload controls ---
   ipcMain.on("beta:reload", () => {
@@ -745,21 +760,23 @@ function startServer() {
     }
 
     if (IS_DEV) {
-      // Dev mode: start the TypeScript server directly
-      safeLog("[server] Starting dev server...");
-      const serverArgs = [
-        "--import",
-        "tsx",
-        path.join(__dirname, "..", "src", "server", "main.ts"),
-      ];
-      serverProcess = spawn(NODE_BIN, serverArgs, {
+      // Dev mode: start the TypeScript server with tsx --watch for hot reload.
+      // tsx --watch keeps the parent process alive and restarts the child on
+      // file changes — Vite HMR handles client-side, tsx handles server-side.
+      safeLog("[server] Starting dev server (tsx --watch)...");
+      const tsxBin = path.join(__dirname, "..", "node_modules", ".bin", "tsx.cmd");
+      const envFile = path.join(__dirname, "..", ".env");
+      const serverScript = path.join(__dirname, "..", "src", "server", "main.ts");
+      serverProcess = spawn(tsxBin, ["--watch", serverScript], {
         cwd: path.join(__dirname, ".."),
         env: {
           ...process.env,
           NODE_ENV: "development",
           PORT: String(PORT),
+          // .env loaded by dotenv/config in main.ts + pre-loaded at top of this file
         },
         stdio: ["ignore", "pipe", "pipe"],
+        shell: true,  // Required on Windows — tsx.cmd is a batch file
       });
     } else {
       // Production: try the built bundle first, fall back to dev server

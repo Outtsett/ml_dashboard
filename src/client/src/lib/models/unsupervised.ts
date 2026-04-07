@@ -1,4 +1,4 @@
-import type { MLModelDefinition } from './types';
+﻿import type { MLModelDefinition } from './types';
 
 export const unsupervisedModels: MLModelDefinition[] = [
   {
@@ -72,7 +72,7 @@ export const unsupervisedModels: MLModelDefinition[] = [
     subcategory: 'dimensionality-reduction',
     overview: 'Decomposes a non-negative data matrix into two lower-rank non-negative matrices, revealing latent features. Unlike PCA/ICA, NMF ensures all components are non-negative, making it interpretable for inherently positive data.',
     principles: [
-      'Non-Negative Decomposition: Approximates V ≈ WH where W, H are non-negative',
+      'Non-Negative Decomposition: Approximates V â‰ˆ WH where W, H are non-negative',
       'Latent Features: Identifies additive components capturing underlying patterns',
       'Additive Structure: Components combine linearly with positive weights',
       'Objective: Minimizes reconstruction error via Frobenius norm or divergence'
@@ -207,7 +207,7 @@ export const unsupervisedModels: MLModelDefinition[] = [
     ],
     applications: [
       'Clusters similar price patterns achieving silhouette scores of 0.4-0.6',
-      'Groups trading behaviors (scalping vs. swing trading)',
+      'Groups trading behaviors (scalping vs. microstructure trading)',
       'Identifies recurring candlestick/indicator patterns',
       'Clusters correlated instruments for diversification'
     ],
@@ -485,7 +485,7 @@ export const unsupervisedModels: MLModelDefinition[] = [
       'Maximum Margin: Finds hyperplane separating data from origin',
       'Kernel Trick: Models non-linear boundaries with RBF/polynomial',
       'Outlier Detection: Points far from hyperplane are anomalies',
-      'Regularization: Parameter ν controls outlier fraction'
+      'Regularization: Parameter Î½ controls outlier fraction'
     ],
     applications: [
       'Detects unusual price movements with 85-90% precision',
@@ -576,8 +576,8 @@ export const unsupervisedModels: MLModelDefinition[] = [
     subcategory: 'deep-learning',
     overview: 'Neural network that learns to compress and reconstruct data via an encoder-decoder architecture, extracting latent features for dimensionality reduction and anomaly detection.',
     principles: [
-      'Encoder-Decoder: Compresses input to latent space z = f(x), reconstructs x̂ = g(z)',
-      'Reconstruction Loss: Minimizes ||x - x̂||² to learn meaningful representations',
+      'Encoder-Decoder: Compresses input to latent space z = f(x), reconstructs xÌ‚ = g(z)',
+      'Reconstruction Loss: Minimizes ||x - xÌ‚||Â² to learn meaningful representations',
       'Bottleneck: Lower-dimensional latent space forces feature compression',
       'Non-Linear Modeling: Neural networks capture complex patterns unlike PCA'
     ],
@@ -617,7 +617,7 @@ export const unsupervisedModels: MLModelDefinition[] = [
     ],
     applications: [
       'Clusters market patterns achieving silhouette scores of 0.4-0.6',
-      'Groups trading behaviors (scalping vs. swing) automatically',
+      'Groups trading behaviors (scalping vs. microstructure) automatically',
       'Segments instruments by volatility/correlation characteristics',
       'Discovers hidden market regimes for strategy development'
     ],
@@ -637,3 +637,4 @@ export const unsupervisedModels: MLModelDefinition[] = [
     ]
   }
 ];
+

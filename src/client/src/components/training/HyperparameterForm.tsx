@@ -30,26 +30,7 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-interface HyperparameterDef {
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  label: string;
-  type?: "int" | "float" | "categorical" | "bool";
-  logScale?: boolean;
-  choices?: (string | number | boolean)[];
-  description?: string;
-  group?: string;
-  conditionalOn?: { param: string; value: string | number | boolean };
-  searchSpace?: {
-    min?: number;
-    max?: number;
-    step?: number;
-    logScale?: boolean;
-    distribution?: string;
-  };
-}
+import type { HyperparameterDef } from "@shared/trainingTypes";
 
 export interface HyperparameterFormProps {
   hyperparameters: Record<string, HyperparameterDef>;
@@ -70,7 +51,7 @@ type ParamValue = number | string | boolean;
 function resolveType(def: HyperparameterDef): NonNullable<HyperparameterDef["type"]> {
   if (def.type) return def.type;
   if (def.choices && def.choices.length > 0) return "categorical";
-  return def.step >= 1 ? "int" : "float";
+  return (def.step ?? 1) >= 1 ? "int" : "float";
 }
 
 function clampAndQuantize(v: number, min: number, max: number, step: number, isInt: boolean): number {
@@ -116,7 +97,10 @@ const SliderRow = React.memo<SliderRowProps>(function SliderRow({
   showSearchSpace,
   isInt,
 }) {
-  const { min, max, step, searchSpace } = def;
+  const min = def.min ?? 0;
+  const max = def.max ?? 100;
+  const step = def.step ?? (isInt ? 1 : 0.01);
+  const { searchSpace } = def;
   const decimals = isInt ? 0 : (step.toString().split(".")[1]?.length ?? 2);
 
   const handleSlider = useCallback(
@@ -324,7 +308,7 @@ const ParamRow = React.memo<ParamRowProps>(function ParamRow({
   }
 
   // int | float → slider + input
-  const numVal = typeof value === "number" ? value : def.value;
+  const numVal = typeof value === "number" ? value : Number(def.default);
   return (
     <div className="py-1">
       {label}
@@ -338,11 +322,11 @@ const ParamRow = React.memo<ParamRowProps>(function ParamRow({
         isInt={isInt}
       />
       <div className="flex justify-between mt-0.5">
-        <span className="text-[9px] text-muted-foreground/50 font-mono">{def.min}</span>
+        <span className="text-[9px] text-muted-foreground/50 font-mono">{def.min ?? ""}</span>
         <span className="font-mono text-[10px] text-primary">
-          {isInt ? numVal : numVal.toFixed(def.step.toString().split(".")[1]?.length ?? 2)}
+          {isInt ? numVal : numVal.toFixed((def.step ?? 0.01).toString().split(".")[1]?.length ?? 2)}
         </span>
-        <span className="text-[9px] text-muted-foreground/50 font-mono">{def.max}</span>
+        <span className="text-[9px] text-muted-foreground/50 font-mono">{def.max ?? ""}</span>
       </div>
     </div>
   );
@@ -393,11 +377,11 @@ function HyperparameterForm({
     for (const [key, def] of Object.entries(hyperparameters)) {
       const type = resolveType(def);
       if (type === "bool") {
-        onChange(key, Boolean(def.value));
+        onChange(key, Boolean(def.default));
       } else if (type === "categorical") {
-        onChange(key, def.choices?.[0] ?? def.value);
+        onChange(key, def.choices?.[0] ?? def.default);
       } else {
-        onChange(key, def.value);
+        onChange(key, def.default);
       }
     }
   }, [onReset, hyperparameters, onChange]);
@@ -449,7 +433,7 @@ function HyperparameterForm({
                         key={key}
                         paramKey={key}
                         def={def}
-                        value={values[key] ?? def.value}
+                        value={values[key] ?? def.default}
                         onChange={onChange}
                         disabled={disabled}
                         showSearchSpace={showSearchSpace}

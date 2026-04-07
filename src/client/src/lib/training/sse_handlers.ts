@@ -7,6 +7,7 @@
 
 import type { TrainingSSECallbacks } from "@/hooks/useTrainingSSE";
 import type { ModelStatePayload } from "@shared/trainingTypes";
+import { applyDelta, DELTA_MARKER } from "@shared/delta";
 
 export interface TrainingStateSetters {
   setDataRange: (v: { start: string; end: string } | null) => void;
@@ -26,6 +27,7 @@ export interface TrainingStateSetters {
   setElapsedSec: (v: number) => void;
   setModelState: (v: ModelStatePayload | null) => void;
   setModelStateHistory: (updater: (prev: Array<{ iteration: number; state: ModelStatePayload }>) => Array<{ iteration: number; state: ModelStatePayload }>) => void;
+  setMetricDeclarations: (v: Record<string, unknown> | null) => void;
   setError: (v: string | null) => void;
   setIsTraining: (v: boolean) => void;
   clearElapsedTimer: () => void;
@@ -33,7 +35,13 @@ export interface TrainingStateSetters {
   invalidateModels: () => void;
 }
 
+// Ref for delta decoding — holds last full model state for applying deltas
+let lastFullModelState: Record<string, unknown> | null = null;
+
 export function buildSSECallbacks(s: TrainingStateSetters): TrainingSSECallbacks {
+  // Reset delta state on new session
+  lastFullModelState = null;
+
   return {
     onStarted(d) {
       s.setDataRange(d.dateRange ?? null);
@@ -57,7 +65,10 @@ export function buildSSECallbacks(s: TrainingStateSetters): TrainingSSECallbacks
       if (d.metrics) {
         s.setMetrics(prev => ({ ...prev, ...d.metrics }));
         if (d.iteration != null) {
-          s.setIterationHistory(prev => [...prev, { iteration: d.iteration!, metrics: d.metrics! }]);
+          s.setIterationHistory(prev => {
+            const next = [...prev, { iteration: d.iteration!, metrics: d.metrics! }];
+            return next.length > 1000 ? next.slice(-1000) : next;
+          });
         }
       }
       if (d.type && d.value != null) {
@@ -76,13 +87,31 @@ export function buildSSECallbacks(s: TrainingStateSetters): TrainingSSECallbacks
       if (d.message) s.setLogs(prev => [...prev.slice(-500), d.message!]);
     },
     onModelState(d) {
-      const payload = d as ModelStatePayload;
+      let resolved: Record<string, unknown>;
+
+      if ((d as Record<string, unknown>)[DELTA_MARKER] && lastFullModelState) {
+        // Delta: apply to last full state to reconstruct current state
+        resolved = applyDelta(lastFullModelState, d as Record<string, unknown>);
+      } else {
+        // Full snapshot
+        resolved = d as Record<string, unknown>;
+      }
+      lastFullModelState = resolved;
+
+      const payload = resolved as unknown as ModelStatePayload;
       s.setModelState(payload);
       s.setModelStateHistory(prev => {
         const next = [...prev, { iteration: payload.iteration, state: payload }];
         // Cap history at 100 entries — drop oldest when exceeding
         return next.length > 100 ? next.slice(-100) : next;
       });
+    },
+    onMetricDeclarations(d) {
+      // Store metric declarations (renderer hints) emitted at training start.
+      // These tell the dashboard how to render each metric during live training.
+      if (d?.declarations) {
+        s.setMetricDeclarations(d.declarations as Record<string, unknown>);
+      }
     },
     onDone(d) {
       s.setCompletedModelId(d.modelId ?? null);

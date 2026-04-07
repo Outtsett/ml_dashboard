@@ -10,14 +10,16 @@
  *   POST /motivewave/stop       — Stop the file watcher
  */
 
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import multer from "multer";
 import { existsSync, mkdirSync } from "node:fs";
 import { readFile, unlink } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { resolve, basename } from "node:path";
 import { getMotiveWaveWatcher, parseMotiveWaveFilename, parseMotiveWaveCSV } from "../lib/motivewave";
 import { detectInstrumentType, getBaseTableForType } from "../database/questdb/marketData";
 import { getQuestDBSender } from "../database/questdb/connection";
+import { getEventBus } from "../events/event-bus.js";
 
 const router = Router();
 const UPLOAD_DIR = resolve(process.cwd(), "tmp", "motivewave");
@@ -232,6 +234,25 @@ router.post("/motivewave/import-path", async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: `Import failed: ${err.message}` });
   }
+});
+
+
+/**
+ * POST /motivewave/pulse
+ * Instant notify from MotiveWave Java Study that new data has been flushed to QuestDB.
+ * Bypasses file system watching for sub-10ms UI propagation.
+ */
+router.post('/pulse', (req: Request, res: Response) => {
+  const { symbol, timeframe } = req.body as { symbol: string; timeframe: string };
+  const bus = getEventBus();
+
+  bus.emit({
+    type: 'system.motivewave-update',
+    data: { symbol, timeframe, rowCount: 0, durationMs: 0, source: 'pulse' },
+    metadata: { correlationId: randomUUID(), causationId: 'motivewave-pulse', timestamp: Date.now() },
+  });
+
+  res.status(204).send();
 });
 
 export default router;

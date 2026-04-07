@@ -1,0 +1,68 @@
+<h2>What's the workflow spine?</h2>
+<p class="subtitle">How should the training experience feel?</p>
+
+<div class="options">
+  <div class="option" data-choice="wizard" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Guided Wizard</h3>
+      <p>Distinct phases: Configure → Train → Evaluate. Step-by-step, can't skip ahead. Like a deployment pipeline. Clear progress indicator. Good for beginners, restrictive for power users.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="command-center" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Command Center (recommended)</h3>
+      <p>Everything visible in zones — config panel, live metrics, results grid. No tab-switching needed. Glanceable. Like Bloomberg or a mission control dashboard. Dense but organized. Power-user focused.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="notebook" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Scrollable Notebook</h3>
+      <p>Sequential cells: model card → hyperparameters → training log → results. Each run is a "chapter" you scroll through. Narrative flow. Good for review, but requires scrolling.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>Quick comparison</h3>
+  <table style="width:100%; border-collapse: collapse; font-size: 0.85rem;">
+    <thead>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+        <th style="text-align:left; padding: 0.5rem;">Aspect</th>
+        <th style="text-align:left; padding: 0.5rem;">Wizard</th>
+        <th style="text-align:left; padding: 0.5rem;">Command Center</th>
+        <th style="text-align:left; padding: 0.5rem;">Notebook</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <td style="padding: 0.4rem 0.5rem; color: #888;">Context switches</td>
+        <td style="padding: 0.4rem 0.5rem;">Loses state between steps</td>
+        <td style="padding: 0.4rem 0.5rem; color: #4ade80;">Everything always visible</td>
+        <td style="padding: 0.4rem 0.5rem;">Scroll to find it</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <td style="padding: 0.4rem 0.5rem; color: #888;">Information density</td>
+        <td style="padding: 0.4rem 0.5rem;">Low (one thing at a time)</td>
+        <td style="padding: 0.4rem 0.5rem; color: #4ade80;">High (all zones at once)</td>
+        <td style="padding: 0.4rem 0.5rem;">Medium (sequential)</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <td style="padding: 0.4rem 0.5rem; color: #888;">ADHD-friendly</td>
+        <td style="padding: 0.4rem 0.5rem;">Structured but rigid</td>
+        <td style="padding: 0.4rem 0.5rem; color: #4ade80;">Glanceable, non-linear</td>
+        <td style="padding: 0.4rem 0.5rem;">Loses place when scrolling</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.4rem 0.5rem; color: #888;">Quant vibes</td>
+        <td style="padding: 0.4rem 0.5rem;">Consumer app</td>
+        <td style="padding: 0.4rem 0.5rem; color: #4ade80;">Bloomberg / mission control</td>
+        <td style="padding: 0.4rem 0.5rem;">Jupyter notebook</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

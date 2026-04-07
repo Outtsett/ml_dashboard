@@ -1,10 +1,12 @@
+﻿import { memo } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
-  TrendingUp, DollarSign, ChevronsUpDown, Check,
-  Layers, ZapOff, PanelRightOpen, Play, Square,
+  Activity, DollarSign, ChevronsUpDown, Check,
+  Layers, ZapOff, BrainCircuit, Play, Square, PanelRightOpen,
 } from "lucide-react";
 import { IndicatorSelector } from "@/components/IndicatorSelector";
 import type { ActiveIndicator } from "@/hooks/useActiveIndicators";
@@ -41,20 +43,23 @@ interface ToolbarProps {
   onToggleSR: () => void;
   showZigZag: boolean;
   onToggleZigZag: () => void;
-  showSwingZZ: boolean;
-  onToggleSwingZZ: () => void;
-  // ML Panel
+  showStructure: boolean;
+  onToggleStructure: () => void;
+  // Tab Control
+  activeTab: string;
+  onTabChange: (tab: string) => void;
   isTrainingActive: boolean;
-  onOpenMlPanel: () => void;
   // Training triggers (shared with ML Studio via TrainingContext)
   onStartTraining: () => void;
   onStopTraining: () => void;
   isTrainingStarting: boolean;
+  // ML Panel
+  onOpenMlPanel?: () => void;
   // Data reset callback
   onResetScrollState: () => void;
 }
 
-export function Toolbar({
+export const Toolbar = memo(function Toolbar({
   assetType, onAssetTypeChange,
   symbol, onSymbolSelect, symbolOpen, onSymbolOpenChange, activeSymbols,
   isFutures,
@@ -63,9 +68,10 @@ export function Toolbar({
   onToggleVisibility, onClearAllIndicators,
   selectedPatterns, onPatternSelectionChange,
   indicatorsLoading,
-  showSR, onToggleSR, showZigZag, onToggleZigZag, showSwingZZ, onToggleSwingZZ,
-  isTrainingActive, onOpenMlPanel,
+  showSR, onToggleSR, showZigZag, onToggleZigZag, showStructure, onToggleStructure,
+  isTrainingActive, activeTab, onTabChange,
   onStartTraining, onStopTraining, isTrainingStarting,
+  onOpenMlPanel,
   onResetScrollState,
 }: ToolbarProps) {
   return (
@@ -76,7 +82,7 @@ export function Toolbar({
       }}>
         <TabsList className="glass rounded-lg p-0.5 h-auto border border-white/[0.06]">
           <TabsTrigger value="futures" className="rounded-md px-3 py-1.5 text-[11px] font-medium data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-400 data-[state=active]:shadow-[0_0_8px_rgba(16,185,129,0.1)]" data-testid="tab-futures">
-            <TrendingUp className="h-3.5 w-3.5 mr-1.5" /> Futures
+            <Activity className="h-3.5 w-3.5 mr-1.5" /> Futures
           </TabsTrigger>
           <TabsTrigger value="forex" className="rounded-md px-3 py-1.5 text-[11px] font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-[0_0_8px_rgba(96,165,250,0.1)]" data-testid="tab-forex">
             <DollarSign className="h-3.5 w-3.5 mr-1.5" /> Forex
@@ -115,7 +121,7 @@ export function Toolbar({
                     key={inst.symbol}
                     value={`${inst.symbol} ${inst.name}`}
                     onSelect={() => {
-                      onSymbolSelect(inst.symbol, assetType);
+                      onSymbolSelect(inst.symbol, inst.assetType as "futures" | "forex");
                       onSymbolOpenChange(false);
                     }}
                     className="flex items-center gap-2"
@@ -191,22 +197,22 @@ export function Toolbar({
               : "text-muted-foreground hover:text-yellow-400 hover:bg-yellow-500/10"
           }`}
           onClick={onToggleZigZag}
-          title="ZigZag (ATR-filtered swings)"
+          title="microstructure (ATR-filtered swings)"
         >
           <ZapOff className="h-3 w-3" /> ZZ
         </Button>
         <Button
-          variant={showSwingZZ ? "default" : "ghost"}
+          variant={showStructure ? "default" : "ghost"}
           size="sm"
           className={`h-6 px-2.5 text-[11px] font-mono gap-1.5 ${
-            showSwingZZ
+            showStructure
               ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-[0_0_8px_rgba(34,211,238,0.15)]"
               : "text-muted-foreground hover:text-cyan-400 hover:bg-cyan-500/10"
           }`}
-          onClick={onToggleSwingZZ}
-          title="Swing ZigZag (every high/low)"
+          onClick={onToggleStructure}
+          title="Order Flow Microstructure (all pivots)"
         >
-          <TrendingUp className="h-3 w-3" /> SW
+          <Activity className="h-3 w-3" /> SW
         </Button>
       </div>
 
@@ -248,4 +254,5 @@ export function Toolbar({
       </Button>
     </div>
   );
-}
+});
+

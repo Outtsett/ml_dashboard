@@ -98,7 +98,7 @@ export async function previewLabels(
     };
 
     // Cache successful preview results
-    previewCacheSet(cKey, result);
+    previewCacheSet(cKey, result, request.symbol);
 
     return result;
 

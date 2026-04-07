@@ -1,215 +1,183 @@
-/**
- * System Routes
- *
- * Hardware monitoring: GPU telemetry via nvidia-smi, system info.
- * GPU metrics are polled server-side and broadcast via the 'system' SSE channel.
- *
- * Routes:
- *   GET  /api/system/gpu          — Current GPU snapshot (VRAM, utilization, temp, power)
- *   GET  /api/system/gpu/info     — Static GPU device info (name, driver, CUDA, compute cap)
- *   POST /api/system/gpu/monitor  — Start/stop periodic GPU metric broadcasting via SSE
- */
+import si from 'systeminformation';
+import { Router, type Request, type Response } from 'express';
+import { spawn } from 'child_process';
+import { getEventBus } from '../events/event-bus.js';
+import crypto from 'crypto';
+import path from 'path';
 
-import { Router, type Request, type Response } from "express";
-import { execFile } from "child_process";
-import { promisify } from "util";
-import { getEventBus } from "../events/event-bus";
-import crypto from "crypto";
-import type { EventMetadata } from "@shared/event-types";
-
-const execFileAsync = promisify(execFile);
 const router = Router();
 
-// ── Types ────────────────────────────────────────────────────
+// --- Types ---
 
-export interface GpuSnapshot {
-  name: string;
-  temperatureC: number;
-  utilizationGpu: number;
-  utilizationMemory: number;
-  memoryUsedMB: number;
-  memoryFreeMB: number;
-  memoryTotalMB: number;
-  memoryUsedPct: number;
-  powerDrawW: number;
-  powerLimitW: number;
-  fanSpeedPct: number;
-  clockGraphicsMHz: number;
-  clockMemoryMHz: number;
+export interface SystemSnapshot {
+  cpu: {
+    load: number;
+    cores: number[];
+    temp: number;
+    speed: number;
+  };
+  mem: {
+    total: number;
+    active: number;
+    used: number;
+    swaptotal: number;
+    swapused: number;
+  };
+  network: {
+    tx_sec: number;
+    rx_sec: number;
+  };
+  gpu?: any;
+  processes?: any[];
   timestamp: number;
 }
 
-export interface GpuDeviceInfo {
-  name: string;
-  driverVersion: string;
-  cudaVersion: string;
-  computeCapability: string;
-  memoryTotalMB: number;
-  pciBusId: string;
-  architecture: string;
-}
+// --- Python Node Controller ---
 
-// ── nvidia-smi query helpers ─────────────────────────────────
+let pythonNode: any = null;
+let lastSnapshot: SystemSnapshot | null = null;
+let lastNetBytes: { tx: number, rx: number, ts: number } | null = null;
 
-const NVIDIA_SMI = "nvidia-smi";
-
-async function queryGpuSnapshot(): Promise<GpuSnapshot | null> {
-  try {
-    const { stdout } = await execFileAsync(NVIDIA_SMI, [
-      "--query-gpu=name,temperature.gpu,utilization.gpu,utilization.memory,memory.used,memory.free,memory.total,power.draw,power.limit,fan.speed,clocks.current.graphics,clocks.current.memory",
-      "--format=csv,noheader,nounits",
-    ]);
-
-    const parts = stdout.trim().split(",").map((s) => s.trim());
-    if (parts.length < 12) return null;
-
-    // Safe to assert — length check above guarantees indices 0..11 exist
-    const p = parts as [string, string, string, string, string, string, string, string, string, string, string, string, ...string[]];
-    const memUsed = parseFloat(p[4]);
-    const memTotal = parseFloat(p[6]);
-
-    return {
-      name: p[0],
-      temperatureC: parseFloat(p[1]),
-      utilizationGpu: parseFloat(p[2]),
-      utilizationMemory: parseFloat(p[3]),
-      memoryUsedMB: memUsed,
-      memoryFreeMB: parseFloat(p[5]),
-      memoryTotalMB: memTotal,
-      memoryUsedPct: memTotal > 0 ? Math.round((memUsed / memTotal) * 1000) / 10 : 0,
-      powerDrawW: parseFloat(p[7]),
-      powerLimitW: parseFloat(p[8]),
-      fanSpeedPct: parseFloat(p[9]) || 0,
-      clockGraphicsMHz: parseFloat(p[10]),
-      clockMemoryMHz: parseFloat(p[11]),
-      timestamp: Date.now(),
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function queryGpuDeviceInfo(): Promise<GpuDeviceInfo | null> {
-  try {
-    const { stdout } = await execFileAsync(NVIDIA_SMI, [
-      "--query-gpu=name,driver_version,pci.bus_id,compute_cap,memory.total",
-      "--format=csv,noheader,nounits",
-    ]);
-
-    const parts = stdout.trim().split(",").map((s) => s.trim());
-    if (parts.length < 5) return null;
-
-    // Safe to assert — length check above guarantees indices 0..4 exist
-    const p = parts as [string, string, string, string, string, ...string[]];
-
-    // Get CUDA version from nvidia-smi header
-    const { stdout: headerOut } = await execFileAsync(NVIDIA_SMI, []);
-    const cudaMatch = headerOut.match(/CUDA Version:\s+([\d.]+)/);
-
-    // Map compute capability to architecture name
-    const computeCap = p[3];
-    const archMap: Record<string, string> = {
-      "7.5": "Turing",
-      "8.0": "Ampere",
-      "8.6": "Ampere",
-      "8.9": "Ada Lovelace",
-      "9.0": "Hopper",
-      "10.0": "Blackwell",
-      "12.0": "Blackwell",
-    };
-
-    return {
-      name: p[0],
-      driverVersion: p[1],
-      cudaVersion: cudaMatch?.[1] ?? "unknown",
-      computeCapability: computeCap,
-      memoryTotalMB: parseFloat(p[4]),
-      pciBusId: p[2],
-      architecture: archMap[computeCap] ?? "Unknown",
-    };
-  } catch {
-    return null;
-  }
-}
-
-// ── SSE monitor (periodic broadcast) ─────────────────────────
-
-let monitorInterval: ReturnType<typeof setInterval> | null = null;
-let monitorIntervalMs = 2000;
-
-function makeMetadata(): EventMetadata {
+function makeMetadata() {
   const id = crypto.randomUUID().slice(0, 12);
   return { correlationId: id, causationId: id, timestamp: Date.now() };
 }
 
-function startGpuMonitor(intervalMs: number = 2000): void {
-  if (monitorInterval) return; // already running
-  monitorIntervalMs = intervalMs;
+function startHardwareNode() {
+  if (pythonNode) return;
 
-  const bus = getEventBus();
+  const scriptPath = path.resolve(process.cwd(), 'scripts', 'hardware_node.py');
+  const pythonPath = 'C:\\Users\\tyler\\anaconda3\\python.exe';
 
-  monitorInterval = setInterval(async () => {
-    const snapshot = await queryGpuSnapshot();
-    if (!snapshot) return;
+  console.log(`[HardwareNode] Starting Python node: ${scriptPath}`);
+  
+  pythonNode = spawn(pythonPath, [scriptPath]);
 
-    bus.emit({
-      type: "system.gpu" as any,
-      data: snapshot as any,
-      metadata: makeMetadata(),
-    });
-  }, monitorIntervalMs);
+  pythonNode.stdout.on('data', (data: Buffer) => {
+    const lines = data.toString().split('\n');
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const update = JSON.parse(line);
+        if (update.type === 'hardware_node_update') {
+          // Calculate network deltas
+          let tx_sec = 0;
+          let rx_sec = 0;
+          const now = Date.now();
+          
+          if (lastNetBytes) {
+            const dt = (now - lastNetBytes.ts) / 1000;
+            if (dt > 0) {
+              tx_sec = Math.max(0, (update.network.total_tx - lastNetBytes.tx) / dt);
+              rx_sec = Math.max(0, (update.network.total_rx - lastNetBytes.rx) / dt);
+            }
+          }
+          lastNetBytes = { tx: update.network.total_tx, rx: update.network.total_rx, ts: now };
+
+          const snapshot: SystemSnapshot = {
+            cpu: update.cpu,
+            mem: {
+              ...update.mem,
+              active: update.mem.active ?? update.mem.used, // fallback for older Python scripts
+            },
+            network: { tx_sec, rx_sec },
+            gpu: update.gpu ? { ...update.gpu, timestamp: update.timestamp } : undefined,
+            timestamp: update.timestamp
+          };
+
+          lastSnapshot = snapshot;
+
+          // Broadcast to Matrix channel
+          const bus = getEventBus();
+          bus.emit({
+            type: 'system.matrix',
+            data: snapshot,
+            metadata: makeMetadata()
+          });
+
+          // Broadcast to GPU channel if present
+          if (snapshot.gpu) {
+            bus.emit({
+              type: 'system.gpu',
+              data: snapshot.gpu,
+              metadata: makeMetadata()
+            });
+          }
+        }
+      } catch (e) {
+        // Silently skip malformed lines (buffer splits etc)
+      }
+    }
+  });
+
+  pythonNode.stderr.on('data', (data: Buffer) => {
+    console.error(`[HardwareNode] Python error: ${data.toString()}`);
+  });
+
+  pythonNode.on('close', (code: number) => {
+    console.warn('[HardwareNode] Python node exited. Restarting in 5s...');
+    pythonNode = null;
+    setTimeout(startHardwareNode, 5000);
+  });
 }
 
-function stopGpuMonitor(): void {
-  if (monitorInterval) {
-    clearInterval(monitorInterval);
-    monitorInterval = null;
-  }
-}
+// --- Routes ---
 
-// ── Routes ───────────────────────────────────────────────────
-
-// GET /api/system/gpu — current GPU metrics snapshot
-router.get("/system/gpu", async (_req: Request, res: Response) => {
-  const snapshot = await queryGpuSnapshot();
-  if (!snapshot) {
-    res.status(503).json({ error: "GPU not available or nvidia-smi failed" });
-    return;
-  }
-  res.json(snapshot);
+router.get('/system/matrix', (_req, res) => {
+  res.json(lastSnapshot || { error: 'Node initializing...' });
 });
 
-// GET /api/system/gpu/info — static device info
-router.get("/system/gpu/info", async (_req: Request, res: Response) => {
-  const info = await queryGpuDeviceInfo();
-  if (!info) {
-    res.status(503).json({ error: "GPU not available or nvidia-smi failed" });
-    return;
-  }
-  res.json(info);
-});
-
-// POST /api/system/gpu/monitor — start or stop SSE broadcasting
-router.post("/system/gpu/monitor", (req: Request, res: Response) => {
-  const { action, intervalMs } = req.body as { action: "start" | "stop"; intervalMs?: number };
-
-  if (action === "start") {
-    startGpuMonitor(intervalMs ?? 2000);
-    res.json({ status: "monitoring", intervalMs: monitorIntervalMs });
-  } else if (action === "stop") {
-    stopGpuMonitor();
-    res.json({ status: "stopped" });
+router.get('/system/gpu', (_req, res) => {
+  if (lastSnapshot?.gpu) {
+    res.json(lastSnapshot.gpu);
   } else {
-    res.status(400).json({ error: 'action must be "start" or "stop"' });
+    res.status(503).json({ error: 'GPU telemetry not available' });
   }
 });
 
-// Auto-start GPU monitor on import (broadcasts to SSE system channel)
-startGpuMonitor(2000);
+router.get('/system/gpu/info', async (_req, res) => {
+  // Prefer live NVIDIA data from Python process over systeminformation (which may pick up iGPU)
+  if (lastSnapshot?.gpu) {
+    const g = lastSnapshot.gpu;
+    res.json({
+      name: g.name || 'NVIDIA GPU',
+      driverVersion: 'N/A',  // pynvml doesn't easily expose this in our snapshot
+      cudaVersion: 'N/A',
+      computeCapability: 'N/A',
+      memoryTotalMB: g.memoryTotalMB || 0,
+      pciBusId: 'N/A',
+      architecture: 'NVIDIA'
+    });
+    return;
+  }
+  // Fallback to systeminformation
+  try {
+    const gpu = await si.graphics();
+    // Prefer NVIDIA controller if multiple GPUs
+    const nvidiaGpu = gpu.controllers.find(c => /nvidia/i.test(c.vendor || c.model || ''));
+    const mainGpu = nvidiaGpu || gpu.controllers[0];
+    res.json({
+      name: mainGpu?.model || 'Unknown GPU',
+      driverVersion: mainGpu?.driverVersion || 'Unknown',
+      cudaVersion: 'N/A',
+      computeCapability: 'N/A',
+      memoryTotalMB: mainGpu?.vram || 0,
+      pciBusId: mainGpu?.pciBus || 'N/A',
+      architecture: nvidiaGpu ? 'NVIDIA' : 'Unknown'
+    });
+  } catch (e) {
+    res.status(503).json({ error: 'GPU info unavailable' });
+  }
+});
+
+// Auto-start the institutional node
+startHardwareNode();
 
 export default router;
 
-/** Gracefully stop the GPU monitor. */
-export function shutdownGpuMonitor(): void {
-  stopGpuMonitor();
+export function shutdownHardwareNode() {
+  if (pythonNode) {
+    pythonNode.kill();
+    pythonNode = null;
+  }
 }
