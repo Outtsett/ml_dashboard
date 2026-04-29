@@ -17,10 +17,13 @@ graph TD
     Save --> Disk["data/models/<br/>Checkpoints + JSON"]
 
     subgraph Packages
-        CNN["cnn_transformer/<br/>Triple barrier predictor"]
         TFlow["tensionflow/<br/>Signal scorer"]
-        Prim["primitives_discovery/<br/>Pattern primitives"]
         Opt["optimizers/<br/>Custom optimizers"]
+    end
+
+    subgraph "External (separate repos)"
+        CNN["cnn_transformer<br/>E:\source\repos\trading_model"]
+        Prim["primitives_discovery<br/>E:\source\repos\primitives_discovery"]
     end
 ```
 
@@ -47,8 +50,9 @@ src/ml/
     labeling/           Label generation strategies
     primitives/         Pattern primitive detection
 
-  cnn_transformer/      CNN+Transformer triple barrier predictor (extracted to separate repo)
-    (Located at E:\source\repos\cnn_transformer — not in this directory)
+  (extracted to separate repos)
+    cnn_transformer/    -> E:\source\repos\trading_model
+    primitives_discovery/ -> E:\source\repos\primitives_discovery
 
   tensionflow/          Physics-based signal scorer
     scorer.py           Main scorer (5 signals, confluence + alignment gates)
@@ -61,7 +65,6 @@ src/ml/
     trade/              Confluence, context, flip, strength, threshold
     patterns/           Pattern detection
 
-  primitives_discovery/ Pattern primitive discovery
   optimizers/           Custom optimizer implementations
 ```
 
@@ -80,19 +83,18 @@ All models communicate with the server via JSON lines on stdout. The protocol is
 | `done` | Training complete + diagnostics JSON | Checkpoint persistence |
 | `error` | Training failed | Error handling |
 
-## CNN+Transformer Model (113 features, ~6M params)
+## Extracted Model Repos
 
-The primary production model. Triple barrier labels (Lopez de Prado, 2018) with ATR-scaled TP/SL/timeout.
+The transformer-based predictors were lifted out of this directory to live as
+their own repos. They keep the same `src/ml/<module> + src/ml/shared` layout
+internally so import paths and the SSE protocol stay unchanged:
 
-**Input features (113)**:
-- OHLCV base (5): normalized price + volume
-- Encodings (45): cyclical, session, time-to-event, target, frequency, interaction
-- Discrepancy (28): volume anomaly, price-volume divergence, bar structure, outlier scores
-- Categorical (35): label, one-hot, target encoding for 5 derived categories
-
-**Architecture**: Conv1d(128->256) + SoftQuantization(K=32) + TransformerEncoder(8 layers, 8 heads, d=256) + 3 output heads (barrier class, vol regime, return bucket)
-
-**Training**: 8-fold walk-forward, Optuna HPO, cost-adjusted profit factor objective ($2.80 RT MNQ costs)
+- **`E:\source\repos\trading_model`** — `CnnTransformerModel` triple barrier
+  predictor (8L/8H/d=256, ~6.8M params, 128-bar OHLCV input). Branched from
+  `feature/personalized-ollama` working tree at extraction time.
+- **`E:\source\repos\primitives_discovery`** — `PrimitivesDiscoveryModel`
+  feature-attention CNN+Transformer over ~510 mathematical primitives
+  (4L/8H/d=256, ~3.1M params).
 
 ## Key Performance Optimizations
 
