@@ -2,13 +2,29 @@
 
 Full-stack ML Dashboard for quantitative trading research. Electron desktop app + web (React 19 + Express 5 + NestJS 11) with a 2-database architecture (SQLite 37 tables + QuestDB 5 tables). Primitives Discovery + TensionFlow scorer. MotiveWave ILP plugin streams live OHLCV, ticks, and DOM L2 data. No external experiment tracking — all metrics via built-in SSE protocol. CNN+Transformer triple barrier predictor extracted to `E:\source\repos\cnn_transformer` on 2026-04-01. HDP-HMM and 2-state-HMM models removed on 2026-04-03.
 
+## Recent Changes (latest first)
+
+- **2026-05-04 — Hardware Control page polish.** Confirmed the `/hardware` page (`SystemMatrix` + `Gpu`) was already wired to live SSE — `useSystemMatrix` and `useGpuMetrics` both subscribe to `/api/events/system` and re-render on every event (~1Hz from `hardware_node.py`). Verified the SSE feed by streaming `/api/events/system` for 4s — `system.matrix` and `system.gpu` fire continuously with full real values (24 cores, mem, network, GPU util/VRAM/temp/power/clocks). Made three concrete improvements:
+  1. Fixed UTF-8 mojibake in `src/client/src/components/layout/SystemStats.tsx:79` — sidebar GPU temp had `Â°C` (double-encoded) instead of `°C`. Bytes `\xc3\x82\xc2\xb0` collapsed to `\xc2\xb0`.
+  2. `SystemMatrix.tsx` CPU TEMP card now shows `—` with hint `"Windows: not exposed via psutil"` instead of misleading `0 °C` (psutil's `cpu.temp` is always 0 on Windows).
+  3. `SystemMatrix.tsx` MEM ACTIVE card now shows `"47.2 / 127 GB"` hint alongside the percentage so absolute values are visible.
+  4. Replaced `||` fallbacks with `??` so a real 0% reading isn't conflated with missing data. Build clean.
+
+- **2026-05-04 — System Manifest endpoint live + fake XAI subsystem deleted (Phases 2 + 3).** Two related fixes shipped after Phase 1.
+
+  **System Manifest fix:** Sidebar `SystemStats` widget was showing '--' for CPU / RAM / storage / MW Edge (only GPU worked). Root cause: `src/server/main.ts:205` bootstraps NestJS as `NestFactory.createApplicationContext` (DI-only, no HTTP), so `SystemController.@Get('manifest')` was never registered — `/api/system/manifest` returned 404. Fix: added an Express bridge route in `src/server/routes/system.ts` that calls `getNestApp().get(ManifestService).generateManifest()` directly. Also patched `load_avg` from the live `hardware_node.py` snapshot (`os.loadavg()` always returns `[0,0,0]` on Windows) and merged GPU snapshot into the manifest so it matches the SSE channel. Endpoint now returns real values: 12 cores, 127GB RAM, GPU 16% util / 3.8GB / 46°C, storage 363GB free.
+
+  **Fake XAI subsystem deleted:** The entire `src/server/lib/xai/` directory was fabricating "explainability" with `Math.random()` — the `calibration`, `lime`, `permutation`, `counterfactuals`, `saliency`, `gradcam`, `integratedGradients`, `featureInteractions`, on-the-fly `shap` methods all returned random values dressed as analysis. Both UI consumers (`components/explainable-ai/index.tsx` and `components/sidebar/ml-workflow/MLWorkflowSidebar`) were already orphaned post-Trade Lab consolidation. Deleted: full `src/server/lib/xai/` (10 method files + 5 service files), full `src/server/xai/` (Nest module wrapper), full `src/client/src/components/explainable-ai/`, full `src/client/src/components/sidebar/ml-workflow/` (XAITab + LabelsTab + TrainTab + BacktestTab — no consumer for any of them after consolidation). Slimmed `src/server/routes/ml/xai.ts` to keep only `/xai/regime-importance/:modelId` and `/xai/shap/:modelId` (real paths backed by `diag.shap_summary` and `oos_shap.npz`); `getRegimeModelImportance()` inlined into the route file. Slimmed `src/client/src/lib/api_service.ts` (`mlApi.getXAI()`, `xaiApi.getMethods()`, `xaiApi.explain()` removed; `xaiApi.getRegimeImportance` and `xaiApi.getShap` kept). Removed `XaiModule` from `src/server/app.module.ts`. Removed `QUERY_KEYS.xaiMethods` from `lib/types.ts`. Build clean (29.76s frontend, 662ms server). Verification: `/api/xai/{methods,explain}` and `/api/ml/xai/*` all return 404; `/api/xai/regime-importance/:id` returns real SHAP aggregates. Plan: `docs/plans/2026-05-04-remove-mock-analytics.md`.
+
+- **2026-05-04 — Mock analytics removal Phase 1.** Replaced four fabricated values in `src/client/src/components/training/analytics/ClassificationPerformance.tsx` (calibration reliability curve, head contribution weights, training velocity bars/sec, peak-saturation status text) with real data sources or empty states. Calibration panel now reads `diagnostics.calibration.reliabilityDiagram` and shows "Calibration not computed" when absent. Head Contribution panel renders only when `diagnostics.head_weights` is present (single-head models hide it). Training Velocity computes real `samples/sec` from streamed `step_samples_per_sec` or falls back to `n_train / epoch_time_sec` from saved diagnostics. Saturation status derives from live `useGpuMetrics()` GPU utilization (≥80% Peak, ≥50% Active, else Idle, "Telemetry offline" when no SSE). Build clean (30s frontend, 709ms server). Plan + audit at `docs/plans/2026-05-04-remove-mock-analytics.md` documents Phase 2 (XAI subsystem decommission, awaiting signoff: `xai/methods/{calibration,counterfactuals,permutation,lime}.ts` and `xaiServiceCore.generateMockPrediction()` and `routes/ml/xai.ts:67-71` all return `Math.random()` outputs as if they were real explainability analysis) and Phase 3 (final sweep).
+- **2026-05-04 — Trade Lab consolidation.** Replaced two chart-centric pages (Market Data, ML Studio) with a single `/` route ("Trade Lab"). Trade Lab absorbs Market Data's full feature set (asset/symbol/timeframe picker, 151 indicators, CDL patterns, S/R + zigzag + structure overlays, regime shading, replay, training sync) and adds a backtest-run picker that layers trades on top: click any marker for a detail drawer, equity + drawdown below the chart, and a bottom row with three analytics tiles (ConfPnLScatter via visx, RegimePnLBars via recharts, MAEMFEHistogram via recharts) plus a sortable trade list — all filtered to the visible chart window. ML Studio sub-tabs (Training, Backtest, Forecast, Curriculum) and Chat were promoted to top-level routes. `/ml-studio` and `/market-data` 301-redirect to `/`. Removed: `pages/MarketData.tsx`, `pages/MLStudio.tsx`, `pages/market-data/` (7 files), `pages/ml-studio/` (2 files). Added: `pages/trade-lab/` (12 files), `pages/Forecast.tsx`, `pages/Chat.tsx`, `contexts/TradeLabContext.tsx`. `IndicatorChartLayout` gained an `onMainRangeChange` pass-through prop; `TradingChart` + `useChartMarkers` gained an `onTradeMarkerClick` callback that resolves clicks to a `tradeId`. Build clean, 92 unit tests pass.
+
 ## Project Scale
-- **335 React component files**, 28 pages, 27 route files, 111 Python ML files, 38 scripts, 38 test files
+- **~340 React component files**, 19 pages, 27 route files, 111 Python ML files, 38 scripts, 38 test files
 - **108 npm dependencies**, 51 devDependencies, 8 config JSONs
 - **Node 22.20**, Python 3.13, TypeScript, Numba JIT, Polars
-- **181 commits** on `feature/triple-barrier-training` branch (pushed to GitHub)
 - **Trained models**: see data/models/
-- **MotiveWave plugin**: QuestDB ILP Stream study — streams OHLCV (with orderflow), ticks (with exchange IDs), and Level 2 DOM to QuestDB in real-time
+- **MotiveWave plugin**: lives at `E:\source\repos\MotiveWave\QuestDBPlugin\` (consolidated 2026-05-04). QuestDB ILP Stream study — streams OHLCV (with orderflow), ticks (with exchange IDs), and Level 2 DOM to QuestDB in real-time
 
 ## Tech Stack
 
@@ -134,9 +150,21 @@ QuestDB (source of truth, 863M+ rows, 5 tables, unified multi-asset)
 
 ```
 client/src/
-  pages/            18 pages: MarketData, MLStudio, ModelCatalog, Training, Backtest,
+  pages/            20 pages: ModelCatalog, Training, Backtest, Forecast, Chat,
                     Portfolio, Watchlist, News, Databases, Gpu, Hardware, SystemMatrix,
-                    Settings, Terminals, Curriculum, ArchitectureExplorer, FourierTransform, not-found
+                    Settings, Terminals, Curriculum, ArchitectureExplorer,
+                    FourierTransform, not-found
+                    + trade-lab/ — single home at `/` (and `/trade-lab`):
+                      Market Data's full feature set (asset/symbol/timeframe picker,
+                      151 indicators, CDL patterns, S/R + zigzag + structure overlays,
+                      regime shading, replay, training sync) PLUS run picker that
+                      layers backtest trades on top (click-marker → drawer,
+                      equity+drawdown below chart, bottom row: ConfPnLScatter (visx) +
+                      RegimePnLBars (recharts) + MAEMFEHistogram (recharts) + sortable
+                      trade list — all filtered to visible chart window).
+                    REMOVED 2026-05-04: pages/MarketData.tsx, pages/MLStudio.tsx,
+                      pages/market-data/, pages/ml-studio/. /ml-studio + /market-data
+                      301-redirect to /.
   components/       shadcn/ui + domain components (ExplainableAI,
                     LabelGeneration, LossSurface3D, TradingChart)
   components/renderers/  15 metric renderers: Gauge, Number, Percent, Bars, PrecisionBars,
@@ -277,14 +305,6 @@ scripts/                       76 scripts total
   audit_chat.mjs               Chat component audit
   audit_visuals.mjs            Visualization component audit
   orb_*.py                     Opening range breakout analysis suite (20+ scripts)
-
-motivewave-plugin/        MotiveWave Java plugin (Maven, JDK 17)
-  src/main/java/com/mldashboard/motivewave/
-    QuestDBStreamStudy.java   Study that streams OHLCV+ticks+DOM to QuestDB via ILP TCP
-    util/ILPClient.java       Lightweight ILP TCP client (line protocol construction, reconnect)
-  pom.xml                     Maven build (system dep on E:/MotiveWave/lib/mwave_sdk.jar)
-  .mvn/jvm.config             JVM flags (--enable-native-access)
-  dist/MLDashboardPlugin.jar  Built JAR → deployed to ~/MotiveWave Extensions/
 
 electron/
   main.cjs             Electron main process
