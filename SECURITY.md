@@ -2,32 +2,64 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in this project, please report it
-privately so it can be addressed before public disclosure.
+This repository is published under a **Source-Available View-Only License**
+(see `LICENSE`). It is not intended to be cloned, deployed, or run by third
+parties.
 
-**Do not** open a public GitHub issue for security-related concerns.
+If you discover a security issue while viewing the source — for example, an
+accidentally committed secret, a hardcoded credential, or a vulnerability in
+the publicly readable code — please report it privately:
 
-Instead, please use one of the following channels:
+1. Open a **GitHub Security Advisory** on this repository
+   (Security → Report a vulnerability), **or**
+2. Contact the repository owner via the email address listed on the GitHub
+   profile that owns this repository.
 
-- Open a private vulnerability report via GitHub:
-  **Security → Report a vulnerability** on this repository.
-- Or contact the maintainer directly through the email listed on their GitHub profile.
+Please **do not** open a public issue, file a pull request, or post to social
+media before the issue is resolved. Doing so may put users of any future
+deployments at risk.
 
-Please include:
-- A description of the vulnerability and its potential impact.
-- Steps to reproduce, or a proof-of-concept.
-- Any suggested mitigation or fix, if known.
+## Scope
 
-You can expect an initial response within 72 hours. We aim to provide a
-remediation plan or a fix within 30 days for confirmed issues, depending on
-severity and complexity.
+In-scope:
 
-## Supported Versions
+- Hardcoded secrets, tokens, or credentials inadvertently committed to this
+  repository (current branch or git history).
+- Personally identifying information (PII) inadvertently committed.
+- Insecure default configurations baked into source files.
+- Vulnerabilities in code paths a reader could reasonably reproduce by
+  reading the public source.
 
-Only the latest commit on the default branch receives security updates unless
-otherwise noted.
+Out-of-scope:
 
-## Disclosure Policy
+- Unauthorized clones, forks, or deployments by third parties.
+  Such usage is prohibited by the license; the copyright holder makes no
+  representations or warranties about its security.
+- Findings in third-party dependencies. Report those upstream.
+- Theoretical issues without a clear demonstration of impact.
 
-We follow coordinated disclosure. Once a fix is available, we will publish
-release notes describing the issue and credit the reporter (with their consent).
+## Response
+
+The repository owner will acknowledge a valid report within 7 days and will
+work in good faith to remediate confirmed issues. Reporters who follow this
+process will be credited in the commit log unless they request otherwise.
+
+## Secret Handling
+
+The following layers protect this repository against accidental secret
+exposure:
+
+1. **`.gitignore`** — strict patterns covering `.env`, `*.secrets`, `*.pem`,
+   `*.key`, `credentials*`, and other sensitive paths.
+2. **GitHub secret scanning** — enabled by default on public repositories;
+   alerts on commits containing recognized provider tokens.
+3. **GitHub push protection** — blocks pushes containing detected secrets.
+4. **Pre-commit hooks** — `gitleaks` / `trufflehog` recommended for
+   contributors; configure in `.husky/pre-commit`.
+5. **Environment-only configuration** — runtime secrets are loaded from the
+   local `.env` (gitignored) and an out-of-tree `.env.secrets` file. Only
+   `.env.example` (with placeholder values) is ever committed.
+
+If a secret is found in the repository, including in historical commits,
+report it via the channels above and the owner will rotate the credential
+and rewrite history (`git filter-repo` or BFG Repo-Cleaner) to remove it.

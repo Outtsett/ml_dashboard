@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "description": "Per-indicator-category transform specs for derived feature extraction. Matches both pandas-ta (RSI_14) and TA-Lib/QuestDB (rsi) naming.",
+  "defaults": {
+    "zscore_window": 50,
+    "percentile_window": 100,
+    "roc_horizon": 5,
+    "divergence_window": 14,
+    "squeeze_percentile": 20,
+    "squeeze_window": 100
+  },
+  "categories": {
+    "bounded_oscillators": {
+      "description": "RSI, Stochastic, MFI, UO, CCI, Williams %R, CMO, ADX, etc.",
+      "match_prefixes": [
+        "RSI_", "RSX_", "STOCHk_", "STOCHd_", "STOCHFk_", "STOCHFd_",
+        "STOCHRSIk_", "STOCHRSId_", "MFI_", "UO_", "CCI_", "WILLR_",
+        "CMO_", "ADX_", "ADXR_", "AROONU_", "AROOND_", "AROONOSC_",
+        "CHOP_", "RVI_", "PSL_", "CRSI_", "STC_", "CMF_", "EBSW_",
+        "CTI_", "ER_", "K_", "D_",
+        "stoch_slowk", "stoch_slowd", "stochf_fastk", "stochf_fastd",
+        "stochrsi_fastk", "stochrsi_fastd"
+      ],
+      "match_exact": [
+        "BOP", "J_9_3",
+        "rsi", "mfi", "cci", "cmo", "willr", "adx", "adxr",
+        "aroon_aroonup", "aroon_aroondown", "aroonosc", "bop", "dx",
+        "ultosc", "roc"
+      ],
+      "derivations": [
+        {"name": "roc", "params": {"horizon": 5}, "suffix": "_roc5"},
+        {"name": "distance_from", "params": {"level": "midpoint"}, "suffix": "_distmid"},
+        {"name": "percentile_rank", "params": {"window": 100}, "suffix": "_pctrnk"},
+        {"name": "zscore", "params": {"window": 50}, "suffix": "_z50"},
+        {"name": "divergence", "params": {"window": 14}, "suffix": "_div14"}
+      ]
+    },
+    "bollinger": {
+      "description": "Bollinger Band %B, bandwidth, and band levels",
+      "match_prefixes": ["BBP_", "BBB_", "bbands_"],
+      "derivations": [
+        {"name": "roc", "params": {"horizon": 3}, "suffix": "_roc3"},
+        {"name": "zscore", "params": {"window": 50}, "suffix": "_z50"}
+      ]
+    },
+    "bollinger_squeeze": {
+      "description": "Bollinger bandwidth squeeze detection",
+      "match_prefixes": ["BBB_", "bbands_middle"],
+      "derivations": [
+        {"name": "squeeze", "params": {"percentile": 20, "window": 100}, "suffix": "_sqz"}
+      ]
+    },
+    "macd": {
+      "description": "MACD histogram, line, signal",
+      "match_prefixes": ["MACDh_", "MACDs_"],
+      "match_exact": [
+        "macd_macd", "macd_macdsignal", "macd_macdhist",
+        "macdext_macd", "macdext_macdsignal", "macdext_macdhist",
+        "macdfix_macd", "macdfix_macdsignal", "macdfix_macdhist"
+      ],
+      "derivations": [
+        {"name": "roc", "params": {"horizon": 3}, "suffix": "_roc3"},
+        {"name": "zscore", "params": {"window": 50}, "suffix": "_z50"}
+      ]
+    },
+    "macd_histogram": {
+      "description": "MACD histogram specific transforms",
+      "match_prefixes": ["MACDh_"],
+      "match_exact": ["macd_macdhist", "macdext_macdhist", "macdfix_macdhist"],
+      "derivations": [
+        {"name": "acceleration", "params": {"horizon1": 3, "horizon2": 3}, "suffix": "_accel"},
+        {"name": "divergence", "params": {"window": 26}, "suffix": "_div26"}
+      ]
+    },
+    "macd_crossover": {
+      "description": "MACD line vs signal crossover distance",
+      "match_exact": ["macd_macd"],
+      "match_prefixes": ["MACD_"],
+      "match_exclude_prefixes": ["MACDh_", "MACDs_", "macd_macds", "macd_macdh", "macdext", "macdfix"],
+      "derivations": [
+        {"name": "crossover_dist", "params": {"signal_prefix": "MACDs_"}, "suffix": "_xdist"}
+      ]
+    },
+    "atr_volatility": {
+      "description": "ATR, NATR, True Range volatility measures",
+      "match_prefixes": ["ATR_", "NATR_", "TRUERANGE_"],
+      "match_exact": ["atr", "natr", "trange"],
+      "derivations": [
+        {"name": "roc", "params": {"horizon": 5}, "suffix": "_roc5"},
+        {"name": "percentile_rank", "params": {"window": 100}, "suffix": "_pctrnk"}
+      ]
+    },
+    "moving_averages": {
+      "description": "SMA, EMA, and all MA variants (after pct_from_close normalization)",
+      "match_prefixes": [
+        "SMA_", "EMA_", "DEMA_", "TEMA_", "TRIMA_", "WMA_", "FWMA_",
+        "HMA_", "KAMA_", "ALMA_",
+        "sma", "ema", "dema", "tema", "trima", "wma", "kama", "mama", "fama", "t3",
+        "ht_trendline"
+      ],
+      "requires_normalized": true,
+      "derivations": [
+        {"name": "roc", "params": {"horizon": 3}, "suffix": "_slope3"}
+      ]
+    },
+    "volume_flow": {
+      "description": "Volume-based indicators (OBV, AD, CMF, MFI after normalization)",
+      "match_exact": ["AD", "OBV", "PVT", "ad", "adosc", "obv"],
+      "requires_normalized": true,
+      "derivations": [
+        {"name": "roc", "params": {"horizon": 5}, "suffix": "_roc5"},
+        {"name": "acceleration", "params": {"horizon1": 5, "horizon2": 3}, "suffix": "_accel"}
+      ]
+    },
+    "trend_strength": {
+      "description": "ADX, DX, directional indicators",
+      "match_prefixes": ["ADX_", "ADXR_", "DX_", "PLUS_DI_", "MINUS_DI_"],
+      "match_exact": ["adx", "adxr", "dx", "minus_di", "plus_di", "minus_dm", "plus_dm"],
+      "derivations": [
+        {"name": "roc", "params": {"horizon": 5}, "suffix": "_roc5"},
+        {"name": "percentile_rank", "params": {"window": 100}, "suffix": "_pctrnk"}
+      ]
+    },
+    "momentum_misc": {
+      "description": "Other momentum indicators from TA-Lib",
+      "match_exact": ["apo", "ppo", "trix", "mom", "rocp", "rocr", "rocr100"],
+      "derivations": [
+        {"name": "roc", "params": {"horizon": 5}, "suffix": "_roc5"},
+        {"name": "zscore", "params": {"window": 50}, "suffix": "_z50"}
+      ]
+    },
+    "hilbert_cycle": {
+      "description": "Hilbert Transform cycle indicators",
+      "match_exact": [
+        "ht_dcperiod", "ht_dcphase", "ht_phasor_inphase",
+        "ht_phasor_quadrature", "ht_sine_sine", "ht_sine_leadsine",
+        "ht_trendmode"
+      ],
+      "derivations": [
+        {"name": "roc", "params": {"horizon": 5}, "suffix": "_roc5"},
+        {"name": "zscore", "params": {"window": 50}, "suffix": "_z50"}
+      ]
+    },
+    "statistics": {
+      "description": "Statistical indicators from TA-Lib",
+      "match_exact": [
+        "beta", "correl", "linearreg", "linearreg_angle",
+        "linearreg_intercept", "linearreg_slope", "stddev", "tsf", "var"
+      ],
+      "derivations": [
+        {"name": "roc", "params": {"horizon": 5}, "suffix": "_roc5"},
+        {"name": "percentile_rank", "params": {"window": 100}, "suffix": "_pctrnk"}
+      ]
+    }
+  }
+}

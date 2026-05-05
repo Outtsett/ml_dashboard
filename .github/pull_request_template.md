@@ -1,17 +1,17 @@
 ## Summary
-
-<!-- Describe what this PR does and why -->
+<!-- 1-3 bullet points describing what changed and why -->
 
 ## Changes
-
-- 
+<!-- List the key files/modules modified -->
 
 ## Testing
+- [ ] `npm run check` passes (TypeScript)
+- [ ] `npm run lint` passes (ESLint + Ruff)
+- [ ] `npm run test` passes (Vitest)
+- [ ] Manual verification described below
 
-<!-- How was this verified? -->
+## Verification
+<!-- How was this tested? What did you verify? -->
 
-## Checklist
-
-- [ ] Code builds and tests pass locally
-- [ ] Documentation updated where relevant
-- [ ] No secrets, credentials, or sensitive data committed
+---
+Generated with [Claude Code](https://claude.ai/claude-code)

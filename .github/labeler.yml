@@ -1,0 +1,31 @@
+server:
+  - changed-files:
+    - any-glob-to-any-file: 'src/server/**'
+
+client:
+  - changed-files:
+    - any-glob-to-any-file: 'src/client/**'
+
+ml:
+  - changed-files:
+    - any-glob-to-any-file: 'src/ml/**'
+    - any-glob-to-any-file: 'scripts/**/*.py'
+
+cache:
+  - changed-files:
+    - any-glob-to-any-file: 'src/server/cache/**'
+
+database:
+  - changed-files:
+    - any-glob-to-any-file: 'src/server/database/**'
+
+config:
+  - changed-files:
+    - any-glob-to-any-file: 'src/config/**'
+    - any-glob-to-any-file: '.github/**'
+    - any-glob-to-any-file: 'package.json'
+
+docs:
+  - changed-files:
+    - any-glob-to-any-file: '**/*.md'
+    - any-glob-to-any-file: '.claude/**'

@@ -1,0 +1,16 @@
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="qai-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+  </defs>
+  <path d="M50 5 L89 27.5 L89 72.5 L50 95 L11 72.5 L11 27.5 Z" stroke="url(#qai-grad)" stroke-width="6" stroke-linejoin="round" fill="#0a0a0a" />
+  <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="28" font-weight="900" font-family="sans-serif">QAI</text>
+  <circle cx="50" cy="5" r="4" fill="url(#qai-grad)" />
+  <circle cx="89" cy="27.5" r="4" fill="url(#qai-grad)" />
+  <circle cx="89" cy="72.5" r="4" fill="url(#qai-grad)" />
+  <circle cx="50" cy="95" r="4" fill="url(#qai-grad)" />
+  <circle cx="11" cy="72.5" r="4" fill="url(#qai-grad)" />
+  <circle cx="11" cy="27.5" r="4" fill="url(#qai-grad)" />
+</svg>

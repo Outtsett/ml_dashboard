@@ -1,0 +1,75 @@
+# Scripts — Utility Scripts
+
+76 utility scripts for data ingestion, feature research, model visualization, database maintenance, and seeding. Mix of Python, TypeScript, and JavaScript.
+
+## Categories
+
+### Data Ingestion
+| Script | Language | Description |
+|---|---|---|
+| `ingest-futures.ts` | TypeScript | Futures OHLCV data ingestion to QuestDB |
+| `ingest-forex.ts` | TypeScript | Forex data ingestion to QuestDB |
+| `ingest-oanda.ts` | TypeScript | Oanda API forex data ingestion |
+| `ingest-trades.ts` | TypeScript | Trade-level data ingestion |
+| `ingest-mbp10.ts` | TypeScript | MBP-10 order book data ingestion |
+| `ingest_dbn.py` | Python | Databento DBN format ingestion |
+| `ingest_forex.py` | Python | Forex data ingestion (Python path) |
+| `convert-dbn-trades.py` | Python | Convert DBN trade files |
+| `upload-tickdata-questdb.cjs` | JavaScript | Upload tick data to QuestDB |
+| `upload-trades-questdb.py` | Python | Upload trade data to QuestDB |
+
+### ML Research & Visualization
+| Script | Language | Description |
+|---|---|---|
+| `feature-research.py` | Python | Feature engineering pipeline: extract, correlate, importance test |
+| `visualize-regimes.py` | Python | DEPRECATED -- HMM model code removed (2026-04-03) |
+| `training_monitor.py` | Python | Live Plotly Dash training monitor (tails convergence.json) |
+| `prediction_viewer.py` | Python | OOS prediction overlay viewer (deprecated, moving to dashboard) |
+| `dash_training_viewer.py` | Python | Plotly Dash training results viewer |
+| `train-live.py` | Python | Live training launcher |
+| `pretrained-forecast.py` | Python | Run pretrained model forecasts |
+| `test_primitives.py` | Python | Primitives discovery model test |
+
+### Database Maintenance
+| Script | Language | Description |
+|---|---|---|
+| `dump-questdb-parquet.py` | Python | Export QuestDB tables to parquet (monthly partition fetch) |
+| `cleanup_questdb.py` | Python | Drop non-OHLCV tables (idempotent, --dry-run) |
+| `migrate-questdb-schema.py` | Python | QuestDB schema migration |
+| `start-questdb.js` | JavaScript | Start QuestDB process |
+| `start-questdb.sh` | Bash | Start QuestDB process (Unix) |
+
+### Seeding & Setup
+| Script | Language | Description |
+|---|---|---|
+| `seed-instruments.ts` | TypeScript | Upsert 25 instruments (8 futures + 17 forex) |
+| `seed-models.ts` | TypeScript | Seed ML model definitions |
+| `seed-broker-configs.cjs` | JavaScript | Seed broker configuration |
+| `setup_hypertable.sql` | SQL | TimescaleDB hypertable setup (legacy) |
+| `setup_forex_hypertable.sql` | SQL | Forex hypertable setup (legacy) |
+
+### ORB Analysis Suite
+20+ scripts for Opening Range Breakout analysis:
+`orb_backtest.py`, `orb_optimize.py`, `orb_greedy.py`, `orb_param_sweep.py`, `orb_filter_validation.py`, `orb_indicator_analysis.py`, `orb_corr_by_side.py`, `orb_ranges_by_side.py`, `orb_complete_report.py`, etc.
+
+### Data Inspection
+| Script | Language | Description |
+|---|---|---|
+| `inspect-sources.ts` | TypeScript | Inspect source data files |
+| `check_mnq_data.py` | Python | Verify MNQ data quality |
+| `check_cols.py` | Python | Check QuestDB column schemas |
+| `count_trading_days.py` | Python | Count trading days in dataset |
+| `data_reader.py` | Python | Generic data file reader |
+
+## Running Scripts
+
+```bash
+# TypeScript scripts
+npx tsx scripts/seed-instruments.ts
+
+# Python scripts (use project venv)
+python scripts/feature-research.py --symbol MNQ --timeframe 1m --source parquet
+python scripts/dump-questdb-parquet.py --tables ohlcv --symbols MNQ
+python scripts/visualize-regimes.py --model latest
+python scripts/training_monitor.py --port 8050
+```

@@ -1,0 +1,14 @@
+# Validate only the first line (subject) against Conventional Commits.
+# Multi-line messages with trailers (Co-Authored-By, Signed-off-by, etc.) are allowed.
+subject=$(head -n 1 "$1")
+pattern="^(feat|fix|docs|chore|refactor|perf|test|build|ci|style|revert)(\(.+\))?: .{1,100}"
+if ! echo "$subject" | grep -qE "$pattern"; then
+  echo "ERROR: Commit subject must follow Conventional Commits format:"
+  echo "  <type>(<scope>): <description>"
+  echo ""
+  echo "  Types: feat, fix, docs, chore, refactor, perf, test, build, ci, style, revert"
+  echo "  Example: feat(cache): add LRU eviction to anchor cache"
+  echo ""
+  echo "  Your subject: $subject"
+  exit 1
+fi
