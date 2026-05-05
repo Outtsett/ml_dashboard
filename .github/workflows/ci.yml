@@ -2,70 +2,193 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    branches: [main, master]
   pull_request:
-    branches: [master, main]
+    branches: [main, master]
+  workflow_dispatch:
 
+# Cancel in-flight runs for the same ref when a new commit lands.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Default least-privilege at workflow level. Individual jobs can elevate.
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+  PYTHON_VERSION: '3.13'
+  # Force npm to skip funding/audit chatter and use the repo's lockfile exactly.
+  NPM_CONFIG_FUND: 'false'
+  NPM_CONFIG_AUDIT: 'false'
+  HUSKY: '0' # husky hooks are dev-only — never run them in CI
+
 jobs:
-  lint:
-    name: Lint
+  # ── Stage 1: install once, share via cache + setup-node's npm cache ─────────
+  setup:
+    name: Setup
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      node-version: ${{ env.NODE_VERSION }}
+      python-version: ${{ env.PYTHON_VERSION }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Verify lockfile is in sync
+        run: npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
+
+  # ── Stage 2: parallel quality gates ────────────────────────────────────────
+  lint-ts:
+    name: Lint (TypeScript)
+    runs-on: ubuntu-latest
+    needs: setup
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - run: npm ci --legacy-peer-deps
+      - run: npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
 
       - name: ESLint
         run: npx eslint src/ --max-warnings 0
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-
-      - name: Install Ruff
-        run: pip install ruff
-
-      - name: Ruff
-        run: ruff check src/ml/ scripts/
-
-  typecheck:
-    name: TypeScript
+  lint-py:
+    name: Lint (Python)
     runs-on: ubuntu-latest
+    needs: setup
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install Ruff (pinned)
+        run: pip install ruff==0.7.4
+
+      - name: Ruff check
+        run: ruff check src/ml/ scripts/
+
+      - name: Ruff format check
+        run: ruff format --check src/ml/ scripts/
+
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    needs: setup
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - run: npm ci --legacy-peer-deps
+      - run: npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
 
-      - name: Type Check
+      - name: tsc --noEmit
         run: npx tsc --noEmit
 
   test:
-    name: Test
-    runs-on: ubuntu-latest
-    needs: [lint, typecheck]
+    name: Unit Tests
+    runs-on: ${{ matrix.os }}
+    needs: setup
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - run: npm ci --legacy-peer-deps
+      - run: npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
 
-      - name: Vitest
-        run: npm run test -- --reporter=verbose
+      - name: Vitest (with coverage)
+        run: npx vitest run --coverage --reporter=verbose
+
+      - name: Upload coverage artifact
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.sha }}
+          path: coverage/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint-ts, typecheck]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
+
+      - name: Build
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ github.sha }}
+          path: dist/
+          retention-days: 7
+          if-no-files-found: error
+
+  # ── Stage 3: aggregated status check (single required check for branch protection) ──
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs: [lint-ts, lint-py, typecheck, test, build]
+    if: always()
+    timeout-minutes: 1
+    steps:
+      - name: Verify all jobs succeeded
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') }}" == "true" ] \
+              || [ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]; then
+            echo "::error::One or more required jobs failed or were cancelled"
+            exit 1
+          fi
+          echo "All required jobs succeeded."

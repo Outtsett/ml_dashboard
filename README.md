@@ -1,6 +1,18 @@
 # Quant AI Dashboard: Institutional Mission Control
 
+[![CI](https://github.com/Outtsett/ml_dashboard/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Outtsett/ml_dashboard/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Outtsett/ml_dashboard/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/Outtsett/ml_dashboard/actions/workflows/codeql.yml)
+[![Secret Scan](https://github.com/Outtsett/ml_dashboard/actions/workflows/secret-scan.yml/badge.svg?branch=main)](https://github.com/Outtsett/ml_dashboard/actions/workflows/secret-scan.yml)
+[![Dependency Review](https://github.com/Outtsett/ml_dashboard/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/Outtsett/ml_dashboard/actions/workflows/dependency-review.yml)
+[![License: Source-Available View-Only](https://img.shields.io/badge/license-Source--Available%20View--Only-red.svg)](./LICENSE)
+[![Node](https://img.shields.io/badge/node-%E2%89%A522-brightgreen.svg)](./package.json)
+[![Python](https://img.shields.io/badge/python-3.13-blue.svg)](./pyproject.toml)
+[![TypeScript](https://img.shields.io/badge/typescript-5.6-blue.svg)](./tsconfig.json)
+[![Conventional Commits](https://img.shields.io/badge/conventional%20commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org)
+
 Full-stack ML ops and real-time execution platform for high-frequency quantitative trading. Integrated with **Mission Control HUB** (PowerShell 7 + Btop++), featuring a **Triple-Engine Data Architecture** and **SOLID-enforced** engineering standards.
+
+> **License:** Source-Available View-Only ([`LICENSE`](./LICENSE)). Code is published for portfolio review only — cloning, forking, modifying, redistributing, executing, and using as AI/ML training data are all prohibited. See [`SECURITY.md`](./SECURITY.md) for vulnerability reporting and [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the internal contribution workflow.
 
 ---
 
