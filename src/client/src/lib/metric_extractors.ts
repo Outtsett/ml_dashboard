@@ -97,7 +97,7 @@ function extractClusteringMetrics(d: Diagnostics): MetricValue[] {
       value: (test.value as number | null) ?? null,
       passed: test.passed as boolean | undefined,
       pValue: (test.p_value as number | null) ?? null,
-      details: test.details as string | undefined,
+      details: test.details as Record<string, unknown> | undefined,
     };
   };
 
@@ -112,8 +112,8 @@ function extractClusteringMetrics(d: Diagnostics): MetricValue[] {
     val(s1, 'return_separation'),
     val(s1, 'volatility_separation'),
     // cluster_significance
-    { id: 'permutation_p', value: numOrNull(safeGet(s2, 'permutation_test.p_value')), passed: (s2 as Record<string, Record<string, unknown>>)?.permutation_test?.passed as boolean | undefined },
-    { id: 'bootstrap_ci_low', value: numOrNull(safeGet(s2, 'bootstrap_ci.details.ci_low')), passed: (s2 as Record<string, Record<string, unknown>>)?.bootstrap_ci?.passed as boolean | undefined },
+    { id: 'permutation_p', value: numOrNull(safeGet(s2, 'permutation_test.p_value')), passed: safeGet(s2, 'permutation_test.passed') as boolean | undefined },
+    { id: 'bootstrap_ci_low', value: numOrNull(safeGet(s2, 'bootstrap_ci.details.ci_low')), passed: safeGet(s2, 'bootstrap_ci.passed') as boolean | undefined },
     // cluster_oos
     { id: 'oos_distribution_similarity', value: oos?.distribution_similarity ?? null },
     val(s3, 'oos_confidence_calibration'),

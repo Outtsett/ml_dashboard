@@ -39,7 +39,7 @@ export default function FourierTransform() {
   } = useFourierState();
 
   const dominantPeriod = isHilbert ? 0 : (priceDFT?.dominantPeriod || 0);
-  const snr = isPriceMode && priceDFT ? (10 * Math.log10(priceDFT.analysisSeries.reduce((acc: any, curr: any) => acc + curr.reconstructed ** 2, 0) / priceDFT.analysisSeries.reduce((acc: any, curr: any) => acc + curr.residual ** 2, 0))).toFixed(1) : "--";
+  const snr = isPriceMode && priceDFT ? (10 * Math.log10(priceDFT.analysisSeries.reduce((acc: number, curr: { reconstructed: number }) => acc + curr.reconstructed ** 2, 0) / priceDFT.analysisSeries.reduce((acc: number, curr: { residual: number }) => acc + curr.residual ** 2, 0))).toFixed(1) : "--";
 
   return (
     <div className="p-6 space-y-6 h-full flex flex-col overflow-hidden bg-background/50">
@@ -137,8 +137,8 @@ export default function FourierTransform() {
 
           {/* Primary Chart */}
           <div className="flex-1 min-h-0">
-            <AnalysisChart 
-              data={isHilbert ? priceHilbert?.hilbertSeries : priceDFT?.analysisSeries} 
+            <AnalysisChart
+              data={(isHilbert ? priceHilbert?.hilbertSeries : priceDFT?.analysisSeries) ?? []}
               isHilbert={isHilbert}
             />
           </div>
@@ -148,9 +148,9 @@ export default function FourierTransform() {
         <div className="col-span-12 lg:col-span-3 flex flex-col space-y-6">
           <div className="flex-1 min-h-0">
             {isHilbert ? (
-              <HilbertVector data={priceHilbert?.hilbertSeries} />
+              <HilbertVector data={priceHilbert?.hilbertSeries ?? []} />
             ) : (
-              <SpectrumChart data={priceDFT?.spectrumSeries} />
+              <SpectrumChart data={priceDFT?.spectrumSeries ?? []} />
             )}
           </div>
           

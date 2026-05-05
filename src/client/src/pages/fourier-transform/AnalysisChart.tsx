@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity } from "lucide-react";
 
 interface AnalysisChartProps {
-  data: any[];
+  data: Array<Record<string, unknown>>;
   isHilbert?: boolean;
 }
 
@@ -86,15 +86,14 @@ export function AnalysisChart({ data, isHilbert }: AnalysisChartProps) {
                   isAnimationActive={false}
                   opacity={0.5}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="reconstructed" 
-                  name="Reconstructed Cycle" 
-                  stroke="#3b82f6" 
-                  strokeWidth={3} 
-                  dot={false} 
+                <Line
+                  type="monotone"
+                  dataKey="reconstructed"
+                  name="Reconstructed Cycle"
+                  stroke="#3b82f6"
+                  strokeWidth={3}
+                  dot={false}
                   isAnimationActive={false}
-                  strokeShadow="0 0 10px rgba(59,130,246,0.5)"
                 />
                 <Line 
                   type="monotone" 
