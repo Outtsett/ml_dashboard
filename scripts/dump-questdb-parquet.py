@@ -4,19 +4,22 @@ One-time QuestDB -> Parquet export for batch analytics.
 Dumps entire tables (or symbol subsets) to parquet files for fast local reads.
 Eliminates PG wire bottleneck for repeat analytics runs.
 
-Output: data/.cache/{table}_{symbol}.parquet
+Output (default):    data/.cache/{table}_{symbol}.parquet
+Output (--multi-tf): data/parquet/{symbol}/{tf}.parquet
 
 Usage:
     python scripts/dump-questdb-parquet.py                          # Dump ohlcv (default)
     python scripts/dump-questdb-parquet.py --tables ohlcv            # Single table
     python scripts/dump-questdb-parquet.py --tables ohlcv --symbols MNQ,ES
+    python scripts/dump-questdb-parquet.py --multi-tf                # MNQ+EURUSD x 8 TFs
+    python scripts/dump-questdb-parquet.py --multi-tf --symbols MNQ  # Multi-TF subset
 """
 
 import argparse
 import os
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -24,6 +27,21 @@ import psycopg2
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = ROOT / "data" / ".cache"
+PARQUET_DIR = ROOT / "data" / "parquet"
+
+TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"]
+
+
+def source_table(tf: str) -> str:
+    """Map a timeframe label to the QuestDB source table.
+
+    `ohlcv` is 1-second granularity, so 1m bars come from the `ohlcv_1m` mat view.
+    `ohlcv_1h` table is crypto-only; futures/forex 1h comes from `ohlcv_1h_v` mat view.
+    All other TFs come from their corresponding `ohlcv_<tf>` mat view.
+    """
+    if tf == "1h":
+        return "ohlcv_1h_v"
+    return f"ohlcv_{tf}"
 
 
 def connect():
@@ -136,18 +154,69 @@ def dump_symbol(conn, table, symbol, output_path, chunk_size=100_000):
     return total
 
 
+def run_multi_tf(args):
+    """Export MNQ + EURUSD (or --symbols subset) at all 8 timeframes.
+
+    Output: {output_dir}/{symbol}/{tf}.parquet
+    """
+    if args.symbols:
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
+    else:
+        symbols = ["MNQ", "EURUSD"]
+
+    out_root = Path(args.output_dir) if args.output_dir else PARQUET_DIR
+    out_root.mkdir(parents=True, exist_ok=True)
+
+    print(f"Multi-TF export: {symbols} x {TIMEFRAMES}")
+    print(f"Output root: {out_root}")
+
+    conn = connect()
+    grand_total = 0
+    failures: list[tuple[str, str, str]] = []
+
+    for sym in symbols:
+        sym_dir = out_root / sym
+        sym_dir.mkdir(parents=True, exist_ok=True)
+        for tf in TIMEFRAMES:
+            src = source_table(tf)
+            out_path = sym_dir / f"{tf}.parquet"
+            print(f"\n--- {sym} / {tf}  (source: {src}) ---")
+            try:
+                rows = dump_symbol(conn, src, sym, out_path)
+                grand_total += rows
+            except Exception as e:
+                print(f"  FAILED {sym}/{tf}: {e}")
+                failures.append((sym, tf, str(e)))
+
+    conn.close()
+    print(f"\n{'=' * 60}")
+    print(f"Multi-TF export complete: {grand_total:,} total rows across {len(symbols)} symbols x {len(TIMEFRAMES)} TFs")
+    print(f"Output: {out_root}")
+    if failures:
+        print(f"\n{len(failures)} failure(s):")
+        for sym, tf, err in failures:
+            print(f"  {sym}/{tf}: {err}")
+        return 1
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="Dump QuestDB tables to parquet")
     parser.add_argument("--tables", type=str, default="ohlcv",
                         help="Comma-separated table names (default: ohlcv)")
     parser.add_argument("--symbols", type=str, default=None,
-                        help="Comma-separated symbols (default: all)")
-    parser.add_argument("--output-dir", type=str, default=str(CACHE_DIR),
-                        help=f"Output directory (default: {CACHE_DIR})")
+                        help="Comma-separated symbols (default: all; multi-tf default: MNQ,EURUSD)")
+    parser.add_argument("--output-dir", type=str, default=None,
+                        help=f"Output directory (default: {CACHE_DIR}; multi-tf default: {PARQUET_DIR})")
+    parser.add_argument("--multi-tf", action="store_true",
+                        help="Loop all 8 TFs ({1,5,15,30}m, {1,4}h, {1d,1w}); output {output_dir}/{symbol}/{tf}.parquet")
     args = parser.parse_args()
 
+    if args.multi_tf:
+        sys.exit(run_multi_tf(args))
+
     tables = [t.strip() for t in args.tables.split(",")]
-    output_dir = Path(args.output_dir)
+    output_dir = Path(args.output_dir) if args.output_dir else CACHE_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
 
     conn = connect()
