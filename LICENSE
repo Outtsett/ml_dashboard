@@ -1,0 +1,107 @@
+Source-Available View-Only License
+Version 1.0, May 2026
+
+Copyright (c) 2026 Tyler Lundeen. All rights reserved.
+
+================================================================================
+
+  PERMITTED USE
+
+  Subject to the restrictions below, you are permitted to:
+
+    (a) view the source code of this repository on the GitHub web interface
+        or any other code-hosting service where this repository has been
+        made available by the copyright holder; and
+
+    (b) read the source code for the purpose of evaluating the work of the
+        copyright holder, for portfolio review, or for personal study not
+        involving any of the prohibited acts listed below.
+
+================================================================================
+
+  PROHIBITED ACTS
+
+  You may NOT, without prior written permission from the copyright holder:
+
+    1. copy, clone, download, mirror, or otherwise reproduce this repository
+       or any portion of it, in source or compiled form, except for the
+       transient browser-cache copies that occur incidentally when viewing
+       the code on a hosting service;
+
+    2. fork this repository, in whole or in part, on GitHub or any other
+       code-hosting service;
+
+    3. modify, adapt, translate, refactor, or create derivative works based
+       on any portion of the source code, documentation, configuration,
+       data files, or other materials in this repository;
+
+    4. redistribute, republish, sublicense, sell, lease, or otherwise make
+       available this repository or any portion of it to any third party,
+       in source or compiled form, on any medium;
+
+    5. use any portion of the source code, algorithms, model architectures,
+       configurations, or documentation in any other software, project,
+       product, service, model, or commercial offering, whether for personal,
+       academic, research, or commercial purposes;
+
+    6. compile, build, run, deploy, host, execute, or otherwise operate any
+       portion of the source code or its compiled form on any computer system,
+       including for testing, evaluation, or research purposes;
+
+    7. extract, scrape, or programmatically retrieve the contents of this
+       repository, including by means of automated tools, AI training
+       pipelines, dataset construction, or large-language-model fine-tuning
+       or pre-training corpora;
+
+    8. remove, alter, or obscure any copyright notice, license notice, or
+       attribution contained in this repository.
+
+================================================================================
+
+  AI / MACHINE-LEARNING TRAINING NOTICE
+
+  The copyright holder expressly reserves all rights in the source code,
+  documentation, and other contents of this repository as protectable subject
+  matter under applicable copyright law and the corresponding sui generis
+  database rights. Use of any portion of this repository as training data,
+  fine-tuning data, retrieval-augmented-generation corpora, or evaluation data
+  for any artificial-intelligence or machine-learning model is a prohibited
+  act under Section 7 above and constitutes a material breach of this license.
+
+================================================================================
+
+  NO LICENSE GRANTED EXCEPT AS STATED
+
+  Nothing in this license grants you any right under any patent, trademark,
+  trade-secret, or other intellectual-property right of the copyright holder.
+  No implied license is granted, whether by estoppel, exhaustion, or otherwise.
+  All rights not expressly granted above are reserved.
+
+================================================================================
+
+  TERMINATION
+
+  Any breach of this license terminates all rights granted to you under it
+  immediately and automatically, without notice. Upon termination, you must
+  cease all viewing, use, and possession of any portion of the repository
+  obtained while the license was in effect.
+
+================================================================================
+
+  DISCLAIMER OF WARRANTY AND LIABILITY
+
+  THIS REPOSITORY IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+  OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL
+  THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY,
+  WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT
+  OF, OR IN CONNECTION WITH THE REPOSITORY OR THE USE OR OTHER DEALINGS IN
+  THE REPOSITORY.
+
+================================================================================
+
+  CONTACT
+
+  For licensing inquiries, including requests for permission to perform any
+  of the prohibited acts above, contact the copyright holder via the GitHub
+  account that owns this repository.

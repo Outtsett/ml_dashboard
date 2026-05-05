@@ -1,3 +1,0 @@
-{"ts":1774671542967,"e":"ACTIVATE","symbol":"ENQM26","tick":0.2500,"qty":1,"impactSize":10,"flipThresh":0.5000}
-{"ts":1774671542970,"e":"SCORE","n":1,"price":23254.2500,"bid0":23220.0000,"ask0":23255.7500,"bidLvls":100,"askLvls":100,"buyImpact":257.0000,"sellImpact":80.0000,"pid":177.0000,"pidRoc":0.0000,"bullTh":0.5000,"bearTh":-0.5000,"pidDir":-1,"consec":1,"confirmed":0,"position":0,"action":"NONE"}
-{"ts":1774671547677,"e":"DEACTIVATE","domUpdates":1,"runtimeSec":4,"finalPos":0}

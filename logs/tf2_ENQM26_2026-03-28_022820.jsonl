@@ -1,5 +1,0 @@
-{"ts":1774690100422,"e":"ACTIVATE","symbol":"ENQM26","tick":0.2500,"qty":1,"impactSize":10,"flipThresh":0.5000}
-{"ts":1774690107800,"e":"NO_DOM","tick":1}
-{"ts":1774690107800,"e":"NO_DOM","tick":2}
-{"ts":1774690170834,"e":"NO_DOM","tick":3}
-{"ts":1774690201051,"e":"DEACTIVATE","ticks":89663,"runtimeSec":100,"finalPos":0}
