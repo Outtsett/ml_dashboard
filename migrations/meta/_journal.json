@@ -8,6 +8,34 @@
       "when": 1774430405494,
       "tag": "0000_fantastic_hawkeye",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1778241600000,
+      "tag": "0001_xgb_hpo_nested",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1778414400000,
+      "tag": "0002_model_registry",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1778418000000,
+      "tag": "0003_agent_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1783933200000,
+      "tag": "0004_untracked_ml_tables",
+      "breakpoints": true
     }
   ]
 }
