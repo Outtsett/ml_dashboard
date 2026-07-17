@@ -395,8 +395,13 @@ function NetworkGraphTab() {
         </div>
       </div>
 
-      {/* KPI row */}
-      {kpis.length > 0 && <KpiStrip kpis={kpis} dense className="shrink-0" />}
+      {/* KPI row — block view only. The neuron view folds these three numbers
+          into its own transport bar: this page's height is fixed (PageShell
+          fillHeight), and a full strip for three values was height the network
+          could not spare. */}
+      {kpis.length > 0 && view === "blocks" && (
+        <KpiStrip kpis={kpis} dense className="shrink-0" />
+      )}
 
       {/* Diagram — takes every pixel the controls and KPI row leave behind. */}
       {graph ? (
@@ -407,6 +412,7 @@ function NetworkGraphTab() {
             // "Window (bars)" slider changes how many candles are shown. Models
             // without the HP (e.g. xgboost) pass null and the chart says so.
             windowSize={hpValues.window_size ?? null}
+            kpis={kpis}
           />
         ) : (
           <NetworkDiagram graph={graph} />
@@ -440,10 +446,13 @@ const UNLINKED_BAR_COUNT = 64;
 function NeuronView({
   graph,
   windowSize,
+  kpis,
 }: {
   graph: ArchGraph;
   /** The architecture's real `window_size` HP, or null when it has none. */
   windowSize: number | null;
+  /** Folded into the transport bar instead of taking their own strip. */
+  kpis: Kpi[];
 }) {
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState(1);
@@ -454,6 +463,8 @@ function NeuronView({
   const [barCount, setBarCount] = useState<number | null>(null);
   /** Each candle's real pixel x — positions the network's input tape. */
   const [barXs, setBarXs] = useState<number[]>([]);
+  /** Chart collapsed → the network takes the whole pane. */
+  const [showChart, setShowChart] = useState(true);
   const [symbol, setSymbol] = useState("AUDUSD");
   const [timeframeMinutes, setTimeframeMinutes] = useState(60);
 
@@ -562,6 +573,26 @@ function NeuronView({
           </SelectContent>
         </Select>
 
+        <button
+          type="button"
+          data-testid="neuron-toggle-chart"
+          onClick={() => setShowChart((v) => !v)}
+          aria-pressed={showChart}
+          className="rounded-sm border border-white/15 px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+        >
+          {showChart ? "Hide chart" : "Show chart"}
+        </button>
+
+        {/* The KPI strip's numbers, inline — same real values, no extra row. */}
+        {kpis.map((k) => (
+          <span key={k.label} className="flex items-baseline gap-1 text-[10px]">
+            <span className="text-muted-foreground">{k.label.toLowerCase()}</span>
+            <span className="font-mono tabular-nums text-foreground">
+              {k.value}
+            </span>
+          </span>
+        ))}
+
         <div className="ml-auto font-mono text-[10px] text-muted-foreground">
           {stepping
             ? `layer ${(step ?? 0) + 1} / ${layerCount}`
@@ -574,28 +605,37 @@ function NeuronView({
         </div>
       </div>
 
-      {/* Real input-window candles — fixed height, above the network. */}
-      <InputWindowChart
-        className="m-2 mb-0"
-        symbol={symbol}
-        timeframeMinutes={timeframeMinutes}
-        limit={windowSize ?? UNLINKED_BAR_COUNT}
-        linked={windowSize != null}
-        onBarCount={setBarCount}
-        onBarXs={setBarXs}
-      />
+      {/* Real input-window candles — fixed height, above the network.
+          Unmounting on collapse also clears the tape, since barXs stop being
+          published — the network must not draw bar nodes for a chart that is
+          not on screen to align them against. */}
+      {showChart && (
+        <>
+          <InputWindowChart
+            className="m-2 mb-0"
+            symbol={symbol}
+            timeframeMinutes={timeframeMinutes}
+            limit={windowSize ?? UNLINKED_BAR_COUNT}
+            linked={windowSize != null}
+            onBarCount={setBarCount}
+            onBarXs={setBarXs}
+          />
 
-      {/* Alignment check — does what the chart HAS match what the model TAKES? */}
-      <AlignmentStrip
-        graph={graph}
-        barsReturned={barCount}
-        windowSize={windowSize ?? null}
-      />
+          {/* Alignment check — does what the chart HAS match what the model TAKES? */}
+          <AlignmentStrip
+            graph={graph}
+            barsReturned={barCount}
+            windowSize={windowSize ?? null}
+          />
+        </>
+      )}
 
       {/* min-h floor: the network is the point of this view, so it never gets
           squeezed below a legible height. If the viewport cannot fit chart +
-          floor, the pane scrolls instead of compressing the neurons. */}
-      <div className="relative flex min-h-[260px] flex-1">
+          floor, the pane scrolls instead of compressing the neurons. 260px still
+          clipped the column captions on a laptop viewport — 460 leaves the
+          network room to breathe and the pane scrolls when it must. */}
+      <div className="relative flex min-h-[460px] flex-1">
         <NeuralCanvas
           graph={graph}
           playing={playing}
@@ -603,7 +643,9 @@ function NeuronView({
           stepIndex={step}
           onModel={setModel}
           onHoverLayer={setHovered}
-          barXs={barXs}
+          // Collapsed chart → no tape. Keeping the last-published xs would draw
+          // bar nodes aligned to candles that are no longer on screen.
+          barXs={showChart ? barXs : []}
         />
 
         {/* Inspector — real derived config only. */}
