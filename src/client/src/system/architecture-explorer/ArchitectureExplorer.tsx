@@ -80,6 +80,7 @@ import {
 } from "@/system/architecture-explorer/trees";
 
 import { InputWindowChart, useForexSymbols } from "./InputWindowChart";
+import { checkAlignment, type AlignState } from "./alignment";
 import { TIMEFRAME_OPTIONS } from "@/market/lib/timeframes";
 
 // Existing educational content — mounted unchanged under the Concepts tab.
@@ -431,6 +432,8 @@ function NeuronView({
   const [step, setStep] = useState<number | null>(null);
   const [model, setModel] = useState<NeuronModel | null>(null);
   const [hovered, setHovered] = useState<NeuronLayer | null>(null);
+  /** Bars the feed ACTUALLY returned — drives the alignment check. */
+  const [barCount, setBarCount] = useState<number | null>(null);
   const [symbol, setSymbol] = useState("AUDUSD");
   const [timeframeMinutes, setTimeframeMinutes] = useState(60);
 
@@ -558,6 +561,14 @@ function NeuronView({
         timeframeMinutes={timeframeMinutes}
         limit={windowSize ?? UNLINKED_BAR_COUNT}
         linked={windowSize != null}
+        onBarCount={setBarCount}
+      />
+
+      {/* Alignment check — does what the chart HAS match what the model TAKES? */}
+      <AlignmentStrip
+        graph={graph}
+        barsReturned={barCount}
+        windowSize={windowSize ?? null}
       />
 
       {/* min-h floor: the network is the point of this view, so it never gets
@@ -605,6 +616,80 @@ function NeuronView({
         source. Wire shading shows connectivity, not weight magnitude, and a lit
         neuron marks the signal reaching that layer — not how strongly it fired.
         No trained weights or activations are involved.
+      </div>
+    </div>
+  );
+}
+
+/** Text verdict per state — never colour alone (deuteranopia-safe). */
+const ALIGN_VERDICT: Record<AlignState, string> = {
+  aligned: "matches",
+  mismatch: "MISMATCH",
+  unlinked: "not linked",
+  pending: "checking",
+};
+
+const ALIGN_TONE: Record<AlignState, string> = {
+  aligned: "text-foreground",
+  mismatch: "text-[hsl(var(--data-neg))]",
+  unlinked: "text-muted-foreground",
+  pending: "text-muted-foreground",
+};
+
+/**
+ * States, per axis, whether the chart and the architecture actually agree.
+ * The window axis is the real link; batch is symbolic; features deliberately do
+ * NOT align (engineered features vs drawn OHLC) and say so.
+ */
+function AlignmentStrip({
+  graph,
+  barsReturned,
+  windowSize,
+}: {
+  graph: ArchGraph;
+  barsReturned: number | null;
+  windowSize: number | null;
+}) {
+  const report = checkAlignment(graph, barsReturned, windowSize);
+
+  return (
+    <div
+      className="shrink-0 border-b border-white/10 bg-black/20 px-3 py-1.5"
+      data-testid="alignment-strip"
+    >
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span className="text-[9px] uppercase tracking-wider text-muted-foreground">
+          chart ↔ model
+        </span>
+        {report.inputShape && (
+          <span className="font-mono text-[9px] text-muted-foreground">
+            input {report.inputShape}
+          </span>
+        )}
+        {report.axes.map((a) => (
+          <span
+            key={a.label}
+            title={a.note}
+            className="flex items-center gap-1 text-[9px]"
+          >
+            <span className="text-muted-foreground">{a.label}</span>
+            <span className="font-mono text-foreground">{a.chart}</span>
+            <span className="text-muted-foreground">vs</span>
+            <span className="font-mono text-foreground">{a.model}</span>
+            <span className={cn("font-medium", ALIGN_TONE[a.state])}>
+              {ALIGN_VERDICT[a.state]}
+            </span>
+          </span>
+        ))}
+      </div>
+      {/* The note for whichever axis most needs explaining, spelled out rather
+          than hidden in a tooltip. */}
+      <div className="mt-0.5 text-[9px] leading-tight text-muted-foreground">
+        {(
+          report.axes.find((a) => a.state === "mismatch") ??
+          report.axes.find((a) => a.state === "unlinked") ??
+          report.axes.find((a) => a.label === "window")
+        )?.note}
       </div>
     </div>
   );

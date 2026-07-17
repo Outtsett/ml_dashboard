@@ -177,6 +177,13 @@ export interface InputWindowChartProps {
    */
   linked: boolean;
   className?: string;
+  /**
+   * Fires with the number of bars ACTUALLY returned (null while loading/on
+   * error) — not the requested `limit`. The alignment check must compare the
+   * model's window against real data, so a short feed surfaces as a mismatch
+   * instead of being masked by the request.
+   */
+  onBarCount?: (count: number | null) => void;
 }
 
 export function InputWindowChart({
@@ -185,6 +192,7 @@ export function InputWindowChart({
   limit,
   linked,
   className,
+  onBarCount,
 }: InputWindowChartProps) {
   const query = useInputWindowBars(symbol, timeframeMinutes, limit);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -201,6 +209,16 @@ export function InputWindowChart({
   const queryData = query.data;
   const bars = useMemo(() => queryData ?? [], [queryData]);
   const hasBars = bars.length > 0;
+
+  // Report the REAL bar count upward (null while loading / on error) so the
+  // alignment check compares the model's window against what actually arrived,
+  // never against what was merely requested.
+  const settled = query.isSuccess;
+  const onBarCountRef = useRef(onBarCount);
+  onBarCountRef.current = onBarCount;
+  useEffect(() => {
+    onBarCountRef.current?.(settled ? bars.length : null);
+  }, [settled, bars.length]);
 
   // ── Create chart once; tear it down on unmount ──────────────────────────
   useEffect(() => {
