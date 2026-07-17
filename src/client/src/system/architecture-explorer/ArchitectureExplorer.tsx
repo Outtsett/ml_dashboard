@@ -452,6 +452,8 @@ function NeuronView({
   const [hovered, setHovered] = useState<NeuronLayer | null>(null);
   /** Bars the feed ACTUALLY returned — drives the alignment check. */
   const [barCount, setBarCount] = useState<number | null>(null);
+  /** Each candle's real pixel x — positions the network's input tape. */
+  const [barXs, setBarXs] = useState<number[]>([]);
   const [symbol, setSymbol] = useState("AUDUSD");
   const [timeframeMinutes, setTimeframeMinutes] = useState(60);
 
@@ -580,6 +582,7 @@ function NeuronView({
         limit={windowSize ?? UNLINKED_BAR_COUNT}
         linked={windowSize != null}
         onBarCount={setBarCount}
+        onBarXs={setBarXs}
       />
 
       {/* Alignment check — does what the chart HAS match what the model TAKES? */}
@@ -600,6 +603,7 @@ function NeuronView({
           stepIndex={step}
           onModel={setModel}
           onHoverLayer={setHovered}
+          barXs={barXs}
         />
 
         {/* Inspector — real derived config only. */}
@@ -682,6 +686,11 @@ function AlignmentStrip({
         {report.inputShape && (
           <span className="font-mono text-[9px] text-muted-foreground">
             input {report.inputShape}
+          </span>
+        )}
+        {report.overall !== "unlinked" && barsReturned != null && (
+          <span className="text-[9px] text-muted-foreground">
+            each candle has a node on the tape below it
           </span>
         )}
         {report.axes.map((a) => (

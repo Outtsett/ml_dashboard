@@ -22,7 +22,7 @@
  * the same approach NeuralCanvas uses. No colour is hardcoded.
  */
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   createChart,
@@ -184,6 +184,12 @@ export interface InputWindowChartProps {
    * instead of being masked by the request.
    */
   onBarCount?: (count: number | null) => void;
+  /**
+   * Fires with each visible bar's REAL pixel x, taken from the chart's own time
+   * scale, so the network's input tape can sit directly beneath its candle.
+   * Bars scrolled out of the visible range are omitted rather than guessed at.
+   */
+  onBarXs?: (xs: number[]) => void;
 }
 
 export function InputWindowChart({
@@ -193,6 +199,7 @@ export function InputWindowChart({
   linked,
   className,
   onBarCount,
+  onBarXs,
 }: InputWindowChartProps) {
   const query = useInputWindowBars(symbol, timeframeMinutes, limit);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -219,6 +226,39 @@ export function InputWindowChart({
   useEffect(() => {
     onBarCountRef.current?.(settled ? bars.length : null);
   }, [settled, bars.length]);
+
+  const onBarXsRef = useRef(onBarXs);
+  onBarXsRef.current = onBarXs;
+  /** Lets the create-once chart effect re-emit without depending on `bars`. */
+  const emitBarXsRef = useRef<(() => void) | null>(null);
+
+  /** Publish each visible bar's pixel x from the chart's own time scale. */
+  const emitBarXs = useCallback(() => {
+    const cb = onBarXsRef.current;
+    if (!cb) return;
+    const chart = chartRef.current;
+    if (!chart || bars.length === 0) {
+      cb([]);
+      return;
+    }
+    const ts = chart.timeScale();
+    // timeToCoordinate is CHART-LOCAL, but the consumer is a different element
+    // with its own margins — this component is inset by m-2. Emit in PAGE space
+    // so the consumer can subtract its own left edge and land exactly under the
+    // candle, instead of being silently offset by whatever insets differ.
+    const originX = containerRef.current?.getBoundingClientRect().left ?? 0;
+    const xs: number[] = [];
+    for (const b of bars) {
+      const x = ts.timeToCoordinate(
+        Math.floor(b.timestamp / 1000) as UTCTimestamp,
+      );
+      // Bars scrolled outside the visible range return null — drop them rather
+      // than guessing a position for something the chart is not drawing.
+      if (x != null) xs.push((x as number) + originX);
+    }
+    cb(xs);
+  }, [bars]);
+  emitBarXsRef.current = emitBarXs;
 
   // ── Create chart once; tear it down on unmount ──────────────────────────
   useEffect(() => {
@@ -274,6 +314,8 @@ export function InputWindowChart({
 
     const resizeObserver = new ResizeObserver(() => {
       chart.applyOptions({ width: el.clientWidth, height: el.clientHeight });
+      // Width change moves every bar's pixel — the tape below must follow.
+      emitBarXsRef.current?.();
     });
     resizeObserver.observe(el);
 
@@ -299,7 +341,30 @@ export function InputWindowChart({
     }));
     series.setData(dedupByTime(candles));
     chartRef.current?.timeScale().fitContent();
-  }, [bars]);
+    emitBarXs();
+  }, [bars, emitBarXs]);
+
+  // ── Publish each bar's REAL pixel x, so the network's input tape can sit
+  //    directly under its candle.
+  //
+  //    Read from the chart's own timeScale rather than spacing nodes evenly:
+  //    lightweight-charts owns its right price-scale margin and bar spacing, so
+  //    an even spread would look aligned while being consistently off. Re-emits
+  //    on resize and on any visible-range change, since both move the pixels.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const ts = chart.timeScale();
+    const handler = () => emitBarXs();
+    ts.subscribeVisibleLogicalRangeChange(handler);
+    return () => {
+      try {
+        ts.unsubscribeVisibleLogicalRangeChange(handler);
+      } catch {
+        // Chart already disposed by its own cleanup — nothing to detach.
+      }
+    };
+  }, [emitBarXs]);
 
   const errorMessage =
     query.error instanceof Error ? query.error.message : "unknown error";

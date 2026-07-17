@@ -74,6 +74,14 @@ export interface NeuralCanvasProps {
   onModel?: (m: NeuronModel) => void;
   /** Fires with the column under the cursor, or null when the pointer leaves. */
   onHoverLayer?: (layer: NeuronLayer | null) => void;
+  /**
+   * Real pixel x of each visible candle, from the chart's own time scale. When
+   * supplied, an input tape is drawn along the top — one node per bar, sitting
+   * directly beneath its candle — which fans into the network's first layer.
+   * That makes the window physically expand and contract with the chart.
+   * Omit (or pass empty) to draw the network alone.
+   */
+  barXs?: number[];
 }
 
 export function NeuralCanvas({
@@ -84,6 +92,7 @@ export function NeuralCanvas({
   stepIndex = null,
   onModel,
   onHoverLayer,
+  barXs,
 }: NeuralCanvasProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const sketchRef = useRef<p5Types | null>(null);
@@ -96,6 +105,8 @@ export function NeuralCanvas({
   const stepRef = useRef(stepIndex);
   const reducedRef = useRef(reduced);
   const hoverRef = useRef(-1);
+  const barXsRef = useRef<number[] | undefined>(barXs);
+  barXsRef.current = barXs;
   const onHoverRef = useRef(onHoverLayer);
   playRef.current = playing;
   speedRef.current = speed;
@@ -157,16 +168,24 @@ export function NeuralCanvas({
           return pad + (i / (n - 1)) * (w - pad * 2);
         };
 
-        const TOP = 56;
+        /** Vertical band reserved for the bar-aligned input tape. */
+        const TAPE_H = 34;
+        const TOP_BASE = 56;
         const BOT_PAD = 52;
+        /** Network top — pushed down to leave room when the tape is drawn. */
+        const topFor = (hasTape: boolean) => (hasTape ? TOP_BASE + TAPE_H : TOP_BASE);
 
         /**
          * Vertical positions for a column's circles. Attention columns are laid
          * out as `heads.drawn` bands with a real gap between them, so the head
          * split is visible as structure rather than asserted in a label.
          */
-        const neuronYs = (layer: (typeof model.layers)[number], h: number): number[] => {
-          const top = TOP;
+        const neuronYs = (
+          layer: (typeof model.layers)[number],
+          h: number,
+          hasTape: boolean,
+        ): number[] => {
+          const top = topFor(hasTape);
           const bot = h - BOT_PAD;
           const span = bot - top;
           const count = layer.sampled;
@@ -214,8 +233,14 @@ export function NeuralCanvas({
             if (front > n - 1 + 0.75) front = 0;
           }
 
+          // barXs arrive in PAGE space (the chart is a separate element with its
+          // own insets). Translate into canvas-local by subtracting this host's
+          // left edge, re-read each frame so pan/resize stays exact.
+          const originX = host.getBoundingClientRect().left;
+          const tape = (barXsRef.current ?? []).map((x) => x - originX);
+          const hasTape = tape.length > 0;
           const xs = model.layers.map((_, i) => layerX(i, w));
-          const ys = model.layers.map((l) => neuronYs(l, h));
+          const ys = model.layers.map((l) => neuronYs(l, h, hasTape));
 
           // Nearest column to the cursor — drives hover emphasis + the inspect
           // callback. -1 when the pointer is off-canvas.
@@ -233,6 +258,55 @@ export function NeuralCanvas({
           if (hover !== hoverRef.current) {
             hoverRef.current = hover;
             onHoverRef.current?.(hover >= 0 ? model.layers[hover]! : null);
+          }
+
+          // ── input tape ────────────────────────────────────────────────────
+          // One node per visible candle, at the chart's REAL pixel x, fanning
+          // into the first layer. This is what makes the window expand and
+          // contract with the chart: change window_size and both the candles
+          // above and these nodes change count together.
+          //
+          // Each node is one BAR (one timestep), not one neuron — a bar carries
+          // the layer's whole feature vector. It is labelled as bars for exactly
+          // that reason.
+          if (hasTape) {
+            const tapeY = TOP_BASE + TAPE_H / 2;
+            const firstX = xs[0];
+            const firstYs = ys[0];
+
+            // Fan-in: every bar feeds the first layer. Drawn faint — this is
+            // connectivity, not weight.
+            if (firstX != null && firstYs && firstYs.length > 0) {
+              p.stroke(palette.wire);
+              p.strokeWeight(0.4);
+              const lit = front >= 0 && front < 1;
+              if (lit) {
+                p.stroke(palette.wireLit);
+                p.strokeWeight(0.6);
+              }
+              // Cap the fan so a 256-bar window does not draw 256*24 segments.
+              const stride = Math.max(1, Math.ceil(tape.length / 48));
+              for (let i = 0; i < tape.length; i += stride) {
+                const bx = tape[i]!;
+                for (const fy of firstYs) p.line(bx, tapeY + 4, firstX, fy);
+              }
+            }
+
+            // The bar nodes themselves.
+            p.noStroke();
+            const arrived = front >= 0;
+            const glow = Math.max(0, 1 - Math.abs(front + 0.5) * 1.6);
+            for (const bx of tape) {
+              if (glow > 0.02) {
+                p.fill(palette.perKind['input'] ?? palette.dim);
+                p.circle(bx, tapeY, 5 * (1 + glow));
+              }
+              p.fill(arrived ? (palette.perKind['input'] ?? palette.dim) : palette.wire);
+              p.circle(bx, tapeY, 4.5);
+            }
+            // No caption here: the tape spans the full width, so any label drawn
+            // in-canvas collides with the nodes themselves. The alignment strip
+            // directly above already states the bar count.
           }
 
           // ── wires ─────────────────────────────────────────────────────────
