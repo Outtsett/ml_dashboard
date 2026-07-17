@@ -26,8 +26,9 @@
 import type { ArchGraph, ArchNode, LayerKind } from './types';
 import { parseShape } from './flow';
 
-/** Max neurons drawn per column. Above this we sample and say so. */
-export const DRAW_CAP = 24;
+/** Max neurons drawn per column. Kept small so the columns stay legible and the
+ *  numbers flowing between them are readable — not a dense mesh. */
+export const DRAW_CAP = 4;
 
 /** Real multi-head split, read from a derived attention node's detail block. */
 export interface HeadSplitInfo {

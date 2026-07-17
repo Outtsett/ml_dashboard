@@ -476,85 +476,105 @@ export function NeuralCanvas({
           // reduced — the token and its numbers always render at `front`.
           const reducedMotion = reducedRef.current;
           {
-            const midY = (l: number) => {
+            // The packet travels NODE → TAIL → NODE, exactly like a forward pass:
+            // a value sits at a node, slides along the connecting tail to a node
+            // in the next layer, that node processes it (flashes), and it moves
+            // on. Positions are the REAL node coordinates (ys[i][k]), not column
+            // centres, so the token rides an actual tail into an actual node.
+            //
+            // Which node per layer: a path that shifts each loop so different
+            // tails light up over time. Deterministic (no RNG): (loopCount + i).
+            const pick = (l: number) => {
               const arr = ys[l];
               if (!arr || arr.length === 0) return h / 2;
-              return (arr[0]! + arr[arr.length - 1]!) / 2;
+              const k = (loopCount + l) % arr.length;
+              return arr[k]!;
             };
+            const tapeY = TOP_BASE + TAPE_H / 2;
 
-            let px: number;
-            let py: number;
-            let label: string;
-            let sub: string;
+            let ax: number, ay: number, bx: number, by: number, f: number;
+            let arriveIdx: number; // layer whose node flashes as the token lands
 
             if (front < 0) {
-              // Riding the tape, descending toward the first layer.
-              const t = front + 1; // 0 at tape, 1 at layer 0
-              const tapeY = TOP_BASE + TAPE_H / 2;
-              px = xs[0] ?? w / 2;
-              py = tapeY + t * (midY(0) - tapeY);
-              // Show a few real close prices — the actual data going in.
-              const sample = closes.slice(0, 3).map((c) => c.toFixed(4));
-              label = sample.length ? sample.join('  ') : 'input';
-              sub = `${tape.length} bars in`;
+              // Tape node → first layer node.
+              f = front + 1;
+              ax = xs[0] ?? w / 2;
+              ay = tapeY;
+              bx = xs[0] ?? w / 2;
+              by = pick(0);
+              arriveIdx = 0;
             } else {
               const i = Math.min(n - 1, Math.floor(front));
-              const f = front - i;
               const j = Math.min(n - 1, i + 1);
-              px = (xs[i] ?? w / 2) + f * ((xs[j] ?? xs[i] ?? w / 2) - (xs[i] ?? w / 2));
-              py = midY(i) + f * (midY(j) - midY(i));
-              const layer = model.layers[i]!;
-              label = layer.outShape ?? `${layer.units ?? '?'} units`;
-              sub = layer.label;
+              f = front - i;
+              ax = xs[i] ?? w / 2;
+              ay = pick(i);
+              bx = xs[j] ?? ax;
+              by = pick(j);
+              arriveIdx = j;
             }
+            const px = ax + f * (bx - ax);
+            const py = ay + f * (by - ay);
 
-            // The number chip rides in CLEAR SPACE at the top of the network
-            // band — above every dense column — with a guide line down to the
-            // token. Burying it in the column (as an earlier pass did) made it
-            // unreadable. The token core is WHITE: no layer kind or wire uses it,
-            // so it can never camouflage against them.
+            // The value flowing this pass: a REAL close price (the input datum
+            // being processed through the structure). It is NOT re-computed per
+            // node — no trained weights exist — so the number stays the real input
+            // value while the NODE shows the real operation it performs.
+            const value =
+              closes.length > 0
+                ? closes[loopCount % closes.length]!.toFixed(4)
+                : '·';
+            const op = model.layers[arriveIdx]?.label ?? '';
+
             const ring = resolveToken(document.documentElement, '--data-cat-4');
             const core = resolveToken(document.documentElement, '--data-cat-9');
-            const chipY = topFor(hasTape) - 12; // just under the tape / band top
 
-            // Guide line from chip down to the moving token.
-            p.stroke(ring);
-            p.strokeWeight(1);
-            p.line(px, chipY + 10, px, py);
+            // Processing flash: the destination node pulses as the token lands.
+            if (f > 0.82) {
+              const pulse = (f - 0.82) / 0.18;
+              p.noStroke();
+              p.fill(resolveToken(document.documentElement, '--data-cat-4', 0.5 * pulse));
+              p.circle(bx, by, 26 * pulse + 8);
+            }
+
+            // Comet tail along the wire — dropped under reduced-motion.
             p.noStroke();
-
-            // Trailing comet so direction of travel reads at a glance — dropped
-            // under reduced-motion, where a motion smear is exactly what the
-            // setting asks us to avoid.
             if (!reducedMotion) {
+              const dx = bx - ax, dy = by - ay;
+              const len = Math.hypot(dx, dy) || 1;
               for (let t = 1; t <= 6; t++) {
-                p.fill(resolveToken(document.documentElement, '--data-cat-4', 0.14 * (7 - t)));
-                p.circle(px - t * 8, py, 13 - t);
+                p.fill(resolveToken(document.documentElement, '--data-cat-4', 0.13 * (7 - t)));
+                p.circle(px - (dx / len) * t * 7, py - (dy / len) * t * 7, 12 - t);
               }
             }
-            // Dark halo, amber ring, white core — unmistakable on any column.
+            // The token: dark halo, amber ring, white core — unmistakable.
             p.fill(resolveToken(document.documentElement, '--background', 0.85));
             p.circle(px, py, 22);
             p.fill(ring);
-            p.circle(px, py, 16);
+            p.circle(px, py, 15);
             p.fill(core);
             p.circle(px, py, 7);
 
-            // The carried numbers, in the top chip.
+            // The NUMBER rides right on the token (like the drawing: number on
+            // the tail), in a small chip just above it.
             p.textAlign(p.CENTER, p.CENTER);
             p.textSize(11);
-            const chipW = Math.max(p.textWidth(label) + 16, 52);
+            const chipW = Math.max(p.textWidth(value) + 14, 46);
             p.fill(resolveToken(document.documentElement, '--card', 0.97));
             p.stroke(ring);
             p.strokeWeight(1.2);
-            p.rect(px - chipW / 2, chipY - 11, chipW, 22, 5);
+            p.rect(px - chipW / 2, py - 30, chipW, 19, 5);
             p.noStroke();
             p.fill(palette.text);
-            p.text(label, px, chipY - 1);
-            p.fill(palette.dim);
-            p.textSize(8);
-            p.textAlign(p.CENTER, p.TOP);
-            p.text(sub, px, chipY + 12);
+            p.text(value, px, py - 20);
+
+            // The operation the destination node performs — shown as the token
+            // nears it, so "gets processed" is a real, named step.
+            if (f > 0.6 && op) {
+              p.fill(palette.dim);
+              p.textSize(9);
+              p.text(op, bx, by + 18);
+            }
 
             // Loop counter — this is a repeating forward pass, and says so.
             p.textAlign(p.LEFT, p.TOP);

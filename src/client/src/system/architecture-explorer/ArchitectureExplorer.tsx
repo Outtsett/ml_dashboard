@@ -640,12 +640,10 @@ function NeuronView({
         </>
       )}
 
-      {/* min-h floor: the network is the point of this view, so it never gets
-          squeezed below a legible height. If the viewport cannot fit chart +
-          floor, the pane scrolls instead of compressing the neurons. 260px still
-          clipped the column captions on a laptop viewport — 460 leaves the
-          network room to breathe and the pane scrolls when it must. */}
-      <div className="relative flex min-h-[460px] flex-1">
+      {/* min-h floor: 4 nodes per layer need little vertical room, so a smaller
+          floor lets the chart AND the network fit together without scrolling —
+          the token's real number stays visible on the node it lands on. */}
+      <div className="relative flex min-h-[300px] flex-1">
         <NeuralCanvas
           graph={graph}
           playing={playing}
