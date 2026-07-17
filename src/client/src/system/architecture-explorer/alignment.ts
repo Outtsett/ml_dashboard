@@ -6,19 +6,26 @@
  * identically — this module states exactly which axes line up and which do not,
  * so the pairing can be trusted rather than assumed.
  *
- * The derived input shape is `B × W × F`:
- *   B — batch. Symbolic in the schematic. The chart shows ONE window, so the
- *       chart's batch is 1. This is stated, never silently assumed.
- *   W — window length in bars. This is the axis that genuinely aligns: the chart
- *       is asked for exactly `window_size` bars, so W should equal the bars
- *       actually returned. If the feed comes up short (thin symbol, market gap),
- *       they diverge and the check MUST say so.
- *   F — feature width. This does NOT align with the chart's columns. F counts
- *       ENGINEERED features (derive.ts DEFAULT_NEURAL_FEATURES = 20; xgboost 29,
- *       sourced 'price_action / volatility / volume / momentum'), computed from
- *       the bars upstream. The chart draws OHLC. Presenting F as if it were the
- *       chart's fields would be a lie, so it is reported as derived-from, not
- *       equal-to.
+ * The derived input carries three axes — batch, window length, feature width —
+ * but their ORDER is architecture-specific and is never assumed here. The TFT is
+ * sequence-first ("B × 32 × 20" = B × W × F); Conv1d is channels-first, (N, C_in,
+ * L), so the CNN derives "B × 20 × 136" where the LAST axis is the window. Axes
+ * are therefore identified by MEANING (which one equals window_size), not by
+ * position — reading dims[last] as "features" mislabels the window as features on
+ * every channels-first model.
+ *
+ *   batch   — symbolic in the schematic. The chart shows ONE window, so the
+ *             chart's batch is 1. Stated, never silently assumed.
+ *   window  — length in bars. The axis that genuinely aligns: the chart is asked
+ *             for exactly `window_size` bars, so it should equal the bars
+ *             ACTUALLY returned. If the feed comes up short (thin symbol, market
+ *             gap), they diverge and the check MUST say so.
+ *   features— width. Does NOT align with the chart's columns. It counts
+ *             ENGINEERED features (derive.ts DEFAULT_NEURAL_FEATURES = 20;
+ *             xgboost 29, sourced 'price_action / volatility / volume /
+ *             momentum'), computed from the bars upstream. The chart draws OHLC.
+ *             Presenting it as the chart's fields would be a lie, so it is
+ *             reported as derived-from, not equal-to.
  *
  * No trained model is involved. This verifies SHAPE agreement between what the
  * chart fetched and what the architecture declares it consumes — nothing about
@@ -132,15 +139,32 @@ export function checkAlignment(
   });
 
   // ── features — the axis that does NOT align ───────────────────────────────
-  const featureAxis = dims?.[dims.length - 1];
-  if (typeof featureAxis === 'number' && dims && dims.length >= 2) {
-    axes.push({
-      label: 'features',
-      chart: 'OHLC per bar',
-      model: `${featureAxis} features`,
-      state: 'unlinked',
-      note: `Not the chart's columns. The model consumes ${featureAxis} engineered features computed from these bars upstream, not the raw OHLC fields drawn here.`,
-    });
+  //
+  // Axis ORDER is architecture-specific and must not be assumed. The TFT is
+  // sequence-first (B × W × F: "B × 32 × 20"), but Conv1d is channels-first —
+  // (N, C_in, L) — so the CNN derives "B × 20 × 136" where the LAST axis is the
+  // window and the MIDDLE one is the feature count. Taking dims[last] as
+  // "features" mislabels the window as features on every channels-first model.
+  //
+  // Identify by meaning instead: the axis equal to window_size IS the window;
+  // the remaining non-batch numeric axis is the feature width.
+  if (dims && dims.length >= 3) {
+    const nonBatch = dims.slice(1);
+    const windowIdx = nonBatch.findIndex((d) => d === windowSize);
+    const featureAxis =
+      windowIdx >= 0
+        ? nonBatch.find((d, i) => i !== windowIdx && typeof d === 'number')
+        : undefined;
+
+    if (typeof featureAxis === 'number') {
+      axes.push({
+        label: 'features',
+        chart: 'OHLC per bar',
+        model: `${featureAxis} features`,
+        state: 'unlinked',
+        note: `Not the chart's columns. The model consumes ${featureAxis} engineered features computed from these bars upstream, not the raw OHLC fields drawn here.`,
+      });
+    }
   }
 
   const overall = axes.some((a) => a.state === 'mismatch') ? 'mismatch' : 'aligned';

@@ -208,8 +208,26 @@ function NetworkGraphTab() {
     : buildCatalogOptions(catalog.data);
 
   const graphable = options.filter((o) => o.support.graphable);
+
+  // Default to an architecture that consumes a time window, so the page opens
+  // showing the chart<->model link actually working. Sorting is alphabetical, so
+  // the first graphable entry is the Adversarial Autoencoder — which takes a
+  // flat feature vector (B x F, no time axis) and therefore has no window_size
+  // to align against. Landing there makes the alignment check read "not linked"
+  // on arrival, which looks broken when it is merely honest. Falls back to the
+  // first graphable entry when nothing windowed is available.
+  const firstWindowed = graphable.find((o) =>
+    o.support.graphable
+      ? (TUNABLE_HPS[o.support.algorithmId] ?? []).some(
+          (hp) => hp.name === "window_size",
+        )
+      : false,
+  );
   const selected =
-    options.find((o) => o.key === selectedKey) ?? graphable[0] ?? null;
+    options.find((o) => o.key === selectedKey) ??
+    firstWindowed ??
+    graphable[0] ??
+    null;
   const support = selected?.support ?? null;
   const algorithmId =
     support && support.graphable ? support.algorithmId : null;
