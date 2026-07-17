@@ -79,6 +79,9 @@ import {
   ForestPanel,
 } from "@/system/architecture-explorer/trees";
 
+import { InputWindowChart, useForexSymbols } from "./InputWindowChart";
+import { TIMEFRAME_OPTIONS } from "@/market/lib/timeframes";
+
 // Existing educational content — mounted unchanged under the Concepts tab.
 import { PipelineOverview } from "./PipelineOverview";
 import { LSTMDetail } from "./LSTMDetail";
@@ -379,7 +382,13 @@ function NetworkGraphTab() {
       {/* Diagram — takes every pixel the controls and KPI row leave behind. */}
       {graph ? (
         view === "neurons" ? (
-          <NeuronView graph={graph} />
+          <NeuronView
+            graph={graph}
+            // The chart's bar count IS this hyperparameter — dragging the
+            // "Window (bars)" slider changes how many candles are shown. Models
+            // without the HP (e.g. xgboost) pass null and the chart says so.
+            windowSize={hpValues.window_size ?? null}
+          />
         ) : (
           <NetworkDiagram graph={graph} />
         )
@@ -394,19 +403,41 @@ function NetworkGraphTab() {
   );
 }
 
+/** Bars shown when the architecture exposes no `window_size` hyperparameter. */
+const UNLINKED_BAR_COUNT = 64;
+
 /**
- * The 2D neuron view: p5 canvas + transport + hover inspector.
+ * The 2D neuron view: real input-window candles on top, p5 neuron canvas below,
+ * plus transport and hover inspector.
  *
  * Transport drives the signal front. Step mode pins it to one layer so a single
  * transform can be read at rest. The inspector shows only real derive.ts config
  * for the hovered column — no activation values exist to show.
+ *
+ * The candles and the network are linked by exactly ONE thing: the bar COUNT,
+ * taken from `window_size`. No data flows from the chart into the network, and
+ * nothing the network "does" is drawn on the chart.
  */
-function NeuronView({ graph }: { graph: ArchGraph }) {
+function NeuronView({
+  graph,
+  windowSize,
+}: {
+  graph: ArchGraph;
+  /** The architecture's real `window_size` HP, or null when it has none. */
+  windowSize: number | null;
+}) {
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [step, setStep] = useState<number | null>(null);
   const [model, setModel] = useState<NeuronModel | null>(null);
   const [hovered, setHovered] = useState<NeuronLayer | null>(null);
+  const [symbol, setSymbol] = useState("AUDUSD");
+  const [timeframeMinutes, setTimeframeMinutes] = useState(60);
+
+  const symbolsQ = useForexSymbols();
+  // Always keep the default visible so the picker never renders empty while the
+  // real symbol list is in flight or unavailable.
+  const symbols = symbolsQ.data?.length ? symbolsQ.data : [symbol];
 
   const layerCount = model?.layers.length ?? 0;
   const stepping = step != null;
@@ -422,7 +453,7 @@ function NeuronView({ graph }: { graph: ArchGraph }) {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col rounded-md border border-white/10 bg-white/[0.02]">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-md border border-white/10 bg-white/[0.02]">
       {/* Transport */}
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-white/10 px-3 py-1.5">
         <button
@@ -468,6 +499,46 @@ function NeuronView({ graph }: { graph: ArchGraph }) {
           <span className="font-mono tabular-nums">{speed.toFixed(2)}×</span>
         </label>
 
+        {/* Chart source picker — drives ONLY the candles above the network. */}
+        <label className="ml-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          Bars
+          <Select value={symbol} onValueChange={setSymbol}>
+            <SelectTrigger
+              className="h-6 w-[104px] text-[10px]"
+              aria-label="Chart symbol"
+              data-testid="arch-window-symbol"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {symbols.map((s) => (
+                <SelectItem key={s} value={s} className="text-xs">
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
+        <Select
+          value={String(timeframeMinutes)}
+          onValueChange={(v) => setTimeframeMinutes(Number(v))}
+        >
+          <SelectTrigger
+            className="h-6 w-[72px] text-[10px]"
+            aria-label="Chart timeframe"
+            data-testid="arch-window-timeframe"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TIMEFRAME_OPTIONS.map((t) => (
+              <SelectItem key={t.minutes} value={String(t.minutes)} className="text-xs">
+                {t.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <div className="ml-auto font-mono text-[10px] text-muted-foreground">
           {stepping
             ? `layer ${(step ?? 0) + 1} / ${layerCount}`
@@ -480,7 +551,19 @@ function NeuronView({ graph }: { graph: ArchGraph }) {
         </div>
       </div>
 
-      <div className="relative flex min-h-0 flex-1">
+      {/* Real input-window candles — fixed height, above the network. */}
+      <InputWindowChart
+        className="m-2 mb-0"
+        symbol={symbol}
+        timeframeMinutes={timeframeMinutes}
+        limit={windowSize ?? UNLINKED_BAR_COUNT}
+        linked={windowSize != null}
+      />
+
+      {/* min-h floor: the network is the point of this view, so it never gets
+          squeezed below a legible height. If the viewport cannot fit chart +
+          floor, the pane scrolls instead of compressing the neurons. */}
+      <div className="relative flex min-h-[260px] flex-1">
         <NeuralCanvas
           graph={graph}
           playing={playing}
