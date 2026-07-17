@@ -141,6 +141,7 @@ export function NeuralCanvas({
       const sketch = (p: p5Types) => {
         let palette = readPalette(document.documentElement);
         let front = 0; // packet position, in layer-index units (-1 = input tape)
+        let flowPhase = 0; // 0..1 stream position for the input-fan numbers
         let loopCount = 0; // completed forward passes — shown as the loop counter
         let themeObserver: MutationObserver | null = null;
 
@@ -260,6 +261,12 @@ export function NeuralCanvas({
           }
           if (front < START) front = START;
 
+          // Input-stream clock: advances only while playing, so the flowing
+          // numbers never drift on their own under reduced-motion.
+          if (playRef.current && stepRef.current == null) {
+            flowPhase = (flowPhase + (p.deltaTime / 1000) * 0.6) % 1;
+          }
+
           const xs = model.layers.map((_, i) => layerX(i, w));
           const ys = model.layers.map((l) => neuronYs(l, h, hasTape));
 
@@ -331,18 +338,55 @@ export function NeuralCanvas({
           }
 
           // ── wires ─────────────────────────────────────────────────────────
+          // A full DRAW_CAP × DRAW_CAP fan (up to 576 lines/gap) reads as a muddy
+          // grey mesh where no single line is visible. Thin it to a strided
+          // subset so individual connections are distinct, and draw them brighter
+          // and thicker — the lit gap brightest of all.
+          const WIRE_CAP = 10; // max source/target endpoints drawn per gap
+          const wireIdle = resolveToken(document.documentElement, '--muted-foreground', 0.4);
           p.noFill();
           for (const { from, to } of model.wires) {
             const lit = front >= from && front <= to + 0.35;
-            p.stroke(lit ? palette.wireLit : palette.wire);
-            p.strokeWeight(lit ? 1.1 : 0.6);
+            p.stroke(lit ? palette.wireLit : wireIdle);
+            p.strokeWeight(lit ? 2 : 1);
             const a = ys[from]!;
             const b = ys[to]!;
-            // Fully-connected fan. Capped columns keep this bounded at
-            // DRAW_CAP^2 segments per gap.
-            for (const y1 of a) {
-              for (const y2 of b) {
-                p.line(xs[from]!, y1, xs[to]!, y2);
+            const sa = Math.max(1, Math.ceil(a.length / WIRE_CAP));
+            const sb = Math.max(1, Math.ceil(b.length / WIRE_CAP));
+            for (let i = 0; i < a.length; i += sa) {
+              for (let j = 0; j < b.length; j += sb) {
+                p.line(xs[from]!, a[i]!, xs[to]!, b[j]!);
+              }
+            }
+          }
+
+          // ── real numbers flowing INTO the network ─────────────────────────
+          // Close prices stream down the tape → first-layer wires: the actual
+          // data being processed, moving along the lines. Real only here — raw
+          // prices exist at the input; downstream they become features we do not
+          // have, so the travelling packet switches to carrying the shape.
+          if (hasTape && closes.length > 0) {
+            const firstX = xs[0]!;
+            const firstYs = ys[0]!;
+            const tapeY = TOP_BASE + TAPE_H / 2;
+            // Phase advances only while the pass is playing (or being stepped
+            // through the input) — never a constant drift under reduced-motion.
+            const phase = front < 1 ? ((front + 1) % 1) : (playRef.current ? flowPhase : 0);
+            const shown = Math.min(closes.length, 10);
+            const stride = Math.max(1, Math.floor(closes.length / shown));
+            p.textAlign(p.CENTER, p.CENTER);
+            p.textSize(9);
+            for (let k = 0; k < closes.length; k += stride) {
+              const bx = tape[k]!;
+              const fy = firstYs[k % firstYs.length]!;
+              // Two staggered numbers per wire so the stream reads as movement.
+              for (const off of [0, 0.5]) {
+                const t = (phase + off) % 1;
+                const nx = bx + t * (firstX - bx);
+                const ny = tapeY + 4 + t * (fy - (tapeY + 4));
+                const a = Math.sin(t * Math.PI); // fade in/out along the wire
+                p.fill(resolveToken(document.documentElement, '--data-cat-9', a));
+                p.text(closes[k]!.toFixed(4), nx, ny);
               }
             }
           }
