@@ -144,6 +144,7 @@ export function NeuralCanvas({
         let front = 0; // packet position, in layer-index units (-1 = input tape)
         let flowPhase = 0; // 0..1 stream position for the input-fan numbers
         let machinePhase = 0; // 0..1 drive for the pulses running along the tails
+        let lastCloses: number[] = []; // last real window — kept when chart hidden
         let loopCount = 0; // completed forward passes — shown as the loop counter
         let themeObserver: MutationObserver | null = null;
 
@@ -214,7 +215,11 @@ export function NeuralCanvas({
             return out;
           }
 
-          const gap = Math.min(26, span / Math.max(1, count - 1));
+          // Spread to fill the available height. With only a few nodes the old
+          // 26px cap bunched them at the centre and wasted the pane; cap high so
+          // they use the space, but keep a sane max so a 24-node column doesn't
+          // touch edge to edge.
+          const gap = Math.min(110, span / Math.max(1, count - 1));
           const total = gap * (count - 1);
           const start = top + (span - total) / 2;
           return Array.from({ length: count }, (_, i) => start + i * gap);
@@ -236,8 +241,12 @@ export function NeuralCanvas({
           const originX = host.getBoundingClientRect().left;
           const nodes = barNodesRef.current ?? [];
           const tape = nodes.map((nd) => nd.x - originX);
-          const closes = nodes.map((nd) => nd.close);
           const hasTape = tape.length > 0;
+          // Persist the close values: hiding the chart drops the tape POSITIONS
+          // but the network should keep computing on the last real window, not
+          // collapse every node to zero.
+          if (nodes.length > 0) lastCloses = nodes.map((nd) => nd.close);
+          const closes = lastCloses;
 
           // Advance the front — the position of the forward-pass packet. It runs
           // a full loop: enters from the input tape (front = -1), crosses every
@@ -463,13 +472,18 @@ export function NeuralCanvas({
               p.fill(arrived ? base : palette.wire);
               p.circle(x, y, (isHover ? r * 1.25 : r) * kick);
 
-              // The node's REAL computed value, once the pass has reached it.
+              // The node's REAL computed value, once the pass has reached it —
+              // on a small backing chip so it stays legible over the wires.
               const v = nodeVal(i, k);
               if (v != null && front >= i - 0.15) {
-                p.fill(palette.text);
+                const txt = v.toFixed(2);
                 p.textAlign(p.LEFT, p.CENTER);
                 p.textSize(9);
-                p.text(v.toFixed(2), x + r + 4, y);
+                const cw = p.textWidth(txt) + 8;
+                p.fill(resolveToken(document.documentElement, '--card', 0.85));
+                p.rect(x + r + 3, y - 8, cw, 16, 3);
+                p.fill(palette.text);
+                p.text(txt, x + r + 7, y);
               }
             });
 
@@ -565,14 +579,20 @@ export function NeuralCanvas({
               vFrom = nodeVal(i, ki);
               vTo = nodeVal(j, kj);
             }
-            const px = ax + f * (bx - ax);
-            const py = ay + f * (by - ay);
+            // Mechanical cadence: accelerate off the node, decelerate into the
+            // next, then DWELL there briefly (the "process" beat) before the pass
+            // moves on — a stepped machine rhythm, not a constant glide. The
+            // token reaches the node by f=0.85 and holds through to 1.
+            const s = Math.min(1, f / 0.85);
+            const fe = s * s * s * (s * (s * 6 - 15) + 10); // smootherstep
+            const px = ax + fe * (bx - ax);
+            const py = ay + fe * (by - ay);
 
             // The number on the token is a REAL computed value, morphing from the
             // source node's value to the destination node's as it slides the
             // tail — the processing happening, visibly, in real arithmetic.
             const vNow =
-              vFrom != null && vTo != null ? vFrom + f * (vTo - vFrom) : (vTo ?? vFrom);
+              vFrom != null && vTo != null ? vFrom + fe * (vTo - vFrom) : (vTo ?? vFrom);
             const value = vNow != null ? vNow.toFixed(3) : '·';
             const op = model.layers[arriveIdx]?.label ?? '';
 
