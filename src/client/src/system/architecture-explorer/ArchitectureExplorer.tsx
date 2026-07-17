@@ -684,10 +684,11 @@ function NeuronView({
       </div>
 
       <div className="shrink-0 border-t border-white/10 px-3 py-1.5 text-[10px] leading-tight text-muted-foreground">
-        Neuron counts, head splits and parameters are derived from the model
-        source. Wire shading shows connectivity, not weight magnitude, and a lit
-        neuron marks the signal reaching that layer — not how strongly it fired.
-        No trained weights or activations are involved.
+        Structure, node counts and parameters are derived from the model source.
+        Each node shows a REAL computed value — tanh of a weighted sum of the
+        previous layer — so the numbers genuinely transform as they flow. The
+        weights are seeded, not trained, so this shows the mechanism working, not
+        a prediction: real arithmetic through an untrained network.
       </div>
     </div>
   );

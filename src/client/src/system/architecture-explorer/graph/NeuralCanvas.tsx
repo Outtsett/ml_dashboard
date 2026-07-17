@@ -31,6 +31,7 @@ import {
   type NeuronModel,
   type NeuronLayer,
 } from './neurons';
+import { forwardPass } from './nodeflow';
 import type { ArchGraph } from './types';
 
 /** Resolve `--token` (an unitless HSL triplet like "217 91% 60%") to a css color. */
@@ -270,6 +271,13 @@ export function NeuralCanvas({
           const xs = model.layers.map((_, i) => layerX(i, w));
           const ys = model.layers.map((l) => neuronYs(l, h, hasTape));
 
+          // Real forward pass over the drawn nodes: an actual value at every
+          // node (tanh of a weighted sum of the previous layer), so the numbers
+          // genuinely change layer to layer. Weights are seeded, not trained —
+          // the arithmetic is real, the output is not a prediction.
+          const fp = forwardPass(ys.map((a) => a.length), closes);
+          const nodeVal = (l: number, k: number) => fp.values[l]?.[k];
+
           // Nearest column to the cursor — drives hover emphasis + the inspect
           // callback. -1 when the pointer is off-canvas.
           let hover = -1;
@@ -420,7 +428,7 @@ export function NeuralCanvas({
               p.noStroke();
             }
 
-            for (const y of ys[i]!) {
+            ys[i]!.forEach((y, k) => {
               if (glow > 0.02) {
                 p.fill(base);
                 // Halo capped at ~2x the dot — no unbounded bloom.
@@ -428,7 +436,16 @@ export function NeuralCanvas({
               }
               p.fill(arrived ? base : palette.wire);
               p.circle(x, y, isHover ? r * 1.25 : r);
-            }
+
+              // The node's REAL computed value, once the pass has reached it.
+              const v = nodeVal(i, k);
+              if (v != null && front >= i - 0.15) {
+                p.fill(palette.text);
+                p.textAlign(p.LEFT, p.CENTER);
+                p.textSize(9);
+                p.text(v.toFixed(2), x + r + 4, y);
+              }
+            });
 
             // ── caption: real width + explicit sampling disclosure ──────────
             p.textAlign(p.CENTER, p.TOP);
@@ -484,46 +501,53 @@ export function NeuralCanvas({
             //
             // Which node per layer: a path that shifts each loop so different
             // tails light up over time. Deterministic (no RNG): (loopCount + i).
-            const pick = (l: number) => {
-              const arr = ys[l];
-              if (!arr || arr.length === 0) return h / 2;
-              const k = (loopCount + l) % arr.length;
-              return arr[k]!;
+            // Which node in a layer the path visits (index, so we can read its
+            // real value too). Shifts each loop so different tails light up.
+            const pickK = (l: number) => {
+              const len = ys[l]?.length ?? 1;
+              return (loopCount + l) % len;
             };
+            const nodeY = (l: number, k: number) => ys[l]?.[k] ?? h / 2;
             const tapeY = TOP_BASE + TAPE_H / 2;
 
             let ax: number, ay: number, bx: number, by: number, f: number;
             let arriveIdx: number; // layer whose node flashes as the token lands
+            let vFrom: number | undefined, vTo: number | undefined;
 
             if (front < 0) {
-              // Tape node → first layer node.
+              // Tape (raw input) → first-layer node.
               f = front + 1;
+              const k0 = pickK(0);
               ax = xs[0] ?? w / 2;
               ay = tapeY;
               bx = xs[0] ?? w / 2;
-              by = pick(0);
+              by = nodeY(0, k0);
               arriveIdx = 0;
+              vFrom = fp.input[k0];
+              vTo = nodeVal(0, k0);
             } else {
               const i = Math.min(n - 1, Math.floor(front));
               const j = Math.min(n - 1, i + 1);
               f = front - i;
+              const ki = pickK(i);
+              const kj = pickK(j);
               ax = xs[i] ?? w / 2;
-              ay = pick(i);
+              ay = nodeY(i, ki);
               bx = xs[j] ?? ax;
-              by = pick(j);
+              by = nodeY(j, kj);
               arriveIdx = j;
+              vFrom = nodeVal(i, ki);
+              vTo = nodeVal(j, kj);
             }
             const px = ax + f * (bx - ax);
             const py = ay + f * (by - ay);
 
-            // The value flowing this pass: a REAL close price (the input datum
-            // being processed through the structure). It is NOT re-computed per
-            // node — no trained weights exist — so the number stays the real input
-            // value while the NODE shows the real operation it performs.
-            const value =
-              closes.length > 0
-                ? closes[loopCount % closes.length]!.toFixed(4)
-                : '·';
+            // The number on the token is a REAL computed value, morphing from the
+            // source node's value to the destination node's as it slides the
+            // tail — the processing happening, visibly, in real arithmetic.
+            const vNow =
+              vFrom != null && vTo != null ? vFrom + f * (vTo - vFrom) : (vTo ?? vFrom);
+            const value = vNow != null ? vNow.toFixed(3) : '·';
             const op = model.layers[arriveIdx]?.label ?? '';
 
             const ring = resolveToken(document.documentElement, '--data-cat-4');
