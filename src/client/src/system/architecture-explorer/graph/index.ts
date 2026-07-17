@@ -50,3 +50,12 @@ export type {
 } from './flow';
 
 export { NetworkDiagram } from './NetworkDiagram';
+
+// The 2D neuron view (p5.js canvas). Real layer widths + params from derive.ts;
+// wire opacity is uniform and the pulse marks signal ARRIVAL — neither encodes a
+// weight or an activation, because no trained model is involved. NeuralCanvas
+// itself lazy-imports p5, so this export does not pull p5 into the main bundle.
+export { NeuralCanvas } from './NeuralCanvas';
+export type { NeuralCanvasProps } from './NeuralCanvas';
+export { buildNeuronModel, unitsFromShape, DRAW_CAP } from './neurons';
+export type { NeuronModel, NeuronLayer } from './neurons';

@@ -61,10 +61,14 @@ import {
   deriveArchGraph,
   TUNABLE_HPS,
   NetworkDiagram,
+  NeuralCanvas,
   buildCatalogOptions,
   fallbackOptions,
   type CatalogGraphOption,
   type TunableHp,
+  type ArchGraph,
+  type NeuronModel,
+  type NeuronLayer,
 } from "@/system/architecture-explorer/graph";
 import { useTrainableCatalog } from "@/ml/lib/useModelCatalog";
 import {
@@ -177,10 +181,14 @@ function runnerDefaultsFor(
   return null;
 }
 
+/** Which renderer the graph tab is showing. */
+type GraphView = "blocks" | "neurons";
+
 function NetworkGraphTab() {
   const config = useTrainingConfig();
   const catalog = useTrainableCatalog();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [view, setView] = useState<GraphView>("neurons");
   /** User HP edits for the current algorithm — cleared on algorithm change. */
   const [overrides, setOverrides] = useState<Record<string, number>>({});
 
@@ -311,6 +319,32 @@ function NetworkGraphTab() {
                 ? "catalog unavailable — showing raw derive.ts ids"
                 : `${graphable.length} of ${options.length} catalog models have a source-derived graph`}
             </div>
+
+            {/* View switch: 2D neuron network vs the block schematic. */}
+            <div className="flex items-center gap-1 pt-0.5">
+              {(
+                [
+                  ["neurons", "Neurons"],
+                  ["blocks", "Blocks"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setView(id)}
+                  aria-pressed={view === id}
+                  data-testid={`arch-view-${id}`}
+                  className={cn(
+                    "rounded-sm border px-2 py-0.5 text-[10px] transition-colors",
+                    view === id
+                      ? "border-white/25 bg-white/10 text-foreground"
+                      : "border-white/10 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             {config.error != null && (
               <div className="text-[10px] text-muted-foreground">
                 training config unavailable — hyperparameters fall back to range midpoints
@@ -344,7 +378,11 @@ function NetworkGraphTab() {
 
       {/* Diagram — takes every pixel the controls and KPI row leave behind. */}
       {graph ? (
-        <NetworkDiagram graph={graph} />
+        view === "neurons" ? (
+          <NeuronView graph={graph} />
+        ) : (
+          <NetworkDiagram graph={graph} />
+        )
       ) : (
         <Placeholder>
           {selected && !selected.support.graphable
@@ -352,6 +390,148 @@ function NetworkGraphTab() {
             : "No derived diagram for this model yet."}
         </Placeholder>
       )}
+    </div>
+  );
+}
+
+/**
+ * The 2D neuron view: p5 canvas + transport + hover inspector.
+ *
+ * Transport drives the signal front. Step mode pins it to one layer so a single
+ * transform can be read at rest. The inspector shows only real derive.ts config
+ * for the hovered column — no activation values exist to show.
+ */
+function NeuronView({ graph }: { graph: ArchGraph }) {
+  const [playing, setPlaying] = useState(true);
+  const [speed, setSpeed] = useState(1);
+  const [step, setStep] = useState<number | null>(null);
+  const [model, setModel] = useState<NeuronModel | null>(null);
+  const [hovered, setHovered] = useState<NeuronLayer | null>(null);
+
+  const layerCount = model?.layers.length ?? 0;
+  const stepping = step != null;
+
+  const nudge = (dir: 1 | -1) => {
+    setPlaying(false);
+    setStep((s) => {
+      const next = (s ?? 0) + dir;
+      if (next < 0) return 0;
+      if (next > layerCount - 1) return layerCount - 1;
+      return next;
+    });
+  };
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col rounded-md border border-white/10 bg-white/[0.02]">
+      {/* Transport */}
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-white/10 px-3 py-1.5">
+        <button
+          type="button"
+          data-testid="neuron-play"
+          onClick={() => {
+            setStep(null);
+            setPlaying((v) => !v);
+          }}
+          className="rounded-sm border border-white/15 px-2 py-0.5 text-[10px] text-foreground hover:bg-white/10"
+        >
+          {playing && !stepping ? "Pause" : "Play"}
+        </button>
+        <button
+          type="button"
+          data-testid="neuron-step-back"
+          onClick={() => nudge(-1)}
+          className="rounded-sm border border-white/15 px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+        >
+          ‹ Step
+        </button>
+        <button
+          type="button"
+          data-testid="neuron-step-fwd"
+          onClick={() => nudge(1)}
+          className="rounded-sm border border-white/15 px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+        >
+          Step ›
+        </button>
+
+        <label className="ml-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          Speed
+          <input
+            type="range"
+            min={0.25}
+            max={3}
+            step={0.25}
+            value={speed}
+            onChange={(e) => setSpeed(Number(e.target.value))}
+            className="h-1 w-24 accent-white/60"
+            aria-label="Signal speed, layers per second"
+          />
+          <span className="font-mono tabular-nums">{speed.toFixed(2)}×</span>
+        </label>
+
+        <div className="ml-auto font-mono text-[10px] text-muted-foreground">
+          {stepping
+            ? `layer ${(step ?? 0) + 1} / ${layerCount}`
+            : `${layerCount} layers`}
+          {model && model.undecidedCount > 0 && (
+            <span className="ml-2 text-muted-foreground">
+              · {model.undecidedCount} width not derivable
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="relative flex min-h-0 flex-1">
+        <NeuralCanvas
+          graph={graph}
+          playing={playing}
+          speed={speed}
+          stepIndex={step}
+          onModel={setModel}
+          onHoverLayer={setHovered}
+        />
+
+        {/* Inspector — real derived config only. */}
+        {hovered && (
+          <div className="pointer-events-none absolute right-2 top-2 w-56 rounded-md border border-white/15 bg-black/80 p-2 backdrop-blur">
+            <div className="text-[11px] font-medium text-foreground">
+              {hovered.label}
+            </div>
+            {hovered.sublabel && (
+              <div className="mt-0.5 text-[9px] text-muted-foreground">
+                {hovered.sublabel}
+              </div>
+            )}
+            <dl className="mt-1.5 space-y-0.5">
+              <Row
+                k="width"
+                v={hovered.units == null ? "not derivable" : `${hovered.units}`}
+              />
+              <Row k="params" v={fmtInt(hovered.params)} />
+              {hovered.outShape && <Row k="out" v={hovered.outShape} />}
+              {hovered.detail &&
+                Object.entries(hovered.detail)
+                  .slice(0, 6)
+                  .map(([k, v]) => <Row key={k} k={k} v={String(v)} />)}
+            </dl>
+          </div>
+        )}
+      </div>
+
+      <div className="shrink-0 border-t border-white/10 px-3 py-1.5 text-[10px] leading-tight text-muted-foreground">
+        Neuron counts, head splits and parameters are derived from the model
+        source. Wire shading shows connectivity, not weight magnitude, and a lit
+        neuron marks the signal reaching that layer — not how strongly it fired.
+        No trained weights or activations are involved.
+      </div>
+    </div>
+  );
+}
+
+function Row({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <dt className="text-[9px] text-muted-foreground">{k}</dt>
+      <dd className="truncate font-mono text-[9px] text-foreground">{v}</dd>
     </div>
   );
 }
