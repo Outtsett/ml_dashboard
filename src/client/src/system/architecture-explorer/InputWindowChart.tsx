@@ -400,11 +400,10 @@ export function InputWindowChart({
         </span>
       </div>
 
-      {/* Sized to leave the neuron canvas its floor: this page's vertical budget
-          is fixed (PageShell fillHeight), and at 188px the chart starved the
-          network to ~160px. The canvas carries a min-height and the view scrolls
-          rather than crushing either pane. */}
-      <div className="relative h-[132px] w-full">
+      {/* Height chosen so the chart and the network below both breathe — the
+          collapsed controls hand this pane the reclaimed space. The canvas keeps
+          its own min-height floor, so neither pane crushes the other. */}
+      <div className="relative h-[168px] w-full">
         <div ref={containerRef} className="absolute inset-0" />
 
         {/* Explicit non-data states — never a synthetic fallback. */}

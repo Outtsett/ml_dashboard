@@ -193,6 +193,8 @@ function NetworkGraphTab() {
   const catalog = useTrainableCatalog();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [view, setView] = useState<GraphView>("neurons");
+  /** HP sliders folded away by default so the chart + network own the space. */
+  const [tuneOpen, setTuneOpen] = useState(false);
   /** User HP edits for the current algorithm — cleared on algorithm change. */
   const [overrides, setOverrides] = useState<Record<string, number>>({});
 
@@ -288,111 +290,113 @@ function NetworkGraphTab() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      {/* Controls row: algorithm picker + HP sliders */}
-      <div className="shrink-0 rounded-md border border-white/10 bg-white/[0.02] p-3">
-        <div className="flex flex-wrap items-start gap-4">
-          <div className="w-64 shrink-0 space-y-1.5">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Algorithm
-            </div>
-            <Select
-              value={selected?.key}
-              onValueChange={(v) => {
-                setSelectedKey(v);
-                setOverrides({});
-              }}
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      {/* Controls — a slim one-line bar; the HP sliders fold behind a toggle so
+          the chart and network get the vertical space. */}
+      <div className="shrink-0 rounded-md border border-white/10 bg-white/[0.02]">
+        <div className="flex flex-wrap items-center gap-2 px-2 py-1.5">
+          <Select
+            value={selected?.key}
+            onValueChange={(v) => {
+              setSelectedKey(v);
+              setOverrides({});
+            }}
+          >
+            <SelectTrigger
+              className="h-7 w-56 text-xs"
+              data-testid="arch-algorithm-select"
             >
-              <SelectTrigger className="h-8 text-xs" data-testid="arch-algorithm-select">
-                <SelectValue placeholder="Pick a model" />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map((o) => (
-                  <SelectItem
-                    key={o.key}
-                    value={o.key}
-                    className="text-xs"
-                    // Non-derivable entries stay visible so the picker shows the
-                    // true catalog surface, but cannot be selected — we never
-                    // render a substitute graph for a model we can't derive.
-                    disabled={!o.support.graphable}
-                  >
-                    <span className="flex flex-col items-start gap-0.5">
-                      <span className="flex items-center gap-1.5">
-                        {o.label}
-                        {!o.support.graphable && (
-                          <span className="rounded-sm bg-white/10 px-1 text-[9px] uppercase tracking-wide text-muted-foreground">
-                            no graph
-                          </span>
-                        )}
-                      </span>
+              <SelectValue placeholder="Pick a model" />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((o) => (
+                <SelectItem
+                  key={o.key}
+                  value={o.key}
+                  className="text-xs"
+                  disabled={!o.support.graphable}
+                >
+                  <span className="flex flex-col items-start gap-0.5">
+                    <span className="flex items-center gap-1.5">
+                      {o.label}
                       {!o.support.graphable && (
-                        <span className="text-[9px] leading-tight text-muted-foreground">
-                          {o.support.reason}
+                        <span className="rounded-sm bg-white/10 px-1 text-[9px] uppercase tracking-wide text-muted-foreground">
+                          no graph
                         </span>
                       )}
                     </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="text-[10px] text-muted-foreground">
-              {catalogFailed
-                ? "catalog unavailable — showing raw derive.ts ids"
-                : `${graphable.length} of ${options.length} catalog models have a source-derived graph`}
-            </div>
-
-            {/* View switch: 2D neuron network vs the block schematic. */}
-            <div className="flex items-center gap-1 pt-0.5">
-              {(
-                [
-                  ["neurons", "Neurons"],
-                  ["blocks", "Blocks"],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setView(id)}
-                  aria-pressed={view === id}
-                  data-testid={`arch-view-${id}`}
-                  className={cn(
-                    "rounded-sm border px-2 py-0.5 text-[10px] transition-colors",
-                    view === id
-                      ? "border-white/25 bg-white/10 text-foreground"
-                      : "border-white/10 text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {label}
-                </button>
+                    {!o.support.graphable && (
+                      <span className="text-[9px] leading-tight text-muted-foreground">
+                        {o.support.reason}
+                      </span>
+                    )}
+                  </span>
+                </SelectItem>
               ))}
-            </div>
-            {config.error != null && (
-              <div className="text-[10px] text-muted-foreground">
-                training config unavailable — hyperparameters fall back to range midpoints
-              </div>
-            )}
+            </SelectContent>
+          </Select>
+
+          {/* View switch */}
+          <div className="flex items-center gap-1">
+            {(
+              [
+                ["neurons", "Neurons"],
+                ["blocks", "Blocks"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setView(id)}
+                aria-pressed={view === id}
+                data-testid={`arch-view-${id}`}
+                className={cn(
+                  "rounded-sm border px-2 py-0.5 text-[10px] transition-colors",
+                  view === id
+                    ? "border-white/25 bg-white/10 text-foreground"
+                    : "border-white/10 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
-          {hpDefs.length > 0 ? (
-            <div className="grid min-w-0 flex-1 grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-              {hpDefs.map((hp) => (
-                <HpSlider
-                  key={`${algorithmId}:${hp.name}`}
-                  hp={hp}
-                  value={hpValues[hp.name] ?? hp.min}
-                  onChange={(v) =>
-                    setOverrides((prev) => ({ ...prev, [hp.name]: v }))
-                  }
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex-1 self-center text-[11px] text-muted-foreground">
-              No tunable hyperparameters reshape this diagram.
-            </div>
+          {/* Tune toggle — folds the HP sliders away by default. */}
+          {hpDefs.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setTuneOpen((v) => !v)}
+              aria-expanded={tuneOpen}
+              data-testid="arch-tune-toggle"
+              className="rounded-sm border border-white/10 px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+            >
+              {tuneOpen ? "Hide" : "Tune"} ({hpDefs.length})
+            </button>
           )}
+
+          <span className="ml-auto text-[10px] text-muted-foreground">
+            {catalogFailed
+              ? "catalog unavailable"
+              : `${graphable.length}/${options.length} graphable`}
+          </span>
         </div>
+
+        {/* Sliders — only when expanded. */}
+        {tuneOpen && hpDefs.length > 0 && (
+          <div className="grid grid-cols-1 gap-x-6 gap-y-2 border-t border-white/10 px-3 py-2 sm:grid-cols-2 lg:grid-cols-4">
+            {hpDefs.map((hp) => (
+              <HpSlider
+                key={`${algorithmId}:${hp.name}`}
+                hp={hp}
+                value={hpValues[hp.name] ?? hp.min}
+                onChange={(v) =>
+                  setOverrides((prev) => ({ ...prev, [hp.name]: v }))
+                }
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* KPI row — block view only. The neuron view folds these three numbers
