@@ -1,0 +1,56 @@
+name: OSV-Scanner
+
+# Vulnerability scan covering npm + pip + GitHub Actions ecosystems against
+# Google's OSV.dev advisory database. Complements Dependabot (which only
+# raises PRs for known CVEs in tracked manifests) by additionally scanning:
+#   - Transitive lockfile entries
+#   - GitHub Actions reference SHAs (drift, retirement)
+#   - License posture for downstream review
+#
+# Results upload to GitHub Code Scanning so they appear inline on PRs.
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+  schedule:
+    # Weekly Tuesdays 05:42 UTC — staggered relative to scorecard/secret-scan.
+    - cron: '42 5 * * 2'
+  workflow_dispatch:
+
+concurrency:
+  group: osv-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  scan-pr:
+    name: Diff scan (PR)
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.0.2
+    with:
+      scan-args: |-
+        --recursive
+        --skip-git
+        ./
+
+  scan-full:
+    name: Full scan (push / schedule)
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.0.2
+    with:
+      scan-args: |-
+        --recursive
+        --skip-git
+        ./
