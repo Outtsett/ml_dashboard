@@ -75,13 +75,13 @@ export interface NeuralCanvasProps {
   /** Fires with the column under the cursor, or null when the pointer leaves. */
   onHoverLayer?: (layer: NeuronLayer | null) => void;
   /**
-   * Real pixel x of each visible candle, from the chart's own time scale. When
-   * supplied, an input tape is drawn along the top — one node per bar, sitting
-   * directly beneath its candle — which fans into the network's first layer.
-   * That makes the window physically expand and contract with the chart.
-   * Omit (or pass empty) to draw the network alone.
+   * Each visible candle as { x (canvas-page pixel), close (real price) }. When
+   * supplied, an input tape is drawn along the top — one node per bar, beneath
+   * its candle — fanning into the first layer, and the real close values enter
+   * the network as the data packet. Omit (or pass empty) to draw the network
+   * alone.
    */
-  barXs?: number[];
+  barNodes?: { x: number; close: number }[];
 }
 
 export function NeuralCanvas({
@@ -92,7 +92,7 @@ export function NeuralCanvas({
   stepIndex = null,
   onModel,
   onHoverLayer,
-  barXs,
+  barNodes,
 }: NeuralCanvasProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const sketchRef = useRef<p5Types | null>(null);
@@ -105,8 +105,10 @@ export function NeuralCanvas({
   const stepRef = useRef(stepIndex);
   const reducedRef = useRef(reduced);
   const hoverRef = useRef(-1);
-  const barXsRef = useRef<number[] | undefined>(barXs);
-  barXsRef.current = barXs;
+  const barNodesRef = useRef<{ x: number; close: number }[] | undefined>(
+    barNodes,
+  );
+  barNodesRef.current = barNodes;
   const onHoverRef = useRef(onHoverLayer);
   playRef.current = playing;
   speedRef.current = speed;
@@ -138,7 +140,8 @@ export function NeuralCanvas({
 
       const sketch = (p: p5Types) => {
         let palette = readPalette(document.documentElement);
-        let front = 0; // signal front position, in layer-index units
+        let front = 0; // packet position, in layer-index units (-1 = input tape)
+        let loopCount = 0; // completed forward passes — shown as the loop counter
         let themeObserver: MutationObserver | null = null;
 
         p.setup = () => {
@@ -222,23 +225,41 @@ export function NeuralCanvas({
           const n = model.layers.length;
           if (n === 0) return;
 
-          // Advance the front. Step mode pins it; reduced-motion pins it to the
-          // end so the full network is visible without animation.
-          if (stepRef.current != null) {
-            front = stepRef.current;
-          } else if (reducedRef.current) {
-            front = n - 1;
-          } else if (playRef.current) {
-            front += (p.deltaTime / 1000) * speedRef.current;
-            if (front > n - 1 + 0.75) front = 0;
-          }
-
-          // barXs arrive in PAGE space (the chart is a separate element with its
-          // own insets). Translate into canvas-local by subtracting this host's
-          // left edge, re-read each frame so pan/resize stays exact.
+          // barNodes arrive in PAGE space (the chart is a separate element with
+          // its own insets). Translate into canvas-local by subtracting this
+          // host's left edge, re-read each frame so pan/resize stays exact.
+          // Computed before the front advance because the packet enters from the
+          // tape only when one exists.
           const originX = host.getBoundingClientRect().left;
-          const tape = (barXsRef.current ?? []).map((x) => x - originX);
+          const nodes = barNodesRef.current ?? [];
+          const tape = nodes.map((nd) => nd.x - originX);
+          const closes = nodes.map((nd) => nd.close);
           const hasTape = tape.length > 0;
+
+          // Advance the front — the position of the forward-pass packet. It runs
+          // a full loop: enters from the input tape (front = -1), crosses every
+          // layer (0 … n-1), then wraps back to the tape. Step mode pins it;
+          // reduced-motion pins it to the end so the whole network is visible
+          // without animation.
+          const START = hasTape ? -1 : 0; // -1 = sitting on the input tape
+          if (stepRef.current != null) {
+            // Explicit step — static packet pinned to the chosen layer.
+            front = stepRef.current;
+          } else if (playRef.current) {
+            // Playing wins even under reduced-motion: pressing Play IS an explicit
+            // request to see the pass move. (Auto-play is disabled at mount under
+            // reduced-motion, so this only runs when the user opted in.)
+            front += (p.deltaTime / 1000) * speedRef.current;
+            if (front > n - 1 + 0.75) {
+              front = START;
+              loopCount += 1;
+            }
+          } else if (reducedRef.current) {
+            // Paused under reduced-motion: show the whole network settled.
+            front = n - 1;
+          }
+          if (front < START) front = START;
+
           const xs = model.layers.map((_, i) => layerX(i, w));
           const ys = model.layers.map((l) => neuronYs(l, h, hasTape));
 
@@ -395,6 +416,108 @@ export function NeuralCanvas({
               p.text(layer.outShape, x, h - 15);
             }
           });
+
+          // ── the data packet ───────────────────────────────────────────────
+          // A single token riding the forward pass, so the loop is legible as
+          // data MOVING, not just layers lighting. What it carries is real:
+          //   • on the tape (front < 0): actual close prices, the data entering.
+          //   • through the layers: the REAL derived tensor shape of the layer it
+          //     is crossing (B × … from derive.ts), which morphs layer to layer.
+          // It never carries an activation value — none exists — so once past the
+          // input it shows shape, the honest thing it can know.
+          //
+          // Drawn under reduced-motion too: that setting suppresses AUTO-PLAY, but
+          // Step is an explicit request to move the packet, and the token+chip are
+          // the whole point of the view. Only the comet SMEAR is dropped when
+          // reduced — the token and its numbers always render at `front`.
+          const reducedMotion = reducedRef.current;
+          {
+            const midY = (l: number) => {
+              const arr = ys[l];
+              if (!arr || arr.length === 0) return h / 2;
+              return (arr[0]! + arr[arr.length - 1]!) / 2;
+            };
+
+            let px: number;
+            let py: number;
+            let label: string;
+            let sub: string;
+
+            if (front < 0) {
+              // Riding the tape, descending toward the first layer.
+              const t = front + 1; // 0 at tape, 1 at layer 0
+              const tapeY = TOP_BASE + TAPE_H / 2;
+              px = xs[0] ?? w / 2;
+              py = tapeY + t * (midY(0) - tapeY);
+              // Show a few real close prices — the actual data going in.
+              const sample = closes.slice(0, 3).map((c) => c.toFixed(4));
+              label = sample.length ? sample.join('  ') : 'input';
+              sub = `${tape.length} bars in`;
+            } else {
+              const i = Math.min(n - 1, Math.floor(front));
+              const f = front - i;
+              const j = Math.min(n - 1, i + 1);
+              px = (xs[i] ?? w / 2) + f * ((xs[j] ?? xs[i] ?? w / 2) - (xs[i] ?? w / 2));
+              py = midY(i) + f * (midY(j) - midY(i));
+              const layer = model.layers[i]!;
+              label = layer.outShape ?? `${layer.units ?? '?'} units`;
+              sub = layer.label;
+            }
+
+            // The number chip rides in CLEAR SPACE at the top of the network
+            // band — above every dense column — with a guide line down to the
+            // token. Burying it in the column (as an earlier pass did) made it
+            // unreadable. The token core is WHITE: no layer kind or wire uses it,
+            // so it can never camouflage against them.
+            const ring = resolveToken(document.documentElement, '--data-cat-4');
+            const core = resolveToken(document.documentElement, '--data-cat-9');
+            const chipY = topFor(hasTape) - 12; // just under the tape / band top
+
+            // Guide line from chip down to the moving token.
+            p.stroke(ring);
+            p.strokeWeight(1);
+            p.line(px, chipY + 10, px, py);
+            p.noStroke();
+
+            // Trailing comet so direction of travel reads at a glance — dropped
+            // under reduced-motion, where a motion smear is exactly what the
+            // setting asks us to avoid.
+            if (!reducedMotion) {
+              for (let t = 1; t <= 6; t++) {
+                p.fill(resolveToken(document.documentElement, '--data-cat-4', 0.14 * (7 - t)));
+                p.circle(px - t * 8, py, 13 - t);
+              }
+            }
+            // Dark halo, amber ring, white core — unmistakable on any column.
+            p.fill(resolveToken(document.documentElement, '--background', 0.85));
+            p.circle(px, py, 22);
+            p.fill(ring);
+            p.circle(px, py, 16);
+            p.fill(core);
+            p.circle(px, py, 7);
+
+            // The carried numbers, in the top chip.
+            p.textAlign(p.CENTER, p.CENTER);
+            p.textSize(11);
+            const chipW = Math.max(p.textWidth(label) + 16, 52);
+            p.fill(resolveToken(document.documentElement, '--card', 0.97));
+            p.stroke(ring);
+            p.strokeWeight(1.2);
+            p.rect(px - chipW / 2, chipY - 11, chipW, 22, 5);
+            p.noStroke();
+            p.fill(palette.text);
+            p.text(label, px, chipY - 1);
+            p.fill(palette.dim);
+            p.textSize(8);
+            p.textAlign(p.CENTER, p.TOP);
+            p.text(sub, px, chipY + 12);
+
+            // Loop counter — this is a repeating forward pass, and says so.
+            p.textAlign(p.LEFT, p.TOP);
+            p.fill(palette.dim);
+            p.textSize(9);
+            p.text(`forward pass ×${loopCount + 1}`, 8, 8);
+          }
         };
 
         p.remove = ((orig) =>

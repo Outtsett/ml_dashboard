@@ -454,15 +454,25 @@ function NeuronView({
   /** Folded into the transport bar instead of taking their own strip. */
   kpis: Kpi[];
 }) {
-  const [playing, setPlaying] = useState(true);
+  // Auto-play only when the OS is not asking for reduced motion. Under
+  // reduced-motion the pass sits still until the user presses Play or Step —
+  // both are explicit opt-ins to motion.
+  const [playing, setPlaying] = useState(
+    () =>
+      !(
+        typeof window !== "undefined" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ),
+  );
   const [speed, setSpeed] = useState(1);
   const [step, setStep] = useState<number | null>(null);
   const [model, setModel] = useState<NeuronModel | null>(null);
   const [hovered, setHovered] = useState<NeuronLayer | null>(null);
   /** Bars the feed ACTUALLY returned — drives the alignment check. */
   const [barCount, setBarCount] = useState<number | null>(null);
-  /** Each candle's real pixel x — positions the network's input tape. */
-  const [barXs, setBarXs] = useState<number[]>([]);
+  /** Each candle as { x, close } — positions the input tape and feeds the
+   *  real close values into the network's data packet. */
+  const [barNodes, setBarNodes] = useState<{ x: number; close: number }[]>([]);
   /** Chart collapsed → the network takes the whole pane. */
   const [showChart, setShowChart] = useState(true);
   const [symbol, setSymbol] = useState("AUDUSD");
@@ -618,7 +628,7 @@ function NeuronView({
             limit={windowSize ?? UNLINKED_BAR_COUNT}
             linked={windowSize != null}
             onBarCount={setBarCount}
-            onBarXs={setBarXs}
+            onBarNodes={setBarNodes}
           />
 
           {/* Alignment check — does what the chart HAS match what the model TAKES? */}
@@ -643,9 +653,9 @@ function NeuronView({
           stepIndex={step}
           onModel={setModel}
           onHoverLayer={setHovered}
-          // Collapsed chart → no tape. Keeping the last-published xs would draw
-          // bar nodes aligned to candles that are no longer on screen.
-          barXs={showChart ? barXs : []}
+          // Collapsed chart → no tape. Keeping the last-published nodes would
+          // draw bars aligned to candles that are no longer on screen.
+          barNodes={showChart ? barNodes : []}
         />
 
         {/* Inspector — real derived config only. */}

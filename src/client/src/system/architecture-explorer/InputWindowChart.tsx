@@ -185,11 +185,12 @@ export interface InputWindowChartProps {
    */
   onBarCount?: (count: number | null) => void;
   /**
-   * Fires with each visible bar's REAL pixel x, taken from the chart's own time
-   * scale, so the network's input tape can sit directly beneath its candle.
-   * Bars scrolled out of the visible range are omitted rather than guessed at.
+   * Fires with each visible bar as { x, close }: the REAL pixel x from the
+   * chart's own time scale (so the network's input tape sits beneath its candle)
+   * and the bar's REAL close price (so real values, not invented ones, enter the
+   * network). Bars scrolled out of view are omitted rather than guessed at.
    */
-  onBarXs?: (xs: number[]) => void;
+  onBarNodes?: (nodes: { x: number; close: number }[]) => void;
 }
 
 export function InputWindowChart({
@@ -199,7 +200,7 @@ export function InputWindowChart({
   linked,
   className,
   onBarCount,
-  onBarXs,
+  onBarNodes,
 }: InputWindowChartProps) {
   const query = useInputWindowBars(symbol, timeframeMinutes, limit);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -227,14 +228,14 @@ export function InputWindowChart({
     onBarCountRef.current?.(settled ? bars.length : null);
   }, [settled, bars.length]);
 
-  const onBarXsRef = useRef(onBarXs);
-  onBarXsRef.current = onBarXs;
+  const onBarNodesRef = useRef(onBarNodes);
+  onBarNodesRef.current = onBarNodes;
   /** Lets the create-once chart effect re-emit without depending on `bars`. */
   const emitBarXsRef = useRef<(() => void) | null>(null);
 
-  /** Publish each visible bar's pixel x from the chart's own time scale. */
+  /** Publish each visible bar as { x (page-space pixel), close (real price) }. */
   const emitBarXs = useCallback(() => {
-    const cb = onBarXsRef.current;
+    const cb = onBarNodesRef.current;
     if (!cb) return;
     const chart = chartRef.current;
     if (!chart || bars.length === 0) {
@@ -247,16 +248,16 @@ export function InputWindowChart({
     // so the consumer can subtract its own left edge and land exactly under the
     // candle, instead of being silently offset by whatever insets differ.
     const originX = containerRef.current?.getBoundingClientRect().left ?? 0;
-    const xs: number[] = [];
+    const nodes: { x: number; close: number }[] = [];
     for (const b of bars) {
       const x = ts.timeToCoordinate(
         Math.floor(b.timestamp / 1000) as UTCTimestamp,
       );
       // Bars scrolled outside the visible range return null — drop them rather
       // than guessing a position for something the chart is not drawing.
-      if (x != null) xs.push((x as number) + originX);
+      if (x != null) nodes.push({ x: (x as number) + originX, close: b.close });
     }
-    cb(xs);
+    cb(nodes);
   }, [bars]);
   emitBarXsRef.current = emitBarXs;
 
