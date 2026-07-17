@@ -454,16 +454,10 @@ function NeuronView({
   /** Folded into the transport bar instead of taking their own strip. */
   kpis: Kpi[];
 }) {
-  // Auto-play only when the OS is not asking for reduced motion. Under
-  // reduced-motion the pass sits still until the user presses Play or Step —
-  // both are explicit opt-ins to motion.
-  const [playing, setPlaying] = useState(
-    () =>
-      !(
-        typeof window !== "undefined" &&
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      ),
-  );
+  // This view's entire purpose is the running machine, so it auto-plays — a
+  // frozen network on load is the opposite of what it's for. The Pause button
+  // is right there for anyone who wants it still.
+  const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [step, setStep] = useState<number | null>(null);
   const [model, setModel] = useState<NeuronModel | null>(null);

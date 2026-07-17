@@ -143,6 +143,7 @@ export function NeuralCanvas({
         let palette = readPalette(document.documentElement);
         let front = 0; // packet position, in layer-index units (-1 = input tape)
         let flowPhase = 0; // 0..1 stream position for the input-fan numbers
+        let machinePhase = 0; // 0..1 drive for the pulses running along the tails
         let loopCount = 0; // completed forward passes — shown as the loop counter
         let themeObserver: MutationObserver | null = null;
 
@@ -266,6 +267,9 @@ export function NeuralCanvas({
           // numbers never drift on their own under reduced-motion.
           if (playRef.current && stepRef.current == null) {
             flowPhase = (flowPhase + (p.deltaTime / 1000) * 0.6) % 1;
+            // Faster than the pass itself, so pulses visibly stream between two
+            // nodes while the pass is still crossing that one gap.
+            machinePhase = (machinePhase + (p.deltaTime / 1000) * 1.4) % 1;
           }
 
           const xs = model.layers.map((_, i) => layerX(i, w));
@@ -352,18 +356,38 @@ export function NeuralCanvas({
           // and thicker — the lit gap brightest of all.
           const WIRE_CAP = 10; // max source/target endpoints drawn per gap
           const wireIdle = resolveToken(document.documentElement, '--muted-foreground', 0.4);
-          p.noFill();
+          const pulseCol = resolveToken(document.documentElement, '--data-cat-4');
           for (const { from, to } of model.wires) {
             const lit = front >= from && front <= to + 0.35;
+            p.noFill();
             p.stroke(lit ? palette.wireLit : wireIdle);
             p.strokeWeight(lit ? 2 : 1);
             const a = ys[from]!;
             const b = ys[to]!;
             const sa = Math.max(1, Math.ceil(a.length / WIRE_CAP));
             const sb = Math.max(1, Math.ceil(b.length / WIRE_CAP));
+            const ax = xs[from]!, bx = xs[to]!;
             for (let i = 0; i < a.length; i += sa) {
               for (let j = 0; j < b.length; j += sb) {
-                p.line(xs[from]!, a[i]!, xs[to]!, b[j]!);
+                p.line(ax, a[i]!, bx, b[j]!);
+              }
+            }
+
+            // Mechanical drive: pulses run continuously along the LIT gap's
+            // tails — several per wire at staggered phases, so it reads as data
+            // being conveyed through a machine rather than one lone dot.
+            if (lit) {
+              p.noStroke();
+              p.fill(pulseCol);
+              for (let i = 0; i < a.length; i += sa) {
+                for (let j = 0; j < b.length; j += sb) {
+                  for (let s = 0; s < 3; s++) {
+                    const t = (machinePhase + s / 3) % 1;
+                    const x = ax + t * (bx - ax);
+                    const y = a[i]! + t * (b[j]! - a[i]!);
+                    p.circle(x, y, 3);
+                  }
+                }
               }
             }
           }
@@ -429,13 +453,15 @@ export function NeuralCanvas({
             }
 
             ys[i]!.forEach((y, k) => {
+              // Mechanical kick: the node visibly pumps as the wave crosses it,
+              // then settles — like a part firing in a machine.
+              const kick = 1 + glow * 0.8;
               if (glow > 0.02) {
                 p.fill(base);
-                // Halo capped at ~2x the dot — no unbounded bloom.
-                p.circle(x, y, r * (1 + glow));
+                p.circle(x, y, r * (1 + glow) * kick);
               }
               p.fill(arrived ? base : palette.wire);
-              p.circle(x, y, isHover ? r * 1.25 : r);
+              p.circle(x, y, (isHover ? r * 1.25 : r) * kick);
 
               // The node's REAL computed value, once the pass has reached it.
               const v = nodeVal(i, k);
