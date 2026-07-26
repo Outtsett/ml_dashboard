@@ -83,7 +83,6 @@ checkpoints/
 *.pkl
 *.pickle
 *.joblib
-wandb/
 mlruns/
 optuna_studies/
 runs/
@@ -114,6 +113,7 @@ node_modules.zip
 # Project-level Claude memory contains internal architecture notes, hardware
 # inventory, and personal preferences that should not be public.
 CLAUDE.md
+docs/CLAUDE-archive.md
 CLAUDE.local.md
 GEMINI.md
 AGENTS.md
@@ -159,6 +159,7 @@ docs/private/
 *.bak
 *.backup
 *.backup.*
+*.backup_*
 README.md.backup
 
 # ── Caches ───────────────────────────────────────────────────────────────────
@@ -216,3 +217,9 @@ scripts/orb_*.txt
 scripts/orb_*.json
 scripts/orb_error.txt
 scripts/_*.py
+
+# ── Local tool scratch (never reaches git) ───────────────────────────────────
+# Browser-automation console dumps and generated analytics figures are run
+# artifacts, not source. Analytics belongs in the dashboard, not in image files.
+.playwright-mcp/
+outputs/
