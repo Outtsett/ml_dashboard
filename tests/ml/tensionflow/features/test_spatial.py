@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from tensionflow.config import BENCH_DH, BENCH_DL, BENCHMARKS, DISTANCES, TICK_SIZE
 from tensionflow.features.spatial import normalize_spatial
-from tensionflow.config import BENCHMARKS, BENCH_DH, BENCH_DL, TICK_SIZE, DISTANCES
 
 
 def _make_benchmarks(dh: float = 20050.0, dl: float = 19950.0) -> np.ndarray:

@@ -4,22 +4,25 @@ ORB Indicator Analysis — Identify indicator value ranges that predict successf
 Approach: Pull OHLCV year-by-year, compute indicators with pandas-ta, process ORBs.
 """
 
-import psycopg2
-import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta, time as dtime
-import pytz
 import json
 import os
 import sys
+from datetime import datetime, timedelta
+from datetime import time as dtime
+
+import numpy as np
+import pandas as pd
+import psycopg2
+import pytz
 
 try:
-    import pandas_ta as ta
+    # Imported for its side effect: registers the `.ta` accessor on DataFrame.
+    # The `ta` name itself is never referenced — usage is `df.ta.atr(...)`.
+    import pandas_ta as ta  # noqa: F401
 except ImportError:
     print("Installing pandas-ta...")
     import subprocess
     subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pandas-ta'])
-    import pandas_ta as ta
 
 ET = pytz.timezone('US/Eastern')
 UTC = pytz.utc
@@ -158,13 +161,6 @@ def compute_indicators(df):
             df['ultosc'] = uo_result
 
     return df
-
-
-def find_indicator_columns(df):
-    """Find all indicator columns in the dataframe (exclude OHLCV and metadata)."""
-    exclude = {'timestamp', 'open', 'high', 'low', 'close', 'volume',
-               'ts_et', 'time_et', 'date_et', 'timestamp_utc'}
-    return [c for c in df.columns if c not in exclude and df[c].dtype in ['float64', 'float32', 'int64']]
 
 
 def process_day(day_df, trade_date, indicator_cols):
@@ -340,6 +336,7 @@ def run_analysis(symbol='MNQ', start_year=2020, end_year=2024):
         trading_days = sorted(df_rth['date_et'].unique())
         year_results = []
         no_bo = 0
+        errors = []
 
         for td in trading_days:
             day_df = df_rth[df_rth['date_et'] == td].reset_index(drop=True)
@@ -350,9 +347,15 @@ def run_analysis(symbol='MNQ', start_year=2020, end_year=2024):
                 else:
                     no_bo += 1
             except Exception as e:
-                pass  # skip silently
+                # Never swallow silently — a systematically failing day would
+                # otherwise be indistinguishable from a no-breakout day.
+                errors.append(f"{td}: {type(e).__name__}: {e}")
 
-        print(f"  Days: {len(trading_days)} | Breakouts: {len(year_results)} | No breakout: {no_bo}")
+        print(f"  Days: {len(trading_days)} | Breakouts: {len(year_results)} | No breakout: {no_bo} | Errors: {len(errors)}")
+        for err in errors[:5]:
+            print(f"    ERROR {err}")
+        if len(errors) > 5:
+            print(f"    ... and {len(errors) - 5} more errors")
         all_results.extend(year_results)
 
         del df_rth

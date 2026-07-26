@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tensionflow.signals.spatial import compute_spatial
 from tensionflow.config import BENCHMARKS, SPATIAL_BENCHMARK_WEIGHTS
+from tensionflow.signals.spatial import compute_spatial
 
 
 def _ones() -> np.ndarray:

@@ -1,0 +1,72 @@
+{# ---------------------------------------------------------------------- #}
+{# _walk_forward.py.j2 — fold iteration block included by _base.py.j2     #}
+{#                                                                         #}
+{# Per ml sub-plan §5: when walk_forward is set, iterate calendar-aware    #}
+{# month-bucketed folds via the shared `iter_folds()` helper.              #}
+{# When walk_forward is None, fall back to a single-fold time split.       #}
+{#                                                                         #}
+{# Cross-domain contract — emits both per-metric calls AND a structured    #}
+{# `fold_complete` event via emit_fold_complete() so the frontend          #}
+{# ExperimentLedger (W4) gets one delimited event per finished fold.      #}
+{# ---------------------------------------------------------------------- #}
+{% if walk_forward is not none %}
+    from src.ml.shared.walk_forward import iter_folds
+    from src.ml.shared.protocol import emit_fold_complete
+
+    fold_results: list[dict] = []
+    fold_iter = iter_folds(
+        timestamps=ts_kept,
+        train_months={{ walk_forward.train_months | python_repr }},
+        test_months={{ walk_forward.test_months | python_repr }},
+        step_months={{ walk_forward.get("step_months", walk_forward.test_months) | python_repr }},
+        purge_bars={{ walk_forward.get("purge_bars", 0) | python_repr }},
+        embargo_bars={{ walk_forward.get("embargo_bars", 0) | python_repr }},
+        expanding={{ walk_forward.get("expanding", False) | python_repr }},
+    )
+    fold_count = 0
+    for fold in fold_iter:
+        fold_count += 1
+        emit_log(
+            f"[wf] Fold {fold.idx}: train {fold.train_start} -> {fold.train_end} | "
+            f"test {fold.test_start} -> {fold.test_end} "
+            f"(n_train={fold.train_idx.size}, n_test={fold.test_idx.size})"
+        )
+        emit_progress(fold.idx, 0, "walk_forward")
+        X_train, y_train = X[fold.train_idx], y[fold.train_idx]
+        X_test, y_test = X[fold.test_idx], y[fold.test_idx]
+
+        model, preds = train_one_fold(
+            X_train, y_train, X_test, y_test, args, fold_idx=fold.idx,
+        )
+        fold_metrics = compute_fold_metrics(y_test, preds, fold_idx=fold.idx)
+        for name, value in fold_metrics.items():
+            # Skip None/NaN — emit_metric only accepts real numbers, and the
+            # classification eval intentionally returns None for metrics that
+            # are undefined for the inputs (e.g. AUC when one class is missing,
+            # PnL when per-fold prices aren't bound).
+            if value is None:
+                continue
+            try:
+                fv = float(value)
+            except (TypeError, ValueError):
+                continue
+            if fv != fv:  # NaN
+                continue
+            emit_metric(name=f"fold_{fold.idx}_{name}", value=fv, iteration=fold.idx)
+        emit_fold_complete(fold_idx=fold.idx, metrics=fold_metrics)
+
+        fold_results.append({
+            "fold": int(fold.idx),
+            "train_start": str(fold.train_start),
+            "train_end": str(fold.train_end),
+            "test_start": str(fold.test_start),
+            "test_end": str(fold.test_end),
+            "n_train": int(fold.train_idx.size),
+            "n_test": int(fold.test_idx.size),
+            "metrics": fold_metrics,
+        })
+
+    emit_log(f"[wf] Completed {fold_count} fold(s)")
+{% else %}
+    {% include "_single_fold.py.j2" %}
+{% endif %}

@@ -5,19 +5,17 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tensionflow.features.derived import extract_derived
 from tensionflow.config import (
-    SHMEM_LEVELS,
-    RAW_FIELDS,
+    F_AGGRESSOR_RATIO,
+    F_COMPOSITE_TENSION,
+    F_MOMENTUM_SCORE,
     F_SIZE_RATIO,
     F_SPREAD_TENSION,
-    F_MOMENTUM_SCORE,
-    F_AGGRESSOR_RATIO,
     F_TICK_DIRECTION,
-    F_VOLUME_PERCENTILE,
-    F_TOXICITY,
-    F_COMPOSITE_TENSION,
+    RAW_FIELDS,
+    SHMEM_LEVELS,
 )
+from tensionflow.features.derived import extract_derived
 
 
 def _make_features(fill: float = 0.0) -> np.ndarray:

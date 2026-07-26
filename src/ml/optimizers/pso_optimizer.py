@@ -114,7 +114,6 @@ def _decode_position(
                 val = math.exp(val)
             # Snap to step grid when specified
             lo = float(dim.low)  # type: ignore[arg-type]
-            hi = float(dim.high)  # type: ignore[arg-type]
             if dim.step is not None and dim.step > 0:
                 val = lo + round((val - lo) / dim.step) * dim.step
             val = int(round(val))

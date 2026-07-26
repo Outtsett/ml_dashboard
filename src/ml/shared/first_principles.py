@@ -1,5 +1,7 @@
 import numpy as np
+
 from .features import _rolling_mean, _rolling_std
+
 
 def _compute_book_imbalance(depth, **kwargs):
     """

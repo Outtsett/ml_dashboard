@@ -3,21 +3,22 @@ ORB Parameter Sweep — Find optimal thresholds using the new trailing-from-entr
 Tests: score threshold, trail ATR mult, trail decay, BB width, volume threshold, ADX min.
 """
 
-import psycopg2
-import pandas as pd
-import numpy as np
-from datetime import timedelta, time as dtime
-import pytz
 import os
 import sys
-import itertools
+from datetime import time as dtime
+
+import numpy as np
+import pandas as pd
+import psycopg2
+import pytz
 
 try:
-    import pandas_ta as ta
+    # Imported for its side effect: registers the `.ta` accessor on DataFrame.
+    # The `ta` name itself is never referenced — usage is `df.ta.atr(...)`.
+    import pandas_ta as ta  # noqa: F401
 except ImportError:
     import subprocess
     subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pandas-ta'])
-    import pandas_ta as ta
 
 ET = pytz.timezone('US/Eastern')
 SESSION_OPEN = dtime(9, 30)
@@ -115,7 +116,6 @@ def simulate(all_days, p):
         range_low = range_bars['low'].min()
         range_width = range_high - range_low
         if range_width <= 0: continue
-        range_mid = (range_high + range_low) / 2.0
 
         trades_today = 0
         in_pos = False

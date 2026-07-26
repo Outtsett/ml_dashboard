@@ -27,17 +27,15 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "src" / "ml"))
 
-from bokeh.io import curdoc
-from bokeh.layouts import column, row, gridplot
-from bokeh.models import (
-    ColumnDataSource, Div, ColorBar, LinearColorMapper,
-    BasicTicker, HoverTool, Label, Legend, LegendItem,
-)
-from bokeh.palettes import Category10_10, Spectral11
-from bokeh.plotting import figure
-from bokeh.server.server import Server
 from bokeh.application import Application
 from bokeh.application.handlers.function import FunctionHandler
+from bokeh.layouts import column, row
+from bokeh.models import (
+    ColumnDataSource,
+    Div,
+)
+from bokeh.plotting import figure
+from bokeh.server.server import Server
 
 # ── Globals (shared between training thread and bokeh callback) ───────────
 
@@ -75,10 +73,11 @@ METRIC_DESCRIPTIONS = {
 
 def run_training(args):
     """Load data, compute features, run Gibbs sampling, push updates to _state."""
-    from ml.shared.data import load_ohlcv_arrays
-    from ml.shared.features import compute_features, normalize_features
     from hdp_hmm.model import StickyHDPHMM
     from sklearn.decomposition import PCA
+
+    from ml.shared.data import load_ohlcv_arrays
+    from ml.shared.features import compute_features, normalize_features
 
     _state["status"] = "Loading OHLCV data..."
     _state["total_iter"] = args.gibbs_iter

@@ -27,7 +27,7 @@ import polars as pl
 # ── Numba-accelerated kernels ─────────────────────────────────────────────
 
 try:
-    from numba import njit, prange
+    from numba import njit
 
     @njit(cache=True, fastmath=True)
     def _rolling_zscore_numba(arr, window, clip_lo, clip_hi):
@@ -412,7 +412,9 @@ def _process_category(
 
             params = dict(deriv_spec.get("params", {}))
             if deriv_spec["name"] == "crossover_dist":
-                sig_prefix = params.pop("signal_prefix", "")
+                # pop() for its side effect — strips signal_prefix out of the
+                # kwargs before they are splatted into deriv_fn below.
+                params.pop("signal_prefix", None)
                 params["signal_series"] = signal_lookup.get(col)
 
             result = deriv_fn(arr, close, **params)

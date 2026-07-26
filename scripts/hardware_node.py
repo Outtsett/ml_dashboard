@@ -1,10 +1,11 @@
+import json
+import operator
+import sys
+import time
+
 import psutil
 import pynvml
-import json
-import time
-import sys
-import os
-import operator
+
 
 def get_processes():
     processes = []

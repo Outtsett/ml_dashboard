@@ -6,11 +6,12 @@ Backward elimination: start with all, remove the signal whose removal helps most
 Determines optimal signal COUNT and ranking.
 """
 
-import pandas as pd
-import numpy as np
-import os
 import json
+import os
 from itertools import combinations
+
+import numpy as np
+import pandas as pd
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 df = pd.read_csv(SCRIPT_DIR + '/orb_audit_results.csv')

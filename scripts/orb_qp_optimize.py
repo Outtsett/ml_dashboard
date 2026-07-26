@@ -12,11 +12,12 @@ Formulation:
 Uses cvxpy for convex optimization.
 """
 
-import pandas as pd
-import numpy as np
+import json
 import os
 import sys
-import json
+
+import numpy as np
+import pandas as pd
 
 try:
     import cvxpy as cp

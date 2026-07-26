@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
+from tensionflow.config import KELLY_SAFETY_FACTOR, MAX_CONTRACTS
 from tensionflow.risk.sizing import compute_qty
-from tensionflow.config import MAX_CONTRACTS, KELLY_SAFETY_FACTOR
 
 
 def test_returns_int():

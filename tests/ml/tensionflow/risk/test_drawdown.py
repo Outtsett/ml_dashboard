@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from tensionflow.risk.drawdown import compute_drawdown_factor
 from tensionflow.config import MAX_DRAWDOWN_PCT
+from tensionflow.risk.drawdown import compute_drawdown_factor
 
 
 def test_no_drawdown_returns_one():

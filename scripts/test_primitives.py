@@ -1,8 +1,12 @@
 """Smoke test + benchmark for primitives computation engine."""
-import sys, os, time
+import os
+import sys
+import time
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src", "ml"))
 
 import numpy as np
+
 from shared.primitives import compute_primitives
 
 

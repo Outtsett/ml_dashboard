@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
+from tensionflow.config import NEUTRAL_ZONE_THRESHOLD
 from tensionflow.state.hysteresis import HysteresisState
-from tensionflow.config import HYSTERESIS_BARS, NEUTRAL_ZONE_THRESHOLD
 
 
 def test_initial_position_zero():

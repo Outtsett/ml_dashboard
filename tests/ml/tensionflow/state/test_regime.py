@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from tensionflow.state.regime import select_weight_profile
 from tensionflow.config import (
+    REGIME_RANGE,
+    REGIME_TREND_DOWN,
+    REGIME_TREND_UP,
     REGIME_UNKNOWN,
     REGIME_VOLATILE,
-    REGIME_RANGE,
-    REGIME_TREND_UP,
-    REGIME_TREND_DOWN,
     REGIME_WEIGHTS,
 )
+from tensionflow.state.regime import select_weight_profile
 
 # Expected keys in every weight profile
 _KEYS = {"spatial", "momentum", "band_direction", "volume_profile", "structure"}

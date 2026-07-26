@@ -7,8 +7,8 @@ High-performance data file reader supporting:
 
 Optimized for speed with vectorized operations and fast JSON serialization.
 """
-import sys
 import os
+import sys
 
 try:
     import orjson
@@ -21,8 +21,8 @@ except ImportError:
 
 def read_parquet_file(file_path):
     """Read parquet file using pandas with vectorized operations"""
-    import pandas as pd
     import numpy as np
+    import pandas as pd
 
     df = pd.read_parquet(file_path)
 
@@ -134,8 +134,8 @@ def read_dbn_file(file_path):
 
 def read_csv_file(file_path):
     """Read CSV file with vectorized operations"""
-    import pandas as pd
     import numpy as np
+    import pandas as pd
 
     df = pd.read_csv(file_path)
 

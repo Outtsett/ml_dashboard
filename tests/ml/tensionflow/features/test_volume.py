@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from tensionflow.config import F_FILTERED_PCT, F_VOLUME, RAW_FIELDS, SHMEM_LEVELS
 from tensionflow.features.volume import normalize_volume
-from tensionflow.config import SHMEM_LEVELS, RAW_FIELDS, F_VOLUME, F_FILTERED_PCT
 
 
 def _make_features(fill: float = 0.0) -> np.ndarray:

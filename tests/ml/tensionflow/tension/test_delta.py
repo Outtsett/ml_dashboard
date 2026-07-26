@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tensionflow.tension.delta import compute_tension_delta
 from tensionflow.config import DISTANCES
+from tensionflow.tension.delta import compute_tension_delta
 
 
 def _make_distances(value: float) -> np.ndarray:

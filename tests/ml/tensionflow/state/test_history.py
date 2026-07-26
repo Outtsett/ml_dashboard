@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import math
-
 import numpy as np
 
-from tensionflow.state.history import TensionHistory
 from tensionflow.config import TENSION_HISTORY_WINDOW, THRESHOLD_SIGMA_MULTIPLIER
+from tensionflow.state.history import TensionHistory
 
 
 def test_empty_history_mean_zero():

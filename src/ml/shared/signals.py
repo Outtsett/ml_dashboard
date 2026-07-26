@@ -13,8 +13,9 @@ Produces 6 columns for regime assignment CSVs:
   transition_prob — 1 - P(stay in same regime) from transition matrix
 """
 
-import numpy as np
 from typing import Optional
+
+import numpy as np
 
 
 def compute_signal_columns(

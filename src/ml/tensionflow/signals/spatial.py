@@ -13,7 +13,6 @@ import numpy as np
 
 from ..config import BENCHMARKS, SPATIAL_BENCHMARK_WEIGHTS
 
-
 # Normalize weights at import time in case config does not sum to 1.0.
 _WEIGHTS: np.ndarray = SPATIAL_BENCHMARK_WEIGHTS / SPATIAL_BENCHMARK_WEIGHTS.sum()
 

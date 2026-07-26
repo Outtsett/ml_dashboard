@@ -13,9 +13,9 @@ import numpy as np
 from ..config import (
     BENCH_DH,
     BENCH_DL,
-    TICK_SIZE,
     BENCHMARKS,
     DISTANCES,
+    TICK_SIZE,
 )
 
 # Number of price-to-benchmark distances at the front of the distance vector.

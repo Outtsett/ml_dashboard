@@ -1,0 +1,27 @@
+{
+  "catalogId": "random-forest",
+  "featureCategories": [
+    "price_action",
+    "volatility"
+  ],
+  "featurePipeline": "default-35",
+  "generatedAt": "2026-05-10T09:03:29+00:00",
+  "generator": "scripts/generate_model.py",
+  "hyperparameters": {
+    "max_depth": 6,
+    "n_estimators": 50
+  },
+  "labelParams": {
+    "horizon_bars": 5,
+    "threshold_bp": 5.0
+  },
+  "labelStrategy": "triple_barrier",
+  "manifestVersion": 1,
+  "modelId": "random_forest_for_moe_v1_sklearn_slot0",
+  "symbol": "MNQ",
+  "templateId": "sklearn",
+  "templateVariant": null,
+  "templateVersion": "0.1.0",
+  "timeframe": "1m",
+  "walkForward": null
+}
