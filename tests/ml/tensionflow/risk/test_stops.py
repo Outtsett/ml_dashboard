@@ -5,21 +5,20 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tensionflow.risk.stops import compute_stops
 from tensionflow.config import (
-    BENCHMARKS,
-    BENCH_VWAP,
-    BENCH_VAH,
-    BENCH_VAL,
     BENCH_DH,
     BENCH_DL,
-    BENCH_VWAP_UPPER,
-    BENCH_VWAP_LOWER,
     BENCH_PDH,
     BENCH_PDL,
+    BENCH_VAH,
+    BENCH_VAL,
+    BENCH_VWAP,
+    BENCH_VWAP_LOWER,
+    BENCH_VWAP_UPPER,
+    BENCHMARKS,
     MIN_STOP_TICKS,
-    TICK_SIZE,
 )
+from tensionflow.risk.stops import compute_stops
 
 
 def _make_benchmarks(vwap: float = 20000.0) -> np.ndarray:

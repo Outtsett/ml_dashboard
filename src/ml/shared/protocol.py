@@ -34,6 +34,33 @@ def emit_metric(name: str, value, iteration: int, total: int = 0):
     emit({"type": "metric", "name": name, "value": float(value), "iteration": iteration, "total": total})
 
 
+def emit_fold_complete(fold_idx: int, metrics: dict) -> None:
+    """Emit a structured per-fold completion event for the ExperimentLedger.
+
+    Added 2026-05-10 as part of W1.a (cross-domain contract owned by ml-lead,
+    consumed by frontend's ExperimentLedger SSE bridge in W4). The event
+    carries the full metrics dict for the fold so the frontend can render a
+    single ledger-row update without needing to keep per-metric state in
+    sync with name-mangled `fold_<i>_<metric>` events.
+
+    Per-metric `metric` events are still emitted alongside this one (by the
+    walk-forward template) so the live charts continue to stream point-by-point.
+    The `fold_complete` event is the row-commit signal.
+    """
+    payload: dict = {}
+    for k, v in metrics.items():
+        try:
+            payload[str(k)] = float(v)
+        except (TypeError, ValueError):
+            # Pass non-numeric values through verbatim (e.g. category strings).
+            payload[str(k)] = v
+    emit({
+        "type": "fold_complete",
+        "fold_idx": int(fold_idx),
+        "metrics": payload,
+    })
+
+
 def _to_epoch_sec(t) -> int:
     """Convert a datetime/timestamp to epoch seconds (matches chart timeKey)."""
     if isinstance(t, (int, float)):

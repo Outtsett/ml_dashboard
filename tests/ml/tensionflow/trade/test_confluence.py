@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from tensionflow.trade.confluence import compute_confluence, compute_alignment
-
+from tensionflow.trade.confluence import compute_alignment, compute_confluence
 
 # ── compute_confluence ──────────────────────────────────────────────────────
 

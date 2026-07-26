@@ -1,0 +1,540 @@
+{# ============================================================================
+   _eval_clustering.py.j2 — shared clustering eval logic (W4.b).
+
+   Included by family templates that produce per-sample state assignments
+   (hmm.py.j2 from W4.a, gmm.py.j2 from W2.b — retrofittable). Mirrors the
+   structure of `_eval_classification.py.j2` and `_eval_regression.py.j2`
+   so all three eval-template members share the same surface area.
+
+   Renders to PURE PYTHON with zero Jinja substitutions of its own; becomes a
+   block of module-level functions when included from a family template.
+
+   Public functions (cross-domain contract):
+
+     - compute_fold_metrics(y_test, predictions, *, fold_idx=None) -> dict
+         Cluster-population stats only (no X required). silhouette / DB are
+         left None — call compute_clustering_metrics_full when X_test is
+         available to fill them.
+
+     - compute_clustering_metrics_full(X_test, predictions, *, fold_idx=None)
+         Full clustering metrics including sklearn silhouette + Davies-Bouldin.
+
+     - build_diagnostics(model, X_test, y_test, predictions, ts_test,
+                         fold_results, output_dir, ...) -> dict
+         SelfDescribingDiagnostics dict for clustering models.
+
+     - write_oos_predictions(ts, y_test, predictions, output_path) -> None
+         Schema parity with classification/regression eval:
+         {timestamp, symbol, prediction, confidence}.
+
+     - emit_regime_tags(ts_test, predictions) -> None
+         Pushes one chart-overlay event per state-segment so the dashboard
+         can render colored regime bands. Wraps protocol.emit_overlay().
+
+     - _emit_metric_declarations() -> None
+         Publishes the clustering metric-rendering schema for the dashboard.
+
+   Cost / data references:
+     - silhouette_score is sample-capped at 10k for runtime predictability.
+     - davies_bouldin_score is unbounded (cheap: O(K^2 * d)).
+     - oos_predictions.parquet schema: {timestamp, symbol, prediction,
+       confidence}. prediction = state ID (cast to float for schema parity);
+       confidence = max posterior probability (or 1.0 when posteriors aren't
+       available).
+   ============================================================================ #}
+# ──────────────────────────────────────────────────────────────────────────────
+# Shared clustering eval (rendered from _eval_clustering.py.j2)
+# ──────────────────────────────────────────────────────────────────────────────
+import json as _eval_json
+from pathlib import Path as _EvalPath
+
+import numpy as _eval_np
+
+try:
+    from src.ml.shared.protocol import (
+        emit_metric_declarations as _eval_emit_decls,
+        emit_overlay as _eval_emit_overlay,
+    )
+except Exception:  # pragma: no cover — protocol must exist in real runs
+    def _eval_emit_decls(_decls):  # type: ignore[no-redef]
+        return None
+
+    def _eval_emit_overlay(*_args, **_kwargs):  # type: ignore[no-redef]
+        return None
+
+# sklearn metrics are imported lazily inside compute_clustering_metrics_full
+# so the template still compiles + imports cleanly when sklearn is missing.
+
+
+# ─── Internal helpers ─────────────────────────────────────────────────────────
+
+
+def _eval_safe_finite(x) -> float | None:
+    """Convert numeric to float or None if non-finite."""
+    if x is None:
+        return None
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    if not _eval_np.isfinite(v):
+        return None
+    return v
+
+
+def _eval_to_state_labels(predictions) -> _eval_np.ndarray:
+    """Coerce predictions to a 1-D integer state vector.
+
+    Accepts:
+      - (n,) integer or float state IDs
+      - (n, K) posterior probability matrix (returns argmax per row)
+    """
+    arr = _eval_np.asarray(predictions)
+    if arr.ndim == 1:
+        return arr.astype(_eval_np.int64)
+    if arr.ndim == 2:
+        return arr.argmax(axis=1).astype(_eval_np.int64)
+    raise ValueError(f"Cannot interpret clustering predictions with shape {arr.shape}")
+
+
+def _eval_to_confidence(predictions) -> _eval_np.ndarray:
+    """Per-sample confidence: max posterior if 2-D, else 1.0 fallback."""
+    arr = _eval_np.asarray(predictions)
+    if arr.ndim == 2:
+        return arr.max(axis=1).astype(_eval_np.float32)
+    n = int(arr.shape[0]) if arr.ndim >= 1 else 0
+    return _eval_np.ones(n, dtype=_eval_np.float32)
+
+
+def _eval_state_population_stats(states: _eval_np.ndarray) -> dict:
+    """Return n_clusters / n_samples / cluster_balance / state_counts."""
+    n_samples = int(states.size)
+    if n_samples == 0:
+        return {
+            "n_clusters": 0,
+            "n_samples": 0,
+            "cluster_balance": None,
+            "state_counts": {},
+        }
+    unique, counts = _eval_np.unique(states, return_counts=True)
+    n_clusters = int(unique.size)
+    if n_clusters <= 1:
+        balance: float | None = 1.0 if n_clusters == 1 else None
+    else:
+        cmax = float(counts.max())
+        cmin = float(counts.min())
+        balance = float(cmin / cmax) if cmax > 0 else None
+    state_counts = {int(s): int(c) for s, c in zip(unique.tolist(), counts.tolist())}
+    return {
+        "n_clusters": n_clusters,
+        "n_samples": n_samples,
+        "cluster_balance": balance,
+        "state_counts": state_counts,
+    }
+
+
+# ─── Per-fold metric assembly ─────────────────────────────────────────────────
+
+
+def compute_fold_metrics(y_test, predictions, *, fold_idx=None) -> dict:
+    """2-arg per-fold clustering metrics — no X_test access.
+
+    Returns cluster-population stats only. silhouette / davies_bouldin are
+    set to None because both sklearn metrics need the original feature
+    matrix. Family templates that have X_test in scope should call
+    compute_clustering_metrics_full instead (or in addition).
+
+    Parameters
+    ----------
+    y_test : array-like
+        Unsupervised placeholder labels (zeros, from generate_labels). Read
+        for shape parity only; values are not used.
+    predictions : array-like, shape (n,) or (n, K)
+        Per-sample state assignments (int) or posterior probability matrix.
+    fold_idx : int | None
+        Informational; not used in computation.
+
+    Returns
+    -------
+    dict
+        Keys: silhouette (None), davies_bouldin (None), n_clusters,
+        n_samples, cluster_balance.
+    """
+    states = _eval_to_state_labels(predictions)
+    pop = _eval_state_population_stats(states)
+    return {
+        "silhouette": None,
+        "davies_bouldin": None,
+        "n_clusters": pop["n_clusters"],
+        "n_samples": pop["n_samples"],
+        "cluster_balance": _eval_safe_finite(pop["cluster_balance"]),
+    }
+
+
+def compute_clustering_metrics_full(
+    X_test, predictions, *, fold_idx=None, sample_cap: int = 10000,
+) -> dict:
+    """3-arg per-fold clustering metrics — full version with sklearn metrics.
+
+    Parameters
+    ----------
+    X_test : array-like, shape (n, d)
+        Feature matrix the clustering ran over. Required by silhouette and
+        Davies-Bouldin scores.
+    predictions : array-like, shape (n,) or (n, K)
+        Per-sample state assignments (int) or posterior probability matrix.
+    fold_idx : int | None
+        Informational; not used in computation.
+    sample_cap : int
+        Cap for the silhouette random subsample. silhouette is O(n^2) so we
+        cap at 10k by default to keep eval responsive on large folds. The
+        Davies-Bouldin score is computed on the full set (it's only O(K^2 d)).
+
+    Returns
+    -------
+    dict
+        Keys: silhouette, davies_bouldin, n_clusters, n_samples,
+        cluster_balance. silhouette / davies_bouldin are None when the
+        metric is undefined (e.g. only one cluster present).
+    """
+    X = _eval_np.asarray(X_test)
+    states = _eval_to_state_labels(predictions)
+    pop = _eval_state_population_stats(states)
+
+    silhouette: float | None = None
+    davies_bouldin: float | None = None
+
+    # Both sklearn metrics require >= 2 distinct labels.
+    if pop["n_clusters"] >= 2 and X.ndim == 2 and X.shape[0] == states.size and X.shape[0] > 1:
+        try:
+            from sklearn.metrics import (
+                silhouette_score as _silhouette_score,
+                davies_bouldin_score as _db_score,
+            )
+
+            n = int(X.shape[0])
+            cap = max(2, min(int(sample_cap), n))
+            try:
+                silhouette = _eval_safe_finite(
+                    _silhouette_score(
+                        X, states,
+                        metric="euclidean",
+                        sample_size=cap if cap < n else None,
+                        random_state=42,
+                    )
+                )
+            except Exception:
+                silhouette = None
+            try:
+                davies_bouldin = _eval_safe_finite(_db_score(X, states))
+            except Exception:
+                davies_bouldin = None
+        except ImportError:  # pragma: no cover — sklearn is a hard dep in ml env
+            silhouette = None
+            davies_bouldin = None
+
+    return {
+        "silhouette": silhouette,
+        "davies_bouldin": davies_bouldin,
+        "n_clusters": pop["n_clusters"],
+        "n_samples": pop["n_samples"],
+        "cluster_balance": _eval_safe_finite(pop["cluster_balance"]),
+    }
+
+
+# ─── Metric declarations (dashboard schema) ──────────────────────────────────
+
+
+def _emit_metric_declarations() -> None:
+    """Publish the clustering metric-rendering schema to the dashboard.
+
+    Mirrors the shape used by `_eval_classification.py.j2::_emit_metric_declarations`
+    so the dashboard's metric-renderer registry can pre-configure renderers
+    before per-fold metrics start streaming.
+    """
+    _eval_emit_decls({
+        "silhouette": {
+            "renderer": "gauge", "group": "clustering quality",
+            "mission": "How well-separated are the clusters? 1=perfect, 0=overlap, <0=mis-assigned.",
+            "context": {"min": -1.0, "baseline": 0.0, "good": 0.25, "great": 0.5, "max": 1.0,
+                        "decimals": 4},
+        },
+        "davies_bouldin": {
+            "renderer": "number", "group": "clustering quality",
+            "mission": "Avg ratio of within-cluster scatter to between-cluster separation. LOWER is better; 0 = perfect.",
+            "context": {"min": 0.0, "good": 1.0, "great": 0.5, "decimals": 4},
+        },
+        "n_clusters": {
+            "renderer": "number", "group": "clustering structure",
+            "mission": "Number of distinct state IDs the model assigned in this fold.",
+            "context": {"min": 1, "decimals": 0},
+        },
+        "n_samples": {
+            "renderer": "number", "group": "clustering structure",
+            "mission": "Number of OOS samples assigned in this fold.",
+            "context": {"min": 0, "decimals": 0},
+        },
+        "cluster_balance": {
+            "renderer": "percent", "group": "clustering structure",
+            "mission": "min(state population) / max(state population). 1.0 = perfectly balanced.",
+            "context": {"min": 0.0, "baseline": 0.0, "good": 0.25, "great": 0.5, "max": 1.0,
+                        "decimals": 4},
+        },
+    })
+
+
+# ─── Diagnostics dict assembly ────────────────────────────────────────────────
+
+
+def build_diagnostics(
+    model,
+    X_test,
+    y_test,
+    predictions,
+    ts_test=None,
+    fold_results: list | None = None,
+    output_dir=None,
+    *,
+    model_id: str = "",
+    symbol: str = "MNQ",
+    timeframe: str = "1m",
+    n_train: int = 0,
+    n_val: int | None = None,
+    n_features: int = 0,
+    template_id: str = "",
+    template_version: str = "",
+    catalog_id: str = "",
+    extra: dict | None = None,
+) -> dict:
+    """Build the SelfDescribingDiagnostics dict for clustering models.
+
+    Mirrors the structure of `_eval_classification.build_diagnostics` and
+    `_eval_regression.build_diagnostics`, swapping in clustering metrics. The
+    returned dict is suitable for direct json.dump to ``diagnostics.json``.
+
+    Parameters
+    ----------
+    model : object
+        The fitted clustering estimator. Stored only via type name + n_clusters
+        attribute when present (no pickling).
+    X_test : array-like, shape (n, d) | None
+        Feature matrix for OOS metric computation. When None, sklearn metrics
+        fall back to None.
+    y_test : array-like
+        Unsupervised placeholder labels (zeros). Carried in the diagnostics
+        dict via its length only.
+    predictions : array-like, shape (n,) or (n, K)
+        Per-sample state assignments or posterior matrix.
+    ts_test : array-like | None
+        Timestamps aligned with predictions. Used for the regime-tag
+        emission summary; otherwise informational.
+    fold_results : list | None
+        Per-fold dicts emitted by the walk-forward harness.
+    output_dir : str | Path | None
+        When provided, ``diagnostics.json`` is written under this directory.
+    """
+    states = _eval_to_state_labels(predictions)
+    pop = _eval_state_population_stats(states)
+    nv = int(states.size) if n_val is None else int(n_val)
+
+    # Full clustering metrics — silhouette / DB require X_test.
+    if X_test is not None:
+        full = compute_clustering_metrics_full(X_test, predictions)
+    else:
+        full = {
+            "silhouette": None,
+            "davies_bouldin": None,
+            "n_clusters": pop["n_clusters"],
+            "n_samples": pop["n_samples"],
+            "cluster_balance": _eval_safe_finite(pop["cluster_balance"]),
+        }
+
+    # Posterior summary (when 2-D predictions were provided).
+    pred_arr = _eval_np.asarray(predictions)
+    confidence_summary: dict | None = None
+    if pred_arr.ndim == 2 and pred_arr.shape[0] > 0:
+        conf = _eval_to_confidence(predictions)
+        confidence_summary = {
+            "mean_max_posterior": _eval_safe_finite(conf.mean()),
+            "min_max_posterior": _eval_safe_finite(conf.min()),
+            "max_max_posterior": _eval_safe_finite(conf.max()),
+        }
+
+    metrics_block = {
+        "silhouette": {
+            "value": full["silhouette"],
+            "renderer": "gauge", "group": "clustering quality",
+            "mission": "How well-separated are the clusters?",
+        },
+        "davies_bouldin": {
+            "value": full["davies_bouldin"],
+            "renderer": "number", "group": "clustering quality",
+            "mission": "Avg within-vs-between scatter ratio (lower better)",
+        },
+        "n_clusters": {
+            "value": int(full["n_clusters"]),
+            "renderer": "number", "group": "clustering structure",
+            "mission": "Distinct states observed",
+        },
+        "n_samples": {
+            "value": int(full["n_samples"]),
+            "renderer": "number", "group": "clustering structure",
+            "mission": "OOS samples assigned",
+        },
+        "cluster_balance": {
+            "value": full["cluster_balance"],
+            "renderer": "percent", "group": "clustering structure",
+            "mission": "min/max state population ratio",
+        },
+    }
+
+    # Try to surface model attributes that are useful for downstream UI.
+    model_summary: dict = {"type_name": type(model).__name__ if model is not None else None}
+    for attr in ("n_components", "n_clusters", "covariance_type"):
+        if model is not None and hasattr(model, attr):
+            try:
+                model_summary[attr] = getattr(model, attr)
+            except Exception:
+                pass
+    if model is not None and hasattr(model, "transmat_"):
+        try:
+            model_summary["transition_matrix"] = _eval_np.asarray(
+                model.transmat_, dtype=_eval_np.float64,
+            ).tolist()
+        except Exception:
+            pass
+
+    diagnostics = {
+        "model_id": model_id,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "template_id": template_id,
+        "template_version": template_version,
+        "catalog_id": catalog_id,
+        "task_kind": "clustering",
+        "n_train": int(n_train),
+        "n_val": nv,
+        "n_features": int(n_features),
+        "metrics": metrics_block,
+        "state_counts": pop["state_counts"],
+        "model_summary": model_summary,
+        "fold_results": fold_results or [],
+    }
+    if confidence_summary is not None:
+        diagnostics["posterior_summary"] = confidence_summary
+    if extra:
+        diagnostics.update(extra)
+
+    if output_dir is not None:
+        out_dir = _EvalPath(output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "diagnostics.json").write_text(
+            _eval_json.dumps(diagnostics, indent=2, default=str), encoding="utf-8",
+        )
+    return diagnostics
+
+
+# ─── OOS predictions writer ──────────────────────────────────────────────────
+
+
+def write_oos_predictions(ts, y_test, predictions, output_path, *, symbol: str = "MNQ") -> None:
+    """Write oos_predictions.parquet via polars with the standard schema.
+
+    Schema: {timestamp, symbol, prediction, confidence}. For clustering:
+      - prediction = state ID (cast to int64 for cross-task schema parity
+        with classification's class labels)
+      - confidence = max posterior probability when 2-D predictions were
+        provided; 1.0 otherwise.
+    """
+    import polars as _eval_pl
+
+    ts_arr = _eval_np.asarray(ts)
+    if ts_arr.dtype.kind == "M":
+        ts_int = ts_arr.astype("datetime64[s]").astype(_eval_np.int64)
+    else:
+        ts_int = ts_arr.astype(_eval_np.int64)
+
+    states = _eval_to_state_labels(predictions)
+    confidence = _eval_to_confidence(predictions)
+
+    out = _EvalPath(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    _eval_pl.DataFrame({
+        "timestamp": ts_int.astype(_eval_np.int64),
+        "symbol": [symbol] * int(ts_int.size),
+        "prediction": states.astype(_eval_np.int64),
+        "confidence": confidence.astype(_eval_np.float32),
+    }).write_parquet(str(out), compression="zstd", compression_level=3)
+
+
+# ─── Regime-tag emission for chart overlays ──────────────────────────────────
+
+
+# Default colour palette (consistent with the live_dashboard regime-band style).
+_EVAL_REGIME_PALETTE: tuple[str, ...] = (
+    "#4C78A8",  # blue
+    "#F58518",  # orange
+    "#54A24B",  # green
+    "#E45756",  # red
+    "#72B7B2",  # teal
+    "#EECA3B",  # yellow
+    "#B279A2",  # purple
+    "#FF9DA6",  # pink
+    "#9D755D",  # brown
+    "#BAB0AC",  # gray
+)
+
+
+def _eval_regime_label(state_id: int) -> str:
+    return f"Regime {int(state_id)}"
+
+
+def emit_regime_tags(
+    ts_test, predictions, *, palette: tuple[str, ...] = _EVAL_REGIME_PALETTE,
+    transition_matrix=None,
+) -> None:
+    """Emit a chart-overlay event so the dashboard can render regime bands.
+
+    Wraps `protocol.emit_overlay`. Sends a single overlay event carrying the
+    full per-sample assignment vector — the dashboard collapses consecutive
+    same-state runs into coloured bands client-side, which is cheaper than
+    emitting one event per segment when n is large.
+
+    Parameters
+    ----------
+    ts_test : array-like
+        Per-sample timestamps (datetime, epoch seconds, or epoch ms).
+        emit_overlay coerces these to epoch seconds via _to_epoch_sec.
+    predictions : array-like
+        Per-sample state assignments or 2-D posterior matrix.
+    palette : tuple[str, ...]
+        CSS colour list; cycled when the model has more states than colours.
+    transition_matrix : array-like | None
+        Optional KxK transition matrix; passed through to emit_overlay so
+        the dashboard's regime-graph view can render the Markov topology.
+    """
+    states = _eval_to_state_labels(predictions)
+    if states.size == 0:
+        return
+
+    n_regimes = int(states.max()) + 1 if states.size else 0
+    # Always provide a colour + label per regime ID 0..n_regimes-1.
+    colors = [palette[i % len(palette)] for i in range(n_regimes)]
+    labels = [_eval_regime_label(i) for i in range(n_regimes)]
+
+    if transition_matrix is not None:
+        try:
+            tm = _eval_np.asarray(transition_matrix, dtype=_eval_np.float64)
+        except Exception:
+            tm = None
+    else:
+        tm = None
+
+    _eval_emit_overlay(
+        timestamps=list(_eval_np.asarray(ts_test).tolist()),
+        assignments=states.tolist(),
+        regime_colors=colors,
+        regime_labels=labels,
+        transition_matrix=tm,
+        n_regimes=n_regimes,
+    )

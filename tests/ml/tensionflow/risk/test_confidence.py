@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from tensionflow.risk.confidence import compute_confidence, passes_threshold
 from tensionflow.config import MIN_CONFIDENCE
+from tensionflow.risk.confidence import compute_confidence, passes_threshold
 
 
 def test_zero_inputs_zero_confidence():

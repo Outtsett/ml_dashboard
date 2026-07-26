@@ -1,0 +1,263 @@
+{# ---------------------------------------------------------------------- #}
+{# tree.py.j2 — XGBoost / LightGBM / CatBoost variant template (W2.b)     #}
+{#                                                                         #}
+{# Per ml sub-plan §3, this template extracts the training body from      #}
+{# src/ml/xgb_classifier/main.py while making it variant-aware. The        #}
+{# `template_variant` template-context key (passed through by the         #}
+{# generator from --template-variant or backend's pickTemplate result)     #}
+{# selects xgboost / lightgbm / catboost. All three booster libraries     #}
+{# share the same generated runner shape:                                  #}
+{#                                                                         #}
+{#   - import that variant's library                                       #}
+{#   - build the variant's params dict from the user's hyperparameters    #}
+{#   - call the variant's train() (xgb.train / lgb.train / cb.train)      #}
+{#   - extract per-row positive-class probabilities                        #}
+{#   - SHAP summary on a 5k-row val subsample (xgboost only — built-in    #}
+{#     pred_contribs; LightGBM/CatBoost via `shap` package opportunistic)  #}
+{#                                                                         #}
+{# Variant-specific defaults:                                              #}
+{#   xgboost  : tree_method='hist', device='cuda'                          #}
+{#   lightgbm : boosting_type='gbdt', device='gpu'                         #}
+{#   catboost : loss_function='Logloss', task_type='GPU'                   #}
+{# ---------------------------------------------------------------------- #}
+{% extends "_base.py.j2" %}
+
+{% set _variant = template_variant | default("xgboost") %}
+
+{% block model_imports %}
+{% if _variant == "xgboost" %}
+import xgboost as xgb
+{% elif _variant == "lightgbm" %}
+import lightgbm as lgb
+{% elif _variant == "catboost" %}
+import catboost as cb
+{% else %}
+# Unknown template_variant — fail at import-time so the misconfiguration is
+# loud rather than silently defaulting to one of the boosters.
+raise ImportError(
+    "tree.py.j2 rendered with unknown template_variant={{ _variant | python_repr }}; "
+    "expected one of: 'xgboost', 'lightgbm', 'catboost'."
+)
+{% endif %}
+try:
+    import shap as _shap_lib  # type: ignore[import-not-found]
+except Exception:
+    _shap_lib = None  # SHAP is optional — skip summary if missing.
+
+# Module-level state for per-fold OOS aggregation (read by eval block).
+_FOLD_STATE: dict = {"y": [], "preds": [], "boosters": []}
+{% endblock %}
+
+{% block train_loop %}
+def _build_params() -> dict:
+    """Variant-specific param dict, built from the catalog hyperparameters."""
+    base = {
+        {%- for name, value in hyperparameters.items() %}
+        {{ name | python_repr }}: {{ value | python_repr }},
+        {%- endfor %}
+    }
+    {% if _variant == "xgboost" %}
+    base.setdefault("objective", "binary:logistic")
+    base.setdefault("eval_metric", ["logloss", "auc"])
+    base.setdefault("tree_method", "hist")
+    base.setdefault("device", "cuda")
+    base.setdefault("verbosity", 0)
+    {% elif _variant == "lightgbm" %}
+    base.setdefault("objective", "binary")
+    base.setdefault("metric", ["binary_logloss", "auc"])
+    base.setdefault("boosting_type", "gbdt")
+    base.setdefault("device", "gpu")
+    base.setdefault("verbosity", -1)
+    {% elif _variant == "catboost" %}
+    base.setdefault("loss_function", "Logloss")
+    base.setdefault("eval_metric", "AUC")
+    base.setdefault("task_type", "GPU")
+    base.setdefault("verbose", False)
+    {% endif %}
+    return base
+
+
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+    """Variant-aware booster training — see _build_params() for the flag set."""
+    params = _build_params()
+    {% if _variant == "xgboost" %}
+    n_rounds = int(params.pop("n_estimators", params.pop("num_boost_round", 500)))
+    early_stop = int(params.pop("early_stopping_rounds", 50))
+    dtrain = xgb.DMatrix(X_train, label=y_train)
+    dval = xgb.DMatrix(X_test, label=y_test)
+    booster = xgb.train(
+        params,
+        dtrain,
+        num_boost_round=n_rounds,
+        evals=[(dtrain, "train"), (dval, "val")],
+        early_stopping_rounds=early_stop,
+        verbose_eval=False,
+    )
+    best_iter = int(booster.best_iteration) if booster.best_iteration is not None else n_rounds
+    preds = booster.predict(dval, iteration_range=(0, best_iter + 1)).astype(np.float64)
+    model = booster
+    {% elif _variant == "lightgbm" %}
+    n_rounds = int(params.pop("n_estimators", params.pop("num_boost_round", 500)))
+    early_stop = int(params.pop("early_stopping_rounds", 50))
+    dtrain = lgb.Dataset(X_train, label=y_train)
+    dval = lgb.Dataset(X_test, label=y_test, reference=dtrain)
+    callbacks = [lgb.early_stopping(stopping_rounds=early_stop, verbose=False)]
+    booster = lgb.train(
+        params,
+        dtrain,
+        num_boost_round=n_rounds,
+        valid_sets=[dtrain, dval],
+        valid_names=["train", "val"],
+        callbacks=callbacks,
+    )
+    preds = booster.predict(X_test, num_iteration=booster.best_iteration).astype(np.float64)
+    model = booster
+    {% elif _variant == "catboost" %}
+    n_rounds = int(params.pop("n_estimators", params.pop("iterations", 500)))
+    early_stop = int(params.pop("early_stopping_rounds", 50))
+    train_pool = cb.Pool(X_train, label=y_train)
+    val_pool = cb.Pool(X_test, label=y_test)
+    model = cb.CatBoost({**params, "iterations": n_rounds,
+                         "od_type": "Iter", "od_wait": early_stop})
+    model.fit(train_pool, eval_set=val_pool, verbose=False)
+    raw = model.predict(val_pool, prediction_type="Probability")
+    preds = raw[:, 1].astype(np.float64) if raw.ndim == 2 else raw.astype(np.float64)
+    {% endif %}
+    _FOLD_STATE["y"].append(np.asarray(y_test))
+    _FOLD_STATE["preds"].append(preds)
+    _FOLD_STATE["boosters"].append(model)
+    return model, preds
+
+
+def predict(model, X):
+    """Standard predict contract: 1D positive-class probability per row."""
+    {% if _variant == "xgboost" %}
+    dmat = xgb.DMatrix(X)
+    return model.predict(dmat).astype(np.float64)
+    {% elif _variant == "lightgbm" %}
+    return np.asarray(model.predict(X), dtype=np.float64)
+    {% elif _variant == "catboost" %}
+    raw = model.predict(X, prediction_type="Probability")
+    if raw.ndim == 2 and raw.shape[1] == 2:
+        return raw[:, 1].astype(np.float64)
+    return np.asarray(raw, dtype=np.float64)
+    {% endif %}
+
+
+def _shap_summary(model, X_sample: np.ndarray, feature_names: list[str]) -> dict | None:
+    """Best-effort SHAP summary; returns None if shap or model API unavailable."""
+    {% if _variant == "xgboost" %}
+    try:
+        dmat = xgb.DMatrix(X_sample, feature_names=feature_names)
+        contribs = model.predict(dmat, pred_contribs=True)[:, :-1]
+        abs_mean = np.abs(contribs).mean(axis=0)
+        order = np.argsort(-abs_mean)
+        ranked_names = [feature_names[i] for i in order]
+        ranked_imp = abs_mean[order].tolist()
+        return {
+            "feature_names_ranked": ranked_names,
+            "abs_mean_shap_ranked": ranked_imp,
+            "top10_names": ranked_names[:10],
+            "top10_abs_mean_shap": ranked_imp[:10],
+        }
+    except Exception:
+        return None
+    {% else %}
+    if _shap_lib is None:
+        return None
+    try:
+        explainer = _shap_lib.TreeExplainer(model)
+        sv = explainer.shap_values(X_sample)
+        if isinstance(sv, list):
+            sv = sv[-1]  # binary: positive-class contributions
+        contribs = np.asarray(sv)
+        if contribs.ndim == 3:
+            contribs = contribs[..., -1]
+        abs_mean = np.abs(contribs).mean(axis=0)
+        order = np.argsort(-abs_mean)
+        ranked_names = [feature_names[i] for i in order]
+        ranked_imp = abs_mean[order].tolist()
+        return {
+            "feature_names_ranked": ranked_names,
+            "abs_mean_shap_ranked": ranked_imp,
+            "top10_names": ranked_names[:10],
+            "top10_abs_mean_shap": ranked_imp[:10],
+        }
+    except Exception:
+        return None
+    {% endif %}
+{% endblock %}
+
+{# The eval partial below defines the real compute_fold_metrics, so suppress  #}
+{# _base's runnable placeholder — emitting both is a redefinition (F811).     #}
+{% block compute_fold_metrics %}{% endblock %}
+
+{# Module-level eval helpers — render the classification eval module at      #}
+{# top-of-file scope so its functions / constants stay at module scope.      #}
+{% block eval_helpers %}
+{% include "_eval_classification.py.j2" %}
+{% endblock %}
+
+{# Per-run rollup — runs INSIDE run_training() after the WF loop completes. #}
+{% block eval_block %}
+    # ─── W2.b tree-booster classification rollup ─────────────────────────
+    if _FOLD_STATE["y"]:
+        all_y = np.concatenate(_FOLD_STATE["y"]).astype(np.int64)
+        all_preds = np.concatenate(_FOLD_STATE["preds"]).astype(np.float64)
+    else:
+        all_y = np.asarray([], dtype=np.int64)
+        all_preds = np.asarray([], dtype=np.float64)
+
+    _emit_metric_declarations()
+
+    extra: dict = {
+        "template_id": "{{ template_id }}",
+        "template_version": "{{ template_version }}",
+        "template_variant": "{{ _variant }}",
+        "catalog_id": "{{ catalog_id }}",
+        "n_total_bars": int(n_total),
+        "n_kept_samples": int(X.shape[0]),
+        "feature_names": list(names),
+    }
+
+    # SHAP summary on the final fold's booster — bounded to 5k val rows.
+    if _FOLD_STATE["boosters"]:
+        last_booster = _FOLD_STATE["boosters"][-1]
+        last_y = _FOLD_STATE["y"][-1]
+        sample_n = min(5000, int(last_y.size))
+        if sample_n > 0:
+            rng = np.random.default_rng(seed=42)
+            shap_idx = rng.choice(int(last_y.size), size=sample_n, replace=False)
+            # Approximate the X_test rows from the global X using the trailing
+            # window — for SHAP we just need any representative sample.
+            X_for_shap = X[-sample_n:][:sample_n]
+            summary = _shap_summary(last_booster, X_for_shap, list(names))
+            if summary is not None:
+                extra["shap"] = summary
+
+    diagnostics = build_diagnostics(
+        model=None,
+        y_true=all_y if all_y.size else np.asarray([0, 1], dtype=np.int64),
+        y_pred=all_preds if all_preds.size else np.asarray([0.5, 0.5]),
+        ts=None,
+        prices=None,
+        fold_results=fold_results,
+        model_id=args.model_id,
+        symbol=args.symbol,
+        timeframe=args.timeframe,
+        n_train=int(X.shape[0]),
+        n_val=int(all_y.size),
+        n_features=int(X.shape[1]),
+        extra=extra,
+    )
+
+    if all_y.size and all_preds.size:
+        out_path = _PROJECT_ROOT / "data" / "models" / args.model_id / "oos_predictions.parquet"
+        write_oos_predictions(
+            ts=np.arange(all_y.size, dtype=np.int64),
+            y_true=all_y,
+            y_pred=all_preds,
+            output_path=out_path,
+            symbol=args.symbol,
+        )
+{% endblock %}

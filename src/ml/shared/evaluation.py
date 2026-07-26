@@ -11,8 +11,9 @@ Stage 4: Regime-Conditioned Performance (Sharpe, long/short, transition returns,
 Stage 5: Benchmarking (vs buy-and-hold, vs SMA crossover, information ratio)
 """
 
-import numpy as np
 from typing import Optional
+
+import numpy as np
 
 from shared.protocol import emit_log, emit_metric
 
@@ -33,7 +34,7 @@ def run_stage1_regime_quality(
     """
     # Lazy imports — these are heavy and only needed during evaluation
     from scipy import stats
-    from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
+    from sklearn.metrics import calinski_harabasz_score, davies_bouldin_score, silhouette_score
 
     emit_log("Running Stage 1: Regime Quality Assessment")
     results = {}
@@ -738,7 +739,6 @@ def run_all_stages(
 
     # Derive train/test split index from split_mask
     # split_mask is True for train, False for test — find first False
-    train_indices = np.where(split_mask)[0]
     test_indices = np.where(~split_mask)[0]
     split_idx = int(test_indices[0]) if len(test_indices) > 0 else len(assignments)
 

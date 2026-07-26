@@ -9,12 +9,12 @@ to current market conditions.
 from __future__ import annotations
 
 from ..config import (
-    REGIME_WEIGHTS,
-    REGIME_VOLATILE,
     REGIME_RANGE,
-    REGIME_TREND_UP,
     REGIME_TREND_DOWN,
+    REGIME_TREND_UP,
     REGIME_UNKNOWN,
+    REGIME_VOLATILE,
+    REGIME_WEIGHTS,
 )
 
 

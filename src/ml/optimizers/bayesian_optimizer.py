@@ -11,7 +11,7 @@ import logging
 import time
 from typing import Any, Callable
 
-from skopt import gp_minimize, forest_minimize, gbrt_minimize
+from skopt import forest_minimize, gbrt_minimize, gp_minimize
 from skopt.space import Categorical, Integer, Real
 from skopt.utils import use_named_args
 
@@ -19,8 +19,9 @@ from skopt.utils import use_named_args
 # GradientBoostingQuantileRegressor is not recognised as a regressor by
 # sklearn.base.is_regressor because it lacks __sklearn_tags__.
 try:
+    from sklearn.base import BaseEstimator as _BaseEstimator
+    from sklearn.base import is_regressor as _is_reg
     from skopt.learning.gbrt import GradientBoostingQuantileRegressor as _GBQR
-    from sklearn.base import BaseEstimator as _BaseEstimator, is_regressor as _is_reg
 
     if not _is_reg(_GBQR()):
         def _sklearn_tags(self):

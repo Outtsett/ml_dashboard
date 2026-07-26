@@ -5,16 +5,16 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tensionflow.signals.volume_profile import compute_volume_profile
 from tensionflow.config import (
-    BENCHMARKS,
     BENCH_DH,
     BENCH_DL,
     BENCH_VAH,
     BENCH_VAL,
     BENCH_VPOC,
+    BENCHMARKS,
     TICK_SIZE,
 )
+from tensionflow.signals.volume_profile import compute_volume_profile
 
 
 def _bench(

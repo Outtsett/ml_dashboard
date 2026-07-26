@@ -8,42 +8,38 @@ shared memory or the C engine.  Exercises:
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 # ── Source imports ────────────────────────────────────────────────────────────
-
 from tensionflow.config import (
     ACTION_BUY,
-    ACTION_SELL,
     ACTION_FLATTEN,
     ACTION_NONE,
+    ACTION_SELL,
     BENCHMARKS,
     DISTANCES,
-    SHMEM_LEVELS,
-    F_DELTA,
     F_AGGRESSOR_RATIO,
-    F_TICK_DIRECTION,
-    F_SIZE_RATIO,
-    F_SPREAD_TENSION,
+    F_BID_ASK_PRESSURE,
     F_COMPOSITE_TENSION,
-    F_MOMENTUM_SCORE,
-    F_TOXICITY,
-    F_VOLUME_PERCENTILE,
-    F_LIQ_ADD_VOL,
-    F_LIQ_REMOVE_VOL,
+    F_DELTA,
     F_DEPTH_RATIO,
     F_IMBALANCE_PCT,
-    F_BID_ASK_PRESSURE,
+    F_LIQ_ADD_VOL,
     F_LIQ_CHANGE,
+    F_LIQ_REMOVE_VOL,
+    F_MOMENTUM_SCORE,
+    F_SIZE_RATIO,
+    F_SPREAD_TENSION,
+    F_TICK_DIRECTION,
+    F_TOXICITY,
+    F_VOLUME_PERCENTILE,
+    MAX_CONTRACTS,
+    MIN_ALIGNMENT,
+    MIN_CONFLUENCE,
     RAW_FIELDS,
     REGIME_UNKNOWN,
-    MAX_CONTRACTS,
-    MIN_CONFLUENCE,
-    MIN_ALIGNMENT,
+    SHMEM_LEVELS,
 )
 from tensionflow.features.spatial import normalize_spatial, normalize_spatial_full
-from tensionflow.features.volume import normalize_volume
-from tensionflow.features.derived import extract_derived
 from tensionflow.risk.confidence import compute_confidence, passes_threshold
 from tensionflow.risk.drawdown import compute_drawdown_factor
 from tensionflow.risk.sizing import compute_qty
@@ -63,7 +59,6 @@ from tensionflow.trade.context import classify_context
 from tensionflow.trade.flip import evaluate_flip
 from tensionflow.trade.strength import compute_strength
 from tensionflow.trade.threshold import compute_thresholds
-
 
 # ── Synthetic data builders ───────────────────────────────────────────────────
 

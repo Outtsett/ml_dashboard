@@ -1,0 +1,37 @@
+{# ---------------------------------------------------------------------- #}
+{# _single_fold.py.j2 — included by _walk_forward.py.j2 when              #}
+{# walk_forward is None.  80/20 time split, no embargo unless overridden. #}
+{# Mirrors xgb_classifier/main.py:341-345 time_split_indices behavior.    #}
+{# ---------------------------------------------------------------------- #}
+    from src.ml.shared.protocol import emit_fold_complete
+
+    n_kept = X.shape[0]
+    split = max(1, int(n_kept * 0.8))
+    train_idx = np.arange(0, split, dtype=np.int64)
+    test_idx = np.arange(split, n_kept, dtype=np.int64)
+    emit_log(
+        f"[single-fold] train={train_idx.size:,} test={test_idx.size:,} (80/20 time split)"
+    )
+
+    X_train, y_train = X[train_idx], y[train_idx]
+    X_test, y_test = X[test_idx], y[test_idx]
+    model, preds = train_one_fold(X_train, y_train, X_test, y_test, args, fold_idx=0)
+    fold_metrics = compute_fold_metrics(y_test, preds, fold_idx=0)
+    for name, value in fold_metrics.items():
+        if value is None:
+            continue
+        try:
+            fv = float(value)
+        except (TypeError, ValueError):
+            continue
+        if fv != fv:  # NaN
+            continue
+        emit_metric(name=f"fold_0_{name}", value=fv, iteration=0)
+    emit_fold_complete(fold_idx=0, metrics=fold_metrics)
+
+    fold_results = [{
+        "fold": 0,
+        "n_train": int(train_idx.size),
+        "n_test": int(test_idx.size),
+        "metrics": fold_metrics,
+    }]

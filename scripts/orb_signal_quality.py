@@ -7,12 +7,13 @@ Tests whether signals actually predict breakout outcomes using:
 4. Mutual Information (non-linear predictive power)
 """
 
-import pandas as pd
+import json
+import os
+
 import numpy as np
+import pandas as pd
 from scipy import stats
 from sklearn.metrics import mutual_info_score
-import os
-import json
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 df = pd.read_csv(SCRIPT_DIR + '/orb_analysis_results.csv')

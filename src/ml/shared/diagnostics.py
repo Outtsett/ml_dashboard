@@ -14,7 +14,6 @@ Sections:
 
 import numpy as np
 
-
 # ── A. Cluster Quality ─────────────────────────────────────────────────────
 
 def compute_cluster_quality(X, states, prev_states, model_means, model_vars,
@@ -41,9 +40,9 @@ def compute_cluster_quality(X, states, prev_states, model_means, model_vars,
     if n_unique >= 2 and n_unique < len(states):
         try:
             from sklearn.metrics import (
-                silhouette_score,
                 calinski_harabasz_score,
                 davies_bouldin_score,
+                silhouette_score,
             )
             sample_size = min(max_samples, len(X))
             result["silhouette"] = float(
@@ -108,7 +107,6 @@ def compute_cluster_quality(X, states, prev_states, model_means, model_vars,
 
     # Bhattacharyya distance between regime pairs (averaged across D dimensions)
     bhatt_distances = {}
-    D = model_means.shape[1] if model_means.ndim == 2 else 1
     if len(unique_regimes) >= 2:
         for i_idx in range(len(unique_regimes)):
             for j_idx in range(i_idx + 1, len(unique_regimes)):

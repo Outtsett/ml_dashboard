@@ -21,7 +21,6 @@ Usage:
 import numpy as np
 import pandas as pd
 
-
 # ── Correlation matrix ────────────────────────────────────────────────────
 
 
@@ -139,7 +138,7 @@ def hierarchical_cluster_features(
             "linkage_matrix": list (for dendrogram reconstruction),
         }
     """
-    from scipy.cluster.hierarchy import linkage, fcluster
+    from scipy.cluster.hierarchy import fcluster, linkage
     from scipy.spatial.distance import squareform
 
     names = corr_matrix.columns.tolist()

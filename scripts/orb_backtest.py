@@ -4,20 +4,22 @@ No stop loss. Trailing stop + TP + EOD flatten only.
 Identifies gaps in the logic.
 """
 
-import psycopg2
-import pandas as pd
-import numpy as np
-from datetime import timedelta, time as dtime
-import pytz
 import os
 import sys
+from datetime import time as dtime
+
+import numpy as np
+import pandas as pd
+import psycopg2
+import pytz
 
 try:
-    import pandas_ta as ta
+    # Imported for its side effect: registers the `.ta` accessor on DataFrame.
+    # The `ta` name itself is never referenced — usage is `df.ta.atr(...)`.
+    import pandas_ta as ta  # noqa: F401
 except ImportError:
     import subprocess
     subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pandas-ta'])
-    import pandas_ta as ta
 
 ET = pytz.timezone('US/Eastern')
 SESSION_OPEN = dtime(9, 30)
@@ -148,9 +150,7 @@ def simulate_day(day_df, p):
     at_breakeven = False
     is_reversal = False
     tp_price = 0
-    momentum_impulse = 0
     order_placed = False
-    entry_bar_idx = 0
     entry_time = None
     entry_score = 0
 
@@ -282,7 +282,6 @@ def simulate_day(day_df, p):
         bb_pctb = bar.get('bb_pctb', 0.5)
         vol_ratio = bar.get('vol_ratio', 0)
         vwap_val = bar.get('vwap', prev_close)
-        clv = bar.get('clv', 0)
 
         # MACD histogram
         macdh_cols = [c for c in day_df.columns if 'MACDh' in c]
@@ -359,7 +358,6 @@ def simulate_day(day_df, p):
                 trades_today += 1
                 entry_time = str(bar['ts_et'])
                 entry_score = score
-                momentum_impulse = mom_impulse
 
             elif broke_below:
                 if p['use_vwap'] and prev_close >= vwap_val:
@@ -380,7 +378,6 @@ def simulate_day(day_df, p):
                 trades_today += 1
                 entry_time = str(bar['ts_et'])
                 entry_score = score
-                momentum_impulse = mom_impulse
 
         # Reversal
         elif p['breakout_reversal']:

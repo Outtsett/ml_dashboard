@@ -8,10 +8,10 @@ Usage:
 """
 
 import argparse
+import json
 import sys
 import urllib.parse
 import urllib.request
-import json
 
 QUESTDB_URL = "http://localhost:9000"
 

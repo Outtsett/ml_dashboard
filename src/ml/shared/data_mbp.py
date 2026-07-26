@@ -1,7 +1,7 @@
-import os
-import numpy as np
 import pandas as pd
+
 from .data import _connect, emit_log
+
 
 def load_mbp10_ohlcv(symbol, interval='1m', limit=5000):
     """

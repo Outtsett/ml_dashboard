@@ -60,8 +60,72 @@ logger = logging.getLogger(__name__)
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]  # …/ml_dashboard
 
 # Model type → relative path from project root to the training entry point.
+# These are *training* scripts (single-fold CLI). HPO drivers spawn them
+# per-trial; nested HPO drivers spawn them per-fold.
 _MODEL_ENTRYPOINTS: dict[str, str] = {
+    "xgb_classifier":      "src/ml/xgb_classifier/main.py",
+    "xgb_classifier_wf":   "src/ml/xgb_classifier/main.py",  # WF reuses single-fold entry
+    "xgb_classifier_nest": "src/ml/xgb_classifier/main.py",  # nested HPO uses fold-level driver, see hpo_main.py
 }
+
+
+def _preload_feature_cache(model_type: str, training_args: dict[str, Any]) -> None:
+    """Warm the parquet feature cache once before the optimization loop.
+
+    Per-trial subprocesses share the same OHLCV + feature matrix (only
+    hyperparameters change). Pre-warming the cache means trial 1 hits the
+    cache instead of querying QuestDB. No-op when the cache is already warm.
+    """
+    if model_type.lower() not in _MODEL_ENTRYPOINTS:
+        return
+    try:
+        from .data import load_ohlcv_arrays
+        from .feature_cache import cached_features, has_cache
+        from .features import compute_features
+
+        symbol = str(training_args.get("symbol") or "").upper()
+        timeframe = str(training_args.get("timeframe") or "1h")
+        if not symbol:
+            return
+        date_range: dict | None = None
+        if training_args.get("date_start") or training_args.get("date_end"):
+            date_range = {}
+            if training_args.get("date_start"):
+                date_range["start"] = training_args["date_start"]
+            if training_args.get("date_end"):
+                date_range["end"] = training_args["date_end"]
+        cats_raw = training_args.get("feature_categories")
+        categories: list[str] | None
+        if isinstance(cats_raw, str):
+            categories = [s.strip() for s in cats_raw.split(",") if s.strip()]
+        elif isinstance(cats_raw, list):
+            categories = list(cats_raw)
+        else:
+            categories = None
+
+        if has_cache(symbol, timeframe, date_range, categories):
+            emit_log(f"[hpo] Feature cache already warm for {symbol}@{timeframe}")
+            return
+
+        emit_log(f"[hpo] Pre-warming feature cache for {symbol}@{timeframe}…")
+        max_bars = int(training_args.get("max_bars") or 0)
+        raw = load_ohlcv_arrays(symbol, timeframe, max_bars=max_bars, date_range=date_range)
+
+        def _compute():
+            ohlcv = {
+                "open_": raw["open"], "high": raw["high"], "low": raw["low"],
+                "close": raw["close"], "volume": raw["volume"],
+            }
+            matrix, names, _ts = compute_features(ohlcv, categories=categories, n_jobs=1)
+            ts_arr = [t.timestamp() if hasattr(t, "timestamp") else float(t) for t in raw["timestamp"]]
+            import numpy as _np
+            return matrix.astype(_np.float32), list(names), _np.asarray(ts_arr, dtype=_np.int64)
+
+        cached_features(symbol, timeframe, date_range, categories, _compute)
+        emit_log("[hpo] Feature cache warm.")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Feature cache pre-warm skipped: %s", exc)
+        emit_log(f"[hpo] Feature cache pre-warm skipped: {exc}", level="warning")
 
 # ---------------------------------------------------------------------------
 # Objective function builder
@@ -343,6 +407,8 @@ def run_hpo(config: dict[str, Any]) -> OptimizationResult:
         emit_log("[hpo] DRY-RUN mode — using dummy objective function")
         objective_fn = _build_dry_run_objective(search_space, direction)
     else:
+        # Warm the feature cache once so the very first trial is fast.
+        _preload_feature_cache(model_type, training_args)
         objective_fn = _build_subprocess_objective(
             model_type=model_type,
             objective_metric=objective_metric,
