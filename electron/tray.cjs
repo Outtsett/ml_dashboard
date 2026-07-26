@@ -8,6 +8,22 @@ const { Tray, Menu, nativeImage, app } = require("electron");
 
 let tray = null;
 let mainWindow = null;
+// Backend-aware reveal callback supplied by main.cjs (ensureBackendAndShow).
+// Every tray path that brings the window back routes through this so a
+// tray-resident instance whose backend child died gets the server restarted
+// before the UI is re-shown. Falls back to a plain show() if not provided.
+let onActivate = null;
+
+function reveal() {
+  if (typeof onActivate === "function") {
+    onActivate();
+    return;
+  }
+  if (mainWindow) {
+    mainWindow.show();
+    mainWindow.focus();
+  }
+}
 
 /**
  * Create a 16×16 RGBA icon buffer with a rounded-square shape.
@@ -47,8 +63,7 @@ function createTrayIconBuffer(status) {
 
 function navigateTo(route) {
   if (mainWindow) {
-    mainWindow.show();
-    mainWindow.focus();
+    reveal(); // backend-aware show
     mainWindow.webContents.send("menu:action", `navigate:${route}`);
   }
 }
@@ -65,8 +80,7 @@ function updateContextMenu(status = "healthy", trainingActive = false) {
         if (mainWindow?.isVisible()) {
           mainWindow.hide();
         } else {
-          mainWindow?.show();
-          mainWindow?.focus();
+          reveal(); // backend-aware show
         }
       },
     },
@@ -100,8 +114,9 @@ function updateContextMenu(status = "healthy", trainingActive = false) {
   tray.setContextMenu(contextMenu);
 }
 
-function createTray(win) {
+function createTray(win, activateCb) {
   mainWindow = win;
+  onActivate = typeof activateCb === "function" ? activateCb : null;
 
   const trayIcon = nativeImage.createFromBuffer(
     createTrayIconBuffer("healthy"),
@@ -118,15 +133,14 @@ function createTray(win) {
       if (mainWindow.isVisible()) {
         mainWindow.focus();
       } else {
-        mainWindow.show();
+        reveal(); // backend-aware show
       }
     }
   });
 
   tray.on("double-click", () => {
     if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
+      reveal(); // backend-aware show
     }
   });
 

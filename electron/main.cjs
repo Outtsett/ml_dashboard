@@ -1,9 +1,26 @@
 /**
  * ML Dashboard - Electron Main Process
  *
- * Databases are started by electron/start-databases.cjs before this runs.
- * This process opens a BrowserWindow pointing at the server, and stops
- * databases when the window closes.
+ * Launch flow (GUI / desktop shortcut runs `electron .`):
+ *   app.whenReady() → startServer() spawns the backend (tsx --watch
+ *   src/server/main.ts) on :PORT. The BACKEND, in turn, starts QuestDB via
+ *   runStartupSequence() (NOT electron/start-databases.cjs — that script is only
+ *   used by the npm dev scripts, never by the GUI launch path). The backend
+ *   serves both the REST API and the Vite frontend on the single port, and the
+ *   BrowserWindow points at http://127.0.0.1:PORT.
+ *
+ * Reliability (intermittent "backend didn't launch" on relaunch):
+ *   - Close-to-tray keeps the instance alive; every "bring the window back"
+ *     path (tray, second-instance, activate, window show) routes through
+ *     ensureBackendAndShow(), which probes /health and restarts a dead backend
+ *     before re-showing the UI.
+ *   - The backend health watchdog restarts a wedged backend regardless of the
+ *     serverProcess handle (tree-kill + free-port + respawn).
+ *   - startServer() pre-flight reclaims :PORT from a wedged orphan (the backend
+ *     process.exit(1)s on EADDRINUSE, so a stale holder must be killed first).
+ *   - Since the backend (not this process) starts QuestDB, adoptQuestDbPid()
+ *     writes electron/.questdb.pid for an already-serving QuestDB so
+ *     stopDatabases() can stop it on quit instead of leaking a java.exe orphan.
  */
 const {
   app,
@@ -30,17 +47,56 @@ const { screen } = require("electron");
 
 // Prevent EPIPE crashes when launched without a console (desktop shortcut)
 // When there's no terminal, stdout/stderr pipes can close unexpectedly.
+process.stdout?.on?.("error", () => {});
+process.stderr?.on?.("error", () => {});
+
+// --- Persistent launch log ---------------------------------------------------
+// Desktop-shortcut launches have NO attached console, so console.log output is
+// lost — a failed GUI launch leaves no trace. Mirror every safeLog/safeWarn/
+// safeError line (including the spawned backend's [server]/[server:err] output)
+// to logs/electron-main.log at the repo root so any launch failure is
+// diagnosable after the fact.
+const LOG_FILE = path.join(__dirname, "..", "logs", "electron-main.log");
+let logStream = null;
+try {
+  fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
+  // Reset if the log has grown large so it never balloons unbounded.
+  try {
+    if (fs.statSync(LOG_FILE).size > 3 * 1024 * 1024) fs.rmSync(LOG_FILE);
+  } catch {}
+  logStream = fs.createWriteStream(LOG_FILE, { flags: "a" });
+  logStream.on("error", () => { logStream = null; });
+  logStream.write(
+    `\n===== launch ${new Date().toISOString()} (pid ${process.pid}) =====\n`,
+  );
+} catch {}
+
+function writeLog(level, args) {
+  if (!logStream) return;
+  try {
+    const line = args
+      .map((a) =>
+        typeof a === "string"
+          ? a
+          : (a && a.stack) || require("util").inspect(a, { depth: 3 }),
+      )
+      .join(" ");
+    logStream.write(`${new Date().toISOString()} [${level}] ${line}\n`);
+  } catch {}
+}
+
 function safeLog(...args) {
   try { console.log(...args); } catch {}
+  writeLog("log", args);
 }
 function safeError(...args) {
   try { console.error(...args); } catch {}
+  writeLog("err", args);
 }
 function safeWarn(...args) {
   try { console.warn(...args); } catch {}
+  writeLog("warn", args);
 }
-process.stdout?.on?.("error", () => {});
-process.stderr?.on?.("error", () => {});
 
 // Load .env file so DATABASE_URL and other vars are available
 const envPath = path.join(__dirname, "..", ".env");
@@ -65,6 +121,13 @@ const PORT = process.env.PORT || 5000;
 // (taskbar shortcut, start:desktop, electron:dev all behave the same).
 const IS_DEV = true;
 process.env.NODE_ENV = "development";
+// CSP is injected explicitly via session.defaultSession.webRequest below
+// (see app.whenReady block). Electron's CSP warning fires when CSP is
+// absent OR contains 'unsafe-eval' — our dev CSP intentionally contains
+// 'unsafe-eval' (required for Vite HMR), so the warning would still fire
+// despite the explicit policy. Suppress it so the legitimate audit-trail
+// log from [csp] is the single source of truth.
+process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = "true";
 
 // Resolve the system Node.js binary — process.execPath is electron.exe which
 // cannot spawn server scripts as a plain Node process.
@@ -102,6 +165,105 @@ if (!gotLock) {
 
 // Database paths for shutdown
 const QUESTDB_PID_FILE = path.join(__dirname, ".questdb.pid");
+const QUESTDB_HTTP_PORT = parseInt(process.env.QUESTDB_HTTP_PORT || "9000", 10);
+
+// ── Port / process lifecycle helpers (dependency-free) ──
+// These back the reliability fixes for intermittent "backend didn't launch":
+//   - probeHealth():    is the backend on :PORT actually alive (200 on /health)?
+//   - findPortOwnerPid(): which PID holds a TCP listen socket on a given port?
+//   - killProcessTree(): hard-kill a PID and all descendants (tsx --watch spawns
+//                        a child node + esbuild; SIGTERM on the parent orphans them)
+//   - waitForPortFree(): poll until nothing listens on a port (post-kill settle)
+
+/**
+ * Probe the backend liveness endpoint. /health always returns 200 if the
+ * Express process is bound to the port — a wedged orphan that crashed before
+ * listen() will NOT answer, so a non-OK/throw means "not a healthy backend".
+ * @returns {Promise<boolean>}
+ */
+async function probeHealth(timeoutMs = 2500) {
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), timeoutMs);
+    const resp = await fetch(`http://127.0.0.1:${PORT}/health`, { signal: controller.signal });
+    clearTimeout(t);
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Find the PID that owns a LISTEN socket on the given TCP port (Windows).
+ * Parses `netstat -ano` output (built-in, no deps). Returns null if unowned.
+ * @param {number} port
+ * @returns {number|null}
+ */
+function findPortOwnerPid(port) {
+  try {
+    const { execFileSync } = require("child_process");
+    const out = execFileSync("netstat.exe", ["-ano", "-p", "TCP"], {
+      encoding: "utf-8",
+      windowsHide: true,
+    });
+    for (const line of out.split("\n")) {
+      // Columns: Proto  Local Address  Foreign Address  State  PID
+      const parts = line.trim().split(/\s+/);
+      if (parts.length < 5) continue;
+      const [, local, , state, pidStr] = parts;
+      if (state !== "LISTENING") continue;
+      // Match :<port> at the end of the local address (handles 0.0.0.0:5000,
+      // 127.0.0.1:5000, and [::]:5000).
+      if (!local.endsWith(`:${port}`)) continue;
+      const pid = parseInt(pidStr, 10);
+      if (Number.isFinite(pid) && pid > 0) return pid;
+    }
+  } catch (e) {
+    safeWarn("[port] findPortOwnerPid failed:", e.message || e);
+  }
+  return null;
+}
+
+/**
+ * Hard-kill a process and its entire descendant tree (Windows: taskkill /T /F).
+ * tsx --watch is a parent that spawns child node + esbuild workers; killing only
+ * the parent leaves orphans holding the port. /T kills the tree, /F forces it.
+ * @param {number} pid
+ * @returns {boolean} true if taskkill ran (process may already have been gone)
+ */
+function killProcessTree(pid) {
+  if (!pid || !Number.isFinite(pid)) return false;
+  try {
+    const { execFileSync } = require("child_process");
+    execFileSync("taskkill.exe", ["/PID", String(pid), "/T", "/F"], {
+      encoding: "utf-8",
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    safeLog(`[port] Killed process tree PID ${pid}`);
+    return true;
+  } catch (e) {
+    // taskkill exits non-zero if the PID is already gone — treat as success.
+    const msg = (e.stderr || e.message || "").toString();
+    if (msg.includes("not found") || msg.includes("no running")) return true;
+    safeWarn(`[port] taskkill PID ${pid} failed:`, msg.trim());
+    return false;
+  }
+}
+
+/**
+ * Poll until no process listens on the port (post-kill settle), up to maxWait.
+ * @param {number} port
+ * @returns {Promise<boolean>} true once free, false on timeout
+ */
+async function waitForPortFree(port, maxWait = 8000) {
+  const start = Date.now();
+  while (Date.now() - start < maxWait) {
+    if (findPortOwnerPid(port) === null) return true;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return false;
+}
 
 let mainWindow = null;
 let splashWindow = null;
@@ -145,6 +307,7 @@ const HEARTBEAT_DEAD_MS = 30000;       // if no pong for 30s, force reload
 let backendHealthInterval = null;
 let backendHealthy = true;
 let backendFailCount = 0;
+let backendRestarting = false; // guards against stacked restarts across health ticks
 const BACKEND_HEALTH_INTERVAL_MS = 10000; // poll /health every 10s
 const BACKEND_FAIL_THRESHOLD = 3;         // 3 consecutive failures = dead
 
@@ -188,23 +351,37 @@ function startBackendHealthCheck() {
         mainWindow.webContents.send("backend:status", { healthy: false });
       }
 
-      // Attempt server restart if we own the process
-      if (serverProcess === null) {
-        safeLog("[health] Server process is dead — attempting restart...");
-        try {
-          await startServer();
-          safeLog("[health] Server restarted successfully");
-          backendFailCount = 0;
-          backendHealthy = true;
-          setStatus("online");
-          setTooltip("ML Dashboard — Online");
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send("backend:status", { healthy: true });
-            mainWindow.webContents.reload();
+      // Attempt restart unconditionally. The previous gate (serverProcess ===
+      // null) NEVER fired when the tsx --watch PARENT was alive but wedged (its
+      // child died / it became a zombie handle) — status stayed "offline"
+      // forever. Now: if we still hold a handle, hard-kill its tree first;
+      // startServer()'s pre-flight then reclaims the port if any orphan remains.
+      if (backendRestarting) return; // don't stack restarts across ticks
+      backendRestarting = true;
+      safeLog("[health] Backend unhealthy — forcing restart...");
+      try {
+        if (serverProcess) {
+          const pid = serverProcess.pid;
+          serverProcess = null; // drop handle so exit listener can't race us
+          if (pid) {
+            killProcessTree(pid);
+            await waitForPortFree(PORT, 8000);
           }
-        } catch (err) {
-          safeError("[health] Server restart failed:", err.message || err);
         }
+        await startServer();
+        safeLog("[health] Server restarted successfully");
+        backendFailCount = 0;
+        backendHealthy = true;
+        setStatus("online");
+        setTooltip("ML Dashboard — Online");
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("backend:status", { healthy: true });
+          mainWindow.webContents.reload();
+        }
+      } catch (err) {
+        safeError("[health] Server restart failed:", err.message || err);
+      } finally {
+        backendRestarting = false;
       }
     }
   }, BACKEND_HEALTH_INTERVAL_MS);
@@ -214,6 +391,48 @@ function stopBackendHealthCheck() {
   if (backendHealthInterval) {
     clearInterval(backendHealthInterval);
     backendHealthInterval = null;
+  }
+}
+
+// --------------- QuestDB PID adoption ---------------
+// The BACKEND starts QuestDB (src/server/main.ts → runStartupSequence()), NOT
+// electron/start-databases.cjs (which nothing in the GUI launch path invokes).
+// Because the backend starts it, no electron/.questdb.pid is written, so
+// stopDatabases() — which keys off that file — can never stop QuestDB, leaking
+// an orphan java.exe across launches. This adopts an already-serving QuestDB:
+// if its HTTP port is up but the PID file is absent, discover the owning PID and
+// write the file so the existing teardown can manage it.
+async function adoptQuestDbPid() {
+  try {
+    if (fs.existsSync(QUESTDB_PID_FILE)) return; // already tracked
+
+    // Is QuestDB actually serving? (cheap liveness query)
+    let alive = false;
+    try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 2000);
+      const resp = await fetch(
+        `http://127.0.0.1:${QUESTDB_HTTP_PORT}/exec?query=SELECT%201`,
+        { signal: controller.signal }
+      );
+      clearTimeout(t);
+      alive = resp.ok;
+    } catch {
+      alive = false;
+    }
+    if (!alive) return; // backend will start it; runStartupSequence handles spawn
+
+    const pid = findPortOwnerPid(QUESTDB_HTTP_PORT);
+    if (pid) {
+      fs.writeFileSync(QUESTDB_PID_FILE, String(pid), "utf-8");
+      safeLog(`[db] Adopted running QuestDB (PID ${pid}) → wrote ${QUESTDB_PID_FILE}`);
+    } else {
+      safeWarn(
+        `[db] QuestDB serving on :${QUESTDB_HTTP_PORT} but owner PID not found — cannot adopt for teardown`
+      );
+    }
+  } catch (err) {
+    safeWarn("[db] adoptQuestDbPid failed:", err.message || err);
   }
 }
 
@@ -686,10 +905,22 @@ function createWindow() {
     mainWindow = null;
   });
 
-  // When window becomes visible again (tray click, taskbar, etc.) — resume heartbeat
+  // When window becomes visible again (tray click, taskbar, etc.) — resume
+  // heartbeat AND verify the backend is alive. If the tray-resident instance's
+  // backend child died while hidden, re-showing would otherwise point the UI at
+  // a dead :PORT. ensureBackendAndShow() is re-entrancy-guarded, so the
+  // reveal()→show() it performs internally won't recurse here.
   mainWindow.on("show", () => {
     userHidWindow = false;
     startHeartbeat();
+    if (!ensuringBackend) {
+      probeHealth(2000).then((ok) => {
+        if (!ok && !ensuringBackend) {
+          safeWarn("[window] show: backend not healthy — triggering recovery");
+          ensureBackendAndShow();
+        }
+      });
+    }
   });
 
   // Set up native menus and context menus
@@ -739,24 +970,101 @@ function stopHeartbeat() {
   }
 }
 
+// --------------- Window restore (backend-aware) ---------------
+// Single entry point for every "bring the window back" path: tray click,
+// tray context-menu "Show Window", second-instance (desktop icon re-click),
+// and app activate. Because the app lives in the tray (close-to-tray), the
+// resident instance can outlive its backend child (tsx crash, user killed
+// node). Re-showing a UI pointed at a dead :PORT looks like "backend didn't
+// launch". This probes /health first; if the backend is gone, it restarts it
+// (startServer() reclaims the port from any wedged orphan) and reloads the
+// renderer so the recovered UI points at a live server.
+let ensuringBackend = false;
+async function ensureBackendAndShow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return;
+  }
+
+  const reveal = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  };
+
+  // Show immediately for responsiveness, then heal the backend if needed.
+  reveal();
+
+  if (ensuringBackend) return; // a heal is already in flight
+  ensuringBackend = true;
+  try {
+    if (await probeHealth(2000)) return; // backend is alive — nothing to do
+
+    safeWarn("[restore] Backend not healthy on window restore — restarting...");
+    setStatus("offline");
+    setTooltip("ML Dashboard — Restarting server...");
+
+    // Drop+tree-kill any stale handle so startServer()'s pre-flight has a clean
+    // slate; startServer() then reclaims the port from any wedged orphan.
+    if (serverProcess) {
+      const pid = serverProcess.pid;
+      serverProcess = null;
+      if (pid) {
+        killProcessTree(pid);
+        await waitForPortFree(PORT, 8000);
+      }
+    }
+
+    await startServer();
+    await waitForServer(20000);
+    safeLog("[restore] Backend restarted — reloading renderer");
+    setStatus("online");
+    setTooltip("ML Dashboard — Online");
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("backend:status", { healthy: true });
+      mainWindow.webContents.reload();
+      reveal();
+    }
+    backendHealthy = true;
+    backendFailCount = 0;
+  } catch (err) {
+    safeError("[restore] Backend restart failed:", err.message || err);
+  } finally {
+    ensuringBackend = false;
+  }
+}
+
 // --------------- Server ---------------
 
 function startServer() {
-  // First check if a server is already running (e.g. from `npm run dev`)
+  // Pre-flight: distinguish a HEALTHY existing backend from a WEDGED orphan
+  // holding the port. A healthy backend answers 200 on /health (it only does
+  // so after httpServer.listen() bound the port). If the port is held but
+  // /health does NOT answer, the responder is a dead/half-started orphan —
+  // the backend's own EADDRINUSE handler would process.exit(1) a fresh spawn,
+  // so we must reclaim the port first.
   return new Promise(async (resolve, reject) => {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2000);
-      const resp = await fetch(`http://127.0.0.1:${PORT}/api/uploads`, {
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      if (resp.ok || (resp.status >= 200 && resp.status < 500)) {
-        safeLog("[server] Already running on port", PORT);
-        return resolve();
+    if (await probeHealth(2000)) {
+      safeLog("[server] Already running and healthy on port", PORT);
+      return resolve();
+    }
+
+    const orphanPid = findPortOwnerPid(PORT);
+    if (orphanPid) {
+      safeWarn(
+        `[server] Port ${PORT} held by unhealthy PID ${orphanPid} (no /health) — reclaiming`
+      );
+      // If it's our own tracked process, drop the handle so the exit listener
+      // doesn't null it mid-restart, then tree-kill regardless.
+      if (serverProcess && serverProcess.pid === orphanPid) serverProcess = null;
+      killProcessTree(orphanPid);
+      const freed = await waitForPortFree(PORT, 8000);
+      if (!freed) {
+        safeError(`[server] Port ${PORT} still held after kill — spawning anyway`);
+      } else {
+        safeLog(`[server] Port ${PORT} reclaimed`);
       }
-    } catch {
-      // Not running — we need to start it
     }
 
     if (IS_DEV) {
@@ -907,7 +1215,16 @@ function startServer() {
 function stopServer() {
   if (!serverProcess) return;
   const proc = serverProcess;
+  const pid = proc.pid;
   serverProcess = null;
+
+  // tsx --watch spawns a child node + esbuild; SIGTERM on the parent alone
+  // orphans them (they keep holding :PORT). On Windows, tree-kill the PID so
+  // nothing survives to wedge the port on the next launch.
+  if (process.platform === "win32" && pid) {
+    killProcessTree(pid);
+    return;
+  }
 
   try { proc.kill("SIGTERM"); } catch {}
 
@@ -979,25 +1296,61 @@ async function waitForServer(maxWait = 30000) {
 }
 
 // --- Restore existing window when a second instance is attempted ---
+// This fires when the user re-clicks the desktop/Start-Menu icon while the app
+// is already resident in the tray. It must be backend-aware: a plain re-show of
+// a UI whose backend child died reads to the user as "backend didn't launch".
 app.on("second-instance", () => {
-  if (mainWindow) {
-    if (mainWindow.isDestroyed()) {
-      mainWindow = null;
-      createWindow();
-      return;
-    }
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.show();
-    mainWindow.focus();
-  } else {
-    createWindow();
+  if (mainWindow && mainWindow.isDestroyed()) {
+    mainWindow = null;
   }
+  ensureBackendAndShow();
 });
 
 app.whenReady().then(async () => {
   safeLog(
     `[app] Starting — NODE_ENV=${process.env.NODE_ENV}, IS_DEV=${IS_DEV}, PORT=${PORT}`
   );
+
+  // --- Explicit Content-Security-Policy header injection ---
+  // Replaces blanket ELECTRON_DISABLE_SECURITY_WARNINGS suppression with a
+  // transparent, auditable policy. In dev: 'unsafe-eval' + 'unsafe-inline'
+  // are required for Vite HMR (dynamic module evaluation). In prod (when
+  // IS_DEV is flipped) we drop both. The renderer ONLY ever loads
+  // http://127.0.0.1:5000 — no remote code execution surface exists.
+  try {
+    const { session } = require("electron");
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      const csp = IS_DEV
+        ? [
+            "default-src 'self' http://127.0.0.1:* ws://127.0.0.1:*",
+            "script-src 'self' http://127.0.0.1:* 'unsafe-eval' 'unsafe-inline'",
+            "style-src 'self' http://127.0.0.1:* 'unsafe-inline'",
+            "img-src 'self' data: blob: http://127.0.0.1:*",
+            "font-src 'self' data: http://127.0.0.1:*",
+            "connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*",
+            "worker-src 'self' blob:",
+          ].join("; ")
+        : [
+            "default-src 'self'",
+            "script-src 'self'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data: blob:",
+            "font-src 'self' data:",
+            "connect-src 'self'",
+            "worker-src 'self' blob:",
+          ].join("; ");
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          "Content-Security-Policy": [csp],
+        },
+      });
+    });
+    safeLog(`[csp] Installed ${IS_DEV ? "dev (relaxed)" : "prod (strict)"} CSP`);
+  } catch (err) {
+    safeError("[csp] Failed to install CSP header hook:", err);
+  }
+
   registerIpcHandlers();
   registerPowerMonitor();
 
@@ -1020,10 +1373,13 @@ app.whenReady().then(async () => {
       updateSplashStatus("Server slow — loading anyway...");
     }
 
+    // Adopt the QuestDB the backend started so teardown can stop it (fix 4).
+    await adoptQuestDbPid();
+
     loadRetryCount = 0;
     createWindow();
     setupShortcuts(mainWindow);
-    createTray(mainWindow);
+    createTray(mainWindow, ensureBackendAndShow);
     setupThemeSync(mainWindow, store);
   } catch (err) {
     safeError("Failed to start application:", err);
@@ -1040,6 +1396,8 @@ app.whenReady().then(async () => {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
+    } else {
+      ensureBackendAndShow();
     }
   });
 });
