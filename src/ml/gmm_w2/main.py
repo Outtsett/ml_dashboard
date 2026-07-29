@@ -44,6 +44,7 @@ from src.ml.shared.data import load_ohlcv_arrays
 from src.ml.shared.feature_cache import cached_features
 from src.ml.shared.features import compute_features
 from src.ml.shared.protocol import (
+    dumps_safe,
     emit_done,
     emit_error,
     emit_log,
@@ -387,8 +388,10 @@ def run_training(args: argparse.Namespace) -> dict:
 
     out_dir = _PROJECT_ROOT / "data" / "models" / args.model_id
     out_dir.mkdir(parents=True, exist_ok=True)
+    # dumps_safe, not json.dumps — a bare NaN makes the whole file unparseable
+    # by JSON.parse and 500s /api/training/models/:id/diagnostics.
     (out_dir / "diagnostics.json").write_text(
-        json.dumps(diagnostics, indent=2, default=str), encoding="utf-8",
+        dumps_safe(diagnostics, indent=2), encoding="utf-8",
     )
 
     return diagnostics

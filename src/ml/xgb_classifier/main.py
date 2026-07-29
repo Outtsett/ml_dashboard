@@ -42,6 +42,7 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 
 from src.ml.shared.features import load_features_with_cache
 from src.ml.shared.protocol import (
+    dumps_safe,
     emit,
     emit_done,
     emit_error,
@@ -474,7 +475,9 @@ def _train_one_fold_inner(args: argparse.Namespace, *, save_artifacts: bool,
     if not save_artifacts:
         return diagnostics
 
-    (out_dir / "checkpoint.json").write_text(json.dumps({
+    # dumps_safe, not json.dumps — a bare NaN makes the whole file unparseable
+    # by JSON.parse and 500s /api/training/models/:id/diagnostics.
+    (out_dir / "checkpoint.json").write_text(dumps_safe({
         "model_id": args.model_id,
         "best_iteration": best_iter,
         "n_train": n_train,
@@ -483,7 +486,7 @@ def _train_one_fold_inner(args: argparse.Namespace, *, save_artifacts: bool,
         "params": diagnostics["params"],
         "saved_at_ms": int(time.time() * 1000),
     }, indent=2), encoding="utf-8")
-    (out_dir / "diagnostics.json").write_text(json.dumps(diagnostics, indent=2, default=str), encoding="utf-8")
+    (out_dir / "diagnostics.json").write_text(dumps_safe(diagnostics, indent=2), encoding="utf-8")
 
     return diagnostics
 
