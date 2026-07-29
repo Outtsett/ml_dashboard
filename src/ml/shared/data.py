@@ -81,19 +81,33 @@ _OHLCV_SCHEMA: dict[str, Any] = {
 }
 
 
-def _http_csv_to_arrays(sql: str, *, expect_symbol: bool = True) -> dict[str, Any] | None:
-    """Run SQL via HTTP /exp, parse CSV with Polars, return arrays dict.
+def _fetch_csv_bytes(sql: str, *, timeout: int = 300) -> bytes | None:
+    """Run SQL via QuestDB's HTTP /exp endpoint and return raw CSV bytes.
 
-    Returns None on any failure so caller can fall back to PG wire.
+    Schema-agnostic — used both by the OHLCV-specific parser below and by
+    ``dataset.py``'s generic ``questdb_table`` loader. Returns None on any
+    failure (network error or empty body) so the caller can fall back
+    (PG wire for OHLCV; a raised error for the generic loader).
     """
     url = _http_url(sql)
     try:
-        with urllib.request.urlopen(url, timeout=300) as resp:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
             csv_bytes = resp.read()
     except Exception as exc:
         emit_log(f"[data] HTTP /exp request failed: {exc}", level="warning")
         return None
 
+    if not csv_bytes:
+        return None
+    return csv_bytes
+
+
+def _http_csv_to_arrays(sql: str, *, expect_symbol: bool = True) -> dict[str, Any] | None:
+    """Run SQL via HTTP /exp, parse CSV with Polars, return arrays dict.
+
+    Returns None on any failure so caller can fall back to PG wire.
+    """
+    csv_bytes = _fetch_csv_bytes(sql)
     if not csv_bytes:
         return None
 

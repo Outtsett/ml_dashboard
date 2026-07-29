@@ -1,5 +1,5 @@
-import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
+import { sql, type InferSelectModel, type InferInsertModel } from "drizzle-orm";
+import { sqliteTable, text, integer, real, index, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import crypto from "crypto";
@@ -122,7 +122,17 @@ export const insertLossHistorySchema = createInsertSchema(lossHistory).omit({ id
 export type InsertLossHistory = z.infer<typeof insertLossHistorySchema>;
 export type LossHistory = typeof lossHistory.$inferSelect;
 
-// Per-iteration training metrics — convergence curves that survive restarts
+// Per-iteration training metrics — convergence curves that survive restarts.
+//
+// SUPERSEDED (2026-07-28) by `run_metrics` at the bottom of this file. Kept
+// verbatim, unwritten, and not migrated:
+//   * It has never had an insert call site, so there is no data to move.
+//   * Its identity is `session_id INTEGER` → `training_sessions.id`, which
+//     cannot express the (experiment_id, run_id, trial_idx, fold_idx) identity
+//     the provenance design requires. Re-keying it means making a NOT NULL
+//     column nullable — a rebuild of an existing table, not an additive
+//     change, and stage 1 must be purely additive.
+// Its *purpose* — durable per-iteration metrics — is now `run_metrics`'.
 export const trainingMetrics = sqliteTable("training_metrics", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   sessionId: integer("session_id").notNull(),
@@ -760,6 +770,14 @@ export const hpoTrials = sqliteTable("hpo_trials", {
   durationSec: real("duration_sec"),
   iterationHistory: text("iteration_history"),
 
+  /** Per-step intermediate values reported during training (JSON: [{step, value}, ...]).
+   *  Populated for nested-HPO drivers that emit `hpo-trial-intermediate` events
+   *  so the dashboard can draw pruning curves. */
+  intermediateValues: text("intermediate_values"),
+
+  /** Walk-forward fold index for nested HPO; null for flat HPO. */
+  foldIndex: integer("fold_index"),
+
   modelPath: text("model_path"),
   trainedModelId: text("trained_model_id"),
 
@@ -770,6 +788,7 @@ export const hpoTrials = sqliteTable("hpo_trials", {
   sessionTrialIdx: index("hpo_t_session_trial_idx").on(table.sessionId, table.trialId),
   statusIdx: index("hpo_t_status_idx").on(table.status),
   scoreIdx: index("hpo_t_score_idx").on(table.score),
+  foldIdx: index("hpo_t_fold_idx").on(table.foldIndex),
 }));
 
 export const insertHpoTrialSchema = createInsertSchema(hpoTrials).omit({ id: true, startedAt: true });
@@ -810,20 +829,6 @@ export const userPreferences = sqliteTable("user_preferences", {
 
 export const insertUserPreferenceSchema = createInsertSchema(userPreferences).omit({ id: true });
 export type UserPreference = typeof userPreferences.$inferSelect;
-
-// MotiveWave file state tracking — persists incremental ingest progress across restarts
-export const mwFileStates = sqliteTable("mw_file_states", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  filePath: text("file_path").notNull().unique(),
-  fileSize: integer("file_size").notNull(),
-  lastModified: real("last_modified").notNull(),
-  rowsImported: integer("rows_imported").notNull().default(0),
-  symbol: text("symbol"),
-  timeframe: text("timeframe"),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
-});
-
-export type MwFileState = typeof mwFileStates.$inferSelect;
 
 // ============================================================
 // CURRICULUM & EDUCATION
@@ -988,3 +993,429 @@ export const predictionLog = sqliteTable("prediction_log", {
 export const insertPredictionLogSchema = createInsertSchema(predictionLog).omit({ id: true, createdAt: true });
 export type InsertPredictionLog = z.infer<typeof insertPredictionLogSchema>;
 export type PredictionLog = typeof predictionLog.$inferSelect;
+
+// ============================================================
+// MODEL REGISTRY — version lineage, deployments, promotion gates
+// ============================================================
+//
+// Mirrors `migrations/0002_model_registry.sql` (W7.a, parallel work item).
+// Column types match the raw SQL exactly:
+//   - text columns for ISO-8601 timestamps (CURRENT_TIMESTAMP defaults)
+//   - JSON-shaped TEXT columns use Drizzle `mode: 'json'` + `$type<T>()`
+//   - SQLite check constraints on enums live in raw SQL only
+//     (Drizzle SQLite has no native CHECK helper — TS enum on `text({ enum: ... })`
+//     narrows insert/select types but does NOT emit DDL constraints)
+
+/** Promotion lifecycle states for a trained model version. */
+export type ModelVersionStatus = 'candidate' | 'shadow' | 'paper' | 'live' | 'retired';
+
+/** Deployment runtime modes. */
+export type DeploymentMode = 'shadow' | 'paper' | 'live';
+
+/** Deployment runtime status. */
+export type DeploymentStatus = 'running' | 'paused' | 'stopped' | 'failed';
+
+/** Comparator operators for promotion gate thresholds. */
+export type GateComparator = '>=' | '<=' | '>' | '<' | '==' | '!=';
+
+/** Triple-barrier / direction / range / regression label config payload. */
+export interface LabelConfig {
+  kind: string;            // 'triple_barrier' | 'direction' | 'range_class' | 'regression' | ...
+  horizon?: number;
+  tpTicks?: number;
+  slTicks?: number;
+  nBuckets?: number;
+  bucketWidthPts?: number;
+  flatThresholdPts?: number;
+  [key: string]: unknown;  // forward-compatible — generators may add fields
+}
+
+/** Walk-forward validation configuration captured at training time. */
+export interface WalkForwardConfig {
+  trainMonths: number;
+  testMonths: number;
+  purgeBars: number;
+  embargoBars: number;
+  anchored?: boolean;
+  nFolds?: number;
+}
+
+/** Headline + per-fold + cost-adjusted metrics produced by evaluation. */
+export interface MetricsSummary {
+  headline: { name: string; value: number };
+  perFold?: Array<Record<string, number>>;
+  costAdjSharpe?: number;
+  profitFactor?: number;
+  winRate?: number;
+  maxDrawdown?: number;
+  ece?: number;
+  bootstrapCi?: { lower: number; upper: number; alpha: number };
+  [key: string]: unknown;
+}
+
+export const modelVersions = sqliteTable("model_versions", {
+  versionId: integer("version_id").primaryKey({ autoIncrement: true }),
+  catalogId: text("catalog_id").notNull(),
+  runnerKey: text("runner_key").notNull(),
+  status: text("status", { enum: ['candidate', 'shadow', 'paper', 'live', 'retired'] }).notNull(),
+  dataHash: text("data_hash").notNull(),
+  symbol: text("symbol").notNull(),
+  timeframe: text("timeframe").notNull(),
+  dateRangeStart: text("date_range_start").notNull(),
+  dateRangeEnd: text("date_range_end").notNull(),
+  featurePipeline: text("feature_pipeline").notNull(),
+  labelConfig: text("label_config", { mode: "json" }).$type<LabelConfig>().notNull(),
+  hyperparameters: text("hyperparameters", { mode: "json" }).$type<Record<string, number | string | boolean | null>>().notNull(),
+  walkForwardConfig: text("walk_forward_config", { mode: "json" }).$type<WalkForwardConfig>(),
+  hpoStudyId: text("hpo_study_id"),
+  modelArtifactPath: text("model_artifact_path").notNull().unique(),
+  diagnosticsPath: text("diagnostics_path").notNull(),
+  metricsSummary: text("metrics_summary", { mode: "json" }).$type<MetricsSummary>().notNull(),
+  trainedAt: text("trained_at").notNull(),
+  promotedAt: text("promoted_at"),
+  retiredAt: text("retired_at"),
+  // Self-referential FK: ON DELETE SET NULL preserves children, breaks lineage link.
+  // AnySQLiteColumn cast is required for the forward-reference closure.
+  parentVersionId: integer("parent_version_id").references((): AnySQLiteColumn => modelVersions.versionId, { onDelete: 'set null' }),
+  notes: text("notes", { mode: "json" }).$type<Array<{ ts: string; author: string; text: string }>>(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  statusIdx: index("idx_model_versions_status").on(table.status),
+  catalogIdx: index("idx_model_versions_catalog").on(table.catalogId),
+  symbolTfIdx: index("idx_model_versions_symbol_tf").on(table.symbol, table.timeframe),
+  dataHashIdx: index("idx_model_versions_data_hash").on(table.dataHash),
+  trainedAtIdx: index("idx_model_versions_trained_at").on(table.trainedAt),
+}));
+
+export const insertModelVersionSchema = createInsertSchema(modelVersions).omit({ versionId: true, createdAt: true, updatedAt: true });
+export type InsertModelVersion = InferInsertModel<typeof modelVersions>;
+export type ModelVersion = InferSelectModel<typeof modelVersions>;
+
+export const deployments = sqliteTable("deployments", {
+  deploymentId: integer("deployment_id").primaryKey({ autoIncrement: true }),
+  // ON DELETE RESTRICT: cannot delete a model version that has deployment history.
+  versionId: integer("version_id").notNull().references(() => modelVersions.versionId, { onDelete: 'restrict' }),
+  mode: text("mode", { enum: ['shadow', 'paper', 'live'] }).notNull(),
+  status: text("status", { enum: ['running', 'paused', 'stopped', 'failed'] }).notNull(),
+  symbol: text("symbol").notNull(),
+  timeframe: text("timeframe").notNull(),
+  startedAt: text("started_at").notNull(),
+  stoppedAt: text("stopped_at"),
+  predictionsEmitted: integer("predictions_emitted").notNull().default(0),
+  paperPnl: real("paper_pnl"),
+  lastPredictionAt: text("last_prediction_at"),
+  lastError: text("last_error"),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  versionIdx: index("idx_deployments_version").on(table.versionId),
+  statusIdx: index("idx_deployments_status").on(table.status),
+  symbolTfModeIdx: index("idx_deployments_symbol_tf_mode").on(table.symbol, table.timeframe, table.mode),
+  // NOTE: The "one live per (symbol, timeframe)" invariant is enforced by a
+  // PARTIAL UNIQUE INDEX (`WHERE status='running' AND mode='live'`) declared
+  // ONLY in raw SQL at `migrations/0002_model_registry.sql`. Drizzle SQLite
+  // has no API for partial indexes — do NOT re-declare here. The deployment
+  // route handler (W7 be-api) must also re-query before insert as a runtime
+  // assertion belt-and-suspenders, since drizzle-kit push would silently
+  // drop an unrecognized partial index if it were attempted here.
+}));
+
+export const insertDeploymentSchema = createInsertSchema(deployments).omit({ deploymentId: true, createdAt: true });
+export type InsertDeployment = InferInsertModel<typeof deployments>;
+export type Deployment = InferSelectModel<typeof deployments>;
+
+export const promotionGates = sqliteTable("promotion_gates", {
+  gateId: integer("gate_id").primaryKey({ autoIncrement: true }),
+  fromStatus: text("from_status").notNull(),
+  toStatus: text("to_status").notNull(),
+  metric: text("metric").notNull(),
+  comparator: text("comparator", { enum: ['>=', '<=', '>', '<', '==', '!='] }).notNull(),
+  threshold: real("threshold").notNull(),
+  enforced: integer("enforced", { mode: "boolean" }).notNull().default(true),
+  description: text("description"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  transitionIdx: index("idx_promotion_gates_transition").on(table.fromStatus, table.toStatus),
+}));
+
+export const insertPromotionGateSchema = createInsertSchema(promotionGates).omit({ gateId: true, createdAt: true });
+export type InsertPromotionGate = InferInsertModel<typeof promotionGates>;
+export type PromotionGate = InferSelectModel<typeof promotionGates>;
+
+// ============================================================
+// AGENT RUNS — Claude Agent SDK dispatch queue + history (W8)
+// ============================================================
+//
+// Mirrors `migrations/0003_agent_runs.sql` (W8.a, parallel work item).
+// Column types match the raw SQL exactly:
+//   - text columns for ISO-8601 timestamps
+//   - JSON-shaped TEXT columns use Drizzle `mode: 'json'` + `$type<T>()`
+//   - SQLite check constraints on enums live in raw SQL only
+//     (Drizzle SQLite has no native CHECK helper — TS enum on `text({ enum: ... })`
+//     narrows insert/select types but does NOT emit DDL constraints)
+//
+// On server boot, any rows with status IN ('queued','running') get marked
+// 'failed' with error='server restart' to clear stale in-flight state.
+
+/** The four ML Studio Workshop specialist agents. */
+export type AgentId = 'feature-curator' | 'arch-designer' | 'hpo-strategist' | 'eval-reviewer';
+
+/** Lifecycle states for a single agent dispatch. */
+export type AgentRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+/** Severity levels for agent findings. */
+export type AgentFindingSeverity = 'info' | 'warning' | 'error';
+
+/** Action kinds an agent can propose for the user to apply with one click. */
+export type AgentProposedActionKind =
+  | 'set-feature-pipeline'
+  | 'set-hyperparameter'
+  | 'add-experiment'
+  | 'set-search-space'
+  | 'apply-template-edit';
+
+/** A generated source file in an agent-proposed template diff. Mirrors
+ *  the client-side `GeneratedFile` shape (kept inline to avoid a
+ *  shared->client import — `src/shared/` must stay client-free). */
+export interface AgentReportDiffFile {
+  path: string;
+  language: 'python' | 'json';
+  content: string;
+}
+
+/** A single quantified observation surfaced by an agent. */
+export interface AgentFinding {
+  severity: AgentFindingSeverity;
+  category: string;  // 'leakage' | 'overfit' | 'regime' | 'calibration' | ...
+  message: string;
+  evidence: {
+    metric: string;
+    value: number;
+    threshold?: number;
+    reference?: string;
+  };
+}
+
+/** A one-click action the user can apply from the agent report. */
+export interface AgentProposedAction {
+  kind: AgentProposedActionKind;
+  label: string;
+  payload: Record<string, unknown>;
+}
+
+/** Structured agent response contract — mirrors frontend §8.2. */
+export interface AgentReport {
+  agentId: AgentId;
+  status: 'ok' | 'error';
+  summary: string;
+  body: string;  // markdown
+  findings: AgentFinding[];
+  proposedActions: AgentProposedAction[];
+  /** arch-designer only: a proposed template-edit diff against the
+   *  currently-previewed generated code, with rationale. */
+  diff?: {
+    files: AgentReportDiffFile[];
+    rationale: string;
+  };
+}
+
+/** Token usage accounting from the Claude Agent SDK call. */
+export interface AgentTokenUsage {
+  input: number;
+  output: number;
+  cached: number;
+}
+
+export const agentRuns = sqliteTable("agent_runs", {
+  runId: text("run_id").primaryKey(),
+  agentId: text("agent_id", { enum: ['feature-curator', 'arch-designer', 'hpo-strategist', 'eval-reviewer'] }).notNull(),
+  status: text("status", { enum: ['queued', 'running', 'completed', 'failed', 'cancelled'] }).notNull(),
+  contextBlob: text("context_blob").notNull(),
+  contextBlobHash: text("context_blob_hash").notNull(),
+  requestedAt: text("requested_at").notNull(),
+  startedAt: text("started_at"),
+  completedAt: text("completed_at"),
+  output: text("output", { mode: "json" }).$type<AgentReport>(),
+  error: text("error"),
+  cancelledReason: text("cancelled_reason"),
+  durationMs: integer("duration_ms"),
+  tokenUsage: text("token_usage", { mode: "json" }).$type<AgentTokenUsage>(),
+}, (table) => ({
+  agentStatusIdx: index("idx_agent_runs_agent_status").on(table.agentId, table.status),
+  requestedAtIdx: index("idx_agent_runs_requested_at").on(table.requestedAt),
+  contextHashIdx: index("idx_agent_runs_context_hash").on(table.contextBlobHash),
+}));
+
+export const insertAgentRunSchema = createInsertSchema(agentRuns);
+export type InsertAgentRun = InferInsertModel<typeof agentRuns>;
+export type AgentRun = InferSelectModel<typeof agentRuns>;
+
+// ============================================================
+// RUN PROVENANCE — experiments / runs / manifests / metrics
+// ============================================================
+//
+// Mirrors `migrations/0005_run_provenance.sql`. Written by
+// `src/server/training/provenance.ts`; nothing reads these tables yet
+// (stage 1 of the provenance redesign is deliberately write-only).
+//
+// Identity hierarchy:
+//   catalog_id     stable catalog slug — no timestamp, no symbol
+//   experiment_id  "exp_" + ULID (Universally Unique Lexicographically
+//                  Sortable Identifier), minted by the Node orchestrator
+//   run_id         "run_" + ULID, minted by the orchestrator BEFORE spawn
+//   trial_idx /    integer COORDINATES (not identifiers) supplied by Python
+//   fold_idx
+//
+// Logical identity is (experiment_id, trial_idx, fold_idx); physical identity
+// is run_id. That absorbs both HPO execution modes with no schema change: an
+// in-process Optuna study is one run carrying N trial coordinates, while a
+// subprocess-per-trial driver is N runs sharing one experiment_id.
+//
+// `legacy_model_id` is `versioning.ts::generateVersionedModelId` output —
+// deliberately NON-unique (it has second resolution and collides) and
+// deliberately still the artifact directory name, so none of the existing
+// `data/models/*` directories move or become unreachable.
+
+/** Lifecycle of a single run. `crashed` = the process exited without ever
+ *  reporting a terminal state; the exit code is recorded alongside. */
+export type RunStatus = 'starting' | 'running' | 'completed' | 'failed' | 'crashed' | 'stopped';
+
+/** Lifecycle of an experiment — the container for every run of one action. */
+export type ExperimentStatus = 'running' | 'completed' | 'failed' | 'cancelled';
+
+export const experiments = sqliteTable("experiments", {
+  experimentId: text("experiment_id").primaryKey(),
+  catalogId: text("catalog_id").notNull(),
+  runnerKey: text("runner_key").notNull(),
+  name: text("name"),
+  // Nullable: an experiment is not required to be about one instrument. The
+  // current QuestDB OHLCV path always sets both; a generic dataset will not.
+  symbol: text("symbol"),
+  timeframe: text("timeframe"),
+  status: text("status", { enum: ['running', 'completed', 'failed', 'cancelled'] }).notNull(),
+  runCount: integer("run_count").notNull().default(0),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  finalizedAt: text("finalized_at"),
+}, (table) => ({
+  catalogIdx: index("idx_experiments_catalog").on(table.catalogId),
+  statusIdx: index("idx_experiments_status").on(table.status),
+  createdAtIdx: index("idx_experiments_created_at").on(table.createdAt),
+}));
+
+export const insertExperimentSchema = createInsertSchema(experiments);
+export type InsertExperiment = InferInsertModel<typeof experiments>;
+export type Experiment = InferSelectModel<typeof experiments>;
+
+export const runs = sqliteTable("runs", {
+  runId: text("run_id").primaryKey(),
+  // ON DELETE CASCADE would delete provenance; RESTRICT keeps the append-only
+  // invariant enforced at the database level.
+  experimentId: text("experiment_id").notNull().references(() => experiments.experimentId, { onDelete: 'restrict' }),
+  catalogId: text("catalog_id").notNull(),
+  runnerKey: text("runner_key").notNull(),
+  legacyModelId: text("legacy_model_id").notNull(),
+  trialIdx: integer("trial_idx"),
+  foldIdx: integer("fold_idx"),
+  status: text("status", { enum: ['starting', 'running', 'completed', 'failed', 'crashed', 'stopped'] }).notNull(),
+  configHash: text("config_hash").notNull(),
+  manifestHash: text("manifest_hash").notNull(),
+  /** Repo-relative path to `data/runs/<experiment_id>/<run_id>/manifest.json`. */
+  manifestPath: text("manifest_path").notNull(),
+  /** Repo-relative artifact directory — stays under `data/models/`. */
+  artifactDir: text("artifact_dir").notNull(),
+  /** Link to the legacy `training_sessions` row, when one exists. */
+  trainingSessionId: integer("training_session_id"),
+  pid: integer("pid"),
+  exitCode: integer("exit_code"),
+  errorMessage: text("error_message"),
+  startedAt: text("started_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  heartbeatAt: text("heartbeat_at"),
+  finishedAt: text("finished_at"),
+}, (table) => ({
+  experimentIdx: index("idx_runs_experiment").on(table.experimentId),
+  statusIdx: index("idx_runs_status").on(table.status),
+  legacyModelIdx: index("idx_runs_legacy_model_id").on(table.legacyModelId),
+  configHashIdx: index("idx_runs_config_hash").on(table.configHash),
+  coordinateIdx: index("idx_runs_coordinates").on(table.experimentId, table.trialIdx, table.foldIdx),
+  heartbeatIdx: index("idx_runs_heartbeat").on(table.heartbeatAt),
+}));
+
+export const insertRunSchema = createInsertSchema(runs);
+export type InsertRun = InferInsertModel<typeof runs>;
+export type Run = InferSelectModel<typeof runs>;
+
+/** Full run manifest (design plan §2.4). Server writes the skeleton before
+ *  spawn; Python appends what only it knows. Extra keys are expected — the
+ *  index signature is the contract, not a fallback. */
+export interface RunManifestDocument {
+  identity: {
+    manifest_version: number;
+    catalog_id: string;
+    experiment_id: string;
+    run_id: string;
+    trial_idx: number | null;
+    fold_idx: number | null;
+    legacy_model_id: string;
+    runner_key: string;
+    artifact_dir: string;
+  };
+  created_at: string;
+  config: Record<string, unknown>;
+  config_hash: string;
+  manifest_hash?: string;
+  [key: string]: unknown;
+}
+
+export const runManifests = sqliteTable("run_manifests", {
+  /** sha256(canonical JSON of the manifest, excluding this field), 16 chars. */
+  manifestHash: text("manifest_hash").primaryKey(),
+  manifestVersion: integer("manifest_version").notNull(),
+  runId: text("run_id").notNull(),
+  experimentId: text("experiment_id").notNull(),
+  manifestPath: text("manifest_path").notNull(),
+  manifest: text("manifest", { mode: "json" }).$type<RunManifestDocument>().notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  runIdx: index("idx_run_manifests_run").on(table.runId),
+  experimentIdx: index("idx_run_manifests_experiment").on(table.experimentId),
+}));
+
+export const insertRunManifestSchema = createInsertSchema(runManifests);
+export type InsertRunManifest = InferInsertModel<typeof runManifests>;
+export type RunManifestRow = InferSelectModel<typeof runManifests>;
+
+/**
+ * Durable per-iteration metrics — the table that finally gives the never-written
+ * `training_metrics` table's purpose a real home, keyed by the provenance
+ * identity instead of an integer session id.
+ *
+ * Not written yet: the parser-side inserts are stage 2 of the migration. The
+ * table ships in stage 1 so the schema is in place before anything depends on
+ * it, and so the migration file that creates it is a single additive step.
+ */
+export const runMetrics = sqliteTable("run_metrics", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  runId: text("run_id").notNull(),
+  experimentId: text("experiment_id").notNull(),
+  trialIdx: integer("trial_idx"),
+  foldIdx: integer("fold_idx"),
+  metricName: text("metric_name").notNull(),
+  metricValue: real("metric_value"),
+  iteration: integer("iteration"),
+  total: integer("total"),
+  /** Per-process envelope counter — a gap proves a dropped stdout line. */
+  seq: integer("seq"),
+  /** Envelope `ts`: RFC3339 UTC with millisecond precision. */
+  ts: text("ts"),
+  recordedAt: integer("recorded_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+}, (table) => ({
+  runMetricIdx: index("idx_run_metrics_run_metric").on(table.runId, table.metricName, table.iteration),
+  runIdx: index("idx_run_metrics_run").on(table.runId),
+  experimentIdx: index("idx_run_metrics_experiment").on(table.experimentId, table.metricName),
+}));
+
+export const insertRunMetricSchema = createInsertSchema(runMetrics).omit({ id: true, recordedAt: true });
+export type InsertRunMetric = InferInsertModel<typeof runMetrics>;
+export type RunMetric = InferSelectModel<typeof runMetrics>;
