@@ -18,12 +18,73 @@ Event types:
 """
 
 import json
+import math
 from datetime import datetime
+
+
+def json_safe(obj):
+    """Recursively replace non-finite floats with ``None`` so the result is
+    strictly-valid JSON.
+
+    Python's ``json`` emits bare ``NaN`` / ``Infinity`` / ``-Infinity`` tokens by
+    default. Python reads those back, but they are NOT valid JSON: every
+    ``JSON.parse`` on the Node/browser side rejects the whole document. A single
+    NaN metric therefore made an entire `diagnostics.json` unreadable and 500'd
+    `/api/training/models/:id/diagnostics` (verified against
+    `data/models/xgb_baseline_post_w2c/diagnostics.json`).
+
+    ``None`` — not ``0`` — is the correct substitute: a NaN here means "this bin
+    was empty" / "this metric is undefined", and zero would be a real value that
+    silently corrupts averages and charts.
+
+    numpy scalars/arrays are handled by duck-typing (``.item()`` / ``.tolist()``)
+    so this module stays dependency-free for callers that never import numpy.
+    """
+    if isinstance(obj, dict):
+        return {k: json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [json_safe(v) for v in obj]
+    if isinstance(obj, bool):
+        return obj  # bool is a subclass of int — must precede the float branch
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    # numpy arrays / scalars, without importing numpy.
+    tolist = getattr(obj, "tolist", None)
+    if callable(tolist) and not isinstance(obj, (str, bytes)):
+        return json_safe(tolist())
+    item = getattr(obj, "item", None)
+    if callable(item) and not isinstance(obj, (str, bytes)):
+        try:
+            return json_safe(item())
+        except (ValueError, TypeError):
+            return obj
+    return obj
+
+
+def dumps_safe(obj, **kwargs) -> str:
+    """``json.dumps`` that can never emit a non-finite token.
+
+    ``allow_nan=False`` is an assertion, not the mechanism — `json_safe` has
+    already removed every non-finite value. If one still slips through we would
+    rather see it than silently write an unparseable artifact.
+    """
+    kwargs.setdefault("default", str)
+    return json.dumps(json_safe(obj), allow_nan=False, **kwargs)
 
 
 def emit(event: dict):
     """Write a JSON event to stdout (unbuffered)."""
-    print(json.dumps(event, default=str), flush=True)
+    try:
+        line = dumps_safe(event)
+    except (ValueError, TypeError) as exc:
+        # Never let a serialization fault kill a training run — degrade to a log
+        # event that says exactly what could not be encoded.
+        line = json.dumps({
+            "type": "log",
+            "level": "error",
+            "message": f"[protocol] unserializable {event.get('type', '?')!r} event: {exc}",
+        })
+    print(line, flush=True)
 
 
 def emit_progress(iteration: int, total: int, phase: str = "gibbs_sampling"):

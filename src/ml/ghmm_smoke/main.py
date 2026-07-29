@@ -695,8 +695,11 @@ def build_diagnostics(
     if output_dir is not None:
         out_dir = _EvalPath(output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
+        # dumps_safe, not json.dumps — a bare NaN makes the whole file
+        # unparseable by JSON.parse and 500s the diagnostics endpoint.
+        from src.ml.shared.protocol import dumps_safe as _eval_dumps_safe
         (out_dir / "diagnostics.json").write_text(
-            _eval_json.dumps(diagnostics, indent=2, default=str), encoding="utf-8",
+            _eval_dumps_safe(diagnostics, indent=2), encoding="utf-8",
         )
     return diagnostics
 

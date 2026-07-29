@@ -9,7 +9,7 @@
  */
 
 import "./setup";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import {
   __INTERNAL_FOR_TESTS__,
@@ -18,7 +18,7 @@ import {
   type GeneratedPreview,
   type MLStudioPipeline,
   type CompositionConfig,
-} from "../../src/client/src/pages/ml-studio/MLStudioContext";
+} from "../../src/client/src/ml/MLStudioContext";
 
 const { DEFAULT_STATE, reducer, EXPERIMENT_LOCAL_CAP } = __INTERNAL_FOR_TESTS__;
 
@@ -429,5 +429,90 @@ describe("migrateV1ToV2", () => {
     const out = migrateV1ToV2(v1);
     expect(out.experiments).toHaveLength(2);
     expect(out.experiments.map((e) => e.id)).toEqual(["e1", "e2"]);
+  });
+});
+
+// ─── Regression: cross-pair ledger clobber ───────────────────────────────────
+//
+// Bug: `saveToStorage` keys on `state.symbol`/`state.timeframe` and the persist
+// effect fires on EVERY state change. `setSymbol` used to clear only the three
+// preview objects, so the previous pair's `experiments` survived into a state
+// whose storage key already pointed at the NEW pair — the next persist wrote
+// MNQ's ledger under the ES key and destroyed whatever ES had saved.
+//
+// The fix routes both actions through `pipelineForPair`, which loads the target
+// pair's persisted payload (or DEFAULT_STATE) synchronously inside the reducer,
+// so no state with a new key and an old payload is ever committed.
+
+describe("reducer / pair switch does not carry the previous pair's ledger", () => {
+  const { storageKeyV2 } = __INTERNAL_FOR_TESTS__;
+
+  beforeEach(() => window.localStorage.clear());
+  afterEach(() => window.localStorage.clear());
+
+  it("does NOT carry experiments across a symbol switch when the target is unsaved", () => {
+    const mnq: MLStudioPipeline = {
+      ...DEFAULT_STATE,
+      symbol: "MNQ",
+      timeframe: "1m",
+      experiments: [exp({ id: "mnq-1" }), exp({ id: "mnq-2" })],
+      promotedCheckpointId: 42,
+    };
+
+    const out = reducer(mnq, { type: "setSymbol", symbol: "ES" });
+
+    expect(out.symbol).toBe("ES");
+    // The clobber: these used to survive and then be persisted under the ES key.
+    expect(out.experiments).toEqual([]);
+    expect(out.promotedCheckpointId).toBe(DEFAULT_STATE.promotedCheckpointId);
+  });
+
+  it("restores the target pair's own saved ledger instead of the current one", () => {
+    const esSaved: MLStudioPipeline = {
+      ...DEFAULT_STATE,
+      symbol: "ES",
+      timeframe: "1m",
+      experiments: [exp({ id: "es-only" })],
+    };
+    window.localStorage.setItem(storageKeyV2("ES", "1m"), JSON.stringify(esSaved));
+
+    const mnq: MLStudioPipeline = {
+      ...DEFAULT_STATE,
+      symbol: "MNQ",
+      timeframe: "1m",
+      experiments: [exp({ id: "mnq-1" })],
+    };
+
+    const out = reducer(mnq, { type: "setSymbol", symbol: "ES" });
+
+    expect(out.symbol).toBe("ES");
+    expect(out.experiments.map((e) => e.id)).toEqual(["es-only"]);
+  });
+
+  it("applies the same isolation to a timeframe switch", () => {
+    const state: MLStudioPipeline = {
+      ...DEFAULT_STATE,
+      symbol: "MNQ",
+      timeframe: "1m",
+      experiments: [exp({ id: "one-min" })],
+    };
+
+    const out = reducer(state, { type: "setTimeframe", timeframe: "1h" });
+
+    expect(out.timeframe).toBe("1h");
+    expect(out.experiments).toEqual([]);
+  });
+
+  it("is a no-op when the symbol is unchanged (keeps the live ledger)", () => {
+    const state: MLStudioPipeline = {
+      ...DEFAULT_STATE,
+      symbol: "MNQ",
+      experiments: [exp({ id: "keep-me" })],
+    };
+
+    const out = reducer(state, { type: "setSymbol", symbol: "MNQ" });
+
+    expect(out).toBe(state);
+    expect(out.experiments.map((e) => e.id)).toEqual(["keep-me"]);
   });
 });
