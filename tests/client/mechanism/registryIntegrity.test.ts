@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   allMechanisms,
   ALL_ARCHETYPES,
+  COMPUTING_ARCHETYPES,
 } from '@/system/architecture-explorer/mechanism/registry';
 import { CATALOG_KEYS } from './catalogKeys.fixture';
 
@@ -96,15 +97,30 @@ describe('registry integrity', () => {
     }
   });
 
-  it('claims computed values ONLY where a kernel actually exists', () => {
-    // The rule that keeps StageFlow honest: an entry with no kernel animates
-    // flow, so it must not advertise analytic / trained-live / seeded values.
+  it('claims computed values ONLY where something actually computes them', () => {
+    // Two paths compute: a per-model kernel, or an archetype engine that does
+    // real arithmetic for the whole family. Anything else animates flow alone
+    // and must say `schematic` rather than advertising values it lacks.
     for (const m of allMechanisms()) {
-      if (!m.kernelId) {
+      const computes = !!m.kernelId || COMPUTING_ARCHETYPES.includes(m.archetype);
+      if (!computes) {
         expect(
           m.provenance,
-          `${m.catalogKey} has no kernel but claims "${m.provenance}"`,
+          `${m.catalogKey} computes nothing but claims "${m.provenance}"`,
         ).toBe('schematic');
+      }
+    }
+  });
+
+  it('never says "no values are computed" on a family that computes them', () => {
+    // The inverse, and the bug this pair was written for: the attention engine
+    // visibly runs softmax(QK^T/sqrt(d_k))V while the panel claimed flow-only.
+    for (const m of allMechanisms()) {
+      if (COMPUTING_ARCHETYPES.includes(m.archetype)) {
+        expect(
+          m.provenance,
+          `${m.catalogKey} computes real arithmetic but claims "${m.provenance}"`,
+        ).not.toBe('schematic');
       }
     }
   });

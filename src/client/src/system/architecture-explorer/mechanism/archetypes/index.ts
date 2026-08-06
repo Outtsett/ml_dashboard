@@ -60,12 +60,35 @@ export const NODE_FLOW: Engine = lazy(() =>
   import('./NodeFlow').then((m) => ({ default: m.NodeFlow })),
 );
 
-/** Never returns undefined for a researched spec — everything animates. */
+/**
+ * Engines chosen by ARCHETYPE rather than kernel.
+ *
+ * Some families have a mechanism that a node-and-wire sweep simply misrepresents.
+ * Attention is not a left-to-right pass — it is every bar scoring every other
+ * bar — so it draws the comparison it actually performs. These engines still
+ * compute real arithmetic; what varies is the picture, because the mechanism
+ * varies.
+ */
+export const ARCHETYPE_ENGINES: Partial<Record<string, Engine>> = {
+  'attention-match': lazy(() =>
+    import('./AttentionMatrix').then((m) => ({ default: m.AttentionMatrix })),
+  ),
+};
+
+/**
+ * Never returns undefined for a researched spec — everything animates.
+ *
+ * Order matters: a model's OWN kernel wins over its family's picture, because a
+ * kernel reproduces that specific algorithm while an archetype engine only
+ * captures the family's shape.
+ */
 export function resolveEngine(spec: MechanismSpec): Engine {
   if (spec.kernelId) {
     const bespoke = KERNEL_ENGINES[spec.kernelId];
     if (bespoke) return bespoke;
   }
+  const byFamily = ARCHETYPE_ENGINES[spec.archetype];
+  if (byFamily) return byFamily;
   return NODE_FLOW;
 }
 
