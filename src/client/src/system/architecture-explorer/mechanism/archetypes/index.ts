@@ -73,6 +73,9 @@ export const ARCHETYPE_ENGINES: Partial<Record<string, Engine>> = {
   'attention-match': lazy(() =>
     import('./AttentionMatrix').then((m) => ({ default: m.AttentionMatrix })),
   ),
+  'tree-route': lazy(() =>
+    import('./TreeRoute').then((m) => ({ default: m.TreeRoute })),
+  ),
 };
 
 /**

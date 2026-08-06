@@ -23,7 +23,7 @@ export const WIRED: MechanismSpec[] = [
     catalogKey: 'xgboost+direction_classifier',
     name: 'XGBoost Direction Classifier',
     archetype: 'tree-route',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'src/ml/xgb_classifier/main.py',
     analogy:
       'Think of it as a room of junior analysts, each hired only to correct the ' +

@@ -18,7 +18,7 @@ export const TREE_ROUTE_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'catboost',
     name: 'CatBoost',
     archetype: 'tree-route',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Supervised Learning/Boosting Methods/CatBoost.md',
     analogy: 'Information enters at dataset and ends at iteration (for to ).',
     stages: [
@@ -42,7 +42,7 @@ export const TREE_ROUTE_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'gradient-boosting-machine-gbm',
     name: 'Gradient Boosting Machine (GBM)',
     archetype: 'tree-route',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Supervised Learning/Boosting Methods/Gradient Boosting Machine (GBM).md',
     analogy: 'Information enters at dataset and ends at iteration (for to ).',
     stages: [
@@ -66,7 +66,7 @@ export const TREE_ROUTE_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'lightgbm',
     name: 'LightGBM',
     archetype: 'tree-route',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Supervised Learning/Boosting Methods/LightGBM.md',
     analogy: 'Information enters at dataset and ends at iteration (for to ).',
     stages: [
@@ -90,7 +90,7 @@ export const TREE_ROUTE_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'xgboost',
     name: 'XGBoost',
     archetype: 'tree-route',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Supervised Learning/Boosting Methods/XGBoost.md',
     analogy: 'Information enters at dataset and ends at iteration (for to ).',
     stages: [
@@ -114,7 +114,7 @@ export const TREE_ROUTE_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'random-forest',
     name: 'Random Forest',
     archetype: 'tree-route',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Supervised Learning/Ensemble Methods/Random Forest.md',
     analogy: 'Information enters at dataset and ends at sample a bootstrap subset from with replacement (size ).',
     stages: [
@@ -138,7 +138,7 @@ export const TREE_ROUTE_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'stacked-generalization-model',
     name: 'Stacked Generalization Model',
     archetype: 'tree-route',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Supervised Learning/Ensemble Methods/Stacked Generalization Model.md',
     analogy: 'Information enters at dataset and ends at level-0 (base models).',
     stages: [
@@ -162,7 +162,7 @@ export const TREE_ROUTE_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'isolation-forest-anomaly-detection',
     name: 'Isolation Forest (Anomaly Detection)',
     archetype: 'tree-route',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Unsupervised Learning/Anomaly Detection/Isolation Forest (Anomaly Detection).md',
     analogy: 'Information enters at anomaly score and ends at training.',
     stages: [
