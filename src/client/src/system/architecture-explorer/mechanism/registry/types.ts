@@ -67,12 +67,17 @@ export type Provenance = 'analytic' | 'trained-live' | 'seeded' | 'schematic';
  * kernel — so their entries must not claim `schematic`.
  *
  * attention-match runs a genuine softmax(QK^T/sqrt(d_k))V over the real bar
- * window with SEEDED projections: the arithmetic is real, the weights are not
- * learned, which is exactly the `seeded` tier. Saying "no values are computed"
+ * window with SEEDED projections: real arithmetic, unlearned weights — the
+ * `seeded` tier. tree-route grows a REAL CART on the real rows (exhaustive
+ * split search, Gini reduction, real thresholds), which is fully determined by
+ * the data — the `analytic` tier. Saying "no values are computed"
  * on a panel that is visibly computing them is the same class of error as a
  * lookalike animation, so this list is enforced by test.
  */
-export const COMPUTING_ARCHETYPES: readonly ArchetypeId[] = ['attention-match'];
+export const COMPUTING_ARCHETYPES: readonly ArchetypeId[] = [
+  'attention-match',
+  'tree-route',
+];
 
 export type StageRole =
   | 'input'
