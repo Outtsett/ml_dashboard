@@ -18,7 +18,7 @@ export const ENCODE_BOTTLENECK_DECODE_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'masked-autoencoder-for-distribution-learning',
     name: 'Masked Autoencoder for Distribution Learning',
     archetype: 'encode-bottleneck-decode',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Generative Models/Latent Variable Models/Masked Autoencoder for Distribution Learning.md',
     analogy: 'Information enters at input preprocessing and ends at patch embedding.',
     stages: [
@@ -42,7 +42,7 @@ export const ENCODE_BOTTLENECK_DECODE_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'variational-autoencoder-vae',
     name: 'Variational Autoencoder (VAE)',
     archetype: 'encode-bottleneck-decode',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Generative Models/Latent Variable Models/Variational Autoencoder (VAE).md',
     analogy: 'Information enters at encoder and ends at decoder.',
     stages: [
@@ -61,7 +61,7 @@ export const ENCODE_BOTTLENECK_DECODE_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'masked-autoencoder-mae',
     name: 'Masked Autoencoder (MAE)',
     archetype: 'encode-bottleneck-decode',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Self-Supervised Learning/Masked Modeling/Masked Autoencoder (MAE).md',
     analogy: 'Information enters at for time-series and ends at optional components.',
     stages: [
@@ -85,7 +85,7 @@ export const ENCODE_BOTTLENECK_DECODE_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'ladder-network',
     name: 'Ladder Network',
     archetype: 'encode-bottleneck-decode',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Semi-Supervised Learning/Generative & Hybrid Models/Ladder Network.md',
     analogy: 'Information enters at noisy encoder and ends at classification head.',
     stages: [
@@ -109,7 +109,7 @@ export const ENCODE_BOTTLENECK_DECODE_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'autoencoder-unsupervised',
     name: 'Autoencoder (Unsupervised)',
     archetype: 'encode-bottleneck-decode',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Unsupervised Learning/Matrix Factorization & Decomposition/Autoencoder (Unsupervised).md',
     analogy: 'Information enters at encoder and ends at hyperparameters.',
     stages: [
@@ -133,7 +133,7 @@ export const ENCODE_BOTTLENECK_DECODE_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'u-net',
     name: 'U-Net',
     archetype: 'encode-bottleneck-decode',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Neural Network Architectures/Convolutional Networks/U-Net.md',
     analogy: 'Information enters at input and ends at each block.',
     stages: [
@@ -157,7 +157,7 @@ export const ENCODE_BOTTLENECK_DECODE_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'autoencoder-ae',
     name: 'Autoencoder (AE)',
     archetype: 'encode-bottleneck-decode',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Unsupervised Learning/Matrix Factorization & Decomposition/Autoencoder (Unsupervised).md',
     analogy: 'Information enters at encoder and ends at hyperparameters.',
     stages: [

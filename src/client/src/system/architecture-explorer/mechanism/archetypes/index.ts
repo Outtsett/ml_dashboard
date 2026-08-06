@@ -76,6 +76,14 @@ export const ARCHETYPE_ENGINES: Partial<Record<string, Engine>> = {
   'tree-route': lazy(() =>
     import('./TreeRoute').then((m) => ({ default: m.TreeRoute })),
   ),
+  'encode-bottleneck-decode': lazy(() =>
+    import('./EncodeDecode').then((m) => ({ default: m.EncodeDecode })),
+  ),
+  // PCA drives both: the projection family IS the components, the autoencoder
+  // family is those components used as an optimal linear bottleneck.
+  'projection-embed': lazy(() =>
+    import('./EncodeDecode').then((m) => ({ default: m.EncodeDecode })),
+  ),
 };
 
 /**

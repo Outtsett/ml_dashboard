@@ -70,13 +70,18 @@ export type Provenance = 'analytic' | 'trained-live' | 'seeded' | 'schematic';
  * window with SEEDED projections: real arithmetic, unlearned weights — the
  * `seeded` tier. tree-route grows a REAL CART on the real rows (exhaustive
  * split search, Gini reduction, real thresholds), which is fully determined by
- * the data — the `analytic` tier. Saying "no values are computed"
+ * the data — the `analytic` tier. encode-bottleneck-decode and projection-embed
+ * both run an exact PCA (Jacobi eigendecomposition of the real covariance
+ * matrix); projecting onto the top k components is the provably optimal linear
+ * bottleneck, so those are `analytic` too. Saying "no values are computed"
  * on a panel that is visibly computing them is the same class of error as a
  * lookalike animation, so this list is enforced by test.
  */
 export const COMPUTING_ARCHETYPES: readonly ArchetypeId[] = [
   'attention-match',
   'tree-route',
+  'encode-bottleneck-decode',
+  'projection-embed',
 ];
 
 export type StageRole =

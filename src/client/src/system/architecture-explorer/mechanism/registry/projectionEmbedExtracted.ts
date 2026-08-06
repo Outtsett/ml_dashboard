@@ -18,7 +18,7 @@ export const PROJECTION_EMBED_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'independent-component-analysis-ica',
     name: 'Independent Component Analysis (ICA)',
     archetype: 'projection-embed',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Unsupervised Learning/Dimensionality Reduction/Independent Component Analysis (ICA).md',
     analogy: 'Information enters at observed data and ends at training.',
     stages: [
@@ -42,7 +42,7 @@ export const PROJECTION_EMBED_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'non-negative-matrix-factorization-nmf',
     name: 'Non-Negative Matrix Factorization (NMF)',
     archetype: 'projection-embed',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Unsupervised Learning/Dimensionality Reduction/Non-Negative Matrix Factorization (NMF).md',
     analogy: 'Information enters at data matrix and ends at hyperparameters.',
     stages: [
@@ -66,7 +66,7 @@ export const PROJECTION_EMBED_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'principal-component-analysis-pca',
     name: 'Principal Component Analysis (PCA)',
     archetype: 'projection-embed',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Unsupervised Learning/Dimensionality Reduction/Principal Component Analysis (PCA).md',
     analogy: 'Information enters at data matrix and ends at training.',
     stages: [
@@ -90,7 +90,7 @@ export const PROJECTION_EMBED_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'manifold-learning-isomap-lle',
     name: 'Manifold Learning (Isomap, LLE)',
     archetype: 'projection-embed',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Unsupervised Learning/Manifold Learning/Manifold Learning (Isomap, LLE).md',
     analogy: 'Information enters at non-linear dimensionality reduction and ends at no labels required.',
     stages: [
@@ -113,7 +113,7 @@ export const PROJECTION_EMBED_EXTRACTED: MechanismSpec[] = [
     catalogKey: 't-sne-t-distributed-stochastic-neighbor-embedding',
     name: 't-Distributed Stochastic Neighbor Embedding (t-SNE)',
     archetype: 'projection-embed',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Unsupervised Learning/Manifold Learning/t-SNE (t-Distributed Stochastic Neighbor Embedding).md',
     analogy: 'Information enters at high-dimensional similarities and ends at dataset.',
     stages: [
@@ -137,7 +137,7 @@ export const PROJECTION_EMBED_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'umap-uniform-manifold-approximation-and-projection',
     name: 'Uniform Manifold Approximation and Projection (UMAP)',
     archetype: 'projection-embed',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Unsupervised Learning/Manifold Learning/UMAP (Uniform Manifold Approximation and Projection).md',
     analogy: 'Information enters at high-dimensional representation and ends at objective.',
     stages: [
