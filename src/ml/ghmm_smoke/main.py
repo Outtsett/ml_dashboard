@@ -308,7 +308,6 @@ def predict(model, X):
 # ──────────────────────────────────────────────────────────────────────────────
 # Shared clustering eval (rendered from _eval_clustering.py.j2)
 # ──────────────────────────────────────────────────────────────────────────────
-import json as _eval_json
 from pathlib import Path as _EvalPath
 
 import numpy as _eval_np
