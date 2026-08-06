@@ -1,3 +1,4 @@
+import { MechanismPreview } from "@/system/architecture-explorer/mechanism/MechanismPreview";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { ScrollArea } from "@/shared/ui/scroll-area";
@@ -57,6 +58,12 @@ export function ModelDetailView({
       {/* Content */}
       <ScrollArea className="flex-1">
         <div className="p-6 max-w-5xl space-y-6">
+          {/* Mechanism animation — the same engine and registry as
+              /architecture -> Mechanism, shown here because this is where the
+              model is actually being read. Renders a stated reason for catalog
+              specs with no researched entry; never a lookalike. */}
+          <MechanismPreview catalogKey={model.id} />
+
           {/* Overview */}
           {model.overview && (
             <section>

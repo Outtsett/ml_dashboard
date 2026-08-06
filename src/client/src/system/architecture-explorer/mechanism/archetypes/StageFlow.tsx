@@ -16,9 +16,10 @@
  *     activation would be exactly the lie this module was built to prevent.
  *   - For a spec that DOES carry a kernel, the bespoke engine handles it
  *     instead (see ARCHETYPE_COMPONENTS); this engine never fakes that path.
- *   - The real feature matrix still gates the view: with no complete bars there
- *     is no input to flow, and the panel says so rather than animating an
- *     empty pipe.
+ *   - Bars are NOT required. This engine computes nothing from them, so waiting
+ *     on a cold OHLCV query would block the view for no reason. The footer
+ *     states whether real bars happen to be loaded; the flow does not depend
+ *     on it, and no bar-derived value is ever drawn.
  *
  * p5 runs in INSTANCE mode, lazily imported, and — per graph/NeuralCanvas.tsx —
  * `new P5(sketch, host)` already parents the canvas, so `.parent()` is NOT
@@ -104,7 +105,10 @@ export function StageFlow({
     return m;
   }, [spec, stages]);
 
-  const ready = features.rows.length > 0 && stages.length >= 2;
+  // Deliberately NOT gated on bars. This engine computes nothing from them, so
+  // blocking on a cold OHLCV query (13s+ for MNQ) would leave the panel empty
+  // for no reason. Bar availability is reported in the footer instead.
+  const ready = stages.length >= 2;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -339,8 +343,10 @@ export function StageFlow({
           p.textAlign(p.LEFT, p.BOTTOM);
           p.text(
             `${stages.length} stages from ${spec.specPath.split('/').pop()} · ` +
-              `${features.rows.length} real bars available · ` +
-              `flow only — no values are computed for this model`,
+              (features.rows.length
+                ? `${features.rows.length} real bars loaded · `
+                : 'bars not needed — ') +
+              `flow only, no values are computed for this model`,
             18,
             p.height - 10,
           );
@@ -362,15 +368,6 @@ export function StageFlow({
       p5Ref.current = null;
     };
   }, [stages, loopTo, beatStage, features.rows.length, spec.specPath, onProgress, ready]);
-
-  if (features.rows.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center p-6 text-center text-xs text-muted-foreground">
-        No complete feature rows yet — the causal z-score window needs more bars
-        of history before anything can flow through this model.
-      </div>
-    );
-  }
 
   if (stages.length < 2) {
     return (

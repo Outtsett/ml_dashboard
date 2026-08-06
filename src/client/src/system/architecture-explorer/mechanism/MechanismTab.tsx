@@ -245,7 +245,7 @@ export function MechanismTab({ initialCatalogKey }: MechanismTabProps) {
             <div className="flex h-full items-center justify-center p-8 text-center text-xs">
               Could not load bars: {error.message}
             </div>
-          ) : isLoading || !data.ready ? (
+          ) : hasLiveKernel(resolution.spec) && (isLoading || !data.ready) ? (
             <div className="flex h-full items-center justify-center p-8 text-center text-xs text-muted-foreground">
               Loading real {symbol} bars — the causal z-score window needs{' '}
               {data.warmupNeeded} bars of history before the first point is
