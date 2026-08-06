@@ -370,7 +370,36 @@ All new code **must** follow SOLID. Apply everywhere — routes, components, hoo
 - Category-colored indicator selector with colored dots per category
 - Multi-output panel label dots for subchart indicators with multiple outputs
 
-## API Route Map (11 routers on `/api`)
+## Ollama / LLM Chat
+
+- **Custom Model**: `quantai-coder` — built from `ollama/Modelfile`, wraps `qwen3-coder:30b` with baked-in persona, trading domain knowledge, and tuned inference params (temp 0.3, 16K context, top_k 15)
+- **Embedding Model**: `nomic-embed-text` — 768-dim, CPU-only, used for RAG query embedding
+- **Chat Route**: `src/server/routes/chat.ts` — streaming SSE chat with dynamic context injection (trained models, cache stats, feature config) + RAG retrieval
+- **Ollama Client**: `src/server/lib/ollama.ts` — `ollamaChat()`, `ollamaEmbed()`, `ollamaEmbedBatch()`, `ollamaModels()`, `ollamaHealth()`
+- **RAG Module**: `src/server/lib/rag.ts` — LanceDB (embedded, Rust core) vector store, `retrieveContext(query, topK)` for semantic retrieval over project documents
+- **Ingestion**: `scripts/rag_ingest.py` — chunks CLAUDE.md, specs, feature configs, model diagnostics, API route docs; embeds via Ollama; stores in `data/rag/vectors.lance`
+- **Build Script**: `scripts/create-modelfile.sh` — builds `quantai-coder` model from Modelfile, updates `.env`
+- **Env Vars**: `OLLAMA_URL` (default localhost:11434), `OLLAMA_MODEL` (default quantai-coder), `OLLAMA_EMBED_MODEL` (default nomic-embed-text)
+
+### RAG Commands
+```bash
+# Full reindex of all document sources
+python scripts/rag_ingest.py --full
+
+# Incremental update (only changed files)
+python scripts/rag_ingest.py --incremental
+
+# Ingest specific source
+python scripts/rag_ingest.py --source claude|models|features|specs|routes
+
+# Show ingestion stats
+python scripts/rag_ingest.py --stats
+
+# Rebuild custom Ollama model
+bash scripts/create-modelfile.sh --rebuild
+```
+
+## API Route Map (12 routers on `/api`)
 
 | Router      | Mount              | Purpose                                                                              |
 | ----------- | ------------------ | ------------------------------------------------------------------------------------ |
@@ -385,6 +414,7 @@ All new code **must** follow SOLID. Apply everywhere — routes, components, hoo
 | backtest    | `/api/backtest`    | Backtesting engine                                                                   |
 | agent       | `/api/agent`       | Trading agent predictions, signals, backtesting                                      |
 | regime      | `/api/regime`      | Legacy HDP-HMM training + regime queries                                             |
+| chat        | `/api/chat`        | Ollama LLM chat (SSE streaming), model listing, health check, RAG ingestion trigger  |
 | system      | `/api/system`      | GPU telemetry (nvidia-smi), hardware monitoring, SSE system channel broadcast         |
 
 ## Dev Commands
