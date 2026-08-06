@@ -11,10 +11,12 @@
  * monotone objective — but their algorithms genuinely differ. DBSCAN grows
  * density-reachable regions; Mean Shift climbs a kernel density estimate;
  * Affinity Propagation passes responsibility/availability messages; Hierarchical
- * merges by linkage. Only the entries carrying `kernelId: 'kmeans'` are
- * reproduced by compute/kmeans.ts. The rest declare `kernelId: null` and the UI
- * states that their engine is pending, because drawing a k-means run under the
- * name "DBSCAN" would be a plausible-looking lie.
+ * Each entry therefore names its OWN kernel in `kernelId`, implemented in
+ * compute/clustering.ts and dispatched by archetypes/ClusterCanvas.tsx. Eight of
+ * the ten are built. The two that are not -- spectral-clustering (needs a graph
+ * Laplacian eigendecomposition) and deep-clustering-network (needs a trained
+ * autoencoder) -- declare `kernelId: null` and the UI states that, because
+ * drawing a k-means run under the name "DBSCAN" would be a plausible-looking lie.
  */
 
 import type { MechanismSpec } from './types';
@@ -88,7 +90,7 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     catalogKey: 'gaussian-mixture-model-gmm',
     name: 'Gaussian Mixture Model (GMM)',
     archetype: 'cluster-loop',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Unsupervised Learning/Clustering/Gaussian Mixture Model (GMM).md',
     analogy:
       'Think of it as K-Means that admits uncertainty: a bar can be 70% one ' +
@@ -127,7 +129,7 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
       },
     ],
     repoRunner: BROWSE_ONLY,
-    kernelId: null,
+    kernelId: 'gmm',
     curation: 'curated',
   },
 
@@ -135,7 +137,7 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     catalogKey: 'dbscan-density-based-spatial-clustering',
     name: 'DBSCAN (Density-Based Spatial Clustering of Applications with Noise)',
     archetype: 'cluster-loop',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath:
       'Machine Learning/Unsupervised Learning/Clustering/DBSCAN (Density-Based Spatial Clustering).md',
     analogy:
@@ -175,7 +177,7 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
       },
     ],
     repoRunner: BROWSE_ONLY,
-    kernelId: null,
+    kernelId: 'dbscan',
     curation: 'curated',
   },
 
@@ -183,7 +185,7 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     catalogKey: 'mean-shift-clustering',
     name: 'Mean Shift Clustering',
     archetype: 'cluster-loop',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Unsupervised Learning/Clustering/Mean Shift Clustering.md',
     analogy:
       'Think of it as letting every bar roll uphill on a density map until it ' +
@@ -221,7 +223,7 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
       },
     ],
     repoRunner: BROWSE_ONLY,
-    kernelId: null,
+    kernelId: 'meanshift',
     curation: 'curated',
   },
 
@@ -279,7 +281,7 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     catalogKey: 'hierarchical-clustering-agglomerative-divisive',
     name: 'Hierarchical Clustering (Agglomerative, Divisive)',
     archetype: 'cluster-loop',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath:
       'Machine Learning/Unsupervised Learning/Clustering/Hierarchical Clustering (Agglomerative, Divisive).md',
     analogy:
@@ -319,7 +321,7 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
       },
     ],
     repoRunner: BROWSE_ONLY,
-    kernelId: null,
+    kernelId: 'agglomerative',
     curation: 'curated',
   },
 
@@ -327,7 +329,7 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     catalogKey: 'affinity-propagation',
     name: 'Affinity Propagation',
     archetype: 'cluster-loop',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath: 'Machine Learning/Unsupervised Learning/Clustering/Affinity Propagation.md',
     analogy:
       'Think of it as bars campaigning to represent each other: each sends out ' +
@@ -366,7 +368,7 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
       },
     ],
     repoRunner: BROWSE_ONLY,
-    kernelId: null,
+    kernelId: 'affinity',
     curation: 'curated',
   },
 
@@ -374,7 +376,7 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     catalogKey: 'semi-supervised-clustering',
     name: 'Semi-Supervised Clustering',
     archetype: 'cluster-loop',
-    provenance: 'schematic',
+    provenance: 'analytic',
     specPath:
       'Machine Learning/Semi-Supervised Learning/Clustering-Based Methods/Semi-Supervised Clustering.md',
     analogy:
@@ -413,7 +415,7 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
       },
     ],
     repoRunner: BROWSE_ONLY,
-    kernelId: null,
+    kernelId: 'copkmeans',
     curation: 'curated',
   },
 
@@ -421,7 +423,7 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     catalogKey: 'self-organizing-maps-som',
     name: 'Self-Organizing Maps (SOM)',
     archetype: 'cluster-loop',
-    provenance: 'schematic',
+    provenance: 'trained-live',
     specPath:
       'Machine Learning/Unsupervised Learning/Self-Organizing Systems/Self-Organizing Maps (SOM).md',
     analogy:
@@ -461,7 +463,7 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
       },
     ],
     repoRunner: MLP_NOTE,
-    kernelId: null,
+    kernelId: 'som',
     curation: 'curated',
   },
 

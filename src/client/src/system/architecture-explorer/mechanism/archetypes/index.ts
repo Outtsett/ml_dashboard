@@ -24,10 +24,27 @@ export * from './types';
 type Engine = LazyExoticComponent<ComponentType<ArchetypeProps>>;
 
 /** Bespoke engines, keyed by the kernel they genuinely reproduce. */
+const CLUSTER_CANVAS: Engine = lazy(() =>
+  import('./ClusterCanvas').then((m) => ({ default: m.ClusterCanvas })),
+);
+
+/**
+ * Bespoke engines, keyed by the kernel they genuinely reproduce.
+ *
+ * The clustering kernels all render through ClusterCanvas, which dispatches on
+ * kernelId to the real algorithm in compute/clustering.ts. Sharing a renderer
+ * is not sharing an algorithm: DBSCAN grows density regions, Mean Shift climbs
+ * a density estimate, SOM anneals a lattice. Each draws its own run.
+ */
 export const KERNEL_ENGINES: Record<string, Engine> = {
-  kmeans: lazy(() =>
-    import('./ClusterLoop').then((m) => ({ default: m.ClusterLoop })),
-  ),
+  kmeans: CLUSTER_CANVAS,
+  gmm: CLUSTER_CANVAS,
+  dbscan: CLUSTER_CANVAS,
+  meanshift: CLUSTER_CANVAS,
+  agglomerative: CLUSTER_CANVAS,
+  som: CLUSTER_CANVAS,
+  copkmeans: CLUSTER_CANVAS,
+  affinity: CLUSTER_CANVAS,
 };
 
 /**
