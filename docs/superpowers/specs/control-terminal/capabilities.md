@@ -92,7 +92,7 @@ and `system.gpu` SSE channels via `scripts/hardware_node.py` → `telemetry.rout
 Ground truth: ~30 git repos under `E:\source\repos` (from the global `C:\Users\tyler\.claude\CLAUDE.md`
 "Active Project Locations" and this repo's `CLAUDE.md`). Launch commands are heterogeneous —
 `ml_dashboard` uses `npm run dev` (Electron + Vite), the `Trading\quant` workspace uses
-`uv run`, `MotiveWave` uses `mvn`/`--release 17`, `Trading\quantower_strategies` builds C# via
+`uv run`, `QuestDBPlugin` uses `mvn`/`--release 17`, `Trading\quantower_strategies` builds C# via
 `dotnet`/msbuild, Flutter apps use `flutter run`, Rust repos use `cargo`. This mandates a
 **per-repo launch descriptor** rather than a hardcoded command.
 
@@ -100,7 +100,7 @@ Ground truth: ~30 git repos under `E:\source\repos` (from the global `C:\Users\t
 
 ```ts
 interface RepoDescriptor {
-  id: string;                    // 'ml_dashboard', 'trading-quant', 'motivewave', ...
+  id: string;                    // 'ml_dashboard', 'trading-quant', 'questdb-plugin', ...
   path: string;                  // absolute repo root
   runtime: 'node' | 'uv' | 'cargo' | 'maven' | 'dotnet' | 'flutter' | 'python';
   commands: {
@@ -177,7 +177,7 @@ introspection. OHLCV/parquet data root is external at `ml_dashboard\data\parquet
 | `models.activate` | write | caution | Set a checkpoint active for its symbol+timeframe (deactivates siblings). | `{ id: number }` | `{ message }` | no | `PATCH /api/models/:id/activate` (`models.router.ts:235`) | Shows which checkpoint becomes active and which currently-active one it displaces (same symbol+timeframe). Single **Execute**. |
 | `deploy.stop` | write | caution | Pause or stop a deployment. | `{ deploymentId: number, action: 'pause'\|'stop' }` | `Deployment` (updated) | no | `POST /api/deployments/:id/pause`\|`/stop` (`deployments.router.ts:276,280`) | Shows deployment id, mode, symbol, current state → target, predictions emitted. Single **Execute** (stopping is the *safe* direction). |
 | `models.promote` | write | **dangerous** | Promote a model version along candidate→shadow→paper→**live**→retired, through promotion gates. | `{ id: number, to_status: 'candidate'\|'shadow'\|'paper'\|'live'\|'retired', dryRun?: boolean, override?: boolean, reason?: string }` | `{ allowed, results: GateResult[], version }` | no | `POST /api/model-versions/:id/promote` → `evaluateGates()` (`registry.router.ts:269`) | Card first runs `dryRun` and renders the gate evaluation (each gate pass/fail + metric). Promoting **to `live`**, or using `override:true`, requires typing the version number AND a non-empty `reason` (the route audit-logs `[OVERRIDE ...]`). **Always typed-confirm regardless of driver.** |
-| `deploy.start` | write | **dangerous** | Start a deployment; `mode:'live'` puts a model on the real MotiveWave MLBridge. | `{ version_id: number, mode: 'shadow'\|'paper'\|'live', symbol: string, timeframe: string }` | `Deployment` (created) | yes | `POST /api/deployments` (`deployments.router.ts:124`); `live` is env-gated on `ENABLE_LIVE_DEPLOY=1` and unique per (symbol,timeframe) | `shadow`/`paper` are caution-tier (single Execute). `mode:'live'` is dangerous: card shows the version, symbol/timeframe, the existing live deployment it would conflict with (409 pre-check), and requires typing `LIVE`. **Always typed-confirm.** |
+| `deploy.start` | write | **dangerous** | Start a deployment; `mode:'live'` puts a model on the real MLBridge scoring engine. | `{ version_id: number, mode: 'shadow'\|'paper'\|'live', symbol: string, timeframe: string }` | `Deployment` (created) | yes | `POST /api/deployments` (`deployments.router.ts:124`); `live` is env-gated on `ENABLE_LIVE_DEPLOY=1` and unique per (symbol,timeframe) | `shadow`/`paper` are caution-tier (single Execute). `mode:'live'` is dangerous: card shows the version, symbol/timeframe, the existing live deployment it would conflict with (409 pre-check), and requires typing `LIVE`. **Always typed-confirm.** |
 | `broker.order` | write | **dangerous** | Place / modify / cancel a real broker order (IBKR or OANDA). | `{ broker: 'ibkr'\|'oanda', symbol, side: 'buy'\|'sell', qty, orderType: 'market'\|'limit'\|'stop', price?, bracket?: { tp?, sl? }, action?: 'place'\|'cancel', orderId? }` | `{ orderId, status, filled? }` | yes | IBKR MCP `create_order_instruction` (+ `get_account_orders`); OANDA REST via `OANDA_API_KEY`/`OANDA_ACCOUNT_ID` | Card shows broker, account id (last 4), symbol, side, quantity, order type, price, bracket (TP/SL / OCO), and estimated notional + margin. Requires retyping the symbol AND quantity. **Always typed-confirm regardless of driver — this spends real money.** |
 
 **Domain 3 total: 20 capabilities (12 read, 8 write).**  Dangerous: `models.promote`, `deploy.start` (live), `broker.order`.

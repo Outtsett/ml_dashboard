@@ -20,7 +20,6 @@ Full-stack ML ops and real-time execution platform for high-frequency quantitati
 - **QuestDB Health**: [Active] (863M+ rows, zero-latency ILP stream)
 - **GPU Pulse**: [Ready] (NVIDIA RTX 5060 Ti, 12GB VRAM)
 - **Hardware Integration**: [Synchronized] (ManifestService v2.1.0)
-- **MotiveWave Edge**: [Connected] (Sub-10ms tick propagation)
 
 ---
 
@@ -61,8 +60,7 @@ graph TB
     end
 
     subgraph External["Connectivity"]
-        MW["MotiveWave Platform"]
-        MWPlugin["Java ILP Plugin (Tick-to-Local Latency <10ms)"]
+        Upload["File Upload Pipeline (CSV / Parquet / ZST / DBN)"]
     end
 
     Client -->|REST + SSE| API
@@ -73,8 +71,7 @@ graph TB
     Training -->|spawn| ML
     ML -->|stdout JSON| Training
     Training -->|broadcast| SSE
-    MW --> MWPlugin
-    MWPlugin -->|ILP TCP :9009| QuestDB
+    Upload -->|ILP TCP :9009| QuestDB
 ```
 
 ---
@@ -117,13 +114,12 @@ We adhere to the **Registry v2.0.0** naming philosophy. Purge all legacy retail 
 
 ## 4. Operational Workflows
 
-### 4.1 Real-Time Ingestion
-1. **MotiveWave Bridge**: Java plugin streams OHLCV (with orderflow) and DOM L2 to QuestDB :9009 via ILP.
-2. **Tick-to-Local Latency**: Calculated in-plugin and broadcast to the **MW EDGE** gauge.
-3. **QuestDB Persistence**: 863M+ rows across 5 unified tables (`ohlcv`, `symbols`, `ticks`, `dom_l2`, `dom_summary`).
+### 4.1 Ingestion
+1. **File Upload Pipeline**: CSV / Parquet / ZST / DBN uploads are standardized and written to QuestDB :9009 via ILP.
+2. **QuestDB Persistence**: 863M+ rows across 5 unified tables (`ohlcv`, `symbols`, `ticks`, `dom_l2`, `dom_summary`). The historical tick/DOM data was produced by an external live feed that was removed on 2026-07-27 — the data stays queryable, but nothing streams new bars in.
 
 ### 4.2 Training Pipeline (Institutional Workflow)
-- **W&B Integration**: Always initialize W&B first, pre-spawn HUD with `define_metric`.
+- **Dashboard Telemetry**: Stream metrics via the SSE protocol (`emit_metric` / `emit_fold_complete`); declare the metric schema up front with `emit_metric_declarations`.
 - **Probabilistic Heads**: Default to uncertainty-aware heads (Mean + Variance) + Gaussian NLL loss.
 - **Walk-Forward Validation**: Mandatory 8-fold expanding window simulation.
 - **O(1) Memory Normalization**: Numba JIT online algorithms for massive dataset features.

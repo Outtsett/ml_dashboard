@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { insertInstrumentSchema } from '../shared/schema';
+import { insertInstrumentSchema } from '../src/shared/schema';
 
 describe('instruments table', () => {
   it('should accept pip_size for forex instruments', () => {
@@ -31,7 +31,7 @@ describe('instruments table', () => {
       contractSize: 1,
       currency: 'USD',
       decimalPlaces: 2,
-      contractMonths: ['H', 'M', 'U', 'Z'],
+      contractMonths: JSON.stringify(['H', 'M', 'U', 'Z']),
     });
     expect(result.success).toBe(true);
   });

@@ -54,7 +54,15 @@ out/
 .parcel-cache/
 
 # ── Database files & data ────────────────────────────────────────────────────
-data/
+# ANCHORED to the repo root. A bare `data/` matches a directory named `data` at
+# ANY depth, which silently excluded real source: src/client/src/data (the whole
+# Databases page), src/server/data (5 routers) and
+# src/client/src/system/architecture-explorer/mechanism/data. Those 16 files were
+# untracked and existed only on one machine. Keep the leading slash.
+/data/
+# ML training outputs also live under src/ml/data — those ARE artifacts.
+# (*.pt below already covers checkpoints; this covers the rest.)
+src/ml/data/
 *.db
 *.db-journal
 *.duckdb
@@ -223,3 +231,7 @@ scripts/_*.py
 # artifacts, not source. Analytics belongs in the dashboard, not in image files.
 .playwright-mcp/
 outputs/
+
+# ── Tool caches (never commit) ───────────────────────────────────────────────
+node_modules/.cache/
+.claude/state/

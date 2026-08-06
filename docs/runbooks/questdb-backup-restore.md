@@ -63,10 +63,10 @@ none of those three have changed. This means:
 - First run: full export of all 32 tables (~76GB source data → much smaller after zstd
   compression; see "First backup results" below).
 - Every subsequent daily run: only new or changed partitions are re-exported — for this
-  instance, that's effectively nothing per day right now, because **the MotiveWave
-  ingestion feed has been confirmed dead for 100+ days (AUD-001)** — see the TTL note
-  below. If/when the feed resumes, only the newly-written partitions get exported each
-  night.
+  instance, that's effectively nothing per day right now, because **the live bar
+  ingestion feed had already been dead for 100+ days (AUD-001) and its writer was
+  removed from this repo on 2026-07-27** — see the TTL note below. If a new feed is
+  wired up, only the newly-written partitions get exported each night.
 - Force a full re-export of everything regardless of state: `--force-full`.
 
 ## Manual run
@@ -169,12 +169,13 @@ backup-integrity incident, not a warning.
 The audit's AUD-018 finding recommends a 90-180 day TTL on `ticks`/`dom_l2`/
 `dom_summary`/`ohlcv` "before re-enabling the upstream feed." **This has deliberately
 NOT been done as part of this backup work**, and must not be done until a human
-explicitly decides the TTL value and sequencing. The reason: the MotiveWave ingestion
-feed has been confirmed dead for 100+ days (AUD-001), so `max(timestamp)` on every one
-of these tables is already older than a blind 90-day cutoff. Running
+explicitly decides the TTL value and sequencing. The reason: the live bar ingestion
+feed was dead for 100+ days (AUD-001) and its writer was removed from this repo on
+2026-07-27, so `max(timestamp)` on every one of these tables is already older than a
+blind 90-day cutoff. Running
 `ALTER TABLE ticks SET TTL 90 DAYS` today would cause QuestDB to treat essentially the
 entire table as past retention and purge it — destroying the exact irreplaceable
 historical data this backup exists to protect, before the backup even has a chance to
-be useful as a safety net for anything else. TTL must only be applied once the feed
-resumes and/or with a value computed relative to actual current data, never a blind
+be useful as a safety net for anything else. TTL must only be applied once a new feed
+is writing and/or with a value computed relative to actual current data, never a blind
 "90 days from today."

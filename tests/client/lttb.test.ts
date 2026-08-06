@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { lttb, type Point } from "../../src/client/src/pages/ml-studio/stages/evaluate/lttb";
+import { lttb, type Point } from "../../src/client/src/ml/stages/evaluate/lttb";
 
 function linearSeries(n: number): Point[] {
   return Array.from({ length: n }, (_, i) => ({ x: i, y: i }));

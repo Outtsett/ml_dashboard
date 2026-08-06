@@ -15,17 +15,40 @@ from typing import Literal
 # Table allowlists
 # ---------------------------------------------------------------------------
 
-# Base tables — simplified schema (ohlcv + symbols only)
+# Base tables. The instance is multi-tenant: futures and forex share `ohlcv`
+# (separated by its asset_class column), while crypto is hourly-only and lives
+# in `ohlcv_1h` — a physical table owned by Trading/crypto, NOT the futures
+# hourly rollup. The futures hourly view is `ohlcv_1h_v`.
 QUESTDB_BASE_TABLES: set[str] = {
     "ohlcv",
     "symbols",
+    "ticks",
+    "ohlcv_1h",
+    "candle_anatomy",
+    "mnq_labels_1m",
+    "mnq_zigzag_1m",
+    "mnq_indicators_norm_1m",
 }
 
-# Materialized views — none remain (use SAMPLE BY on ohlcv directly)
-QUESTDB_MAT_VIEWS: set[str] = set()
+# Materialized views, in three deliberate families:
+#   ohlcv_*       multi-symbol, TTL-limited (2-10y)
+#   ohlcv_full_*  multi-symbol, full history, no TTL
+#   mnq_ohlcv_*   MNQ-only, full history
+QUESTDB_MAT_VIEWS: set[str] = {
+    "ohlcv_1m", "ohlcv_5m", "ohlcv_15m", "ohlcv_30m",
+    "ohlcv_1h_v", "ohlcv_4h", "ohlcv_1d", "ohlcv_1w",
+    "ohlcv_full_1m", "ohlcv_full_5m", "ohlcv_full_15m",
+    "ohlcv_full_30m", "ohlcv_full_1h", "ohlcv_full_4h",
+    "mnq_ohlcv_1m", "mnq_ohlcv_5m", "mnq_ohlcv_15m",
+    "mnq_ohlcv_30m", "mnq_ohlcv_1h", "mnq_ohlcv_4h",
+    "candle_anatomy_1m",
+}
 
-# Regular views — none remain
-QUESTDB_VIEWS: set[str] = set()
+# Regular (non-materialized) views
+QUESTDB_VIEWS: set[str] = {
+    "ta_indicators_1m",
+    "candle_geometry_1m",
+}
 
 QUESTDB_TABLE_ALLOWLIST: set[str] = QUESTDB_BASE_TABLES | QUESTDB_MAT_VIEWS | QUESTDB_VIEWS
 

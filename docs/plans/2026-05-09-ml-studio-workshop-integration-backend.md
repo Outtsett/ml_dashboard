@@ -29,7 +29,7 @@
 | W8 | `src/server/routes/agents.ts` | `POST /api/agents/dispatch`, `GET /api/agents/runs/:id`, `GET /api/events/agents/:id` (SSE) | New router |
 | W8 | `src/server/lib/agentDispatcher.ts` | Spawns Claude Agent SDK; in-memory job queue + persistence | New |
 | W8 | `migrations/0003_agent_runs.sql` | Persist agent run history | New |
-| W9 | `src/server/deployments/mlbridgeClient.ts` | ZMQ REQ socket to MotiveWave MLBridge — guarded by `ENABLE_LIVE_DEPLOY=1` | Reuses `zeromq` dep |
+| W9 | `src/server/deployments/mlbridgeClient.ts` | ZMQ REQ socket to MLBridge — guarded by `ENABLE_LIVE_DEPLOY=1` | Reuses `zeromq` dep |
 | W9 | `src/server/deployments/lifecycle.ts` | Status transitions running ↔ paused ↔ stopped, predictions counter, paper PnL accrual | New |
 | W9 | `src/server/deployments/predictionLog.ts` | Writes per-bar predictions to QuestDB `prediction_log` table | Reuses `src/server/lib/questdb/ilpClient.ts` |
 

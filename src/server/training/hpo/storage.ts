@@ -1,5 +1,5 @@
 import { eq, and, sql } from "drizzle-orm";
-import { db } from "../../database/db";
+import { db } from "../../infrastructure/database/db";
 import {
   hpoSessions,
   hpoTrials,
@@ -77,6 +77,7 @@ export function dbInsertTrial(data: {
   trialId: number;
   status: string;
   params: string;
+  foldIndex?: number | null;
 }) {
   return db.insert(hpoTrials).values(data).returning().get();
 }
@@ -94,6 +95,8 @@ export function dbUpdateTrial(
     error: string;
     durationSec: number;
     iterationHistory: string;
+    intermediateValues: string;
+    foldIndex: number;
     modelPath: string;
     trainedModelId: string;
     completedAt: Date;
@@ -107,6 +110,31 @@ export function dbUpdateTrial(
         eq(hpoTrials.trialId, trialId)
       )
     )
+    .run();
+}
+
+/** Append a single (step, value) intermediate to the trial's iteration_history.
+ *  Used by the hpo-trial-intermediate event handler for nested HPO. */
+export function dbAppendTrialIntermediate(
+  sessionId: string,
+  trialId: number,
+  step: number,
+  value: number,
+): void {
+  // Read-modify-write the JSON array. Cheap because individual rows are tiny.
+  const row = db
+    .select({ iv: hpoTrials.intermediateValues })
+    .from(hpoTrials)
+    .where(and(eq(hpoTrials.sessionId, sessionId), eq(hpoTrials.trialId, trialId)))
+    .get();
+  let arr: Array<{ step: number; value: number }> = [];
+  if (row?.iv) {
+    try { arr = JSON.parse(row.iv); } catch { arr = []; }
+  }
+  arr.push({ step, value });
+  db.update(hpoTrials)
+    .set({ intermediateValues: JSON.stringify(arr) })
+    .where(and(eq(hpoTrials.sessionId, sessionId), eq(hpoTrials.trialId, trialId)))
     .run();
 }
 

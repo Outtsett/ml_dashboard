@@ -2,11 +2,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import { EventStore } from '../src/server/events/event-store';
-import { EventBus } from '../src/server/events/event-bus';
+import { EventStore } from '../src/server/infrastructure/events/event-store';
+import { EventBus } from '../src/server/infrastructure/events/event-bus';
 import { trainingMachine } from '../src/shared/machines/training-machine';
-import { SagaOrchestrator } from '../src/server/sagas/orchestrator';
-import type { SagaStep } from '../src/server/sagas/orchestrator';
+import { SagaOrchestrator } from '../src/server/infrastructure/sagas/orchestrator';
+import type { SagaStep } from '../src/server/infrastructure/sagas/orchestrator';
 import type { DomainEvent } from '../src/shared/event-types';
 
 const CREATE_EVENTS_TABLE = `
@@ -40,7 +40,7 @@ function makeSteps(count: number, failAt?: number): SagaStep[] {
     name,
     execute: failAt === i
       ? vi.fn(async () => { throw new Error(`Step ${name} failed`); })
-      : vi.fn(async (ctx: Record<string, unknown>) => ({ [`${name}_result`]: true })),
+      : vi.fn(async () => ({ [`${name}_result`]: true })),
     compensate: vi.fn(async () => {}),
   }));
 }

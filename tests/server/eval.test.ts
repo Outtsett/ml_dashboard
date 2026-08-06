@@ -67,7 +67,7 @@ vi.mock('child_process', () => {
 // ── Mock the database module so fetchRegimeBreakdown's `db.all()` is steerable ─
 type DbAllResult = unknown[];
 let dbAllImpl: (rawSql: { sql?: string; queryChunks?: unknown[] } | string) => DbAllResult = () => [];
-vi.mock('../../src/server/database/db', () => ({
+vi.mock('../../src/server/infrastructure/database/db', () => ({
   db: {
     all: vi.fn((q: unknown) => dbAllImpl(q as never)),
   },
@@ -82,7 +82,7 @@ import {
   aggregateRegimeMetrics,
   fetchRegimeBreakdown,
   type BootstrapRequestInput,
-} from '../../src/server/routes/eval';
+} from '../../src/server/ml/eval.router';
 
 // ── BootstrapRequest Zod validation ─────────────────────────────────────────
 describe('BootstrapRequest schema', () => {

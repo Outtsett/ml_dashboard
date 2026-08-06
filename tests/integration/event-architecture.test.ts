@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import { EventStore } from '../../src/server/events/event-store';
-import { EventBus } from '../../src/server/events/event-bus';
-import { SagaOrchestrator } from '../../src/server/sagas/orchestrator';
-import type { SagaStep } from '../../src/server/sagas/orchestrator';
-import { QueryCache } from '../../src/server/cache/query-cache';
+import { EventStore } from '../../src/server/infrastructure/events/event-store';
+import { EventBus } from '../../src/server/infrastructure/events/event-bus';
+import { SagaOrchestrator } from '../../src/server/infrastructure/sagas/orchestrator';
+import type { SagaStep } from '../../src/server/infrastructure/sagas/orchestrator';
+import { QueryCache } from '../../src/server/infrastructure/cache/query';
 import { trainingMachine } from '../../src/shared/machines/training-machine';
 import type { DomainEvent } from '../../src/shared/event-types';
 

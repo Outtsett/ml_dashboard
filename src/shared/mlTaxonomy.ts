@@ -186,6 +186,61 @@ export const LABEL_GENERATORS = {
     `,
   },
 
+  // ============== ML STUDIO STRATEGIES ==============
+
+  next_close_direction: {
+    id: 'next_close_direction',
+    name: 'Next-Close Direction',
+    description: 'Binary up/down on the next bar close — cheapest target, watch for autocorrelation leakage',
+    category: 'classification',
+    params: [
+      { id: 'horizon', name: 'Horizon (bars)', type: 'number', default: 1, min: 1, max: 100 },
+    ],
+    generate: `
+      For each bar t:
+      1. future_close = close[t + horizon]
+      2. Label = 1 if future_close >= close, else -1
+      Equivalent to direction with threshold=0, numClasses=2.
+    `,
+  },
+
+  range_bucket: {
+    id: 'range_bucket',
+    name: 'Range Bucket (K-class)',
+    description: 'Quantize next-N-bar close-to-close delta into K symmetric buckets. Headline metric: within-K-pt accuracy.',
+    category: 'classification',
+    params: [
+      { id: 'horizon', name: 'Horizon (bars)', type: 'number', default: 16, min: 1, max: 200 },
+      { id: 'nBuckets', name: 'Number of Buckets (K)', type: 'number', default: 21, min: 3, max: 101 },
+      { id: 'bucketWidthPts', name: 'Bucket Width (pts)', type: 'number', default: 2, min: 0.25, max: 50, step: 0.25 },
+    ],
+    generate: `
+      For each bar t:
+      1. delta = close[t + horizon] - close[t]
+      2. bucket = clamp(floor((delta + halfRange) / bucketWidthPts), 0, K-1)
+      3. Label = bucket index ∈ {0, ..., K-1}
+      where halfRange = K * bucketWidthPts / 2 (symmetric coverage centered on zero).
+    `,
+  },
+
+  structural: {
+    id: 'structural',
+    name: 'Structural (HH/HL/LH/LL)',
+    description: 'Bar-level swing classification from rolling-window high/low — useful for swing models',
+    category: 'classification',
+    params: [
+      { id: 'pivotLookback', name: 'Pivot Lookback (bars)', type: 'number', default: 5, min: 2, max: 50 },
+    ],
+    generate: `
+      For each bar t with prev_max_high and prev_min_low computed over [t-N, t-1]:
+      1. high > prev_max_high AND low >= prev_min_low → +2 (HH — clean breakout up)
+      2. high <= prev_max_high AND low > prev_min_low → +1 (HL — held above prior low)
+      3. high <= prev_max_high AND low < prev_min_low → -2 (LL — clean breakdown)
+      4. high > prev_max_high AND low < prev_min_low  → -1 (LH — outside / engulfing)
+      5. else                                          →  0 (inside / boundary)
+    `,
+  },
+
   // ============== SELF-SUPERVISED LABELS ==============
 
   contrastive_temporal: {

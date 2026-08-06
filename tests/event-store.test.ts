@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import { EventStore } from '../src/server/events/event-store';
+import { EventStore } from '../src/server/infrastructure/events/event-store';
 import type { NewEvent, EventMetadata } from '../src/shared/event-types';
 
 const CREATE_EVENTS_TABLE = `

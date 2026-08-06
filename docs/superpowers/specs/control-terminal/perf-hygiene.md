@@ -61,7 +61,7 @@ Responsibility Principle), mat view (materialized view).
 worth typing incrementally, not in one sweep.
 
 `no-console` top offenders: `lib/ingestion/uploadProcessor.ts` (13),
-`lib/motivewave/watcher.ts` (13), `training/hpo.router.ts` (9).
+`training/hpo.router.ts` (9).
 
 ### 1.3 Ruff breakdown (46 findings)
 
@@ -182,7 +182,7 @@ SAMPLE BY 1d
 identical leader-detection JS on them — the 200M-row scan disappears. This is exactly the
 "time-bucket aggregate → materialized view" rule already codified in the repo's own schema
 section (candle-anatomy is already a mat view for the same reason). QuestDB refreshes the
-view incrementally on ingest, so it stays current with the MotiveWave ILP feed for free.
+view incrementally on ingest, so it stays current with whatever ILP feed writes for free.
 
 - **Effort:** M (create + backfill the mat view, repoint `getFullFrontMonthRanges`, verify
   boundaries match the old scan on MNQ/NQ/ES).

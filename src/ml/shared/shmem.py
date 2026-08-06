@@ -10,9 +10,11 @@ Single-writer-per-block rule (from tf_layout.h):
   Metadata       — C engine
   TickRing       — C engine
   DOM            — C engine
-  Benchmarks     — Java (MotiveWave)
+  Benchmarks     — currently unwritten (the charting-platform writer was
+                   removed on 2026-07-27; readers see zeros until a new
+                   producer claims the block)
   Distances      — Python (feature pipeline)
-  BucketBlock    — Java (MotiveWave)
+  BucketBlock    — currently unwritten (same removal as Benchmarks)
   Markov         — Python (HMM model)
   FeatureBlock   — Python (feature pipeline)
   ComponentBlock — Python (PCA/component pipeline)

@@ -28,7 +28,7 @@ vi.mock('child_process', () => ({
 vi.mock('../src/server/training/registry', () => ({
   reloadConfigs: vi.fn(),
 }));
-vi.mock('../src/server/lib/catalogBridge', () => ({
+vi.mock('../src/server/infrastructure/lib/catalogBridge', () => ({
   refreshBridge: vi.fn(),
 }));
 
@@ -40,7 +40,7 @@ import {
   CodeGeneratorError,
   type GeneratorPayload,
   type SavePayload,
-} from '../src/server/lib/codeGenerator';
+} from '../src/server/infrastructure/lib/codeGenerator';
 
 // ── Helper: build a fake child process that emits the given stdout/exit ──
 interface FakeChildSetup {

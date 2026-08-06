@@ -9,7 +9,7 @@
 //   - running total persists across calls
 
 import { describe, it, expect } from 'vitest';
-import { PaperPnLAccrual, loadCostModel, CONF_FLOOR } from '../../../src/server/deployments/paperPnL';
+import { PaperPnLAccrual, loadCostModel, CONF_FLOOR } from '../../../src/server/deployment/paperPnL';
 
 // MNQ defaults — half-round-trip = $1.40, point_value = $2.00
 const ROUND_TRIP = 2.80;

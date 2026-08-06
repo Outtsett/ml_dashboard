@@ -1,7 +1,8 @@
-﻿import fs from "fs";
+import fs from "fs";
 import path from "path";
 // @ts-expect-error — glob has no type declarations
 import glob from "glob";
+import { logInfo } from "../server/infrastructure/lib/log";
 
 /**
  * ARCHITECTURE VALIDATOR
@@ -30,7 +31,7 @@ const RULES = [
 ];
 
 function validate() {
-  console.log("Checking Architectural Integrity...");
+  logInfo("Checking Architectural Integrity...");
   let errors = 0;
   let warnings = 0;
 
@@ -67,7 +68,7 @@ function validate() {
     if (file.includes("server/") || (file.includes("client/src/lib/") && !file.includes("indicators/"))) {
       const isCamelCase = /[a-z][A-Z]/.test(nameWithoutExt);
       const isPascalCase = /^[A-Z]/.test(nameWithoutExt) && !nameWithoutExt.includes("_");
-      
+
       if ((isCamelCase || isPascalCase) && !fileName.endsWith(".tsx")) {
           console.warn(`[WARNING] Naming convention: ${file}`);
           console.warn(` -> Server and Lib files should use snake_case or single words (found camel/PascalCase).`);
@@ -76,15 +77,15 @@ function validate() {
     }
   }
 
-  console.log(`\nValidation Summary:`);
-  console.log(` - Errors: ${errors}`);
-  console.log(` - Warnings: ${warnings}`);
+  logInfo(`\nValidation Summary:`);
+  logInfo(` - Errors: ${errors}`);
+  logInfo(` - Warnings: ${warnings}`);
 
   if (errors > 0) {
     console.error(`\nFound ${errors} architectural violations. Build failed.`);
     process.exit(1);
   } else {
-    console.log("\nArchitecture is solid (with some warnings).");
+    logInfo("\nArchitecture is solid (with some warnings).");
   }
 }
 

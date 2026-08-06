@@ -20,8 +20,9 @@ against this project.
 | `0002_model_registry.sql` (+ `.down.sql`) | Creates `model_versions`, `deployments`, `promotion_gates` (+ 6 seed gate rows). Contains CHECK constraints on `status`/`mode`/`comparator` and the partial unique index `idx_deployments_one_live_per_sym_tf` — **Drizzle SQLite cannot emit either of these**, so `db:push` alone creates these 3 tables WITHOUT them. |
 | `0003_agent_runs.sql` (+ `.down.sql`) | Creates `agent_runs` (Claude Agent SDK dispatch queue/history). Contains CHECK constraints on `agent_id`/`status` — same `db:push` limitation as above. |
 | `0004_untracked_ml_tables.sql` (+ `.down.sql`) | Backfilled 2026-07-13 (AUD-008 remediation): `model_checkpoints`, `model_state_snapshots`, `prediction_log` are declared in `schema.ts` and exist live (created directly by `db:push`, bypassing this folder) but had NO migration file at all before this — a rebuild that replayed `migrations/*.sql` instead of running `db:push` would have silently omitted them. |
-| `meta/0000_snapshot.json` | Schema snapshot for migration diffing — **only covers migration 0000**. No snapshot exists for 0001-0004 (see below). |
-| `meta/_journal.json` | Migration journal — now lists all 5 entries (0000-0004) for documentation accuracy. `drizzle-kit migrate` would apply them in order via `__drizzle_migrations` bookkeeping; `drizzle-kit generate` diffing is NOT reliable past 0000 (no snapshot chain — see below). |
+| `0005_run_provenance.sql` (+ `.down.sql`) | Added 2026-07-28 (provenance stage 1): creates `experiments`, `runs`, `run_manifests`, `run_metrics`. Purely additive — no existing table altered, no row touched, no `data/models/*` directory affected. Fully expressible via `db:push` (no CHECK constraints, no partial indexes), so `enforce-sqlite-invariants.ts` has nothing to retrofit here. |
+| `meta/0000_snapshot.json` | Schema snapshot for migration diffing — **only covers migration 0000**. No snapshot exists for 0001-0005 (see below). |
+| `meta/_journal.json` | Migration journal — now lists all 6 entries (0000-0005) for documentation accuracy. `drizzle-kit migrate` would apply them in order via `__drizzle_migrations` bookkeeping; `drizzle-kit generate` diffing is NOT reliable past 0000 (no snapshot chain — see below). |
 
 ## Why the CHECK constraints / partial index aren't a documentation footnote
 
@@ -51,7 +52,7 @@ its documented, human-readable source of truth.
 
 ## Why these files aren't drizzle-kit-generate/migrate managed
 
-Hand-fabricating `meta/0001-0004_snapshot.json` was deliberately NOT done as
+Hand-fabricating `meta/0001-0005_snapshot.json` was deliberately NOT done as
 part of the 2026-07-13 fix: drizzle-kit's snapshot format is a complex,
 versioned structure, and an incorrect hand-written snapshot risks corrupting
 the diff base for anyone who runs `drizzle-kit generate` in the future

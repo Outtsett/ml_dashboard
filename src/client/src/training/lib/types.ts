@@ -418,3 +418,244 @@ export type PhaseStatus = "idle" | "running" | "completed" | "failed";
 // files are authored against — a local stub previously shadowed it and dropped
 // icon/color/difficulty/estimatedHours and the Module[] shape.
 export type { Difficulty, Module, LearningPath } from "@/training/curriculum_types";
+
+// ── Analytics snapshot shapes ───────────────────────────────────────────────
+// The analytics panels read a trainer-emitted metric blob that is NOT the same
+// shape as `Diagnostics` above — it arrives either as a `model_state` SSE
+// snapshot or as the diagnostics JSON on disk. These types replace the
+// `Record<string, any>` those panels previously used.
+
+/**
+ * One value as a trainer emits it over the stdout/SSE metric protocol.
+ * Numeric for every metric the panels chart, but the protocol also carries
+ * string labels and boolean flags, so the bag cannot be `Record<string, number>`.
+ */
+export type MetricValue = number | string | boolean | null;
+
+/** A metric bag (`best_metrics` / `metrics`) emitted by a training run. */
+export interface MetricsBag {
+  train_loss?: number;
+  val_loss?: number;
+  forward_auc?: number;
+  swing_auc?: number;
+  profit_factor?: number;
+  epoch_time_sec?: number;
+  /** Trainers are free to emit additional metrics; they are declaration-driven. */
+  [metric: string]: MetricValue | undefined;
+}
+
+/**
+ * Read one metric out of a bag as a number.
+ *
+ * The index signature above is deliberately wide (a declaration-driven bag can
+ * carry strings and flags), so every arithmetic/`toFixed` call site goes through
+ * this accessor instead of asserting. A metric that is absent, `null`, boolean,
+ * or a non-numeric string reads back as `undefined` — callers decide whether to
+ * substitute a default or skip rendering the cell.
+ *
+ * A numeric string is parsed rather than rejected: that is what the previous
+ * untyped arithmetic (`value * 100`) did by implicit coercion.
+ */
+export function metricNumber(bag: MetricsBag | undefined, key: string): number | undefined {
+  const raw = bag?.[key];
+  if (typeof raw === "number") return raw;
+  if (typeof raw === "string" && raw.trim() !== "") {
+    const parsed = Number(raw);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  }
+  return undefined;
+}
+
+// ─── HPO optimizer form-config shapes ───────────────────────────────────────
+// `OptimizerConfigFields.tsx` forms edit the optimizer config as the raw
+// wire/storage shape (`Record<string, unknown>` — seeded from
+// `DEFAULT_OPTIMIZER_CONFIGS` in `@shared/hpoTypes` and then user-edited
+// field-by-field), not the strict discriminated union `OptimizerConfig` from
+// that file. These mirror `OptunaConfig`/`BayesianConfig`/`PSOConfig`/
+// `MonteCarloConfig`/`EvolutionaryConfig`/`BOHBConfig` field-for-field, with
+// every field the UI treats as "may not be set yet" made optional, plus
+// runtime-checked `read*FormConfig` accessors so every property read narrows
+// via a type guard instead of asserting.
+
+/** True for a non-null, non-array object — the shape a nested config bag takes. */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Narrow an unknown value to a plain object, defaulting to `{}` otherwise. */
+export function asRecord(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}
+
+/** Narrow an unknown value to one of a fixed set of string literals. */
+export function isOneOf<T extends string>(value: unknown, allowed: readonly T[]): value is T {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value);
+}
+
+/** Narrow an unknown value to a finite number, or `undefined` if it isn't one. */
+export function asOptionalNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+export const OPTUNA_SAMPLER_TYPES = ["tpe", "cma_es", "random", "grid"] as const;
+export const OPTUNA_PRUNER_TYPES = ["median", "successive_halving", "hyperband", "none"] as const;
+export const OPTIMIZER_DIRECTIONS = ["minimize", "maximize"] as const;
+export const BAYESIAN_METHODS = ["gp", "forest", "gbrt"] as const;
+export const BAYESIAN_ACQUISITION_FUNCTIONS = ["ei", "ucb", "poi"] as const;
+export const PSO_TOPOLOGIES = ["global", "local"] as const;
+export const MONTE_CARLO_METHODS = ["random", "lhs", "sobol"] as const;
+export const EVOLUTIONARY_ALGORITHMS = ["cma", "de", "two_points_de", "one_plus_one", "pso_nevergrad"] as const;
+
+export type OptunaSamplerType = (typeof OPTUNA_SAMPLER_TYPES)[number];
+export type OptunaPrunerType = (typeof OPTUNA_PRUNER_TYPES)[number];
+export type OptimizerDirection = (typeof OPTIMIZER_DIRECTIONS)[number];
+export type BayesianMethod = (typeof BAYESIAN_METHODS)[number];
+export type BayesianAcquisitionFunction = (typeof BAYESIAN_ACQUISITION_FUNCTIONS)[number];
+export type PSOTopology = (typeof PSO_TOPOLOGIES)[number];
+export type MonteCarloMethod = (typeof MONTE_CARLO_METHODS)[number];
+export type EvolutionaryAlgorithm = (typeof EVOLUTIONARY_ALGORITHMS)[number];
+
+export interface OptunaSamplerFormConfig {
+  type: OptunaSamplerType;
+  nStartupTrials?: number;
+}
+
+export interface OptunaPrunerFormConfig {
+  type: OptunaPrunerType;
+}
+
+/** Mirrors `OptunaConfig` (`@shared/hpoTypes`) as read off a partially-edited form. */
+export interface OptunaFormConfig {
+  sampler: OptunaSamplerFormConfig;
+  pruner: OptunaPrunerFormConfig;
+  direction: OptimizerDirection;
+  nTrials?: number;
+  timeout?: number;
+}
+
+/** Mirrors `BayesianConfig` (`@shared/hpoTypes`) as read off a partially-edited form. */
+export interface BayesianFormConfig {
+  method: BayesianMethod;
+  acquisitionFunction: BayesianAcquisitionFunction;
+  nCalls?: number;
+  nInitialPoints?: number;
+  xi?: number;
+}
+
+/** Mirrors `PSOConfig` (`@shared/hpoTypes`) as read off a partially-edited form. */
+export interface PSOFormConfig {
+  nParticles?: number;
+  nIterations?: number;
+  c1?: number;
+  c2?: number;
+  w?: number;
+  topology: PSOTopology;
+}
+
+/** Mirrors `MonteCarloConfig` (`@shared/hpoTypes`) as read off a partially-edited form. */
+export interface MonteCarloFormConfig {
+  method: MonteCarloMethod;
+  nSamples?: number;
+}
+
+/** Mirrors `EvolutionaryConfig` (`@shared/hpoTypes`) as read off a partially-edited form. */
+export interface EvolutionaryFormConfig {
+  algorithm: EvolutionaryAlgorithm;
+  budget?: number;
+  populationSize?: number;
+}
+
+/** Mirrors `BOHBConfig` (`@shared/hpoTypes`) as read off a partially-edited form. */
+export interface BOHBFormConfig {
+  nTrials?: number;
+  minResource?: number;
+  maxResource?: number;
+  reductionFactor?: number;
+}
+
+/** Read an Optuna form config out of the raw wire-shaped `config` bag, with the same defaults the form previously inlined (`?? "tpe"` / `?? "median"` / `?? "minimize"`). */
+export function readOptunaFormConfig(config: Record<string, unknown>): OptunaFormConfig {
+  const samplerRaw = asRecord(config.sampler);
+  const prunerRaw = asRecord(config.pruner);
+  return {
+    sampler: {
+      type: isOneOf(samplerRaw.type, OPTUNA_SAMPLER_TYPES) ? samplerRaw.type : "tpe",
+      nStartupTrials: asOptionalNumber(samplerRaw.nStartupTrials),
+    },
+    pruner: {
+      type: isOneOf(prunerRaw.type, OPTUNA_PRUNER_TYPES) ? prunerRaw.type : "median",
+    },
+    direction: isOneOf(config.direction, OPTIMIZER_DIRECTIONS) ? config.direction : "minimize",
+    nTrials: asOptionalNumber(config.nTrials),
+    timeout: asOptionalNumber(config.timeout),
+  };
+}
+
+/** Read a Bayesian form config out of the raw wire-shaped `config` bag (defaults: `?? "gp"` / `?? "ei"`). */
+export function readBayesianFormConfig(config: Record<string, unknown>): BayesianFormConfig {
+  return {
+    method: isOneOf(config.method, BAYESIAN_METHODS) ? config.method : "gp",
+    acquisitionFunction: isOneOf(config.acquisitionFunction, BAYESIAN_ACQUISITION_FUNCTIONS)
+      ? config.acquisitionFunction
+      : "ei",
+    nCalls: asOptionalNumber(config.nCalls),
+    nInitialPoints: asOptionalNumber(config.nInitialPoints),
+    xi: asOptionalNumber(config.xi),
+  };
+}
+
+/** Read a PSO form config out of the raw wire-shaped `config` bag (default: `?? "global"`). */
+export function readPSOFormConfig(config: Record<string, unknown>): PSOFormConfig {
+  return {
+    nParticles: asOptionalNumber(config.nParticles),
+    nIterations: asOptionalNumber(config.nIterations),
+    c1: asOptionalNumber(config.c1),
+    c2: asOptionalNumber(config.c2),
+    w: asOptionalNumber(config.w),
+    topology: isOneOf(config.topology, PSO_TOPOLOGIES) ? config.topology : "global",
+  };
+}
+
+/** Read a Monte Carlo form config out of the raw wire-shaped `config` bag (default: `?? "lhs"`). */
+export function readMonteCarloFormConfig(config: Record<string, unknown>): MonteCarloFormConfig {
+  return {
+    method: isOneOf(config.method, MONTE_CARLO_METHODS) ? config.method : "lhs",
+    nSamples: asOptionalNumber(config.nSamples),
+  };
+}
+
+/** Read an Evolutionary form config out of the raw wire-shaped `config` bag (default: `?? "cma"`). */
+export function readEvolutionaryFormConfig(config: Record<string, unknown>): EvolutionaryFormConfig {
+  return {
+    algorithm: isOneOf(config.algorithm, EVOLUTIONARY_ALGORITHMS) ? config.algorithm : "cma",
+    budget: asOptionalNumber(config.budget),
+    populationSize: asOptionalNumber(config.populationSize),
+  };
+}
+
+/** Read a BOHB form config out of the raw wire-shaped `config` bag. */
+export function readBOHBFormConfig(config: Record<string, unknown>): BOHBFormConfig {
+  return {
+    nTrials: asOptionalNumber(config.nTrials),
+    minResource: asOptionalNumber(config.minResource),
+    maxResource: asOptionalNumber(config.maxResource),
+    reductionFactor: asOptionalNumber(config.reductionFactor),
+  };
+}
+
+/** One promotion/quality gate evaluated against a metric. */
+export interface QualityGate {
+  metric: string;
+  value: number;
+  status: "pass" | "warn" | "fail";
+  recommendation: string | null;
+}
+
+/** The snapshot blob the analytics panels consume. */
+export interface MetricsSnapshot {
+  best_metrics?: MetricsBag;
+  metrics?: MetricsBag;
+  quality_gates?: QualityGate[];
+  training?: { total_time_sec?: number; [key: string]: unknown };
+  [key: string]: unknown;
+}

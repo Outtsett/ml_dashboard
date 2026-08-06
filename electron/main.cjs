@@ -619,6 +619,13 @@ function registerIpcHandlers() {
     }
   });
   ipcMain.on("app:open-logs", () => shell.openPath(app.getPath("logs")));
+  // Same allowlist as app:path — only these named app dirs may be revealed.
+  ipcMain.on("app:open-path", (_e, name) => {
+    const allowed = ["userData", "appData", "logs", "temp", "home"];
+    if (typeof name === "string" && allowed.includes(name)) {
+      shell.openPath(app.getPath(name));
+    }
+  });
   ipcMain.on("app:relaunch", () => {
     app.relaunch();
     app.exit(0);

@@ -42,6 +42,7 @@ import {
   Network,
   Repeat,
   Share2,
+  Workflow,
   Sparkles,
   Waves,
 } from "lucide-react";
@@ -95,10 +96,16 @@ const FourierTransform = lazy(
   () => import("@/ml/fourier-transform/FourierTransform"),
 );
 
+/** All 140 catalog models, animated by researched mechanism. See mechanism/. */
+const MechanismTab = lazy(() =>
+  import("./mechanism/MechanismTab").then((m) => ({ default: m.MechanismTab })),
+);
+
 const TAB_LABELS: Record<string, string> = {
   graph: "Network graph",
   trees: "Trees & forests",
   concepts: "Concepts",
+  mechanism: "Mechanism",
 };
 
 export default function ArchitectureExplorer() {
@@ -128,6 +135,9 @@ export default function ArchitectureExplorer() {
             <TabsTrigger value="concepts" className="gap-1.5 text-xs">
               <BookOpen className="h-3.5 w-3.5" /> Concepts
             </TabsTrigger>
+            <TabsTrigger value="mechanism" className="gap-1.5 text-xs">
+              <Workflow className="h-3.5 w-3.5" /> Mechanism
+            </TabsTrigger>
           </TabsList>
 
           {/* The graph tab fills and owns its own fit; the tall content tabs
@@ -147,6 +157,15 @@ export default function ArchitectureExplorer() {
             className="mt-3 min-h-0 flex-1 overflow-auto"
           >
             <ConceptsTab />
+          </TabsContent>
+          {/* Fills like the graph tab — the p5 canvas owns its own height. */}
+          <TabsContent
+            value="mechanism"
+            className="mt-3 flex min-h-0 flex-1 flex-col"
+          >
+            <Suspense fallback={<PageLoader />}>
+              <MechanismTab />
+            </Suspense>
           </TabsContent>
         </Tabs>
       </div>

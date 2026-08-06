@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   isFuturesRoot,
   contractPattern,
-} from "../src/server/lib/futures";
+} from "../src/server/infrastructure/lib/futures";
 
 // ── isFuturesRoot ───────────────────────────────────────────────────────
 

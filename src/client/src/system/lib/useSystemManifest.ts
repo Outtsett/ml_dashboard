@@ -14,7 +14,6 @@ export interface SystemManifest {
       memory_total_mb: number;
       temperature: number;
     };
-    motivewave_latency_ms?: number;
   };
   infrastructure: {
     questdb: { connected: boolean; row_count: number; tables: string[] };

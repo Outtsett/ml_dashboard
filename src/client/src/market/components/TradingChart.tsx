@@ -7,7 +7,7 @@ import { useChartSeries } from '@/market/components/useChartSeries';
 import { useChartMarkers } from '@/market/components/useChartMarkers';
 import { useChartPriceLines } from '@/market/components/useChartPriceLines';
 import { useChartOverlays } from '@/market/components/useChartOverlays';
-import { alignTimestamp } from '@/market/components/useSeriesMarkers';
+import { snapToCandle } from '@/market/components/useSeriesMarkers';
 import type { TradingChartHandle, TradingChartProps, PriceInfo } from "@/market/components/types";
 
 // Re-export public types for backward compatibility
@@ -33,6 +33,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
   labelMarkers = [],
   indicatorOverlays = [],
   onVisibleLogicalRangeChange,
+  onVisibleTimeRangeChange,
   showTimeAxis = true,
   supportResistanceLevels = [],
   zigZagPoints = [],
@@ -118,6 +119,11 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
   const timeframeSecRef = useRef(timeframe * 60);
   timeframeSecRef.current = timeframe * 60;
 
+  // Hit-testing must snap the same way rendering does, or a click lands on a
+  // bar the arrow was never drawn on.
+  const candleTimesRef = useRef<number[]>([]);
+  candleTimesRef.current = processedData.candles.map(c => c.time as number);
+
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
@@ -138,7 +144,9 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
       for (const tm of markers) {
         // Markers are rendered on the bar their timestamp falls in — hit-test
         // against that same aligned time, and allow a one-bar near-miss.
-        const timeDelta = Math.abs(alignTimestamp(tm.timestamp, timeframeSec) - clickedTime);
+        const markerTime = snapToCandle(tm.timestamp, candleTimesRef.current, timeframeSec);
+        if (markerTime === null) continue;
+        const timeDelta = Math.abs(markerTime - clickedTime);
         if (timeDelta > timeframeSec) continue;
 
         let priceDelta = 0;
@@ -175,6 +183,46 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     labelMarkers, tradeMarkers, predictionMarkers,
     trainTestSplitTime,
   });
+
+  // ── Report the visible span so label previews follow the viewport ──────
+  //
+  // Without this the label overlay requests the whole loaded span. On a chart
+  // holding months of bars the row cap then spreads markers so thinly that a
+  // few hours of viewport contains none, and the overlay looks broken while
+  // working correctly. Emitting wall-clock bounds lets the request cover
+  // exactly what is on screen.
+
+  const onVisibleTimeRangeChangeRef = useRef(onVisibleTimeRangeChange);
+  onVisibleTimeRangeChangeRef.current = onVisibleTimeRangeChange;
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const timeScale = chart.timeScale();
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const emit = () => {
+      const notify = onVisibleTimeRangeChangeRef.current;
+      if (!notify) return;
+      // Debounced: panning fires this continuously, and each change starts a
+      // network request.
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        try {
+          const range = timeScale.getVisibleRange();
+          if (!range) { notify(null); return; }
+          notify({ start: (range.from as number) * 1000, end: (range.to as number) * 1000 });
+        } catch { /* chart disposed mid-debounce */ }
+      }, 250);
+    };
+
+    timeScale.subscribeVisibleTimeRangeChange(emit);
+    emit();
+    return () => {
+      if (timer) clearTimeout(timer);
+      try { timeScale.unsubscribeVisibleTimeRangeChange(emit); } catch { /* disposed */ }
+    };
+  }, [chartRef, data.length]);
 
   useChartOverlays(chartRef, candleSeriesRef, indicatorOverlays, processedData.candles);
 

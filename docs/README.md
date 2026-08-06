@@ -38,7 +38,6 @@ docs/
 | `SIMULATOR-ARCHITECTURE.md` | Trade simulator design |
 | `UI_SPEC.md` | UI specification and layout |
 | `SOLID-FIX-PLAN.md` | SOLID principles refactoring plan |
-| `motivewave-architecture.md` | MotiveWave plugin architecture |
 | `oanda-v20-api-reference.md` | Oanda forex API reference |
 | `ts_bestpractices.md` | TypeScript best practices |
 | `Developer Terms.md` | Developer terminology glossary |
