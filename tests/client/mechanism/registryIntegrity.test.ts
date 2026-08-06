@@ -26,10 +26,25 @@ describe('registry integrity', () => {
     }
   });
 
-  it('every entry cites a non-empty spec path ending in .md', () => {
+  it('every entry cites a real, readable source', () => {
+    // Literature entries cite their markdown spec under ALGO_MODELS_ROOT.
+    // The WIRED runners have no such spec because they are real code in THIS
+    // repo, so they cite the source file that was read instead. Both are
+    // citations; neither may be empty.
     for (const m of allMechanisms()) {
       expect(m.specPath.length, `${m.catalogKey} has no citation`).toBeGreaterThan(0);
-      expect(m.specPath.endsWith('.md')).toBe(true);
+      expect(
+        /\.(md|py|py\.j2|json|ts)$/.test(m.specPath),
+        `${m.catalogKey} cites "${m.specPath}", which is not a readable source file`,
+      ).toBe(true);
+    }
+  });
+
+  it('marks how each entry was produced', () => {
+    // curated vs extracted carry different confidence; the UI shows the
+    // difference, so the data must actually record it.
+    for (const m of allMechanisms()) {
+      expect(['curated', 'extracted']).toContain(m.curation);
     }
   });
 
@@ -72,7 +87,22 @@ describe('registry integrity', () => {
 
   it('carries a real provenance tier on every entry', () => {
     for (const m of allMechanisms()) {
-      expect(['analytic', 'trained-live', 'seeded']).toContain(m.provenance);
+      expect(['analytic', 'trained-live', 'seeded', 'schematic']).toContain(
+        m.provenance,
+      );
+    }
+  });
+
+  it('claims computed values ONLY where a kernel actually exists', () => {
+    // The rule that keeps StageFlow honest: an entry with no kernel animates
+    // flow, so it must not advertise analytic / trained-live / seeded values.
+    for (const m of allMechanisms()) {
+      if (!m.kernelId) {
+        expect(
+          m.provenance,
+          `${m.catalogKey} has no kernel but claims "${m.provenance}"`,
+        ).toBe('schematic');
+      }
     }
   });
 

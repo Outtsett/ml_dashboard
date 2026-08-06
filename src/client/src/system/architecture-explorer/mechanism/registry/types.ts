@@ -54,8 +54,13 @@ export const ALL_ARCHETYPES: readonly ArchetypeId[] = [
  *   analytic     - math fully determined; the result is genuinely correct.
  *   trained-live - really optimized in-browser on real bars; step + loss shown.
  *   seeded       - real arithmetic, untrained weights; output is NOT a prediction.
+ *   schematic    - NO values are computed. The animation shows this model's real
+ *                  information flow - its actual stages, loops and branches, read
+ *                  from the cited spec - but every number on screen would be
+ *                  invented, so none is shown. The motion is the claim; nothing
+ *                  more is asserted.
  */
-export type Provenance = 'analytic' | 'trained-live' | 'seeded';
+export type Provenance = 'analytic' | 'trained-live' | 'seeded' | 'schematic';
 
 export type StageRole =
   | 'input'
@@ -107,6 +112,18 @@ export interface MechanismSpec {
   beats: MechanismBeat[];
   /** Null when the repo would genuinely train this architecture. */
   repoRunner: RepoRunner | null;
+  /**
+   * How this entry was produced. Surfaced in the UI, because the two carry
+   * different confidence and pretending otherwise would be the same class of
+   * lie as a lookalike animation.
+   *
+   *   curated   - a human read the cited spec end to end and wrote the stages
+   *               and beats deliberately.
+   *   extracted - stages and beats were lifted mechanically from the cited
+   *               spec's own Principles / Algorithm sections. Faithful to the
+   *               source, but not reviewed line by line.
+   */
+  curation: 'curated' | 'extracted';
   /**
    * The compute kernel that genuinely reproduces THIS model's mechanism, or
    * null when it is not built yet.

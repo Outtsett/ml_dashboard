@@ -736,6 +736,19 @@ function createWindow() {
     if (!mainWindow.isVisible() && !userHidWindow) {
       mainWindow.show();
     }
+
+    // Arm the watchdog only NOW, once a renderer exists that can answer it.
+    // Starting it at window-creation time made it fire during the very first
+    // load: the renderer registers its beta:pong responder from main.tsx, so
+    // until the bundle has executed there is nobody to reply. In dev that load
+    // routinely exceeds HEARTBEAT_DEAD_MS (Vite serves hundreds of modules and
+    // the default "/" route runs a cold front-month stitch measured at 11-18s),
+    // so the watchdog force-reloaded the page it was waiting for — which
+    // restarted the same slow load, forever. Symptom in the log: repeating
+    // "No heartbeat for 30s — force reloading" with "Content loaded
+    // successfully" never appearing. Arming here keeps the watchdog's real job
+    // (catching a renderer that dies AFTER loading) without the false positive.
+    startHeartbeat();
   });
 
   // --- Content load failure: retry or show error page ---
@@ -844,7 +857,8 @@ function createWindow() {
   });
 
   // --- Beta Mode: Heartbeat watchdog ---
-  startHeartbeat();
+  // NOT started here. See did-finish-load above: arming the watchdog before a
+  // renderer exists made it force-reload the initial load it was waiting on.
   startBackendHealthCheck();
 
   // Fallback: if nothing shows after 30s, force-show the window

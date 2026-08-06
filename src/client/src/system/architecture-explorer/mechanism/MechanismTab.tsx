@@ -16,7 +16,7 @@ import { Suspense, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Play, Pause, SkipForward, RotateCcw } from 'lucide-react';
 import { resolveMechanism, allMechanisms } from './registry';
-import { ARCHETYPE_COMPONENTS, type ArchetypeProgress } from './archetypes';
+import { resolveEngine, hasLiveKernel, type ArchetypeProgress } from './archetypes';
 import { useMechanismBars } from './data/useMechanismBars';
 import { ProvenancePanel } from './ProvenancePanel';
 import { RepoRunnerBanner } from './RepoRunnerBanner';
@@ -74,9 +74,9 @@ export function MechanismTab({ initialCatalogKey }: MechanismTabProps) {
   const resolution = resolveMechanism(catalogKey);
   const { data, isLoading, error } = useMechanismBars(symbol, tfMinutes);
 
-  const Engine = resolution.researched
-    ? ARCHETYPE_COMPONENTS[resolution.spec.archetype]
-    : undefined;
+  // Every researched spec resolves to an engine — bespoke where a kernel
+  // reproduces the real algorithm, StageFlow otherwise.
+  const Engine = resolution.researched ? resolveEngine(resolution.spec) : undefined;
 
   /** Every catalog key, grouped by how honestly we can show it. */
   const groups = useMemo(() => {
@@ -87,7 +87,7 @@ export function MechanismTab({ initialCatalogKey }: MechanismTabProps) {
     for (const [key, row] of rows) {
       const label = row.name ?? key;
       const r = resolveMechanism(key);
-      if (r.researched && r.spec.kernelId !== null) animated.push([key, label]);
+      if (r.researched && hasLiveKernel(r.spec)) animated.push([key, label]);
       else if (r.researched) researchedOnly.push([key, label]);
       else pending.push([key, label]);
     }
@@ -150,7 +150,9 @@ export function MechanismTab({ initialCatalogKey }: MechanismTabProps) {
             ))
           ) : (
             <>
-              <optgroup label={`Animated (${groups.animated.length})`}>
+              <optgroup
+                label={`Animated · live computed values (${groups.animated.length})`}
+              >
                 {groups.animated.map(([k, label]) => (
                   <option key={k} value={k}>
                     {label}
@@ -158,7 +160,7 @@ export function MechanismTab({ initialCatalogKey }: MechanismTabProps) {
                 ))}
               </optgroup>
               <optgroup
-                label={`Researched — engine pending (${groups.researchedOnly.length})`}
+                label={`Animated · information flow (${groups.researchedOnly.length})`}
               >
                 {groups.researchedOnly.map(([k, label]) => (
                   <option key={k} value={k}>
