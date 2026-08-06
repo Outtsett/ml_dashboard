@@ -25,8 +25,9 @@ Status legend: ⬜ pending · 🔄 in progress · ✅ done · ⛔ blocked
 - ✅ A6 Perf / Hygiene / Frameworks → `perf-hygiene.md` (ESLint 14 err/719 warn — mostly no-explicit-any 518 + no-unused 125 + no-console 71; Ruff 46, only 2 real: TRUNCATED `src/ml/shared/primitives/core.py` (import-breaking bug) + 9 dup compute_fold_metrics from one bad .j2. Frameworks: ZERO new deps needed (systeminformation/Zod/SSE/react-window/TanStack all present; BullMQ/ws/tree-kill = YAGNI). TOP PERF WIN: `front_month_daily` QuestDB mat-view → cold-start 11-18s (504 timeout) → sub-500ms.)
 
 ## Synthesis (after fan-out returns)
-- ⬜ S1 Reconcile the six facet docs, resolve any contradictions.
-- ⬜ S2 Write the consolidated design spec → `2026-07-22-control-terminal-design.md`.
-- ⬜ S3 Spec self-review (placeholders / consistency / scope / ambiguity).
-- ⬜ S4 Tyler reviews the spec.
-- ⬜ S5 Invoke writing-plans → implementation plan.
+- ✅ S1 Reconcile the six facet docs (one contradiction found + resolved: systeminformation pin 5.31.5 vs bump 5.33.0 → stay on installed 5.31.5 unless a needed fix is in 5.33.0).
+- ✅ S2 Write the consolidated design spec → `2026-07-22-control-terminal-design.md`.
+- ✅ S3 Spec self-review (no placeholders; counts consistent 49/32/17/3-dangerous; risk model clean).
+- ✅ Committed to branch `feature/control-terminal-design` (37fcc7a), no push.
+- 🔄 S4 Tyler reviews the spec (4 open items at spec §9).
+- ⬜ S5 Invoke writing-plans → implementation plan (scope: shared foundation + Phase-1 Machine + Phase-1 perf/hygiene items).

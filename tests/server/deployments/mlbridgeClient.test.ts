@@ -20,7 +20,7 @@ import {
   MLBridgeError,
   type ZmqRequestLike,
   type PredictRequest,
-} from '../../../src/server/deployments/mlbridgeClient';
+} from '../../../src/server/deployment/mlbridgeClient';
 
 interface MockSocket extends ZmqRequestLike {
   sent: string[];
@@ -36,7 +36,7 @@ function makeMockSocket(): MockSocket {
     connectCalls: 0,
     closeCalls: 0,
     nextReply: null,
-    connect(_endpoint: string) {
+    connect() {
       this.connectCalls += 1;
     },
     async send(msg: string | Buffer) {

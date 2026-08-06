@@ -1,6 +1,6 @@
 # Intraday Model Arsenal — A First-Principles Architecture for MNQ ≤30m
 
-**Provenance.** Synthesis of a 300-spec audit across 7 parallel research agents (see `catalog_per_model_notes.md` for per-spec evidence). Designed against Tyler's MNQ futures stack: 863M-row QuestDB, multi-TF parquet (1m/5m/15m/30m/1h/4h/1d), 4 currently-trained models (`xgb_classifier`, `primitives`, `transformer_range`, `transformer_direction_daily`), MotiveWave ILP plugin streaming live OHLCV/ticks/DOM, and a $14 round-trip cost on MNQ.
+**Provenance.** Synthesis of a 300-spec audit across 7 parallel research agents (see `catalog_per_model_notes.md` for per-spec evidence). Designed against Tyler's MNQ futures stack: 863M-row QuestDB, multi-TF parquet (1m/5m/15m/30m/1h/4h/1d), 4 currently-trained models (`xgb_classifier`, `primitives`, `transformer_range`, `transformer_direction_daily`), and a $14 round-trip cost on MNQ. Note: the live OHLCV/ticks/DOM ILP feed that fed this stack was removed on 2026-07-27 — the QuestDB history it produced is intact, but nothing streams new bars in.
 
 **Headline metric (sole arbiter).** Sharpe-after-costs on walk-forward + purged + embargoed CV, with block-bootstrap 95% CI. Every model in this arsenal must clear that bar OR have a concrete path to it.
 
@@ -75,7 +75,7 @@ This is a layered stack reasoned from the four first-principles facts (microstru
 
 **Already exists.** Pre-materialized parquet at `data/parquet/{symbol}/{tf}.parquet` for {1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w} with common-span alignment (MNQ canonical: 2019-05-05..2025-12-25, 2,340,445 1m bars). QuestDB unified `ohlcv` (1-second granularity) + `ticks` + `dom_l2` + `dom_summary`. Microstructure fields (`vol_at_{bid,ask}`, `trades_at_{bid,ask}`) preserved through parquet rebuild.
 
-**Gap to fix:** the 8 mat views exist but no MotiveWave ILP plugin live-stream of DOM into the training cache yet — wire that for the orderflow features Layer 4/9 needs.
+**Gap to fix:** the 8 mat views exist but no live DOM ILP stream reaches the training cache — the previous feed was removed on 2026-07-27. A replacement DOM producer must be wired for the orderflow features Layer 4/9 needs.
 
 ### Layer 1 — Self-Supervised Pretrainers
 

@@ -1,17 +1,16 @@
 import { Injectable, Logger } from "@nestjs/common";
 import crypto from "crypto";
-import { eq, desc, and, sql } from "drizzle-orm";
-import { db } from "../../database/db";
+import { eq, desc } from "drizzle-orm";
+import { db } from "../../infrastructure/database/db";
 import {
   hpoSessions,
   type HpoSession,
-  type HpoTrial,
 } from "@shared/schema";
 import {
   hpoRequestSchema,
   type HPORequest,
 } from "@shared/hpoTypes";
-import { HPOSessionState, HPOEvent } from "./types";
+import { HPOSessionState } from "./types";
 import { 
   dbCreateSession, 
   dbUpdateSession, 
@@ -72,7 +71,7 @@ export async function startHPO(
   const nTrials = getNTrials(request);
   
   logger.log(
-    `Starting HPO session ${sessionId} — model=${request.modelType}, symbol=${request.symbol}, ` +
+    `Starting HPO session ${sessionId} ï¿½ model=${request.modelType}, symbol=${request.symbol}, ` +
       `optimizer=${request.optimizer.type}, nTrials=${nTrials}, metric=${request.objectiveMetric}`,
   );
 

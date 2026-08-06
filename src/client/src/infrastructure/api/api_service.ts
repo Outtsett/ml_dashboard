@@ -161,39 +161,3 @@ export const backtestApi = {
   /** Dispatch a backtest run. Used by EvaluateStage's parallel runner. */
   run: (body: BacktestRunBody) => mutate<BacktestRunResponse>('POST', '/api/backtest/run', body),
 } as const;
-
-// ── MotiveWave ───────────────────────────────────────────────────────────────
-
-export interface MwStatus {
-  running: boolean;
-  config: {
-    watchDir: string;
-    enabled: boolean;
-    debounceMs: number;
-    autoStart: boolean;
-    patterns: string[];
-  };
-  trackedFiles: number;
-  recentImports: MwImportRecord[];
-}
-
-export interface MwImportRecord {
-  filename: string;
-  symbol: string;
-  timeframe: string;
-  rowsImported: number;
-  rowsSkipped: number;
-  timestamp: number;
-  durationMs: number;
-  status: "success" | "error";
-  error?: string;
-}
-
-export const motiveWaveApi = {
-  getStatus:   () => get<MwStatus>("/api/motivewave/status"),
-  configure:   (body: Partial<MwStatus["config"]>) => mutate("POST", "/api/motivewave/configure", body),
-  start:       () => mutate("POST", "/api/motivewave/start"),
-  stop:        () => mutate("POST", "/api/motivewave/stop"),
-  importPath:  (filePath: string, symbol?: string) =>
-    mutate("POST", "/api/motivewave/import-path", { filePath, symbol }),
-} as const;

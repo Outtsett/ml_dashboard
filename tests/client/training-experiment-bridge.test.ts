@@ -12,7 +12,7 @@ import "./setup";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
-import type { ExperimentRecord } from "../../src/client/src/pages/ml-studio/experimentTypes";
+import type { ExperimentRecord } from "../../src/client/src/ml/experimentTypes";
 
 // --- Mocks for the three context hooks the bridge imports ------------------
 
@@ -42,23 +42,23 @@ let mockTrainingLive: MockTrainingLive;
 let dispatchSpy: ReturnType<typeof vi.fn>;
 const updatePatches: Patch[] = [];
 
-vi.mock("../../src/client/src/pages/ml-studio/MLStudioContext", () => ({
+vi.mock("../../src/client/src/ml/MLStudioContext", () => ({
   useMLStudio: () => mockMLStudio,
 }));
 
-vi.mock("../../src/client/src/contexts/TrainingContext", () => ({
+vi.mock("../../src/client/src/training/lib/TrainingContext", () => ({
   useTrainingControl: () => mockTrainingControl,
   useTrainingLive: () => mockTrainingLive,
 }));
 
 // Import AFTER mocks are wired so the hook resolves the mocked imports.
-import { useTrainingExperimentBridge } from "../../src/client/src/pages/ml-studio/stages/train/useTrainingExperimentBridge";
+import { useTrainingExperimentBridge } from "../../src/client/src/ml/stages/train/useTrainingExperimentBridge";
 import {
   applyFoldComplete,
   deriveSummaryFromFolds,
   mergeFoldMetric,
   parseFoldMetricKey,
-} from "../../src/client/src/pages/ml-studio/experimentTypes";
+} from "../../src/client/src/ml/experimentTypes";
 
 // --- Helpers ---------------------------------------------------------------
 

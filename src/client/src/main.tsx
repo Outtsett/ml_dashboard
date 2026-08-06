@@ -3,9 +3,9 @@ import App from "./App";
 import "./index.css";
 
 // --- Beta Mode: Heartbeat responder + global error recovery ---
-const api = (window as any).electronAPI;
+const api = window.electronAPI;
 if (api?.onHeartbeatPing) {
-  api.onHeartbeatPing(); // auto-responds with pong
+  api.onHeartbeatPing(() => {}); // auto-responds with pong
 }
 
 // Beta mode: auto-recover from fatal errors

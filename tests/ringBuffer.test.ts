@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { RingBuffer } from '../src/client/src/lib/ringBuffer';
+import { RingBuffer } from '../src/client/src/infrastructure/storage/ring_buffer';
 
 describe('RingBuffer', () => {
   it('pushes and retrieves items in order', () => {

@@ -50,6 +50,7 @@ interface ElectronAPI {
   getPath(name: 'userData' | 'appData' | 'logs' | 'temp' | 'home'): Promise<string>;
   openExternal(url: string): void;
   openLogsFolder(): void;
+  openAppPath(name: 'userData' | 'appData' | 'logs' | 'temp' | 'home'): void;
   relaunch(): void;
   getAutoLaunch(): Promise<boolean>;
   setAutoLaunch(enabled: boolean): Promise<void>;

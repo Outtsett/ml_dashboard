@@ -9,7 +9,7 @@ The current ML Studio (`/ml-studio`) is a six-tab shell (Dashboard / Training / 
 - `src/config/models.json` is empty (`"models": {}`) — the registry-driven training UI has zero registered models. The Training tab dropdown is therefore inert until somebody hand-edits the JSON.
 - There is no UI affordance to preview data, configure labels, or pick a feature pipeline before training. Training takes only `(modelType, symbol, timeframe, hyperparameters)`.
 - There is no model promotion flow. `DashboardTab` lists checkpoints but no "set active" / "deploy" / "paper-trade this checkpoint" action exists.
-- There is no live-deploy path. The MotiveWave ILP plugin streams data **into** QuestDB but no checkpoint streams predictions **back out** to a broker or paper-trade simulator.
+- There is no live-deploy path. Historical bars sit **in** QuestDB but no checkpoint streams predictions **back out** to a broker or paper-trade simulator. (The external ILP plugin that once fed QuestDB was removed on 2026-07-27.)
 - The Trades tab inside ML Studio re-renders trade-history info that already exists in `UnifiedDashboardContext`, and the Forecast tab is a single-component visualisation, not a forecasting pipeline.
 
 We will rebuild ML Studio as a strictly linear, real-data, end-to-end command surface. Charting responsibilities are owned by the Market Data tab (`/`) and reached via `dashboard.navigateToChart()` — never duplicated inside ML Studio.
@@ -20,7 +20,7 @@ In scope:
 - Restructure `/ml-studio` into a Stage-driven workflow: **Data → Features → Labels → Train → Evaluate → Promote → Deploy**.
 - Delete the Neural Price Context chart and the ML-Studio-internal Trades tab.
 - Wire `src/config/models.json` to a working set of real models so the registry is non-empty out of the box.
-- Add a deploy contract (paper + live) bridging completed checkpoints to either an internal paper-trade engine or the MotiveWave plugin via QuestDB `prediction_log`.
+- Add a deploy contract (paper + live) bridging completed checkpoints to either an internal paper-trade engine or an external execution bridge via QuestDB `prediction_log`.
 - Reuse `UnifiedDashboardContext` + `dashboard.navigateToChart()` for any chart need.
 
 Out of scope (intentionally — separate plans):
@@ -217,7 +217,7 @@ interface Deployment {
 - Trades surface on `/` chart via the existing `dashboard.addTradeMarkers(..., source: 'paper')` channel — no new chart code.
 
 **Live deploy** path:
-- Same inference loop emits to `prediction_log`, but a separate emitter pushes ZMQ/HTTP signals to the MotiveWave plugin (`E:\source\repos\MotiveWave\MLBridge\`).
+- Same inference loop emits to `prediction_log`, but a separate emitter pushes ZMQ/HTTP signals to the MLBridge scoring engine (`MLBRIDGE_ENDPOINT`, default `tcp://127.0.0.1:5555`).
 - Requires explicit `confirm-live` modal with broker-config sanity check (max position, daily loss limit, kill switch).
 
 Schema additions (SQLite, `src/shared/schema.ts`):
@@ -299,7 +299,7 @@ Each entry must include `outputs`, `cliFlags`, `defaultHyperparameters`, `output
 - `src/server/routes/deployments.ts` — list + create + delete deployments.
 - `src/server/lib/deployments/deploymentOrchestrator.ts` — start/stop inference processes, supervise, emit SSE.
 - `src/server/lib/deployments/paperTradeRunner.ts` — reads `prediction_log` LATEST ON, simulates fills, writes paper trades.
-- `src/server/lib/deployments/liveBridge.ts` — pushes signals to MotiveWave MLBridge over ZMQ.
+- `src/server/lib/deployments/liveBridge.ts` — pushes signals to MLBridge over ZMQ.
 
 **Modify:**
 - `src/server/routes/events.ts` — add `'deployments'` to `VALID_CHANNELS`.

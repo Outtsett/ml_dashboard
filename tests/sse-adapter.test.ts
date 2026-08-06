@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { Response } from 'express';
 import type { DomainEvent, PipelineEvent, TrainingEvent, CacheEvent } from '../src/shared/event-types';
-import { EventBus } from '../src/server/events/event-bus';
-import { SSEAdapter } from '../src/server/events/sse-adapter';
-import type { SSEChannel } from '../src/server/events/sse-adapter';
+import { EventBus } from '../src/server/infrastructure/events/event-bus';
+import { SSEAdapter } from '../src/server/infrastructure/events/sse-adapter';
 
 // ── Helpers ──────────────────────────────────────────────────
 function makeEvent<T extends DomainEvent>(
@@ -56,7 +56,7 @@ describe('SSEAdapter', () => {
   // ── 1. Send SSE-formatted event to connected clients ──────
   it('should send SSE-formatted events to connected clients', () => {
     const res = createMockResponse();
-    adapter.addClient('pipeline', res as any);
+    adapter.addClient('pipeline', res as unknown as Response);
 
     const event = makeEvent<PipelineEvent>({
       type: 'pipeline.started',
@@ -86,8 +86,8 @@ describe('SSEAdapter', () => {
     const pipelineRes = createMockResponse();
     const trainingRes = createMockResponse();
 
-    adapter.addClient('pipeline', pipelineRes as any);
-    adapter.addClient('training', trainingRes as any);
+    adapter.addClient('pipeline', pipelineRes as unknown as Response);
+    adapter.addClient('training', trainingRes as unknown as Response);
 
     // Emit a pipeline event
     bus.emit(makeEvent<PipelineEvent>({
@@ -119,7 +119,7 @@ describe('SSEAdapter', () => {
   // ── 3. System channel receives cache, system, model, ingestion ──
   it('should route cache/system/model/ingestion events to system channel', () => {
     const systemRes = createMockResponse();
-    adapter.addClient('system', systemRes as any);
+    adapter.addClient('system', systemRes as unknown as Response);
 
     bus.emit(makeEvent<CacheEvent>({
       type: 'cache.invalidate',
@@ -133,7 +133,7 @@ describe('SSEAdapter', () => {
   // ── 4. Remove disconnected clients ─────────────────────────
   it('should remove disconnected clients on close', () => {
     const res = createMockResponse();
-    adapter.addClient('pipeline', res as any);
+    adapter.addClient('pipeline', res as unknown as Response);
 
     expect(adapter.clientCount('pipeline')).toBe(1);
 
@@ -159,9 +159,9 @@ describe('SSEAdapter', () => {
     const res2 = createMockResponse();
     const res3 = createMockResponse();
 
-    adapter.addClient('pipeline', res1 as any);
-    adapter.addClient('pipeline', res2 as any);
-    adapter.addClient('training', res3 as any);
+    adapter.addClient('pipeline', res1 as unknown as Response);
+    adapter.addClient('pipeline', res2 as unknown as Response);
+    adapter.addClient('training', res3 as unknown as Response);
 
     expect(adapter.clientCount('pipeline')).toBe(2);
     expect(adapter.clientCount('training')).toBe(1);
@@ -171,7 +171,7 @@ describe('SSEAdapter', () => {
   // ── 6. Connected event sent on addClient ───────────────────
   it('should send a connected event when a client connects', () => {
     const res = createMockResponse();
-    adapter.addClient('pipeline', res as any);
+    adapter.addClient('pipeline', res as unknown as Response);
 
     expect(res.chunks.length).toBeGreaterThanOrEqual(1);
     expect(res.chunks[0]).toContain('event: connected');
@@ -180,7 +180,7 @@ describe('SSEAdapter', () => {
   // ── 7. SSE headers are set correctly ───────────────────────
   it('should set SSE headers on client response', () => {
     const res = createMockResponse();
-    adapter.addClient('pipeline', res as any);
+    adapter.addClient('pipeline', res as unknown as Response);
 
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/event-stream');
     expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-cache');
@@ -191,7 +191,7 @@ describe('SSEAdapter', () => {
   // ── 8. Keepalive sends comments ────────────────────────────
   it('should send keepalive comments every 15 seconds', () => {
     const res = createMockResponse();
-    adapter.addClient('pipeline', res as any);
+    adapter.addClient('pipeline', res as unknown as Response);
 
     const initialCount = res.chunks.length;
 
@@ -207,8 +207,8 @@ describe('SSEAdapter', () => {
     const res1 = createMockResponse();
     const res2 = createMockResponse();
 
-    adapter.addClient('pipeline', res1 as any);
-    adapter.addClient('training', res2 as any);
+    adapter.addClient('pipeline', res1 as unknown as Response);
+    adapter.addClient('training', res2 as unknown as Response);
 
     adapter.shutdown();
 

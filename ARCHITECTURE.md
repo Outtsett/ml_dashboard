@@ -23,7 +23,8 @@ graph TD
 ```
 
 - **Client (`src/client`)**: React 19 + Radix UI. Standardized `Layout` and `AppRoute` logic.
-- **Server (`src/server`)**: NestJS backend providing a robust DI container and lifecycle hooks.
+- **Server (`src/server`)**: NestJS backend refactored into vertical domain slices (e.g., `training/`, `market/`, `ml/`, `deployment/`).
+- **Infrastructure (`src/server/infrastructure`)**: Consolidated technical concerns including `database/`, `storage/`, `cache/`, `lib/`, `events/`, and `sagas/`.
 - **ML Engine (`src/ml`)**: PyTorch-based training and inference engine.
 - **Shared (`src/shared`)**: Type definitions and utility functions used by both Client and Server.
 
@@ -41,6 +42,4 @@ graph TD
 
 ## 5. Connectivity & Speed
 
-- **MotiveWave Bridge**: Optimized Java ILP client using async batching and `TCP_NODELAY`.
-- **Fast-Pulse Logic**: Sub-10ms UI propagation via `/api/motivewave/pulse` endpoint and SSE broadcast.
 - **Bulk Access**: High-speed HTTP REST path for Node.js and Python, bypassing standard PG wire overhead for 1.5x throughput gains.

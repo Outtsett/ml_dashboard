@@ -10,7 +10,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 const ALLOWED_STORE_KEYS = [
   'theme', 'windowState', 'windowBounds', 'sidebarCollapsed',
   'lastSymbol', 'lastTimeframe', 'recentSymbols', 'settings',
-  'motiveWaveConfig', 'terminalSessions', 'chartLayout',
+  'terminalSessions', 'chartLayout',
   'betaMode', 'devToolsEnabled', 'fontSize', 'zoomFactor', 'locale', 'lastRoute', 'autoLaunch', 'minimizeToTray',
 ];
 
@@ -80,6 +80,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   setAutoLaunch: (flag) => ipcRenderer.invoke("app:set-auto-launch", flag),
   openExternal: (url) => ipcRenderer.send("app:open-external", url),
   openLogsFolder: () => ipcRenderer.send("app:open-logs"),
+  openAppPath: (name) => ipcRenderer.send("app:open-path", name),
   relaunch: () => ipcRenderer.send("app:relaunch"),
 
   // Shortcuts

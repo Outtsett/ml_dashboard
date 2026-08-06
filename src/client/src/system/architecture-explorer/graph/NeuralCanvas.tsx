@@ -14,6 +14,11 @@
  *   - The pulse animates SIGNAL ARRIVAL, not activation strength. A lit neuron
  *     means "the forward pass has reached this layer", nothing more.
  *   - Columns wider than DRAW_CAP are sampled, and the overlay says so.
+ *   - The OUTPUT PORT on the right is the pipeline terminus: the last layer's
+ *     nodes converge into it and the packet exits through it each pass, so the
+ *     flow reads input tape → layers → output rather than stopping at the last
+ *     column. Its values are the same REAL seeded-forward-pass numbers — an
+ *     output STAGE, never asserted as a prediction.
  *
  * p5 runs in INSTANCE mode (never global) and is imported lazily by the parent
  * so it stays out of the main bundle. Canvas cannot read `hsl(var(--token))`,
@@ -168,12 +173,17 @@ export function NeuralCanvas({
           p.resizeCanvas(Math.max(1, r.width), Math.max(1, r.height));
         };
 
+        // Right-side space reserved for the output port — the pipeline's
+        // terminus. Layers stop short of it so the last column's nodes have
+        // room to converge into the port.
+        const OUT_LANE = 96;
         const layerX = (i: number, w: number) => {
           const n = model.layers.length;
-          if (n === 1) return w / 2;
           const pad = Math.min(90, w * 0.1);
-          return pad + (i / (n - 1)) * (w - pad * 2);
+          if (n === 1) return (pad + (w - OUT_LANE)) / 2;
+          return pad + (i / (n - 1)) * (w - pad - OUT_LANE);
         };
+        const outPortX = (w: number) => w - OUT_LANE * 0.42;
 
         /** Vertical band reserved for the bar-aligned input tape. */
         const TAPE_H = 34;
@@ -250,10 +260,11 @@ export function NeuralCanvas({
 
           // Advance the front — the position of the forward-pass packet. It runs
           // a full loop: enters from the input tape (front = -1), crosses every
-          // layer (0 … n-1), then wraps back to the tape. Step mode pins it;
-          // reduced-motion pins it to the end so the whole network is visible
-          // without animation.
+          // layer (0 … n-1), exits through the output port (n-1 … n), then wraps
+          // back to the tape. Step mode pins it; reduced-motion pins it to the
+          // output so the whole pipeline is visible without animation.
           const START = hasTape ? -1 : 0; // -1 = sitting on the input tape
+          const OUT_FRONT = n; // front position sitting on the output port
           if (stepRef.current != null) {
             // Explicit step — static packet pinned to the chosen layer.
             front = stepRef.current;
@@ -262,13 +273,13 @@ export function NeuralCanvas({
             // request to see the pass move. (Auto-play is disabled at mount under
             // reduced-motion, so this only runs when the user opted in.)
             front += (p.deltaTime / 1000) * speedRef.current;
-            if (front > n - 1 + 0.75) {
+            if (front > OUT_FRONT + 0.4) {
               front = START;
               loopCount += 1;
             }
           } else if (reducedRef.current) {
-            // Paused under reduced-motion: show the whole network settled.
-            front = n - 1;
+            // Paused under reduced-motion: show the pipeline settled at the output.
+            front = OUT_FRONT;
           }
           if (front < START) front = START;
 
@@ -367,7 +378,11 @@ export function NeuralCanvas({
           const wireIdle = resolveToken(document.documentElement, '--muted-foreground', 0.4);
           const pulseCol = resolveToken(document.documentElement, '--data-cat-4');
           for (const { from, to } of model.wires) {
-            const lit = front >= from && front <= to + 0.35;
+            // Lit by the passing front, OR by hovering either end — so mousing a
+            // column highlights the connections feeding and leaving it.
+            const litFront = front >= from && front <= to + 0.35;
+            const litHover = hover === from || hover === to;
+            const lit = litFront || litHover;
             p.noFill();
             p.stroke(lit ? palette.wireLit : wireIdle);
             p.strokeWeight(lit ? 2 : 1);
@@ -382,10 +397,12 @@ export function NeuralCanvas({
               }
             }
 
-            // Mechanical drive: pulses run continuously along the LIT gap's
-            // tails — several per wire at staggered phases, so it reads as data
-            // being conveyed through a machine rather than one lone dot.
-            if (lit) {
+            // Mechanical drive: pulses run continuously along the front-lit
+            // gap's tails — several per wire at staggered phases, so it reads as
+            // data being conveyed through a machine rather than one lone dot.
+            // Gated on the front (not hover) so mousing a column doesn't strand
+            // motionless dots on its wires.
+            if (litFront) {
               p.noStroke();
               p.fill(pulseCol);
               for (let i = 0; i < a.length; i += sa) {
@@ -480,10 +497,13 @@ export function NeuralCanvas({
                 p.textAlign(p.LEFT, p.CENTER);
                 p.textSize(9);
                 const cw = p.textWidth(txt) + 8;
+                // The output layer's chips flip to the LEFT of the node so they
+                // don't overrun the converging output lane on the right.
+                const rx = i === n - 1 ? x - r - 3 - cw : x + r + 3;
                 p.fill(resolveToken(document.documentElement, '--card', 0.85));
-                p.rect(x + r + 3, y - 8, cw, 16, 3);
+                p.rect(rx, y - 8, cw, 16, 3);
                 p.fill(palette.text);
-                p.text(txt, x + r + 7, y);
+                p.text(txt, rx + 4, y);
               }
             });
 
@@ -517,6 +537,63 @@ export function NeuralCanvas({
               p.text(layer.outShape, x, h - 15);
             }
           });
+
+          // ── output port ────────────────────────────────────────────────────
+          // The pipeline's terminus. The last layer's nodes converge to one port
+          // on the right, and the packet exits through it each pass — so the flow
+          // reads all the way from the input tape THROUGH to a resolved output,
+          // not a network that simply stops at its last column. The values at the
+          // port are the REAL final-layer computations (seeded weights): labelled
+          // as the output stage, never asserted as a prediction.
+          const lastIdx = n - 1;
+          const lastYsOut = ys[lastIdx]!;
+          const outX = outPortX(w);
+          const outY = lastYsOut.reduce((s, y) => s + y, 0) / lastYsOut.length;
+          {
+            const inOutSeg = front >= lastIdx;
+            const lastX = xs[lastIdx]!;
+
+            // Converging lane from every last-layer node into the port.
+            p.noFill();
+            p.stroke(inOutSeg ? palette.wireLit : wireIdle);
+            p.strokeWeight(inOutSeg ? 2 : 1);
+            const sl = Math.max(1, Math.ceil(lastYsOut.length / 10));
+            for (let i = 0; i < lastYsOut.length; i += sl) {
+              p.line(lastX, lastYsOut[i]!, outX, outY);
+            }
+
+            // Port halo as the packet lands (front ≈ n).
+            const portGlow = inOutSeg
+              ? Math.max(0, 1 - Math.abs(front - OUT_FRONT) * 1.4)
+              : 0;
+            p.noStroke();
+            if (portGlow > 0.02) {
+              p.fill(resolveToken(document.documentElement, '--data-cat-4', 0.4 * portGlow));
+              p.circle(outX, outY, 30 * portGlow + 12);
+            }
+
+            // The port itself — a rounded SQUARE, distinct from the round neurons,
+            // so it reads as a terminal rather than one more unit. Coloured by the
+            // output layer's own kind.
+            const outCol = palette.perKind[model.layers[lastIdx]!.kind] ?? palette.text;
+            p.fill(outCol);
+            p.rect(outX - 8, outY - 8, 16, 16, 4);
+
+            // Label + real output shape.
+            p.textAlign(p.CENTER, p.TOP);
+            p.fill(inOutSeg ? palette.text : palette.dim);
+            p.textSize(10);
+            p.text('output', outX, outY + 12);
+            const outLayer = model.layers[lastIdx]!;
+            const outShape =
+              outLayer.outShape ??
+              (outLayer.units != null ? `${outLayer.units} units` : null);
+            if (outShape) {
+              p.fill(palette.dim);
+              p.textSize(9);
+              p.text(outShape, outX, outY + 25);
+            }
+          }
 
           // ── the data packet ───────────────────────────────────────────────
           // A single token riding the forward pass, so the loop is legible as
@@ -553,6 +630,7 @@ export function NeuralCanvas({
             let ax: number, ay: number, bx: number, by: number, f: number;
             let arriveIdx: number; // layer whose node flashes as the token lands
             let vFrom: number | undefined, vTo: number | undefined;
+            let toOutput = false; // final leg: last node → output port
 
             if (front < 0) {
               // Tape (raw input) → first-layer node.
@@ -565,9 +643,10 @@ export function NeuralCanvas({
               arriveIdx = 0;
               vFrom = fp.input[k0];
               vTo = nodeVal(0, k0);
-            } else {
-              const i = Math.min(n - 1, Math.floor(front));
-              const j = Math.min(n - 1, i + 1);
+            } else if (front < lastIdx) {
+              // Layer i → layer i+1.
+              const i = Math.floor(front);
+              const j = i + 1;
               f = front - i;
               const ki = pickK(i);
               const kj = pickK(j);
@@ -578,6 +657,20 @@ export function NeuralCanvas({
               arriveIdx = j;
               vFrom = nodeVal(i, ki);
               vTo = nodeVal(j, kj);
+            } else {
+              // Last layer node → output port. The value settles unchanged at the
+              // port — it is the pipeline's resolved output, carried out through
+              // the converging lane. f runs past 1 during the port dwell.
+              f = front - lastIdx;
+              const ki = pickK(lastIdx);
+              ax = xs[lastIdx] ?? w / 2;
+              ay = nodeY(lastIdx, ki);
+              bx = outX;
+              by = outY;
+              arriveIdx = lastIdx;
+              toOutput = true;
+              vFrom = nodeVal(lastIdx, ki);
+              vTo = nodeVal(lastIdx, ki);
             }
             // Mechanical cadence: accelerate off the node, decelerate into the
             // next, then DWELL there briefly (the "process" beat) before the pass
@@ -594,14 +687,14 @@ export function NeuralCanvas({
             const vNow =
               vFrom != null && vTo != null ? vFrom + fe * (vTo - vFrom) : (vTo ?? vFrom);
             const value = vNow != null ? vNow.toFixed(3) : '·';
-            const op = model.layers[arriveIdx]?.label ?? '';
+            const op = toOutput ? 'output' : (model.layers[arriveIdx]?.label ?? '');
 
             const ring = resolveToken(document.documentElement, '--data-cat-4');
             const core = resolveToken(document.documentElement, '--data-cat-9');
 
             // Processing flash: the destination node pulses as the token lands.
             if (f > 0.82) {
-              const pulse = (f - 0.82) / 0.18;
+              const pulse = Math.min(1, (f - 0.82) / 0.18);
               p.noStroke();
               p.fill(resolveToken(document.documentElement, '--data-cat-4', 0.5 * pulse));
               p.circle(bx, by, 26 * pulse + 8);
@@ -639,8 +732,9 @@ export function NeuralCanvas({
             p.text(value, px, py - 20);
 
             // The operation the destination node performs — shown as the token
-            // nears it, so "gets processed" is a real, named step.
-            if (f > 0.6 && op) {
+            // nears it, so "gets processed" is a real, named step. Suppressed at
+            // the output port, which already carries its own "output" label.
+            if (f > 0.6 && op && !toOutput) {
               p.fill(palette.dim);
               p.textSize(9);
               p.text(op, bx, by + 18);

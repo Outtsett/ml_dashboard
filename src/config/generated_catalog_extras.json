@@ -1,0 +1,52 @@
+{
+  "version": "1.0.0",
+  "metadata": {
+    "last_audit": "2026-05-19",
+    "notes": "Repo-local curated GENERATE catalog entries — first-class neural architectures that ship as a Jinja2 template + composable blocks but have no markdown spec under E:/documents/algo_models. The catalogBridge merges these into the trainable catalog as runnerSource='generate' so they appear in the Train dropdown with curated hyperparameters. Each `templateId` must match a real template under src/templates/architectures and an entry in generate_model.py DEFAULT_FAMILY_FOR_CATALOG keyed by `id`."
+  },
+  "extras": [
+    {
+      "id": "temporal-fusion-transformer",
+      "name": "Temporal Fusion Transformer",
+      "shortName": "TFT",
+      "category": "neural-network",
+      "subcategory": "multi-modal-and-temporal-fusion",
+      "templateId": "temporal_fusion_transformer",
+      "overview": "Interpretable Temporal Fusion Transformer (Lim et al. 2019) adapted for single-shot classification over rolling feature windows. Per-timestep Variable Selection Networks pick which engineered features matter, an LSTM encodes local context, Gated Residual Networks gate information flow, and interpretable multi-head attention exposes which positions in the window drive each prediction. Streams variable-selection importance + temporal attention, a filter-normalized 3D loss surface, and verbose grad-norm / LR / throughput / VRAM diagnostics.",
+      "principles": [
+        "Variable selection learns per-feature relevance instead of forcing all inputs through equally",
+        "Gated Residual Networks let the model skip unused transformations (suppress noise)",
+        "Interpretable multi-head attention shares value projections so attention is directly readable",
+        "LSTM local encoder captures short-range temporal structure before global attention"
+      ],
+      "applications": [
+        "Direction classification over multi-feature intraday windows",
+        "Interpretable feature attribution for which signals the model relies on",
+        "Regime-aware temporal weighting via attention maps"
+      ],
+      "keyFeatures": [
+        "Per-timestep Variable Selection Network",
+        "Gated Residual Networks + GLU gating",
+        "Interpretable multi-head attention with readable attention maps",
+        "Built-in loss-surface + verbose training diagnostics"
+      ],
+      "variants": ["classification", "k-class range bucket"],
+      "gpuRequired": true,
+      "featureCategories": ["price_action", "volatility", "momentum", "volume"],
+      "hyperparameters": [
+        { "name": "window_size", "type": "number", "default": 64, "min": 16, "max": 256, "step": 8, "description": "Length of the rolling input window in bars." },
+        { "name": "d_model", "type": "number", "default": 64, "min": 16, "max": 256, "step": 16, "description": "Hidden embedding width (must be divisible by n_heads)." },
+        { "name": "n_heads", "type": "number", "default": 4, "min": 1, "max": 16, "step": 1, "description": "Interpretable attention heads." },
+        { "name": "lstm_layers", "type": "number", "default": 1, "min": 1, "max": 4, "step": 1, "description": "Local-context LSTM encoder depth." },
+        { "name": "dropout", "type": "number", "default": 0.1, "min": 0.0, "max": 0.6, "step": 0.05, "description": "Dropout across GRNs / attention / LSTM." },
+        { "name": "learning_rate", "type": "number", "default": 0.001, "min": 0.00001, "max": 0.01, "step": 0.0001, "description": "AdamW learning rate." },
+        { "name": "n_epochs", "type": "number", "default": 20, "min": 1, "max": 200, "step": 1, "description": "Max epochs per fold (early stopping may end sooner)." },
+        { "name": "batch_size", "type": "number", "default": 256, "min": 16, "max": 1024, "step": 16, "description": "Mini-batch size." },
+        { "name": "early_stop_patience", "type": "number", "default": 5, "min": 1, "max": 50, "step": 1, "description": "Epochs without val-loss improvement before stopping." },
+        { "name": "weight_decay", "type": "number", "default": 0.0001, "min": 0.0, "max": 0.01, "step": 0.0001, "description": "AdamW L2 weight decay." },
+        { "name": "loss_surface", "type": "boolean", "default": true, "description": "Compute + emit a filter-normalized 3D loss surface after training." },
+        { "name": "loss_surface_resolution", "type": "number", "default": 25, "min": 5, "max": 51, "step": 2, "description": "Grid resolution per axis for the loss surface (cost is O(res^2))." }
+      ]
+    }
+  ]
+}

@@ -30,7 +30,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // returns the test-controlled value for everything else (training scripts).
 vi.mock('fs', async () => {
   const actual = await vi.importActual<typeof import('fs')>('fs');
-  const controlled = vi.fn((_p: string) => false);
+  const controlled = vi.fn(() => false);
   const dispatch = (p: string): boolean => {
     // Pass through real-disk lookups for config + module-system paths.
     const norm = String(p).replace(/\\/g, '/');
@@ -59,7 +59,7 @@ import {
   getTrainableModels,
   refreshBridge,
   type TemplateId,
-} from '../../src/server/lib/catalogBridge';
+} from '../../src/server/infrastructure/lib/catalogBridge';
 import type { ParsedModelSpec } from '../../src/server/lib/modelImport/types';
 import type { ModelRegistryEntry } from '../../src/shared/trainingTypes';
 
@@ -161,15 +161,42 @@ describe('pickTemplate', () => {
     expect(pickTemplate(cat, { id: 'catboost' })).toBe<TemplateId>('tree');
   });
 
-  it('returns null for DQN before W9 (BROWSE-ONLY when ENABLE_RL_TEMPLATES is unset)', () => {
-    // Note: ENABLE_RL_TEMPLATES is captured at module-load time. The
-    // production default in this test environment is unset, so RL routing
-    // returns null even for matching name patterns.
+  it('returns null for DQN when ENABLE_RL_TEMPLATES=0 (RL gate explicitly disabled)', async () => {
+    // RL_TEMPLATES_ENABLED is read from process.env at MODULE LOAD time
+    // (`const RL_TEMPLATES_ENABLED = process.env.ENABLE_RL_TEMPLATES !== '0'`
+    // in catalogBridge.ts), so flipping process.env here has no effect on the
+    // already-evaluated constant inside pickTemplate's closure. This test
+    // exercises the disabled branch through vi.resetModules() + a fresh
+    // dynamic import taken under the env override, restoring both the env
+    // var and the module registry afterward so the override cannot leak
+    // into other tests (including the "enabled by default" case below).
+    const prevEnv = process.env.ENABLE_RL_TEMPLATES;
+    process.env.ENABLE_RL_TEMPLATES = '0';
+    vi.resetModules();
+    try {
+      const disabledModule = await import('../../src/server/infrastructure/lib/catalogBridge');
+      const spec = makeSpec({
+        id: 'deep-q-network-dqn',
+        name: 'Deep Q-Network (DQN)',
+      });
+      expect(disabledModule.pickTemplate(spec, { id: 'reinforcement' })).toBeNull();
+    } finally {
+      if (prevEnv === undefined) delete process.env.ENABLE_RL_TEMPLATES;
+      else process.env.ENABLE_RL_TEMPLATES = prevEnv;
+      vi.resetModules();
+    }
+  });
+
+  it('routes DQN to rl_dqn when ENABLE_RL_TEMPLATES is unset (enabled by default since W9.a)', () => {
+    // Default gate state — confirms the 2026-05-11 flip documented in
+    // catalogBridge.ts (RL_TEMPLATES_ENABLED = process.env.ENABLE_RL_TEMPLATES !== '0').
+    // The suite-wide module (imported at file top) was loaded with no env
+    // override in effect, so it reflects the real default.
     const spec = makeSpec({
       id: 'deep-q-network-dqn',
       name: 'Deep Q-Network (DQN)',
     });
-    expect(pickTemplate(spec, { id: 'reinforcement' })).toBeNull();
+    expect(pickTemplate(spec, { id: 'reinforcement' })).toBe<TemplateId>('rl_dqn');
   });
 
   it('routes Transformer specs to transformer_seq', () => {

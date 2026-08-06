@@ -318,7 +318,7 @@ INSERT INTO promotion_gates (from_status, to_status, metric, comparator, thresho
 - `<DeploymentLiveMetrics>` — subscribes to `/api/events/deployments` SSE channel, shows pred/min, paper PnL, prediction drift PSI
 
 #### Live deploy (P6 sub-stage, behind `ENABLE_LIVE_DEPLOY=1`)
-Bridges to MotiveWave MLBridge ZMQ (per existing plan). When `mode='live'`, the orchestrator opens a ZMQ REQ socket to the MLBridge endpoint, pushes one message per bar with the model's prediction; MLBridge handles order placement on its side. Predictions also persist to QuestDB `prediction_log` for shadow comparison.
+Bridges to the MLBridge ZMQ scoring engine (per existing plan). When `mode='live'`, the orchestrator opens a ZMQ REQ socket to the MLBridge endpoint, pushes one message per bar with the model's prediction; MLBridge handles order placement on its side. Predictions also persist to QuestDB `prediction_log` for shadow comparison.
 
 ## 5. The trainability gap fix — per-model code generation
 

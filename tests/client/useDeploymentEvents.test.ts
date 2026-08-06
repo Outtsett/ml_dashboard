@@ -23,7 +23,7 @@ import './setup';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
-import { useDeploymentEvents } from '../../src/client/src/hooks/useDeploymentEvents';
+import { useDeploymentEvents } from '../../src/client/src/deployment/lib/useDeploymentEvents';
 
 // ── Fake EventSource ───────────────────────────────────────────────────────
 
@@ -197,15 +197,22 @@ describe('useDeploymentEvents — event aggregation', () => {
     act(() => es.fireOpen());
 
     act(() => {
-      es.emit('deployment.started', { deploymentId: 4, status: 'running' });
-      es.emit('prediction', {
-        deploymentId: 4,
+      es.emit('deployment.started', {
+        deployment_id: 4,
+        version_id: 1,
+        mode: 'paper',
+        symbol: 'MNQ',
+        timeframe: '1m',
+        started_at: '2026-05-10T11:59:59.000Z',
+      });
+      es.emit('deployment.prediction', {
+        deployment_id: 4,
         ts: '2026-05-10T12:00:00.000Z',
         prediction: 1,
         confidence: 0.62,
       });
-      es.emit('prediction', {
-        deploymentId: 4,
+      es.emit('deployment.prediction', {
+        deployment_id: 4,
         ts: '2026-05-10T12:00:01.000Z',
         prediction: -1,
         confidence: 0.71,
@@ -231,13 +238,25 @@ describe('useDeploymentEvents — event aggregation', () => {
     act(() => es.fireOpen());
 
     act(() => {
-      es.emit('pnl_update', { deploymentId: 7, paperPnlTotal: 432.5, predDriftPsi: 0.12 });
+      es.emit('deployment.pnl_update', {
+        deployment_id: 7,
+        paper_pnl_total: 432.5,
+        predictions_emitted: 3,
+        last_prediction_at: '2026-05-10T12:00:01.000Z',
+        pred_drift_psi: 0.12,
+      });
     });
     expect(result.current.byDeployment[7]!.paperPnlTotal).toBe(432.5);
     expect(result.current.byDeployment[7]!.predDriftPsi).toBeCloseTo(0.12, 6);
 
     act(() => {
-      es.emit('pnl_update', { deploymentId: 7, paperPnlTotal: 480.1, predDriftPsi: null });
+      es.emit('deployment.pnl_update', {
+        deployment_id: 7,
+        paper_pnl_total: 480.1,
+        predictions_emitted: 4,
+        last_prediction_at: '2026-05-10T12:00:02.000Z',
+        pred_drift_psi: null,
+      });
     });
     expect(result.current.byDeployment[7]!.paperPnlTotal).toBe(480.1);
     expect(result.current.byDeployment[7]!.predDriftPsi).toBeNull();
@@ -249,20 +268,39 @@ describe('useDeploymentEvents — event aggregation', () => {
     );
     const es = FakeEventSource.instances[0]!;
     act(() => es.fireOpen());
-    act(() => es.emit('deployment.started', { deploymentId: 9 }));
+    act(() =>
+      es.emit('deployment.started', {
+        deployment_id: 9,
+        version_id: 1,
+        mode: 'paper',
+        symbol: 'MNQ',
+        timeframe: '1m',
+        started_at: '2026-05-10T12:00:00.000Z',
+      }),
+    );
     expect(result.current.byDeployment[9]!.status).toBe('running');
 
-    act(() => es.emit('paused', { deploymentId: 9 }));
+    act(() =>
+      es.emit('deployment.paused', { deployment_id: 9, paused_at: '2026-05-10T12:01:00.000Z' }),
+    );
     expect(result.current.byDeployment[9]!.status).toBe('paused');
 
-    act(() => es.emit('resumed', { deploymentId: 9 }));
+    act(() =>
+      es.emit('deployment.resumed', { deployment_id: 9, resumed_at: '2026-05-10T12:02:00.000Z' }),
+    );
     expect(result.current.byDeployment[9]!.status).toBe('running');
 
-    act(() => es.emit('stopped', { deploymentId: 9 }));
+    act(() =>
+      es.emit('deployment.stopped', { deployment_id: 9, stopped_at: '2026-05-10T12:03:00.000Z' }),
+    );
     expect(result.current.byDeployment[9]!.status).toBe('stopped');
 
     act(() =>
-      es.emit('failed', { deploymentId: 9, error: 'questdb unreachable' }),
+      es.emit('deployment.failed', {
+        deployment_id: 9,
+        failed_at: '2026-05-10T12:04:00.000Z',
+        error: 'questdb unreachable',
+      }),
     );
     expect(result.current.byDeployment[9]!.status).toBe('failed');
     expect(result.current.byDeployment[9]!.lastError).toBe('questdb unreachable');
@@ -280,14 +318,14 @@ describe('useDeploymentEvents — event aggregation', () => {
 
     act(() => {
       // 3 predictions in the last 30 seconds: all should count.
-      es.emit('prediction', {
-        deploymentId: 1, ts: '2026-05-10T11:59:30.000Z', prediction: 1, confidence: 0.5,
+      es.emit('deployment.prediction', {
+        deployment_id: 1, ts: '2026-05-10T11:59:30.000Z', prediction: 1, confidence: 0.5,
       });
-      es.emit('prediction', {
-        deploymentId: 1, ts: '2026-05-10T11:59:45.000Z', prediction: 1, confidence: 0.5,
+      es.emit('deployment.prediction', {
+        deployment_id: 1, ts: '2026-05-10T11:59:45.000Z', prediction: 1, confidence: 0.5,
       });
-      es.emit('prediction', {
-        deploymentId: 1, ts: '2026-05-10T12:00:00.000Z', prediction: 1, confidence: 0.5,
+      es.emit('deployment.prediction', {
+        deployment_id: 1, ts: '2026-05-10T12:00:00.000Z', prediction: 1, confidence: 0.5,
       });
     });
     expect(result.current.byDeployment[1]!.predPerMin).toBe(3);

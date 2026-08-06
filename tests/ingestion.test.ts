@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectMapping, buildInsertSQL } from '../server/lib/ingestion/standardize';
+import { detectMapping, buildInsertSQL } from '../src/server/infrastructure/lib/ingestion/standardize';
 
 describe('detectMapping', () => {
   it('detects standard OHLCV columns', () => {

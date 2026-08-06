@@ -37,6 +37,13 @@ export interface TradingChartProps {
   labelMarkers?: LabelMarker[];
   indicatorOverlays?: IndicatorOverlay[];
   onVisibleLogicalRangeChange?: (range: LogicalRange) => void;
+  /**
+   * Time span currently on screen, epoch ms. Distinct from
+   * `onVisibleLogicalRangeChange`, which reports bar INDICES and is consumed by
+   * the subchart sync. Label previews need wall-clock bounds so they fetch only
+   * what the viewport shows.
+   */
+  onVisibleTimeRangeChange?: (range: { start: number; end: number } | null) => void;
   showTimeAxis?: boolean;
   supportResistanceLevels?: SupportResistanceLevel[];
   zigZagPoints?: ZigZagPoint[];

@@ -1,0 +1,65 @@
+{
+  "version": "1.0.0",
+  "metadata": {
+    "organization": "Institutional Quant",
+    "last_audit": "2026-05-09",
+    "notes": "Algorithm registry — pure model architecture metadata. The (algorithm, task) pair is what trains; see runners.json for that join. Catalog specs at E:\\documents\\algo_models live behind the catalogSpec slug."
+  },
+  "algorithms": {
+    "xgboost": {
+      "name": "XGBoost (Gradient Boosted Trees)",
+      "family": "gradient_boosting",
+      "category": "Supervised",
+      "subcategory": "Gradient Boosting",
+      "supports": ["classification", "regression"],
+      "gpuRequired": true,
+      "catalogSpec": "machine-learning/supervised-learning/gradient-boosting/xgboost.md",
+      "description": "GPU histogram boosting with calibration + ECE, cost-adjusted PnL simulation, SHAP feature attribution.",
+      "tags": ["tabular", "gradient-boosting", "interpretable"]
+    },
+    "transformer_2s": {
+      "name": "Two-Stream Transformer (Price + Volume)",
+      "family": "transformer",
+      "category": "neural-network",
+      "subcategory": "Time-Series Transformers",
+      "supports": ["classification", "regression"],
+      "gpuRequired": true,
+      "catalogSpec": "deep-learning/neural-network-architectures/transformer.md",
+      "description": "Two-stream attention encoder over OHLCV. Price stream Linear(4->112) + sinusoidal PE; volume stream Linear(1->16) no PE; concat to d=128, TransformerEncoder.",
+      "tags": ["transformer", "two-stream", "intraday"]
+    },
+    "transformer_tiny": {
+      "name": "Tiny Transformer (Single-Stream)",
+      "family": "transformer",
+      "category": "neural-network",
+      "subcategory": "Time-Series Transformers",
+      "supports": ["classification"],
+      "gpuRequired": true,
+      "catalogSpec": "deep-learning/neural-network-architectures/transformer.md",
+      "description": "~10-20k param single-stream Transformer for low-data regimes (e.g. daily MNQ with ~2k bars). Walk-forward folds + 2-bar purge.",
+      "tags": ["transformer", "low-data", "tiny"]
+    },
+    "primitives_cnn": {
+      "name": "CNN+Transformer (Primitives Discovery)",
+      "family": "hybrid",
+      "category": "neural-network",
+      "subcategory": "Hybrid Architectures",
+      "supports": ["multi-head"],
+      "gpuRequired": true,
+      "catalogSpec": "deep-learning/hybrid-composite-architectures/cnn-transformer.md",
+      "description": "Feature-Attention CNN+Transformer over ~510 mathematical primitives. Three output heads: direction, magnitude, confidence.",
+      "tags": ["transformer", "feature-attention", "self-discovering", "multi-head"]
+    },
+    "temporal_fusion_transformer": {
+      "name": "Temporal Fusion Transformer",
+      "family": "transformer",
+      "category": "neural-network",
+      "subcategory": "multi-modal-and-temporal-fusion",
+      "supports": ["classification"],
+      "gpuRequired": true,
+      "catalogSpec": "generated_catalog_extras.json#temporal-fusion-transformer",
+      "description": "Interpretable TFT (Lim et al. 2019) adapted for single-shot classification over rolling feature windows: per-timestep variable selection, GRN gating, LSTM local encoder, interpretable multi-head attention. Ships verbose diagnostics + filter-normalized loss surface. GENERATE family — Jinja2 template temporal_fusion_transformer.py.j2.",
+      "tags": ["transformer", "temporal-fusion", "interpretable", "generated"]
+    }
+  }
+}

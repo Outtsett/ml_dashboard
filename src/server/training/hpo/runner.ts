@@ -5,7 +5,7 @@ import type { HPORequest } from "@shared/hpoTypes";
 import { getTrainingConfig } from "../registry";
 import { HPOSessionState, HPOEvent } from "./types";
 import { normalizeKeysToSnakeCase } from "./utils";
-import { dbUpdateSession, dbInsertTrial, dbUpdateTrial } from "./storage";
+import { dbUpdateSession, dbInsertTrial, dbUpdateTrial, dbAppendTrialIntermediate } from "./storage";
 
 const logger = new Logger("HPO-Runner");
 
@@ -73,9 +73,17 @@ export function spawnHPORunner(
     date_range: request.dateRange ?? null,
     max_bars: request.maxBars ?? 0,
     feature_categories: request.featureCategories ?? null,
+    walk_forward: request.walkForward ?? null,
   });
 
-  const args = ["-m", "src.ml.shared.hpo_runner", "--config", configPayload];
+  // Nested HPO drivers (modelType suffix `_nest`) run per-fold studies and
+  // need their own dedicated entry point. Everything else uses the generic
+  // hpo_runner subprocess-per-trial dispatcher.
+  const isNested = /_nest$/.test(request.modelType);
+  const moduleName = isNested
+    ? `src.ml.${request.modelType.replace(/_nest$/, "")}.hpo_main`
+    : "src.ml.shared.hpo_runner";
+  const args = ["-m", moduleName, "--config", configPayload];
 
   logger.log(
     `Spawning Python HPO runner: ${pythonExe} ${args.slice(0, 3).join(" ")} --config <${configPayload.length} bytes>`,
@@ -100,7 +108,13 @@ const EVENT_HANDLERS: Record<
   "hpo-trial-start": handleTrialStart,
   "hpo-trial-done": handleTrialDone,
   "hpo-trial-pruned": handleTrialPruned,
+  "hpo-trial-intermediate": handleTrialIntermediate,
+  "hpo-trial-killed": handleTrialKilled,
   "hpo-best-update": handleBestUpdate,
+  "hpo-fold-start": handleFoldStart,
+  "hpo-fold-best": handleFoldBest,
+  "hpo-fold-final": handleFoldFinal,
+  "hpo-fold-interrupted": handleFoldInterrupted,
   "hpo-complete": handleHPOComplete,
   "hpo-error": handleHPOError,
   "hpo-log": handleHPOLog,
@@ -121,11 +135,63 @@ function handleTrialStart(session: HPOSessionState, data: Record<string, unknown
     trialId: data.trialId as number,
     status: "running",
     params: JSON.stringify(data.params ?? {}),
+    foldIndex: typeof data.fold === "number" ? (data.fold as number) : null,
   });
 
   logger.log(
-    `Session ${session.sessionId} trial ${data.trialId} started — params=${JSON.stringify(data.params)}`,
+    `Session ${session.sessionId} trial ${data.trialId} started ` +
+    `${data.fold !== undefined ? `(fold ${data.fold}) ` : ""}` +
+    `— params=${JSON.stringify(data.params)}`,
   );
+}
+
+function handleTrialIntermediate(session: HPOSessionState, data: Record<string, unknown>): void {
+  const trialId = data.trialId as number;
+  const step = data.step as number;
+  const value = data.value as number;
+  if (typeof trialId !== "number" || typeof step !== "number" || typeof value !== "number") return;
+  try {
+    dbAppendTrialIntermediate(session.sessionId, trialId, step, value);
+  } catch (err) {
+    logger.warn(`Failed to append intermediate for trial ${trialId}: ${err}`);
+  }
+}
+
+function handleTrialKilled(session: HPOSessionState, data: Record<string, unknown>): void {
+  const trialId = data.trialId as number;
+  if (typeof trialId === "number") {
+    dbUpdateTrial(session.sessionId, trialId, {
+      status: "killed",
+      pruned: 1,
+      prunedAtStep: typeof data.killedAt === "number" ? (data.killedAt as number) : undefined,
+      completedAt: new Date(),
+    });
+  }
+  logger.log(`Session ${session.sessionId} trial ${trialId} killed by user`);
+}
+
+function handleFoldStart(session: HPOSessionState, data: Record<string, unknown>): void {
+  logger.log(
+    `Session ${session.sessionId} fold ${data.fold}/${data.totalFolds} started ` +
+    `(study=${data.studyName})`,
+  );
+}
+
+function handleFoldBest(session: HPOSessionState, data: Record<string, unknown>): void {
+  logger.log(
+    `Session ${session.sessionId} fold ${data.fold} best — score=${data.bestScore} ` +
+    `params=${JSON.stringify(data.bestParams)}`,
+  );
+}
+
+function handleFoldFinal(session: HPOSessionState, data: Record<string, unknown>): void {
+  logger.log(
+    `Session ${session.sessionId} fold ${data.fold} retrained — modelId=${data.modelId}`,
+  );
+}
+
+function handleFoldInterrupted(session: HPOSessionState, data: Record<string, unknown>): void {
+  logger.warn(`Session ${session.sessionId} fold ${data.fold} interrupted`);
 }
 
 function handleTrialDone(session: HPOSessionState, data: Record<string, unknown>): void {

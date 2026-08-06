@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { CoreModule } from './core/core.module';
-import { DatabaseModule } from './database/database.module';
-import { EventsModule } from './events/events.module';
-import { LabelsModule } from './labels/labels.module';
-import { XaiModule } from './xai/xai.module';
+import { CoreModule } from './infrastructure/core/core.module';
+import { DatabaseModule } from './infrastructure/database/database.module';
+import { EventsModule } from './infrastructure/events/events.module';
+import { LabelsModule } from './ml/labels/labels.module';
+import { XaiModule } from './ml/xai/xai.module';
 import { TrainingModule } from './training/training.module';
 
 @Module({

@@ -166,25 +166,74 @@ export type SystemEvent =
       cpu: { load: number; cores: number[]; temp: number; speed: number };
       mem: { total: number; active: number; used: number; swaptotal: number; swapused: number };
       network: { tx_sec: number; rx_sec: number };
-      gpu?: any;
+      // Structurally the `system.gpu` payload, but declared as `unknown` rather
+      // than a shared named type: the server's SystemSnapshot.gpu (telemetry.router.ts)
+      // is `Omit<GpuEventData, 'timestamp'>`, one field narrower than the full
+      // system.gpu contract, so a shared type here would force an assignability
+      // fix on the server side. Consumers narrow/cast at the read site.
+      gpu?: unknown;
       timestamp: number;
-    }>
-  | BaseEvent<'system.motivewave-update', {
+    }>;
+
+// ── Deployment events ──────────────────────────────────────
+// Live model-version deployments. Single SSE channel multiplexed by
+// `deployment_id` at /api/events/deployments. See backend integration plan
+// 2026-05-09 §7 and W7.d.
+export type DeploymentMode = 'shadow' | 'paper' | 'live';
+
+export type DeploymentEvent =
+  | BaseEvent<'deployment.started', {
+      deployment_id: number;
+      version_id: number;
+      mode: DeploymentMode;
       symbol: string;
       timeframe: string;
-      rowCount: number;
-      durationMs: number;
-      source: string;
+      started_at: string;            // ISO 8601
     }>
-  | BaseEvent<'system.motivewave-status', {
-      status: string;
-      watchDir: string;
+  | BaseEvent<'deployment.prediction', {
+      deployment_id: number;
+      ts: string;                    // ISO 8601 (bar timestamp)
+      prediction: number | string;   // class label or regression value
+      confidence: number;            // 0..1
+      paper_pnl_delta?: number;
+      paper_pnl_total?: number;
     }>
-  | BaseEvent<'system.motivewave-error', {
-      symbol: string;
+  | BaseEvent<'deployment.pnl_update', {
+      deployment_id: number;
+      paper_pnl_total: number;
+      predictions_emitted: number;
+      last_prediction_at: string;    // ISO 8601
+    }>
+  | BaseEvent<'deployment.paused', {
+      deployment_id: number;
+      paused_at: string;             // ISO 8601
+    }>
+  | BaseEvent<'deployment.resumed', {
+      deployment_id: number;
+      resumed_at: string;            // ISO 8601
+    }>
+  | BaseEvent<'deployment.stopped', {
+      deployment_id: number;
+      stopped_at: string;            // ISO 8601
+      reason?: string;
+    }>
+  | BaseEvent<'deployment.failed', {
+      deployment_id: number;
+      failed_at: string;             // ISO 8601
       error: string;
-      source: string;
     }>;
+
+// ── Agent dispatcher events (W8.c) ─────────────────────────
+// Dynamic event types `agent.<runId>.<event>` — the runId is part of the
+// channel so SSE subscribers can target a single agent run via EventBus
+// pattern matching. Payload is intentionally `Record<string, unknown>`
+// because the underlying Claude Agent SDK emits heterogeneous shapes
+// (token chunks, tool calls, completion summaries, errors) that the
+// frontend's `useAgentDispatch()` discriminates on the suffix.
+export type AgentEvent = BaseEvent<
+  `agent.${string}.${string}`,
+  Record<string, unknown>
+>;
 
 // ── Union of all domain events ─────────────────────────────
 export type DomainEvent =
@@ -193,7 +242,9 @@ export type DomainEvent =
   | IngestionEvent
   | ModelEvent
   | CacheEvent
-  | SystemEvent;
+  | SystemEvent
+  | DeploymentEvent
+  | AgentEvent;
 
 // ── Extract event type strings ─────────────────────────────
 export type DomainEventType = DomainEvent['type'];

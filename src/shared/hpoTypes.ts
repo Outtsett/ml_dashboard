@@ -172,6 +172,18 @@ export interface HPORequest {
 
   // Optional overrides
   fixedHyperparameters?: Record<string, number | string | boolean>;  // params NOT being optimised
+
+  /**
+   * Walk-forward config — required when modelType ends with `_nest`.
+   * The driver runs one Optuna study per fold (resumable SQLite at
+   * optuna_studies/<modelType>_<symbol>_<tf>_fold<N>.db) and reports
+   * fold lifecycle events on the SSE stream.
+   */
+  walkForward?: {
+    trainMonths: number;
+    testMonths: number;
+    stepMonths?: number;
+  };
 }
 
 // ─── Trial & Session Result Types ────────────────────────────────────────────
@@ -432,6 +444,11 @@ export const hpoRequestSchema = z.object({
   searchSpace: searchSpaceSchema,
   optimizer: optimizerConfigSchema,
   fixedHyperparameters: z.record(z.string(), hyperparamValue).optional(),
+  walkForward: z.object({
+    trainMonths: z.number().int().min(1).max(120),
+    testMonths: z.number().int().min(1).max(60),
+    stepMonths: z.number().int().min(1).max(120).optional(),
+  }).optional(),
 });
 
 /** Validated HPO request type inferred from the Zod schema. */
