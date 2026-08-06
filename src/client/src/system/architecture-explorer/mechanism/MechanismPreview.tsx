@@ -96,7 +96,7 @@ export function MechanismPreview({
         </div>
       </div>
 
-      <div className="h-[300px] w-full">
+      <div className="h-[380px] w-full">
         {error ? (
           <div className="flex h-full items-center justify-center p-4 text-center text-xs">
             Could not load bars: {error.message}
