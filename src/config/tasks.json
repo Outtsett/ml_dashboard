@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "metadata": {
     "last_audit": "2026-05-09",
-    "notes": "Task registry — what the model is for. A task = prediction target + head shape + compatible label strategies. The Train UI's second picker selects from this list, filtered by the chosen algorithm's `supports` field."
+    "notes": "Task registry \u00e2\u20ac\u201d what the model is for. A task = prediction target + head shape + compatible label strategies. The Train UI's second picker selects from this list, filtered by the chosen algorithm's `supports` field."
   },
   "tasks": {
     "direction_classifier": {
@@ -10,8 +10,16 @@
       "head": "binary",
       "headKind": "classification",
       "nClasses": 2,
-      "labelStrategies": ["next_close_direction", "triple_barrier"],
-      "supportedObjectives": ["sharpe_after_costs", "profit_factor", "auc", "log_loss"],
+      "labelStrategies": [
+        "next_close_direction",
+        "triple_barrier"
+      ],
+      "supportedObjectives": [
+        "sharpe_after_costs",
+        "profit_factor",
+        "auc",
+        "log_loss"
+      ],
       "chartOverlay": "prediction_heatband",
       "description": "Predict direction at horizon (next bar close, or first hit of profit/stop/time barriers). Output: P(up). Works with any algorithm that supports `classification`."
     },
@@ -20,8 +28,13 @@
       "head": "k-class",
       "headKind": "classification",
       "nClasses": 21,
-      "labelStrategies": ["range_bucket"],
-      "supportedObjectives": ["maximize_within2pt_acc", "maximize_cost_adj_sharpe"],
+      "labelStrategies": [
+        "range_bucket"
+      ],
+      "supportedObjectives": [
+        "maximize_within2pt_acc",
+        "maximize_cost_adj_sharpe"
+      ],
       "chartOverlay": "prediction_markers",
       "description": "Quantize next-N-bar high-low range into K buckets. Output: P(bucket_k). Headline metric: within-2-point accuracy."
     },
@@ -29,10 +42,31 @@
       "name": "Multi-Head (Direction + Magnitude + Confidence)",
       "head": "multi",
       "headKind": "multi",
-      "labelStrategies": ["forward_return"],
-      "supportedObjectives": ["minimize_loss", "maximize_roc_auc"],
+      "labelStrategies": [
+        "forward_return"
+      ],
+      "supportedObjectives": [
+        "minimize_loss",
+        "maximize_roc_auc"
+      ],
       "chartOverlay": "prediction_markers",
       "description": "Joint output heads: direction (binary), magnitude (regression), confidence (Bernoulli). Requires an algorithm flagged `supports: multi-head`."
+    },
+    "online_direction_skill": {
+      "name": "Online Direction (skill vs majority)",
+      "head": "regression",
+      "headKind": "regression",
+      "nClasses": 0,
+      "labelStrategies": [
+        "forward_log_return"
+      ],
+      "supportedObjectives": [
+        "skill_vs_majority",
+        "hit_rate",
+        "r2"
+      ],
+      "chartOverlay": "prediction_heatband",
+      "description": "Forecast the H-bar forward log return from a streaming learner, scored PREQUENTIALLY (every bar is scored before it is trained on, so the metric is out-of-sample by construction). Headline is SKILL = hit rate minus the RUNNING MAJORITY CLASS -- never raw accuracy, because MNQ's up-rate is 0.4811 at H=1 and 0.5566 at H=1440, so the majority flips sides with the horizon and a fixed 0.50 baseline flatters the model."
     }
   }
 }
