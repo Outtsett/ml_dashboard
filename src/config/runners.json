@@ -697,6 +697,128 @@
         "loss_surface": "--loss-surface",
         "loss_surface_resolution": "--loss-surface-resolution"
       }
+    },
+    "online_rls_mtf+online_direction_skill": {
+      "legacyId": "online_mtf_trader",
+      "displayName": "Online MTF Trader (sliding HAR + RLS)",
+      "runner": "python",
+      "script": "E:/source/repos/Trading/quant/model/scripts/online_mtf_trader.py",
+      "outputDir": "data/models",
+      "outputs": [],
+      "featurePipeline": "default-35",
+      "chartOverlay": "prediction_heatband",
+      "estimatedTrainingTime": "1-4 min",
+      "tags": [
+        "online",
+        "streaming",
+        "multi-timeframe",
+        "har",
+        "linear",
+        "live-trading"
+      ],
+      "supportedObjectives": [
+        "skill_vs_majority",
+        "hit_rate",
+        "r2"
+      ],
+      "featureCategories": [
+        "price_action",
+        "volatility",
+        "volume",
+        "momentum"
+      ],
+      "includeIndicators": false,
+      "allFeatures": false,
+      "defaultHyperparameters": {
+        "horizon": {
+          "type": "int",
+          "default": 240,
+          "min": 1,
+          "max": 1440,
+          "label": "Forecast horizon (bars)",
+          "group": "Architecture"
+        },
+        "forgetting": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.99,
+          "max": 1.0,
+          "label": "RLS forgetting (1.0 = exact OLS)",
+          "group": "Optimization",
+          "step": 0.0005
+        },
+        "delta": {
+          "type": "float",
+          "default": 1000.0,
+          "min": 1.0,
+          "max": 100000.0,
+          "label": "RLS prior P = delta.I",
+          "group": "Optimization",
+          "logScale": true
+        },
+        "gateQuantile": {
+          "type": "float",
+          "default": 0.8,
+          "min": 0.5,
+          "max": 0.999,
+          "label": "Conviction gate quantile",
+          "group": "Trading",
+          "step": 0.01
+        },
+        "gateWindow": {
+          "type": "int",
+          "default": 5000,
+          "min": 500,
+          "max": 50000,
+          "label": "Gate lookback (bars)",
+          "group": "Trading"
+        },
+        "minUpdates": {
+          "type": "int",
+          "default": 500,
+          "min": 0,
+          "max": 20000,
+          "label": "Settled samples before signalling",
+          "group": "Trading"
+        },
+        "stopMult": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.1,
+          "max": 10.0,
+          "label": "Stop = N x predicted range",
+          "group": "Trading",
+          "step": 0.1
+        },
+        "targetMult": {
+          "type": "float",
+          "default": 1.5,
+          "min": 0.1,
+          "max": 20.0,
+          "label": "Target = N x predicted range",
+          "group": "Trading",
+          "step": 0.1
+        },
+        "logInterval": {
+          "type": "int",
+          "default": 5000,
+          "min": 100,
+          "max": 100000,
+          "label": "Metric emit cadence (bars)",
+          "group": "Logging"
+        }
+      },
+      "cliFlags": {
+        "horizon": "--horizon",
+        "forgetting": "--forgetting",
+        "delta": "--delta",
+        "gateQuantile": "--gate-quantile",
+        "gateWindow": "--gate-window",
+        "minUpdates": "--min-updates",
+        "stopMult": "--stop-mult",
+        "targetMult": "--target-mult",
+        "logInterval": "--log-interval"
+      }
     }
   }
 }
