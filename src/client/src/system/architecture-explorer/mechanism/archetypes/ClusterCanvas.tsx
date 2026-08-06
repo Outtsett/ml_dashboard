@@ -102,12 +102,12 @@ function pickProjection(rows: readonly { values: number[] }[]): [number, number]
 }
 
 export function ClusterCanvas({
-  spec, features, playing, stepSignal, speed, activeBeat, onProgress,
+  spec, features, playing, stepSignal, speed, activeBeat, forceMotion, onProgress,
 }: ArchetypeProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const p5Ref = useRef<p5Types | null>(null);
-  const live = useRef({ playing, stepSignal, speed, activeBeat });
-  live.current = { playing, stepSignal, speed, activeBeat };
+  const live = useRef({ playing, stepSignal, speed, activeBeat, forceMotion });
+  live.current = { playing, stepSignal, speed, activeBeat, forceMotion };
 
   const points = useMemo(() => features.rows.map((r) => r.values), [features]);
   const projection = useMemo(
@@ -193,7 +193,7 @@ export function ClusterCanvas({
             idx = Math.min(idx + 1, trace.steps.length - 1);
             frames = 0;
             report();
-          } else if (live.current.playing && !reduced) {
+          } else if (live.current.playing && (!reduced || live.current.forceMotion)) {
             frames += Math.max(0.25, live.current.speed);
             if (frames >= FRAMES_PER_STEP) {
               frames = 0;

@@ -22,6 +22,7 @@ import { ProvenancePanel } from './ProvenancePanel';
 import { RepoRunnerBanner } from './RepoRunnerBanner';
 import { minutesToLabel } from '@/market/lib/timeframes';
 import { cn } from '@/shared/utils/utils';
+import { usePrefersReducedMotion } from './useReducedMotion';
 
 const TIMEFRAMES = [1, 5, 15, 60, 1440] as const;
 const SYMBOLS = ['MNQ', 'ES', 'EURUSD'] as const;
@@ -69,6 +70,8 @@ export function MechanismTab({ initialCatalogKey }: MechanismTabProps) {
   const [speed, setSpeed] = useState(1);
   const [activeBeat, setActiveBeat] = useState<string | null>(null);
   const [progress, setProgress] = useState<ArchetypeProgress | null>(null);
+  const reducedMotion = usePrefersReducedMotion();
+  const [forceMotion, setForceMotion] = useState(false);
 
   const catalog = useCatalogRows();
   const resolution = resolveMechanism(catalogKey);
@@ -180,6 +183,19 @@ export function MechanismTab({ initialCatalogKey }: MechanismTabProps) {
         </select>
 
         <div className="ml-auto flex items-center gap-1">
+          {reducedMotion ? (
+            <button
+              type="button"
+              onClick={() => setForceMotion((v) => !v)}
+              title="Your system asks for reduced motion, so animation is paused. Turn it on for this page only."
+              className={cn(
+                'rounded border border-border/60 px-1.5 py-0.5 text-[10px] hover:bg-muted',
+                forceMotion && 'bg-muted font-medium',
+              )}
+            >
+              {forceMotion ? 'motion on' : 'motion off'}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => setPlaying((v) => !v)}
@@ -266,6 +282,7 @@ export function MechanismTab({ initialCatalogKey }: MechanismTabProps) {
                 stepSignal={stepSignal}
                 speed={speed}
                 activeBeat={activeBeat}
+                forceMotion={forceMotion}
                 onProgress={setProgress}
               />
             </Suspense>

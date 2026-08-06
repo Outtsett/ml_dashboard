@@ -18,7 +18,7 @@ export const ATTENTION_MATCH_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'transformer-based-generator-e-g-gpt',
     name: 'Transformer-Based Generator (e.g., GPT)',
     archetype: 'attention-match',
-    provenance: 'schematic',
+    provenance: 'seeded',
     specPath: 'Generative Models/Autoregressive/Transformer-Based Generator (e.g. GPT).md',
     analogy: 'Information enters at input embedding and ends at layer normalization.',
     stages: [
@@ -42,7 +42,7 @@ export const ATTENTION_MATCH_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'attention-weighted-forecast-stack',
     name: 'Attention-Weighted Forecast Stack',
     archetype: 'attention-match',
-    provenance: 'schematic',
+    provenance: 'seeded',
     specPath: 'Hybrid & Composite Architectures/Multi-Modal & Temporal Fusion/Attention-Weighted Forecast Stack.md',
     analogy: 'Information enters at base forecasting models (level-0) and ends at arima.',
     stages: [
@@ -66,7 +66,7 @@ export const ATTENTION_MATCH_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'masked-language-modeling-bert-style',
     name: 'Masked Language Modeling (BERT-style)',
     archetype: 'attention-match',
-    provenance: 'schematic',
+    provenance: 'seeded',
     specPath: 'Machine Learning/Self-Supervised Learning/Masked Modeling/Masked Language Modeling (BERT-style).md',
     analogy: 'Information enters at tokenizer and ends at task head.',
     stages: [
@@ -88,7 +88,7 @@ export const ATTENTION_MATCH_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'transformer-based-self-supervision',
     name: 'Transformer-based Self-Supervision',
     archetype: 'attention-match',
-    provenance: 'schematic',
+    provenance: 'seeded',
     specPath: 'Machine Learning/Self-Supervised Learning/Predictive Representation Learning/Transformer-based Self-Supervision.md',
     analogy: 'Information enters at input embedding and ends at pretext head.',
     stages: [
@@ -112,7 +112,7 @@ export const ATTENTION_MATCH_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'self-attention-mechanism',
     name: 'Self-Attention Mechanism',
     archetype: 'attention-match',
-    provenance: 'schematic',
+    provenance: 'seeded',
     specPath: 'Neural Network Architectures/Attention-Based Architectures/Self-Attention Mechanism.md',
     analogy: 'Information enters at input and ends at multi-head attention.',
     stages: [
@@ -136,7 +136,7 @@ export const ATTENTION_MATCH_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'slot-attention-network',
     name: 'Slot Attention Network',
     archetype: 'attention-match',
-    provenance: 'schematic',
+    provenance: 'seeded',
     specPath: 'Neural Network Architectures/Attention-Based Architectures/Slot Attention Network.md',
     analogy: 'Information enters at input and ends at compute attention weights.',
     stages: [
@@ -160,7 +160,7 @@ export const ATTENTION_MATCH_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'transformer-encoder-decoder',
     name: 'Transformer (Encoder-Decoder)',
     archetype: 'attention-match',
-    provenance: 'schematic',
+    provenance: 'seeded',
     specPath: 'Neural Network Architectures/Attention-Based Architectures/Transformer (Encoder-Decoder).md',
     analogy: 'Information enters at input and ends at stack of identical layers, each with.',
     stages: [
@@ -184,7 +184,7 @@ export const ATTENTION_MATCH_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'vision-transformer-vit',
     name: 'Vision Transformer (ViT)',
     archetype: 'attention-match',
-    provenance: 'schematic',
+    provenance: 'seeded',
     specPath: 'Neural Network Architectures/Attention-Based Architectures/Vision Transformer (ViT).md',
     analogy: 'Information enters at input and ends at multi-head self-attention.',
     stages: [
@@ -208,7 +208,7 @@ export const ATTENTION_MATCH_EXTRACTED: MechanismSpec[] = [
     catalogKey: 'graph-attention-network-gat',
     name: 'Graph Attention Network (GAT)',
     archetype: 'attention-match',
-    provenance: 'schematic',
+    provenance: 'seeded',
     specPath: 'Neural Network Architectures/Graph Neural Networks/Graph Attention Network (GAT).md',
     analogy: 'Information enters at input and ends at activation (e.g., relu),.',
     stages: [

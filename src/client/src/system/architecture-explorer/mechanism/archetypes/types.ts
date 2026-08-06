@@ -34,6 +34,16 @@ export interface ArchetypeProps {
   speed: number;
   /** Beat id the user clicked, or null. Engines highlight its stage. */
   activeBeat: string | null;
+  /**
+   * Explicit user opt-in to animate despite `prefers-reduced-motion: reduce`.
+   *
+   * Honouring the OS setting is the correct default and stays the default. But
+   * a viewer who has come to a page whose entire purpose is watching a
+   * mechanism move, and who then asks for motion, has overridden their own
+   * global preference for this one surface. Without this they get a still
+   * frame and no way to say otherwise.
+   */
+  forceMotion?: boolean;
   onProgress?: (p: ArchetypeProgress) => void;
 }
 

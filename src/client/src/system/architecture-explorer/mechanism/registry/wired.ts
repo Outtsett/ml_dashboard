@@ -70,7 +70,7 @@ export const WIRED: MechanismSpec[] = [
     catalogKey: 'transformer_2s+range_classifier',
     name: 'Two-Stream Transformer + Range-Bucket (HPO)',
     archetype: 'attention-match',
-    provenance: 'schematic',
+    provenance: 'seeded',
     specPath: 'src/ml/blocks/encoder.py',
     analogy:
       'Think of it as two traders reading the same tape — one watching price, one watching ' +
@@ -118,7 +118,7 @@ export const WIRED: MechanismSpec[] = [
     catalogKey: 'transformer_tiny+direction_classifier',
     name: 'Tiny Transformer + Daily Direction (HPO)',
     archetype: 'attention-match',
-    provenance: 'schematic',
+    provenance: 'seeded',
     specPath: 'src/ml/blocks/encoder.py',
     analogy:
       'Think of it as the two-stream reader shrunk to a pocket size — same reading habit, ' +
@@ -156,7 +156,7 @@ export const WIRED: MechanismSpec[] = [
     catalogKey: 'temporal_fusion_transformer+direction_classifier',
     name: 'Temporal Fusion Transformer (direction)',
     archetype: 'attention-match',
-    provenance: 'schematic',
+    provenance: 'seeded',
     specPath: 'src/ml/blocks/tft.py',
     analogy:
       'Think of it as an analyst who first decides which indicators are worth reading today, ' +
@@ -204,7 +204,7 @@ export const WIRED: MechanismSpec[] = [
     catalogKey: 'temporal-fusion-transformer',
     name: 'Temporal Fusion Transformer',
     archetype: 'attention-match',
-    provenance: 'schematic',
+    provenance: 'seeded',
     specPath: 'src/ml/blocks/tft.py',
     analogy:
       'Think of it as an analyst who first decides which indicators are worth reading today, ' +

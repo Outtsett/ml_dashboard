@@ -109,13 +109,14 @@ export function NodeFlow({
   stepSignal,
   speed,
   activeBeat,
+  forceMotion,
   onProgress,
 }: ArchetypeProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const p5Ref = useRef<p5Types | null>(null);
 
-  const live = useRef({ playing, stepSignal, speed, activeBeat });
-  live.current = { playing, stepSignal, speed, activeBeat };
+  const live = useRef({ playing, stepSignal, speed, activeBeat, forceMotion });
+  live.current = { playing, stepSignal, speed, activeBeat, forceMotion };
 
   const stages = useMemo(() => spec.stages, [spec]);
   const topo = useMemo(() => topologyFor(spec.archetype, stages), [spec.archetype, stages]);
@@ -222,7 +223,7 @@ export function NodeFlow({
             front = Math.floor(front) + 1;
             if (front > last) { front = loopTo >= 0 ? loopTo : 0; laps++; }
             report(Math.floor(front));
-          } else if (live.current.playing && !reduced) {
+          } else if (live.current.playing && (!reduced || live.current.forceMotion)) {
             front += 0.014 * Math.max(0.25, live.current.speed);
             if (front > last) { front = loopTo >= 0 ? loopTo : 0; laps++; }
             if (Math.floor(front) !== prev) report(Math.floor(front));
