@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, waitFor } from '@testing-library/react';
-import { ClusterLoop } from '@/system/architecture-explorer/mechanism/archetypes/ClusterLoop';
+import { ClusterCanvas } from '@/system/architecture-explorer/mechanism/archetypes/ClusterCanvas';
 import type { MechanismSpec } from '@/system/architecture-explorer/mechanism/registry';
 import type { FeatureMatrix } from '@/system/architecture-explorer/mechanism/data/candleGeometry';
 
@@ -81,7 +81,7 @@ const FEATURES: FeatureMatrix = {
 beforeEach(() => removeSpy.mockClear());
 afterEach(cleanup);
 
-describe('ClusterLoop', () => {
+describe('ClusterCanvas', () => {
   /**
    * ONE test owns the async p5 path, deliberately.
    *
@@ -95,7 +95,7 @@ describe('ClusterLoop', () => {
   it('constructs, reports real kmeans progress, and tears down on unmount', async () => {
     const seen: { iteration: number; metricValue: number; metricLabel: string }[] = [];
     const { unmount } = render(
-      <ClusterLoop
+      <ClusterCanvas
         spec={SPEC}
         features={FEATURES}
         playing
@@ -127,7 +127,7 @@ describe('ClusterLoop', () => {
 
   it('leaks nothing when unmounted before the lazy p5 import lands', () => {
     const { unmount } = render(
-      <ClusterLoop
+      <ClusterCanvas
         spec={SPEC}
         features={FEATURES}
         playing
@@ -142,7 +142,7 @@ describe('ClusterLoop', () => {
 
   it('renders an empty state rather than a canvas when there are no rows', () => {
     const { container } = render(
-      <ClusterLoop
+      <ClusterCanvas
         spec={SPEC}
         features={{ ...FEATURES, rows: [] }}
         playing
@@ -154,7 +154,7 @@ describe('ClusterLoop', () => {
     expect(container.textContent).toMatch(/no complete feature rows/i);
   });
 
-  it('refuses to draw a k-means run for a model with a different kernel', () => {
+  it('refuses to draw anything for a model whose kernel is not built', () => {
     const dbscan: MechanismSpec = {
       ...SPEC,
       catalogKey: 'dbscan-density-based-spatial-clustering',
@@ -162,7 +162,7 @@ describe('ClusterLoop', () => {
       kernelId: null,
     };
     const { container } = render(
-      <ClusterLoop
+      <ClusterCanvas
         spec={dbscan}
         features={FEATURES}
         playing
@@ -171,7 +171,7 @@ describe('ClusterLoop', () => {
         activeBeat={null}
       />,
     );
-    expect(container.textContent).toMatch(/kernel is not built yet/i);
+    expect(container.textContent).toMatch(/not implemented yet/i);
     expect(container.querySelector('canvas')).toBeNull();
   });
 });

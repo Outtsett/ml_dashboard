@@ -7,8 +7,11 @@ import { CATALOG_KEYS } from './catalogKeys.fixture';
 
 const KEYS = new Set(CATALOG_KEYS.map((r) => r.key));
 
-/** Kernels that actually exist under mechanism/compute as of this wave. */
-const BUILT_KERNELS = new Set(['kmeans']);
+/** Kernels that actually exist under mechanism/compute. */
+const BUILT_KERNELS = new Set([
+  'kmeans', 'gmm', 'dbscan', 'meanshift',
+  'agglomerative', 'som', 'copkmeans', 'affinity',
+]);
 
 describe('registry integrity', () => {
   it('has the cluster-loop family registered', () => {
@@ -106,10 +109,18 @@ describe('registry integrity', () => {
     }
   });
 
-  it('only k-means claims the kmeans kernel — no lookalike substitution', () => {
-    const withKmeans = allMechanisms()
-      .filter((m) => m.kernelId === 'kmeans')
-      .map((m) => m.catalogKey);
-    expect(withKmeans).toEqual(['k-means-clustering']);
+  it('no two models share a clustering kernel — no lookalike substitution', () => {
+    // Sharing the cluster-loop archetype is not sharing an algorithm. Each
+    // clustering model must name its own kernel, or none at all.
+    const claimed = allMechanisms()
+      .filter((m) => m.archetype === 'cluster-loop' && m.kernelId)
+      .map((m) => m.kernelId!);
+    expect(new Set(claimed).size).toBe(claimed.length);
+  });
+
+  it('k-means is still the only model claiming the kmeans kernel', () => {
+    expect(
+      allMechanisms().filter((m) => m.kernelId === 'kmeans').map((m) => m.catalogKey),
+    ).toEqual(['k-means-clustering']);
   });
 });
