@@ -5,6 +5,7 @@ import {
   unresearched,
   ALL_ARCHETYPES,
 } from '@/system/architecture-explorer/mechanism/registry';
+import { resolveEngine } from '@/system/architecture-explorer/mechanism/archetypes';
 
 describe('mechanism registry coverage', () => {
   it('returns a decision for every catalog key — never blank', () => {
@@ -34,8 +35,31 @@ describe('mechanism registry coverage', () => {
     }
   });
 
-  // Flips from skip to active in Wave 5, when research is complete.
-  it.skip('has researched every catalog key', () => {
-    expect(unresearched(CATALOG_KEYS.map((r) => r.key))).toEqual([]);
+  /**
+   * The one catalog key with no researched entry, and why.
+   *
+   * `primitives_cnn+multi_head`'s trainer lives in a sibling repo that is not on
+   * this disk, so there is no source to read and nothing to cite. Describing it
+   * would be guesswork — the same refusal graph/derive.ts already makes for it.
+   * If that repo is ever vendored in, delete this exclusion and the test should
+   * still pass.
+   */
+  const KNOWN_UNRESEARCHED = ['primitives_cnn+multi_head'];
+
+  it('has researched every catalog key except the documented exclusion', () => {
+    expect(unresearched(CATALOG_KEYS.map((r) => r.key)).sort()).toEqual(
+      [...KNOWN_UNRESEARCHED].sort(),
+    );
+  });
+
+  it('every researched key resolves to an engine that will animate it', () => {
+    for (const row of CATALOG_KEYS) {
+      const r = resolveMechanism(row.key);
+      if (!r.researched) continue;
+      // resolveEngine never returns undefined for a researched spec: bespoke
+      // where a kernel reproduces the real algorithm, StageFlow otherwise.
+      expect(resolveEngine(r.spec)).toBeTruthy();
+      expect(r.spec.stages.length).toBeGreaterThanOrEqual(2);
+    }
   });
 });

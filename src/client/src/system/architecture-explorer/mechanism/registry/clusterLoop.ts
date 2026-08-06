@@ -81,13 +81,14 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     ],
     repoRunner: BROWSE_ONLY,
     kernelId: 'kmeans',
+    curation: 'curated',
   },
 
   {
     catalogKey: 'gaussian-mixture-model-gmm',
     name: 'Gaussian Mixture Model (GMM)',
     archetype: 'cluster-loop',
-    provenance: 'analytic',
+    provenance: 'schematic',
     specPath: 'Machine Learning/Unsupervised Learning/Clustering/Gaussian Mixture Model (GMM).md',
     analogy:
       'Think of it as K-Means that admits uncertainty: a bar can be 70% one ' +
@@ -127,13 +128,14 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     ],
     repoRunner: BROWSE_ONLY,
     kernelId: null,
+    curation: 'curated',
   },
 
   {
     catalogKey: 'dbscan-density-based-spatial-clustering',
     name: 'DBSCAN (Density-Based Spatial Clustering of Applications with Noise)',
     archetype: 'cluster-loop',
-    provenance: 'analytic',
+    provenance: 'schematic',
     specPath:
       'Machine Learning/Unsupervised Learning/Clustering/DBSCAN (Density-Based Spatial Clustering).md',
     analogy:
@@ -174,13 +176,14 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     ],
     repoRunner: BROWSE_ONLY,
     kernelId: null,
+    curation: 'curated',
   },
 
   {
     catalogKey: 'mean-shift-clustering',
     name: 'Mean Shift Clustering',
     archetype: 'cluster-loop',
-    provenance: 'analytic',
+    provenance: 'schematic',
     specPath: 'Machine Learning/Unsupervised Learning/Clustering/Mean Shift Clustering.md',
     analogy:
       'Think of it as letting every bar roll uphill on a density map until it ' +
@@ -219,13 +222,14 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     ],
     repoRunner: BROWSE_ONLY,
     kernelId: null,
+    curation: 'curated',
   },
 
   {
     catalogKey: 'spectral-clustering',
     name: 'Spectral Clustering',
     archetype: 'cluster-loop',
-    provenance: 'analytic',
+    provenance: 'schematic',
     specPath: 'Machine Learning/Unsupervised Learning/Clustering/Spectral Clustering.md',
     analogy:
       'Think of it as redrawing the map before clustering: bars become nodes in ' +
@@ -268,13 +272,14 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     ],
     repoRunner: BROWSE_ONLY,
     kernelId: null,
+    curation: 'curated',
   },
 
   {
     catalogKey: 'hierarchical-clustering-agglomerative-divisive',
     name: 'Hierarchical Clustering (Agglomerative, Divisive)',
     archetype: 'cluster-loop',
-    provenance: 'analytic',
+    provenance: 'schematic',
     specPath:
       'Machine Learning/Unsupervised Learning/Clustering/Hierarchical Clustering (Agglomerative, Divisive).md',
     analogy:
@@ -315,13 +320,14 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     ],
     repoRunner: BROWSE_ONLY,
     kernelId: null,
+    curation: 'curated',
   },
 
   {
     catalogKey: 'affinity-propagation',
     name: 'Affinity Propagation',
     archetype: 'cluster-loop',
-    provenance: 'analytic',
+    provenance: 'schematic',
     specPath: 'Machine Learning/Unsupervised Learning/Clustering/Affinity Propagation.md',
     analogy:
       'Think of it as bars campaigning to represent each other: each sends out ' +
@@ -361,13 +367,14 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     ],
     repoRunner: BROWSE_ONLY,
     kernelId: null,
+    curation: 'curated',
   },
 
   {
     catalogKey: 'semi-supervised-clustering',
     name: 'Semi-Supervised Clustering',
     archetype: 'cluster-loop',
-    provenance: 'analytic',
+    provenance: 'schematic',
     specPath:
       'Machine Learning/Semi-Supervised Learning/Clustering-Based Methods/Semi-Supervised Clustering.md',
     analogy:
@@ -407,13 +414,14 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     ],
     repoRunner: BROWSE_ONLY,
     kernelId: null,
+    curation: 'curated',
   },
 
   {
     catalogKey: 'self-organizing-maps-som',
     name: 'Self-Organizing Maps (SOM)',
     archetype: 'cluster-loop',
-    provenance: 'trained-live',
+    provenance: 'schematic',
     specPath:
       'Machine Learning/Unsupervised Learning/Self-Organizing Systems/Self-Organizing Maps (SOM).md',
     analogy:
@@ -454,13 +462,14 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     ],
     repoRunner: MLP_NOTE,
     kernelId: null,
+    curation: 'curated',
   },
 
   {
     catalogKey: 'deep-clustering-network',
     name: 'Deep Clustering Network (DCN)',
     archetype: 'cluster-loop',
-    provenance: 'trained-live',
+    provenance: 'schematic',
     specPath:
       'Machine Learning/Unsupervised Learning/Matrix Factorization & Decomposition/Deep Clustering Network.md',
     analogy:
@@ -502,5 +511,6 @@ export const CLUSTER_LOOP: MechanismSpec[] = [
     ],
     repoRunner: MLP_NOTE,
     kernelId: null,
+    curation: 'curated',
   },
 ];

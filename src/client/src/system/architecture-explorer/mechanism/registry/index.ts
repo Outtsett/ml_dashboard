@@ -9,11 +9,47 @@
 
 import type { MechanismSpec, MechanismResolution } from './types';
 import { CLUSTER_LOOP } from './clusterLoop';
+import { WIRED } from './wired';
+import { ADVERSARIAL_DUEL_EXTRACTED } from './adversarialDuelExtracted';
+import { AGENT_ENVIRONMENT_EXTRACTED } from './agentEnvironmentExtracted';
+import { ATTENTION_MATCH_EXTRACTED } from './attentionMatchExtracted';
+import { AUTOREGRESSIVE_EXTRACTED } from './autoregressiveExtracted';
+import { CONTRASTIVE_PAIR_EXTRACTED } from './contrastivePairExtracted';
+import { CONVEX_FIT_EXTRACTED } from './convexFitExtracted';
+import { DENSITY_BOUNDARY_EXTRACTED } from './densityBoundaryExtracted';
+import { ENCODE_BOTTLENECK_DECODE_EXTRACTED } from './encodeBottleneckDecodeExtracted';
+import { ENSEMBLE_ROUTE_EXTRACTED } from './ensembleRouteExtracted';
+import { FEEDFORWARD_STACK_EXTRACTED } from './feedforwardStackExtracted';
+import { GRAPH_MESSAGE_PASS_EXTRACTED } from './graphMessagePassExtracted';
+import { ITERATIVE_DENOISE_EXTRACTED } from './iterativeDenoiseExtracted';
+import { PROJECTION_EMBED_EXTRACTED } from './projectionEmbedExtracted';
+import { SYMBOLIC_HYBRID_EXTRACTED } from './symbolicHybridExtracted';
+import { TEACHER_STUDENT_EXTRACTED } from './teacherStudentExtracted';
+import { TREE_ROUTE_EXTRACTED } from './treeRouteExtracted';
 
 export * from './types';
 
 /** Every researched family module contributes its array here. */
-const FAMILIES: readonly MechanismSpec[][] = [CLUSTER_LOOP];
+const FAMILIES: readonly MechanismSpec[][] = [
+  CLUSTER_LOOP,
+  WIRED,
+  ADVERSARIAL_DUEL_EXTRACTED,
+  AGENT_ENVIRONMENT_EXTRACTED,
+  ATTENTION_MATCH_EXTRACTED,
+  AUTOREGRESSIVE_EXTRACTED,
+  CONTRASTIVE_PAIR_EXTRACTED,
+  CONVEX_FIT_EXTRACTED,
+  DENSITY_BOUNDARY_EXTRACTED,
+  ENCODE_BOTTLENECK_DECODE_EXTRACTED,
+  ENSEMBLE_ROUTE_EXTRACTED,
+  FEEDFORWARD_STACK_EXTRACTED,
+  GRAPH_MESSAGE_PASS_EXTRACTED,
+  ITERATIVE_DENOISE_EXTRACTED,
+  PROJECTION_EMBED_EXTRACTED,
+  SYMBOLIC_HYBRID_EXTRACTED,
+  TEACHER_STUDENT_EXTRACTED,
+  TREE_ROUTE_EXTRACTED,
+];
 
 function buildIndex(): Map<string, MechanismSpec> {
   const index = new Map<string, MechanismSpec>();

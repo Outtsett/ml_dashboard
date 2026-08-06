@@ -29,6 +29,13 @@ export const PROVENANCE_COPY: Record<Provenance, { label: string; body: string }
       'The arithmetic is real and runs on your bars, but the weights are seeded, ' +
       'not learned. The output is not a prediction.',
   },
+  schematic: {
+    label: 'flow only',
+    body:
+      'The stages, their order and the loop are this model’s real mechanism, read ' +
+      'from the spec cited below. No values are computed, so none are shown — the ' +
+      'motion is the claim, nothing more.',
+  },
 };
 
 /**
@@ -96,6 +103,13 @@ export function ProvenancePanel({
         <div>
           <dt className="font-medium text-muted-foreground">source</dt>
           <dd className="break-all text-muted-foreground">{spec.specPath}</dd>
+          <dd className="text-muted-foreground">
+            {spec.curation === 'curated'
+              ? 'Read end to end and written deliberately.'
+              : 'Stages and beats lifted mechanically from this spec’s own ' +
+                'Principles / Algorithm sections — faithful to the source, not ' +
+                'reviewed line by line.'}
+          </dd>
         </div>
       </dl>
     </div>
