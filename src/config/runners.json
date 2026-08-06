@@ -704,7 +704,10 @@
       "runner": "python",
       "script": "E:/source/repos/Trading/quant/model/scripts/online_mtf_trader.py",
       "outputDir": "data/models",
-      "outputs": [],
+      "outputs": [
+        "diagnostics.json",
+        "convergence.json"
+      ],
       "featurePipeline": "default-35",
       "chartOverlay": "prediction_heatband",
       "estimatedTrainingTime": "1-4 min",
