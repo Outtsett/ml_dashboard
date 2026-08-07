@@ -1,7 +1,43 @@
 # Real-Time Dashboard Redesign — Design
 
 **Date:** 2026-08-06
-**Status:** W0 implemented (`187977f`); W1–W4 pending
+**Status:** Complete. W0 `187977f`, W1 `2b27b45`, W0b `e7d63d7`, W2 `a80eb0e`,
+W3 `4cdb0e8`, W4 `0043058`.
+
+## What changed against this spec during implementation
+
+Recorded here rather than silently edited, because each was a case of the plan
+being wrong about the code.
+
+- **W0b was not in the original decomposition.** W0 corrected the token layer,
+  but 230 files bypassed it with hardcoded classes and hex — 1380 occurrences.
+  The fix covered the definition and almost none of the usage, so a sweep was
+  added as its own workstream.
+- **`--data-warn` is yellow, not vermillion.** Measured under deuteranopia
+  simulation, vermillion-vs-orange scores 50.9 against yellow-vs-orange 79.2.
+- **The categorical palette is ordered by measured separation**, not Wong's
+  published sequence. Blue and green are its tightest pair (37.4) and now sit at
+  opposite ends.
+- **The CPU gauge needed no server work.** `system.matrix` already carried
+  `cpu.load`, cores, and temp on the same endpoint as `system.gpu`.
+- **`ExperimentLedger` was not split.** It is a working TanStack table; the new
+  card and leaderboard views sit alongside it rather than replacing it.
+- **W4 replays from QuestDB, not the Quantower history.** QuestDB holds real
+  stored bars behind an already-working query layer; the Quantower `history.db`
+  format was unverified and would have added risk for no gain.
+
+Three silent-failure bugs were found only by checking build or wire output, and
+each now has a regression gate:
+
+- `hover:surface-raised` produced no CSS — Tailwind v4 does not generate
+  variants for plain `@layer utilities` classes. Gated by
+  `tests/client/css-utilities.test.ts`.
+- The client bar hook subscribed to `/api/events/system`, but the SSE adapter
+  routes `market.` to the pipeline channel. It would have connected and
+  received nothing forever.
+- The colour codemod flattened an EMA ramp, merged two indicator lines onto one
+  blue, duplicated a series colour, and merged two model categories. Gated by
+  `tests/client/color-contract.test.ts`.
 **Scope:** `ml_dashboard` client surface (ML Studio shell, telemetry, experiment tracker) plus market-data ingestion backend.
 
 ## Problem
