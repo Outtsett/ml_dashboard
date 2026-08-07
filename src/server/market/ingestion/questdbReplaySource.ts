@@ -1,13 +1,13 @@
 /**
- * A BarSource that replays real stored bars out of QuestDB.
+ * A BarSource that replays stored history out of QuestDB.
  *
- * This exists because live ingestion is dead, not because replaying history is
- * a good substitute for a market. It drives the full pipeline — event bus,
- * SSE, chart animation — with real data so that when a live producer is wired
- * in, the only untested thing is the producer itself.
+ * For working on the chart when Quantower is closed and no live bars are
+ * arriving. Reads the historical `ohlcv_*` tables, which are a separate lineage
+ * from the live `qt_bars_1m` that QuantowerBridge writes — see
+ * `questdbLiveSource.ts`.
  *
- * Every frame it emits is marked as replay at the event level, so nothing
- * downstream can mistake it for live market data.
+ * Every frame is marked `replay` at the event level, so nothing downstream can
+ * mistake it for a market.
  */
 
 import { formationFrames, type Bar, type PartialBar } from './barFormation.js';
@@ -71,8 +71,9 @@ export class QuestDBReplaySource implements BarSource {
     if (bars.length === 0) {
       // An empty replay would look identical to a quiet market. Say so.
       throw new Error(
-        `No stored bars for ${symbol} in ${table}. Market-data ingestion has been ` +
-          `dead since 2026-07-27; this symbol may never have been ingested.`,
+        `No stored bars for ${symbol} in ${table}. This is the historical table, ` +
+          `which stopped receiving data on 2026-03-30 — live bars go to qt_bars_1m. ` +
+          `Start with mode:'live' if Quantower is running.`,
       );
     }
 

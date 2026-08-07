@@ -245,12 +245,10 @@ export type MarketEvent =
   /**
    * A forming or closed price bar.
    *
-   * `origin` is not decoration. Live ingestion has been dead since the
-   * MotiveWave export path was removed on 2026-07-27, so the stream may be a
-   * replay of stored bars rather than a market. Any consumer that trades,
-   * alerts, or reports on this data is required to check it — a replay that
-   * reads as live is precisely how "the data looks fine" survives four months
-   * of no ingestion.
+   * `origin` is not decoration. The stream is live when Quantower is running
+   * and QuantowerBridge is writing, and a replay of stored history otherwise —
+   * and the two are identical once rendered. Any consumer that trades, alerts,
+   * or reports on this data is required to check it.
    */
   | BaseEvent<'market.bar', {
       symbol: string;

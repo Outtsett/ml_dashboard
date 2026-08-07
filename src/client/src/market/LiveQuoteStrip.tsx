@@ -9,10 +9,11 @@
  * shown beside it — is a log return, not a raw difference, so it stays
  * comparable across instruments and across time.
  *
- * **The origin badge is not optional.** Live ingestion has been dead since the
- * MotiveWave export path was removed on 2026-07-27, so this is usually a
- * replay of stored bars. A quote strip that looks live while replaying 2026
- * data is worse than no quote strip.
+ * **The origin badge is not optional.** The stream is live when Quantower is
+ * running and QuantowerBridge is writing, and a replay of stored bars when it
+ * is not. Those look identical once rendered, so the badge is the only thing
+ * separating "the market is quiet" from "nothing is feeding this". A quote
+ * strip that reads live while replaying history is worse than no quote strip.
  */
 
 import { Radio, History } from "lucide-react";
@@ -93,8 +94,8 @@ export function LiveQuoteStrip({ className = "" }: { className?: string }) {
         }`}
         title={
           isReplay
-            ? "Replay of stored bars — not live market data. Live ingestion has been dead since 2026-07-27."
-            : "Live market data"
+            ? "Replay of stored history — not live market data."
+            : "Live bars from QuantowerBridge, written while Quantower is running."
         }
       >
         {isReplay ? (

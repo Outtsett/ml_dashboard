@@ -6,9 +6,10 @@
  * `isClosed` arrives — the animated-candle behaviour, rather than a hard
  * refresh per interval.
  *
- * `origin` is surfaced, not hidden. Live ingestion has been dead since the
- * MotiveWave export path was removed on 2026-07-27, so this stream is usually
- * a replay of stored bars, and any UI built on it must be able to say so.
+ * `origin` is surfaced, not hidden. The stream is live while Quantower is
+ * running and QuantowerBridge is writing to `qt_bars_1m`, and a replay of
+ * stored history when it is not. Those are indistinguishable once rendered, so
+ * any UI built on this must be able to say which it is showing.
  */
 
 import { useCallback, useMemo, useRef, useState } from 'react';

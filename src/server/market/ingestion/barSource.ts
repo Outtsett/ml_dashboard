@@ -2,17 +2,24 @@
  * BarSource — the seam between "where bars come from" and everything
  * downstream.
  *
- * Live market-data ingestion has been dead since the MotiveWave export path
- * was removed on 2026-07-27; QuestDB's newest 1m bar predates that. Rather
- * than block the whole live surface on choosing and wiring a paid feed, the
- * pipeline is built against this interface and driven by a replay of real
- * stored bars. That exercises the entire path — source, event bus, SSE,
- * chart — with real data at zero cost.
+ * Two implementations, both real:
  *
- * Swapping in a genuine live feed is then one implementation of this
- * interface, with nothing downstream changing. That is the whole point of the
- * seam: the replay is scaffolding for the plumbing, not a simulation anyone
- * should mistake for a market.
+ *   - `QuestDBLiveSource` tails `qt_bars_1m`, which `QuantowerBridge.cs` writes
+ *     over Influx Line Protocol while Quantower is running. This is the live
+ *     path and it works today.
+ *   - `QuestDBReplaySource` replays stored bars out of the historical
+ *     `ohlcv_1m` table, for working on the chart when the platform is closed.
+ *
+ * A correction worth recording, because it was wrong in this file for a day:
+ * the removal of the MotiveWave export path on 2026-07-27 did NOT leave the
+ * system without ingestion. QuantowerBridge replaced it. What the removal left
+ * behind was a *stale table* — `ohlcv_1m` stopped receiving data on 2026-03-30
+ * — while live bars accumulated in `qt_bars_1m` under a different name. The
+ * dashboard reading the old table is what made the feed look dead.
+ *
+ * The lesson for anything added here: a source that reports nothing is
+ * indistinguishable from a market that is closed. Say which table you read and
+ * why, and make every event carry its origin.
  */
 
 import type { Bar, PartialBar } from './barFormation.js';
@@ -50,30 +57,5 @@ export interface BarSource {
   readonly running: boolean;
 }
 
-/**
- * Placeholder for a real feed.
- *
- * Deliberately fails loudly instead of silently producing nothing. A live
- * source that quietly emits no bars is indistinguishable from a market that
- * is closed, and that ambiguity is exactly how "the data looks stale" goes
- * unnoticed for four months.
- */
-export class UnconfiguredLiveSource implements BarSource {
-  readonly kind = 'live' as const;
-  readonly description =
-    'No live market-data feed is configured. Ingestion has been dead since the ' +
-    'MotiveWave export path was removed on 2026-07-27. Wire a real producer ' +
-    '(Databento, Interactive Brokers, or a Quantower export) behind BarSource.';
-
-  get running(): boolean {
-    return false;
-  }
-
-  start(): Promise<void> {
-    return Promise.reject(new Error(this.description));
-  }
-
-  stop(): void {
-    /* nothing to stop */
-  }
-}
+/** Where a stream's bars came from, carried on every emitted event. */
+export type BarOrigin = 'replay' | 'live';

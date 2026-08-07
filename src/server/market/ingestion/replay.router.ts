@@ -1,11 +1,15 @@
 /**
- * Replay control — start and stop the stored-bar feed.
+ * Bar-stream control — start and stop the feed backing the chart.
  *
  *   GET  /api/market/replay/status
- *   POST /api/market/replay/start   { symbol, timeframe, framesPerBar?, frameIntervalMs?, maxBars? }
+ *   POST /api/market/replay/start   { symbol, timeframe, mode?, ... }
  *   POST /api/market/replay/stop
  *
- * One replay at a time, process-wide. Two concurrent replays would interleave
+ * `mode` selects the source: `live` tails what QuantowerBridge is writing right
+ * now, `replay` walks stored history. Default is `live`, because when Quantower
+ * is up that is the honest answer to "show me the market".
+ *
+ * One stream at a time, process-wide. Two concurrent streams would interleave
  * bars for different symbols onto one event channel, and the chart has no way
  * to tell them apart mid-stream.
  */
@@ -14,15 +18,13 @@ import crypto from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import { getEventBus } from '../../infrastructure/events/event-bus.js';
 import { QuestDBReplaySource } from './questdbReplaySource.js';
-import { UnconfiguredLiveSource, type BarSource } from './barSource.js';
+import { QuestDBLiveSource, LIVE_BARS_TABLE } from './questdbLiveSource.js';
+import type { BarSource, BarOrigin } from './barSource.js';
 
 const router = Router();
 
 let current: BarSource | null = null;
 let currentLabel: string | null = null;
-
-/** The live feed that does not exist yet — surfaced so /status can say so. */
-const liveSource = new UnconfiguredLiveSource();
 
 /** Matches the envelope every other emitter on this bus produces. */
 function makeMetadata() {
@@ -30,13 +32,52 @@ function makeMetadata() {
   return { correlationId: id, causationId: id, timestamp: Date.now() };
 }
 
-router.get('/market/replay/status', (_req: Request, res: Response) => {
+/**
+ * Whether the live producer looks alive, judged by how recently it wrote.
+ *
+ * Reported rather than assumed: QuantowerBridge only writes while Quantower is
+ * open, so "is there a live feed" is a runtime question with a changing answer.
+ * A caller that assumed yes would show a frozen chart as a calm market.
+ */
+async function liveFeedHealth() {
+  try {
+    const { queryQuestDB } = await import(
+      '../../infrastructure/database/questdb/connection.js'
+    );
+    const rows = await queryQuestDB<{ latest: string | null; n: number }>(
+      `SELECT max(timestamp) latest, count() n FROM ${LIVE_BARS_TABLE}`,
+    );
+    const latest = rows[0]?.latest ? Date.parse(rows[0].latest) : null;
+    const ageSeconds = latest === null ? null : (Date.now() - latest) / 1000;
+
+    // A timestamp in the FUTURE is a clock fault, not freshness. The first cut
+    // of this check tested `ageSeconds < 300` and duly reported a feed running
+    // fourteen hours ahead as healthy — negative is smaller than 300. Bars
+    // cannot be written before they happen, so treat it as its own state.
+    const clockSkewed = ageSeconds !== null && ageSeconds < -60;
+
+    return {
+      table: LIVE_BARS_TABLE,
+      rows: rows[0]?.n ?? 0,
+      latest: latest === null ? null : new Date(latest).toISOString(),
+      ageSeconds,
+      clockSkewed,
+      clockSkewHours: clockSkewed ? Math.round((-ageSeconds / 3600) * 100) / 100 : null,
+      // Bars land once a minute, so a few minutes of silence is normal; beyond
+      // that Quantower is closed or the bridge is down.
+      writing: ageSeconds !== null && ageSeconds >= -60 && ageSeconds < 300,
+    };
+  } catch (err) {
+    return { table: LIVE_BARS_TABLE, error: (err as Error).message };
+  }
+}
+
+router.get('/market/replay/status', async (_req: Request, res: Response) => {
   res.json({
     running: current?.running ?? false,
     source: currentLabel,
     description: current?.description ?? null,
-    liveFeedAvailable: false,
-    liveFeedReason: liveSource.description,
+    liveFeed: await liveFeedHealth(),
   });
 });
 
@@ -53,13 +94,22 @@ router.post('/market/replay/start', async (req: Request, res: Response) => {
     return;
   }
 
-  const source = new QuestDBReplaySource({
-    symbol,
-    timeframe,
-    framesPerBar: Number(req.body?.framesPerBar ?? 4),
-    frameIntervalMs: Number(req.body?.frameIntervalMs ?? 250),
-    maxBars: Number(req.body?.maxBars ?? 500),
-  });
+  const mode: BarOrigin = req.body?.mode === 'replay' ? 'replay' : 'live';
+
+  const source: BarSource =
+    mode === 'live'
+      ? new QuestDBLiveSource({
+          symbol,
+          timeframe,
+          pollIntervalMs: Number(req.body?.pollIntervalMs ?? 2000),
+        })
+      : new QuestDBReplaySource({
+          symbol,
+          timeframe,
+          framesPerBar: Number(req.body?.framesPerBar ?? 4),
+          frameIntervalMs: Number(req.body?.frameIntervalMs ?? 250),
+          maxBars: Number(req.body?.maxBars ?? 500),
+        });
 
   const bus = getEventBus();
 
@@ -81,7 +131,7 @@ router.post('/market/replay/start', async (req: Request, res: Response) => {
           volume: frame.volume,
           progress: frame.progress,
           isClosed: frame.isClosed,
-          origin: 'replay',
+          origin: mode,
         },
         metadata: makeMetadata(),
       });
@@ -105,8 +155,8 @@ router.post('/market/replay/start', async (req: Request, res: Response) => {
   }
 
   current = source;
-  currentLabel = `${symbol} ${timeframe}`;
-  res.json({ running: true, source: currentLabel, description: source.description });
+  currentLabel = `${symbol} ${timeframe} (${mode})`;
+  res.json({ running: true, mode, source: currentLabel, description: source.description });
 });
 
 router.post('/market/replay/stop', (_req: Request, res: Response) => {
