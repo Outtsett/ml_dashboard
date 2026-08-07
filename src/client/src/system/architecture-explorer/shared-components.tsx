@@ -59,12 +59,12 @@ export function Traits({ strengths, weaknesses, bestFor }: {
     <div className="space-y-2 mt-4">
       <div className="flex flex-wrap gap-1.5">
         {strengths.map(s => (
-          <Badge key={s} variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400 bg-emerald-500/5">
+          <Badge key={s} variant="outline" className="text-[10px] border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.05)]">
             ✓ {s}
           </Badge>
         ))}
         {weaknesses.map(w => (
-          <Badge key={w} variant="outline" className="text-[10px] border-rose-500/30 text-rose-400 bg-rose-500/5">
+          <Badge key={w} variant="outline" className="text-[10px] border-[hsl(var(--data-neg)/0.3)] text-[hsl(var(--data-neg))] bg-[hsl(var(--data-neg)/0.05)]">
             ✗ {w}
           </Badge>
         ))}

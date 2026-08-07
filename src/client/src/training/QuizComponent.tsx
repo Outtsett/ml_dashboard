@@ -169,9 +169,9 @@ export function QuizComponent({ questions, onComplete }: QuizComponentProps) {
             let optionStyle = "border-border/30 hover:border-primary/40 hover:bg-primary/5";
             if (answered) {
               if (opt.id === correctOptionId) {
-                optionStyle = "border-emerald-500/60 bg-emerald-500/10";
+                optionStyle = "border-[hsl(var(--data-pos)/0.6)] bg-[hsl(var(--data-pos)/0.1)]";
               } else if (opt.id === selectedId) {
-                optionStyle = "border-red-500/60 bg-red-500/10";
+                optionStyle = "border-[hsl(var(--data-neg)/0.6)] bg-[hsl(var(--data-neg)/0.1)]";
               } else {
                 optionStyle = "border-border/20 opacity-50";
               }
@@ -196,12 +196,12 @@ export function QuizComponent({ questions, onComplete }: QuizComponentProps) {
                     }`}
                   >
                     {answered && opt.id === correctOptionId && (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      <CheckCircle2 className="h-4 w-4 text-[hsl(var(--data-pos))]" />
                     )}
                     {answered &&
                       opt.id === selectedId &&
                       opt.id !== correctOptionId && (
-                        <XCircle className="h-4 w-4 text-red-500" />
+                        <XCircle className="h-4 w-4 text-[hsl(var(--data-neg))]" />
                       )}
                   </div>
                   <span>{opt.text}</span>
@@ -223,7 +223,7 @@ export function QuizComponent({ questions, onComplete }: QuizComponentProps) {
               <div
                 className={`rounded-lg p-4 text-sm ${
                   isCorrect
-                    ? "bg-emerald-500/10 border border-emerald-500/30"
+                    ? "bg-[hsl(var(--data-pos)/0.1)] border border-[hsl(var(--data-pos)/0.3)]"
                     : "bg-amber-500/10 border border-amber-500/30"
                 }`}
               >

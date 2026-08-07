@@ -16,7 +16,7 @@ export function FeatureWaterfall({ contributions }: { contributions: FeatureCont
     fullFeature: c.feature,
     contribution: c.contribution,
     value: c.value,
-    fill: c.direction === 'positive' ? '#10b981' : '#ef4444',
+    fill: c.direction === 'positive' ? '#E69F00' : '#0072B2',
   }));
 
   return (
@@ -46,7 +46,7 @@ export function FeatureWaterfall({ contributions }: { contributions: FeatureCont
                     <p className="text-muted-foreground text-xs mt-1">
                       Value: <span className="font-mono text-white">{data.value?.toFixed(4)}</span>
                     </p>
-                    <p className={`text-xs mt-1 ${data.contribution >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    <p className={`text-xs mt-1 ${data.contribution >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}>
                       Contribution: <span className="font-mono">{data.contribution >= 0 ? '+' : ''}{data.contribution?.toFixed(4)}</span>
                     </p>
                   </div>
@@ -203,8 +203,8 @@ export function CounterfactualList({ counterfactuals }: { counterfactuals: Count
           <div className="flex items-center gap-2 text-sm mb-2">
             <span className="text-muted-foreground">Flips prediction to:</span>
             <Badge className={
-              cf.newPrediction === 2 ? "bg-green-500/20 text-green-400" :
-              cf.newPrediction === 0 ? "bg-red-500/20 text-red-400" :
+              cf.newPrediction === 2 ? "bg-[hsl(var(--data-pos)/0.2)] text-[hsl(var(--data-pos))]" :
+              cf.newPrediction === 0 ? "bg-[hsl(var(--data-neg)/0.2)] text-[hsl(var(--data-neg))]" :
               "bg-yellow-500/20 text-yellow-400"
             }>
               {cf.newPrediction === 2 ? 'UP' : cf.newPrediction === 0 ? 'DOWN' : 'NEUTRAL'}
@@ -214,9 +214,9 @@ export function CounterfactualList({ counterfactuals }: { counterfactuals: Count
             {cf.changes.slice(0, 5).map((change, i) => (
               <div key={i} className="flex items-center gap-2 text-xs">
                 <span className="text-white/70 w-20 truncate">{change.feature}</span>
-                <span className="font-mono text-red-400">{change.from.toFixed(3)}</span>
+                <span className="font-mono text-[hsl(var(--data-neg))]">{change.from.toFixed(3)}</span>
                 <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                <span className="font-mono text-green-400">{change.to.toFixed(3)}</span>
+                <span className="font-mono text-[hsl(var(--data-pos))]">{change.to.toFixed(3)}</span>
               </div>
             ))}
           </div>
@@ -231,8 +231,8 @@ export function CounterfactualList({ counterfactuals }: { counterfactuals: Count
 export function PredictionBadge({ prediction }: { prediction: XAIExplanation['prediction'] }) {
   const direction = prediction.class === 2 ? 'up' : prediction.class === 0 ? 'down' : 'neutral';
   const Icon = direction === 'up' ? TrendingUp : direction === 'down' ? TrendingDown : Target;
-  const colorClass = direction === 'up' ? 'text-green-400 bg-green-500/20' :
-                     direction === 'down' ? 'text-red-400 bg-red-500/20' :
+  const colorClass = direction === 'up' ? 'text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.2)]' :
+                     direction === 'down' ? 'text-[hsl(var(--data-neg))] bg-[hsl(var(--data-neg)/0.2)]' :
                      'text-yellow-400 bg-yellow-500/20';
 
   return (

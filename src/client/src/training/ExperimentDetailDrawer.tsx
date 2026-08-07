@@ -141,7 +141,7 @@ export function ExperimentDetailDrawer({
             <h3 className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
               Error
             </h3>
-            <pre className="overflow-x-auto rounded-md border border-red-500/20 bg-red-500/5 p-2 font-mono text-[11px] text-red-300">
+            <pre className="overflow-x-auto rounded-md border border-[hsl(var(--data-neg)/0.2)] bg-[hsl(var(--data-neg)/0.05)] p-2 font-mono text-[11px] text-[hsl(var(--data-neg))]">
               {row.errorMessage}
             </pre>
           </section>

@@ -39,12 +39,12 @@ export function BenchmarkTab({ result, isPending }: BenchmarkTabProps) {
   }));
 
   const metricCards = [
-    { label: 'Alpha', value: comparison.alpha.toFixed(4), color: comparison.alpha >= 0 ? 'text-emerald-400' : 'text-rose-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+    { label: 'Alpha', value: comparison.alpha.toFixed(4), color: comparison.alpha >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]', bg: 'bg-[hsl(var(--data-pos)/0.1)] border-[hsl(var(--data-pos)/0.2)]' },
     { label: 'Beta', value: comparison.beta.toFixed(3), color: 'text-[hsl(185,40%,45%)]', bg: 'bg-[hsl(185,40%,45%)]/10 border-[hsl(185,40%,45%)]/20' },
-    { label: 'Information Ratio', value: comparison.informationRatio.toFixed(3), color: comparison.informationRatio >= 0 ? 'text-emerald-400' : 'text-rose-400', bg: 'bg-violet-500/10 border-violet-500/20' },
+    { label: 'Information Ratio', value: comparison.informationRatio.toFixed(3), color: comparison.informationRatio >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]', bg: 'bg-violet-500/10 border-violet-500/20' },
     { label: 'Tracking Error', value: `${(comparison.trackingError * 100).toFixed(2)}%`, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
-    { label: 'Up Capture', value: `${(comparison.upCaptureRatio * 100).toFixed(0)}%`, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
-    { label: 'Down Capture', value: `${(comparison.downCaptureRatio * 100).toFixed(0)}%`, color: comparison.downCaptureRatio <= 1 ? 'text-emerald-400' : 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
+    { label: 'Up Capture', value: `${(comparison.upCaptureRatio * 100).toFixed(0)}%`, color: 'text-[hsl(var(--data-pos))]', bg: 'bg-[hsl(var(--data-pos)/0.1)] border-[hsl(var(--data-pos)/0.2)]' },
+    { label: 'Down Capture', value: `${(comparison.downCaptureRatio * 100).toFixed(0)}%`, color: comparison.downCaptureRatio <= 1 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]', bg: 'bg-[hsl(var(--data-neg)/0.1)] border-[hsl(var(--data-neg)/0.2)]' },
   ];
 
   return (
@@ -65,13 +65,13 @@ export function BenchmarkTab({ result, isPending }: BenchmarkTabProps) {
           <div className="pt-2 border-t border-white/5 space-y-1.5 text-xs">
             <div className="flex justify-between">
               <span className="text-muted-foreground">B&H Return</span>
-              <span className={`font-mono ${buyAndHold.totalReturnPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              <span className={`font-mono ${buyAndHold.totalReturnPct >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}>
                 {buyAndHold.totalReturnPct >= 0 ? '+' : ''}{buyAndHold.totalReturnPct.toFixed(1)}%
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">B&H Max DD</span>
-              <span className="font-mono text-rose-400">{buyAndHold.maxDrawdownPct.toFixed(1)}%</span>
+              <span className="font-mono text-[hsl(var(--data-neg))]">{buyAndHold.maxDrawdownPct.toFixed(1)}%</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">B&H Sharpe</span>

@@ -87,7 +87,7 @@ function ExperimentRow({ experiment, status, onRun, onClear }: ExperimentRowProp
       break;
     case "done":
       badge = (
-        <Badge className="h-5 gap-1 bg-emerald-500/15 px-1.5 text-[10px] text-emerald-300">
+        <Badge className="h-5 gap-1 bg-[hsl(var(--data-pos)/0.15)] px-1.5 text-[10px] text-[hsl(var(--data-pos))]">
           <CheckCircle2 className="h-3 w-3" /> run #{status.runId}
         </Badge>
       );
@@ -99,7 +99,7 @@ function ExperimentRow({ experiment, status, onRun, onClear }: ExperimentRowProp
       break;
     case "error":
       badge = (
-        <Badge className="h-5 gap-1 bg-rose-500/15 px-1.5 text-[10px] text-rose-300">
+        <Badge className="h-5 gap-1 bg-[hsl(var(--data-neg)/0.15)] px-1.5 text-[10px] text-[hsl(var(--data-neg))]">
           <AlertCircle className="h-3 w-3" /> Error
         </Badge>
       );
@@ -121,7 +121,7 @@ function ExperimentRow({ experiment, status, onRun, onClear }: ExperimentRowProp
         {badge}
         {status.kind === "error" ? (
           <span
-            className="max-w-[16rem] truncate text-[10px] text-rose-300/80"
+            className="max-w-[16rem] truncate text-[10px] text-[hsl(var(--data-neg)/0.8)]"
             title={status.message}
           >
             {status.message}

@@ -149,17 +149,17 @@ export function FeaturesStage() {
   const meanAbsTone = (() => {
     const v = lastResult?.meanAbsCorr;
     if (typeof v !== "number") return "text-muted-foreground";
-    if (v < 0.3) return "text-emerald-300";
+    if (v < 0.3) return "text-[hsl(var(--data-pos))]";
     if (v < 0.6) return "text-amber-300";
-    return "text-red-300";
+    return "text-[hsl(var(--data-neg))]";
   })();
 
   const maxAbsTone = (() => {
     const v = lastResult?.maxAbsCorr;
     if (typeof v !== "number") return "text-muted-foreground";
-    if (v < 0.7) return "text-emerald-300";
+    if (v < 0.7) return "text-[hsl(var(--data-pos))]";
     if (v < 0.9) return "text-amber-300";
-    return "text-red-300";
+    return "text-[hsl(var(--data-neg))]";
   })();
 
   return (
@@ -255,7 +255,7 @@ export function FeaturesStage() {
       </section>
 
       {previewMutation.isError && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-300 flex items-center gap-2">
+        <div className="rounded-xl border border-[hsl(var(--data-neg)/0.3)] bg-[hsl(var(--data-neg)/0.05)] px-4 py-3 text-sm text-[hsl(var(--data-neg))] flex items-center gap-2">
           <AlertTriangle className="h-4 w-4" />
           {(previewMutation.error as Error)?.message ?? "Preview failed."}
         </div>
@@ -346,10 +346,10 @@ function RedundantPairsTable({
   threshold: number;
 }) {
   return (
-    <section className="rounded-xl bg-red-500/[0.04] border border-red-500/20 p-4 space-y-2">
+    <section className="rounded-xl bg-[hsl(var(--data-neg))]/[0.04] border border-[hsl(var(--data-neg)/0.2)] p-4 space-y-2">
       <div className="flex items-baseline gap-3">
-        <AlertTriangle className="h-4 w-4 text-red-300 self-center" />
-        <span className="text-sm font-medium text-red-200">
+        <AlertTriangle className="h-4 w-4 text-[hsl(var(--data-neg))] self-center" />
+        <span className="text-sm font-medium text-[hsl(var(--data-neg))]">
           {pairs.length} redundant {pairs.length === 1 ? "pair" : "pairs"}
         </span>
         <span className="text-[11px] text-muted-foreground/80">
@@ -372,7 +372,7 @@ function RedundantPairsTable({
                 <td className="py-1 pr-4 whitespace-nowrap">{p.a}</td>
                 <td className="py-1 pr-4 whitespace-nowrap">{p.b}</td>
                 <td className="py-1 pr-4 whitespace-nowrap text-right">{Math.abs(p.corr).toFixed(4)}</td>
-                <td className={`py-1 pr-4 whitespace-nowrap ${p.corr < 0 ? "text-rose-300" : "text-sky-300"}`}>
+                <td className={`py-1 pr-4 whitespace-nowrap ${p.corr < 0 ? "text-[hsl(var(--data-neg))]" : "text-sky-300"}`}>
                   {p.corr.toFixed(4)}
                 </td>
               </tr>

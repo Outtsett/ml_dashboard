@@ -65,7 +65,7 @@ export default function FourierTransform() {
             <Timer className="h-4 w-4 text-primary" />
             {isPriceMode ? `${priceSymbol} @ ${TF_LABELS[priceTimeframe]}` : "Synthetic Wave"}
           </Badge>
-          <Badge variant="outline" className="h-10 px-4 rounded-xl border-emerald-500/20 text-emerald-400 bg-emerald-500/5 font-mono text-sm">
+          <Badge variant="outline" className="h-10 px-4 rounded-xl border-[hsl(var(--data-pos)/0.2)] text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.05)] font-mono text-sm">
             LIVE_DATA_NODE_ONLINE
           </Badge>
         </div>
@@ -171,7 +171,7 @@ export default function FourierTransform() {
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Stationarity</span>
-                <span className="font-mono text-emerald-400">Verified</span>
+                <span className="font-mono text-[hsl(var(--data-pos))]">Verified</span>
               </div>
               <div className="pt-2 mt-2 border-t border-white/5">
                 <p className="text-[10px] text-muted-foreground leading-relaxed italic">

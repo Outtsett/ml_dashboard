@@ -39,7 +39,7 @@ export function FitPanel({ diagnostics, convergencePoints, nBarsForLL, llPerBar,
         <div className="flex flex-col gap-3 w-48">
           <div className="bg-white/[0.02] rounded-xl p-3 border border-white/5">
             <div className="text-[9px] text-muted-foreground/50 uppercase tracking-widest mb-1">Convergence</div>
-            <div className={`text-lg font-bold font-mono ${converged ? "text-emerald-400" : "text-amber-400"}`}>
+            <div className={`text-lg font-bold font-mono ${converged ? "text-[hsl(var(--data-pos))]" : "text-amber-400"}`}>
               {converged ? "Converged" : "Not yet"}
             </div>
             <div className="text-[9px] text-muted-foreground/50">avg Δ = {avgDelta.toFixed(0)} (last 10)</div>

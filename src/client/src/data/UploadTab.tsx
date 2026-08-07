@@ -45,7 +45,7 @@ export function UploadTab({
           <Button
             onClick={onUploadAll}
             disabled={pendingCount === 0 || isUploading}
-            className="bg-gradient-to-r from-emerald-600 to-cyan-500 text-white hover:opacity-90"
+            className="bg-gradient-to-r from-[hsl(var(--data-pos))] to-cyan-500 text-white hover:opacity-90"
             data-testid="button-upload-all"
           >
             {isUploading ? (
@@ -58,19 +58,19 @@ export function UploadTab({
       </div>
 
       {/* Dropzone */}
-      <Card className="glass border-2 border-dashed border-white/20 hover:border-emerald-500/50 transition-colors cursor-pointer"
+      <Card className="glass border-2 border-dashed border-white/20 hover:border-[hsl(var(--data-pos)/0.5)] transition-colors cursor-pointer"
         onClick={() => fileInputRef.current?.click()}
-        onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-emerald-500'); }}
-        onDragLeave={(e) => { e.currentTarget.classList.remove('border-emerald-500'); }}
+        onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-[hsl(var(--data-pos))]'); }}
+        onDragLeave={(e) => { e.currentTarget.classList.remove('border-[hsl(var(--data-pos))]'); }}
         onDrop={(e) => {
           e.preventDefault();
-          e.currentTarget.classList.remove('border-emerald-500');
+          e.currentTarget.classList.remove('border-[hsl(var(--data-pos))]');
           onFilesSelected(e.dataTransfer.files);
         }}
         data-testid="upload-dropzone"
       >
         <CardContent className="p-8 text-center">
-          <Upload className="h-10 w-10 mx-auto mb-3 text-emerald-400/60" />
+          <Upload className="h-10 w-10 mx-auto mb-3 text-[hsl(var(--data-pos)/0.6)]" />
           <p className="text-sm font-medium text-muted-foreground">Drop files here or click to browse</p>
           <p className="text-xs text-muted-foreground/60 mt-1">CSV, Parquet, DBN, JSON (max 500MB per file)</p>
           <input
@@ -103,13 +103,13 @@ export function UploadTab({
           <CardContent className="space-y-2">
             {selectedFiles.map((fileItem, index) => (
               <div key={index} className={`p-3 rounded-lg flex items-center gap-3 ${
-                fileItem.status === 'completed' ? 'bg-green-500/10' :
-                fileItem.status === 'failed' ? 'bg-rose-500/10' :
+                fileItem.status === 'completed' ? 'bg-[hsl(var(--data-pos)/0.1)]' :
+                fileItem.status === 'failed' ? 'bg-[hsl(var(--data-neg)/0.1)]' :
                 fileItem.status === 'uploading' ? 'bg-primary/10' : 'bg-white/5'
               }`} data-testid={`upload-file-${index}`}>
                 <FileText className={`h-4 w-4 shrink-0 ${
-                  fileItem.status === 'completed' ? 'text-green-400' :
-                  fileItem.status === 'failed' ? 'text-rose-400' :
+                  fileItem.status === 'completed' ? 'text-[hsl(var(--data-pos))]' :
+                  fileItem.status === 'failed' ? 'text-[hsl(var(--data-neg))]' :
                   fileItem.status === 'uploading' ? 'text-primary' : 'text-muted-foreground'
                 }`} />
                 <div className="flex-1 min-w-0">
@@ -132,8 +132,8 @@ export function UploadTab({
                     <X className="h-3 w-3" />
                   </Button>
                 )}
-                {fileItem.status === 'completed' && <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />}
-                {fileItem.status === 'failed' && <XCircle className="h-4 w-4 text-rose-400 shrink-0" />}
+                {fileItem.status === 'completed' && <CheckCircle2 className="h-4 w-4 text-[hsl(var(--data-pos))] shrink-0" />}
+                {fileItem.status === 'failed' && <XCircle className="h-4 w-4 text-[hsl(var(--data-neg))] shrink-0" />}
                 {fileItem.status === 'uploading' && <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" />}
               </div>
             ))}
@@ -161,8 +161,8 @@ export function UploadTab({
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-xs font-bold">{upload.symbol}</span>
                         <Badge variant="outline" className={`text-[10px] h-4 rounded-full px-1.5 ${
-                          upload.status === 'completed' ? 'border-green-500/30 text-green-400' :
-                          upload.status === 'processing' ? 'border-primary/30 text-primary' : 'border-rose-500/30 text-rose-400'
+                          upload.status === 'completed' ? 'border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))]' :
+                          upload.status === 'processing' ? 'border-primary/30 text-primary' : 'border-[hsl(var(--data-neg)/0.3)] text-[hsl(var(--data-neg))]'
                         }`}>{upload.status}</Badge>
                       </div>
                       <p className="text-[10px] text-muted-foreground font-mono truncate">{upload.filename}</p>

@@ -46,7 +46,7 @@ export function XAITab({ xaiMethod, setXaiMethod, xaiResult, activeModelName }: 
                   <span className="text-[9px] text-muted-foreground w-20 truncate" title={f.name}>{f.name}</span>
                   <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all ${f.importance >= 0 ? 'bg-cyan-500' : 'bg-rose-500'}`}
+                      className={`h-full rounded-full transition-all ${f.importance >= 0 ? 'bg-cyan-500' : 'bg-[hsl(var(--data-neg))]'}`}
                       style={{ width: `${pct}%` }}
                     />
                   </div>

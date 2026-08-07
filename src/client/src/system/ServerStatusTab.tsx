@@ -88,7 +88,7 @@ export function ServerStatusTab() {
               <p className="text-xs text-muted-foreground">Runs daily health checks and cleanup tasks.</p>
             </div>
             <Button onClick={() => runMaintenance.mutate()} disabled={runMaintenance.isPending} variant="outline">
-              {runMaintenance.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2 text-emerald-500" />}
+              {runMaintenance.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2 text-[hsl(var(--data-pos))]" />}
               Run Maintenance
             </Button>
           </div>

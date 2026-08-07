@@ -76,7 +76,7 @@ export default function ConvergenceAnalytics({ diagnostics }: AnalyticsComponent
         </div>
         <div className="bg-white/[0.03] rounded-lg p-2 text-center">
           <div className="text-[9px] text-muted-foreground/50 uppercase">Final LL</div>
-          <div className="text-sm font-mono font-bold text-emerald-400">{convergenceSummary.final_log_likelihood.toFixed(1)}</div>
+          <div className="text-sm font-mono font-bold text-[hsl(var(--data-pos))]">{convergenceSummary.final_log_likelihood.toFixed(1)}</div>
         </div>
         <div className="bg-white/[0.03] rounded-lg p-2 text-center">
           <div className="text-[9px] text-muted-foreground/50 uppercase">Active States</div>

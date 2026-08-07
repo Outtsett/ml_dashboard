@@ -87,11 +87,11 @@ const STATUS_TONE_CLASS: Record<string, "live" | "info" | "warn" | "error" | "id
 };
 
 const TRIAL_STATUS_CLASS: Record<HpoTrial["status"], string> = {
-  running: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+  running: "border-[hsl(var(--data-pos)/0.3)] bg-[hsl(var(--data-pos)/0.1)] text-[hsl(var(--data-pos))]",
   completed: "border-primary/30 bg-primary/10 text-primary",
   pruned: "border-amber-500/30 bg-amber-500/10 text-amber-400",
-  killed: "border-red-500/30 bg-red-500/10 text-red-400",
-  failed: "border-red-500/30 bg-red-500/10 text-red-400",
+  killed: "border-[hsl(var(--data-neg)/0.3)] bg-[hsl(var(--data-neg)/0.1)] text-[hsl(var(--data-neg))]",
+  failed: "border-[hsl(var(--data-neg)/0.3)] bg-[hsl(var(--data-neg)/0.1)] text-[hsl(var(--data-neg))]",
 };
 
 export default function HpoDetail() {

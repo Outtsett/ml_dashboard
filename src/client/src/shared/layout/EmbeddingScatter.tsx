@@ -18,8 +18,8 @@ interface EmbeddingScatterProps {
 }
 
 const CLUSTER_COLORS = [
-  '#8b5cf6', '#06b6d4', '#f59e0b', '#22c55e', 
-  '#ef4444', '#ec4899', '#3b82f6', '#84cc16'
+  '#8b5cf6', '#06b6d4', '#f59e0b', '#E69F00', 
+  '#0072B2', '#ec4899', '#3b82f6', '#84cc16'
 ];
 
 const chartTooltipStyle = { 
@@ -31,10 +31,10 @@ const chartTooltipStyle = {
 };
 
 function getAnomalyColor(score: number): string {
-  if (score >= 0.8) return '#ef4444';
+  if (score >= 0.8) return '#0072B2';
   if (score >= 0.6) return '#f59e0b';
   if (score >= 0.4) return '#eab308';
-  return '#22c55e';
+  return '#E69F00';
 }
 
 export function EmbeddingScatter({ 
@@ -146,9 +146,9 @@ export function EmbeddingScatter({
           {showTrajectory && trajectoryData && trajectoryData.length > 1 && (
             <Scatter 
               data={trajectoryData} 
-              line={{ stroke: '#22c55e', strokeWidth: 1.5 }}
+              line={{ stroke: '#E69F00', strokeWidth: 1.5 }}
               shape="circle"
-              fill="#22c55e"
+              fill="#E69F00"
               opacity={0.9}
             />
           )}

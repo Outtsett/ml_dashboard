@@ -24,7 +24,7 @@ import { cn } from "@/shared/utils/utils";
 
 const LINE_COLORS = [
   '#22d3ee', // cyan
-  '#34d399', // emerald
+  '#E69F00', // emerald
   '#fbbf24', // amber
   '#a78bfa', // violet
   '#f472b6', // pink

@@ -159,8 +159,8 @@ export default function News() {
 
   const getSentimentColor = (sentiment?: string) => {
     switch (sentiment) {
-      case "positive": return "border-green-500/30 text-green-400 bg-green-500/10";
-      case "negative": return "border-rose-500/30 text-rose-400 bg-rose-500/10";
+      case "positive": return "border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)]";
+      case "negative": return "border-[hsl(var(--data-neg)/0.3)] text-[hsl(var(--data-neg))] bg-[hsl(var(--data-neg)/0.1)]";
       default: return "border-muted-foreground/30 text-muted-foreground bg-muted/10";
     }
   };
@@ -181,20 +181,20 @@ export default function News() {
         <div className="flex gap-3 items-center">
           <div className="bg-gradient-to-br from-slate-500/10 to-slate-600/5 rounded-xl px-4 py-2 border border-slate-500/20 flex items-center gap-3">
             <span className={`inline-block w-2 h-2 rounded-full ${
-              connectionStatus === 'connected' ? 'bg-emerald-500 animate-pulse' :
+              connectionStatus === 'connected' ? 'bg-[hsl(var(--data-pos))] animate-pulse' :
               connectionStatus === 'connecting' ? 'bg-amber-500 animate-pulse' :
-              'bg-rose-500'
+              'bg-[hsl(var(--data-neg))]'
             }`} />
             <span className="text-xs text-muted-foreground font-mono">Updated: {lastUpdate.toLocaleTimeString()}</span>
           </div>
           <Button 
             variant={isStreaming ? "default" : "outline"}
             size="sm"
-            className={`h-9 px-4 rounded-xl ${isStreaming ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-black/30 border-white/10'}`}
+            className={`h-9 px-4 rounded-xl ${isStreaming ? 'bg-[hsl(var(--data-pos)/0.1)] border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))]' : 'bg-black/30 border-white/10'}`}
             onClick={() => setIsStreaming(!isStreaming)}
             data-testid="button-streaming"
           >
-            <Radio className={`mr-2 h-3.5 w-3.5 ${isStreaming ? 'text-emerald-400 animate-pulse' : ''}`} />
+            <Radio className={`mr-2 h-3.5 w-3.5 ${isStreaming ? 'text-[hsl(var(--data-pos))] animate-pulse' : ''}`} />
             {isStreaming ? 'Live' : 'Paused'}
           </Button>
           <Button 
@@ -270,7 +270,7 @@ export default function News() {
               News for <span className="text-primary font-mono">{selectedSymbol}</span>
               {isLoading && <RefreshCw className="h-3 w-3 animate-spin ml-2" />}
               {connectionStatus === 'connected' && !isLoading && (
-                <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-mono">LIVE</span>
+                <span className="text-[10px] bg-[hsl(var(--data-pos)/0.2)] text-[hsl(var(--data-pos))] px-2 py-0.5 rounded-full font-mono">LIVE</span>
               )}
             </CardTitle>
           </CardHeader>

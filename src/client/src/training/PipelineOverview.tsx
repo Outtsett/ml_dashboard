@@ -35,23 +35,23 @@ const PHASE_COLORS: Record<Phase, string> = {
   A: "from-blue-500/10 to-blue-500/5 border-blue-500/20",
   B: "from-violet-500/10 to-violet-500/5 border-violet-500/20",
   C: "from-amber-500/10 to-amber-500/5 border-amber-500/20",
-  D: "from-emerald-500/10 to-emerald-500/5 border-emerald-500/20",
-  E: "from-rose-500/10 to-rose-500/5 border-rose-500/20",
+  D: "from-[hsl(var(--data-pos)/0.1)] to-[hsl(var(--data-pos)/0.05)] border-[hsl(var(--data-pos)/0.2)]",
+  E: "from-[hsl(var(--data-neg)/0.1)] to-[hsl(var(--data-neg)/0.05)] border-[hsl(var(--data-neg)/0.2)]",
 };
 
 const PHASE_ACCENT: Record<Phase, string> = {
   A: "text-blue-400",
   B: "text-violet-400",
   C: "text-amber-400",
-  D: "text-emerald-400",
-  E: "text-rose-400",
+  D: "text-[hsl(var(--data-pos))]",
+  E: "text-[hsl(var(--data-neg))]",
 };
 
 const STATUS_BADGE: Record<PhaseStatus, { label: string; className: string }> = {
   idle: { label: "Idle", className: "text-neutral-400 bg-neutral-500/10" },
   running: { label: "Running", className: "text-blue-400 bg-blue-500/10 animate-pulse" },
-  completed: { label: "Done", className: "text-emerald-400 bg-emerald-500/10" },
-  failed: { label: "Failed", className: "text-red-400 bg-red-500/10" },
+  completed: { label: "Done", className: "text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)]" },
+  failed: { label: "Failed", className: "text-[hsl(var(--data-neg))] bg-[hsl(var(--data-neg)/0.1)]" },
 };
 
 export function PipelineOverview({ phaseStatuses, onSelectPhase }: PipelineOverviewProps) {

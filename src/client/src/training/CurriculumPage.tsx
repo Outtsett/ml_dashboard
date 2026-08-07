@@ -169,7 +169,7 @@ export default function Curriculum() {
                     🔥 {stats.streakDays} day streak
                   </span>
                 )}
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-[hsl(var(--data-pos)/0.1)] text-[hsl(var(--data-pos))] border border-[hsl(var(--data-pos)/0.2)]">
                   ✓ {stats.completedLessons}/{stats.totalLessons} lessons
                 </span>
                 {stats.averageScore > 0 && (

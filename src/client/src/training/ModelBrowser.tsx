@@ -311,7 +311,7 @@ function CheckpointRow({
 
       <button
         onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        className="p-0.5 rounded text-muted-foreground/20 hover:text-red-400/60 hover:bg-red-400/5 transition-colors"
+        className="p-0.5 rounded text-muted-foreground/20 hover:text-[hsl(var(--data-neg)/0.6)] hover:bg-[hsl(var(--data-neg)/0.05)] transition-colors"
         title="Delete checkpoint"
       >
         <Trash2 className="h-3 w-3" />
@@ -323,9 +323,9 @@ function CheckpointRow({
 // ── Grade Badge ─────────────────────────────────────────────────────────────
 
 const GRADE_COLORS: Record<string, string> = {
-  "A+": "text-emerald-400 bg-emerald-400/10 border-emerald-400/30",
-  "A": "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
-  "A-": "text-emerald-400/80 bg-emerald-400/8 border-emerald-400/15",
+  "A+": "text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)] border-[hsl(var(--data-pos)/0.3)]",
+  "A": "text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)] border-[hsl(var(--data-pos)/0.2)]",
+  "A-": "text-[hsl(var(--data-pos)/0.8)] bg-[hsl(var(--data-pos)/0.08)] border-[hsl(var(--data-pos)/0.15)]",
   "B+": "text-blue-400 bg-blue-400/10 border-blue-400/20",
   "B": "text-blue-400/80 bg-blue-400/8 border-blue-400/15",
   "B-": "text-blue-400/60 bg-blue-400/5 border-blue-400/10",
@@ -335,7 +335,7 @@ const GRADE_COLORS: Record<string, string> = {
   "D+": "text-orange-400 bg-orange-400/10 border-orange-400/20",
   "D": "text-orange-400/80 bg-orange-400/8 border-orange-400/15",
   "D-": "text-orange-400/60 bg-orange-400/5 border-orange-400/10",
-  "F": "text-red-400 bg-red-400/10 border-red-400/20",
+  "F": "text-[hsl(var(--data-neg))] bg-[hsl(var(--data-neg)/0.1)] border-[hsl(var(--data-neg)/0.2)]",
   "N/A": "text-muted-foreground/40 bg-white/3 border-white/5",
 };
 

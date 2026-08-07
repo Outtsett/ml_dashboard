@@ -78,13 +78,13 @@ export function BacktestTab({
               </div>
               <div className="flex justify-between">
                 <span className="text-[9px] text-muted-foreground">Win Rate</span>
-                <span className={`text-[10px] font-mono ${btResult.metrics.winRate >= 50 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <span className={`text-[10px] font-mono ${btResult.metrics.winRate >= 50 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}>
                   {btResult.metrics.winRate.toFixed(1)}%
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[9px] text-muted-foreground">P&L</span>
-                <span className={`text-[10px] font-mono ${btResult.metrics.totalPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <span className={`text-[10px] font-mono ${btResult.metrics.totalPnl >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}>
                   ${btResult.metrics.totalPnl.toFixed(2)}
                 </span>
               </div>
@@ -94,7 +94,7 @@ export function BacktestTab({
               </div>
               <div className="flex justify-between">
                 <span className="text-[9px] text-muted-foreground">Max DD</span>
-                <span className="text-[10px] font-mono text-rose-400">{btResult.metrics.maxDrawdown?.toFixed(2) || '--'}%</span>
+                <span className="text-[10px] font-mono text-[hsl(var(--data-neg))]">{btResult.metrics.maxDrawdown?.toFixed(2) || '--'}%</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[9px] text-muted-foreground">Profit F.</span>
@@ -138,7 +138,7 @@ export function BacktestTab({
               >
                 <div className="flex justify-between">
                   <span className="font-mono text-foreground">{run.symbol || symbol}</span>
-                  <span className={`font-mono ${(run.totalPnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  <span className={`font-mono ${(run.totalPnl || 0) >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}>
                     ${(run.totalPnl || 0).toFixed(0)}
                   </span>
                 </div>

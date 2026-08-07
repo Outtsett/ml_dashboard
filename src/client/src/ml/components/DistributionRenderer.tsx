@@ -162,7 +162,7 @@ export function DistributionRenderer(props: RendererProps) {
           <div className="flex items-center justify-center gap-4 text-[9px] font-mono">
             <span className="text-zinc-500">n={stats.n}</span>
             <span className="text-cyan-400">mean={stats.mean.toFixed(context.decimals ?? 3)}</span>
-            <span className="text-emerald-400">med={stats.median.toFixed(context.decimals ?? 3)}</span>
+            <span className="text-[hsl(var(--data-pos))]">med={stats.median.toFixed(context.decimals ?? 3)}</span>
           </div>
         )}
 

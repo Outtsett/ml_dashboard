@@ -40,32 +40,32 @@ function fmtDuration(seconds: number | null): string {
 
 function pfColor(v: number | null): string {
   if (v == null) return "text-muted-foreground";
-  if (v >= 2.0) return "text-emerald-400";
-  if (v >= 1.5) return "text-emerald-400/80";
+  if (v >= 2.0) return "text-[hsl(var(--data-pos))]";
+  if (v >= 1.5) return "text-[hsl(var(--data-pos)/0.8)]";
   if (v >= 1.0) return "text-amber-400";
-  return "text-rose-400";
+  return "text-[hsl(var(--data-neg))]";
 }
 
 function sharpeColor(v: number | null): string {
   if (v == null) return "text-muted-foreground";
-  if (v >= 2.0) return "text-emerald-400";
-  if (v >= 1.0) return "text-emerald-400/80";
+  if (v >= 2.0) return "text-[hsl(var(--data-pos))]";
+  if (v >= 1.0) return "text-[hsl(var(--data-pos)/0.8)]";
   if (v >= 0) return "text-amber-400";
-  return "text-rose-400";
+  return "text-[hsl(var(--data-neg))]";
 }
 
 function wrColor(v: number | null): string {
   if (v == null) return "text-muted-foreground";
-  if (v >= 0.55) return "text-emerald-400";
+  if (v >= 0.55) return "text-[hsl(var(--data-pos))]";
   if (v >= 0.50) return "text-amber-400";
-  return "text-rose-400";
+  return "text-[hsl(var(--data-neg))]";
 }
 
 function ddColor(v: number | null): string {
   if (v == null) return "text-muted-foreground";
-  if (v <= 0.05) return "text-emerald-400";
+  if (v <= 0.05) return "text-[hsl(var(--data-pos))]";
   if (v <= 0.10) return "text-amber-400";
-  return "text-rose-400";
+  return "text-[hsl(var(--data-neg))]";
 }
 
 // ── Metric Cell ─────────────────────────────────────────────────────────────
@@ -157,16 +157,16 @@ export function DashboardTab({ checkpoints, stats, loading }: DashboardTabProps)
                   <div className="flex items-center justify-between p-3 pb-2">
                     <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        cp.isActive ? "bg-emerald-500/20" : "bg-primary/20"
+                        cp.isActive ? "bg-[hsl(var(--data-pos)/0.2)]" : "bg-primary/20"
                       }`}>
-                        <Brain className={`h-5 w-5 ${cp.isActive ? "text-emerald-400" : "text-primary"}`} />
+                        <Brain className={`h-5 w-5 ${cp.isActive ? "text-[hsl(var(--data-pos))]" : "text-primary"}`} />
                       </div>
                       <div>
                         <div className="font-medium text-sm flex items-center gap-2">
                           {cp.symbol}
                           <span className="text-muted-foreground/60 font-normal">{cp.timeframe}</span>
                           {cp.isActive === 1 && (
-                            <Badge variant="outline" className="text-[9px] rounded-full px-1.5 py-0 border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
+                            <Badge variant="outline" className="text-[9px] rounded-full px-1.5 py-0 border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)]">
                               ACTIVE
                             </Badge>
                           )}
@@ -234,7 +234,7 @@ export function DashboardTab({ checkpoints, stats, loading }: DashboardTabProps)
                         <MetricCell
                           label="ROC AUC"
                           value={cp.perf.rocAuc != null ? cp.perf.rocAuc.toFixed(3) : "--"}
-                          colorFn={cp.perf.rocAuc != null && cp.perf.rocAuc >= 0.65 ? "text-emerald-400" : "text-muted-foreground"}
+                          colorFn={cp.perf.rocAuc != null && cp.perf.rocAuc >= 0.65 ? "text-[hsl(var(--data-pos))]" : "text-muted-foreground"}
                         />
                         <MetricCell
                           label="Val Loss"

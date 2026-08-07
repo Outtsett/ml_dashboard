@@ -8,21 +8,16 @@
 
 import { memo, useMemo } from "react";
 import { useTrainingModelState } from "@/shared/contexts/TrainingModelStateCtx";
+import { WONG_PALETTE_DARK } from "@/shared/theme/dataColors";
 import { ChartCard } from "./shared";
 
-const REGIME_COLORS = [
-  "#22c55e", "#3b82f6", "#f59e0b", "#ef4444", "#a855f7",
-  "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#6366f1",
-];
+// Shared palette: 10 regimes on one chart is precisely what it is ordered for.
+const REGIME_COLORS = WONG_PALETTE_DARK;
 
 function sharpeColor(s: number): string {
-  if (s > 1.0) return "#22c55e";
+  if (s > 1.0) return "#E69F00";
   if (s >= 0) return "#eab308";
-  return "#ef4444";
-}
-
-function returnColor(r: number): string {
-  return r >= 0 ? "#34d399" : "#fb7185";
+  return "#0072B2";
 }
 
 // ── Transition bar ──────────────────────────────────────────────────────────
@@ -80,7 +75,7 @@ function ConfidenceHistogram({ bins }: { bins: number[] }) {
               className="flex-1 rounded-t"
               style={{
                 height: `${pct}%`,
-                backgroundColor: pct > 60 ? "#34d399" : pct > 30 ? "#facc15" : "#fb7185",
+                backgroundColor: pct > 60 ? "#E69F00" : pct > 30 ? "#facc15" : "#0072B2",
                 opacity: 0.85,
               }}
               title={`${(i * 10).toFixed(0)}-${((i + 1) * 10).toFixed(0)}%: ${count}`}
@@ -178,7 +173,7 @@ function RegimeProfileCardsInner() {
               <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px]">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground/60">Return</span>
-                  <span className={`font-mono font-semibold metric-glow ${p.mean_return >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  <span className={`font-mono font-semibold metric-glow ${p.mean_return >= 0 ? "text-[hsl(var(--data-pos))]" : "text-[hsl(var(--data-neg))]"}`}>
                     {p.mean_return >= 0 ? "+" : ""}{(p.mean_return * 100).toFixed(3)}%
                   </span>
                 </div>

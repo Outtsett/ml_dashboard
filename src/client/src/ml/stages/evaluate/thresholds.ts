@@ -61,46 +61,46 @@ const NEUTRAL = "text-muted-foreground";
 
 function pfColor(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return NEUTRAL;
-  if (v >= 2.0) return "text-emerald-400";
-  if (v >= 1.5) return "text-emerald-400/80";
+  if (v >= 2.0) return "text-[hsl(var(--data-pos))]";
+  if (v >= 1.5) return "text-[hsl(var(--data-pos)/0.8)]";
   if (v >= 1.0) return "text-amber-400";
-  return "text-rose-400";
+  return "text-[hsl(var(--data-neg))]";
 }
 
 function sharpeColor(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return NEUTRAL;
-  if (v >= 2.0) return "text-emerald-400";
-  if (v >= 1.0) return "text-emerald-400/80";
+  if (v >= 2.0) return "text-[hsl(var(--data-pos))]";
+  if (v >= 1.0) return "text-[hsl(var(--data-pos)/0.8)]";
   if (v >= 0) return "text-amber-400";
-  return "text-rose-400";
+  return "text-[hsl(var(--data-neg))]";
 }
 
 function winRateColor(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return NEUTRAL;
-  if (v >= 0.55) return "text-emerald-400";
+  if (v >= 0.55) return "text-[hsl(var(--data-pos))]";
   if (v >= 0.5) return "text-amber-400";
-  return "text-rose-400";
+  return "text-[hsl(var(--data-neg))]";
 }
 
 function drawdownColor(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return NEUTRAL;
   const mag = Math.abs(v);
-  if (mag <= 0.05) return "text-emerald-400";
+  if (mag <= 0.05) return "text-[hsl(var(--data-pos))]";
   if (mag <= 0.1) return "text-amber-400";
-  return "text-rose-400";
+  return "text-[hsl(var(--data-neg))]";
 }
 
 function eceColor(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return NEUTRAL;
-  if (v <= 0.05) return "text-emerald-400";
+  if (v <= 0.05) return "text-[hsl(var(--data-pos))]";
   if (v <= 0.1) return "text-amber-400";
-  return "text-rose-400";
+  return "text-[hsl(var(--data-neg))]";
 }
 
 function pnlColor(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return NEUTRAL;
-  if (v > 0) return "text-emerald-400";
-  if (v < 0) return "text-rose-400";
+  if (v > 0) return "text-[hsl(var(--data-pos))]";
+  if (v < 0) return "text-[hsl(var(--data-neg))]";
   return "text-amber-400";
 }
 

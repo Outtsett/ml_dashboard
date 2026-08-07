@@ -148,7 +148,7 @@ export function AnomalyTimeline({
             <Bar 
               yAxisId="value"
               dataKey="anomalyMarker" 
-              fill="#ef4444"
+              fill="#0072B2"
               opacity={0.8}
               barSize={3}
               name="Anomaly"
@@ -158,7 +158,7 @@ export function AnomalyTimeline({
               <ReferenceLine 
                 yAxisId="score"
                 y={threshold} 
-                stroke="#ef4444" 
+                stroke="#0072B2" 
                 strokeDasharray="3 3"
                 strokeWidth={1}
               />

@@ -39,11 +39,11 @@ const TOOLTIP_STYLE = {
 function getStatusColor(value: number | null, def: MetricDef): string {
   if (value === null || value === undefined) return "#6b7280";
   if (def.lowerBetter) {
-    if (value < def.thresholds.green) return "#22c55e";
-    return value <= def.thresholds.yellow ? "#eab308" : "#ef4444";
+    if (value < def.thresholds.green) return "#E69F00";
+    return value <= def.thresholds.yellow ? "#eab308" : "#0072B2";
   }
-  if (value > def.thresholds.green) return "#22c55e";
-  return value >= def.thresholds.yellow ? "#eab308" : "#ef4444";
+  if (value > def.thresholds.green) return "#E69F00";
+  return value >= def.thresholds.yellow ? "#eab308" : "#0072B2";
 }
 
 type DataPoint = { iteration: number; value: number | null };
@@ -72,7 +72,7 @@ function MetricMiniChart({ def, data, currentValue }: {
             <XAxis dataKey="iteration" tick={{ fontSize: 8, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 8, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={36} />
             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [def.format(v), def.label]} />
-            <ReferenceLine y={def.refLine} stroke="#22c55e" strokeDasharray="4 4" strokeOpacity={0.5} />
+            <ReferenceLine y={def.refLine} stroke="#E69F00" strokeDasharray="4 4" strokeOpacity={0.5} />
             {data.length > 0 && (
               <Line type="monotone" dataKey="value" stroke={def.color} dot={false} strokeWidth={1.5} isAnimationActive={false} connectNulls />
             )}

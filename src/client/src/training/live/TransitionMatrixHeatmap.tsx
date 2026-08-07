@@ -85,7 +85,7 @@ function TransitionMatrixHeatmapInner({
         `}</style>
       )}
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-white/[0.08]">
-        <span className="text-[10px] font-mono text-emerald-400 font-semibold">Transition Matrix</span>
+        <span className="text-[10px] font-mono text-[hsl(var(--data-pos))] font-semibold">Transition Matrix</span>
         <span className="text-[9px] font-mono text-foreground/50">{N}x{N}</span>
       </div>
       <div className="flex-1 p-2 flex items-center justify-center overflow-auto">

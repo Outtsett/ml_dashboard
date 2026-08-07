@@ -57,11 +57,11 @@ export function StatsCards({ stats, loading, dbName }: StatsCardsProps) {
       </Card>
       <Card className="glass">
         <CardContent className="p-4 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-green-500/20 to-accent/20 flex items-center justify-center">
-            <div className="h-3 w-3 rounded-full bg-green-500 pulse-slow" />
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-[hsl(var(--data-pos)/0.2)] to-accent/20 flex items-center justify-center">
+            <div className="h-3 w-3 rounded-full bg-[hsl(var(--data-pos))] pulse-slow" />
           </div>
           <div>
-            <p className="text-lg font-display font-bold text-green-400">Connected</p>
+            <p className="text-lg font-display font-bold text-[hsl(var(--data-pos))]">Connected</p>
             <p className="text-xs text-muted-foreground">Status</p>
           </div>
         </CardContent>

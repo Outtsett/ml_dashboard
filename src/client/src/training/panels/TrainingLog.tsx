@@ -71,7 +71,7 @@ export function TrainingLog({ events, connected, maxLines = 200 }: TrainingLogPr
               {logLines.length} entries
             </span>
           )}
-          <span className={`inline-block w-1.5 h-1.5 rounded-full ${connected ? "bg-emerald-400" : "bg-muted-foreground/30"}`} />
+          <span className={`inline-block w-1.5 h-1.5 rounded-full ${connected ? "bg-[hsl(var(--data-pos))]" : "bg-muted-foreground/30"}`} />
         </div>
       </div>
 
@@ -96,7 +96,7 @@ export function TrainingLog({ events, connected, maxLines = 200 }: TrainingLogPr
                     {j > 0 && <span className="text-muted-foreground/30 mx-1">|</span>}
                     <span className="text-muted-foreground/60">{k}=</span>
                     <span className={
-                      k.includes("loss") && v < 0.1 ? "text-emerald-400" :
+                      k.includes("loss") && v < 0.1 ? "text-[hsl(var(--data-pos))]" :
                       k.includes("loss") && v > 5 ? "text-amber-400" :
                       "text-foreground/90"
                     }>

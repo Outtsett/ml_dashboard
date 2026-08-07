@@ -111,7 +111,7 @@ export default function ModelPicker({
           disabled={isPending}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all ${
             isTraining
-              ? "bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/30"
+              ? "bg-[hsl(var(--data-neg)/0.2)] text-[hsl(var(--data-neg))] hover:bg-[hsl(var(--data-neg)/0.3)] border border-[hsl(var(--data-neg)/0.3)]"
               : isPending
                 ? "bg-orange-500/10 text-orange-400/60 border border-orange-500/20 cursor-wait"
                 : "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border border-orange-500/30"
@@ -156,7 +156,7 @@ export default function ModelPicker({
 
       {/* Error message */}
       {error && !isTraining && !isPending && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-400">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[hsl(var(--data-neg)/0.1)] border border-[hsl(var(--data-neg)/0.2)] text-xs text-[hsl(var(--data-neg))]">
           {error}
         </div>
       )}

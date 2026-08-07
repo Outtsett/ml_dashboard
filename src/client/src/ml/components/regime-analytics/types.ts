@@ -199,10 +199,10 @@ export interface TrainingProgress {
 // ─── Regime color palette ────────────────────────────────────────────────────
 
 export const REGIME_COLORS = [
-  { bg: "bg-rose-500/20", text: "text-rose-400", border: "border-rose-500/30", fill: "#f43f5e", hex: "#f43f5e" },
+  { bg: "bg-[hsl(var(--data-neg)/0.2)]", text: "text-[hsl(var(--data-neg))]", border: "border-[hsl(var(--data-neg)/0.3)]", fill: "#0072B2", hex: "#0072B2" },
   { bg: "bg-orange-500/20", text: "text-orange-400", border: "border-orange-500/30", fill: "#f97316", hex: "#f97316" },
   { bg: "bg-amber-500/20", text: "text-amber-400", border: "border-amber-500/30", fill: "#f59e0b", hex: "#f59e0b" },
-  { bg: "bg-emerald-500/20", text: "text-emerald-400", border: "border-emerald-500/30", fill: "#10b981", hex: "#10b981" },
+  { bg: "bg-[hsl(var(--data-pos)/0.2)]", text: "text-[hsl(var(--data-pos))]", border: "border-[hsl(var(--data-pos)/0.3)]", fill: "#E69F00", hex: "#E69F00" },
   { bg: "bg-cyan-500/20", text: "text-cyan-400", border: "border-cyan-500/30", fill: "#06b6d4", hex: "#06b6d4" },
   { bg: "bg-blue-500/20", text: "text-blue-400", border: "border-blue-500/30", fill: "#3b82f6", hex: "#3b82f6" },
   { bg: "bg-violet-500/20", text: "text-violet-400", border: "border-violet-500/30", fill: "#8b5cf6", hex: "#8b5cf6" },
@@ -222,10 +222,10 @@ export function getRegimeIcon(label: string): ReactNode {
 }
 
 export function getQualityColor(score: number): string {
-  if (score >= 80) return "text-emerald-400";
+  if (score >= 80) return "text-[hsl(var(--data-pos))]";
   if (score >= 60) return "text-amber-400";
   if (score >= 40) return "text-orange-400";
-  return "text-rose-400";
+  return "text-[hsl(var(--data-neg))]";
 }
 
 export function getQualityLabel(score: number): string {

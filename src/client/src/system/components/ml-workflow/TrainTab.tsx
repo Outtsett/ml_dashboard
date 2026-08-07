@@ -29,12 +29,12 @@ export function TrainTab({
     <div className="p-3 space-y-3">
       {/* Status badge */}
       <div className="flex items-center gap-2">
-        <Brain className={`h-4 w-4 ${isTraining ? 'text-emerald-400 pulse-slow' : 'text-muted-foreground'}`} />
-        <span className={`text-xs font-medium ${isTraining ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+        <Brain className={`h-4 w-4 ${isTraining ? 'text-[hsl(var(--data-pos))] pulse-slow' : 'text-muted-foreground'}`} />
+        <span className={`text-xs font-medium ${isTraining ? 'text-[hsl(var(--data-pos))]' : 'text-muted-foreground'}`}>
           {isTraining ? 'Training Active' : 'Ready'}
         </span>
         {isTraining && (
-          <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-400 ml-auto">
+          <Badge variant="outline" className="text-[9px] border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))] ml-auto">
             E{currentEpoch}/{totalEpochs}
           </Badge>
         )}
@@ -58,7 +58,7 @@ export function TrainTab({
                 return (
                   <div
                     key={i}
-                    className="flex-1 bg-emerald-500/40 rounded-t-[1px] min-w-[2px]"
+                    className="flex-1 bg-[hsl(var(--data-pos)/0.4)] rounded-t-[1px] min-w-[2px]"
                     style={{ height: `${Math.max(5, pct)}%` }}
                     title={`E${h.epoch}: ${h.loss.toFixed(4)}`}
                   />
@@ -194,7 +194,7 @@ export function TrainTab({
         <Button
           onClick={onStartTraining}
           disabled={isStartingTraining}
-          className="w-full h-8 text-xs bg-linear-to-r from-emerald-600 to-teal-500 hover:opacity-90"
+          className="w-full h-8 text-xs bg-linear-to-r from-[hsl(var(--data-pos))] to-teal-500 hover:opacity-90"
         >
           {isStartingTraining ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <Play className="h-3 w-3 mr-1.5" />}
           Train {symbol}

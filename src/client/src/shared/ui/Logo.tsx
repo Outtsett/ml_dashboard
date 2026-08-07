@@ -14,7 +14,7 @@ export const Logo: React.FC<LogoProps> = ({ className }) => {
     >
       <defs>
         <linearGradient id="logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="var(--primary, #10b981)" />
+          <stop offset="0%" stopColor="var(--primary, #E69F00)" />
           <stop offset="100%" stopColor="var(--accent, #3b82f6)" />
         </linearGradient>
       </defs>

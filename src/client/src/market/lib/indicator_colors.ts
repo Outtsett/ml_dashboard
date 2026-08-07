@@ -69,8 +69,12 @@ const INDICATOR_COLORS: Record<string, string> = {
   'SMA_5': '#93c5fd', 'SMA_10': '#60a5fa', 'SMA_20': '#3b82f6',
   'SMA_50': '#2563eb', 'SMA_100': '#1d4ed8', 'SMA_200': '#1e40af',
   // EMAs â€” Greens
-  'EMA_5': '#86efac', 'EMA_10': '#4ade80', 'EMA_20': '#22c55e',
-  'EMA_50': '#16a34a', 'EMA_100': '#15803d', 'EMA_200': '#166534',
+  // Orange ladder, light to dark, mirroring the SMA blue ladder above. The
+  // period is encoded by lightness, so the six lines stay tellable apart on a
+  // busy chart the same way the SMAs do — and orange-vs-blue distinguishes the
+  // two families for a deuteranope, which green-vs-blue did not.
+  'EMA_5': '#FFD98A', 'EMA_10': '#FBC55C', 'EMA_20': '#F2B02E',
+  'EMA_50': '#E69F00', 'EMA_100': '#B87E00', 'EMA_200': '#8A5F00',
   // Other MAs
   'WMA_10': '#f59e0b', 'WMA_20': '#d97706',
   'DEMA_20': '#06b6d4', 'TEMA_20': '#0891b2',
@@ -84,9 +88,9 @@ const INDICATOR_COLORS: Record<string, string> = {
   // SuperTrend
   'SUPERTREND_10': '#f59e0b',
   // Ichimoku
-  'TENKAN_9': '#ef4444', 'KIJUN_26': '#3b82f6', 'SENKOUA_26': '#22c55e', 'SENKOUB_52': '#f97316', 'CHIKOU_26': '#a78bfa',
+  'TENKAN_9': '#0072B2', 'KIJUN_26': '#3b82f6', 'SENKOUA_26': '#E69F00', 'SENKOUB_52': '#f97316', 'CHIKOU_26': '#a78bfa',
   // Awesome Oscillator
-  'AO_5_34': '#22c55e',
+  'AO_5_34': '#E69F00',
   // Fisher
   'FISHER_9': '#e879f9', 'FISHER_TRIGGER_9': '#c084fc',
   // KST
@@ -96,19 +100,19 @@ const INDICATOR_COLORS: Record<string, string> = {
   // RVGI
   'RVGI_10': '#38bdf8', 'RVGI_SIGNAL_10': '#f97316',
   // TSI
-  'TSI_25_13': '#22c55e', 'TSI_SIGNAL': '#ef4444',
+  'TSI_25_13': '#E69F00', 'TSI_SIGNAL': '#0072B2',
   // SMI
   'SMI_14': '#c084fc', 'SMI_SIGNAL': '#f59e0b',
   // KDJ
-  'KDJ_K_9': '#f59e0b', 'KDJ_D_9': '#3b82f6', 'KDJ_J_9': '#ef4444',
+  'KDJ_K_9': '#f59e0b', 'KDJ_D_9': '#3b82f6', 'KDJ_J_9': '#0072B2',
   // Vortex
-  'VI_PLUS_14': '#22c55e', 'VI_MINUS_14': '#ef4444',
+  'VI_PLUS_14': '#E69F00', 'VI_MINUS_14': '#0072B2',
   // KVO
   'KVO_34_55': '#06b6d4', 'KVO_SIGNAL': '#f97316',
   // CKSP
-  'CKSP_LONG': '#22c55e', 'CKSP_SHORT': '#ef4444',
+  'CKSP_LONG': '#E69F00', 'CKSP_SHORT': '#0072B2',
   // Squeeze
-  'SQZ_MOM': '#06b6d4', 'SQZ_SQUEEZE': '#ef4444',
+  'SQZ_MOM': '#06b6d4', 'SQZ_SQUEEZE': '#0072B2',
   // HWC
   'HWC_UPPER': '#38bdf8', 'HWC_MIDDLE': '#0284c7', 'HWC_LOWER': '#38bdf8',
   // AccBands
@@ -129,11 +133,11 @@ const INDICATOR_COLORS: Record<string, string> = {
   // StochRSI
   'STOCHRSIk_14_14_3_3': '#c084fc', 'STOCHRSId_14_14_3_3': '#9333ea',
   // Directional
-  'PLUS_DI_14': '#22c55e', 'MINUS_DI_14': '#ef4444',
-  'PLUS_DM_14': '#4ade80', 'MINUS_DM_14': '#f87171',
+  'PLUS_DI_14': '#E69F00', 'MINUS_DI_14': '#0072B2',
+  'PLUS_DM_14': '#E69F00', 'MINUS_DM_14': '#0072B2',
   'DX_14': '#f59e0b', 'ADXR_14': '#d97706',
   // Aroon
-  'AROON_UP_25': '#22c55e', 'AROON_DOWN_25': '#ef4444',
+  'AROON_UP_25': '#E69F00', 'AROON_DOWN_25': '#0072B2',
   'AROONOSC_25': '#a78bfa',
   // Momentum
   'MOM_10': '#38bdf8', 'ROC_10': '#0ea5e9', 'CMO_14': '#c084fc',
@@ -147,7 +151,7 @@ const INDICATOR_COLORS: Record<string, string> = {
   'STDEV_20': '#a78bfa', 'VAR_20': '#c4b5fd',
   'LINREG_SLOPE_20': '#60a5fa', 'LINREG_ANGLE_20': '#93c5fd',
   // Others
-  'ADX_14': '#ef4444', 'ATRr_14': '#f97316',
+  'ADX_14': '#0072B2', 'ATRr_14': '#f97316',
   'VPOC_20': '#f59e0b',
   'OBV': '#06b6d4', 'WILLR_14': '#ec4899',
   'CCI_20': '#8b5cf6', 'CCI_14': '#a78bfa',

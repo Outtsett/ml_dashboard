@@ -20,7 +20,7 @@ export function ProgressRing({
 
   const color =
     value >= 80
-      ? "stroke-emerald-500"
+      ? "stroke-[hsl(var(--data-pos))]"
       : value >= 40
         ? "stroke-amber-500"
         : value > 0

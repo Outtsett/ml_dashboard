@@ -35,7 +35,7 @@ export function PhaseAPanel() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 mb-4">
-        <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500"}`} />
+        <div className={`w-2 h-2 rounded-full ${connected ? "bg-[hsl(var(--data-pos))]" : "bg-[hsl(var(--data-neg))]"}`} />
         <span className="text-xs text-muted-foreground font-mono">
           {connected ? "Live" : "Disconnected"}
         </span>
@@ -76,7 +76,7 @@ export function PhaseAPanel() {
               <XAxis dataKey="epoch" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip />
-              <Line type="monotone" dataKey="value" stroke="#10b981" dot={false} strokeWidth={2} />
+              <Line type="monotone" dataKey="value" stroke="#E69F00" dot={false} strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
         </div>

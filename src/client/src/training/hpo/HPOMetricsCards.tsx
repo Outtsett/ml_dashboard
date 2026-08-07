@@ -37,10 +37,10 @@ interface HPOMetricsCardsProps {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  completed: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  completed: "bg-[hsl(var(--data-pos)/0.1)] text-[hsl(var(--data-pos))] border-[hsl(var(--data-pos)/0.2)]",
   running: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   pending: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
-  failed: "bg-red-500/10 text-red-400 border-red-500/20",
+  failed: "bg-[hsl(var(--data-neg)/0.1)] text-[hsl(var(--data-neg))] border-[hsl(var(--data-neg)/0.2)]",
   stopped: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   pruned: "bg-amber-500/10 text-amber-400 border-amber-500/20",
 };
@@ -153,7 +153,7 @@ export function HPOMetricsCards({
           {bestScore !== undefined && bestScore !== null && (
             <div className="flex items-center gap-1.5">
               <Trophy className="h-3 w-3 text-amber-400" />
-              <span className="text-lg font-bold text-emerald-400">
+              <span className="text-lg font-bold text-[hsl(var(--data-pos))]">
                 {formatScore(bestScore)}
               </span>
             </div>
@@ -166,7 +166,7 @@ export function HPOMetricsCards({
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-[10px] border-red-500/30 text-red-400 hover:bg-red-500/10"
+              className="h-7 text-[10px] border-[hsl(var(--data-neg)/0.3)] text-[hsl(var(--data-neg))] hover:bg-[hsl(var(--data-neg)/0.1)]"
               onClick={handleStop}
               disabled={stopping}
             >
@@ -178,7 +178,7 @@ export function HPOMetricsCards({
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-[10px] border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+              className="h-7 text-[10px] border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))] hover:bg-[hsl(var(--data-pos)/0.1)]"
               onClick={handleApplyBest}
               disabled={applying}
             >

@@ -147,9 +147,9 @@ function TrajectoryFallback({ data }: { data: TrajectoryData }) {
         {/* Gradient definition */}
         <defs>
           <linearGradient id="traj-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#ef4444" stopOpacity="0.6" />
+            <stop offset="0%" stopColor="#0072B2" stopOpacity="0.6" />
             <stop offset="40%" stopColor="#f59e0b" />
-            <stop offset="100%" stopColor="#4ade80" />
+            <stop offset="100%" stopColor="#E69F00" />
           </linearGradient>
         </defs>
 
@@ -166,14 +166,14 @@ function TrajectoryFallback({ data }: { data: TrajectoryData }) {
                 cx={toSvgX(p.pc1)}
                 cy={toSvgY(p.pc2)}
                 r={isLast ? 4 : 2.5}
-                fill={isLast ? '#4ade80' : color}
+                fill={isLast ? '#E69F00' : color}
                 opacity={isLast ? 1 : 0.7}
               />
               {(i === 0 || isLast || i % Math.max(1, Math.floor(points.length / 4)) === 0) && (
                 <text
                   x={toSvgX(p.pc1) + 6}
                   y={toSvgY(p.pc2) - 4}
-                  fill={isLast ? '#4ade80' : '#71717a'}
+                  fill={isLast ? '#E69F00' : '#71717a'}
                   fontSize="7"
                   fontWeight={isLast ? 600 : 400}
                 >
@@ -252,8 +252,8 @@ function SurfaceContourFallback({ data }: { data: SurfaceGridData }) {
           return (
             <g>
               <path d={pathD} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="3,2" opacity="0.8" />
-              <circle cx={toX(first[0]!)} cy={toY(first[2]!)} r="2.5" fill="#ef4444" />
-              <circle cx={toX(last[0]!)} cy={toY(last[2]!)} r="3" fill="#4ade80" />
+              <circle cx={toX(first[0]!)} cy={toY(first[2]!)} r="2.5" fill="#0072B2" />
+              <circle cx={toX(last[0]!)} cy={toY(last[2]!)} r="3" fill="#E69F00" />
             </g>
           );
         })()}
@@ -412,7 +412,7 @@ function Surface3DScene({ data }: { data: SurfaceGridData }) {
           {trajectoryPoints.map((pt, i) => (
             <mesh key={i} position={pt}>
               <sphereGeometry args={[0.03, 8, 8]} />
-              <meshBasicMaterial color={i === trajectoryPoints!.length - 1 ? '#4ade80' : '#f59e0b'} />
+              <meshBasicMaterial color={i === trajectoryPoints!.length - 1 ? '#E69F00' : '#f59e0b'} />
             </mesh>
           ))}
           {trajectoryLine && <primitive object={trajectoryLine} />}
@@ -451,13 +451,13 @@ function DiagnosticsPanel({ diagnostics }: { diagnostics: SurfaceDiagnostics }) 
     {
       label: 'Sharpness',
       value: diagnostics.sharpness.toFixed(4),
-      color: diagnostics.sharpness < 0.05 ? 'text-emerald-400' : diagnostics.sharpness < 0.2 ? 'text-amber-400' : 'text-red-400',
+      color: diagnostics.sharpness < 0.05 ? 'text-[hsl(var(--data-pos))]' : diagnostics.sharpness < 0.2 ? 'text-amber-400' : 'text-[hsl(var(--data-neg))]',
       hint: diagnostics.sharpness < 0.05 ? 'flat (good)' : diagnostics.sharpness < 0.2 ? 'moderate' : 'sharp (risky)',
     },
     {
       label: 'Condition #',
       value: diagnostics.condition_number.toFixed(1),
-      color: diagnostics.condition_number < 10 ? 'text-emerald-400' : diagnostics.condition_number < 50 ? 'text-amber-400' : 'text-red-400',
+      color: diagnostics.condition_number < 10 ? 'text-[hsl(var(--data-pos))]' : diagnostics.condition_number < 50 ? 'text-amber-400' : 'text-[hsl(var(--data-neg))]',
       hint: diagnostics.condition_number < 10 ? 'isotropic' : diagnostics.condition_number < 50 ? 'anisotropic' : 'ill-conditioned',
     },
     {
@@ -469,7 +469,7 @@ function DiagnosticsPanel({ diagnostics }: { diagnostics: SurfaceDiagnostics }) 
     {
       label: 'Convex',
       value: diagnostics.locally_convex ? 'yes' : 'no',
-      color: diagnostics.locally_convex ? 'text-emerald-400' : 'text-red-400',
+      color: diagnostics.locally_convex ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]',
       hint: diagnostics.locally_convex ? 'all eigenvalues > 0' : 'saddle point',
     },
   ];

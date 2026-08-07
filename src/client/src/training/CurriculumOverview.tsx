@@ -58,9 +58,9 @@ const COLOR_STYLES: Record<string, { card: string; icon: string; badge: string }
     badge: "bg-blue-500/10 text-blue-400 border-blue-500/30",
   },
   emerald: {
-    card: "hover:border-emerald-500/40 hover:shadow-[0_0_20px_-5px_hsla(150,70%,50%,0.15)]",
-    icon: "bg-emerald-500/15 text-emerald-400",
-    badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+    card: "hover:border-[hsl(var(--data-pos)/0.4)] hover:shadow-[0_0_20px_-5px_hsla(150,70%,50%,0.15)]",
+    icon: "bg-[hsl(var(--data-pos)/0.15)] text-[hsl(var(--data-pos))]",
+    badge: "bg-[hsl(var(--data-pos)/0.1)] text-[hsl(var(--data-pos))] border-[hsl(var(--data-pos)/0.3)]",
   },
   violet: {
     card: "hover:border-violet-500/40 hover:shadow-[0_0_20px_-5px_hsla(270,70%,50%,0.15)]",
@@ -68,9 +68,9 @@ const COLOR_STYLES: Record<string, { card: string; icon: string; badge: string }
     badge: "bg-violet-500/10 text-violet-400 border-violet-500/30",
   },
   rose: {
-    card: "hover:border-rose-500/40 hover:shadow-[0_0_20px_-5px_hsla(350,70%,50%,0.15)]",
-    icon: "bg-rose-500/15 text-rose-400",
-    badge: "bg-rose-500/10 text-rose-400 border-rose-500/30",
+    card: "hover:border-[hsl(var(--data-neg)/0.4)] hover:shadow-[0_0_20px_-5px_hsla(350,70%,50%,0.15)]",
+    icon: "bg-[hsl(var(--data-neg)/0.15)] text-[hsl(var(--data-neg))]",
+    badge: "bg-[hsl(var(--data-neg)/0.1)] text-[hsl(var(--data-neg))] border-[hsl(var(--data-neg)/0.3)]",
   },
   amber: {
     card: "hover:border-amber-500/40 hover:shadow-[0_0_20px_-5px_hsla(35,70%,50%,0.15)]",

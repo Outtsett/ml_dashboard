@@ -56,10 +56,10 @@ function CoreGrid({ cores }: { cores: number[] }) {
   const hasCores = cores && cores.length > 0;
   return (
     <motion.div variants={fadeUp} className="glass rounded-2xl p-5 space-y-4 border border-white/[0.05] shadow-2xl relative overflow-hidden group">
-      <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+      <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--data-pos)/0.05)] via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
       <div className="flex items-center justify-between relative z-10">
         <div className="flex items-center gap-2">
-          <Cpu className="h-4 w-4 text-emerald-400" />
+          <Cpu className="h-4 w-4 text-[hsl(var(--data-pos))]" />
           <span className="text-sm font-bold uppercase tracking-wider text-foreground/80">Neural Core Matrix</span>
         </div>
         <span className="text-[10px] font-mono text-muted-foreground">{hasCores ? cores.length : "--"} CORES ACTIVE</span>
@@ -71,7 +71,7 @@ function CoreGrid({ cores }: { cores: number[] }) {
             <motion.div 
               animate={{ 
                 height: `${load}%`,
-                backgroundColor: load > 80 ? "#ef4444" : load > 50 ? "#f59e0b" : "#10b981"
+                backgroundColor: load > 80 ? "#0072B2" : load > 50 ? "#f59e0b" : "#E69F00"
               }}
               transition={{ type: "spring", stiffness: 100, damping: 30 }}
               className="absolute bottom-0 left-0 right-0 opacity-40"
@@ -108,7 +108,7 @@ function MatrixCard({ title, value, unit, icon: Icon, color, trend }: MatrixCard
           <Icon className="h-5 w-5" />
         </div>
         {trend && (
-          <div className={cn("flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full", trend > 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400")}>
+          <div className={cn("flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full", trend > 0 ? "bg-[hsl(var(--data-pos)/0.1)] text-[hsl(var(--data-pos))]" : "bg-[hsl(var(--data-neg)/0.1)] text-[hsl(var(--data-neg))]")}>
             {trend > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownLeft className="h-3 w-3" />}
             {Math.abs(trend).toFixed(1)}%
           </div>
@@ -153,7 +153,7 @@ function ProcessList({ processes }: { processes?: SystemSnapshot["processes"] })
               <tr key={proc.pid} className={cn("border-b border-white/[0.01] hover:bg-white/[0.02] transition-colors", i % 2 === 0 ? "bg-transparent" : "bg-white/[0.005]")}>
                 <td className="px-4 py-1.5 text-muted-foreground">{proc.pid}</td>
                 <td className="px-4 py-1.5 font-bold text-foreground/90">{proc.name}</td>
-                <td className="px-4 py-1.5 text-right text-emerald-400">{proc.cpu.toFixed(1)}</td>
+                <td className="px-4 py-1.5 text-right text-[hsl(var(--data-pos))]">{proc.cpu.toFixed(1)}</td>
                 <td className="px-4 py-1.5 text-right text-blue-400">{proc.mem}MB</td>
               </tr>
             ))}
@@ -203,7 +203,7 @@ export default function SystemMatrix() {
             <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-[0.2em] opacity-60">CPU / Memory / Network</span>
           </div>
           <div className="flex items-center gap-2 text-xs font-mono">
-            <div className={cn("h-2 w-2 rounded-full", sysConnected ? "bg-emerald-400 animate-pulse" : "bg-red-400")} />
+            <div className={cn("h-2 w-2 rounded-full", sysConnected ? "bg-[hsl(var(--data-pos))] animate-pulse" : "bg-[hsl(var(--data-neg))]")} />
             <span className="text-muted-foreground">
               SSE {sysConnected ? "live" : "offline"} · {sysHistory.length} pts
               {sys ? ` · cpu ${sys.cpu.load.toFixed(0)}%` : " · no data"}
@@ -216,7 +216,7 @@ export default function SystemMatrix() {
           {/* Left Column: Essential Metrics */}
           <div className="space-y-6 lg:col-span-1">
             <div className="grid grid-cols-2 gap-4">
-              <MatrixCard title="CPU LOAD" value={latestCpu.toFixed(1)} unit="%" icon={Gauge} color={latestCpu > 80 ? "#ef4444" : latestCpu > 50 ? "#f59e0b" : "#10b981"} />
+              <MatrixCard title="CPU LOAD" value={latestCpu.toFixed(1)} unit="%" icon={Gauge} color={latestCpu > 80 ? "#0072B2" : latestCpu > 50 ? "#f59e0b" : "#E69F00"} />
               <MatrixCard title="MEM ACTIVE" value={latestMem.toFixed(1)} unit="%" icon={Layers} color="#3b82f6" />
               <MatrixCard title="TEMP" value={sys?.cpu.temp || 0} unit="°C" icon={Thermometer} color="#f59e0b" />
               <MatrixCard title="FREQ" value={(sys?.cpu.speed || 0).toFixed(2)} unit="GHz" icon={Zap} color="#8b5cf6" />
@@ -231,7 +231,7 @@ export default function SystemMatrix() {
               </div>
               <div className="space-y-4">
                 {[
-                  { label: "Download", value: formatBytes(sys?.network.rx_sec || 0) + "/s", color: "text-emerald-400" },
+                  { label: "Download", value: formatBytes(sys?.network.rx_sec || 0) + "/s", color: "text-[hsl(var(--data-pos))]" },
                   { label: "Upload", value: formatBytes(sys?.network.tx_sec || 0) + "/s", color: "text-blue-400" },
                 ].map(net => (
                   <div key={net.label} className="flex justify-between items-end border-b border-white/[0.03] pb-2">
@@ -258,8 +258,8 @@ export default function SystemMatrix() {
                 <AreaChart data={chartData}>
                   <defs>
                     <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#E69F00" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#E69F00" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
@@ -268,7 +268,7 @@ export default function SystemMatrix() {
                   <Tooltip 
                     contentStyle={{ background: "#0a0a0a", border: "1px solid #ffffff10", borderRadius: "8px", fontSize: "10px" }}
                   />
-                  <Area type="monotone" dataKey="cpu" stroke="#10b981" fillOpacity={1} fill="url(#colorCpu)" isAnimationActive={false} />
+                  <Area type="monotone" dataKey="cpu" stroke="#E69F00" fillOpacity={1} fill="url(#colorCpu)" isAnimationActive={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </motion.div>

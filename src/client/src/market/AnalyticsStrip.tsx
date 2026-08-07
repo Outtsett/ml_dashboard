@@ -50,11 +50,11 @@ export const AnalyticsStrip = memo(function AnalyticsStrip({
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] border-l-2 border-l-emerald-500/40 border border-white/[0.06]">
             <span className="text-muted-foreground">WR</span>
-            <span className="font-mono font-medium text-emerald-400">{tradeMetrics.winRate.toFixed(1)}%</span>
+            <span className="font-mono font-medium text-[hsl(var(--data-pos))]">{tradeMetrics.winRate.toFixed(1)}%</span>
           </div>
           <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] border-l-2 ${tradeMetrics.totalPnl >= 0 ? 'border-l-emerald-500/40' : 'border-l-rose-500/40'} border border-white/[0.06]`}>
             <span className="text-muted-foreground">P&L</span>
-            <span className={`font-mono font-medium ${tradeMetrics.totalPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            <span className={`font-mono font-medium ${tradeMetrics.totalPnl >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}>
               {tradeMetrics.totalPnl >= 0 ? '+' : ''}${tradeMetrics.totalPnl.toFixed(0)}
             </span>
           </div>
@@ -86,7 +86,7 @@ export const AnalyticsStrip = memo(function AnalyticsStrip({
       )}
 
       {isTrainingActive && (
-        <Badge variant="outline" className="text-[9px] border-green-500/30 text-green-400 bg-green-500/10 py-0.5 px-2 gap-1 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.15)]">
+        <Badge variant="outline" className="text-[9px] border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)] py-0.5 px-2 gap-1 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.15)]">
           <Brain className="h-2.5 w-2.5" /> Training
         </Badge>
       )}

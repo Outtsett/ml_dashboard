@@ -81,7 +81,7 @@ export default function RegimeTimeline({ diagnostics: _diagnostics, modelId }: A
           />
           <Line
             dataKey="transition_prob"
-            stroke="#ef444460"
+            stroke="#0072B260"
             strokeWidth={1}
             dot={false}
             isAnimationActive={false}
@@ -92,7 +92,7 @@ export default function RegimeTimeline({ diagnostics: _diagnostics, modelId }: A
       <div className="flex items-center justify-center gap-4 text-[8px] text-muted-foreground/40 mt-1">
         <span><span className="inline-block w-3 h-1 rounded-sm mr-1 bg-blue-500/40" />Confidence</span>
         <span><span className="inline-block w-3 h-1 rounded-sm mr-1 bg-amber-500/40" />Entropy</span>
-        <span><span className="inline-block w-3 h-1 rounded-sm mr-1 bg-rose-500/40" />Transition Prob</span>
+        <span><span className="inline-block w-3 h-1 rounded-sm mr-1 bg-[hsl(var(--data-neg)/0.4)]" />Transition Prob</span>
       </div>
     </ChartCard>
   );

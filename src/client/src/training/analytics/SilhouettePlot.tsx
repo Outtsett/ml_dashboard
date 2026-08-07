@@ -76,7 +76,7 @@ export default function SilhouettePlot({ diagnostics }: AnalyticsComponentProps)
               <span className="text-[10px] font-medium">{m.name}</span>
               <div className="flex items-center gap-1.5">
                 <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${
-                  m.passed ? "bg-emerald-500/15 text-emerald-400" : "bg-rose-500/15 text-rose-400"
+                  m.passed ? "bg-[hsl(var(--data-pos)/0.15)] text-[hsl(var(--data-pos))]" : "bg-[hsl(var(--data-neg)/0.15)] text-[hsl(var(--data-neg))]"
                 }`}>
                   {m.value.toFixed(3)} {m.passed ? "PASS" : "FAIL"}
                 </span>
@@ -93,8 +93,8 @@ export default function SilhouettePlot({ diagnostics }: AnalyticsComponentProps)
       {expandedMetric && METRIC_INFO[expandedMetric] && (
         <div className="bg-white/[0.02] rounded-lg p-3 mt-2 text-[9px] space-y-1">
           <p className="text-muted-foreground/60">{METRIC_INFO[expandedMetric].description}</p>
-          <p className="text-emerald-400/60">{"\u2713"} {METRIC_INFO[expandedMetric].good}</p>
-          <p className="text-rose-400/60">{"\u2717"} {METRIC_INFO[expandedMetric].bad}</p>
+          <p className="text-[hsl(var(--data-pos)/0.6)]">{"\u2713"} {METRIC_INFO[expandedMetric].good}</p>
+          <p className="text-[hsl(var(--data-neg)/0.6)]">{"\u2717"} {METRIC_INFO[expandedMetric].bad}</p>
         </div>
       )}
     </ChartCard>

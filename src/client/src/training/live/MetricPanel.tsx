@@ -95,7 +95,7 @@ export function MetricPanel({
               {targetValue != null && (
                 <ReferenceLine
                   y={targetValue}
-                  stroke="#ef4444"
+                  stroke="#0072B2"
                   strokeDasharray="4 4"
                   strokeOpacity={0.5}
                 />
@@ -174,12 +174,12 @@ export function MetricPanel({
               {targetValue != null && (
                 <ReferenceLine
                   y={targetValue}
-                  stroke="#ef4444"
+                  stroke="#0072B2"
                   strokeDasharray="4 4"
                   strokeOpacity={0.5}
                   label={{
                     value: `${targetValue}% target`,
-                    fill: "#ef4444",
+                    fill: "#0072B2",
                     fontSize: 9,
                     position: "right",
                   }}
@@ -188,7 +188,7 @@ export function MetricPanel({
               <Area
                 type="monotone"
                 dataKey="displayValue"
-                stroke={isTraining ? desc.color : "#22c55e"}
+                stroke={isTraining ? desc.color : "#E69F00"}
                 fill={`url(#fill-full-${metricKey})`}
                 strokeWidth={1.5}
                 dot={false}
@@ -215,7 +215,7 @@ export function MetricPanel({
               </p>
             </div>
             <div>
-              <span className="text-[9px] font-mono text-emerald-400/70 uppercase tracking-wider">
+              <span className="text-[9px] font-mono text-[hsl(var(--data-pos)/0.7)] uppercase tracking-wider">
                 Healthy
               </span>
               <p className="text-[10px] text-muted-foreground/60 leading-relaxed mt-0.5">

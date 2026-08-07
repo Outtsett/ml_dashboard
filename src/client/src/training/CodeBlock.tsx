@@ -158,9 +158,9 @@ export function CodeBlock({
       <div className="flex items-center justify-between px-4 py-2 border-b border-border/30 bg-muted/20">
         <div className="flex items-center gap-2">
           <div className="flex gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
+            <div className="w-2.5 h-2.5 rounded-full bg-[color-mix(in_srgb,hsl(var(--data-neg)/0.6)_88%,black)]" />
             <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/60" />
-            <div className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
+            <div className="w-2.5 h-2.5 rounded-full bg-[color-mix(in_srgb,hsl(var(--data-pos)/0.6)_88%,black)]" />
           </div>
           {title && (
             <span className="text-xs text-muted-foreground font-mono ml-2">
@@ -192,7 +192,7 @@ export function CodeBlock({
             title="Copy code"
           >
             {copied ? (
-              <Check className="h-3.5 w-3.5 text-emerald-500" />
+              <Check className="h-3.5 w-3.5 text-[color-mix(in_srgb,hsl(var(--data-pos))_88%,black)]" />
             ) : (
               <Copy className="h-3.5 w-3.5" />
             )}

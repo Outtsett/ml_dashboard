@@ -16,10 +16,10 @@ import { getMetricSeverity } from "@/ml/lib/diagnostics-schema";
 import { RendererShell, useShellProps } from './RendererShell';
 
 const SEVERITY_HEX = {
-  great: '#34d399',
+  great: '#E69F00',
   good: '#22d3ee',
   neutral: '#71717a',
-  bad: '#ef4444',
+  bad: '#0072B2',
 } as const;
 
 interface BarDatum {

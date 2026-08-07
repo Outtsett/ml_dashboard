@@ -255,7 +255,7 @@ export function DataStage() {
                     : null,
                 })
               }
-              className={`h-10 rounded-xl glass border-white/10 ${startOutOfBounds ? "border-red-500/40" : ""}`}
+              className={`h-10 rounded-xl glass border-white/10 ${startOutOfBounds ? "border-[hsl(var(--data-neg)/0.4)]" : ""}`}
               disabled={!hasBounds}
             />
             <Input
@@ -271,7 +271,7 @@ export function DataStage() {
                     : null,
                 })
               }
-              className={`h-10 rounded-xl glass border-white/10 ${endOutOfBounds ? "border-red-500/40" : ""}`}
+              className={`h-10 rounded-xl glass border-white/10 ${endOutOfBounds ? "border-[hsl(var(--data-neg)/0.4)]" : ""}`}
               disabled={!hasBounds}
             />
           </div>
@@ -291,7 +291,7 @@ export function DataStage() {
             )}
           </p>
           {dateRangeIssue && (
-            <p className="text-[10px] text-red-400">
+            <p className="text-[10px] text-[hsl(var(--data-neg))]">
               {startAfterEnd
                 ? "Start date is after end date."
                 : `Selected dates are outside the available range (${minDate} → ${maxDate}).`}
@@ -332,7 +332,7 @@ export function DataStage() {
       </section>
 
       {previewError && (
-        <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-300">
+        <div className="rounded-xl border border-[hsl(var(--data-neg)/0.2)] bg-[hsl(var(--data-neg)/0.05)] px-4 py-3 text-sm text-[hsl(var(--data-neg))]">
           Server preview failed: {(previewError as Error).message}. Falling back to chart cache estimate.
         </div>
       )}
@@ -378,9 +378,9 @@ function PreviewStat({
   tone?: "ok" | "warn" | "bad";
 }) {
   const toneClass =
-    tone === "ok" ? "text-emerald-300"
+    tone === "ok" ? "text-[hsl(var(--data-pos))]"
     : tone === "warn" ? "text-amber-300"
-    : tone === "bad" ? "text-red-300"
+    : tone === "bad" ? "text-[hsl(var(--data-neg))]"
     : "text-foreground";
   return (
     <div className="rounded-xl bg-white/[0.03] border border-white/5 p-3">

@@ -158,7 +158,7 @@ export const ChartPanel = memo(function ChartPanel({
             <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground bg-gradient-to-b from-transparent via-primary/[0.02] to-transparent">
               <div className="relative mb-5">
                 <BarChart3 className="h-16 w-16 opacity-15 text-primary" />
-                <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500/60 animate-pulse" />
+                <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-[hsl(var(--data-pos)/0.6)] animate-pulse" />
               </div>
               <p className="font-mono text-sm font-medium tracking-wide text-muted-foreground/80">
                 Awaiting market data
@@ -178,7 +178,7 @@ export const ChartPanel = memo(function ChartPanel({
         <Tabs value={bottomTab} onValueChange={setBottomTab} className="h-full flex flex-col overflow-hidden">
           <div className="flex items-center px-2 pt-1 pb-0.5 border-b border-white/[0.06] shrink-0">
             <TabsList className="glass rounded-lg p-0.5 h-auto w-fit">
-              <TabsTrigger value="terminal" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-400 gap-1">
+              <TabsTrigger value="terminal" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-[hsl(var(--data-pos)/0.15)] data-[state=active]:text-[hsl(var(--data-pos))] gap-1">
                 <TerminalSquare className="h-3 w-3" /> Terminal
               </TabsTrigger>
               <TabsTrigger value="chat" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-400 gap-1">

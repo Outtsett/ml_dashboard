@@ -82,7 +82,7 @@ function RegimeTooltip({ active, payload }: { active?: boolean; payload?: Array<
   return (
     <div className="rounded-md border border-white/10 bg-black/85 backdrop-blur px-2.5 py-1.5 text-[10px] font-mono shadow-lg">
       <div className="text-foreground/90">{b.regime}</div>
-      <div className={b.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+      <div className={b.pnl >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}>
         pnl {b.pnl >= 0 ? '+' : ''}{b.pnl.toFixed(2)}
       </div>
       <div className="text-muted-foreground/60">{b.count} trades</div>

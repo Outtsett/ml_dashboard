@@ -61,7 +61,7 @@ export default function BenchmarkComparison({ diagnostics: _diagnostics, modelId
           <YAxis {...CHART_AXIS} tickFormatter={(v: number) => `${v}%`} />
           <Tooltip {...CHART_TOOLTIP} formatter={(v: number) => `${v.toFixed(1)}%`} />
           <Legend wrapperStyle={{ fontSize: 9 }} />
-          <Line dataKey="buyAndHold" name="Buy & Hold" stroke="#10b981" dot={false} strokeWidth={1.5} />
+          <Line dataKey="buyAndHold" name="Buy & Hold" stroke="#E69F00" dot={false} strokeWidth={1.5} />
           <Line dataKey="sma" name="SMA 50/200" stroke="#f59e0b" dot={false} strokeWidth={1.5} strokeDasharray="4 2" />
         </LineChart>
       </ResponsiveContainer>

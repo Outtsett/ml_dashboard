@@ -12,11 +12,11 @@ import type { EvaluationTestResult } from "@/training/lib/types";
 import { ChartCard, EmptyState } from "./shared";
 
 const GRADE_COLORS: Record<string, string> = {
-  A: "text-emerald-400 bg-emerald-500/15",
+  A: "text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.15)]",
   B: "text-blue-400 bg-blue-500/15",
   C: "text-amber-400 bg-amber-500/15",
   D: "text-orange-400 bg-orange-500/15",
-  F: "text-rose-400 bg-rose-500/15",
+  F: "text-[hsl(var(--data-neg))] bg-[hsl(var(--data-neg)/0.15)]",
 };
 
 const STAGE_LABELS: Record<string, string> = {
@@ -79,8 +79,8 @@ export default function ConfidenceCalibration({ diagnostics }: AnalyticsComponen
               onClick={() => setExpandedTest(expandedTest === name ? null : name)}
             >
               {result.passed
-                ? <CheckCircle className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                : <XCircle className="h-3.5 w-3.5 text-rose-400 shrink-0" />
+                ? <CheckCircle className="h-3.5 w-3.5 text-[hsl(var(--data-pos))] shrink-0" />
+                : <XCircle className="h-3.5 w-3.5 text-[hsl(var(--data-neg))] shrink-0" />
               }
               <span className="text-[10px] flex-1">{TEST_LABELS[name] || name}</span>
               {result.value != null && (

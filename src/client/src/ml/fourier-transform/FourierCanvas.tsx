@@ -480,7 +480,7 @@ export const FourierCanvas: React.FC<FourierCanvasProps> = ({
             ctx.beginPath();
             ctx.moveTo(waveStartX, trailRef.current[0]!);
             for (let i = 1; i < trailRef.current.length; i++) ctx.lineTo(waveStartX + i, trailRef.current[i]!);
-            ctx.strokeStyle = '#10b981';
+            ctx.strokeStyle = '#E69F00';
             ctx.lineWidth = 3;
             ctx.stroke();
           }

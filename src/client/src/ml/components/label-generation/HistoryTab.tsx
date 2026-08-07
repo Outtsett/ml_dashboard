@@ -73,8 +73,8 @@ export function HistoryTab({ labelSets, isLoading }: HistoryTabProps) {
                               .sort(([a], [b]) => Number(a) - Number(b))
                               .map(([label, count]) => (
                                 <span key={label} className={
-                                  label === '1' ? 'text-emerald-400' :
-                                  label === '-1' ? 'text-rose-400' :
+                                  label === '1' ? 'text-[hsl(var(--data-pos))]' :
+                                  label === '-1' ? 'text-[hsl(var(--data-neg))]' :
                                   label === '0' ? 'text-slate-400' :
                                   'text-amber-400'
                                 }>
@@ -89,8 +89,8 @@ export function HistoryTab({ labelSets, isLoading }: HistoryTabProps) {
                       <td className="px-4 py-2">
                         <Badge
                           variant="outline"
-                          className={ls.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' :
-                                     ls.status === 'failed' ? 'bg-rose-500/20 text-rose-400' :
+                          className={ls.status === 'completed' ? 'bg-[hsl(var(--data-pos)/0.2)] text-[hsl(var(--data-pos))]' :
+                                     ls.status === 'failed' ? 'bg-[hsl(var(--data-neg)/0.2)] text-[hsl(var(--data-neg))]' :
                                      'bg-amber-500/20 text-amber-400'}
                         >
                           {ls.status}
@@ -107,7 +107,7 @@ export function HistoryTab({ labelSets, isLoading }: HistoryTabProps) {
                           onClick={() => deleteMutation.mutate(ls.id)}
                           data-testid={`btn-delete-${ls.id}`}
                         >
-                          <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                          <Trash2 className="h-3.5 w-3.5 text-[hsl(var(--data-neg))]" />
                         </Button>
                       </td>
                     </tr>

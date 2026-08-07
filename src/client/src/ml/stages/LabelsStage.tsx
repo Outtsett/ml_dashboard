@@ -238,14 +238,14 @@ export function LabelsStage() {
       </section>
 
       {ready && previewQuery.isError && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-300 flex items-center gap-2">
+        <div className="rounded-xl border border-[hsl(var(--data-neg)/0.3)] bg-[hsl(var(--data-neg)/0.05)] px-4 py-3 text-sm text-[hsl(var(--data-neg))] flex items-center gap-2">
           <AlertTriangle className="h-4 w-4" />
           Preview failed: {(previewQuery.error as Error)?.message ?? "unknown error"}
         </div>
       )}
 
       {ready && data?.success === false && data.error && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-300 flex items-center gap-2">
+        <div className="rounded-xl border border-[hsl(var(--data-neg)/0.3)] bg-[hsl(var(--data-neg)/0.05)] px-4 py-3 text-sm text-[hsl(var(--data-neg))] flex items-center gap-2">
           <AlertTriangle className="h-4 w-4" />
           {data.error}
         </div>
@@ -265,13 +265,13 @@ export function LabelsStage() {
               <span className="uppercase tracking-widest text-muted-foreground">Balance ratio</span>
               <span
                 className={`font-mono ${
-                  balanceWarn ? "text-red-300" : (data.classBalanceRatio ?? 0) >= 0.4 ? "text-emerald-300" : "text-amber-300"
+                  balanceWarn ? "text-[hsl(var(--data-neg))]" : (data.classBalanceRatio ?? 0) >= 0.4 ? "text-[hsl(var(--data-pos))]" : "text-amber-300"
                 }`}
               >
                 {((data.classBalanceRatio ?? 0)).toFixed(3)}
               </span>
               {balanceWarn && (
-                <span className="text-red-300/80">— rare-event imbalance, consider focal loss / SMOTE</span>
+                <span className="text-[hsl(var(--data-neg)/0.8)]">— rare-event imbalance, consider focal loss / SMOTE</span>
               )}
             </div>
           </div>

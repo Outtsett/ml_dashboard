@@ -109,10 +109,10 @@ export const SECTION_COLORS: Record<string, SectionColor> = {
     line: 'bg-teal-500/30',
   },
   performance: {
-    text: 'text-emerald-400',
-    bg: 'bg-emerald-500/20',
-    border: 'border-emerald-500/10',
-    line: 'bg-emerald-500/30',
+    text: 'text-[hsl(var(--data-pos))]',
+    bg: 'bg-[hsl(var(--data-pos)/0.2)]',
+    border: 'border-[hsl(var(--data-pos)/0.1)]',
+    line: 'bg-[hsl(var(--data-pos)/0.3)]',
   },
   features: {
     text: 'text-indigo-400',

@@ -13,9 +13,9 @@ const SEVERITY_CONFIG = {
   },
   fail: {
     Icon: XCircle,
-    borderColor: "border-rose-500/30",
-    bgColor: "bg-rose-500/5",
-    iconColor: "text-rose-500",
+    borderColor: "border-[hsl(var(--data-neg)/0.3)]",
+    bgColor: "bg-[hsl(var(--data-neg)/0.05)]",
+    iconColor: "text-[hsl(var(--data-neg))]",
     glow: "shadow-[0_0_15px_rgba(244,63,94,0.1)]",
   },
   info: {
@@ -40,11 +40,11 @@ function RecommendationEngineInner({ diagnostics }: { diagnostics?: MetricsSnaps
 
   if (actionable.length === 0) {
     return (
-      <div className="flex items-center gap-3 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 shadow-[0_0_20px_rgba(16,185,129,0.05)]">
-        <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+      <div className="flex items-center gap-3 p-4 rounded-xl border border-[hsl(var(--data-pos)/0.2)] bg-[hsl(var(--data-pos)/0.05)] shadow-[0_0_20px_rgba(16,185,129,0.05)]">
+        <CheckCircle2 className="w-5 h-5 text-[hsl(var(--data-pos))] shrink-0" />
         <div className="min-w-0">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-400/80 mb-0.5">Strategy Status</div>
-          <div className="text-xs font-mono text-emerald-400/60">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--data-pos)/0.8)] mb-0.5">Strategy Status</div>
+          <div className="text-xs font-mono text-[hsl(var(--data-pos)/0.6)]">
             All institutional quality gates passed. Model is ready for inference deployment.
           </div>
         </div>

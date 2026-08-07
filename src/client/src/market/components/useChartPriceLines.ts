@@ -102,7 +102,7 @@ export function useChartPriceLines({
       .map(p => ({
         time: p.time as Time,
         position: (p.type === 'high' ? 'aboveBar' : 'belowBar') as 'aboveBar' | 'belowBar',
-        color: p.type === 'high' ? '#ef4444' : '#22c55e',
+        color: p.type === 'high' ? '#0072B2' : '#E69F00',
         shape: 'circle' as const, text: p.value.toFixed(decimals),
       }))
       .sort((a, b) => (a.time as number) - (b.time as number));

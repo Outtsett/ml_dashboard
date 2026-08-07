@@ -86,7 +86,7 @@ export function RegimesPanel({ diagnostics }: { diagnostics: Diagnostics }) {
                                     {topChars.map(([feat, z]) => (
                                       <div key={feat} className="flex justify-between text-[10px] font-mono">
                                         <span className="text-muted-foreground">{feat.replace(/_/g, " ")}</span>
-                                        <span className={z >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                                        <span className={z >= 0 ? "text-[hsl(var(--data-pos))]" : "text-[hsl(var(--data-neg))]"}>
                                           {z >= 0 ? "+" : ""}{(z as number).toFixed(2)}
                                         </span>
                                       </div>
@@ -106,7 +106,7 @@ export function RegimesPanel({ diagnostics }: { diagnostics: Diagnostics }) {
                       </td>
 
                       {/* Return/Bar — directional color + arrow */}
-                      <td className={`text-right py-2 px-3 font-mono ${returnPct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                      <td className={`text-right py-2 px-3 font-mono ${returnPct >= 0 ? "text-[hsl(var(--data-pos))]" : "text-[hsl(var(--data-neg))]"}`}>
                         <span className="text-[10px] mr-0.5">{returnPct >= 0 ? "\u25B2" : "\u25BC"}</span>
                         {returnPct >= 0 ? "+" : ""}{returnPct.toFixed(3)}%
                       </td>

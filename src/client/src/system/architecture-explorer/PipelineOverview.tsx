@@ -9,7 +9,7 @@ export function PipelineOverview() {
     { icon: <Zap className="h-5 w-5" />, label: "31 Features", detail: "Returns, RSI, ATR, z-scores...", color: "text-violet-400" },
     { icon: <Layers className="h-5 w-5" />, label: "60-Bar Windows", detail: "Sliding sequence windows", color: "text-amber-400" },
     { icon: <Cpu className="h-5 w-5" />, label: "Model", detail: "Architecture goes here", color: "text-cyan-400" },
-    { icon: <Target className="h-5 w-5" />, label: "Prediction", detail: "Buy / Sell / Hold", color: "text-emerald-400" },
+    { icon: <Target className="h-5 w-5" />, label: "Prediction", detail: "Buy / Sell / Hold", color: "text-[hsl(var(--data-pos))]" },
   ];
 
   return (
@@ -58,7 +58,7 @@ export function PipelineOverview() {
               { cat: "Volatility", count: 4, color: "bg-orange-500/10 text-orange-400 border-orange-500/20" },
               { cat: "Momentum", count: 5, color: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20" },
               { cat: "Position", count: 5, color: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
-              { cat: "Volume", count: 3, color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+              { cat: "Volume", count: 3, color: "bg-[hsl(var(--data-pos)/0.1)] text-[hsl(var(--data-pos))] border-[hsl(var(--data-pos)/0.2)]" },
               { cat: "Time", count: 2, color: "bg-pink-500/10 text-pink-400 border-pink-500/20" },
             ].map(f => (
               <Badge key={f.cat} variant="outline" className={`text-[10px] ${f.color}`}>

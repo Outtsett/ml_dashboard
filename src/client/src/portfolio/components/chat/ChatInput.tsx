@@ -65,7 +65,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
       {isStreaming ? (
         <button
           onClick={onStop}
-          className="h-9 w-9 flex items-center justify-center rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30 transition-colors shrink-0"
+          className="h-9 w-9 flex items-center justify-center rounded-lg bg-[hsl(var(--data-neg)/0.2)] border border-[hsl(var(--data-neg)/0.3)] text-[hsl(var(--data-neg))] hover:bg-[hsl(var(--data-neg)/0.3)] transition-colors shrink-0"
           title="Stop generating"
         >
           <Square className="w-3.5 h-3.5" />

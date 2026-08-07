@@ -98,9 +98,9 @@ export function CostsTab({ trades, metrics, lastResult }: CostsTabProps) {
               {metrics ? `$${metrics.totalSpreadCost.toFixed(2)}` : '--'}
             </p>
           </div>
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20">
+          <div className="p-3 rounded-xl bg-[hsl(var(--data-neg)/0.1)] border border-[hsl(var(--data-neg)/0.2)]">
             <p className="text-muted-foreground text-[10px] mb-1">Total Cost Impact</p>
-            <p className="font-mono text-xl font-bold text-rose-400">
+            <p className="font-mono text-xl font-bold text-[hsl(var(--data-neg))]">
               {metrics ? `$${(metrics.totalCommissions + metrics.totalSlippage + metrics.totalSpreadCost).toFixed(2)}` : '--'}
             </p>
             {metrics && metrics.totalReturn !== 0 && (

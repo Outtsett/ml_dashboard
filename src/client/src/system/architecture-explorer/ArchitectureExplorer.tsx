@@ -1061,10 +1061,10 @@ function ConceptsTab() {
           <TabsTrigger value="transformer" className="gap-1.5 text-xs data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-300">
             <Eye className="h-3.5 w-3.5" /> Transformer
           </TabsTrigger>
-          <TabsTrigger value="xgboost" className="gap-1.5 text-xs data-[state=active]:bg-rose-500/15 data-[state=active]:text-rose-300">
+          <TabsTrigger value="xgboost" className="gap-1.5 text-xs data-[state=active]:bg-[hsl(var(--data-neg)/0.15)] data-[state=active]:text-[hsl(var(--data-neg))]">
             <GitBranch className="h-3.5 w-3.5" /> XGBoost
           </TabsTrigger>
-          <TabsTrigger value="hybrid" className="gap-1.5 text-xs data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-300">
+          <TabsTrigger value="hybrid" className="gap-1.5 text-xs data-[state=active]:bg-[hsl(var(--data-pos)/0.15)] data-[state=active]:text-[hsl(var(--data-pos))]">
             <Combine className="h-3.5 w-3.5" /> Hybrid
           </TabsTrigger>
           <TabsTrigger value="fourier" className="gap-1.5 text-xs data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-300">
@@ -1106,7 +1106,7 @@ function ConceptsTab() {
                 The training infrastructure supports any of these architectures.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Badge variant="outline" className="border-emerald-500/30 text-[10px] text-emerald-300">
+                <Badge variant="outline" className="border-[hsl(var(--data-pos)/0.3)] text-[10px] text-[hsl(var(--data-pos))]">
                   Hybrid — combine local + temporal patterns
                 </Badge>
                 <Badge variant="outline" className="border-cyan-500/30 text-[10px] text-cyan-300">

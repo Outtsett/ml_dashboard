@@ -110,7 +110,7 @@ export function DashboardSummary() {
           <div className="flex items-center gap-2">
             <Database className="w-3.5 h-3.5 text-cyan-400/60" />
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">QuestDB</span>
-            <span className={`text-[10px] font-bold font-mono ${questdbConnected ? 'text-emerald-400' : 'text-rose-400'}`}>
+            <span className={`text-[10px] font-bold font-mono ${questdbConnected ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}>
               {questdbConnected ? 'NOMINAL' : 'DISCONNECTED'}
             </span>
           </div>

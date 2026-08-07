@@ -61,7 +61,7 @@ export interface ExplainableAIProps {
 }
 
 export const COMPLEXITY_COLORS: Record<string, string> = {
-  low: "bg-green-500/20 text-green-400 border-green-500/30",
+  low: "bg-[hsl(var(--data-pos)/0.2)] text-[hsl(var(--data-pos))] border-[hsl(var(--data-pos)/0.3)]",
   medium: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  high: "bg-red-500/20 text-red-400 border-red-500/30",
+  high: "bg-[hsl(var(--data-neg)/0.2)] text-[hsl(var(--data-neg))] border-[hsl(var(--data-neg)/0.3)]",
 };

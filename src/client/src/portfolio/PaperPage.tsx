@@ -68,16 +68,16 @@ interface JoinedRow extends DeploymentRow {
 }
 
 const STATUS_TONE: Record<DeploymentRow["status"], string> = {
-  running: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+  running: "border-[hsl(var(--data-pos)/0.3)] bg-[hsl(var(--data-pos)/0.1)] text-[hsl(var(--data-pos))]",
   paused: "border-amber-500/30 bg-amber-500/10 text-amber-400",
   stopped: "border-white/10 bg-white/5 text-muted-foreground",
-  failed: "border-red-500/30 bg-red-500/10 text-red-400",
+  failed: "border-[hsl(var(--data-neg)/0.3)] bg-[hsl(var(--data-neg)/0.1)] text-[hsl(var(--data-neg))]",
 };
 
 const MODE_TONE: Record<DeploymentRow["mode"], string> = {
   shadow: "border-white/10 bg-white/5 text-muted-foreground",
   paper: "border-primary/30 bg-primary/10 text-primary",
-  live: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+  live: "border-[hsl(var(--data-pos)/0.3)] bg-[hsl(var(--data-pos)/0.1)] text-[hsl(var(--data-pos))]",
 };
 
 export default function Paper() {
@@ -304,7 +304,7 @@ export default function Paper() {
           ctx.row.original.status === "running" ? (
             <button
               type="button"
-              className="rounded-sm border border-red-500/20 px-1.5 py-0.5 font-mono text-[10px] text-red-400 hover:border-red-500/40 hover:bg-red-500/10"
+              className="rounded-sm border border-[hsl(var(--data-neg)/0.2)] px-1.5 py-0.5 font-mono text-[10px] text-[hsl(var(--data-neg))] hover:border-[hsl(var(--data-neg)/0.4)] hover:bg-[hsl(var(--data-neg)/0.1)]"
               onClick={(e) => {
                 e.stopPropagation();
                 stopDeployment(ctx.row.original.deploymentId).then(() => refetch());

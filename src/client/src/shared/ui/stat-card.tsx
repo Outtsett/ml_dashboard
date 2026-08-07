@@ -18,12 +18,12 @@ interface StatCardProps {
 
 const colorStyles = {
   emerald: {
-    border: "border-emerald-500/20",
-    bg: "from-emerald-500/10 to-emerald-600/5",
-    text: "text-emerald-400",
-    label: "text-emerald-300/70",
-    iconBg: "bg-emerald-500/20",
-    iconColor: "text-emerald-400"
+    border: "border-[hsl(var(--data-pos)/0.2)]",
+    bg: "from-[hsl(var(--data-pos)/0.1)] to-[hsl(var(--data-pos)/0.05)]",
+    text: "text-[hsl(var(--data-pos))]",
+    label: "text-[hsl(var(--data-pos)/0.7)]",
+    iconBg: "bg-[hsl(var(--data-pos)/0.2)]",
+    iconColor: "text-[hsl(var(--data-pos))]"
   },
   blue: {
     border: "border-blue-500/20",
@@ -42,12 +42,12 @@ const colorStyles = {
     iconColor: "text-amber-400"
   },
   rose: {
-    border: "border-rose-500/20",
-    bg: "from-rose-500/10 to-rose-600/5",
-    text: "text-rose-400",
-    label: "text-rose-300/70",
-    iconBg: "bg-rose-500/20",
-    iconColor: "text-rose-400"
+    border: "border-[hsl(var(--data-neg)/0.2)]",
+    bg: "from-[hsl(var(--data-neg)/0.1)] to-[hsl(var(--data-neg)/0.05)]",
+    text: "text-[hsl(var(--data-neg))]",
+    label: "text-[hsl(var(--data-neg)/0.7)]",
+    iconBg: "bg-[hsl(var(--data-neg)/0.2)]",
+    iconColor: "text-[hsl(var(--data-neg))]"
   },
   violet: {
     border: "border-violet-500/20",
@@ -117,7 +117,7 @@ export function StatCard({
         {trend && (
           <div className={cn(
             "text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md border",
-            trend.isPositive ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-rose-500/10 border-rose-500/20 text-rose-400"
+            trend.isPositive ? "bg-[hsl(var(--data-pos)/0.1)] border-[hsl(var(--data-pos)/0.2)] text-[hsl(var(--data-pos))]" : "bg-[hsl(var(--data-neg)/0.1)] border-[hsl(var(--data-neg)/0.2)] text-[hsl(var(--data-neg))]"
           )}>
             {trend.isPositive ? "+" : ""}{trend.value}
           </div>

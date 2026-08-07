@@ -5,15 +5,15 @@ import { ShieldCheck, ShieldAlert, ShieldX, Activity, Info, type LucideIcon } fr
 import { metricNumber, type MetricsBag, type MetricsSnapshot, type QualityGate } from "@/training/lib/types";
 
 const STATUS_COLORS: Record<string, string> = {
-  pass: "#22c55e",
+  pass: "#E69F00",
   warn: "#eab308",
-  fail: "#ef4444",
+  fail: "#0072B2",
 };
 
 const STATUS_BG: Record<string, string> = {
-  pass: "bg-emerald-500/5",
+  pass: "bg-[hsl(var(--data-pos)/0.05)]",
   warn: "bg-amber-500/5",
-  fail: "bg-rose-500/5",
+  fail: "bg-[hsl(var(--data-neg)/0.05)]",
 };
 
 /** Gate status → the lucide glyph rendered for it. Keyed loosely so an unknown status falls back to `Info`. */

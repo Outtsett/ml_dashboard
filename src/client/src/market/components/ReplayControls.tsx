@@ -176,7 +176,7 @@ export function ReplayControls({
             {currentEquity != null && (
               <Badge
                 variant="outline"
-                className={`text-[10px] h-6 font-mono ${currentEquity >= 0 ? 'text-green-500' : 'text-red-500'}`}
+                className={`text-[10px] h-6 font-mono ${currentEquity >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}
               >
                 ${currentEquity.toFixed(0)}
               </Badge>

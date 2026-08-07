@@ -43,11 +43,11 @@ export function ChatTab() {
       {/* Header bar */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/[0.06] bg-black/10 shrink-0">
         <div className="flex items-center gap-2">
-          <Bot className="w-3.5 h-3.5 text-emerald-400" />
+          <Bot className="w-3.5 h-3.5 text-[hsl(var(--data-pos))]" />
           <span className="text-xs font-medium text-foreground/70">Ollama Chat</span>
 
           {/* Ollama status indicator */}
-          <div className={`w-1.5 h-1.5 rounded-full ${ollamaHealthy ? 'bg-emerald-500' : 'bg-red-500'}`} />
+          <div className={`w-1.5 h-1.5 rounded-full ${ollamaHealthy ? 'bg-[hsl(var(--data-pos))]' : 'bg-[hsl(var(--data-neg))]'}`} />
 
           {/* Model selector */}
           {availableModels.length > 0 && (
@@ -117,7 +117,7 @@ export function ChatTab() {
 
       {/* Error banner */}
       {error && (
-        <div className="px-3 py-1.5 bg-red-500/10 border-t border-red-500/20 text-xs text-red-400">
+        <div className="px-3 py-1.5 bg-[hsl(var(--data-neg)/0.1)] border-t border-[hsl(var(--data-neg)/0.2)] text-xs text-[hsl(var(--data-neg))]">
           {error}
         </div>
       )}

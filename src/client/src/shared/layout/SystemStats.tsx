@@ -3,9 +3,9 @@ import { useSystemManifest } from "@/system/lib/useSystemManifest";
 import { Activity, Cpu, HardDrive } from "lucide-react";
 
 function statusColor(value: number, thresholds: [number, number] = [50, 80]): string {
-  if (value < thresholds[0]) return "#10b981"; // Emerald-500
+  if (value < thresholds[0]) return "#E69F00"; // Emerald-500
   if (value < thresholds[1]) return "#3b82f6"; // Blue-500 (Institutional)
-  return "#ef4444"; // Red-500
+  return "#0072B2"; // Red-500
 }
 
 function MiniGauge({ value, max, color, label }: {
@@ -87,7 +87,7 @@ export const SystemStats = ({ collapsed }: { collapsed: boolean }) => {
       <div className="bg-white/[0.02] rounded-lg p-2 space-y-1.5 border border-white/[0.03]">
         <div className="flex items-center justify-between opacity-60">
           <div className="flex items-center gap-1">
-            <Activity className="w-3 h-3 text-emerald-400/80" />
+            <Activity className="w-3 h-3 text-[hsl(var(--data-pos)/0.8)]" />
             <span className="text-[8px] font-black uppercase tracking-widest">System Load</span>
           </div>
           <span className="text-[8px] font-mono font-bold">{cpuThreads}T</span>

@@ -6,9 +6,9 @@ export const LAYER_COLORS = {
   recurrent: "bg-amber-500/15 border-amber-500/30 text-amber-300",
   attention: "bg-cyan-500/15 border-cyan-500/30 text-cyan-300",
   ffn: "bg-indigo-500/15 border-indigo-500/30 text-indigo-300",
-  dense: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300",
+  dense: "bg-[hsl(var(--data-pos)/0.15)] border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))]",
   norm: "bg-slate-500/15 border-slate-500/30 text-slate-300",
-  tree: "bg-rose-500/15 border-rose-500/30 text-rose-300",
+  tree: "bg-[hsl(var(--data-neg)/0.15)] border-[hsl(var(--data-neg)/0.3)] text-[hsl(var(--data-neg))]",
 };
 
 export const comparisonData = [
@@ -47,7 +47,7 @@ export const comparisonData = [
   },
   {
     arch: "XGBoost",
-    color: "text-rose-400",
+    color: "text-[hsl(var(--data-neg))]",
     speed: 5,
     dataReq: 1,
     seqAware: 0,
@@ -58,7 +58,7 @@ export const comparisonData = [
   },
   {
     arch: "CNN+LSTM",
-    color: "text-emerald-400",
+    color: "text-[hsl(var(--data-pos))]",
     speed: 2,
     dataReq: 3,
     seqAware: 4,

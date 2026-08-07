@@ -93,7 +93,7 @@ export function TradeLabToolbar() {
       {selectedRunId != null && (
         <button
           onClick={() => setSelectedRunId(null)}
-          className="ml-auto text-[10px] text-muted-foreground/60 hover:text-rose-400 uppercase tracking-widest"
+          className="ml-auto text-[10px] text-muted-foreground/60 hover:text-[hsl(var(--data-neg))] uppercase tracking-widest"
         >
           clear run
         </button>

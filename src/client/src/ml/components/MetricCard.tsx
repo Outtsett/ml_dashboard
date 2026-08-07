@@ -10,8 +10,8 @@ interface MetricCardProps {
 }
 
 const COLOR_MAP: Record<string, string> = {
-  green: "text-green-400 bg-green-500/10 border-green-500/20",
-  red: "text-red-400 bg-red-500/10 border-red-500/20",
+  green: "text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)] border-[hsl(var(--data-pos)/0.2)]",
+  red: "text-[hsl(var(--data-neg))] bg-[hsl(var(--data-neg)/0.1)] border-[hsl(var(--data-neg)/0.2)]",
   blue: "text-blue-400 bg-blue-500/10 border-blue-500/20",
   amber: "text-amber-400 bg-amber-500/10 border-amber-500/20",
   cyan: "text-cyan-400 bg-cyan-500/10 border-cyan-500/20",

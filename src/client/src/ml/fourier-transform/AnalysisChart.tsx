@@ -68,7 +68,7 @@ export function AnalysisChart({ data, isHilbert }: AnalysisChartProps) {
                   type="monotone" 
                   dataKey="envelope" 
                   name="Envelope" 
-                  stroke="#34d399" 
+                  stroke="#E69F00" 
                   strokeWidth={2} 
                   dot={false} 
                   isAnimationActive={false}
@@ -99,7 +99,7 @@ export function AnalysisChart({ data, isHilbert }: AnalysisChartProps) {
                   type="monotone" 
                   dataKey="residual" 
                   name="Residual (Noise)" 
-                  stroke="#ef4444" 
+                  stroke="#0072B2" 
                   strokeWidth={1} 
                   dot={false} 
                   isAnimationActive={false}

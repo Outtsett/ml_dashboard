@@ -122,7 +122,7 @@ export function PreferencesTab({
               step={5}
               value={zoomLevel}
               onChange={(e) => applyZoom(parseInt(e.target.value))}
-              className="flex-1 accent-emerald-500"
+              className="flex-1 accent-[hsl(var(--data-pos))]"
             />
             <button
               type="button"

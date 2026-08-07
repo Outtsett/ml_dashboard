@@ -55,9 +55,9 @@ function getSeverityColor(value: number, context?: Record<string, unknown>): str
   const good = typeof context.good === 'number' ? context.good : null;
   const bad = typeof context.bad === 'number' ? context.bad : null;
 
-  if (great != null && (hib ? value >= great : value <= great)) return 'text-emerald-400';
+  if (great != null && (hib ? value >= great : value <= great)) return 'text-[hsl(var(--data-pos))]';
   if (good != null && (hib ? value >= good : value <= good)) return 'text-cyan-400';
-  if (bad != null && (hib ? value <= bad : value >= bad)) return 'text-red-400';
+  if (bad != null && (hib ? value <= bad : value >= bad)) return 'text-[hsl(var(--data-neg))]';
   return 'text-zinc-200';
 }
 
@@ -109,7 +109,7 @@ function LiveMetricCard({
   const sparkColor = sectionColor.line.includes('purple') ? '#a78bfa'
     : sectionColor.line.includes('cyan') ? '#22d3ee'
     : sectionColor.line.includes('amber') ? '#f59e0b'
-    : sectionColor.line.includes('emerald') ? '#34d399'
+    : sectionColor.line.includes('emerald') ? '#E69F00'
     : '#71717a';
 
   const isTimeSeries = renderer === 'time_series';

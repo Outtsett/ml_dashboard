@@ -324,11 +324,11 @@ function TradeLabBody() {
 
       {/* Run fetch error banner */}
       {hasRun && run.isError && (
-        <div className="px-3 py-2 border-b border-rose-500/30 bg-rose-500/5 text-[11px] font-mono text-rose-400 shrink-0">
+        <div className="px-3 py-2 border-b border-[hsl(var(--data-neg)/0.3)] bg-[hsl(var(--data-neg)/0.05)] text-[11px] font-mono text-[hsl(var(--data-neg))] shrink-0">
           run fetch failed: {run.error?.message ?? 'unknown error'}
           <button
             onClick={run.refetch}
-            className="ml-3 px-2 py-0.5 rounded border border-rose-500/40 hover:bg-rose-500/10"
+            className="ml-3 px-2 py-0.5 rounded border border-[hsl(var(--data-neg)/0.4)] hover:bg-[hsl(var(--data-neg)/0.1)]"
           >
             retry
           </button>
@@ -460,7 +460,7 @@ function TradeLabBody() {
               <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground bg-gradient-to-b from-transparent via-primary/[0.02] to-transparent">
                 <div className="relative mb-5">
                   <BarChart3 className="h-16 w-16 opacity-15 text-primary" />
-                  <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500/60 animate-pulse" />
+                  <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-[hsl(var(--data-pos)/0.6)] animate-pulse" />
                 </div>
                 <p className="font-mono text-sm font-medium tracking-wide text-muted-foreground/80">
                   Awaiting market data

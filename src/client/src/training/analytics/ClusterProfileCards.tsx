@@ -45,7 +45,7 @@ export default function ClusterProfileCards({ diagnostics }: AnalyticsComponentP
               <div className="space-y-1 text-[9px]">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground/50">Return/bar</span>
-                  <span className={`font-mono ${returnPct > 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  <span className={`font-mono ${returnPct > 0 ? "text-[hsl(var(--data-pos))]" : "text-[hsl(var(--data-neg))]"}`}>
                     {returnPct.toFixed(2)}%
                   </span>
                 </div>
@@ -89,7 +89,7 @@ export default function ClusterProfileCards({ diagnostics }: AnalyticsComponentP
                     .map(([feat, z]) => (
                       <div key={feat} className="flex justify-between text-[8px]">
                         <span className="text-muted-foreground/40 truncate">{feat.replace(/_/g, " ")}</span>
-                        <span className={`font-mono ${z > 0 ? "text-blue-400/70" : "text-rose-400/70"}`}>
+                        <span className={`font-mono ${z > 0 ? "text-blue-400/70" : "text-[hsl(var(--data-neg)/0.7)]"}`}>
                           {z > 0 ? "+" : ""}{z.toFixed(1)}\u03C3
                         </span>
                       </div>
@@ -128,7 +128,7 @@ export default function ClusterProfileCards({ diagnostics }: AnalyticsComponentP
                     .map(([feat, z]) => (
                       <div key={feat} className="flex justify-between text-[8px]">
                         <span className="text-muted-foreground/40 truncate">{feat.replace(/_/g, " ")}</span>
-                        <span className={`font-mono ${z > 0 ? "text-blue-400/70" : "text-rose-400/70"}`}>
+                        <span className={`font-mono ${z > 0 ? "text-blue-400/70" : "text-[hsl(var(--data-neg)/0.7)]"}`}>
                           {z > 0 ? "+" : ""}{z.toFixed(2)}\u03C3
                         </span>
                       </div>

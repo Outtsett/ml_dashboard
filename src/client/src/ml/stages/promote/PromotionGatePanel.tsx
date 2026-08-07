@@ -134,10 +134,10 @@ function GateRow({ gate }: { gate: PromotionGate }) {
       ? AlertTriangle
       : XCircle;
   const tone = gate.passed
-    ? "text-emerald-300"
+    ? "text-[hsl(var(--data-pos))]"
     : gate.measured == null
       ? "text-amber-300"
-      : "text-rose-300";
+      : "text-[hsl(var(--data-neg))]";
   const measuredLabel =
     gate.measured == null
       ? "—"
@@ -249,11 +249,11 @@ export function PromotionGatePanel({
 
   if (dryRun.isError) {
     return (
-      <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-4 text-xs text-rose-300 flex items-start gap-2">
+      <div className="rounded-lg border border-[hsl(var(--data-neg)/0.3)] bg-[hsl(var(--data-neg)/0.05)] p-4 text-xs text-[hsl(var(--data-neg))] flex items-start gap-2">
         <ShieldAlert className="h-4 w-4 mt-0.5 shrink-0" />
         <div>
           <p className="font-medium">Failed to evaluate gates</p>
-          <p className="mt-1 font-mono text-[10px] text-rose-300/80">
+          <p className="mt-1 font-mono text-[10px] text-[hsl(var(--data-neg)/0.8)]">
             {(dryRun.error as Error)?.message}
           </p>
         </div>
@@ -304,7 +304,7 @@ export function PromotionGatePanel({
       </header>
 
       {!data.transitionAllowed ? (
-        <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-3 text-xs text-rose-300 flex items-start gap-2">
+        <div className="rounded-lg border border-[hsl(var(--data-neg)/0.3)] bg-[hsl(var(--data-neg)/0.05)] p-3 text-xs text-[hsl(var(--data-neg))] flex items-start gap-2">
           <ShieldAlert className="h-4 w-4 mt-0.5 shrink-0" />
           <div>
             <p className="font-medium">Transition not allowed</p>

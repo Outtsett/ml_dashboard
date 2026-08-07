@@ -20,12 +20,11 @@ import {
   ReferenceLine,
 } from "recharts";
 import { useTrainingModelState } from "@/shared/contexts/TrainingModelStateCtx";
+import { WONG_PALETTE_DARK } from "@/shared/theme/dataColors";
 import { ChartCard } from "./shared";
 
-const REGIME_COLORS = [
-  "#22c55e", "#3b82f6", "#f59e0b", "#ef4444", "#a855f7",
-  "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#6366f1",
-];
+// Shared palette: 10 regimes on one chart is precisely what it is ordered for.
+const REGIME_COLORS = WONG_PALETTE_DARK;
 
 function ReturnDistributionsInner() {
   const { modelState } = useTrainingModelState();
@@ -141,7 +140,7 @@ function ReturnDistributionsInner() {
                       <span className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style={{ backgroundColor: color }} />
                       {row.name} <span className="text-muted-foreground/40">{row.label}</span>
                     </td>
-                    <td className="text-right py-1 px-2" style={{ color: row.mean_return >= 0 ? "#22c55e" : "#ef4444" }}>
+                    <td className="text-right py-1 px-2" style={{ color: row.mean_return >= 0 ? "#E69F00" : "#0072B2" }}>
                       {row.mean_return >= 0 ? "+" : ""}{row.mean_return.toFixed(4)}%
                     </td>
                     <td className="text-right py-1 px-2 text-muted-foreground/70">
@@ -149,7 +148,7 @@ function ReturnDistributionsInner() {
                     </td>
                     <td
                       className="text-right py-1 px-2"
-                      style={{ color: row.sharpe > 1 ? "#22c55e" : row.sharpe >= 0 ? "#eab308" : "#ef4444" }}
+                      style={{ color: row.sharpe > 1 ? "#E69F00" : row.sharpe >= 0 ? "#eab308" : "#0072B2" }}
                     >
                       {row.sharpe.toFixed(2)}
                     </td>

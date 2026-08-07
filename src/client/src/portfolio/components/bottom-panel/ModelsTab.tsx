@@ -16,10 +16,10 @@ interface ModelsTabProps {
 
 function qualityColor(score: number | null | undefined): { border: string; text: string; glow: string } {
   if (score == null) return { border: 'border-l-muted-foreground/20', text: 'text-muted-foreground', glow: '' };
-  if (score >= 80) return { border: 'border-l-emerald-500', text: 'text-emerald-400', glow: 'metric-glow' };
+  if (score >= 80) return { border: 'border-l-emerald-500', text: 'text-[hsl(var(--data-pos))]', glow: 'metric-glow' };
   if (score >= 60) return { border: 'border-l-amber-500', text: 'text-amber-400', glow: '' };
   if (score >= 40) return { border: 'border-l-orange-500', text: 'text-orange-400', glow: '' };
-  return { border: 'border-l-rose-500', text: 'text-rose-400', glow: '' };
+  return { border: 'border-l-rose-500', text: 'text-[hsl(var(--data-neg))]', glow: '' };
 }
 
 export function ModelsTab({ savedModels, tradeMetrics, models }: ModelsTabProps) {
@@ -32,10 +32,10 @@ export function ModelsTab({ savedModels, tradeMetrics, models }: ModelsTabProps)
           <span className="text-[10px] text-muted-foreground">Models</span>
           <span className="text-xs font-bold font-mono text-foreground">{savedModels.length}</span>
         </div>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 glow-success transition-interactive">
-          <TrendingUp className="h-3 w-3 text-emerald-400" />
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[hsl(var(--data-pos)/0.1)] border border-[hsl(var(--data-pos)/0.2)] glow-success transition-interactive">
+          <TrendingUp className="h-3 w-3 text-[hsl(var(--data-pos))]" />
           <span className="text-[10px] text-muted-foreground">Win Rate</span>
-          <span className="text-xs font-bold font-mono text-emerald-400">{tradeMetrics.winRate.toFixed(1)}%</span>
+          <span className="text-xs font-bold font-mono text-[hsl(var(--data-pos))]">{tradeMetrics.winRate.toFixed(1)}%</span>
         </div>
         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 glow-warning transition-interactive">
           <Zap className="h-3 w-3 text-amber-400" />
@@ -126,7 +126,7 @@ export function ModelsTab({ savedModels, tradeMetrics, models }: ModelsTabProps)
                       <Brain className="h-3 w-3 text-primary" />
                       <span className="text-[10px] font-semibold truncate text-foreground/80">{model.name}</span>
                       <Badge variant="outline" className={`ml-auto text-[8px] rounded-full ${
-                        model.status === 'active' ? 'border-green-500/50 text-green-400 bg-green-500/10' :
+                        model.status === 'active' ? 'border-[hsl(var(--data-pos)/0.5)] text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)]' :
                         model.status === 'training' ? 'border-amber-500/50 text-amber-400 bg-amber-500/10 pulse-slow' :
                         'border-muted-foreground/30 text-muted-foreground/60'
                       }`}>
@@ -137,7 +137,7 @@ export function ModelsTab({ savedModels, tradeMetrics, models }: ModelsTabProps)
                       {metrics.finalAccuracy != null && (
                         <>
                           <span className="text-muted-foreground">Acc</span>
-                          <span className="font-mono text-emerald-400 text-right font-semibold">{(metrics.finalAccuracy * 100).toFixed(1)}%</span>
+                          <span className="font-mono text-[hsl(var(--data-pos))] text-right font-semibold">{(metrics.finalAccuracy * 100).toFixed(1)}%</span>
                         </>
                       )}
                       {metrics.finalValLoss != null && (

@@ -80,7 +80,7 @@ export function BottomPanel({ isCollapsed }: BottomPanelProps) {
               <BarChart3 className="h-3 w-3" /> Trades
               {tradeMetrics.totalTrades > 0 && <Badge variant="outline" className="text-[8px] px-1 py-0 rounded-full ml-0.5">{tradeMetrics.totalTrades}</Badge>}
             </TabsTrigger>
-            <TabsTrigger value="terminal" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-400 gap-1">
+            <TabsTrigger value="terminal" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-[hsl(var(--data-pos)/0.15)] data-[state=active]:text-[hsl(var(--data-pos))] gap-1">
               <TerminalSquare className="h-3 w-3" /> Terminal
             </TabsTrigger>
             <TabsTrigger value="chat" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-400 gap-1">
@@ -95,7 +95,7 @@ export function BottomPanel({ isCollapsed }: BottomPanelProps) {
           {/* Status indicator */}
           <div className="ml-auto flex items-center gap-2">
             {isTraining && (
-              <Badge variant="outline" className="text-[9px] px-2 py-0.5 rounded-full border-green-500/30 text-green-400 bg-green-500/10 font-mono gap-1">
+              <Badge variant="outline" className="text-[9px] px-2 py-0.5 rounded-full border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)] font-mono gap-1">
                 <Brain className="h-3 w-3 pulse-slow" /> Training
               </Badge>
             )}
@@ -140,7 +140,7 @@ export function BottomPanel({ isCollapsed }: BottomPanelProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                className="ml-auto h-5 px-2 text-[9px] text-muted-foreground hover:text-rose-400"
+                className="ml-auto h-5 px-2 text-[9px] text-muted-foreground hover:text-[hsl(var(--data-neg))]"
                 onClick={() => dashboard.clearLogs()}
               >
                 <Trash2 className="h-2.5 w-2.5 mr-1" /> Clear

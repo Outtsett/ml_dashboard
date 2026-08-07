@@ -27,10 +27,10 @@ interface RendererShellProps {
 }
 
 const BORDER_TINT: Record<string, string> = {
-  great: 'border-emerald-500/15',
+  great: 'border-[hsl(var(--data-pos)/0.15)]',
   good: 'border-cyan-500/15',
   neutral: 'border-zinc-700/60',
-  bad: 'border-red-500/15',
+  bad: 'border-[hsl(var(--data-neg)/0.15)]',
 };
 
 const GLOW_TINT: Record<string, string> = {

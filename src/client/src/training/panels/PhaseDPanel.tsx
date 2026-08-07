@@ -83,7 +83,7 @@ export function PhaseDPanel() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 mb-4">
-        <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500"}`} />
+        <div className={`w-2 h-2 rounded-full ${connected ? "bg-[hsl(var(--data-pos))]" : "bg-[hsl(var(--data-neg))]"}`} />
         <span className="text-xs text-muted-foreground font-mono">
           {connected ? "Live" : "Disconnected"}
         </span>
@@ -137,7 +137,7 @@ export function PhaseDPanel() {
               <XAxis dataKey="epoch" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} domain={[0, 1]} />
               <Tooltip />
-              <Line type="monotone" dataKey="value" stroke="#10b981" dot={false} strokeWidth={2} />
+              <Line type="monotone" dataKey="value" stroke="#E69F00" dot={false} strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -150,7 +150,7 @@ export function PhaseDPanel() {
               <XAxis dataKey="epoch" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip />
-              <Line type="monotone" dataKey="value" stroke="#ef4444" dot={false} strokeWidth={2} />
+              <Line type="monotone" dataKey="value" stroke="#0072B2" dot={false} strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -202,7 +202,7 @@ export function PhaseDPanel() {
               data={confMatrix.data}
               rowLabels={confMatrix.labels}
               colLabels={confMatrix.labels}
-              colorRange={["#0f172a", "#e2e8f0", "#16a34a"]}
+              colorRange={["#0f172a", "#e2e8f0", "#E69F00"]}
               title=""
               width={380}
               height={300}

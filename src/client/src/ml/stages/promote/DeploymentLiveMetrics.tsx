@@ -291,7 +291,7 @@ function ConnectionDot({ connected, reconnectAttempt }: { connected: boolean; re
     text = 'disconnected';
   }
   const dotColor =
-    tone === 'green' ? 'bg-emerald-400' : tone === 'amber' ? 'bg-amber-400' : 'bg-rose-500';
+    tone === 'green' ? 'bg-[hsl(var(--data-pos))]' : tone === 'amber' ? 'bg-amber-400' : 'bg-[hsl(var(--data-neg))]';
   return (
     <div className="flex items-center gap-1.5" data-testid="sse-connection-status" data-tone={tone}>
       <span className={`h-2 w-2 rounded-full ${dotColor} ${connected ? 'animate-pulse' : ''}`} />
@@ -302,10 +302,10 @@ function ConnectionDot({ connected, reconnectAttempt }: { connected: boolean; re
 
 function StatusPill({ status }: { status: DeploymentRunStatus }) {
   const cfg: Record<DeploymentRunStatus, { label: string; cls: string }> = {
-    running:  { label: 'running',  cls: 'border-emerald-400/30 text-emerald-300 bg-emerald-400/5'  },
+    running:  { label: 'running',  cls: 'border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.05)]'  },
     paused:   { label: 'paused',   cls: 'border-amber-400/30 text-amber-300 bg-amber-400/5'        },
     stopped:  { label: 'stopped',  cls: 'border-zinc-400/30 text-zinc-300 bg-zinc-400/5'           },
-    failed:   { label: 'failed',   cls: 'border-rose-500/30 text-rose-300 bg-rose-500/5'           },
+    failed:   { label: 'failed',   cls: 'border-[hsl(var(--data-neg)/0.3)] text-[hsl(var(--data-neg))] bg-[hsl(var(--data-neg)/0.05)]'           },
   };
   const { label, cls } = cfg[status];
   return (

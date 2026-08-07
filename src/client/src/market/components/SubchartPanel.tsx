@@ -344,7 +344,7 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
         {/* Close button */}
         <button
           onClick={handleClose}
-          className="absolute top-1 right-8 z-10 h-4 w-4 rounded-sm flex items-center justify-center text-muted-foreground/30 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+          className="absolute top-1 right-8 z-10 h-4 w-4 rounded-sm flex items-center justify-center text-muted-foreground/30 hover:text-[hsl(var(--data-neg))] hover:bg-[hsl(var(--data-neg)/0.1)] transition-colors"
           title="Remove indicator"
         >
           <X className="h-3 w-3" />

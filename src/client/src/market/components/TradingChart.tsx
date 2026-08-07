@@ -294,8 +294,8 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
         {priceInfo && (
           <>
             <span className="text-[10px]"><span className="text-blue-400/80 font-medium">O</span> <span className="text-foreground/90">{priceInfo.open.toFixed(decimals)}</span></span>
-            <span className="text-[10px]"><span className="text-emerald-400/80 font-medium">H</span> <span className="text-emerald-300/90">{priceInfo.high.toFixed(decimals)}</span></span>
-            <span className="text-[10px]"><span className="text-rose-400/80 font-medium">L</span> <span className="text-rose-300/90">{priceInfo.low.toFixed(decimals)}</span></span>
+            <span className="text-[10px]"><span className="text-[hsl(var(--data-pos)/0.8)] font-medium">H</span> <span className="text-[hsl(var(--data-pos)/0.9)]">{priceInfo.high.toFixed(decimals)}</span></span>
+            <span className="text-[10px]"><span className="text-[hsl(var(--data-neg)/0.8)] font-medium">L</span> <span className="text-[hsl(var(--data-neg)/0.9)]">{priceInfo.low.toFixed(decimals)}</span></span>
             <span className="text-[10px]"><span className="text-blue-400/80 font-medium">C</span> <span className="text-foreground/90">{priceInfo.close.toFixed(decimals)}</span></span>
           </>
         )}
@@ -306,8 +306,8 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
         <div className="absolute top-12 right-2 flex flex-col gap-0.5 text-[9px] font-mono bg-violet-500/10 backdrop-blur-md rounded-md px-2.5 py-2 border border-violet-500/20 shadow-md">
           <span className="text-violet-400 font-semibold mb-1 text-[9px] tracking-wide">Labels</span>
           <div className="flex gap-2.5">
-            <span className="text-green-400">&#9650; {labelMarkers.filter(m => m.label === 1).length}</span>
-            <span className="text-rose-400">&#9660; {labelMarkers.filter(m => m.label === -1).length}</span>
+            <span className="text-[hsl(var(--data-pos))]">&#9650; {labelMarkers.filter(m => m.label === 1).length}</span>
+            <span className="text-[hsl(var(--data-neg))]">&#9660; {labelMarkers.filter(m => m.label === -1).length}</span>
             <span className="text-gray-400">&#9679; {labelMarkers.filter(m => m.label === 0).length}</span>
           </div>
         </div>

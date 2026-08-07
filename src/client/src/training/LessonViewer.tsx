@@ -48,9 +48,9 @@ function formatMinutes(ms: number): string {
 }
 
 const difficultyColors = {
-  beginner: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  beginner: "bg-[hsl(var(--data-pos)/0.15)] text-[hsl(var(--data-pos))] border-[hsl(var(--data-pos)/0.3)]",
   intermediate: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-  advanced: "bg-rose-500/15 text-rose-400 border-rose-500/30",
+  advanced: "bg-[hsl(var(--data-neg)/0.15)] text-[hsl(var(--data-neg))] border-[hsl(var(--data-neg)/0.3)]",
 };
 
 function SectionIcon({ type }: { type: LessonSection["type"] }) {
@@ -58,7 +58,7 @@ function SectionIcon({ type }: { type: LessonSection["type"] }) {
     objective: <Target className="h-4 w-4 text-blue-400" />,
     theory: <BookOpen className="h-4 w-4 text-violet-400" />,
     intuition: <Lightbulb className="h-4 w-4 text-amber-400" />,
-    code: <Code2 className="h-4 w-4 text-emerald-400" />,
+    code: <Code2 className="h-4 w-4 text-[hsl(var(--data-pos))]" />,
     quiz: <HelpCircle className="h-4 w-4 text-pink-400" />,
     practice: <Wrench className="h-4 w-4 text-cyan-400" />,
   };
@@ -96,7 +96,7 @@ export function LessonViewer({
   const estimatedMs = lesson.estimatedMinutes * 60000;
   const timeColor =
     totalTimeMs > estimatedMs * 2
-      ? "text-rose-400"
+      ? "text-[hsl(var(--data-neg))]"
       : totalTimeMs > estimatedMs * 1.5
         ? "text-amber-400"
         : "text-muted-foreground";
@@ -368,7 +368,7 @@ export function LessonViewer({
               {formatMinutes(totalTimeMs)} spent / {formatMinutes(estimatedMs)} est.
             </Badge>
             {isCompleted && (
-              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+              <Badge className="bg-[hsl(var(--data-pos)/0.2)] text-[hsl(var(--data-pos))] border-[hsl(var(--data-pos)/0.3)]">
                 <CheckCircle2 className="h-3 w-3 mr-1" />
                 {progress?.score != null ? `${progress.score}%` : "Done"}
               </Badge>
@@ -404,7 +404,7 @@ export function LessonViewer({
                 key={idx}
                 className={`h-2 w-2 rounded-full transition-colors duration-300 ${
                   viewedSet.has(idx)
-                    ? "bg-emerald-400"
+                    ? "bg-[hsl(var(--data-pos))]"
                     : "border border-muted-foreground/40 bg-transparent"
                 }`}
                 title={`Section ${idx + 1}: ${lesson.sections[idx]?.type ?? "unknown"}`}

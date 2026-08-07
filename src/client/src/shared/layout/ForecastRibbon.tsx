@@ -96,10 +96,10 @@ export function ForecastRibbon({
         )}
         <div className="flex gap-3 text-[9px]">
           <span className="text-muted-foreground">
-            MAE: <span className="text-emerald-400 font-mono">{stats.mae.toFixed(4)}</span>
+            MAE: <span className="text-[hsl(var(--data-pos))] font-mono">{stats.mae.toFixed(4)}</span>
           </span>
           <span className="text-muted-foreground">
-            MAPE: <span className="text-emerald-400 font-mono">{stats.mape.toFixed(1)}%</span>
+            MAPE: <span className="text-[hsl(var(--data-pos))] font-mono">{stats.mape.toFixed(1)}%</span>
           </span>
         </div>
       </div>
@@ -136,7 +136,7 @@ export function ForecastRibbon({
                 <Area 
                   type="monotone"
                   dataKey="upper"
-                  fill="#22c55e"
+                  fill="#E69F00"
                   fillOpacity={0.15}
                   stroke="none"
                   stackId="confidence"
@@ -165,7 +165,7 @@ export function ForecastRibbon({
             <Line 
               type="monotone" 
               dataKey="predicted" 
-              stroke="#22c55e" 
+              stroke="#E69F00" 
               strokeWidth={1.5}
               dot={false}
               strokeDasharray={hasActuals ? "3 3" : "0"}
@@ -192,12 +192,12 @@ export function ForecastRibbon({
           </div>
         )}
         <div className="flex items-center gap-1">
-          <div className="w-3 h-0.5 bg-emerald-500" style={{ borderStyle: hasActuals ? 'dashed' : 'solid' }} />
+          <div className="w-3 h-0.5 bg-[hsl(var(--data-pos))]" style={{ borderStyle: hasActuals ? 'dashed' : 'solid' }} />
           <span className="text-muted-foreground">Forecast</span>
         </div>
         {showConfidenceBand && (
           <div className="flex items-center gap-1">
-            <div className="w-3 h-2 bg-emerald-500/20" />
+            <div className="w-3 h-2 bg-[hsl(var(--data-pos)/0.2)]" />
             <span className="text-muted-foreground">95% CI</span>
           </div>
         )}

@@ -148,7 +148,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <div className="flex-1 min-w-0">
                       <p className="text-[11px] font-bold text-foreground/80 leading-tight">v2.4.1</p>
                       <div className="flex items-center gap-1">
-                        <div className="h-1 w-1 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
+                        <div className="h-1 w-1 bg-[hsl(var(--data-pos))] rounded-full animate-pulse shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
                         <p className="text-[9px] text-muted-foreground font-semibold font-mono">NODE_ALGO_CONNECTED</p>
                       </div>
                     </div>

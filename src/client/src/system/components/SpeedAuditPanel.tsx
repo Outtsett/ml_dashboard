@@ -53,9 +53,9 @@ function rateCls(value: number | null): VitalRating {
 }
 
 const ratingColors: Record<VitalRating, string> = {
-  good: "text-green-500",
+  good: "text-[hsl(var(--data-pos))]",
   "needs-improvement": "text-amber-500",
-  poor: "text-red-500",
+  poor: "text-[hsl(var(--data-neg))]",
 };
 
 const ratingIcons: Record<VitalRating, string> = {
@@ -182,7 +182,7 @@ export function SpeedAuditContent({ metrics }: { metrics: SpeedMetrics }) {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <ArrowDown className="h-3.5 w-3.5 text-green-500" />
+            <ArrowDown className="h-3.5 w-3.5 text-[hsl(var(--data-pos))]" />
             <span className="text-muted-foreground">Download:</span>
             <span className="font-mono">
               {metrics.avgDownloadSpeed > 0 ? `${metrics.avgDownloadSpeed.toFixed(1)} MB/s` : "—"}

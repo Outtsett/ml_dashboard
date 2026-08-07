@@ -49,19 +49,19 @@ export function OpenPositions({ isLoading, positions }: OpenPositionsProps) {
               <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors" data-testid={`row-position-${i}`}>
                 <td className="py-3 px-4 font-mono font-bold text-primary">{pos.symbol}</td>
                 <td className="py-3 px-4 text-muted-foreground">{pos.name}</td>
-                <td className={`py-3 px-4 text-right font-mono ${pos.quantity > 0 ? 'text-green-400' : 'text-rose-400'}`}>
+                <td className={`py-3 px-4 text-right font-mono ${pos.quantity > 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}>
                   {pos.quantity > 0 ? '+' : ''}{pos.quantity}
                 </td>
                 <td className="py-3 px-4 text-right font-mono">{fmtPrice(pos.avgPrice)}</td>
                 <td className="py-3 px-4 text-right font-mono">{fmtPrice(pos.currentPrice)}</td>
-                <td className={`py-3 px-4 text-right font-mono font-bold ${pos.pnl >= 0 ? 'text-green-400' : 'text-rose-400'}`}>
+                <td className={`py-3 px-4 text-right font-mono font-bold ${pos.pnl >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}>
                   {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toLocaleString()}
                 </td>
                 <td className="py-3 px-4 text-right">
                   <Badge variant="outline" className={`font-mono text-xs rounded-full ${
                     pos.pnlPercent >= 0 
-                      ? 'border-green-500/30 text-green-400 bg-green-500/10' 
-                      : 'border-rose-500/30 text-rose-400 bg-rose-500/10'
+                      ? 'border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)]' 
+                      : 'border-[hsl(var(--data-neg)/0.3)] text-[hsl(var(--data-neg))] bg-[hsl(var(--data-neg)/0.1)]'
                   }`}>
                     {pos.pnlPercent >= 0 ? '+' : ''}{pos.pnlPercent.toFixed(2)}%
                   </Badge>

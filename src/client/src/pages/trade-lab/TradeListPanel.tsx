@@ -90,14 +90,14 @@ export function TradeListPanel({ trades }: Props) {
                 }`}
               >
                 <span className="tabular-nums">{t.id}</span>
-                <span className={t.side === 'long' ? 'text-emerald-400' : 'text-rose-400'}>
+                <span className={t.side === 'long' ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}>
                   {t.side === 'long' ? 'L' : 'S'}
                 </span>
                 <span className="tabular-nums text-muted-foreground/70">
                   {fmtTimeShort(t.entryTimestamp)}
                 </span>
                 <span className="tabular-nums text-muted-foreground/60">{t.barsHeld ?? '—'}</span>
-                <span className={`tabular-nums ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <span className={`tabular-nums ${pnl >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}>
                   {pnl >= 0 ? '+' : ''}{pnl.toFixed(1)}
                 </span>
                 <span className="tabular-nums text-muted-foreground/70">

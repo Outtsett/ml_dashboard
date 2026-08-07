@@ -35,9 +35,9 @@ export default function WalkForwardWindows({ diagnostics }: AnalyticsComponentPr
       subtitle={`${wf.n_windows} windows \u00b7 Stability: ${(wf.stability_score * 100).toFixed(0)}%`}
       badge={
         <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${
-          wf.stability_score >= 0.7 ? "bg-emerald-500/15 text-emerald-400"
+          wf.stability_score >= 0.7 ? "bg-[hsl(var(--data-pos)/0.15)] text-[hsl(var(--data-pos))]"
           : wf.stability_score >= 0.5 ? "bg-amber-500/15 text-amber-400"
-          : "bg-rose-500/15 text-rose-400"
+          : "bg-[hsl(var(--data-neg)/0.15)] text-[hsl(var(--data-neg))]"
         }`}>
           {(wf.stability_score * 100).toFixed(0)}%
         </span>
@@ -57,7 +57,7 @@ export default function WalkForwardWindows({ diagnostics }: AnalyticsComponentPr
           <ReferenceLine y={50} stroke="rgba(239, 68, 68, 0.3)" strokeDasharray="3 3" />
           <Bar dataKey="confidence" name="Confidence" radius={[3, 3, 0, 0]}>
             {chartData.map((d, i) => (
-              <Cell key={i} fill={d.failed ? "#ef444460" : d.confidence > 70 ? "#10b98160" : "#f59e0b60"} cursor="pointer" />
+              <Cell key={i} fill={d.failed ? "#0072B260" : d.confidence > 70 ? "#E69F0060" : "#f59e0b60"} cursor="pointer" />
             ))}
           </Bar>
         </BarChart>

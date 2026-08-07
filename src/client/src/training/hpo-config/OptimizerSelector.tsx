@@ -50,13 +50,13 @@ export const OPTIMIZER_META: Record<OptimizerType, OptimizerMeta> = {
     label: "Monte Carlo",
     description: "Random/quasi-random sampling",
     icon: Dice5,
-    color: "text-emerald-400",
+    color: "text-[hsl(var(--data-pos))]",
   },
   evolutionary: {
     label: "Evolutionary",
     description: "Genetic & evolution strategies",
     icon: Dna,
-    color: "text-rose-400",
+    color: "text-[hsl(var(--data-neg))]",
   },
   bohb: {
     label: "BOHB",

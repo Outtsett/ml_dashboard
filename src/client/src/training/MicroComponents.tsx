@@ -74,7 +74,7 @@ export function QualityScoreRing({ score, size = 48 }: { score: number; size?: n
   const r = size * 0.375;
   const circumference = 2 * Math.PI * r;
   const offset = circumference - (score / 100) * circumference;
-  const color = score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : score >= 40 ? '#f97316' : '#f43f5e';
+  const color = score >= 80 ? '#E69F00' : score >= 60 ? '#f59e0b' : score >= 40 ? '#f97316' : '#0072B2';
 
   return (
     <div className="relative inline-flex items-center justify-center">

@@ -276,7 +276,7 @@ export function ExplainableAI({ symbol, modelId }: ExplainableAIProps) {
                 {explanation.featureContributions && explanation.featureContributions.length > 0 && (
                   <div className="space-y-2">
                     <h4 className="text-sm font-medium text-white flex items-center gap-2">
-                      <BarChart3 className="h-4 w-4 text-emerald-400" />
+                      <BarChart3 className="h-4 w-4 text-[hsl(var(--data-pos))]" />
                       Feature Contributions
                     </h4>
                     <FeatureWaterfall contributions={explanation.featureContributions} />
@@ -316,7 +316,7 @@ export function ExplainableAI({ symbol, modelId }: ExplainableAIProps) {
                 {explanation.prediction.probabilities && (
                   <div className="space-y-2">
                     <h4 className="text-sm font-medium text-white flex items-center gap-2">
-                      <Target className="h-4 w-4 text-rose-400" />
+                      <Target className="h-4 w-4 text-[hsl(var(--data-neg))]" />
                       Class Probabilities
                     </h4>
                     <ClassProbabilities probabilities={explanation.prediction.probabilities} />

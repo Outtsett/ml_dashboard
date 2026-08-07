@@ -22,13 +22,13 @@ interface SliceData {
 
 const RING_COLORS = [
   '#22d3ee', // cyan
-  '#34d399', // emerald
+  '#E69F00', // emerald
   '#fbbf24', // amber
   '#a78bfa', // violet
   '#f472b6', // pink
   '#fb923c', // orange
   '#60a5fa', // blue
-  '#4ade80', // green
+  '#E69F00', // green
 ];
 
 function parseRingValue(value: RendererProps['metric']['value']): SliceData[] {

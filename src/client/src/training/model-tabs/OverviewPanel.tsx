@@ -1,4 +1,4 @@
-﻿/**
+/**
  * OverviewPanel â€” Chart-first diagnostics overview in a responsive grid.
  *
  * Each cell renders based on which diagnostics keys exist (model-agnostic).
@@ -22,13 +22,13 @@ function getFeatureCategory(name: string): { label: string; fill: string } {
   if (name.startsWith('return_'))           return { label: 'Returns',    fill: '#3b82f6' };
   if (name.startsWith('volatility_') || name.startsWith('parkinson_'))
                                             return { label: 'Volatility', fill: '#f97316' };
-  if (name.startsWith('volume_'))           return { label: 'Volume',     fill: '#10b981' };
+  if (name.startsWith('volume_'))           return { label: 'Volume',     fill: '#E69F00' };
   if (['bar_range', 'body_ratio', 'upper_shadow', 'lower_shadow'].includes(name))
                                             return { label: 'Structure',  fill: '#8b5cf6' };
   if (name.startsWith('roc_'))              return { label: 'Momentum',   fill: '#06b6d4' };
   if (name.startsWith('ma_dist_'))          return { label: 'MA Dist',    fill: '#f59e0b' };
   if (name.startsWith('swing_') || name.startsWith('prev_swing_') || name === 'retracement_ratio')
-                                            return { label: 'microstructure',      fill: '#f43f5e' };
+                                            return { label: 'microstructure',      fill: '#0072B2' };
   return { label: 'Other', fill: '#64748b' };
 }
 
@@ -58,7 +58,7 @@ function QualityCell({ quality }: { quality: number }) {
           <>
             <QualityScoreRing score={quality} size={80} />
             <span className={`text-[10px] font-medium px-2.5 py-1 rounded-full ${
-              quality >= 80 ? 'bg-emerald-500/15 text-emerald-400' :
+              quality >= 80 ? 'bg-[hsl(var(--data-pos)/0.15)] text-[hsl(var(--data-pos))]' :
               quality >= 60 ? 'bg-amber-500/15 text-amber-400' :
               'bg-orange-500/15 text-orange-400'
             }`}>
@@ -125,8 +125,8 @@ function WalkForwardCell({ walkForward }: { walkForward: NonNullable<Diagnostics
       <div className="flex gap-1.5 mb-3">
         {windows.map((w) => {
           const conf = w.avg_confidence ?? 0;
-          const bg = w.failed ? 'bg-rose-500/30' : conf >= 0.8 ? 'bg-emerald-500/30' : conf >= 0.6 ? 'bg-amber-500/30' : 'bg-rose-500/20';
-          const text = w.failed ? 'text-rose-400' : conf >= 0.8 ? 'text-emerald-400' : conf >= 0.6 ? 'text-amber-400' : 'text-rose-400';
+          const bg = w.failed ? 'bg-[hsl(var(--data-neg)/0.3)]' : conf >= 0.8 ? 'bg-[hsl(var(--data-pos)/0.3)]' : conf >= 0.6 ? 'bg-amber-500/30' : 'bg-[hsl(var(--data-neg)/0.2)]';
+          const text = w.failed ? 'text-[hsl(var(--data-neg))]' : conf >= 0.8 ? 'text-[hsl(var(--data-pos))]' : conf >= 0.6 ? 'text-amber-400' : 'text-[hsl(var(--data-neg))]';
           return (
             <div key={w.window} className={`flex-1 ${bg} rounded-lg p-2 text-center`}>
               <div className="text-[8px] text-muted-foreground/50 mb-0.5">W{w.window}</div>
@@ -193,7 +193,7 @@ function OOSComparisonCell({ oos }: { oos: NonNullable<Diagnostics['out_of_sampl
       <div className="flex items-center justify-between shrink-0">
         <CellHeader>OOS Distribution</CellHeader>
         <span className={`text-[10px] font-mono font-bold ${
-          similarity >= 0.85 ? 'text-emerald-400' : similarity >= 0.7 ? 'text-amber-400' : 'text-rose-400'
+          similarity >= 0.85 ? 'text-[hsl(var(--data-pos))]' : similarity >= 0.7 ? 'text-amber-400' : 'text-[hsl(var(--data-neg))]'
         }`}>
           {(similarity * 100).toFixed(0)}% match
         </span>
@@ -208,13 +208,13 @@ function OOSComparisonCell({ oos }: { oos: NonNullable<Diagnostics['out_of_sampl
               formatter={(value: number) => [`${value.toFixed(1)}%`]}
             />
             <Bar dataKey="train" fill="#3b82f6" opacity={0.6} radius={[2, 2, 0, 0]} name="Train" />
-            <Bar dataKey="test" fill="#10b981" opacity={0.8} radius={[2, 2, 0, 0]} name="Test" />
+            <Bar dataKey="test" fill="#E69F00" opacity={0.8} radius={[2, 2, 0, 0]} name="Test" />
           </BarChart>
         </ResponsiveContainer>
       </div>
       <div className="flex gap-3 text-[9px] text-muted-foreground/50 mt-1 shrink-0">
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-blue-500/60" /> Train</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500/80" /> Test</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[hsl(var(--data-pos)/0.8)]" /> Test</span>
       </div>
     </ChartCell>
   );

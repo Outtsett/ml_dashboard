@@ -128,7 +128,7 @@ export function HPOTrialsList({
                         </span>
                       </TableCell>
                       <TableCell className="text-xs font-mono">
-                        <span className={cn(isBest && "text-emerald-400 font-semibold")}>
+                        <span className={cn(isBest && "text-[hsl(var(--data-pos))] font-semibold")}>
                           {formatScore(trial.score)}
                         </span>
                       </TableCell>

@@ -9,8 +9,8 @@ export function HybridDetail() {
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-4">
-        <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
-          <Combine className="h-6 w-6 text-emerald-400" />
+        <div className="w-12 h-12 rounded-xl bg-[hsl(var(--data-pos)/0.15)] border border-[hsl(var(--data-pos)/0.3)] flex items-center justify-center shrink-0">
+          <Combine className="h-6 w-6 text-[hsl(var(--data-pos))]" />
         </div>
         <div>
           <h3 className="font-semibold text-lg">Hybrid CNN + LSTM</h3>
@@ -20,9 +20,9 @@ export function HybridDetail() {
         </div>
       </div>
 
-      <Card className="bg-emerald-500/5 border-emerald-500/20">
+      <Card className="bg-[hsl(var(--data-pos)/0.05)] border-[hsl(var(--data-pos)/0.2)]">
         <CardContent className="p-4">
-          <div className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-1">Think of it as...</div>
+          <div className="text-xs font-semibold text-[hsl(var(--data-pos))] uppercase tracking-wider mb-1">Think of it as...</div>
           <p className="text-sm text-muted-foreground">
             First, a <span className="text-violet-300 font-medium">pattern scanner (CNN)</span> identifies micro-patterns
             in small windows: "3-bar reversal here, breakout setup there, RSI divergence over here."
@@ -67,8 +67,8 @@ export function HybridDetail() {
 
             {/* Connection */}
             <div className="flex items-center gap-2 pl-8">
-              <div className="h-6 border-l border-dashed border-emerald-500/30" />
-              <span className="text-[9px] text-emerald-400">patterns fed in sequence ↓</span>
+              <div className="h-6 border-l border-dashed border-[hsl(var(--data-pos)/0.3)]" />
+              <span className="text-[9px] text-[hsl(var(--data-pos))]">patterns fed in sequence ↓</span>
             </div>
 
             {/* Stage 2: LSTM */}
@@ -85,7 +85,7 @@ export function HybridDetail() {
                   </React.Fragment>
                 ))}
                 <ArrowRight className="h-3 w-3 text-muted-foreground/30 ml-1" />
-                <div className="px-2 py-1 rounded bg-emerald-500/15 border border-emerald-500/30 text-[10px] text-emerald-300">
+                <div className="px-2 py-1 rounded bg-[hsl(var(--data-pos)/0.15)] border border-[hsl(var(--data-pos)/0.3)] text-[10px] text-[hsl(var(--data-pos))]">
                   ↑ ↓ ─
                 </div>
               </div>

@@ -31,7 +31,7 @@ export function Heatmap({
   data,
   rowLabels,
   colLabels,
-  colorRange = ["#1e40af", "#fafafa", "#dc2626"],
+  colorRange = ["#1e40af", "#fafafa", "#0072B2"],
   title,
   width = 400,
   height = 300,

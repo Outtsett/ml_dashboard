@@ -73,7 +73,7 @@ export const ClassificationPerformance = memo(({ diagnostics }: { diagnostics: a
             </div>
             <div className="flex items-center gap-4 text-[9px] font-mono font-bold">
               <span className="flex items-center gap-1.5 text-primary"><div className="w-1.5 h-1.5 rounded-full bg-current" /> TRAIN</span>
-              <span className="flex items-center gap-1.5 text-emerald-400"><div className="w-1.5 h-1.5 rounded-full bg-current" /> VAL</span>
+              <span className="flex items-center gap-1.5 text-[hsl(var(--data-pos))]"><div className="w-1.5 h-1.5 rounded-full bg-current" /> VAL</span>
             </div>
           </div>
           
@@ -86,8 +86,8 @@ export const ClassificationPerformance = memo(({ diagnostics }: { diagnostics: a
                     <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                   </linearGradient>
                   <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#E69F00" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#E69F00" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
@@ -95,7 +95,7 @@ export const ClassificationPerformance = memo(({ diagnostics }: { diagnostics: a
                 <YAxis hide domain={['auto', 'auto']} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} />
                 <Area type="monotone" dataKey="train" stroke="#3b82f6" fillOpacity={1} fill="url(#colorTrain)" strokeWidth={2} isAnimationActive={false} />
-                <Area type="monotone" dataKey="val" stroke="#10b981" fillOpacity={1} fill="url(#colorVal)" strokeWidth={2} isAnimationActive={false} />
+                <Area type="monotone" dataKey="val" stroke="#E69F00" fillOpacity={1} fill="url(#colorVal)" strokeWidth={2} isAnimationActive={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -149,7 +149,7 @@ export const ClassificationPerformance = memo(({ diagnostics }: { diagnostics: a
             <div className="grid grid-cols-3 gap-4">
                {[
                  { label: 'Directional', value: 0.65, color: 'bg-primary' },
-                 { label: 'Forward', value: 0.25, color: 'bg-emerald-500' },
+                 { label: 'Forward', value: 0.25, color: 'bg-[hsl(var(--data-pos))]' },
                  { label: 'Auxiliary', value: 0.10, color: 'bg-amber-500' }
                ].map(h => (
                  <div key={h.label} className="space-y-2">
@@ -174,7 +174,7 @@ export const ClassificationPerformance = memo(({ diagnostics }: { diagnostics: a
                </span>
                <span className="text-xs font-bold text-muted-foreground/40 uppercase tracking-widest">bars/sec</span>
             </div>
-            <div className="mt-4 flex items-center gap-2 text-[9px] font-mono text-emerald-400/60 uppercase tracking-wider">
+            <div className="mt-4 flex items-center gap-2 text-[9px] font-mono text-[hsl(var(--data-pos)/0.6)] uppercase tracking-wider">
                <Clock className="w-3 h-3" /> Peak Saturation Active
             </div>
          </div>

@@ -8,9 +8,9 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/shared/ui/tooltip";
 import { metricNumber, type MetricsBag, type MetricsSnapshot, type QualityGate } from "@/training/lib/types";
 
 const STATUS_COLORS: Record<string, string> = {
-  pass: "#10b981",
+  pass: "#E69F00",
   warn: "#f59e0b",
-  fail: "#ef4444",
+  fail: "#0072B2",
 };
 
 function MetricScorecardInner({ diagnostics }: { diagnostics?: MetricsSnapshot | null }) {

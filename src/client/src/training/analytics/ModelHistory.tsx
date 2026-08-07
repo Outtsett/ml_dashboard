@@ -16,11 +16,11 @@ import { Badge } from "@/shared/ui/badge";
 import { cn } from "@/shared/utils/utils";
 
 const GRADE_COLORS: Record<string, string> = {
-  A: "bg-emerald-500/15 text-emerald-400",
+  A: "bg-[hsl(var(--data-pos)/0.15)] text-[hsl(var(--data-pos))]",
   B: "bg-blue-500/15 text-blue-400",
   C: "bg-amber-500/15 text-amber-400",
   D: "bg-orange-500/15 text-orange-400",
-  F: "bg-rose-500/15 text-rose-400",
+  F: "bg-[hsl(var(--data-neg)/0.15)] text-[hsl(var(--data-neg))]",
 };
 
 function extractModelType(modelId: string): string | null {
@@ -96,7 +96,7 @@ export default function ModelHistory({ diagnostics, modelId }: AnalyticsComponen
       title="Model History"
       subtitle={`${sessions.length} sessions for ${diagnostics.symbol}`}
       badge={degraded ? (
-        <span className="text-[9px] px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400">
+        <span className="text-[9px] px-2 py-0.5 rounded-full bg-[hsl(var(--data-neg)/0.15)] text-[hsl(var(--data-neg))]">
           Score Degrading
         </span>
       ) : null}
@@ -107,7 +107,7 @@ export default function ModelHistory({ diagnostics, modelId }: AnalyticsComponen
           <XAxis dataKey="name" {...CHART_AXIS} />
           <YAxis {...CHART_AXIS} domain={[0, 100]} />
           <Tooltip {...CHART_TOOLTIP} />
-          <Line dataKey="score" stroke="#10b981" dot={{ r: 3 }} strokeWidth={2} name="Quality Score" />
+          <Line dataKey="score" stroke="#E69F00" dot={{ r: 3 }} strokeWidth={2} name="Quality Score" />
           <Line dataKey="avg" stroke="#f59e0b60" strokeDasharray="3 3" dot={false} strokeWidth={1} name="3-Session Avg" />
         </LineChart>
       </ResponsiveContainer>
@@ -144,7 +144,7 @@ export default function ModelHistory({ diagnostics, modelId }: AnalyticsComponen
                 <span className="text-xs text-muted-foreground">{session.modelType}</span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-xs font-mono text-emerald-400">
+                <span className="text-xs font-mono text-[hsl(var(--data-pos))]">
                   {session.bestScore != null ? session.bestScore.toFixed(4) : '—'}
                 </span>
                 <span className="text-[10px] text-muted-foreground">
@@ -152,8 +152,8 @@ export default function ModelHistory({ diagnostics, modelId }: AnalyticsComponen
                 </span>
                 <Badge variant="outline" className={cn(
                   "text-[9px]",
-                  session.status === 'completed' ? 'text-emerald-400 border-emerald-500/20' :
-                  session.status === 'failed' ? 'text-red-400 border-red-500/20' :
+                  session.status === 'completed' ? 'text-[hsl(var(--data-pos))] border-[hsl(var(--data-pos)/0.2)]' :
+                  session.status === 'failed' ? 'text-[hsl(var(--data-neg))] border-[hsl(var(--data-neg)/0.2)]' :
                   'text-blue-400 border-blue-500/20'
                 )}>
                   {session.status}

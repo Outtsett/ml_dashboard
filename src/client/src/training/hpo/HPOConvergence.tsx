@@ -134,7 +134,7 @@ function HPOConvergence({
     return (
       <Card className={cn("bg-black/20 border-white/5 overflow-hidden p-4", className)}>
         <div className="flex items-center gap-2 mb-3">
-          <TrendingUp className="h-4 w-4 text-emerald-400" />
+          <TrendingUp className="h-4 w-4 text-[hsl(var(--data-pos))]" />
           <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
             Convergence Analysis
           </h4>
@@ -151,7 +151,7 @@ function HPOConvergence({
   return (
     <Card className={cn("bg-black/20 border-white/5 overflow-hidden p-4", className)}>
       <div className="flex items-center gap-2 mb-3">
-        <TrendingUp className="h-4 w-4 text-emerald-400" />
+        <TrendingUp className="h-4 w-4 text-[hsl(var(--data-pos))]" />
         <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
           Convergence Analysis
         </h4>
@@ -168,11 +168,11 @@ function HPOConvergence({
           <Target className="h-3 w-3" />
           {stats.total} trials
         </Badge>
-        <Badge variant="secondary" className="text-[10px] gap-1 text-emerald-400">
+        <Badge variant="secondary" className="text-[10px] gap-1 text-[hsl(var(--data-pos))]">
           <Zap className="h-3 w-3" />
           {stats.completed} completed
         </Badge>
-        <Badge variant="secondary" className="text-[10px] gap-1 text-red-400">
+        <Badge variant="secondary" className="text-[10px] gap-1 text-[hsl(var(--data-neg))]">
           <Scissors className="h-3 w-3" />
           {stats.pruned} pruned ({stats.prunedPct}%)
         </Badge>
@@ -195,8 +195,8 @@ function HPOConvergence({
           <ComposedChart data={convergenceData}>
             <defs>
               <linearGradient id="bestSoFarGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#10b981" stopOpacity={0.2} />
-                <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                <stop offset="0%" stopColor="#E69F00" stopOpacity={0.2} />
+                <stop offset="100%" stopColor="#E69F00" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" opacity={0.3} />
@@ -224,7 +224,7 @@ function HPOConvergence({
                         </p>
                         <p className="text-[10px] text-muted-foreground">
                           Status:{" "}
-                          <span className={trial.pruned ? "text-red-400" : "text-emerald-400"}>
+                          <span className={trial.pruned ? "text-[hsl(var(--data-neg))]" : "text-[hsl(var(--data-pos))]"}>
                             {trial.pruned ? `Pruned @ step ${trial.prunedAtStep ?? "?"}` : "Completed"}
                           </span>
                         </p>
@@ -255,7 +255,7 @@ function HPOConvergence({
             <Line
               type="stepAfter"
               dataKey="bestSoFar"
-              stroke="#10b981"
+              stroke="#E69F00"
               strokeWidth={2}
               dot={false}
               connectNulls
@@ -268,7 +268,7 @@ function HPOConvergence({
             />
             <Scatter
               dataKey="pruned"
-              fill="#ef4444"
+              fill="#0072B2"
               opacity={0.8}
               r={3}
               shape="cross"
@@ -276,13 +276,13 @@ function HPOConvergence({
             {bestScoreValue !== null && (
               <ReferenceLine
                 y={bestScoreValue}
-                stroke="#10b981"
+                stroke="#E69F00"
                 strokeDasharray="4 4"
                 opacity={0.5}
                 label={{
                   value: `Best: ${bestScoreValue.toFixed(4)}`,
                   position: "right",
-                  fill: "#10b981",
+                  fill: "#E69F00",
                   fontSize: 10,
                 }}
               />

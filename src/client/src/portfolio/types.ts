@@ -29,7 +29,7 @@ export type RecentTrade = {
   pnl: number | null 
 };
 
-export const COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
+export const COLORS = ['#8b5cf6', '#06b6d4', '#E69F00', '#f59e0b', '#0072B2', '#ec4899'];
 
 /** Format price — forex pairs get 5 decimals, others get 2 */
 export function fmtPrice(price: number): string {

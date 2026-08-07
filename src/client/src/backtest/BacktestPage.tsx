@@ -250,11 +250,11 @@ export function BacktestPanel() {
       <div className="flex justify-between items-center shrink-0">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500/30 to-rose-500/30 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500/30 to-[hsl(var(--data-neg)/0.3)] flex items-center justify-center">
               <Orbit className="h-5 w-5 text-amber-300" />
             </div>
             {lastResult && (
-              <Badge variant="outline" className="text-[10px] border-emerald-500/50 text-emerald-400">
+              <Badge variant="outline" className="text-[10px] border-[hsl(var(--data-pos)/0.5)] text-[hsl(var(--data-pos))]">
                 <CheckCircle2 className="h-3 w-3 mr-1" /> Completed
               </Badge>
             )}
@@ -264,7 +264,7 @@ export function BacktestPanel() {
         <div className="flex gap-3">
           {lastResult && (tradesData?.chartMarkers?.length ?? 0) > 0 && (
             <Button variant="outline" onClick={() => dashboard.navigateToChart()}
-              className="h-10 px-4 rounded-xl bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+              className="h-10 px-4 rounded-xl bg-[hsl(var(--data-pos)/0.1)] border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))] hover:bg-[hsl(var(--data-pos)/0.2)]"
             >
               <LineChartIcon className="mr-2 h-4 w-4" /> Show on Chart
             </Button>
@@ -277,7 +277,7 @@ export function BacktestPanel() {
           <Button
             onClick={handleRun}
             disabled={!selectedSymbol || runBacktest.isPending}
-            className="h-10 px-5 rounded-xl bg-gradient-to-r from-amber-600 to-rose-600 text-white font-medium disabled:opacity-50"
+            className="h-10 px-5 rounded-xl bg-gradient-to-r from-amber-600 to-[hsl(var(--data-neg))] text-white font-medium disabled:opacity-50"
           >
             {runBacktest.isPending ? (
               <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Running...</>
@@ -289,7 +289,7 @@ export function BacktestPanel() {
       </div>
 
       {runBacktest.isError && (
-        <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 flex items-center gap-2 text-sm text-rose-300">
+        <div className="bg-[hsl(var(--data-neg)/0.1)] border border-[hsl(var(--data-neg)/0.3)] rounded-xl p-3 flex items-center gap-2 text-sm text-[hsl(var(--data-neg))]">
           <AlertCircle className="h-4 w-4 shrink-0" />
           {(runBacktest.error as Error)?.message || 'Backtest failed'}
         </div>

@@ -13,10 +13,10 @@ import { RendererShell, useShellProps } from './RendererShell';
 import { cn } from "@/shared/utils/utils";
 
 const FILL_GRADIENT: Record<string, string> = {
-  great: 'from-emerald-600 to-emerald-400',
+  great: 'from-[hsl(var(--data-pos))] to-[hsl(var(--data-pos))]',
   good: 'from-cyan-600 to-cyan-400',
   neutral: 'from-zinc-600 to-zinc-400',
-  bad: 'from-red-600 to-red-400',
+  bad: 'from-[hsl(var(--data-neg))] to-[hsl(var(--data-neg))]',
 };
 
 const FILL_SHADOW: Record<string, string> = {

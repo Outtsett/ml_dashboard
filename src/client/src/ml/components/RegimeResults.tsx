@@ -12,7 +12,7 @@ import type { Diagnostics, RegimeCategory } from "@/ml/components/regime-analyti
 import { getRegimeColor, getRegimeIcon, getQualityColor, getQualityLabel } from "@/ml/components/regime-analytics/types";
 
 const CATEGORY_STYLE: Record<RegimeCategory, { bg: string; text: string; border: string }> = {
-  trend:    { bg: "bg-emerald-500/15", text: "text-emerald-400", border: "border-emerald-500/30" },
+  trend:    { bg: "bg-[hsl(var(--data-pos)/0.15)]", text: "text-[hsl(var(--data-pos))]", border: "border-[hsl(var(--data-pos)/0.3)]" },
   reversal: { bg: "bg-orange-500/15",  text: "text-orange-400",  border: "border-orange-500/30" },
   range:    { bg: "bg-sky-500/15",     text: "text-sky-400",     border: "border-sky-500/30" },
 };
@@ -93,7 +93,7 @@ export function RegimeResults({ diagnostics, convergenceData, assignmentsData, o
       <Section title="Regime Discovery" icon={<BarChart3 className="h-3 w-3 text-cyan-400" />} defaultOpen>
         <div className="p-1.5 rounded-lg bg-black/30 border border-white/5 space-y-1.5">
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-[8px] px-1.5 py-0.5 rounded-full border-emerald-500/30 text-emerald-400">
+            <Badge variant="outline" className="text-[8px] px-1.5 py-0.5 rounded-full border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))]">
               {diagnostics.n_regimes} regimes discovered
             </Badge>
             <span className="text-[7px] text-muted-foreground font-mono">
@@ -129,7 +129,7 @@ export function RegimeResults({ diagnostics, convergenceData, assignmentsData, o
 
       {/* Walk-Forward Results */}
       {diagnostics.walk_forward && diagnostics.walk_forward.n_windows > 0 && (
-        <Section title="Walk-Forward Stability" icon={<Target className="h-3 w-3 text-emerald-400" />} defaultOpen>
+        <Section title="Walk-Forward Stability" icon={<Target className="h-3 w-3 text-[hsl(var(--data-pos))]" />} defaultOpen>
           <div className="p-1.5 rounded bg-black/20 border border-white/5">
             <WalkForwardDisplay wf={diagnostics.walk_forward} />
           </div>
@@ -181,7 +181,7 @@ export function RegimeResults({ diagnostics, convergenceData, assignmentsData, o
                 </div>
                 <div>
                   <span className="text-[7px] text-muted-foreground">Ret/Bar</span>
-                  <p className={`text-[9px] font-mono ${(r.avg_return_pct ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  <p className={`text-[9px] font-mono ${(r.avg_return_pct ?? 0) >= 0 ? "text-[hsl(var(--data-pos))]" : "text-[hsl(var(--data-neg))]"}`}>
                     {(r.avg_return_pct ?? 0) >= 0 ? '+' : ''}{(r.avg_return_pct ?? 0).toFixed(3)}%
                   </p>
                 </div>

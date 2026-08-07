@@ -36,7 +36,7 @@ const COMPONENT_COLORS: Record<string, string> = {
   mae_loss: "#3b82f6",
   direction_loss: "#8b5cf6",
   moe_load_balance_loss: "#f59e0b",
-  prediction_loss: "#f43f5e",
+  prediction_loss: "#0072B2",
   reasoning_loss: "#14b8a6",
 };
 
@@ -119,7 +119,7 @@ export function PhaseEPanel() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 mb-4">
-        <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500"}`} />
+        <div className={`w-2 h-2 rounded-full ${connected ? "bg-[hsl(var(--data-pos))]" : "bg-[hsl(var(--data-neg))]"}`} />
         <span className="text-xs text-muted-foreground font-mono">
           {connected ? "Live" : "Disconnected"}
         </span>
@@ -134,7 +134,7 @@ export function PhaseEPanel() {
               <XAxis dataKey="epoch" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip />
-              <Line type="monotone" dataKey="value" stroke="#10b981" dot={false} strokeWidth={2} />
+              <Line type="monotone" dataKey="value" stroke="#E69F00" dot={false} strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
         </div>

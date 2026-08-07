@@ -180,7 +180,7 @@ export function FoldBarsRenderer(props: RendererProps) {
                 const valY = trainY - valH;
 
                 const meetsThreshold = fold.metric_value >= goodThreshold;
-                const metricColor = meetsThreshold ? '#34d399' : '#ef4444';
+                const metricColor = meetsThreshold ? '#E69F00' : '#0072B2';
 
                 return (
                   <g key={label}>

@@ -85,11 +85,11 @@ export const ChatMessageComponent = memo(function ChatMessageComponent({ message
       <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
         isUser
           ? 'bg-primary/15 border border-primary/25'
-          : 'bg-emerald-500/15 border border-emerald-500/25'
+          : 'bg-[hsl(var(--data-pos)/0.15)] border border-[hsl(var(--data-pos)/0.25)]'
       }`}>
         {isUser
           ? <User className="w-3.5 h-3.5 text-primary" />
-          : <Bot className="w-3.5 h-3.5 text-emerald-400" />
+          : <Bot className="w-3.5 h-3.5 text-[hsl(var(--data-pos))]" />
         }
       </div>
 
@@ -103,13 +103,13 @@ export const ChatMessageComponent = memo(function ChatMessageComponent({ message
               renderMarkdown(message.content)
             ) : message.streaming ? (
               <span className="inline-flex items-center gap-1 text-muted-foreground">
-                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" style={{ animationDelay: '150ms' }} />
-                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" style={{ animationDelay: '300ms' }} />
+                <span className="w-1.5 h-1.5 bg-[hsl(var(--data-pos))] rounded-full animate-pulse" />
+                <span className="w-1.5 h-1.5 bg-[hsl(var(--data-pos))] rounded-full animate-pulse" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 bg-[hsl(var(--data-pos))] rounded-full animate-pulse" style={{ animationDelay: '300ms' }} />
               </span>
             ) : null}
             {message.streaming && message.content && (
-              <span className="inline-block w-1.5 h-4 bg-emerald-400/60 animate-pulse ml-0.5" />
+              <span className="inline-block w-1.5 h-4 bg-[hsl(var(--data-pos)/0.6)] animate-pulse ml-0.5" />
             )}
           </div>
         )}

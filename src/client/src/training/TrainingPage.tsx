@@ -219,7 +219,7 @@ export default function Training({ embedded = false }: TrainingProps = {}) {
 
         {/* ── Error banner ────────────────────────────────────────────────────── */}
         {error && (
-          <div className="mx-6 mt-4 px-4 py-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">
+          <div className="mx-6 mt-4 px-4 py-2.5 rounded-lg bg-[hsl(var(--data-neg)/0.1)] border border-[hsl(var(--data-neg)/0.2)] text-[hsl(var(--data-neg))] text-sm">
             {error}
           </div>
         )}

@@ -86,15 +86,15 @@ export function LabelsTab({
 
       {/* Label distribution */}
       {showLabels && visibleLabelsCount > 0 && (
-        <div className="p-2 rounded-lg bg-green-500/10 border border-green-500/20 space-y-2">
-          <p className="text-[10px] text-green-400 font-medium flex items-center gap-1">
+        <div className="p-2 rounded-lg bg-[hsl(var(--data-pos)/0.1)] border border-[hsl(var(--data-pos)/0.2)] space-y-2">
+          <p className="text-[10px] text-[hsl(var(--data-pos))] font-medium flex items-center gap-1">
             <BarChart3 className="h-3 w-3" />
             Distribution ({labelDistribution.total} visible)
           </p>
           <div className="space-y-1">
             {([
-              { label: 'BUY', count: labelDistribution.buy, pct: labelDistribution.buyPct, barClass: 'bg-green-500', textClass: 'text-green-400' },
-              { label: 'SELL', count: labelDistribution.sell, pct: labelDistribution.sellPct, barClass: 'bg-rose-500', textClass: 'text-rose-400' },
+              { label: 'BUY', count: labelDistribution.buy, pct: labelDistribution.buyPct, barClass: 'bg-[hsl(var(--data-pos))]', textClass: 'text-[hsl(var(--data-pos))]' },
+              { label: 'SELL', count: labelDistribution.sell, pct: labelDistribution.sellPct, barClass: 'bg-[hsl(var(--data-neg))]', textClass: 'text-[hsl(var(--data-neg))]' },
               { label: 'HOLD', count: labelDistribution.hold, pct: labelDistribution.holdPct, barClass: 'bg-violet-500', textClass: 'text-violet-400' },
             ] as const).map(({ label, count, pct, barClass, textClass }) => (
               <div key={label} className="flex items-center gap-2">

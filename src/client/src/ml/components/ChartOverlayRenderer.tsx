@@ -42,17 +42,17 @@ export function ChartOverlayRenderer(props: RendererProps) {
             <line x1="5.5" y1="6" x2="5.5" y2="32" stroke="#3f3f46" strokeWidth="1" opacity="0.3" />
             <rect x="14" y="14" width="3" height="12" rx="1" fill="#22d3ee" opacity="0.4" />
             <line x1="15.5" y1="8" x2="15.5" y2="30" stroke="#22d3ee" strokeWidth="1" opacity="0.3" />
-            <rect x="24" y="8" width="3" height="20" rx="1" fill="#ef4444" opacity="0.4" />
-            <line x1="25.5" y1="4" x2="25.5" y2="32" stroke="#ef4444" strokeWidth="1" opacity="0.3" />
+            <rect x="24" y="8" width="3" height="20" rx="1" fill="#0072B2" opacity="0.4" />
+            <line x1="25.5" y1="4" x2="25.5" y2="32" stroke="#0072B2" strokeWidth="1" opacity="0.3" />
             <rect x="34" y="12" width="3" height="14" rx="1" fill="#22d3ee" opacity="0.4" />
             <line x1="35.5" y1="6" x2="35.5" y2="30" stroke="#22d3ee" strokeWidth="1" opacity="0.3" />
-            <rect x="44" y="6" width="3" height="22" rx="1" fill="#34d399" opacity="0.4" />
-            <line x1="45.5" y1="2" x2="45.5" y2="34" stroke="#34d399" strokeWidth="1" opacity="0.3" />
+            <rect x="44" y="6" width="3" height="22" rx="1" fill="#E69F00" opacity="0.4" />
+            <line x1="45.5" y1="2" x2="45.5" y2="34" stroke="#E69F00" strokeWidth="1" opacity="0.3" />
             <rect x="54" y="10" width="3" height="16" rx="1" fill="#3f3f46" opacity="0.5" />
             <line x1="55.5" y1="4" x2="55.5" y2="30" stroke="#3f3f46" strokeWidth="1" opacity="0.3" />
             {/* Overlay arrow indicators */}
             <polygon points="15.5,4 12,8 19,8" fill="#22d3ee" opacity="0.6" />
-            <polygon points="45.5,36 42,32 49,32" fill="#ef4444" opacity="0.6" />
+            <polygon points="45.5,36 42,32 49,32" fill="#0072B2" opacity="0.6" />
           </svg>
         </div>
 

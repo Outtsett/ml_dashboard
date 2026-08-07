@@ -9,12 +9,12 @@ import {
 const CATEGORY_COLORS: Record<string, string> = {
   overlap: '#3b82f6',     // blue
   momentum: '#a78bfa',    // violet
-  trend: '#ef4444',       // red
+  trend: '#0072B2',       // red
   volatility: '#f97316',  // orange
   volume: '#06b6d4',      // cyan
-  statistics: '#22c55e',  // green
+  statistics: '#E69F00',  // green
   cycle: '#ec4899',       // pink
-  performance: '#10b981', // emerald
+  performance: '#E69F00', // emerald
 };
 
 interface CatalogCategoryProps {

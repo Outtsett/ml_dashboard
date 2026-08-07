@@ -134,7 +134,7 @@ function ModelCard({
             {model.name}
           </CardTitle>
           {model.hasContent ? (
-            <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+            <CheckCircle2 className="h-4 w-4 text-[hsl(var(--data-pos))] shrink-0 mt-0.5" />
           ) : (
             <XCircle className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-0.5" />
           )}

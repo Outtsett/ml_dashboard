@@ -40,7 +40,7 @@ export function ConnectionBadge({ result }: { result: ConnectionTestResult | nul
   if (!result) return <Badge variant="outline">Not tested</Badge>;
 
   return result.connected ? (
-    <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 gap-1">
+    <Badge variant="default" className="bg-[color-mix(in_srgb,hsl(var(--data-pos))_75%,black)] hover:bg-[color-mix(in_srgb,hsl(var(--data-pos))_62%,black)] gap-1">
       <CheckCircle2 className="h-3 w-3" />
       Connected
     </Badge>

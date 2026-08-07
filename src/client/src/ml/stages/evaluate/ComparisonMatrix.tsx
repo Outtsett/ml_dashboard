@@ -70,7 +70,7 @@ function deltaColor(spec: MetricSpec, value: number | null, baseline: number | n
   if (delta === 0) return "text-muted-foreground";
   const positiveIsGood = spec.better === "higher";
   const isGood = positiveIsGood ? delta > 0 : delta < 0;
-  return isGood ? "text-emerald-400" : "text-rose-400";
+  return isGood ? "text-[hsl(var(--data-pos))]" : "text-[hsl(var(--data-neg))]";
 }
 
 export function ComparisonMatrix({

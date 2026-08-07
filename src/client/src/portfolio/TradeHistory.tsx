@@ -13,7 +13,7 @@ export function TradeHistory({ isLoading, recentTrades }: TradeHistoryProps) {
     <Card className="glass rounded-2xl gradient-border flex-1 min-h-0 flex flex-col">
       <CardHeader className="border-b border-white/5 shrink-0">
         <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-          <Clock className="h-4 w-4 text-green-400" /> Recent Trades
+          <Clock className="h-4 w-4 text-[hsl(var(--data-pos))]" /> Recent Trades
         </CardTitle>
       </CardHeader>
       <CardContent className="flex-1 overflow-auto p-0">
@@ -31,8 +31,8 @@ export function TradeHistory({ isLoading, recentTrades }: TradeHistoryProps) {
                   <span className="font-bold text-primary">{trade.symbol}</span>
                   <Badge variant="outline" className={`text-[10px] px-2 py-0 rounded-full ${
                     trade.side === 'BUY' 
-                      ? 'border-green-500/30 text-green-400' 
-                      : 'border-rose-500/30 text-rose-400'
+                      ? 'border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))]' 
+                      : 'border-[hsl(var(--data-neg)/0.3)] text-[hsl(var(--data-neg))]'
                   }`}>
                     {trade.side}
                   </Badge>
@@ -40,7 +40,7 @@ export function TradeHistory({ isLoading, recentTrades }: TradeHistoryProps) {
                 <div className="flex items-center gap-4">
                   <span className="font-mono">{trade.qty} @ {fmtPrice(trade.price)}</span>
                   {trade.pnl !== null && (
-                    <span className={`font-mono font-bold ${trade.pnl >= 0 ? 'text-green-400' : 'text-rose-400'}`}>
+                    <span className={`font-mono font-bold ${trade.pnl >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}>
                       {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}
                     </span>
                   )}

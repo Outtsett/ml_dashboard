@@ -78,8 +78,8 @@ export function TradeLabStatStrip({ trades, equity }: Props) {
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: 'pos' | 'neg' | null }) {
   const cls =
-    accent === 'pos' ? 'text-emerald-400' :
-    accent === 'neg' ? 'text-rose-400' :
+    accent === 'pos' ? 'text-[hsl(var(--data-pos))]' :
+    accent === 'neg' ? 'text-[hsl(var(--data-neg))]' :
     'text-foreground';
   return (
     <div className="flex flex-col">

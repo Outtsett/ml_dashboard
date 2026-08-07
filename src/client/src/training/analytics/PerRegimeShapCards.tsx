@@ -8,12 +8,11 @@
 
 import { memo, useMemo } from "react";
 import { useTrainingModelState } from "@/shared/contexts/TrainingModelStateCtx";
+import { WONG_PALETTE_DARK } from "@/shared/theme/dataColors";
 import { ChartCard } from "./shared";
 
-const REGIME_COLORS = [
-  "#22c55e", "#3b82f6", "#f59e0b", "#ef4444", "#a855f7",
-  "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#6366f1",
-];
+// Shared palette: 10 regimes on one chart is precisely what it is ordered for.
+const REGIME_COLORS = WONG_PALETTE_DARK;
 
 const TOP_N = 5;
 
@@ -131,7 +130,7 @@ function PerRegimeShapCardsInner() {
                     ? Math.min((f.importance / rd.maxImportance) * 100, 100)
                     : 0;
                   const barColor = f.importance > rd.maxImportance * 0.5
-                    ? "bg-emerald-500/40"
+                    ? "bg-[hsl(var(--data-pos)/0.4)]"
                     : "bg-blue-500/30";
                   return (
                     <div key={f.feature} className="space-y-0.5">
@@ -161,7 +160,7 @@ function PerRegimeShapCardsInner() {
                     <div className="flex justify-between text-[8px]">
                       <span className="text-muted-foreground/40">Mean Return</span>
                       <span
-                        className={`font-mono ${rd.profile.mean_return >= 0 ? "text-emerald-400/70" : "text-rose-400/70"}`}
+                        className={`font-mono ${rd.profile.mean_return >= 0 ? "text-[hsl(var(--data-pos)/0.7)]" : "text-[hsl(var(--data-neg)/0.7)]"}`}
                       >
                         {(rd.profile.mean_return * 100).toFixed(3)}%
                       </span>
@@ -169,7 +168,7 @@ function PerRegimeShapCardsInner() {
                     <div className="flex justify-between text-[8px]">
                       <span className="text-muted-foreground/40">Sharpe</span>
                       <span
-                        className={`font-mono ${rd.profile.sharpe >= 0.5 ? "text-emerald-400/70" : rd.profile.sharpe >= 0 ? "text-muted-foreground/60" : "text-rose-400/70"}`}
+                        className={`font-mono ${rd.profile.sharpe >= 0.5 ? "text-[hsl(var(--data-pos)/0.7)]" : rd.profile.sharpe >= 0 ? "text-muted-foreground/60" : "text-[hsl(var(--data-neg)/0.7)]"}`}
                       >
                         {rd.profile.sharpe.toFixed(2)}
                       </span>

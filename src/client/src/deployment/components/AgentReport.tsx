@@ -106,7 +106,7 @@ function severityTone(s: AgentSeverity): string {
     case "warning":
       return "border-amber-500/30 bg-amber-500/10 text-amber-200";
     case "error":
-      return "border-rose-500/30 bg-rose-500/10 text-rose-200";
+      return "border-[color-mix(in_srgb,hsl(var(--data-neg)/0.3)_88%,black)] bg-[color-mix(in_srgb,hsl(var(--data-neg)/0.1)_88%,black)] text-[color-mix(in_srgb,hsl(var(--data-neg))_62%,white)]";
   }
 }
 
@@ -117,7 +117,7 @@ function bannerTone(s: AgentSeverity): string {
     case "warning":
       return "border-amber-500/40 bg-amber-500/[0.08] text-amber-100";
     case "error":
-      return "border-rose-500/40 bg-rose-500/[0.08] text-rose-100";
+      return "border-[color-mix(in_srgb,hsl(var(--data-neg)/0.4)_88%,black)] bg-[color-mix(in_srgb,hsl(var(--data-neg))_88%,black)]/[0.08] text-[color-mix(in_srgb,hsl(var(--data-neg))_45%,white)]";
   }
 }
 
@@ -448,7 +448,7 @@ function PanelBody() {
   if (failed && !report) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center px-6">
-        <XCircle className="h-6 w-6 text-rose-300" />
+        <XCircle className="h-6 w-6 text-[color-mix(in_srgb,hsl(var(--data-neg))_80%,white)]" />
         <div className="text-sm font-medium text-foreground">
           Agent run failed
         </div>

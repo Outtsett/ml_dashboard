@@ -59,7 +59,7 @@ export function RegimeModelList({ models, selectedModel, onSelectModel, onDelete
           <Button
             size="sm"
             variant="ghost"
-            className="h-5 w-5 p-0 text-muted-foreground/40 hover:text-rose-400"
+            className="h-5 w-5 p-0 text-muted-foreground/40 hover:text-[hsl(var(--data-neg))]"
             onClick={(e) => { e.stopPropagation(); onDeleteModel(m.id); }}
           >
             <Trash2 className="h-3 w-3" />

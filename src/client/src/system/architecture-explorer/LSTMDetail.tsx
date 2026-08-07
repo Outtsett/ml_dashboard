@@ -66,8 +66,8 @@ export function LSTMDetail() {
                 <div key={i} className="flex flex-col items-center min-w-[48px]">
                   {isLabeled && (
                     <div className="flex gap-0.5 mb-1">
-                      <span className="px-1 py-0.5 rounded text-[7px] bg-rose-500/20 text-rose-300" title="Forget gate">F</span>
-                      <span className="px-1 py-0.5 rounded text-[7px] bg-emerald-500/20 text-emerald-300" title="Input gate">I</span>
+                      <span className="px-1 py-0.5 rounded text-[7px] bg-[hsl(var(--data-neg)/0.2)] text-[hsl(var(--data-neg))]" title="Forget gate">F</span>
+                      <span className="px-1 py-0.5 rounded text-[7px] bg-[hsl(var(--data-pos)/0.2)] text-[hsl(var(--data-pos))]" title="Input gate">I</span>
                       <span className="px-1 py-0.5 rounded text-[7px] bg-blue-500/20 text-blue-300" title="Output gate">O</span>
                     </div>
                   )}
@@ -87,11 +87,11 @@ export function LSTMDetail() {
           {/* Gate legend */}
           <div className="flex gap-4 mt-3 pt-2 border-t border-border/20">
             <div className="flex items-center gap-1.5 text-[9px]">
-              <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-medium">F</span>
+              <span className="px-1.5 py-0.5 rounded bg-[hsl(var(--data-neg)/0.2)] text-[hsl(var(--data-neg))] font-medium">F</span>
               <span className="text-muted-foreground">Forget gate — what to erase from memory</span>
             </div>
             <div className="flex items-center gap-1.5 text-[9px]">
-              <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-medium">I</span>
+              <span className="px-1.5 py-0.5 rounded bg-[hsl(var(--data-pos)/0.2)] text-[hsl(var(--data-pos))] font-medium">I</span>
               <span className="text-muted-foreground">Input gate — what new info to store</span>
             </div>
             <div className="flex items-center gap-1.5 text-[9px]">

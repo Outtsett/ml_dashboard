@@ -35,8 +35,8 @@ export function EquityDrawdownPanel({ curve }: Props) {
       <div className="flex items-center gap-3 px-3 py-1 border-b border-white/5 text-[10px] font-mono uppercase tracking-widest shrink-0">
         <span className="text-primary/80">Equity</span>
         <span className="text-muted-foreground/60">final {fmtSigned(curve.finalEquity)}</span>
-        <span className="text-rose-400/80">max DD {fmtSigned(curve.maxDrawdown)}</span>
-        <span className="text-rose-400/60">{(curve.maxDrawdownPct * 100).toFixed(1)}%</span>
+        <span className="text-[hsl(var(--data-neg)/0.8)]">max DD {fmtSigned(curve.maxDrawdown)}</span>
+        <span className="text-[hsl(var(--data-neg)/0.6)]">{(curve.maxDrawdownPct * 100).toFixed(1)}%</span>
         {visibleRange && (
           <span className="text-muted-foreground/50 ml-auto">
             window: {visible.length} pts
@@ -87,8 +87,8 @@ function EquityTooltip({ active, payload }: { active?: boolean; payload?: Array<
   return (
     <div className="rounded-md border border-white/10 bg-black/85 backdrop-blur px-2.5 py-1.5 text-[10px] font-mono shadow-lg">
       <div className="text-muted-foreground/70">{new Date(p.time * 1000).toLocaleString()}</div>
-      <div className="text-emerald-400">eq {fmtSigned(p.equity)}</div>
-      <div className="text-rose-400">dd {fmtSigned(p.drawdown)}</div>
+      <div className="text-[hsl(var(--data-pos))]">eq {fmtSigned(p.equity)}</div>
+      <div className="text-[hsl(var(--data-neg))]">dd {fmtSigned(p.drawdown)}</div>
       <div className="text-muted-foreground/50">trade #{p.tradeId}</div>
     </div>
   );

@@ -253,10 +253,10 @@ export function CalibrationPanel({
                   exp.data?.ece == null
                     ? "text-muted-foreground"
                     : exp.data.ece <= 0.05
-                      ? "text-emerald-400"
+                      ? "text-[hsl(var(--data-pos))]"
                       : exp.data.ece <= 0.1
                         ? "text-amber-400"
-                        : "text-rose-400",
+                        : "text-[hsl(var(--data-neg))]",
                 )}
               >
                 {exp.data?.ece != null ? exp.data.ece.toFixed(3) : exp.isLoading ? "…" : "—"}

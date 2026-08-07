@@ -64,7 +64,7 @@ export function ConfusionMatrixRenderer(props: RendererProps) {
 
   const diagColorScale = scaleLinear<string>({
     domain: [0, maxVal * 0.5, maxVal],
-    range: ['#18181b', '#064e3b', '#34d399'],
+    range: ['#18181b', '#E69F00', '#E69F00'],
   });
 
   // Compute overall accuracy
@@ -144,7 +144,7 @@ export function ConfusionMatrixRenderer(props: RendererProps) {
                         height={cellSize}
                         fill={color}
                         rx={2}
-                        stroke={cell.isDiag ? '#34d39940' : isHovered ? '#71717a' : 'transparent'}
+                        stroke={cell.isDiag ? '#E69F0040' : isHovered ? '#71717a' : 'transparent'}
                         strokeWidth={cell.isDiag ? 1.5 : 1}
                         opacity={isHovered ? 1 : 0.9}
                         style={{

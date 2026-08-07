@@ -9,7 +9,7 @@ import type { WalkForwardResult } from "./types";
 export function WalkForwardDisplay({ wf }: { wf: WalkForwardResult }) {
   if (!wf || wf.n_windows === 0) return null;
 
-  const stabilityColor = wf.stability_score >= 0.8 ? "#10b981" : wf.stability_score >= 0.6 ? "#f59e0b" : "#f43f5e";
+  const stabilityColor = wf.stability_score >= 0.8 ? "#E69F00" : wf.stability_score >= 0.6 ? "#f59e0b" : "#0072B2";
 
   return (
     <div className="space-y-1.5">

@@ -73,7 +73,7 @@ const STATUS_TONE_CLASS: Record<ModelStatus, string> = {
   candidate: "border-white/10 bg-white/5 text-muted-foreground",
   shadow: "border-amber-500/30 bg-amber-500/10 text-amber-400",
   paper: "border-primary/30 bg-primary/10 text-primary",
-  live: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+  live: "border-[hsl(var(--data-pos)/0.3)] bg-[hsl(var(--data-pos)/0.1)] text-[hsl(var(--data-pos))]",
   retired: "border-white/5 bg-white/[0.02] text-muted-foreground/60",
 };
 

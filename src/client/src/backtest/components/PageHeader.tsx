@@ -31,18 +31,18 @@ interface PageHeaderProps {
 }
 
 const STATUS_TONE_CLASS: Record<PageStatusPill["tone"], string> = {
-  live: "border-emerald-500/30 text-emerald-400 bg-emerald-500/10",
+  live: "border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)]",
   idle: "border-white/10 text-muted-foreground bg-white/5",
   warn: "border-amber-500/30 text-amber-400 bg-amber-500/10",
-  error: "border-red-500/30 text-red-400 bg-red-500/10",
+  error: "border-[hsl(var(--data-neg)/0.3)] text-[hsl(var(--data-neg))] bg-[hsl(var(--data-neg)/0.1)]",
   info: "border-primary/30 text-primary bg-primary/10",
 };
 
 const STATUS_DOT_CLASS: Record<PageStatusPill["tone"], string> = {
-  live: "bg-emerald-400",
+  live: "bg-[hsl(var(--data-pos))]",
   idle: "bg-muted-foreground",
   warn: "bg-amber-400",
-  error: "bg-red-400",
+  error: "bg-[hsl(var(--data-neg))]",
   info: "bg-primary",
 };
 

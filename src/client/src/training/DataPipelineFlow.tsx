@@ -81,8 +81,8 @@ export default function DataPipelineFlow({
         ? `${(trainSize / 1000).toFixed(1)}K / ${(testSize / 1000).toFixed(1)}K`
         : '85 / 15',
       detail: 'train / test',
-      borderColor: 'border-emerald-500/30',
-      textColor: 'text-emerald-400',
+      borderColor: 'border-[hsl(var(--data-pos)/0.3)]',
+      textColor: 'text-[hsl(var(--data-pos))]',
       pulse: false,
     },
     {
@@ -101,8 +101,8 @@ export default function DataPipelineFlow({
       label: adapter.outputStepLabel,
       value: isDone && nRegimes ? `${nRegimes} found` : adapter.outputDefault,
       detail: isDone ? adapter.outputComplete : adapter.outputDefault,
-      borderColor: isDone ? 'border-rose-500/40' : 'border-rose-500/20',
-      textColor: isDone ? 'text-rose-400' : 'text-rose-300/50',
+      borderColor: isDone ? 'border-[hsl(var(--data-neg)/0.4)]' : 'border-[hsl(var(--data-neg)/0.2)]',
+      textColor: isDone ? 'text-[hsl(var(--data-neg))]' : 'text-[hsl(var(--data-neg)/0.5)]',
       pulse: false,
     },
   ];

@@ -424,7 +424,7 @@ function ActionCard({
           "flex items-center justify-center gap-1.5 w-full rounded-md px-3 py-1.5",
           "text-sm font-medium transition-all",
           isTraining
-            ? "bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/30"
+            ? "bg-[hsl(var(--data-neg)/0.2)] text-[hsl(var(--data-neg))] hover:bg-[hsl(var(--data-neg)/0.3)] border border-[hsl(var(--data-neg)/0.3)]"
             : isPending || disabled
               ? "bg-primary/10 text-primary/40 border border-primary/20 cursor-wait"
               : "bg-primary/20 text-primary hover:bg-primary/30 border border-primary/30",

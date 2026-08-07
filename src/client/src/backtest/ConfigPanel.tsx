@@ -358,14 +358,14 @@ export function ConfigPanel({
                   <div className="flex justify-between items-center">
                     <span className="font-mono font-bold truncate">{run.name}</span>
                     <Badge variant="outline" className={`text-[8px] ${
-                      run.status === 'completed' ? 'border-emerald-500/50 text-emerald-400' : 'border-amber-500/50 text-amber-400'
+                      run.status === 'completed' ? 'border-[hsl(var(--data-pos)/0.5)] text-[hsl(var(--data-pos))]' : 'border-amber-500/50 text-amber-400'
                     }`}>{run.status}</Badge>
                   </div>
                   <div className="flex gap-2 mt-0.5 text-muted-foreground">
                     <span>{run.symbol}</span>
                     <span>{run.total_trades ?? 0} trades</span>
                     {run.total_return_pct != null && (
-                      <span className={run.total_return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                      <span className={run.total_return_pct >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}>
                         {run.total_return_pct >= 0 ? '+' : ''}{run.total_return_pct.toFixed(1)}%
                       </span>
                     )}

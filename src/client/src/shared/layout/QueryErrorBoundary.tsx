@@ -16,7 +16,7 @@ class InnerBoundary extends React.Component<
     if (this.state.hasError) {
       return this.props.fallback ?? (
         <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
-          <div className="text-red-400 font-mono text-sm">
+          <div className="text-[hsl(var(--data-neg))] font-mono text-sm">
             {this.state.error?.message ?? 'Something went wrong'}
           </div>
           <button

@@ -10,7 +10,7 @@ export function QualityScoreRing({ score }: { score: number }) {
   const r = 18;
   const circumference = 2 * Math.PI * r;
   const offset = circumference - (score / 100) * circumference;
-  const color = score >= 80 ? "#10b981" : score >= 60 ? "#f59e0b" : score >= 40 ? "#f97316" : "#f43f5e";
+  const color = score >= 80 ? "#E69F00" : score >= 60 ? "#f59e0b" : score >= 40 ? "#f97316" : "#0072B2";
 
   return (
     <div className="relative inline-flex items-center justify-center">
@@ -79,8 +79,8 @@ export function BICChart({ data, bestN, bicBestK, cvBestK }: {
       {points.map((p, i) => (
         <g key={i}>
           <circle cx={p.x} cy={p.y} r={p.isBest ? 4 : 2.5}
-            fill={p.isBest ? "#10b981" : p.isBicBest ? "#f59e0b" : "#06b6d4"}
-            stroke={p.isBest ? "#10b981" : "none"}
+            fill={p.isBest ? "#E69F00" : p.isBicBest ? "#f59e0b" : "#06b6d4"}
+            stroke={p.isBest ? "#E69F00" : "none"}
             strokeWidth={p.isBest ? 1 : 0}
             opacity={p.isBest ? 1 : 0.7}
           />
@@ -93,7 +93,7 @@ export function BICChart({ data, bestN, bicBestK, cvBestK }: {
 
       {/* Best label */}
       {points.filter(p => p.isBest).map(p => (
-        <text key="best" x={p.x} y={p.y - 7} textAnchor="middle" fill="#10b981" fontSize={7} fontWeight="bold">
+        <text key="best" x={p.x} y={p.y - 7} textAnchor="middle" fill="#E69F00" fontSize={7} fontWeight="bold">
           Final
         </text>
       ))}

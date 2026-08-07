@@ -54,7 +54,7 @@ export function HPOChartsSection({
                 Per-trial
               </span>
               <span className="flex items-center gap-1">
-                <span className="inline-block w-2.5 h-0.5 rounded bg-emerald-500" />
+                <span className="inline-block w-2.5 h-0.5 rounded bg-[hsl(var(--data-pos))]" />
                 Best so far
               </span>
             </div>
@@ -109,8 +109,8 @@ export function HPOChartsSection({
                     if (payload?.pruned) {
                       return (
                         <g key={`pruned-${payload.trial}`}>
-                          <line x1={cx - 3} y1={cy - 3} x2={cx + 3} y2={cy + 3} stroke="#ef4444" strokeWidth={1.5} />
-                          <line x1={cx + 3} y1={cy - 3} x2={cx - 3} y2={cy + 3} stroke="#ef4444" strokeWidth={1.5} />
+                          <line x1={cx - 3} y1={cy - 3} x2={cx + 3} y2={cy + 3} stroke="#0072B2" strokeWidth={1.5} />
+                          <line x1={cx + 3} y1={cy - 3} x2={cx - 3} y2={cy + 3} stroke="#0072B2" strokeWidth={1.5} />
                         </g>
                       );
                     }
@@ -131,7 +131,7 @@ export function HPOChartsSection({
                 <Line
                   type="stepAfter"
                   dataKey="bestSoFar"
-                  stroke="#10b981"
+                  stroke="#E69F00"
                   dot={false}
                   strokeWidth={2}
                   isAnimationActive={false}

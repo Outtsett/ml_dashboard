@@ -242,7 +242,7 @@ function ModelPanel({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 w-7 p-0 text-muted-foreground/40 hover:text-rose-400"
+                className="h-7 w-7 p-0 text-muted-foreground/40 hover:text-[hsl(var(--data-neg))]"
                 title="Delete this model"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -259,7 +259,7 @@ function ModelPanel({
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
-                  className="bg-rose-600 hover:bg-rose-700 text-white"
+                  className="bg-[color-mix(in_srgb,hsl(var(--data-neg))_75%,black)] hover:bg-[color-mix(in_srgb,hsl(var(--data-neg))_62%,black)] text-white"
                   onClick={() => deleteModel(model.id)}
                 >
                   Delete Model

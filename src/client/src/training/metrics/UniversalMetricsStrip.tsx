@@ -41,31 +41,31 @@ function formatValue(metric: MetricDefinition, mv: MetricValue | undefined): str
 
 function getValueColor(metric: MetricDefinition, mv: MetricValue | undefined): string {
   if (!mv || mv.value == null) return 'text-muted-foreground/40';
-  if (mv.passed === true) return 'text-emerald-400';
-  if (mv.passed === false) return 'text-rose-400';
+  if (mv.passed === true) return 'text-[hsl(var(--data-pos))]';
+  if (mv.passed === false) return 'text-[hsl(var(--data-neg))]';
 
   // Grade coloring
   if (metric.unit === 'grade') {
     const g = String(mv.value);
-    if (g === 'A') return 'text-emerald-400';
-    if (g === 'B') return 'text-emerald-400/80';
+    if (g === 'A') return 'text-[hsl(var(--data-pos))]';
+    if (g === 'B') return 'text-[hsl(var(--data-pos)/0.8)]';
     if (g === 'C') return 'text-amber-400';
     if (g === 'D') return 'text-orange-400';
-    return 'text-rose-400';
+    return 'text-[hsl(var(--data-neg))]';
   }
 
   // Score coloring
   if (metric.id === 'quality_score' && typeof mv.value === 'number') {
-    if (mv.value >= 80) return 'text-emerald-400';
+    if (mv.value >= 80) return 'text-[hsl(var(--data-pos))]';
     if (mv.value >= 60) return 'text-amber-400';
     if (mv.value >= 40) return 'text-orange-400';
-    return 'text-rose-400';
+    return 'text-[hsl(var(--data-neg))]';
   }
 
   // Threshold-based
   if (metric.threshold != null && typeof mv.value === 'number') {
-    if (metric.direction === 'higher') return mv.value >= metric.threshold ? 'text-emerald-400' : 'text-amber-400';
-    if (metric.direction === 'lower') return mv.value <= metric.threshold ? 'text-emerald-400' : 'text-amber-400';
+    if (metric.direction === 'higher') return mv.value >= metric.threshold ? 'text-[hsl(var(--data-pos))]' : 'text-amber-400';
+    if (metric.direction === 'lower') return mv.value <= metric.threshold ? 'text-[hsl(var(--data-pos))]' : 'text-amber-400';
   }
 
   return 'text-foreground';

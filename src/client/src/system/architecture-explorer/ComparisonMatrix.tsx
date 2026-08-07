@@ -16,8 +16,8 @@ const archColorMap: Record<string, string> = {
   CNN: 'bg-violet-400',
   LSTM: 'bg-amber-400',
   Transformer: 'bg-cyan-400',
-  XGBoost: 'bg-rose-400',
-  'CNN+LSTM': 'bg-emerald-400',
+  XGBoost: 'bg-[hsl(var(--data-neg))]',
+  'CNN+LSTM': 'bg-[hsl(var(--data-pos))]',
 };
 
 export function ComparisonMatrix() {

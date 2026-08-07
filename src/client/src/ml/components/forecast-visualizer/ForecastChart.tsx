@@ -77,7 +77,7 @@ export function ForecastChart({ chartData, wallIndex, forecastData }: ForecastCh
             <Line dataKey="close" stroke="#94a3b8" strokeWidth={2} dot={false} name="Price (Context)" connectNulls={false} />
 
             {/* Actual future price */}
-            <Line dataKey="actual" stroke="#22c55e" strokeWidth={2.5} dot={{ r: 2, fill: "#22c55e" }} name="Actual (Hidden from Model)" connectNulls={false} />
+            <Line dataKey="actual" stroke="#E69F00" strokeWidth={2.5} dot={{ r: 2, fill: "#E69F00" }} name="Actual (Hidden from Model)" connectNulls={false} />
 
             {/* Model prediction */}
             <Line dataKey="predicted" stroke="#3b82f6" strokeWidth={2.5} strokeDasharray="6 3" dot={{ r: 2, fill: "#3b82f6" }} name="Chronos Prediction" connectNulls={false} />

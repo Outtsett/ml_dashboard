@@ -76,16 +76,26 @@ function configureMonaco(monaco: Monaco) {
       "editorIndentGuide.activeBackground1": "#3f3f5e",
       "editorCursor.foreground": "#a78bfa",
       "editorWhitespace.foreground": "#1f1f2e",
-      // Diff-specific palette — vermillion removals / emerald inserts
-      // mirror the Wong CVD-safe complement to the base editor accents.
-      "diffEditor.insertedTextBackground": "#16a34a26",
-      "diffEditor.removedTextBackground": "#dc262626",
-      "diffEditor.insertedLineBackground": "#16a34a14",
-      "diffEditor.removedLineBackground": "#dc262614",
-      "diffEditorGutter.insertedLineBackground": "#16a34a40",
-      "diffEditorGutter.removedLineBackground": "#dc262640",
-      "diffEditorOverview.insertedForeground": "#16a34a",
-      "diffEditorOverview.removedForeground": "#dc2626",
+      // Diff palette: orange inserts, blue removals.
+      //
+      // Green-adds-red-removes is one of the strongest conventions in software,
+      // and it is broken here deliberately. The previous values were plain
+      // green-600 and red-600, sitting under a comment that claimed they were
+      // "the Wong CVD-safe complement" — they were not. For a deuteranope that
+      // pairing renders a diff in a single hue: the most important distinction
+      // the view makes, invisible.
+      //
+      // Monaco still marks inserts and removals with gutter glyphs and line
+      // decorations, so the convention's muscle memory is not the only cue
+      // being relied on.
+      "diffEditor.insertedTextBackground": "#E69F0026",
+      "diffEditor.removedTextBackground": "#0072B226",
+      "diffEditor.insertedLineBackground": "#E69F0014",
+      "diffEditor.removedLineBackground": "#0072B214",
+      "diffEditorGutter.insertedLineBackground": "#E69F0040",
+      "diffEditorGutter.removedLineBackground": "#0072B240",
+      "diffEditorOverview.insertedForeground": "#E69F00",
+      "diffEditorOverview.removedForeground": "#0072B2",
     },
   });
 }
@@ -124,9 +134,9 @@ function languageOf(file: GeneratedFile | null): "python" | "json" {
 function statusBadgeClasses(status: DiffStatus): string {
   switch (status) {
     case "added":
-      return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
+      return "border-[color-mix(in_srgb,hsl(var(--data-pos)/0.4)_88%,black)] bg-[color-mix(in_srgb,hsl(var(--data-pos)/0.1)_88%,black)] text-[color-mix(in_srgb,hsl(var(--data-pos))_80%,white)]";
     case "removed":
-      return "border-red-500/40 bg-red-500/10 text-red-300";
+      return "border-[color-mix(in_srgb,hsl(var(--data-neg)/0.4)_88%,black)] bg-[color-mix(in_srgb,hsl(var(--data-neg)/0.1)_88%,black)] text-[color-mix(in_srgb,hsl(var(--data-neg))_80%,white)]";
     case "modified":
     default:
       return "border-amber-500/40 bg-amber-500/10 text-amber-300";
@@ -205,7 +215,7 @@ export default function GeneratedCodeDiffViewerInner({
           {appliedCount > 0 ? (
             <>
               <span className="text-white/20">·</span>
-              <span className="flex items-center gap-1 text-emerald-300">
+              <span className="flex items-center gap-1 text-[color-mix(in_srgb,hsl(var(--data-pos))_80%,white)]">
                 <Check className="h-3 w-3" />
                 {appliedCount} applied
               </span>
@@ -258,13 +268,13 @@ export default function GeneratedCodeDiffViewerInner({
               >
                 <span className="flex items-center gap-1.5">
                   {entry.status === "added" ? (
-                    <FilePlus className="h-3 w-3 text-emerald-400" />
+                    <FilePlus className="h-3 w-3 text-[hsl(var(--data-pos))]" />
                   ) : entry.status === "removed" ? (
-                    <FileX className="h-3 w-3 text-red-400" />
+                    <FileX className="h-3 w-3 text-[hsl(var(--data-neg))]" />
                   ) : null}
                   {shortLabel(entry.path)}
                   {applied ? (
-                    <Check className="h-3 w-3 text-emerald-400" />
+                    <Check className="h-3 w-3 text-[hsl(var(--data-pos))]" />
                   ) : null}
                 </span>
               </TabsTrigger>

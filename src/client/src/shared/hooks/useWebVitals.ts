@@ -12,7 +12,7 @@ export function useWebVitals(): void {
         // Dev-only instrumentation: the styled console output IS the
         // deliverable, and the whole effect is gated on !PROD above.
         // eslint-disable-next-line no-console
-        console.log(`%c[WebVital] ${name}: ${entry.startTime.toFixed(1)}ms`, 'color: #4ade80; font-weight: bold;');
+        console.log(`%c[WebVital] ${name}: ${entry.startTime.toFixed(1)}ms`, 'color: #E69F00; font-weight: bold;');
       }
     });
     try {

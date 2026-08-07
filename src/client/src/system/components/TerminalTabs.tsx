@@ -190,7 +190,7 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
               onDoubleClick={(e) => startRename(tab.id, e)}
               className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-mono shrink-0 cursor-pointer border-none transition-colors duration-150
                 ${isActive
-                  ? "bg-[#0a0a0a] text-emerald-400 border-t-2 border-t-emerald-500/60 shadow-[inset_0_1px_8px_rgba(16,185,129,0.06)]"
+                  ? "bg-[#0a0a0a] text-[hsl(var(--data-pos))] border-t-2 border-t-emerald-500/60 shadow-[inset_0_1px_8px_rgba(16,185,129,0.06)]"
                   : "bg-transparent text-muted-foreground/60 border-t-2 border-t-transparent hover:text-muted-foreground hover:bg-white/[0.03]"
                 }`}
             >
@@ -216,7 +216,7 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
                 onClick={(e) => closeTab(tab.id, e)}
                 className={`ml-0.5 p-0.5 cursor-pointer rounded-sm transition-colors duration-100
                   ${isActive
-                    ? "text-emerald-400/50 hover:text-emerald-300 hover:bg-emerald-500/10"
+                    ? "text-[hsl(var(--data-pos)/0.5)] hover:text-[color-mix(in_srgb,hsl(var(--data-pos))_80%,white)] hover:bg-[color-mix(in_srgb,hsl(var(--data-pos)/0.1)_88%,black)]"
                     : "text-white/20 hover:text-white/50 hover:bg-white/[0.06]"
                   }`}
               >
@@ -239,7 +239,7 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
             <Flame className="w-3 h-3" />
             <span>Training</span>
             {training.isTraining && (
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_4px_rgba(34,197,94,0.5)]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[color-mix(in_srgb,hsl(var(--data-pos))_88%,black)] animate-pulse shadow-[0_0_4px_rgba(34,197,94,0.5)]" />
             )}
           </button>
         )}
@@ -256,7 +256,7 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
         {/* Layout Toggle */}
         <button
           onClick={() => setIsGridLayout(!isGridLayout)}
-          className={`flex items-center justify-center px-2.5 py-2 cursor-pointer border-none transition-all duration-300 rounded-sm mx-0.5 ${isGridLayout ? "text-emerald-400 bg-emerald-500/10" : "bg-transparent text-muted-foreground/40 hover:text-emerald-400/70 hover:bg-white/[0.04]"}`}
+          className={`flex items-center justify-center px-2.5 py-2 cursor-pointer border-none transition-all duration-300 rounded-sm mx-0.5 ${isGridLayout ? "text-[hsl(var(--data-pos))] bg-[color-mix(in_srgb,hsl(var(--data-pos)/0.1)_88%,black)]" : "bg-transparent text-muted-foreground/40 hover:text-[hsl(var(--data-pos)/0.7)] hover:bg-white/[0.04]"}`}
           title={isGridLayout ? "Switch to Tab View" : "Switch to Grid View"}
         >
           {isGridLayout ? <Sparkles className="w-3.5 h-3.5 animate-pulse" /> : <LayoutGrid className="w-3.5 h-3.5" />}
@@ -265,7 +265,7 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="flex items-center justify-center px-2 py-2 cursor-pointer border-none bg-transparent text-muted-foreground/40 hover:text-emerald-400/70 hover:bg-white/[0.04] transition-colors duration-150 rounded-sm mx-0.5"
+              className="flex items-center justify-center px-2 py-2 cursor-pointer border-none bg-transparent text-muted-foreground/40 hover:text-[hsl(var(--data-pos)/0.7)] hover:bg-white/[0.04] transition-colors duration-150 rounded-sm mx-0.5"
               title="New terminal"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -273,15 +273,15 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="bg-[#1a1a1a] border-white/[0.08] text-white">
-            <DropdownMenuItem onClick={() => addTab("powershell.exe")} className="text-[11px] font-mono hover:bg-emerald-500/10 focus:bg-emerald-500/10 cursor-pointer">
-              <TerminalSquare className="w-3 h-3 mr-2 text-emerald-400" />
+            <DropdownMenuItem onClick={() => addTab("powershell.exe")} className="text-[11px] font-mono hover:bg-[color-mix(in_srgb,hsl(var(--data-pos)/0.1)_88%,black)] focus:bg-[color-mix(in_srgb,hsl(var(--data-pos)/0.1)_88%,black)] cursor-pointer">
+              <TerminalSquare className="w-3 h-3 mr-2 text-[hsl(var(--data-pos))]" />
               PowerShell
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => addTab("cmd.exe")} className="text-[11px] font-mono hover:bg-emerald-500/10 focus:bg-emerald-500/10 cursor-pointer">
+            <DropdownMenuItem onClick={() => addTab("cmd.exe")} className="text-[11px] font-mono hover:bg-[color-mix(in_srgb,hsl(var(--data-pos)/0.1)_88%,black)] focus:bg-[color-mix(in_srgb,hsl(var(--data-pos)/0.1)_88%,black)] cursor-pointer">
               <TerminalSquare className="w-3 h-3 mr-2 text-blue-400" />
               Command Prompt
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => addTab("node")} className="text-[11px] font-mono hover:bg-emerald-500/10 focus:bg-emerald-500/10 cursor-pointer">
+            <DropdownMenuItem onClick={() => addTab("node")} className="text-[11px] font-mono hover:bg-[color-mix(in_srgb,hsl(var(--data-pos)/0.1)_88%,black)] focus:bg-[color-mix(in_srgb,hsl(var(--data-pos)/0.1)_88%,black)] cursor-pointer">
               <TerminalSquare className="w-3 h-3 mr-2 text-yellow-400" />
               Node.js REPL
             </DropdownMenuItem>
@@ -323,8 +323,8 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
                   {isGridLayout && (
                     <div className="flex items-center justify-between px-3 py-2 bg-white/[0.04] border-b border-white/[0.08] shrink-0">
                       <div className="flex items-center gap-2">
-                        <div className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-emerald-500 animate-pulse" : "bg-white/20"}`} />
-                        <span className={`text-[10px] font-mono font-bold tracking-tight ${isActive ? "text-emerald-400" : "text-muted-foreground/60"}`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-[color-mix(in_srgb,hsl(var(--data-pos))_88%,black)] animate-pulse" : "bg-white/20"}`} />
+                        <span className={`text-[10px] font-mono font-bold tracking-tight ${isActive ? "text-[hsl(var(--data-pos))]" : "text-muted-foreground/60"}`}>
                           {tab.title.toUpperCase()}
                         </span>
                       </div>
@@ -338,7 +338,7 @@ export function TerminalTabs({ visible = true, showTrainingTab }: TerminalTabsPr
                         </button>
                         <button 
                           onClick={(e) => closeTab(tab.id, e)}
-                          className="p-1 hover:bg-red-500/20 rounded transition-colors text-muted-foreground/40 hover:text-red-400"
+                          className="p-1 hover:bg-[color-mix(in_srgb,hsl(var(--data-neg)/0.2)_88%,black)] rounded transition-colors text-muted-foreground/40 hover:text-[hsl(var(--data-neg))]"
                           title="Kill Session"
                         >
                           <X className="w-3 h-3" />

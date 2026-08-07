@@ -28,8 +28,8 @@ export function TrainingSyncBanner({
   const progress = gibbsTotal > 0 ? (gibbsIter / gibbsTotal) * 100 : 0;
   const isGibbs = trainingPhase === 'gibbs_sampling';
   const stabilityPct = Math.round(stability * 100);
-  const stabilityColor = stabilityPct >= 95 ? 'text-emerald-400' : stabilityPct >= 85 ? 'text-amber-400' : 'text-rose-400';
-  const stabilityBarColor = stabilityPct >= 95 ? 'bg-emerald-500' : stabilityPct >= 85 ? 'bg-amber-500' : 'bg-rose-500';
+  const stabilityColor = stabilityPct >= 95 ? 'text-[hsl(var(--data-pos))]' : stabilityPct >= 85 ? 'text-amber-400' : 'text-[hsl(var(--data-neg))]';
+  const stabilityBarColor = stabilityPct >= 95 ? 'bg-[hsl(var(--data-pos))]' : stabilityPct >= 85 ? 'bg-amber-500' : 'bg-[hsl(var(--data-neg))]';
 
   return (
     <div className="flex items-center gap-2.5 text-[10px] font-mono shrink-0">
@@ -48,7 +48,7 @@ export function TrainingSyncBanner({
           <span className="text-foreground">{gibbsIter}/{gibbsTotal}</span>
           <div className="w-14 h-1 rounded-full bg-white/10 overflow-hidden">
             <div
-              className="h-full rounded-full bg-linear-to-r from-orange-500 to-rose-500 transition-all duration-300"
+              className="h-full rounded-full bg-linear-to-r from-orange-500 to-[hsl(var(--data-neg))] transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>

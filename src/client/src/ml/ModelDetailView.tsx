@@ -84,7 +84,7 @@ export function ModelDetailView({
                     key={i}
                     className="flex items-start gap-2 p-2.5 rounded-md bg-muted/30 border border-border/50"
                   >
-                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" />
+                    <CheckCircle2 className="h-3.5 w-3.5 text-[hsl(var(--data-pos))] mt-0.5 shrink-0" />
                     <span className="text-xs text-muted-foreground leading-relaxed">{f}</span>
                   </div>
                 ))}

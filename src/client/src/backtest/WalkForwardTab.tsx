@@ -31,8 +31,8 @@ export function WalkForwardTab({ result, isPending }: WalkForwardTabProps) {
     }))
   );
 
-  const consistencyColor = consistency >= 0.6 ? 'text-emerald-400' : consistency >= 0.4 ? 'text-amber-400' : 'text-rose-400';
-  const degradationColor = degradation <= 0.2 ? 'text-emerald-400' : degradation <= 0.5 ? 'text-amber-400' : 'text-rose-400';
+  const consistencyColor = consistency >= 0.6 ? 'text-[hsl(var(--data-pos))]' : consistency >= 0.4 ? 'text-amber-400' : 'text-[hsl(var(--data-neg))]';
+  const degradationColor = degradation <= 0.2 ? 'text-[hsl(var(--data-pos))]' : degradation <= 0.5 ? 'text-amber-400' : 'text-[hsl(var(--data-neg))]';
 
   return (
     <div className="grid grid-cols-3 gap-3 h-full">
@@ -66,7 +66,7 @@ export function WalkForwardTab({ result, isPending }: WalkForwardTabProps) {
               <p className="text-[10px] text-muted-foreground font-medium mb-1">OOS Aggregate</p>
               <div className="flex justify-between"><span className="text-muted-foreground">Win Rate</span><span className="font-mono">{(oosMetrics.winRate * 100).toFixed(1)}%</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Sharpe</span><span className="font-mono">{oosMetrics.sharpeRatio.toFixed(2)}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Return</span><span className={`font-mono ${oosMetrics.totalReturnPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{oosMetrics.totalReturnPct >= 0 ? '+' : ''}{oosMetrics.totalReturnPct.toFixed(1)}%</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Return</span><span className={`font-mono ${oosMetrics.totalReturnPct >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}>{oosMetrics.totalReturnPct >= 0 ? '+' : ''}{oosMetrics.totalReturnPct.toFixed(1)}%</span></div>
             </div>
 
             {/* Per-window table */}
@@ -90,10 +90,10 @@ export function WalkForwardTab({ result, isPending }: WalkForwardTabProps) {
                     <td className="py-1.5 text-right font-mono">{wr.tradeCount}</td>
                     <td className="py-1.5 text-right font-mono">{(wr.metrics.winRate * 100).toFixed(0)}%</td>
                     <td className="py-1.5 text-right font-mono">{wr.metrics.sharpeRatio.toFixed(2)}</td>
-                    <td className={`py-1.5 text-right font-mono ${wr.metrics.totalReturnPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <td className={`py-1.5 text-right font-mono ${wr.metrics.totalReturnPct >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}>
                       {wr.metrics.totalReturnPct >= 0 ? '+' : ''}{wr.metrics.totalReturnPct.toFixed(1)}%
                     </td>
-                    <td className="py-1.5 text-right font-mono text-rose-400">{wr.metrics.maxDrawdownPct.toFixed(1)}%</td>
+                    <td className="py-1.5 text-right font-mono text-[hsl(var(--data-neg))]">{wr.metrics.maxDrawdownPct.toFixed(1)}%</td>
                   </tr>
                 ))}
               </tbody>

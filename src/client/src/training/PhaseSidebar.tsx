@@ -13,15 +13,15 @@ const PHASE_LETTER_COLORS: Record<Phase, string> = {
   A: "text-blue-400",
   B: "text-violet-400",
   C: "text-amber-400",
-  D: "text-emerald-400",
-  E: "text-rose-400",
+  D: "text-[hsl(var(--data-pos))]",
+  E: "text-[hsl(var(--data-neg))]",
 };
 
 const STATUS_DOT: Record<PhaseStatus, string> = {
   idle: "bg-neutral-500",
   running: "bg-blue-500 animate-pulse",
-  completed: "bg-emerald-500",
-  failed: "bg-red-500",
+  completed: "bg-[hsl(var(--data-pos))]",
+  failed: "bg-[hsl(var(--data-neg))]",
 };
 
 export function PhaseSidebar({ activePhase, phaseStatuses, onSelect }: PhaseSidebarProps) {

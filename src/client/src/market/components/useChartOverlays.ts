@@ -227,7 +227,7 @@ export function useChartOverlays(
               return {
                 time: snapped as Time,
                 position: (d.value > 0 ? 'belowBar' : 'aboveBar') as 'belowBar' | 'aboveBar',
-                color: d.value > 0 ? '#22c55e' : '#ef4444',
+                color: d.value > 0 ? '#E69F00' : '#0072B2',
                 shape: (d.value > 0 ? 'arrowUp' : 'arrowDown') as 'arrowUp' | 'arrowDown',
                 text: getPatternDisplayName(overlay.column),
               };

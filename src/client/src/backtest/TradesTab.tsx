@@ -23,7 +23,7 @@ export function TradesTab({ trades, isPending }: TradesTabProps) {
       start,
       end,
       label: `Trade ${trade.side.toUpperCase()} @ ${trade.entryPrice.toFixed(2)}`,
-      color: trade.side === 'long' ? '#10b981' : '#ef4444'
+      color: trade.side === 'long' ? '#E69F00' : '#0072B2'
     });
     
     dashboard.navigateToChart();
@@ -66,7 +66,7 @@ export function TradesTab({ trades, isPending }: TradesTabProps) {
                   </td>
                   <td className="py-2 px-3">
                     <Badge variant="outline" className={`text-[9px] rounded-full px-1.5 py-0 ${
-                      trade.side === 'long' ? 'border-emerald-500/50 text-emerald-400' : 'border-rose-500/50 text-rose-400'
+                      trade.side === 'long' ? 'border-[hsl(var(--data-pos)/0.5)] text-[hsl(var(--data-pos))]' : 'border-[hsl(var(--data-neg)/0.5)] text-[hsl(var(--data-neg))]'
                     }`}>
                       {trade.side === 'long' ? <TrendingUp className="h-2 w-2 mr-0.5" /> : <TrendingDown className="h-2 w-2 mr-0.5" />}
                       {trade.side}
@@ -74,7 +74,7 @@ export function TradesTab({ trades, isPending }: TradesTabProps) {
                   </td>
                   <td className="py-2 px-3 text-right font-mono text-[11px]">{trade.entryPrice?.toFixed(4)}</td>
                   <td className="py-2 px-3 text-right font-mono text-[11px]">{trade.exitPrice?.toFixed(4) ?? '—'}</td>
-                  <td className={`py-2 px-3 text-right font-mono font-bold text-[11px] ${netPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  <td className={`py-2 px-3 text-right font-mono font-bold text-[11px] ${netPnl >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}>
                     {netPnl >= 0 ? '+' : ''}${netPnl.toFixed(2)}
                   </td>
                   <td className="py-2 px-3 text-[10px] text-muted-foreground truncate max-w-[120px]">{trade.exitReason}</td>

@@ -176,7 +176,7 @@ export function RegimeConfigForm({
       <Button
         size="sm"
         className={`w-full h-7 text-[10px] gap-1.5 ${isTraining
-          ? "bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30"
+          ? "bg-[hsl(var(--data-neg)/0.2)] hover:bg-[hsl(var(--data-neg)/0.3)] text-[hsl(var(--data-neg))] border border-[hsl(var(--data-neg)/0.3)]"
           : "bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/30"
         }`}
         variant="ghost"
@@ -211,8 +211,8 @@ export function RegimeConfigForm({
 
       {/* Error */}
       {trainError && (
-        <div className="p-2 rounded bg-rose-500/10 border border-rose-500/20">
-          <p className="text-[9px] text-rose-400">{trainError}</p>
+        <div className="p-2 rounded bg-[hsl(var(--data-neg)/0.1)] border border-[hsl(var(--data-neg)/0.2)]">
+          <p className="text-[9px] text-[hsl(var(--data-neg))]">{trainError}</p>
         </div>
       )}
     </div>

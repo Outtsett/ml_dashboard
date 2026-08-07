@@ -85,7 +85,7 @@ function RunnerBadge({ runnerSource, templateId }: RunnerBadgeProps) {
     return (
       <Badge
         variant="outline"
-        className="text-[10px] px-1.5 py-0 h-4 border-emerald-500/40 text-emerald-400 bg-emerald-500/10"
+        className="text-[10px] px-1.5 py-0 h-4 border-[hsl(var(--data-pos)/0.4)] text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)]"
       >
         WIRED
       </Badge>
@@ -350,7 +350,7 @@ function ModelCatalogPicker({
         </span>
         {!isLoading && !trainableError && trainableOnly && (
           <div className="flex items-center gap-1">
-            <Sparkles className="h-3 w-3 text-emerald-400" />
+            <Sparkles className="h-3 w-3 text-[hsl(var(--data-pos))]" />
             <span>Trainable filter active</span>
           </div>
         )}

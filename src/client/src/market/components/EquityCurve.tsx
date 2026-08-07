@@ -45,8 +45,8 @@ export function EquityCurve({ data }: EquityCurveProps) {
             <Area
               type="monotone"
               dataKey="pnl"
-              stroke="#10b981"
-              fill="#10b98133"
+              stroke="#E69F00"
+              fill="#E69F0033"
               strokeWidth={2}
               name="PnL"
             />
@@ -67,8 +67,8 @@ export function EquityCurve({ data }: EquityCurveProps) {
             <Area
               type="monotone"
               dataKey="drawdown"
-              stroke="#ef4444"
-              fill="#ef444433"
+              stroke="#0072B2"
+              fill="#0072B233"
               strokeWidth={2}
               name="Drawdown"
             />

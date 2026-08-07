@@ -25,14 +25,14 @@ interface LearningPathViewProps {
 }
 
 const difficultyColors: Record<string, string> = {
-  beginner: "text-emerald-400",
+  beginner: "text-[hsl(var(--data-pos))]",
   intermediate: "text-amber-400",
-  advanced: "text-rose-400",
+  advanced: "text-[hsl(var(--data-neg))]",
 };
 
 function LessonStatusIcon({ status }: { status?: string }) {
   if (status === "completed")
-    return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
+    return <CheckCircle2 className="h-4 w-4 text-[hsl(var(--data-pos))]" />;
   if (status === "in_progress")
     return <PlayCircle className="h-4 w-4 text-amber-500" />;
   return <Circle className="h-4 w-4 text-muted-foreground/30" />;
@@ -227,7 +227,7 @@ export function LearningPathView({
                             {lp?.score != null && (
                               <Badge
                                 variant="outline"
-                                className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                                className="text-[10px] bg-[hsl(var(--data-pos)/0.1)] text-[hsl(var(--data-pos))] border-[hsl(var(--data-pos)/0.3)]"
                               >
                                 {lp.score}%
                               </Badge>

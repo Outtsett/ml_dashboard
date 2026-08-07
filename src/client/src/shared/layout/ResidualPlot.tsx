@@ -132,7 +132,7 @@ export function ResidualPlot({
                   { x: Math.min(...plotData.map(p => p.x)), y: Math.min(...plotData.map(p => p.x)) },
                   { x: Math.max(...plotData.map(p => p.x)), y: Math.max(...plotData.map(p => p.x)) }
                 ]}
-                stroke="#22c55e"
+                stroke="#E69F00"
                 strokeDasharray="3 3"
                 strokeWidth={1}
               />

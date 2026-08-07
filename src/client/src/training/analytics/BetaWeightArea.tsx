@@ -20,7 +20,7 @@ import {
 import { ChartCard } from "./shared";
 
 const REGIME_FILLS = [
-  "#22c55e", "#3b82f6", "#f59e0b", "#ef4444", "#a855f7",
+  "#E69F00", "#3b82f6", "#f59e0b", "#0072B2", "#a855f7",
   "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#6366f1",
 ];
 

@@ -20,12 +20,12 @@ export function OOSPanel({ diagnostics: _diagnostics, oos, oosSimilarity, profil
         <div className="bg-white/[0.02] rounded-xl p-4 border border-white/5 text-center">
           <div className="text-[9px] text-muted-foreground/50 uppercase tracking-widest mb-2">Distribution Match</div>
           <div className={`text-4xl font-bold font-mono ${
-            oosSimilarity >= 0.8 ? "text-emerald-400" : oosSimilarity >= 0.6 ? "text-amber-400" : "text-rose-400"
+            oosSimilarity >= 0.8 ? "text-[hsl(var(--data-pos))]" : oosSimilarity >= 0.6 ? "text-amber-400" : "text-[hsl(var(--data-neg))]"
           }`}>
             {(oosSimilarity * 100).toFixed(0)}%
           </div>
           <Progress value={oosSimilarity * 100} className={`h-1.5 mt-3 ${
-            oosSimilarity >= 0.8 ? "[&>div]:bg-emerald-500" : oosSimilarity >= 0.6 ? "[&>div]:bg-amber-500" : "[&>div]:bg-rose-500"
+            oosSimilarity >= 0.8 ? "[&>div]:bg-[hsl(var(--data-pos))]" : oosSimilarity >= 0.6 ? "[&>div]:bg-amber-500" : "[&>div]:bg-[hsl(var(--data-neg))]"
           }`} />
           <p className={`text-[10px] mt-2 ${getOosVerdict(oosSimilarity).color}`}>{getOosVerdict(oosSimilarity).text}</p>
         </div>
@@ -41,7 +41,7 @@ export function OOSPanel({ diagnostics: _diagnostics, oos, oosSimilarity, profil
         <div className="bg-white/[0.02] rounded-xl p-4 border border-white/5 text-center">
           <div className="text-[9px] text-muted-foreground/50 uppercase tracking-widest mb-2">Switch Ratio</div>
           <div className={`text-4xl font-bold font-mono ${
-            oos.switch_rate_ratio >= 0.7 && oos.switch_rate_ratio <= 1.3 ? "text-emerald-400" : "text-amber-400"
+            oos.switch_rate_ratio >= 0.7 && oos.switch_rate_ratio <= 1.3 ? "text-[hsl(var(--data-pos))]" : "text-amber-400"
           }`}>
             {oos.switch_rate_ratio.toFixed(2)}×
           </div>
@@ -92,8 +92,8 @@ export function OOSPanel({ diagnostics: _diagnostics, oos, oosSimilarity, profil
                   <span className="text-[10px] text-muted-foreground">R{pc.regime}</span>
                   <span className={`text-[11px] font-mono font-bold ml-auto ${
                     pc.insufficient_data ? "text-muted-foreground/30" :
-                    (pc.correlation ?? 0) >= 0.9 ? "text-emerald-400" :
-                    (pc.correlation ?? 0) >= 0.7 ? "text-amber-400" : "text-rose-400"
+                    (pc.correlation ?? 0) >= 0.9 ? "text-[hsl(var(--data-pos))]" :
+                    (pc.correlation ?? 0) >= 0.7 ? "text-amber-400" : "text-[hsl(var(--data-neg))]"
                   }`}>
                     {pc.insufficient_data ? "N/A" : (pc.correlation ?? 0).toFixed(2)}
                   </span>

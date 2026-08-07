@@ -18,7 +18,7 @@ export function WalkForwardPanel({ diagnostics, wfWindResults, stability }: {
       <div className="flex gap-3">
         <div className="bg-white/[0.02] rounded-xl p-3 border border-white/5 flex-1">
           <div className="text-[9px] text-muted-foreground/50 uppercase tracking-widest mb-1">Stability Score</div>
-          <div className="text-3xl font-bold font-mono text-emerald-400">{stability > 0 ? `${(stability * 100).toFixed(0)}%` : "--"}</div>
+          <div className="text-3xl font-bold font-mono text-[hsl(var(--data-pos))]">{stability > 0 ? `${(stability * 100).toFixed(0)}%` : "--"}</div>
           <p className={`text-[10px] mt-1 ${getStabilityVerdict(stability).color}`}>{getStabilityVerdict(stability).text}</p>
         </div>
         <div className="bg-white/[0.02] rounded-xl p-3 border border-white/5 flex-1">
@@ -85,7 +85,7 @@ export function WalkForwardPanel({ diagnostics, wfWindResults, stability }: {
                   <td className="py-2 px-3 font-mono text-foreground">W{i + 1}</td>
                   <td className="text-right py-2 px-3 font-mono text-muted-foreground">{w.train_size?.toLocaleString()}</td>
                   <td className="text-right py-2 px-3 font-mono text-muted-foreground">{w.test_size?.toLocaleString()}</td>
-                  <td className="text-right py-2 px-3 font-mono text-emerald-400">
+                  <td className="text-right py-2 px-3 font-mono text-[hsl(var(--data-pos))]">
                     {w.avg_confidence ? `${(w.avg_confidence * 100).toFixed(1)}%` : "--"}
                   </td>
                   <td className="text-right py-2 px-3 font-mono text-amber-400">
@@ -93,7 +93,7 @@ export function WalkForwardPanel({ diagnostics, wfWindResults, stability }: {
                   </td>
                   <td className="text-center py-2 px-3">
                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
-                      w.failed ? "bg-rose-500/15 text-rose-400" : "bg-emerald-500/15 text-emerald-400"
+                      w.failed ? "bg-[hsl(var(--data-neg)/0.15)] text-[hsl(var(--data-neg))]" : "bg-[hsl(var(--data-pos)/0.15)] text-[hsl(var(--data-pos))]"
                     }`}>
                       {w.failed ? "FAIL" : "PASS"}
                     </span>

@@ -12,12 +12,15 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useTrainingModelState } from "@/shared/contexts/TrainingModelStateCtx";
+import { WONG_PALETTE_DARK } from "@/shared/theme/dataColors";
 import { ChartCard } from "./shared";
 
-const FEATURE_COLORS = [
-  "#2563eb", "#dc2626", "#16a34a", "#ca8a04",
-  "#9333ea", "#0891b2", "#e11d48", "#4f46e5",
-];
+/**
+ * Eight lines on one chart is exactly the case the shared palette is ordered
+ * for — the previous ad-hoc list had two indistinguishable blues and a green
+ * that vanished against them.
+ */
+const FEATURE_COLORS = WONG_PALETTE_DARK;
 
 const MAX_FEATURES = 8;
 const MAX_HISTORY = 50;

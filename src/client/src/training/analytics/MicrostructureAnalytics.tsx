@@ -52,8 +52,8 @@ export const MicrostructureAnalytics: React.FC = () => {
                 type="monotone" 
                 dataKey="imbalance" 
                 name="Top Level" 
-                stroke="#22c55e" 
-                fill="#22c55e" 
+                stroke="#E69F00" 
+                fill="#E69F00" 
                 fillOpacity={0.2} 
               />
               <Area 
@@ -108,9 +108,9 @@ export const MicrostructureAnalytics: React.FC = () => {
             <AreaChart data={data}>
               <defs>
                 <linearGradient id="colorStretch" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
-                  <stop offset="50%" stopColor="#ef4444" stopOpacity={0}/>
-                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0.3}/>
+                  <stop offset="5%" stopColor="#0072B2" stopOpacity={0.3}/>
+                  <stop offset="50%" stopColor="#0072B2" stopOpacity={0}/>
+                  <stop offset="95%" stopColor="#0072B2" stopOpacity={0.3}/>
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -124,7 +124,7 @@ export const MicrostructureAnalytics: React.FC = () => {
                 type="monotone" 
                 dataKey="vwap_stretch" 
                 name="VWAP σ" 
-                stroke="#ef4444" 
+                stroke="#0072B2" 
                 fill="url(#colorStretch)" 
               />
             </AreaChart>

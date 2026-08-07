@@ -61,13 +61,13 @@ export function MonteCarloTab({ result, isPending }: MonteCarloTabProps) {
             <div className="grid grid-cols-2 gap-2">
               <div className="p-3 rounded-xl bg-[hsl(220,15%,12%)] border border-[hsl(220,15%,18%)] text-center">
                 <p className="text-[10px] text-muted-foreground mb-1">Profit Probability</p>
-                <p className={`font-mono text-2xl font-bold ${profitProbability >= 0.5 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <p className={`font-mono text-2xl font-bold ${profitProbability >= 0.5 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}>
                   {(profitProbability * 100).toFixed(1)}%
                 </p>
               </div>
               <div className="p-3 rounded-xl bg-[hsl(220,15%,12%)] border border-[hsl(220,15%,18%)] text-center">
                 <p className="text-[10px] text-muted-foreground mb-1">Ruin Probability</p>
-                <p className={`font-mono text-2xl font-bold ${ruinProbability <= 0.05 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <p className={`font-mono text-2xl font-bold ${ruinProbability <= 0.05 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]'}`}>
                   {(ruinProbability * 100).toFixed(2)}%
                 </p>
               </div>
@@ -95,8 +95,8 @@ export function MonteCarloTab({ result, isPending }: MonteCarloTabProps) {
             {/* Max DD stats */}
             <div className="p-2.5 rounded-xl bg-[hsl(220,15%,12%)] border border-[hsl(220,15%,18%)] space-y-1.5 text-xs">
               <p className="text-[10px] text-muted-foreground font-medium">Max Drawdown</p>
-              <div className="flex justify-between"><span className="text-muted-foreground">Mean</span><span className="font-mono text-rose-400">${maxDrawdown.mean.toFixed(0)}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Median</span><span className="font-mono text-rose-400">${maxDrawdown.median.toFixed(0)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Mean</span><span className="font-mono text-[hsl(var(--data-neg))]">${maxDrawdown.mean.toFixed(0)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Median</span><span className="font-mono text-[hsl(var(--data-neg))]">${maxDrawdown.median.toFixed(0)}</span></div>
             </div>
           </CardContent>
         </ScrollArea>

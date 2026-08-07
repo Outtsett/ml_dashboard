@@ -285,7 +285,7 @@ export function GenerateTab({ selectedSymbol, symbols, onSymbolChange }: Generat
           <CardContent>
             <ScrollArea className="h-[280px]">
               {previewData?.error && (
-                <div className="text-rose-400 text-xs p-2 bg-rose-500/10 rounded border border-rose-500/20">
+                <div className="text-[hsl(var(--data-neg))] text-xs p-2 bg-[hsl(var(--data-neg)/0.1)] rounded border border-[hsl(var(--data-neg)/0.2)]">
                   {previewData.error}
                 </div>
               )}
@@ -302,8 +302,8 @@ export function GenerateTab({ selectedSymbol, symbols, onSymbolChange }: Generat
                       <div className="truncate">{row.timestamp ? new Date(row.timestamp as number).toLocaleTimeString() : '--'}</div>
                       <div>{typeof row.close === 'number' ? row.close.toFixed(2) : '--'}</div>
                       <div className={`font-bold ${
-                        row.label === 1 ? 'text-emerald-400' :
-                        row.label === -1 ? 'text-rose-400' :
+                        row.label === 1 ? 'text-[hsl(var(--data-pos))]' :
+                        row.label === -1 ? 'text-[hsl(var(--data-neg))]' :
                         row.label === 0 ? 'text-slate-400' : 'text-muted-foreground'
                       }`}>
                         {row.label !== undefined ? String(row.label) : '--'}
@@ -329,12 +329,12 @@ export function GenerateTab({ selectedSymbol, symbols, onSymbolChange }: Generat
 
       {/* Generation Result */}
       {generateMutation.isSuccess && (
-        <Card className="bg-emerald-500/10 border-emerald-500/30">
+        <Card className="bg-[hsl(var(--data-pos)/0.1)] border-[hsl(var(--data-pos)/0.3)]">
           <CardContent className="py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Badge className="bg-emerald-500/20 text-emerald-400">Success</Badge>
-                <span className="text-sm text-emerald-300">
+                <Badge className="bg-[hsl(var(--data-pos)/0.2)] text-[hsl(var(--data-pos))]">Success</Badge>
+                <span className="text-sm text-[hsl(var(--data-pos))]">
                   Generated {generateMutation.data?.sampleCount?.toLocaleString()} labels
                 </span>
               </div>

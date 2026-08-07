@@ -23,7 +23,7 @@ interface ClassMetrics {
 const METRIC_COLORS = {
   precision: '#22d3ee',
   recall: '#fbbf24',
-  f1: '#34d399',
+  f1: '#E69F00',
 } as const;
 
 const METRIC_KEYS: (keyof ClassMetrics)[] = ['precision', 'recall', 'f1'];

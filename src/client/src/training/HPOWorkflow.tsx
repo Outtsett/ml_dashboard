@@ -292,7 +292,7 @@ export function HPOWorkflow() {
               <div
                 className={cn(
                   "h-px flex-1",
-                  stepIdx >= i ? "bg-emerald-500" : "bg-border",
+                  stepIdx >= i ? "bg-[hsl(var(--data-pos))]" : "bg-border",
                 )}
               />
             )}
@@ -302,7 +302,7 @@ export function HPOWorkflow() {
                 step === s.key
                   ? "bg-primary/10 text-primary"
                   : stepIdx > i
-                    ? "text-emerald-400"
+                    ? "text-[hsl(var(--data-pos))]"
                     : "text-muted-foreground",
               )}
             >

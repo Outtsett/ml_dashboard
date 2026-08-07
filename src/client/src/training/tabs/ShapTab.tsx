@@ -92,10 +92,10 @@ function ShapTabInner({ diagnostics, activeModelId: _activeModelId }: ShapTabPro
                   <div className="space-y-2">
                      <div className="flex justify-between text-[10px] font-mono">
                         <span className="text-foreground/60">Transformer (Temporal Context)</span>
-                        <span className="text-emerald-400 font-bold">~58%</span>
+                        <span className="text-[hsl(var(--data-pos))] font-bold">~58%</span>
                      </div>
                      <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: '58%' }} />
+                        <div className="h-full bg-[hsl(var(--data-pos))] rounded-full" style={{ width: '58%' }} />
                      </div>
                   </div>
                </div>

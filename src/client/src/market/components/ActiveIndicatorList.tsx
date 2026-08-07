@@ -71,7 +71,7 @@ function ActiveIndicatorRow({
           </button>
           <button
             onClick={() => onRemove(indicator.instanceId)}
-            className="p-0.5 rounded text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            className="p-0.5 rounded text-zinc-500 hover:text-[hsl(var(--data-neg))] hover:bg-[hsl(var(--data-neg)/0.1)] transition-colors"
             title="Remove"
           >
             <X className="h-3 w-3" />
@@ -116,7 +116,7 @@ export function ActiveIndicatorList({
         </span>
         <button
           onClick={onClearAll}
-          className="text-[10px] text-red-400/70 hover:text-red-400 font-mono transition-colors"
+          className="text-[10px] text-[hsl(var(--data-neg)/0.7)] hover:text-[hsl(var(--data-neg))] font-mono transition-colors"
         >
           Clear all
         </button>

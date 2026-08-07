@@ -59,10 +59,10 @@ export interface ModelVersionRow {
 
 function sharpeColor(v: number | null): string {
   if (v == null) return "text-muted-foreground";
-  if (v >= 2.0) return "text-emerald-400";
-  if (v >= 1.0) return "text-emerald-400/80";
+  if (v >= 2.0) return "text-[hsl(var(--data-pos))]";
+  if (v >= 1.0) return "text-[hsl(var(--data-pos)/0.8)]";
   if (v >= 0) return "text-amber-400";
-  return "text-rose-400";
+  return "text-[hsl(var(--data-neg))]";
 }
 
 interface StatusVisual {
@@ -75,7 +75,7 @@ function statusVisual(status: ModelVersionStatus): StatusVisual {
     case "live":
       return {
         label: "Live",
-        className: "border-rose-500/40 text-rose-300 bg-rose-500/10",
+        className: "border-[color-mix(in_srgb,hsl(var(--data-neg)/0.4)_88%,black)] text-[color-mix(in_srgb,hsl(var(--data-neg))_80%,white)] bg-[color-mix(in_srgb,hsl(var(--data-neg)/0.1)_88%,black)]",
       };
     case "paper":
       return {
@@ -287,7 +287,7 @@ export function RegistryTable({ rows: rowsOverride, emptyHint }: RegistryTablePr
             <Button
               size="sm"
               variant="ghost"
-              className="h-6 px-2 text-[10px] text-emerald-300 hover:text-emerald-200"
+              className="h-6 px-2 text-[10px] text-[color-mix(in_srgb,hsl(var(--data-pos))_80%,white)] hover:text-[color-mix(in_srgb,hsl(var(--data-pos))_62%,white)]"
               disabled={row.original.status === "live" || row.original.status === "retired"}
               onClick={(e) => {
                 e.stopPropagation();
@@ -332,7 +332,7 @@ export function RegistryTable({ rows: rowsOverride, emptyHint }: RegistryTablePr
         </span>
       </header>
       {isError ? (
-        <div className="px-5 py-12 text-center text-xs text-rose-300">
+        <div className="px-5 py-12 text-center text-xs text-[color-mix(in_srgb,hsl(var(--data-neg))_80%,white)]">
           <AlertCircle className="h-5 w-5 mx-auto mb-2" />
           Failed to load model versions:{" "}
           <span className="font-mono">{(query.error as Error)?.message}</span>

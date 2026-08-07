@@ -123,7 +123,7 @@ export function ForecastControls({
         </div>
 
         {isError && (
-          <div className="mt-3 text-sm text-red-400 flex items-center gap-2">
+          <div className="mt-3 text-sm text-[hsl(var(--data-neg))] flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />
             {errorMessage}
           </div>

@@ -54,8 +54,8 @@ export function TradeDetailDrawer({ trades, onDismiss }: Props) {
   }
 
   const pnl = trade.netPnl ?? trade.pnl ?? 0;
-  const pnlClass = pnl >= 0 ? 'text-emerald-400' : 'text-rose-400';
-  const sideClass = trade.side === 'long' ? 'text-emerald-400' : 'text-rose-400';
+  const pnlClass = pnl >= 0 ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]';
+  const sideClass = trade.side === 'long' ? 'text-[hsl(var(--data-pos))]' : 'text-[hsl(var(--data-neg))]';
 
   const dismiss = () => {
     setSelectedTradeId(null);
@@ -101,8 +101,8 @@ export function TradeDetailDrawer({ trades, onDismiss }: Props) {
         <Row label="spread cost" value={fmt(trade.spreadCost ?? null)} />
 
         <Section label="EXCURSION" />
-        <Row label="MFE" value={fmtSigned(trade.maxFavorableExcursion ?? null)} valueClass="text-emerald-400/80" />
-        <Row label="MAE" value={fmtSigned(trade.maxAdverseExcursion ?? null)} valueClass="text-rose-400/80" />
+        <Row label="MFE" value={fmtSigned(trade.maxFavorableExcursion ?? null)} valueClass="text-[hsl(var(--data-pos)/0.8)]" />
+        <Row label="MAE" value={fmtSigned(trade.maxAdverseExcursion ?? null)} valueClass="text-[hsl(var(--data-neg)/0.8)]" />
 
         <Section label="MODEL" />
         <Row label="model id" value={trade.modelId != null ? String(trade.modelId) : '—'} />

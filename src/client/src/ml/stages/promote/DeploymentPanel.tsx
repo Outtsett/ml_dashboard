@@ -177,25 +177,25 @@ function fmtNumber(v: number | null, digits = 2): string {
 
 function pnlClass(v: number | null): string {
   if (v == null) return "text-muted-foreground";
-  if (v > 0) return "text-emerald-300";
-  if (v < 0) return "text-rose-300";
+  if (v > 0) return "text-[hsl(var(--data-pos))]";
+  if (v < 0) return "text-[hsl(var(--data-neg))]";
   return "text-muted-foreground";
 }
 
 function modeVisual(mode: DeploymentMode): string {
   return mode === "live"
-    ? "border-rose-500/40 text-rose-300 bg-rose-500/10"
+    ? "border-[hsl(var(--data-neg)/0.4)] text-[hsl(var(--data-neg))] bg-[hsl(var(--data-neg)/0.1)]"
     : "border-primary/40 text-primary bg-primary/10";
 }
 
 function statusVisual(status: DeploymentStatus): string {
   switch (status) {
     case "running":
-      return "border-emerald-500/40 text-emerald-300 bg-emerald-500/10";
+      return "border-[hsl(var(--data-pos)/0.4)] text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)]";
     case "paused":
       return "border-amber-500/40 text-amber-300 bg-amber-500/10";
     case "failed":
-      return "border-rose-500/40 text-rose-300 bg-rose-500/10";
+      return "border-[hsl(var(--data-neg)/0.4)] text-[hsl(var(--data-neg))] bg-[hsl(var(--data-neg)/0.1)]";
     case "stopped":
       return "border-white/15 text-muted-foreground bg-white/5";
   }
@@ -360,13 +360,13 @@ export function DeploymentPanel({
     <section className="rounded-xl border border-white/10 bg-white/[0.02] overflow-hidden">
       <header className="px-5 py-3 border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Activity className="h-4 w-4 text-emerald-400" />
+          <Activity className="h-4 w-4 text-[hsl(var(--data-pos))]" />
           <h3 className="text-sm font-semibold text-foreground">
             Active deployments
           </h3>
           <Badge
             variant="outline"
-            className="h-5 px-1.5 text-[10px] border-emerald-500/30 text-emerald-300 bg-emerald-500/10"
+            className="h-5 px-1.5 text-[10px] border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)]"
           >
             {deployments.length}
           </Badge>
@@ -389,7 +389,7 @@ export function DeploymentPanel({
           Loading deployments…
         </div>
       ) : queryEnabled && deploymentsQ.isError ? (
-        <div className="px-5 py-10 text-center text-xs text-rose-300">
+        <div className="px-5 py-10 text-center text-xs text-[hsl(var(--data-neg))]">
           <AlertCircle className="h-5 w-5 mx-auto mb-2" />
           Failed to load deployments:{" "}
           <span className="font-mono">
@@ -493,7 +493,7 @@ export function DeploymentPanel({
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 text-[10px] text-rose-300 hover:text-rose-200"
+                    className="h-7 text-[10px] text-[hsl(var(--data-neg))] hover:text-[hsl(var(--data-neg))]"
                     disabled={busy}
                     onClick={() => control.mutate({ id: d.id, action: "stop" })}
                     data-testid={`deployment-stop-${d.id}`}

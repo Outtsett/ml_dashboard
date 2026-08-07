@@ -109,8 +109,8 @@ function HistTooltip({ active, payload }: { active?: boolean; payload?: Array<{ 
   return (
     <div className="rounded-md border border-white/10 bg-black/85 backdrop-blur px-2.5 py-1.5 text-[10px] font-mono shadow-lg">
       <div className="text-muted-foreground/70">~ {b.bucketLabel}pt</div>
-      {b.mae > 0 && <div className="text-rose-400">MAE: {b.mae}</div>}
-      {b.mfe > 0 && <div className="text-emerald-400">MFE: {b.mfe}</div>}
+      {b.mae > 0 && <div className="text-[hsl(var(--data-neg))]">MAE: {b.mae}</div>}
+      {b.mfe > 0 && <div className="text-[hsl(var(--data-pos))]">MFE: {b.mfe}</div>}
     </div>
   );
 }

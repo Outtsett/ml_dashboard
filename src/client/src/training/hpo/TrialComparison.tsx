@@ -345,14 +345,14 @@ function TrialComparison({
                           className={cn(
                             "text-[11px] font-mono text-center",
                             isBest && "border-l-2 border-l-amber-500/30",
-                            matchesBest && "bg-emerald-500/[0.06]",
+                            matchesBest && "bg-[hsl(var(--data-pos))]/[0.06]",
                           )}
                         >
                           <div>{formatValue(value)}</div>
                           {pct !== null && (
                             <div className="mt-1 w-full bg-white/5 rounded-full h-1">
                               <div
-                                className="h-1 rounded-full bg-emerald-500"
+                                className="h-1 rounded-full bg-[hsl(var(--data-pos))]"
                                 style={{ width: `${pct}%` }}
                               />
                             </div>
@@ -439,7 +439,7 @@ function TrialComparison({
                     >
                       <Badge
                         variant="outline"
-                        className="text-[9px] border-emerald-500/30 text-emerald-400/70"
+                        className="text-[9px] border-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos)/0.7)]"
                       >
                         <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />
                         {trial.status}

@@ -104,7 +104,7 @@ export function ConvergenceTab({
               <YAxis yAxisId="k" orientation="right" tick={{ fontSize: 8, fill: '#6e7681' }} tickLine={false} width={25} />
               <Tooltip contentStyle={{ background: '#0d1117', border: '1px solid rgba(255,255,255,0.1)', fontSize: 10 }} />
               <Line yAxisId="ll" dataKey="log_likelihood" stroke="#3b82f6" dot={false} strokeWidth={1.5} isAnimationActive={false} name="Log-Lik" />
-              <Line yAxisId="k" dataKey="n_active_states" stroke="#ef4444" dot={false} strokeWidth={1.5} isAnimationActive={false} name="Regimes" />
+              <Line yAxisId="k" dataKey="n_active_states" stroke="#0072B2" dot={false} strokeWidth={1.5} isAnimationActive={false} name="Regimes" />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -145,7 +145,7 @@ export function ConvergenceTab({
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                       <XAxis dataKey="iteration" tick={{ fontSize: 8, fill: '#6e7681' }} tickLine={false} />
                       <YAxis tick={{ fontSize: 8, fill: '#6e7681' }} tickLine={false} width={45} />
-                      {desc.target != null && <ReferenceLine y={desc.target} stroke="#ef4444" strokeDasharray="4 4" strokeOpacity={0.5} />}
+                      {desc.target != null && <ReferenceLine y={desc.target} stroke="#0072B2" strokeDasharray="4 4" strokeOpacity={0.5} />}
                       <Tooltip contentStyle={{ background: '#0d1117', border: '1px solid rgba(255,255,255,0.1)', fontSize: 10 }} />
                       <Area type="monotone" dataKey="v" stroke={desc.color} fill={`url(#g-${key})`} strokeWidth={1.5} dot={false} isAnimationActive={false} />
                     </AreaChart>
@@ -156,7 +156,7 @@ export function ConvergenceTab({
                 <p className="text-[10px] text-muted-foreground/60 leading-relaxed">{desc.description}</p>
                 {desc.detects && <p className="text-[9px] leading-relaxed"><span className="text-cyan-400/50 font-mono">DETECTS:</span> <span className="text-muted-foreground/40">{desc.detects}</span></p>}
                 {desc.usage && <p className="text-[9px] leading-relaxed"><span className="text-amber-400/50 font-mono">READ:</span> <span className="text-muted-foreground/40">{desc.usage}</span></p>}
-                <p className="text-[9px] leading-relaxed"><span className="text-emerald-400/50 font-mono">HEALTHY:</span> <span className="text-muted-foreground/40">{desc.healthy}</span></p>
+                <p className="text-[9px] leading-relaxed"><span className="text-[hsl(var(--data-pos)/0.5)] font-mono">HEALTHY:</span> <span className="text-muted-foreground/40">{desc.healthy}</span></p>
                 {desc.crossMetrics && <p className="text-[9px] leading-relaxed"><span className="text-purple-400/50 font-mono">CROSS:</span> <span className="text-muted-foreground/40">{desc.crossMetrics}</span></p>}
               </div>
             </div>
@@ -195,7 +195,7 @@ export function ConvergenceTab({
                 <DescBox label="Detects" color="text-cyan-400/60" text={d.detects} />
                 <DescBox label="Purpose" color="text-blue-400/60" text={d.purpose} />
                 <DescBox label="How to Read" color="text-amber-400/60" text={d.usage} />
-                <DescBox label="Healthy" color="text-emerald-400/60" text={d.healthy} />
+                <DescBox label="Healthy" color="text-[hsl(var(--data-pos)/0.6)]" text={d.healthy} />
                 {d.crossMetrics && (
                   <div className="col-span-2">
                     <DescBox label="Cross-Metric Relationships" color="text-purple-400/60" text={d.crossMetrics} />

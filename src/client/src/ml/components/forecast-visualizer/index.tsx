@@ -208,7 +208,7 @@ export default function ForecastVisualizer() {
 
           {/* Look-Ahead Proof Badge */}
           <div className="flex items-center gap-3 px-2">
-            <Badge className="bg-emerald-900/30 text-emerald-400 border border-emerald-500/30 gap-1.5 text-xs px-3 py-1 rounded-full">
+            <Badge className="bg-[hsl(var(--data-pos)/0.3)] text-[hsl(var(--data-pos))] border border-[hsl(var(--data-pos)/0.3)] gap-1.5 text-xs px-3 py-1 rounded-full">
               <CheckCircle2 className="h-3.5 w-3.5" />
               Zero Look-Ahead Verified
             </Badge>
@@ -255,7 +255,7 @@ export default function ForecastVisualizer() {
                       <span><strong>Blue dashed</strong> = what Chronos predicted</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-0.5 bg-green-500" />
+                      <div className="w-6 h-0.5 bg-[hsl(var(--data-pos))]" />
                       <span><strong>Green line</strong> = what actually happened</span>
                     </div>
                     <div className="flex items-center gap-2">

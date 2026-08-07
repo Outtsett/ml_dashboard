@@ -6,9 +6,9 @@ import { useLocation } from "wouter";
 import { ArrowRight } from "lucide-react";
 
 const gateColor = (status: "pass" | "warn" | "fail") =>
-  status === "pass" ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]"
+  status === "pass" ? "bg-[hsl(var(--data-pos))] shadow-[0_0_6px_rgba(52,211,153,0.7)]"
   : status === "warn" ? "bg-yellow-400 shadow-[0_0_6px_rgba(250,204,21,0.7)]"
-  : "bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.7)]";
+  : "bg-[hsl(var(--data-neg))] shadow-[0_0_6px_rgba(251,113,133,0.7)]";
 
 export function TrainingStatusStrip() {
   const { progress, phase } = useTrainingControl();
@@ -60,7 +60,7 @@ export function TrainingStatusStrip() {
         </span>
         <div className="w-20 h-2 rounded-full bg-white/[0.06] overflow-hidden">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 transition-all duration-300 shadow-[0_0_8px_rgba(34,211,238,0.3)]"
+            className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-[hsl(var(--data-pos))] transition-all duration-300 shadow-[0_0_8px_rgba(34,211,238,0.3)]"
             style={{ width: `${Math.min(pct, 100)}%` }}
           />
         </div>
@@ -81,7 +81,7 @@ export function TrainingStatusStrip() {
           </span>
         )}
         {latestStability != null && (
-          <span className="text-emerald-400">
+          <span className="text-[hsl(var(--data-pos))]">
             Stab <span className="text-foreground font-semibold metric-glow">{latestStability.toFixed(1)}%</span>
           </span>
         )}

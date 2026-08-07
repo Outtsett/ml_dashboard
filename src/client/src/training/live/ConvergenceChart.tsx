@@ -74,7 +74,7 @@ export function ConvergenceChart({ iterationHistory, burnIn = 100, isTraining }:
           <Line
             type="monotone"
             dataKey="ll"
-            stroke={isTraining ? "#3b82f6" : "#22c55e"}
+            stroke={isTraining ? "#3b82f6" : "#E69F00"}
             dot={false}
             strokeWidth={1.5}
             isAnimationActive={false}

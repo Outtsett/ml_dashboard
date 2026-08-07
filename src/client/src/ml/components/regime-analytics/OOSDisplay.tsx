@@ -37,7 +37,7 @@ export function OOSDisplay({ oos, n_regimes: _n_regimes }: { oos: OOSResult; n_r
         <div className="p-1.5 rounded bg-black/20 border border-white/5">
           <span className="text-[7px] text-muted-foreground block">Dist. Similarity</span>
           <span className={`text-[10px] font-mono font-medium ${
-            oos.distribution_similarity >= 0.8 ? "text-emerald-400" : oos.distribution_similarity >= 0.6 ? "text-amber-400" : "text-rose-400"
+            oos.distribution_similarity >= 0.8 ? "text-[hsl(var(--data-pos))]" : oos.distribution_similarity >= 0.6 ? "text-amber-400" : "text-[hsl(var(--data-neg))]"
           }`}>
             {(oos.distribution_similarity * 100).toFixed(0)}%
           </span>
@@ -45,7 +45,7 @@ export function OOSDisplay({ oos, n_regimes: _n_regimes }: { oos: OOSResult; n_r
         <div className="p-1.5 rounded bg-black/20 border border-white/5">
           <span className="text-[7px] text-muted-foreground block">Profile Corr.</span>
           <span className={`text-[10px] font-mono font-medium ${
-            oos.avg_profile_correlation >= 0.8 ? "text-emerald-400" : oos.avg_profile_correlation >= 0.5 ? "text-amber-400" : "text-rose-400"
+            oos.avg_profile_correlation >= 0.8 ? "text-[hsl(var(--data-pos))]" : oos.avg_profile_correlation >= 0.5 ? "text-amber-400" : "text-[hsl(var(--data-neg))]"
           }`}>
             {oos.avg_profile_correlation.toFixed(3)}
           </span>
@@ -59,7 +59,7 @@ export function OOSDisplay({ oos, n_regimes: _n_regimes }: { oos: OOSResult; n_r
         <div className="p-1.5 rounded bg-black/20 border border-white/5">
           <span className="text-[7px] text-muted-foreground block">Switch Ratio</span>
           <span className={`text-[10px] font-mono font-medium ${
-            Math.abs(oos.switch_rate_ratio - 1) < 0.3 ? "text-emerald-400" : "text-amber-400"
+            Math.abs(oos.switch_rate_ratio - 1) < 0.3 ? "text-[hsl(var(--data-pos))]" : "text-amber-400"
           }`}>
             {oos.switch_rate_ratio.toFixed(2)}x
           </span>

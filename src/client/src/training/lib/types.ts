@@ -201,7 +201,7 @@ export interface ConvergencePoint {
 // ─── Regime Color Palette ────────────────────────────────────────────────────
 
 export const REGIME_COLORS = [
-  { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/30', fill: '#4CAF50' },
+  { bg: 'bg-[hsl(var(--data-pos)/0.2)]', text: 'text-[hsl(var(--data-pos))]', border: 'border-[hsl(var(--data-pos)/0.3)]', fill: '#4CAF50' },
   { bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/30', fill: '#2196F3' },
   { bg: 'bg-orange-500/20', text: 'text-orange-400', border: 'border-orange-500/30', fill: '#FF9800' },
   { bg: 'bg-pink-500/20', text: 'text-pink-400', border: 'border-pink-500/30', fill: '#E91E63' },
@@ -210,7 +210,7 @@ export const REGIME_COLORS = [
   { bg: 'bg-yellow-500/20', text: 'text-yellow-400', border: 'border-yellow-500/30', fill: '#FFEB3B' },
   { bg: 'bg-amber-700/20', text: 'text-amber-600', border: 'border-amber-700/30', fill: '#795548' },
   { bg: 'bg-slate-500/20', text: 'text-slate-400', border: 'border-slate-500/30', fill: '#607D8B' },
-  { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30', fill: '#F44336' },
+  { bg: 'bg-[hsl(var(--data-neg)/0.2)]', text: 'text-[hsl(var(--data-neg))]', border: 'border-[hsl(var(--data-neg)/0.3)]', fill: '#F44336' },
   { bg: 'bg-lime-500/20', text: 'text-lime-400', border: 'border-lime-500/30', fill: '#8BC34A' },
   { bg: 'bg-indigo-500/20', text: 'text-indigo-400', border: 'border-indigo-500/30', fill: '#3F51B5' },
   { bg: 'bg-orange-600/20', text: 'text-orange-500', border: 'border-orange-600/30', fill: '#FF5722' },
@@ -219,8 +219,8 @@ export const REGIME_COLORS = [
   { bg: 'bg-violet-600/20', text: 'text-violet-500', border: 'border-violet-600/30', fill: '#673AB7' },
   { bg: 'bg-amber-500/20', text: 'text-amber-400', border: 'border-amber-500/30', fill: '#FFC107' },
   { bg: 'bg-sky-500/20', text: 'text-sky-400', border: 'border-sky-500/30', fill: '#03A9F4' },
-  { bg: 'bg-rose-500/20', text: 'text-rose-400', border: 'border-rose-500/30', fill: '#FF4081' },
-  { bg: 'bg-green-400/20', text: 'text-green-300', border: 'border-green-400/30', fill: '#00E676' },
+  { bg: 'bg-[hsl(var(--data-neg)/0.2)]', text: 'text-[hsl(var(--data-neg))]', border: 'border-[hsl(var(--data-neg)/0.3)]', fill: '#FF4081' },
+  { bg: 'bg-[hsl(var(--data-pos)/0.2)]', text: 'text-[hsl(var(--data-pos))]', border: 'border-[hsl(var(--data-pos)/0.3)]', fill: '#00E676' },
 ];
 
 export function getRegimeColor(idx: number) {
@@ -242,10 +242,10 @@ function findVerdict(value: number, thresholds: { min: number; verdict: Verdict 
 }
 
 export function getQualityColor(score: number): string {
-  if (score >= 80) return 'text-emerald-400';
+  if (score >= 80) return 'text-[hsl(var(--data-pos))]';
   if (score >= 60) return 'text-amber-400';
   if (score >= 40) return 'text-orange-400';
-  return 'text-rose-400';
+  return 'text-[hsl(var(--data-neg))]';
 }
 
 export function getQualityLabel(score: number): string {
@@ -256,10 +256,10 @@ export function getQualityLabel(score: number): string {
 }
 
 const REGIME_VERDICTS: { min: number; verdict: Verdict }[] = [
-  { min: 16, verdict: { text: 'Too many — likely splitting noise into fake regimes', color: 'text-rose-400' } },
+  { min: 16, verdict: { text: 'Too many — likely splitting noise into fake regimes', color: 'text-[hsl(var(--data-neg))]' } },
   { min: 11, verdict: { text: 'Very granular — make sure each regime is meaningfully different', color: 'text-amber-400' } },
-  { min: 7,  verdict: { text: 'Rich detail — each market condition gets its own personality', color: 'text-emerald-400' } },
-  { min: 4,  verdict: { text: 'Clean separation — the market has a handful of distinct moods', color: 'text-emerald-400' } },
+  { min: 7,  verdict: { text: 'Rich detail — each market condition gets its own personality', color: 'text-[hsl(var(--data-pos))]' } },
+  { min: 4,  verdict: { text: 'Clean separation — the market has a handful of distinct moods', color: 'text-[hsl(var(--data-pos))]' } },
   { min: 1,  verdict: { text: 'Very few moods — might be oversimplifying the market', color: 'text-amber-400' } },
 ];
 export function getRegimeVerdict(n: number): Verdict {
@@ -268,36 +268,36 @@ export function getRegimeVerdict(n: number): Verdict {
 }
 
 const STABILITY_VERDICTS: { min: number; verdict: Verdict }[] = [
-  { min: 0.85, verdict: { text: 'Rock solid — same regimes found in every time period tested', color: 'text-emerald-400' } },
-  { min: 0.70, verdict: { text: 'Mostly stable — regime labels shift slightly in some periods', color: 'text-emerald-400/80' } },
+  { min: 0.85, verdict: { text: 'Rock solid — same regimes found in every time period tested', color: 'text-[hsl(var(--data-pos))]' } },
+  { min: 0.70, verdict: { text: 'Mostly stable — regime labels shift slightly in some periods', color: 'text-[hsl(var(--data-pos)/0.8)]' } },
   { min: 0.50, verdict: { text: 'Shaky — the model finds different regimes depending on what data it sees', color: 'text-amber-400' } },
 ];
 export function getStabilityVerdict(score: number): Verdict {
   if (score <= 0) return AWAITING;
   return findVerdict(score, STABILITY_VERDICTS,
-    { text: 'Unstable — regime assignments change a lot between time periods, not trustworthy', color: 'text-rose-400' });
+    { text: 'Unstable — regime assignments change a lot between time periods, not trustworthy', color: 'text-[hsl(var(--data-neg))]' });
 }
 
 const OOS_VERDICTS: { min: number; verdict: Verdict }[] = [
-  { min: 0.90, verdict: { text: 'Excellent — the model behaves the same on data it\'s never seen', color: 'text-emerald-400' } },
-  { min: 0.75, verdict: { text: 'Good — mostly generalizes, minor drift on unseen data', color: 'text-emerald-400/80' } },
+  { min: 0.90, verdict: { text: 'Excellent — the model behaves the same on data it\'s never seen', color: 'text-[hsl(var(--data-pos))]' } },
+  { min: 0.75, verdict: { text: 'Good — mostly generalizes, minor drift on unseen data', color: 'text-[hsl(var(--data-pos)/0.8)]' } },
   { min: 0.55, verdict: { text: 'Mediocre — the model learned some patterns that don\'t hold on new data', color: 'text-amber-400' } },
 ];
 export function getOosVerdict(score: number): Verdict {
   if (score <= 0) return AWAITING;
   return findVerdict(score, OOS_VERDICTS,
-    { text: 'Poor — likely memorized training patterns, won\'t work in live trading', color: 'text-rose-400' });
+    { text: 'Poor — likely memorized training patterns, won\'t work in live trading', color: 'text-[hsl(var(--data-neg))]' });
 }
 
 const QUALITY_VERDICTS: { min: number; verdict: Verdict }[] = [
-  { min: 80, verdict: { text: 'Production-ready — regimes are stable and generalize to unseen data', color: 'text-emerald-400' } },
+  { min: 80, verdict: { text: 'Production-ready — regimes are stable and generalize to unseen data', color: 'text-[hsl(var(--data-pos))]' } },
   { min: 60, verdict: { text: 'Usable for research — solid foundation, more iterations could polish it', color: 'text-amber-400' } },
   { min: 40, verdict: { text: 'Experimental only — some regimes are unstable, don\'t trade on this', color: 'text-orange-400' } },
 ];
 export function getQualityVerdict(score: number): Verdict {
   if (score <= 0) return AWAITING;
   return findVerdict(score, QUALITY_VERDICTS,
-    { text: 'Not ready — needs more iterations or different hyperparameters', color: 'text-rose-400' });
+    { text: 'Not ready — needs more iterations or different hyperparameters', color: 'text-[hsl(var(--data-neg))]' });
 }
 
 export function getLLConvergenceVerdict(points: { log_likelihood: number }[]): Verdict {
@@ -307,18 +307,18 @@ export function getLLConvergenceVerdict(points: { log_likelihood: number }[]): V
   const secondHalfImprove = vals[vals.length - 1]! - vals[Math.floor(vals.length / 2)]!;
   const relativeGain = Math.abs(totalImprove) > 0 ? Math.abs(secondHalfImprove / totalImprove) : 0;
 
-  if (relativeGain < 0.05) return { text: 'Fully converged — the model learned everything this data can teach it', color: 'text-emerald-400' };
-  if (relativeGain < 0.20) return { text: 'Nearly converged — still improving slightly, a few more iterations might help', color: 'text-emerald-400/80' };
+  if (relativeGain < 0.05) return { text: 'Fully converged — the model learned everything this data can teach it', color: 'text-[hsl(var(--data-pos))]' };
+  if (relativeGain < 0.20) return { text: 'Nearly converged — still improving slightly, a few more iterations might help', color: 'text-[hsl(var(--data-pos)/0.8)]' };
   if (relativeGain < 0.40) return { text: 'Still climbing — the model needs more iterations to finish learning', color: 'text-amber-400' };
-  return { text: 'Far from done — increase iterations significantly, the model is still in early learning', color: 'text-rose-400' };
+  return { text: 'Far from done — increase iterations significantly, the model is still in early learning', color: 'text-[hsl(var(--data-neg))]' };
 }
 
 export function getFitVerdict(llPerBar: number): Verdict {
   if (llPerBar === 0) return AWAITING;
-  if (llPerBar > -4) return { text: 'Excellent fit — model explains each bar very well', color: 'text-emerald-400' };
-  if (llPerBar > -6) return { text: 'Good fit — solid pattern recognition per bar', color: 'text-emerald-400/80' };
+  if (llPerBar > -4) return { text: 'Excellent fit — model explains each bar very well', color: 'text-[hsl(var(--data-pos))]' };
+  if (llPerBar > -6) return { text: 'Good fit — solid pattern recognition per bar', color: 'text-[hsl(var(--data-pos)/0.8)]' };
   if (llPerBar > -8) return { text: 'Moderate fit — may benefit from more iterations', color: 'text-amber-400' };
-  return { text: 'Loose fit — consider tuning hyperparameters', color: 'text-rose-400' };
+  return { text: 'Loose fit — consider tuning hyperparameters', color: 'text-[hsl(var(--data-neg))]' };
 }
 
 /** Map llPerBar to 1-5 bars for the signal-strength gauge */
@@ -349,7 +349,7 @@ export const CHART_TOOLTIP = {
 // ─── Table Constants ─────────────────────────────────────────────────────────
 
 export const VOL_COLORS: Record<string, string> = {
-  extreme: 'bg-red-500/20 text-red-400',
+  extreme: 'bg-[hsl(var(--data-neg)/0.2)] text-[hsl(var(--data-neg))]',
   high: 'bg-orange-500/20 text-orange-400',
   normal: 'bg-slate-500/20 text-slate-400',
   low: 'bg-blue-500/20 text-blue-400',

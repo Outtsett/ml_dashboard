@@ -40,10 +40,10 @@ export const HilbertAnalytics: React.FC<HilbertAnalyticsProps> = ({ hData, isPri
       <Card className="glass border-white/5 bg-white/5">
         <CardHeader className="py-3 px-4 flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-xs font-medium text-muted-foreground">Avg. Power (Env)</CardTitle>
-          <Zap className="h-3.5 w-3.5 text-emerald-400" />
+          <Zap className="h-3.5 w-3.5 text-[hsl(var(--data-pos))]" />
         </CardHeader>
         <CardContent className="px-4 pb-3">
-          <div className="text-2xl font-bold font-display text-emerald-100">
+          <div className="text-2xl font-bold font-display text-[color-mix(in_srgb,hsl(var(--data-pos))_45%,white)]">
             {avgEnv.toFixed(2)}
           </div>
           <p className="text-[10px] text-muted-foreground mt-1">

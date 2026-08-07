@@ -58,7 +58,7 @@ export function QuestDBControls() {
       <CardContent className="flex flex-wrap gap-4">
         <Button 
           variant="outline" 
-          className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+          className="border-[hsl(var(--data-neg)/0.3)] text-[hsl(var(--data-neg))] hover:bg-[hsl(var(--data-neg)/0.1)]"
           onClick={() => restartMutation.mutate()}
           disabled={isRestarting}
         >

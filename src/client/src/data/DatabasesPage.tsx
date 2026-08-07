@@ -179,7 +179,7 @@ export default function Databases() {
           <p className="text-muted-foreground text-sm mt-1">QuestDB (Speed) and SQLite (Metadata)</p>
         </div>
         <div className="flex gap-3">
-          <div className="bg-white/[0.02] border-white/[0.05] rounded-xl px-4 py-2 border border-emerald-500/20 text-center">
+          <div className="bg-white/[0.02] border-white/[0.05] rounded-xl px-4 py-2 border border-[hsl(var(--data-pos)/0.2)] text-center">
             <div className="text-[10px] text-foreground/80/70 uppercase tracking-wider mb-0.5">Active Tables</div>
             <div className="text-xl font-bold text-foreground/80">
               {(sqliteStats?.tables || 0) + (questdbStats?.tables || 0)}
@@ -215,13 +215,13 @@ export default function Databases() {
           </TabsTrigger>
           <TabsTrigger
             value="upload"
-            className="rounded-lg px-5 py-2.5 data-[state=active]:bg-emerald-500/20 data-[state=active]:text-foreground/80"
+            className="rounded-lg px-5 py-2.5 data-[state=active]:bg-[hsl(var(--data-pos)/0.2)] data-[state=active]:text-foreground/80"
             data-testid="tab-upload"
           >
             <Upload className="h-4 w-4 mr-2" />
             Upload
             {selectedFiles.length > 0 && (
-              <Badge className="ml-2 text-[10px] bg-emerald-500/20 text-foreground/80">{selectedFiles.length}</Badge>
+              <Badge className="ml-2 text-[10px] bg-[hsl(var(--data-pos)/0.2)] text-foreground/80">{selectedFiles.length}</Badge>
             )}
           </TabsTrigger>
         </TabsList>

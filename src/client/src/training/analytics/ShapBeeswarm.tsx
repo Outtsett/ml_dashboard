@@ -111,14 +111,14 @@ function ShapBeeswarmInner() {
       {/* Dead features */}
       {deadFeatures.length > 0 && (
         <div className="mt-3 pt-3 border-t border-white/5">
-          <div className="text-[9px] text-rose-400/60 font-mono uppercase tracking-wider mb-1">
+          <div className="text-[9px] text-[hsl(var(--data-neg)/0.6)] font-mono uppercase tracking-wider mb-1">
             Dead Features ({deadFeatures.length})
           </div>
           <div className="flex flex-wrap gap-1.5">
             {deadFeatures.map((f) => (
               <span
                 key={f}
-                className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400/50 border border-rose-500/10"
+                className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-[hsl(var(--data-neg)/0.1)] text-[hsl(var(--data-neg)/0.5)] border border-[hsl(var(--data-neg)/0.1)]"
               >
                 {f}
               </span>

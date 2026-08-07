@@ -57,23 +57,23 @@ function PassBadge({ mv }: { mv: MetricValue | undefined }) {
     return <Minus className="h-3 w-3 text-muted-foreground/30" />;
   }
   return mv.passed
-    ? <Check className="h-3 w-3 text-emerald-400" />
-    : <X className="h-3 w-3 text-rose-400" />;
+    ? <Check className="h-3 w-3 text-[hsl(var(--data-pos))]" />
+    : <X className="h-3 w-3 text-[hsl(var(--data-neg))]" />;
 }
 
 function DirectionIcon({ dir }: { dir: MetricDefinition['direction'] }) {
-  if (dir === 'higher') return <ArrowUp className="h-2.5 w-2.5 text-emerald-400/50 shrink-0" />;
+  if (dir === 'higher') return <ArrowUp className="h-2.5 w-2.5 text-[hsl(var(--data-pos)/0.5)] shrink-0" />;
   if (dir === 'lower') return <ArrowDown className="h-2.5 w-2.5 text-amber-400/50 shrink-0" />;
   return <Info className="h-2.5 w-2.5 text-muted-foreground/30 shrink-0" />;
 }
 
 function getValueColor(metric: MetricDefinition, mv: MetricValue | undefined): string {
   if (!mv || mv.value == null) return 'text-muted-foreground/30';
-  if (mv.passed === true) return 'text-emerald-400';
-  if (mv.passed === false) return 'text-rose-400';
+  if (mv.passed === true) return 'text-[hsl(var(--data-pos))]';
+  if (mv.passed === false) return 'text-[hsl(var(--data-neg))]';
   if (metric.threshold != null && typeof mv.value === 'number') {
-    if (metric.direction === 'higher') return mv.value >= metric.threshold ? 'text-emerald-400' : 'text-muted-foreground';
-    if (metric.direction === 'lower') return mv.value <= metric.threshold ? 'text-emerald-400' : 'text-muted-foreground';
+    if (metric.direction === 'higher') return mv.value >= metric.threshold ? 'text-[hsl(var(--data-pos))]' : 'text-muted-foreground';
+    if (metric.direction === 'lower') return mv.value <= metric.threshold ? 'text-[hsl(var(--data-pos))]' : 'text-muted-foreground';
   }
   return 'text-foreground';
 }
@@ -168,7 +168,7 @@ export default function CategoryMetricsPanel({ config, snapshots }: CategoryMetr
                     return mv?.passed != null;
                   }).length;
                   const pct = tested > 0 ? Math.round((passed / tested) * 100) : 0;
-                  const color = pct >= 80 ? 'text-emerald-400' : pct >= 50 ? 'text-amber-400' : 'text-rose-400';
+                  const color = pct >= 80 ? 'text-[hsl(var(--data-pos))]' : pct >= 50 ? 'text-amber-400' : 'text-[hsl(var(--data-neg))]';
                   return (
                     <div key={snap.modelId} className="flex items-center justify-center gap-1">
                       <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${color} border-current/20`}>

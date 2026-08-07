@@ -51,10 +51,10 @@ const ExperimentDetailDrawer = lazy(() =>
 );
 
 const STATUS_TONE_CLASS: Record<string, string> = {
-  running: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+  running: "border-[hsl(var(--data-pos)/0.3)] bg-[hsl(var(--data-pos)/0.1)] text-[hsl(var(--data-pos))]",
   paused: "border-amber-500/30 bg-amber-500/10 text-amber-400",
   completed: "border-primary/30 bg-primary/10 text-primary",
-  failed: "border-red-500/30 bg-red-500/10 text-red-400",
+  failed: "border-[hsl(var(--data-neg)/0.3)] bg-[hsl(var(--data-neg)/0.1)] text-[hsl(var(--data-neg))]",
   stopped: "border-white/10 bg-white/5 text-muted-foreground",
 };
 

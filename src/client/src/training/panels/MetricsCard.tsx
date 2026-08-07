@@ -23,7 +23,7 @@ export function MetricsCard({ title, metrics, connected }: MetricsCardProps) {
           <div className="flex items-center gap-1.5">
             <div className={cn(
               "w-1.5 h-1.5 rounded-full",
-              connected ? "bg-emerald-500" : "bg-neutral-500"
+              connected ? "bg-[hsl(var(--data-pos))]" : "bg-neutral-500"
             )} />
             <span className="text-[10px] font-mono text-muted-foreground">
               {connected ? "Live" : "Disconnected"}

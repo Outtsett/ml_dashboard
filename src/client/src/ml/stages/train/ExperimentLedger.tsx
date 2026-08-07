@@ -81,7 +81,7 @@ function statusVisual(status: ExperimentStatus): StatusVisual {
       return {
         icon: CheckCircle2,
         label: "Done",
-        className: "border-emerald-500/40 text-emerald-400 bg-emerald-500/10",
+        className: "border-[hsl(var(--data-pos)/0.4)] text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)]",
       };
     case "running":
       return {
@@ -99,7 +99,7 @@ function statusVisual(status: ExperimentStatus): StatusVisual {
       return {
         icon: XCircle,
         label: "Failed",
-        className: "border-rose-500/40 text-rose-400 bg-rose-500/10",
+        className: "border-[hsl(var(--data-neg)/0.4)] text-[hsl(var(--data-neg))] bg-[hsl(var(--data-neg)/0.1)]",
       };
     case "cancelled":
       return {
@@ -329,7 +329,7 @@ export function ExperimentLedger() {
             <Button
               size="sm"
               variant="ghost"
-              className="h-6 px-2 text-[10px] text-rose-400 hover:text-rose-300"
+              className="h-6 px-2 text-[10px] text-[hsl(var(--data-neg))] hover:text-[hsl(var(--data-neg))]"
               onClick={(e) => {
                 e.stopPropagation();
                 dispatch({ type: "removeExperiment", id: row.original.id });

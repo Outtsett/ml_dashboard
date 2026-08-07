@@ -97,7 +97,7 @@ export const Toolbar = memo(function Toolbar({
         onAssetTypeChange(newType);
       }}>
         <TabsList className="glass rounded-lg p-0.5 h-auto border border-white/[0.06]">
-          <TabsTrigger value="futures" className="rounded-md px-3 py-1.5 text-[11px] font-medium data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-400 data-[state=active]:shadow-[0_0_8px_rgba(16,185,129,0.1)]" data-testid="tab-futures">
+          <TabsTrigger value="futures" className="rounded-md px-3 py-1.5 text-[11px] font-medium data-[state=active]:bg-[hsl(var(--data-pos)/0.15)] data-[state=active]:text-[hsl(var(--data-pos))] data-[state=active]:shadow-[0_0_8px_rgba(16,185,129,0.1)]" data-testid="tab-futures">
             <Activity className="h-3.5 w-3.5 mr-1.5" /> Futures
           </TabsTrigger>
           <TabsTrigger value="forex" className="rounded-md px-3 py-1.5 text-[11px] font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-[0_0_8px_rgba(96,165,250,0.1)]" data-testid="tab-forex">
@@ -211,8 +211,8 @@ export const Toolbar = memo(function Toolbar({
           size="sm"
           className={`h-6 px-2.5 text-[11px] font-mono gap-1.5 ${
             showSR
-              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-[0_0_8px_rgba(16,185,129,0.15)]"
-              : "text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10"
+              ? "bg-[hsl(var(--data-pos)/0.2)] text-[hsl(var(--data-pos))] border border-[hsl(var(--data-pos)/0.3)] shadow-[0_0_8px_rgba(16,185,129,0.15)]"
+              : "text-muted-foreground hover:text-[hsl(var(--data-pos))] hover:bg-[hsl(var(--data-pos)/0.1)]"
           }`}
           onClick={onToggleSR}
           title="Support & Resistance levels"
@@ -254,18 +254,18 @@ export const Toolbar = memo(function Toolbar({
         <Button
           variant="outline"
           size="sm"
-          className="h-8 px-3 text-[11px] font-mono font-semibold border-red-500/25 bg-red-500/10 hover:bg-red-500/20 hover:border-red-500/40 text-red-400 gap-1.5"
+          className="h-8 px-3 text-[11px] font-mono font-semibold border-[hsl(var(--data-neg)/0.25)] bg-[hsl(var(--data-neg)/0.1)] hover:bg-[hsl(var(--data-neg)/0.2)] hover:border-[hsl(var(--data-neg)/0.4)] text-[hsl(var(--data-neg))] gap-1.5"
           onClick={onStopTraining}
         >
           <Square className="h-3 w-3" /> Stop
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.5)]" />
+          <span className="w-2 h-2 rounded-full bg-[hsl(var(--data-pos))] animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.5)]" />
         </Button>
       ) : (
         <Button
           variant="outline"
           size="sm"
           disabled={isTrainingStarting}
-          className="h-8 px-3 text-[11px] font-mono font-semibold border-emerald-500/25 bg-emerald-500/10 hover:bg-emerald-500/20 hover:border-emerald-500/40 text-emerald-400 gap-1.5 disabled:opacity-40"
+          className="h-8 px-3 text-[11px] font-mono font-semibold border-[hsl(var(--data-pos)/0.25)] bg-[hsl(var(--data-pos)/0.1)] hover:bg-[hsl(var(--data-pos)/0.2)] hover:border-[hsl(var(--data-pos)/0.4)] text-[hsl(var(--data-pos))] gap-1.5 disabled:opacity-40"
           onClick={onStartTraining}
         >
           <Play className="h-3 w-3" /> Train
@@ -281,7 +281,7 @@ export const Toolbar = memo(function Toolbar({
       >
         <PanelRightOpen className="h-3.5 w-3.5" />
         ML Tools
-        {isTrainingActive && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.5)]" />}
+        {isTrainingActive && <span className="w-2 h-2 rounded-full bg-[hsl(var(--data-pos))] animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.5)]" />}
       </Button>
     </div>
   );

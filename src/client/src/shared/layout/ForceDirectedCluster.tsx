@@ -30,9 +30,9 @@ interface ForceDirectedClusterProps {
 }
 
 const CLUSTER_COLORS = [
-  '#8b5cf6', '#06b6d4', '#f59e0b', '#22c55e', 
-  '#ef4444', '#ec4899', '#3b82f6', '#84cc16',
-  '#a855f7', '#14b8a6', '#eab308', '#10b981'
+  '#8b5cf6', '#06b6d4', '#f59e0b', '#E69F00', 
+  '#0072B2', '#ec4899', '#3b82f6', '#84cc16',
+  '#a855f7', '#14b8a6', '#eab308', '#E69F00'
 ];
 
 export function ForceDirectedCluster({ 

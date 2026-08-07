@@ -35,9 +35,9 @@ function formatTime(ts: number): string {
 }
 
 function statusHue(value: number, thresholds: [number, number] = [50, 80]): string {
-  if (value < thresholds[0]) return "#22c55e"; // emerald
+  if (value < thresholds[0]) return "#E69F00"; // emerald
   if (value < thresholds[1]) return "#f59e0b"; // amber
-  return "#ef4444"; // red
+  return "#0072B2"; // red
 }
 
 // ── Radial Gauge (SVG) ──────────────────────────────────────
@@ -148,7 +148,7 @@ function VramBar({ usedMB, totalMB, pct }: { usedMB: number; totalMB: number; pc
       <div className="grid grid-cols-3 gap-4">
         {[
           { label: "Used", value: `${usedGB} GB`, color: "text-foreground" },
-          { label: "Free", value: `${freeGB} GB`, color: "text-emerald-400" },
+          { label: "Free", value: `${freeGB} GB`, color: "text-[hsl(var(--data-pos))]" },
           { label: "Target", value: "50-60%", color: "text-muted-foreground" },
         ].map((s) => (
           <div key={s.label} className="text-center">
@@ -368,7 +368,7 @@ export default function Gpu() {
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs font-mono">
-          <div className={cn("h-2 w-2 rounded-full", connected ? "bg-emerald-400 animate-pulse" : "bg-red-400")} />
+          <div className={cn("h-2 w-2 rounded-full", connected ? "bg-[hsl(var(--data-pos))] animate-pulse" : "bg-[hsl(var(--data-neg))]")} />
           <span className="text-muted-foreground">
             SSE {connected ? "live" : "offline"} · {history.length} pts
             {current ? ` · util ${current.utilizationGpu}%` : " · no data"}
@@ -442,12 +442,12 @@ export default function Gpu() {
 
       {/* ── Time-Series Charts (always rendered — empty axes when no data) ── */}
       <motion.div variants={stagger} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <MetricChart data={chartData} dataKey="utilGpu" label="GPU Utilization" color="#22c55e" unit="%" domain={[0, 100]} />
+        <MetricChart data={chartData} dataKey="utilGpu" label="GPU Utilization" color="#E69F00" unit="%" domain={[0, 100]} />
         <MetricChart data={chartData} dataKey="vramPct" label="VRAM Usage" color="#3b82f6" unit="%" domain={[0, 100]} />
         <MetricChart data={chartData} dataKey="temp" label="Temperature" color="#f59e0b" unit="°C" domain={[20, 100]} />
-        <MetricChart data={chartData} dataKey="power" label="Power Draw" color="#ef4444" unit="W" />
+        <MetricChart data={chartData} dataKey="power" label="Power Draw" color="#0072B2" unit="W" />
         <DualMetricChart data={chartData} keys={["clockGfx", "clockMem"]} labels={["Graphics Clock", "Memory Clock"]} colors={["#8b5cf6", "#06b6d4"]} unit=" MHz" />
-        <DualMetricChart data={chartData} keys={["utilGpu", "utilMem"]} labels={["GPU Util", "Memory Util"]} colors={["#22c55e", "#3b82f6"]} unit="%" domain={[0, 100]} />
+        <DualMetricChart data={chartData} keys={["utilGpu", "utilMem"]} labels={["GPU Util", "Memory Util"]} colors={["#E69F00", "#3b82f6"]} unit="%" domain={[0, 100]} />
       </motion.div>
 
       {/* ── Device Info (always rendered — placeholders when loading) ── */}
