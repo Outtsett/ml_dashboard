@@ -60,7 +60,7 @@ function Shell() {
             variant="outline"
             className={`h-7 px-2.5 font-mono gap-1.5 text-[11px] rounded-full transition-all ${
               isTraining
-                ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10 shadow-[0_0_15px_-5px_rgba(16,185,129,0.3)]"
+                ? "border-[hsl(var(--data-pos)/0.35)] text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)] shadow-[0_0_15px_-5px_hsl(var(--data-pos)/0.35)]"
                 : "border-white/10 text-muted-foreground bg-white/5"
             }`}
           >

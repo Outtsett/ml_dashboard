@@ -42,11 +42,15 @@ interface ChipProps {
 }
 
 function Chip({ icon: Icon, label, value, tone }: ChipProps) {
+  // `good` is orange (--data-pos), `warn` is yellow (--data-warn), `active` is
+  // primary blue. Colorblind-safe: no green-vs-red, and no amber-vs-orange
+  // pairing (which collapses under deuteranopia). Each chip also carries an
+  // icon and a text value, so tone is never the sole channel.
   const toneClasses = {
     neutral: "border-white/10 text-muted-foreground bg-white/[0.03]",
     active: "border-primary/30 text-primary bg-primary/10",
-    good: "border-emerald-500/30 text-emerald-300 bg-emerald-500/10",
-    warn: "border-amber-500/30 text-amber-300 bg-amber-500/10",
+    good: "border-[hsl(var(--data-pos)/0.35)] text-[hsl(var(--data-pos))] bg-[hsl(var(--data-pos)/0.1)]",
+    warn: "border-[hsl(var(--data-warn)/0.35)] text-[hsl(var(--data-warn))] bg-[hsl(var(--data-warn)/0.1)]",
   }[tone];
 
   return (

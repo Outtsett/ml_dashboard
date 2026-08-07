@@ -43,10 +43,13 @@ export function StageStepper() {
         const active = activeStage === id;
         const disabled = !gate.ready && !complete && !active;
 
+        // Complete is orange (--data-pos), active is primary blue — the
+        // colorblind-safe pair. Never green-vs-blue, which collapses for a
+        // deuteranope. The Check icon carries completion independently of hue.
         const numberCircleClasses = [
           "flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-semibold transition-colors",
           complete
-            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+            ? "bg-[hsl(var(--data-pos)/0.18)] text-[hsl(var(--data-pos))] border border-[hsl(var(--data-pos)/0.35)]"
             : active
               ? "bg-primary/25 text-primary border border-primary/40"
               : disabled
@@ -117,7 +120,7 @@ export function StageStepper() {
               <span
                 className={
                   isStageComplete(id, state)
-                    ? "h-px w-4 bg-emerald-500/40"
+                    ? "h-px w-4 bg-[hsl(var(--data-pos)/0.45)]"
                     : "h-px w-4 bg-white/10"
                 }
                 aria-hidden

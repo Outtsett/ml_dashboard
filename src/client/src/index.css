@@ -131,36 +131,60 @@
   /* Quant data-viz palette — used by KPI cells, parallel coords, heatmaps, drawdown.
    * Kept HSL-space and unitless so consumers can `hsl(var(--data-pos))` with an
    * alpha modifier. Distinct from --chart-1..5 (which power Recharts default
-   * categorical fills). */
-  --data-pos: 152 60% 45%;
-  --data-neg: 0 65% 55%;
-  --data-neutral: 220 10% 55%;
-  --data-warn: 35 80% 55%;
+   * categorical fills).
+   *
+   * COLORBLIND-SAFE (Okabe-Ito). Direction is orange-vs-blue, never red-vs-green:
+   * this codebase is maintained by a deuteranope, for whom a red/green pair is
+   * a single indistinguishable hue. `--data-warn` is yellow rather than
+   * vermillion because vermillion and orange collapse together under
+   * deuteranopia, while yellow separates from orange by lightness (60% vs 45%).
+   *
+   * Color is never the only channel. Anything encoding direction, pass/fail, or
+   * state must also carry a glyph, sign, icon, or text label — see
+   * `shared/theme/dataColors.ts` for `trendTone()` / `trendGlyph()`. */
+  --data-pos:     41 100% 45%;  /* #E69F00 orange     — up / good  */
+  --data-neg:    202 100% 35%;  /* #0072B2 blue       — down / bad */
+  --data-neutral: 220 10% 55%;  /* grey               — flat       */
+  --data-warn:    56 85% 60%;   /* #F0E442 yellow     — caution    */
 
-  /* Categorical 10 — for parallel coords, multi-line overlays. Tuned for
-   * dark-bg legibility; alternating hues so adjacent lines never collide. */
-  --data-cat-1: 210 70% 60%;
-  --data-cat-2: 185 55% 55%;
-  --data-cat-3: 152 50% 55%;
-  --data-cat-4: 45 70% 60%;
-  --data-cat-5: 25 75% 60%;
-  --data-cat-6: 0 60% 60%;
-  --data-cat-7: 320 50% 60%;
-  --data-cat-8: 270 50% 65%;
-  --data-cat-9: 220 30% 65%;
-  --data-cat-10: 90 45% 55%;
+  /* Categorical 10 — for parallel coords, multi-line overlays. Wong 2011 hues,
+   * but ORDERED by measured deuteranope separation rather than Wong's published
+   * sequence, because most charts here plot 2-5 series and the leading slots
+   * carry all the weight.
+   *
+   * Blue and green are the tightest pair in Wong under deuteranopia (measured
+   * separation 37.4, against 79.2 for the worst pair in slots 1-5), so they are
+   * deliberately placed at opposite ends: they only ever co-occur at 8 series,
+   * where a legend is mandatory anyway. Slots 1-2 stay blue/orange to match
+   * --data-neg / --data-pos. Wong's 8th entry is black, invisible on this
+   * background, so it is replaced by a light neutral.
+   *
+   * Verified by tests/client/dataColors.test.ts — change the order there too. */
+  --data-cat-1:  202 100% 35%;  /* #0072B2 blue       */
+  --data-cat-2:   41 100% 45%;  /* #E69F00 orange     */
+  --data-cat-3:   56 85% 60%;   /* #F0E442 yellow     */
+  --data-cat-4:  327 45% 64%;   /* #CC79A7 pink       */
+  --data-cat-5:  202 77% 63%;   /* #56B4E9 sky        */
+  --data-cat-6:   27 100% 42%;  /* #D55E00 vermillion */
+  --data-cat-7:  220 10% 75%;   /* light neutral (Wong's black, inverted) */
+  --data-cat-8:  164 100% 31%;  /* #009E73 green      */
+  --data-cat-9:  270 50% 65%;   /* purple  — extension */
+  --data-cat-10: 185 55% 55%;   /* teal    — extension */
 
-  /* Sequential — for contour, single-objective heatmaps (cool → warm). */
+  /* Sequential — for contour, single-objective heatmaps (dark → light).
+   * Single-hue-family ramp: safe under every color vision deficiency because
+   * it varies by lightness, not hue. */
   --data-seq-start: 220 30% 18%;
   --data-seq-mid:   210 55% 45%;
   --data-seq-end:   185 75% 65%;
 
-  /* Diverging — for correlation matrices, beta deviations (red ↔ neutral ↔ green). */
-  --data-div-neg-strong: 0 65% 45%;
-  --data-div-neg:        0 55% 55%;
+  /* Diverging — for correlation matrices, beta deviations.
+   * blue ↔ neutral ↔ orange (was red ↔ neutral ↔ green). */
+  --data-div-neg-strong: 202 100% 27%;
+  --data-div-neg:        202 100% 35%;
   --data-div-mid:        220 10% 30%;
-  --data-div-pos:        152 50% 50%;
-  --data-div-pos-strong: 152 60% 40%;
+  --data-div-pos:         41 100% 45%;
+  --data-div-pos-strong:  41 100% 36%;
 }
 
 @layer base {
@@ -225,20 +249,23 @@
     font-feature-settings: 'tnum' 1;
   }
 
+  /* Semantic status text. Delegates to the --data-* tokens so there is exactly
+   * one definition of "what positive looks like" in the codebase. Always pair
+   * with a glyph or sign — see dataColors.ts. */
   .status-positive {
-    color: hsl(150, 50%, 50%);
+    color: hsl(var(--data-pos));
   }
 
   .status-negative {
-    color: hsl(0, 55%, 55%);
+    color: hsl(var(--data-neg));
   }
 
   .status-neutral {
-    color: hsl(220, 10%, 55%);
+    color: hsl(var(--data-neutral));
   }
 
   .status-warning {
-    color: hsl(35, 60%, 55%);
+    color: hsl(var(--data-warn));
   }
 
   /* Subtle hover states */
@@ -350,16 +377,16 @@
     box-shadow: 0 0 15px -5px hsla(221, 75%, 50%, 0.25);
   }
   .glow-success {
-    box-shadow: 0 0 15px -5px hsla(161, 70%, 40%, 0.25);
+    box-shadow: 0 0 15px -5px hsl(var(--data-pos) / 0.3);
   }
   .glow-accent {
     box-shadow: 0 0 20px -5px hsla(185, 40%, 45%, 0.3);
   }
   .glow-warning {
-    box-shadow: 0 0 15px -5px hsla(38, 80%, 45%, 0.25);
+    box-shadow: 0 0 15px -5px hsl(var(--data-warn) / 0.3);
   }
   .glow-danger {
-    box-shadow: 0 0 15px -5px hsla(0, 75%, 50%, 0.25);
+    box-shadow: 0 0 15px -5px hsl(var(--data-neg) / 0.35);
   }
   .text-glow {
     text-shadow: none;
