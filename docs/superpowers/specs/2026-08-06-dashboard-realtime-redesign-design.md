@@ -1,7 +1,7 @@
 # Real-Time Dashboard Redesign — Design
 
 **Date:** 2026-08-06
-**Status:** Approved for implementation
+**Status:** W0 implemented (`187977f`); W1–W4 pending
 **Scope:** `ml_dashboard` client surface (ML Studio shell, telemetry, experiment tracker) plus market-data ingestion backend.
 
 ## Problem
@@ -61,15 +61,28 @@ means repainting all of it.
 | `--data-pos` | `152 60% 45%` (green) | `39 100% 45%` — Okabe-Ito orange `#E69F00` |
 | `--data-neg` | `0 65% 55%` (red) | `202 100% 35%` — Okabe-Ito blue `#0072B2` |
 | `--data-neutral` | `220 10% 55%` | unchanged |
-| `--data-warn` | `35 80% 55%` | `27 100% 42%` — vermillion `#D55E00` |
+| `--data-warn` | `35 80% 55%` | `56 85% 60%` — yellow `#F0E442` |
 | `.status-positive` | `hsl(150, 50%, 50%)` | `var(--data-pos)` |
 | `.status-negative` | `hsl(0, 55%, 55%)` | `var(--data-neg)` |
 | `--data-div-neg-*` | red | blue ramp |
 | `--data-div-pos-*` | green | orange ramp |
-| `--data-cat-1..10` | ad-hoc hues | Wong 2011 order, then extensions |
+| `--data-cat-1..10` | ad-hoc hues | Wong 2011 hues, separation-ordered |
 
-`--data-warn` moving to vermillion is deliberate: it must stay separable from
-`--data-pos` orange, which a yellow/amber pairing would not be.
+**Corrected during implementation.** This spec originally called for vermillion
+`#D55E00` as `--data-warn`, reasoning that a yellow would not separate from
+orange. Measurement showed the reverse: under deuteranopia simulation,
+vermillion-vs-orange scores 50.9 while yellow-vs-orange scores 79.2, because
+yellow separates by lightness where vermillion does not. `--data-warn` is
+yellow `#F0E442`.
+
+The categorical palette is likewise ordered by **measured** separation rather
+than Wong's published sequence, since most charts here plot 2-5 series and the
+leading slots carry the weight. Blue and green are the tightest pair in Wong
+(37.4) and cannot be fixed by substituting hues, so they are placed at opposite
+ends of the draw order — they only co-occur at 8 series, where a legend is
+mandatory. Slots 1-2 remain blue/orange to match the semantic tokens. Resulting
+order: blue, orange, yellow, pink, sky, vermillion, neutral, green, with a
+worst-pair separation of 79.2 across slots 1-5.
 
 New `src/client/src/shared/theme/dataColors.ts`:
 
