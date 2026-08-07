@@ -46,7 +46,7 @@ export function MetricTicker({ className = "" }: { className?: string }) {
 
   return (
     <div
-      className={`flex items-center gap-4 overflow-x-auto scrollbar-hidden px-2.5 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] shrink-0 ${className}`}
+      className={`flex items-center gap-4 overflow-x-auto scrollbar-hidden px-3 py-2 rounded-lg surface-sunken shrink-0 ${className}`}
       role="status"
       aria-live="polite"
       aria-label="Live training metrics"

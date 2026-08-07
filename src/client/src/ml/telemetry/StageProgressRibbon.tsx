@@ -48,7 +48,7 @@ export function StageProgressRibbon({ className = "" }: { className?: string }) 
 
   return (
     <div
-      className={`flex items-center gap-3 px-2.5 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] shrink-0 ${className}`}
+      className={`flex items-center gap-3 px-3 py-2 rounded-lg surface-sunken shrink-0 ${className}`}
     >
       <span className="text-[9px] uppercase tracking-widest text-muted-foreground/70 shrink-0">
         {phase || "Training"}
@@ -64,7 +64,7 @@ export function StageProgressRibbon({ className = "" }: { className?: string }) 
       >
         <div
           className={`h-full rounded-full bg-[hsl(var(--data-pos))] ${
-            reducedMotion ? "" : "transition-[width] duration-500 ease-out"
+            reducedMotion ? "" : "transition-[width] motion-slow"
           }`}
           style={{ width: `${clamped}%` }}
         />

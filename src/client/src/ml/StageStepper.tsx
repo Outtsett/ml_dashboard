@@ -32,7 +32,7 @@ export function StageStepper() {
 
   return (
     <nav
-      className="flex items-center gap-1.5 px-1 py-2 shrink-0 overflow-x-auto"
+      className="flex items-center gap-2 px-1 py-3 shrink-0 overflow-x-auto scrollbar-hidden"
       aria-label="ML Studio pipeline stages"
     >
       {STAGE_IDS.map((id, idx) => {
@@ -57,13 +57,17 @@ export function StageStepper() {
                 : "bg-white/5 text-muted-foreground border border-white/10",
         ].join(" ");
 
+        // `stage-active` carries the accent edge bar; the raised surface and
+        // glow are reinforcement. The previous treatment separated active from
+        // inactive by ring opacity alone, which is close to invisible at a
+        // glance across six adjacent chips.
         const buttonClasses = [
-          "group flex items-center gap-2 px-2.5 py-1.5 rounded-lg border transition-all shrink-0",
+          "group flex items-center gap-2 pl-3 pr-3 py-2 rounded-lg border shrink-0 transition-all motion-quick",
           active
-            ? "bg-primary/10 border-primary/40 shadow-[0_0_0_1px_rgba(99,102,241,0.15)]"
+            ? "stage-active"
             : disabled
-              ? "bg-white/[0.02] border-white/5 text-muted-foreground/50 cursor-not-allowed"
-              : "bg-white/5 border-white/10 hover:bg-white/[0.08] hover:border-white/20",
+              ? "surface-sunken text-muted-foreground/50 cursor-not-allowed"
+              : "surface-interactive",
         ].join(" ");
 
         const handleClick = () => {
@@ -105,7 +109,7 @@ export function StageStepper() {
         );
 
         return (
-          <div key={id} className="flex items-center gap-1.5 shrink-0">
+          <div key={id} className="flex items-center gap-2 shrink-0">
             {tooltipText ? (
               <Tooltip>
                 <TooltipTrigger asChild>{button}</TooltipTrigger>

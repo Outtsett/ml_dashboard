@@ -84,7 +84,7 @@ export function LoadGauge({
             strokeLinecap="round"
             strokeDasharray={CIRCUMFERENCE}
             strokeDashoffset={CIRCUMFERENCE * (1 - fraction)}
-            className={reducedMotion ? "" : "transition-[stroke-dashoffset] duration-500 ease-out"}
+            className={reducedMotion ? "" : "transition-[stroke-dashoffset] motion-slow"}
           />
         </svg>
         <span className="absolute inset-0 flex items-center justify-center metric-value tnum text-[11px] text-foreground">

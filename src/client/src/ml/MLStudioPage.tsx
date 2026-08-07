@@ -46,12 +46,16 @@ function Shell() {
   useBreadcrumbs([{ label: STAGE_LABELS[state.activeStage] }]);
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    // Spacing follows a 4/8/12/16px rhythm (gap-1/2/3/4 at the 14px root).
+    // The shell was previously packed at gap-1.5 throughout, which left the
+    // header, the stepper, and the stage body reading as one undifferentiated
+    // block.
+    <div className="h-full flex flex-col overflow-hidden gap-2">
       {/* Header */}
-      <div className="flex justify-between items-center mb-1.5 shrink-0 px-1">
+      <div className="flex justify-between items-center shrink-0 px-1 pt-1">
         <div>
           <h1 className="text-2xl font-display font-bold text-foreground leading-tight">ML Studio</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-xs text-muted-foreground mt-1">
             End-to-end pipeline: Data → Features → Labels → Train → Evaluate → Promote
           </p>
         </div>
@@ -82,15 +86,17 @@ function Shell() {
 
       {/* Live telemetry. Each of these renders null when it has nothing to
           report, so an idle studio looks exactly as it did before. */}
-      <div className="flex items-stretch gap-1.5 shrink-0">
+      <div className="flex items-stretch gap-2 shrink-0">
         <MetricTicker className="flex-1 min-w-0" />
         <SystemLoadStrip />
       </div>
-      <StageProgressRibbon className="mt-1.5" />
+      <StageProgressRibbon />
 
       <StageStepper />
 
-      <div className="flex-1 min-h-0 overflow-hidden bg-card/10 rounded-xl border border-white/5">
+      {/* The stage body is the focus of the page, so it sits at the default
+          surface rung while the strips above it stay sunken. */}
+      <div className="flex-1 min-h-0 overflow-hidden surface rounded-xl">
         <ActiveStageBody />
       </div>
 

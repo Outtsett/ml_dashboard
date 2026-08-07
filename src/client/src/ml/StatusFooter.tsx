@@ -73,7 +73,7 @@ export function StatusFooter() {
   const deployment = state.activeDeployment;
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 px-1 py-1.5 shrink-0 border-t border-white/5">
+    <div className="flex flex-wrap items-center gap-2 px-1 py-2 shrink-0 border-t border-white/5">
       <Chip
         icon={Activity}
         label="Pipeline"
