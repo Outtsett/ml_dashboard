@@ -205,17 +205,28 @@ export function formatMetricValue(value: number, context: MetricContext): string
   return `${value.toFixed(decimals)}${unit ? ' ' + unit : ''}`;
 }
 
-/** Severity → tailwind color mapping. */
+/**
+ * Severity → tailwind color mapping.
+ *
+ * Runs blue → grey → orange → yellow, not red → grey → cyan → emerald. The old
+ * scale put its two ends (bad, great) on the red/green axis, which is a single
+ * hue for a deuteranope — meaning the most important distinction the scale
+ * makes was the one it could not communicate. The replacement is monotonic in
+ * warmth and reads correctly in grayscale.
+ *
+ * Severity is never the only channel: renderers pair these with a numeric
+ * readout, and gauges additionally with needle position.
+ */
 export const SEVERITY_COLORS = {
-  great: 'text-emerald-400',
-  good: 'text-cyan-400',
-  neutral: 'text-zinc-400',
-  bad: 'text-red-400',
+  great: 'text-[hsl(var(--data-warn))]', // yellow  — brightest, "best"
+  good: 'text-[hsl(var(--data-pos))]',   // orange
+  neutral: 'text-[hsl(var(--data-neutral))]',
+  bad: 'text-[hsl(var(--data-neg))]',    // blue
 } as const;
 
 export const SEVERITY_BG = {
-  great: 'bg-emerald-500/10 border-emerald-500/20',
-  good: 'bg-cyan-500/10 border-cyan-500/20',
-  neutral: 'bg-zinc-500/10 border-zinc-500/20',
-  bad: 'bg-red-500/10 border-red-500/20',
+  great: 'bg-[hsl(var(--data-warn)/0.1)] border-[hsl(var(--data-warn)/0.2)]',
+  good: 'bg-[hsl(var(--data-pos)/0.1)] border-[hsl(var(--data-pos)/0.2)]',
+  neutral: 'bg-[hsl(var(--data-neutral)/0.1)] border-[hsl(var(--data-neutral)/0.2)]',
+  bad: 'bg-[hsl(var(--data-neg)/0.1)] border-[hsl(var(--data-neg)/0.2)]',
 } as const;

@@ -19,18 +19,27 @@ import { RendererShell, useShellProps } from "./RendererShell";
 const START_ANGLE = -Math.PI / 2;
 const END_ANGLE = Math.PI / 2;
 
+/**
+ * Severity zones. Was red → grey → blue → emerald, which put the two ends of
+ * the scale (bad, great) on the one axis a deuteranope cannot separate.
+ *
+ * Now the scale runs blue → grey → orange → yellow: cool for bad, warm and
+ * brightening for good. That matches --data-neg / --data-pos, is monotonic in
+ * warmth, and keeps every adjacent pair separable. The needle position and the
+ * numeric readout carry the value independently of hue.
+ */
 const ZONE_HEX = {
-  bad: "#ef4444",
-  neutral: "#71717a",
-  good: "#3b82f6", // Institutional blue
-  great: "#10b981", // Institutional emerald
+  bad: "#0072B2", // blue      — Okabe-Ito, matches --data-neg
+  neutral: "#808A99", // grey
+  good: "#E69F00", // orange    — Okabe-Ito, matches --data-pos
+  great: "#F0E442", // yellow    — brighter than good, reads as "better"
 } as const;
 
 const ZONE_HEX_DIM = {
-  bad: "#7f1d1d40",
+  bad: "#0072B240",
   neutral: "#3f3f4640",
-  good: "#1e3a8a40",
-  great: "#064e3b40",
+  good: "#E69F0040",
+  great: "#F0E44240",
 } as const;
 
 export function GaugeRenderer(props: RendererProps) {
@@ -129,10 +138,13 @@ export function GaugeRenderer(props: RendererProps) {
               const bx = Math.cos(breakevenAngle - Math.PI / 2);
               const by = Math.sin(breakevenAngle - Math.PI / 2);
               return (
+                // Pink dashed, not amber: amber now collides with the "great"
+                // zone. Dashed vs the solid white needle is the real signal —
+                // the two must be tellable apart without relying on hue.
                 <line
                   x1={bx * (innerR - 4)} y1={by * (innerR - 4)}
                   x2={bx * (outerR + 4)} y2={by * (outerR + 4)}
-                  stroke="#fbbf24" strokeWidth={2} strokeDasharray="2 2"
+                  stroke="#CC79A7" strokeWidth={2} strokeDasharray="2 2"
                 />
               );
             })()}

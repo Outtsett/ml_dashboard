@@ -20,6 +20,7 @@ import { useTrainingControl } from "@/training/lib/TrainingContext";
 import { MLStudioProvider, STAGE_LABELS, useMLStudio } from "@/ml/MLStudioContext";
 import { StageStepper } from "@/ml/StageStepper";
 import { StatusFooter } from "@/ml/StatusFooter";
+import { MetricTicker, SystemLoadStrip, StageProgressRibbon } from "@/ml/telemetry";
 import { DataStage } from "@/ml/stages/DataStage";
 import { FeaturesStage } from "@/ml/stages/FeaturesStage";
 import { LabelsStage } from "@/ml/stages/LabelsStage";
@@ -78,6 +79,14 @@ function Shell() {
           </Button>
         </div>
       </div>
+
+      {/* Live telemetry. Each of these renders null when it has nothing to
+          report, so an idle studio looks exactly as it did before. */}
+      <div className="flex items-stretch gap-1.5 shrink-0">
+        <MetricTicker className="flex-1 min-w-0" />
+        <SystemLoadStrip />
+      </div>
+      <StageProgressRibbon className="mt-1.5" />
 
       <StageStepper />
 
