@@ -236,6 +236,38 @@ export type AgentEvent = BaseEvent<
 >;
 
 // ── Union of all domain events ─────────────────────────────
+// ── Market events ──────────────────────────────────────────
+// Price bars pushed to the chart as they form. Distinct from IngestionEvent,
+// which is about files and batches landing in storage; this is the live
+// (or replayed) surface a chart subscribes to.
+
+export type MarketEvent =
+  /**
+   * A forming or closed price bar.
+   *
+   * `origin` is not decoration. Live ingestion has been dead since the
+   * MotiveWave export path was removed on 2026-07-27, so the stream may be a
+   * replay of stored bars rather than a market. Any consumer that trades,
+   * alerts, or reports on this data is required to check it — a replay that
+   * reads as live is precisely how "the data looks fine" survives four months
+   * of no ingestion.
+   */
+  | BaseEvent<'market.bar', {
+      symbol: string;
+      timeframe: string;
+      /** Epoch milliseconds of the bar's opening edge. */
+      timestamp: number;
+      open: number;
+      high: number;
+      low: number;
+      close: number;
+      volume: number;
+      /** 0..1 through the bar's interval; exactly 1 on the closing frame. */
+      progress: number;
+      isClosed: boolean;
+      origin: 'replay' | 'live';
+    }>;
+
 export type DomainEvent =
   | PipelineEvent
   | TrainingEvent
@@ -243,6 +275,7 @@ export type DomainEvent =
   | ModelEvent
   | CacheEvent
   | SystemEvent
+  | MarketEvent
   | DeploymentEvent
   | AgentEvent;
 

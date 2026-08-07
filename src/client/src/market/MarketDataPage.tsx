@@ -21,6 +21,7 @@ import { type InstrumentInfo } from "@/market/types";
 import { minutesToLabel } from "@/market/lib/timeframes";
 import { Toolbar } from "./Toolbar";
 import { AnalyticsStrip } from "./AnalyticsStrip";
+import { LiveQuoteStrip } from "./LiveQuoteStrip";
 import { TrainingStatusStrip } from "@/training/market-data/TrainingStatusStrip";
 import IndicatorChartLayout from "@/market/components/IndicatorChartLayout";
 import { ReplayControls } from "@/market/components/ReplayControls";
@@ -310,6 +311,10 @@ export default function MarketData() {
         </motion.div>
       ) : (
       <>
+      {/* Forming-bar quote. Self-hides until a frame arrives, and badges
+          itself as Replay whenever the stream is stored bars rather than a
+          live feed — which, since 2026-07-27, it always is. */}
+      <LiveQuoteStrip className="mb-2" />
       <AnalyticsStrip
         symbol={symbol}
         displayDataLength={displayData.length}

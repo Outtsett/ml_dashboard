@@ -13,6 +13,7 @@ import pipelinesRouter from "../../data/pipelines.router";
 import instrumentsRouter from "../../market/instruments.router";
 import newsRouter from "../../market/news.router";
 import chartRouter from "../../market/charts.router";
+import marketReplayRouter from "../../market/ingestion/replay.router";
 
 // ML Domain
 import mlRouter from "../../ml";
@@ -72,6 +73,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", newsRouter);
   app.use("/api", databasesRouter);
   app.use("/api/charts", chartRouter);
+  app.use("/api", marketReplayRouter);
   app.use("/api", backtestRouter);
   app.use("/api", modelCatalogRouter);
   app.use("/api", curriculumRouter);
