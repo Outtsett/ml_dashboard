@@ -33,6 +33,7 @@ import { TrainingExperimentBridge } from "./train/TrainingExperimentBridge";
 import { ArchitectureComposer } from "./train/ArchitectureComposer";
 import { WalkForwardPanel } from "./train/WalkForwardPanel";
 import { ExperimentLedger } from "./train/ExperimentLedger";
+import { Leaderboard } from "../experiments";
 import { GeneratedFileSaver } from "./train/GeneratedFileSaver";
 
 const Training = lazy(() => import("@/training/TrainingPage"));
@@ -133,7 +134,11 @@ export function TrainStage() {
         {/* 5 — Saver controls */}
         <GeneratedFileSaver />
 
-        {/* 6 — Ledger */}
+        {/* 6 — Leaderboard, then the full ledger.
+             The leaderboard answers "which run is winning and can I trust the
+             number"; the table below answers "what were all the runs and their
+             exact values". It self-hides until something has completed. */}
+        <Leaderboard />
         <ExperimentLedger />
 
         {/* 7 — Legacy live training surface (no ConfigStrip) */}
