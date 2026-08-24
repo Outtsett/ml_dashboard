@@ -76,7 +76,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
       - name: Attach to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: ${{ matrix.artifact_glob }}
@@ -110,7 +110,7 @@ jobs:
             --output-format JSON
 
       - name: Attach SBOM to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: sbom-npm.cyclonedx.json
