@@ -9,6 +9,56 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isAnalyze = process.env.ANALYZE === "true";
 
+/**
+ * Vendor chunk grouping.
+ *
+ * Vite 8 narrowed Rollup's `manualChunks` type to the function form, so the
+ * previous object literal (`{ "vendor-react": ["react", ...] }`) no longer
+ * typechecks. The grouping is unchanged — it is just expressed as a lookup over
+ * the module id instead of a package map.
+ */
+const VENDOR_CHUNKS: Record<string, readonly string[]> = {
+  "vendor-react": ["react", "react-dom"],
+  "vendor-lightweight-charts": ["lightweight-charts"],
+  "vendor-recharts": ["recharts"],
+  "vendor-3d": ["three", "@react-three/fiber", "@react-three/drei"],
+  "vendor-ui": [
+    "@radix-ui/react-dialog",
+    "@radix-ui/react-dropdown-menu",
+    "@radix-ui/react-popover",
+    "@radix-ui/react-tabs",
+    "@radix-ui/react-select",
+    "@radix-ui/react-tooltip",
+  ],
+  "vendor-query": ["@tanstack/react-query"],
+  "vendor-monaco": ["@monaco-editor/react", "monaco-editor"],
+  "vendor-table": ["@tanstack/react-table"],
+  "vendor-markdown": ["react-markdown", "remark-gfm"],
+};
+
+/**
+ * Map a module id to its vendor chunk, or undefined to let Rollup decide.
+ *
+ * `lastIndexOf` rather than `indexOf`: with nested node_modules the innermost
+ * package is the one that owns the module. The `pkg + "/"` boundary check keeps
+ * `react` from swallowing `react-dom` and `react-markdown`, which a plain
+ * `includes()` would.
+ */
+function vendorChunk(id: string): string | undefined {
+  const normalized = id.split("\\").join("/");
+  const marker = "/node_modules/";
+  const at = normalized.lastIndexOf(marker);
+  if (at === -1) return undefined;
+
+  const rest = normalized.slice(at + marker.length);
+  for (const [chunk, packages] of Object.entries(VENDOR_CHUNKS)) {
+    for (const pkg of packages) {
+      if (rest === pkg || rest.startsWith(pkg + "/")) return chunk;
+    }
+  }
+  return undefined;
+}
+
 export default defineConfig({
   plugins: [
     react({
@@ -50,17 +100,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
-        manualChunks: {
-          "vendor-react": ["react", "react-dom"],
-          "vendor-lightweight-charts": ["lightweight-charts"],
-          "vendor-recharts": ["recharts"],
-          "vendor-3d": ["three", "@react-three/fiber", "@react-three/drei"],
-          "vendor-ui": ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-popover", "@radix-ui/react-tabs", "@radix-ui/react-select", "@radix-ui/react-tooltip"],
-          "vendor-query": ["@tanstack/react-query"],
-          "vendor-monaco": ["@monaco-editor/react", "monaco-editor"],
-          "vendor-table": ["@tanstack/react-table"],
-          "vendor-markdown": ["react-markdown", "remark-gfm"],
-        },
+        manualChunks: vendorChunk,
       },
     },
   },
