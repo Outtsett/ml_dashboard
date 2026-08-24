@@ -1,0 +1,58 @@
+# =============================================================================
+# CODEOWNERS — review routing
+# =============================================================================
+# This file defines who owns review of which paths. The repository owner
+# (@Outtsett) is the default owner and reviewer for everything; per-area
+# entries below allow finer-grained routing as the project grows.
+#
+# Syntax: <pattern> <owner> [<owner> ...]
+# Owners can be GitHub usernames (@user) or team handles (@org/team).
+# The LAST matching pattern wins, so order matters.
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+# =============================================================================
+
+# ── Default owner — everything not matched below ─────────────────────────────
+*                                @Outtsett
+
+# ── Critical config & infrastructure ─────────────────────────────────────────
+.github/                         @Outtsett
+.github/workflows/               @Outtsett
+.github/dependabot.yml           @Outtsett
+.github/CODEOWNERS               @Outtsett
+.gitignore                       @Outtsett
+LICENSE                          @Outtsett
+SECURITY.md                      @Outtsett
+package.json                     @Outtsett
+package-lock.json                @Outtsett
+pyproject.toml                   @Outtsett
+tsconfig.json                    @Outtsett
+vite.config.ts                   @Outtsett
+vitest.config.ts                 @Outtsett
+build.ts                         @Outtsett
+drizzle.config.ts                @Outtsett
+
+# ── Server (Express 5 / NestJS 11) ───────────────────────────────────────────
+src/server/                      @Outtsett
+
+# ── Client (React 19 / Vite) ─────────────────────────────────────────────────
+src/client/                      @Outtsett
+
+# ── ML pipelines & models ────────────────────────────────────────────────────
+src/ml/                          @Outtsett
+scripts/                         @Outtsett
+
+# ── Database schemas & migrations ────────────────────────────────────────────
+migrations/                      @Outtsett
+src/server/database/             @Outtsett
+src/server/cache/                @Outtsett
+
+# ── Electron desktop shell ───────────────────────────────────────────────────
+electron/                        @Outtsett
+
+# ── MCP server ───────────────────────────────────────────────────────────────
+mcp_server/                      @Outtsett
+
+# ── Documentation ────────────────────────────────────────────────────────────
+docs/                            @Outtsett
+README.md                        @Outtsett
+ARCHITECTURE.md                  @Outtsett

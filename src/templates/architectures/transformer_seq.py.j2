@@ -1,0 +1,462 @@
+{# ---------------------------------------------------------------------- #}
+{# transformer_seq.py.j2 — encoder-only transformer (W3.b)                #}
+{#                                                                         #}
+{# Generic encoder-only transformer over rolling feature-vector windows.  #}
+{#                                                                         #}
+{# Windowing strategy (same as pytorch_cnn.py.j2):                        #}
+{#   The upstream feature matrix is shape (N_bars, F_features). For each  #}
+{#   row i with i >= window_size-1 we build the window                    #}
+{#       X_window[i] = matrix[i-window_size+1 : i+1, :]   shape (W, F)    #}
+{#   so PyTorch sees (B, W, F). We project F → d_model with a Linear,    #}
+{#   add sinusoidal positional encoding (PE) on the time axis, run        #}
+{#   nn.TransformerEncoder n_layers deep, mean-pool over T, then feed     #}
+{#   the (B, d_model) latent to a task-appropriate head.                  #}
+{#                                                                         #}
+{# Mirrors trading_model/cnn_transformer/model.py without the bespoke     #}
+{# two-stream price/volume split — the upstream feature matrix is         #}
+{# engineered features, not raw OHLCV, so a single projection is more    #}
+{# faithful. The d_model_price + d_model_volume hyperparameters are       #}
+{# threaded into a `d_model = d_model_price + d_model_vol` budget for    #}
+{# back-compat with the trading_model HPO search space, but both feed the #}
+{# same input projection.                                                  #}
+{#                                                                         #}
+{# Hyperparameters consumed:                                               #}
+{#   window_size       (int)                                              #}
+{#   d_model_price     (int) — additive part of d_model                   #}
+{#   d_model_volume    (int) — additive part of d_model                   #}
+{#   d_model           (int) — total embedding dim (overrides if set)     #}
+{#   n_layers          (int)                                              #}
+{#   n_heads           (int) — must divide d_model                        #}
+{#   d_ff              (int) — feedforward dim                            #}
+{#   dropout           (float)                                            #}
+{#   learning_rate     (float)                                            #}
+{#   n_epochs          (int)                                              #}
+{#   batch_size        (int)                                              #}
+{#   task_kind         (str) — classification | regression                #}
+{#   n_classes         (int) — only used for classification               #}
+{#   early_stop_patience (int) — defaults to 5                            #}
+{#                                                                         #}
+{# Imports PositionalEncoding from src.ml.blocks.attention; appropriate   #}
+{# task head from src.ml.blocks.head.                                     #}
+{# ---------------------------------------------------------------------- #}
+{% extends "_base.py.j2" %}
+
+{% set _task_kind = task_kind | default("classification") %}
+{% set _n_classes = n_classes | default(2) %}
+{% set _window_size = hyperparameters.window_size | default(64) %}
+{% set _d_model_price = hyperparameters.d_model_price | default(32) %}
+{% set _d_model_vol = hyperparameters.d_model_volume | default(8) %}
+{% set _d_model = hyperparameters.d_model | default(_d_model_price + _d_model_vol) %}
+{% set _n_layers = hyperparameters.n_layers | default(2) %}
+{% set _n_heads = hyperparameters.n_heads | default(4) %}
+{% set _d_ff = hyperparameters.d_ff | default(64) %}
+{% set _dropout = hyperparameters.dropout | default(0.1) %}
+{% set _lr = hyperparameters.learning_rate | default(0.001) %}
+{% set _n_epochs = hyperparameters.n_epochs | default(20) %}
+{% set _batch_size = hyperparameters.batch_size | default(256) %}
+{% set _patience = hyperparameters.early_stop_patience | default(5) %}
+
+{# NOTE: `time` is already imported by _base.py.j2 — re-importing here is a #}
+{# redefinition (F811) in the rendered module.                              #}
+{% block model_imports %}
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import DataLoader, TensorDataset
+
+from src.ml.blocks import PositionalEncoding
+from src.ml.shared.torch_logging import (
+    declare_diagnostics_metrics, emit_step_diagnostics,
+    global_grad_norm, current_lr, vram_mb,
+)
+{% if _task_kind == "regression" %}
+from src.ml.blocks import RegressionHead
+{% elif _n_classes == 2 %}
+from src.ml.blocks import BinaryDirectionHead
+{% else %}
+from src.ml.blocks import ClassificationHead
+{% endif %}
+
+# Static config baked into the rendered template.
+_TASK_KIND: str = {{ _task_kind | python_repr }}
+_N_CLASSES: int = {{ _n_classes | python_repr }}
+_WINDOW_SIZE: int = {{ _window_size | python_repr }}
+_D_MODEL_PRICE: int = {{ _d_model_price | python_repr }}
+_D_MODEL_VOL: int = {{ _d_model_vol | python_repr }}
+_D_MODEL: int = {{ _d_model | python_repr }}
+_N_LAYERS: int = {{ _n_layers | python_repr }}
+_N_HEADS: int = {{ _n_heads | python_repr }}
+_D_FF: int = {{ _d_ff | python_repr }}
+_DROPOUT: float = {{ _dropout | python_repr }}
+_LR: float = {{ _lr | python_repr }}
+_N_EPOCHS: int = {{ _n_epochs | python_repr }}
+_BATCH_SIZE: int = {{ _batch_size | python_repr }}
+_PATIENCE: int = {{ _patience | python_repr }}
+_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# d_model must be divisible by n_heads — enforce at template render time so
+# generated runners fail loudly rather than silently producing a misshapen
+# encoder. PyTorch will raise the same assertion at construct time anyway.
+if _D_MODEL % _N_HEADS != 0:
+    raise ValueError(
+        f"d_model ({_D_MODEL}) must be divisible by n_heads ({_N_HEADS}); "
+        f"adjust d_model_price + d_model_volume or override d_model directly."
+    )
+
+# Module-level state for per-fold OOS aggregation.
+_FOLD_STATE: dict = {"y": [], "preds": []}
+_DIAG_DECLARED: dict = {"done": False}
+
+
+def _build_windows(X: np.ndarray, y: np.ndarray):
+    """Build rolling windows of length _WINDOW_SIZE.
+
+    Inputs:
+        X : (N_bars, F_features)
+        y : (N_bars,)
+    Outputs:
+        Xw : (N_bars - W + 1, W, F)  — time-major for transformer
+        yw : (N_bars - W + 1,)        — aligned to window's last bar
+    """
+    arr = np.asarray(X)
+    yarr = np.asarray(y)
+    n_bars = int(arr.shape[0])
+    n_feat = int(arr.shape[1])
+    if n_bars < _WINDOW_SIZE:
+        return (
+            np.zeros((0, _WINDOW_SIZE, n_feat), dtype=np.float32),
+            np.zeros((0,), dtype=yarr.dtype),
+        )
+    # sliding_window_view(arr, W, axis=0) → (n_bars - W + 1, F, W)
+    # We want (n_bars - W + 1, W, F) so transpose the last two dims.
+    raw_win = np.lib.stride_tricks.sliding_window_view(
+        arr, window_shape=_WINDOW_SIZE, axis=0
+    )  # (n_bars - W + 1, F, W)
+    Xw = np.ascontiguousarray(np.transpose(raw_win, (0, 2, 1))).astype(np.float32)
+    yw = yarr[_WINDOW_SIZE - 1:]
+    return Xw, yw
+
+
+class _TransformerSeqModel(nn.Module):
+    """Linear(F → d_model) → +PE → TransformerEncoder × n_layers →
+    mean-pool over T → task head.
+
+    Mirrors trading_model/cnn_transformer/model.py with a single input
+    projection (no two-stream price/volume split) since the upstream
+    feature matrix is engineered features, not raw OHLCV.
+    """
+
+    def __init__(self, n_features: int):
+        super().__init__()
+        self.input_proj = nn.Linear(int(n_features), _D_MODEL)
+        self.pos_enc = PositionalEncoding(d_model=_D_MODEL, max_len=max(_WINDOW_SIZE, 32))
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=_D_MODEL,
+            nhead=_N_HEADS,
+            dim_feedforward=_D_FF,
+            dropout=_DROPOUT,
+            activation="gelu",
+            batch_first=True,
+            norm_first=True,
+        )
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=_N_LAYERS)
+        {% if _task_kind == "regression" %}
+        self.head = RegressionHead(d_model=_D_MODEL, n_targets=1)
+        {% elif _n_classes == 2 %}
+        self.head = BinaryDirectionHead(d_model=_D_MODEL)
+        {% else %}
+        self.head = ClassificationHead(d_model=_D_MODEL, n_classes=_N_CLASSES)
+        {% endif %}
+
+        # Xavier init on the projection + head linears (transformer layer
+        # already initialises its own weights through PyTorch defaults).
+        nn.init.xavier_uniform_(self.input_proj.weight)
+        if self.input_proj.bias is not None:
+            nn.init.zeros_(self.input_proj.bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x: (B, W, F) → project to (B, W, d_model) → +PE → encoder → mean-pool
+        h = self.input_proj(x)
+        h = self.pos_enc(h)
+        h = self.transformer(h)
+        pooled = h.mean(dim=1)  # (B, d_model)
+        return self.head(pooled)
+{% endblock %}
+
+{% block train_loop %}
+def _make_loaders(X_train, y_train, X_test, y_test):
+    Xw_tr, yw_tr = _build_windows(X_train, y_train)
+    Xw_te, yw_te = _build_windows(X_test, y_test)
+    X_tr = torch.as_tensor(Xw_tr, dtype=torch.float32)
+    X_te = torch.as_tensor(Xw_te, dtype=torch.float32)
+    {% if _task_kind == "regression" %}
+    y_tr = torch.as_tensor(yw_tr, dtype=torch.float32).reshape(-1, 1)
+    y_te = torch.as_tensor(yw_te, dtype=torch.float32).reshape(-1, 1)
+    {% else %}
+    y_tr = torch.as_tensor(yw_tr, dtype=torch.long).reshape(-1)
+    y_te = torch.as_tensor(yw_te, dtype=torch.long).reshape(-1)
+    {% endif %}
+    train_ds = TensorDataset(X_tr, y_tr)
+    val_ds = TensorDataset(X_te, y_te)
+    train_loader = DataLoader(
+        train_ds, batch_size=_BATCH_SIZE, shuffle=True,
+        num_workers=0, pin_memory=(_DEVICE.type == "cuda"),
+    )
+    val_loader = DataLoader(
+        val_ds, batch_size=_BATCH_SIZE, shuffle=False,
+        num_workers=0, pin_memory=(_DEVICE.type == "cuda"),
+    )
+    return train_loader, val_loader, yw_te
+
+
+def _loss_fn(logits: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    {% if _task_kind == "regression" %}
+    return F.mse_loss(logits.reshape(-1), y.reshape(-1))
+    {% elif _n_classes == 2 %}
+    return F.binary_cross_entropy_with_logits(logits.reshape(-1), y.reshape(-1).float())
+    {% else %}
+    return F.cross_entropy(logits, y.reshape(-1))
+    {% endif %}
+
+
+def _logits_to_preds(logits: torch.Tensor) -> np.ndarray:
+    {% if _task_kind == "regression" %}
+    return logits.detach().cpu().numpy().reshape(-1).astype(np.float64)
+    {% elif _n_classes == 2 %}
+    return torch.sigmoid(logits.reshape(-1)).detach().cpu().numpy().astype(np.float64)
+    {% else %}
+    return F.softmax(logits, dim=-1).detach().cpu().numpy().astype(np.float64)
+    {% endif %}
+
+
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+    """Encoder-only transformer + AdamW + early-stop on val loss.
+
+    Returns (model, preds_aligned_to_yw_te). Predictions are per WINDOW.
+    """
+    fold_tag = "single" if fold_idx is None else str(fold_idx)
+    n_features = int(X_train.shape[1])
+    model = _TransformerSeqModel(n_features=n_features).to(_DEVICE)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=_LR, weight_decay=1e-4)
+    train_loader, val_loader, yw_te = _make_loaders(X_train, y_train, X_test, y_test)
+
+    if len(train_loader) == 0:
+        emit_log(
+            f"[transformer][fold={fold_tag}] insufficient bars for "
+            f"window_size={_WINDOW_SIZE}; skipping training and emitting empty preds."
+        )
+        empty = np.zeros(int(np.asarray(y_test).shape[0]), dtype=np.float64)
+        _FOLD_STATE["y"].append(np.asarray(y_test))
+        _FOLD_STATE["preds"].append(empty)
+        return model, empty
+
+    best_val_loss = float("inf")
+    best_state: dict | None = None
+    epochs_no_improve = 0
+
+    if not _DIAG_DECLARED["done"]:
+        declare_diagnostics_metrics()
+        _DIAG_DECLARED["done"] = True
+    if _DEVICE.type == "cuda":
+        torch.cuda.reset_peak_memory_stats()
+
+    for epoch in range(_N_EPOCHS):
+        model.train()
+        t0 = time.perf_counter()
+        train_loss_sum = 0.0
+        n_train_samples = 0
+        grad_norm_sum = 0.0
+        n_batches = 0
+        for xb, yb in train_loader:
+            xb = xb.to(_DEVICE, non_blocking=True)
+            yb = yb.to(_DEVICE, non_blocking=True)
+            optimizer.zero_grad(set_to_none=True)
+            logits = model(xb)
+            loss = _loss_fn(logits, yb)
+            loss.backward()
+            grad_norm_sum += global_grad_norm(model)
+            n_batches += 1
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+            train_loss_sum += float(loss.item()) * xb.size(0)
+            n_train_samples += xb.size(0)
+        epoch_dt = max(1e-6, time.perf_counter() - t0)
+        train_loss = train_loss_sum / max(1, n_train_samples)
+
+        model.eval()
+        val_loss_sum = 0.0
+        n_val_samples = 0
+        with torch.no_grad():
+            for xb, yb in val_loader:
+                xb = xb.to(_DEVICE, non_blocking=True)
+                yb = yb.to(_DEVICE, non_blocking=True)
+                logits = model(xb)
+                vloss = _loss_fn(logits, yb)
+                val_loss_sum += float(vloss.item()) * xb.size(0)
+                n_val_samples += xb.size(0)
+        val_loss = val_loss_sum / max(1, n_val_samples)
+
+        emit_metric(name=f"fold_{fold_tag}_train_loss", value=float(train_loss), iteration=epoch)
+        emit_metric(name=f"fold_{fold_tag}_val_loss", value=float(val_loss), iteration=epoch)
+        emit_step_diagnostics(
+            step=epoch, total=_N_EPOCHS,
+            grad_norm=grad_norm_sum / max(1, n_batches),
+            lr=current_lr(optimizer),
+            throughput=n_train_samples / epoch_dt,
+            vram=vram_mb(),
+        )
+        emit_log(
+            f"[transformer][fold={fold_tag}] epoch {epoch+1}/{_N_EPOCHS} "
+            f"train_loss={train_loss:.6f} val_loss={val_loss:.6f}"
+        )
+
+        if val_loss + 1e-9 < best_val_loss:
+            best_val_loss = val_loss
+            best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
+            epochs_no_improve = 0
+        else:
+            epochs_no_improve += 1
+            if epochs_no_improve >= _PATIENCE:
+                emit_log(
+                    f"[transformer][fold={fold_tag}] early stop at epoch {epoch+1}"
+                )
+                break
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+
+    model.eval()
+    preds_chunks: list[np.ndarray] = []
+    with torch.no_grad():
+        for xb, _yb in val_loader:
+            xb = xb.to(_DEVICE, non_blocking=True)
+            logits = model(xb)
+            preds_chunks.append(_logits_to_preds(logits))
+    if preds_chunks:
+        preds = np.concatenate(preds_chunks, axis=0)
+    else:
+        preds = np.asarray([], dtype=np.float64)
+
+    _FOLD_STATE["y"].append(np.asarray(yw_te))
+    _FOLD_STATE["preds"].append(preds)
+    return model, preds
+
+
+def predict(model, X) -> np.ndarray:
+    """Standard predict contract. X is the raw (N_bars, F) feature matrix.
+    Returns one prediction per window (length = N_bars - window_size + 1)."""
+    model.eval()
+    arr = np.asarray(X)
+    if arr.shape[0] < _WINDOW_SIZE:
+        return np.asarray([], dtype=np.float64)
+    raw_win = np.lib.stride_tricks.sliding_window_view(
+        arr, window_shape=_WINDOW_SIZE, axis=0
+    )
+    Xw = np.ascontiguousarray(np.transpose(raw_win, (0, 2, 1))).astype(np.float32)
+    X_t = torch.as_tensor(Xw, dtype=torch.float32)
+    out_chunks: list[np.ndarray] = []
+    with torch.no_grad():
+        for i in range(0, X_t.shape[0], _BATCH_SIZE):
+            chunk = X_t[i:i + _BATCH_SIZE].to(_DEVICE, non_blocking=True)
+            logits = model(chunk)
+            out_chunks.append(_logits_to_preds(logits))
+    if out_chunks:
+        return np.concatenate(out_chunks, axis=0)
+    return np.asarray([], dtype=np.float64)
+{% endblock %}
+
+{# Both eval partials define the real compute_fold_metrics, so suppress       #}
+{# _base's runnable placeholder — emitting both is a redefinition (F811). The #}
+{# windowed wrapper below intentionally shadows the partial's version.        #}
+{% block compute_fold_metrics %}{% endblock %}
+
+{% block eval_helpers %}
+{% if _task_kind == "regression" %}
+{% include "_eval_regression.py.j2" %}
+{% else %}
+{% include "_eval_classification.py.j2" %}
+
+# Windowed transformer emits one prediction per window (N - window_size + 1),
+# but the single-fold / walk-forward loop calls compute_fold_metrics(y_test,
+# preds) with the FULL y_test. Align y_test to the windowed preds' tail
+# (defined after the include so it shadows the shared definition).
+_unaligned_compute_fold_metrics = compute_fold_metrics
+
+
+def compute_fold_metrics(y_true, y_pred, fold_idx=None):
+    yt = np.asarray(y_true)
+    n_pred = int(np.asarray(y_pred).shape[0])
+    if yt.shape[0] > n_pred:
+        yt = yt[-n_pred:]
+    return _unaligned_compute_fold_metrics(yt, y_pred, fold_idx)
+{% endif %}
+{% endblock %}
+
+{% block eval_block %}
+    # ─── W3.b transformer_seq {{ _task_kind }} rollup ────────────────────
+    if _FOLD_STATE["y"]:
+        all_y_raw = np.concatenate([np.asarray(y).reshape(-1) for y in _FOLD_STATE["y"]])
+        preds_list = _FOLD_STATE["preds"]
+        if preds_list and preds_list[0].ndim == 2:
+            all_preds = np.concatenate(preds_list, axis=0).astype(np.float64)
+        else:
+            all_preds = np.concatenate([np.asarray(p).reshape(-1) for p in preds_list]).astype(np.float64)
+    else:
+        all_y_raw = np.asarray([], dtype=np.float64)
+        all_preds = np.asarray([], dtype=np.float64)
+
+    {% if _task_kind == "regression" %}
+    all_y = all_y_raw.astype(np.float64)
+    fallback_y = np.asarray([0.0, 1.0])
+    fallback_p = np.asarray([0.5, 0.5])
+    {% else %}
+    all_y = all_y_raw.astype(np.int64)
+    fallback_y = np.asarray([0, 1], dtype=np.int64)
+    fallback_p = np.asarray([0.5, 0.5])
+    {% endif %}
+
+    _emit_metric_declarations()
+
+    diagnostics = build_diagnostics(
+        model=None,
+        y_true=all_y if all_y.size else fallback_y,
+        y_pred=all_preds if all_preds.size else fallback_p,
+        ts=None,
+        prices=None,
+        fold_results=fold_results,
+        model_id=args.model_id,
+        symbol=args.symbol,
+        timeframe=args.timeframe,
+        n_train=int(X.shape[0]),
+        n_val=int(all_y.size),
+        n_features=int(X.shape[1]),
+        extra={
+            "template_id": "{{ template_id }}",
+            "template_version": "{{ template_version }}",
+            "catalog_id": "{{ catalog_id }}",
+            "task_kind": "{{ _task_kind }}",
+            "n_classes": int(_N_CLASSES),
+            "window_size": int(_WINDOW_SIZE),
+            "d_model": int(_D_MODEL),
+            "d_model_price": int(_D_MODEL_PRICE),
+            "d_model_volume": int(_D_MODEL_VOL),
+            "n_layers": int(_N_LAYERS),
+            "n_heads": int(_N_HEADS),
+            "d_ff": int(_D_FF),
+            "dropout": float(_DROPOUT),
+            "n_total_bars": int(n_total),
+            "n_kept_samples": int(X.shape[0]),
+            "feature_names": list(names),
+        },
+    )
+
+    if all_y.size and all_preds.size:
+        out_path = _PROJECT_ROOT / "data" / "models" / args.model_id / "oos_predictions.parquet"
+        write_oos_predictions(
+            ts=np.arange(all_y.size, dtype=np.int64),
+            y_true=all_y,
+            y_pred=all_preds,
+            output_path=out_path,
+            symbol=args.symbol,
+        )
+{% endblock %}

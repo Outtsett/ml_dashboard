@@ -1,0 +1,140 @@
+{# ---------------------------------------------------------------------- #}
+{# sklearn.py.j2 — generic sklearn estimator template (W2.b)              #}
+{#                                                                         #}
+{# Renders a self-contained generated trainer for any sklearn-compatible   #}
+{# estimator. Selected by the family resolver (catalogBridge.pickTemplate  #}
+{# in W2.a; scripts/generate_model.DEFAULT_FAMILY_FOR_CATALOG fallback)    #}
+{# for: random-forest, logistic-regression, k-nearest-neighbors-knn,       #}
+{# support-vector-machine-svm, decision-tree, naive-bayes, etc.            #}
+{#                                                                         #}
+{# Required template-context keys (per ml sub-plan §2):                    #}
+{#   - catalog_spec.module_path : e.g. 'sklearn.ensemble'                  #}
+{#   - catalog_spec.class_name  : e.g. 'RandomForestClassifier'            #}
+{# Both populated by W2.a backend parser. Until W2.a ships, the generator  #}
+{# may pass an empty catalog_spec; this template degrades to a documented  #}
+{# placeholder that surfaces the missing wiring at fit-time.               #}
+{# ---------------------------------------------------------------------- #}
+{% extends "_base.py.j2" %}
+
+{% set _spec = catalog_spec | default({}) %}
+{% set _module_path = _spec.module_path | default("") %}
+{% set _class_name = _spec.class_name | default("") %}
+
+{% block model_imports %}
+{% if _module_path and _class_name %}
+from {{ _module_path }} import {{ _class_name }}
+{% else %}
+# W2.a parser has not populated catalog_spec.module_path / class_name yet for
+# catalog_id={{ catalog_id | python_repr }}. Generated trainer will raise at
+# fit-time so the missing wiring surfaces immediately.
+{% endif %}
+# Module-level state lets the eval block (rendered after walk_forward) read
+# the per-fold predictions train_one_fold accumulated during the loop.
+_FOLD_STATE: dict = {"y": [], "preds": [], "ts": [], "prices": []}
+{% endblock %}
+
+{% block train_loop %}
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+    """Generic sklearn fit/predict — instantiated with the catalog hyperparameters."""
+    {% if not (_module_path and _class_name) %}
+    raise NotImplementedError(
+        "sklearn.py.j2 was rendered without catalog_spec.module_path / class_name "
+        "for catalog_id={{ catalog_id }}. Backend W2.a parser must populate "
+        "those fields before this template can train."
+    )
+    {% endif %}
+    model = {{ _class_name or "_MissingEstimator" }}(
+        {%- for name, value in hyperparameters.items() %}
+        {{ name }}={{ value | python_repr }},
+        {%- endfor %}
+    )
+    model.fit(X_train, y_train)
+    if hasattr(model, "predict_proba"):
+        proba = model.predict_proba(X_test)
+        if proba.ndim == 2 and proba.shape[1] == 2:
+            preds = proba[:, 1].astype(np.float64)
+        else:
+            preds = proba.astype(np.float64)
+    elif hasattr(model, "decision_function"):
+        # Map decision-function score to (0, 1) via logistic squashing for
+        # downstream metric/PnL code that expects a probability-like value.
+        scores = np.asarray(model.decision_function(X_test), dtype=np.float64)
+        preds = 1.0 / (1.0 + np.exp(-scores))
+    else:
+        preds = np.asarray(model.predict(X_test), dtype=np.float64)
+    # Accumulate per-fold OOS arrays for the eval block to aggregate.
+    _FOLD_STATE["y"].append(np.asarray(y_test))
+    _FOLD_STATE["preds"].append(preds if preds.ndim == 1 else preds[:, -1])
+    return model, preds
+
+
+def predict(model, X):
+    """Standard predict contract: returns 1D probability or score per row."""
+    if hasattr(model, "predict_proba"):
+        proba = model.predict_proba(X)
+        if proba.ndim == 2 and proba.shape[1] == 2:
+            return proba[:, 1].astype(np.float64)
+        return proba.astype(np.float64)
+    if hasattr(model, "decision_function"):
+        scores = np.asarray(model.decision_function(X), dtype=np.float64)
+        return 1.0 / (1.0 + np.exp(-scores))
+    return np.asarray(model.predict(X), dtype=np.float64)
+{% endblock %}
+
+{# The eval partial below defines the real compute_fold_metrics, so suppress  #}
+{# _base's runnable placeholder — emitting both is a redefinition (F811).     #}
+{% block compute_fold_metrics %}{% endblock %}
+
+{# Module-level eval helpers — render the classification eval module at      #}
+{# top-of-file scope so its functions / constants stay at module scope.      #}
+{% block eval_helpers %}
+{% include "_eval_classification.py.j2" %}
+{% endblock %}
+
+{# Per-run rollup — runs INSIDE run_training() after the WF loop completes. #}
+{% block eval_block %}
+    # ─── W2.b classification rollup ──────────────────────────────────────
+    # Aggregate per-fold OOS arrays accumulated by train_one_fold via
+    # _FOLD_STATE (declared at module top in the model_imports block).
+    if _FOLD_STATE["y"]:
+        all_y = np.concatenate(_FOLD_STATE["y"]).astype(np.int64)
+        all_preds = np.concatenate(_FOLD_STATE["preds"]).astype(np.float64)
+    else:
+        all_y = np.asarray([], dtype=np.int64)
+        all_preds = np.asarray([], dtype=np.float64)
+
+    _emit_metric_declarations()
+
+    diagnostics = build_diagnostics(
+        model=None,
+        y_true=all_y if all_y.size else np.asarray([0, 1], dtype=np.int64),
+        y_pred=all_preds if all_preds.size else np.asarray([0.5, 0.5]),
+        ts=None,
+        prices=None,
+        fold_results=fold_results,
+        model_id=args.model_id,
+        symbol=args.symbol,
+        timeframe=args.timeframe,
+        n_train=int(X.shape[0]),
+        n_val=int(all_y.size),
+        n_features=int(X.shape[1]),
+        extra={
+            "template_id": "{{ template_id }}",
+            "template_version": "{{ template_version }}",
+            "catalog_id": "{{ catalog_id }}",
+            "n_total_bars": int(n_total),
+            "n_kept_samples": int(X.shape[0]),
+            "feature_names": list(names),
+        },
+    )
+
+    if all_y.size and all_preds.size:
+        out_path = _PROJECT_ROOT / "data" / "models" / args.model_id / "oos_predictions.parquet"
+        write_oos_predictions(
+            ts=np.arange(all_y.size, dtype=np.int64),
+            y_true=all_y,
+            y_pred=all_preds,
+            output_path=out_path,
+            symbol=args.symbol,
+        )
+{% endblock %}

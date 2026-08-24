@@ -1,0 +1,53 @@
+# Docs — Documentation and Specs
+
+Architecture documents, design specs, implementation plans, and reference material.
+
+## Structure
+
+```
+docs/
+  design/                       Design principle documents
+    tensionflow_design_principles.md
+  research/                     First-principles research synthesis (2026-05-09)
+    intraday_model_arsenal.md       9-layer intraday MNQ architecture (CORE/SUPPORTING picks from 300-spec audit)
+    catalog_per_model_notes.md      Per-spec evidence base — 300 verdicts in 7 bucket tables
+  plans/                        Implementation plans (active only — archived on 2026-05-09)
+    2026-05-08-ml-studio-end-to-end.md
+    archive/                    19 superseded plans (2026-02-18 through 2026-03-12)
+  superpowers/                  Claude Code superpowers-generated docs
+    specs/                      Design specifications
+      2026-03-20-rendering-infrastructure-design.md
+      2026-03-26-triple-barrier-cnn-transformer-design.md
+      2026-03-27-training-page-redesign.md
+      2026-03-30-adaptive-training-tab-design.md
+      2026-03-30-cnn-transformer-metrics-design.md
+    plans/                      Implementation plans
+      2026-03-20-rendering-infrastructure.md
+      2026-03-26-triple-barrier-training.md
+      2026-03-27-dashboard-training-integration.md
+      2026-03-27-training-page-redesign.md
+```
+
+## Key Documents
+
+| Document | Topic |
+|---|---|
+| `research/intraday_model_arsenal.md` | **9-layer intraday MNQ architecture** — 12 CORE + 22 SUPPORTING models, MTF training protocol, T/R/D/V/R decomposition, integration roadmap (week-1 + quarter-1) |
+| `research/catalog_per_model_notes.md` | Per-spec evidence base — 300 verdicts (CORE/SUPPORTING/RESEARCH/BASELINE/REJECT) across 7 bucket tables |
+| `UNIVERSAL-TRAINING-ARCHITECTURE.md` | Universal training architecture overview |
+| `SIMULATOR-ARCHITECTURE.md` | Trade simulator design |
+| `UI_SPEC.md` | UI specification and layout |
+| `SOLID-FIX-PLAN.md` | SOLID principles refactoring plan |
+| `oanda-v20-api-reference.md` | Oanda forex API reference |
+| `ts_bestpractices.md` | TypeScript best practices |
+| `Developer Terms.md` | Developer terminology glossary |
+
+## Document Naming Convention
+
+Plans and specs use ISO 8601 date prefix: `YYYY-MM-DD-<topic>.md`. Paired documents use `-design.md` (spec) and `-impl.md` (implementation plan) suffixes. Research docs in `research/` use intent-first names (no date prefix) since they describe the current canonical view.
+
+## Plan Lifecycle
+
+- `plans/<date>-<topic>.md` — active in-flight plan
+- `plans/archive/<date>-<topic>.md` — superseded or completed; kept for traceability
+- Plans graduate to `archive/` via `git mv` when their work is fully landed or replaced by a newer plan. The 2026-05-09 archive purge moved 19 plans (see `CLAUDE.md` Recent Changes for the list).

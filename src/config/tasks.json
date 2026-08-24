@@ -1,0 +1,38 @@
+{
+  "version": "1.0.0",
+  "metadata": {
+    "last_audit": "2026-05-09",
+    "notes": "Task registry — what the model is for. A task = prediction target + head shape + compatible label strategies. The Train UI's second picker selects from this list, filtered by the chosen algorithm's `supports` field."
+  },
+  "tasks": {
+    "direction_classifier": {
+      "name": "Direction Classifier",
+      "head": "binary",
+      "headKind": "classification",
+      "nClasses": 2,
+      "labelStrategies": ["next_close_direction", "triple_barrier"],
+      "supportedObjectives": ["sharpe_after_costs", "profit_factor", "auc", "log_loss"],
+      "chartOverlay": "prediction_heatband",
+      "description": "Predict direction at horizon (next bar close, or first hit of profit/stop/time barriers). Output: P(up). Works with any algorithm that supports `classification`."
+    },
+    "range_classifier": {
+      "name": "Range-Bucket Classifier",
+      "head": "k-class",
+      "headKind": "classification",
+      "nClasses": 21,
+      "labelStrategies": ["range_bucket"],
+      "supportedObjectives": ["maximize_within2pt_acc", "maximize_cost_adj_sharpe"],
+      "chartOverlay": "prediction_markers",
+      "description": "Quantize next-N-bar high-low range into K buckets. Output: P(bucket_k). Headline metric: within-2-point accuracy."
+    },
+    "multi_head": {
+      "name": "Multi-Head (Direction + Magnitude + Confidence)",
+      "head": "multi",
+      "headKind": "multi",
+      "labelStrategies": ["forward_return"],
+      "supportedObjectives": ["minimize_loss", "maximize_roc_auc"],
+      "chartOverlay": "prediction_markers",
+      "description": "Joint output heads: direction (binary), magnitude (regression), confidence (Bernoulli). Requires an algorithm flagged `supports: multi-head`."
+    }
+  }
+}

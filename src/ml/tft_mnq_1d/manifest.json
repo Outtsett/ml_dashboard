@@ -1,0 +1,39 @@
+{
+  "catalogId": "temporal-fusion-transformer",
+  "featureCategories": [
+    "price_action",
+    "volatility",
+    "momentum",
+    "volume"
+  ],
+  "featurePipeline": "default-35",
+  "generatedAt": "2026-05-20T19:01:38+00:00",
+  "generator": "scripts/generate_model.py",
+  "hyperparameters": {
+    "batch_size": 64,
+    "d_model": 32,
+    "dropout": 0.1,
+    "early_stop_patience": 3,
+    "learning_rate": 0.001,
+    "loss_surface": true,
+    "loss_surface_resolution": 7,
+    "lstm_layers": 1,
+    "n_epochs": 3,
+    "n_heads": 4,
+    "weight_decay": 0.0001,
+    "window_size": 32
+  },
+  "labelParams": {
+    "horizon_bars": 5,
+    "threshold_bp": 5
+  },
+  "labelStrategy": "triple_barrier",
+  "manifestVersion": 1,
+  "modelId": "tft_mnq_1d",
+  "symbol": "MNQ",
+  "templateId": "temporal_fusion_transformer",
+  "templateVariant": null,
+  "templateVersion": "0.1.0",
+  "timeframe": "1d",
+  "walkForward": null
+}

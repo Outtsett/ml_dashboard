@@ -1,0 +1,79 @@
+[project]
+name = "ml-dashboard"
+version = "0.1.0"
+description = "ML Dashboard for quantitative trading research"
+requires-python = ">=3.13"
+dependencies = [
+    # ── Scientific core ─────────────────────────────────────────────
+    "numpy>=2.4,<3",
+    "pandas>=2.3,<3",           # pandas 3.0 ecosystem support incomplete as of 2026-05
+    "polars>=1.37",
+    "pyarrow>=23",
+    "scipy>=1.16,<2",
+    "duckdb>=1.4",
+
+    # ── ML / training ───────────────────────────────────────────────
+    "torch==2.11.0",            # sm_120-aware build via [tool.uv.sources] -> pytorch-cu130 index
+    "scikit-learn>=1.6,<2",
+    "scikit-optimize>=0.10",    # imported as `skopt` in optimizers/bayesian_optimizer.py
+    "xgboost>=3.1,<4",
+    "lightgbm>=4.6,<5",
+    "optuna>=4.8,<5",
+    "nevergrad>=1.0",
+    "numba>=0.64,<1",
+    "hmmlearn>=0.3",
+    "gymnasium>=1.0",
+    "joblib>=1.4",
+
+    # ── Validation / config ─────────────────────────────────────────
+    "pydantic>=2.10,<3",
+    "jinja2>=3.1",
+
+    # ── Data sources / DB ───────────────────────────────────────────
+    "databento>=0.70",
+    "psycopg2-binary>=2.9.11",
+
+    # ── System / GPU instrumentation ───────────────────────────────
+    "psutil>=6",
+    "nvidia-ml-py>=12",         # provides `pynvml` import; replaces deprecated pynvml package
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9",
+    "ruff>=0.14,<1",
+    "mypy>=1.19,<2",
+]
+
+# ── uv: pin PyTorch to the cu130 (sm_120 Blackwell) index ──────────
+# Without this, uv resolves torch from PyPI (which only has +cpu / +cu129 wheels).
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.ruff]
+target-version = "py313"
+src = ["src/ml", "scripts"]
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "F401",   # unused imports
+    "F811",   # redefined unused name
+    "F841",   # unused local variable
+    "I",      # isort (import sorting/grouping)
+]
+fixable = ["F401", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["ml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "src/ml"]
+addopts = "--import-mode=importlib"
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]

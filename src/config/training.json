@@ -1,0 +1,39 @@
+{
+  "paths": {
+    "pythonExe": ".venv/Scripts/python.exe",
+    "modelsDir": "data/models"
+  },
+  "limits": {
+    "maxConcurrentJobs": 1,
+    "maxBarsDefault": 0,
+    "maxTrainingDurationSec": 7200,
+    "jobRetentionSec": 3600
+  },
+  "stderrSuppressPatterns": [
+    "ConvergenceWarning",
+    "DeprecationWarning",
+    "UserWarning",
+    "FutureWarning",
+    "loky",
+    "resource_tracker",
+    "RuntimeWarning",
+    "torch.cuda",
+    "TensorFlow"
+  ],
+  "timeframes": {
+    "1m": 60,
+    "5m": 300,
+    "15m": 900,
+    "30m": 1800,
+    "1h": 3600,
+    "4h": 14400,
+    "1d": 86400,
+    "1w": 604800
+  },
+  "timeframeAliases": {
+    "1H": "1h",
+    "4H": "4h",
+    "1D": "1d",
+    "1W": "1w"
+  }
+}

@@ -1,53 +1,237 @@
-# =====================================================================
-# Generic .gitignore — base rules for all projects
-# Language-specific rules are appended automatically by the audit script
-# =====================================================================
+# =============================================================================
+# ML Dashboard — .gitignore
+# =============================================================================
+# This repository is published under a Source-Available View-Only License (see
+# LICENSE). Anything that contains secrets, credentials, personal information,
+# local environment paths, internal planning notes, AI-assistant scratch data,
+# build artifacts, runtime state, or large generated data MUST be excluded.
+# =============================================================================
 
-# OS / editor
-.DS_Store
-Thumbs.db
-desktop.ini
-*.swp
-*.swo
-.idea/
-.vscode/
-!.vscode/settings.json
-!.vscode/extensions.json
-*.iml
-.fleet/
-
-# Logs
-*.log
-logs/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Environment / secrets
+# ── Secrets & credentials ────────────────────────────────────────────────────
 .env
-.env.local
-.env.*.local
-.env.development.local
-.env.production.local
-.env.test.local
+.env.*
+!.env.example
+.env.secrets
+*.secrets
+secrets/
+secrets.json
+credentials.json
+credentials/
 *.pem
 *.key
-*.crt
 *.p12
 *.pfx
-*.keystore
-*.jks
-secrets/
-credentials.json
-service-account*.json
-firebase-adminsdk*.json
+*.cer
+*.crt
+*.kdbx
+*.gpg
+.netrc
+.npmrc.local
+.pypirc
 
-# Coverage / profiling
-coverage/
-*.lcov
-.nyc_output/
+# ── Dependencies ─────────────────────────────────────────────────────────────
+node_modules/
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Misc
-tmp/
-temp/
+# ── Build output ─────────────────────────────────────────────────────────────
+dist/
+build/
+release/
+out/
+*.egg-info/
+*.whl
+.next/
 .cache/
+.parcel-cache/
+
+# ── Database files & data ────────────────────────────────────────────────────
+# ANCHORED to the repo root. A bare `data/` matches a directory named `data` at
+# ANY depth, which silently excluded real source: src/client/src/data (the whole
+# Databases page), src/server/data (5 routers) and
+# src/client/src/system/architecture-explorer/mechanism/data. Those 16 files were
+# untracked and existed only on one machine. Keep the leading slash.
+/data/
+# ML training outputs also live under src/ml/data — those ARE artifacts.
+# (*.pt below already covers checkpoints; this covers the rest.)
+src/ml/data/
+*.db
+*.db-journal
+*.duckdb
+*.duckdb.wal
+*.sqlite
+*.sqlite3
+*.questdb
+.questdb.pid
+.questdb/
+parquet/
+*.parquet
+*.feather
+*.arrow
+
+# ── Model artifacts & training outputs ───────────────────────────────────────
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.hdf5
+*.onnx
+*.safetensors
+*.npz
+*.npy
+*.pkl
+*.pickle
+*.joblib
+mlruns/
+optuna_studies/
+runs/
+tensorboard/
+lightning_logs/
+
+# ── Logs & reports ───────────────────────────────────────────────────────────
+logs/
+*.log
+*.log.*
+server_debug.log
+server_debug_err.log
+tsc_output.txt
+*_executed.ipynb
+.ipynb_checkpoints/
+
+# ── Archives ─────────────────────────────────────────────────────────────────
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+pythonlibs.zip
+node_modules.zip
+
+# ── Internal AI-assistant scratch / planning ─────────────────────────────────
+# Project-level Claude memory contains internal architecture notes, hardware
+# inventory, and personal preferences that should not be public.
+CLAUDE.md
+docs/CLAUDE-archive.md
+CLAUDE.local.md
+GEMINI.md
+AGENTS.md
+.claude/
+.claude_memory/
+.cursor/
+.cursorrules
+.cursorignore
+.aider*
+.windsurf/
+.continue/
+.gpt-engineer/
+.copilot/
+.codeium/
+
+# Superpowers / brainstorming session HTML and state
+.superpowers/
+
+# Internal planning + refactor notes (rough drafts)
+REFAC_TODO.md
+TODO.md
+NOTES.md
+SCRATCH.md
+*.draft.md
+docs/drafts/
+docs/internal/
+docs/private/
+
+# ── IDE & editor ─────────────────────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+.fleet/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*.swn
+*~
+*.bak
+*.backup
+*.backup.*
+*.backup_*
+README.md.backup
+
+# ── Caches ───────────────────────────────────────────────────────────────────
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage/
+.hypothesis/
+.benchmarks/
+
+# ── Worktrees & local clones ─────────────────────────────────────────────────
+.worktrees/
+.git-blame-ignore-revs.local
+
+# ── OS metadata ──────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+nul
+
+# ── Runtime / personal config ────────────────────────────────────────────────
+.mcp.json
+attached_assets/
+client/src/pages/archive/
+src/client/src/pages/archive/
+
+# ── Generated files ──────────────────────────────────────────────────────────
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+
+# ── Misc data dumps that should never reach git ──────────────────────────────
+*.dump
+*.sql.bak
+*.csv
+*.tsv
+!**/fixtures/**/*.csv
+!**/test-data/**/*.csv
+!**/__fixtures__/**/*.csv
+
+# ── Local-only Python notebook outputs (keep stripped notebooks only) ────────
+# Use `nbstripout --install` to strip outputs automatically before committing.
+
+# ── Strategy research outputs (proprietary tuned parameters) ─────────────────
+scripts/orb_*.txt
+scripts/orb_*.json
+scripts/orb_error.txt
+scripts/_*.py
+
+# ── Local tool scratch (never reaches git) ───────────────────────────────────
+# Browser-automation console dumps and generated analytics figures are run
+# artifacts, not source. Analytics belongs in the dashboard, not in image files.
+.playwright-mcp/
+outputs/
+
+# ── Tool caches (never commit) ───────────────────────────────────────────────
+node_modules/.cache/
+.claude/state/

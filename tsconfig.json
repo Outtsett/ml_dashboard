@@ -1,0 +1,45 @@
+{
+  "include": ["src/client/src/**/*", "src/shared/**/*", "src/server/**/*", "src/ml/**/*", "src/scripts/**/*"],
+  "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
+  "compilerOptions": {
+    /* Emit */
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.cache/tsbuildinfo",
+    "noEmit": true,
+
+    /* Language & Environment */
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+
+    /* Module Resolution */
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": false,
+
+    /* Strict Checks */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* Skip */
+    "skipLibCheck": true,
+
+    /* Paths */
+    "baseUrl": ".",
+    "types": ["node", "vite/client"],
+    "paths": {
+      "@/*": ["./src/client/src/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@ml/*": ["./src/ml/*"],
+      "@server/*": ["./src/server/*"]
+    }
+  }
+}

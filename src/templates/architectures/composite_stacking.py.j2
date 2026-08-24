@@ -1,0 +1,276 @@
+{# ---------------------------------------------------------------------- #}
+{# composite_stacking.py.j2 - Stacked generalization (W5)                 #}
+{#                                                                         #}
+{# Wolpert (1992) stacking with leak-free meta-feature generation:        #}
+{#   1. For each base member, train on the X_train fold;                  #}
+{#   2. Generate per-base OOS predictions on X_test (the meta-features);  #}
+{#   3. Fit a meta-learner on (meta_features, y_test):                    #}
+{#        - logistic_meta : sklearn.linear_model.LogisticRegression        #}
+{#        - voting        : simple unweighted mean of base predictions    #}
+{#        - weighted_average : closed-form least-squares weights via      #}
+{#                       solve(X^T X) X^T y on the meta-features          #}
+{#   4. Composite prediction = meta-learner over per-base predictions.    #}
+{#                                                                         #}
+{# Required template-context keys:                                         #}
+{#   members  : list[                                                      #}
+{#     {                                                                    #}
+{#       slot_idx          : int,                                          #}
+{#       catalog_id        : str,                                          #}
+{#       resolved_model_id : str   <-- populated by depth-first generator  #}
+{#       hyperparameters   : dict                                          #}
+{#     }                                                                    #}
+{#   ]                                                                      #}
+{#   combiner : 'logistic_meta' | 'voting' | 'weighted_average'             #}
+{#                                                                         #}
+{# Note on leak: members train on X_train only; the meta-fit happens on    #}
+{# (member_test_preds, y_test). A more rigorous CV-stacking implementation #}
+{# would use within-train K-fold to generate meta-features for the meta-   #}
+{# learner. The simpler test-fold stacking here matches sklearn's          #}
+{# StackingClassifier(stack_method="predict_proba", cv="prefit") variant   #}
+{# and is the one walk-forward folding is built around.                    #}
+{# ---------------------------------------------------------------------- #}
+{% extends "_base.py.j2" %}
+
+{% set _combiner = combiner | default("logistic_meta") %}
+{% set _n_members = members | length %}
+
+{% block model_imports %}
+{% if _combiner == "logistic_meta" %}
+from sklearn.linear_model import LogisticRegression as _MetaLR
+{% endif %}
+# Per-slot member imports - one block per member, in slot order.
+{% for m in members %}
+from src.ml.{{ m.resolved_model_id | replace("-", "_") }}.main import (
+    train_one_fold as _train_member_{{ m.slot_idx }},
+    predict as _predict_member_{{ m.slot_idx }},
+)
+{% endfor %}
+
+_N_MEMBERS: int = {{ _n_members | python_repr }}
+_COMBINER: str = {{ _combiner | python_repr }}
+
+# Module-level fold state for eval rollup.
+_FOLD_STATE: dict = {"y": [], "preds": [], "member_preds": []}
+{% endblock %}
+
+{% block train_loop %}
+def _member_fns():
+    """Tuple of (slot_idx, train_fn, predict_fn) per member, in declaration order."""
+    return [
+        {% for m in members %}
+        ({{ m.slot_idx | python_repr }}, _train_member_{{ m.slot_idx }}, _predict_member_{{ m.slot_idx }}),
+        {% endfor %}
+    ]
+
+
+def _stack_member_preds(preds_list: list[np.ndarray]) -> np.ndarray:
+    """Stack per-member predictions to (B, n_members) of P(class==1) scalars.
+
+    Each member's preds is either:
+      - shape (B,)           scalar score / binary probability
+      - shape (B, 2)         binary softmax => take col 1
+      - shape (B, K) K > 2   multi-class => take max-class probability
+    """
+    flat: list[np.ndarray] = []
+    for p in preds_list:
+        arr = np.asarray(p, dtype=np.float64)
+        if arr.ndim == 1:
+            flat.append(arr)
+        elif arr.ndim == 2:
+            if arr.shape[1] == 2:
+                flat.append(arr[:, 1])
+            else:
+                flat.append(arr.max(axis=1))
+        else:
+            flat.append(arr.reshape(arr.shape[0], -1).max(axis=1))
+    return np.stack(flat, axis=-1)  # (B, n_members)
+
+
+{% if _combiner == "logistic_meta" %}
+def _fit_meta(meta_X: np.ndarray, y: np.ndarray):
+    """Logistic-regression meta-learner over per-member predictions.
+
+    Uses sklearn's LogisticRegression with liblinear solver (small input),
+    L2 regularization, and class_weight='balanced' to absorb class skew that
+    individual members may share.
+    """
+    meta = _MetaLR(
+        solver="liblinear", C=1.0, penalty="l2",
+        class_weight="balanced", max_iter=200,
+    )
+    meta.fit(meta_X, y.astype(np.int64))
+    return meta
+
+
+def _meta_predict(meta, meta_X: np.ndarray) -> np.ndarray:
+    proba = meta.predict_proba(meta_X)
+    return proba[:, 1].astype(np.float64) if proba.ndim == 2 and proba.shape[1] == 2 \
+        else proba.max(axis=1).astype(np.float64)
+{% elif _combiner == "voting" %}
+def _fit_meta(meta_X: np.ndarray, y: np.ndarray):
+    """Voting combiner has no learnable params - return a sentinel."""
+    return {"kind": "voting"}
+
+
+def _meta_predict(meta, meta_X: np.ndarray) -> np.ndarray:
+    return meta_X.mean(axis=-1).astype(np.float64)
+{% elif _combiner == "weighted_average" %}
+def _fit_meta(meta_X: np.ndarray, y: np.ndarray):
+    """Closed-form non-negative weight estimation via least squares.
+
+    Solves min_w ||meta_X @ w - y||_2 subject to w in R^n_members. We don't
+    constrain to the simplex - if the LS solution has negatives we clip-and-
+    renormalize so the composite prediction stays in [0, 1] for downstream
+    metric/calibration code.
+    """
+    X = meta_X.astype(np.float64)
+    yv = y.astype(np.float64).reshape(-1)
+    # Add small Tikhonov ridge to keep solve stable when members are highly
+    # collinear (common when all members ride the same family).
+    lam = 1e-3
+    G = X.T @ X + lam * np.eye(X.shape[1])
+    b = X.T @ yv
+    try:
+        w = np.linalg.solve(G, b)
+    except np.linalg.LinAlgError:
+        w = np.linalg.lstsq(G, b, rcond=None)[0]
+    w = np.clip(w, 0.0, None)
+    s = float(w.sum())
+    if s <= 0:
+        w = np.ones_like(w) / float(w.size)
+    else:
+        w = w / s
+    return {"kind": "weighted_average", "weights": w.astype(np.float64)}
+
+
+def _meta_predict(meta, meta_X: np.ndarray) -> np.ndarray:
+    w = meta["weights"]
+    return (meta_X * w[None, :]).sum(axis=-1).astype(np.float64)
+{% else %}
+def _fit_meta(meta_X, y):
+    raise ValueError(
+        "composite_stacking.py.j2 rendered with unknown combiner "
+        "{{ _combiner | python_repr }}; "
+        "expected 'logistic_meta', 'voting', or 'weighted_average'."
+    )
+
+
+def _meta_predict(meta, meta_X):
+    raise ValueError("unknown combiner")
+{% endif %}
+
+
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+    """Stacking fold trainer.
+
+    Member training: each member fits on the SAME (X_train, y_train); reports
+    its own val preds on X_test (those val preds become the meta features).
+    Meta learner fits on (member_test_preds, y_test). Composite prediction
+    is the meta-learner over (member_test_preds).
+    """
+    fold_tag = "single" if fold_idx is None else str(fold_idx)
+    member_models: list = []
+    member_test_preds: list[np.ndarray] = []
+    for slot_idx, train_fn, _predict_fn in _member_fns():
+        emit_log(f"[stacking][fold={fold_tag}] training member slot={slot_idx}")
+        model_m, preds_m_test = train_fn(X_train, y_train, X_test, y_test, args, fold_idx=fold_idx)
+        member_models.append(model_m)
+        member_test_preds.append(np.asarray(preds_m_test))
+
+    meta_features = _stack_member_preds(member_test_preds)  # (B_test, n_members)
+    meta = _fit_meta(meta_features, np.asarray(y_test))
+    composite_preds = _meta_predict(meta, meta_features)
+
+    _FOLD_STATE["y"].append(np.asarray(y_test))
+    _FOLD_STATE["preds"].append(composite_preds.astype(np.float64))
+    _FOLD_STATE["member_preds"].append(meta_features)
+
+    composite_model = {"members": member_models, "meta": meta, "combiner": _COMBINER}
+    return composite_model, composite_preds
+
+
+def predict(model, X) -> np.ndarray:
+    """Standard predict contract: 1D meta-learner output per row."""
+    members = model["members"]
+    meta = model["meta"]
+    predict_fns = [
+        {% for m in members %}
+        _predict_member_{{ m.slot_idx }},
+        {% endfor %}
+    ]
+    member_preds = [fn(mdl, X) for fn, mdl in zip(predict_fns, members)]
+    meta_features = _stack_member_preds(member_preds)
+    return _meta_predict(meta, meta_features)
+{% endblock %}
+
+{# The eval partial below defines the real compute_fold_metrics, so suppress  #}
+{# _base's runnable placeholder — emitting both is a redefinition (F811).     #}
+{% block compute_fold_metrics %}{% endblock %}
+
+{% block eval_helpers %}
+{% include "_eval_classification.py.j2" %}
+{% endblock %}
+
+{% block eval_block %}
+    # --- W5 stacking composite rollup ------------------------------------
+    if _FOLD_STATE["y"]:
+        all_y = np.concatenate([np.asarray(y).reshape(-1) for y in _FOLD_STATE["y"]]).astype(np.int64)
+        all_preds = np.concatenate(_FOLD_STATE["preds"]).astype(np.float64)
+    else:
+        all_y = np.asarray([0, 1], dtype=np.int64)
+        all_preds = np.asarray([0.5, 0.5], dtype=np.float64)
+
+    if _FOLD_STATE["member_preds"]:
+        all_member_preds = np.concatenate(_FOLD_STATE["member_preds"], axis=0)
+        member_mean_pred = all_member_preds.mean(axis=0).tolist()
+    else:
+        member_mean_pred = [0.5] * _N_MEMBERS
+
+    _emit_metric_declarations()
+
+    diagnostics = build_diagnostics(
+        model=None,
+        y_true=all_y,
+        y_pred=all_preds,
+        ts=None,
+        prices=None,
+        fold_results=fold_results,
+        model_id=args.model_id,
+        symbol=args.symbol,
+        timeframe=args.timeframe,
+        n_train=int(X.shape[0]),
+        n_val=int(all_y.size),
+        n_features=int(X.shape[1]),
+        extra={
+            "template_id": "{{ template_id }}",
+            "template_version": "{{ template_version }}",
+            "catalog_id": "{{ catalog_id }}",
+            "composite_kind": "stacking",
+            "n_members": int(_N_MEMBERS),
+            "combiner": _COMBINER,
+            "member_slots": [
+                {% for m in members %}
+                {
+                    "slot_idx": {{ m.slot_idx | python_repr }},
+                    "catalog_id": {{ m.catalog_id | python_repr }},
+                    "resolved_model_id": {{ m.resolved_model_id | python_repr }},
+                },
+                {% endfor %}
+            ],
+            "member_mean_pred": member_mean_pred,
+            "n_total_bars": int(n_total),
+            "n_kept_samples": int(X.shape[0]),
+            "feature_names": list(names),
+        },
+    )
+
+    if all_y.size and all_preds.size:
+        out_path = _PROJECT_ROOT / "data" / "models" / args.model_id / "oos_predictions.parquet"
+        write_oos_predictions(
+            ts=np.arange(all_y.size, dtype=np.int64),
+            y_true=all_y,
+            y_pred=all_preds,
+            output_path=out_path,
+            symbol=args.symbol,
+        )
+{% endblock %}

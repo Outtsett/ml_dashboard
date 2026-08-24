@@ -1,0 +1,398 @@
+{# ---------------------------------------------------------------------- #}
+{# _base.py.j2 — common header for every generated atomic model           #}
+{#                                                                         #}
+{# Mirrors the structure of src/ml/xgb_classifier/main.py (lines 1-525)    #}
+{# so generated models behave identically to the canonical wired model:    #}
+{#   - same _PROJECT_ROOT insert (lines 40-42)                             #}
+{#   - same shared imports (lines 44-49)                                   #}
+{#   - same args→config translator pattern (lines 232-256)                 #}
+{#   - same try/except + emit_done wrapper (lines 513-525)                 #}
+{#                                                                         #}
+{# Family templates extend this base and override blocks:                  #}
+{#   {% block model_imports %}     — family-specific imports               #}
+{#   {% block label_generation %}  — overrides default shared.labels call  #}
+{#   {% block train_loop %}        — train_one_fold body                   #}
+{#   {% block eval_block %}        — left empty in W1; W1.c lands content  #}
+{#                                                                         #}
+{# Required convention enforced here per ml sub-plan §6 footer:            #}
+{#   - train_one_fold(X_train, y_train, X_test, y_test, args, *,           #}
+{#                    fold_idx=None) -> (model, preds)                      #}
+{#   - predict(model, X) -> np.ndarray                                      #}
+{# Composite templates in W5 import these by name, so the signature is     #}
+{# part of the cross-domain contract.                                       #}
+{# ---------------------------------------------------------------------- #}
+"""
+{{ model_id }} — auto-generated from template {{ template_id }}@{{ template_version }}.
+
+Catalog source : {{ catalog_id }}
+Generated at   : {{ generated_at }}
+Symbol/TF      : {{ symbol }}/{{ timeframe }}
+Label strategy : {{ label_strategy }}
+
+Standard CLI surface (orchestrator-compatible):
+
+    python src/ml/{{ model_id }}/main.py \\
+        --symbol {{ symbol }} --timeframe {{ timeframe }} \\
+        --model-id <run_id> --json [--max-bars N] \\
+        [--date-start ... --date-end ...] \\
+        [--feature-categories cat1,cat2,...] \\
+        [--<hp> <value> ...]
+
+Emits the standard JSON-line event stream consumed by the dashboard SSE
+parser registry (`src/server/training/runners/parsers/`):
+  log / progress / metric_declarations / metric / fold_complete / done
+
+Outputs to ``data/models/<model_id>/``:
+  checkpoint.json, diagnostics.json, oos_predictions.parquet
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+import traceback
+from pathlib import Path
+from typing import Any  # noqa: F401  — used by family overrides
+
+import numpy as np
+
+_HERE = Path(__file__).resolve()
+_PROJECT_ROOT = _HERE.parents[3]
+sys.path.insert(0, str(_PROJECT_ROOT))
+
+from src.ml.shared.data import load_ohlcv_arrays
+from src.ml.shared.feature_cache import cached_features
+from src.ml.shared.features import compute_features
+from src.ml.shared.protocol import (
+    emit_done, emit_error, emit_log, emit_metric, emit_progress,
+)
+
+{% block model_imports %}
+{# Family templates override this block to add e.g. `import xgboost as xgb`. #}
+{% endblock %}
+
+
+# --------------------------------------------------------------------------- #
+# Numba JIT warmup — pay the cold-compile cost ONCE at import time so the
+# first walk-forward fold doesn't eat the JIT latency. Per ml sub-plan §7
+# risk #2.
+# --------------------------------------------------------------------------- #
+
+try:
+    from src.ml.shared.labels import _warmup_numba  # type: ignore[attr-defined]
+    _warmup_numba()
+except Exception:
+    # Warmup is opportunistic — the labels module may not expose _warmup_numba
+    # yet (W1.b ml-data work owns adding it).  Generated code MUST still run.
+    pass
+
+
+# --------------------------------------------------------------------------- #
+# Argparse — the schema below is generated from the template-context's
+# `hyperparameters` dict so each generated model surfaces ONLY the knobs that
+# its catalog spec actually accepts.
+# --------------------------------------------------------------------------- #
+
+
+def _parse_args() -> argparse.Namespace:
+    ap = argparse.ArgumentParser(description="{{ model_id }} — generated trainer")
+    # Standard orchestrator-required flags
+    ap.add_argument("--symbol", required=True)
+    ap.add_argument("--timeframe", required=True)
+    ap.add_argument("--model-id", required=True)
+    ap.add_argument("--json", action="store_true", help="Emit JSON-line events")
+    ap.add_argument("--max-bars", type=int, default=0)
+    ap.add_argument("--date-start", default=None)
+    ap.add_argument("--date-end", default=None)
+    ap.add_argument(
+        "--feature-categories", default={{ (feature_categories | join(",")) | python_repr }},
+        help="Comma-separated list of feature categories.",
+    )
+    # Hyperparameters (one ap.add_argument per key in the catalog spec)
+    {% for hp_name, hp_default in hyperparameters.items() %}
+    ap.add_argument(
+        "--{{ hp_name | replace('_', '-') }}",
+        default={{ hp_default | python_repr }},
+        {% if hp_default is sameas true or hp_default is sameas false %}
+        action={{ "'store_false'" if hp_default else "'store_true'" }},
+        {% elif hp_default is integer %}
+        type=int,
+        {% elif hp_default is number %}
+        type=float,
+        {% else %}
+        type=str,
+        {% endif %}
+    )
+    {% endfor %}
+    return ap.parse_args()
+
+
+# --------------------------------------------------------------------------- #
+# args → canonical config dict — pattern from xgb_classifier/main.py:232-256
+# --------------------------------------------------------------------------- #
+
+
+_HP_KEYS: tuple[str, ...] = (
+    {% for hp_name in hyperparameters.keys() %}
+    {{ hp_name | python_repr }},
+    {% endfor %}
+)
+
+
+def args_to_config(args: argparse.Namespace, *, extra_keys: tuple[str, ...] = ()) -> dict:
+    """Translate argparse Namespace to the canonical config dict.
+
+    `extra_keys` is honored so HPO drivers / composite parents can stamp
+    additional fields (e.g. fold_index, trial_id) without re-deriving the
+    base schema.
+    """
+    config: dict[str, Any] = {
+        "symbol": args.symbol,
+        "timeframe": args.timeframe,
+        "model_id": args.model_id,
+        "max_bars": int(args.max_bars or 0),
+        "date_start": args.date_start,
+        "date_end": args.date_end,
+        "feature_categories": args.feature_categories,
+    }
+    for key in _HP_KEYS:
+        attr = key.replace("-", "_")
+        config[key] = getattr(args, attr)
+    for key in extra_keys:
+        config[key] = getattr(args, key, None)
+    return config
+
+
+# --------------------------------------------------------------------------- #
+# Feature loading — identical to xgb_classifier/main.py:86-112.
+# (W2 ml-features lifts this body to src.ml.shared.features.load_features_with_cache;
+# until then the inline copy keeps generated models self-contained.)
+# --------------------------------------------------------------------------- #
+
+
+def load_features(args: argparse.Namespace) -> tuple[np.ndarray, list[str], np.ndarray, dict]:
+    """Returns (feature_matrix, feature_names, timestamps_epoch_s, raw_ohlcv)."""
+    date_range = None
+    if args.date_start or args.date_end:
+        date_range = {}
+        if args.date_start:
+            date_range["start"] = args.date_start
+        if args.date_end:
+            date_range["end"] = args.date_end
+
+    categories = None
+    if args.feature_categories:
+        categories = [s.strip() for s in args.feature_categories.split(",") if s.strip()]
+
+    raw = load_ohlcv_arrays(args.symbol, args.timeframe, max_bars=int(args.max_bars or 0),
+                             date_range=date_range)
+
+    def _compute() -> tuple[np.ndarray, list[str], np.ndarray]:
+        ohlcv = {
+            "open_": raw["open"], "high": raw["high"], "low": raw["low"],
+            "close": raw["close"], "volume": raw["volume"],
+        }
+        matrix, names, _ts = compute_features(ohlcv, categories=categories, n_jobs=1)
+        ts_arr = np.asarray(
+            [t.timestamp() if hasattr(t, "timestamp") else float(t)
+             for t in raw["timestamp"]],
+            dtype=np.int64,
+        )
+        return matrix.astype(np.float32), list(names), ts_arr
+
+    matrix, names, timestamps = cached_features(
+        symbol=args.symbol, timeframe=args.timeframe, date_range=date_range,
+        categories=categories, compute_fn=_compute,
+    )
+    return matrix, names, timestamps, raw
+
+
+# --------------------------------------------------------------------------- #
+# Label generation — uses src.ml.shared.labels.<strategy>_labels per the
+# template-context label_strategy. Override the label_generation block in a
+# child template to plug in a custom label fn.
+# --------------------------------------------------------------------------- #
+
+{% block label_generation %}
+{% if label_strategy == "none" %}
+def generate_labels(raw, args):
+    raise RuntimeError("label_strategy=none — this generated model needs an "
+                       "override of generate_labels() before it can train.")
+{% else %}
+from src.ml.shared.labels import {{ label_strategy }}_labels as _label_fn  # noqa: E402
+
+_LABEL_PARAMS: dict = {{ label_params | python_repr }}
+
+
+def generate_labels(raw, args):
+    """Return (labels, valid_mask) per the configured label_strategy.
+
+    Each shared.labels adapter takes a single ``params`` dict; the positional
+    OHLCV args differ per strategy:
+
+      triple_barrier        → (close, high, low, params)
+      next_close_direction  → (close, params)
+      range_bucket          → (close, params)
+      structural            → (high, low, params)
+    """
+    {% if label_strategy == "triple_barrier" %}
+    return _label_fn(raw["close"], raw["high"], raw["low"], _LABEL_PARAMS)
+    {% elif label_strategy == "next_close_direction" %}
+    return _label_fn(raw["close"], _LABEL_PARAMS)
+    {% elif label_strategy == "range_bucket" %}
+    return _label_fn(raw["close"], _LABEL_PARAMS)
+    {% elif label_strategy == "structural" %}
+    return _label_fn(raw["high"], raw["low"], _LABEL_PARAMS)
+    {% else %}
+    raise RuntimeError(
+        "Unknown label_strategy={{ label_strategy | python_repr }} — _base.py.j2 "
+        "must be extended to handle this strategy."
+    )
+    {% endif %}
+{% endif %}
+{% endblock %}
+
+
+# --------------------------------------------------------------------------- #
+# Training loop + fold metric helper.
+#
+# Required cross-domain contract (ml sub-plan §6 footer):
+#   train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None)
+#       -> (model, preds)
+#   predict(model, X) -> np.ndarray
+# Composite templates (W5) import these names directly, so changing the
+# signature here is a breaking change for every downstream composite.
+# --------------------------------------------------------------------------- #
+
+{% block train_loop %}
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+    """W1 stub — family templates override this block.
+
+    The placeholder below is intentionally deterministic so generated
+    skeletons compile and run end-to-end before W2 lands real implementations
+    for sklearn / tree / pytorch_* families.
+    """
+    raise NotImplementedError(
+        "train_one_fold is a placeholder — provide a family template that "
+        "overrides the train_loop Jinja block for {{ template_id }}."
+    )
+
+
+def predict(model, X):
+    """Default predict: delegate to the model's own predict_proba/predict."""
+    if hasattr(model, "predict_proba"):
+        proba = model.predict_proba(X)
+        # Binary case → return positive-class probability column.
+        if proba.ndim == 2 and proba.shape[1] == 2:
+            return proba[:, 1]
+        return proba
+    return model.predict(X)
+{% endblock %}
+
+
+{% block compute_fold_metrics %}
+def compute_fold_metrics(y_test, preds, *, fold_idx=None) -> dict[str, float]:
+    """Per-fold metrics — family templates can override this block to plug in
+    the real classification/regression evaluator. The default below keeps the
+    WF loop runnable end-to-end with a minimal output."""
+    preds_arr = np.asarray(preds, dtype=np.float64)
+    y_arr = np.asarray(y_test, dtype=np.float64)
+    if preds_arr.shape != y_arr.shape:
+        # Multi-class proba — argmax to a class index for accuracy fallback.
+        if preds_arr.ndim == 2 and preds_arr.shape[0] == y_arr.shape[0]:
+            preds_arr = preds_arr.argmax(axis=1).astype(np.float64)
+    return {
+        "n_samples": float(y_arr.size),
+        "mean_pred": float(preds_arr.mean()) if preds_arr.size else 0.0,
+        "mean_label": float(y_arr.mean()) if y_arr.size else 0.0,
+    }
+{% endblock %}
+
+
+# --------------------------------------------------------------------------- #
+# Module-level eval helpers — family templates plug in the eval module
+# (`_eval_classification.py.j2`, `_eval_regression.py.j2`, or future
+# `_eval_clustering.py.j2`) here so its top-level functions land at module
+# scope, not spliced into run_training()'s body.
+# --------------------------------------------------------------------------- #
+
+{% block eval_helpers %}
+{# Default: no module-level eval helpers. Classification/regression family    #}
+{# templates override this block with `{% include "_eval_classification.py.j2" %}`. #}
+{% endblock %}
+
+
+# --------------------------------------------------------------------------- #
+# Main pipeline — load, label, filter, walk-forward (or single fold), report.
+# --------------------------------------------------------------------------- #
+
+
+def _filter_valid(X, y, valid, timestamps):
+    keep = np.flatnonzero(valid)
+    X = X[keep]; y = y[keep]; timestamps = timestamps[keep]
+    finite = np.isfinite(X).all(axis=1)
+    return X[finite], y[finite], timestamps[finite]
+
+
+def run_training(args: argparse.Namespace) -> dict:
+    emit_log(f"[{{ template_id }}] Loading {args.symbol}@{args.timeframe} "
+             f"(categories={args.feature_categories or 'all'})")
+    matrix, names, timestamps, raw = load_features(args)
+    n_total = matrix.shape[0]
+    emit_log(f"[{{ template_id }}] Loaded {n_total:,} bars x {matrix.shape[1]} features")
+
+    emit_log(f"[{{ template_id }}] Generating {{ label_strategy }} labels")
+    labels, valid = generate_labels(raw, args)
+
+    X, y, ts_kept = _filter_valid(matrix, labels, valid, timestamps)
+    emit_log(f"[{{ template_id }}] After dropping non-finite rows: {X.shape[0]:,} samples")
+
+    {% include "_walk_forward.py.j2" %}
+
+    {% block eval_block %}
+    {# W1.c (ml-eval) lands the per-fold rollup + diagnostics.json writer #}
+    {# in `_eval_classification.py.j2` / `_eval_regression.py.j2`.        #}
+    {# Until then the W1 stub returns the per-fold list verbatim.          #}
+    diagnostics = {
+        "model_id": args.model_id,
+        "symbol": args.symbol,
+        "timeframe": args.timeframe,
+        "template_id": "{{ template_id }}",
+        "template_version": "{{ template_version }}",
+        "n_total_bars": int(n_total),
+        "n_kept_samples": int(X.shape[0]),
+        "n_features": int(X.shape[1]),
+        "feature_names": list(names),
+        "fold_results": fold_results,
+    }
+    {% endblock %}
+
+    return diagnostics
+
+
+# --------------------------------------------------------------------------- #
+# Entry point — try/except + emit_done wrapper, identical to
+# xgb_classifier/main.py:513-525.
+# --------------------------------------------------------------------------- #
+
+
+def main() -> None:
+    args = _parse_args()
+    t0 = time.perf_counter()
+    try:
+        diagnostics = run_training(args)
+        elapsed = time.perf_counter() - t0
+        diagnostics["train_secs"] = round(elapsed, 2)
+        emit_done(
+            model_path=str(_PROJECT_ROOT / "data" / "models" / args.model_id),
+            diagnostics=diagnostics,
+        )
+    except Exception as exc:
+        emit_error(message=str(exc), details=traceback.format_exc())
+        raise
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,266 @@
+{# ---------------------------------------------------------------------- #}
+{# rl_a2c.py.j2 — Advantage Actor-Critic via stable-baselines3 (W9.a)     #}
+{#                                                                         #}
+{# Same shape as rl_dqn.py.j2 / rl_ppo.py.j2; swaps in A2C and its       #}
+{# on-policy hyperparameter set (vf_coef, no clip_range / n_epochs).     #}
+{# See rl_dqn.py.j2 docstring for the index-trick + reward contract.     #}
+{#                                                                         #}
+{# Hyperparameters consumed (via ctx.hyperparameters):                     #}
+{#   learning_rate         (float)  — Adam lr for actor/critic             #}
+{#   n_steps               (int)    — rollout steps per update             #}
+{#   gamma                 (float)  — discount factor                      #}
+{#   gae_lambda            (float)  — GAE bias-variance tradeoff           #}
+{#   ent_coef              (float)  — entropy bonus weight                 #}
+{#   vf_coef               (float)  — value-function loss weight           #}
+{#   total_timesteps       (int)    — SB3 total environment steps          #}
+{#   window_size           (int)    — TradingEnv observation window         #}
+{# ---------------------------------------------------------------------- #}
+{% extends "_base.py.j2" %}
+
+{% set _learning_rate   = hyperparameters.learning_rate   | default(0.0007) %}
+{% set _n_steps         = hyperparameters.n_steps         | default(5) %}
+{% set _gamma           = hyperparameters.gamma           | default(0.99) %}
+{% set _gae_lambda      = hyperparameters.gae_lambda      | default(1.0) %}
+{% set _ent_coef        = hyperparameters.ent_coef        | default(0.0) %}
+{% set _vf_coef         = hyperparameters.vf_coef         | default(0.5) %}
+{% set _total_timesteps = hyperparameters.total_timesteps | default(20000) %}
+{% set _window_size     = hyperparameters.window_size     | default(32) %}
+
+{% block model_imports %}
+import json
+
+from stable_baselines3 import A2C
+from stable_baselines3.common.vec_env import DummyVecEnv
+
+from src.ml.blocks.trading_env import TradingEnv
+
+# Static hyperparams baked at render time.
+_LEARNING_RATE: float = {{ _learning_rate | python_repr }}
+_N_STEPS: int = {{ _n_steps | python_repr }}
+_GAMMA: float = {{ _gamma | python_repr }}
+_GAE_LAMBDA: float = {{ _gae_lambda | python_repr }}
+_ENT_COEF: float = {{ _ent_coef | python_repr }}
+_VF_COEF: float = {{ _vf_coef | python_repr }}
+_TOTAL_TIMESTEPS: int = {{ _total_timesteps | python_repr }}
+_WINDOW_SIZE: int = {{ _window_size | python_repr }}
+
+# Module-level state populated by generate_labels(): see rl_dqn.py.j2.
+_RAW_PRICES: "np.ndarray | None" = None
+_COST_MODEL_TABLE: "dict | None" = None
+
+
+def _load_cost_model() -> dict:
+    cost_path = _PROJECT_ROOT / "src" / "config" / "cost_model.json"
+    with open(cost_path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+{% endblock %}
+
+{% block label_generation %}
+def generate_labels(raw, args):
+    """RL templates: y = row indices; see rl_dqn.py.j2 generate_labels."""
+    global _RAW_PRICES, _COST_MODEL_TABLE
+    close = np.asarray(raw["close"], dtype=np.float64)
+    _RAW_PRICES = close
+    _COST_MODEL_TABLE = _load_cost_model()
+    n = int(close.shape[0])
+    return np.arange(n, dtype=np.int64), np.ones(n, dtype=bool)
+{% endblock %}
+
+{% block train_loop %}
+def _build_env(features: np.ndarray, prices: np.ndarray, cost_for_symbol: dict) -> DummyVecEnv:
+    def _make():
+        return TradingEnv(
+            features=features.astype(np.float32),
+            prices=prices.astype(np.float64),
+            cost_model=cost_for_symbol,
+            window_size=_WINDOW_SIZE,
+        )
+    return DummyVecEnv([_make])
+
+
+def _eval_policy(model, vec_env) -> tuple[list[float], list[int]]:
+    rewards: list[float] = []
+    actions: list[int] = []
+    obs = vec_env.reset()
+    done = np.array([False])
+    while not bool(done[0]):
+        action, _state = model.predict(obs, deterministic=True)
+        obs, reward, done, _info = vec_env.step(action)
+        rewards.append(float(reward[0]))
+        actions.append(int(action[0]))
+    return rewards, actions
+
+
+def _count_trades(actions: list[int]) -> int:
+    if not actions:
+        return 0
+    n_trades = 0
+    prev = TradingEnv.ACTION_HOLD
+    for a in actions:
+        if a != prev:
+            n_trades += 1
+        prev = a
+    return n_trades
+
+
+def _sharpe(rewards: list[float]) -> float:
+    arr = np.asarray(rewards, dtype=np.float64)
+    if arr.size < 2:
+        return 0.0
+    std = float(arr.std(ddof=1))
+    if std <= 0.0:
+        return 0.0
+    return float(arr.mean() / std)
+
+
+def _resolve_cost(symbol: str) -> dict:
+    if _COST_MODEL_TABLE is None:
+        raise RuntimeError(
+            "rl_a2c template: _COST_MODEL_TABLE is None -- generate_labels "
+            "must run before train_one_fold."
+        )
+    entry = _COST_MODEL_TABLE.get(symbol) or _COST_MODEL_TABLE.get("MNQ")
+    if entry is None:
+        raise RuntimeError(
+            f"rl_a2c template: no cost_model entry for symbol={symbol!r} "
+            "and no MNQ fallback."
+        )
+    return entry
+
+
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+    """Fit a fresh A2C agent on the train window, deterministic-eval on test."""
+    if _RAW_PRICES is None:
+        raise RuntimeError(
+            "rl_a2c template: _RAW_PRICES is None -- generate_labels must "
+            "run before train_one_fold."
+        )
+
+    fold_tag = "single" if fold_idx is None else str(fold_idx)
+    train_indices = np.asarray(y_train, dtype=np.int64).reshape(-1)
+    test_indices = np.asarray(y_test, dtype=np.int64).reshape(-1)
+    train_prices = _RAW_PRICES[train_indices]
+    test_prices = _RAW_PRICES[test_indices]
+
+    cost_for_symbol = _resolve_cost(args.symbol)
+    train_env = _build_env(X_train, train_prices, cost_for_symbol)
+
+    emit_log(
+        f"[a2c][fold={fold_tag}] Training A2C: total_timesteps={_TOTAL_TIMESTEPS}, "
+        f"n_steps={_N_STEPS}, gamma={_GAMMA}, gae_lambda={_GAE_LAMBDA}, "
+        f"ent_coef={_ENT_COEF}, vf_coef={_VF_COEF}, lr={_LEARNING_RATE}"
+    )
+
+    model = A2C(
+        policy="MlpPolicy",
+        env=train_env,
+        learning_rate=_LEARNING_RATE,
+        n_steps=_N_STEPS,
+        gamma=_GAMMA,
+        gae_lambda=_GAE_LAMBDA,
+        ent_coef=_ENT_COEF,
+        vf_coef=_VF_COEF,
+        verbose=0,
+    )
+    model.learn(total_timesteps=_TOTAL_TIMESTEPS)
+
+    ckpt_dir = _PROJECT_ROOT / "data" / "models"
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    study_name = getattr(args, "model_id", "rl_a2c")
+    fold_suffix = "single" if fold_idx is None else f"fold{fold_idx}"
+    ckpt_path = ckpt_dir / f"{study_name}__{fold_suffix}.zip"
+    model.save(str(ckpt_path))
+    emit_log(f"[a2c][fold={fold_tag}] checkpoint saved to {ckpt_path}")
+
+    test_env = _build_env(X_test, test_prices, cost_for_symbol)
+    rewards, actions = _eval_policy(model, test_env)
+
+    total_pnl = float(sum(rewards))
+    n_trades = _count_trades(actions)
+    sharpe = _sharpe(rewards)
+
+    emit_metric(name=f"fold_{fold_tag}_sharpe", value=sharpe, iteration=int(fold_idx or 0))
+    emit_metric(name=f"fold_{fold_tag}_total_pnl", value=total_pnl, iteration=int(fold_idx or 0))
+    emit_metric(name=f"fold_{fold_tag}_n_trades", value=float(n_trades), iteration=int(fold_idx or 0))
+
+    preds = np.asarray(rewards, dtype=np.float64)
+    return model, preds
+
+
+def predict(model, X) -> np.ndarray:
+    X_arr = np.asarray(X, dtype=np.float32)
+    if X_arr.shape[0] < _WINDOW_SIZE:
+        return np.zeros(0, dtype=np.int64)
+    actions: list[int] = []
+    for i in range(_WINDOW_SIZE - 1, X_arr.shape[0]):
+        window = X_arr[i - _WINDOW_SIZE + 1 : i + 1]
+        action, _ = model.predict(window, deterministic=True)
+        actions.append(int(action))
+    return np.asarray(actions, dtype=np.int64)
+{% endblock %}
+
+{% block compute_fold_metrics %}
+def compute_fold_metrics(y_test, preds, *, fold_idx=None) -> dict[str, float]:
+    rewards = np.asarray(preds, dtype=np.float64).reshape(-1)
+    total_pnl = float(rewards.sum()) if rewards.size else 0.0
+    if rewards.size >= 2 and float(rewards.std(ddof=1)) > 0.0:
+        sharpe = float(rewards.mean() / rewards.std(ddof=1))
+    else:
+        sharpe = 0.0
+    n_nonzero = int(np.count_nonzero(rewards != 0.0))
+    return {
+        "n_samples": float(rewards.size),
+        "total_pnl": total_pnl,
+        "sharpe": sharpe,
+        "n_nonzero_bars": float(n_nonzero),
+    }
+{% endblock %}
+
+{% block eval_block %}
+    # ─── W9.a rl_a2c eval rollup ────────────────────────────────────────
+    all_total_pnl = 0.0
+    all_sharpes: list[float] = []
+    all_n_trades: int = 0
+    for fr in fold_results:
+        m = fr.get("metrics") or fr
+        all_total_pnl += float(m.get("total_pnl", 0.0) or 0.0)
+        sh = m.get("sharpe")
+        if sh is not None:
+            all_sharpes.append(float(sh))
+        nt = m.get("n_trades")
+        if nt is not None:
+            all_n_trades += int(nt)
+    median_sharpe = float(np.median(all_sharpes)) if all_sharpes else 0.0
+
+    emit_metric(name="total_pnl", value=float(all_total_pnl), iteration=0)
+    emit_metric(name="sharpe", value=float(median_sharpe), iteration=0)
+    emit_metric(name="n_trades", value=float(all_n_trades), iteration=0)
+
+    diagnostics = {
+        "model_id": args.model_id,
+        "symbol": args.symbol,
+        "timeframe": args.timeframe,
+        "template_id": "{{ template_id }}",
+        "template_version": "{{ template_version }}",
+        "catalog_id": "{{ catalog_id }}",
+        "rl_algo": "A2C",
+        "total_pnl": float(all_total_pnl),
+        "median_sharpe": float(median_sharpe),
+        "total_n_trades": int(all_n_trades),
+        "n_total_bars": int(n_total),
+        "n_kept_samples": int(X.shape[0]),
+        "n_features": int(X.shape[1]),
+        "feature_names": list(names),
+        "fold_results": fold_results,
+        "hyperparameters": {
+            "learning_rate": float(_LEARNING_RATE),
+            "n_steps": int(_N_STEPS),
+            "gamma": float(_GAMMA),
+            "gae_lambda": float(_GAE_LAMBDA),
+            "ent_coef": float(_ENT_COEF),
+            "vf_coef": float(_VF_COEF),
+            "total_timesteps": int(_TOTAL_TIMESTEPS),
+            "window_size": int(_WINDOW_SIZE),
+        },
+    }
+{% endblock %}

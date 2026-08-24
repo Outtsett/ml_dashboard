@@ -1,15 +1,117 @@
 name: Release
+
 on:
   push:
-    branches: [master]
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+
 jobs:
-  release:
+  # ── Stage 1: release-please drafts/promotes the release PR ─────────────────
+  release-please:
+    name: Release-please
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+      upload_url: ${{ steps.rp.outputs.upload_url }}
     steps:
       - uses: googleapis/release-please-action@v5
+        id: rp
         with:
           release-type: node
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Stage 2: build Electron installers per OS, attach to GH release ────────
+  build-electron:
+    name: Build Electron (${{ matrix.os }})
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_glob: 'release/*.exe'
+          - os: ubuntu-latest
+            artifact_glob: 'release/*.AppImage'
+          - os: macos-latest
+            artifact_glob: 'release/*.dmg'
+    env:
+      HUSKY: '0'
+      NPM_CONFIG_FUND: 'false'
+      NPM_CONFIG_AUDIT: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install (clean)
+        run: npm ci --legacy-peer-deps --no-audit --no-fund
+
+      - name: Build app + Electron installer
+        run: npm run build:electron
+        env:
+          # electron-builder reads this for code-signing on macOS;
+          # left undefined → unsigned dev build (acceptable for now).
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: ${{ matrix.artifact_glob }}
+          fail_on_unmatched_files: false
+
+  # ── Stage 3: SBOM + provenance for every release ───────────────────────────
+  sbom:
+    name: Generate SBOM
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps --no-audit --no-fund --ignore-scripts
+
+      - name: Generate CycloneDX SBOM (npm)
+        run: |
+          npx --yes @cyclonedx/cyclonedx-npm@latest \
+            --output-file sbom-npm.cyclonedx.json \
+            --output-format JSON
+
+      - name: Attach SBOM to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: sbom-npm.cyclonedx.json
+          fail_on_unmatched_files: false

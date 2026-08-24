@@ -1,0 +1,321 @@
+{# ---------------------------------------------------------------------- #}
+{# composite_multimodal.py.j2 - Multi-stream encoder + fusion head (W5)   #}
+{#                                                                         #}
+{# UNLIKE moe/stacking/voting (where members are separately TRAINED        #}
+{# atomic models that live at src/ml/<resolved_id>/), the multimodal       #}
+{# template composes its modality encoders INLINE from src.ml.blocks.      #}
+{# Each modality is a slice of the input feature matrix routed through     #}
+{# a per-modality encoder, then fused via the chosen fusion strategy.      #}
+{#                                                                         #}
+{# Required template-context keys:                                         #}
+{#   modalities : list[                                                    #}
+{#     {                                                                    #}
+{#       name           : str,                                             #}
+{#       feature_slice  : [start_idx, end_idx],                            #}
+{#       encoder        : "mlp" | "cnn" | "transformer",                   #}
+{#       d_out          : int,                                             #}
+{#       hidden_dim     : int (mlp / cnn channels), default 64             #}
+{#       n_layers       : int (transformer only), default 2                #}
+{#       n_heads        : int (transformer only), default 4                #}
+{#       window_size    : int (cnn / transformer time axis), default 32    #}
+{#     }                                                                    #}
+{#   ]                                                                      #}
+{#   fusion_strategy : "concat" | "cross_attention" | "gated"               #}
+{#   d_fused         : int (output dim of fusion), default 128              #}
+{#   n_classes       : int, default 2                                      #}
+{#   epochs          : int, default 10                                     #}
+{#   batch_size      : int, default 256                                    #}
+{#   learning_rate   : float, default 1e-3                                 #}
+{# ---------------------------------------------------------------------- #}
+{% extends "_base.py.j2" %}
+
+{% set _fusion = fusion_strategy | default("concat") %}
+{% set _d_fused = d_fused | default(128) %}
+{% set _n_classes = n_classes | default(2) %}
+{% set _epochs = epochs | default(10) %}
+{% set _batch_size = batch_size | default(256) %}
+{% set _lr = learning_rate | default(1e-3) %}
+{% set _n_modalities = modalities | length %}
+
+{% block model_imports %}
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from src.ml.blocks.encoder import MLPEncoder, Conv1DEncoder, TransformerEncoder
+from src.ml.blocks.fusion import ConcatFusion, CrossAttentionFusion, GatedFusion
+from src.ml.blocks.head import ClassificationHead
+
+_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+_FUSION_STRATEGY: str = {{ _fusion | python_repr }}
+_D_FUSED: int = {{ _d_fused | python_repr }}
+_N_CLASSES: int = {{ _n_classes | python_repr }}
+_EPOCHS: int = {{ _epochs | python_repr }}
+_BATCH_SIZE: int = {{ _batch_size | python_repr }}
+_LR: float = {{ _lr | python_repr }}
+
+# Per-modality slice/config table - keeps train/predict consistent.
+_MODALITY_SPEC: list[dict] = [
+    {% for mod in modalities %}
+    {
+        "name": {{ mod.name | python_repr }},
+        "feature_slice": [
+            {{ mod.feature_slice[0] | python_repr }},
+            {{ mod.feature_slice[1] | python_repr }},
+        ],
+        "encoder": {{ mod.encoder | python_repr }},
+        "d_out": {{ mod.d_out | python_repr }},
+        "hidden_dim": {{ mod.get("hidden_dim", 64) | python_repr }},
+        "n_layers": {{ mod.get("n_layers", 2) | python_repr }},
+        "n_heads": {{ mod.get("n_heads", 4) | python_repr }},
+        "window_size": {{ mod.get("window_size", 32) | python_repr }},
+    },
+    {% endfor %}
+]
+
+
+def _build_modality_encoder(in_dim: int, spec: dict) -> nn.Module:
+    """Construct one modality encoder per spec.encoder."""
+    kind = spec["encoder"]
+    d_out = int(spec["d_out"])
+    hidden = int(spec["hidden_dim"])
+    if kind == "mlp":
+        return MLPEncoder(
+            in_dim=in_dim,
+            hidden_dims=[hidden, hidden],
+            out_dim=d_out,
+            dropout=0.1,
+            activation="gelu",
+        )
+    if kind == "cnn":
+        return Conv1DEncoder(
+            in_channels=1,
+            channels=[hidden, hidden, d_out],
+            kernel_sizes=[3, 5, 3],
+            dropout=0.1,
+        )
+    if kind == "transformer":
+        return TransformerEncoder(
+            d_model=d_out,
+            n_heads=int(spec["n_heads"]),
+            n_layers=int(spec["n_layers"]),
+            d_ff=4 * d_out,
+            dropout=0.1,
+            max_seq_len=int(spec["window_size"]),
+        )
+    raise ValueError(f"unknown modality encoder kind: {kind!r}")
+
+
+class _MultiModalModel(nn.Module):
+    """Per-modality encoder + fusion + classification head."""
+
+    def __init__(self, n_features_total: int):
+        super().__init__()
+        self.n_features_total = int(n_features_total)
+        self.modality_specs = _MODALITY_SPEC
+        self.encoders = nn.ModuleList()
+        self.proj_to_d_out = nn.ModuleList()
+        d_out_list: list[int] = []
+        for spec in _MODALITY_SPEC:
+            s, e = spec["feature_slice"]
+            in_dim_i = max(1, int(e) - int(s))
+            d_out = int(spec["d_out"])
+            kind = spec["encoder"]
+            if kind == "mlp":
+                self.encoders.append(_build_modality_encoder(in_dim_i, spec))
+                self.proj_to_d_out.append(nn.Identity())
+            elif kind == "cnn":
+                self.encoders.append(_build_modality_encoder(in_dim_i, spec))
+                self.proj_to_d_out.append(nn.Identity())
+            elif kind == "transformer":
+                t = max(1, min(int(spec["window_size"]), in_dim_i))
+                self.encoders.append(_build_modality_encoder(in_dim_i, spec))
+                self.proj_to_d_out.append(nn.Linear(in_dim_i, t * d_out))
+            else:
+                raise ValueError(f"unknown modality encoder kind: {kind!r}")
+            d_out_list.append(d_out)
+
+        self.d_out_list = d_out_list
+
+        if _FUSION_STRATEGY == "concat":
+            self.fusion = ConcatFusion(d_in_list=d_out_list, d_out=_D_FUSED)
+        elif _FUSION_STRATEGY == "cross_attention":
+            n_heads = max(1, _D_FUSED // 32)
+            if _D_FUSED % n_heads != 0:
+                n_heads = 1
+            self.fusion = CrossAttentionFusion(
+                d_query=_D_FUSED, d_kv_list=d_out_list, n_heads=n_heads,
+            )
+            self.query_proj = ConcatFusion(d_in_list=d_out_list, d_out=_D_FUSED)
+        elif _FUSION_STRATEGY == "gated":
+            self.fusion = GatedFusion(d_in_list=d_out_list, d_out=_D_FUSED)
+        else:
+            raise ValueError(f"unknown fusion strategy: {_FUSION_STRATEGY!r}")
+
+        self.head = ClassificationHead(in_dim=_D_FUSED, n_classes=_N_CLASSES)
+        self._init_weights()
+
+    def _init_weights(self) -> None:
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+    def _encode_modality(self, x_slice, spec, encoder, proj):
+        kind = spec["encoder"]
+        if kind == "mlp":
+            return encoder(x_slice)
+        if kind == "cnn":
+            x_t = x_slice.unsqueeze(1)
+            return encoder(x_t)
+        if kind == "transformer":
+            t = max(1, min(int(spec["window_size"]), x_slice.size(-1)))
+            d_out = int(spec["d_out"])
+            tokens = proj(x_slice).view(x_slice.size(0), t, d_out)
+            enc_out = encoder(tokens)
+            return enc_out.mean(dim=1)
+        raise ValueError(f"unknown modality encoder kind: {kind!r}")
+
+    def forward(self, X: torch.Tensor) -> torch.Tensor:
+        per_modality: list[torch.Tensor] = []
+        for spec, encoder, proj in zip(self.modality_specs, self.encoders, self.proj_to_d_out):
+            s, e = spec["feature_slice"]
+            s = max(0, min(int(s), X.size(-1)))
+            e = max(s + 1, min(int(e), X.size(-1)))
+            x_slice = X[:, s:e]
+            per_modality.append(self._encode_modality(x_slice, spec, encoder, proj))
+
+        if _FUSION_STRATEGY == "cross_attention":
+            query = self.query_proj(per_modality)
+            fused = self.fusion(query, per_modality)
+        else:
+            fused = self.fusion(per_modality)
+        return self.head(fused)
+{% endblock %}
+
+{% block train_loop %}
+def _make_train_loader(X: np.ndarray, y: np.ndarray, batch_size: int):
+    X_t = torch.as_tensor(X, dtype=torch.float32)
+    y_t = torch.as_tensor(y, dtype=torch.long)
+    ds = torch.utils.data.TensorDataset(X_t, y_t)
+    return torch.utils.data.DataLoader(
+        ds, batch_size=batch_size, shuffle=True, drop_last=False,
+    )
+
+
+# Module-level fold state for eval rollup.
+_FOLD_STATE: dict = {"y": [], "preds": []}
+
+
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+    """Multimodal fold trainer."""
+    fold_tag = "single" if fold_idx is None else str(fold_idx)
+    n_features = int(X_train.shape[1])
+    model = _MultiModalModel(n_features_total=n_features).to(_DEVICE)
+    opt = torch.optim.AdamW(model.parameters(), lr=_LR, weight_decay=1e-4)
+    loader = _make_train_loader(X_train, y_train, _BATCH_SIZE)
+
+    model.train()
+    for epoch in range(_EPOCHS):
+        loss_sum = 0.0
+        n_seen = 0
+        for xb, yb in loader:
+            xb = xb.to(_DEVICE, non_blocking=True)
+            yb = yb.to(_DEVICE, non_blocking=True)
+            opt.zero_grad(set_to_none=True)
+            log_probs = model(xb)
+            loss = F.nll_loss(log_probs, yb)
+            loss.backward()
+            opt.step()
+            loss_sum += float(loss.item()) * xb.size(0)
+            n_seen += xb.size(0)
+        avg_loss = loss_sum / max(1, n_seen)
+        emit_metric(
+            name=f"multimodal_train_loss_fold{fold_tag}_epoch{epoch}",
+            value=avg_loss, iteration=epoch,
+        )
+
+    model.eval()
+    with torch.no_grad():
+        Xt = torch.as_tensor(X_test, dtype=torch.float32).to(_DEVICE)
+        log_probs = model(Xt)
+        probs = log_probs.exp().detach().cpu().numpy().astype(np.float64)
+    if probs.shape[1] == 2:
+        preds = probs[:, 1]
+    else:
+        preds = probs.max(axis=1)
+    _FOLD_STATE["y"].append(np.asarray(y_test))
+    _FOLD_STATE["preds"].append(np.asarray(preds, dtype=np.float64))
+    return model, preds
+
+
+def predict(model, X) -> np.ndarray:
+    """Standard predict contract: 1D positive-class probability per row."""
+    model.eval()
+    with torch.no_grad():
+        Xt = torch.as_tensor(X, dtype=torch.float32).to(_DEVICE)
+        log_probs = model(Xt)
+        probs = log_probs.exp().detach().cpu().numpy().astype(np.float64)
+    if probs.shape[1] == 2:
+        return probs[:, 1]
+    return probs.max(axis=1)
+{% endblock %}
+
+{# The eval partial below defines the real compute_fold_metrics, so suppress  #}
+{# _base's runnable placeholder — emitting both is a redefinition (F811).     #}
+{% block compute_fold_metrics %}{% endblock %}
+
+{% block eval_helpers %}
+{% include "_eval_classification.py.j2" %}
+{% endblock %}
+
+{% block eval_block %}
+    # --- W5 multimodal rollup --------------------------------------------
+    if _FOLD_STATE["y"]:
+        all_y = np.concatenate([np.asarray(y).reshape(-1) for y in _FOLD_STATE["y"]]).astype(np.int64)
+        all_preds = np.concatenate(_FOLD_STATE["preds"]).astype(np.float64)
+    else:
+        all_y = np.asarray([0, 1], dtype=np.int64)
+        all_preds = np.asarray([0.5, 0.5], dtype=np.float64)
+
+    _emit_metric_declarations()
+
+    diagnostics = build_diagnostics(
+        model=None,
+        y_true=all_y,
+        y_pred=all_preds,
+        ts=None,
+        prices=None,
+        fold_results=fold_results,
+        model_id=args.model_id,
+        symbol=args.symbol,
+        timeframe=args.timeframe,
+        n_train=int(X.shape[0]),
+        n_val=int(all_y.size),
+        n_features=int(X.shape[1]),
+        extra={
+            "template_id": "{{ template_id }}",
+            "template_version": "{{ template_version }}",
+            "catalog_id": "{{ catalog_id }}",
+            "composite_kind": "multimodal",
+            "fusion_strategy": _FUSION_STRATEGY,
+            "n_modalities": int({{ _n_modalities | python_repr }}),
+            "modality_specs": _MODALITY_SPEC,
+            "d_fused": int(_D_FUSED),
+            "n_total_bars": int(n_total),
+            "n_kept_samples": int(X.shape[0]),
+            "feature_names": list(names),
+        },
+    )
+
+    if all_y.size and all_preds.size:
+        out_path = _PROJECT_ROOT / "data" / "models" / args.model_id / "oos_predictions.parquet"
+        write_oos_predictions(
+            ts=np.arange(all_y.size, dtype=np.int64),
+            y_true=all_y,
+            y_pred=all_preds,
+            output_path=out_path,
+            symbol=args.symbol,
+        )
+{% endblock %}

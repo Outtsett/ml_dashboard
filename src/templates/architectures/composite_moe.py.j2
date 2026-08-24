@@ -1,0 +1,341 @@
+{# ---------------------------------------------------------------------- #}
+{# composite_moe.py.j2 - Mixture-of-Experts composite (W5)                #}
+{#                                                                         #}
+{# Routes inputs to N expert sub-models via a learnable (top-K / softmax)  #}
+{# or deterministic (hash) gate from src.ml.blocks.gating. Each expert is  #}
+{# a separately-generated atomic model living at src/ml/<resolved_id>/.    #}
+{#                                                                         #}
+{# Required template-context keys:                                         #}
+{#   expert_slots : list[                                                  #}
+{#     {                                                                    #}
+{#       slot_idx          : int,                                          #}
+{#       catalog_id        : str,                                          #}
+{#       resolved_model_id : str   <-- populated by depth-first generator  #}
+{#       hyperparameters   : dict                                          #}
+{#     }                                                                    #}
+{#   ]                                                                      #}
+{#   gating       : { type: 'top_k' | 'soft' | 'hash',                     #}
+{#                    k: int,                                              #}
+{#                    temperature: float,                                  #}
+{#                    hash_dim: int (only for 'hash') }                    #}
+{#                                                                         #}
+{# Train-time:                                                             #}
+{#   1. Load full feature matrix once.                                     #}
+{#   2. Train each expert sub-model on the SAME training fold via its      #}
+{#      imported `train_one_fold(...)` (aliased as train_slot_<i>).        #}
+{#   3. Fit the gate on the train fold (top_k/soft = supervised on the     #}
+{#      expert that achieves the lowest per-sample loss; hash = no-op).    #}
+{#   4. At inference: gate -> per-expert weights -> weighted sum of expert #}
+{#      probabilities (binary case) or weighted argmax (multiclass).       #}
+{#                                                                         #}
+{# This template OWNS the composite model class but DELEGATES every expert #}
+{# fit to the slot's generated `main.py`. Composite manifest references    #}
+{# child manifests via expert_slots[i].manifest.                            #}
+{# ---------------------------------------------------------------------- #}
+{% extends "_base.py.j2" %}
+
+{% set _gating = gating | default({"type": "top_k", "k": 1, "temperature": 1.0}) %}
+{% set _gating_type = _gating.get("type", "top_k") %}
+{% set _gating_k = _gating.get("k", 1) %}
+{% set _gating_temp = _gating.get("temperature", 1.0) %}
+{% set _hash_dim = _gating.get("hash_dim", 64) %}
+{% set _n_experts = expert_slots | length %}
+
+{% block model_imports %}
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+# Gate imports - pick one of TopKGating / SoftmaxGating / HashGating per ctx.
+{% if _gating_type == "top_k" %}
+from src.ml.blocks.gating import TopKGating as _GateClass
+{% elif _gating_type == "soft" %}
+from src.ml.blocks.gating import SoftmaxGating as _GateClass
+{% elif _gating_type == "hash" %}
+from src.ml.blocks.gating import HashGating as _GateClass
+{% else %}
+raise ImportError(
+    "composite_moe.py.j2 rendered with unknown gating.type={{ _gating_type | python_repr }}; "
+    "expected one of 'top_k', 'soft', 'hash'."
+)
+{% endif %}
+
+# Per-slot expert imports - one block per slot, generated in slot order.
+# Depth-first post-order generation guarantees these modules already exist
+# on disk by the time this composite is written.
+{% for slot in expert_slots %}
+from src.ml.{{ slot.resolved_model_id | replace("-", "_") }}.main import (
+    train_one_fold as _train_slot_{{ slot.slot_idx }},
+    predict as _predict_slot_{{ slot.slot_idx }},
+)
+{% endfor %}
+
+_N_EXPERTS: int = {{ _n_experts | python_repr }}
+_GATING_TYPE: str = {{ _gating_type | python_repr }}
+_GATING_K: int = {{ _gating_k | python_repr }}
+_GATING_TEMP: float = {{ _gating_temp | python_repr }}
+_HASH_DIM: int = {{ _hash_dim | python_repr }}
+_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Module-level fold state - composite owns aggregation; experts also keep
+# their own _FOLD_STATE inside their generated main.py modules.
+_FOLD_STATE: dict = {"y": [], "preds": [], "expert_preds": [], "gates": []}
+
+
+class _MoEHead(nn.Module):
+    """Wraps the chosen gate so it can be trained jointly across folds.
+
+    Stateful only for top_k / soft gates (which have a learnable Linear
+    projection). Hash gating has no parameters and skips the optimizer step.
+    """
+
+    def __init__(self, d_in: int):
+        super().__init__()
+        self.d_in = d_in
+        {% if _gating_type == "hash" %}
+        self.gate = _GateClass(n_experts=_N_EXPERTS, hash_dim=min(_HASH_DIM, d_in))
+        {% elif _gating_type == "top_k" %}
+        self.gate = _GateClass(
+            d_model=d_in, n_experts=_N_EXPERTS,
+            k=min(_GATING_K, _N_EXPERTS), temperature=_GATING_TEMP,
+        )
+        {% else %}
+        self.gate = _GateClass(
+            d_model=d_in, n_experts=_N_EXPERTS, temperature=_GATING_TEMP,
+        )
+        {% endif %}
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # input:  (B, d_in)
+        # output: (B, n_experts) - soft routing weights, sum=1 along axis=-1
+        out = self.gate(x)
+        if isinstance(out, tuple):
+            # TopKGating returns (gates, top_k_idx, top_k_weights); we want gates.
+            return out[0]
+        return out
+{% endblock %}
+
+{% block train_loop %}
+def _expert_train_fns():
+    """Tuple of (slot_idx, train_fn, predict_fn) per expert, in slot order."""
+    return [
+        {% for slot in expert_slots %}
+        ({{ slot.slot_idx | python_repr }}, _train_slot_{{ slot.slot_idx }}, _predict_slot_{{ slot.slot_idx }}),
+        {% endfor %}
+    ]
+
+
+def _stack_expert_preds(preds_list: list[np.ndarray]) -> np.ndarray:
+    """Stack per-expert predictions to a (B, n_experts) matrix.
+
+    Each expert's `preds` is either:
+      - shape (B,)        binary probability or scalar score
+      - shape (B, K)      multi-class probabilities (we take col -1 = positive class proxy)
+      - shape (B, n_states) clustering posteriors (we take .max(axis=1) confidence)
+    The matrix returned is always (B, n_experts) of scalar scores so the
+    gate can produce a single weighted sum per sample.
+    """
+    flat: list[np.ndarray] = []
+    for p in preds_list:
+        arr = np.asarray(p)
+        if arr.ndim == 1:
+            flat.append(arr.astype(np.float64))
+        elif arr.ndim == 2:
+            # Binary classifier predict_proba shape (B,2) => use column 1
+            if arr.shape[1] == 2:
+                flat.append(arr[:, 1].astype(np.float64))
+            else:
+                # Multi-class / posteriors - collapse to max-class probability
+                flat.append(arr.max(axis=1).astype(np.float64))
+        else:
+            flat.append(arr.reshape(arr.shape[0], -1).max(axis=1).astype(np.float64))
+    return np.stack(flat, axis=-1)  # (B, n_experts)
+
+
+def _fit_gate(X_train: np.ndarray, expert_train_preds: np.ndarray, y_train: np.ndarray,
+              n_epochs: int = 30, lr: float = 1e-3) -> _MoEHead:
+    """Fit the routing head on training data.
+
+    For top_k / soft gates we frame routing as supervised classification: the
+    target expert is the one whose per-sample loss is minimal on the training
+    fold. For hash gating, no training is needed (deterministic projection).
+    """
+    head = _MoEHead(d_in=int(X_train.shape[1])).to(_DEVICE)
+    {% if _gating_type == "hash" %}
+    return head  # no params to train
+    {% else %}
+    # Per-sample BCE loss for each expert against y_train, then argmin -> target.
+    y_t = np.asarray(y_train, dtype=np.float64).reshape(-1)
+    expert_p = np.clip(expert_train_preds, 1e-7, 1.0 - 1e-7)
+    bce = -(y_t[:, None] * np.log(expert_p) + (1.0 - y_t[:, None]) * np.log(1.0 - expert_p))
+    target_expert = bce.argmin(axis=-1).astype(np.int64)  # (B,)
+
+    X_t = torch.as_tensor(X_train, dtype=torch.float32).to(_DEVICE)
+    tgt_t = torch.as_tensor(target_expert, dtype=torch.long).to(_DEVICE)
+
+    opt = torch.optim.AdamW(head.parameters(), lr=lr, weight_decay=1e-4)
+    head.train()
+    bs = 1024
+    for epoch in range(int(n_epochs)):
+        perm = torch.randperm(X_t.size(0), device=_DEVICE)
+        loss_sum = 0.0
+        for s in range(0, X_t.size(0), bs):
+            idx = perm[s:s + bs]
+            xb = X_t[idx]
+            yb = tgt_t[idx]
+            opt.zero_grad(set_to_none=True)
+            gates = head(xb)  # (B, n_experts) softmax
+            # Cross-entropy from probabilities: -log(gates[i, target[i]])
+            loss = F.nll_loss((gates + 1e-12).log(), yb)
+            loss.backward()
+            opt.step()
+            loss_sum += float(loss.item()) * xb.size(0)
+        emit_metric(
+            name=f"moe_gate_loss_epoch_{epoch}",
+            value=loss_sum / max(1, X_t.size(0)), iteration=epoch,
+        )
+    return head
+    {% endif %}
+
+
+def _gate_weights(head: _MoEHead, X: np.ndarray) -> np.ndarray:
+    """Run the trained gate head on X and return (B, n_experts) weights."""
+    head.eval()
+    X_t = torch.as_tensor(X, dtype=torch.float32).to(_DEVICE)
+    with torch.no_grad():
+        w = head(X_t)  # (B, n_experts)
+    return w.detach().cpu().numpy().astype(np.float64)
+
+
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+    """MoE fold trainer.
+
+    1. For each expert slot, call its imported train_one_fold() on the same
+       (X_train, y_train, X_test, y_test) - experts learn independently.
+    2. Collect per-expert val preds via stacked array.
+    3. Compute per-expert TRAIN preds (used to fit the gate router).
+    4. Fit gate on (X_train, target_expert).
+    5. Combine val preds via gate weights -> composite preds (B,).
+    """
+    fold_tag = "single" if fold_idx is None else str(fold_idx)
+    expert_models: list = []
+    expert_test_preds: list[np.ndarray] = []
+    expert_train_preds: list[np.ndarray] = []
+    for slot_idx, train_fn, predict_fn in _expert_train_fns():
+        emit_log(f"[moe][fold={fold_tag}] training expert slot={slot_idx}")
+        model_e, preds_e_test = train_fn(X_train, y_train, X_test, y_test, args, fold_idx=fold_idx)
+        expert_models.append(model_e)
+        expert_test_preds.append(np.asarray(preds_e_test))
+        # Re-predict on X_train for gate fitting (some experts only return val preds).
+        preds_e_train = predict_fn(model_e, X_train)
+        expert_train_preds.append(np.asarray(preds_e_train))
+
+    test_matrix = _stack_expert_preds(expert_test_preds)    # (B_test, n_experts)
+    train_matrix = _stack_expert_preds(expert_train_preds)  # (B_train, n_experts)
+
+    head = _fit_gate(X_train, train_matrix, y_train,
+                     n_epochs=int(getattr(args, "gate_epochs", 30)),
+                     lr=float(getattr(args, "gate_lr", 1e-3)))
+    val_gates = _gate_weights(head, X_test)                 # (B_test, n_experts)
+
+    # Composite prediction = gate-weighted sum of per-expert (binary) probs.
+    composite_preds = (val_gates * test_matrix).sum(axis=-1)
+
+    _FOLD_STATE["y"].append(np.asarray(y_test))
+    _FOLD_STATE["preds"].append(composite_preds.astype(np.float64))
+    _FOLD_STATE["expert_preds"].append(test_matrix)
+    _FOLD_STATE["gates"].append(val_gates)
+
+    composite_model = {"head": head, "experts": expert_models}
+    return composite_model, composite_preds
+
+
+def predict(model, X) -> np.ndarray:
+    """Standard predict contract: returns 1D weighted-sum probability per row."""
+    head = model["head"]
+    experts = model["experts"]
+    expert_predict_fns = [
+        {% for slot in expert_slots %}
+        _predict_slot_{{ slot.slot_idx }},
+        {% endfor %}
+    ]
+    expert_preds = [fn(m, X) for fn, m in zip(expert_predict_fns, experts)]
+    test_matrix = _stack_expert_preds(expert_preds)
+    gate_weights = _gate_weights(head, X)
+    return (gate_weights * test_matrix).sum(axis=-1).astype(np.float64)
+{% endblock %}
+
+{# The eval partial below defines the real compute_fold_metrics, so suppress  #}
+{# _base's runnable placeholder — emitting both is a redefinition (F811).     #}
+{% block compute_fold_metrics %}{% endblock %}
+
+{% block eval_helpers %}
+{% include "_eval_classification.py.j2" %}
+{% endblock %}
+
+{% block eval_block %}
+    # --- W5 MoE composite rollup -----------------------------------------
+    if _FOLD_STATE["y"]:
+        all_y = np.concatenate([np.asarray(y).reshape(-1) for y in _FOLD_STATE["y"]]).astype(np.int64)
+        all_preds = np.concatenate(_FOLD_STATE["preds"]).astype(np.float64)
+    else:
+        all_y = np.asarray([0, 1], dtype=np.int64)
+        all_preds = np.asarray([0.5, 0.5], dtype=np.float64)
+
+    # Average per-expert utilization across folds (diagnostic).
+    if _FOLD_STATE["gates"]:
+        gates_concat = np.concatenate(_FOLD_STATE["gates"], axis=0)  # (sum_B, n_experts)
+        expert_utilization = gates_concat.mean(axis=0).tolist()
+    else:
+        expert_utilization = [1.0 / max(1, _N_EXPERTS)] * _N_EXPERTS
+
+    _emit_metric_declarations()
+
+    diagnostics = build_diagnostics(
+        model=None,
+        y_true=all_y,
+        y_pred=all_preds,
+        ts=None,
+        prices=None,
+        fold_results=fold_results,
+        model_id=args.model_id,
+        symbol=args.symbol,
+        timeframe=args.timeframe,
+        n_train=int(X.shape[0]),
+        n_val=int(all_y.size),
+        n_features=int(X.shape[1]),
+        extra={
+            "template_id": "{{ template_id }}",
+            "template_version": "{{ template_version }}",
+            "catalog_id": "{{ catalog_id }}",
+            "composite_kind": "moe",
+            "n_experts": int(_N_EXPERTS),
+            "gating_type": _GATING_TYPE,
+            "gating_k": int(_GATING_K),
+            "gating_temperature": float(_GATING_TEMP),
+            "expert_slots": [
+                {% for slot in expert_slots %}
+                {
+                    "slot_idx": {{ slot.slot_idx | python_repr }},
+                    "catalog_id": {{ slot.catalog_id | python_repr }},
+                    "resolved_model_id": {{ slot.resolved_model_id | python_repr }},
+                },
+                {% endfor %}
+            ],
+            "expert_utilization": expert_utilization,
+            "n_total_bars": int(n_total),
+            "n_kept_samples": int(X.shape[0]),
+            "feature_names": list(names),
+        },
+    )
+
+    if all_y.size and all_preds.size:
+        out_path = _PROJECT_ROOT / "data" / "models" / args.model_id / "oos_predictions.parquet"
+        write_oos_predictions(
+            ts=np.arange(all_y.size, dtype=np.int64),
+            y_true=all_y,
+            y_pred=all_preds,
+            output_path=out_path,
+            symbol=args.symbol,
+        )
+{% endblock %}

@@ -12,6 +12,15 @@ on:
   issues:
     types: [opened, assigned, labeled]
 
+# Concurrency keyed by event scope so reviews + interactive runs don't fight
+# each other on the same PR/issue. Cancel stale runs on rapid resyncs.
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   claude-interactive:
     name: Claude (Interactive)
@@ -21,6 +30,7 @@ jobs:
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
       (github.event_name == 'issues' && contains(github.event.issue.body, '@claude'))
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     permissions:
       contents: write
       pull-requests: write
@@ -28,7 +38,7 @@ jobs:
       id-token: write
       actions: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -43,12 +53,13 @@ jobs:
       github.event_name == 'pull_request' &&
       (github.event.action == 'opened' || github.event.action == 'synchronize')
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       pull-requests: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -70,13 +81,14 @@ jobs:
       github.event_name == 'issues' &&
       (github.event.action == 'labeled' && github.event.label.name == 'claude')
     runs-on: ubuntu-latest
+    timeout-minutes: 65
     permissions:
       contents: write
       pull-requests: write
       issues: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
