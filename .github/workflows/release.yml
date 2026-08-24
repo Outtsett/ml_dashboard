@@ -26,7 +26,7 @@ jobs:
       tag_name: ${{ steps.rp.outputs.tag_name }}
       upload_url: ${{ steps.rp.outputs.upload_url }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
         id: rp
         with:
           release-type: node
