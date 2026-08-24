@@ -75,8 +75,8 @@ export interface ModelRegistryEntry {
   estimatedTrainingTime?: string;
   /** Supported optimization objectives (e.g. ["log_likelihood", "silhouette_score"]) */
   supportedObjectives?: string[];
-  /** Reference to model-templates.json */
-  templateId?: string;
+  /** Reference to model-templates.json (null when no template matched). */
+  templateId?: string | null;
   /** Self-describing metric declarations — defines what metrics this model produces */
   metricDeclarations?: Record<string, {
     renderer: string;
@@ -90,6 +90,88 @@ export interface ModelRegistryEntry {
 export interface ModelRegistry {
   version: number;
   models: Record<string, ModelRegistryEntry>;
+}
+
+// ─── Algorithm / Task / Runner Decomposition ─────────────────────────────────
+//
+// As of 2026-05-09, model definitions split into three orthogonal files:
+//   - algorithms.json: pure architecture metadata (XGBoost, Two-Stream Transformer, …)
+//   - tasks.json:      what the model is for (direction_classifier, range_classifier, …)
+//   - runners.json:    the (algorithm, task) → script + hyperparameters wiring
+//
+// Composite key convention:  ${algorithm}+${task}   e.g. "xgboost+direction_classifier"
+// `ModelRegistryEntry` is now a *derived* view composed at registry-load time.
+
+export type AlgorithmId = string;   // e.g. "xgboost", "transformer_2s"
+export type TaskId = string;        // e.g. "direction_classifier"
+export type CompositeRunnerId = string; // `${AlgorithmId}+${TaskId}`
+
+export interface AlgorithmEntry {
+  name: string;
+  family: 'sklearn' | 'pytorch' | 'xgboost' | 'lightgbm' | 'catboost' | 'transformer' | 'gradient_boosting' | 'hybrid' | 'custom';
+  category: string;
+  subcategory: string;
+  /** Which task heads this algorithm can drive */
+  supports: Array<'classification' | 'regression' | 'multi-head'>;
+  gpuRequired?: boolean;
+  catalogSpec?: string;
+  description?: string;
+  tags?: string[];
+}
+
+export interface TaskEntry {
+  name: string;
+  /** Output head shape — binary | k-class | regression | multi */
+  head: 'binary' | 'k-class' | 'regression' | 'multi';
+  headKind: 'classification' | 'regression' | 'multi';
+  /** For k-class heads */
+  nClasses?: number;
+  /** Compatible label-strategy keys from LabelsStage / LABEL_SQL_GENERATORS */
+  labelStrategies: string[];
+  supportedObjectives?: string[];
+  chartOverlay?: string;
+  description?: string;
+}
+
+export interface RunnerEntry {
+  /** Pre-2026-05-09 modelType key (e.g. "xgb_classifier") for backwards compat */
+  legacyId?: string;
+  displayName?: string;
+  runner: TrainerRunner;
+  script: string;
+  outputDir: string;
+  outputs: string[];
+  featurePipeline: string;
+  chartOverlay?: string;
+  estimatedTrainingTime?: string;
+  tags?: string[];
+  supportedObjectives?: string[];
+  /** Restrict this runner to specific timeframe labels (e.g. ["1d"]) */
+  timeframes?: string[];
+  featureCategories?: string[];
+  includeIndicators?: boolean;
+  allFeatures?: boolean;
+  defaultHyperparameters: Record<string, HyperparameterDef>;
+  cliFlags?: Record<string, string>;
+  defaultSearchSpace?: Record<string, unknown>;
+}
+
+export interface AlgorithmRegistry {
+  version: string;
+  metadata?: Record<string, unknown>;
+  algorithms: Record<AlgorithmId, AlgorithmEntry>;
+}
+
+export interface TaskRegistry {
+  version: string;
+  metadata?: Record<string, unknown>;
+  tasks: Record<TaskId, TaskEntry>;
+}
+
+export interface RunnerRegistry {
+  version: string;
+  metadata?: Record<string, unknown>;
+  runners: Record<CompositeRunnerId, RunnerEntry>;
 }
 
 export interface TrainingConfig {
@@ -154,10 +236,13 @@ export type TrainingEventType =
   | 'model_state'
   | 'sampler_diagnostics'
   | 'metric_declarations'
+  | 'epoch_metric'
   | 'hpo_trial_start'
   | 'hpo_trial_done'
   | 'fold_start'
   | 'fold_done'
+  | 'fold_complete'
+  | 'config'
   | 'checkpoint_registered';
 
 export interface TrainingEvent {

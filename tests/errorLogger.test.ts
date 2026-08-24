@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { logError, logWarn, setErrorHandler } from '../src/client/src/lib/errorLogger';
+import { logError, logWarn, setErrorHandler } from '../src/client/src/infrastructure/lib/error_logger';
 
 describe('errorLogger', () => {
   beforeEach(() => { vi.restoreAllMocks(); setErrorHandler(undefined); });

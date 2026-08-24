@@ -45,7 +45,7 @@ The UI consumes the **Manifest Service** (`/api/system/manifest`) to adjust its 
 ### **The "Pulse" HUD**
 - **Latency**: Sub-10ms propagation.
 - **Technology**: SSE (Server-Sent Events) + Direct REST Pulse.
-- **Visual**: "Alive" indicators that pulse Emerald when data flushes from MotiveWave to QuestDB.
+- **Visual**: "Alive" indicators that pulse Emerald when ingested data flushes into QuestDB.
 
 ---
 

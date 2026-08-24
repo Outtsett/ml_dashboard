@@ -8,12 +8,7 @@ performed — the C engine shared memory need not be running.
 
 from __future__ import annotations
 
-import struct
-
-import pytest
-
 import ml.shared.shmem as shmem
-
 
 # ─── magic / identity ──────────────────────────────────────────────────────
 

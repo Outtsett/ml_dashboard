@@ -5,24 +5,24 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tensionflow.trade.context import (
-    classify_context,
-    AT_EXTREME,
-    AT_VALUE_EDGE,
-    AT_VWAP,
-    AT_NEUTRAL,
-)
 from tensionflow.config import (
-    BENCHMARKS,
-    DISTANCES,
-    TICK_SIZE,
-    BENCH_VWAP,
     BENCH_VAH,
     BENCH_VAL,
-    BENCH_VWAP_UPPER,
+    BENCH_VWAP,
     BENCH_VWAP_LOWER,
+    BENCH_VWAP_UPPER,
+    BENCHMARKS,
     CONTEXT_AT_THRESHOLD_TICKS,
     CONTEXT_EXTREME_THRESHOLD_TICKS,
+    DISTANCES,
+    TICK_SIZE,
+)
+from tensionflow.trade.context import (
+    AT_EXTREME,
+    AT_NEUTRAL,
+    AT_VALUE_EDGE,
+    AT_VWAP,
+    classify_context,
 )
 
 

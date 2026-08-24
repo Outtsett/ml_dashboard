@@ -1,12 +1,45 @@
 name: Commit Lint
+
 on:
   pull_request:
-    types: [opened, edited, synchronize]
-    branches: [master]
+    types: [opened, edited, synchronize, reopened]
+    branches: [main, master]
+
+concurrency:
+  group: commitlint-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
-  commitlint:
+  pr-title:
+    name: Validate PR title (Conventional Commits)
     runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      pull-requests: read
+      statuses: write
     steps:
       - uses: amannn/action-semantic-pull-request@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Mirror commitlint conventional-config defaults.
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          subjectPattern: '^[A-Z].+$|^[a-z].+$'
+          # Allow merge commits and revert PRs to bypass.
+          ignoreLabels: |
+            ignore-semantic-pull-request

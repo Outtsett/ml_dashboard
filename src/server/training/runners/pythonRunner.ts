@@ -14,7 +14,8 @@ import { createSession, emitSessionEvent } from "./types";
 import type { ITrainerRunner } from "./types";
 import { getTrainingConfig } from "../registry";
 import { getParser } from "./parsers/index";
-import * as trainingStorage from "../../storage/trainingStorage";
+import * as trainingStorage from "../../infrastructure/storage/trainingStorage";
+import * as provenance from "../provenance";
 
 const logger = new Logger("PythonRunner");
 
@@ -28,8 +29,13 @@ export class PythonRunner implements ITrainerRunner {
     const pythonExe = path.isAbsolute(trainingCfg.paths.pythonExe)
       ? trainingCfg.paths.pythonExe
       : path.join(process.cwd(), trainingCfg.paths.pythonExe);
-    const script = path.join(process.cwd(), config.registry.script!);
-    const modelsDir = path.join(process.cwd(), config.registry.outputDir);
+    const scriptPath = config.registry.script!;
+    const script = path.isAbsolute(scriptPath)
+      ? scriptPath
+      : path.join(process.cwd(), scriptPath);
+    const modelsDir = path.isAbsolute(config.registry.outputDir)
+      ? config.registry.outputDir
+      : path.join(process.cwd(), config.registry.outputDir);
 
     const session = (existingSession ?? createSession(config.modelId, config)) as TrainingSession & { child: ChildProcess; stdout: string; stderr: string };
     session.stdout = "";
@@ -103,11 +109,19 @@ export class PythonRunner implements ITrainerRunner {
       args.push("--all-features");
     }
 
+    // Provenance identity, minted by the orchestrator BEFORE this spawn.
+    // `protocol.py` reads these variables at import and stamps every stdout
+    // event with them, which is what makes a raw log line self-identifying.
+    // Absent (headless / legacy caller) → the child simply emits nulls and the
+    // parser synthesizes the fields from the spawn record.
+    const runCtx = provenance.getRunContext(config.modelId);
+    const provenanceEnv = runCtx ? provenance.runContextEnv(runCtx) : {};
+
     logger.log(`Spawning: ${pythonExe} ${args.join(" ")}`);
 
     const child = spawn(pythonExe, args, {
       cwd: process.cwd(),
-      env: { ...process.env, PYTHONUNBUFFERED: "1" },
+      env: { ...process.env, PYTHONUNBUFFERED: "1", ...provenanceEnv },
     });
     session.child = child;
 
@@ -115,6 +129,12 @@ export class PythonRunner implements ITrainerRunner {
     const dbSessId = (session as any).dbSessionId;
     if (dbSessId != null && child.pid) {
       trainingStorage.updateSessionPid(dbSessId, child.pid);
+    }
+    if (runCtx) {
+      provenance.detach(
+        provenance.markRunSpawned(runCtx.runId, child.pid ?? null),
+        `markRunSpawned(${runCtx.runId})`,
+      );
     }
 
     // Training timeout: SIGTERM then SIGKILL after grace period
@@ -143,6 +163,14 @@ export class PythonRunner implements ITrainerRunner {
       for (const line of lines) {
         parser.parseLine(session, line.trim(), parserCtx);
       }
+      // Liveness signal for the boot sweeper. Throttled inside `provenance` —
+      // one SQLite UPDATE per stdout chunk would sit on the hot metric path.
+      if (runCtx && lines.length > 0) {
+        provenance.detach(
+          provenance.touchRunHeartbeat(runCtx.runId),
+          `touchRunHeartbeat(${runCtx.runId})`,
+        );
+      }
     });
 
     // OCP: Suppress patterns come from config/training.json — add new entries without modifying this file
@@ -161,6 +189,27 @@ export class PythonRunner implements ITrainerRunner {
       clearTimeout(timeoutHandle);
       session.finished = true;
       session.exitCode = code;
+
+      // Terminal provenance state is owned here, by the parent process.
+      //   exit 0                       → completed (a `done` event always
+      //                                  exists: the parser's, or the
+      //                                  synthetic one emitted below)
+      //   exit != 0 + `error` envelope → failed  (Python reported it)
+      //   exit != 0, nothing reported  → crashed (died without a word — the
+      //                                  case this design exists for)
+      if (runCtx) {
+        const sawError = (session as TrainingSession & { parserHandledError?: boolean }).parserHandledError === true;
+        const status = code === 0 ? "completed" : sawError ? "failed" : "crashed";
+        provenance.detach(
+          provenance.finishRun(runCtx.runId, {
+            status,
+            exitCode: code,
+            errorMessage: code === 0 ? null : `Training process exited with code ${code}`,
+          }),
+          `finishRun(${runCtx.runId})`,
+        );
+        provenance.clearRunContext(runCtx.legacyModelId);
+      }
 
       if (code !== 0) {
         const details = (session.stderr || session.stdout).slice(-2000);
@@ -238,7 +287,7 @@ export class PythonRunner implements ITrainerRunner {
             session.child.kill("SIGKILL");
             logger.warn(`Force-killed session ${sessionId} after SIGTERM timeout`);
           }
-        } catch (e) {
+        } catch {
           // Process may already be dead
         }
       }, 30_000);
@@ -247,6 +296,21 @@ export class PythonRunner implements ITrainerRunner {
       emitSessionEvent(session, "error", { message: "Training stopped by user" });
       session.finished = true;
       session.exitCode = -1;
+
+      // Claim the terminal state now so the child's later `close` (which will
+      // report a non-zero code and no `error` envelope) cannot relabel a
+      // deliberate stop as a crash.
+      const stoppedCtx = provenance.getRunContext(session.modelId);
+      if (stoppedCtx) {
+        provenance.detach(
+          provenance.finishRun(stoppedCtx.runId, {
+            status: "stopped",
+            exitCode: null,
+            errorMessage: "Training stopped by user",
+          }),
+          `finishRun(${stoppedCtx.runId})`,
+        );
+      }
 
       const dbSessId = session.dbSessionId;
       if (dbSessId != null) {

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
+from tensionflow.config import REGIME_UNKNOWN, REGIME_VOLATILE, REGIME_WEIGHTS
 from tensionflow.tension.composite import compute_composite
-from tensionflow.config import REGIME_WEIGHTS, REGIME_UNKNOWN, REGIME_VOLATILE
 
 
 def _default_profile() -> dict:

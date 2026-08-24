@@ -19,7 +19,6 @@ Usage:
 import numpy as np
 from numba import njit
 
-
 # =============================================================================
 # Section 1: Building Blocks (Numba JIT)
 # =============================================================================
@@ -298,3 +297,5 @@ def _second_diff(arr):
     if n > 1:
         out[1] = 0.0
     for i in range(2, n):
+        out[i] = arr[i] - 2.0 * arr[i - 1] + arr[i - 2]
+    return out

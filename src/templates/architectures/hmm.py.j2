@@ -1,0 +1,322 @@
+{# ---------------------------------------------------------------------- #}
+{# hmm.py.j2 — hmmlearn HMM family template (W4.a)                        #}
+{#                                                                         #}
+{# Wraps `hmmlearn.hmm.GaussianHMM` (default) or `GMMHMM` (when the        #}
+{# `emission` hyperparameter is 'gmm'). The parser/composer routes any     #}
+{# catalog spec mapped to template_id='hmm' here; per W2.a / generate_model#}
+{# DEFAULT_FAMILY_FOR_CATALOG that includes:                               #}
+{#   gaussian-hmm, gmm-hmm, hidden-markov-model, hidden-markov-model-hmm   #}
+{#                                                                         #}
+{# Hyperparameters consumed (per ml sub-plan §2 + W4.a brief):             #}
+{#   n_states          int         number of hidden states                  #}
+{#   covariance_type   str         'full'|'diag'|'tied'|'spherical'         #}
+{#   emission          str         'gaussian' (default) | 'gmm'             #}
+{#   n_mix             int         only used when emission == 'gmm'         #}
+{#   n_iter            int         Baum-Welch max iterations                 #}
+{#   tol               float       convergence tolerance                    #}
+{#   random_state      int         seed                                     #}
+{#                                                                         #}
+{# Like gmm.py.j2, HMM is unsupervised — generate_labels returns placeholder#}
+{# zeros + an all-True mask and the WF loop ignores y_train/y_test.        #}
+{#                                                                         #}
+{# Eval pipeline: includes `_eval_clustering.py.j2` (W4.b ml-eval) at      #}
+{# module scope through the eval_helpers block. That gives us              #}
+{# compute_fold_metrics / compute_clustering_metrics_full / build_diagnostics#}
+{# / write_oos_predictions / emit_regime_tags / _emit_metric_declarations  #}
+{# verbatim. The eval_block then enriches build_diagnostics(extra=...)     #}
+{# with HMM-specific keys, our W4.a-owned cross-domain contract:           #}
+{#                                                                         #}
+{#   transition_matrix       list[list[float]] — model.transmat_            #}
+{#   start_probabilities     list[float]       — model.startprob_           #}
+{#   n_states                int               — configured n_components    #}
+{#   converged               bool              — model.monitor_.converged   #}
+{#   log_likelihood          float | None      — final iter log-likelihood  #}
+{#   emission                str               — 'gaussian' | 'gmm'         #}
+{#   covariance_type         str                                            #}
+{#   per_fold_convergence    list[dict]        — n_iter / ll / converged    #}
+{#                                                                         #}
+{# Frontend's W7 LineageCard surfaces these on HMM-family models.          #}
+{# ---------------------------------------------------------------------- #}
+{% extends "_base.py.j2" %}
+
+{% set _emission = hyperparameters.get("emission", "gaussian") %}
+
+{% block model_imports %}
+{% if _emission == "gmm" %}
+from hmmlearn.hmm import GMMHMM as _HMMClass
+{% else %}
+from hmmlearn.hmm import GaussianHMM as _HMMClass
+{% endif %}
+
+# Module-level state for per-fold OOS aggregation. Read by the eval_block
+# after the walk-forward loop completes.
+#
+# Shape contract:
+#   states[k]        np.ndarray[int64]   (n_test_k,)             Viterbi path
+#   posteriors[k]    np.ndarray[float64] (n_test_k, n_states)    responsibilities
+#   X_test[k]        np.ndarray[float64] (n_test_k, n_features)  held for silhouette
+#   models[k]        _HMMClass instance                          fitted per-fold model
+_FOLD_STATE: dict = {
+    "states": [],
+    "posteriors": [],
+    "X_test": [],
+    "models": [],
+    "n_states": 0,
+}
+{% endblock %}
+
+{% block label_generation %}
+def generate_labels(raw, args):
+    """HMM is unsupervised — return placeholder zeros + all-True mask.
+
+    The WF loop still passes y_train / y_test (the zeros from here); they're
+    ignored by train_one_fold below. Mirrors gmm.py.j2's pattern.
+    """
+    n = int(raw["close"].shape[0])
+    return np.zeros(n, dtype=np.int8), np.ones(n, dtype=bool)
+{% endblock %}
+
+{% block train_loop %}
+def _build_hmm() -> _HMMClass:
+    """Instantiate the hmmlearn estimator with the catalog hyperparameters.
+
+    Splits the kwargs by emission family because GMMHMM accepts `n_mix` but
+    GaussianHMM does not — passing it to GaussianHMM raises TypeError.
+    """
+    {% if _emission == "gmm" %}
+    return _HMMClass(
+        n_components={{ hyperparameters.get("n_states", 4) | python_repr }},
+        covariance_type={{ hyperparameters.get("covariance_type", "diag") | python_repr }},
+        n_mix={{ hyperparameters.get("n_mix", 2) | python_repr }},
+        n_iter={{ hyperparameters.get("n_iter", 100) | python_repr }},
+        tol={{ hyperparameters.get("tol", 0.01) | python_repr }},
+        random_state={{ hyperparameters.get("random_state", 42) | python_repr }},
+    )
+    {% else %}
+    return _HMMClass(
+        n_components={{ hyperparameters.get("n_states", 4) | python_repr }},
+        covariance_type={{ hyperparameters.get("covariance_type", "diag") | python_repr }},
+        n_iter={{ hyperparameters.get("n_iter", 100) | python_repr }},
+        tol={{ hyperparameters.get("tol", 0.01) | python_repr }},
+        random_state={{ hyperparameters.get("random_state", 42) | python_repr }},
+    )
+    {% endif %}
+
+
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+    """HMM unsupervised fit on X_train; Viterbi decode + posteriors on X_test.
+
+    Returns (model, posteriors_2d) per the cross-domain contract documented
+    in _base.py.j2: composite templates (W5) import this signature directly.
+    Posteriors are 2-D (B, n_states); the WF compute_fold_metrics helper
+    in _eval_clustering accepts both 1-D state IDs and 2-D posteriors via
+    its `_eval_to_state_labels()` argmax branch.
+    """
+    model = _build_hmm()
+    # hmmlearn's fit() accepts a single contiguous sequence by default; for
+    # multi-sequence training (e.g. multiple symbols) the caller passes
+    # `lengths`. The generated runner is single-sequence per fold.
+    model.fit(X_train)
+    state_path = model.predict(X_test)              # (n_test,) int Viterbi
+    posteriors = model.predict_proba(X_test)        # (n_test, n_states) float
+
+    _FOLD_STATE["states"].append(np.asarray(state_path, dtype=np.int64))
+    _FOLD_STATE["posteriors"].append(np.asarray(posteriors, dtype=np.float64))
+    # X_test is held by reference so the per-fold silhouette computation in
+    # the eval block can run on the same rows the model decoded against.
+    _FOLD_STATE["X_test"].append(np.asarray(X_test, dtype=np.float64))
+    _FOLD_STATE["models"].append(model)
+    _FOLD_STATE["n_states"] = int(model.n_components)
+    return model, posteriors
+
+
+def predict(model, X):
+    """Standard predict contract for unsupervised HMM: posterior matrix.
+
+    Returns (B, n_states) array of state responsibilities. Composite templates
+    in W5 that consume this as a sub-model expert will typically argmax to
+    a single regime label or take the max-posterior as a confidence proxy.
+    """
+    return model.predict_proba(X)
+{% endblock %}
+
+{# Module-level eval helpers — render the clustering eval module at top-of-file #}
+{# scope so its functions / constants stay at module scope (mirrors             #}
+{# sklearn.py.j2 / tree.py.j2 pattern with _eval_classification.py.j2).        #}
+{# The clustering eval partial defines the real compute_fold_metrics, so      #}
+{# suppress _base's placeholder — emitting both is a redefinition (F811).     #}
+{% block compute_fold_metrics %}{% endblock %}
+
+{% block eval_helpers %}
+{% include "_eval_clustering.py.j2" %}
+{% endblock %}
+
+{# Per-run rollup — runs INSIDE run_training() after the WF loop completes. #}
+{% block eval_block %}
+    # ─── W4.a HMM clustering rollup + diagnostics ────────────────────────
+    # Concatenate per-fold OOS arrays accumulated by train_one_fold.
+    if _FOLD_STATE["states"]:
+        all_states = np.concatenate(_FOLD_STATE["states"]).astype(np.int64)
+        all_X = np.concatenate(_FOLD_STATE["X_test"]).astype(np.float64)
+        all_posteriors = np.concatenate(_FOLD_STATE["posteriors"]).astype(np.float64)
+    else:
+        all_states = np.asarray([], dtype=np.int64)
+        all_X = np.zeros((0, X.shape[1]), dtype=np.float64)
+        all_posteriors = np.zeros((0, _FOLD_STATE["n_states"] or 1), dtype=np.float64)
+
+    n_states_configured = int(_FOLD_STATE["n_states"])
+    n_states_used = int(np.unique(all_states).size) if all_states.size else 0
+
+    # Publish the dashboard metric-rendering schema BEFORE rollup metric
+    # events flow.  _emit_metric_declarations comes from _eval_clustering.
+    _emit_metric_declarations()
+
+    # Pull per-fold log-likelihood + convergence from the fitted models.
+    last_model = _FOLD_STATE["models"][-1] if _FOLD_STATE["models"] else None
+    converged = bool(last_model.monitor_.converged) if last_model is not None else False
+    last_ll = (
+        float(last_model.monitor_.history[-1])
+        if last_model is not None and last_model.monitor_.history
+        else None
+    )
+
+    per_fold_convergence: list[dict] = []
+    for k, m in enumerate(_FOLD_STATE["models"]):
+        per_fold_convergence.append({
+            "fold": k,
+            "converged": bool(m.monitor_.converged),
+            "n_iter": int(len(m.monitor_.history)) if m.monitor_.history else 0,
+            "log_likelihood": float(m.monitor_.history[-1]) if m.monitor_.history else None,
+        })
+
+    # Compute clustering quality on the concatenated OOS span. The shared
+    # helper handles the n_clusters >= 2 guard + sample-cap silhouette.
+    full_metrics = compute_clustering_metrics_full(all_X, all_posteriors) if all_X.size else {
+        "silhouette": None,
+        "davies_bouldin": None,
+        "n_clusters": n_states_used,
+        "n_samples": int(all_states.size),
+        "cluster_balance": None,
+    }
+
+    # Emit run-level rollup metrics so the live dashboard shows clustering
+    # quality once the WF loop closes. iteration=0 because these are
+    # post-fold rollups, not per-fold streamed values.
+    if full_metrics.get("silhouette") is not None:
+        emit_metric(name="silhouette", value=full_metrics["silhouette"], iteration=0)
+    if full_metrics.get("davies_bouldin") is not None:
+        emit_metric(name="davies_bouldin", value=full_metrics["davies_bouldin"], iteration=0)
+    if last_ll is not None:
+        emit_metric(name="log_likelihood", value=last_ll, iteration=0)
+    emit_metric(name="n_states_used", value=float(n_states_used), iteration=0)
+
+    # Regime-tag overlay (chart paints colored regime bands on the OOS span).
+    # Align overlay timestamps to the OOS portion of ts_kept by walking
+    # fold_results in order; falls back to ts_kept[-N:] when the per-fold
+    # geometry isn't available.
+    overlay_cap = 50_000
+    if all_states.size and ts_kept.size:
+        try:
+            test_ts_chunks: list[np.ndarray] = []
+            cursor = 0
+            for fr in fold_results:
+                n_test = int(fr.get("n_test", 0))
+                if n_test <= 0:
+                    continue
+                test_ts_chunks.append(ts_kept[cursor:cursor + n_test])
+                cursor += n_test
+            if test_ts_chunks:
+                overlay_ts = np.concatenate(test_ts_chunks)
+            else:
+                overlay_ts = ts_kept[-all_states.size:]
+        except Exception:
+            overlay_ts = ts_kept[-all_states.size:]
+
+        if overlay_ts.size and overlay_ts.size == all_states.size:
+            if overlay_ts.size > overlay_cap:
+                step = max(1, overlay_ts.size // overlay_cap)
+                overlay_ts = overlay_ts[::step]
+                overlay_states_capped = all_states[::step]
+            else:
+                overlay_states_capped = all_states
+            try:
+                tm_for_overlay = (
+                    last_model.transmat_ if last_model is not None else None
+                )
+                emit_regime_tags(
+                    ts_test=overlay_ts,
+                    predictions=overlay_states_capped,
+                    transition_matrix=tm_for_overlay,
+                )
+            except Exception:
+                # Overlay is best-effort — never block diagnostics on it.
+                pass
+
+    # HMM-specific diagnostics keys — these are W4.a's cross-domain contract.
+    # build_diagnostics already surfaces type_name + n_components + transmat_
+    # under model_summary; we also lift the HMM-specific keys to the TOP
+    # LEVEL so frontend's W7 LineageCard can read them directly without
+    # walking into model_summary.
+    hmm_extra: dict = {
+        "transition_matrix": (
+            last_model.transmat_.tolist() if last_model is not None else None
+        ),
+        "start_probabilities": (
+            last_model.startprob_.tolist() if last_model is not None else None
+        ),
+        "n_states": n_states_configured,
+        "n_states_used": n_states_used,
+        "converged": converged,
+        "log_likelihood": last_ll,
+        "emission": "{{ _emission }}",
+        "covariance_type": {{ hyperparameters.get("covariance_type", "diag") | python_repr }},
+        "per_fold_convergence": per_fold_convergence,
+        "n_total_bars": int(n_total),
+        "n_kept_samples": int(X.shape[0]),
+        "feature_names": list(names),
+    }
+
+    out_dir = _PROJECT_ROOT / "data" / "models" / args.model_id
+
+    diagnostics = build_diagnostics(
+        model=last_model,
+        X_test=all_X if all_X.size else None,
+        y_test=all_states,
+        predictions=all_posteriors if all_posteriors.size else all_states,
+        ts_test=ts_kept[-int(all_states.size):] if all_states.size else None,
+        fold_results=fold_results,
+        output_dir=out_dir,
+        model_id=args.model_id,
+        symbol=args.symbol,
+        timeframe=args.timeframe,
+        n_train=int(X.shape[0]) - int(all_states.size),
+        n_val=int(all_states.size),
+        n_features=int(X.shape[1]),
+        template_id="{{ template_id }}",
+        template_version="{{ template_version }}",
+        catalog_id="{{ catalog_id }}",
+        extra=hmm_extra,
+    )
+
+    # Write OOS predictions parquet for downstream backtest/eval consumers.
+    # Schema {timestamp, symbol, prediction, confidence} per W1.c contract;
+    # for HMM: prediction = state ID, confidence = max posterior.
+    if all_states.size and ts_kept.size:
+        oos_path = out_dir / "oos_predictions.parquet"
+        try:
+            oos_ts = (
+                ts_kept[-int(all_states.size):]
+                if int(all_states.size) <= ts_kept.size
+                else np.arange(int(all_states.size), dtype=np.int64)
+            )
+            write_oos_predictions(
+                ts=oos_ts,
+                y_test=all_states,
+                predictions=all_posteriors if all_posteriors.size else all_states,
+                output_path=oos_path,
+                symbol=args.symbol,
+            )
+        except Exception:
+            # OOS parquet is best-effort — diagnostics is the canonical artifact.
+            pass
+{% endblock %}

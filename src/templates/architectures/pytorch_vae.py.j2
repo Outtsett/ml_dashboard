@@ -1,0 +1,369 @@
+{# ---------------------------------------------------------------------- #}
+{# pytorch_vae.py.j2 — variational autoencoder (W3.b)                     #}
+{#                                                                         #}
+{# Same overall shape as pytorch_autoencoder.py.j2 but the bottleneck is   #}
+{# replaced with a VariationalHead that outputs (mu, logvar). At training  #}
+{# time the latent is sampled via the reparameterization trick:            #}
+{#     z = mu + exp(logvar/2) * eps,    eps ~ N(0, I)                      #}
+{# At inference time z = mu (deterministic).                               #}
+{#                                                                         #}
+{# Loss = MSE(x, x_recon) + beta * KL(N(mu, sigma^2) || N(0, I))           #}
+{# where KL = -0.5 * sum(1 + logvar - mu^2 - exp(logvar)) per sample.     #}
+{#                                                                         #}
+{# Hyperparameters consumed:                                               #}
+{#   hidden_dims          (list[int])                                     #}
+{#   latent_dim           (int)                                           #}
+{#   beta                 (float)        — KL weight (default 1.0)        #}
+{#   dropout              (float)                                         #}
+{#   learning_rate        (float)                                         #}
+{#   n_epochs             (int)                                           #}
+{#   batch_size           (int)                                           #}
+{#   early_stop_patience  (int)                                           #}
+{#                                                                         #}
+{# OOS predictions schema (oos_predictions.parquet):                       #}
+{#   prediction = anomaly_score  (per-sample reconstruction MSE)           #}
+{#   confidence = 1.0                                                       #}
+{# ---------------------------------------------------------------------- #}
+{% extends "_base.py.j2" %}
+
+{% set _hidden_dims = hyperparameters.hidden_dims | default([128, 64]) %}
+{% set _latent_dim = hyperparameters.latent_dim | default(16) %}
+{% set _beta = hyperparameters.beta | default(1.0) %}
+{% set _dropout = hyperparameters.dropout | default(0.1) %}
+{% set _lr = hyperparameters.learning_rate | default(0.001) %}
+{% set _n_epochs = hyperparameters.n_epochs | default(20) %}
+{% set _batch_size = hyperparameters.batch_size | default(256) %}
+{% set _patience = hyperparameters.early_stop_patience | default(5) %}
+
+{# NOTE: `time` is already imported by _base.py.j2 — re-importing here is a #}
+{# redefinition (F811) in the rendered module.                              #}
+{% block model_imports %}
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import DataLoader, TensorDataset
+
+from src.ml.blocks import MLPEncoder, MLPDecoder, VariationalHead
+from src.ml.shared.torch_logging import (
+    declare_diagnostics_metrics, emit_step_diagnostics,
+    global_grad_norm, current_lr, vram_mb,
+)
+
+# Static config baked into the rendered template.
+_HIDDEN_DIMS: list = {{ _hidden_dims | python_repr }}
+_LATENT_DIM: int = {{ _latent_dim | python_repr }}
+_BETA: float = {{ _beta | python_repr }}
+_DROPOUT: float = {{ _dropout | python_repr }}
+_LR: float = {{ _lr | python_repr }}
+_N_EPOCHS: int = {{ _n_epochs | python_repr }}
+_BATCH_SIZE: int = {{ _batch_size | python_repr }}
+_PATIENCE: int = {{ _patience | python_repr }}
+_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Module-level state for per-fold OOS aggregation.
+_FOLD_STATE: dict = {"recon_err": [], "kl_per_sample": []}
+_DIAG_DECLARED: dict = {"done": False}
+
+
+class _VAEModel(nn.Module):
+    """MLPEncoder → VariationalHead(mu, logvar) → MLPDecoder.
+
+    Forward returns (recon, mu, logvar) so the loss can sum reconstruction +
+    KL divergence per sample.
+    """
+
+    def __init__(self, input_dim: int):
+        super().__init__()
+        self.input_dim = input_dim
+        self.encoder = MLPEncoder(
+            input_dim=input_dim,
+            hidden_dims=_HIDDEN_DIMS,
+            dropout=_DROPOUT,
+        )
+        self.var_head = VariationalHead(
+            d_model=int(_HIDDEN_DIMS[-1]),
+            latent_dim=int(_LATENT_DIM),
+        )
+        self.decoder = MLPDecoder(
+            latent_dim=int(_LATENT_DIM),
+            hidden_dims=list(reversed(_HIDDEN_DIMS)),
+            output_dim=input_dim,
+            dropout=_DROPOUT,
+        )
+
+    def encode(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        h = self.encoder(x)
+        mu, logvar = self.var_head(h)
+        return mu, logvar
+
+    def decode(self, z: torch.Tensor) -> torch.Tensor:
+        return self.decoder(z)
+
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        mu, logvar = self.encode(x)
+        if self.training:
+            z = self.var_head.reparameterize(mu, logvar)
+        else:
+            z = mu
+        recon = self.decode(z)
+        return recon, mu, logvar
+
+
+def _vae_loss(
+    recon: torch.Tensor,
+    x: torch.Tensor,
+    mu: torch.Tensor,
+    logvar: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Returns (total_loss, mse_per_sample_mean, kl_per_sample_mean)."""
+    recon_per = ((recon - x) ** 2).mean(dim=1)
+    mse_mean = recon_per.mean()
+    kl_per = -0.5 * torch.sum(1.0 + logvar - mu.pow(2) - logvar.exp(), dim=1)
+    kl_mean = kl_per.mean()
+    total = mse_mean + _BETA * kl_mean
+    return total, mse_mean, kl_mean
+{% endblock %}
+
+{% block label_generation %}
+def generate_labels(raw, args):
+    """VAE is unsupervised — return placeholder zeros + all-True mask."""
+    n = int(raw["close"].shape[0])
+    return np.zeros(n, dtype=np.float32), np.ones(n, dtype=bool)
+{% endblock %}
+
+{% block train_loop %}
+def _make_loaders(X_train, X_test):
+    X_tr = torch.as_tensor(np.asarray(X_train), dtype=torch.float32)
+    X_te = torch.as_tensor(np.asarray(X_test), dtype=torch.float32)
+    train_ds = TensorDataset(X_tr)
+    val_ds = TensorDataset(X_te)
+    train_loader = DataLoader(
+        train_ds, batch_size=_BATCH_SIZE, shuffle=True,
+        num_workers=0, pin_memory=(_DEVICE.type == "cuda"),
+    )
+    val_loader = DataLoader(
+        val_ds, batch_size=_BATCH_SIZE, shuffle=False,
+        num_workers=0, pin_memory=(_DEVICE.type == "cuda"),
+    )
+    return train_loader, val_loader
+
+
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+    """VAE + AdamW + early-stop on val total loss (recon + beta*KL)."""
+    fold_tag = "single" if fold_idx is None else str(fold_idx)
+    input_dim = int(X_train.shape[1])
+    model = _VAEModel(input_dim=input_dim).to(_DEVICE)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=_LR, weight_decay=1e-4)
+    train_loader, val_loader = _make_loaders(X_train, X_test)
+
+    best_val_loss = float("inf")
+    best_state: dict | None = None
+    epochs_no_improve = 0
+
+    if not _DIAG_DECLARED["done"]:
+        declare_diagnostics_metrics()
+        _DIAG_DECLARED["done"] = True
+    if _DEVICE.type == "cuda":
+        torch.cuda.reset_peak_memory_stats()
+
+    for epoch in range(_N_EPOCHS):
+        model.train()
+        t0 = time.perf_counter()
+        train_total = 0.0; train_mse = 0.0; train_kl = 0.0
+        n_train_samples = 0
+        grad_norm_sum = 0.0
+        n_batches = 0
+        for (xb,) in train_loader:
+            xb = xb.to(_DEVICE, non_blocking=True)
+            optimizer.zero_grad(set_to_none=True)
+            recon, mu, logvar = model(xb)
+            total, mse_mean, kl_mean = _vae_loss(recon, xb, mu, logvar)
+            total.backward()
+            grad_norm_sum += global_grad_norm(model)
+            n_batches += 1
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+            train_total += float(total.item()) * xb.size(0)
+            train_mse += float(mse_mean.item()) * xb.size(0)
+            train_kl += float(kl_mean.item()) * xb.size(0)
+            n_train_samples += xb.size(0)
+        epoch_dt = max(1e-6, time.perf_counter() - t0)
+        train_total /= max(1, n_train_samples)
+        train_mse /= max(1, n_train_samples)
+        train_kl /= max(1, n_train_samples)
+
+        model.eval()
+        val_total = 0.0; val_mse = 0.0; val_kl = 0.0
+        n_val_samples = 0
+        with torch.no_grad():
+            for (xb,) in val_loader:
+                xb = xb.to(_DEVICE, non_blocking=True)
+                recon, mu, logvar = model(xb)
+                total, mse_mean, kl_mean = _vae_loss(recon, xb, mu, logvar)
+                val_total += float(total.item()) * xb.size(0)
+                val_mse += float(mse_mean.item()) * xb.size(0)
+                val_kl += float(kl_mean.item()) * xb.size(0)
+                n_val_samples += xb.size(0)
+        val_total /= max(1, n_val_samples)
+        val_mse /= max(1, n_val_samples)
+        val_kl /= max(1, n_val_samples)
+
+        emit_metric(name=f"fold_{fold_tag}_train_total_loss", value=float(train_total), iteration=epoch)
+        emit_metric(name=f"fold_{fold_tag}_train_recon_mse", value=float(train_mse), iteration=epoch)
+        emit_metric(name=f"fold_{fold_tag}_train_kl", value=float(train_kl), iteration=epoch)
+        emit_metric(name=f"fold_{fold_tag}_val_total_loss", value=float(val_total), iteration=epoch)
+        emit_metric(name=f"fold_{fold_tag}_val_recon_mse", value=float(val_mse), iteration=epoch)
+        emit_metric(name=f"fold_{fold_tag}_val_kl", value=float(val_kl), iteration=epoch)
+        emit_step_diagnostics(
+            step=epoch, total=_N_EPOCHS,
+            grad_norm=grad_norm_sum / max(1, n_batches),
+            lr=current_lr(optimizer),
+            throughput=n_train_samples / epoch_dt,
+            vram=vram_mb(),
+        )
+        emit_log(
+            f"[vae][fold={fold_tag}] epoch {epoch+1}/{_N_EPOCHS} "
+            f"train_total={train_total:.6f} (mse={train_mse:.6f} kl={train_kl:.6f}) "
+            f"val_total={val_total:.6f} (mse={val_mse:.6f} kl={val_kl:.6f})"
+        )
+
+        if val_total + 1e-9 < best_val_loss:
+            best_val_loss = val_total
+            best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
+            epochs_no_improve = 0
+        else:
+            epochs_no_improve += 1
+            if epochs_no_improve >= _PATIENCE:
+                emit_log(
+                    f"[vae][fold={fold_tag}] early stop at epoch {epoch+1}"
+                )
+                break
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+
+    # Per-sample reconstruction error on the val set = anomaly score.
+    model.eval()
+    err_chunks: list[np.ndarray] = []
+    kl_chunks: list[np.ndarray] = []
+    with torch.no_grad():
+        for (xb,) in val_loader:
+            xb = xb.to(_DEVICE, non_blocking=True)
+            recon, mu, logvar = model(xb)
+            per_sample_mse = ((recon - xb) ** 2).mean(dim=1)
+            per_sample_kl = -0.5 * torch.sum(1.0 + logvar - mu.pow(2) - logvar.exp(), dim=1)
+            err_chunks.append(per_sample_mse.detach().cpu().numpy().astype(np.float64))
+            kl_chunks.append(per_sample_kl.detach().cpu().numpy().astype(np.float64))
+    if err_chunks:
+        scores = np.concatenate(err_chunks, axis=0)
+        kls = np.concatenate(kl_chunks, axis=0)
+    else:
+        scores = np.asarray([], dtype=np.float64)
+        kls = np.asarray([], dtype=np.float64)
+
+    _FOLD_STATE["recon_err"].append(scores)
+    _FOLD_STATE["kl_per_sample"].append(kls)
+    return model, scores
+
+
+def predict(model, X) -> np.ndarray:
+    """Standard predict contract. Returns per-sample reconstruction MSE
+    (anomaly score). Higher = more anomalous. Inference uses z=mu (no
+    sampling)."""
+    model.eval()
+    X_t = torch.as_tensor(np.asarray(X), dtype=torch.float32)
+    err_chunks: list[np.ndarray] = []
+    with torch.no_grad():
+        for i in range(0, X_t.shape[0], _BATCH_SIZE):
+            chunk = X_t[i:i + _BATCH_SIZE].to(_DEVICE, non_blocking=True)
+            recon, _mu, _lv = model(chunk)
+            per_sample = ((recon - chunk) ** 2).mean(dim=1)
+            err_chunks.append(per_sample.detach().cpu().numpy().astype(np.float64))
+    if err_chunks:
+        return np.concatenate(err_chunks, axis=0)
+    return np.asarray([], dtype=np.float64)
+{% endblock %}
+
+{% block compute_fold_metrics %}
+def compute_fold_metrics(y_test, preds, *, fold_idx=None) -> dict[str, float]:
+    """VAE per-fold rollup. preds = anomaly score = per-sample recon MSE."""
+    arr = np.asarray(preds, dtype=np.float64)
+    if arr.size == 0:
+        return {"n_samples": 0.0, "mean_recon_mse": 0.0, "p95_recon_mse": 0.0}
+    return {
+        "n_samples": float(arr.size),
+        "mean_recon_mse": float(arr.mean()),
+        "median_recon_mse": float(np.median(arr)),
+        "p95_recon_mse": float(np.quantile(arr, 0.95)),
+        "p99_recon_mse": float(np.quantile(arr, 0.99)),
+    }
+{% endblock %}
+
+{% block eval_block %}
+    # ─── W3.b VAE rollup ──────────────────────────────────────────────────
+    if _FOLD_STATE["recon_err"]:
+        all_scores = np.concatenate(_FOLD_STATE["recon_err"]).astype(np.float64)
+    else:
+        all_scores = np.asarray([], dtype=np.float64)
+    if _FOLD_STATE["kl_per_sample"]:
+        all_kl = np.concatenate(_FOLD_STATE["kl_per_sample"]).astype(np.float64)
+    else:
+        all_kl = np.asarray([], dtype=np.float64)
+
+    diagnostics = {
+        "model_id": args.model_id,
+        "symbol": args.symbol,
+        "timeframe": args.timeframe,
+        "template_id": "{{ template_id }}",
+        "template_version": "{{ template_version }}",
+        "catalog_id": "{{ catalog_id }}",
+        "task_kind": "anomaly_detection_variational",
+        "n_total_bars": int(n_total),
+        "n_kept_samples": int(X.shape[0]),
+        "n_features": int(X.shape[1]),
+        "feature_names": list(names),
+        "hidden_dims": list(_HIDDEN_DIMS),
+        "latent_dim": int(_LATENT_DIM),
+        "beta": float(_BETA),
+        "dropout": float(_DROPOUT),
+        "fold_results": fold_results,
+        "metrics": {
+            "mean_recon_mse": {
+                "value": float(all_scores.mean()) if all_scores.size else 0.0,
+                "renderer": "number", "group": "reconstruction",
+                "mission": "Average per-sample reconstruction MSE (anomaly score).",
+            },
+            "p95_recon_mse": {
+                "value": float(np.quantile(all_scores, 0.95)) if all_scores.size else 0.0,
+                "renderer": "number", "group": "reconstruction",
+                "mission": "95th percentile per-sample reconstruction MSE.",
+            },
+            "mean_kl": {
+                "value": float(all_kl.mean()) if all_kl.size else 0.0,
+                "renderer": "number", "group": "kl",
+                "mission": "Average per-sample KL divergence to N(0, I).",
+            },
+            "n_val_samples": {
+                "value": int(all_scores.size),
+                "renderer": "number", "group": "reconstruction",
+                "mission": "Number of OOS samples scored.",
+            },
+        },
+    }
+
+    out_dir = _PROJECT_ROOT / "data" / "models" / args.model_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "diagnostics.json").write_text(
+        json.dumps(diagnostics, indent=2, default=str), encoding="utf-8",
+    )
+
+    if all_scores.size:
+        import polars as _vae_pl
+        out_path = out_dir / "oos_predictions.parquet"
+        _vae_pl.DataFrame({
+            "timestamp": np.arange(all_scores.size, dtype=np.int64),
+            "symbol": [args.symbol] * int(all_scores.size),
+            "prediction": all_scores.astype(np.float64),
+            "confidence": np.ones(int(all_scores.size), dtype=np.float32),
+        }).write_parquet(str(out_path), compression="zstd", compression_level=3)
+{% endblock %}

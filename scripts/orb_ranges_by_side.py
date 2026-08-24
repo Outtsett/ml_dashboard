@@ -1,7 +1,7 @@
 """Compute indicator P25-P75 ranges for successful breakouts, split by LONG vs SHORT."""
-import pandas as pd
-import numpy as np
 import os
+
+import pandas as pd
 
 df = pd.read_csv(os.path.dirname(os.path.abspath(__file__)) + '/orb_analysis_results.csv')
 sdf = df[df['success'] == True]

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from tensionflow.trade.threshold import compute_thresholds
 from tensionflow.state.history import TensionHistory
-
+from tensionflow.trade.threshold import compute_thresholds
 
 _DEFAULT_BULLISH = 0.3
 _DEFAULT_BEARISH = -0.3

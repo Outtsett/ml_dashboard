@@ -31,10 +31,9 @@ from .config import (
     ACTION_FLATTEN,
     ACTION_NONE,
     ACTION_SELL,
-    MIN_CONFLUENCE,
     MIN_ALIGNMENT,
+    MIN_CONFLUENCE,
     POLL_INTERVAL_SEC,
-    TICK_SIZE,
 )
 from .features.spatial import normalize_spatial_full
 from .risk.confidence import compute_confidence, passes_threshold

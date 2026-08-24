@@ -1,0 +1,37 @@
+{
+  "catalogId": "composite_moe",
+  "compositeKind": "moe",
+  "featureCategories": [
+    "price_action",
+    "volatility"
+  ],
+  "featurePipeline": "default-35",
+  "generatedAt": "2026-05-10T09:03:29+00:00",
+  "generator": "scripts/generate_model.py",
+  "hyperparameters": {},
+  "labelParams": {
+    "horizon_bars": 5,
+    "threshold_bp": 5.0
+  },
+  "labelStrategy": "triple_barrier",
+  "manifestVersion": 1,
+  "modelId": "moe_v1_sklearn",
+  "subModelRefs": [
+    {
+      "manifest": "../random_forest_for_moe_v1_sklearn_slot0/manifest.json",
+      "resolvedModelId": "random_forest_for_moe_v1_sklearn_slot0",
+      "slotIdx": 0
+    },
+    {
+      "manifest": "../logistic_regression_for_moe_v1_sklearn_slot1/manifest.json",
+      "resolvedModelId": "logistic_regression_for_moe_v1_sklearn_slot1",
+      "slotIdx": 1
+    }
+  ],
+  "symbol": "MNQ",
+  "templateId": "composite_moe",
+  "templateVariant": null,
+  "templateVersion": "0.1.0",
+  "timeframe": "1m",
+  "walkForward": null
+}

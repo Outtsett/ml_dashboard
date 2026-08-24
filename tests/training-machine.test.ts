@@ -8,7 +8,7 @@ import {
 } from '@shared/machines/training-machine';
 
 // ── Helpers ──────────────────────────────────────────────────
-function startActor(snapshot = false) {
+function startActor() {
   const actor = createActor(trainingMachine);
   actor.start();
   return actor;
@@ -196,9 +196,9 @@ describe('Training Pipeline State Machine', () => {
     actor.send({ type: 'START', pipelineId: 'p-1', config: {} });
 
     const runningSteps = TRAINING_STEPS.slice(1, -1);
-    for (const step of runningSteps) {
+    runningSteps.forEach(() => {
       actor.send({ type: 'STEP_COMPLETED', result: {} });
-    }
+    });
 
     expect(getState(actor)).toBe('completed');
     expect(actor.getSnapshot().status).toBe('done');

@@ -313,8 +313,6 @@ def _evaluate_vpoc_conditions(
     vah = benchmarks[BENCH_VAH]
     val = benchmarks[BENCH_VAL]
     vwap = benchmarks[BENCH_VWAP]
-    upper = benchmarks[BENCH_VWAP_UPPER]
-    lower = benchmarks[BENCH_VWAP_LOWER]
 
     prev_vpoc = prev_benchmarks[BENCH_VPOC]
 
@@ -381,8 +379,6 @@ def _evaluate_twap_conditions(
     twap = benchmarks[BENCH_TWAP]
     prev_twap = prev_benchmarks[BENCH_TWAP]
     vwap = benchmarks[BENCH_VWAP]
-    upper = benchmarks[BENCH_VWAP_UPPER]
-    lower = benchmarks[BENCH_VWAP_LOWER]
 
     # Reconstruct approximate price.
     dist_to_vwap = float(distances[BENCH_VWAP]) if distances.shape[0] > BENCH_VWAP else 0.0

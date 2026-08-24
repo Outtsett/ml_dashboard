@@ -1,0 +1,28 @@
+{
+  "catalogId": "gaussian-hmm",
+  "featureCategories": [
+    "volatility",
+    "momentum"
+  ],
+  "featurePipeline": "default-35",
+  "generatedAt": "2026-05-10T08:32:06+00:00",
+  "generator": "scripts/generate_model.py",
+  "hyperparameters": {
+    "covariance_type": "diag",
+    "emission": "gaussian",
+    "n_iter": 20,
+    "n_states": 4,
+    "random_state": 42,
+    "tol": 0.001
+  },
+  "labelParams": {},
+  "labelStrategy": "none",
+  "manifestVersion": 1,
+  "modelId": "ghmm_smoke",
+  "symbol": "MNQ",
+  "templateId": "hmm",
+  "templateVariant": null,
+  "templateVersion": "0.1.0",
+  "timeframe": "1m",
+  "walkForward": null
+}

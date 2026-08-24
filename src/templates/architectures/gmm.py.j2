@@ -1,0 +1,110 @@
+{# ---------------------------------------------------------------------- #}
+{# gmm.py.j2 — sklearn.mixture.GaussianMixture wrapper (W2.b)             #}
+{#                                                                         #}
+{# Separate from sklearn.py.j2 because GMM is unsupervised:                #}
+{#   - fit(X) takes no y                                                   #}
+{#   - predict_proba returns posterior responsibilities, not class probs   #}
+{#   - eval is clustering-flavored (silhouette / Davies-Bouldin), not     #}
+{#     classification-flavored (log-loss / AUC)                            #}
+{#                                                                         #}
+{# W4 (ml-eval) replaces the placeholder eval block below with a real     #}
+{# `_eval_clustering.py.j2` include. For W2.b the placeholder writes a    #}
+{# minimal diagnostics.json so the runner produces a parseable artifact   #}
+{# end-to-end without breaking the SSE done event.                         #}
+{# ---------------------------------------------------------------------- #}
+{% extends "_base.py.j2" %}
+
+{% block model_imports %}
+from sklearn.mixture import GaussianMixture
+# Module-level state for per-fold OOS aggregation (read by eval block).
+_FOLD_STATE: dict = {"states": [], "posteriors": [], "n_components": 0}
+{% endblock %}
+
+{% block label_generation %}
+def generate_labels(raw, args):
+    """GMM is unsupervised — return a no-label sentinel and an all-True mask.
+
+    The downstream WF loop still needs `labels` and `valid` arrays of the same
+    length as the OHLCV close price; we return zeros (placeholder integer
+    labels) and a True mask covering every bar.
+    """
+    n = int(raw["close"].shape[0])
+    return np.zeros(n, dtype=np.int8), np.ones(n, dtype=bool)
+{% endblock %}
+
+{% block train_loop %}
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+    """GMM unsupervised fit on X_train, posterior predict on X_test.
+
+    The walk-forward loop still passes y_train / y_test (the placeholder
+    zeros from generate_labels above); they're ignored here.
+    """
+    model = GaussianMixture(
+        {%- for name, value in hyperparameters.items() %}
+        {{ name }}={{ value | python_repr }},
+        {%- endfor %}
+        random_state=42,
+    )
+    model.fit(X_train)
+    posterior = model.predict_proba(X_test)
+    states = posterior.argmax(axis=1)
+
+    _FOLD_STATE["states"].append(states.astype(np.int64))
+    _FOLD_STATE["posteriors"].append(posterior.astype(np.float64))
+    _FOLD_STATE["n_components"] = int(model.n_components)
+
+    # `preds` here is the per-row max-component posterior — a clustering
+    # confidence proxy. The placeholder compute_fold_metrics in _base only
+    # reads .mean() so a well-formed array is enough.
+    return model, posterior.max(axis=1).astype(np.float64)
+
+
+def predict(model, X):
+    """Standard predict contract for unsupervised GMM: posterior matrix."""
+    return model.predict_proba(X)
+{% endblock %}
+
+{% block eval_block %}
+    # ─── W2.b minimal clustering diagnostics ─────────────────────────────
+    # The full clustering eval (silhouette + Davies-Bouldin + regime tag
+    # emission) lands in W4 via `{% raw %}{% include "_eval_clustering.py.j2" %}{% endraw %}`. For
+    # W2.b we write a lightweight artifact so the orchestrator's done-event
+    # parser sees a well-formed diagnostics.json.
+    if _FOLD_STATE["states"]:
+        all_states = np.concatenate(_FOLD_STATE["states"]).astype(np.int64)
+        # Cap the per-fold tail we publish so diagnostics.json stays small.
+        states_preview = all_states[-1000:].tolist()
+    else:
+        all_states = np.asarray([], dtype=np.int64)
+        states_preview = []
+
+    n_components = _FOLD_STATE["n_components"]
+    state_counts = (
+        {int(s): int((all_states == s).sum()) for s in range(n_components)}
+        if all_states.size and n_components else {}
+    )
+
+    diagnostics = {
+        "model_id": args.model_id,
+        "symbol": args.symbol,
+        "timeframe": args.timeframe,
+        "template_id": "{{ template_id }}",
+        "template_version": "{{ template_version }}",
+        "catalog_id": "{{ catalog_id }}",
+        "task_kind": "clustering",
+        "n_components": int(n_components),
+        "n_total_bars": int(n_total),
+        "n_kept_samples": int(X.shape[0]),
+        "n_features": int(X.shape[1]),
+        "feature_names": list(names),
+        "states_preview": states_preview,
+        "state_counts": state_counts,
+        "fold_results": fold_results,
+    }
+
+    out_dir = _PROJECT_ROOT / "data" / "models" / args.model_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "diagnostics.json").write_text(
+        json.dumps(diagnostics, indent=2, default=str), encoding="utf-8",
+    )
+{% endblock %}

@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from tensionflow.config import BENCH_TWAP, BENCH_VPOC, BENCH_VWAP, BENCHMARKS
 from tensionflow.signals.momentum import compute_momentum
-from tensionflow.config import BENCHMARKS, BENCH_VWAP, BENCH_TWAP, BENCH_VPOC
 
 
 def _dist(value: float = 0.0) -> np.ndarray:

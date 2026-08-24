@@ -16,18 +16,18 @@ import time
 from typing import Any, Callable
 
 import optuna
+from optuna.pruners import (
+    BasePruner,
+    HyperbandPruner,
+    MedianPruner,
+    SuccessiveHalvingPruner,
+)
 from optuna.samplers import (
     BaseSampler,
     CmaEsSampler,
     GridSampler,
     RandomSampler,
     TPESampler,
-)
-from optuna.pruners import (
-    BasePruner,
-    HyperbandPruner,
-    MedianPruner,
-    SuccessiveHalvingPruner,
 )
 
 from ..shared.optimizer import (

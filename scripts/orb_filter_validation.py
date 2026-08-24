@@ -3,9 +3,9 @@ ORB Filter Validation — Test indicator filter combinations on the breakout dat
 Reads the CSV output from orb_indicator_analysis.py and tests various filter combinations.
 """
 
-import pandas as pd
-import numpy as np
 import os
+
+import pandas as pd
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(SCRIPT_DIR, 'orb_analysis_results.csv')
@@ -99,7 +99,9 @@ for name, fn in filters.items():
             'avg_mfe': avg_mfe, 'avg_mae': avg_mae, 'mfe_range': mfe_r,
         })
     except Exception as e:
-        pass
+        # Never swallow silently — a filter referencing a missing column would
+        # otherwise vanish from the report with no trace.
+        print(f"{name:<52} | SKIPPED: {type(e).__name__}: {e}")
 
 # Sort by success rate (min 10 trades)
 print(f"\n{'='*80}")

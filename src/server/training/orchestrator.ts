@@ -15,13 +15,15 @@ import {
   getModelConfig,
   getTrainingConfig,
   resolveHyperparameters,
+  resolveLegacyModelType,
   timeframeToSeconds,
 } from "./registry";
 import { createSession, emitSessionEvent } from "./runners/types";
 import { getRunner } from "./runnerFactory";
 import type { ITrainerRunner } from "./runners/types";
 import { generateVersionedModelId, getBaseModelId, appendWindowIndex } from "./versioning";
-import * as trainingStorage from "../storage/trainingStorage";
+import * as trainingStorage from "../infrastructure/storage/trainingStorage";
+import * as provenance from "./provenance";
 import { computeWindows, generateGroupId } from "./walkforward";
 
 const logger = new Logger("Training");
@@ -41,10 +43,14 @@ export async function startTraining(request: TrainingRequest): Promise<{
   sessionId: string;
   modelId: string;
 }> {
-  // 1. Look up model in registry
-  const registry = getModelConfig(request.modelType);
+  // 1. Look up model in registry — canonicalize legacy modelType keys to composite (alg+task) form
+  //    so storage IDs / paths are consistent for new runs even if the client sent a pre-2026-05-09 key.
+  const canonicalModelType = resolveLegacyModelType(request.modelType) ?? request.modelType;
+  const registry = getModelConfig(canonicalModelType);
   if (!registry) {
-    throw new Error(`Unknown model type: ${request.modelType}. Check config/models.json.`);
+    throw new Error(
+      `Unknown model type: ${request.modelType}. Check config/{algorithms,tasks,runners}.json or legacy models.json.`,
+    );
   }
 
   const trainingCfg = getTrainingConfig();
@@ -64,8 +70,8 @@ export async function startTraining(request: TrainingRequest): Promise<{
   }
   const sym = request.symbol.toUpperCase();
   const tf = request.timeframe ?? "1m";
-  const baseModelId = `${sym}_${tf}_${request.modelType}`;
-  const modelId = generateVersionedModelId(sym, tf, request.modelType);
+  const baseModelId = `${sym}_${tf}_${canonicalModelType}`;
+  const modelId = generateVersionedModelId(sym, tf, canonicalModelType);
   const timeframeSec = timeframeToSeconds(tf);
   const hyperparameters = resolveHyperparameters(
     registry.defaultHyperparameters,
@@ -86,7 +92,7 @@ export async function startTraining(request: TrainingRequest): Promise<{
   }
 
   const resolved: ResolvedTrainingConfig = {
-    modelType: request.modelType,
+    modelType: canonicalModelType,
     registry,
     symbol: sym,
     timeframe: tf,
@@ -139,6 +145,90 @@ export async function startTraining(request: TrainingRequest): Promise<{
   return { sessionId: session.sessionId, modelId };
 }
 
+// ─── Provenance helpers ──────────────────────────────────────────────────────
+
+/**
+ * The subset of the resolved config that identifies *what was computed*.
+ *
+ * `modelId` and `outputDir` are excluded here (and again by the volatile-key
+ * filter in `provenance.computeConfigHash`) so two runs of the same
+ * configuration hash equal — the whole point of `config_hash`.
+ */
+function provenanceConfig(resolved: ResolvedTrainingConfig, request: TrainingRequest): Record<string, unknown> {
+  return {
+    model_type: resolved.modelType,
+    symbol: resolved.symbol,
+    timeframe: resolved.timeframe,
+    timeframe_sec: resolved.timeframeSec,
+    date_range: resolved.dateRange ?? null,
+    max_bars: resolved.maxBars ?? null,
+    hyperparameters: resolved.hyperparameters,
+    feature_pipeline: resolved.featurePipeline,
+    feature_categories: resolved.featureCategories ?? null,
+    include_indicators: resolved.includeIndicators,
+    all_features: resolved.allFeatures,
+    indicator_groups: resolved.indicatorGroups ?? null,
+    walk_forward: request.walkForward ?? null,
+  };
+}
+
+/**
+ * `catalog_id` — the stable, timestamp-free, symbol-free slug.
+ *
+ * `runners.json` entries carry an explicit `catalogId` for catalog-backed
+ * models. When one is absent the composite runner key (`${algorithm}+${task}`)
+ * is the only other identifier that is stable across runs, so it is used
+ * verbatim rather than inventing a placeholder.
+ */
+function resolveCatalogId(resolved: ResolvedTrainingConfig): string {
+  return resolved.registry.catalogId ?? resolved.modelType;
+}
+
+/**
+ * Mint the run, write its manifest skeleton, insert the `runs` row, and
+ * register the spawn record — all strictly before the runner spawns.
+ *
+ * Returns `null` when provenance fails. Provenance is observability: a broken
+ * manifest write must not stop a training run, but it is logged and surfaced
+ * on the session so it is never silently absent.
+ */
+async function beginRunForConfig(
+  session: TrainingSession,
+  experimentId: string | null,
+  config: ResolvedTrainingConfig,
+  request: TrainingRequest,
+  foldIdx: number | null,
+): Promise<provenance.RunContext | null> {
+  if (!experimentId) return null;
+  try {
+    const ctx = await provenance.beginRun({
+      experimentId,
+      catalogId: resolveCatalogId(config),
+      runnerKey: config.modelType,
+      legacyModelId: config.modelId,
+      artifactDir: `${config.outputDir}/${config.modelId}`,
+      config: provenanceConfig(config, request),
+      scriptPath: config.registry.script ?? null,
+      expectedArtifacts: config.registry.outputs ?? [],
+      foldIdx,
+      trainingSessionId: session.dbSessionId ?? null,
+    });
+    await provenance.incrementExperimentRunCount(experimentId);
+    logger.log(
+      `Provenance: ${ctx.runId} (experiment ${experimentId}, config ${ctx.configHash}, manifest ${ctx.manifestHash})`,
+    );
+    return ctx;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error(`Failed to record run provenance for ${config.modelId}: ${message}`);
+    emitSessionEvent(session, "log", {
+      message: `Run provenance unavailable for ${config.modelId}: ${message}`,
+      level: "warning",
+    });
+    return null;
+  }
+}
+
 /** Background pipeline: export data → start runner. Progress is streamed via SSE. */
 async function launchTrainingPipeline(
   session: TrainingSession,
@@ -163,13 +253,43 @@ async function launchTrainingPipeline(
     modelId,
   });
 
-  if (request.walkForward && resolved.dateRange) {
-    // Walk-forward mode: N sequential windows
-    await launchWalkForwardPipeline(session, runner, resolved, request);
-  } else {
-    // Single-run mode (original path)
-    logger.log(`Starting ${request.modelType} for ${modelId} via ${registry.runner} runner`);
-    await runner.start(resolved, session);
+  // Mint the experiment BEFORE any spawn. One experiment spans every run of a
+  // single user action: N walk-forward windows share one experiment_id, and so
+  // would N HPO trials.
+  let experimentId: string | null = null;
+  try {
+    experimentId = await provenance.beginExperiment({
+      catalogId: resolveCatalogId(resolved),
+      runnerKey: resolved.modelType,
+      name: modelId,
+      symbol: sym,
+      timeframe: tf,
+    });
+  } catch (err) {
+    logger.error(`Failed to create experiment record for ${modelId}: ${err}`);
+  }
+
+  let experimentStatus: "completed" | "failed" = "completed";
+  try {
+    if (request.walkForward && resolved.dateRange) {
+      // Walk-forward mode: N sequential windows
+      await launchWalkForwardPipeline(session, runner, resolved, request, experimentId);
+    } else {
+      // Single-run mode (original path)
+      await beginRunForConfig(session, experimentId, resolved, request, null);
+      logger.log(`Starting ${request.modelType} for ${modelId} via ${registry.runner} runner`);
+      await runner.start(resolved, session);
+    }
+  } catch (err) {
+    experimentStatus = "failed";
+    throw err;
+  } finally {
+    if (experimentId) {
+      provenance.detach(
+        provenance.finishExperiment(experimentId, experimentStatus),
+        `finishExperiment(${experimentId})`,
+      );
+    }
   }
 }
 
@@ -229,6 +349,7 @@ async function launchWalkForwardPipeline(
   runner: ITrainerRunner,
   resolved: ResolvedTrainingConfig,
   request: TrainingRequest,
+  experimentId: string | null = null,
 ) {
   const { start: dateStart, end: dateEnd } = resolved.dateRange!;
   const windows = computeWindows(dateStart, dateEnd, request.walkForward!);
@@ -276,6 +397,10 @@ async function launchWalkForwardPipeline(
       modelId: windowModelId,
       dateRange: { start: window.trainStart, end: window.testEnd },
     };
+
+    // One run row per window, sharing the experiment. `fold_idx` is the
+    // window index — a coordinate on the run, not a separate identifier.
+    await beginRunForConfig(session, experimentId, windowConfig, request, window.index);
 
     logger.log(`WF window ${window.index}/${windows.length}: ${window.trainStart}->${window.testEnd}`);
     await runner.start(windowConfig, session);

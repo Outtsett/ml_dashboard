@@ -67,12 +67,16 @@ def _generate_random_directions(
     tuple[list[torch.Tensor], list[torch.Tensor]]
         Two lists of random direction tensors (dir1, dir2).
     """
+    # Generate on CPU with a seeded CPU generator (reproducible across CUDA
+    # backends), then move each direction tensor to the target device. A CPU
+    # generator cannot drive torch.randn(..., device='cuda') — PyTorch requires
+    # the generator's device to match the allocation device.
     gen = torch.Generator(device='cpu').manual_seed(seed)
     dir1 = []
     dir2 = []
     for w in weights:
-        dir1.append(torch.randn(w.shape, generator=gen, device=device))
-        dir2.append(torch.randn(w.shape, generator=gen, device=device))
+        dir1.append(torch.randn(w.shape, generator=gen).to(device))
+        dir2.append(torch.randn(w.shape, generator=gen).to(device))
     return dir1, dir2
 
 

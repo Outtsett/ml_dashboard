@@ -9,7 +9,7 @@
 | `/` | `MarketData.tsx` | Main charting page: candlestick charts, 151 indicators, regime overlays, subchart panels |
 | `/ml-studio` | `MLStudio.tsx` | ML model management: dashboard + trades tabs |
 | `/model-catalog` | `ModelCatalog.tsx` | Browse 300+ model specs with taxonomy filtering |
-| `/databases` | `Databases.tsx` | QuestDB explorer: table list, query console, data upload, MotiveWave status |
+| `/databases` | `Databases.tsx` | QuestDB explorer: table list, query console, data upload |
 | `/portfolio` | `Portfolio.tsx` | Portfolio: positions, allocation, trade history |
 | `/watchlist` | `Watchlist.tsx` | Symbol watchlist |
 | `/news` | `News.tsx` | News feed with sentiment analysis |
@@ -43,7 +43,6 @@ Complex pages are split into subdirectories:
 - `StatsCards.tsx` — Database statistics
 - `UploadTab.tsx` — File upload interface
 - `QuestDBControls.tsx` — QuestDB lifecycle controls
-- `MotiveWaveTab.tsx` — MotiveWave integration status
 
 ### `backtest/`
 - `ConfigPanel.tsx` — Backtest configuration

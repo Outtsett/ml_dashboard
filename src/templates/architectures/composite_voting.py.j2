@@ -1,0 +1,237 @@
+{# ---------------------------------------------------------------------- #}
+{# composite_voting.py.j2 - Voting ensemble composite (W5)                #}
+{#                                                                         #}
+{# N atomic sub-models predict independently. Combine outputs via:        #}
+{#   - hard      majority class vote (each model emits 0/1, mode)         #}
+{#   - soft      simple average of per-row probabilities (default)         #}
+{#   - weighted  user-supplied weights, weighted average of probabilities  #}
+{#                                                                         #}
+{# Required template-context keys:                                         #}
+{#   members : list[                                                       #}
+{#     {                                                                    #}
+{#       slot_idx          : int,                                          #}
+{#       catalog_id        : str,                                          #}
+{#       resolved_model_id : str   <-- populated by depth-first generator  #}
+{#       hyperparameters   : dict,                                         #}
+{#       weight            : float (optional, only for combiner='weighted')#}
+{#     }                                                                    #}
+{#   ]                                                                      #}
+{#   combiner : 'hard' | 'soft' | 'weighted'  (default 'soft')             #}
+{# ---------------------------------------------------------------------- #}
+{% extends "_base.py.j2" %}
+
+{% set _combiner = combiner | default("soft") %}
+{% set _n_members = members | length %}
+
+{% block model_imports %}
+# Per-slot member imports - one block per member, in slot order. Depth-first
+# post-order generation guarantees each module already exists on disk by the
+# time this composite is rendered.
+{% for m in members %}
+from src.ml.{{ m.resolved_model_id | replace("-", "_") }}.main import (
+    train_one_fold as _train_member_{{ m.slot_idx }},
+    predict as _predict_member_{{ m.slot_idx }},
+)
+{% endfor %}
+
+_N_MEMBERS: int = {{ _n_members | python_repr }}
+_COMBINER: str = {{ _combiner | python_repr }}
+_WEIGHTS: list[float] = [
+    {%- for m in members %}
+    {{ m.get("weight", 1.0) | python_repr }},
+    {%- endfor %}
+]
+
+# Module-level fold state for eval rollup.
+_FOLD_STATE: dict = {"y": [], "preds": [], "member_preds": []}
+{% endblock %}
+
+{% block train_loop %}
+def _member_fns():
+    """Tuple of (slot_idx, train_fn, predict_fn) per member, in declaration order."""
+    return [
+        {% for m in members %}
+        ({{ m.slot_idx | python_repr }}, _train_member_{{ m.slot_idx }}, _predict_member_{{ m.slot_idx }}),
+        {% endfor %}
+    ]
+
+
+def _stack_member_preds(preds_list: list[np.ndarray]) -> np.ndarray:
+    """Stack per-member predictions to (B, n_members) of P(class==1) scalars.
+
+    Each member's preds is either:
+      - shape (B,)            scalar score / binary probability
+      - shape (B, 2)          binary softmax => take col 1
+      - shape (B, K) K > 2    multi-class => take max-class probability
+    """
+    flat: list[np.ndarray] = []
+    for p in preds_list:
+        arr = np.asarray(p, dtype=np.float64)
+        if arr.ndim == 1:
+            flat.append(arr)
+        elif arr.ndim == 2:
+            if arr.shape[1] == 2:
+                flat.append(arr[:, 1])
+            else:
+                flat.append(arr.max(axis=1))
+        else:
+            flat.append(arr.reshape(arr.shape[0], -1).max(axis=1))
+    return np.stack(flat, axis=-1)  # (B, n_members)
+
+
+def _combine(member_matrix: np.ndarray) -> np.ndarray:
+    """Combine (B, n_members) member preds into (B,) composite prediction.
+
+    Combiner contract:
+      - 'soft'      simple mean across members
+      - 'weighted'  weight-normalized mean (weights from _WEIGHTS)
+      - 'hard'      majority class vote on >=0.5 thresholded labels; tie -> 0.5
+    """
+    if _COMBINER == "hard":
+        labels = (member_matrix >= 0.5).astype(np.int64)  # (B, n_members)
+        votes = labels.sum(axis=-1)
+        # Map vote count to a frequency in [0, 1]: K wins -> 1.0; 0 wins -> 0.0;
+        # ties (K/2) -> 0.5. This keeps downstream metrics that expect probability
+        # inputs (AUC, calibration) coherent.
+        return (votes / float(_N_MEMBERS)).astype(np.float64)
+    if _COMBINER == "weighted":
+        w = np.asarray(_WEIGHTS, dtype=np.float64)
+        if w.size != _N_MEMBERS:
+            raise ValueError(
+                f"weighted combiner expects {_N_MEMBERS} weights, got {w.size}"
+            )
+        s = w.sum()
+        if s <= 0:
+            raise ValueError(f"weighted combiner needs positive weight sum, got {s}")
+        w_norm = w / s
+        return (member_matrix * w_norm[None, :]).sum(axis=-1).astype(np.float64)
+    # 'soft' default
+    return member_matrix.mean(axis=-1).astype(np.float64)
+
+
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+    """Voting fold trainer.
+
+    1. For each member, call its train_one_fold() on the SAME (X_train, y_train,
+       X_test, y_test). Each member learns independently of the others.
+    2. Stack per-member val preds to (B_test, n_members).
+    3. Combine via the chosen combiner -> (B_test,).
+    """
+    fold_tag = "single" if fold_idx is None else str(fold_idx)
+    member_models: list = []
+    member_test_preds: list[np.ndarray] = []
+    for slot_idx, train_fn, _predict_fn in _member_fns():
+        emit_log(f"[voting][fold={fold_tag}] training member slot={slot_idx}")
+        model_m, preds_m = train_fn(X_train, y_train, X_test, y_test, args, fold_idx=fold_idx)
+        member_models.append(model_m)
+        member_test_preds.append(np.asarray(preds_m))
+
+    member_matrix = _stack_member_preds(member_test_preds)
+    composite_preds = _combine(member_matrix)
+
+    _FOLD_STATE["y"].append(np.asarray(y_test))
+    _FOLD_STATE["preds"].append(composite_preds.astype(np.float64))
+    _FOLD_STATE["member_preds"].append(member_matrix)
+
+    composite_model = {"members": member_models, "combiner": _COMBINER}
+    return composite_model, composite_preds
+
+
+def predict(model, X) -> np.ndarray:
+    """Standard predict contract: 1D combined probability per row."""
+    members = model["members"]
+    predict_fns = [
+        {% for m in members %}
+        _predict_member_{{ m.slot_idx }},
+        {% endfor %}
+    ]
+    member_preds = [fn(mdl, X) for fn, mdl in zip(predict_fns, members)]
+    member_matrix = _stack_member_preds(member_preds)
+    return _combine(member_matrix)
+{% endblock %}
+
+{# The eval partial below defines the real compute_fold_metrics, so suppress  #}
+{# _base's runnable placeholder — emitting both is a redefinition (F811).     #}
+{% block compute_fold_metrics %}{% endblock %}
+
+{% block eval_helpers %}
+{% include "_eval_classification.py.j2" %}
+{% endblock %}
+
+{% block eval_block %}
+    # --- W5 voting composite rollup --------------------------------------
+    if _FOLD_STATE["y"]:
+        all_y = np.concatenate([np.asarray(y).reshape(-1) for y in _FOLD_STATE["y"]]).astype(np.int64)
+        all_preds = np.concatenate(_FOLD_STATE["preds"]).astype(np.float64)
+    else:
+        all_y = np.asarray([0, 1], dtype=np.int64)
+        all_preds = np.asarray([0.5, 0.5], dtype=np.float64)
+
+    # Per-member mean prediction (diagnostic - which members are extreme?)
+    if _FOLD_STATE["member_preds"]:
+        all_member_preds = np.concatenate(_FOLD_STATE["member_preds"], axis=0)  # (sum_B, n_members)
+        member_mean_pred = all_member_preds.mean(axis=0).tolist()
+        # Pairwise correlation across members - low correlation => diversity
+        if all_member_preds.shape[0] > 1 and _N_MEMBERS > 1:
+            try:
+                corr = np.corrcoef(all_member_preds, rowvar=False)
+                np.fill_diagonal(corr, np.nan)
+                member_pairwise_corr = float(np.nanmean(corr))
+            except Exception:
+                member_pairwise_corr = None
+        else:
+            member_pairwise_corr = None
+    else:
+        member_mean_pred = [0.5] * _N_MEMBERS
+        member_pairwise_corr = None
+
+    _emit_metric_declarations()
+
+    diagnostics = build_diagnostics(
+        model=None,
+        y_true=all_y,
+        y_pred=all_preds,
+        ts=None,
+        prices=None,
+        fold_results=fold_results,
+        model_id=args.model_id,
+        symbol=args.symbol,
+        timeframe=args.timeframe,
+        n_train=int(X.shape[0]),
+        n_val=int(all_y.size),
+        n_features=int(X.shape[1]),
+        extra={
+            "template_id": "{{ template_id }}",
+            "template_version": "{{ template_version }}",
+            "catalog_id": "{{ catalog_id }}",
+            "composite_kind": "voting",
+            "n_members": int(_N_MEMBERS),
+            "combiner": _COMBINER,
+            "weights": _WEIGHTS if _COMBINER == "weighted" else None,
+            "member_slots": [
+                {% for m in members %}
+                {
+                    "slot_idx": {{ m.slot_idx | python_repr }},
+                    "catalog_id": {{ m.catalog_id | python_repr }},
+                    "resolved_model_id": {{ m.resolved_model_id | python_repr }},
+                },
+                {% endfor %}
+            ],
+            "member_mean_pred": member_mean_pred,
+            "member_pairwise_corr": member_pairwise_corr,
+            "n_total_bars": int(n_total),
+            "n_kept_samples": int(X.shape[0]),
+            "feature_names": list(names),
+        },
+    )
+
+    if all_y.size and all_preds.size:
+        out_path = _PROJECT_ROOT / "data" / "models" / args.model_id / "oos_predictions.parquet"
+        write_oos_predictions(
+            ts=np.arange(all_y.size, dtype=np.int64),
+            y_true=all_y,
+            y_pred=all_preds,
+            output_path=out_path,
+            symbol=args.symbol,
+        )
+{% endblock %}

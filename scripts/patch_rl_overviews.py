@@ -9,7 +9,9 @@ Usage:
     python scripts/patch_rl_overviews.py --apply     # writes changes to disk
 """
 
-import os, sys, re
+import os
+import re
+import sys
 
 ROOT = r"E:\source\documents\algo_models"
 DRY_RUN = "--apply" not in sys.argv

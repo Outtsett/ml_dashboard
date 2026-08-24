@@ -25,7 +25,6 @@ Usage:
 
 import argparse
 import json
-import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -38,15 +37,14 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
+from ml.shared.feature_correlation import run_correlation_analysis
 from ml.shared.feature_extract import (
     extract_derived_features,
     load_extraction_config,
     load_indicators_from_parquet,
     load_indicators_from_questdb,
 )
-from ml.shared.feature_correlation import run_correlation_analysis
 from ml.shared.feature_importance import run_importance_analysis
-
 
 # ── Constants ─────────────────────────────────────────────────────────────
 
@@ -491,10 +489,9 @@ Examples:
     # Build feature matrix (NaN-safe)
     X = derived_df[derived_names].values.astype(np.float64)
 
-    # Stage 2: Correlate
-    corr_results = None
+    # Stage 2: Correlate — run for its side effect (writes results to output_dir).
     if "correlate" in stages:
-        corr_results = run_correlate(
+        run_correlate(
             X, derived_names, output_dir,
             threshold=args.corr_threshold,
             method=args.corr_method,
@@ -507,9 +504,6 @@ Examples:
 
         if y is None and args.target != "none":
             print(f"[importance] Could not build target '{args.target}', running MI-only")
-
-        # Get importance ranking from correlation stage if available
-        importance_ranking = None
 
         run_importance(
             X, y, derived_names, output_dir,

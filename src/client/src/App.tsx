@@ -1,108 +1,154 @@
 import { Suspense, lazy, useEffect, type ComponentType } from "react";
 import { Switch, Route, Redirect } from "wouter";
-import { queryClient } from "./lib/query_client";
+import { queryClient } from "@/infrastructure/api/query_client";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "@/shared/ui/toaster";
 import { Toaster as SonnerToaster } from "sonner";
 import { toast } from "sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import Layout from "@/components/Layout";
-import { BreadcrumbProvider } from "@/hooks/useBreadcrumbs";
-import { UnifiedDashboardProvider } from "@/contexts/UnifiedDashboardContext";
-import { TrainingProvider } from "@/contexts/TrainingContext";
-import { ChatProvider } from "@/contexts/ChatContext";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { TooltipProvider } from "@/shared/ui/tooltip";
+import Layout from "@/shared/layout/Layout";
+import { BreadcrumbProvider } from "@/shared/hooks/useBreadcrumbs";
+import { UnifiedDashboardProvider } from "@/shared/contexts/UnifiedDashboardContext";
+import { TrainingProvider } from "@/training/lib/TrainingContext";
+import { ChatProvider } from "@/shared/contexts/ChatContext";
+import { ErrorBoundary } from "@/shared/layout/ErrorBoundary";
 import {
   DataGridSkeleton,
   ChartSkeleton,
   PageLoader
-} from "@/components/LoadingSkeletons";
-import { prefetchCriticalData, registerComponentFactory } from "./lib/prefetch";
-import { useWebVitals } from './hooks/useWebVitals';
-import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
-import { useNativeMenu } from '@/hooks/useNativeMenu';
-import { CommandPalette } from "@/components/CommandPalette";
+} from "@/shared/layout/LoadingSkeletons";
+import { prefetchCriticalData, registerComponentFactory } from "@/infrastructure/lib/prefetch";
+import { useWebVitals } from "@/shared/hooks/useWebVitals";
+import { useGlobalShortcuts } from "@/shared/hooks/useGlobalShortcuts";
+import { useNativeMenu } from "@/shared/hooks/useNativeMenu";
+import { CommandPalette } from "@/shared/layout/CommandPalette";
 
-// Retry wrapper for dynamic imports ï¿½ handles stale chunks after HMR updates
+// Retry wrapper for dynamic imports
 function lazyRetry(
-  factory: () => Promise<{ default: ComponentType<any> }>,
+  factory: () => Promise<{ default: ComponentType }>,
   name: string,
   retries = 2,
 ): ReturnType<typeof lazy> {
   return lazy(() =>
     factory().catch((err: Error) => {
       if (retries > 0 && /dynamically imported module|fetch/i.test(err.message)) {
-        console.warn(`[beta] Chunk stale for ${name}, retrying (${retries} left)ï¿½`);
-        return new Promise<{ default: ComponentType<any> }>((resolve) =>
-          setTimeout(() => resolve(lazyRetry(factory, name, retries - 1) as any), 800),
+        console.warn(`[beta] Chunk stale for ${name}, retrying (${retries} left)`);
+        return new Promise<{ default: ComponentType }>((resolve) =>
+          setTimeout(() => resolve(lazyRetry(factory, name, retries - 1) as unknown as { default: ComponentType }), 800),
         );
       }
-      // Final retry failed ï¿½ force full reload to pick up new manifest
-      console.error(`[beta] Chunk load failed for ${name} after retries, reloadingï¿½`);
+      console.error(`[beta] Chunk load failed for ${name} after retries, reloading`);
       window.location.reload();
-      return { default: (() => null) as unknown as ComponentType<any> };
+      return { default: (() => null) as ComponentType };
     }),
   );
 }
 
-const MarketDataFactory = () => import("@/pages/MarketData");
+// ─── Domain-Driven Pages ───────────────────────────────────────────────────
+
+// Market Domain
+const MarketDataFactory = () => import("@/market/MarketDataPage");
 const MarketData = lazyRetry(MarketDataFactory, "MarketData");
 registerComponentFactory("/", MarketDataFactory);
 
-const PortfolioFactory = () => import("@/pages/Portfolio");
-const Portfolio = lazyRetry(PortfolioFactory, "Portfolio");
-registerComponentFactory("/portfolio", PortfolioFactory);
-
-const DatabasesFactory = () => import("@/pages/Databases");
-const Databases = lazyRetry(DatabasesFactory, "Databases");
-registerComponentFactory("/databases", DatabasesFactory);
-
-const WatchlistFactory = () => import("@/pages/Watchlist");
-const Watchlist = lazyRetry(WatchlistFactory, "Watchlist");
-registerComponentFactory("/watchlist", WatchlistFactory);
-
-const NewsFactory = () => import("@/pages/News");
+const NewsFactory = () => import("@/market/NewsPage");
 const News = lazyRetry(NewsFactory, "News");
 registerComponentFactory("/news", NewsFactory);
 
-const MLStudioFactory = () => import("@/pages/MLStudio");
+const WatchlistFactory = () => import("@/market/WatchlistPage");
+const Watchlist = lazyRetry(WatchlistFactory, "Watchlist");
+registerComponentFactory("/watchlist", WatchlistFactory);
+
+// Portfolio Domain
+const PortfolioFactory = () => import("@/portfolio/PortfolioPage");
+const Portfolio = lazyRetry(PortfolioFactory, "Portfolio");
+registerComponentFactory("/portfolio", PortfolioFactory);
+
+const PaperFactory = () => import("@/portfolio/PaperPage");
+const Paper = lazyRetry(PaperFactory, "Paper");
+registerComponentFactory("/paper", PaperFactory);
+
+const RiskFactory = () => import("@/portfolio/RiskPage");
+const Risk = lazyRetry(RiskFactory, "Risk");
+registerComponentFactory("/risk", RiskFactory);
+
+// Data Domain
+const DatabasesFactory = () => import("@/data/DatabasesPage");
+const Databases = lazyRetry(DatabasesFactory, "Databases");
+registerComponentFactory("/databases", DatabasesFactory);
+
+// ML Domain
+const MLStudioFactory = () => import("@/ml/MLStudioPage");
 const MLStudio = lazyRetry(MLStudioFactory, "MLStudio");
 registerComponentFactory("/ml-studio", MLStudioFactory);
 
-const TerminalsFactory = () => import("@/pages/Terminals");
-const Terminals = lazyRetry(TerminalsFactory, "Terminals");
-registerComponentFactory("/terminals", TerminalsFactory);
+const ForecastFactory = () => import("@/ml/ForecastPage");
+const Forecast = lazyRetry(ForecastFactory, "Forecast");
+registerComponentFactory("/forecast", ForecastFactory);
 
-const HardwareFactory = () => import("@/pages/Hardware");
-const Hardware = lazyRetry(HardwareFactory, "Hardware");
-registerComponentFactory("/hardware", HardwareFactory);
-
-
-const ModelCatalogFactory = () => import("@/pages/ModelCatalog");
+const ModelCatalogFactory = () => import("@/ml/ModelCatalogPage");
 const ModelCatalog = lazyRetry(ModelCatalogFactory, "ModelCatalog");
 registerComponentFactory("/model-catalog", ModelCatalogFactory);
 
-const FourierTransformFactory = () => import("@/pages/FourierTransform");
+const RegistryFactory = () => import("@/ml/RegistryPage");
+const Registry = lazyRetry(RegistryFactory, "Registry");
+registerComponentFactory("/registry", RegistryFactory);
+
+const FourierTransformFactory = () => import("@/ml/FourierTransformPage");
 const FourierTransform = lazyRetry(FourierTransformFactory, "FourierTransform");
 registerComponentFactory("/fourier", FourierTransformFactory);
 
-const ArchitectureExplorerFactory = () => import("@/pages/ArchitectureExplorer");
-const ArchitectureExplorer = lazyRetry(ArchitectureExplorerFactory, "ArchitectureExplorer");
-registerComponentFactory("/architecture", ArchitectureExplorerFactory);
+// Training Domain
+const TrainingFactory = () => import("@/training/TrainingPage");
+registerComponentFactory("/training", TrainingFactory);
 
-const SettingsFactory = () => import("@/pages/Settings");
+const HpoFactory = () => import("@/training/HpoPage");
+const Hpo = lazyRetry(HpoFactory, "Hpo");
+registerComponentFactory("/hpo", HpoFactory);
+
+const HpoDetailFactory = () => import("@/training/HpoDetailPage");
+const HpoDetail = lazyRetry(HpoDetailFactory, "HpoDetail");
+registerComponentFactory("/hpo/:sessionId", HpoDetailFactory);
+
+const CurriculumFactory = () => import("@/training/CurriculumPage");
+const Curriculum = lazyRetry(CurriculumFactory, "Curriculum");
+registerComponentFactory("/curriculum", CurriculumFactory);
+
+const ExperimentsFactory = () => import("@/pages/Experiments");
+const Experiments = lazyRetry(ExperimentsFactory, "Experiments");
+registerComponentFactory("/experiments", ExperimentsFactory);
+
+// Backtest Domain
+const BacktestFactory = () => import("@/backtest/BacktestPage");
+const Backtest = lazyRetry(BacktestFactory, "Backtest");
+registerComponentFactory("/backtest", BacktestFactory);
+
+// System Domain
+const SettingsFactory = () => import("@/system/SettingsPage");
 const Settings = lazyRetry(SettingsFactory, "Settings");
 registerComponentFactory("/settings", SettingsFactory);
 
-const NotFound = lazyRetry(() => import("@/pages/not-found"), "NotFound");
+const TerminalsFactory = () => import("@/system/TerminalsPage");
+const Terminals = lazyRetry(TerminalsFactory, "Terminals");
+registerComponentFactory("/terminals", TerminalsFactory);
+
+const HardwareFactory = () => import("@/system/HardwarePage");
+const Hardware = lazyRetry(HardwareFactory, "Hardware");
+registerComponentFactory("/hardware", HardwareFactory);
+
+const ArchitectureExplorerFactory = () => import("@/system/architecture-explorer");
+const ArchitectureExplorer = lazyRetry(ArchitectureExplorerFactory, "ArchitectureExplorer");
+registerComponentFactory("/architecture", ArchitectureExplorerFactory);
+
+const NotFound = lazyRetry(() => import("@/shared/layout/not-found"), "NotFound");
 
 /**
  * Route definition helper to ensure consistent suspense and error boundary wrapping
  */
-const AppRoute = ({ path, component: Component, fallback = <PageLoader /> }: { 
-  path: string, 
-  component: ComponentType<any>, 
-  fallback?: React.ReactNode 
+const AppRoute = ({ path, component: Component, fallback = <PageLoader /> }: {
+  path: string,
+  component: ComponentType,
+  fallback?: React.ReactNode
 }) => (
   <Route path={path}>
     <ErrorBoundary>
@@ -129,15 +175,25 @@ function Router() {
         <AppRoute path="/databases" component={Databases} fallback={<DataGridSkeleton />} />
         
         <AppRoute path="/ml-studio" component={MLStudio} />
+        <AppRoute path="/forecast" component={Forecast} />
+        <AppRoute path="/curriculum" component={Curriculum} />
         <AppRoute path="/model-catalog" component={ModelCatalog} />
         <AppRoute path="/fourier" component={FourierTransform} />
         <AppRoute path="/architecture" component={ArchitectureExplorer} />
         
+        <AppRoute path="/risk" component={Risk} fallback={<DataGridSkeleton />} />
+        <AppRoute path="/experiments" component={Experiments} fallback={<DataGridSkeleton />} />
+        <AppRoute path="/hpo" component={Hpo} fallback={<DataGridSkeleton />} />
+        <AppRoute path="/backtest" component={Backtest} fallback={<DataGridSkeleton />} />
+        <AppRoute path="/registry" component={Registry} fallback={<DataGridSkeleton />} />
+        <AppRoute path="/paper" component={Paper} fallback={<DataGridSkeleton />} />
+
         <AppRoute path="/terminals" component={Terminals} />
         <AppRoute path="/hardware" component={Hardware} />
-        
+
         <AppRoute path="/settings" component={Settings} />
-        
+        <AppRoute path="/hpo/:sessionId" component={HpoDetail} />
+
         {/* Catch-all */}
         <Route>
           <ErrorBoundary>
@@ -175,7 +231,7 @@ function App() {
 
   // Zoom keyboard shortcuts: Ctrl+= (zoom in), Ctrl+- (zoom out), Ctrl+0 (reset)
   useEffect(() => {
-    const api = (window as any).electronAPI;
+    const api = window.electronAPI;
     if (!api?.getZoom) return; // Not in Electron
 
     const handler = async (e: KeyboardEvent) => {
@@ -218,6 +274,3 @@ function App() {
 }
 
 export default App;
-
-
-

@@ -1,6 +1,6 @@
 import type { ResolvedTrainingConfig, TrainingEvent, TrainingSession } from "@shared/trainingTypes";
 import type { DomainEvent } from "@shared/event-types";
-import { getEventBus } from "../../events";
+import { getEventBus } from "../../infrastructure/events";
 
 export interface ITrainerRunner {
   start(config: ResolvedTrainingConfig, existingSession?: TrainingSession): Promise<TrainingSession>;

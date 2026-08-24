@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-import pytest
-
-from tensionflow.trade.flip import evaluate_flip
-from tensionflow.state.hysteresis import HysteresisState
 from tensionflow.config import (
     ACTION_BUY,
-    ACTION_SELL,
     ACTION_FLATTEN,
     ACTION_NONE,
+    ACTION_SELL,
 )
+from tensionflow.state.hysteresis import HysteresisState
+from tensionflow.trade.flip import evaluate_flip
 
 
 def _fresh_hysteresis() -> HysteresisState:

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type {
-  DomainEvent, EventMetadata, PipelineEvent, TrainingEvent,
-  IngestionEvent, ModelEvent, CacheEvent, SystemEvent,
+  DomainEvent, PipelineEvent, TrainingEvent,
+  CacheEvent,
 } from '../src/shared/event-types';
 
 describe('event-types', () => {

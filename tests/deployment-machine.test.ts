@@ -141,9 +141,9 @@ describe('Deployment Pipeline State Machine', () => {
     actor.send({ type: 'START', pipelineId: 'deploy-1', config: {} });
 
     const runningSteps = DEPLOYMENT_STEPS.slice(1, -1);
-    for (const step of runningSteps) {
+    runningSteps.forEach(() => {
       actor.send({ type: 'STEP_COMPLETED', result: {} });
-    }
+    });
 
     expect(getState(actor)).toBe('active');
     expect(actor.getSnapshot().status).toBe('done');

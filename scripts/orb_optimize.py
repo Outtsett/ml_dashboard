@@ -3,25 +3,27 @@ ORB Strategy Optimization — Optuna Bayesian search for optimal thresholds.
 Maximizes total PnL with penalty for EOD flattens and low trade count.
 """
 
-import optuna
-import psycopg2
-import pandas as pd
-import numpy as np
-from datetime import time as dtime
-import pytz
 import os
 import sys
 import warnings
+from datetime import time as dtime
+
+import numpy as np
+import optuna
+import pandas as pd
+import psycopg2
+import pytz
 
 warnings.filterwarnings('ignore')
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 try:
-    import pandas_ta as ta
+    # Imported for its side effect: registers the `.ta` accessor on DataFrame.
+    # The `ta` name itself is never referenced — usage is `df.ta.atr(...)`.
+    import pandas_ta as ta  # noqa: F401
 except ImportError:
     import subprocess
     subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pandas-ta'])
-    import pandas_ta as ta
 
 ET = pytz.timezone('US/Eastern')
 SESSION_OPEN = dtime(9, 30)
@@ -114,7 +116,6 @@ def simulate(p):
         ep = ea = ext = 0.0
         es = None
         eb = 0
-        ir = False
 
         pr = day_df[day_df['time_et'] >= RANGE_END]
 
@@ -195,15 +196,15 @@ def simulate(p):
 
             if fw:
                 if ba and c > vw and cl >= p['mc'] and ou:
-                    es='L'; ep=c; ea=av; ext=b['high']; ir=False; in_pos=True; td_count+=1; eb=i
+                    es='L'; ep=c; ea=av; ext=b['high']; in_pos=True; td_count+=1; eb=i
                 elif bb and c < vw and cl <= -p['mc'] and od:
-                    es='S'; ep=c; ea=av; ext=b['low']; ir=False; in_pos=True; td_count+=1; eb=i
+                    es='S'; ep=c; ea=av; ext=b['low']; in_pos=True; td_count+=1; eb=i
             elif p['rv']:
                 cr = abs(cl) < p['mc']
                 if ba and pd.notna(mh) and mh < 0 and cr:
-                    es='S'; ep=c; ea=av; ext=b['low']; ir=True; in_pos=True; td_count+=1; eb=i
+                    es='S'; ep=c; ea=av; ext=b['low']; in_pos=True; td_count+=1; eb=i
                 elif bb and pd.notna(mh) and mh > 0 and cr:
-                    es='L'; ep=c; ea=av; ext=b['high']; ir=True; in_pos=True; td_count+=1; eb=i
+                    es='L'; ep=c; ea=av; ext=b['high']; in_pos=True; td_count+=1; eb=i
 
         if in_pos:
             lb = day_df.iloc[-1]

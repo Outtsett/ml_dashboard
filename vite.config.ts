@@ -57,21 +57,52 @@ export default defineConfig({
           "vendor-3d": ["three", "@react-three/fiber", "@react-three/drei"],
           "vendor-ui": ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-popover", "@radix-ui/react-tabs", "@radix-ui/react-select", "@radix-ui/react-tooltip"],
           "vendor-query": ["@tanstack/react-query"],
+          "vendor-monaco": ["@monaco-editor/react", "monaco-editor"],
+          "vendor-table": ["@tanstack/react-table"],
+          "vendor-markdown": ["react-markdown", "remark-gfm"],
         },
       },
     },
   },
+  optimizeDeps: {
+    exclude: ["@monaco-editor/react", "monaco-editor"],
+  },
   server: {
     host: "127.0.0.1",
-    port: 5173,
+    // Default to 5000 — same origin as the NestJS backend so the renderer
+    // (loaded by Electron at http://127.0.0.1:5000) does HMR over the same
+    // WebSocket. Standalone `vite dev --port 5000` also lands here.
+    port: 5000,
+    strictPort: false,
     hmr: {
       protocol: "ws",
       host: "127.0.0.1",
-    port: 5173,
+      // Omit explicit `port` so the HMR client uses the same port as the
+      // HTTP server (whatever the CLI / middleware host resolved to).
+      // Hardcoding here is what caused the silent HMR-WS-on-5173 break.
     },
     fs: {
       strict: true,
       deny: ["**/.*"],
+    },
+    // Vite's default watcher recursively scans `root` (src/client) BUT the
+    // project also has gigabyte-scale ML artifact dirs at the project root
+    // that get pulled in by IDE tooling and tsconfig path resolution. Ignore
+    // them aggressively so saves stay sub-100ms.
+    watch: {
+      ignored: [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/release/**",
+        "**/data/.cache/**",
+        "**/data/models/**",
+        "**/data/parquet/**",
+        "**/data/analysis/**",
+        "**/optuna_studies/**",
+        "**/logs/**",
+        "**/.questdb/**",
+        "**/.git/**",
+      ],
     },
   },
 });

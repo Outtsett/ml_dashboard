@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
+from tensionflow.trade.context import AT_EXTREME, AT_NEUTRAL, AT_VALUE_EDGE, AT_VWAP
 from tensionflow.trade.strength import compute_strength
-from tensionflow.trade.context import AT_NEUTRAL, AT_VALUE_EDGE, AT_EXTREME, AT_VWAP
 
 
 def test_neutral_zone_returns_zero():

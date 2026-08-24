@@ -8,20 +8,20 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { createServer } from 'http';
 import { AppModule } from './app.module';
-import { registerRoutes } from './core/routes';
-import { serveStatic } from './core/static';
-import { runStartupSequence, getStartupReport } from './lib/startupManager';
-import { getStaticOpenApiSpec } from './core/swagger/swagger.config';
-import { log } from './lib/log';
-import { db } from './database/db';
-import { setNestApp } from './nest-context';
-import { shutdownAllPtySessions } from './lib/ptyServer';
-import { shutdownHardwareNode } from './routes/system';
-import { warmSymbolsCatalog } from './cache/symbols';
+import { registerRoutes } from './infrastructure/core/routes';
+import { serveStatic } from './infrastructure/core/static';
+import { runStartupSequence, getStartupReport } from './infrastructure/lib/startupManager';
+import { getStaticOpenApiSpec } from './infrastructure/core/swagger/swagger.config';
+import { log } from './infrastructure/lib/log';
+import { db } from './infrastructure/database/db';
+import { setNestApp } from './infrastructure/lib/nest-context';
+import { shutdownAllPtySessions } from './infrastructure/lib/ptyServer';
+import { shutdownHardwareNode } from './system/telemetry.router';
+import { warmSymbolsCatalog } from './infrastructure/cache/symbols';
 
 // Re-export for backward compat
-export { log } from './lib/log';
-export { getNestApp } from './nest-context';
+export { log } from './infrastructure/lib/log';
+export { getNestApp } from './infrastructure/lib/nest-context';
 
 declare module 'http' {
   interface IncomingMessage {
@@ -74,11 +74,14 @@ async function bootstrap() {
   }));
 
   // ── Gzip compression (reduces OHLCV/chart responses ~80%) ──
-  // Skip SSE streams (incompatible) and /assets/ in production (pre-compressed at build time)
+  // Skip SSE streams (incompatible — compression buffers writes and breaks
+  // the per-event flush contract) and /assets/ in production (pre-compressed
+  // at build time). `/events/` covers W7.d deployments + W8 agents SSE,
+  // `/stream/` covers legacy training SSE.
   expressApp.use(compression({
     threshold: 1024,
     filter: (req: Request) => {
-      if (req.path.includes('/stream/')) return false;
+      if (req.path.includes('/stream/') || req.path.includes('/events/')) return false;
       if (process.env.NODE_ENV === 'production' && req.path.startsWith('/assets/')) return false;
       return true;
     },
@@ -158,7 +161,7 @@ async function bootstrap() {
     const start = Date.now();
     const reqPath = req.path;
     const reqId = (req as any).requestId || '-';
-    let capturedJsonResponse: Record<string, any> | undefined = undefined;
+    let capturedJsonResponse: Record<string, unknown> | undefined = undefined;
 
     const originalResJson = res.json;
     res.json = function (bodyJson, ...args) {
@@ -197,8 +200,8 @@ async function bootstrap() {
       runStartupSequence(),
       new Promise((_, reject) => setTimeout(() => reject(new Error('QuestDB startup timeout')), 30_000)),
     ]);
-  } catch (e: any) {
-    console.warn('[startup] QuestDB unavailable — app will run with limited functionality:', e.message);
+  } catch (e) {
+    console.warn('[startup] QuestDB unavailable — app will run with limited functionality:', (e as Error).message);
   }
 
   // ── NestJS DI container (initializes DB connections via lifecycle hooks) ──
@@ -211,8 +214,8 @@ async function bootstrap() {
 
   // ── Recover incomplete pipelines from prior crash ──
   try {
-    const { recoverPipelinesOnStartup } = await import('./sagas/recovery');
-    const { EventStore } = await import('./events/event-store');
+    const { recoverPipelinesOnStartup } = await import('./infrastructure/sagas/recovery');
+    const { EventStore } = await import('./infrastructure/events/event-store');
     const recoveryStore = new EventStore(db);
     await recoverPipelinesOnStartup(recoveryStore);
   } catch (err) {
@@ -226,7 +229,7 @@ async function bootstrap() {
   log('Training runners registered: python', 'training');
 
   // ── Clean up orphaned training sessions (sessions that were "running" when server crashed) ──
-  const { markOrphanedSessionsFailed } = await import('./storage/trainingStorage');
+  const { markOrphanedSessionsFailed } = await import('./infrastructure/storage/trainingStorage');
   const orphanCount = markOrphanedSessionsFailed();
   if (orphanCount > 0) {
     log(`Marked ${orphanCount} orphaned training session(s) as failed`, 'training');
@@ -267,7 +270,7 @@ async function bootstrap() {
   if (config.get('nodeEnv') === 'production') {
     serveStatic(expressApp);
   } else {
-    const { setupVite } = await import('./core/vite');
+    const { setupVite } = await import('./infrastructure/core/vite');
     await setupVite(httpServer, expressApp);
   }
 

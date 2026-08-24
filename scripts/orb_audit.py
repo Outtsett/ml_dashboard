@@ -2,23 +2,25 @@
 ORB Audit — Run backtest with Optuna-optimized params, detailed trade log.
 """
 
-import psycopg2
-import pandas as pd
-import numpy as np
-from datetime import time as dtime
-import pytz
 import os
 import sys
 import warnings
+from datetime import time as dtime
+
+import numpy as np
+import pandas as pd
+import psycopg2
+import pytz
 
 warnings.filterwarnings('ignore')
 
 try:
-    import pandas_ta as ta
+    # Imported for its side effect: registers the `.ta` accessor on DataFrame.
+    # The `ta` name itself is never referenced — usage is `df.ta.atr(...)`.
+    import pandas_ta as ta  # noqa: F401
 except ImportError:
     import subprocess
     subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pandas-ta'])
-    import pandas_ta as ta
 
 ET = pytz.timezone('US/Eastern')
 SESSION_OPEN = dtime(9, 30)
@@ -112,7 +114,6 @@ def simulate_detailed(all_days, p):
         entry_macdh = 0
         entry_bbpctb = 0
         peak_profit = 0
-        bars_held = 0
 
         pr = day_df[day_df['time_et'] >= RANGE_END]
         for i, idx in enumerate(pr.index):

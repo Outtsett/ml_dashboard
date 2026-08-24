@@ -4,10 +4,11 @@ Per year: min/max indicator ranges at breakout.
 Correlation: how each indicator value relates to breakout magnitude.
 """
 
-import pandas as pd
-import numpy as np
-import os
 import json
+import os
+
+import numpy as np
+import pandas as pd
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 df = pd.read_csv(SCRIPT_DIR + '/orb_analysis_results.csv')

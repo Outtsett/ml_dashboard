@@ -1,23 +1,30 @@
 """
 QuestDB OHLCV data loading — shared across all ML model packages.
 
-Loads OHLCV data from QuestDB via PG wire protocol (psycopg2).
-Returns numpy arrays directly — no PyArrow intermediate.
-Supports exact symbol match and front-month stitching for base symbols.
+Default path is HTTP /exp (CSV stream parsed by Polars — multi-threaded, ~5x
+faster than the stdlib csv module). Falls back to PG wire (psycopg2 chunked
+cursor) when HTTP fails. Returns numpy arrays directly — no PyArrow.
+
+Public entry points:
+  - load_ohlcv_arrays(symbol, timeframe, max_bars=0, date_range=None)
+  - load_ohlcv_from_questdb(...)  (back-compat alias)
+  - load_ohlcv_arrays_fast(...)   (legacy; now identical to load_ohlcv_arrays)
 """
 
+from __future__ import annotations
+
+import io
 import os
 import re
-import io
-import urllib.request
 import urllib.parse
+import urllib.request
 from datetime import datetime
+from typing import Any
 
 import numpy as np
 import polars as pl
 
 from .protocol import emit_log, emit_progress
-
 
 # ── SQL Input Validation ────────────────────────────────────────────────────
 
@@ -38,11 +45,11 @@ def _validate_date(value, name):
     return value
 
 
-# ── Connection helper ──────────────────────────────────────────────────────
+# ── Connection helpers ─────────────────────────────────────────────────────
 
 
 def _connect():
-    """Create psycopg2 connection to QuestDB PG wire."""
+    """Create psycopg2 connection to QuestDB PG wire (PG-wire fallback only)."""
     import psycopg2
 
     return psycopg2.connect(
@@ -54,69 +61,172 @@ def _connect():
     )
 
 
-# ── Fast CSV loading via QuestDB HTTP /exp endpoint ───────────────────────
-
-
-def _load_via_http(sql, total_hint=0):
-    """Load query results via QuestDB HTTP /exp (CSV stream) — faster than PG wire for large results."""
-    import io
-    import urllib.request
-    import urllib.parse
-
+def _http_url(sql: str) -> str:
     host = os.environ.get("QUESTDB_HOST", "127.0.0.1")
     port = os.environ.get("QUESTDB_HTTP_PORT", "9000")
-    url = f"http://{host}:{port}/exp?query={urllib.parse.quote(sql)}"
+    return f"http://{host}:{port}/exp?query={urllib.parse.quote(sql)}"
 
-    emit_log("Loading via HTTP /exp (CSV stream)...")
-    with urllib.request.urlopen(url, timeout=300) as resp:
-        csv_bytes = resp.read()
 
-    # Parse CSV with numpy (much faster than row-by-row psycopg2)
-    import csv
-    reader = csv.reader(io.StringIO(csv_bytes.decode("utf-8")))
-    header = next(reader)
+# ── HTTP /exp loader (Polars CSV parser) ──────────────────────────────────
 
-    rows = list(reader)
-    n = len(rows)
-    if n == 0:
-        return []
 
-    emit_log(f"Loaded {n:,} rows via HTTP CSV")
+_OHLCV_SCHEMA: dict[str, Any] = {
+    "symbol": pl.Utf8,
+    "timestamp": pl.Datetime("us"),
+    "open": pl.Float64,
+    "high": pl.Float64,
+    "low": pl.Float64,
+    "close": pl.Float64,
+    "volume": pl.Float64,
+}
+
+
+def _fetch_csv_bytes(sql: str, *, timeout: int = 300) -> bytes | None:
+    """Run SQL via QuestDB's HTTP /exp endpoint and return raw CSV bytes.
+
+    Schema-agnostic — used both by the OHLCV-specific parser below and by
+    ``dataset.py``'s generic ``questdb_table`` loader. Returns None on any
+    failure (network error or empty body) so the caller can fall back
+    (PG wire for OHLCV; a raised error for the generic loader).
+    """
+    url = _http_url(sql)
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            csv_bytes = resp.read()
+    except Exception as exc:
+        emit_log(f"[data] HTTP /exp request failed: {exc}", level="warning")
+        return None
+
+    if not csv_bytes:
+        return None
+    return csv_bytes
+
+
+def _http_csv_to_arrays(sql: str, *, expect_symbol: bool = True) -> dict[str, Any] | None:
+    """Run SQL via HTTP /exp, parse CSV with Polars, return arrays dict.
+
+    Returns None on any failure so caller can fall back to PG wire.
+    """
+    csv_bytes = _fetch_csv_bytes(sql)
+    if not csv_bytes:
+        return None
+
+    try:
+        # Polars infers types fast; we override numerics + timestamp for stability.
+        df = pl.read_csv(
+            io.BytesIO(csv_bytes),
+            try_parse_dates=True,
+            schema_overrides={k: v for k, v in _OHLCV_SCHEMA.items()
+                              if k != "symbol" or expect_symbol},
+        )
+    except Exception as exc:
+        emit_log(f"[data] Polars CSV parse failed: {exc}", level="warning")
+        return None
+
+    if df.height == 0:
+        return None
+
+    # Polars doesn't return Python datetimes by default — convert via ns→sec
+    ts_series = df["timestamp"]
+    if ts_series.dtype == pl.Datetime:
+        # epoch microseconds -> Python datetime list (cheap; one allocation)
+        timestamps = ts_series.dt.replace_time_zone(None).to_list()
+    else:
+        # already string ISO; parse via numpy datetime64
+        ts_arr = np.asarray(ts_series.to_list())
+        timestamps = [datetime.fromisoformat(str(x).replace("Z", "+00:00")) for x in ts_arr]
+
+    open_arr = df["open"].to_numpy().astype(np.float64)
+    high_arr = df["high"].to_numpy().astype(np.float64)
+    low_arr = df["low"].to_numpy().astype(np.float64)
+    close_arr = df["close"].to_numpy().astype(np.float64)
+    volume_arr = df["volume"].to_numpy().astype(np.float64)
+
+    n = open_arr.shape[0]
     emit_progress(n, n, "loading_data")
 
-    # Convert to tuples matching psycopg2 format: (symbol, timestamp, open, high, low, close, volume)
-    sym_idx = header.index("symbol")
-    ts_idx = header.index("timestamp")
-    o_idx = header.index("open")
-    h_idx = header.index("high")
-    l_idx = header.index("low")
-    c_idx = header.index("close")
-    v_idx = header.index("volume")
-
-    from datetime import datetime
-    result = []
-    for row in rows:
-        ts = datetime.fromisoformat(row[ts_idx].replace("Z", "+00:00"))
-        result.append((row[sym_idx], ts, float(row[o_idx]), float(row[h_idx]),
-                       float(row[l_idx]), float(row[c_idx]), float(row[v_idx])))
-    return result
+    return {
+        "open": open_arr,
+        "high": high_arr,
+        "low": low_arr,
+        "close": close_arr,
+        "volume": volume_arr,
+        "timestamp": timestamps,
+        "n_rows": n,
+    }
 
 
-# ── OHLCV Loading (numpy arrays, no PyArrow) ──────────────────────────────
+# ── PG wire fallback (chunked) ────────────────────────────────────────────
+
 
 CHUNK_SIZE = 50_000
 
 
-def load_ohlcv_arrays(symbol, timeframe, max_bars=0, date_range=None):
-    """Load OHLCV from QuestDB directly into numpy arrays. No PyArrow.
+def _pg_fetch(conn, sql: str, total_hint: int = -1) -> list[tuple]:
+    """Chunked PG-wire fetch — used only when HTTP /exp fails."""
+    cur = conn.cursor()
+    cur.execute(sql)
+    rows: list[tuple] = []
+    loaded = 0
+    while True:
+        chunk = cur.fetchmany(CHUNK_SIZE)
+        if not chunk:
+            break
+        rows.extend(chunk)
+        loaded += len(chunk)
+        emit_progress(loaded, total_hint if total_hint > 0 else loaded, "loading_data")
+    cur.close()
+    return rows
 
-    Uses server-side cursor with chunked fetching. Emits progress events
-    during loading so the UI stays responsive.
 
-    Returns dict: {
-        'open': np.ndarray, 'high': np.ndarray, 'low': np.ndarray,
-        'close': np.ndarray, 'volume': np.ndarray, 'timestamp': list
-    }
+# ── Query builders ────────────────────────────────────────────────────────
+
+
+def _build_where(symbol: str, date_range: dict | None) -> str:
+    where = f"WHERE symbol = '{symbol}'"
+    if date_range:
+        if date_range.get("start"):
+            where += f" AND timestamp >= '{date_range['start']}'"
+        if date_range.get("end"):
+            where += f" AND timestamp <= '{date_range['end']}'"
+    return where
+
+
+def _build_sample_sql(symbol: str, interval: str, max_bars: int, date_range: dict | None) -> str:
+    where = _build_where(symbol, date_range)
+    limit = f"LIMIT {max_bars}" if max_bars > 0 else ""
+    return f"""
+        SELECT symbol, timestamp,
+            first(open) as open, max(high) as high,
+            min(low) as low, last(close) as close,
+            sum(volume) as volume
+        FROM ohlcv
+        {where}
+        SAMPLE BY {interval} ALIGN TO CALENDAR
+        ORDER BY timestamp
+        {limit}
+    """.strip()
+
+
+# ── Public entry point ────────────────────────────────────────────────────
+
+
+def load_ohlcv_arrays(
+    symbol: str,
+    timeframe: str,
+    max_bars: int = 0,
+    date_range: dict | None = None,
+) -> dict:
+    """Load OHLCV from QuestDB into numpy arrays.
+
+    Strategy:
+      1. HTTP /exp + Polars CSV parser (default, fastest)
+      2. PG wire chunked fallback if HTTP fails
+      3. Front-month volume-based stitching if no data for the exact symbol
+
+    Returns dict::
+        {"open": np.ndarray, "high": np.ndarray, "low": np.ndarray,
+         "close": np.ndarray, "volume": np.ndarray, "timestamp": list[datetime]}
     """
     _validate_sql_input(symbol, "symbol")
     _validate_sql_input(timeframe, "timeframe", r"^[0-9]+[mhdw]$")
@@ -128,29 +238,43 @@ def load_ohlcv_arrays(symbol, timeframe, max_bars=0, date_range=None):
             _validate_date(date_range["end"], "date_range.end")
 
     interval = timeframe if timeframe != "1w" else "7d"
+    sql = _build_sample_sql(symbol, interval, max_bars, date_range)
 
+    # 1) HTTP /exp + Polars
+    emit_log(f"[data] Loading {symbol}@{timeframe} via HTTP /exp...")
+    result = _http_csv_to_arrays(sql)
+    if result is not None:
+        emit_log(f"[data] Loaded {result['n_rows']:,} rows via HTTP CSV (polars)")
+        return _drop_meta(result)
+
+    # 2) PG wire fallback
+    emit_log("[data] HTTP /exp returned no rows or failed, falling back to PG wire...")
     conn = _connect()
     try:
-        # Try exact symbol match first
-        rows = _fetch_rows(conn, symbol, interval, max_bars, date_range)
+        rows = _pg_fetch(conn, sql)
 
-        # If no data and symbol looks like a base/root, try rollover stitching
+        # 3) Front-month stitching if symbol has no exact match
         if not rows and not re.match(r".+[FGHJKMNQUVXZ]\d{1,2}$", symbol):
-            emit_log(f"No exact match for '{symbol}', trying rollover stitching...")
-            rows = _fetch_stitched_rows(conn, symbol, interval, max_bars, date_range)
-            # Fall back to volume-based if no rollover data
-            if not rows:
-                emit_log("No rollover data, falling back to volume-based stitching...")
-                rows = _fetch_front_month_rows(conn, symbol, interval, max_bars, date_range)
+            emit_log(f"[data] No exact match for '{symbol}', trying front-month stitching...")
+            rows = _fetch_front_month_rows(conn, symbol, interval, max_bars, date_range)
     finally:
         conn.close()
 
     if not rows:
         raise ValueError(f"No OHLCV data found for {symbol} at {timeframe}")
 
-    # Convert rows to numpy arrays in one pass
+    return _rows_to_arrays(rows)
+
+
+def _drop_meta(result: dict) -> dict:
+    out = {k: v for k, v in result.items() if k != "n_rows"}
+    return out
+
+
+def _rows_to_arrays(rows: list[tuple]) -> dict:
+    """Convert PG-wire row tuples (sym, ts, o, h, l, c, v) to arrays dict."""
     n = len(rows)
-    timestamps = []
+    timestamps: list = []
     open_arr = np.empty(n, dtype=np.float64)
     high_arr = np.empty(n, dtype=np.float64)
     low_arr = np.empty(n, dtype=np.float64)
@@ -158,7 +282,6 @@ def load_ohlcv_arrays(symbol, timeframe, max_bars=0, date_range=None):
     volume_arr = np.empty(n, dtype=np.float64)
 
     for i, row in enumerate(rows):
-        # row: (symbol, timestamp, open, high, low, close, volume)
         timestamps.append(row[1])
         open_arr[i] = float(row[2])
         high_arr[i] = float(row[3])
@@ -176,97 +299,8 @@ def load_ohlcv_arrays(symbol, timeframe, max_bars=0, date_range=None):
     }
 
 
-def _build_where(symbol, date_range):
-    """Build WHERE clause for OHLCV query."""
-    where = f"WHERE symbol = '{symbol}'"
-    if date_range:
-        if date_range.get("start"):
-            where += f" AND timestamp >= '{date_range['start']}'"
-        if date_range.get("end"):
-            where += f" AND timestamp <= '{date_range['end']}'"
-    return where
-
-
-def _fetch_rows(conn, symbol, interval, max_bars, date_range):
-    """Fetch OHLCV rows — tries HTTP CSV for speed, falls back to PG wire."""
-    where = _build_where(symbol, date_range)
-    limit_clause = f"LIMIT {max_bars}" if max_bars > 0 else ""
-
-    sql = f"""
-        SELECT symbol, timestamp,
-            first(open) as open, max(high) as high,
-            min(low) as low, last(close) as close,
-            sum(volume) as volume
-        FROM ohlcv
-        {where}
-        SAMPLE BY {interval} ALIGN TO CALENDAR
-        ORDER BY timestamp
-        {limit_clause}
-    """
-
-    # Try HTTP /exp first (faster for large results — no row-by-row parsing)
-    try:
-        rows = _load_via_http(sql)
-        if rows:
-            return rows
-    except Exception as e:
-        emit_log(f"HTTP /exp failed ({e}), falling back to PG wire...")
-
-    # Fallback: PG wire with chunked fetch
-    count_sql = f"""
-        SELECT count() FROM (
-            SELECT first(open) FROM ohlcv {where}
-            SAMPLE BY {interval} ALIGN TO CALENDAR
-            {limit_clause}
-        )
-    """
-    cur = conn.cursor()
-    try:
-        cur.execute(count_sql)
-        total_rows = int(cur.fetchone()[0])
-    except Exception as e:
-        emit_log(f"Count pre-query failed ({e}), will attempt data fetch anyway...")
-        total_rows = -1
-        conn.rollback()
-    cur.close()
-
-    if total_rows == 0:
-        return []
-
-    if total_rows > 0:
-        emit_log(f"Fetching {total_rows} bars via PG wire...")
-    else:
-        emit_log("Fetching bars (count unknown)...")
-
-    cur = conn.cursor()
-    cur.execute(sql)
-
-    rows = []
-    loaded = 0
-    while True:
-        chunk = cur.fetchmany(CHUNK_SIZE)
-        if not chunk:
-            break
-        rows.extend(chunk)
-        loaded += len(chunk)
-        emit_progress(loaded, total_rows if total_rows > 0 else loaded, "loading_data")
-
-    cur.close()
-    return rows
-
-
-def _fetch_stitched_rows(conn, root, interval, max_bars, date_range):
-    """DEPRECATED: rollovers table has been dropped from QuestDB.
-
-    Always returns [] so the caller falls through to _fetch_front_month_rows()
-    which detects front-month contracts via volume from the base ohlcv table.
-    """
-    emit_log("Rollovers table no longer exists, skipping rollover stitching...")
-    return []
-
-
-def _fetch_front_month_rows(conn, root, interval, max_bars, date_range):
-    """Front-month stitching: pick highest-volume contract per day, query each."""
+def _fetch_front_month_rows(conn, root: str, interval: str, max_bars: int, date_range: dict | None) -> list[tuple]:
+    """Front-month stitching: pick highest-volume contract per day, query each via HTTP /exp."""
     time_filter = ""
     if date_range:
         if date_range.get("start"):
@@ -275,8 +309,6 @@ def _fetch_front_month_rows(conn, root, interval, max_bars, date_range):
             time_filter += f" AND timestamp <= '{date_range['end']}'"
 
     cur = conn.cursor()
-
-    # Step 1: Daily volume per contract via SAMPLE BY on base table
     cur.execute(f"""
         SELECT symbol, timestamp, sum(volume) as volume FROM ohlcv
         WHERE root = '{root}' AND asset_class = 'futures'
@@ -285,21 +317,19 @@ def _fetch_front_month_rows(conn, root, interval, max_bars, date_range):
         ORDER BY timestamp
     """)
     daily_bars = cur.fetchall()
+    cur.close()
 
     if not daily_bars:
-        cur.close()
         return []
 
-    # Step 2: Pick highest-volume contract per day (= front month)
-    leaders = {}
+    leaders: dict[str, tuple[str, float]] = {}
     for sym, ts, vol in daily_bars:
         day = ts.strftime("%Y-%m-%d") if hasattr(ts, "strftime") else str(ts)[:10]
-        v = float(vol) if vol else 0
+        v = float(vol) if vol else 0.0
         if day not in leaders or v > leaders[day][1]:
             leaders[day] = (sym, v)
 
-    # Step 3: Build contiguous date ranges per front-month contract
-    ranges = []
+    ranges: list[tuple[str, str, str]] = []
     current = None
     for day in sorted(leaders.keys()):
         sym = leaders[day][0]
@@ -312,17 +342,16 @@ def _fetch_front_month_rows(conn, root, interval, max_bars, date_range):
     if current:
         ranges.append(current)
 
-    emit_log(f"Front-month stitching: {len(ranges)} contracts, {len(leaders)} trading days")
+    emit_log(f"[data] Front-month stitching: {len(ranges)} contracts, {len(leaders)} trading days")
 
-    # Step 4: Query each contract in its front-month range
-    all_rows = []
+    all_rows: list[tuple] = []
     total_contracts = len(ranges)
 
     for idx, (sym, start, end) in enumerate(ranges):
         s = f"{start}T00:00:00.000Z"
         e = f"{end}T23:59:59.999Z"
 
-        cur.execute(f"""
+        sql = f"""
             SELECT '{sym}' as symbol, timestamp,
                 first(open) as open, max(high) as high,
                 min(low) as low, last(close) as close,
@@ -331,64 +360,37 @@ def _fetch_front_month_rows(conn, root, interval, max_bars, date_range):
             WHERE symbol = '{sym}' AND timestamp >= '{s}' AND timestamp <= '{e}'
             SAMPLE BY {interval} ALIGN TO CALENDAR
             ORDER BY timestamp
-        """)
-        all_rows.extend(cur.fetchall())
-        emit_progress(idx + 1, total_contracts, "loading_data")
+        """.strip()
 
-    cur.close()
+        result = _http_csv_to_arrays(sql)
+        if result is not None:
+            n = result["n_rows"]
+            for i in range(n):
+                all_rows.append((
+                    sym, result["timestamp"][i],
+                    float(result["open"][i]), float(result["high"][i]),
+                    float(result["low"][i]), float(result["close"][i]),
+                    float(result["volume"][i]),
+                ))
+        emit_progress(idx + 1, total_contracts, "loading_data")
 
     if not all_rows:
         return []
 
-    # Sort by timestamp and limit
     all_rows.sort(key=lambda r: r[1])
     if max_bars > 0 and len(all_rows) > max_bars:
         all_rows = all_rows[:max_bars]
-
     return all_rows
 
 
-# ── Backward-compatible wrapper ────────────────────────────────────────────
+# ── Backward-compatible aliases ───────────────────────────────────────────
 
 
 def load_ohlcv_from_questdb(symbol, timeframe, max_bars=0, date_range=None):
-    """Load OHLCV data from QuestDB. Returns dict of numpy arrays.
-
-    This is the backward-compatible entry point used by all model main.py files.
-    """
+    """Back-compat alias used by all model main.py files."""
     return load_ohlcv_arrays(symbol, timeframe, max_bars, date_range)
 
-def load_ohlcv_arrays_fast(symbol, timeframe, max_bars=0):
-    """
-    Institutional-Grade HTTP fetcher. 
-    Bypasses row-by-row PG protocol for 10x faster bulk data loading.
-    """
-    import requests
-    import pandas as pd
-    import io
-    
-    host = os.environ.get("QUESTDB_HOST", "localhost")
-    port = os.environ.get("QUESTDB_HTTP_PORT", "9000")
-    
-    where = f"WHERE symbol = '{symbol}'"
-    limit = f"LIMIT {max_bars}" if max_bars > 0 else ""
-    
-    sql = f"SELECT timestamp, open, high, low, close, volume FROM ohlcv {where} SAMPLE BY {timeframe} ALIGN TO CALENDAR {limit}"
-    url = f"http://{host}:{port}/exp?query={requests.utils.quote(sql)}"
-    
-    try:
-        r = requests.get(url, timeout=30)
-        r.raise_for_status()
-        df = pd.read_csv(io.StringIO(r.text), parse_dates=['timestamp'])
-        
-        return {
-            "timestamp": df['timestamp'].values,
-            "open": df['open'].values.astype(np.float64),
-            "high": df['high'].values.astype(np.float64),
-            "low": df['low'].values.astype(np.float64),
-            "close": df['close'].values.astype(np.float64),
-            "volume": df['volume'].values.astype(np.float64),
-        }
-    except Exception as e:
-        print(f"[QuestDB-Fast] HTTP fetch failed, falling back to PG: {e}")
-        return load_ohlcv_arrays(symbol, timeframe, max_bars)
+
+def load_ohlcv_arrays_fast(symbol, timeframe, max_bars=0, date_range=None):
+    """Legacy alias — now identical to load_ohlcv_arrays (HTTP /exp is the default path)."""
+    return load_ohlcv_arrays(symbol, timeframe, max_bars, date_range)

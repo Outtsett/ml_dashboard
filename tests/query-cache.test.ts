@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import type { DomainEvent, IngestionEvent, ModelEvent, TrainingEvent, CacheEvent } from '../src/shared/event-types';
-import { EventBus, resetEventBus } from '../src/server/events/event-bus';
-import { QueryCache } from '../src/server/cache/query-cache';
+import { EventBus, resetEventBus } from '../src/server/infrastructure/events/event-bus';
+import { QueryCache } from '../src/server/infrastructure/cache/query';
 
 // ── Helpers ──────────────────────────────────────────────────
 function makeEvent<T extends DomainEvent>(
@@ -129,13 +129,13 @@ describe('QueryCache', () => {
 
   // ── 5. Report stats ───────────────────────────────────────
   it('should report accurate stats', () => {
-    expect(cache.getStats()).toEqual({ size: 0, maxSize: 100 });
+    expect(cache.getStats()).toEqual({ hits: 0, misses: 0, entries: 0, hitRate: '0.0%', maxSize: 100 });
 
     cache.set('a', 1);
     cache.set('b', 2);
     cache.set('c', 3);
 
-    expect(cache.getStats()).toEqual({ size: 3, maxSize: 100 });
+    expect(cache.getStats()).toEqual({ hits: 0, misses: 0, entries: 3, hitRate: '0.0%', maxSize: 100 });
   });
 
   // ── 6. delete() removes a specific key ────────────────────
@@ -158,6 +158,6 @@ describe('QueryCache', () => {
 
     expect(cache.get('a')).toBeUndefined();
     expect(cache.get('b')).toBeUndefined();
-    expect(cache.getStats().size).toBe(0);
+    expect(cache.getStats().entries).toBe(0);
   });
 });

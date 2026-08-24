@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tensionflow.signals.structure import compute_structure
 from tensionflow.config import BENCHMARKS, DISTANCES, TICK_SIZE
+from tensionflow.signals.structure import compute_structure
 
 
 def _bench(value: float = 0.0) -> np.ndarray:

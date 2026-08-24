@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import type { DomainEvent, PipelineEvent, TrainingEvent, ModelEvent } from '../src/shared/event-types';
-import { EventBus, getEventBus, resetEventBus } from '../src/server/events/event-bus';
+import { EventBus, getEventBus, resetEventBus } from '../src/server/infrastructure/events/event-bus';
 
 // ── Helpers ──────────────────────────────────────────────────
 function makeEvent<T extends DomainEvent>(
