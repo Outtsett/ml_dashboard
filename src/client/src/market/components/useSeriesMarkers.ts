@@ -68,7 +68,15 @@ export function buildCandleTimes(candles: { time: Time }[]): number[] {
  * marker gets silently dropped instead of drawn.
  *
  * Returns null when the timestamp falls outside the loaded range: before the
- * first bar, or more than one bar past the last. Callers filter those out.
+ * first bar, or at/past the next bar's open. Callers filter those out.
+ *
+ * The tolerance past the last bar stops one second short of a full timeframe
+ * on purpose. `last + timeframeSec` is exactly the NEXT bar's open — a bar the
+ * chart has not loaded — and accepting it folded that bar's label onto the
+ * rightmost candle, so the last bar could show a marker belonging to a
+ * different bar. The overlay pads its query 20% past the viewport, so such
+ * timestamps are routinely in the response. Anything strictly inside the
+ * final bar still snaps to it, which is what session-offset timeframes need.
  */
 export function snapToCandle(
   timestampMs: number,
@@ -79,7 +87,7 @@ export function snapToCandle(
   const t = Math.floor(timestampMs / 1000);
   const first = sortedTimes[0]!;
   const last = sortedTimes[sortedTimes.length - 1]!;
-  if (t < first || t > last + timeframeSec) return null;
+  if (t < first || t >= last + timeframeSec) return null;
 
   // Greatest index whose time is <= t.
   let lo = 0;
