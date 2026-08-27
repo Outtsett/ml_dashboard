@@ -148,8 +148,8 @@ export async function previewLabels(
       queryLabels(distSQL).catch(() => [] as Array<Record<string, unknown>>),
     ]);
 
-    const sortedResults = (results || []).sort((a: any, b: any) =>
-      Number(a.timestamp) - Number(b.timestamp)
+    const sortedResults = (results || []).sort(
+      (a, b) => Number(a.timestamp) - Number(b.timestamp)
     );
 
     const normalizedResults = normalizeLabelsForPreview(request.generatorType, sortedResults);
@@ -196,8 +196,23 @@ export async function previewLabels(
 // ─── Label Normalization ────────────────────────────────────────────────────
 
 /**
- * Normalize label values for chart rendering.
- * All generators should output { timestamp, close, label } where label is -1, 0, or 1.
+ * Discretise continuous generator output so it can be drawn as markers.
+ *
+ * This is NOT a squash to ±1. It used to be, and that assumption is what broke
+ * the overlay: classification generators emit their own class ids (`structural`
+ * -2..2, `range_bucket` 0..20, `regime` 0..3) and folding them onto three
+ * values threw the class away before the chart ever saw it. The renderer reads
+ * the vocabulary off the values now — see `labelMarkerStyle.ts` — so a
+ * classification label passes through untouched and stays consistent with
+ * `distribution`, which is aggregated over the raw label in SQL.
+ *
+ * Only genuinely continuous output is bucketed here, because a float return
+ * has no marker to map onto:
+ *
+ *   future_return      sign      -> -1 / 0 / 1
+ *   future_volatility  terciles  -> -1 / 0 / 1
+ *
+ * Both keep the untouched value in `rawLabel`.
  */
 function normalizeLabelsForPreview(
   generatorType: string,
@@ -242,50 +257,23 @@ function normalizeLabelsForPreview(
     });
   }
 
+  // `regime` keeps its own class ids. It used to be folded onto ±1 for a
+  // renderer that could only draw two arrows, which put the response at odds
+  // with itself: `distribution` is aggregated over the RAW label in SQL, so it
+  // reported four regimes while `preview[].label` carried two. Measured on MNQ
+  // 1H: distribution {0:131, 1:593, 2:512, 3:213} against labels {-1, 1}.
   if (multiClassGenerators.includes(generatorType)) {
     return results.map(row => {
       const rawLabel = Number(row.label);
       if (isNaN(rawLabel) || row.label === null || row.label === undefined) {
         return { ...row, label: null };
       }
-      const regimeName = row.regime_name as string | undefined;
-      let normalizedLabel: number;
-      if (regimeName) {
-        if (regimeName.includes('down') || regimeName === 'bearish') normalizedLabel = -1;
-        else if (regimeName.includes('up') || regimeName === 'bullish') normalizedLabel = 1;
-        else normalizedLabel = 0;
-      } else {
-        if (rawLabel === 0) normalizedLabel = -1;
-        else if (rawLabel === 1) normalizedLabel = 1;
-        else if (rawLabel === 2) normalizedLabel = -1;
-        else normalizedLabel = 1;
-      }
-      return { ...row, label: normalizedLabel, rawLabel, regimeName };
-    });
-  }
-
-  if (generatorType === 'multi_step') {
-    return results.map(row => {
-      const rawLabel = Number(row.label);
-      if (isNaN(rawLabel) || row.label === null || row.label === undefined) {
-        return { ...row, label: null };
-      }
-      return { ...row, label: rawLabel === 1 ? 1 : -1, rawLabel };
+      return { ...row, label: rawLabel, rawLabel, regimeName: row.regime_name as string | undefined };
     });
   }
 
   if (generatorType === 'pseudo_confidence') {
     return results.filter(row => row.label !== null && row.label !== undefined);
-  }
-
-  if (generatorType === 'meta_label') {
-    return results.map(row => {
-      const rawLabel = Number(row.label);
-      if (isNaN(rawLabel) || row.label === null || row.label === undefined) {
-        return { ...row, label: null };
-      }
-      return { ...row, label: rawLabel === 1 ? 1 : -1, rawLabel };
-    });
   }
 
   return results;

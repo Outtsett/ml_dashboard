@@ -24,6 +24,46 @@ function formatDay(ms: number): string {
   return new Date(ms).toISOString().slice(0, 16).replace("T", " ") + "Z";
 }
 
+/**
+ * Fold a class-count map into what the legend can show.
+ *
+ * Mirrors the marker encoding in `labelMarkerStyle.ts`: a vocabulary inside
+ * [-2, 2] reads as signed and is summarised by direction, anything wider is
+ * ordinal and is summarised by class count, because "up vs down" is not a
+ * meaningful split of 21 return buckets.
+ */
+function summarizeDistribution(distribution: Record<string, number>): {
+  kind: "signed" | "ordinal";
+  up: number;
+  down: number;
+  flat: number;
+  classes: number;
+  min: number;
+  max: number;
+} {
+  let up = 0;
+  let down = 0;
+  let flat = 0;
+  let min = Infinity;
+  let max = -Infinity;
+  let classes = 0;
+
+  for (const [key, count] of Object.entries(distribution)) {
+    const value = Number(key);
+    if (!Number.isFinite(value)) continue;
+    classes += 1;
+    if (value < min) min = value;
+    if (value > max) max = value;
+    if (value > 0) up += count;
+    else if (value < 0) down += count;
+    else flat += count;
+  }
+
+  const bounded = Number.isFinite(min) && Number.isFinite(max);
+  const kind = bounded && min >= -2 && max <= 2 ? "signed" : "ordinal";
+  return { kind, up, down, flat, classes, min: bounded ? min : 0, max: bounded ? max : 0 };
+}
+
 /** Group generators by their taxonomy category so the list stays scannable. */
 function groupByCategory(generators: LabelGenerator[]): [string, LabelGenerator[]][] {
   const groups = new Map<string, LabelGenerator[]>();
@@ -52,9 +92,12 @@ export const LabelSelector = memo(function LabelSelector({
   const active = generators.find(g => g.id === selected) ?? null;
   const grouped = groupByCategory(generators);
 
-  const up = distribution["1"] ?? 0;
-  const down = distribution["-1"] ?? 0;
-  const flat = distribution["0"] ?? 0;
+  // Summed by sign across every class present, not read off the "1"/"-1"/"0"
+  // keys. Those three keys are all this used to look at, so a generator with a
+  // wider vocabulary had most of its rows silently dropped from the tally —
+  // `structural` reports {-2:323, -1:12, 0:1, 1:719, 2:443} and the legend
+  // showed "down 12", omitting the 323 break-of-structure-down bars entirely.
+  const summary = summarizeDistribution(distribution);
 
   return (
     <Popover>
@@ -126,9 +169,17 @@ export const LabelSelector = memo(function LabelSelector({
             ) : (
               <>
                 <div className="flex items-center gap-3 text-[10px] font-mono">
-                  <span style={{ color: CANDLE_UP_COLOR }}>&#9650; {up.toLocaleString()}</span>
-                  <span style={{ color: CANDLE_DOWN_COLOR }}>&#9660; {down.toLocaleString()}</span>
-                  <span style={{ color: MARKER_NEUTRAL_COLOR }}>&#9679; {flat.toLocaleString()}</span>
+                  {summary.kind === "signed" ? (
+                    <>
+                      <span style={{ color: CANDLE_UP_COLOR }}>&#9650; {summary.up.toLocaleString()}</span>
+                      <span style={{ color: CANDLE_DOWN_COLOR }}>&#9660; {summary.down.toLocaleString()}</span>
+                      <span style={{ color: MARKER_NEUTRAL_COLOR }}>&#9679; {summary.flat.toLocaleString()}</span>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      {summary.classes} classes &middot; {summary.min}&ndash;{summary.max} &middot; cividis ramp
+                    </span>
+                  )}
                 </div>
                 {classBalanceRatio !== null && (
                   <p className="text-[10px] text-muted-foreground">

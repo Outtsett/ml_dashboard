@@ -5,16 +5,17 @@ import { useSeriesMarkers, buildCandleTimes, snapToCandle, type ChartMarker } fr
 import {
   CANDLE_UP_COLOR,
   CANDLE_DOWN_COLOR,
-  MARKER_NEUTRAL_COLOR,
   PREDICTION_UP_FILL,
   PREDICTION_DOWN_FILL,
   PREDICTION_NEUTRAL_FILL,
 } from './chartConfig';
+import { labelDomain, labelMarkerStyle } from './labelMarkerStyle';
 import type { LabelMarker } from "@/market/components/types";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface ChartMarkersOptions {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   candleSeriesRef: React.MutableRefObject<any>;
   processedCandles: CandlestickData<Time>[];
   timeframe: number;
@@ -51,6 +52,7 @@ export function useChartMarkers({
   // last, so the split marker (usually empty) silently erased the label,
   // trade, and prediction arrays. All four sets share one ref and are merged
   // into a single sorted array below.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markersSeriesRef = useRef<any>(null);
 
   // ── Label markers ──────────────────────────────────────────────────────
@@ -62,23 +64,36 @@ export function useChartMarkers({
       return [];
     }
 
+    const present = labelMarkers
+      .filter(m => m.label !== null && m.label !== undefined)
+      .map(m => Number(m.label))
+      .filter(v => Number.isFinite(v));
+
+    // Derived from the values on screen, not from a generator name — see
+    // labelMarkerStyle.ts for why an allowlist is what broke this.
+    const domain = labelDomain(present);
+
     const markers = labelMarkers
       .filter(m => m.label !== null && m.label !== undefined)
       .map(m => {
         const alignedTime = snapToCandle(m.timestamp, candleTimes, timeframeSec);
         if (alignedTime === null) return null;
         const label = Number(m.label);
-        if (label === 1) return { time: alignedTime as Time, position: 'belowBar' as const, color: CANDLE_UP_COLOR, shape: 'arrowUp' as const, text: '' };
-        if (label === -1) return { time: alignedTime as Time, position: 'aboveBar' as const, color: CANDLE_DOWN_COLOR, shape: 'arrowDown' as const, text: '' };
-        return { time: alignedTime as Time, position: 'inBar' as const, color: MARKER_NEUTRAL_COLOR, shape: 'circle' as const, text: '' };
+        if (!Number.isFinite(label)) return null;
+        const style = labelMarkerStyle(label, domain);
+        return { time: alignedTime as Time, text: '', ...style };
       })
       .filter((m): m is NonNullable<typeof m> => m !== null);
 
-    // Dedup: keep buy/sell signals over hold
+    // Several labels can snap onto one bar on a coarse timeframe. Keep the
+    // most informative: a directional arrow outranks the zero dot, and a
+    // stronger magnitude outranks a weaker one.
+    const rank = (m: (typeof markers)[0]) =>
+      m.shape === 'circle' ? 0 : m.size;
     const markerMap = new Map<number, (typeof markers)[0]>();
     for (const marker of markers) {
       const existing = markerMap.get(marker.time as number);
-      if (!existing || (existing.shape === 'circle' && marker.shape !== 'circle')) {
+      if (!existing || rank(marker) > rank(existing)) {
         markerMap.set(marker.time as number, marker);
       }
     }

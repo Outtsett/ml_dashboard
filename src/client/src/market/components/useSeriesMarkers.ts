@@ -7,10 +7,17 @@ export interface ChartMarker {
   color: string;
   shape: 'arrowUp' | 'arrowDown' | 'circle' | 'square';
   text: string;
+  /**
+   * lightweight-charts marker size multiplier (default 1). The label overlay
+   * uses it to carry label magnitude, so ±2 reads as stronger than ±1 without
+   * needing a fifth shape the library does not have.
+   */
+  size?: number;
 }
 
 // Use `any` for the markers plugin ref — lightweight-charts' generic ISeriesMarkersPluginApi<T>
 // is covariant on T, making it impractical to type the ref without casting everywhere.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type MarkersRef = React.MutableRefObject<any>;
 
 /**
@@ -20,6 +27,7 @@ type MarkersRef = React.MutableRefObject<any>;
  */
 export function useSeriesMarkers(
   seriesRef: MarkersRef,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   candleSeriesRef: React.RefObject<any>,
   markers: ChartMarker[],
 ) {
