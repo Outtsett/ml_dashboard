@@ -11,6 +11,7 @@
 import { Router, Request, Response } from 'express';
 import * as path from 'path';
 import { getString } from '../infrastructure/lib/routeHelpers';
+import { logInfo } from '../infrastructure/lib/log';
 import { dbReadOnly } from '../infrastructure/database/db';
 import { sql as drizzleSql } from 'drizzle-orm';
 import { queryRateLimiter } from '../infrastructure/lib/rateLimiter';
@@ -41,7 +42,7 @@ const router = Router();
 /**
  * Institutional Table Inventory: Returns all tables across both engines.
  */
-router.get('/databases/tables', queryRateLimiter, async (_req: Request, res: Response) => {
+router.get('/tables', queryRateLimiter, async (_req: Request, res: Response) => {
   try {
     // 1. Fetch SQLite tables (Drizzle)
     const sqliteTables = await dbReadOnly.all<{ name: string }>(
@@ -83,7 +84,7 @@ router.get('/databases/tables', queryRateLimiter, async (_req: Request, res: Res
 /**
  * Returns column-level schema for a specific table.
  */
-router.get('/databases/tables/:name/schema', async (req: Request, res: Response) => {
+router.get('/tables/:name/schema', async (req: Request, res: Response) => {
   try {
     const tableName = getString(req.params.name);
     validateSafeName(tableName, 'table');
@@ -103,9 +104,43 @@ router.get('/databases/tables/:name/schema', async (req: Request, res: Response)
 });
 
 /**
+ * SQLite Metadata Stats.
+ */
+router.get('/sqlite/stats', async (_req: Request, res: Response) => {
+  try {
+    const sqliteTables = await dbReadOnly.all<{ name: string }>(
+      drizzleSql`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`
+    );
+    
+    const tableDetails = [];
+    let totalRecords = 0;
+    
+    for (const t of sqliteTables) {
+      const result = await dbReadOnly.all<{ count: number }>(drizzleSql.raw(`SELECT count(*) as count FROM ${t.name}`));
+      const count = result?.[0]?.count || 0;
+      tableDetails.push({
+        name: t.name,
+        rowCount: count,
+        description: 'SQLite metadata table'
+      });
+      totalRecords += count;
+    }
+    
+    res.json({
+      sizeMb: 0,
+      tables: sqliteTables.length,
+      records: totalRecords,
+      tableDetails
+    });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
  * QuestDB High-Resolution Stats.
  */
-router.get('/databases/questdb/stats', async (_req: Request, res: Response) => {
+router.get('/questdb/stats', async (_req: Request, res: Response) => {
   try {
     const { getQuestDBStats } = await import('../infrastructure/database/questdb');
     const stats = await getQuestDBStats();
@@ -161,7 +196,7 @@ export function safeLimit(raw: unknown): number {
  * decision, not a bug fix, and is left to the owner. See the note in the
  * session summary.
  */
-router.post('/databases/query', queryRateLimiter, async (req: Request, res: Response) => {
+router.post('/query', queryRateLimiter, async (req: Request, res: Response) => {
   try {
     const { sql, source, limit } = req.body;
     if (!sql) return res.status(400).json({ error: 'Missing SQL query' });
@@ -194,7 +229,7 @@ router.post('/databases/query', queryRateLimiter, async (req: Request, res: Resp
 /**
  * Data preview (Top 50 rows).
  */
-router.get('/databases/tables/:name/preview', async (req: Request, res: Response) => {
+router.get('/tables/:name/preview', async (req: Request, res: Response) => {
   try {
     const tableName = getString(req.params.name);
     validateSafeName(tableName, 'table');
@@ -216,11 +251,108 @@ router.get('/databases/tables/:name/preview', async (req: Request, res: Response
 /**
  * Initialize / Repair QuestDB schemas.
  */
-router.post('/databases/questdb/init', async (_req: Request, res: Response) => {
+router.post('/questdb/init', async (_req: Request, res: Response) => {
   try {
     const { createOHLCVTable } = await import('../infrastructure/database/questdb');
     await createOHLCVTable();
     res.json({ success: true, message: 'QuestDB schemas verified/created' });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * Launch D-Tale server for a specific dataset
+ */
+import { spawn, ChildProcess } from 'child_process';
+let currentDtaleProcess: ChildProcess | null = null;
+
+const DTALE_DATA_ROOT = 'D:\\ml_data';
+// Bind to loopback only. D-Tale has no auth of its own, so anything it is
+// pointed at would otherwise be readable by any host on the LAN.
+const DTALE_HOST = '127.0.0.1';
+// Mirrors the Compression select in DTaleExplorer.tsx.
+const ALLOWED_SAMPLE_BY = new Set(['raw', '1m', '5m', '15m', '1h', '4h', '1d']);
+// Every live QuestDB table name matches this; it also rules out a leading '-',
+// which spawn would otherwise hand to the Python script as a flag.
+const QUESTDB_TABLE_RE = /^[A-Za-z0-9_]+$/;
+
+/**
+ * Resolve a client-supplied dataset path inside DTALE_DATA_ROOT.
+ *
+ * Relative subpaths are allowed so run artifacts under runs/<jobId>/ stay
+ * reachable, but absolute paths, drive letters, UNC prefixes and '..' segments
+ * are rejected before resolving — path.resolve() treats an absolute second
+ * argument as a new root, so passing one through would escape the base
+ * entirely. The containment check backstops the parsing.
+ */
+export function resolveDatasetPath(filename: string): string | null {
+  if (typeof filename !== 'string' || filename.length === 0) return null;
+  if (!/\.(parquet|csv)$/i.test(filename)) return null;
+  if (path.isAbsolute(filename)) return null;
+  if (/^[A-Za-z]:/.test(filename)) return null;
+  if (/^[\\/]/.test(filename)) return null;
+  if (filename.split(/[\\/]/).some((seg) => seg === '..')) return null;
+
+  const base = path.resolve(DTALE_DATA_ROOT);
+  const fullPath = path.resolve(base, filename);
+  if (fullPath.toLowerCase() !== base.toLowerCase() &&
+      !fullPath.toLowerCase().startsWith(base.toLowerCase() + path.sep)) {
+    return null;
+  }
+  return fullPath;
+}
+
+router.post('/dtale/launch', async (req: Request, res: Response) => {
+  try {
+    const { filename, source, table, sampleBy = 'raw' } = req.body;
+
+    if (currentDtaleProcess) {
+      currentDtaleProcess.kill();
+      currentDtaleProcess = null;
+    }
+
+    if (source === 'questdb') {
+      if (!table) return res.status(400).json({ error: 'Missing table parameter for QuestDB' });
+      if (typeof table !== 'string' || !QUESTDB_TABLE_RE.test(table)) {
+        return res.status(400).json({ error: 'Invalid table name' });
+      }
+      if (typeof sampleBy !== 'string' || !ALLOWED_SAMPLE_BY.has(sampleBy)) {
+        return res.status(400).json({ error: 'Invalid sampleBy value' });
+      }
+
+      const pythonExe = 'C:\\Users\\tyler\\anaconda3\\python.exe';
+      const scriptPath = path.join(__dirname, 'dtale_questdb.py');
+
+      currentDtaleProcess = spawn(pythonExe, [scriptPath, '--table', table, '--sample_by', sampleBy, '--port', '40000', '--host', DTALE_HOST]);
+    } else {
+      if (!filename) return res.status(400).json({ error: 'Missing filename parameter' });
+      const fullPath = resolveDatasetPath(filename);
+      if (!fullPath) return res.status(400).json({ error: 'Invalid filename' });
+      const dtaleExe = 'C:\\Users\\tyler\\anaconda3\\Scripts\\dtale.exe';
+      const flag = fullPath.toLowerCase().endsWith('.parquet') ? '--parquet' : '--csv';
+
+      currentDtaleProcess = spawn(dtaleExe, [flag, fullPath, '--port', '40000', '--host', DTALE_HOST]);
+    }
+
+    currentDtaleProcess.on('error', (err) => {
+      console.error('[DTale] Spawn error:', err);
+    });
+
+    currentDtaleProcess.stdout?.on('data', (data) => {
+      logInfo(`[DTale] ${data.toString()}`);
+    });
+
+    currentDtaleProcess.stderr?.on('data', (data) => {
+      console.error(`[DTale] ${data.toString()}`);
+    });
+
+    // Give it a bit more time for pandas to read the SQL if it's questdb
+    const waitTime = source === 'questdb' ? 4000 : 2000;
+    setTimeout(() => {
+      res.json({ success: true, url: 'http://localhost:40000' });
+    }, waitTime);
+
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
