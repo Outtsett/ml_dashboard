@@ -40,10 +40,12 @@ export {
 export type { NextCloseDirectionParams } from './nextCloseDirection';
 export type { RangeBucketParams } from './rangeBucket';
 export type { StructuralParams } from './structural';
+export type { TalibCandlePatternParams } from './talibCandlePattern';
 
 export { generateNextCloseDirectionLabelsSQL } from './nextCloseDirection';
 export { generateRangeBucketLabelsSQL } from './rangeBucket';
 export { generateStructuralLabelsSQL } from './structural';
+export { generateTalibCandlePatternLabelsSQL, TALIB_PATTERN_TABLE, timeframeLabel } from './talibCandlePattern';
 
 // Import functions for building registry
 import { generateDirectionLabelsSQL } from './direction';
@@ -64,6 +66,45 @@ import {
 import { generateNextCloseDirectionLabelsSQL } from './nextCloseDirection';
 import { generateRangeBucketLabelsSQL } from './rangeBucket';
 import { generateStructuralLabelsSQL } from './structural';
+import { generateTalibCandlePatternLabelsSQL } from './talibCandlePattern';
+import type { LabelGeneratorConfig } from './helpers';
+
+
+/**
+ * One generator id per pattern, all binding the same SQL builder.
+ *
+ * The overlay resolves generator params from their declared DEFAULTS -- there is
+ * no per-param editor in the label selector (`useLabelOverlay.ts`) -- so a single
+ * `talib_candle_pattern` entry with a `pattern` dropdown would always resolve to
+ * its default and no individual pattern would ever be selectable. Giving each
+ * pattern its own id makes the selector itself the picker, with no new UI.
+ */
+const TALIB_PATTERN_IDS = [
+  'engulfing',
+  'harami',
+  'haramicross',
+  'hikkake',
+  'belthold',
+  'marubozu',
+  '3outside',
+  '3inside',
+  'hammer',
+  'invertedhammer',
+  'hangingman',
+  'shootingstar',
+  'morningstar',
+  'eveningstar',
+  'advanceblock',
+  'darkcloudcover',
+] as const;
+
+const talibPatternGenerators = Object.fromEntries(
+  TALIB_PATTERN_IDS.map(name => [
+    `talib_${name}`,
+    (params: Record<string, unknown>, config: LabelGeneratorConfig) =>
+      generateTalibCandlePatternLabelsSQL({ ...params, pattern: name }, config),
+  ]),
+) as Record<string, (params: never, config: LabelGeneratorConfig) => string>;
 
 export const LABEL_SQL_GENERATORS = {
   direction: generateDirectionLabelsSQL,
@@ -82,6 +123,8 @@ export const LABEL_SQL_GENERATORS = {
   next_close_direction: generateNextCloseDirectionLabelsSQL,
   range_bucket: generateRangeBucketLabelsSQL,
   structural: generateStructuralLabelsSQL,
+  talib_candle_pattern: generateTalibCandlePatternLabelsSQL,
+  ...talibPatternGenerators,
 } as const;
 
 export type LabelGeneratorType = keyof typeof LABEL_SQL_GENERATORS;

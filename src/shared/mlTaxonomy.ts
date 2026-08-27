@@ -241,6 +241,325 @@ export const LABEL_GENERATORS = {
     `,
   },
 
+  talib_candle_pattern: {
+    id: 'talib_candle_pattern',
+    name: 'TA-Lib candle patterns — net direction',
+    description:
+      "Net direction of every TA-Lib pattern that fired on the bar: +1 bullish, -1 bearish, " +
+      '0 when they contradicted each other exactly. Fires on 78.8% of MNQ 1m bars.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: 'any' },
+    ],
+    generate: `
+      Reads talib_candle_patterns (symbol, timeframe, pattern, value), written by
+      Trading/quant/analytics/structure/to_questdb.py — TA-Lib is a C library and its
+      patterns cannot be expressed in SQL, so they are computed in Python and looked up here.
+
+      Rows are keyed by the timeframe they were computed ON and matched to the chart's own
+      timeframe: a hammer on 5m bars is not a hammer on 1m bars, so 1m patterns are never
+      drawn under 5m candles.
+
+      pattern = 'any'   → sign(sum(value)) over the bar: +1 net bullish, -1 net bearish,
+                          0 when the firing patterns contradicted each other exactly.
+      pattern = '<name>' → that pattern's own value in {-2, -1, -0.8, +0.8, +1, +2}. Measured
+                          over 87,885 MNQ 1m bars: engulfing/harami/haramicross emit ±80 as
+                          well as ±100, hikkake/hikkakemod emit ±200, the other 48 that fire
+                          emit ±100 only. Magnitude drives marker size rather than being
+                          collapsed to a sign.
+
+      Only firings are stored, so a bar with no marker is a bar where nothing fired.
+    `,
+  },
+
+  talib_engulfing: {
+    id: 'talib_engulfing',
+    name: 'TA-Lib · Engulfing',
+    description:
+      'The body swallows the previous bar whole. Fired on 12,620 of 87,885 MNQ 1m bars (14.36%) — 5,883 bullish / 6,737 bearish.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: 'engulfing' },
+    ],
+    generate: `
+      Reads talib_candle_patterns WHERE pattern = 'engulfing' at the chart's own timeframe.
+      Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
+      engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
+      +/-2. Magnitude drives marker size.
+      Only firings are stored, so a bar with no marker is a bar where it did not fire.
+    `,
+  },
+
+  talib_harami: {
+    id: 'talib_harami',
+    name: 'TA-Lib · Harami',
+    description:
+      'The body sits entirely inside the previous bar. Fired on 7,924 of 87,885 MNQ 1m bars (9.02%) — 3,909 bullish / 4,015 bearish.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: 'harami' },
+    ],
+    generate: `
+      Reads talib_candle_patterns WHERE pattern = 'harami' at the chart's own timeframe.
+      Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
+      engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
+      +/-2. Magnitude drives marker size.
+      Only firings are stored, so a bar with no marker is a bar where it did not fire.
+    `,
+  },
+
+  talib_haramicross: {
+    id: 'talib_haramicross',
+    name: 'TA-Lib · Harami Cross',
+    description:
+      'A harami whose inside bar is a doji. Fired on 2,342 of 87,885 MNQ 1m bars (2.66%) — 1,207 bullish / 1,135 bearish.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: 'haramicross' },
+    ],
+    generate: `
+      Reads talib_candle_patterns WHERE pattern = 'haramicross' at the chart's own timeframe.
+      Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
+      engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
+      +/-2. Magnitude drives marker size.
+      Only firings are stored, so a bar with no marker is a bar where it did not fire.
+    `,
+  },
+
+  talib_hikkake: {
+    id: 'talib_hikkake',
+    name: 'TA-Lib · Hikkake',
+    description:
+      'An inside bar whose breakout immediately fails. Fired on 9,562 of 87,885 MNQ 1m bars (10.88%) — 4,710 bullish / 4,852 bearish.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: 'hikkake' },
+    ],
+    generate: `
+      Reads talib_candle_patterns WHERE pattern = 'hikkake' at the chart's own timeframe.
+      Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
+      engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
+      +/-2. Magnitude drives marker size.
+      Only firings are stored, so a bar with no marker is a bar where it did not fire.
+    `,
+  },
+
+  talib_belthold: {
+    id: 'talib_belthold',
+    name: 'TA-Lib · Belt Hold',
+    description:
+      'Opens at its extreme and closes near the other end. Fired on 15,226 of 87,885 MNQ 1m bars (17.32%) — 7,819 bullish / 7,407 bearish.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: 'belthold' },
+    ],
+    generate: `
+      Reads talib_candle_patterns WHERE pattern = 'belthold' at the chart's own timeframe.
+      Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
+      engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
+      +/-2. Magnitude drives marker size.
+      Only firings are stored, so a bar with no marker is a bar where it did not fire.
+    `,
+  },
+
+  talib_marubozu: {
+    id: 'talib_marubozu',
+    name: 'TA-Lib · Marubozu',
+    description:
+      'No wicks at all — one-way conviction. Fired on 4,038 of 87,885 MNQ 1m bars (4.59%) — 2,118 bullish / 1,920 bearish.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: 'marubozu' },
+    ],
+    generate: `
+      Reads talib_candle_patterns WHERE pattern = 'marubozu' at the chart's own timeframe.
+      Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
+      engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
+      +/-2. Magnitude drives marker size.
+      Only firings are stored, so a bar with no marker is a bar where it did not fire.
+    `,
+  },
+
+  talib_3outside: {
+    id: 'talib_3outside',
+    name: 'TA-Lib · Three Outside',
+    description:
+      'An engulfing bar confirmed by the bar after it. Fired on 3,293 of 87,885 MNQ 1m bars (3.75%) — 1,548 bullish / 1,745 bearish.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: '3outside' },
+    ],
+    generate: `
+      Reads talib_candle_patterns WHERE pattern = '3outside' at the chart's own timeframe.
+      Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
+      engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
+      +/-2. Magnitude drives marker size.
+      Only firings are stored, so a bar with no marker is a bar where it did not fire.
+    `,
+  },
+
+  talib_3inside: {
+    id: 'talib_3inside',
+    name: 'TA-Lib · Three Inside',
+    description:
+      'A harami confirmed by the bar after it. Fired on 834 of 87,885 MNQ 1m bars (0.95%) — 424 bullish / 410 bearish.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: '3inside' },
+    ],
+    generate: `
+      Reads talib_candle_patterns WHERE pattern = '3inside' at the chart's own timeframe.
+      Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
+      engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
+      +/-2. Magnitude drives marker size.
+      Only firings are stored, so a bar with no marker is a bar where it did not fire.
+    `,
+  },
+
+  talib_hammer: {
+    id: 'talib_hammer',
+    name: 'TA-Lib · Hammer',
+    description:
+      'Long lower wick after a decline. Fired on 2,046 of 87,885 MNQ 1m bars (2.33%) — bullish only.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: 'hammer' },
+    ],
+    generate: `
+      Reads talib_candle_patterns WHERE pattern = 'hammer' at the chart's own timeframe.
+      Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
+      engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
+      +/-2. Magnitude drives marker size.
+      Only firings are stored, so a bar with no marker is a bar where it did not fire.
+    `,
+  },
+
+  talib_invertedhammer: {
+    id: 'talib_invertedhammer',
+    name: 'TA-Lib · Inverted Hammer',
+    description:
+      'Long upper wick after a decline. Fired on 513 of 87,885 MNQ 1m bars (0.58%) — bullish only.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: 'invertedhammer' },
+    ],
+    generate: `
+      Reads talib_candle_patterns WHERE pattern = 'invertedhammer' at the chart's own timeframe.
+      Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
+      engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
+      +/-2. Magnitude drives marker size.
+      Only firings are stored, so a bar with no marker is a bar where it did not fire.
+    `,
+  },
+
+  talib_hangingman: {
+    id: 'talib_hangingman',
+    name: 'TA-Lib · Hanging Man',
+    description:
+      'Long lower wick after an advance. Fired on 932 of 87,885 MNQ 1m bars (1.06%) — bearish only.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: 'hangingman' },
+    ],
+    generate: `
+      Reads talib_candle_patterns WHERE pattern = 'hangingman' at the chart's own timeframe.
+      Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
+      engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
+      +/-2. Magnitude drives marker size.
+      Only firings are stored, so a bar with no marker is a bar where it did not fire.
+    `,
+  },
+
+  talib_shootingstar: {
+    id: 'talib_shootingstar',
+    name: 'TA-Lib · Shooting Star',
+    description:
+      'Long upper wick after an advance. Fired on 610 of 87,885 MNQ 1m bars (0.69%) — bearish only.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: 'shootingstar' },
+    ],
+    generate: `
+      Reads talib_candle_patterns WHERE pattern = 'shootingstar' at the chart's own timeframe.
+      Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
+      engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
+      +/-2. Magnitude drives marker size.
+      Only firings are stored, so a bar with no marker is a bar where it did not fire.
+    `,
+  },
+
+  talib_morningstar: {
+    id: 'talib_morningstar',
+    name: 'TA-Lib · Morning Star',
+    description:
+      'Three-bar bottoming reversal. Fired on 365 of 87,885 MNQ 1m bars (0.42%) — bullish only.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: 'morningstar' },
+    ],
+    generate: `
+      Reads talib_candle_patterns WHERE pattern = 'morningstar' at the chart's own timeframe.
+      Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
+      engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
+      +/-2. Magnitude drives marker size.
+      Only firings are stored, so a bar with no marker is a bar where it did not fire.
+    `,
+  },
+
+  talib_eveningstar: {
+    id: 'talib_eveningstar',
+    name: 'TA-Lib · Evening Star',
+    description:
+      'Three-bar topping reversal. Fired on 357 of 87,885 MNQ 1m bars (0.41%) — bearish only.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: 'eveningstar' },
+    ],
+    generate: `
+      Reads talib_candle_patterns WHERE pattern = 'eveningstar' at the chart's own timeframe.
+      Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
+      engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
+      +/-2. Magnitude drives marker size.
+      Only firings are stored, so a bar with no marker is a bar where it did not fire.
+    `,
+  },
+
+  talib_advanceblock: {
+    id: 'talib_advanceblock',
+    name: 'TA-Lib · Advance Block',
+    description:
+      'An advance whose bodies are shrinking. Fired on 1,179 of 87,885 MNQ 1m bars (1.34%) — bearish only.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: 'advanceblock' },
+    ],
+    generate: `
+      Reads talib_candle_patterns WHERE pattern = 'advanceblock' at the chart's own timeframe.
+      Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
+      engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
+      +/-2. Magnitude drives marker size.
+      Only firings are stored, so a bar with no marker is a bar where it did not fire.
+    `,
+  },
+
+  talib_darkcloudcover: {
+    id: 'talib_darkcloudcover',
+    name: 'TA-Lib · Dark Cloud Cover',
+    description:
+      'Opens above, closes deep into the prior body. Fired on 74 of 87,885 MNQ 1m bars (0.08%) — bearish only.',
+    category: 'candle-pattern',
+    params: [
+      { id: 'pattern', name: 'Pattern', type: 'string', default: 'darkcloudcover' },
+    ],
+    generate: `
+      Reads talib_candle_patterns WHERE pattern = 'darkcloudcover' at the chart's own timeframe.
+      Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
+      engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
+      +/-2. Magnitude drives marker size.
+      Only firings are stored, so a bar with no marker is a bar where it did not fire.
+    `,
+  },
+
   // ============== SELF-SUPERVISED LABELS ==============
 
   contrastive_temporal: {

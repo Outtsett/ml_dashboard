@@ -384,6 +384,23 @@ const GENERATOR_CATEGORIES: Record<string, string> = {
   next_close_direction: 'classification',
   range_bucket: 'classification',
   structural: 'classification',
+  talib_candle_pattern: 'candle-pattern',
+  talib_engulfing: 'candle-pattern',
+  talib_harami: 'candle-pattern',
+  talib_haramicross: 'candle-pattern',
+  talib_hikkake: 'candle-pattern',
+  talib_belthold: 'candle-pattern',
+  talib_marubozu: 'candle-pattern',
+  talib_3outside: 'candle-pattern',
+  talib_3inside: 'candle-pattern',
+  talib_hammer: 'candle-pattern',
+  talib_invertedhammer: 'candle-pattern',
+  talib_hangingman: 'candle-pattern',
+  talib_shootingstar: 'candle-pattern',
+  talib_morningstar: 'candle-pattern',
+  talib_eveningstar: 'candle-pattern',
+  talib_advanceblock: 'candle-pattern',
+  talib_darkcloudcover: 'candle-pattern',
 };
 
 export function getCategoryForGenerator(generatorType: string): string {
