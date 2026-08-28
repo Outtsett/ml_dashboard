@@ -15,6 +15,7 @@ import { queryLabels, buildMetaLabelSQL } from './labelHelpers';
 import { resolveLabelSource } from './labelSource';
 import { generateLabelSQL } from './labelGenerator';
 import { previewCacheKey, previewCacheGet, previewCacheSet } from '../../cache/labels';
+import { labelOutcomeOffset, OUTCOME_OFFSET_COLUMN } from './labelOutcomeOffset';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -152,7 +153,11 @@ export async function previewLabels(
       (a, b) => Number(a.timestamp) - Number(b.timestamp)
     );
 
-    const normalizedResults = normalizeLabelsForPreview(request.generatorType, sortedResults);
+    const normalizedResults = attachOutcomeOffset(
+      request.generatorType,
+      request.params ?? {},
+      normalizeLabelsForPreview(request.generatorType, sortedResults),
+    );
 
     const distribution: Record<string, number> = {};
     let totalLabeledSamples = 0;
@@ -191,6 +196,35 @@ export async function previewLabels(
       error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
+}
+
+// ─── Outcome offset ─────────────────────────────────────────────────────────
+
+/**
+ * Stamp each row with how many bars forward its outcome lands, so the chart
+ * can draw the marker on the bar the label is about rather than on the bar it
+ * was computed from.
+ *
+ * A per-row `outcome_offset` from the generator wins — `triple_barrier` and
+ * `trend_scanning` both pick their horizon per row and emit it. Otherwise the
+ * offset comes from the generator's horizon parameter. Rows keep whatever the
+ * generator emitted; this only adds a normalised `outcomeOffset` field.
+ */
+function attachOutcomeOffset(
+  generatorType: string,
+  params: Record<string, unknown>,
+  results: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  if (!results || results.length === 0) return results;
+  const fixed = labelOutcomeOffset(generatorType, params);
+
+  return results.map(row => {
+    const perRow = Number(row[OUTCOME_OFFSET_COLUMN]);
+    if (Number.isFinite(perRow) && perRow >= 0) {
+      return { ...row, outcomeOffset: perRow };
+    }
+    return { ...row, outcomeOffset: fixed ?? 0 };
+  });
 }
 
 // ─── Label Normalization ────────────────────────────────────────────────────

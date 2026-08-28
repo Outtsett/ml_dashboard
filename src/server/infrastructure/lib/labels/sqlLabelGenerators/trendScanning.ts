@@ -98,6 +98,9 @@ SELECT
     ELSE 0
   END as label,
   best_horizon as optimal_horizon,
+  -- Bars forward to the bar this label is about. The horizon is chosen per
+  -- row here, so the chart cannot derive it from the params.
+  best_horizon as outcome_offset,
   best_tstat as t_statistic,
   best_slope as trend_slope
 FROM labeled

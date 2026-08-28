@@ -59,6 +59,42 @@ export function buildCandleTimes(candles: { time: Time }[]): number[] {
 }
 
 /**
+ * Walk `offset` bars forward from the bar at `barTime`.
+ *
+ * Steps by index rather than by arithmetic on the timestamp, because the bar
+ * series is not evenly spaced in wall-clock time — weekends, holidays, and
+ * outright gaps in the feed all mean `barTime + offset * timeframe` can name
+ * an instant no bar occupies. Indexing walks the bars that actually exist.
+ *
+ * Returns null when the target bar is past the end of the loaded series: the
+ * label describes a bar the chart is not showing, so there is nowhere honest
+ * to draw it.
+ */
+export function shiftByBars(
+  barTime: number,
+  offset: number,
+  sortedTimes: number[],
+): number | null {
+  if (offset === 0) return barTime;
+  if (!Number.isFinite(offset) || offset < 0) return barTime;
+
+  let lo = 0;
+  let hi = sortedTimes.length - 1;
+  let idx = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const v = sortedTimes[mid]!;
+    if (v === barTime) { idx = mid; break; }
+    if (v < barTime) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  if (idx === -1) return null;
+
+  const target = idx + offset;
+  return target < sortedTimes.length ? sortedTimes[target]! : null;
+}
+
+/**
  * Snap a millisecond timestamp onto the bar that contains it.
  *
  * Returns the time of the greatest candle at or before `timestampMs`, so a

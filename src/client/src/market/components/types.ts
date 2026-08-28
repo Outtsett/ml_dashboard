@@ -15,6 +15,12 @@ export interface LabelMarker {
   timestamp: number;
   label: number | null;
   close?: number;
+  /**
+   * Bars forward from `timestamp` to the bar this label is about. 0 for a
+   * label that describes its own bar. The chart draws the marker there, so an
+   * "up" label lands on the candle that actually rose.
+   */
+  outcomeOffset?: number;
 }
 
 // ── Component API ──────────────────────────────────────────────────────────

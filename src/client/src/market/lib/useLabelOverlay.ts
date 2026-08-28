@@ -29,7 +29,13 @@ export interface LabelGenerator {
 
 interface LabelPreviewResponse {
   success: boolean;
-  preview?: Array<{ timestamp: number; close?: number; label: number | null }>;
+  preview?: Array<{
+    timestamp: number;
+    close?: number;
+    label: number | null;
+    /** Bars forward to the bar this label describes; see labelOutcomeOffset.ts. */
+    outcomeOffset?: number;
+  }>;
   count?: number;
   distribution?: Record<string, number>;
   totalLabeledSamples?: number;
@@ -174,7 +180,12 @@ export function useLabelOverlay(
     if (!rows) return [];
     return rows
       .filter(r => r.label !== null && r.label !== undefined)
-      .map(r => ({ timestamp: toMs(r.timestamp), label: r.label, close: r.close }));
+      .map(r => ({
+        timestamp: toMs(r.timestamp),
+        label: r.label,
+        close: r.close,
+        outcomeOffset: r.outcomeOffset,
+      }));
   }, [previewQuery.data]);
 
   // A `success: false` body is a 200 carrying a generator-side failure, so it

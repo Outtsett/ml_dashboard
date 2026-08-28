@@ -1,7 +1,7 @@
 import { useRef, useMemo } from 'react';
 import type { CandlestickData, Time } from 'lightweight-charts';
 import type { TradeMarker, PredictionMarker } from '@/shared/contexts/UnifiedDashboardContext';
-import { useSeriesMarkers, buildCandleTimes, snapToCandle, type ChartMarker } from './useSeriesMarkers';
+import { useSeriesMarkers, buildCandleTimes, snapToCandle, shiftByBars, type ChartMarker } from './useSeriesMarkers';
 import {
   CANDLE_UP_COLOR,
   CANDLE_DOWN_COLOR,
@@ -80,8 +80,15 @@ export function useChartMarkers({
         if (alignedTime === null) return null;
         const label = Number(m.label);
         if (!Number.isFinite(label)) return null;
+        // A forward-looking label is computed at one bar and describes a later
+        // one. Draw it on the bar it is about, so an "up" arrow sits on the
+        // candle that actually rose. Stepping by INDEX, not by time: sessions
+        // have gaps, so `timestamp + offset * timeframe` often names an
+        // instant with no bar and would snap back onto the wrong candle.
+        const outcomeTime = shiftByBars(alignedTime, m.outcomeOffset ?? 0, candleTimes);
+        if (outcomeTime === null) return null;
         const style = labelMarkerStyle(label, domain);
-        return { time: alignedTime as Time, text: '', ...style };
+        return { time: outcomeTime as Time, text: '', ...style };
       })
       .filter((m): m is NonNullable<typeof m> => m !== null);
 

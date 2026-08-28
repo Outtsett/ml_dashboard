@@ -18,7 +18,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { snapToCandle, buildCandleTimes } from '@/market/components/useSeriesMarkers';
+import { snapToCandle, buildCandleTimes, shiftByBars } from '@/market/components/useSeriesMarkers';
 import type { Time } from 'lightweight-charts';
 
 const HOUR = 3600;
@@ -74,5 +74,43 @@ describe('snapToCandle', () => {
     for (const t of series) {
       expect(snapToCandle(sec(t), series, HOUR)).toBe(t);
     }
+  });
+});
+
+describe('shiftByBars', () => {
+  it('is the identity at offset 0', () => {
+    for (const t of BARS) expect(shiftByBars(t, 0, BARS)).toBe(t);
+  });
+
+  it('steps forward by bar index', () => {
+    expect(shiftByBars(BARS[0]!, 1, BARS)).toBe(BARS[1]);
+    expect(shiftByBars(BARS[0]!, 3, BARS)).toBe(BARS[3]);
+  });
+
+  /**
+   * The reason this steps by index. These bars have a weekend-sized hole in
+   * them, so the bar after `gapped[1]` is three hours later in wall-clock —
+   * arithmetic on the timestamp would land on an instant with no bar.
+   */
+  it('crosses a session gap without arithmetic on the timestamp', () => {
+    const gapped = [1000, 1000 + HOUR, 1000 + 4 * HOUR, 1000 + 5 * HOUR];
+    expect(shiftByBars(gapped[1]!, 1, gapped)).toBe(gapped[2]);
+    expect(shiftByBars(gapped[0]!, 2, gapped)).toBe(gapped[2]);
+    // The naive time-based answer is not a bar at all.
+    expect(gapped).not.toContain(gapped[1]! + HOUR);
+  });
+
+  it('returns null when the outcome bar is past the loaded series', () => {
+    expect(shiftByBars(BARS[3]!, 1, BARS)).toBeNull();
+    expect(shiftByBars(BARS[0]!, 99, BARS)).toBeNull();
+  });
+
+  it('returns null when the anchor is not a bar', () => {
+    expect(shiftByBars(BARS[0]! + 1, 1, BARS)).toBeNull();
+  });
+
+  it('leaves a negative or non-finite offset where it was', () => {
+    expect(shiftByBars(BARS[1]!, -3, BARS)).toBe(BARS[1]);
+    expect(shiftByBars(BARS[1]!, NaN, BARS)).toBe(BARS[1]);
   });
 });

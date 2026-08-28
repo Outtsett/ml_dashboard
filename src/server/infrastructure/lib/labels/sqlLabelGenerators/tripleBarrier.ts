@@ -38,6 +38,16 @@ export function generateTripleBarrierLabelsSQL(
       WHEN future_low_${idx} <= lower_barrier THEN -1`;
   }).join('');
 
+  // Bars forward to the barrier that actually resolved this row. The WHEN
+  // clauses are evaluated in order, so the first index whose bar touches
+  // either barrier is the exit — the same short-circuit the label CASE above
+  // relies on. A row that never touches a barrier exits at the time barrier.
+  const barrierOffsets = Array.from({ length: maxHoldingPeriod }, (_, i) => {
+    const idx = i + 1;
+    return `
+      WHEN future_high_${idx} >= upper_barrier OR future_low_${idx} <= lower_barrier THEN ${idx}`;
+  }).join('');
+
   const volAdjustSQL = volatilityAdjust ? `
 log_returns AS (
   SELECT
@@ -106,6 +116,11 @@ labeled AS (
       ELSE NULL
     END as label,
     CASE
+      ${barrierOffsets}
+      WHEN future_close_${maxHoldingPeriod} IS NOT NULL THEN ${maxHoldingPeriod}
+      ELSE NULL
+    END as outcome_offset,
+    CASE
       WHEN future_close_${maxHoldingPeriod} IS NOT NULL
       THEN (future_close_${maxHoldingPeriod} - close) / close
       ELSE NULL
@@ -117,6 +132,7 @@ SELECT
   symbol,
   close,
   label,
+  outcome_offset,
   exit_return,
   upper_barrier,
   lower_barrier
