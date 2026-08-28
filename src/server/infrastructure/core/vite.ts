@@ -1,4 +1,4 @@
-import { type Express } from "express";
+import { type Express, type Request } from "express";
 import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../../../../vite.config";
@@ -7,6 +7,17 @@ import path from "path";
 import { nanoid } from "nanoid";
 
 const viteLogger = createLogger();
+
+/** Extensions the module graph and asset pipeline own — never index.html. */
+const MODULE_OR_ASSET =
+  /\.(?:[cm]?[jt]sx?|css|json|wasm|map|png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|eot|mp4|webm|mp3|wav)$/i;
+
+/** True only for a top-level navigation — the one case the SPA shell answers. */
+function wantsDocument(req: Request): boolean {
+  if (req.method !== "GET" && req.method !== "HEAD") return false;
+  if (!(req.headers.accept ?? "").includes("text/html")) return false;
+  return !MODULE_OR_ASSET.test(req.path);
+}
 
 export async function setupVite(server: Server, app: Express) {
   const serverOptions = {
@@ -40,7 +51,20 @@ export async function setupVite(server: Server, app: Express) {
 
   app.use(vite.middlewares);
 
+  // SPA fallback — navigation requests ONLY.
+  //
+  // Vite has already had its chance at this URL. Anything reaching here that
+  // wants a MODULE rather than a document (`Accept: */*`, or a path carrying a
+  // JS/CSS/asset extension) is a request Vite declined or failed to transform,
+  // and answering it with index.html hides the fault: the browser receives
+  // `text/html` for a `<script type="module">` and reports a MIME error instead
+  // of the real one. A dead `vite:esbuild` service presents in exactly that
+  // shape — every .ts/.tsx transform throws "The service was stopped" while CSS
+  // and pre-bundled deps keep serving — so the app stops booting with nothing on
+  // screen naming the cause. Falling through is the honest answer.
   app.use("/{*path}", async (req, res, next) => {
+    if (!wantsDocument(req)) return next();
+
     const url = req.originalUrl;
 
     try {
