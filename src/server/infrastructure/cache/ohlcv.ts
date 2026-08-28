@@ -150,7 +150,24 @@ export const ohlcvCache = new OHLCVCache();
 // lru-cache v11 handles TTL expiry automatically — no periodic cleanup needed
 
 /**
+ * Queries already running, keyed the same way as the cache.
+ *
+ * A cache lookup and the `set` that follows it are separated by the whole
+ * duration of the query, and every caller arriving in that window used to see
+ * a miss and start its own. For the cheap keys that only wasted work; for the
+ * front-month stitch it was an outage. That query scans `ohlcv` — 863M rows,
+ * DAY-partitioned across 2010-2026, with no timestamp predicate, so it reads
+ * every partition and takes 13-49s. Overlapping chart requests each held a
+ * QuestDB reader for that long, the reader pool ran out, and QuestDB started
+ * answering `table busy [reason=pool size exceeded]`. One session logged 93
+ * executions of a query whose result is cached for 60 minutes.
+ */
+const inFlight = new Map<string, Promise<CacheValue>>();
+
+/**
  * Cache-through helper: check cache first, call fetcher on miss, store result.
+ *
+ * Concurrent misses on the same key share a single fetch.
  */
 export async function cachedQuery<T extends CacheValue>(
   key: string,
@@ -159,13 +176,26 @@ export async function cachedQuery<T extends CacheValue>(
   const cached = ohlcvCache.get<T>(key);
   if (cached !== undefined) return cached;
 
-  const result = await fetcher();
-  const isEmpty = Array.isArray(result) && result.length === 0;
-  if (isEmpty) {
-    // Cache empty results with short TTL to prevent retry storms on data gaps
+  const running = inFlight.get(key);
+  if (running !== undefined) return running as Promise<T>;
+
+  // Registered before the first await so a caller arriving later in this same
+  // tick joins this query rather than starting another.
+  const pending = (async () => {
+    const result = await fetcher();
+    // An empty result is a legitimate answer — a symbol with no bars in the
+    // window — and is cached like any other, so a data gap does not turn into
+    // a retry storm against the same 863M-row scan.
     ohlcvCache.set(key, result);
-  } else {
-    ohlcvCache.set(key, result);
+    return result;
+  })();
+
+  inFlight.set(key, pending);
+  try {
+    return await pending;
+  } finally {
+    // Cleared on failure too: a transient timeout must not leave a rejected
+    // promise parked here, which would make the key permanently unqueryable.
+    inFlight.delete(key);
   }
-  return result;
 }
