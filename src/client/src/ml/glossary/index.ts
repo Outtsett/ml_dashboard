@@ -33,6 +33,8 @@ import { TERMS as deepLearning } from "./terms/deep-learning";
 import { TERMS as mlClassical } from "./terms/ml-classical";
 import { TERMS as dataEngineering } from "./terms/data-engineering";
 import { TERMS as mlops } from "./terms/mlops";
+import { TERMS as probability } from "./terms/probability";
+import { TERMS as quantPractice } from "./terms/quant-practice";
 
 const AUTHORED: Term[] = [
   ...statistics,
@@ -54,6 +56,8 @@ const AUTHORED: Term[] = [
   ...mlClassical,
   ...dataEngineering,
   ...mlops,
+  ...probability,
+  ...quantPractice,
 ].map((t) => ({ ...t, provenance: t.provenance ?? ("authored" as const) }));
 
 /**

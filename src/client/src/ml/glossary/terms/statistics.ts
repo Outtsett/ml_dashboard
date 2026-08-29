@@ -620,4 +620,15 @@ export const TERMS: Term[] = [
       "The general term for how spread out a sample is — standard deviation, interquartile range, MAD and range are all dispersion measures with different sensitivities to the tail.",
     see: ["standard-deviation", "percentile", "absolute-deviation"],
   },
+  {
+    id: "sigma-move",
+    term: "n-sigma move",
+    symbol: "|x − μ| > n·σ",
+    domain: "statistics",
+    aliases: ["standard deviations", "3-sigma", "4-sigma", "6-sigma"],
+    definition:
+      "A move of n standard deviations. Under a bell curve a **2σ** move is 1-in-22, **3σ** 1-in-370, **4σ** 1-in-16,000 and **6σ** about 1-in-500-million.",
+    why: "Those odds are the ones a constant-sigma model assumes. Measured on EURUSD, 4σ arrives roughly 100× more often and 6σ about a million times more often.",
+    see: ["standard-deviation", "fat-tail", "chebyshev", "kurtosis"],
+  },
 ];
