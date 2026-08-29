@@ -1,1 +1,19 @@
-npx lint-staged
+# --no-stash is load-bearing, not a convenience.
+#
+# By default lint-staged stashes the entire working tree before running, then
+# restores it afterwards. With a dev server up, that rewrite races the file
+# watcher: `tsx --watch` sees src/server/main.ts change mid-stash, restarts into
+# a module graph that is momentarily inconsistent, dies before printing a single
+# line, and then PARKS — "Failed running 'src/server/main.ts'. Waiting for file
+# changes before restarting..." It never exits, so no supervisor notices, and
+# the dashboard is simply down until someone restarts it by hand.
+#
+# The stash is also a real risk here on its own terms: this tree routinely
+# carries 100+ modified and untracked files, and a stash/restore cycle of that
+# size on every commit is a lot of moving parts sitting between in-progress work
+# and the disk.
+#
+# What is given up: on a lint failure the working tree keeps whatever
+# `eslint --fix` already wrote, instead of being rolled back. That is visible in
+# `git diff` and recoverable; a silently dead dev server was neither.
+npx lint-staged --no-stash
