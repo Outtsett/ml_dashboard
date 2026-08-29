@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { ScrollArea } from "@/shared/ui/scroll-area";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent, EmptyMedia } from "@/shared/ui/empty";
 import { ErrorCard } from "@/shared/ui/error-card";
-import { BookOpen, Tag, Cpu, Sparkles, CheckCircle2, XCircle } from "lucide-react";
+import { BookOpen, Tag, Cpu, Sparkles, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
 import type { CatalogModelSummary } from "@/ml/lib/catalog_types";
 import { categoryColor } from "./constants";
@@ -54,7 +54,7 @@ export function CatalogGrid({
           <>
             {models.map((m) => (
               <ModelCard
-                key={m.id}
+                key={m.relativePath}
                 model={m}
                 categoryLabels={categoryLabels}
                 onClick={() => onModelClick(m.id)}
@@ -136,7 +136,14 @@ function ModelCard({
           {model.hasContent ? (
             <CheckCircle2 className="h-4 w-4 text-[hsl(var(--data-pos))] shrink-0 mt-0.5" />
           ) : (
-            <XCircle className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-0.5" />
+            /* A 40%-opacity XCircle read as decoration, so 169 unwritten specs
+               looked like ordinary cards. State this one in words. */
+            <Badge
+              variant="outline"
+              className="shrink-0 mt-0.5 px-1.5 py-0 text-[9.5px] font-mono uppercase tracking-wider text-muted-foreground border-dashed"
+            >
+              Stub
+            </Badge>
           )}
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -178,8 +185,11 @@ function ModelCard({
             </div>
           </>
         ) : (
-          <p className="text-xs text-muted-foreground/50">
-            {model.category} · {model.subcategory}
+          <p className="text-xs text-muted-foreground/60 leading-relaxed">
+            Spec not written yet — the file exists but is empty.
+            <span className="block mt-1 font-mono text-[10px] text-muted-foreground/40">
+              {model.category} · {model.subcategory}
+            </span>
           </p>
         )}
       </CardContent>

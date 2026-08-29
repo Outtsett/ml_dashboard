@@ -67,7 +67,28 @@ export default function ModelCatalog() {
     return counts;
   }, [taxonomy]);
 
-  const categoryLabels = taxonomy?.categoryLabels ?? stats?.categoryLabels ?? {};
+  const allCategoryLabels = taxonomy?.categoryLabels ?? stats?.categoryLabels ?? {};
+
+  // Top-level list excludes any category that is ALSO a subcategory of another.
+  //
+  // The parser rolls every Machine Learning spec into both its own category and
+  // the `machine-learning` parent, so supervised/unsupervised/semi-/self- were
+  // rendered twice: once as siblings of their own parent, and again when that
+  // parent was expanded. The sidebar badges summed to 384 on a 300-file corpus.
+  // Nested entries are reachable by expanding the parent, which is where they
+  // belong, so they are dropped from the flat list rather than being counted
+  // a second time.
+  const categoryLabels = useMemo(() => {
+    const nested = new Set<string>();
+    for (const subs of Object.values(taxonomy?.taxonomy ?? {})) {
+      for (const sub of Object.keys(subs)) {
+        if (sub in allCategoryLabels) nested.add(sub);
+      }
+    }
+    return Object.fromEntries(
+      Object.entries(allCategoryLabels).filter(([key]) => !nested.has(key)),
+    );
+  }, [taxonomy, allCategoryLabels]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -92,7 +113,7 @@ export default function ModelCatalog() {
         setSelectedSubcategory={setSelectedSubcategory}
         categoryLabels={categoryLabels}
         categoryCounts={categoryCounts}
-        totalModels={stats?.filesWithContent ?? "..."}
+        totalModels={stats?.totalFiles ?? "..."}
         taxonomy={taxonomy?.taxonomy ?? {}}
       />
 
@@ -130,8 +151,13 @@ export default function ModelCatalog() {
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Badge variant="outline" className="gap-1 font-mono">
                 <FileText className="h-3 w-3" />
-                {stats.filesWithContent} specs
+                {stats.totalFiles} specs
               </Badge>
+              {stats.emptyPlaceholders > 0 && (
+                <Badge variant="outline" className="gap-1 font-mono text-muted-foreground">
+                  {stats.emptyPlaceholders} not yet written
+                </Badge>
+              )}
               <Badge variant="outline" className="gap-1 font-mono">
                 <Layers className="h-3 w-3" />
                 {stats.categoryCount} categories
@@ -153,7 +179,9 @@ export default function ModelCatalog() {
 
         {/* Results count */}
         <div className="px-4 py-2 text-xs text-muted-foreground border-b border-border/50 font-mono">
-          {isLoading ? "Scanning..." : `${models.length} models`}
+          {isLoading
+            ? "Scanning..."
+            : `${models.length} model${models.length === 1 ? "" : "s"}`}
           {search.trim().length >= 2 && ` matching "${search.trim()}"`}
         </div>
 

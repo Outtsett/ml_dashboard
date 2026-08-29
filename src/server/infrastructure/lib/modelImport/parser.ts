@@ -346,6 +346,18 @@ export function parseModelSpec(
 ): ParsedModelSpec | null {
   const stat = fs.statSync(filePath);
   const relativePath = path.relative(algoModelsRoot, filePath).replace(/\\/g, '/');
+
+  // Id is scoped to the FULL path, not the basename.
+  //
+  // Eight names appear twice in this corpus — Linear/Logistic/Ordinal/Probit/
+  // Quantile Regression and SGD each exist under both Machine Learning and a
+  // stub folder, and Variational Autoencoder (VAE) exists under both Generative
+  // Models and Neural Network Architectures. A basename slug collides on all
+  // eight, `getModelById` returns the first match, and the second file becomes
+  // unreachable: clicking the 17 KB Neural-Network VAE card opened the 10 KB
+  // Generative-Models one. It also handed React eight duplicate keys in a
+  // 300-item grid.
+  const specId = slugify(relativePath.replace(/\.md$/i, ''));
   let parts = relativePath.split('/');
 
   // The top-level folders are wrappers: 'Deep Learning' and 'Machine Learning'.
@@ -365,7 +377,7 @@ export function parseModelSpec(
       const hasContent = stat.size > 0;
       if (!hasContent && !includeRaw) {
         return {
-          id: slugify(fileName), name: fileName, shortName: extractShortName(fileName),
+          id: specId, name: fileName, shortName: extractShortName(fileName),
           category: parentCategory, subcategory: 'general', parentCategory,
           relativePath, overview: '', principles: [], applications: [],
           keyFeatures: [], variants: [], hyperparameters: [],
@@ -390,7 +402,7 @@ export function parseModelSpec(
 
   if (!hasContent) {
     return {
-      id: slugify(fileName),
+      id: specId,
       name: fileName,
       shortName: extractShortName(fileName),
       category,
@@ -413,7 +425,7 @@ export function parseModelSpec(
 
   const name = sections.title || fileName;
   const hyperparameters = extractHyperparameters(sections.trainingMethodology);
-  const id = slugify(fileName);
+  const id = specId;
 
   // Resolve canonical Python class for this spec.
   // Order: (1) fenced ``` python ``` import scan, (2) curated CATALOG_CLASS_MAP.

@@ -32,10 +32,26 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 let cachedCatalog: ModelCatalog | null = null;
 let cacheTimestamp = 0;
 
-function ensureCatalog(includeEmpty: boolean): ModelCatalog {
+/**
+ * The cache always holds the FULL catalog, stubs included; callers filter on read.
+ *
+ * Caching per-`includeEmpty` was a bug with a five-minute blast radius: the flag
+ * was used to build the cache but never checked on a hit, so whichever endpoint
+ * warmed it decided what every other endpoint saw for the next five minutes.
+ * Warm it from `/trainable` or the codegen bridge (both pass false) and the
+ * catalog page silently lost all 169 stubs AND five of its thirteen sidebar
+ * categories — Optimization, Probabilistic & Symbolic, Reinforcement Learning,
+ * Simulation & Decision and Statistical are 100% stubs, so they vanish entirely
+ * from a taxonomy built after the drop. Warm it from /stats and the same page
+ * looked fine. Which you got depended on request order.
+ *
+ * Scanning with stubs and filtering at read time makes every endpoint agree,
+ * and makes the taxonomy stable at all thirteen categories.
+ */
+function ensureCatalog(): ModelCatalog {
   const now = Date.now();
   if (!cachedCatalog || now - cacheTimestamp > CACHE_TTL_MS) {
-    cachedCatalog = scanModelCatalog(DEFAULT_ROOT, { includeEmpty });
+    cachedCatalog = scanModelCatalog(DEFAULT_ROOT, { includeEmpty: true });
     cacheTimestamp = now;
   }
   return cachedCatalog;
@@ -53,7 +69,7 @@ export interface CatalogStatsResult {
 }
 
 export function getCatalogStats(): CatalogStatsResult {
-  const catalog = ensureCatalog(true);
+  const catalog = ensureCatalog();
   return {
     totalFiles: catalog.totalFiles,
     filesWithContent: catalog.filesWithContent,
@@ -70,7 +86,7 @@ export interface TaxonomyResult {
 }
 
 export function getCatalogTaxonomy(): TaxonomyResult {
-  const catalog = ensureCatalog(true);
+  const catalog = ensureCatalog();
   return { taxonomy: catalog.taxonomy, categoryLabels: CATEGORY_LABELS };
 }
 
@@ -89,8 +105,9 @@ export interface CatalogListResult {
 
 export function getCatalogModels(filter: CatalogFilter = {}): CatalogListResult {
   const { category, subcategory, search, includeEmpty = false } = filter;
-  const catalog = ensureCatalog(includeEmpty);
-  let models = catalog.models;
+  const catalog = ensureCatalog();
+  // Filter on read, not on scan — see `ensureCatalog`.
+  let models = includeEmpty ? catalog.models : catalog.models.filter(m => m.hasContent);
 
   if (category) {
     models = models.filter(m => m.category === category || m.parentCategory === category);
@@ -119,7 +136,7 @@ export function getCatalogModels(filter: CatalogFilter = {}): CatalogListResult 
 }
 
 export function getModelById(id: string): ParsedModelSpec | null {
-  const catalog = ensureCatalog(true);
+  const catalog = ensureCatalog();
   const meta = catalog.models.find(m => m.id === id);
   if (!meta) return null;
 
@@ -136,7 +153,7 @@ export interface RefreshResult {
 export function refreshCatalog(): RefreshResult {
   cachedCatalog = null;
   cacheTimestamp = 0;
-  const catalog = ensureCatalog(true);
+  const catalog = ensureCatalog();
   return {
     message: 'Catalog refreshed',
     totalFiles: catalog.totalFiles,
