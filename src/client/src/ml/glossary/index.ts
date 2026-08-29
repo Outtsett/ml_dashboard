@@ -27,6 +27,8 @@ import { TERMS as mlArchitectures } from "./terms/ml-architectures";
 import { TERMS as featuresLabels } from "./terms/features-labels";
 import { TERMS as backtesting } from "./terms/backtesting";
 import { TERMS as dataInfra } from "./terms/data-infra";
+import { TERMS as notation } from "./terms/notation";
+import { TERMS as formulas } from "./terms/formulas";
 
 const AUTHORED: Term[] = [
   ...statistics,
@@ -42,6 +44,8 @@ const AUTHORED: Term[] = [
   ...featuresLabels,
   ...backtesting,
   ...dataInfra,
+  ...notation,
+  ...formulas,
 ].map((t) => ({ ...t, provenance: t.provenance ?? ("authored" as const) }));
 
 /**

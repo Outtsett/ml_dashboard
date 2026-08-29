@@ -314,4 +314,25 @@ export const TERMS: Term[] = [
       "Realised volatility plotted against sampling frequency. **Explodes at high frequency when microstructure noise dominates**, and the point where it flattens tells you the finest usable sampling interval.",
     see: ["microstructure-noise", "realised-kernel"],
   },
+  {
+    id: "lo-mackinlay",
+    term: "Lo–MacKinlay test",
+    domain: "volatility",
+    aliases: ["variance ratio test", "lo mackinlay 1988"],
+    definition:
+      "The 1988 formulation of the variance-ratio test, with a standard error that stays valid **when volatility changes over time**.",
+    why: "That robustness is the whole point: the homoskedastic version rejects on volatility clustering alone, so it would be re-measuring a different assumption rather than testing independence.",
+    see: ["variance-ratio", "z-star", "volatility-clustering"],
+  },
+  {
+    id: "z-star",
+    term: "z*",
+    symbol: "z* = √(nq)·(VR − 1) / √θ*",
+    domain: "volatility",
+    aliases: ["z star", "heteroskedasticity-robust z"],
+    definition:
+      "The significance score on a variance ratio — how many robust standard errors it sits from 1. **Scaled by √n**, so a fixed departure becomes more significant on more data. Beyond roughly ±2 is conventionally *unlikely to be chance*.",
+    why: "A missing or extra factor of n cancels that scaling and pins z* near zero regardless of how far VR sits from 1 — which reads as *random walk confirmed* on data that is nothing of the sort.",
+    see: ["variance-ratio", "lo-mackinlay", "t-statistic", "standard-error"],
+  },
 ];

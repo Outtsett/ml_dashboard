@@ -529,4 +529,95 @@ export const TERMS: Term[] = [
     why: "Why log returns are the natural unit across time: they add where simple returns multiply.",
     see: ["log-return", "volatility-drag"],
   },
+  // ── Deviation, in all its forms ────────────────────────────────────────
+  {
+    id: "deviation",
+    term: "deviation",
+    symbol: "x − μ",
+    domain: "statistics",
+    definition:
+      "**How far one observation sits from a reference** — usually the mean, sometimes a target or a benchmark. Every spread measure in this list is some average of deviations; they differ only in how they are averaged.",
+    why: "Raw deviations sum to zero by construction, which is why every measure squares them, takes absolute values, or keeps only one side.",
+    see: ["standard-deviation", "absolute-deviation", "downside-deviation"],
+  },
+  {
+    id: "absolute-deviation",
+    term: "mean absolute deviation",
+    symbol: "MAD = mean|x − μ|",
+    domain: "statistics",
+    aliases: ["MAD", "average absolute deviation", "L1 dispersion"],
+    definition:
+      "The average distance from the mean, without squaring. **Less sensitive to outliers than standard deviation**, because a value ten times as far counts ten times, not a hundred.",
+    why: "For a normal distribution MAD ≈ 0.798σ. A ratio far from that is itself a fat-tail signal.",
+    see: ["standard-deviation", "median-absolute-deviation", "deviation"],
+  },
+  {
+    id: "median-absolute-deviation",
+    term: "median absolute deviation",
+    symbol: "MAD = median|x − median(x)|",
+    domain: "statistics",
+    aliases: ["MAD", "robust scale"],
+    definition:
+      "The median distance from the median. **Confusingly shares the acronym MAD** with mean absolute deviation and is a different statistic — this one is the robust scale estimate.",
+    why: "Scaled by 1.4826 it estimates σ for a normal, and unlike σ it does not move when a single print is wrong by a factor of ten.",
+    see: ["absolute-deviation", "robust-statistic", "outlier"],
+  },
+  {
+    id: "downside-deviation",
+    term: "downside deviation",
+    symbol: "σ_d = √( E[ min(R − T, 0)² ] )",
+    domain: "statistics",
+    aliases: ["semi-deviation", "downside risk", "semideviation"],
+    definition:
+      "Standard deviation computed on returns BELOW a target **T** only, with everything above counted as zero. **Upside volatility stops being called risk.**",
+    why: "The denominator of the Sortino ratio. Halves the effective sample, so it is noisier than σ on the same data.",
+    see: ["sortino-ratio", "semivariance", "deviation"],
+  },
+  {
+    id: "semivariance",
+    term: "semivariance",
+    domain: "statistics",
+    definition:
+      "The squared form of downside deviation — the average squared shortfall below a target. **Downside deviation is its square root.**",
+    see: ["downside-deviation", "variance"],
+  },
+  {
+    id: "tracking-error",
+    term: "tracking error",
+    symbol: "TE = σ(R_p − R_b)",
+    domain: "statistics",
+    aliases: ["active risk"],
+    definition:
+      "The standard deviation of the difference between a portfolio and its benchmark. **Deviation from a benchmark rather than from a mean** — the denominator of the information ratio.",
+    see: ["information-ratio", "standard-deviation", "beta"],
+  },
+  {
+    id: "rmsd",
+    term: "root mean squared deviation",
+    symbol: "RMSD = √( mean((x − x̂)²) )",
+    domain: "statistics",
+    aliases: ["RMSE", "quadratic mean deviation"],
+    definition:
+      "The same arithmetic as standard deviation, but measuring deviation from a **prediction** rather than from the mean. When the reference is a model output it is called RMSE.",
+    see: ["rmse", "standard-deviation", "residual"],
+  },
+  {
+    id: "coefficient-of-variation",
+    term: "coefficient of variation",
+    symbol: "CV = σ / μ",
+    domain: "statistics",
+    definition:
+      "Standard deviation as a fraction of the mean — **dispersion made scale-free**, so two series in different units can be compared.",
+    why: "Meaningless when the mean is near zero, which is exactly the case for returns. Use it on prices or volumes, not on returns.",
+    see: ["standard-deviation", "scale-free", "sharpe-ratio"],
+  },
+  {
+    id: "dispersion",
+    term: "dispersion",
+    domain: "statistics",
+    aliases: ["spread", "scale"],
+    definition:
+      "The general term for how spread out a sample is — standard deviation, interquartile range, MAD and range are all dispersion measures with different sensitivities to the tail.",
+    see: ["standard-deviation", "percentile", "absolute-deviation"],
+  },
 ];

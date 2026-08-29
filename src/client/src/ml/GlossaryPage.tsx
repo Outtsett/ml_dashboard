@@ -93,7 +93,9 @@ function TermRow({
       <dd className="min-w-0 text-sm leading-relaxed text-neutral-300">
         <p>{renderEmphasis(term.definition)}</p>
         {term.why && (
-          <p className="mt-1.5 text-[13px] leading-relaxed text-neutral-500">{term.why}</p>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-neutral-500">
+            {renderEmphasis(term.why)}
+          </p>
         )}
         {term.see && term.see.length > 0 && (
           <p className="mt-2.5 flex flex-wrap items-center gap-1.5">
