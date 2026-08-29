@@ -42,7 +42,10 @@ export type Domain =
   | "market-structure"
   | "indicators"
   | "notation"
-  | "formulas";
+  | "formulas"
+  | "deep-learning"
+  | "data-engineering"
+  | "mlops";
 
 /**
  * How confident the desk is in this entry, and where it came from.
@@ -99,6 +102,9 @@ export const DOMAIN_LABEL: Record<Domain, string> = {
   indicators: "Indicators",
   notation: "Symbols",
   formulas: "Formulas",
+  "deep-learning": "Deep learning",
+  "data-engineering": "Data engineering",
+  mlops: "MLOps",
 };
 
 /** Sidebar order. Roughly: the maths, then the market, then the modelling. */
@@ -120,9 +126,12 @@ export const DOMAIN_ORDER: Domain[] = [
   "labels",
   "ml-core",
   "ml-architectures",
+  "deep-learning",
   "ml-training",
   "ml-evaluation",
+  "mlops",
   "backtesting",
   "data",
+  "data-engineering",
   "infrastructure",
 ];

@@ -29,6 +29,10 @@ import { TERMS as backtesting } from "./terms/backtesting";
 import { TERMS as dataInfra } from "./terms/data-infra";
 import { TERMS as notation } from "./terms/notation";
 import { TERMS as formulas } from "./terms/formulas";
+import { TERMS as deepLearning } from "./terms/deep-learning";
+import { TERMS as mlClassical } from "./terms/ml-classical";
+import { TERMS as dataEngineering } from "./terms/data-engineering";
+import { TERMS as mlops } from "./terms/mlops";
 
 const AUTHORED: Term[] = [
   ...statistics,
@@ -46,6 +50,10 @@ const AUTHORED: Term[] = [
   ...dataInfra,
   ...notation,
   ...formulas,
+  ...deepLearning,
+  ...mlClassical,
+  ...dataEngineering,
+  ...mlops,
 ].map((t) => ({ ...t, provenance: t.provenance ?? ("authored" as const) }));
 
 /**
