@@ -28,6 +28,40 @@ const DIRS = {
   uploadsTmp: path.join(DATA_ROOT, "uploads-tmp"),
 };
 
+/**
+ * A single path segment supplied by a caller — a dataset id, a job id, a model
+ * name, a version. Anything that is not a plain identifier is rejected.
+ *
+ * `DELETE /data/datasets/:id` reaches `deleteDataset` with `req.params.id`, and
+ * Express URL-decodes that, so `%2e%2e%2f` arrives as `../`. Interpolating it
+ * into a path and calling `fs.unlinkSync` is arbitrary file deletion, so the
+ * shape is checked here rather than trusted from the route.
+ */
+const SAFE_SEGMENT = /^[A-Za-z0-9._-]{1,128}$/;
+
+function assertSafeSegment(value: string, label: string): string {
+  if (!SAFE_SEGMENT.test(value) || value === "." || value === "..") {
+    throw new Error(`Invalid ${label}: ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+
+/**
+ * Join under `base` and refuse anything that escapes it.
+ *
+ * Belt and braces with `assertSafeSegment`: the regex stops the known attack,
+ * and this stops the one nobody thought of — a symlink, a Windows short name,
+ * a future caller that skips the segment check.
+ */
+function safeJoin(base: string, ...segments: string[]): string {
+  const resolved = path.resolve(base, ...segments);
+  const root = path.resolve(base) + path.sep;
+  if (resolved !== path.resolve(base) && !resolved.startsWith(root)) {
+    throw new Error(`Path escapes ${base}: ${resolved}`);
+  }
+  return resolved;
+}
+
 /** Max age for failed run artifacts before auto-cleanup (7 days) */
 const STALE_RUN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -88,8 +122,9 @@ export class DataManager {
 
   /** Delete a cached dataset snapshot by ID */
   public deleteDataset(id: string): boolean {
-    const metaPath = path.join(DIRS.parquet, `${id}.meta.json`);
-    const dataPath = path.join(DIRS.parquet, `${id}.parquet`);
+    assertSafeSegment(id, "dataset id");
+    const metaPath = safeJoin(DIRS.parquet, `${id}.meta.json`);
+    const dataPath = safeJoin(DIRS.parquet, `${id}.parquet`);
 
     let deleted = false;
     if (fs.existsSync(metaPath)) {
@@ -126,7 +161,8 @@ export class DataManager {
 
   /** Create a run directory for a training job */
   public createRunDir(jobId: string): string {
-    const runDir = path.join(DIRS.runs, jobId);
+    assertSafeSegment(jobId, "job id");
+    const runDir = safeJoin(DIRS.runs, jobId);
     if (!fs.existsSync(runDir)) {
       fs.mkdirSync(runDir, { recursive: true });
     }
@@ -136,12 +172,14 @@ export class DataManager {
 
   /** Promote a model checkpoint to the models directory */
   public promoteCheckpoint(modelName: string, version: string, checkpointPath: string): string {
-    const destDir = path.join(DIRS.models, modelName, version);
+    assertSafeSegment(modelName, "model name");
+    assertSafeSegment(version, "version");
+    const destDir = safeJoin(DIRS.models, modelName, version);
     if (!fs.existsSync(destDir)) {
       fs.mkdirSync(destDir, { recursive: true });
     }
 
-    const destPath = path.join(destDir, path.basename(checkpointPath));
+    const destPath = safeJoin(destDir, path.basename(checkpointPath));
     fs.copyFileSync(checkpointPath, destPath);
     log(`[DataManager] Promoted checkpoint: ${checkpointPath} -> ${destPath}`, "data");
     return destPath;
