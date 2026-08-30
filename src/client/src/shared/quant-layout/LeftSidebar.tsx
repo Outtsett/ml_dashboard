@@ -1,21 +1,36 @@
 import * as NavigationMenu from "@radix-ui/react-navigation-menu";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/shared/utils/utils";
-import { 
-  BrainCircuit, 
-  Library, 
-  Database, 
-  Cpu, 
-  BookOpen, 
+import {
+  BrainCircuit,
+  Library,
+  Database,
+  Cpu,
+  BookOpen,
   BookMarked,
   Newspaper,
   ActivitySquare,
-  BarChart3
+  BarChart3,
+  AlertTriangle,
+  List,
+  Goal,
+  Sliders,
 } from "lucide-react";
 
+// This list is the app's actual rendered sidebar. shared/hooks/navigation.ts's
+// NAVIGATION_CONFIG is a separate, richer nav model (groups, descriptions,
+// `pending` soon-badges) with exactly one consumer, CommandPalette.tsx -- its
+// own NavItemComponent renderer has zero consumers and is not what a user
+// sees. Real, mounted routes belong in BOTH lists until those two nav systems
+// are unified; adding a page here without also adding it to navigation.ts
+// (or vice versa) silently reopens the "built but undiscoverable" gap.
 const NAV_ITEMS = [
   { label: "Market", href: "/", icon: BarChart3 },
+  { label: "Risk", href: "/risk", icon: AlertTriangle },
+  { label: "Watchlist", href: "/watchlist", icon: List },
+  { label: "Portfolio", href: "/portfolio", icon: Goal },
   { label: "ML Studio", href: "/ml-studio", icon: BrainCircuit },
+  { label: "HPO", href: "/hpo", icon: Sliders },
   { label: "Catalog", href: "/model-catalog", icon: Library },
   { label: "Data", href: "/databases", icon: Database },
   { label: "Glossary", href: "/glossary", icon: BookMarked },

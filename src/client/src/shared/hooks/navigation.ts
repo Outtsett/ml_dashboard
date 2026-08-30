@@ -8,18 +8,24 @@
  *   OPERATE   — deploy and monitor (registry, paper trade, news)
  *   SYSTEM    — infra (terminals, hardware, settings)
  *
- * Routes still registered in App.tsx but intentionally hidden from the sidebar:
+ * Routes still registered in App.tsx but intentionally hidden from the sidebar
+ * (kept in HIDDEN_NAV_META below so breadcrumbs still resolve):
  *   /curriculum    — moved into Settings → Help in a future phase
  *   /fourier       — stub; folds into ML Studio Features stage
+ *   /training      — legacy standalone training surface
  *
- * /architecture graduated from stub to a real sidebar item (Research group,
- * 2026-07-15): live network graphs derived from hyperparameters + real tree
- * structure from trained artifacts under data/models.
- *
- * Pages NEW in this redesign (rendered once Phases 2-4 ship): /risk,
- * /experiments, /hpo, /registry, /paper. Until they exist as page modules,
- * adding the nav entry would render NotFound — so they're commented in below
- * to be uncommented as each phase lands.
+ * pending: true (updated 2026-08-30, see audit findings this date) — these 4
+ * sidebar entries have no mounted route in App.tsx and 404 today:
+ *   /architecture — deleted in bf2be98 (74 files removed; the commit's own
+ *                   message states this was a product decision to replace it
+ *                   with the model catalog + ML Studio's live graph, not an
+ *                   oversight — restoring it is a real "revive or drop the
+ *                   nav entry" call for a human, not a mechanical fix)
+ *   /registry, /experiments — no page component exists on disk for either
+ *   /backtest     — see the "// Backtest Domain / Consolidated into ML
+ *                   Studio" comment in App.tsx; BacktestPage.tsx exists on
+ *                   disk but may be superseded, not simply forgotten
+ * /risk, /hpo, /paper are real, mounted, and NOT pending as of this date.
  */
 
 import {
@@ -38,6 +44,7 @@ import {
   List,
   Network,
   Newspaper,
+  PlayCircle,
   Radio,
   Settings,
   Sliders,
@@ -107,6 +114,7 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
         label: "Architecture",
         href: "/architecture",
         description: "Live network graphs + real tree structure",
+        pending: true,
       },
       {
         icon: BookOpen,
@@ -136,6 +144,7 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
         label: "Experiments",
         href: "/experiments",
         description: "Ledger of every training run",
+        pending: true,
       },
       {
         icon: Sliders,
@@ -148,6 +157,7 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
         label: "Backtest",
         href: "/backtest",
         description: "Walk-forward, Monte Carlo, benchmark",
+        pending: true,
       },
     ],
   },
@@ -159,12 +169,19 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
         label: "Registry",
         href: "/registry",
         description: "Promoted models + lineage",
+        pending: true,
       },
       {
         icon: Radio,
         label: "Paper",
         href: "/paper",
         description: "Paper trade + drift monitor",
+      },
+      {
+        icon: PlayCircle,
+        label: "Operate",
+        href: "/operate",
+        description: "Live RL experiment launcher + leaderboard",
       },
       {
         icon: Newspaper,
