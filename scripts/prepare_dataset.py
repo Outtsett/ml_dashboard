@@ -86,6 +86,14 @@ def main():
     timeframe = checked(IDENTIFIER_RE, args.timeframe, "timeframe")
     job_id = checked(JOB_ID_RE, args.job_id, "job id")
 
+    # data_size <= 0 previously turned the LIMIT clause below into an empty
+    # string, silently exporting the entire table instead of failing. A caller
+    # bug that forgets to set this must not be rewarded with the biggest
+    # possible query.
+    if args.data_size < 1:
+        print(f"[prepare_dataset] --data-size must be >= 1, got {args.data_size}", file=sys.stderr)
+        sys.exit(2)
+
     attach = (
         f"host={connection_field(QUESTDB_PG_HOST, 'host')} "
         f"port={connection_field(QUESTDB_PG_PORT, 'port')} "
@@ -106,8 +114,9 @@ def main():
     test_path = f"{out_dir}/test.parquet"
 
     table_name = f"{instrument}_ohlcv_{timeframe}"
-    # data_size is parsed by argparse as an int, so it cannot carry SQL.
-    limit_clause = f"LIMIT {args.data_size}" if args.data_size > 0 else ""
+    # data_size is parsed by argparse as an int and floored at 1 above, so it
+    # cannot carry SQL and this clause is never empty.
+    limit_clause = f"LIMIT {args.data_size}"
 
     # First, dump all to a temporary parquet to avoid multiple heavy queries to QuestDB
     temp_path = f"{out_dir}/temp_full.parquet"
