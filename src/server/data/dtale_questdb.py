@@ -1,9 +1,11 @@
+import argparse
 import re
 import sys
-import argparse
-import psycopg2
-import pandas as pd
+
 import dtale
+import pandas as pd
+import psycopg2
+
 
 def main():
     parser = argparse.ArgumentParser(description="Launch D-Tale on a QuestDB table")
@@ -15,8 +17,19 @@ def main():
     # the network. The Node caller already passes 127.0.0.1 — this makes running
     # the script by hand safe too, rather than relying on the caller.
     parser.add_argument("--host", default="127.0.0.1", help="D-Tale host")
+    parser.add_argument(
+        "--lookback_days", type=int, default=90,
+        help="Bound the SAMPLE BY query to the last N days (default 90). Only "
+        "applies to aggregated (non-raw) sample_by, which otherwise scans and "
+        "aggregates the full table -- LIMIT on a SAMPLE BY query only caps the "
+        "output bucket rows, not the base rows scanned to build them.",
+    )
 
     args = parser.parse_args()
+
+    if args.lookback_days < 1:
+        print(f"[dtale_questdb] Invalid lookback_days: {args.lookback_days!r}")
+        sys.exit(2)
 
     # The table name is interpolated into SQL below, and SAMPLE BY takes no
     # bind parameter, so the shape is enforced here as well as in the router.
@@ -44,8 +57,11 @@ def main():
         if args.sample_by.lower() != "raw":
             # For OHLCV standard time-series compression
             # Attempt to group by timestamp if available
+            # args.lookback_days is argparse-typed int, validated >= 1 above --
+            # not user SQL. WHERE bounds the base rows QuestDB has to scan and
+            # aggregate; LIMIT alone (below) only caps the OUTPUT bucket rows.
             query = f"""
-            SELECT 
+            SELECT
                 timestamp,
                 first(open) as open,
                 max(high) as high,
@@ -53,6 +69,7 @@ def main():
                 last(close) as close,
                 sum(volume) as volume
             FROM {args.table}
+            WHERE timestamp >= dateadd('d', -{args.lookback_days}, now())
             SAMPLE BY {args.sample_by} ALIGN TO CALENDAR
             LIMIT 1000000
             """
@@ -66,7 +83,7 @@ def main():
         print(f"[dtale_questdb] Query complete. Loaded {len(df)} rows into pandas.")
         print(f"[dtale_questdb] Starting D-Tale server on {args.host}:{args.port}...")
         
-        d = dtale.show(df, host=args.host, port=args.port)
+        _d = dtale.show(df, host=args.host, port=args.port)  # keeps the server registered; nothing here reads it
         
         import threading
         # Block forever to keep the process alive
