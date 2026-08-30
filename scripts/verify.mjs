@@ -58,10 +58,19 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 
-const IGNORE_SEGMENTS = new Set([
-  'node_modules', 'dist', 'build', '.venv', 'venv', 'data', '.cache', '.git',
-  '.questdb', 'optuna_studies', '__pycache__', '.pytest_cache', 'coverage',
+// Build/cache artifacts: safe to ignore at any depth, since a directory with
+// one of these names is never a legitimate source directory anywhere in the repo.
+const IGNORE_SEGMENTS_ANYWHERE = new Set([
+  'node_modules', 'dist', 'build', '.venv', 'venv', '.cache', '.git',
+  '.questdb', '__pycache__', '.pytest_cache', 'coverage',
 ]);
+
+// Repo-root ML-artifact directories only. `data` and `optuna_studies` also
+// name real source directories (src/server/data/, src/ml/data/,
+// src/client/src/data/) -- matching them at any depth silently excluded that
+// source from verify.mjs entirely. Root-relative gitignore-style globs, not
+// bare names, so only the top-level artifact dir is excluded.
+const IGNORE_GLOBS_ROOT = [/^data\//, /^optuna_studies\//];
 
 // ── generic helpers ──────────────────────────────────────────────────────
 
@@ -72,7 +81,8 @@ function toRel(absOrPath) {
 
 function isIgnoredRel(rel) {
   const segs = rel.split('/');
-  return segs.some((s) => IGNORE_SEGMENTS.has(s));
+  if (segs.some((s) => IGNORE_SEGMENTS_ANYWHERE.has(s))) return true;
+  return IGNORE_GLOBS_ROOT.some((re) => re.test(rel));
 }
 
 function run(cmd, args, { cwd = REPO_ROOT, timeoutMs = 15000 } = {}) {

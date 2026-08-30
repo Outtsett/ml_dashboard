@@ -39,6 +39,13 @@ interface TableMeta {
 
 const router = Router();
 
+/** Caps wall-clock time on an ad-hoc QuestDB query issued from the console —
+ *  matches the project's existing 15s route-timeout convention. Bounds how
+ *  long a runaway scan (e.g. unbounded `SELECT * FROM ohlcv`, 863M rows) can
+ *  hold the connection; the row-count cap below still applies only after the
+ *  query returns, so this does not bound peak memory on a fast-but-huge scan. */
+const QUESTDB_QUERY_TIMEOUT_MS = 15_000;
+
 /**
  * Institutional Table Inventory: Returns all tables across both engines.
  */
@@ -217,8 +224,12 @@ router.post('/query', queryRateLimiter, async (req: Request, res: Response) => {
       res.json({ rows });
     } else {
       const { queryQuestDB } = await import('../infrastructure/database/questdb');
-      // QuestDB handles LIMIT internally or via suffix; slice defensively.
-      const result = await queryQuestDB(cleanSql);
+      // No LIMIT is injected into the caller's SQL (QuestDB's LIMIT syntax is
+      // offset,count and blindly appending risks a duplicate/invalid clause on
+      // a query that already has one, or on SHOW/EXPLAIN/PRAGMA); the
+      // timeoutMs bound is the actual defense against a runaway full-table
+      // scan, and the slice below still caps what is returned to the caller.
+      const result = await queryQuestDB(cleanSql, QUESTDB_QUERY_TIMEOUT_MS);
       res.json(result.slice(0, rowLimit));
     }
   } catch (error) {
