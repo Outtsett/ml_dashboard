@@ -1,4 +1,4 @@
-import { MechanismPreview } from "@/system/architecture-explorer/mechanism/MechanismPreview";
+
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { ScrollArea } from "@/shared/ui/scroll-area";
@@ -12,10 +12,14 @@ import {
   Cpu,
   Brain,
   FileText,
+  Play,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { CatalogModelDetail } from "@/ml/lib/catalog_types";
 import { categoryColor } from "./constants";
+import { ModelWizard } from "./experiments/ModelWizard";
+import { LiveTelemetryPanel } from "./experiments/LiveTelemetryPanel";
+import { useState } from "react";
 
 interface ModelDetailViewProps {
   model: CatalogModelDetail;
@@ -28,41 +32,61 @@ export function ModelDetailView({
   onBack,
   categoryLabels,
 }: ModelDetailViewProps) {
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-border flex items-center gap-3">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-display font-semibold truncate">
-            {model.name}
-          </h1>
-          <div className="flex items-center gap-2 mt-1">
-            <Badge className={`${categoryColor(model.category)} border text-[10px]`}>
-              {categoryLabels[model.category] ?? model.category}
-            </Badge>
-            <Badge variant="outline" className="text-[10px] capitalize">
-              {model.subcategory.replace(/-/g, " ")}
-            </Badge>
-            {model.shortName !== model.name && (
-              <Badge variant="secondary" className="text-[10px] font-mono">
-                {model.shortName}
+      <div className="p-4 border-b border-border flex items-center justify-between">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-display font-semibold truncate">
+              {model.name}
+            </h1>
+            <div className="flex items-center gap-2 mt-1">
+              <Badge className={`${categoryColor(model.category)} border text-[10px]`}>
+                {categoryLabels[model.category] ?? model.category}
               </Badge>
-            )}
+              <Badge variant="outline" className="text-[10px] capitalize">
+                {model.subcategory.replace(/-/g, " ")}
+              </Badge>
+              {model.shortName !== model.name && (
+                <Badge variant="secondary" className="text-[10px] font-mono">
+                  {model.shortName}
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
+        <Button 
+          className="shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:shadow-[0_0_25px_rgba(var(--primary),0.5)] transition-shadow duration-300 ml-4"
+          onClick={() => setIsWizardOpen(true)}
+        >
+          <Play className="h-4 w-4 mr-2" /> Configure & Train
+        </Button>
       </div>
+
+      <ModelWizard 
+        model={model} 
+        isOpen={isWizardOpen} 
+        onClose={() => setIsWizardOpen(false)} 
+      />
 
       {/* Content */}
       <ScrollArea className="flex-1">
         <div className="p-6 max-w-5xl space-y-6">
+          <LiveTelemetryPanel />
           {/* Mechanism animation — the same engine and registry as
               /architecture -> Mechanism, shown here because this is where the
               model is actually being read. Renders a stated reason for catalog
               specs with no researched entry; never a lookalike. */}
-          <MechanismPreview catalogKey={model.id} />
+          {/* Mechanism animation placeholder */}
+          <div className="bg-[#0a0a0a] border border-neutral-800 rounded p-4 text-center text-neutral-500 font-mono text-sm">
+            Architecture preview for {model.id}
+          </div>
 
           {/* Overview */}
           {model.overview && (

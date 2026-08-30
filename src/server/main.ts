@@ -19,6 +19,14 @@ import { shutdownAllPtySessions } from './infrastructure/lib/ptyServer';
 import { shutdownHardwareNode } from './system/telemetry.router';
 import { warmSymbolsCatalog } from './infrastructure/cache/symbols';
 
+declare module 'express-serve-static-core' {
+  interface Request {
+    /** Correlation id assigned per request, echoed in X-Request-ID and in logs. */
+    requestId?: string;
+  }
+}
+import { attachMetricsWebSocket } from './infrastructure/core/ws';
+
 // Re-export for backward compat
 export { log } from './infrastructure/lib/log';
 export { getNestApp } from './infrastructure/lib/nest-context';
@@ -52,6 +60,9 @@ async function bootstrap() {
   const expressApp = express();
   expressApp.set('etag', 'weak'); // Enable weak ETags for conditional 304 responses
   const httpServer = createServer(expressApp);
+  
+  // Attach Metrics WebSocket Server
+  attachMetricsWebSocket(httpServer);
 
   // ── Express middleware (preserved from index.ts) ──
 
@@ -90,7 +101,7 @@ async function bootstrap() {
   // ── Request ID (unique per request, propagated in headers + logs) ──
   expressApp.use((req: Request, res: Response, next: NextFunction) => {
     const id = (req.headers['x-request-id'] as string) || crypto.randomUUID().slice(0, 12);
-    (req as any).requestId = id;
+    req.requestId = id;
     res.setHeader('X-Request-ID', id);
     next();
   });
@@ -103,7 +114,7 @@ async function bootstrap() {
     if (timeout > 0) {
       req.setTimeout(timeout, () => {
         if (!res.headersSent) {
-          res.status(408).json({ error: 'Request timeout', requestId: (req as any).requestId });
+          res.status(408).json({ error: 'Request timeout', requestId: req.requestId });
         }
       });
     }
@@ -160,7 +171,7 @@ async function bootstrap() {
   expressApp.use((req: Request, res: Response, next: NextFunction) => {
     const start = Date.now();
     const reqPath = req.path;
-    const reqId = (req as any).requestId || '-';
+    const reqId = req.requestId || '-';
     let capturedJsonResponse: Record<string, unknown> | undefined = undefined;
 
     const originalResJson = res.json;
@@ -253,16 +264,19 @@ async function bootstrap() {
   });
 
   // Error handler — standardized error envelope with request ID
-  expressApp.use((err: any, req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const requestId = (req as any).requestId || '-';
-    console.error(`[ERROR ${requestId}] ${req.method} ${req.path}:`, err.message || err);
+  expressApp.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
+    // Anything can be thrown, so the two fields Express handlers conventionally
+    // set are read off a narrowed view rather than assumed to be there.
+    const thrown = (err ?? {}) as { status?: number; statusCode?: number; message?: string };
+    const status = thrown.status || thrown.statusCode || 500;
+    const requestId = req.requestId || '-';
+    console.error(`[ERROR ${requestId}] ${req.method} ${req.path}:`, thrown.message || err);
     if (res.headersSent) {
       return next(err);
     }
     const message = status >= 500
       ? 'Internal Server Error'
-      : (err.message || 'Request failed');
+      : (thrown.message || 'Request failed');
     return res.status(status).json({ error: message, requestId, status });
   });
 

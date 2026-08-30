@@ -8,6 +8,7 @@ import { attachPtyWebSocket, registerTerminalRoutes } from "../lib/ptyServer";
 import uploadRouter from "../../data/upload.router";
 import databasesRouter from "../../data";
 import pipelinesRouter from "../../data/pipelines.router";
+import dataManagementRouter from "../../data/data-management.router";
 
 // Market Domain
 import instrumentsRouter from "../../market/instruments.router";
@@ -22,6 +23,7 @@ import modelsRouter from "../../ml/models.router";
 import registryRouter from "../../ml/registry.router";
 import evalRouter from "../../ml/eval.router";
 import anatomyRouter from "../../ml/anatomy.router";
+import experimentsRouter from "../../ml/experiments.router";
 
 // Training Domain
 import trainingRouter from "../../training/training.router";
@@ -43,6 +45,7 @@ import settingsRouter from "../../system/settings.router";
 import systemRouter from "../../system/telemetry.router";
 import eventsRouter from "../../system/events.router";
 import chatRouter from "../../system/chat.router";
+import copilotRouter from "../../ai/copilot.router";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
 
@@ -69,6 +72,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", evalRouter);
   app.use("/api", anatomyRouter);  // before mlRouter
   app.use("/api", hpoRouter);      // before mlRouter
+  app.use("/api", experimentsRouter);
   app.use("/api", mlRouter);
   app.use("/api", newsRouter);
   app.use("/api", databasesRouter);
@@ -83,6 +87,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", registryRouter);
   app.use("/api", deploymentsRouter);
   app.use("/api", agentsRouter);
+  app.use("/api/ai", copilotRouter);
 
   // Deployments SSE — mounted BEFORE the generic eventsRouter
   app.use("/api", eventsDeploymentsRouter);
@@ -90,6 +95,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", eventsAgentsRouter);
   app.use("/api", eventsRouter);
   app.use("/api", pipelinesRouter);
+  app.use("/api", dataManagementRouter);
   app.use("/api", chatRouter);
 
   // Catch-all 404 for unregistered API routes (must be AFTER all /api mounts)
