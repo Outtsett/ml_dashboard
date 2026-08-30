@@ -66,7 +66,8 @@ async function bootstrap() {
 
   // ── Express middleware (preserved from index.ts) ──
 
-  // CORS — restrict to localhost origins only (prevents CSRF from malicious websites)
+  // CORS — restrict which origins may READ a response to localhost only.
+  // This does NOT stop CSRF; the same-origin gate below is what does.
   const allowedOrigins = [
     'http://127.0.0.1:5000',
     'http://localhost:5000',
@@ -83,6 +84,60 @@ async function bootstrap() {
     },
     credentials: false,
   }));
+
+  /**
+   * Same-origin gate for state-changing requests.
+   *
+   * CORS is routinely mistaken for CSRF protection and is not. A cross-site
+   * POST whose Content-Type is text/plain, form-urlencoded or multipart is a
+   * "simple request": the browser sends it with no preflight, and CORS only
+   * withholds the RESPONSE from the caller. The side effect has already
+   * happened by then.
+   *
+   * That is reachable here, because this server has no authentication by
+   * design — it is a single-user dashboard on loopback, so there is no session
+   * to steal, but there is also nothing between a request and the work it
+   * starts. `POST /api/experiments/abort` takes no body at all, so any page the
+   * user happens to visit could kill a running training job; `/experiments/
+   * launch` falls back to its defaults on an empty body and would spawn a real
+   * Python training process, once per request.
+   *
+   * So a mutating request is now checked on the way IN as well. Loopback is the
+   * trust boundary the server already binds to, and it is tested by hostname
+   * rather than against the CORS list, so the gate does not silently start
+   * rejecting the app's own traffic if the port changes.
+   *
+   * A request with no Origin is allowed, matching the CORS callback above:
+   * curl, the Electron shell and top-level navigations send none, and a
+   * cross-site fetch cannot suppress it.
+   */
+  const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', 'host.docker.internal']);
+  const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+  const isLoopbackOrigin = (origin: string): boolean => {
+    try {
+      return LOOPBACK_HOSTS.has(new URL(origin).hostname.replace(/^\[|\]$/g, ''));
+    } catch {
+      return false;
+    }
+  };
+
+  expressApp.use((req: Request, res: Response, next: NextFunction) => {
+    if (!MUTATING_METHODS.has(req.method)) return next();
+
+    const origin = req.headers.origin;
+    if (origin && !isLoopbackOrigin(origin)) {
+      return res.status(403).json({ error: 'Cross-site request blocked' });
+    }
+
+    // Sent by every current browser and not settable from script, so it also
+    // catches a cross-site request that carries no Origin.
+    if (req.headers['sec-fetch-site'] === 'cross-site') {
+      return res.status(403).json({ error: 'Cross-site request blocked' });
+    }
+
+    return next();
+  });
 
   // ── Gzip compression (reduces OHLCV/chart responses ~80%) ──
   // Skip SSE streams (incompatible — compression buffers writes and breaks
