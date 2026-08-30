@@ -1,11 +1,15 @@
 import { Router } from "express";
 import explorerRouter from "./explorer.router";
 import databaseInfraRouter from "./database-infra.router";
+import ingestionRouter from "./ingestion.router";
+
+import { featuresRouter } from "./features.router";
 
 const router = Router();
 
-// These routes were previously under /api/databases
 router.use("/databases", explorerRouter);
-router.use("/databases", databaseInfraRouter); // Both mount to /api/databases
+router.use("/features", featuresRouter);
+router.use("/", databaseInfraRouter);
+router.use("/ingest", ingestionRouter);
 
 export default router;

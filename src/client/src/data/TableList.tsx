@@ -19,12 +19,12 @@ export function TableList({ tables, dbType, expandedTables, onToggleTable, onPre
       {tables.map((table) => (
         <Collapsible key={table.name} open={expandedTables.has(table.name)}>
           <div className="glass rounded-lg overflow-hidden">
-            <CollapsibleTrigger
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-colors"
-              onClick={() => onToggleTable(table.name)}
-              data-testid={`table-${table.name}`}
-            >
-              <div className="flex items-center gap-3">
+            <div className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-colors">
+              <CollapsibleTrigger
+                className="flex-1 flex items-center gap-3 text-left"
+                onClick={() => onToggleTable(table.name)}
+                data-testid={`table-${table.name}`}
+              >
                 {expandedTables.has(table.name) ? (
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 ) : (
@@ -37,8 +37,8 @@ export function TableList({ tables, dbType, expandedTables, onToggleTable, onPre
                     {table.type}
                   </Badge>
                 )}
-              </div>
-              <div className="flex items-center gap-4">
+              </CollapsibleTrigger>
+              <div className="flex items-center gap-4 pl-4">
                 {table.partitions && (
                   <span className="text-xs text-muted-foreground font-mono flex items-center gap-1">
                     <Layers className="h-3 w-3" />
@@ -52,17 +52,14 @@ export function TableList({ tables, dbType, expandedTables, onToggleTable, onPre
                   size="sm"
                   variant="ghost"
                   className="h-7"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onPreview(table.name, dbType);
-                  }}
+                  onClick={() => onPreview(table.name, dbType)}
                   data-testid={`preview-${table.name}`}
                 >
                   <Eye className="h-3 w-3 mr-1" />
                   Preview
                 </Button>
               </div>
-            </CollapsibleTrigger>
+            </div>
             <CollapsibleContent>
               <div className="px-4 pb-3 pt-1 border-t border-white/5">
                 {table.columns && table.columns.length > 0 ? (

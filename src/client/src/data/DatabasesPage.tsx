@@ -15,8 +15,9 @@ import { TableList } from "./TableList";
 import { StatsCards } from "./StatsCards";
 import { UploadTab } from "./UploadTab";
 import { QueryConsole } from "./QueryConsole";
-import { TablePreview } from "./TablePreview";
+import { VirtualDataTable } from "./VirtualDataTable";
 import { QuestDBControls } from "./QuestDBControls";
+import { DTaleExplorer } from "./DTaleExplorer";
 
 
 export default function Databases() {
@@ -40,7 +41,7 @@ export default function Databases() {
     staleTime: 60_000,
   });
 
-  const { data: tablePreview, isLoading: previewLoading } = useQuery({
+  const { data: tablePreview, isLoading: previewLoading } = useQuery<Record<string, unknown>[]>({
     queryKey: ["/api/databases/preview", activeTab, previewTable],
     enabled: !!previewTable,
   });
@@ -214,6 +215,14 @@ export default function Databases() {
             <Badge className="ml-2 text-[10px] bg-white/5 text-muted-foreground/60 border-white/5">{sqliteStats?.tables || 0}</Badge>
           </TabsTrigger>
           <TabsTrigger
+            value="dtale"
+            className="rounded-lg px-5 py-2.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground"
+            data-testid="tab-dtale"
+          >
+            <Server className="h-4 w-4 mr-2" />
+            D-Tale UI
+          </TabsTrigger>
+          <TabsTrigger
             value="upload"
             className="rounded-lg px-5 py-2.5 data-[state=active]:bg-[hsl(var(--data-pos)/0.2)] data-[state=active]:text-foreground/80"
             data-testid="tab-upload"
@@ -286,6 +295,11 @@ export default function Databases() {
             onClearCompleted={clearCompleted}
           />
         </TabsContent>
+
+        {/* D-Tale Tab */}
+        <TabsContent value="dtale" className="space-y-6 h-[800px]">
+          <DTaleExplorer />
+        </TabsContent>
       </Tabs>
 
       {/* SQL Query Console */}
@@ -300,9 +314,9 @@ export default function Databases() {
 
       {/* Table Preview */}
       {previewTable && (
-        <TablePreview
+        <VirtualDataTable
           tableName={previewTable}
-          data={tablePreview}
+          data={tablePreview || []}
           isLoading={previewLoading}
           onClose={() => setPreviewTable(null)}
         />
