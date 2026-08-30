@@ -33,7 +33,7 @@ export default function OperatePage() {
   const { data: experiments, isLoading: isLoadingExps } = useQuery<Experiment[]>({
     queryKey: ["experiments"],
     queryFn: async () => {
-      const res = await fetch("/api/ml/experiments");
+      const res = await fetch("/api/experiments");
       if (!res.ok) throw new Error("Failed to fetch experiments");
       return res.json();
     },
@@ -44,7 +44,7 @@ export default function OperatePage() {
     queryKey: ["metrics", selectedExpId],
     queryFn: async () => {
       if (!selectedExpId) return [];
-      const res = await fetch(`/api/ml/experiments/${selectedExpId}/metrics`);
+      const res = await fetch(`/api/experiments/${selectedExpId}/metrics`);
       if (!res.ok) throw new Error("Failed to fetch metrics");
       const raw = await res.json();
       return raw.reverse();
