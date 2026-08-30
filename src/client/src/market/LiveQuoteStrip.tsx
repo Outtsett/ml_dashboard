@@ -16,9 +16,11 @@
  * strip that reads live while replaying history is worse than no quote strip.
  */
 
-import { Radio, History } from "lucide-react";
+import { Radio, History, Play } from "lucide-react";
 import { useLiveBars } from "./lib/useLiveBars";
+import { useReplayControl } from "./lib/useReplayControl";
 import { DeltaValue } from "@/ml/telemetry/DeltaValue";
+import { Button } from "@/shared/ui/button";
 
 /**
  * Log return from open to current close, in percent.
@@ -32,12 +34,45 @@ function logReturnPct(open: number, close: number): number {
   return Math.log(close / open) * 100;
 }
 
-export function LiveQuoteStrip({ className = "" }: { className?: string }) {
-  const { current, origin, connected } = useLiveBars();
+interface LiveQuoteStripProps {
+  className?: string;
+  /** Needed only to start the feed — the quote itself comes entirely from
+   *  the SSE stream once running, never from these. */
+  symbol?: string;
+  timeframeApiKey?: string;
+}
 
-  // Nothing to show before the first frame. An empty quote box implies a
-  // market with no price, which is a claim rather than an absence.
-  if (!current) return null;
+export function LiveQuoteStrip({ className = "", symbol, timeframeApiKey }: LiveQuoteStripProps) {
+  const { current, origin, connected } = useLiveBars();
+  const { starting, error, start } = useReplayControl();
+
+  // Nothing to show before the first frame. The stream (questdbLiveSource /
+  // questdbReplaySource behind POST /api/market/replay/start) exists but
+  // starts nothing on its own -- without this, the quote box just stayed
+  // permanently empty with no way for a user to notice why.
+  if (!current) {
+    if (!symbol || !timeframeApiKey) return null; // no selection to start a feed for yet
+    return (
+      <div
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg surface-sunken shrink-0 ${className}`}
+        role="status"
+      >
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 gap-1.5 text-xs"
+          disabled={starting}
+          onClick={() => start(symbol, timeframeApiKey)}
+        >
+          <Play className="h-3 w-3" aria-hidden="true" />
+          {starting ? "Starting…" : "Start feed"}
+        </Button>
+        <span className="text-[10px] text-muted-foreground/70">
+          {error ?? `No bars streaming for ${symbol} ${timeframeApiKey}`}
+        </span>
+      </div>
+    );
+  }
 
   const change = logReturnPct(current.open, current.close);
   const isReplay = origin === "replay";
