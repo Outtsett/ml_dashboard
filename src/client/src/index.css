@@ -75,6 +75,16 @@
   --color-data-neg: hsl(var(--data-neg));
   --color-data-neutral: hsl(var(--data-neutral));
   --color-data-warn: hsl(var(--data-warn));
+  --color-data-cat-1: hsl(var(--data-cat-1));
+  --color-data-cat-2: hsl(var(--data-cat-2));
+  --color-data-cat-3: hsl(var(--data-cat-3));
+  --color-data-cat-4: hsl(var(--data-cat-4));
+  --color-data-cat-5: hsl(var(--data-cat-5));
+  --color-data-cat-6: hsl(var(--data-cat-6));
+  --color-data-cat-7: hsl(var(--data-cat-7));
+  --color-data-cat-8: hsl(var(--data-cat-8));
+  --color-data-cat-9: hsl(var(--data-cat-9));
+  --color-data-cat-10: hsl(var(--data-cat-10));
 }
 
 :root {
