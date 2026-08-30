@@ -103,9 +103,15 @@ registerComponentFactory("/fourier", FourierTransformFactory);
 
 // Training Domain
 const TrainingFactory = () => import("@/training/TrainingPage");
+const Training = lazyRetry(TrainingFactory, "Training");
 registerComponentFactory("/training", TrainingFactory);
 
-// HpoPage is consolidated into ML Studio and no longer has a route of its own.
+// HpoPage is the Optuna session list; a row click opens /hpo/:sessionId. The
+// detail route below is unreachable without it, which is what the nav entry
+// labelled "Optuna sessions + trial drill-down" was landing on NotFound.
+const HpoFactory = () => import("@/training/HpoPage");
+const Hpo = lazyRetry(HpoFactory, "Hpo");
+registerComponentFactory("/hpo", HpoFactory);
 
 const HpoDetailFactory = () => import("@/training/HpoDetailPage");
 const HpoDetail = lazyRetry(HpoDetailFactory, "HpoDetail");
@@ -183,6 +189,8 @@ function Router() {
         <AppRoute path="/hardware" component={Hardware} />
 
         <AppRoute path="/settings" component={Settings} />
+        <AppRoute path="/training" component={Training} />
+        <AppRoute path="/hpo" component={Hpo} />
         <AppRoute path="/hpo/:sessionId" component={HpoDetail} />
 
         {/* Catch-all */}
