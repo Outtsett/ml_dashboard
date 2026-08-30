@@ -5,6 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/shared/ui/toaster";
 import { Toaster as SonnerToaster } from "sonner";
 import { toast } from "sonner";
+import { AICopilot } from "@/shared/ai/AICopilot";
 import { TooltipProvider } from "@/shared/ui/tooltip";
 import Layout from "@/shared/layout/Layout";
 import { BreadcrumbProvider } from "@/shared/hooks/useBreadcrumbs";
@@ -23,25 +24,25 @@ import { useGlobalShortcuts } from "@/shared/hooks/useGlobalShortcuts";
 import { useNativeMenu } from "@/shared/hooks/useNativeMenu";
 import { CommandPalette } from "@/shared/layout/CommandPalette";
 
-// Retry wrapper for dynamic imports
 function lazyRetry(
   factory: () => Promise<{ default: ComponentType }>,
   name: string,
   retries = 2,
 ): ReturnType<typeof lazy> {
-  return lazy(() =>
-    factory().catch((err: Error) => {
-      if (retries > 0 && /dynamically imported module|fetch/i.test(err.message)) {
-        console.warn(`[beta] Chunk stale for ${name}, retrying (${retries} left)`);
-        return new Promise<{ default: ComponentType }>((resolve) =>
-          setTimeout(() => resolve(lazyRetry(factory, name, retries - 1) as unknown as { default: ComponentType }), 800),
-        );
+  const retryFactory = (retriesLeft: number): Promise<{ default: ComponentType }> => {
+    return factory().catch((err: Error) => {
+      if (retriesLeft > 0 && /dynamically imported module|fetch/i.test(err.message)) {
+        console.warn(`[beta] Chunk stale for ${name}, retrying (${retriesLeft} left)`);
+        return new Promise((resolve) => {
+          setTimeout(() => resolve(retryFactory(retriesLeft - 1)), 800);
+        });
       }
       console.error(`[beta] Chunk load failed for ${name} after retries, reloading`);
       window.location.reload();
       return { default: (() => null) as ComponentType };
-    }),
-  );
+    });
+  };
+  return lazy(() => retryFactory(retries));
 }
 
 // ─── Domain-Driven Pages ───────────────────────────────────────────────────
@@ -90,9 +91,11 @@ const ModelCatalogFactory = () => import("@/ml/ModelCatalogPage");
 const ModelCatalog = lazyRetry(ModelCatalogFactory, "ModelCatalog");
 registerComponentFactory("/model-catalog", ModelCatalogFactory);
 
-const RegistryFactory = () => import("@/ml/RegistryPage");
-const Registry = lazyRetry(RegistryFactory, "Registry");
-registerComponentFactory("/registry", RegistryFactory);
+const GlossaryFactory = () => import("@/ml/GlossaryPage");
+const Glossary = lazyRetry(GlossaryFactory, "Glossary");
+registerComponentFactory("/glossary", GlossaryFactory);
+
+
 
 const FourierTransformFactory = () => import("@/ml/FourierTransformPage");
 const FourierTransform = lazyRetry(FourierTransformFactory, "FourierTransform");
@@ -102,9 +105,7 @@ registerComponentFactory("/fourier", FourierTransformFactory);
 const TrainingFactory = () => import("@/training/TrainingPage");
 registerComponentFactory("/training", TrainingFactory);
 
-const HpoFactory = () => import("@/training/HpoPage");
-const Hpo = lazyRetry(HpoFactory, "Hpo");
-registerComponentFactory("/hpo", HpoFactory);
+// HpoPage is consolidated into ML Studio and no longer has a route of its own.
 
 const HpoDetailFactory = () => import("@/training/HpoDetailPage");
 const HpoDetail = lazyRetry(HpoDetailFactory, "HpoDetail");
@@ -114,14 +115,12 @@ const CurriculumFactory = () => import("@/training/CurriculumPage");
 const Curriculum = lazyRetry(CurriculumFactory, "Curriculum");
 registerComponentFactory("/curriculum", CurriculumFactory);
 
-const ExperimentsFactory = () => import("@/pages/Experiments");
-const Experiments = lazyRetry(ExperimentsFactory, "Experiments");
-registerComponentFactory("/experiments", ExperimentsFactory);
+const OperateFactory = () => import("@/ml/OperatePage");
+const Operate = lazyRetry(OperateFactory, "Operate");
+registerComponentFactory("/operate", OperateFactory);
 
 // Backtest Domain
-const BacktestFactory = () => import("@/backtest/BacktestPage");
-const Backtest = lazyRetry(BacktestFactory, "Backtest");
-registerComponentFactory("/backtest", BacktestFactory);
+// Consolidated into ML Studio
 
 // System Domain
 const SettingsFactory = () => import("@/system/SettingsPage");
@@ -135,10 +134,6 @@ registerComponentFactory("/terminals", TerminalsFactory);
 const HardwareFactory = () => import("@/system/HardwarePage");
 const Hardware = lazyRetry(HardwareFactory, "Hardware");
 registerComponentFactory("/hardware", HardwareFactory);
-
-const ArchitectureExplorerFactory = () => import("@/system/architecture-explorer");
-const ArchitectureExplorer = lazyRetry(ArchitectureExplorerFactory, "ArchitectureExplorer");
-registerComponentFactory("/architecture", ArchitectureExplorerFactory);
 
 const NotFound = lazyRetry(() => import("@/shared/layout/not-found"), "NotFound");
 
@@ -178,14 +173,10 @@ function Router() {
         <AppRoute path="/forecast" component={Forecast} />
         <AppRoute path="/curriculum" component={Curriculum} />
         <AppRoute path="/model-catalog" component={ModelCatalog} />
+        <AppRoute path="/glossary" component={Glossary} />
+        <AppRoute path="/operate" component={Operate} />
         <AppRoute path="/fourier" component={FourierTransform} />
-        <AppRoute path="/architecture" component={ArchitectureExplorer} />
-        
         <AppRoute path="/risk" component={Risk} fallback={<DataGridSkeleton />} />
-        <AppRoute path="/experiments" component={Experiments} fallback={<DataGridSkeleton />} />
-        <AppRoute path="/hpo" component={Hpo} fallback={<DataGridSkeleton />} />
-        <AppRoute path="/backtest" component={Backtest} fallback={<DataGridSkeleton />} />
-        <AppRoute path="/registry" component={Registry} fallback={<DataGridSkeleton />} />
         <AppRoute path="/paper" component={Paper} fallback={<DataGridSkeleton />} />
 
         <AppRoute path="/terminals" component={Terminals} />
@@ -264,6 +255,7 @@ function App() {
               <SonnerToaster richColors position="bottom-right" />
               <CommandPalette />
               <Router />
+              <AICopilot />
             </BreadcrumbProvider>
             </ChatProvider>
           </TrainingProvider>

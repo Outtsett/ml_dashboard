@@ -20,6 +20,7 @@ const KEYWORDS: Record<string, string[]> = {
   "/portfolio": ["positions", "trades", "pnl", "equity curve"],
   "/watchlist": ["watch", "instruments", "monitor"],
   "/ml-studio": ["train", "model", "pipeline", "features", "labels"],
+  "/glossary": ["term", "symbol", "acronym", "definition", "notation", "jargon"],
   "/model-catalog": ["models", "catalog", "library", "registry", "specs"],
   "/databases": ["questdb", "sqlite", "data", "freshness", "parquet"],
   "/experiments": ["ledger", "runs", "history", "sharpe", "results"],
