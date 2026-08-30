@@ -25,35 +25,11 @@ env:
   HUSKY: '0' # husky hooks are dev-only — never run them in CI
 
 jobs:
-  # ── Stage 1: install once, share via cache + setup-node's npm cache ─────────
-  setup:
-    name: Setup
+  # ── Static analysis: lint + typecheck share one install ────────────────────
+  static:
+    name: Static Checks
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      node-version: ${{ env.NODE_VERSION }}
-      python-version: ${{ env.PYTHON_VERSION }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Verify lockfile is in sync
-        run: npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
-
-  # ── Stage 2: parallel quality gates ────────────────────────────────────────
-  lint-ts:
-    name: Lint (TypeScript)
-    runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
         with:
@@ -64,15 +40,26 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - run: npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
+      # `--ignore-scripts` is deliberately NOT used. better-sqlite3 and zeromq
+      # resolve their native bindings in a postinstall step; skipping it leaves
+      # the bindings absent and every module that touches the DB or the ZMQ
+      # bridge fails to import. The lockfile is the supply-chain control here.
+      - name: Install
+        run: npm ci --legacy-peer-deps
 
-      - name: ESLint
-        run: npx eslint src/ --max-warnings 0
+      # Errors always fail. Warnings fail only above the committed ceiling in
+      # .github/lint-baseline.json, which may only ever go down. The previous
+      # `--max-warnings 0` could not pass against the standing baseline, so this
+      # gate was red on every commit and blocked the aggregate check below.
+      - name: ESLint (error gate + warning ratchet)
+        run: node scripts/lint-budget.mjs
+
+      - name: tsc --noEmit
+        run: npx tsc --noEmit
 
   lint-py:
     name: Lint (Python)
     runs-on: ubuntu-latest
-    needs: setup
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -82,7 +69,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
 
       - name: Install Ruff (pinned)
         run: pip install ruff==0.7.4
@@ -93,30 +79,9 @@ jobs:
       - name: Ruff format check
         run: ruff format --check src/ml/ scripts/
 
-  typecheck:
-    name: Type Check
-    runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - run: npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
-
-      - name: tsc --noEmit
-        run: npx tsc --noEmit
-
   test:
     name: Unit Tests
     runs-on: ${{ matrix.os }}
-    needs: setup
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -132,7 +97,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - run: npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
+      - name: Install
+        run: npm ci --legacy-peer-deps
+
+      # Fails loudly if a native binding did not land, rather than surfacing as
+      # a confusing "cannot find module" deep inside an unrelated test file.
+      - name: Verify native bindings resolved
+        run: node -e "require('better-sqlite3');require('zeromq');console.log('native bindings OK')"
 
       - name: Vitest (with coverage)
         run: npx vitest run --coverage --reporter=verbose
@@ -149,7 +120,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint-ts, typecheck]
+    needs: [static]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -161,7 +132,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - run: npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
+      - name: Install
+        run: npm ci --legacy-peer-deps
 
       - name: Build
         run: npm run build
@@ -179,8 +151,7 @@ jobs:
   test-py:
     name: Unit Tests (Python)
     runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -189,33 +160,40 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
 
-      - name: Install project + test deps
-        run: |
-          python -m pip install --upgrade pip
-          # pyproject lists runtime deps (pandas, polars, pyarrow, duckdb,
-          # numpy, numba, optuna, ...). Test extras kept lightweight.
-          pip install -e .
-          pip install pytest==8.3.4 pytest-xdist==3.6.1
+      # uv, not pip. `pip install -e .` re-resolves every dependency on every
+      # run and ignores uv.lock entirely, so CI was testing a different set of
+      # versions than any developer machine. `--frozen` installs the lock as
+      # written and fails if the lock and pyproject have drifted apart.
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+
+      - name: Cache uv downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-
+
+      - name: Sync locked environment
+        run: uv sync --frozen --all-extras
 
       - name: Run pytest (excluding slow markers)
-        run: |
-          pytest -m "not slow" -n auto --maxfail=10 -ra
+        run: uv run --with pytest-xdist pytest -m "not slow" -n auto --maxfail=10 -ra
         env:
           # Tests should not hit external services in CI.
           OHLCV_DISABLE_QUESTDB: '1'
 
       - name: Run slow tests (informational only)
         continue-on-error: true
-        run: |
-          pytest -m "slow" --maxfail=5 -ra || true
+        run: uv run pytest -m "slow" --maxfail=5 -ra || true
 
-  # ── Stage 3: aggregated status check (single required check for branch protection) ──
+  # ── Aggregated status check (single required check for branch protection) ──
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [lint-ts, lint-py, typecheck, test, test-py, build]
+    needs: [static, lint-py, test, test-py, build]
     if: always()
     timeout-minutes: 1
     steps:

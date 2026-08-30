@@ -1,0 +1,19 @@
+{
+  "$comment": "Warning ceiling for scripts/lint-budget.mjs. It may only go DOWN. Regenerate with `node scripts/lint-budget.mjs --update` after a cleanup pass. Errors are never budgeted — any error fails CI.",
+  "maxWarnings": 254,
+  "recordedAt": "2026-08-23",
+  "topRules": [
+    {
+      "rule": "@typescript-eslint/no-explicit-any",
+      "warnings": 229
+    },
+    {
+      "rule": "@typescript-eslint/no-unused-vars",
+      "warnings": 22
+    },
+    {
+      "rule": "no-console",
+      "warnings": 3
+    }
+  ]
+}

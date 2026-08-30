@@ -4,6 +4,14 @@ name: OpenSSF Scorecard
 # OpenSSF Scorecard checks (branch protection, signed releases, pinned
 # dependencies, dangerous workflows, ...).
 #
+# GATED. `publish_results: true` submits to the public OpenSSF Scorecard API,
+# which only accepts PUBLIC repositories, and the SARIF upload needs code
+# scanning (GHAS on a private repo). Both fail here, so the weekly run was
+# permanently red.
+#
+# Re-enable by setting the repository variable ENABLE_CODE_SCANNING=true once
+# this repo is public or GHAS is on.
+#
 # Results upload to:
 #   - GitHub Code Scanning (Security tab)
 #   - The public Scorecard API (publish_results: true) → grants a badge
@@ -28,6 +36,7 @@ jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
+    if: vars.ENABLE_CODE_SCANNING == 'true'
     timeout-minutes: 15
     permissions:
       security-events: write

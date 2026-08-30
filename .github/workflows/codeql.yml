@@ -1,5 +1,17 @@
 name: CodeQL
 
+# GATED. This repository is PRIVATE, and CodeQL analysis + its SARIF upload both
+# require GitHub Advanced Security on private repos. Without it the job failed
+# every week at checkout ("Repository not found") and at upload ("Code scanning
+# is not enabled for this repository") — a standing red that taught everyone to
+# ignore the Actions tab.
+#
+# To turn it back on, set the repository variable ENABLE_CODE_SCANNING=true
+# (Settings -> Secrets and variables -> Actions -> Variables) once GHAS is
+# enabled or the repo is public. The job then runs unchanged; nothing else here
+# needs editing. Until then it reports as *skipped*, which is honestly
+# distinguishable from *failed*.
+
 on:
   push:
     branches: [main, master]
@@ -21,6 +33,7 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
+    if: vars.ENABLE_CODE_SCANNING == 'true'
     timeout-minutes: 30
     permissions:
       security-events: write

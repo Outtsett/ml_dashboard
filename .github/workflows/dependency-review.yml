@@ -1,5 +1,17 @@
 name: Dependency Review
 
+# GATED. `actions/dependency-review-action` reads the GitHub Dependency Graph
+# API, which on a PRIVATE repository requires Advanced Security. Without it the
+# action 403s on every pull request.
+#
+# The coverage is not lost: `osv-scanner.yml` scans the same lockfiles against
+# OSV.dev on every PR and fails the build on a finding, with no GHAS needed. The
+# one thing that does NOT carry over is license denial (the AGPL/GPL block
+# below), which currently has no enforcement.
+#
+# Re-enable by setting the repository variable ENABLE_CODE_SCANNING=true once
+# GHAS is on or the repo is public.
+
 on:
   pull_request:
     branches: [main, master]
@@ -15,6 +27,7 @@ jobs:
   review:
     name: Review dependency changes
     runs-on: ubuntu-latest
+    if: vars.ENABLE_CODE_SCANNING == 'true'
     timeout-minutes: 5
     permissions:
       contents: read

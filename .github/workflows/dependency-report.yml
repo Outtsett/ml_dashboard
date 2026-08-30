@@ -1,0 +1,91 @@
+name: Dependency Report
+
+# The no-bot dependency workflow.
+#
+# Instead of one pull request per package, this opens ONE issue and rewrites it
+# every week. Rationale: this repo pins `zod@3` while `@anthropic-ai/claude-agent-sdk`
+# peer-wants `zod@4`, so every install needs `--legacy-peer-deps` and every
+# auto-raised per-package PR lands un-mergeable. A single report says the same
+# thing without generating a queue of dead branches.
+#
+# Division of labour:
+#   - osv-scanner.yml  → GATE. Fails the build on a known advisory.
+#   - this workflow    → ADVISORY. Says what is behind and what has a CVE.
+# Neither one upgrades anything; that stays a human decision.
+
+on:
+  schedule:
+    # Mondays 07:05 UTC — after the secret scan, before the work week.
+    - cron: '5 7 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: dependency-report
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    name: Build and publish report
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci --legacy-peer-deps
+
+      - name: Install uv (for the Python section)
+        run: python3 -m pip install --upgrade uv
+
+      - name: Build report
+        run: node scripts/dependency-report.mjs --out dependency-report.md
+
+      - name: Publish to the rolling issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: 'Dependency report (auto-updated weekly)'
+        run: |
+          set -euo pipefail
+
+          # The label is cosmetic; never let its absence fail the run.
+          gh label create dependencies --color 0366d6 \
+            --description "Automated dependency reports" 2>/dev/null || true
+
+          existing=$(gh issue list --state open --search "$TITLE in:title" \
+            --json number,title --jq "[.[] | select(.title == env.TITLE)] | .[0].number // empty")
+
+          if [ -n "$existing" ]; then
+            echo "Updating issue #$existing"
+            gh issue edit "$existing" --body-file dependency-report.md
+            gh issue comment "$existing" \
+              --body "Report refreshed for \`${GITHUB_SHA:0:7}\` — see the issue body above for the current state."
+          else
+            echo "Creating the rolling issue"
+            gh issue create --title "$TITLE" --body-file dependency-report.md --label dependencies
+          fi
+
+      - name: Also publish to the run summary
+        if: always()
+        run: cat dependency-report.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-report-${{ github.sha }}
+          path: dependency-report.md
+          retention-days: 90
+          if-no-files-found: ignore

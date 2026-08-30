@@ -1,0 +1,14 @@
+# Gitleaks false-positive suppressions.
+#
+# Format: <commit-sha>:<path>:<rule-id>:<start-line>
+#
+# Every entry needs a sentence saying why it is not a secret. An unexplained
+# entry is how a real leak gets buried.
+
+# `generic-api-key` fired on a Recharts prop, not a credential:
+#     <Line dataKey="macd_signal_12_26_9" ... />
+# The rule's entropy heuristic reads `macd_signal_12_26_9` as a key. The file was
+# deleted in 8a82a6f (2026-02-24) during the client reorg, so this exists only in
+# history — which the scheduled `fetch-depth: 0` scan walks, meaning it would
+# fail the Secret Scan job forever otherwise.
+ffc7649b33105ec344900851d7f3504252571ad2:client/src/components/IndicatorPanel.tsx:generic-api-key:242

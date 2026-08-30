@@ -1,13 +1,16 @@
 name: OSV-Scanner
 
 # Vulnerability scan covering npm + pip + GitHub Actions ecosystems against
-# Google's OSV.dev advisory database. Complements Dependabot (which only
-# raises PRs for known CVEs in tracked manifests) by additionally scanning:
-#   - Transitive lockfile entries
-#   - GitHub Actions reference SHAs (drift, retirement)
-#   - License posture for downstream review
+# Google's OSV.dev advisory database. With no automated dependency-bump bot in
+# this repo, THIS is the vulnerability gate: it fails the build on a known
+# advisory rather than filing a PR, and `dependency-report.yml` carries the
+# upgrade suggestions.
 #
-# Results upload to GitHub Code Scanning so they appear inline on PRs.
+# Results are NOT uploaded as SARIF. This repository is private, and GitHub code
+# scanning requires Advanced Security on private repos — the upload step
+# returned "Code scanning is not enabled for this repository" and failed the job
+# on every run, which hid the scan result it was supposed to publish. The report
+# now lands in the job summary, where it is readable without GHAS.
 
 on:
   pull_request:
@@ -15,7 +18,7 @@ on:
   push:
     branches: [main, master]
   schedule:
-    # Weekly Tuesdays 05:42 UTC — staggered relative to scorecard/secret-scan.
+    # Weekly Tuesdays 05:42 UTC — staggered relative to the other scans.
     - cron: '42 5 * * 2'
   workflow_dispatch:
 
@@ -27,30 +30,55 @@ permissions:
   contents: read
 
 jobs:
-  scan-pr:
-    name: Diff scan (PR)
-    if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.0.2
-    with:
-      scan-args: |-
-        --recursive
-        --skip-git
-        ./
+  scan:
+    name: OSV scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-  scan-full:
-    name: Full scan (push / schedule)
-    if: github.event_name != 'pull_request'
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.0.2
-    with:
-      scan-args: |-
-        --recursive
-        --skip-git
-        ./
+      - name: Install osv-scanner
+        run: |
+          curl -sSfL -o /usr/local/bin/osv-scanner \
+            https://github.com/google/osv-scanner/releases/download/v2.0.2/osv-scanner_2.0.2_linux_amd64
+          chmod +x /usr/local/bin/osv-scanner
+          osv-scanner --version
+
+      # Exit 0 = clean, 1 = vulnerabilities found, anything else = scanner fault.
+      # Captured rather than propagated so the report reaches the summary first.
+      - name: Scan
+        id: scan
+        run: |
+          set +e
+          osv-scanner scan source --recursive --format=table ./ > osv-report.txt 2>&1
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+          cat osv-report.txt
+
+      - name: Publish report to job summary
+        if: always()
+        run: |
+          {
+            echo "## OSV-Scanner report"
+            echo
+            echo '```'
+            head -c 60000 osv-report.txt 2>/dev/null || echo "(no report produced)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osv-report-${{ github.sha }}
+          path: osv-report.txt
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Fail on findings
+        if: steps.scan.outputs.code != '0'
+        run: |
+          echo "::error::osv-scanner exited ${{ steps.scan.outputs.code }} — see the job summary for the advisory table."
+          exit 1
