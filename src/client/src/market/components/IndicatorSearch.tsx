@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Info } from 'lucide-react';
 import { Badge } from '@/shared/ui/badge';
 import {
   INDICATOR_REGISTRY, CATEGORY_LABELS,
   type IndicatorCategory,
 } from "@/market/lib/indicator_registry";
+import { slug } from "@/ml/glossary/derived";
 
 const CATEGORY_COLORS: Record<string, string> = {
   overlap: '#3b82f6',     // blue
@@ -87,6 +88,24 @@ function CatalogCategory({
               </span>
               <span className="text-[10px] text-zinc-600 truncate ml-1">
                 {def.fullName !== def.name ? def.fullName : ''}
+              </span>
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label={`${def.name} in the glossary`}
+                className="ml-auto shrink-0 text-zinc-600 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(`/glossary#indicator-${slug(def.id || def.name)}`, '_blank');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter' && e.key !== ' ') return;
+                  e.stopPropagation();
+                  e.preventDefault();
+                  window.open(`/glossary#indicator-${slug(def.id || def.name)}`, '_blank');
+                }}
+              >
+                <Info className="h-3 w-3" aria-hidden="true" />
               </span>
             </button>
           ))}

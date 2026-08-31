@@ -14,8 +14,9 @@
 
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Tag, RefreshCw, AlertTriangle } from "lucide-react";
+import { Tag, RefreshCw, AlertTriangle, Info } from "lucide-react";
 import { useMLStudio, type LabelStrategy } from "../MLStudioContext";
+import { slug } from "../glossary/derived";
 
 interface StrategyDef {
   id: LabelStrategy;
@@ -229,7 +230,27 @@ export function LabelsStage() {
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium text-foreground">{s.label}</span>
-                <code className="text-[10px] font-mono text-muted-foreground/70">{s.id}</code>
+                <span className="flex items-center gap-1">
+                  <code className="text-[10px] font-mono text-muted-foreground/70">{s.id}</code>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${s.label} in the glossary`}
+                    className="text-muted-foreground/50 hover:text-primary transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(`/glossary#label-${slug(s.id)}`, "_blank");
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" && e.key !== " ") return;
+                      e.stopPropagation();
+                      e.preventDefault();
+                      window.open(`/glossary#label-${slug(s.id)}`, "_blank");
+                    }}
+                  >
+                    <Info className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </span>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">{s.description}</p>
             </button>
