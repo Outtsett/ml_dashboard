@@ -83,6 +83,10 @@ const MLStudioFactory = () => import("@/ml/MLStudioPage");
 const MLStudio = lazyRetry(MLStudioFactory, "MLStudio");
 registerComponentFactory("/ml-studio", MLStudioFactory);
 
+const RLConsoleFactory = () => import("@/ml/RLConsolePage");
+const RLConsole = lazyRetry(RLConsoleFactory, "RLConsole");
+registerComponentFactory("/rl-console", RLConsoleFactory);
+
 const ForecastFactory = () => import("@/ml/ForecastPage");
 const Forecast = lazyRetry(ForecastFactory, "Forecast");
 registerComponentFactory("/forecast", ForecastFactory);
@@ -176,6 +180,7 @@ function Router() {
         <AppRoute path="/databases" component={Databases} fallback={<DataGridSkeleton />} />
         
         <AppRoute path="/ml-studio" component={MLStudio} />
+        <AppRoute path="/rl-console" component={RLConsole} />
         <AppRoute path="/forecast" component={Forecast} />
         <AppRoute path="/curriculum" component={Curriculum} />
         <AppRoute path="/model-catalog" component={ModelCatalog} />

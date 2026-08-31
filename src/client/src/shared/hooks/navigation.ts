@@ -110,6 +110,12 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
         description: "Data → Features → Labels → Train pipeline",
       },
       {
+        icon: Cpu,
+        label: "RL Console",
+        href: "/rl-console",
+        description: "PPO / DQN launcher, telemetry, architecture graph",
+      },
+      {
         icon: Network,
         label: "Architecture",
         href: "/architecture",
