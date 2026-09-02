@@ -53,7 +53,7 @@ at a glance. Today three things block that:
    below colors numbers by direction, so this must be corrected before anything is built
    on top of it.
 2. **There is no live market data.** The newest `ohlcv_1m` row in QuestDB is
-   `2026-03-30T17:19Z`. The MotiveWave ingestion path was deleted on 2026-07-27 and
+   `2026-03-30T17:19Z`. The legacy ingestion path was deleted on 2026-07-27 and
    nothing replaced it; `src/server/market/` now contains only `charts.router.ts`,
    `instruments.router.ts`, and `news.router.ts`. Animated candles and a
    Profit-and-Loss (PnL) ticker are downstream of a feed that does not exist.

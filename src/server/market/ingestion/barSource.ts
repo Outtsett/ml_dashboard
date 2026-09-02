@@ -11,7 +11,7 @@
  *     `ohlcv_1m` table, for working on the chart when the platform is closed.
  *
  * A correction worth recording, because it was wrong in this file for a day:
- * the removal of the MotiveWave export path on 2026-07-27 did NOT leave the
+ * the removal of the legacy export path on 2026-07-27 did NOT leave the
  * system without ingestion. QuantowerBridge replaced it. What the removal left
  * behind was a *stale table* — `ohlcv_1m` stopped receiving data on 2026-03-30
  * — while live bars accumulated in `qt_bars_1m` under a different name. The
