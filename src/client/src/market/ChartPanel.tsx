@@ -1,5 +1,5 @@
 import { useState, memo } from "react";
-import { BarChart3, TerminalSquare, MessageSquare } from "lucide-react";
+import { BarChart3, TerminalSquare } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/shared/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import IndicatorChartLayout from "@/market/components/IndicatorChartLayout";
@@ -7,10 +7,14 @@ import { ReplayControls } from "@/market/components/ReplayControls";
 import { TrainingSyncBanner } from "@/training/TrainingSyncBanner";
 import { RegimeLegend, type RegimeInfo } from "@/ml/components/RegimeLegend";
 import { TerminalTabs } from "@/system/components/TerminalTabs";
-import { ChatTab } from "@/portfolio/components/chat/ChatTab";
 import type { LabelMarker } from "@/market/components/TradingChart";
 import type { PlaybackSpeed, PlaybackState } from "@/market/lib/useLocalReplay";
 import type { OhlcvData } from "@/market/components/types";
+import type { IndicatorOverlay } from "@/market/lib/useIndicatorData";
+import type { SupportResistanceLevel, ZigZagPoint } from "@/market/lib/chart_overlays";
+import type { TradeMarker, PredictionMarker } from "@/shared/contexts/UnifiedDashboardContext";
+import type { LocalReplaySnapshot } from "@/market/lib/useLocalReplay";
+import type { RegimeLegendEntry } from "@/training/lib/useTrainingSync";
 
 interface ChartPanelProps {
   // Chart data
@@ -24,7 +28,7 @@ interface ChartPanelProps {
     active: boolean;
     state: PlaybackState;
     speed: PlaybackSpeed;
-    snapshot: any;
+    snapshot: LocalReplaySnapshot<OhlcvData>;
     play: () => void;
     pause: () => void;
     stepForward: () => void;
@@ -39,7 +43,7 @@ interface ChartPanelProps {
     gibbsIter: number;
     gibbsTotal: number;
     activeRegimes: number;
-    regimeLegend: any[];
+    regimeLegend: RegimeLegendEntry[];
     trainingPhase: string;
     stability: number;
   };
@@ -59,13 +63,13 @@ interface ChartPanelProps {
   hasMoreRight: boolean;
   // Overlays
   labelMarkers: LabelMarker[];
-  indicatorOverlays: any[];
+  indicatorOverlays: IndicatorOverlay[];
   onRemoveIndicators: (columns: string[]) => void;
-  supportResistanceLevels: any[];
-  zigZagPoints: any[];
-  swingZigZagPoints: any[];
-  tradeMarkers: any[];
-  predictionMarkers: any[];
+  supportResistanceLevels: SupportResistanceLevel[];
+  zigZagPoints: ZigZagPoint[];
+  swingZigZagPoints: ZigZagPoint[];
+  tradeMarkers: TradeMarker[];
+  predictionMarkers: PredictionMarker[];
 }
 
 export const ChartPanel = memo(function ChartPanel({
@@ -173,16 +177,13 @@ export const ChartPanel = memo(function ChartPanel({
 
       <ResizableHandle className="bg-border/30 hover:bg-primary/20 data-[resize-handle-active]:bg-primary/30 transition-colors after:!h-1 after:!rounded-full after:!bg-muted-foreground/20 hover:after:!bg-primary/40" withHandle />
 
-      {/* Bottom panel — Terminal + Chat */}
+      {/* Bottom panel — Terminal */}
       <ResizablePanel defaultSize={25} minSize={5} maxSize={60}>
         <Tabs value={bottomTab} onValueChange={setBottomTab} className="h-full flex flex-col overflow-hidden">
           <div className="flex items-center px-2 pt-1 pb-0.5 border-b border-white/[0.06] shrink-0">
             <TabsList className="glass rounded-lg p-0.5 h-auto w-fit">
               <TabsTrigger value="terminal" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-[hsl(var(--data-pos)/0.15)] data-[state=active]:text-[hsl(var(--data-pos))] gap-1">
                 <TerminalSquare className="h-3 w-3" /> Terminal
-              </TabsTrigger>
-              <TabsTrigger value="chat" className="rounded-md px-3 py-1 text-[10px] data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-400 gap-1">
-                <MessageSquare className="h-3 w-3" /> Chat
               </TabsTrigger>
             </TabsList>
           </div>
@@ -191,9 +192,6 @@ export const ChartPanel = memo(function ChartPanel({
             <TerminalTabs visible={bottomTab === "terminal"} />
           </TabsContent>
 
-          <TabsContent value="chat" className="flex-1 min-h-0 overflow-hidden mt-0">
-            <ChatTab />
-          </TabsContent>
         </Tabs>
       </ResizablePanel>
     </ResizablePanelGroup>

@@ -1,16 +1,20 @@
 import { memo } from "react";
-import { BarChart3, TerminalSquare, MessageSquare, BrainCircuit, Activity } from "lucide-react";
+import { BarChart3, TerminalSquare, BrainCircuit, Activity } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import IndicatorChartLayout from "@/market/components/IndicatorChartLayout";
 import { ReplayControls } from "@/market/components/ReplayControls";
 import { TrainingSyncBanner } from "@/training/TrainingSyncBanner";
 import { RegimeLegend, type RegimeInfo } from "@/ml/components/RegimeLegend";
 import { TerminalTabs } from "@/system/components/TerminalTabs";
-import { ChatTab } from "@/portfolio/components/chat/ChatTab";
 import { MLWorkflowSidebar } from "@/system/components/MLWorkflowSidebar";
 import type { LabelMarker } from "@/market/components/TradingChart";
 import type { PlaybackSpeed, PlaybackState } from "@/market/lib/useLocalReplay";
 import type { OhlcvData } from "@/market/components/types";
+import type { IndicatorOverlay } from "@/market/lib/useIndicatorData";
+import type { SupportResistanceLevel, ZigZagPoint } from "@/market/lib/chart_overlays";
+import type { TradeMarker, PredictionMarker } from "@/shared/contexts/UnifiedDashboardContext";
+import type { LocalReplaySnapshot } from "@/market/lib/useLocalReplay";
+import type { RegimeLegendEntry } from "@/training/lib/useTrainingSync";
 
 interface IntegratedTabsProps {
   // Chart data
@@ -24,7 +28,7 @@ interface IntegratedTabsProps {
     active: boolean;
     state: PlaybackState;
     speed: PlaybackSpeed;
-    snapshot: any;
+    snapshot: LocalReplaySnapshot<OhlcvData>;
     play: () => void;
     pause: () => void;
     stepForward: () => void;
@@ -39,7 +43,7 @@ interface IntegratedTabsProps {
     gibbsIter: number;
     gibbsTotal: number;
     activeRegimes: number;
-    regimeLegend: any[];
+    regimeLegend: RegimeLegendEntry[];
     trainingPhase: string;
     stability: number;
   };
@@ -59,13 +63,13 @@ interface IntegratedTabsProps {
   hasMoreRight: boolean;
   // Overlays
   labelMarkers: LabelMarker[];
-  indicatorOverlays: any[];
+  indicatorOverlays: IndicatorOverlay[];
   onRemoveIndicators: (columns: string[]) => void;
-  supportResistanceLevels: any[];
-  zigZagPoints: any[];
-  swingZigZagPoints: any[];
-  tradeMarkers: any[];
-  predictionMarkers: any[];
+  supportResistanceLevels: SupportResistanceLevel[];
+  zigZagPoints: ZigZagPoint[];
+  swingZigZagPoints: ZigZagPoint[];
+  tradeMarkers: TradeMarker[];
+  predictionMarkers: PredictionMarker[];
   // Sidebar callbacks
   onLabelMarkersChange: (markers: LabelMarker[], show: boolean) => void;
   // Tab state
@@ -98,9 +102,6 @@ export const IntegratedTabs = memo(function IntegratedTabs({
           </TabsTrigger>
           <TabsTrigger value="terminal" className="rounded-md px-4 py-1.5 text-[11px] font-bold tracking-tight data-[state=active]:bg-[hsl(var(--data-pos)/0.2)] data-[state=active]:text-[hsl(var(--data-pos))] gap-2 transition-all">
             <TerminalSquare className="h-3.5 w-3.5" /> TERMINAL
-          </TabsTrigger>
-          <TabsTrigger value="chat" className="rounded-md px-4 py-1.5 text-[11px] font-bold tracking-tight data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 gap-2 transition-all">
-            <MessageSquare className="h-3.5 w-3.5" /> CHAT
           </TabsTrigger>
         </TabsList>
 
@@ -219,10 +220,6 @@ export const IntegratedTabs = memo(function IntegratedTabs({
         <TerminalTabs visible={activeTab === "terminal"} />
       </TabsContent>
 
-      {/* --- CHAT TAB --- */}
-      <TabsContent value="chat" className="flex-1 min-h-0 m-0 p-0 overflow-hidden">
-        <ChatTab />
-      </TabsContent>
     </Tabs>
   );
 });

@@ -68,7 +68,6 @@ export default function MarketData() {
         case "1": setActiveTab("price"); break;
         case "2": setActiveTab("ml-studio"); break;
         case "3": setActiveTab("terminal"); break;
-        case "4": setActiveTab("chat"); break;
       }
     };
     window.addEventListener("keydown", handleKeyDown);

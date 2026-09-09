@@ -1,6 +1,6 @@
 # Contexts — React Context Providers
 
-11 React contexts managing global state for training, symbols, chat, overlays, and dashboard configuration.
+9 React contexts managing global state for training, symbols, overlays, and dashboard configuration.
 
 ## Training Contexts (Split for Performance)
 
@@ -21,7 +21,6 @@ Training state is split into 4 granular contexts to minimize re-renders. Compone
 | `SymbolContext.tsx` | Active symbol + timeframe selection (shared across pages) |
 | `ActiveModelContext.tsx` | Currently selected ML model |
 | `ChartOverlayContext.tsx` | Chart overlay configuration (regime colors, predictions) |
-| `ChatContext.tsx` | Ollama LLM chat state (messages, streaming) |
 | `DashboardLogContext.tsx` | Dashboard-wide event log |
 | `UnifiedDashboardContext.tsx` | Combined dashboard state provider |
 | `dashboardTypes.ts` | Shared dashboard type definitions |
@@ -36,7 +35,6 @@ QueryClientProvider
         TrainingLogsProvider
           TrainingOverlaysProvider
             TrainingModelStateProvider
-              ChatProvider
                 BreadcrumbProvider
                   Layout + Router
 ```

@@ -29,7 +29,6 @@ Audited against the 12 production lifecycles on 2026-05-28 — see Section 11 fo
 - [ ] **QuestDB** reachable on `:9000` **or** installable locally:
   - External instance already serving `http://localhost:9000/exec?query=SELECT%201` → nothing to install, OR
   - Local QuestDB dir set via `QUESTDB_ROOT` (contains `bin/java.exe`) so the backend auto-starts it.
-- [ ] **(Optional) Ollama** running on `:11434` if using local LLM features (`OLLAMA_URL`, `OLLAMA_MODEL`).
 - [ ] **(Optional) PostgreSQL** only if the TypeORM/`pg` path is exercised — not required for core dashboard.
 - [ ] Build toolchain for native modules present (`better-sqlite3`, `node-pty`, `zeromq`, `@tensorflow/tfjs-node` compile on `npm ci`). On Windows: VS 2022 MSVC + Python in PATH.
 - [ ] GPU note (training): target **50–60% VRAM**, never 100% (RTX 5060 Ti 16 GB). DataLoader workers ≤ `cpu_count // 3` (max 4).
@@ -42,7 +41,6 @@ Audited against the 12 production lifecycles on 2026-05-28 — see Section 11 fo
   - [ ] `QUESTDB_HOST` / `QUESTDB_HTTP_PORT` (9000) / `QUESTDB_PG_PORT` (8812) / `QUESTDB_USER` / `QUESTDB_PASSWORD`.
   - [ ] `QUESTDB_ROOT` (+ optional `QUESTDB_JAVA`) **only** if you want the backend to auto-start QuestDB.
   - [ ] `SQLITE_PATH` (default `./data/ml_dashboard.db`).
-  - [ ] `OLLAMA_URL` / `OLLAMA_MODEL` if using LLM features.
 - [ ] **Secrets**: never commit `.env`. Verify `.gitignore` covers it (audit: ✓). API keys come from the canonical Windows env-var store, not the repo.
 - [ ] Confirm `data/` directory exists/writable (SQLite DB + `data/object-storage` local blob root).
 

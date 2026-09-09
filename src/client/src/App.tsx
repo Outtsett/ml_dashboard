@@ -11,7 +11,6 @@ import Layout from "@/shared/layout/Layout";
 import { BreadcrumbProvider } from "@/shared/hooks/useBreadcrumbs";
 import { UnifiedDashboardProvider } from "@/shared/contexts/UnifiedDashboardContext";
 import { TrainingProvider } from "@/training/lib/TrainingContext";
-import { ChatProvider } from "@/shared/contexts/ChatContext";
 import { ErrorBoundary } from "@/shared/layout/ErrorBoundary";
 import {
   DataGridSkeleton,
@@ -262,7 +261,6 @@ function App() {
       <TooltipProvider>
         <UnifiedDashboardProvider>
           <TrainingProvider>
-            <ChatProvider>
             <BreadcrumbProvider>
               <Toaster />
               <SonnerToaster richColors position="bottom-right" />
@@ -270,7 +268,6 @@ function App() {
               <Router />
               <AICopilot />
             </BreadcrumbProvider>
-            </ChatProvider>
           </TrainingProvider>
         </UnifiedDashboardProvider>
       </TooltipProvider>

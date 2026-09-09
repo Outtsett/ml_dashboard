@@ -44,7 +44,6 @@ import eventsAgentsRouter from "../../deployment/agents.events";
 import settingsRouter from "../../system/settings.router";
 import systemRouter from "../../system/telemetry.router";
 import eventsRouter from "../../system/events.router";
-import chatRouter from "../../system/chat.router";
 import copilotRouter from "../../ai/copilot.router";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
@@ -96,7 +95,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", eventsRouter);
   app.use("/api", pipelinesRouter);
   app.use("/api", dataManagementRouter);
-  app.use("/api", chatRouter);
 
   // Catch-all 404 for unregistered API routes (must be AFTER all /api mounts)
   app.use('/api/{*path}', (_req: Request, res: Response) => {

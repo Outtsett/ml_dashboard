@@ -49,7 +49,6 @@ Shared business logic libraries used by route handlers and services. Contains th
 | `metrics.ts` | Performance tracking and metrics collection |
 | `log.ts` | Structured logging utility |
 | `startupManager.ts` | Server startup sequence orchestration |
-| `ollama.ts` | Ollama HTTP client (streaming chat + model listing, localhost:11434) |
 | `ptyServer.ts` | PTY (pseudo-terminal) server for embedded terminal |
 | `futures.ts` | Futures contract utilities |
 | `continuousContract.ts` | Continuous contract stitching logic |
