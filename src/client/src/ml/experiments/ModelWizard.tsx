@@ -35,7 +35,7 @@ export function ModelWizard({ model, isOpen, onClose }: ModelWizardProps) {
   const [availableTargets, setAvailableTargets] = useState<FeatureStoreEntry[]>([]);
   
   // State: Stage 1 (Data)
-  const [dataset, setDataset] = useState("D:\\ml_data\\MNQ_1m.parquet");
+  const [dataset, setDataset] = useState("curated/bars/asset_class=futures/root=MNQ/timeframe=1m");
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [targetVariable, setTargetVariable] = useState("");
   

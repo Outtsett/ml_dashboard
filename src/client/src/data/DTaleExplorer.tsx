@@ -74,7 +74,7 @@ export function DTaleExplorer() {
 
         {sourceMode === "file" ? (
           <div className="flex-grow space-y-2">
-            <label className="text-xs text-neutral-400 font-medium uppercase tracking-wider">Dataset Filename (in D:\ml_data)</label>
+            <label className="text-xs text-neutral-400 font-medium uppercase tracking-wider">Dataset path (relative to E:\\lake)</label>
             <Input 
               value={filename}
               onChange={(e) => setFilename(e.target.value)}

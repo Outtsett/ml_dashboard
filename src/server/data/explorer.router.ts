@@ -278,7 +278,7 @@ router.post('/questdb/init', async (_req: Request, res: Response) => {
 import { spawn, ChildProcess } from 'child_process';
 let currentDtaleProcess: ChildProcess | null = null;
 
-const DTALE_DATA_ROOT = 'D:\\ml_data';
+const DTALE_DATA_ROOT = process.env.LAKE_ROOT ?? 'E:\\lake';
 // Bind to loopback only. D-Tale has no auth of its own, so anything it is
 // pointed at would otherwise be readable by any host on the LAN.
 const DTALE_HOST = '127.0.0.1';

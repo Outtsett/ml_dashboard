@@ -11,7 +11,7 @@ from pathlib import Path
 
 import databento as db
 
-hist_dir = Path(r'D:\HistoricalTickData')
+hist_dir = Path(r'E:\lake\raw\vendor=databento\dataset=GLBX.MDP3')
 
 for dbn_file in sorted(hist_dir.glob('*.trades.dbn')):
     out = dbn_file.with_suffix('.parquet')

@@ -19,7 +19,7 @@ var path = require("path");
 var execSync = require("child_process").execSync;
 
 var QUESTDB_URL = "http://" + (process.env.QUESTDB_HOST || "localhost") + ":" + (process.env.QUESTDB_HTTP_PORT || "9000");
-var DATA_DIR = "D:\\HistoricalTickData";
+var DATA_DIR = "E:\\lake\\raw\\vendor=databento\\dataset=GLBX.MDP3";
 var TMP_DIR = path.join(process.cwd(), "data", "tmp-upload");
 
 async function questdbExec(sql) {

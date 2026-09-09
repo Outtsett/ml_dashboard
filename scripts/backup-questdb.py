@@ -39,8 +39,25 @@ import psycopg2
 
 PRIORITY_TABLES = ["ticks", "dom_l2", "dom_summary", "ohlcv"]
 
-DEFAULT_DEST = Path("D:/questdb-backups")
-DEFAULT_SOURCE_DRIVE = "E:"  # QuestDB data directory lives here -- must never equal --dest drive
+# RETIRED 2026-08-25, and hard-disabled 2026-09-08.
+#
+# QuestDB is a serving cache over the Iceberg lake at E:\lake, rebuildable at any
+# time by datalake/scripts/rebuild_questdb.py. Backing up a rebuildable cache was
+# only ever a second thing to keep in sync, and there is no longer anywhere
+# correct to put it: the old destination D:\questdb-backups was deleted and the
+# D: drive is decommissioned, while E: holds both the lake and QuestDB's own data
+# root, so the same-drive guard below can never be satisfied. Landing it in
+# raw/vendor=questdb would be worse still - raw/ is write-once VENDOR bytes, and
+# a cache is not a vendor.
+#
+# Kept only so the restore path and the partition-export logic remain readable.
+DEFAULT_DEST = None
+DEFAULT_SOURCE_DRIVE = "E:"  # QuestDB data directory lives here
+RETIRED_REASON = (
+    "backup-questdb.py is retired. QuestDB is a rebuildable serving cache over "
+    "E:/lake; rebuild it with datalake/scripts/rebuild_questdb.py instead. "
+    "Per the global CLAUDE.md, do not back anything up unless Tyler asks."
+)
 STATE_FILENAME = "_state.json"
 FETCH_CHUNK_SIZE = 200_000
 
@@ -215,6 +232,8 @@ def backup_table(conn, table: str, dest: Path, state: dict, force_full: bool, lo
 
 
 def main():
+    raise SystemExit(RETIRED_REASON)
+
     parser = argparse.ArgumentParser(description="Backup QuestDB to parquet on a separate physical drive")
     parser.add_argument("--dest", type=str, default=str(DEFAULT_DEST), help=f"Backup destination (default: {DEFAULT_DEST})")
     parser.add_argument("--tables", type=str, default=None, help="Comma-separated table override (default: all tables, priority order)")

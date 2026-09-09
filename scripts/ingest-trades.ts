@@ -16,7 +16,7 @@ import { initDuckDB, runQuery } from '../server/duckdb';
 import { recordIngestion, computeFileHash, checkFileIngested } from '../server/services/ingestionService';
 import * as fs from 'fs';
 
-const HIST_DIR = 'D:/HistoricalTickData';
+const HIST_DIR = 'E:/lake/raw/vendor=databento/dataset=GLBX.MDP3';
 const BATCH_SIZE = 50_000;
 const QUESTDB_HTTP_PORT = process.env.QUESTDB_HTTP_PORT || '9000';
 const QUESTDB_HOST = process.env.QUESTDB_HOST || 'localhost';

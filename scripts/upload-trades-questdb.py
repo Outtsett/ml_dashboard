@@ -13,7 +13,7 @@ import urllib.request
 import duckdb
 
 QUESTDB_URL = os.environ.get("QUESTDB_HOST", "http://localhost:9000")
-TRADES_DIR = r"D:\HistoricalTickData"
+TRADES_DIR = r"E:\lake\raw\vendor=databento\dataset=GLBX.MDP3"
 TEMP_CSV = os.path.join(os.environ.get("TEMP", "/tmp"), "trades_upload.csv")
 
 # All daily trade parquet files

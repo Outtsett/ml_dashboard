@@ -31,7 +31,7 @@ QUESTDB_PG_USER = os.environ.get("QUESTDB_PG_USER", "admin")
 QUESTDB_PG_PASSWORD = os.environ.get("QUESTDB_PG_PASSWORD", "quest")
 QUESTDB_PG_DATABASE = os.environ.get("QUESTDB_PG_DATABASE", "qdb")
 
-RUN_ROOT = os.environ.get("ML_DATA_ROOT", "D:/ml_data/runs")
+RUN_ROOT = os.environ.get("ML_DATA_ROOT", "E:/lake/derived/runs")
 
 # A DuckDB ATTACH string is one single-quoted, space-separated literal, so a
 # quote, a backslash, a space or a line break in any field would end it early.

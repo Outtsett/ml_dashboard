@@ -67,7 +67,7 @@ export class ProcessManager extends EventEmitter {
       '--config', configFile,
       '--instrument', config.instrument,
       '--timeframe', config.timeframe,
-      '--train-data', `D:/ml_data/runs/${config.jobId}/train.parquet`,
+        '--train-data', `${process.env.LAKE_ROOT ?? 'E:/lake'}/derived/runs/${config.jobId}/train.parquet`,
       '--test-data', `D:/ml_data/runs/${config.jobId}/test.parquet`
     ];
     

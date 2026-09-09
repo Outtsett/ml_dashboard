@@ -37,7 +37,7 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
-DEFAULT_BACKUP_DIR = Path("D:/questdb-backups")
+DEFAULT_BACKUP_DIR = Path("E:/lake/raw/vendor=questdb")
 IMPORT_ROOT = Path("E:/source/databases/questdb-9.3.3-rt-windows-x86-64/import")
 STAGING_SUBDIR = "_restore_drill"
 

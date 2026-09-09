@@ -15,7 +15,7 @@ import { describe, it, expect } from 'vitest';
 import * as path from 'path';
 import { resolveDatasetPath } from '../../src/server/data/explorer.router';
 
-const BASE = path.resolve('D:\\ml_data');
+const BASE = path.resolve(process.env.LAKE_ROOT ?? 'E:\\lake');
 
 const insideBase = (p: string) =>
   p.toLowerCase().startsWith(BASE.toLowerCase() + path.sep);
