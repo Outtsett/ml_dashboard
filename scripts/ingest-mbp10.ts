@@ -16,7 +16,9 @@ import { initDuckDB, runQuery } from '../server/duckdb';
 import { recordIngestion, computeFileHash, checkFileIngested } from '../server/services/ingestionService';
 import * as fs from 'fs';
 
-const HIST_DIR = 'E:/lake/raw/vendor=databento/dataset=GLBX.MDP3';
+// Deliveries are partitioned by received= date under the schema dir; walk them all
+// so a new delivery needs no code change.
+const HIST_DIR = 'E:/lake/raw/vendor=databento/dataset=GLBX.MDP3/schema=mbp-10';
 const BATCH_SIZE = 50_000;
 const QUESTDB_HTTP_PORT = process.env.QUESTDB_HTTP_PORT || '9000';
 const QUESTDB_HOST = process.env.QUESTDB_HOST || 'localhost';
@@ -110,9 +112,14 @@ async function main() {
     return;
   }
 
-  const csvFiles = fs.readdirSync(HIST_DIR)
-    .filter(f => f.endsWith('.mbp-10.csv'))
-    .sort();
+  const csvFiles = fs.existsSync(HIST_DIR)
+    ? fs.readdirSync(HIST_DIR)
+        .filter(d => d.startsWith('received='))
+        .flatMap(d => fs.readdirSync(`${HIST_DIR}/${d}`)
+          .filter(f => f.endsWith('.mbp-10.csv') || f.endsWith('.mbp-10.csv.zst'))
+          .map(f => `${d}/${f}`))
+        .sort()
+    : [];
 
   console.log(`[mbp10] Found ${csvFiles.length} MBP-10 CSV files`);
 

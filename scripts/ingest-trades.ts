@@ -16,7 +16,9 @@ import { initDuckDB, runQuery } from '../server/duckdb';
 import { recordIngestion, computeFileHash, checkFileIngested } from '../server/services/ingestionService';
 import * as fs from 'fs';
 
-const HIST_DIR = 'E:/lake/raw/vendor=databento/dataset=GLBX.MDP3';
+// The .trades.parquet files are a DERIVED product of convert-dbn-trades.py.
+// raw/ holds the vendor bytes they were converted from and stays write-once.
+const HIST_DIR = 'E:/lake/derived/dataset_snapshots/recipe=databento_dbn_to_parquet';
 const BATCH_SIZE = 50_000;
 const QUESTDB_HTTP_PORT = process.env.QUESTDB_HTTP_PORT || '9000';
 const QUESTDB_HOST = process.env.QUESTDB_HOST || 'localhost';

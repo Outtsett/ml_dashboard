@@ -11,10 +11,15 @@ from pathlib import Path
 
 import databento as db
 
+# Read vendor bytes from bronze; write the converted product to derived/.
+# raw/ is write-once vendor bytes - a format conversion is a derivation and
+# must not be written back into it.
 hist_dir = Path(r'E:\lake\raw\vendor=databento\dataset=GLBX.MDP3')
+out_dir = Path(r'E:\lake\derived\dataset_snapshots\recipe=databento_dbn_to_parquet')
+out_dir.mkdir(parents=True, exist_ok=True)
 
 for dbn_file in sorted(hist_dir.glob('*.trades.dbn')):
-    out = dbn_file.with_suffix('.parquet')
+    out = out_dir / (dbn_file.stem + '.trades.parquet')
     if out.exists():
         print(f'Skip {dbn_file.name} (parquet exists)')
         continue
