@@ -43,7 +43,6 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
-import io
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -52,7 +51,7 @@ from typing import Any
 import numpy as np
 import polars as pl
 
-from .data import _fetch_csv_bytes, _validate_date, _validate_sql_input, load_ohlcv_arrays
+from .data import _validate_date, _validate_sql_input, load_ohlcv_arrays
 from .protocol import emit_log, emit_progress
 
 # Columns exposed by the questdb_ohlcv path. "timestamp" is deliberately
@@ -168,18 +167,23 @@ def _load_questdb_table(source: DataSource) -> dict:
     limit = f" LIMIT {int(source.max_bars)}" if source.max_bars else ""
 
     if source.sample_by:
-        # QuestDB doesn't accept `SELECT *` under SAMPLE BY for non-key
-        # columns — every column needs an aggregate. last() is the standard
-        # downsample choice (matches the "most recent value in the bucket"
-        # semantics used by mnq_ohlcv_* materialized views elsewhere in this
-        # instance). Column list is discovered, not hard-coded, so this stays
-        # a single generic path regardless of table shape.
+        # Every non-key column needs an aggregate under a time bucket. The
+        # intent is "most recent value in the bucket", which in DuckDB is
+        # arg_max(col, time_column) - NOT last(), which is order-unspecified
+        # inside a group and would drift between runs. The column list is
+        # discovered, not hard-coded, so this stays one generic path whatever
+        # shape the table has.
         sample_by = _validate_sql_input(source.sample_by, "sample_by", pattern=r"^[0-9]+[a-zA-Z]$")
         other_cols = _fetch_table_columns(table, exclude=time_column)
-        select_list = ", ".join([time_column] + [f"last({c}) {c}" for c in other_cols])
+        # Every identifier is quoted: a discovered column list is not under this
+        # module's control and can collide with a DuckDB reserved word.
+        select_list = ", ".join(
+            [f'time_bucket(INTERVAL {_interval_literal(sample_by)}, "{time_column}") AS "{time_column}"']
+            + [f'arg_max("{c}", "{time_column}") AS "{c}"' for c in other_cols]
+        )
         sql = (
             f"SELECT {select_list} FROM {table}{where} "
-            f"SAMPLE BY {sample_by} ALIGN TO CALENDAR ORDER BY {time_column}{limit}"
+            f"GROUP BY 1 ORDER BY {time_column}{limit}"
         )
     else:
         sql = f"SELECT * FROM {table}{where} ORDER BY {time_column}{limit}"
@@ -209,12 +213,30 @@ def _load_questdb_table(source: DataSource) -> dict:
     }
 
 
+_INTERVAL_UNIT = {"s": "second", "m": "minute", "h": "hour", "d": "day", "w": "week"}
+
+
+def _interval_literal(sample_by: str) -> str:
+    """QuestDB's ``5m`` as a DuckDB interval literal, ``'5 minutes'``.
+
+    The unit letters are QuestDB's, and ``m`` means minute here - never month.
+    A month would be ``M`` and no caller uses one, so an unknown unit raises
+    rather than guessing at a bucket size.
+    """
+    count, unit = sample_by[:-1], sample_by[-1]
+    if unit not in _INTERVAL_UNIT or not count.isdigit():
+        raise ValueError(
+            f"unsupported sample_by {sample_by!r}; expected <int>[{''.join(_INTERVAL_UNIT)}]"
+        )
+    return f"'{int(count)} {_INTERVAL_UNIT[unit]}s'"
+
+
 def _fetch_table_columns(table: str, *, exclude: str) -> list[str]:
     """Discover a table's column names via SHOW COLUMNS, excluding `exclude`."""
-    df = _fetch_csv_dataframe(f"SHOW COLUMNS FROM {table}")
-    if df is None or "column" not in df.columns:
+    df = _fetch_csv_dataframe(f"DESCRIBE {table}")
+    if df is None or "column_name" not in df.columns:
         raise RuntimeError(f"Could not discover columns for table '{table}'")
-    return [c for c in df["column"].to_list() if c != exclude]
+    return [c for c in df["column_name"].to_list() if c != exclude]
 
 
 def _build_generic_where(filters: dict[str, Any] | None) -> str:
@@ -260,18 +282,20 @@ def _sql_literal(value: Any) -> str:
 
 
 def _fetch_csv_dataframe(sql: str) -> pl.DataFrame | None:
-    """Generic (schema-agnostic) HTTP /exp fetch + Polars parse.
+    """Generic (schema-agnostic) read from the lake through DuckDB.
 
-    Unlike `data.py::_http_csv_to_arrays`, this makes no assumption about
-    column names or types — used for tables that aren't OHLCV-shaped.
+    Was an HTTP /exp CSV round trip until 2026-09-10, when QuestDB was emptied.
+    DuckDB hands Polars an Arrow table, so there is no CSV encode/parse in the
+    middle and no type inference to get wrong on a table that is not
+    OHLCV-shaped - which was the reason this existed separately from
+    `data.py::_http_csv_to_arrays`.
     """
-    csv_bytes = _fetch_csv_bytes(sql)
-    if not csv_bytes:
-        return None
+    from ml.shared.data import _serving
+
     try:
-        return pl.read_csv(io.BytesIO(csv_bytes), try_parse_dates=True, infer_schema_length=10_000)
+        return _serving().execute(sql).pl()
     except Exception as exc:
-        emit_log(f"[dataset] Polars CSV parse failed: {exc}", level="warning")
+        emit_log(f"[dataset] lake query failed: {exc}", level="warning")
         return None
 
 

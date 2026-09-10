@@ -49,7 +49,22 @@ def _validate_date(value, name):
 
 
 def _connect():
-    """Create psycopg2 connection to QuestDB PG wire (PG-wire fallback only)."""
+    """Refuse, loudly. QuestDB was emptied on 2026-09-10.
+
+    Kept as a named failure rather than deleted because a caller that still
+    reaches for PG wire should be told where the data went, not handed an open
+    connection to an empty database that answers every query with zero rows.
+    """
+    raise RuntimeError(
+        "QuestDB was emptied on 2026-09-10; this module now reads the lake "
+        "through lake.serving.connect(). If you need the old serving database "
+        "back, replay meta/questdb_schema/questdb_schema_latest.sql and load "
+        "derived/recipe=questdb_full_2026-09-09/."
+    )
+
+
+def _connect_questdb_disabled():
+    """The original PG-wire connector, unreferenced. Kept for the restore path."""
     import psycopg2
 
     return psycopg2.connect(
@@ -192,20 +207,45 @@ def _build_where(symbol: str, date_range: dict | None) -> str:
     return where
 
 
+_SERVING = None
+
+
+def _serving():
+    """DuckDB over the lake, carrying the former QuestDB tables as views.
+
+    QuestDB was emptied on 2026-09-10 after every table was copied to parquet in
+    the lake and row-count verified. Built once per process: the cost is a glob
+    of the snapshot prefix plus one Iceberg catalog round trip.
+    """
+    global _SERVING
+    if _SERVING is None:
+        from lake.serving import connect
+
+        _SERVING = connect()
+    return _SERVING
+
+
 def _build_sample_sql(symbol: str, interval: str, max_bars: int, date_range: dict | None) -> str:
+    """Bars at `interval`, read from the lake through DuckDB.
+
+    Where QuestDB kept a materialized view for the timeframe, read THAT rather
+    than re-aggregating: it is the same rows QuestDB's SAMPLE BY returned, and
+    it was copied into the snapshot with everything else. Only an interval with
+    no such view is recomputed, and then through lake.serving.resample_sql,
+    which uses arg_min/arg_max on the timestamp because DuckDB's first()/last()
+    are order-unspecified inside a group.
+    """
+    from lake.serving import TIMEFRAME_VIEW, resample_sql
+
     where = _build_where(symbol, date_range)
-    limit = f"LIMIT {max_bars}" if max_bars > 0 else ""
-    return f"""
-        SELECT symbol, timestamp,
-            first(open) as open, max(high) as high,
-            min(low) as low, last(close) as close,
-            sum(volume) as volume
-        FROM ohlcv
-        {where}
-        SAMPLE BY {interval} ALIGN TO CALENDAR
-        ORDER BY timestamp
-        {limit}
-    """.strip()
+    limit = f" LIMIT {max_bars}" if max_bars > 0 else ""
+    view = TIMEFRAME_VIEW.get(interval)
+    if view:
+        return (
+            f"SELECT symbol, timestamp, open, high, low, close, volume "
+            f"FROM {view} {where} ORDER BY timestamp{limit}"
+        )
+    return resample_sql("ohlcv", interval, where.removeprefix("WHERE ")) + limit
 
 
 # ── Public entry point ────────────────────────────────────────────────────
@@ -237,32 +277,23 @@ def load_ohlcv_arrays(
         if date_range.get("end"):
             _validate_date(date_range["end"], "date_range.end")
 
-    interval = timeframe if timeframe != "1w" else "7d"
+    interval = timeframe
     sql = _build_sample_sql(symbol, interval, max_bars, date_range)
 
-    # 1) HTTP /exp + Polars
-    emit_log(f"[data] Loading {symbol}@{timeframe} via HTTP /exp...")
-    result = _http_csv_to_arrays(sql)
-    if result is not None:
-        emit_log(f"[data] Loaded {result['n_rows']:,} rows via HTTP CSV (polars)")
-        return _drop_meta(result)
+    emit_log(f"[data] Loading {symbol}@{timeframe} from the lake via DuckDB...")
+    con = _serving()
+    rows = con.execute(sql).fetchall()
 
-    # 2) PG wire fallback
-    emit_log("[data] HTTP /exp returned no rows or failed, falling back to PG wire...")
-    conn = _connect()
-    try:
-        rows = _pg_fetch(conn, sql)
-
-        # 3) Front-month stitching if symbol has no exact match
-        if not rows and not re.match(r".+[FGHJKMNQUVXZ]\d{1,2}$", symbol):
-            emit_log(f"[data] No exact match for '{symbol}', trying front-month stitching...")
-            rows = _fetch_front_month_rows(conn, symbol, interval, max_bars, date_range)
-    finally:
-        conn.close()
+    # Front-month stitching when the symbol names a root rather than a contract.
+    if not rows and not re.match(r".+[FGHJKMNQUVXZ]\d{1,2}$", symbol):
+        emit_log(f"[data] No exact match for '{symbol}', trying front-month stitching...")
+        rows = _fetch_front_month_rows(con, symbol, interval, max_bars, date_range)
 
     if not rows:
         raise ValueError(f"No OHLCV data found for {symbol} at {timeframe}")
 
+    emit_log(f"[data] Loaded {len(rows):,} rows from the lake")
+    emit_progress(len(rows), len(rows), "loading_data")
     return _rows_to_arrays(rows)
 
 
@@ -299,8 +330,8 @@ def _rows_to_arrays(rows: list[tuple]) -> dict:
     }
 
 
-def _fetch_front_month_rows(conn, root: str, interval: str, max_bars: int, date_range: dict | None) -> list[tuple]:
-    """Front-month stitching: pick highest-volume contract per day, query each via HTTP /exp."""
+def _fetch_front_month_rows(con, root: str, interval: str, max_bars: int, date_range: dict | None) -> list[tuple]:
+    """Front-month stitching: pick the highest-volume contract per day, read each from the lake."""
     time_filter = ""
     if date_range:
         if date_range.get("start"):
@@ -308,16 +339,15 @@ def _fetch_front_month_rows(conn, root: str, interval: str, max_bars: int, date_
         if date_range.get("end"):
             time_filter += f" AND timestamp <= '{date_range['end']}'"
 
-    cur = conn.cursor()
-    cur.execute(f"""
-        SELECT symbol, timestamp, sum(volume) as volume FROM ohlcv
+    daily_bars = con.execute(f"""
+        SELECT symbol, time_bucket(INTERVAL '1 day', timestamp) AS timestamp,
+               sum(volume) AS volume
+        FROM ohlcv
         WHERE root = '{root}' AND asset_class = 'futures'
-        AND symbol != '{root}'{time_filter}
-        SAMPLE BY 1d ALIGN TO CALENDAR
+          AND symbol != '{root}'{time_filter}
+        GROUP BY 1, 2
         ORDER BY timestamp
-    """)
-    daily_bars = cur.fetchall()
-    cur.close()
+    """).fetchall()
 
     if not daily_bars:
         return []
@@ -351,27 +381,16 @@ def _fetch_front_month_rows(conn, root: str, interval: str, max_bars: int, date_
         s = f"{start}T00:00:00.000Z"
         e = f"{end}T23:59:59.999Z"
 
-        sql = f"""
-            SELECT '{sym}' as symbol, timestamp,
-                first(open) as open, max(high) as high,
-                min(low) as low, last(close) as close,
-                sum(volume) as volume
-            FROM ohlcv
-            WHERE symbol = '{sym}' AND timestamp >= '{s}' AND timestamp <= '{e}'
-            SAMPLE BY {interval} ALIGN TO CALENDAR
-            ORDER BY timestamp
-        """.strip()
-
-        result = _http_csv_to_arrays(sql)
-        if result is not None:
-            n = result["n_rows"]
-            for i in range(n):
-                all_rows.append((
-                    sym, result["timestamp"][i],
-                    float(result["open"][i]), float(result["high"][i]),
-                    float(result["low"][i]), float(result["close"][i]),
-                    float(result["volume"][i]),
-                ))
+        sql = _build_sample_sql(
+            sym, interval, 0, {"start": s, "end": e}
+        )
+        for row in con.execute(sql).fetchall():
+            all_rows.append((
+                sym, row[1],
+                float(row[2]), float(row[3]),
+                float(row[4]), float(row[5]),
+                float(row[6] or 0.0),
+            ))
         emit_progress(idx + 1, total_contracts, "loading_data")
 
     if not all_rows:
