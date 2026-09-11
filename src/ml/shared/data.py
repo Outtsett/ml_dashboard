@@ -1,24 +1,19 @@
 """
-QuestDB OHLCV data loading — shared across all ML model packages.
+OHLCV loading from the lake — shared across all ML model packages.
 
-Default path is HTTP /exp (CSV stream parsed by Polars — multi-threaded, ~5x
-faster than the stdlib csv module). Falls back to PG wire (psycopg2 chunked
-cursor) when HTTP fails. Returns numpy arrays directly — no PyArrow.
+Reads through `lake.serving.connect()` — DuckDB with `bars` over the Iceberg
+table and one view per former QuestDB table. Returns numpy arrays directly.
+QuestDB was emptied and retired on 2026-09-10; the HTTP /exp and PG-wire paths
+that used to live here went with it.
 
 Public entry points:
   - load_ohlcv_arrays(symbol, timeframe, max_bars=0, date_range=None)
-  - load_ohlcv_from_questdb(...)  (back-compat alias)
   - load_ohlcv_arrays_fast(...)   (legacy; now identical to load_ohlcv_arrays)
 """
 
 from __future__ import annotations
 
-import io
-import os
 import re
-import urllib.parse
-import urllib.request
-from datetime import datetime
 from typing import Any
 
 import numpy as np
@@ -48,43 +43,6 @@ def _validate_date(value, name):
 # ── Connection helpers ─────────────────────────────────────────────────────
 
 
-def _connect():
-    """Refuse, loudly. QuestDB was emptied on 2026-09-10.
-
-    Kept as a named failure rather than deleted because a caller that still
-    reaches for PG wire should be told where the data went, not handed an open
-    connection to an empty database that answers every query with zero rows.
-    """
-    raise RuntimeError(
-        "QuestDB was emptied on 2026-09-10; this module now reads the lake "
-        "through lake.serving.connect(). If you need the old serving database "
-        "back, replay meta/questdb_schema/questdb_schema_latest.sql and load "
-        "derived/recipe=questdb_full_2026-09-09/."
-    )
-
-
-def _connect_questdb_disabled():
-    """The original PG-wire connector, unreferenced. Kept for the restore path."""
-    import psycopg2
-
-    return psycopg2.connect(
-        host=os.environ.get("QUESTDB_HOST", "127.0.0.1"),
-        port=int(os.environ.get("QUESTDB_PG_PORT", "8812")),
-        user=os.environ.get("QUESTDB_USER", "admin"),
-        password=os.environ.get("QUESTDB_PASSWORD", "quest"),
-        database="qdb",
-    )
-
-
-def _http_url(sql: str) -> str:
-    host = os.environ.get("QUESTDB_HOST", "127.0.0.1")
-    port = os.environ.get("QUESTDB_HTTP_PORT", "9000")
-    return f"http://{host}:{port}/exp?query={urllib.parse.quote(sql)}"
-
-
-# ── HTTP /exp loader (Polars CSV parser) ──────────────────────────────────
-
-
 _OHLCV_SCHEMA: dict[str, Any] = {
     "symbol": pl.Utf8,
     "timestamp": pl.Datetime("us"),
@@ -96,102 +54,7 @@ _OHLCV_SCHEMA: dict[str, Any] = {
 }
 
 
-def _fetch_csv_bytes(sql: str, *, timeout: int = 300) -> bytes | None:
-    """Run SQL via QuestDB's HTTP /exp endpoint and return raw CSV bytes.
-
-    Schema-agnostic — used both by the OHLCV-specific parser below and by
-    ``dataset.py``'s generic ``questdb_table`` loader. Returns None on any
-    failure (network error or empty body) so the caller can fall back
-    (PG wire for OHLCV; a raised error for the generic loader).
-    """
-    url = _http_url(sql)
-    try:
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
-            csv_bytes = resp.read()
-    except Exception as exc:
-        emit_log(f"[data] HTTP /exp request failed: {exc}", level="warning")
-        return None
-
-    if not csv_bytes:
-        return None
-    return csv_bytes
-
-
-def _http_csv_to_arrays(sql: str, *, expect_symbol: bool = True) -> dict[str, Any] | None:
-    """Run SQL via HTTP /exp, parse CSV with Polars, return arrays dict.
-
-    Returns None on any failure so caller can fall back to PG wire.
-    """
-    csv_bytes = _fetch_csv_bytes(sql)
-    if not csv_bytes:
-        return None
-
-    try:
-        # Polars infers types fast; we override numerics + timestamp for stability.
-        df = pl.read_csv(
-            io.BytesIO(csv_bytes),
-            try_parse_dates=True,
-            schema_overrides={k: v for k, v in _OHLCV_SCHEMA.items()
-                              if k != "symbol" or expect_symbol},
-        )
-    except Exception as exc:
-        emit_log(f"[data] Polars CSV parse failed: {exc}", level="warning")
-        return None
-
-    if df.height == 0:
-        return None
-
-    # Polars doesn't return Python datetimes by default — convert via ns→sec
-    ts_series = df["timestamp"]
-    if ts_series.dtype == pl.Datetime:
-        # epoch microseconds -> Python datetime list (cheap; one allocation)
-        timestamps = ts_series.dt.replace_time_zone(None).to_list()
-    else:
-        # already string ISO; parse via numpy datetime64
-        ts_arr = np.asarray(ts_series.to_list())
-        timestamps = [datetime.fromisoformat(str(x).replace("Z", "+00:00")) for x in ts_arr]
-
-    open_arr = df["open"].to_numpy().astype(np.float64)
-    high_arr = df["high"].to_numpy().astype(np.float64)
-    low_arr = df["low"].to_numpy().astype(np.float64)
-    close_arr = df["close"].to_numpy().astype(np.float64)
-    volume_arr = df["volume"].to_numpy().astype(np.float64)
-
-    n = open_arr.shape[0]
-    emit_progress(n, n, "loading_data")
-
-    return {
-        "open": open_arr,
-        "high": high_arr,
-        "low": low_arr,
-        "close": close_arr,
-        "volume": volume_arr,
-        "timestamp": timestamps,
-        "n_rows": n,
-    }
-
-
-# ── PG wire fallback (chunked) ────────────────────────────────────────────
-
-
 CHUNK_SIZE = 50_000
-
-
-def _pg_fetch(conn, sql: str, total_hint: int = -1) -> list[tuple]:
-    """Chunked PG-wire fetch — used only when HTTP /exp fails."""
-    cur = conn.cursor()
-    cur.execute(sql)
-    rows: list[tuple] = []
-    loaded = 0
-    while True:
-        chunk = cur.fetchmany(CHUNK_SIZE)
-        if not chunk:
-            break
-        rows.extend(chunk)
-        loaded += len(chunk)
-        emit_progress(loaded, total_hint if total_hint > 0 else loaded, "loading_data")
-    cur.close()
-    return rows
 
 
 # ── Query builders ────────────────────────────────────────────────────────
@@ -257,7 +120,7 @@ def load_ohlcv_arrays(
     max_bars: int = 0,
     date_range: dict | None = None,
 ) -> dict:
-    """Load OHLCV from QuestDB into numpy arrays.
+    """Load OHLCV from the lake into numpy arrays.
 
     Strategy:
       1. HTTP /exp + Polars CSV parser (default, fastest)
@@ -295,11 +158,6 @@ def load_ohlcv_arrays(
     emit_log(f"[data] Loaded {len(rows):,} rows from the lake")
     emit_progress(len(rows), len(rows), "loading_data")
     return _rows_to_arrays(rows)
-
-
-def _drop_meta(result: dict) -> dict:
-    out = {k: v for k, v in result.items() if k != "n_rows"}
-    return out
 
 
 def _rows_to_arrays(rows: list[tuple]) -> dict:
@@ -400,16 +258,3 @@ def _fetch_front_month_rows(con, root: str, interval: str, max_bars: int, date_r
     if max_bars > 0 and len(all_rows) > max_bars:
         all_rows = all_rows[:max_bars]
     return all_rows
-
-
-# ── Backward-compatible aliases ───────────────────────────────────────────
-
-
-def load_ohlcv_from_questdb(symbol, timeframe, max_bars=0, date_range=None):
-    """Back-compat alias used by all model main.py files."""
-    return load_ohlcv_arrays(symbol, timeframe, max_bars, date_range)
-
-
-def load_ohlcv_arrays_fast(symbol, timeframe, max_bars=0, date_range=None):
-    """Legacy alias — now identical to load_ohlcv_arrays (HTTP /exp is the default path)."""
-    return load_ohlcv_arrays(symbol, timeframe, max_bars, date_range)
