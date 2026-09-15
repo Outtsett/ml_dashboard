@@ -20,7 +20,7 @@ const prefetchCache = new Map<string, { data: OhlcvData[]; ts: number }>();
 const PREFETCH_TTL = 5 * 60 * 1000; // 5 min
 
 function getPrefetchUrl(symbol: string, apiTimeframe: string, fetchLimit: number, direction: 'left' | 'right', edgeTimestamp: number): string {
-  let url = `/api/charts/ohlcv?nm=true&symbol=${symbol}&timeframe=${apiTimeframe}&limit=${fetchLimit}&order=asc`;
+  let url = `/api/charts/ohlcv?symbol=${symbol}&timeframe=${apiTimeframe}&limit=${fetchLimit}&order=asc`;
   if (direction === 'left') url += `&endTime=${edgeTimestamp - 1}`;
   else url += `&startTime=${edgeTimestamp + 1}`;
   return url;
@@ -80,7 +80,7 @@ export function useChartOHLCV(symbol: string, timeframeMinutes: number) {
       }
 
       // L1: Fetch from server (prefer MessagePack for ~50% smaller payload)
-      const url = `/api/charts/ohlcv?nm=true&symbol=${symbol}&timeframe=${apiTimeframe}&limit=${FETCH_LIMIT}&order=asc`;
+      const url = `/api/charts/ohlcv?symbol=${symbol}&timeframe=${apiTimeframe}&limit=${FETCH_LIMIT}&order=asc`;
       const response = await fetch(url, {
         signal,
         headers: { 'Accept': 'application/msgpack' },
@@ -217,9 +217,9 @@ export function useChartOHLCV(symbol: string, timeframeMinutes: number) {
   useSSEConnection({
     url: '/api/events/pipeline',
     eventMap: {
-      'market.data.updated': (event: any) => {
-        const payload = event.payload || {};
-        if (payload.symbol === symbol) {
+      'market.data.updated': (event: unknown) => {
+        const payload = (event as { payload?: { symbol?: string } } | null)?.payload;
+        if (payload?.symbol === symbol) {
           // Instant invalidate to trigger re-fetch of recent bars
           queryClient.invalidateQueries({ queryKey: ['/api/charts/ohlcv', symbol, apiTimeframe] });
         }

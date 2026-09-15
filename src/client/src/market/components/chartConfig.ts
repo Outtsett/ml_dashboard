@@ -33,6 +33,19 @@ export const forexPipInfo: Record<string, { pipLocation: number; pipValue: numbe
   GBPCHF: { pipLocation: 4, pipValue: 0.0001, decimals: 5 },
 };
 
+/**
+ * Price precision for a forex pair. Pairs outside the table used to fall back
+ * to 5 decimals regardless of quote currency, which mis-scaled every unlisted
+ * JPY cross; the quote currency decides instead.
+ */
+export function forexPrecision(symbol: string): { decimals: number; minMove: number } {
+  const listed = forexPipInfo[symbol.toUpperCase()];
+  if (listed) return { decimals: listed.decimals, minMove: listed.pipValue };
+  return symbol.toUpperCase().endsWith('JPY')
+    ? { decimals: 3, minMove: 0.001 }
+    : { decimals: 5, minMove: 0.00001 };
+}
+
 /** Strip futures contract suffix (e.g. "MNQH25" → "MNQ", "ESZ2024" → "ES") */
 export function getBaseSymbol(symbol: string): string {
   return symbol.replace(/[A-Z]\d{1,2}$/, '').replace(/\d{4}$/, '');

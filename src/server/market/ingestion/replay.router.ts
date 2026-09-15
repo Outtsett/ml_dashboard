@@ -5,9 +5,11 @@
  *   POST /api/market/replay/start   { symbol, timeframe, mode?, ... }
  *   POST /api/market/replay/stop
  *
- * `mode` selects the source: `live` tails what QuantowerBridge is writing right
- * now, `replay` walks stored history. Default is `live`, because when Quantower
- * is up that is the honest answer to "show me the market".
+ * `mode` selects the source: `replay` walks stored history; `live` tails
+ * `qt_bars_1m`, which QuantowerBridge wrote into QuestDB. That table was not
+ * carried into the lake serving snapshot when QuestDB was retired
+ * (2026-09-10), so `live` has no table to read. Default is `replay`, and a
+ * live request is answered with that fact rather than a raw catalog error.
  *
  * One stream at a time, process-wide. Two concurrent streams would interleave
  * bars for different symbols onto one event channel, and the chart has no way
@@ -69,8 +71,18 @@ async function liveFeedHealth() {
       writing: ageSeconds !== null && ageSeconds >= -60 && ageSeconds < 300,
     };
   } catch (err) {
-    return { table: LIVE_BARS_TABLE, error: (err as Error).message };
+    return { table: LIVE_BARS_TABLE, writing: false, error: describeLiveFeedError(err) };
   }
+}
+
+/** A missing live table is a known state of this machine, not an internal error to echo. */
+function describeLiveFeedError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  if (/does not exist/i.test(message) && message.includes(LIVE_BARS_TABLE)) {
+    return `${LIVE_BARS_TABLE} is not in the lake serving snapshot — live bar tailing ended with the QuestDB retirement on 2026-09-10.`;
+  }
+  console.warn('[replay] live feed probe failed:', message);
+  return 'Live feed probe failed; see server log.';
 }
 
 router.get('/market/replay/status', async (_req: Request, res: Response) => {
@@ -95,7 +107,7 @@ router.post('/market/replay/start', async (req: Request, res: Response) => {
     return;
   }
 
-  const mode: BarOrigin = req.body?.mode === 'replay' ? 'replay' : 'live';
+  const mode: BarOrigin = req.body?.mode === 'live' ? 'live' : 'replay';
 
   const source: BarSource =
     mode === 'live'
@@ -151,7 +163,7 @@ router.post('/market/replay/start', async (req: Request, res: Response) => {
   ]);
 
   if (outcome instanceof Error) {
-    res.status(400).json({ error: outcome.message });
+    res.status(400).json({ error: mode === 'live' ? describeLiveFeedError(outcome) : outcome.message });
     return;
   }
 

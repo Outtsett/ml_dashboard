@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import {
-  createChart, type IChartApi, CandlestickSeries, HistogramSeries,
+  createChart, type IChartApi, type ISeriesApi, CandlestickSeries, HistogramSeries,
   type CandlestickData, type Time, type LogicalRange,
 } from 'lightweight-charts';
 import {
@@ -23,8 +23,8 @@ interface ChartSetupOptions {
 
 interface ChartSetupResult {
   chartRef: React.MutableRefObject<IChartApi | null>;
-  candleSeriesRef: React.MutableRefObject<any>;
-  volumeSeriesRef: React.MutableRefObject<any>;
+  candleSeriesRef: React.MutableRefObject<ISeriesApi<'Candlestick'> | null>;
+  volumeSeriesRef: React.MutableRefObject<ISeriesApi<'Histogram'> | null>;
 }
 
 // ── Hook ───────────────────────────────────────────────────────────────────
@@ -43,8 +43,8 @@ export function useChartSetup({
   showTimeAxis,
 }: ChartSetupOptions): ChartSetupResult {
   const chartRef = useRef<IChartApi | null>(null);
-  const candleSeriesRef = useRef<any>(null);
-  const volumeSeriesRef = useRef<any>(null);
+  const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
 
   // Store setPriceInfo in a ref so the crosshair closure never goes stale
   const setPriceInfoRef = useRef(setPriceInfo);
@@ -70,10 +70,13 @@ export function useChartSetup({
       if (param.time && candleSeriesRef.current) {
         const data = param.seriesData.get(candleSeriesRef.current) as CandlestickData<Time> | undefined;
         if (data) {
+          // The time axis lightweight-charts draws is UTC; toLocaleString() put
+          // the HUD in browser-local time, so the same candle read two clock
+          // times with neither labelled. Both are UTC now, and the HUD says so.
           const date = new Date((param.time as number) * 1000);
           setPriceInfoRef.current({
             open: data.open, high: data.high, low: data.low, close: data.close,
-            time: date.toLocaleString(),
+            time: `${date.toISOString().slice(0, 19).replace("T", " ")} UTC`,
           });
         }
       }

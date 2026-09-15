@@ -1,7 +1,7 @@
 ﻿import { useRef, useState, useMemo, useEffect, forwardRef, useImperativeHandle } from 'react';
 import type { LogicalRange, MouseEventParams, Time } from 'lightweight-charts';
 
-import { futuresTickInfo, forexPipInfo, getBaseSymbol } from '@/market/components/chartConfig';
+import { futuresTickInfo, forexPrecision, getBaseSymbol } from '@/market/components/chartConfig';
 import { useChartSetup } from '@/market/components/useChartSetup';
 import { useChartSeries } from '@/market/components/useChartSeries';
 import { useChartMarkers } from '@/market/components/useChartMarkers';
@@ -52,15 +52,15 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
 
   const baseSymbol = getBaseSymbol(symbol);
   const tickInfo = futuresTickInfo[baseSymbol];
-  const pipInfo = forexPipInfo[symbol.toUpperCase()];
+  const forex = forexPrecision(symbol);
 
   const decimals = isFutures
     ? (tickInfo?.decimals ?? 2)
-    : (pipInfo?.decimals ?? 5);
+    : forex.decimals;
 
   const minMove = isFutures
     ? (tickInfo?.tickSize ?? 0.01)
-    : (pipInfo?.pipValue ?? 0.00001);
+    : forex.minMove;
 
   // ── Stable refs for crosshair / range-change callbacks ─────────────────
 
@@ -247,7 +247,7 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
 
   const tickOrPipLabel = isFutures
     ? `Tick: ${tickInfo?.tickSize ?? 'N/A'} = $${tickInfo?.tickValue ?? 'N/A'}`
-    : `Pip: ${pipInfo?.pipValue ?? 0.0001}`;
+    : `Pip: ${forex.minMove}`;
 
   const dataDateRange = useMemo(() => {
     if (processedData.candles.length === 0) return null;

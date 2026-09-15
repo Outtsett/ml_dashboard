@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react';
-import type { IChartApi, CandlestickData, Time, LogicalRange } from 'lightweight-charts';
+import type { IChartApi, ISeriesApi, CandlestickData, Time, LogicalRange } from 'lightweight-charts';
 import {
   REGIME_FILLS,
   CANDLE_UP_COLOR,
@@ -7,14 +7,14 @@ import {
   VOLUME_UP_FILL,
   VOLUME_DOWN_FILL,
 } from './chartConfig';
-import type { OhlcvData, ProcessedChartData } from "@/market/components/types";
+import type { CandleAnatomy, OhlcvData, ProcessedChartData } from "@/market/components/types";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface ChartSeriesOptions {
   chartRef: React.MutableRefObject<IChartApi | null>;
-  candleSeriesRef: React.MutableRefObject<any>;
-  volumeSeriesRef: React.MutableRefObject<any>;
+  candleSeriesRef: React.MutableRefObject<ISeriesApi<'Candlestick'> | null>;
+  volumeSeriesRef: React.MutableRefObject<ISeriesApi<'Histogram'> | null>;
   data: OhlcvData[];
   symbol: string;
   timeframe: number;
@@ -91,7 +91,7 @@ export function useChartSeries({
     const candles: CandlestickData<Time>[] = [];
     const volumes: { time: Time; value: number; color: string }[] = [];
     const activeContractMap = new Map<number, string>();
-    const anatomyMap = new Map<number, any>();
+    const anatomyMap = new Map<number, CandleAnatomy>();
     let lastTimeKey = -1;
     // Close of the last accepted bar. Drives up/down direction: a bar is "up"
     // when it closes above the PREVIOUS candle's close, not above its own open.
@@ -128,8 +128,11 @@ export function useChartSeries({
       const ts = typeof d.timestamp === 'string' ? parseInt(d.timestamp, 10) : d.timestamp;
       if (!ts || isNaN(d.open) || isNaN(d.close)) continue;
 
+      // lightweight-charts throws on any repeated or out-of-order time. The
+      // hooks upstream sort and dedup today; this keeps a future caller's
+      // unsorted input from taking the whole chart down.
       const timeKey = Math.floor(ts / 1000);
-      if (timeKey === lastTimeKey) continue;
+      if (timeKey <= lastTimeKey) continue;
       lastTimeKey = timeKey;
 
       // Track active contract for rollover HUD display

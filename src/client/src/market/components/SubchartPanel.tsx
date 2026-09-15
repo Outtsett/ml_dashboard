@@ -18,6 +18,8 @@ import {
   LineSeries,
   HistogramSeries,
   type LogicalRange,
+  type ISeriesApi,
+  type SeriesType,
 } from 'lightweight-charts';
 import type { IndicatorOverlay } from "@/market/lib/useIndicatorData";
 import { getPanelLabel, getReferenceLines, shouldRenderAsHistogram, getSeriesTitle, getHistogramStyle } from "@/market/lib/indicator_panels";
@@ -57,7 +59,7 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
     const containerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
      
-    const seriesMapRef = useRef<Map<string, any>>(new Map());
+    const seriesMapRef = useRef<Map<string, ISeriesApi<SeriesType>>>(new Map());
      
     const priceLinesAddedRef = useRef(false);
     const isSyncingRef = useRef(false);
@@ -213,13 +215,14 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
               ? (() => {
                   const histoStyle = getHistogramStyle(indicator.column);
                   if (histoStyle === 'ao') {
-                    // Awesome Oscillator: green when increasing, red when decreasing
+                    // Awesome Oscillator: orange when increasing, blue when
+                    // decreasing (Okabe-Ito; the bar's height already carries sign).
                     return indicator.data.map((d, i) => ({
                       time: d.time as Time,
                       value: d.value,
                       color: i > 0 && d.value > indicator.data[i - 1]!.value
-                        ? 'rgba(34, 197, 94, 0.7)'   // green (increasing)
-                        : 'rgba(239, 68, 68, 0.7)',   // red (decreasing)
+                        ? 'rgba(230, 159, 0, 0.75)'   // orange (increasing)
+                        : 'rgba(0, 114, 178, 0.75)',  // blue (decreasing)
                     }));
                   }
                   if (histoStyle === 'squeeze') {
@@ -231,16 +234,16 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
                           time: d.time as Time,
                           value: d.value,
                           color: d.value > prev
-                            ? 'rgba(6, 182, 212, 0.85)'   // bright cyan (increasing positive)
-                            : 'rgba(6, 182, 212, 0.4)',    // dim cyan (decreasing positive)
+                            ? 'rgba(230, 159, 0, 0.9)'    // strong orange (positive, strengthening)
+                            : 'rgba(230, 159, 0, 0.4)',   // faint orange (positive, fading)
                         };
                       }
                       return {
                         time: d.time as Time,
                         value: d.value,
                         color: d.value < prev
-                          ? 'rgba(239, 68, 68, 0.85)'   // bright red (decreasing negative)
-                          : 'rgba(239, 68, 68, 0.4)',    // dim red (increasing negative)
+                          ? 'rgba(0, 114, 178, 0.9)'    // strong blue (negative, strengthening)
+                          : 'rgba(0, 114, 178, 0.4)',   // faint blue (negative, fading)
                       };
                     });
                   }
@@ -287,13 +290,14 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
       if (!priceLinesAddedRef.current && refLines.length > 0 && seriesMapRef.current.size > 0) {
         // Use the first non-histogram series, or any series
          
-        let targetSeries: any = null;
-        seriesMapRef.current.forEach((s, col) => {
-          if (!targetSeries && !shouldRenderAsHistogram(col)) {
+        let targetSeries: ISeriesApi<SeriesType> | undefined;
+        for (const [col, s] of seriesMapRef.current) {
+          if (!shouldRenderAsHistogram(col)) {
             targetSeries = s;
+            break;
           }
-        });
-        if (!targetSeries) targetSeries = seriesMapRef.current.values().next().value;
+        }
+        targetSeries ??= seriesMapRef.current.values().next().value;
 
         if (targetSeries) {
           for (const line of refLines) {
