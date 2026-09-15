@@ -215,7 +215,7 @@ The yardstick for every "missing" call below is the user's standard ML workflow 
 
 **Architecture**
 - **Triple-Engine Lambda 3-DB**:
-  - QuestDB 9.3.3 — speed: 863M+ OHLCV rows, ILP-over-HTTP ingestion, monthly partitions
+  - Iceberg lake at `E:\lake` — 863M+ OHLCV rows, read in-process by DuckDB, monthly partitions
   - DuckDB — batch: ephemeral wrangling of `D:\ml_data` parquet
   - SQLite WAL — serving: Model Registry v2.0.0 metadata, training/backtest state
 - Frontend: React 19 + Vite + Tailwind v4 + Radix UI, 28 pages, Electron desktop shell
@@ -236,7 +236,7 @@ The yardstick for every "missing" call below is the user's standard ML workflow 
 - `GET /api/training/models` — list trained models with diagnostics
 - `GET /api/training/models/:id/{diagnostics,convergence,benchmarks}`
 - `GET /api/models{,/:id}` — checkpoints with filters (modelType, symbol, timeframe, active)
-- `GET /api/models/:id/predictions{,/live}` — SQLite vs QuestDB hot path
+- `GET /api/models/:id/predictions{,/live}` — SQLite hot path
 - `POST /api/backtest/{run,walk-forward,monte-carlo,benchmark}`
 - `GET /api/ml/models{,/:id}` + `POST /api/ml/models` — ML Observatory CRUD
 - `GET /api/ml/{feature-sets,outputs/:modelId}`
@@ -256,7 +256,7 @@ The yardstick for every "missing" call below is the user's standard ML workflow 
 
 **W&B integration**
 - `src/ml/wandb/` exists but is dead — only stale run artifacts, no active client in routing.
-- **Design choice:** dashboard duplicates metrics into SQLite/QuestDB rather than pulling from W&B (no external dependency on the W&B API for institutional control).
+- **Design choice:** dashboard duplicates metrics into SQLite rather than pulling from W&B (no external dependency on the W&B API for institutional control).
 - Self-describing JSON metric envelope: `metrics[name] = {renderer, mission, group, value, unit, color}` (Semantic Standard terminology: directional edge / confidence edge / microstructure).
 
 **Existing per-model analytics surfaces** (infrastructure present)
@@ -297,7 +297,7 @@ The yardstick for every "missing" call below is the user's standard ML workflow 
 | Trade sim w/ costs | Yes (1-bar + swing, gated) | No | Yes (in loss) | Yes (flat cost) | Backtest engine + `backtestRuns` |
 | Live streaming | None | None | None | Flask SSE | NestJS SSE on 3 channels |
 | Dashboards / viewers | 5 (`dashboard.py`, `dash_training_viewer.py`, `training_monitor.py`, `prediction_viewer.py`, Tableau extract) | None | None | Flask + Chart.js (Train + Operate tabs) | 28-page React app |
-| Persistence | W&B + tableau CSVs + ckpts + Optuna SQLite | Ckpt + placeholder JSONs | Ckpts only (stdout metrics) | Optuna JSON + ckpts | SQLite + QuestDB + filesystem |
+| Persistence | W&B + tableau CSVs + ckpts + Optuna SQLite | Ckpt + placeholder JSONs | Ckpts only (stdout metrics) | Optuna JSON + ckpts | SQLite + lake + filesystem |
 | Calibration | None | None | None | None | No UI page |
 | Regime breakdown | None | None | None | None | Backtest captures it; no UI |
 | Feature attribution | None (despite Transformer attn) | None (despite feature-attn) | None | None | XAI routes exist; no UI |

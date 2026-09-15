@@ -10,11 +10,12 @@ running install, plus the release pipeline for distributable Electron installers
 > 2. **Release/distribution** — building signed-able NSIS / AppImage / dmg installers via
 >    `release-please` + `.github/workflows/release.yml` (Section 9).
 >
-> Runtime hard-dependencies: **SQLite** (embedded, Drizzle, `data/ml_dashboard.db`) and
-> **QuestDB** (external process on `:9000`, auto-started if `QUESTDB_ROOT` is set, else an
-> external instance is expected). PostgreSQL (TypeORM) and DuckDB are optional / embedded in
-> the Python ML engine — the startup manager (`src/server/infrastructure/lib/startupManager.ts`)
-> and health checks (`.../database/health.ts`) only orchestrate **SQLite + QuestDB**.
+> Runtime hard-dependencies: **SQLite** (embedded, Drizzle, `data/ml_dashboard.db`) and the
+> **Iceberg lake** at `E:\lake` (files plus the AIStor catalog on `:9100`), read in-process by
+> **DuckDB**. Neither is a database server — there is no process to install, start or supervise.
+> PostgreSQL (TypeORM) is optional. The startup manager
+> (`src/server/infrastructure/lib/startupManager.ts`) and health checks
+> (`.../database/health.ts`) orchestrate **SQLite + lake reachability** only.
 
 Audited against the 12 production lifecycles on 2026-05-28 — see Section 11 for open gaps.
 
@@ -26,9 +27,9 @@ Audited against the 12 production lifecycles on 2026-05-28 — see Section 11 fo
 - [ ] **npm** (lockfile-driven installs; this repo uses `--legacy-peer-deps`).
 - [ ] **Python 3.13** for the ML engine (`python --version`).
 - [ ] **uv** present (`uv --version`) — per-project venv standard (`uv venv --python 3.13`).
-- [ ] **QuestDB** reachable on `:9000` **or** installable locally:
-  - External instance already serving `http://localhost:9000/exec?query=SELECT%201` → nothing to install, OR
-  - Local QuestDB dir set via `QUESTDB_ROOT` (contains `bin/java.exe`) so the backend auto-starts it.
+- [ ] **Lake** present and readable at `E:\lake`, with the AIStor Iceberg catalog answering on
+      `http://127.0.0.1:9100/_iceberg` (warehouse `lakehouse`). Verify from Python:
+      `from lake.serving import connect; connect().execute("SELECT count(*) FROM bars").fetchone()`.
 - [ ] **(Optional) PostgreSQL** only if the TypeORM/`pg` path is exercised — not required for core dashboard.
 - [ ] Build toolchain for native modules present (`better-sqlite3`, `node-pty`, `zeromq`, `@tensorflow/tfjs-node` compile on `npm ci`). On Windows: VS 2022 MSVC + Python in PATH.
 - [ ] GPU note (training): target **50–60% VRAM**, never 100% (RTX 5060 Ti 16 GB). DataLoader workers ≤ `cpu_count // 3` (max 4).
@@ -38,8 +39,6 @@ Audited against the 12 production lifecycles on 2026-05-28 — see Section 11 fo
 - [ ] Clean checkout on the intended branch (`git status` clean; on `main` for a release).
 - [ ] `cp .env.example .env` and fill values:
   - [ ] `PORT` (default `5000`) — backend + UI single port.
-  - [ ] `QUESTDB_HOST` / `QUESTDB_HTTP_PORT` (9000) / `QUESTDB_PG_PORT` (8812) / `QUESTDB_USER` / `QUESTDB_PASSWORD`.
-  - [ ] `QUESTDB_ROOT` (+ optional `QUESTDB_JAVA`) **only** if you want the backend to auto-start QuestDB.
   - [ ] `SQLITE_PATH` (default `./data/ml_dashboard.db`).
 - [ ] **Secrets**: never commit `.env`. Verify `.gitignore` covers it (audit: ✓). API keys come from the canonical Windows env-var store, not the repo.
 - [ ] Confirm `data/` directory exists/writable (SQLite DB + `data/object-storage` local blob root).
@@ -67,12 +66,8 @@ Audited against the 12 production lifecycles on 2026-05-28 — see Section 11 fo
   npm run db:push          # drizzle-kit push → data/ml_dashboard.db from src/shared/schema.ts
   ```
 - [ ] **SQL migrations present** (`migrations/`, 9 files: 5 forward `.sql` + 4 paired `.down.sql`; only the `0000` baseline has no rollback, since "rolling back" the initial migration means dropping the database). Confirm `npm run db:push` was run AND the CHECK-constraint/partial-index enforcement ran (automatic on server boot via `enforce-sqlite-invariants.ts`, or run on demand: `npx tsx scripts/enforce-sqlite-invariants.ts`) — `db:push` alone cannot create the CHECK constraints on `model_versions`/`deployments`/`promotion_gates`/`agent_runs` or the partial unique index on `deployments` (Drizzle SQLite has no API for either; see `migrations/README.md`).
-- [ ] **QuestDB schema** — apply the prediction-log table + rollup mat view (idempotent applier):
-  - [ ] `prediction_log` + `prediction_log_rollup_1m` exist:
-    ```sql
-    SELECT table_name FROM tables() WHERE table_name LIKE 'prediction_log%';
-    ```
-  - [ ] Schema matches the ILP write contract in `docs/prediction-log-schema.md` (DEDUP key `(ts, deployment_id)`).
+- [ ] **Prediction log** — `prediction_log` lives in SQLite. Confirm the table exists and its
+      shape matches `docs/prediction-log-schema.md` (dedup key `(timestamp, deployment_id)`).
 - [ ] **(Optional) PostgreSQL** — only if TypeORM path used; otherwise skip.
 
 ## 5. Build
@@ -83,7 +78,7 @@ Audited against the 12 production lifecycles on 2026-05-28 — see Section 11 fo
   npm run lint           # ruff (py) + eslint (ts), --max-warnings 0
   npm run check:architecture   # architecture_validator.ts
   npm test               # vitest run
-  uv run pytest -m "not slow"  # python unit tests (set OHLCV_DISABLE_QUESTDB=1 to avoid external hits)
+  uv run pytest -m "not slow"  # python unit tests
   ```
 - [ ] **Build the app**:
   ```bash
@@ -106,8 +101,8 @@ Pick the path for the target:
 - [ ] **Production desktop**: `npm run start:desktop` (`electron .`).
 
 > Launch flow (desktop): `app.whenReady()` → spawns backend on `:PORT` → backend's
-> `runStartupSequence()` starts QuestDB (if `QUESTDB_ROOT` set) → BrowserWindow points at
-> `http://127.0.0.1:PORT`. Close-to-tray + `/health` watchdog auto-restart a wedged backend.
+> `runStartupSequence()` → BrowserWindow points at `http://127.0.0.1:PORT`. No database
+> process is spawned. Close-to-tray + `/health` watchdog auto-restart a wedged backend.
 
 ## 7. Verify — smoke test
 
@@ -115,8 +110,8 @@ Pick the path for the target:
   ```bash
   curl http://127.0.0.1:5000/health
   ```
-  Confirms SQLite (`SELECT 1`) + QuestDB (circuit-breaker-guarded) both healthy; `overall: true`.
-- [ ] **Startup report** in logs shows `--- Overall: HEALTHY ---` (SQLite `+`, QuestDB `+`).
+  Confirms SQLite (`SELECT 1`) + lake reachability (circuit-breaker-guarded) both healthy; `overall: true`.
+- [ ] **Startup report** in logs shows `--- Overall: HEALTHY ---` (SQLite `+`, lake `+`).
 - [ ] **UI loads** at `http://127.0.0.1:5000` (or in the Electron window).
 - [ ] **Swagger** reachable (NestJS `@nestjs/swagger`) for API surface check.
 - [ ] **Training metrics bridge** (if running a training job): trainer connects to the live
@@ -127,8 +122,8 @@ Pick the path for the target:
 
 ## 8. Post-run hygiene
 
-- [ ] No orphan processes: backend, QuestDB `java.exe` (PID in `.questdb.pid`), Vite, training subprocesses all accounted for.
-- [ ] On quit, `stopDatabases()` stops the adopted QuestDB PID (no leaked `java.exe`).
+- [ ] No orphan processes: backend, Vite, training subprocesses all accounted for. (No database
+      process exists to leak.)
 - [ ] Background training/HPO runs from the session stopped before launching new ones (GPU/port contention).
 
 ---
@@ -151,8 +146,8 @@ Driven by `.github/workflows/release.yml` (push to `main`):
 
 - [ ] **App**: re-install the previous GitHub Release installer, or `git revert` the offending commit and let release-please cut a patch.
 - [ ] **SQLite schema**: apply the paired `migrations/<n>_*.down.sql` to roll back the last migration.
-- [ ] **QuestDB**: prediction-log writes are DEDUP-idempotent; no destructive rollback needed for replays.
-- [ ] **Process**: kill wedged backend/QuestDB, free `:PORT` and `:9000`, remove stale `.questdb.pid`, relaunch.
+- [ ] **Prediction log**: writes are dedup-idempotent; no destructive rollback needed for replays.
+- [ ] **Process**: kill a wedged backend, free `:PORT`, relaunch.
 
 ---
 
@@ -166,7 +161,7 @@ Driven by `.github/workflows/release.yml` (push to `main`):
 | G4 | secrets | ✓ present | `.gitignore` + `.env.example` + secret-scan workflow |
 | G8 | observability | ✓ present | structured logger, trace IDs, `/health`, circuit breakers |
 | G9 | incident | ⚠ partial | error tracking exists — **add `docs/runbooks/` + `docs/postmortems/TEMPLATE.md`** |
-| G10 | backup | ✗ missing | **add `docs/runbooks/restore.md`** (SQLite `data/ml_dashboard.db` + QuestDB volume backup + restore drill) |
+| G10 | backup | ✗ missing | **add `docs/runbooks/restore.md`** (SQLite `data/ml_dashboard.db` + off-drive replication of `E:\lake` + restore drill; see `docs/runbooks/questdb-backup-restore.md`) |
 | G12 | retention | ✗ missing | **add `docs/data-retention.md`** (prediction_log retention window — currently TBD in schema doc) |
 | G5/G6/G7/G11 | webhooks/auth/billing/flags | n/a | local single-user tool |
 

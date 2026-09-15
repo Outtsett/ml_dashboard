@@ -171,18 +171,18 @@ router.get("/training/data-preview", CACHE_SEMI, async (req: Request, res: Respo
       return res.status(400).json({ error: `Unsupported timeframe: ${timeframe}` });
     }
 
-    // Build WHERE clause. QuestDB SYMBOL columns accept '=' on string literals.
     const whereParts: string[] = [`root = '${safeSymbol.replace(/'/g, "''")}'`];
     if (start) whereParts.push(`timestamp >= '${start}'`);
     if (end) whereParts.push(`timestamp <= '${end}'`);
     const whereClause = `WHERE ${whereParts.join(" AND ")}`;
 
-    // Single round-trip aggregate. QuestDB mat views may have null OHLC if the
-    // base ohlcv had a gap inside the SAMPLE BY bucket (rare but possible after
+    // Single round-trip aggregate. The per-timeframe views may have null OHLC
+    // where the base ohlcv had a gap inside the bucket (rare but possible after
     // data backfills); count those distinctly from "missing close" alone.
+    // count() was QuestDB's spelling; DuckDB requires the argument.
     const sql = `
       SELECT
-        count() AS totalBars,
+        count(*) AS totalBars,
         min(timestamp) AS firstTs,
         max(timestamp) AS lastTs,
         sum(CASE WHEN close IS NULL THEN 1 ELSE 0 END) AS nullCount,
@@ -846,8 +846,8 @@ router.get("/training/visualizations/:category", CACHE_SEMI, (req: Request, res:
     let conditional: Record<string, string[]> = {};
 
     for (const [, groupDef] of Object.entries(config.groups)) {
-      const def = groupDef as any;
-      if (def.subcategories?.includes(category)) {
+      const def = groupDef as { subcategories?: string[]; components?: string[]; conditional?: Record<string, string[]> };
+      if (typeof category === "string" && def.subcategories?.includes(category)) {
         groupComponents = def.components || [];
         conditional = def.conditional || {};
         break;

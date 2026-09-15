@@ -1,5 +1,11 @@
 # Mechanism Animation — design
 
+> **Superseded data layer (2026-09-10).** Where this spec says QuestDB, read: the Iceberg lake
+> at `E:\lake`, queried in-process by DuckDB (`from lake.serving import connect`). The QuestDB
+> serving cache was emptied and retired — every table was copied to parquet in the lake and
+> row-count verified first — and nothing may read or write it. The design below is kept as the
+> record of what was decided at the time.
+
 **Date:** 2026-08-05
 **Status:** Wave 1 implemented and live-verified 2026-08-05 (spine + `cluster-loop`). Waves 2–5 outstanding.
 **Surface:** new `Mechanism` tab on `/architecture`

@@ -1,62 +1,33 @@
-import { queryQuestDB } from "./connection";
+/**
+ * Schema creation, retired.
+ *
+ * These functions created QuestDB's `ohlcv`, `symbols` and `prediction_log`
+ * tables. QuestDB was emptied and dropped on 2026-09-10, and the lake's schema
+ * is owned by datalake — an Iceberg table is created by
+ * `scripts/migrate_to_iceberg.py`, never by a dashboard route.
+ *
+ * They still throw rather than no-op, because the callers used them to mean
+ * "make sure the tables exist"; answering yes without checking anything would
+ * let a broken deployment look initialised.
+ *
+ * The captured DDL for all 41 dropped objects lives at
+ * `s3://meta/questdb_schema/questdb_schema_latest.sql` if it is ever needed.
+ */
+
+const RETIRED =
+  "QuestDB was retired on 2026-09-10 and this server is read-only over the lake. " +
+  "Schema for the lake is owned by datalake (scripts/migrate_to_iceberg.py). The " +
+  "captured QuestDB DDL is at s3://meta/questdb_schema/questdb_schema_latest.sql, " +
+  "and the data it described is at s3://derived/recipe=questdb_full_2026-09-09/.";
 
 export async function createOHLCVTable(): Promise<void> {
-  await queryQuestDB(`
-    CREATE TABLE IF NOT EXISTS ohlcv (
-      symbol SYMBOL CAPACITY 200 CACHE INDEX,
-      asset_class SYMBOL CAPACITY 10 CACHE INDEX,
-      root SYMBOL CAPACITY 50 CACHE INDEX,
-      timestamp TIMESTAMP,
-      open DOUBLE,
-      high DOUBLE,
-      low DOUBLE,
-      close DOUBLE,
-      volume DOUBLE
-    ) timestamp(timestamp) PARTITION BY DAY WAL
-    DEDUP UPSERT KEYS(symbol, timestamp);
-  `);
-
-  await queryQuestDB(`
-    CREATE TABLE IF NOT EXISTS symbols (
-      symbol SYMBOL CAPACITY 500 CACHE INDEX,
-      asset_class SYMBOL CAPACITY 10 CACHE INDEX,
-      root SYMBOL CAPACITY 50 CACHE,
-      exchange SYMBOL CAPACITY 20 CACHE,
-      currency SYMBOL CAPACITY 10 CACHE,
-      tick_size DOUBLE,
-      point_value DOUBLE,
-      pip_size DOUBLE,
-      contract_size DOUBLE,
-      decimal_places SHORT,
-      timestamp TIMESTAMP
-    ) timestamp(timestamp) PARTITION BY YEAR WAL
-    DEDUP UPSERT KEYS(symbol, timestamp);
-  `);
+  throw new Error(`[lake] createOHLCVTable is not available. ${RETIRED}`);
 }
 
 export async function createPredictionLogTable(): Promise<void> {
-  await queryQuestDB(`
-    CREATE TABLE IF NOT EXISTS prediction_log (
-      model_id SYMBOL CAPACITY 100 CACHE INDEX,
-      symbol SYMBOL CAPACITY 200 CACHE INDEX,
-      predicted_class SHORT,
-      actual_class SHORT,
-      confidence DOUBLE,
-      prob_tp DOUBLE,
-      prob_sl DOUBLE,
-      prob_timeout DOUBLE,
-      realized_return DOUBLE,
-      exit_bars INT,
-      barrier_hit SYMBOL CAPACITY 10 CACHE,
-      fold_index SHORT,
-      split_type SYMBOL CAPACITY 5 CACHE,
-      timestamp TIMESTAMP
-    ) timestamp(timestamp) PARTITION BY MONTH WAL
-    DEDUP UPSERT KEYS(model_id, symbol, timestamp);
-  `);
+  throw new Error(`[lake] createPredictionLogTable is not available. ${RETIRED}`);
 }
 
 export async function initQuestDBTables(): Promise<void> {
-  await createOHLCVTable();
-  await createPredictionLogTable();
+  throw new Error(`[lake] initQuestDBTables is not available. ${RETIRED}`);
 }

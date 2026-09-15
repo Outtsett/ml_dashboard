@@ -13,7 +13,7 @@ export interface BaseEvent<TType extends string, TData> {
 }
 
 // ── Pipeline types ─────────────────────────────────────────
-export type PipelineType = 'training' | 'ingestion' | 'deployment';
+export type PipelineType = 'training' | 'ingestion' | 'deployment' | 'backtest';
 
 export type PipelineStatus =
   | 'idle' | 'running' | 'completed' | 'failed'

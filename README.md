@@ -17,7 +17,7 @@ Full-stack ML ops and real-time execution platform for high-frequency quantitati
 ---
 
 ### 🟢 ALL SYSTEMS OPERATIONAL
-- **QuestDB Health**: [Active] (863M+ rows, zero-latency ILP stream)
+- **Lake Health**: [Active] (863M+ rows in Iceberg at `E:\lake`, read in-process by DuckDB)
 - **GPU Pulse**: [Ready] (NVIDIA RTX 5060 Ti, 12GB VRAM)
 - **Hardware Integration**: [Synchronized] (ManifestService v2.1.0)
 
@@ -27,8 +27,8 @@ Full-stack ML ops and real-time execution platform for high-frequency quantitati
 
 | Layer | Technology | Operational Role |
 | :--- | :--- | :--- |
-| **Speed** | **QuestDB 9.3.3** | High-frequency ILP-over-HTTP ingest. 863M+ OHLCV rows. SAMPLE BY timeframe aggregation. |
-| **Batch** | **DuckDB** | Ephemeral data wrangling. Polars-native loading of massive .parquet datasets from `D:\ml_data`. |
+| **System of record** | **Iceberg lake** (`E:\lake`) | Every byte of market data. 863M+ OHLCV rows, namespace `market`, catalog AIStor at `:9100/_iceberg`. |
+| **Serving + batch** | **DuckDB** | Reads the lake in-process — timeframe aggregation, data wrangling, Polars-native .parquet loading. No server, no port. |
 | **Serving** | **PostgreSQL** | Relational metadata, **Model Registry v2.0.0** state, and complex strategy persistence. |
 
 ### System Map
@@ -55,7 +55,7 @@ graph TB
 
     subgraph Data["Unified Data Layer"]
         SQLite["SQLite (App Metadata, 37 tables)"]
-        QuestDB["QuestDB (Time-Series, 5 tables)"]
+        Lake["Iceberg lake (Time-Series, 5 tables)"]
         Files["File Store (Model Registry v2.0.0)"]
     end
 
@@ -67,11 +67,11 @@ graph TB
     Client -->|SSE subscribe| SSE
     API --> Manifest
     API --> SQLite
-    API --> QuestDB
+    API --> Lake
     Training -->|spawn| ML
     ML -->|stdout JSON| Training
     Training -->|broadcast| SSE
-    Upload -->|ILP TCP :9009| QuestDB
+    Upload -->|land + promote| Lake
 ```
 
 ---
@@ -105,7 +105,7 @@ We adhere to the **Registry v2.0.0** naming philosophy. Purge all legacy retail 
 | **Frontend** | React 19, Wouter, TanStack Query, Tailwind CSS v4, Radix UI, Recharts, Lightweight Charts, Three.js, Framer Motion |
 | **Backend** | NestJS 11, Express 5, TypeScript, Node.js 22, Drizzle ORM |
 | **ML Engine** | PyTorch 2.11+CUDA 12.8, Numba JIT, Polars, Pydantic 2.12 |
-| **Databases** | QuestDB 9.3.3 (Main), SQLite (App Metadata), PostgreSQL (Relational) |     
+| **Data stores** | Iceberg lake at `E:\lake` via DuckDB (market data), SQLite (app metadata) |     
 | **Desktop** | Electron 34 |
 | **Data Flow** | SSE Delta Encoding, MessagePack, IndexedDB OHLCV Cache (24h TTL) |
 | **Hardware** | RTX 5060 Ti, 24-core Ryzan, 128GB RAM |
@@ -115,8 +115,8 @@ We adhere to the **Registry v2.0.0** naming philosophy. Purge all legacy retail 
 ## 4. Operational Workflows
 
 ### 4.1 Ingestion
-1. **File Upload Pipeline**: CSV / Parquet / ZST / DBN uploads are standardized and written to QuestDB :9009 via ILP.
-2. **QuestDB Persistence**: 863M+ rows across 5 unified tables (`ohlcv`, `symbols`, `ticks`, `dom_l2`, `dom_summary`). The historical tick/DOM data was produced by an external live feed that was removed on 2026-07-27 — the data stays queryable, but nothing streams new bars in.
+1. **File Upload Pipeline**: CSV / Parquet / ZST / DBN uploads are standardized, landed write-once in `E:\lakeawendor=<name>\` with a `.sha256` sidecar, then promoted into the Iceberg tables.
+2. **Lake Persistence**: 863M+ rows across 5 unified tables (`ohlcv`, `symbols`, `ticks`, `dom_l2`, `dom_summary`). The historical tick/DOM data was produced by an external live feed that was removed on 2026-07-27 — the data stays queryable, but nothing streams new bars in.
 
 ### 4.2 Training Pipeline (Institutional Workflow)
 - **Dashboard Telemetry**: Stream metrics via the SSE protocol (`emit_metric` / `emit_fold_complete`); declare the metric schema up front with `emit_metric_declarations`.

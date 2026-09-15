@@ -22,7 +22,7 @@ being wrong about the code.
   `cpu.load`, cores, and temp on the same endpoint as `system.gpu`.
 - **`ExperimentLedger` was not split.** It is a working TanStack table; the new
   card and leaderboard views sit alongside it rather than replacing it.
-- **W4 replays from QuestDB, not the Quantower history.** QuestDB holds real
+- **W4 replays from the lake, not the Quantower history.** The lake holds real
   stored bars behind an already-working query layer; the Quantower `history.db`
   format was unverified and would have added risk for no gain.
 
@@ -52,7 +52,7 @@ at a glance. Today three things block that:
    documented as "red ↔ neutral ↔ green". The maintainer has deuteranopia. Every feature
    below colors numbers by direction, so this must be corrected before anything is built
    on top of it.
-2. **There is no live market data.** The newest `ohlcv_1m` row in QuestDB is
+2. **There is no live market data.** The newest `ohlcv_1m` row in the lake is
    `2026-03-30T17:19Z`. The legacy ingestion path was deleted on 2026-07-27 and
    nothing replaced it; `src/server/market/` now contains only `charts.router.ts`,
    `instruments.router.ts`, and `news.router.ts`. Animated candles and a
@@ -250,15 +250,18 @@ Nothing visual is possible until bars flow again. Three candidate sources:
 | Interactive Brokers connector | Live snapshots and price history | Free with account; rate-limited, not tick-grade |
 
 **Decision: build against the Quantower history first.** It exercises the entire path —
-producer → QuestDB → SSE → chart — with real bars at zero cost. A live producer then
+producer → lake → SSE → chart — with real bars at zero cost. A live producer then
 swaps in behind the same adapter interface without touching anything downstream.
 
 New `src/server/market/ingestion/`:
 
 - A `BarSource` interface with a `replay` implementation reading the Quantower history
   and a stub `live` implementation for the eventual real feed.
-- Writes to QuestDB via Influx Line Protocol using the existing client, with
-  deduplication so a replay re-run does not double-insert.
+- Lands bars write-once under `E:\lakeawendor=<name>\` with a `.sha256`
+  sidecar and promotes them into the Iceberg tables, with deduplication so a
+  replay re-run does not double-insert. (This replaced the Influx Line Protocol
+  write when the QuestDB serving cache was retired on 2026-09-10; there is no
+  socket to write to.)
 - Publishes to the existing SSE adapter so the client subscribes exactly as it does for
   training and system events.
 

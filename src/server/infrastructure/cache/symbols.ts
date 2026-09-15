@@ -72,13 +72,17 @@ export async function warmSymbolsCatalog(): Promise<void> {
       return;
     }
 
-    // LATEST ON keeps this correct across re-seeds: `symbols` is a time-series
-    // table with no dedup, so a plain SELECT returns one row per seeding run,
-    // not one row per symbol. No-op while only one seed exists.
+    // One row per symbol, the latest one. `symbols` is a time-series table with
+    // no dedup, so a plain SELECT returns one row per seeding run rather than
+    // one row per symbol.
+    //
+    // Was QuestDB's `LATEST ON timestamp PARTITION BY symbol`, which DuckDB does
+    // not parse. QUALIFY over a windowed row_number is the ANSI spelling of the
+    // same thing: rank each symbol's rows newest-first and keep rank 1.
     const symbols = await queryQuestDB<SymbolCatalogRow>(`
       SELECT symbol, asset_class, root
       FROM symbols
-      LATEST ON timestamp PARTITION BY symbol
+      QUALIFY row_number() OVER (PARTITION BY symbol ORDER BY timestamp DESC) = 1
       ORDER BY symbol
     `);
     const result = symbols.map((s) => ({

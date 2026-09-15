@@ -51,12 +51,12 @@ export interface SystemManifest {
   };
   infrastructure: {
     questdb: { connected: boolean; row_count: number; tables: string[] };
-    cache: any;
+    cache: Record<string, unknown>;
     storage: { models_path: string; size_mb: number; free_gb: number };
   };
   inventory: {
     total_models: number;
-    latest_model?: any;
+    latest_model?: ReturnType<typeof listTrainedModels>[number];
     symbol_coverage: string[];
   };
 }
@@ -84,13 +84,15 @@ export class ManifestService {
     // 2. Audit Data Infrastructure
     let questdbStatus = { connected: false, row_count: 0, tables: [] as string[] };
     try {
-      const tables = await this.questdb.query('SELECT table_name FROM information_schema.tables WHERE table_schema = \'public\'');
-      const ohlcvCount = await this.questdb.query('SELECT count() as cnt FROM ohlcv');
+      // DuckDB puts the serving views in `main`, not `public`, and requires an
+      // argument to count().
+      const tables = await this.questdb.query<{ table_name: string }>('SELECT table_name FROM information_schema.tables WHERE table_schema = \'main\'');
+      const ohlcvCount = await this.questdb.query<{ cnt: number | bigint }>('SELECT count(*) as cnt FROM ohlcv');
 
       questdbStatus = {
         connected: true,
         row_count: Number(ohlcvCount[0]?.cnt || 0),
-        tables: tables.map((t: any) => t.table_name)
+        tables: tables.map((t) => t.table_name)
       };
     } catch (e) {
       this.logger.warn(
@@ -101,7 +103,7 @@ export class ManifestService {
     // 3. Audit Model Inventory
     const modelsPath = path.join(process.cwd(), 'data', 'models');
     const models = listTrainedModels(modelsPath);
-    const symbols = [...new Set(models.map(m => m.symbol))];
+    const symbols = [...new Set(models.map(m => m.symbol).filter((s): s is string => Boolean(s)))];
 
     // 4. Storage Audit
     let storageSize = 0;

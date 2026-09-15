@@ -17,5 +17,4 @@ labels: bug
 
 ## Environment
 - Branch:
-- QuestDB version:
 - Node version:

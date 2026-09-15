@@ -3,11 +3,11 @@
  *
  * Launch flow (GUI / desktop shortcut runs `electron .`):
  *   app.whenReady() → startServer() spawns the backend (tsx --watch
- *   src/server/main.ts) on :PORT. The BACKEND, in turn, starts QuestDB via
- *   runStartupSequence() (NOT electron/start-databases.cjs — that script is only
- *   used by the npm dev scripts, never by the GUI launch path). The backend
- *   serves both the REST API and the Vite frontend on the single port, and the
- *   BrowserWindow points at http://127.0.0.1:PORT.
+ *   src/server/main.ts) on :PORT. The backend serves both the REST API and the
+ *   Vite frontend on the single port, and the BrowserWindow points at
+ *   http://127.0.0.1:PORT. There is no database process to launch: market data
+ *   is read through DuckDB over the Iceberg lake at E:\lake (in-process), and
+ *   dashboard state lives in a local SQLite file.
  *
  * Reliability (intermittent "backend didn't launch" on relaunch):
  *   - Close-to-tray keeps the instance alive; every "bring the window back"
@@ -18,9 +18,6 @@
  *     serverProcess handle (tree-kill + free-port + respawn).
  *   - startServer() pre-flight reclaims :PORT from a wedged orphan (the backend
  *     process.exit(1)s on EADDRINUSE, so a stale holder must be killed first).
- *   - Since the backend (not this process) starts QuestDB, adoptQuestDbPid()
- *     writes electron/.questdb.pid for an already-serving QuestDB so
- *     stopDatabases() can stop it on quit instead of leaking a java.exe orphan.
  */
 const {
   app,
@@ -163,10 +160,6 @@ if (!gotLock) {
   process.exit(0);
 }
 
-// Database paths for shutdown
-const QUESTDB_PID_FILE = path.join(__dirname, ".questdb.pid");
-const QUESTDB_HTTP_PORT = parseInt(process.env.QUESTDB_HTTP_PORT || "9000", 10);
-
 // ── Port / process lifecycle helpers (dependency-free) ──
 // These back the reliability fixes for intermittent "backend didn't launch":
 //   - probeHealth():    is the backend on :PORT actually alive (200 on /health)?
@@ -287,12 +280,6 @@ process.on('unhandledRejection', (reason, promise) => {
 
 process.on('uncaughtException', (err) => {
   safeError('[main] Uncaught Exception:', err);
-  // Attempt graceful shutdown
-  try {
-    stopDatabases();
-  } catch (e) {
-    safeError('[main] Failed to stop databases during crash:', e);
-  }
   process.exit(1);
 });
 
@@ -391,86 +378,6 @@ function stopBackendHealthCheck() {
   if (backendHealthInterval) {
     clearInterval(backendHealthInterval);
     backendHealthInterval = null;
-  }
-}
-
-// --------------- QuestDB PID adoption ---------------
-// The BACKEND starts QuestDB (src/server/main.ts → runStartupSequence()), NOT
-// electron/start-databases.cjs (which nothing in the GUI launch path invokes).
-// Because the backend starts it, no electron/.questdb.pid is written, so
-// stopDatabases() — which keys off that file — can never stop QuestDB, leaking
-// an orphan java.exe across launches. This adopts an already-serving QuestDB:
-// if its HTTP port is up but the PID file is absent, discover the owning PID and
-// write the file so the existing teardown can manage it.
-async function adoptQuestDbPid() {
-  try {
-    if (fs.existsSync(QUESTDB_PID_FILE)) return; // already tracked
-
-    // Is QuestDB actually serving? (cheap liveness query)
-    let alive = false;
-    try {
-      const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), 2000);
-      const resp = await fetch(
-        `http://127.0.0.1:${QUESTDB_HTTP_PORT}/exec?query=SELECT%201`,
-        { signal: controller.signal }
-      );
-      clearTimeout(t);
-      alive = resp.ok;
-    } catch {
-      alive = false;
-    }
-    if (!alive) return; // backend will start it; runStartupSequence handles spawn
-
-    const pid = findPortOwnerPid(QUESTDB_HTTP_PORT);
-    if (pid) {
-      fs.writeFileSync(QUESTDB_PID_FILE, String(pid), "utf-8");
-      safeLog(`[db] Adopted running QuestDB (PID ${pid}) → wrote ${QUESTDB_PID_FILE}`);
-    } else {
-      safeWarn(
-        `[db] QuestDB serving on :${QUESTDB_HTTP_PORT} but owner PID not found — cannot adopt for teardown`
-      );
-    }
-  } catch (err) {
-    safeWarn("[db] adoptQuestDbPid failed:", err.message || err);
-  }
-}
-
-// --------------- Database Shutdown ---------------
-
-let dbsStopped = false;
-function stopDatabases() {
-  if (dbsStopped) return;
-  dbsStopped = true;
-
-  // --- QuestDB (kill by saved PID) ---
-  try {
-    if (fs.existsSync(QUESTDB_PID_FILE)) {
-      const pid = parseInt(fs.readFileSync(QUESTDB_PID_FILE, "utf-8").trim(), 10);
-      if (pid) {
-        safeLog(`[db] Stopping QuestDB (PID: ${pid})...`);
-        try {
-          process.kill(pid, "SIGTERM");
-        } catch (e) {
-          if (e.code !== "ESRCH") safeError("[db] SIGTERM failed:", e.message);
-        }
-        // Force kill after 5s
-        setTimeout(() => {
-          try {
-            process.kill(pid, 0); // test alive
-            safeWarn(`[db] QuestDB SIGTERM timeout — force killing PID ${pid}`);
-            process.kill(pid, "SIGKILL");
-          } catch {} // already dead
-        }, 5000);
-        try { fs.unlinkSync(QUESTDB_PID_FILE); } catch {}
-        safeLog("[db] QuestDB stop signal sent");
-      }
-    }
-  } catch (err) {
-    if (err.code !== "ESRCH") {
-      safeError("[db] Error stopping QuestDB:", err.message);
-    }
-    try { fs.unlinkSync(QUESTDB_PID_FILE); } catch {}
   }
 }
 
@@ -1394,9 +1301,6 @@ app.whenReady().then(async () => {
       updateSplashStatus("Server slow — loading anyway...");
     }
 
-    // Adopt the QuestDB the backend started so teardown can stop it (fix 4).
-    await adoptQuestDbPid();
-
     loadRetryCount = 0;
     createWindow();
     setupShortcuts(mainWindow);
@@ -1406,7 +1310,6 @@ app.whenReady().then(async () => {
     safeError("Failed to start application:", err);
     if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
     stopServer();
-    stopDatabases();
     dialog.showErrorBox(
       "Startup Failed",
       `The application could not start:\n\n${err.message}`
@@ -1434,7 +1337,6 @@ function runCleanup() {
   unregisterAllShortcuts();
   destroyTray();
   stopServer();
-  stopDatabases();
 }
 
 app.on("before-quit", () => {
@@ -1447,9 +1349,4 @@ app.on("will-quit", () => {
 
 app.on("window-all-closed", () => {
   app.quit();
-});
-
-// Safety net — stopDatabases is idempotent
-process.on("exit", () => {
-  stopDatabases();
 });

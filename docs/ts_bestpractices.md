@@ -93,9 +93,9 @@ Think of it as: **Any analyst who follows the "IIndicator" contract should work 
 **Example:**
 ```typescript
 // Every health indicator must return HealthIndicatorResult — no exceptions
-export class QuestDBHealthIndicator extends HealthIndicator {
+export class MarketDataHealthIndicator extends HealthIndicator {
   async isHealthy(): Promise<HealthIndicatorResult> {
-    // Must return { questdb: { status: 'up' } } or throw
+    // Must return { marketData: { status: 'up' } } or throw
     // Never return a different shape or silently fail
   }
 }
@@ -159,11 +159,11 @@ Think of it as: **Your strategy doesn't care which broker executes the trade** �
 
 **Before (violation):**
 ```typescript
-// Route handler directly imports concrete QuestDB module
-import { queryQuestDB } from '../questdb';
+// Route handler directly imports a concrete store module
+import { queryMarketData } from '../marketData';
 
 router.get('/ohlcv', async (req, res) => {
-  const data = await queryQuestDB(`SELECT * FROM ohlcv ...`);
+  const data = await queryMarketData(`SELECT * FROM ohlcv ...`);
 });
 ```
 
@@ -173,7 +173,7 @@ router.get('/ohlcv', async (req, res) => {
 @Injectable()
 export class ChartService {
   constructor(
-    @Inject(QuestDBService) private db: QuestDBService,
+    @Inject(MarketDataService) private db: MarketDataService,
   ) {}
 
   async getOHLCV(symbol: string, timeframe: string) {
@@ -247,7 +247,7 @@ router.post('/start', async (req, res) => {
 - **Repository pattern**: Separate data access from business logic
 - **Services never write SQL**: SQL lives in dedicated query files or repositories
 - **TypeORM entities**: `synchronize: false` — Drizzle manages schema
-- **QuestDB**: Use `SAMPLE BY` for aggregation, materialized views for performance
+- **Market data (DuckDB over the lake)**: read the pre-aggregated timeframe view when one exists; use `arg_min`/`arg_max` over `first`/`last` inside a `GROUP BY`
 - **DuckDB**: In-memory only, ephemeral compute — never persistent state
 
 ---

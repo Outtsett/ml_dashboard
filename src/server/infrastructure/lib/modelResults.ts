@@ -69,11 +69,35 @@ export function sanitizeModelId(id: string): string {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+/** The subset of a model's diagnostics.json this module reads. Model families differ, so every field is optional. */
+interface DiagnosticsFile {
+  quality_score?: number;
+  best_metrics?: { swing_accuracy?: number };
+  metrics?: { accuracy?: number };
+  model_type?: string;
+  symbol?: string;
+  timeframe?: string;
+  n_regimes?: number;
+  n_bars?: number;
+  n_bars_total?: number;
+  n_bars_train_val?: number;
+  n_bars_test?: number;
+  data?: { n_train?: number; n_val?: number; train_date_range?: string[]; val_date_range?: string[] };
+  date_range?: { start: string; end: string };
+  training_config?: Record<string, unknown>;
+  hyperparameters?: Record<string, unknown>;
+  training_time_sec?: number;
+  training?: { total_time_sec?: number };
+  trained_at?: string;
+  evaluation?: { grade?: string };
+}
+
 export interface ModelSummary {
   id: string;
   modelType: string;
-  symbol: string;
-  timeframe: string;
+  /** Absent when the model's diagnostics.json does not record it. */
+  symbol?: string;
+  timeframe?: string;
   n_regimes: number;
   n_bars: number;
   n_bars_total: number;
@@ -81,9 +105,9 @@ export interface ModelSummary {
   n_bars_test: number;
   quality_score: number;
   evaluation_grade: string;
-  date_range: { start: string; end: string } | null;
-  training_config: Record<string, unknown>;
-  training_time_sec: number;
+  date_range: { start?: string; end?: string } | null;
+  training_config?: Record<string, unknown>;
+  training_time_sec?: number;
   trained_at: string;
 }
 
@@ -115,7 +139,7 @@ export function listTrainedModels(baseDir: string): ModelSummary[] {
     const diagPath = path.join(baseDir, dir, "diagnostics.json");
     if (!fs.existsSync(diagPath)) continue;
     try {
-      const diag = readJsonFile(diagPath) as any;
+      const diag = readJsonFile(diagPath) as DiagnosticsFile;
       // Map quality score from best_metrics if top-level quality_score is missing
       const quality = diag.quality_score ?? 
                      (diag.best_metrics?.swing_accuracy ? diag.best_metrics.swing_accuracy * 100 : 
@@ -128,7 +152,7 @@ export function listTrainedModels(baseDir: string): ModelSummary[] {
         timeframe: diag.timeframe,
         n_regimes: diag.n_regimes || 0,
         n_bars: diag.n_bars || diag.n_bars_total || diag.data?.n_train || 0,
-        n_bars_total: diag.n_bars_total || (diag.data?.n_train + diag.data?.n_val) || 0,
+        n_bars_total: diag.n_bars_total || ((diag.data?.n_train ?? 0) + (diag.data?.n_val ?? 0)) || 0,
         n_bars_train_val: diag.n_bars_train_val || diag.data?.n_train || 0,
         n_bars_test: diag.n_bars_test || diag.data?.n_val || 0,
         quality_score: quality,
@@ -226,7 +250,7 @@ export function getModelDiagnostics(baseDir: string, id: string): object | null 
 
   const diagPath = path.join(baseDir, safe, "diagnostics.json");
   if (!fs.existsSync(diagPath)) return null;
-  const raw = readJsonFile(diagPath) as any;
+  const raw = readJsonFile(diagPath) as Record<string, unknown>;
   const result = migrateLegacyDiagnostics(raw);
   modelCacheSet(cacheKey, result);
   return result;
@@ -242,7 +266,7 @@ export function getModelConvergence(baseDir: string, id: string): object | null 
 
   const convPath = path.join(baseDir, safe, "convergence.json");
   if (!fs.existsSync(convPath)) return null;
-  const raw = readJsonFile(convPath) as any;
+  const raw = readJsonFile(convPath) as { gibbs?: unknown; log_likelihoods?: number[]; n_iterations?: number };
 
   let result: object;
   // New format: already has "gibbs" key with ConvergencePoint[]
@@ -251,7 +275,7 @@ export function getModelConvergence(baseDir: string, id: string): object | null 
   } else if (raw.log_likelihoods) {
     // Legacy format: { log_likelihoods: number[] } → convert to ConvergencePoint[]
     result = {
-      gibbs: (raw.log_likelihoods as number[]).map((ll: number, i: number) => ({
+      gibbs: raw.log_likelihoods.map((ll: number, i: number) => ({
         iter: i + 1,
         log_likelihood: ll,
       })),
@@ -366,18 +390,20 @@ export async function getModelBenchmarks(
   const diagPath = path.join(baseDir, safe, "diagnostics.json");
   if (!fs.existsSync(diagPath)) return null;
 
-  const diag = readJsonFile(diagPath) as any;
+  const diag = readJsonFile(diagPath) as DiagnosticsFile;
   const { symbol, date_range } = diag;
   if (!symbol || !date_range?.start || !date_range?.end) return null;
 
-  // Query OHLCV from QuestDB for the model's date range
+  // Query OHLCV from the lake for the model's date range.
+  // `LIMIT 0, 100000` was QuestDB's offset,count spelling — DuckDB reads that
+  // as a syntax error, not as an offset.
   const ohlcv = await questdbHttpQuery<{ ts: string; close: number }>(
     `SELECT timestamp as ts, close FROM ohlcv
      WHERE symbol = '${symbol}'
        AND timestamp >= '${date_range.start}'
        AND timestamp <= '${date_range.end}'
      ORDER BY timestamp ASC
-     LIMIT 0, 100000`
+     LIMIT 100000 OFFSET 0`
   );
 
   if (ohlcv.length < 200) return null;

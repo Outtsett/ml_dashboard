@@ -235,7 +235,7 @@ def load_features_with_cache(
     categories : list[str] | None
         Feature category whitelist (None == all categories from the registry).
     max_bars : int
-        Hard cap on bar count returned from QuestDB / parquet repo (0 == no cap).
+        Hard cap on bar count returned from the lake / parquet repo (0 == no cap).
 
     Returns
     -------
@@ -251,7 +251,7 @@ def load_features_with_cache(
         engineered features.
     """
     # Local imports keep the module-level surface small + avoid pulling
-    # questdb/polars on consumers that only want the compute_features helper.
+    # duckdb/polars on consumers that only want the compute_features helper.
     from .data import load_ohlcv_arrays
     from .feature_cache import cached_features
 

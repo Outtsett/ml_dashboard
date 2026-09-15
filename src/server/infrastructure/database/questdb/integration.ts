@@ -1,4 +1,4 @@
-import { insertOHLCVBatch, OHLCVRow, getOHLCVSampleBy, checkQuestDBHealth, createOHLCVTable, initQueryPool } from ".";
+import { getOHLCVSampleBy, checkQuestDBHealth } from ".";
 import { getCircuitBreaker } from "../../lib/circuitBreaker";
 import { pipelineMetrics } from "../../lib/metrics";
 import { logInfo } from "../../lib/log";
@@ -30,46 +30,26 @@ export async function insertOHLCVToQuestDB(
   symbol: string
 ): Promise<{ success: boolean; insertedToQuestDB: number; error?: string }> {
   if (!config.enableQuestDB || data.length === 0) {
-    return { success: false, insertedToQuestDB: 0, error: 'QuestDB disabled or no data' };
+    return { success: false, insertedToQuestDB: 0, error: 'Ingestion disabled or no data' };
   }
 
-  const startTime = Date.now();
-
-  try {
-    const result = await questdbCircuit.execute(async () => {
-      const rows: OHLCVRow[] = data.map(d => ({
-        symbol: d.symbol,
-        timestamp: new Date(d.timestamp),
-        open: d.open,
-        high: d.high,
-        low: d.low,
-        close: d.close,
-        volume: d.volume
-      }));
-
-      for (let i = 0; i < rows.length; i += config.batchSize) {
-        const batch = rows.slice(i, i + config.batchSize);
-        await insertOHLCVBatch(batch);
-      }
-
-      return rows.length;
-    });
-
-    const latency = Date.now() - startTime;
-    pipelineMetrics.recordQuestDBInsert(symbol, result, latency, true);
-
-    return { success: true, insertedToQuestDB: result };
-  } catch (error) {
-    const latency = Date.now() - startTime;
-    pipelineMetrics.recordQuestDBInsert(symbol, 0, latency, false);
-
-    return {
-      success: false,
-      insertedToQuestDB: 0,
-      error: error instanceof Error ? error.message : String(error)
-    };
-  }
+  // Reported before the circuit breaker sees it. insertOHLCVBatch now raises —
+  // this server is read-only over the lake — and letting that failure repeat
+  // five times would trip the breaker, after which every caller gets a generic
+  // "circuit open" instead of the reason and the restore path.
+  return {
+    success: false,
+    insertedToQuestDB: 0,
+    error:
+      `[lake] Writing ${data.length} bars for ${symbol} is not available. QuestDB was ` +
+      "retired on 2026-09-10 and this server is read-only over the lake. Land new data " +
+      "through datalake (scripts/land_raw.py, then scripts/migrate_to_iceberg.py). " +
+      "Restore path if QuestDB is ever needed again: " +
+      "s3://meta/questdb_schema/questdb_schema_latest.sql plus the parquet at " +
+      "s3://derived/recipe=questdb_full_2026-09-09/.",
+  };
 }
+
 
 export async function queryOHLCVFromQuestDB(
   symbol: string,
@@ -77,7 +57,7 @@ export async function queryOHLCVFromQuestDB(
   startTime?: number,
   endTime?: number,
   limit?: number
-): Promise<{ success: boolean; data: any[]; source: 'questdb' | 'none'; error?: string }> {
+): Promise<{ success: boolean; data: Awaited<ReturnType<typeof getOHLCVSampleBy>>; source: 'questdb' | 'none'; error?: string }> {
   if (!config.enableQuestDB) {
     return { success: false, data: [], source: 'none', error: 'QuestDB disabled' };
   }
@@ -106,10 +86,14 @@ export async function queryOHLCVFromQuestDB(
   }
 }
 
+/**
+ * Bring the serving layer up.
+ *
+ * No pool to prime and no schema to create: the lake's schema is datalake's,
+ * and the first health check is what builds the DuckDB view catalog. The retry
+ * loop is kept because AIStor can still be starting when this server boots.
+ */
 export async function initializeQuestDB(): Promise<{ success: boolean; error?: string }> {
-  // Eagerly initialize the connection pool
-  initQueryPool();
-
   const MAX_RETRIES = 5;
   const BASE_DELAY_MS = 2000;
 
@@ -117,20 +101,19 @@ export async function initializeQuestDB(): Promise<{ success: boolean; error?: s
     try {
       const healthy = await checkQuestDBHealth();
       if (!healthy) {
-        throw new Error('QuestDB not responding');
+        throw new Error('Lake serving layer not responding');
       }
 
-      await createOHLCVTable();
-      logInfo(`[QuestDB] Initialized on attempt ${attempt}/${MAX_RETRIES}`);
+      logInfo(`[lake] Serving layer initialized on attempt ${attempt}/${MAX_RETRIES}`);
       return { success: true };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       if (attempt < MAX_RETRIES) {
         const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1); // exponential backoff: 2s, 4s, 8s, 16s
-        console.warn(`[QuestDB] Startup attempt ${attempt}/${MAX_RETRIES} failed (${msg}). Retrying in ${delay}ms...`);
+        console.warn(`[lake] Startup attempt ${attempt}/${MAX_RETRIES} failed (${msg}). Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       } else {
-        console.error(`[QuestDB] All ${MAX_RETRIES} startup attempts failed. Last error: ${msg}`);
+        console.error(`[lake] All ${MAX_RETRIES} startup attempts failed. Last error: ${msg}`);
         return { success: false, error: msg };
       }
     }
@@ -175,9 +158,9 @@ export async function getQuestDBRowCount(symbol: string): Promise<number> {
     const { queryQuestDBFast } = await import(".");
     const result = await questdbCircuit.execute(async () => {
       const sql = `SELECT COUNT(*) as cnt FROM ohlcv WHERE symbol = '${safeSymbol}'`;
-      return queryQuestDBFast(sql);
+      return queryQuestDBFast<{ cnt: number | bigint }>(sql);
     });
-    return result[0]?.cnt || 0;
+    return Number(result[0]?.cnt ?? 0);
   } catch (error) {
     console.warn(`[QuestDB] Failed to get row count for ${symbol}:`, error);
     return 0;

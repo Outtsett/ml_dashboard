@@ -21,7 +21,9 @@ npm run check            # TypeScript type-check (strict mode)
 npm test                 # Vitest (node env, 30s timeout, tests/ dir)
 ```
 
-Databases must be running first: `node electron/start-databases.cjs` (QuestDB).
+No database server needs starting: market data is read with DuckDB over the
+Iceberg lake at `E:\lake` (in-process), and app metadata lives in a local
+SQLite file.
 
 ## Code Style
 
@@ -196,8 +198,7 @@ router.get('/ohlcv', async (req, res) => {
 ### Two Databases
 | DB | Access Pattern | When to Use |
 |----|---------------|-------------|
-| **DuckDB** (raw SQL) | `marketQuery<T>(sql)` from `server/duckdb/market.ts` | Market data, analytics, indicators |
-| **QuestDB** | HTTP/ILP via `server/questdb.ts` | Chart candle aggregation (`SAMPLE BY`) |
+| **DuckDB** (raw SQL) | `marketQuery<T>(sql)` from `server/duckdb/market.ts` | Market data, analytics, indicators, chart candle aggregation |
 
 ### DuckDB Mutex Pattern
 File-backed DuckDB (`data/market.duckdb`) requires serialized access. Always use `marketQuery()` — never access `marketConn` directly. Cast `COUNT(*)` / `epoch_ms()` to `DOUBLE` in SQL or wrap with `Number()` in JS (BigInt breaks JSON serialization).
@@ -238,7 +239,7 @@ router.get('/endpoint', async (req: Request, res: Response) => {
 
 ## Integration Points
 
-- **DuckDB ↔ QuestDB sync**: Bulk CSV export → QuestDB `/imp` endpoint (see `scripts/fast-questdb-sync.ts`)
+- **Market data**: DuckDB reads the Iceberg lake at `E:\lake` directly — one engine, no export/import step between stores
 - **ML training**: `MLTrainer extends EventEmitter` in `server/ml/trainer.ts` — emits progress via SSE at `GET /api/ml/train/stream`
 - **Indicators**: 344 pre-computed columns via pandas-ta (parquets in `data/{futures,forex}/{symbol}/{tf}/`), 13 realtime SQL generators in `server/lib/indicators/sqlGenerator.ts`
 - **Continuous contracts**: DuckDB Panama back-adjustment via rollover schedule — `server/routes/instruments.ts` endpoint

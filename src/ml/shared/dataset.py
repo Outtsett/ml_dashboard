@@ -5,15 +5,20 @@ Domain-agnostic dataset loading — the ``DataSource`` descriptor + ``load_datas
 shape: ``FROM ohlcv ... SAMPLE BY {interval}``, a mandatory ``symbol`` column,
 and a fixed ``{open, high, low, close, volume, timestamp}`` return dict. That
 is one possible dataset, not the interface. This module generalizes the data
-layer so the workspace can train on any QuestDB table or parquet file — while
-leaving every existing OHLCV caller byte-for-byte unchanged.
+layer so the workspace can train on any table in the lake or any parquet file —
+while leaving every existing OHLCV caller byte-for-byte unchanged.
 
-Three ``DataSource`` kinds:
+Every non-parquet read goes through ``lake.serving`` — DuckDB in-process over
+the Iceberg lake at ``E:/lake``.
+
+Three ``DataSource`` kinds. The two ``questdb_*`` kind strings are a frozen wire
+contract (stored dataset configs and the dashboard both send them); they name
+the shape of the request, not the engine serving it:
 
   - ``questdb_ohlcv``  {symbol, timeframe, date_range?, max_bars?}
-    Today's path, preserved exactly. Delegates to ``load_ohlcv_arrays``.
+    The OHLCV path, preserved exactly. Delegates to ``load_ohlcv_arrays``.
   - ``questdb_table``  {table, time_column, filters?, sample_by?, max_bars?}
-    Any QuestDB table, arbitrary column shape.
+    Any lake table, arbitrary column shape.
   - ``parquet``        {path}
     A local parquet file; the time column (if any) is auto-detected.
 
@@ -54,7 +59,7 @@ import polars as pl
 from .data import _validate_date, _validate_sql_input, load_ohlcv_arrays
 from .protocol import emit_log, emit_progress
 
-# Columns exposed by the questdb_ohlcv path. "timestamp" is deliberately
+# Columns exposed by the OHLCV path. "timestamp" is deliberately
 # excluded — it becomes the returned dataset's `index`, not a feature column,
 # matching how features.json `requires[]` never names "timestamp".
 _OHLCV_PROVIDED_COLUMNS: tuple[str, ...] = ("open", "high", "low", "close", "volume")
@@ -126,7 +131,7 @@ def load_dataset(source: DataSource | dict) -> dict:
     )
 
 
-# ── questdb_ohlcv — delegates to data.py, byte-for-byte identical ─────────
+# ── OHLCV kind — delegates to data.py, byte-for-byte identical ────────────
 
 
 def _load_questdb_ohlcv(source: DataSource) -> dict:
@@ -139,11 +144,14 @@ def _load_questdb_ohlcv(source: DataSource) -> dict:
     index = _timestamps_to_index(raw["timestamp"])
     columns = {name: raw[name] for name in _OHLCV_PROVIDED_COLUMNS}
 
+    # Provenance label for the run, not an executable string: the real SQL is
+    # built per call by data.py::_build_sample_sql, which reads the lake's
+    # pre-aggregated view for <interval> when one exists and resamples the base
+    # ohlcv view when it does not.
     query_template = (
-        "SELECT symbol, timestamp, first(open) as open, max(high) as high, "
-        "min(low) as low, last(close) as close, sum(volume) as volume "
-        "FROM ohlcv WHERE symbol = <symbol> SAMPLE BY <interval> ALIGN TO CALENDAR "
-        "ORDER BY timestamp"
+        "lake.serving: SELECT symbol, timestamp, open, high, low, close, volume "
+        "FROM <view for <interval>, else resample of ohlcv> "
+        "WHERE symbol = <symbol> ORDER BY timestamp"
     )
     identity = _build_identity(query_template, index, columns)
     return {
@@ -154,7 +162,7 @@ def _load_questdb_ohlcv(source: DataSource) -> dict:
     }
 
 
-# ── questdb_table — arbitrary table, generic CSV parse ────────────────────
+# ── questdb_table — arbitrary lake table, generic schema ──────────────────
 
 
 def _load_questdb_table(source: DataSource) -> dict:
@@ -188,7 +196,7 @@ def _load_questdb_table(source: DataSource) -> dict:
     else:
         sql = f"SELECT * FROM {table}{where} ORDER BY {time_column}{limit}"
 
-    emit_log(f"[dataset] Loading questdb_table '{table}' via HTTP /exp...")
+    emit_log(f"[dataset] Loading table '{table}' via DuckDB over the lake...")
     df = _fetch_csv_dataframe(sql)
     if df is None or df.height == 0:
         raise ValueError(f"No rows returned for questdb_table '{table}'")
@@ -217,11 +225,10 @@ _INTERVAL_UNIT = {"s": "second", "m": "minute", "h": "hour", "d": "day", "w": "w
 
 
 def _interval_literal(sample_by: str) -> str:
-    """QuestDB's ``5m`` as a DuckDB interval literal, ``'5 minutes'``.
+    """The timeframe shorthand ``5m`` as a DuckDB interval literal, ``'5 minutes'``.
 
-    The unit letters are QuestDB's, and ``m`` means minute here - never month.
-    A month would be ``M`` and no caller uses one, so an unknown unit raises
-    rather than guessing at a bucket size.
+    ``m`` means minute here - never month. A month would be ``M`` and no caller
+    uses one, so an unknown unit raises rather than guessing at a bucket size.
     """
     count, unit = sample_by[:-1], sample_by[-1]
     if unit not in _INTERVAL_UNIT or not count.isdigit():
@@ -244,11 +251,11 @@ def _build_generic_where(filters: dict[str, Any] | None) -> str:
 
     Each value is either a scalar (equality) or a dict with any of
     gte/lte/gt/lt/eq (range/comparison) — the latter is how a time_column
-    range restriction is expressed, since questdb_table has no dedicated
+    range restriction is expressed, since the table kind has no dedicated
     date_range field. Every column name and value is regex-validated before
-    interpolation (QuestDB's HTTP /exp endpoint takes a raw SQL string with
-    no bind-parameter support over GET — the same constraint `data.py`
-    already works under for `_build_where`), never concatenated raw.
+    interpolation — the SQL reaches DuckDB as one composed string, the same
+    constraint `data.py` already works under for `_build_where` — never
+    concatenated raw.
     """
     if not filters:
         return ""
@@ -284,11 +291,10 @@ def _sql_literal(value: Any) -> str:
 def _fetch_csv_dataframe(sql: str) -> pl.DataFrame | None:
     """Generic (schema-agnostic) read from the lake through DuckDB.
 
-    Was an HTTP /exp CSV round trip until 2026-09-10, when QuestDB was emptied.
     DuckDB hands Polars an Arrow table, so there is no CSV encode/parse in the
     middle and no type inference to get wrong on a table that is not
-    OHLCV-shaped - which was the reason this existed separately from
-    `data.py::_http_csv_to_arrays`.
+    OHLCV-shaped - which is why this exists separately from the OHLCV path in
+    `data.py`.
     """
     from ml.shared.data import _serving
 
@@ -408,8 +414,9 @@ def _index_value_to_str(value: Any) -> str:
 
 def _content_hash(index: np.ndarray, columns: dict[str, np.ndarray]) -> str:
     """sha256 over the materialized dataset — this IS the data-snapshot
-    identity used for run provenance (QuestDB is mutable/append-only and
-    exposes no snapshot id of its own).
+    identity used for run provenance. It is computed from the rows actually
+    returned, so it identifies the data the same way for a lake table, a
+    resampled view and a local parquet file alike.
 
     Fixed, documented order: the index first (key ``"__index__"``), then
     every entry in ``columns`` sorted alphabetically by name. Within each

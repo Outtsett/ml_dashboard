@@ -7,8 +7,8 @@ Python ML models and shared utilities for quantitative trading research. Model p
 ```mermaid
 graph TD
     Server["Node.js Server<br/>PythonRunner"] -->|spawn + parse stdout| Main["Model main.py<br/>CLI entry point"]
-    Main --> Data["shared/data.py<br/>QuestDB PG wire"]
-    Data --> QDB["QuestDB :8812"]
+    Main --> Data["shared/data.py<br/>lake.serving.connect()"]
+    Data --> Lake["DuckDB over the Iceberg lake<br/>E:\lake — in-process"]
     Main --> Features["shared/features.py<br/>35 features, 10 categories"]
     Main --> Model["model.py<br/>Architecture + training"]
     Model --> Protocol["shared/protocol.py<br/>emit_metric, emit_done"]
@@ -33,7 +33,7 @@ graph TD
 src/ml/
   shared/               Shared across ALL models
     protocol.py         JSON stdout event emitters (emit_metric, emit_done, etc.)
-    data.py             QuestDB OHLCV loading via PG wire (psycopg2)
+    data.py             OHLCV loading from the lake via DuckDB (lake.serving)
     features.py         Config-driven feature computation (35 features, 10 categories, Numba JIT)
     normalizer.py       Feature classification (8 types) + transform functions
     feature_extract.py  Indicator-to-feature derivation (8 transforms, Numba JIT, joblib parallel)

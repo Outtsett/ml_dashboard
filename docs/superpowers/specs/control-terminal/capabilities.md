@@ -1,5 +1,14 @@
 # Control Terminal — Capability Catalog (A2)
 
+> **Data-layer premise superseded (2026-09-10).** This spec was written against a local
+> QuestDB serving cache reached over HTTP `:9000` / ILP `:9009` / PG wire `:8812`. That store
+> was emptied and retired: all 41 objects were dropped after each was copied to parquet in the
+> lake and row-count verified (39/39 exact), and nothing may read or write it again. Market
+> data now lives in the Iceberg lake at `E:\lake` and is read **in-process by DuckDB**
+> (`from lake.serving import connect`). Everything below that names a database host, port,
+> Windows service, JVM process, WAL table, `SAMPLE BY`, materialized-view refresh or ILP
+> write is stale and must be re-derived against the lake before it is built.
+
 Status: DESIGN. This document enumerates every Capability the fused "control terminal"
 should expose, across all four reach domains. It is grounded in the existing ml_dashboard
 server code (real router paths cited) and the known state of Tyler's machine.
@@ -49,7 +58,7 @@ The "Confirm UX" column states exactly what the proposal card renders before Tyl
 
 ## Domain 1 — Machine & Processes  (Phase 1, the reference build)
 
-Ground truth: 259 live processes (152 node, 107 python) with orphan accumulation; QuestDB
+Ground truth: 259 live processes (152 node, 107 python) with orphan accumulation; the market-data store
 runs as an externally-managed **nssm** Windows service (Java) — the dashboard never owns that
 process, confirmed in `src/server/infrastructure/database/questdb/lifecycle.ts:13`; repo temp
 dirs (`logs/`, `data/models/`, `dist/`, `optuna_studies/`); GPU is an RTX 5060 Ti 16GB (target
@@ -65,14 +74,14 @@ and `system.gpu` SSE channels via `scripts/hardware_node.py` → `telemetry.rout
 | `proc.list` | read | safe | Enumerate all running processes with pid, name, cpu%, mem, parent pid, start time, cwd. | `{ filter?: string, sortBy?: 'cpu'\|'mem'\|'age', limit?: number }` | `{ processes: Array<{ pid, ppid, name, command, cpu, memMB, started, user }>, total: number, byRuntime: { node: number, python: number, other: number } }` | yes | `si.processes()` (systeminformation); mirrors the `processes` slot already on `SystemSnapshot` in `telemetry.router.ts:35` |
 | `proc.classify` | read | safe | Classify processes and flag orphans (detached node/python whose parent died, or whose cwd is a repo temp dir, older than N minutes). | `{ orphanAgeMinutes?: number, roots?: string[] }` | `{ live: number, orphans: Array<{ pid, name, reason: 'dead-parent'\|'stale-cwd'\|'zombie', ageMin, memMB, cwd }>, reclaimableMB: number }` | no | `si.processes()` + parent-pid graph walk; new classifier logic layered on `proc.list` |
 | `proc.tree` | read | safe | Return the parent/child process tree rooted at a pid (or full forest). | `{ rootPid?: number, maxDepth?: number }` | `{ nodes: Array<{ pid, ppid, name, children: number[] }> }` | no | `si.processes()` ppid graph |
-| `port.owner` | read | safe | Resolve which process owns a TCP/UDP port (e.g. 8055/8056 dashboard, 9000 QuestDB, 3000-range apps). | `{ port: number }` | `{ port, pid?: number, name?: string, state?: string, protocol: 'tcp'\|'udp' }` | no | `si.networkConnections()` |
+| `port.owner` | read | safe | Resolve which process owns a TCP/UDP port (e.g. 8055/8056 dashboard, 9100 Iceberg catalog, 3000-range apps). | `{ port: number }` | `{ port, pid?: number, name?: string, state?: string, protocol: 'tcp'\|'udp' }` | no | `si.networkConnections()` |
 | `cpu.snapshot` | read | safe | Current CPU load, per-core loads, temperature, clock speed. | `{}` | `SystemSnapshot['cpu']` = `{ load, cores: number[], temp, speed }` | yes | live `system.matrix` SSE channel + `lastSnapshot.cpu` in `telemetry.router.ts:158` (`GET /api/system/matrix`) |
 | `mem.snapshot` | read | safe | Physical + swap memory usage. | `{}` | `SystemSnapshot['mem']` = `{ total, active, used, swaptotal, swapused }` | yes | `lastSnapshot.mem`, `system.matrix` channel |
 | `gpu.snapshot` | read | safe | Live NVIDIA GPU utilization, VRAM used/total, temperature, name. | `{}` | `GpuSnapshot` (`{ name, utilization, memoryUsedMB, memoryTotalMB, temperature, ... }`) | yes | `GET /api/system/gpu` + `system.gpu` SSE channel, `telemetry.router.ts:162`; source is `scripts/hardware_node.py` (pynvml) |
 | `net.snapshot` | read | safe | Network throughput (tx/rx bytes per second). | `{}` | `SystemSnapshot['network']` = `{ tx_sec, rx_sec }` | yes | `lastSnapshot.network` (delta-computed in `telemetry.router.ts:97-104`) |
 | `disk.snapshot` | read | safe | Free/used bytes per filesystem/drive; flags drives over a fullness threshold. | `{ warnPct?: number }` | `{ drives: Array<{ fs, mount, sizeGB, usedGB, usePct }>, warnings: string[] }` | no | `si.fsSize()` |
-| `svc.list` | read | safe | List Windows services relevant to the stack (QuestDB/nssm, plus optional name filter) with running/stopped state. | `{ filter?: string }` | `{ services: Array<{ name, displayName, running: boolean, startType, pid?: number }> }` | no | `si.services('*')`; the nssm-wrapped QuestDB Java service surfaces here |
-| `svc.status` | read | safe | Status of one named service + a live connectivity probe when it maps to QuestDB. | `{ name: string }` | `{ name, running, startType, pid?, probe?: { reachable: boolean, url } }` | no | `si.services(name)`; for QuestDB reuse `GET /api/questdb/status` (`database-infra.router.ts:149`) |
+| `svc.list` | read | safe | List Windows services relevant to the stack (optional name filter) with running/stopped state. | `{ filter?: string }` | `{ services: Array<{ name, displayName, running: boolean, startType, pid?: number }> }` | no | `si.services('*')`. No market-data service exists — the lake has no process. |
+| `svc.status` | read | safe | Status of one named service + a live connectivity probe. | `{ name: string }` | `{ name, running, startType, pid?, probe?: { reachable: boolean, url } }` | no | `si.services(name)` |
 | `temp.scan` | read | safe | Measure size of repo temp/artifact dirs (`logs/`, `data/models/`, `dist/`, `optuna_studies/`, `__pycache__/`, `node_modules/` on request) per repo. | `{ roots?: string[], globs?: string[] }` | `{ dirs: Array<{ path, sizeMB, fileCount, oldestFileAge }>, totalReclaimableMB: number }` | no | `fs` recursive stat; new scanner (no existing wrapper) |
 
 ### Writes
@@ -80,7 +89,7 @@ and `system.gpu` SSE channels via `scripts/hardware_node.py` → `telemetry.rout
 | id | kind | risk | description | args | result | stream? | wraps | Confirm UX (proposal card) |
 |---|---|---|---|---|---|---|---|---|
 | `proc.kill` | write | caution | Terminate a process (and optionally its child subtree) by pid. | `{ pid: number, tree?: boolean, signal?: 'SIGTERM'\|'SIGKILL' }` | `{ killed: number[], failed: Array<{ pid, error }> }` | no | `process.kill()` / `taskkill /PID <pid> /T`; targets resolved from `proc.classify` | Shows pid, process name, command line, cwd, memory it will free, and whether `tree:true` will also kill N children (lists them). Single **Execute**. |
-| `svc.restart` | write | caution | Restart a Windows service (primary target: the nssm QuestDB service). | `{ name: string, action?: 'restart'\|'start'\|'stop' }` | `{ name, action, ok: boolean, newState: string }` | no | `nssm restart <name>` / `sc.exe`; for QuestDB the softer path is `POST /api/questdb/restart` → `QuestDBAutomationService.restartQuestDB()` (`database-infra.router.ts:197`) | Shows service name, current state → target state, and (for QuestDB) a warning that in-flight ingestion/queries will drop for the restart window. Single **Execute**. |
+| `svc.restart` | write | caution | Restart a Windows service. | `{ name: string, action?: 'restart'\|'start'\|'stop' }` | `{ name, action, ok: boolean, newState: string }` | no | `sc.exe` | Shows service name, current state → target state. Single **Execute**. |
 | `temp.clean` | write | caution | Delete selected temp/artifact dirs or files surfaced by `temp.scan`. | `{ paths: string[], dryRun?: boolean }` | `{ deleted: string[], freedMB: number, skipped: Array<{ path, reason }> }` | no | `fs.rm` recursive, guarded to an allowlist of temp roots; pairs with `temp.scan` | Lists every path to delete with its size, the total MB freed, and an explicit "these are build/log/artifact dirs, not source" assertion. Defaults to `dryRun` preview; **Execute** flips to real delete. |
 
 **Domain 1 total: 15 capabilities (12 read, 3 write).**
@@ -92,7 +101,7 @@ and `system.gpu` SSE channels via `scripts/hardware_node.py` → `telemetry.rout
 Ground truth: ~30 git repos under `E:\source\repos` (from the global `C:\Users\tyler\.claude\CLAUDE.md`
 "Active Project Locations" and this repo's `CLAUDE.md`). Launch commands are heterogeneous —
 `ml_dashboard` uses `npm run dev` (Electron + Vite), the `Trading\quant` workspace uses
-`uv run`, `QuestDBPlugin` uses `mvn`/`--release 17`, `Trading\quantower_strategies` builds C# via
+`uv run`, the Java plugin build uses `mvn`/`--release 17`, `Trading\quantower_strategies` builds C# via
 `dotnet`/msbuild, Flutter apps use `flutter run`, Rust repos use `cargo`. This mandates a
 **per-repo launch descriptor** rather than a hardcoded command.
 
@@ -100,7 +109,7 @@ Ground truth: ~30 git repos under `E:\source\repos` (from the global `C:\Users\t
 
 ```ts
 interface RepoDescriptor {
-  id: string;                    // 'ml_dashboard', 'trading-quant', 'questdb-plugin', ...
+  id: string;                    // 'ml_dashboard', 'trading-quant', 'market-plugin', ...
   path: string;                  // absolute repo root
   runtime: 'node' | 'uv' | 'cargo' | 'maven' | 'dotnet' | 'flutter' | 'python';
   commands: {
@@ -143,21 +152,21 @@ descriptor, so a new repo is onboarded by adding one descriptor, never by touchi
 
 Ground truth: **most of this already has backend routers in ml_dashboard** — the design here is
 overwhelmingly *wrapping* existing endpoints as Capabilities, not building new logic. Sources:
-QuestDB (`src/server/infrastructure/database/questdb/*` + `database-infra.router.ts`), model
+market data (`src/server/infrastructure/database/questdb/*` + `database-infra.router.ts` — being repointed at DuckDB/lake), model
 registry/checkpoints (`ml/models.router.ts`, `ml/registry.router.ts`), HPO (`training/hpo.router.ts`),
 backtests (`backtest/backtest.router.ts`), deployments/paper/live (`deployment/deployments.router.ts`),
-brokers (`backtest.router.ts` broker endpoints). The `questdb` MCP server is also available for raw
+brokers (`backtest.router.ts` broker endpoints). An MCP server is also available for raw
 introspection. OHLCV/parquet data root is external at `ml_dashboard\data\parquet`.
 
 ### Reads
 
 | id | kind | risk | description | args | result | stream? | wraps |
 |---|---|---|---|---|---|---|---|
-| `questdb.tables` | read | safe | List QuestDB tables/views with row + partition counts. | `{}` | `{ connected, tables, tableDetails: Array<{ name, type, rowCount, partitionCount }> }` | no | `getQuestDBStats()` / `getQuestDBTables()` in `questdb/introspection.ts:46,88`; or `questdb_list_tables` MCP |
-| `questdb.query` | read | safe | Run a read-only SQL query against QuestDB (SELECT only, guarded). | `{ sql: string, limit?: number }` | `{ rows: unknown[], count: number, columns: string[] }` | no | `queryQuestDB()` (`questdb/connection.ts`); or `/exp` REST; or `questdb_query` MCP. SELECT-only guard added at the capability layer |
-| `questdb.wal-status` | read | safe | WAL (Write-Ahead Log) apply lag / sequencer status per WAL table. | `{ table?: string }` | `{ tables: Array<{ name, sequencerTxn, writerTxn, lag }> }` | no | `questdb_wal_status` MCP; or `SELECT * FROM wal_tables()` via `queryQuestDB` |
-| `questdb.backup-status` | read | safe | Report presence/age/size of QuestDB backups (snapshot dir) + last checkpoint. | `{}` | `{ lastBackupAt?, ageHours?, sizeMB?, path?, present: boolean }` | no | `fs` stat of the QuestDB snapshot/backup dir + `SELECT * FROM checkpoint_status()` where available |
-| `questdb.health` | read | safe | Combined QuestDB integration + process status + live probe. | `{}` | `{ connected, process, integration }` | no | `GET /api/questdb/status` (`database-infra.router.ts:149`) |
+| `lake.tables` | read | safe | List lake tables/views with row + partition counts. | `{}` | `{ connected, tables, tableDetails: Array<{ name, type, rowCount, partitionCount }> }` | no | the introspection helpers in `questdb/introspection.ts:46,88` (pending rename), or a DuckDB `SHOW TABLES` over `lake.serving.connect()` |
+| `lake.query` | read | safe | Run a read-only SQL query against the lake (SELECT only, guarded). | `{ sql: string, limit?: number }` | `{ rows: unknown[], count: number, columns: string[] }` | no | DuckDB via `lake.serving.connect()`. SELECT-only guard added at the capability layer |
+| `lake.snapshots` | read | safe | Iceberg snapshot id / commit time / row count per table — the lake's equivalent of apply lag. | `{ table?: string }` | `{ tables: Array<{ name, snapshotId, committedAt, rowCount }> }` | no | Iceberg catalog metadata via `lake.serving` |
+| `lake.replication-status` | read | safe | Age/size of the off-drive replica of `E:\lake` — the real DR concern now that the lake is the durable copy. | `{}` | `{ lastReplicatedAt?, ageHours?, sizeMB?, path?, present: boolean }` | no | `fs` stat of the replica root |
+| `lake.health` | read | safe | Lake reachability + catalog probe. | `{}` | `{ connected, catalog, integration }` | no | `GET /api/questdb/status` (`database-infra.router.ts:149`, pending rename) |
 | `models.list` | read | safe | List model checkpoints (filterable by type/symbol/timeframe/active). | `{ modelType?, symbol?, timeframe?, active?: boolean }` | `Array<Checkpoint>` (id, modelId, primaryMetric, isActive, createdAt, ...) | no | `GET /api/models` (`ml/models.router.ts:68`) |
 | `registry.versions` | read | safe | List promotable model *versions* (candidate/shadow/paper/live/retired) with lineage. | `{ status?, catalog_id?, symbol?, timeframe?, limit?, cursor? }` | `{ items: ModelVersion[], nextCursor, hasMore }` | no | `GET /api/model-versions` (`ml/registry.router.ts:189`) |
 | `hpo.studies` | read | safe | List HPO sessions (active + past) with best score, trial count, status. | `{ modelType?, symbol?, limit?, activeOnly?: boolean }` | `{ sessions: Array<{ sessionId, status, modelType, optimizer, completedTrials, bestScore, elapsedSec }> }` | yes | `GET /api/hpo/status` + `GET /api/hpo/sessions` (`training/hpo.router.ts:137,160`); live trials on the `/api/hpo/stream/:id` SSE channel |
@@ -170,7 +179,7 @@ introspection. OHLCV/parquet data root is external at `ml_dashboard\data\parquet
 
 | id | kind | risk | description | args | result | stream? | wraps | Confirm UX (proposal card) |
 |---|---|---|---|---|---|---|---|---|
-| `questdb.maintenance` | write | caution | Trigger manual DB maintenance (materialized-view refresh, dedup compaction). | `{}` | `{ success: boolean, message }` | no | `POST /api/questdb/maintenance` → `QuestDBAutomationService.runDailyMaintenance()` (`database-infra.router.ts:212`) | States it refreshes materialized views and may briefly raise load. Single **Execute**. |
+| `lake.maintenance` | write | caution | Trigger Iceberg housekeeping (snapshot expiry, small-file compaction). | `{}` | `{ success: boolean, message }` | no | `POST /api/questdb/maintenance` (`database-infra.router.ts:212`, pending rename) | States it rewrites table metadata and may briefly raise I/O. Single **Execute**. |
 | `hpo.start` | write | caution | Launch a new HPO study (spawns Optuna subprocess fleet). | `hpoRequestSchema` (modelType, symbol, timeframe, optimizer, search space, nTrials) | `{ sessionId }` | yes | `POST /api/hpo/start` (`hpo.router.ts:33`) | Shows model type, symbol/timeframe, optimizer, trial budget, and the GPU/CPU load it will add (cross-links `gpu.snapshot`). Single **Execute**. |
 | `hpo.stop` | write | caution | Stop a running HPO session (or kill one trial). | `{ sessionId: string, trialId?: number }` | `{ stopped: boolean }` | no | `POST /api/hpo/stop/:id` / `POST /api/hpo/sessions/:id/trials/:trialId/kill` (`hpo.router.ts:197,241`) | Shows sessionId, trials completed so far (which are preserved), and that the study can be resumed. Single **Execute**. |
 | `backtest.run` | write | caution | Launch a backtest / walk-forward run for a symbol+config. | `{ symbol, timeframe?, modelId?, config, walkForward?: {...} }` | `{ runId, status }` | yes | `POST /api/backtest/run` + `/api/backtest/walk-forward` (`backtest.router.ts:55,180`) | Shows symbol, date range, model, cost model in play, est. duration. Single **Execute**. |
@@ -189,7 +198,7 @@ introspection. OHLCV/parquet data root is external at `ml_dashboard\data\parquet
 Ground truth: Tyler's 68-agent custom system + the ML Studio Workshop's 4 dispatchable agents
 (`feature-curator`, `arch-designer`, `hpo-strategist`, `eval-reviewer` — the ones the in-repo
 dispatcher actually knows, `agentDispatcher.ts:76`), plus MCP connectors (Shopify, FMP, GitHub,
-ClickUp, IBKR, QuestDB, etc.) and Claude Code itself. These stay **thin** — most are
+ClickUp, IBKR, etc.) and Claude Code itself. These stay **thin** — most are
 proposal-generating: an agent produces a plan/report, Tyler decides. The in-repo Agent SDK
 dispatcher (`src/server/infrastructure/lib/agentDispatcher.ts`, `MAX_CONCURRENT=2`, ring-buffer
 SSE replay) is the reuse target, not a new orchestrator.

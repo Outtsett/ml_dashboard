@@ -1,5 +1,11 @@
 # Triple Barrier CNN+Transformer Training
 
+> **Superseded data layer (2026-09-10).** Where this spec says QuestDB, read: the Iceberg lake
+> at `E:\lake`, queried in-process by DuckDB (`from lake.serving import connect`). The QuestDB
+> serving cache was emptied and retired — every table was copied to parquet in the lake and
+> row-count verified first — and nothing may read or write it. The design below is kept as the
+> record of what was decided at the time.
+
 ## Context
 
 The existing CNN+Transformer model (962K params) predicts swing direction labels that barely change between bars, inflating accuracy to 91.8% without producing a tradeable signal. The forward return head scores 51.3% — coin flip.

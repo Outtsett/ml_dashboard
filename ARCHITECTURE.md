@@ -6,8 +6,8 @@ Institutional-grade, modular trading and analysis platform adhering to SOLID pri
 
 | Layer | Technology | Role |
 | :--- | :--- | :--- |
-| **Speed** | **QuestDB** | High-frequency ILP-over-HTTP ingestion, fast OHLCV via REST fast-path. |
-| **Batch** | **DuckDB** | Ephemeral data wrangling, massive .parquet loading for training. |
+| **System of record** | **Iceberg lake** (`E:\lake`) | Every byte of market data. Namespace `market`; `bars` is the base table. |
+| **Serving + batch** | **DuckDB** | Reads the lake in-process — OHLCV serving, data wrangling, .parquet loading for training. No server, no port. |
 | **Serving** | **PostgreSQL** | Relational metadata, Model Catalog state, strategy querying. |
 
 ## 2. Module Boundaries
@@ -17,7 +17,7 @@ graph TD
     UI[Client - React/Vite] --> API[Server - NestJS]
     UI --> Shared[Shared Logic]
     API --> Shared
-    API --> QuestDB[(QuestDB)]
+    API --> Lake[(Iceberg lake via DuckDB)]
     API --> PG[(PostgreSQL)]
     API --> ML[ML Engine - Python]
 ```
@@ -36,7 +36,7 @@ graph TD
 
 ## 4. Key Workflows
 
-1. **Ingest**: Ticks arrive from QuestDB -> normalized by the Server -> served via API.
+1. **Ingest**: Vendor data lands write-once in `E:\lakeawendor=<name>\` and is promoted into the Iceberg tables -> read by the Server through DuckDB -> served via API.
 2. **Training**: User triggers via UI -> SAGA in Server orchestrates Python process -> Progress streamed via SSE.
 3. **Audit**: Indicators and TA calculations are audited via `audit_and_calculate_ta.py` for precision.
 

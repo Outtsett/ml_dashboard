@@ -1,5 +1,14 @@
 # Control Terminal — Consolidated Design Spec
 
+> **Data-layer premise superseded (2026-09-10).** This spec was written against a local
+> QuestDB serving cache reached over HTTP `:9000` / ILP `:9009` / PG wire `:8812`. That store
+> was emptied and retired: all 41 objects were dropped after each was copied to parquet in the
+> lake and row-count verified (39/39 exact), and nothing may read or write it again. Market
+> data now lives in the Iceberg lake at `E:\lake` and is read **in-process by DuckDB**
+> (`from lake.serving import connect`). Everything below that names a database host, port,
+> Windows service, JVM process, WAL table, `SAMPLE BY`, materialized-view refresh or ILP
+> write is stale and must be re-derived against the lake before it is built.
+
 **Date:** 2026-07-22
 **Project:** ml_dashboard (`E:\source\repos\ml_dashboard`)
 **Status:** DESIGN — awaiting Tyler's review before implementation planning.
@@ -140,7 +149,7 @@ Built first: highest daily value, smallest external surface, and it exercises ev
 
 **Orphan classifier — asymmetric & conservative:** default verdict PROTECTED. A process is `ORPHAN_STRANDED` only when it clears **every** gate: cmdline under the ml_dashboard repo root AND matches a dev-role pattern AND does **not** own `:5000` AND has no `hardware_node.py` child AND a *different* live PID owns `:5000` AND age > 10 min. Writes **re-classify at execution time** and hard-refuse any `PROTECTED_INFRA`, the `:5000` owner, or the QuestDB PID — the gate lives in the capability, not the button.
 
-**Temp janitor:** safelist (removable) = `node_modules/.vite` (74 MB) + `dist` (82 MB) + rotated `logs/` + `optuna_studies/*.lock` (never the `*.db`) + age-gated scratch/`E:\tmp`. Hard-excluded (forbidden): `data/models` (98 MB checkpoints), any `data/**`, QuestDB data dir, `node_modules` (except `.vite`), `.git/` and **anything git-tracked** (`git ls-files` membership = instant reject). Path-safety re-validated server-side in `temp.clean`.
+**Temp janitor:** safelist (removable) = `node_modules/.vite` (74 MB) + `dist` (82 MB) + rotated `logs/` + `optuna_studies/*.lock` (never the `*.db`) + age-gated scratch/`E:\tmp`. Hard-excluded (forbidden): `data/models` (98 MB checkpoints), any `data/**`, **anything under `E:\lake`** (the system of record), `node_modules` (except `.vite`), `.git/` and **anything git-tracked** (`git ls-files` membership = instant reject). Path-safety re-validated server-side in `temp.clean`.
 
 **Tiles (colorblind-safe, Okabe-Ito; positive=orange `#E69F00`, alert=blue `#0072B2`, never red/green):** ResourceTile, ProcessTile (the flagship — categorized list + orphan reaper; protected rows greyed & unselectable), ServiceTile (QuestDB lock badge), TempTile.
 

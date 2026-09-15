@@ -5,12 +5,12 @@
 ```
 Browser ─── HTTP Cache Headers ───► Express Server
               (Cache-Control)           │
-                                        ├── OHLCV Cache ──────────► QuestDB (ohlcv, 782M+ rows)
-                                        ├── Query Cache ──────────► QuestDB (general queries)
-                                        ├── Anchor Cache ─────────► QuestDB (max timestamp per symbol)
-                                        ├── Symbol Catalog Cache ─► QuestDB (symbols table, 904 rows)
+                                        ├── OHLCV Cache ──────────► Lake (ohlcv, 782M+ rows)
+                                        ├── Query Cache ──────────► Lake (general queries)
+                                        ├── Anchor Cache ─────────► Lake (max timestamp per symbol)
+                                        ├── Symbol Catalog Cache ─► Lake (symbols table, 904 rows)
                                         ├── Model Results Cache ──► Disk (diagnostics.json, convergence.json, assignments.csv)
-                                        ├── Label Preview Cache ──► QuestDB (CTE-based label SQL)
+                                        ├── Label Preview Cache ──► Lake (CTE-based label SQL)
                                         └── Parquet Cache ────────► Disk (data/.cache/*.parquet + *.json sidecars)
 
 Ingestion Pipeline ──► EventBus ──► ingestion.completed ──► Invalidation cascade
@@ -39,7 +39,7 @@ Ingestion Pipeline ──► EventBus ──► ingestion.completed ──► In
 
 ### Chart Rendering (`GET /api/charts/ohlcv`)
 ```
-1. QuestDB Health ─── cached boolean (10s TTL)
+1. Lake Health ────── cached boolean (10s TTL)
 2. Anchor Cache ──── cached max(timestamp) per symbol (5 min TTL)
                      anchor change cascades OHLCV invalidation
 3. OHLCV Cache ───── cached bar arrays (60 min TTL)
@@ -157,7 +157,7 @@ On server startup (`main.ts` → `httpServer.listen` callback):
 ```
 warmSymbolsCatalog()  [fire-and-forget]
     │
-    ├── checkQuestDBHealth()
+    ├── checkQuestDBHealth()   [market-data health; name pending the src/server port]
     │     └── if unhealthy → skip, log warning
     │
     └── SELECT symbol, asset_class, root FROM symbols

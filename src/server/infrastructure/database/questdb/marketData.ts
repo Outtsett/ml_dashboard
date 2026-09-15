@@ -1,18 +1,30 @@
 /**
- * QuestDB Market Data Queries — OHLCV, front-month stitching, symbol stats.
+ * Market Data Queries — OHLCV, front-month stitching, symbol stats.
  *
- * Unified schema: single `ohlcv` table for all asset classes (futures, forex,
- * equities, crypto) with `asset_class` and `root` SYMBOL columns.
+ * Unified schema: a single `ohlcv` view for all asset classes (futures, forex,
+ * equities, crypto) with `asset_class` and `root` columns, plus one view per
+ * timeframe. These are the rows QuestDB served, read now from parquet in the
+ * lake through DuckDB.
  *
  * Futures continuous contracts are built by volume-based front-month detection
  * directly from OHLCV data — no separate rollovers table needed.
+ *
+ * **The timeframe views replace SAMPLE BY.** QuestDB maintained a materialized
+ * view per timeframe and refreshed it incrementally; all of them were captured
+ * in the snapshot. So the faithful answer to "give me 5-minute bars" is to read
+ * `ohlcv_5m` — the same rows QuestDB's own query would have read — rather than
+ * to re-aggregate `ohlcv` and hope the bucket boundaries line up. That also
+ * sidesteps the `first()`/`last()` trap: DuckDB's first and last are
+ * order-unspecified within a group, so re-aggregating with them would produce a
+ * bar whose open drifts between runs without ever raising.
  */
 
 import { validateSymbol } from "@shared/schema";
 import type { StitchedOHLCVBar } from "@shared/ohlcv";
 import { cachedQuery, OHLCVCache } from "../../cache/ohlcv";
 import { queryQuestDB, queryQuestDBFast } from "./connection";
-import { isFuturesRoot } from "../../lib/futures";
+import { contractPattern, isFuturesRoot } from "../../lib/futures";
+import { normalizeTimestamp } from "../../lib/normalize";
 
 // ─── Instrument Detection (kept for downstream consumers) ────────────────────
 
@@ -29,20 +41,65 @@ export function detectInstrumentType(symbol: string): InstrumentType {
   return "generic";
 }
 
-/** All instrument types now use the unified ohlcv table. */
+/** All instrument types share the unified ohlcv view. */
 export function getBaseTableForType(_type: InstrumentType): string {
   return "ohlcv";
 }
 
-// ─── Materialized View Lookup ───────────────────────────────────────────────
+// ─── Timeframe View Lookup ──────────────────────────────────────────────────
 
-/** Timeframe → SAMPLE BY clause. All resampling is on-the-fly from base ohlcv table. */
-const SAMPLE_BY: Record<string, string> = {
-  "1m": "SAMPLE BY 1m", "5m": "SAMPLE BY 5m",
-  "15m": "SAMPLE BY 15m", "30m": "SAMPLE BY 30m",
-  "1h": "SAMPLE BY 1h", "4h": "SAMPLE BY 4h",
-  "1d": "SAMPLE BY 1d", "1w": "SAMPLE BY 7d",
+/**
+ * Timeframe → the pre-aggregated view holding those bars.
+ *
+ * These are the eight views QuestDB kept as materialized views and refreshed
+ * incrementally. `1h` maps to `ohlcv_1h_v`, not `ohlcv_1h`: both survived the
+ * export and `_v` is the one QuestDB's own hourly queries read.
+ */
+const TIMEFRAME_VIEW: Record<string, string> = {
+  "1m": "ohlcv_1m", "5m": "ohlcv_5m",
+  "15m": "ohlcv_15m", "30m": "ohlcv_30m",
+  "1h": "ohlcv_1h_v", "4h": "ohlcv_4h",
+  "1d": "ohlcv_1d", "1w": "ohlcv_1w",
 };
+
+/** The daily view front-month detection reads. */
+const DAILY_VIEW = "ohlcv_1d";
+
+function timeframeView(timeframe: string): string {
+  return TIMEFRAME_VIEW[timeframe] || TIMEFRAME_VIEW["1m"]!;
+}
+
+/**
+ * Candle anatomy over an already-aggregated bar.
+ *
+ * QuestDB computed these inside the SAMPLE BY, from `first(open)`/`last(close)`
+ * and the bucket's min/max. Reading a pre-aggregated view, `open` and `close`
+ * are already the bar's own, so the same arithmetic is a plain row expression.
+ */
+const ANATOMY_COLUMNS = `
+      CASE WHEN (high - low) > 0 THEN abs(close - open) / (high - low) ELSE 0 END AS body_magnitude,
+      CASE WHEN (high - low) > 0
+        THEN (high - CASE WHEN close > open THEN close ELSE open END) / (high - low)
+        ELSE 0 END AS upper_wick_pct,
+      CASE WHEN (high - low) > 0
+        THEN (CASE WHEN close > open THEN open ELSE close END - low) / (high - low)
+        ELSE 0 END AS lower_wick_pct,
+      (close > open) AS is_bullish`;
+
+/** One row of a timeframe view as the lake returns it, anatomy included. */
+export interface LakeBarRow {
+  symbol: string;
+  timestamp: Date | string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  body_magnitude: number;
+  upper_wick_pct: number;
+  lower_wick_pct: number;
+  is_bullish: boolean;
+}
 
 // ─── Validation Helpers ─────────────────────────────────────────────────────
 
@@ -63,7 +120,7 @@ export async function getOHLCVSampleBy(
   startTime?: number,
   endTime?: number,
   limit?: number
-): Promise<any[]> {
+): Promise<Array<LakeBarRow | StitchedOHLCVBar>> {
   // Futures root symbols: always use volume-based stitching at ALL timeframes.
   // This ensures the chart always shows the highest-volume (front-month) contract
   // with seamless rollover — no mixed contracts from different expirations.
@@ -86,39 +143,28 @@ export async function getOHLCVSampleBy(
   }
 
   const limitClause = safeLimit ? `LIMIT ${safeLimit}` : "";
-  const sampleByClause = SAMPLE_BY[timeframe] || "SAMPLE BY 1m";
+  const view = timeframeView(timeframe);
 
+  // ORDER BY is not decoration: QuestDB's SAMPLE BY emitted buckets in
+  // timestamp order, so the old LIMIT took the oldest N of the window. DuckDB
+  // makes no such promise, and a bare LIMIT over a parquet scan would return
+  // an arbitrary slice that changes between runs.
   const sql = `
     SELECT
       symbol,
       timestamp,
-      first(open) as open,
-      max(high) as high,
-      min(low) as low,
-      last(close) as close,
-      sum(volume) as volume,
-      -- Anatomy (First Principles)
-      CASE 
-        WHEN (max(high) - min(low)) > 0 THEN abs(last(close) - first(open)) / (max(high) - min(low)) 
-        ELSE 0 
-      END as body_magnitude,
-      CASE 
-        WHEN (max(high) - min(low)) > 0 THEN (max(high) - CASE WHEN last(close) > first(open) THEN last(close) ELSE first(open) END) / (max(high) - min(low))
-        ELSE 0 
-      END as upper_wick_pct,
-      CASE 
-        WHEN (max(high) - min(low)) > 0 THEN (CASE WHEN last(close) > first(open) THEN first(open) ELSE last(close) END - min(low)) / (max(high) - min(low))
-        ELSE 0 
-      END as lower_wick_pct,
-      (last(close) > first(open)) as is_bullish
-    FROM ohlcv
+      open,
+      high,
+      low,
+      close,
+      volume,${ANATOMY_COLUMNS}
+    FROM ${view}
     ${whereClause}
-    ${sampleByClause}
-    ALIGN TO CALENDAR
+    ORDER BY timestamp
     ${limitClause}
   `;
 
-  return await queryQuestDBFast(sql);
+  return await queryQuestDBFast<LakeBarRow>(sql);
 }
 
 // ─── Front-Month Stitching ──────────────────────────────────────────────────
@@ -132,31 +178,56 @@ async function getFullFrontMonthRanges(
 ): Promise<{ symbol: string; start: string; end: string }[]> {
   const safeRoot = validateSymbol(root);
 
+  // Namespace left as 'questdb': OHLCVCache.key types it as a fixed union, and
+  // widening it is the rename pass's job, not this one's.
   const cacheKey = OHLCVCache.key('questdb', `fm_${safeRoot}`, 'ranges_full', {});
 
   return cachedQuery(cacheKey, async () => {
     const escaped = safeRoot.replace(/'/g, "''");
 
+    // Was `SELECT symbol, timestamp, sum(volume) FROM ohlcv ... SAMPLE BY 1d
+    // ALIGN TO CALENDAR`, which scanned the whole base table. `ohlcv_1d` is
+    // that same daily rollup, already materialised and carrying `root` and
+    // `asset_class`, so this reads a few thousand rows instead of 145M. The
+    // sum/GROUP BY stays as a guard: the daily view should hold one row per
+    // (symbol, day), and if a re-seed ever left two, silently charting one of
+    // them would be worse than adding them.
     const dailyBars = await queryQuestDB<{ symbol: string; timestamp: Date | string; volume: number }>(
-      `SELECT symbol, timestamp, sum(volume) as volume FROM ohlcv
+      `SELECT symbol, timestamp, sum(volume) AS volume FROM ${DAILY_VIEW}
        WHERE root = '${escaped}' AND asset_class = 'futures'
-       
-       SAMPLE BY 1d ALIGN TO CALENDAR
+       GROUP BY symbol, timestamp
        ORDER BY timestamp`,
       30_000, // 30s timeout — this is the heaviest single query in the pipeline
     );
 
     if (dailyBars.length === 0) return [];
 
-    const leaders = new Map<string, { symbol: string; volume: number }>();
+    // The daily view carries three kinds of symbol under one root: dated
+    // contracts (MNQZ5), calendar spreads (MNQZ5-MNQH6, whose prices can be
+    // negative), and the bare root 'MNQ' — an already-stitched front-month
+    // series whose daily volume EQUALS the front contract's. With a strict `>`
+    // that tie went to whichever row DuckDB emitted first, and GROUP BY output
+    // has no order, so the chart flipped between 'MNQ' and 'MNQZ5' almost every
+    // day (963 flips over 2000 daily bars, measured). Rank instead: spreads
+    // never lead; a dated contract beats the bare root; volume decides among
+    // the rest, and the symbol name breaks any remaining tie deterministically.
+    const datedContract = new RegExp(contractPattern(safeRoot));
+    const rank = (symbol: string): number =>
+      symbol.includes("-") ? -1 : datedContract.test(symbol) ? 1 : 0;
+
+    const leaders = new Map<string, { symbol: string; volume: number; rank: number }>();
     for (const bar of dailyBars) {
-      const day = bar.timestamp instanceof Date
-        ? bar.timestamp.toISOString().slice(0, 10)
-        : new Date(String(bar.timestamp)).toISOString().slice(0, 10);
+      const symbolRank = rank(bar.symbol);
+      if (symbolRank < 0) continue;
+      const day = new Date(normalizeTimestamp(bar.timestamp)).toISOString().slice(0, 10);
       const vol = Number(bar.volume);
       const existing = leaders.get(day);
-      if (!existing || vol > existing.volume) {
-        leaders.set(day, { symbol: bar.symbol, volume: vol });
+      const wins = !existing
+        || symbolRank > existing.rank
+        || (symbolRank === existing.rank && (vol > existing.volume
+          || (vol === existing.volume && bar.symbol < existing.symbol)));
+      if (wins) {
+        leaders.set(day, { symbol: bar.symbol, volume: vol, rank: symbolRank });
       }
     }
 
@@ -205,19 +276,19 @@ export async function getFrontMonthOHLCV(
   startTime?: number,
   endTime?: number,
   limit?: number
-): Promise<any[]> {
+): Promise<LakeBarRow[]> {
   const safeLimit = limit ? Math.min(Math.floor(limit), 100000) : undefined;
 
   const ranges = await getFrontMonthRanges(root, startTime, endTime);
   if (ranges.length === 0) return [];
 
-  const sampleBy = SAMPLE_BY[timeframe] || 'SAMPLE BY 1m';
+  const view = timeframeView(timeframe);
 
   // Build a single UNION ALL query to eliminate N+1 round-trips.
-  // Each range gets its own sub-select with SAMPLE BY, then we sort the union.
-  // QuestDB supports UNION ALL between SAMPLE BY queries.
-  const MAX_RANGES_PER_QUERY = 50; // QuestDB may have limits on query complexity
-  let allBars: any[] = [];
+  // Each range gets its own sub-select against the timeframe view, then the
+  // union is sorted.
+  const MAX_RANGES_PER_QUERY = 50; // keep any one generated query bounded
+  let allBars: LakeBarRow[] = [];
 
   for (let i = 0; i < ranges.length; i += MAX_RANGES_PER_QUERY) {
     const batch = ranges.slice(i, i + MAX_RANGES_PER_QUERY);
@@ -228,9 +299,8 @@ export async function getFrontMonthOHLCV(
       // getFrontMonthRanges uses startTime/endTime only to PICK ranges, never to
       // bound them, so without this each sub-select scans the range end to end.
       // A single front-month range can span years (the pre-stitched 'MNQ' symbol
-      // covers 2019-05 -> 2024-02 as one range): 1.76M 1m bars and ~14.6s per
-      // query, all but `limit` of them discarded by the slice below. Bounded to
-      // the requested window the same query is ~53ms.
+      // covers 2019-05 -> 2024-02 as one range), and all but `limit` of those
+      // rows are discarded by the slice below.
       const rangeStartMs = Date.parse(range.start + 'T00:00:00.000Z');
       const rangeEndMs = Date.parse(range.end + 'T23:59:59.999Z');
       const fromMs = startTime ? Math.max(rangeStartMs, startTime) : rangeStartMs;
@@ -240,31 +310,20 @@ export async function getFrontMonthOHLCV(
       if (fromMs > toMs) return null;
       const s = new Date(fromMs).toISOString();
       const e = new Date(toMs).toISOString();
-      return `(SELECT symbol, timestamp, first(open) as open, max(high) as high,
-                min(low) as low, last(close) as close, sum(volume) as volume,
-                -- Anatomy
-                CASE WHEN (max(high)-min(low))>0 THEN abs(last(close)-first(open))/(max(high)-min(low)) ELSE 0 END as body_magnitude,
-                CASE WHEN (max(high)-min(low))>0 THEN (max(high)-CASE WHEN last(close)>first(open) THEN last(close) ELSE first(open) END)/(max(high)-min(low)) ELSE 0 END as upper_wick_pct,
-                CASE WHEN (max(high)-min(low))>0 THEN (CASE WHEN last(close)>first(open) THEN first(open) ELSE last(close) END-min(low))/(max(high)-min(low)) ELSE 0 END as lower_wick_pct,
-                (last(close) > first(open)) as is_bullish
-         FROM ohlcv
-         WHERE symbol = '${sym}' AND timestamp >= '${s}' AND timestamp <= '${e}'
-         ${sampleBy} ALIGN TO CALENDAR)`;
+      return `(SELECT symbol, timestamp, open, high, low, close, volume,${ANATOMY_COLUMNS}
+         FROM ${view}
+         WHERE symbol = '${sym}' AND timestamp >= '${s}' AND timestamp <= '${e}')`;
     });
 
     const parts = unionParts.filter((p): p is string => p !== null);
     if (parts.length === 0) continue;
 
     const sql = parts.join('\nUNION ALL\n') + '\nORDER BY timestamp';
-    const rows = await queryQuestDBFast(sql); // 30s timeout
+    const rows = await queryQuestDBFast<LakeBarRow>(sql);
     allBars = allBars.concat(rows);
   }
 
-  allBars.sort((a, b) => {
-    const tsA = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
-    const tsB = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
-    return tsA - tsB;
-  });
+  allBars.sort((a, b) => normalizeTimestamp(a.timestamp) - normalizeTimestamp(b.timestamp));
 
   if (safeLimit && allBars.length > safeLimit) {
     // allBars is sorted ASCENDING, so the newest bars are at the END. Slicing
@@ -275,32 +334,6 @@ export async function getFrontMonthOHLCV(
   }
 
   return allBars;
-}
-
-// ─── Fast Root Query (1m, no stitching — uses root SYMBOL INDEX) ─────────────
-
-async function getFastRootOHLCV(
-  root: string,
-  startTime?: number,
-  endTime?: number,
-  limit?: number,
-): Promise<any[]> {
-  const escaped = root.replace(/'/g, "''");
-  let where = `WHERE root = '${escaped}' AND asset_class = 'futures'`;
-  if (startTime) where += ` AND timestamp >= '${new Date(startTime).toISOString()}'`;
-  if (endTime) where += ` AND timestamp <= '${new Date(endTime).toISOString()}'`;
-  const lim = limit ? `LIMIT ${Math.min(Math.floor(limit), 100000)}` : "";
-
-  const sql = `
-    SELECT symbol, timestamp, open, high, low, close, volume
-    FROM ohlcv
-    ${where}
-    ORDER BY timestamp DESC
-    ${lim}
-  `;
-  const rows = await queryQuestDB(sql);
-  rows.reverse(); // return ASC
-  return rows;
 }
 
 // ─── Rollover-Driven Stitching ───────────────────────────────────────────────
@@ -322,13 +355,19 @@ export async function getStitchedOHLCV(
   _adjustment?: string,
 ): Promise<StitchedOHLCVBar[]> {
   const bars = await getFrontMonthOHLCV(root, timeframe, startTime, endTime, limit);
-  return bars.map((r: any) => ({
-    timestamp: r.timestamp,
+  // Anatomy is computed per range in the SQL; dropping it here is what made
+  // every futures candle report body 0, wicks 0, bearish.
+  return bars.map((r) => ({
+    timestamp: normalizeTimestamp(r.timestamp),
     open: Number(r.open),
     high: Number(r.high),
     low: Number(r.low),
     close: Number(r.close),
     volume: Number(r.volume),
+    body_magnitude: Number(r.body_magnitude),
+    upper_wick_pct: Number(r.upper_wick_pct),
+    lower_wick_pct: Number(r.lower_wick_pct),
+    is_bullish: Boolean(r.is_bullish),
     activeContract: r.symbol,
   }));
 }
@@ -352,30 +391,39 @@ export async function getSymbolStats(symbol: string): Promise<{
   const safeSymbol = validateSymbol(symbol);
   const escapedSymbol = safeSymbol.replace(/'/g, "''");
 
+  // `count()` was QuestDB's spelling; DuckDB requires an argument. `symbol` is
+  // now grouped rather than free-floating beside the aggregates — QuestDB
+  // tolerated the bare column, DuckDB rejects it.
   const sql = `
     SELECT
       symbol,
-      count() as row_count,
+      count(*) as row_count,
       min(timestamp) as earliest,
       max(timestamp) as latest
     FROM ohlcv
     WHERE symbol = '${escapedSymbol}'
+    GROUP BY symbol
   `;
 
-  const result = await queryQuestDB<any>(sql);
+  const result = await queryQuestDB<{
+    symbol: string;
+    row_count: number | bigint;
+    earliest: Date | string;
+    latest: Date | string;
+  }>(sql);
 
-  if (result.length === 0 || !result[0].row_count) {
+  const row = result[0];
+  if (!row || !row.row_count) {
     throw new Error(`No data found for symbol ${safeSymbol}`);
   }
 
-  const row = result[0];
   const earliest = new Date(row.earliest);
   const latest = new Date(row.latest);
   const timeSpanDays = (latest.getTime() - earliest.getTime()) / (1000 * 60 * 60 * 24);
 
   return {
     symbol: row.symbol,
-    rowCount: parseInt(row.row_count),
+    rowCount: Number(row.row_count),
     earliest,
     latest,
     timeSpanDays: Math.round(timeSpanDays * 100) / 100

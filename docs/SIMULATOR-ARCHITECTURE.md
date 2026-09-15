@@ -8,7 +8,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  QuestDB (759.5M bars)  ←  source of truth                  │
+│  Iceberg lake (759.5M bars)  ←  source of truth              │
 │        │                                                     │
 │        ▼                                                     │
 │  ┌──────────────┐   slice    ┌──────────────────────────┐    │
@@ -39,7 +39,7 @@
 | **Walk-Forward** | Rolling report card       | Slide a window forward, train→test→slide→repeat (10+ folds)                |
 | **K-Fold CV**    | Multiple teachers grading | Split data into K chunks, take turns holding each one out as test          |
 | **Tournament**   | Model Olympics            | Run ALL models on same data window → rank by Sharpe/WinRate                |
-| **Paper Trader** | Practice with live ammo   | Connect to latest QuestDB bars → run model inference live → simulate fills |
+| **Paper Trader** | Practice with live ammo   | Connect to the latest bars in the lake → run model inference live → simulate fills |
 
 ---
 
@@ -48,11 +48,11 @@
 ```
 src/server/lib/simulation/          ← NEW (6 files)
   types.ts                          — SimulationSession, SimMode, WindowConfig
-  dataWindower.ts                   — slices QuestDB data into Train/Test windows
+  dataWindower.ts                   — slices lake data into Train/Test windows
   walkForwardRunner.ts              — slides window, calls train+backtest per fold
   crossValidator.ts                 — k-fold temporal splits
   modelTournament.ts                — runs N models on same window in parallel
-  paperTrader.ts                    — polls QuestDB, runs live inference + sim fills
+  paperTrader.ts                    — polls the lake, runs live inference + sim fills
 
 src/server/routes/simulator.ts      ← NEW (1 file, mounted at /api/simulator)
 
@@ -98,7 +98,7 @@ src/client/src/components/simulator/    ← NEW (8 visual components)
 ╠══════════════════════════════════════════════════════════════╣
 ║  SIMULATION ENGINE                                          ║
 ║  SimulationOrchestrator                                     ║
-║    ├── DataWindower (reads QuestDB)                        ║
+║    ├── DataWindower (reads the lake)                       ║
 ║    ├── WalkForwardRunner                                    ║
 ║    │     └── [per fold] train → backtest → emit SSE event  ║
 ║    ├── ModelTournament                                      ║
@@ -106,13 +106,13 @@ src/client/src/components/simulator/    ← NEW (8 visual components)
 ║    ├── CrossValidator                                       ║
 ║    │     └── k-fold temporal splits                        ║
 ║    └── PaperTrader                                         ║
-║          └── poll QuestDB → inference → sim fill          ║
+║          └── poll lake → inference → sim fill             ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  EXISTING (REUSED — no modification)                        ║
 ║  TrainingOrchestrator → trains model (PythonRunner)         ║
 ║  TradeSimulator → runs backtest, returns equity curve       ║
 ║  MetricsCalculator → Sharpe, Sortino, MaxDD, etc.          ║
-║  QuestDB → marketQuery() for data                          ║
+║  DuckDB over the lake → marketQuery() for data             ║
 ╚══════════════════════════════════════════════════════════════╝
 ```
 
@@ -207,7 +207,7 @@ export type SimSSEEvent =
 **Think of it as:** A magnifying glass that slides left-to-right across your historical data, showing the model a limited view at a time.
 
 ```
- All bars from QuestDB (e.g. 20,000 bars of ES 5m):
+ All bars from the lake (e.g. 20,000 bars of ES 5m):
  ├───────────────────────────────────────────────────────┤
  
  Walk-forward with trainWindow=5000, testWindow=1000, step=1000:
@@ -270,10 +270,10 @@ PaperTrader.start(symbol, tf, modelType)
   │
   ├─ Load latest trained model (from SQLite)
   │
-  ├─ Bootstrap: fetch last N bars from QuestDB (for feature window)
+  ├─ Bootstrap: fetch last N bars from the lake (for feature window)
   │
   ├─ Poll loop (every tfMs milliseconds):
-  │    a. GET latest bar from QuestDB (LATEST ON)
+  │    a. GET latest bar from the lake (max timestamp per symbol)
   │    b. Append to rolling window (drop oldest bar)
   │    c. Run model inference → signal (0/1/2) + confidence
   │    d. SimulatedPortfolio.processSignal(signal, bar)
@@ -322,7 +322,7 @@ PaperTrader.start(symbol, tf, modelType)
 ### Phase 1 — Types + Data Windower (2-3 days)
 - `src/shared/simulationTypes.ts` — full type contract
 - `src/server/lib/simulation/types.ts` — server-side interfaces
-- `src/server/lib/simulation/dataWindower.ts` — folds from QuestDB
+- `src/server/lib/simulation/dataWindower.ts` — folds from the lake
 - Unit tests for windowing math
 
 ### Phase 2 — Walk-Forward Runner (3-4 days)
@@ -343,7 +343,7 @@ PaperTrader.start(symbol, tf, modelType)
 
 ### Phase 5 — Paper Trader (3-4 days)
 - `src/server/lib/simulation/paperTrader.ts`
-- QuestDB `LATEST ON` polling
+- Latest-bar polling over the lake
 - Simulated portfolio state machine
 
 ### Phase 6 — Frontend Page (4-5 days)
@@ -372,7 +372,7 @@ PaperTrader.start(symbol, tf, modelType)
 | `TradeSimulator`        | Runs backtest per fold — unchanged              |
 | `MetricsCalculator`     | Computes Sharpe/Sortino/DD per fold — unchanged |
 | `PythonRunner`          | Trains model per fold — unchanged               |
-| `QuestDB marketQuery`   | Fetches bars for windows — unchanged            |
+| `marketQuery` (DuckDB)  | Fetches bars for windows — unchanged            |
 | `SSE streaming pattern` | Same event format — extended                    |
 | `BrokerConfigs`         | Cost model per fold — unchanged                 |
 

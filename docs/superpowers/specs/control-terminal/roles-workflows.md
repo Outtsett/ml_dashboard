@@ -1,5 +1,14 @@
 # Control Terminal — Agent Roles & End-to-End Workflows (A3)
 
+> **Data-layer premise superseded (2026-09-10).** This spec was written against a local
+> QuestDB serving cache reached over HTTP `:9000` / ILP `:9009` / PG wire `:8812`. That store
+> was emptied and retired: all 41 objects were dropped after each was copied to parquet in the
+> lake and row-count verified (39/39 exact), and nothing may read or write it again. Market
+> data now lives in the Iceberg lake at `E:\lake` and is read **in-process by DuckDB**
+> (`from lake.serving import connect`). Everything below that names a database host, port,
+> Windows service, JVM process, WAL table, `SAMPLE BY`, materialized-view refresh or ILP
+> write is stale and must be re-derived against the lake before it is built.
+
 > Facet doc for the fused Control Terminal. Scope: **who** operates the terminal
 > (agent personas) and **how** each core flow runs end-to-end. Companion docs:
 > `integration.md` (A1), `capabilities.md` (A2), `pseudocode.md` (A4).
@@ -43,7 +52,7 @@
 **Why one agent wins (the YAGNI argument):**
 
 1. **The write-gate already contains blast radius.** In a system where *no agent can execute anything*, the classic reason to split agents — "limit what the dangerous one can do" — evaporates. A Reaper that can only *propose* `proc.kill` is exactly as safe as a general agent that proposes `proc.kill`; both land in the ProposalDrawer behind Tyler's click. Splitting buys no safety.
-2. **Cross-domain intents are the common case.** "Clean up after the last backtest" spans processes (Reaper), the repo's `logs/` (Repo Steward), and QuestDB scratch tables (Data Ops). A roster forces either an orchestrator that re-implements routing, or Tyler manually picking the right specialist. One agent with the full read surface just does it.
+2. **Cross-domain intents are the common case.** "Clean up after the last backtest" spans processes (Reaper), the repo's `logs/` (Repo Steward), and lake scratch tables (Data Ops). A roster forces either an orchestrator that re-implements routing, or Tyler manually picking the right specialist. One agent with the full read surface just does it.
 3. **`MAX_CONCURRENT = 2`.** The dispatcher runs at most two SDK calls at once. A roster of 3-4 personas cannot run in parallel anyway without starving each other — the concurrency ceiling makes specialization mostly theatre.
 4. **One catalog, one prompt-assembly path, one place to reason about tool budget.** Less surface to keep faithful to the registry as capabilities are added.
 
@@ -56,7 +65,7 @@
 | **(default) Control Agent** | Any natural-language intent | All four: Machine, Repos, Data/Trading, Agents/External | Any tier (proposals only) | caution — may *propose* danger-tier, but its prompt must flag them explicitly |
 | **Reaper** | Process / service hygiene | Machine & Processes (read: `proc.list`, `proc.classify`, `gpu.snapshot`, `svc.status`) | `safe`, `caution` (`proc.kill`) | caution |
 | **Repo Steward** | git / build / run across repos | Repos (read: `repo.status`, `git.log`, `build.status`, `run.probe`) | `safe`, `caution` (`git.stash`, `build.clean`) | caution |
-| **Data Ops** | QuestDB / models / backtests | Data/Trading (read: `questdb.query`, `model.registry`, `backtest.list`) | `safe`, `caution` (`questdb.drop_scratch`, `model.promote` is **danger** → still proposes, prompt must flag) | danger-aware |
+| **Data Ops** | Lake / models / backtests | Data/Trading (read: `lake.query`, `model.registry`, `backtest.list`) | `safe`, `caution` (`lake.drop_scratch`, `model.promote` is **danger** → still proposes, prompt must flag) | danger-aware |
 
 > Every preset is the same binary, same dispatcher, same write-gate. The only differences are (a) the system-prompt preamble and (b) the `allowedCapabilityTags` filter that determines which registry entries are compiled into its tool list.
 
@@ -69,7 +78,7 @@ The prompt is assembled server-side at dispatch (mirroring `agentDispatcher.ts::
 ```
 [1] IDENTITY
     "You are the Control Agent for Tyler's ml_dashboard Control Terminal.
-     You operate a live machine, git repos, a QuestDB/model/backtest stack,
+     You operate a live machine, git repos, a lake/model/backtest stack,
      and external agents — by OBSERVING and PROPOSING. You never execute
      writes; every write you request is queued for Tyler's one-click approval."
 
@@ -136,8 +145,8 @@ Two orthogonal axes, ANDed at call time:
 | Tier | Meaning | Human gate |
 |---|---|---|
 | `safe` | Read, or a trivially reversible write (e.g. clear a cache tile) | writes still gated, but 1-click, no friction |
-| `caution` | Reversible-with-effort write (`proc.kill`, `git.stash`, `build.clean`, `questdb.drop_scratch`) | 1-click approve in ProposalDrawer |
-| `danger` | Irreversible / outward-facing / money / model-lineage (`broker.order`, `model.promote`, `git.push`, `svc.stop` on QuestDB) | **explicit confirm with extra friction** (typed token / hold-to-confirm), regardless of driver |
+| `caution` | Reversible-with-effort write (`proc.kill`, `git.stash`, `build.clean`, `lake.drop_scratch`) | 1-click approve in ProposalDrawer |
+| `danger` | Irreversible / outward-facing / money / model-lineage (`broker.order`, `model.promote`, `git.push`, `svc.stop` on a shared service) | **explicit confirm with extra friction** (typed token / hold-to-confirm), regardless of driver |
 
 **Axis 2 — role scope** (property of the preset): the `allowedCapabilityTags` allowlist decides which capabilities are even *visible* to that agent run.
 
@@ -265,7 +274,7 @@ sequenceDiagram
 3. `agentDispatcher.dispatch()` inserts the `agent_runs` row (`queued`), primes the ring buffer, kicks the scheduler. Client attaches SSE `/api/events/agents/<runId>` and the ProposalDrawer subscribes to `control.proposals` filtered to `runId`.
 4. Dispatcher runs the job: emits `agent.started`; enriches the blob (live `proc.list` snapshot injected server-side).
 5. Agent calls **`proc.list`** (read, direct) → registry executes, returns 259 processes. Emits `agent.tool_call {tool:"proc.list"}`.
-6. Agent calls **`proc.classify`** (read, direct) → returns each process tagged `{orphan|active|system}` with evidence (ppid=1 / no controlling tty / idle CPU / not QuestDB). Emits `agent.tool_call`.
+6. Agent calls **`proc.classify`** (read, direct) → returns each process tagged `{orphan|active|system}` with evidence (ppid=1 / no controlling tty / idle CPU / not a protected service). Emits `agent.tool_call`.
 7. For each confirmed orphan, agent calls **`proc.kill`** (WRITE). Because the run carries **no human token**, the **write-gate returns `{status:"proposed"}`** and files a `proposed_action` `{proposalId, runId, capabilityId:"proc.kill", tier:"caution", input:{pid}, finding:{...evidence}}`.
 8. **📓 Audit:** each filed proposal writes `{actor:"agent:<runId>", phase:"proposed", capabilityId, input}`.
 9. Each proposal streams to the ProposalDrawer over `control.proposals` as a card (grouped by `runId` — see workflow 5 for batching). Cards show the categorized kill list with per-pid evidence.
@@ -415,7 +424,7 @@ Two failure surfaces: (A) the Agent SDK 429s, (B) a capability `execute()` throw
 ### 6B — Capability execute() throws (during a human-approved execute)
 
 **Steps:**
-1. Tyler approved a `proc.kill` (or any write); `/api/control/execute` calls `registry.invoke` with the human token; `execute()` throws (e.g. `EPERM`, pid already gone, QuestDB unreachable).
+1. Tyler approved a `proc.kill` (or any write); `/api/control/execute` calls `registry.invoke` with the human token; `execute()` throws (e.g. `EPERM`, pid already gone, lake unreachable).
 2. The registry catches, does **not** retry, and returns a structured `{status:"error", code, message}` (mirroring `AgentDispatchError` shape: `rate_limit`|`sdk_error`|`timeout` for agent calls; for capabilities use `exec_error`|`not_found`|`permission`|`unavailable`).
 3. **📓 Audit:** the pre-written `{phase:approved}` row is finalized as `{phase:"failed", error:{code,message}}` — the attempt is permanently recorded even though nothing changed.
 4. The tile / drawer shows the failure inline on that row (red-free per Tyler's deuteranopia — use an error icon + `#D55E00` vermillion, never red/green); the item stays in the list if the kill didn't take.

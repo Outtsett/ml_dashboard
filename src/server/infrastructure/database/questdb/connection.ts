@@ -1,10 +1,72 @@
-import fetch from "node-fetch";
-import { Sender } from "@questdb/nodejs-client";
-import pg from "pg";
+/**
+ * The serving layer that replaced QuestDB.
+ *
+ * QuestDB was emptied and retired on 2026-09-10 — all 41 objects dropped after
+ * every one was copied to parquet in the lake and row-count verified. It holds
+ * zero tables and nothing may read or write it again. This module is what the
+ * dashboard reads instead: an in-process DuckDB with one view per former
+ * QuestDB table, named exactly as it was named there, so a query that used to
+ * run against :9000 runs here unchanged.
+ *
+ * It is the TypeScript mirror of `lake/serving.py` in the datalake repo — same
+ * snapshot, same view names, same `SELECT * EXCLUDE (recipe, "table")`, same
+ * `bars` view over the Iceberg system of record. The two must not drift.
+ *
+ * Three things are load-bearing.
+ *
+ * **In memory, one instance per process.** The views hold no data — they are
+ * pointers at parquet in the lake — so the catalog costs milliseconds to build
+ * and nothing is contended. A shared database file would make two consumers
+ * fight over a write lock they have no reason to share.
+ *
+ * **The old names point at the SNAPSHOT, not at `market.bars`.** `ohlcv` is the
+ * 863,323,657 rows QuestDB held; `bars` is the 785,766,203 rows under the
+ * Iceberg contract. A consumer that wants what it always had gets `ohlcv`; one
+ * ready to move gets `bars`, and the difference stays visible.
+ *
+ * **QuestDB SQL that is not ANSI fails here, loudly.** `SAMPLE BY`, `LATEST ON`
+ * and QuestDB's `ASOF JOIN` spelling raise a DuckDB parser error rather than
+ * silently returning different rows. Every such query in this repo has been
+ * translated; a new one that slips in will stop rather than drift.
+ *
+ * The exported surface is unchanged from the QuestDB era on purpose — thirty
+ * modules import through `./index`, and none of them needed editing for the
+ * backend swap. The names still say "QuestDB"; a later pass handles renaming.
+ */
+
+import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
+import crypto from "node:crypto";
+import type pg from "pg";
 import { z } from "zod";
 import { logInfo } from "../../lib/log";
 
-const { Pool } = pg;
+// ─── Lake configuration (mirrors datalake/src/lake/catalog.py) ───────────────
+
+/** AIStor serves both the S3 API and the Iceberg REST catalog on one port. */
+const LAKE_S3_ENDPOINT = process.env.LAKE_S3_ENDPOINT || "http://127.0.0.1:9100";
+const LAKE_CATALOG_URI = process.env.LAKE_CATALOG_URI || `${LAKE_S3_ENDPOINT}/_iceberg`;
+const LAKE_WAREHOUSE = process.env.LAKE_WAREHOUSE || "lakehouse";
+const LAKE_NAMESPACE = process.env.LAKE_NAMESPACE || "market";
+const LAKE_ACCESS_KEY = process.env.MINIO_USER || "lakeadmin";
+const LAKE_SECRET_KEY = process.env.MINIO_PASSWORD || "lakeadmin-dev";
+const LAKE_REGION = process.env.LAKE_REGION || "us-east-1";
+/** AIStor signs catalog requests with SigV4 under this signing name. */
+const LAKE_SIGNING_NAME = "s3tables";
+
+/**
+ * The snapshot every former QuestDB table was written to before the drop.
+ * Pinned by date on purpose: a later export is a different dataset, and a view
+ * silently re-pointed at one would change results under a caller that changed
+ * nothing.
+ */
+const SERVING_SNAPSHOT =
+  process.env.LAKE_SERVING_SNAPSHOT || "derived/recipe=questdb_full_2026-09-09";
+
+// ─── Legacy QuestDB env constants ────────────────────────────────────────────
+//
+// Still exported because `index.ts` re-exports them and callers outside this
+// directory read them. They no longer address a running service — QuestDB is
+// retired — and nothing in this module dials them.
 
 export const QUESTDB_HOST = process.env.QUESTDB_HOST || "localhost";
 export const QUESTDB_PG_PORT = process.env.QUESTDB_PG_PORT || "8812";
@@ -14,219 +76,402 @@ export const QUESTDB_PASSWORD = process.env.QUESTDB_PASSWORD || "quest";
 
 const SLOW_QUERY_THRESHOLD_MS = 1000;
 
-let sender: Sender | null = null;
 /**
- * Simple async mutex to prevent concurrent access to the singleton Sender.
- * The QuestDB NodeJS client is NOT thread-safe for concurrent table/symbol/at calls.
+ * Every write path in this module raises this. The dashboard reads the lake and
+ * never writes to it; landing data is datalake's job, through
+ * `scripts/land_raw.py` and `scripts/migrate_to_iceberg.py`.
  */
-class SenderMutex {
-  private queue: Promise<void> = Promise.resolve();
+const RETIRED_WRITE_MESSAGE =
+  "QuestDB was retired on 2026-09-10 and this server is read-only over the lake — " +
+  "nothing writes to the lake from ml_dashboard. Land new data through datalake " +
+  "(scripts/land_raw.py, then scripts/migrate_to_iceberg.py). Restore path if QuestDB " +
+  "is ever needed again: s3://meta/questdb_schema/questdb_schema_latest.sql plus the " +
+  `parquet at s3://${SERVING_SNAPSHOT}/.`;
 
-  async run<T>(fn: (sender: Sender) => Promise<T>): Promise<T> {
-    const result = this.queue.then(async () => {
-      if (!sender) {
-        const configStr = `http::addr=${QUESTDB_HOST}:${QUESTDB_HTTP_PORT};`;
-        sender = await Sender.fromConfig(configStr);
-      }
-      return await fn(sender);
-    });
-    // Ensure the queue continues even if the function fails
-    this.queue = result.then(() => {}).catch(() => {});
-    return result;
-  }
+function retiredWrite(operation: string): never {
+  throw new Error(`[lake] ${operation} is not available. ${RETIRED_WRITE_MESSAGE}`);
 }
 
-const senderMutex = new SenderMutex();
+// ─── Iceberg catalog resolution (SigV4) ──────────────────────────────────────
 
-let queryPool: pg.Pool | null = null;
-
-export async function getQuestDBSender(): Promise<Sender> {
-  if (!sender) {
-    const configStr = `http::addr=${QUESTDB_HOST}:${QUESTDB_HTTP_PORT};`;
-    sender = await Sender.fromConfig(configStr);
-  }
-  return sender;
-}
-
-/** Initialize the connection pool eagerly (call at startup). */
-export function initQueryPool(): pg.Pool {
-  if (!queryPool) {
-    queryPool = new Pool({
-      host: QUESTDB_HOST,
-      port: parseInt(QUESTDB_PG_PORT),
-      database: "qdb",
-      user: QUESTDB_USER,
-      password: QUESTDB_PASSWORD,
-      max: 50,
-      connectionTimeoutMillis: 10000,
-      idleTimeoutMillis: 30000,
-      statement_timeout: 60000,
-    });
-    queryPool.on("error", (err) => {
-      console.error("[questdb] Idle client error:", err.message);
-    });
-    logInfo(`[questdb] Connection pool initialized (host=${QUESTDB_HOST}, port=${QUESTDB_PG_PORT}, max=50)`);
-  }
-  return queryPool;
-}
-
-export function getQuestDBQueryPool(): pg.Pool {
-  return initQueryPool();
-}
-
+const sha256Hex = (data: string) => crypto.createHash("sha256").update(data).digest("hex");
+const hmac = (key: crypto.BinaryLike | Buffer, data: string) =>
+  crypto.createHmac("sha256", key).update(data).digest();
 
 /**
- * ULTRA-FAST QuestDB Reader via HTTP REST API.
- * 
- * Performance:
- * 1. Bypasses PG wire overhead.
- * 2. Streams result sets directly as JSON/CSV.
- * 3. Ideal for bulk data pulls (100k+ bars).
+ * Sign a catalog request the way PyIceberg's `rest.sigv4-enabled` does.
+ *
+ * AIStor will not accept an unsigned catalog call and answers
+ * `AUTHORIZATION_TYPE 'none'` with a 403, so there is no unauthenticated path.
+ * Signing name is `s3tables`, not `s3` — a mismatch reads as a signature
+ * failure rather than as a configuration error.
  */
-export async function queryQuestDBFast<T = any>(sql: string, signal?: AbortSignal): Promise<T[]> {
-  const start = performance.now();
-  // No `nm=true`: that flag strips the `columns` metadata block from the /exec
-  // response, which the mapper below needs to name the fields. With it set every
-  // call threw "Cannot read properties of undefined (reading 'map')", was caught,
-  // and silently fell back to PG wire — so each query ran TWICE (once over HTTP
-  // with the result discarded, once over PG) and the "fast" reader never fired.
-  const url = `http://${QUESTDB_HOST}:${QUESTDB_HTTP_PORT}/exec?query=${encodeURIComponent(sql)}`;
+function signedCatalogHeaders(method: string, urlString: string): Record<string, string> {
+  const url = new URL(urlString);
+  const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const date = amzDate.slice(0, 8);
+  const payloadHash = sha256Hex("");
+  const canonicalHeaders =
+    `host:${url.host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
+  const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+  const canonicalQuery = [...url.searchParams.entries()]
+    .sort()
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join("&");
+  const canonicalRequest = [
+    method,
+    url.pathname,
+    canonicalQuery,
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join("\n");
+  const scope = `${date}/${LAKE_REGION}/${LAKE_SIGNING_NAME}/aws4_request`;
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    amzDate,
+    scope,
+    sha256Hex(canonicalRequest),
+  ].join("\n");
+  const signingKey = hmac(
+    hmac(hmac(hmac(`AWS4${LAKE_SECRET_KEY}`, date), LAKE_REGION), LAKE_SIGNING_NAME),
+    "aws4_request",
+  );
+  const signature = crypto.createHmac("sha256", signingKey).update(stringToSign).digest("hex");
+  return {
+    "x-amz-date": amzDate,
+    "x-amz-content-sha256": payloadHash,
+    Authorization:
+      `AWS4-HMAC-SHA256 Credential=${LAKE_ACCESS_KEY}/${scope}, ` +
+      `SignedHeaders=${signedHeaders}, Signature=${signature}`,
+  };
+}
 
+/**
+ * Current metadata location for one Iceberg table.
+ *
+ * Resolved rather than cached at import time so a scan always sees the latest
+ * committed snapshot. DuckDB cannot ATTACH this catalog directly — its Iceberg
+ * SigV4 path parses the AWS service out of the hostname and fails on a custom
+ * host with "Could not parse AWS service from host" — so the way through is to
+ * resolve here and hand `iceberg_scan` the metadata file.
+ */
+async function resolveIcebergMetadataLocation(table: string): Promise<string> {
+  const configUrl = `${LAKE_CATALOG_URI}/v1/config?warehouse=${encodeURIComponent(LAKE_WAREHOUSE)}`;
+  const configResp = await fetch(configUrl, { headers: signedCatalogHeaders("GET", configUrl) });
+  if (!configResp.ok) {
+    throw new Error(`Iceberg catalog config failed (${configResp.status})`);
+  }
+  const config = (await configResp.json()) as {
+    defaults?: Record<string, string>;
+    overrides?: Record<string, string>;
+  };
+  // AIStor routes every table call under a prefix it hands back from /v1/config;
+  // without it the request 400s as "an unsupported API call".
+  const prefix = config.overrides?.prefix ?? config.defaults?.prefix ?? LAKE_WAREHOUSE;
+  const tableUrl =
+    `${LAKE_CATALOG_URI}/v1/${encodeURIComponent(prefix)}` +
+    `/namespaces/${encodeURIComponent(LAKE_NAMESPACE)}/tables/${encodeURIComponent(table)}`;
+  const tableResp = await fetch(tableUrl, { headers: signedCatalogHeaders("GET", tableUrl) });
+  if (!tableResp.ok) {
+    throw new Error(`Iceberg table ${LAKE_NAMESPACE}.${table} lookup failed (${tableResp.status})`);
+  }
+  const body = (await tableResp.json()) as { "metadata-location"?: string };
+  const location = body["metadata-location"];
+  if (!location) {
+    throw new Error(`Iceberg table ${LAKE_NAMESPACE}.${table} returned no metadata-location`);
+  }
+  return location;
+}
+
+// ─── DuckDB instance and view catalog ────────────────────────────────────────
+
+let instance: DuckDBInstance | null = null;
+let instancePromise: Promise<DuckDBInstance> | null = null;
+/** View names discovered in the snapshot, for health reporting and introspection. */
+let servingViewNames: string[] = [];
+
+/**
+ * Every table name in the snapshot, discovered rather than listed.
+ *
+ * Discovered because a hard-coded list would quietly stop covering a table
+ * someone added, and through DuckDB's own `glob` because DuckDB is already
+ * authenticated against the object store on this connection.
+ */
+async function snapshotTableNames(con: DuckDBConnection): Promise<string[]> {
+  const reader = await con.runAndReadAll(
+    "SELECT DISTINCT regexp_extract(file, 'table=([^/\\\\]+)', 1) AS table_name " +
+      `FROM glob('s3://${SERVING_SNAPSHOT}/table=*/**/*.parquet') ` +
+      "WHERE table_name <> '' ORDER BY table_name",
+  );
+  return reader.getRowObjectsJS().map((row) => String(row.table_name));
+}
+
+async function buildInstance(): Promise<DuckDBInstance> {
+  const started = performance.now();
+  const created = await DuckDBInstance.create(":memory:");
+  const con = await created.connect();
   try {
-    const response = await fetch(url, signal ? { signal: signal as any } : undefined);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`QuestDB HTTP Error: ${errorText}`);
+    // Every timestamp in the lake is stored UTC, so every connection reading it
+    // has to say so. DuckDB otherwise renders TIMESTAMPTZ in the machine's local
+    // zone, which silently shifts hour-of-day by the host offset and nothing
+    // complains.
+    await con.run("SET TimeZone='UTC'");
+    for (const extension of ["iceberg", "httpfs"]) {
+      await con.run(`INSTALL ${extension}`);
+      await con.run(`LOAD ${extension}`);
     }
-    
-    const data: any = await response.json();
-    
-    // Map array-of-arrays to array-of-objects using columns metadata
-    const columns = data.columns.map((c: any) => c.name);
-    const result = data.dataset.map((row: any[]) => {
-      const obj: any = {};
-      for (let i = 0; i < columns.length; i++) {
-        obj[columns[i]] = row[i];
-      }
-      return obj as T;
-    });
+    const host = LAKE_S3_ENDPOINT.replace(/^https?:\/\//, "");
+    await con.run(
+      `CREATE OR REPLACE SECRET aistor_s3 (
+         TYPE s3, KEY_ID '${LAKE_ACCESS_KEY}', SECRET '${LAKE_SECRET_KEY}',
+         ENDPOINT '${host}', URL_STYLE 'path',
+         USE_SSL ${LAKE_S3_ENDPOINT.startsWith("https") ? "true" : "false"},
+         REGION '${LAKE_REGION}'
+       )`,
+    );
 
-    const durationMs = performance.now() - start;
-    if (durationMs > 1000) {
-      console.warn(`[questdb-fast] LARGE QUERY (${durationMs.toFixed(0)}ms, ${result.length} rows)`);
+    const names = await snapshotTableNames(con);
+    if (names.length === 0) {
+      throw new Error(
+        `Lake serving snapshot s3://${SERVING_SNAPSHOT}/ is empty or unreachable — ` +
+          "no views could be defined.",
+      );
     }
-    
-    return result;
-  } catch (error) {
-    console.error("[questdb-fast] HTTP Query failed:", (error as Error).message);
-    // Fallback to PG if HTTP fails
-    return queryQuestDB(sql);
-  }
-}
+    for (const name of names) {
+      // SELECT * EXCLUDE, not SELECT *. The export is hive-partitioned by
+      // recipe= / table= / year=, so read_parquet hands those path segments back
+      // as columns QuestDB never had. Two are actively hostile: `table` is a
+      // DuckDB reserved word, so any generated query naming every column — a
+      // discovered SELECT list, a resample — is a parser error rather than a
+      // wrong answer. Dropping them makes each view the shape its original was.
+      await con.run(
+        `CREATE OR REPLACE VIEW "${name}" AS ` +
+          'SELECT * EXCLUDE (recipe, "table") FROM read_parquet(' +
+          `'s3://${SERVING_SNAPSHOT}/table=${name}/**/*.parquet')`,
+      );
+    }
+    servingViewNames = names;
 
-export async function queryQuestDB<T = any>(sql: string, timeoutMs?: number): Promise<T[]> {
-  const pool = getQuestDBQueryPool();
-  const start = performance.now();
-
-  let result: pg.QueryResult;
-  if (timeoutMs && timeoutMs > 0) {
-    // Per-query timeout: race the query against an AbortController
-    const client = await pool.connect();
+    // `bars` is the Iceberg system of record and where a consumer should end up.
+    // Best-effort: a catalog that is down must not take the snapshot views with
+    // it, and a query against a missing `bars` raises "table does not exist",
+    // which is loud enough to diagnose.
     try {
-      await client.query(`SET statement_timeout = ${Math.floor(timeoutMs)}`);
-      result = await client.query(sql);
-      await client.query('SET statement_timeout = 0'); // reset for pool reuse
-    } catch (err) {
-      // QuestDB/PG fires '57014' (query_canceled) on timeout
-      if ((err as NodeJS.ErrnoException).code === '57014') {
-        const preview = sql.length > 120 ? sql.slice(0, 120) + '…' : sql;
-        console.warn(`[questdb] QUERY TIMEOUT (${timeoutMs}ms): ${preview}`);
-        throw new Error(`Query timed out after ${timeoutMs}ms`);
-      }
-      throw err;
-    } finally {
-      client.release();
+      const metadataLocation = await resolveIcebergMetadataLocation("bars");
+      await con.run(
+        `CREATE OR REPLACE VIEW bars AS SELECT * FROM iceberg_scan('${metadataLocation}')`,
+      );
+      servingViewNames = [...names, "bars"].sort();
+    } catch (error) {
+      console.warn(
+        "[lake] Iceberg view 'bars' not defined:",
+        (error as Error).message,
+        "— the snapshot views are unaffected.",
+      );
     }
-  } else {
-    result = await pool.query(sql);
-  }
 
-  const durationMs = performance.now() - start;
-  const preview = sql.length > 120 ? sql.slice(0, 120) + '…' : sql;
-  if (durationMs > SLOW_QUERY_THRESHOLD_MS) {
-    console.warn(`[questdb] SLOW QUERY (${durationMs.toFixed(0)}ms, ${result.rowCount} rows): ${preview}`);
-  } else if (process.env.QUESTDB_QUERY_LOG === "verbose") {
-    logInfo(`[questdb] query (${durationMs.toFixed(0)}ms, ${result.rowCount} rows): ${preview}`);
+    logInfo(
+      `[lake] DuckDB serving layer ready in ${(performance.now() - started).toFixed(0)}ms ` +
+        `(${servingViewNames.length} views over s3://${SERVING_SNAPSHOT}/)`,
+    );
+  } finally {
+    con.closeSync();
   }
-
-  return result.rows as T[];
+  return created;
 }
 
 /**
- * Stream large result sets using a PG cursor.
- * Processes rows in chunks to avoid loading everything into memory.
- * @param sql - The SQL query
- * @param onChunk - Callback receiving each chunk of rows
- * @param chunkSize - Rows per chunk (default 5000)
+ * The process-wide DuckDB instance, built once.
+ *
+ * A failed build is not cached: the lake being down at boot must not poison
+ * every later query, so the next call retries from scratch.
  */
-export async function queryQuestDBStream<T = any>(
+async function getInstance(): Promise<DuckDBInstance> {
+  if (instance) return instance;
+  if (!instancePromise) {
+    instancePromise = buildInstance()
+      .then((built) => {
+        instance = built;
+        return built;
+      })
+      .catch((error) => {
+        instancePromise = null;
+        throw error;
+      });
+  }
+  return instancePromise;
+}
+
+/**
+ * A fresh connection onto the shared instance.
+ *
+ * Per query, not pooled: views live in the instance catalog so every connection
+ * sees them, connections are cheap, and `interrupt()` is per-connection — a
+ * shared one would let a timed-out query cancel its neighbours.
+ */
+async function openConnection(): Promise<DuckDBConnection> {
+  const con = await (await getInstance()).connect();
+  // Session-scoped, so it has to be re-stated on each connection.
+  await con.run("SET TimeZone='UTC'");
+  return con;
+}
+
+// ─── Value conversion ────────────────────────────────────────────────────────
+
+/**
+ * DuckDB hands BIGINT back as a JS bigint, which breaks arithmetic against the
+ * numbers every caller here expects (`Number(row.c)`, `a - b`) and throws on
+ * `JSON.stringify`. Narrow to a number where that is lossless and fall back to
+ * the decimal string — never to a silently truncated number — beyond 2^53.
+ */
+function normalizeValue(value: unknown): unknown {
+  if (typeof value === "bigint") {
+    return value >= BigInt(Number.MIN_SAFE_INTEGER) && value <= BigInt(Number.MAX_SAFE_INTEGER)
+      ? Number(value)
+      : value.toString();
+  }
+  return value;
+}
+
+function normalizeRows<T>(rows: Record<string, unknown>[]): T[] {
+  return rows.map((row) => {
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(row)) out[key] = normalizeValue(row[key]);
+    return out as T;
+  });
+}
+
+// ─── Read paths ──────────────────────────────────────────────────────────────
+
+async function runQuery<T>(
+  sql: string,
+  opts: { timeoutMs?: number; signal?: AbortSignal; label: string },
+): Promise<T[]> {
+  const start = performance.now();
+  const con = await openConnection();
+
+  let timer: NodeJS.Timeout | undefined;
+  let timedOut = false;
+  const onAbort = () => con.interrupt();
+  try {
+    if (opts.timeoutMs && opts.timeoutMs > 0) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        con.interrupt();
+      }, opts.timeoutMs);
+    }
+    if (opts.signal) {
+      if (opts.signal.aborted) con.interrupt();
+      else opts.signal.addEventListener("abort", onAbort, { once: true });
+    }
+
+    let reader;
+    try {
+      reader = await con.runAndReadAll(sql);
+    } catch (error) {
+      if (timedOut) {
+        const preview = sql.length > 120 ? `${sql.slice(0, 120)}…` : sql;
+        console.warn(`[lake] QUERY TIMEOUT (${opts.timeoutMs}ms): ${preview}`);
+        throw new Error(`Query timed out after ${opts.timeoutMs}ms`);
+      }
+      throw error;
+    }
+
+    const rows = normalizeRows<T>(reader.getRowObjectsJS());
+    const durationMs = performance.now() - start;
+    const preview = sql.length > 120 ? `${sql.slice(0, 120)}…` : sql;
+    if (durationMs > SLOW_QUERY_THRESHOLD_MS) {
+      console.warn(
+        `[${opts.label}] SLOW QUERY (${durationMs.toFixed(0)}ms, ${rows.length} rows): ${preview}`,
+      );
+    } else if (process.env.QUESTDB_QUERY_LOG === "verbose") {
+      logInfo(`[${opts.label}] query (${durationMs.toFixed(0)}ms, ${rows.length} rows): ${preview}`);
+    }
+    return rows;
+  } finally {
+    if (timer) clearTimeout(timer);
+    opts.signal?.removeEventListener("abort", onAbort);
+    con.closeSync();
+  }
+}
+
+/**
+ * Bulk reader. Once the backend is an in-process DuckDB there is no wire
+ * protocol to bypass, so this and {@link queryQuestDB} run the same path — the
+ * name is kept because thirty modules import it.
+ *
+ * The QuestDB-era version caught its own failures and silently re-ran the query
+ * over PG wire. There is no second backend to fall back to now, and a fallback
+ * that re-runs a broken query only doubles the cost, so errors propagate.
+ */
+export async function queryQuestDBFast<T = never>(sql: string, signal?: AbortSignal): Promise<T[]> {
+  return runQuery<T>(sql, { signal, label: "lake-fast" });
+}
+
+export async function queryQuestDB<T = never>(sql: string, timeoutMs?: number): Promise<T[]> {
+  return runQuery<T>(sql, { timeoutMs, label: "lake" });
+}
+
+/**
+ * Stream a large result set, handing the caller one chunk of rows at a time so
+ * the whole set never lands in memory at once.
+ *
+ * DuckDB yields its own chunks (typically 2048 rows); they are re-packed to the
+ * caller's `chunkSize` so the contract matches the cursor-based version this
+ * replaced.
+ */
+export async function queryQuestDBStream<T = never>(
   sql: string,
   onChunk: (rows: T[]) => void | Promise<void>,
   chunkSize = 5000,
 ): Promise<{ totalRows: number; durationMs: number }> {
-  const pool = getQuestDBQueryPool();
-  const client = await pool.connect();
   const start = performance.now();
+  const con = await openConnection();
   let totalRows = 0;
 
   try {
-    // Use a portal-based cursor via DECLARE/FETCH
-    await client.query('BEGIN');
-    await client.query(`DECLARE qdb_cursor NO SCROLL CURSOR FOR ${sql}`);
-
-    let done = false;
-    while (!done) {
-      const result = await client.query(`FETCH ${chunkSize} FROM qdb_cursor`);
-      if (result.rows.length === 0) {
-        done = true;
-      } else {
-        totalRows += result.rows.length;
-        await onChunk(result.rows as T[]);
-        if (result.rows.length < chunkSize) done = true;
+    const result = await con.stream(sql);
+    let buffer: T[] = [];
+    for await (const rows of result.yieldRowObjectJs()) {
+      buffer = buffer.concat(normalizeRows<T>(rows));
+      while (buffer.length >= chunkSize) {
+        const batch = buffer.slice(0, chunkSize);
+        buffer = buffer.slice(chunkSize);
+        totalRows += batch.length;
+        await onChunk(batch);
       }
     }
-
-    await client.query('CLOSE qdb_cursor');
-    await client.query('COMMIT');
-  } catch (e) {
-    await client.query('ROLLBACK').catch(() => {});
-    throw e;
+    if (buffer.length > 0) {
+      totalRows += buffer.length;
+      await onChunk(buffer);
+    }
   } finally {
-    client.release();
+    con.closeSync();
   }
 
   const durationMs = performance.now() - start;
-  logInfo(`[questdb] streamed ${totalRows} rows in ${durationMs.toFixed(0)}ms (${chunkSize}/chunk)`);
+  logInfo(`[lake] streamed ${totalRows} rows in ${durationMs.toFixed(0)}ms (${chunkSize}/chunk)`);
   return { totalRows, durationMs };
 }
 
 /**
  * Execute a query with Zod runtime validation on each row.
- * Provides type safety at runtime — slower than raw queryQuestDB but catches schema drift.
+ * Slower than raw {@link queryQuestDB}, but catches schema drift.
  */
 export async function queryQuestDBValidated<T>(sql: string, schema: z.ZodType<T>): Promise<T[]> {
   const rows = await queryQuestDB(sql);
   return rows.map((row, i) => {
     const parsed = schema.safeParse(row);
     if (!parsed.success) {
-      console.warn(`[questdb] Row ${i} validation failed: ${parsed.error.message}`);
-      throw new Error(`QuestDB result validation failed at row ${i}: ${parsed.error.message}`);
+      console.warn(`[lake] Row ${i} validation failed: ${parsed.error.message}`);
+      throw new Error(`Lake result validation failed at row ${i}: ${parsed.error.message}`);
     }
     return parsed.data;
   });
 }
 
-/** Zod schema for OHLCV query results (coerces QuestDB string numerics) */
+/** Zod schema for OHLCV query results (coerces string numerics). */
 export const OHLCVRowSchema = z.object({
   symbol: z.string(),
   timestamp: z.coerce.date(),
@@ -250,58 +495,32 @@ export interface OHLCVRow {
   volume: number;
 }
 
+// ─── Retired connection handles ──────────────────────────────────────────────
+//
+// Kept on the exported surface because `index.ts` re-exports them and
+// `questdb.service.ts` wraps them. There is no PG wire endpoint behind them any
+// more, so they raise rather than hand back a pool that would hang on connect.
 
-/** Validates table names to prevent garbage table creation from malformed ILP data. */
-function validateTableName(table: string): string {
-  const allowed = ["ohlcv", "ticks", "dom_l2", "dom_summary", "symbols", "mbp10", "trades"];
-  if (allowed.includes(table)) return table;
-  // If table looks like a number or is missing, default to ohlcv
-  if (/^\d/.test(table) || table.length < 2) {
-    console.warn(`[questdb] Blocked garbage table name: "${table}", defaulting to "ohlcv"`);
-    return "ohlcv";
-  }
-  return table;
+/** @deprecated QuestDB is retired — there is no PG wire pool. Raises. */
+export function initQueryPool(): pg.Pool {
+  return retiredWrite("The QuestDB PG-wire connection pool");
 }
 
-/** Derive asset_class and root from a symbol string. */
-function deriveAssetFields(symbol: string): { assetClass: string; root: string } {
-  const s = symbol.toUpperCase();
-  // Forex: 6 uppercase letters, no digits
-  if (s.length === 6 && !/\d/.test(s)) return { assetClass: "forex", root: s };
-  if (s.includes("/")) return { assetClass: "forex", root: s.replace("/", "") };
-  // Futures contract: extract root (before month code)
-  const m = s.match(/^([A-Z][A-Z0-9]*)[FGHJKMNQUVXZ]\d{1,2}/);
-  if (m) return { assetClass: "futures", root: m[1]! };
-  // Spread: extract root from first leg
-  const sp = s.match(/^([A-Z][A-Z0-9]*[FGHJKMNQUVXZ]\d{1,2})-/);
-  if (sp) {
-    const legRoot = sp[1]!.match(/^([A-Z][A-Z0-9]*)[FGHJKMNQUVXZ]\d{1,2}$/);
-    if (legRoot) return { assetClass: "futures", root: legRoot[1]! };
-  }
-  return { assetClass: "futures", root: s };
+/** @deprecated QuestDB is retired — there is no PG wire pool. Raises. */
+export function getQuestDBQueryPool(): pg.Pool {
+  return retiredWrite("The QuestDB PG-wire connection pool");
 }
+
+/** @deprecated QuestDB is retired — there is no ILP sender. Raises. */
+export async function getQuestDBSender(): Promise<never> {
+  return retiredWrite("The QuestDB ILP sender");
+}
+
+// ─── Retired write paths ─────────────────────────────────────────────────────
 
 export async function insertOHLCVBatch(rows: OHLCVRow[]): Promise<void> {
-  return senderMutex.run(async (s) => {
-    for (const row of rows) {
-      const { assetClass, root } = row.assetClass && row.root
-        ? { assetClass: row.assetClass, root: row.root }
-        : deriveAssetFields(row.symbol);
-
-      await s
-        .table(validateTableName("ohlcv"))
-        .symbol("symbol", row.symbol)
-        .symbol("asset_class", assetClass)
-        .symbol("root", root)
-        .floatColumn("open", row.open)
-        .floatColumn("high", row.high)
-        .floatColumn("low", row.low)
-        .floatColumn("close", row.close)
-        .floatColumn("volume", row.volume)
-        .at(row.timestamp.getTime(), "ms");
-    }
-    await s.flush();
-  });
+  void rows;
+  return retiredWrite("insertOHLCVBatch");
 }
 
 export async function insertOHLCVStream(
@@ -315,51 +534,65 @@ export async function insertOHLCVStream(
   assetClass?: string,
   root?: string,
 ): Promise<void> {
-  return senderMutex.run(async (s) => {
-    const derived = assetClass && root
-      ? { assetClass, root }
-      : deriveAssetFields(symbol);
-
-    await s
-      .table(validateTableName("ohlcv"))
-      .symbol("symbol", symbol)
-      .symbol("asset_class", derived.assetClass)
-      .symbol("root", derived.root)
-      .floatColumn("open", open)
-      .floatColumn("high", high)
-      .floatColumn("low", low)
-      .floatColumn("close", close)
-      .floatColumn("volume", volume)
-      .at(timestamp, "ms");
-
-    await s.flush();
-  });
+  void [symbol, timestamp, open, high, low, close, volume, assetClass, root];
+  return retiredWrite("insertOHLCVStream");
 }
+
+// ─── Lifecycle ───────────────────────────────────────────────────────────────
 
 export async function closeQuestDB(): Promise<void> {
-  if (sender) {
-    await sender.close();
-    sender = null;
+  if (instance) {
+    instance.closeSync();
+    instance = null;
   }
-  if (queryPool) {
-    await queryPool.end();
-    queryPool = null;
+  instancePromise = null;
+  servingViewNames = [];
+}
+
+/**
+ * Is the lake reachable and are the serving views defined?
+ *
+ * Not a bare `SELECT 1` — DuckDB is in-process and would always answer. Forcing
+ * the instance to build exercises the object store, the snapshot glob and the
+ * view definitions, which is the thing a caller actually wants to know.
+ */
+export async function checkQuestDBHealth(): Promise<boolean> {
+  try {
+    const con = await openConnection();
+    try {
+      const reader = await con.runAndReadAll(
+        "SELECT count(*) AS n FROM duckdb_views() WHERE NOT internal AND schema_name = 'main'",
+      );
+      const views = Number(reader.getRowObjectsJS()[0]?.n ?? 0);
+      if (views === 0) {
+        console.warn("[lake] Health check failed: no serving views defined");
+        return false;
+      }
+      return true;
+    } finally {
+      con.closeSync();
+    }
+  } catch (error) {
+    console.warn(
+      "[lake] Health check failed:",
+      (error as Error).message,
+      "at",
+      `${LAKE_S3_ENDPOINT} (snapshot s3://${SERVING_SNAPSHOT}/)`,
+    );
+    return false;
   }
 }
 
-export async function checkQuestDBHealth(): Promise<boolean> {
-  try {
-    const pool = getQuestDBQueryPool();
-    logInfo(`[questdb-debug] Checking health on ${QUESTDB_HOST}:${QUESTDB_PG_PORT}...`);
-    // Race against a 10-second timeout to prevent hanging (QuestDB can be slow on large WAL flush)
-    const result = await Promise.race([
-      pool.query("SELECT 1;"),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('QuestDB health check timeout')), 10000)),
-    ]);
-    logInfo('[questdb-debug] Health check success');
-    return true;
-  } catch (error) {
-    console.warn("[questdb] Health check failed:", (error as Error).message, "at", `${QUESTDB_HOST}:${QUESTDB_PG_PORT}`);
-    return false;
-  }
+/** Names of every view the serving layer defines. Empty until first use. */
+export function getServingViewNames(): string[] {
+  return [...servingViewNames];
+}
+
+/** Where the serving layer reads from, for status reporting. */
+export function getServingLocation(): { endpoint: string; snapshot: string; namespace: string } {
+  return {
+    endpoint: LAKE_S3_ENDPOINT,
+    snapshot: `s3://${SERVING_SNAPSHOT}/`,
+    namespace: LAKE_NAMESPACE,
+  };
 }

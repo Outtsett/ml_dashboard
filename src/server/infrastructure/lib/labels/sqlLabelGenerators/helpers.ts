@@ -90,8 +90,12 @@ export function shiftForward(expr: string, n: number, config: LabelGeneratorConf
 }
 
 /**
- * Convert timeframeMinutes to a QuestDB SAMPLE BY interval string.
+ * Convert timeframeMinutes to a short interval label.
  * e.g., 1 -> '1m', 5 -> '5m', 60 -> '1h', 240 -> '4h', 1440 -> '1d', 10080 -> '7d'
+ *
+ * Kept as a label rather than a SAMPLE BY clause: QuestDB is retired and its
+ * `SAMPLE BY <n>` spelling is a parser error in DuckDB. {@link minutesToInterval}
+ * is what actually goes into SQL now.
  */
 export function minutesToSampleBy(minutes: number): string {
   if (minutes <= 1) return '1m';
@@ -102,11 +106,39 @@ export function minutesToSampleBy(minutes: number): string {
 }
 
 /**
- * Wrap a generator's SQL output with a SAMPLE BY CTE.
+ * Convert timeframeMinutes to a DuckDB INTERVAL literal for `time_bucket`.
+ *
+ * Always expressed in minutes rather than converted to hours or days. That is
+ * deliberate: `time_bucket` anchors on the epoch, so `INTERVAL '1440 minutes'`
+ * and `INTERVAL '1 day'` bucket identically, and keeping one unit removes a
+ * class of off-by-one between the two spellings.
+ */
+export function minutesToInterval(minutes: number): string {
+  const n = Math.max(1, Math.floor(minutes));
+  return `INTERVAL '${n} minutes'`;
+}
+
+/**
+ * Wrap a generator's SQL output with a resampling CTE.
  *
  * Prepends a `sampled_ohlcv` CTE that aggregates the base table to the
- * requested timeframe using QuestDB SAMPLE BY, and rewrites references to the
- * base table to use the sampled CTE instead.
+ * requested timeframe, and rewrites references to the base table to use the
+ * sampled CTE instead.
+ *
+ * Was QuestDB `SAMPLE BY <n> ALIGN TO CALENDAR`; it is `time_bucket` with a
+ * GROUP BY now. Two details are not cosmetic:
+ *
+ * **`arg_min`/`arg_max`, never `first`/`last`.** DuckDB's `first` and `last` are
+ * order-unspecified within a group, so on a bucket spanning many input rows
+ * they can return any of them. QuestDB's SAMPLE BY was defined on the
+ * designated timestamp, and `arg_min(open, timestamp)` is that definition
+ * written out. `first()` here would produce a bar whose open drifts between
+ * runs — the kind of wrong that never raises.
+ *
+ * **The bucket is named in an inner select.** Computing `time_bucket(...) AS
+ * timestamp` beside `arg_min(open, timestamp)` puts the output alias and the
+ * source column under one name in one scope; naming the bucket separately and
+ * renaming it one level out leaves no room for that to resolve the wrong way.
  *
  * The 1-minute case is NOT a no-op. The base `ohlcv` table is sub-minute
  * (~3-second rows; 96.7M of them for MNQ), so skipping aggregation at tf=1
@@ -124,7 +156,7 @@ export function wrapWithSampleBy(
 
   const table = config.tableName || 'ohlcv';
   const symbol = config.symbol;
-  const interval = minutesToSampleBy(tf);
+  const interval = minutesToInterval(tf);
 
   // This CTE is the single point where an instrument is turned into rows, so
   // it is where adaptive source resolution lands: a futures root arrives here
@@ -133,11 +165,21 @@ export function wrapWithSampleBy(
   const predicate = config.sourcePredicate || `symbol = '${symbol}'`;
 
   const sampledCTE = `sampled_ohlcv AS (
-  SELECT timestamp, symbol,
-    first(open) as open, max(high) as high, min(low) as low, last(close) as close, sum(volume) as volume
-  FROM ${from}
-  WHERE ${predicate}
-  SAMPLE BY ${interval} ALIGN TO CALENDAR
+  SELECT bucket_timestamp AS timestamp, symbol, open, high, low, close, volume
+  FROM (
+    SELECT
+      time_bucket(${interval}, timestamp) AS bucket_timestamp,
+      symbol,
+      arg_min(open, timestamp) as open,
+      max(high) as high,
+      min(low) as low,
+      arg_max(close, timestamp) as close,
+      sum(volume) as volume
+    FROM ${from}
+    WHERE ${predicate}
+    GROUP BY 1, symbol
+  ) AS bucketed
+  ORDER BY timestamp
 )`;
 
   // First, replace table references in the generator's SQL BEFORE prepending the CTE.

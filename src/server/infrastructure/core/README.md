@@ -29,7 +29,7 @@ Core server infrastructure: route registration, static file serving, Vite dev in
 |---|---|
 | `health.module.ts` | NestJS health module |
 | `health.service.ts` | Health check orchestrator |
-| `questdb.health.ts` | QuestDB health indicator (HTTP ping + PG wire check) |
+| `questdb.health.ts` | Market-data health indicator. Still probes the retired server's HTTP/PG-wire endpoints; pending the `src/server` port to the lake. |
 | `sqlite.health.ts` | SQLite health indicator (WAL status, page count) |
 
 ### `swagger/`

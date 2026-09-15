@@ -85,7 +85,7 @@
 | ID | Name | Verdict | Role | TF | Integration sketch |
 |---|---|---|---|---|---|
 | adaptive-local-models-alm | Adaptive Local Models (ALM) | RESEARCH | regime | 5m, 15m, 30m | Locally-weighted regression per regime bucket (VPIN+TOD); sanity baseline for regime-conditional XGBoost |
-| dreamer-v1-v3 | Dreamer (V1-V3) | RESEARCH | exit-policy | 5m–MTF | Offline Dreamer-V3 on QuestDB replay; symlog reward = log(1+cost-adj-return); shape with VPIN/jump penalties |
+| dreamer-v1-v3 | Dreamer (V1-V3) | RESEARCH | exit-policy | 5m–MTF | Offline Dreamer-V3 on lake replay; symlog reward = log(1+cost-adj-return); shape with VPIN/jump penalties |
 | hybrid-mfree-mbased | Hybrid Model-Free & Model-Based Agent | SUPPORTING | exit-policy | 5m, 15m, 30m | MBPO short-rollout buffer augmentation; rollout length ≤ 2 bars to limit jump-process drift |
 | i2a | Imagination-Augmented Agents (I2A) | SUPPORTING | feature-extraction | 5m, 15m, MTF | LSTM aggregator learns to DOWN-WEIGHT bad imagined rollouts — defense against world-model jump failures |
 | world-models-ha-schmidhuber | World Models (Ha & Schmidhuber) | RESEARCH | pretrain | 1m–MTF | MDN-RNN mixture density head IS the right primitive for fat-tailed next-bar; spike with 5-15 components |

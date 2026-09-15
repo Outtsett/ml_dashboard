@@ -1,5 +1,14 @@
 # Control Terminal — Load-Bearing Module Pseudocode
 
+> **Data-layer premise superseded (2026-09-10).** This spec was written against a local
+> QuestDB serving cache reached over HTTP `:9000` / ILP `:9009` / PG wire `:8812`. That store
+> was emptied and retired: all 41 objects were dropped after each was copied to parquet in the
+> lake and row-count verified (39/39 exact), and nothing may read or write it again. Market
+> data now lives in the Iceberg lake at `E:\lake` and is read **in-process by DuckDB**
+> (`from lake.serving import connect`). Everything below that names a database host, port,
+> Windows service, JVM process, WAL table, `SAMPLE BY`, materialized-view refresh or ILP
+> write is stale and must be re-derived against the lake before it is built.
+
 > **Status:** DESIGN. This is TypeScript-flavored pseudocode, compiling-shaped
 > but not literal source. Boilerplate (imports of trivial helpers, exhaustive
 > error branches already demonstrated once) is elided with `…`. Signatures,
@@ -831,10 +840,10 @@ import path from 'path';
 // Categories the tile + proc.classify capability return.
 export type ProcCategory =
   | 'dashboard'            // this app's own node/electron/vite/tsx tree — PROTECTED
-  | 'mcp-server'           // node/uvx MCP servers (questdb-mcp, notebooklm, etc.) — PROTECTED
+  | 'mcp-server'           // node/uvx MCP servers (notebooklm, etc.) — PROTECTED
   | 'vscode'              // Code.exe + its helpers/extensions — PROTECTED
   | 'claude'              // claude / claude-code CLI processes — PROTECTED
-  | 'questdb-java'        // the shared QuestDB JVM (127.0.0.1:9000) — PROTECTED
+  | 'iceberg-catalog'     // the AIStor Iceberg catalog (127.0.0.1:9100) — PROTECTED
   | 'orphan-tsx'          // stray `tsx`/`ts-node` watchers with no live parent
   | 'orphan-vite'         // stray vite dev servers, dashboard-shaped but detached
   | 'orphan-python-worker'// hardware_node.py / hpo trial workers whose parent died
@@ -866,8 +875,8 @@ export interface ClassificationResult {
 const PROTECTED_MATCHERS: Array<{ cat: ProcCategory; test: (p: RawProc) => boolean }> = [
   { cat: 'vscode',       test: (p) => /(^|\\)Code\.exe$/i.test(p.name) || /vscode-server|\.vscode/i.test(p.command) },
   { cat: 'claude',       test: (p) => /claude(\.exe)?$/i.test(p.name) || /claude-code|@anthropic-ai[\\/]claude/i.test(p.command) },
-  { cat: 'questdb-java', test: (p) => /java(w)?\.exe$/i.test(p.name) && /questdb|io\.questdb\.ServerMain/i.test(p.command) },
-  { cat: 'mcp-server',   test: (p) => /(questdb-mcp|notebooklm-mcp|modelcontextprotocol|mcp-server|uvx)/i.test(p.command) },
+  { cat: 'iceberg-catalog', test: (p) => /aistor|minio/i.test(p.command) },
+  { cat: 'mcp-server',   test: (p) => /(notebooklm-mcp|modelcontextprotocol|mcp-server|uvx)/i.test(p.command) },
 ];
 
 // The dashboard's own process subtree — captured at boot so we never reap self.
@@ -927,7 +936,7 @@ function classifyOne(p: RawProc, ctx: ClassifyCtx): ClassifiedProc {
     return { ...base, category: 'dashboard', protected: true, reapable: false,
              reason: 'part of the running dashboard process tree (self)' };
 
-  // 2. Protected matchers (vscode/claude/questdb-java/mcp-server).
+  // 2. Protected matchers (vscode/claude/iceberg-catalog/mcp-server).
   for (const m of PROTECTED_MATCHERS) {
     if (m.test(p))
       return { ...base, category: m.cat, protected: true, reapable: false,
@@ -984,7 +993,7 @@ export const procClassify = defineCapability({
   id: 'proc.classify', domain: 'machine', kind: 'read', risk: 'safe',
   title: 'Classify processes', description:
     'List every OS process bucketed into {dashboard, mcp-server, vscode, claude, '
-    + 'questdb-java, orphan-tsx, orphan-vite, orphan-python-worker, unknown}, '
+    + 'iceberg-catalog, orphan-tsx, orphan-vite, orphan-python-worker, unknown}, '
     + 'flagging which are safe to reap. Read-only.',
   args: z.object({}).strict(),
   execute: async () => classifyProcesses(),
@@ -1022,7 +1031,7 @@ export const procReap = defineCapability({
 **Takeaway:** `unknown` and every protected category are hard-excluded from
 reaping, and `proc.reap` re-classifies at execute time (not trusting the PID list
 the human clicked, which may be stale) — so the blast radius is only ever
-genuinely-orphaned dev processes, never VS Code, Claude, QuestDB, or the
+genuinely-orphaned dev processes, never VS Code, Claude, the Iceberg catalog, or the
 dashboard itself.
 
 ---
@@ -1078,7 +1087,7 @@ import type { ClassificationResult, ClassifiedProc } from '@shared/control-types
 
 const CATEGORY_LABEL: Record<string, string> = {
   dashboard: 'Dashboard', 'mcp-server': 'MCP servers', vscode: 'VS Code',
-  claude: 'Claude', 'questdb-java': 'QuestDB (JVM)', 'orphan-tsx': 'Orphan tsx',
+  claude: 'Claude', 'iceberg-catalog': 'Iceberg catalog', 'orphan-tsx': 'Orphan tsx',
   'orphan-vite': 'Orphan vite', 'orphan-python-worker': 'Orphan py worker', unknown: 'Unknown',
 };
 // Deuteranopia-safe: attention/orphan = orange #E69F00, protected/settled = blue #0072B2,

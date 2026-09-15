@@ -16,7 +16,7 @@ Each domain folder contains its own routers, sagas, and domain-specific services
 
 ### Infrastructure (`src/server/infrastructure/`)
 Cross-cutting technical concerns and external integrations.
-- **`database/`**: QuestDB and SQLite connection management and drivers.
+- **`database/`**: market-data and SQLite connection management and drivers.
 - **`storage/`**: Drizzle-based data access layers.
 - **`cache/`**: OHLCV, symbol, and model caching logic.
 - **`events/`**: Global event bus and event store implementation.

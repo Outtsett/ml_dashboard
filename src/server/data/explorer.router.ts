@@ -64,7 +64,14 @@ router.get('/tables', queryRateLimiter, async (_req: Request, res: Response) => 
     let questdbTables: QuestDBTableRow[] = [];
     try {
       const { queryQuestDB } = await import('../infrastructure/database/questdb');
-      questdbTables = await queryQuestDB<QuestDBTableRow>('tables()');
+      // Was QuestDB's `tables()` function, which DuckDB does not have. Every
+      // serving object is a VIEW over parquet, so there is no stored row count
+      // to read back cheaply — -1 is the "unknown" the mapper below already
+      // uses, and counting 41 views here would cost a full scan each.
+      questdbTables = await queryQuestDB<QuestDBTableRow>(
+        "SELECT table_name, -1 AS table_row_count FROM information_schema.tables " +
+          "WHERE table_schema = 'main' ORDER BY table_name",
+      );
     } catch (e) {
       console.warn('[Explorer] QuestDB tables listing failed:', e);
     }
@@ -102,7 +109,14 @@ router.get('/tables/:name/schema', async (req: Request, res: Response) => {
       return res.json(rows);
     } else {
       const { queryQuestDB } = await import('../infrastructure/database/questdb');
-      const info = await queryQuestDB(`table_columns('${tableName}')`);
+      // Was QuestDB's `table_columns('<t>')`. The aliases keep that function's
+      // output shape, which is what the schema panel renders.
+      const info = await queryQuestDB(
+        `SELECT column_name AS "column", data_type AS type, is_nullable, ordinal_position
+         FROM information_schema.columns
+         WHERE table_schema = 'main' AND table_name = '${tableName.replace(/'/g, "''")}'
+         ORDER BY ordinal_position`,
+      );
       return res.json(info);
     }
   } catch (error) {

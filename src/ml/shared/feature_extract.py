@@ -3,10 +3,10 @@ Indicator-to-feature derivation transforms — high-performance pipeline.
 
 Reads pre-computed indicators (parquet files) and derives model-ready features
 using vectorized numpy/numba operations with parallel execution via joblib.
-(The QuestDB talib_features table has been dropped.)
+(The `talib_features` table has been dropped; parquet is the only source.)
 
 Performance architecture:
-  - QuestDB fetch: chunked cursor, parquet cache for repeat runs
+  - Indicator load: parquet files read through Polars, cached for repeat runs
   - Transforms: pure numpy vectorized, no Python loops
   - Parallelism: joblib Parallel across indicator categories
   - Memory: float32 throughout, in-place operations where possible
@@ -628,12 +628,13 @@ def load_indicators_from_questdb(
     max_bars: int = 0,
     date_range: dict | None = None,
 ) -> pd.DataFrame:
-    """DEPRECATED: talib_features QuestDB table has been dropped.
+    """DEPRECATED: the `talib_features` table has been dropped.
 
-    Use load_indicators_from_parquet() instead.
-    This function is kept for API compatibility but raises immediately.
+    Use load_indicators_from_parquet() instead. Kept only so the existing
+    import in scripts/feature-research.py resolves; it raises immediately
+    rather than returning an empty frame.
     """
     raise RuntimeError(
-        "talib_features QuestDB table no longer exists. "
+        "The 'talib_features' table no longer exists. "
         "Use load_indicators_from_parquet() instead."
     )

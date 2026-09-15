@@ -1,13 +1,21 @@
 # `prediction_log` schema reference
 
-QuestDB time-series table that stores every prediction emitted by a live
-model deployment, plus a 1-minute materialized view rollup for sub-second
-dashboard refresh.
+Stores every prediction emitted by a live model deployment, plus a 1-minute
+rollup for sub-second dashboard refresh.
 
-DDL: `scripts/create-prediction-log-table.sql`
-Rollup mat view DDL: `scripts/create-prediction-log-rollup.sql`
-Idempotent applier: `scripts/apply-prediction-log-table.py`
-ILP writer: `src/server/deployments/predictionLog.ts` (W9.b)
+> **The time-series copy is gone.** Until 2026-09-10 this table was mirrored
+> into a QuestDB hot path alongside SQLite. That store was emptied and retired;
+> the SQLite `prediction_log` table (`src/shared/schema.ts`) is now the only
+> one. The column shapes below still describe the intended record — read the
+> type column as intent, not as live DDL. Re-homing the rollup onto the lake or
+> SQLite is outstanding work.
+
+SQLite table: `prediction_log` in `src/shared/schema.ts`
+Writer: `src/server/deployments/predictionLog.ts` (W9.b)
+
+Retired, do not run: `scripts/create-prediction-log-table.sql`,
+`scripts/create-prediction-log-rollup.sql`,
+`scripts/apply-prediction-log-table.py`.
 
 ## Table shape — `prediction_log`
 
@@ -20,7 +28,7 @@ ILP writer: `src/server/deployments/predictionLog.ts` (W9.b)
 | `confidence`       | `DOUBLE`          | no       | Calibrated confidence 0..1.                                           |
 | `paper_pnl_delta`  | `DOUBLE`          | no       | Per-bar PnL change attributed to this prediction (cost-adjusted).     |
 | `paper_pnl_total`  | `DOUBLE`          | no       | Running paper-PnL total since deployment started.                     |
-| `model_version_id` | `LONG`            | no       | FK to SQLite `model_versions.version_id` — denormalized for fast joins on the QuestDB side. |
+| `model_version_id` | `LONG`            | no       | FK to SQLite `model_versions.version_id` — denormalized for fast joins on the time-series side. |
 | `symbol`           | `SYMBOL` cap=64 + INDEX | no | e.g. `MNQ`, `EURUSD`. Indexed for fast WHERE filtering.            |
 | `timeframe`        | `SYMBOL` cap=16 + INDEX | no | `1s`, `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`, `1w`.            |
 
@@ -42,7 +50,7 @@ Storage: `TIMESTAMP(ts) PARTITION BY DAY WAL DEDUP UPSERT KEYS(ts, deployment_id
 | `paper_pnl_total`     | `DOUBLE`    | `last(paper_pnl_total)` in the minute — PnL curve sample. |
 | `avg_confidence`      | `DOUBLE`    | `avg(confidence)` in the minute.                     |
 
-Refresh: `REFRESH IMMEDIATE` (QuestDB applies WAL deltas synchronously on every base commit — the marketing name "incremental" maps to this keyword in 9.3.x).
+Refresh: was `REFRESH IMMEDIATE` on the retired store. No equivalent rollup is live today.
 
 ## ILP line example
 
@@ -144,8 +152,6 @@ python scripts/apply-prediction-log-table.py            # apply (idempotent)
 python scripts/apply-prediction-log-table.py --dry-run  # print SQL only
 ```
 
-The script connects over PG-wire (`postgresql://admin:quest@127.0.0.1:8812/qdb`),
-checks `tables()` / `materialized_views()` to detect existing objects, and
-prints `applied` vs `already exists` per file. Requires QuestDB running —
-launch via `node electron/start-databases.cjs` (Electron auto-launches this
-on dev startup).
+This applier targeted the retired store's PG-wire endpoint. Nothing listens
+there; running it fails at connect. It is kept only as the record of the
+intended DDL.

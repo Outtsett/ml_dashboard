@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Per-indicator-category transform specs for derived feature extraction. Matches both pandas-ta (RSI_14) and TA-Lib/QuestDB (rsi) naming.",
+  "description": "Per-indicator-category transform specs for derived feature extraction. Matches both pandas-ta (RSI_14) and TA-Lib (rsi) naming.",
   "defaults": {
     "zscore_window": 50,
     "percentile_window": 100,

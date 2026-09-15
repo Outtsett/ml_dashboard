@@ -1,25 +1,28 @@
 /**
- * QuestDB ILP writer for `prediction_log` (W9.b).
+ * Prediction log writer for live deployments — RETIRED.
  *
- * Each live deployment emits one ILP row per scoring tick. The QuestDB DDL
- * for `prediction_log` ships in W9.d — this client assumes the table exists
- * at runtime; if it does not, the Sender will surface a server-side error
- * on flush.
+ * This wrote one ILP row per scoring tick into QuestDB's `prediction_log`.
+ * QuestDB was emptied and retired on 2026-09-10, and `prediction_log` is not
+ * even in the parquet snapshot the serving layer reads — it was one of the
+ * objects that held no rows worth carrying. There is nothing listening on
+ * :9000 and nothing to write into.
  *
- * Flush policy:
- *   auto_flush_rows=100, auto_flush_interval=1000ms — batches up to 100 rows
- *   per flush or every 1s, whichever comes first. Low enough latency for the
- *   1Hz polling loop in lifecycle.ts while still amortizing syscall cost
- *   when multiple deployments run concurrently.
+ * It raises rather than no-ops. An ILP Sender pointed at a dead port buffers
+ * happily and only fails on flush, which is exactly how a live deployment ends
+ * up reporting healthy for an hour while recording nothing. A deployment that
+ * cannot log its predictions should say so on the first tick.
  *
- * Singleton-per-process: ZMQ-like, a single Sender is reused. The Sender
- * itself is NOT thread-safe across concurrent table()/at() calls, but the
- * Node single-threaded event loop guarantees one in-flight write at a time
- * as long as callers `await` write().
+ * Restore path if prediction logging is needed again:
+ * `s3://meta/questdb_schema/questdb_schema_latest.sql` carries the original
+ * `prediction_log` DDL. The durable home for it is the lake — land it under
+ * `E:\lake\derived\recipe=<name>\` through datalake rather than reviving
+ * QuestDB.
  */
 
-import { Sender } from '@questdb/nodejs-client';
-import { QUESTDB_HOST, QUESTDB_HTTP_PORT } from '../infrastructure/database/questdb/connection';
+const RETIRED =
+  'QuestDB was retired on 2026-09-10 and prediction_log has no replacement yet. ' +
+  'Its DDL is at s3://meta/questdb_schema/questdb_schema_latest.sql; the durable ' +
+  'home for these rows is the lake, landed through datalake.';
 
 export interface PredictionLogRow {
   deployment_id: number;
@@ -32,53 +35,25 @@ export interface PredictionLogRow {
 }
 
 export class PredictionLog {
-  private sender: Sender | null = null;
-  private host = '127.0.0.1';
-  private port = 9000;
-
-  async init(host = QUESTDB_HOST, port = Number.parseInt(QUESTDB_HTTP_PORT, 10) || 9000): Promise<void> {
-    if (this.sender) return;
-    this.host = host;
-    this.port = port;
-    // ILP-over-HTTP (the canonical local QuestDB transport — same as the
-    // existing OHLCV writer in database/questdb/connection.ts).
-    const configStr = `http::addr=${host}:${port};auto_flush_rows=100;auto_flush_interval=1000;`;
-    this.sender = await Sender.fromConfig(configStr);
+  async init(_host?: string, _port?: number): Promise<void> {
+    throw new Error(`[predictionLog] init is not available. ${RETIRED}`);
   }
 
   async write(row: PredictionLogRow): Promise<void> {
-    if (!this.sender) {
-      await this.init();
-    }
-    if (!this.sender) {
-      throw new Error('[predictionLog] sender not initialized');
-    }
-    await this.sender
-      .table('prediction_log')
-      .symbol('deployment_id', String(row.deployment_id))
-      .floatColumn('prediction', row.prediction)
-      .floatColumn('confidence', row.confidence)
-      .floatColumn('paper_pnl_delta', row.paper_pnl_delta)
-      .floatColumn('paper_pnl_total', row.paper_pnl_total)
-      .at(row.ts, 'ms');
+    throw new Error(
+      `[predictionLog] cannot record deployment ${row.deployment_id}. ${RETIRED}`,
+    );
   }
 
-  async flush(): Promise<void> {
-    if (this.sender) {
-      await this.sender.flush();
-    }
-  }
+  /** No buffer to drain — write() never accepts a row. */
+  async flush(): Promise<void> {}
 
-  async close(): Promise<void> {
-    if (this.sender) {
-      await this.sender.close();
-      this.sender = null;
-    }
-  }
+  /** No sender to release. */
+  async close(): Promise<void> {}
 
-  /** Diagnostics — expose the endpoint without leaking the Sender. */
+  /** Diagnostics — there is no endpoint any more. */
   getEndpoint(): string {
-    return `http://${this.host}:${this.port}`;
+    return 'retired: QuestDB prediction_log (2026-09-10)';
   }
 }
 

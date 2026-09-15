@@ -45,7 +45,8 @@ async function liveFeedHealth() {
       '../../infrastructure/database/questdb/connection.js'
     );
     const rows = await queryQuestDB<{ latest: string | null; n: number }>(
-      `SELECT max(timestamp) latest, count() n FROM ${LIVE_BARS_TABLE}`,
+      // count() was QuestDB's spelling; DuckDB requires the argument.
+      `SELECT max(timestamp) latest, count(*) n FROM ${LIVE_BARS_TABLE}`,
     );
     const latest = rows[0]?.latest ? Date.parse(rows[0].latest) : null;
     const ageSeconds = latest === null ? null : (Date.now() - latest) / 1000;

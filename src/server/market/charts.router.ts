@@ -191,7 +191,7 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
           } else {
             anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE symbol = '${safeEsc}'`;
           }
-          const [row] = await queryQuestDBFast(anchorQuery); // 10s timeout for anchor
+          const [row] = await queryQuestDBFast<{ latest: Date | string | null }>(anchorQuery); // 10s timeout for anchor
           if (row?.latest) {
             const latestDate = row.latest instanceof Date ? row.latest.getTime() : new Date(String(row.latest)).getTime();
             if (!isNaN(latestDate)) {

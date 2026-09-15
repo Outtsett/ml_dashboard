@@ -5,6 +5,7 @@
  * Extracted from routes/backtest.ts for SRP: routes handle HTTP, this handles logic.
  */
 
+import { randomUUID } from "crypto";
 import { storage, getAssetType } from "../../storage";
 import { queryQuestDB as marketQuery } from "../../database/questdb";
 import {
@@ -75,6 +76,11 @@ export class BacktestError extends Error {
   }
 }
 
+function eventMetadata() {
+  const id = randomUUID().slice(0, 12);
+  return { correlationId: id, causationId: id, timestamp: Date.now() };
+}
+
 // ── Orchestrator ──────────────────────────────────────────────────────────────
 
 export async function runBacktestJob(req: BacktestRequest): Promise<BacktestResult> {
@@ -82,27 +88,21 @@ export async function runBacktestJob(req: BacktestRequest): Promise<BacktestResu
   const startTime = Date.now();
 
   // 1. Emit Start Event to Global Bus
-  //
-  // NOTE: these three getEventBus().emit() calls (start/success/failure below)
-  // do not conform to the real DomainEvent/PipelineEvent contract in
-  // @shared/event-types.ts — 'backtest' is not a member of PipelineType
-  // ('training' | 'ingestion' | 'deployment'), the metadata shape here
-  // ({source, ts}) doesn't match EventMetadata ({correlationId, causationId,
-  // timestamp}), and the 'pipeline.completed'/'pipeline.failed' data payloads
-  // below don't match those event variants' declared data shapes either.
-  // Typing these honestly means either changing what's actually emitted
-  // (a runtime behavior change, out of scope for a typing-only pass) or
-  // extending shared/event-types.ts (out of scope — src/shared/ is off limits
-  // for this pass). Left as `any` deliberately; flagged for a follow-up
-  // decision rather than forced.
   getEventBus().emit({
-    type: "pipeline.started" as any,
+    type: "pipeline.started",
     data: {
       pipelineId: symbol,
-      pipelineType: "backtest" as any,
-      config: req as any
+      pipelineType: "backtest",
+      config: {
+        symbol,
+        timeframe: req.timeframe ?? "1m",
+        modelId: req.modelId ?? null,
+        strategy: req.strategy?.name ?? null,
+        start: req.start ?? null,
+        end: req.end ?? null,
+      },
     },
-    metadata: { source: "backtest-orchestrator", ts: startTime } as any
+    metadata: eventMetadata(),
   });
 
   try {
@@ -152,30 +152,36 @@ export async function runBacktestJob(req: BacktestRequest): Promise<BacktestResu
       throw new BacktestError(`No broker config found for asset type: ${assetType}`, 400);
     }
 
-    // 3. Load OHLCV data from QuestDB
+    // 3. Load OHLCV data from the lake.
+    // The column is `timestamp`, not `ts` — `ts` is only the output alias the
+    // backtester reads.
     const interval = TIMEFRAME_TO_INTERVAL[timeframe] || "INTERVAL '1 minute'";
     let whereClause = `WHERE symbol = '${symbol}'`;
-    if (start) whereClause += ` AND ts >= '${start}'`;
-    if (end) whereClause += ` AND ts <= '${end}'`;
+    if (start) whereClause += ` AND timestamp >= '${start}'`;
+    if (end) whereClause += ` AND timestamp <= '${end}'`;
 
     let ohlcvData: OHLCVBar[] = [];
     if (timeframe === "1m") {
       ohlcvData = await marketQuery<OHLCVBar>(`
-        SELECT epoch_ms(ts)::DOUBLE AS ts, open, high, low, close, CAST(volume AS DOUBLE) AS volume
+        SELECT epoch_ms(timestamp)::DOUBLE AS ts, open, high, low, close, CAST(volume AS DOUBLE) AS volume
         FROM ohlcv ${whereClause}
-        ORDER BY ts ASC
+        ORDER BY 1 ASC
       `);
     } else {
+      // arg_min/arg_max, not FIRST/LAST: DuckDB's FIRST and LAST are
+      // order-unspecified within a group, so on a bucket spanning many rows
+      // they can return any of them and the bar's open/close would drift
+      // between runs without ever raising.
       ohlcvData = await marketQuery<OHLCVBar>(`
         SELECT
-          epoch_ms(time_bucket(${interval}, ts))::DOUBLE AS ts,
-          FIRST(open) AS open,
+          epoch_ms(time_bucket(${interval}, timestamp))::DOUBLE AS ts,
+          arg_min(open, timestamp) AS open,
           MAX(high) AS high,
           MIN(low) AS low,
-          LAST(close) AS close,
+          arg_max(close, timestamp) AS close,
           CAST(SUM(volume) AS DOUBLE) AS volume
         FROM ohlcv ${whereClause}
-        GROUP BY time_bucket(${interval}, ts)
+        GROUP BY time_bucket(${interval}, timestamp)
         ORDER BY 1 ASC
       `);
     }
@@ -236,22 +242,12 @@ export async function runBacktestJob(req: BacktestRequest): Promise<BacktestResu
       status: "completed",
     });
 
-    // Bulk insert trades
-    //
-    // NOTE: `storage.createBacktestTrades` does not exist — the real method is
-    // `storage.insertBacktestTrades` (see storage/backtesting.ts /
-    // storage/types.ts IBacktestStorage). This call has always thrown a
-    // TypeError at runtime whenever a backtest produced any trades; the `any`
-    // cast was masking a genuine pre-existing bug, not a typing gap. Renaming
-    // it would change runtime behavior (throw -> succeed), which is out of
-    // scope for this typing-only pass — left as-is and flagged for a
-    // follow-up fix decision.
+    // Bulk insert trades. This called `storage.createBacktestTrades`, which has
+    // never existed — every backtest that produced a trade threw here, hidden
+    // behind an `any` cast. `insertBacktestTrades` is the storage method.
     if (backtest.trades.length > 0) {
-      await (storage as any).createBacktestTrades(
-        backtest.trades.map((t: any) => ({
-          ...t,
-          backtestRunId: run.id,
-        }))
+      await storage.insertBacktestTrades(
+        backtest.trades.map((t) => ({ ...t, backtestRunId: run.id })),
       );
     }
 
@@ -268,29 +264,35 @@ export async function runBacktestJob(req: BacktestRequest): Promise<BacktestResu
       },
     };
 
-    // 7. Emit Success Event (see NOTE above — same contract mismatch)
+    // 7. Emit Success Event
     getEventBus().emit({
-      type: "pipeline.completed" as any,
+      type: "pipeline.step.completed",
       data: {
         pipelineId: symbol,
         step: "simulation",
         stepIndex: 1,
         durationMs: Date.now() - startTime,
-        result: { tradeCount: result.tradeCount, pnl: result.metrics.totalReturn } as any
+        result: { tradeCount: result.tradeCount, totalReturn: result.metrics.totalReturn },
       },
-      metadata: { source: "backtest-orchestrator", ts: Date.now() } as any
+      metadata: eventMetadata(),
+    });
+    getEventBus().emit({
+      type: "pipeline.completed",
+      data: { pipelineId: symbol, totalDurationMs: Date.now() - startTime },
+      metadata: eventMetadata(),
     });
 
     return result;
   } catch (error) {
-    // 8. Emit Failure Event (see NOTE above — same contract mismatch)
+    // 8. Emit Failure Event
     getEventBus().emit({
-      type: "pipeline.failed" as any,
+      type: "pipeline.failed",
       data: {
         pipelineId: symbol,
-        reason: (error as Error).message
-      } as any,
-      metadata: { source: "backtest-orchestrator", ts: Date.now() } as any
+        error: (error as Error).message,
+        failedStep: "simulation",
+      },
+      metadata: eventMetadata(),
     });
     throw error;
   }

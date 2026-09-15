@@ -1,5 +1,14 @@
 # Control Terminal — Phase 1: Machine & Processes Domain (Reference Implementation)
 
+> **Data-layer premise superseded (2026-09-10).** This spec was written against a local
+> QuestDB serving cache reached over HTTP `:9000` / ILP `:9009` / PG wire `:8812`. That store
+> was emptied and retired: all 41 objects were dropped after each was copied to parquet in the
+> lake and row-count verified (39/39 exact), and nothing may read or write it again. Market
+> data now lives in the Iceberg lake at `E:\lake` and is read **in-process by DuckDB**
+> (`from lake.serving import connect`). Everything below that names a database host, port,
+> Windows service, JVM process, WAL table, `SAMPLE BY`, materialized-view refresh or ILP
+> write is stale and must be re-derived against the lake before it is built.
+
 > **Status:** DESIGN spec (A5 deep-dive). No source modified. All process/port/service
 > numbers below are from **real read-only diagnostics** sampled 2026-07-21/22 on this machine
 > (`Get-CimInstance Win32_Process`, `netstat -ano`, `sc query`, `Get-Service`). No synthetic data.
@@ -37,7 +46,7 @@ with zero duplication:
 | `read` | no state change (list, classify, snapshot, scan) | runs immediately, no gate — agent *and* tile |
 | `write` | reversible-ish state change (kill one proc, clean a safelisted temp dir, restart a service) | **human confirm required**; agent may only `propose` |
 | `dangerous` | wide-blast or hard-to-undo (kill-tree, stop QuestDB, clean a path near `data/`) | human confirm **with typed target echo**; agent proposes, never auto-approves |
-| `forbidden` | never allowed via this surface (delete under `data/models`, QuestDB data dir, git-tracked files) | capability refuses at validation; not exposed as an executable action |
+| `forbidden` | never allowed via this surface (delete under `data/models`, **anything under `E:\lake`**, git-tracked files) | capability refuses at validation; not exposed as an executable action |
 
 **Non-negotiable invariants for Phase 1:**
 1. Every `write`/`dangerous` capability produces an **audit row** (who/what/target/before-state/result) before and after execution.

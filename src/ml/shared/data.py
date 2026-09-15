@@ -2,9 +2,9 @@
 OHLCV loading from the lake — shared across all ML model packages.
 
 Reads through `lake.serving.connect()` — DuckDB with `bars` over the Iceberg
-table and one view per former QuestDB table. Returns numpy arrays directly.
-QuestDB was emptied and retired on 2026-09-10; the HTTP /exp and PG-wire paths
-that used to live here went with it.
+table plus the per-table serving views. Every query runs in-process against
+``E:/lake``; there is no database server to reach and no network hop.
+Returns numpy arrays directly.
 
 Public entry points:
   - load_ohlcv_arrays(symbol, timeframe, max_bars=0, date_range=None)
@@ -74,11 +74,10 @@ _SERVING = None
 
 
 def _serving():
-    """DuckDB over the lake, carrying the former QuestDB tables as views.
+    """DuckDB over the lake, carrying every serving table as a view.
 
-    QuestDB was emptied on 2026-09-10 after every table was copied to parquet in
-    the lake and row-count verified. Built once per process: the cost is a glob
-    of the snapshot prefix plus one Iceberg catalog round trip.
+    Built once per process: the cost is a glob of the snapshot prefix plus one
+    Iceberg catalog round trip.
     """
     global _SERVING
     if _SERVING is None:
@@ -91,9 +90,8 @@ def _serving():
 def _build_sample_sql(symbol: str, interval: str, max_bars: int, date_range: dict | None) -> str:
     """Bars at `interval`, read from the lake through DuckDB.
 
-    Where QuestDB kept a materialized view for the timeframe, read THAT rather
-    than re-aggregating: it is the same rows QuestDB's SAMPLE BY returned, and
-    it was copied into the snapshot with everything else. Only an interval with
+    Where the lake already carries a pre-aggregated view for the timeframe, read
+    THAT rather than re-aggregating — same rows, no work. Only an interval with
     no such view is recomputed, and then through lake.serving.resample_sql,
     which uses arg_min/arg_max on the timestamp because DuckDB's first()/last()
     are order-unspecified inside a group.
@@ -123,9 +121,8 @@ def load_ohlcv_arrays(
     """Load OHLCV from the lake into numpy arrays.
 
     Strategy:
-      1. HTTP /exp + Polars CSV parser (default, fastest)
-      2. PG wire chunked fallback if HTTP fails
-      3. Front-month volume-based stitching if no data for the exact symbol
+      1. One DuckDB query over the lake, materialized straight into Polars
+      2. Front-month volume-based stitching if no data for the exact symbol
 
     Returns dict::
         {"open": np.ndarray, "high": np.ndarray, "low": np.ndarray,

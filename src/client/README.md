@@ -12,7 +12,7 @@ graph TD
     Pages --> MarketData["Market Data<br/>Charts + Indicators"]
     Pages --> Training["Training<br/>Live metrics + Analytics"]
     Pages --> MLStudio["ML Studio<br/>Model management"]
-    Pages --> Databases["Databases<br/>QuestDB explorer"]
+    Pages --> Databases["Databases<br/>Lake explorer"]
     Pages --> Backtest["Backtest<br/>Walk-forward + Monte Carlo"]
     Pages --> Other["Portfolio, News, Hardware,<br/>Settings, Terminals, ..."]
 
@@ -74,7 +74,7 @@ src/client/
 | `/` | MarketData | Candlestick charts, 151 indicators, regime overlays |
 | `/ml-studio` | MLStudio | Model management dashboard |
 | `/model-catalog` | ModelCatalog | 300+ model specs browser |
-| `/databases` | Databases | QuestDB explorer, query console, upload |
+| `/databases` | Databases | Lake explorer, query console, upload |
 | `/portfolio` | Portfolio | Position tracking, allocation, trade history |
 | `/watchlist` | Watchlist | Symbol watchlist |
 | `/news` | News | News feed with sentiment |

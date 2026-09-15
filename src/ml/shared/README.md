@@ -7,7 +7,7 @@ Shared Python utilities used across all ML model packages. Contains feature engi
 | File | Purpose |
 |---|---|
 | `protocol.py` | JSON stdout event emitters: `emit_metric`, `emit_done`, `emit_progress`, `emit_overlay`, `emit_model_state`, `emit_metric_declarations`, `emit_error`. The communication bridge between Python and Node.js. |
-| `data.py` | QuestDB OHLCV loading via PG wire (psycopg2). Fetches raw bars for training. |
+| `data.py` | OHLCV loading from the Iceberg lake via DuckDB (`lake.serving.connect()`, in-process). Fetches raw bars for training. |
 | `data_mbp.py` | MBP-10 order book data loading |
 | `features.py` | Config-driven feature computation: 35 features across 10 categories. Reads `src/config/features.json` via dispatch table. Numba JIT rolling stats. `normalize_features()` uses O(1) memory online rolling z-score. |
 | `normalizer.py` | Feature classification (8 types) + transform functions: rolling_zscore, scale_bounded, pct_from_close, price_ratio, cumulative_roc. Constants: `ROLLING_WINDOW=50`, `CLIP_RANGE=5.0`. |

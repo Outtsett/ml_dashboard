@@ -96,7 +96,11 @@ export function clearLabelSourceCache(): void {
 
 async function listTables(): Promise<Set<string>> {
   if (tableNameCache) return tableNameCache;
-  const rows = await queryQuestDB<{ table_name: string }>('SELECT table_name FROM tables()');
+  // Was `FROM tables()`, a QuestDB function. Every serving object lives in
+  // DuckDB's `main` schema.
+  const rows = await queryQuestDB<{ table_name: string }>(
+    "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main'",
+  );
   tableNameCache = new Set(rows.map(r => String(r.table_name)));
   return tableNameCache;
 }
@@ -116,7 +120,8 @@ interface Coverage { rowCount: number; start: number; end: number }
 async function probeCoverage(table: string, predicate: string): Promise<Coverage | null> {
   try {
     const rows = await queryQuestDB<Record<string, unknown>>(
-      `SELECT count() AS c, min(timestamp) AS mn, max(timestamp) AS mx FROM ${table} WHERE ${predicate}`,
+      // `count()` was QuestDB's spelling; DuckDB requires the argument.
+      `SELECT count(*) AS c, min(timestamp) AS mn, max(timestamp) AS mx FROM ${table} WHERE ${predicate}`,
     );
     const row = rows[0];
     if (!row) return null;
@@ -162,11 +167,12 @@ async function buildStitchedFrom(root: string, table: string): Promise<string | 
         AND timestamp <= '${r.end}T23:59:59.999999Z'`;
   });
 
-  // A UNION ALL loses the designated-timestamp property, and SAMPLE BY refuses
-  // a base query without one ("base query does not provide designated
-  // TIMESTAMP column"). Ordering the union and re-declaring the designated
-  // column with TIMESTAMP(...) restores it.
-  return `(\n${parts.join('\nUNION ALL\n')}\nORDER BY timestamp\n) TIMESTAMP(timestamp)`;
+  // The trailing `TIMESTAMP(timestamp)` is gone with QuestDB. It existed only
+  // because a UNION ALL lost QuestDB's designated-timestamp property and its
+  // SAMPLE BY refused a base query without one; DuckDB has no such concept and
+  // the clause is a parser error there. The ORDER BY stays — callers downstream
+  // read these rows in time order.
+  return `(\n${parts.join('\nUNION ALL\n')}\nORDER BY timestamp\n)`;
 }
 
 // ─── Resolution ─────────────────────────────────────────────────────────────

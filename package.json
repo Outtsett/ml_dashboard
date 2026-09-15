@@ -46,6 +46,7 @@
   "dependencies": {
     "@ai-sdk/react": "^4.0.61",
     "@anthropic-ai/claude-agent-sdk": "^0.2.138",
+    "@duckdb/node-api": "^1.5.5-r.4",
     "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",

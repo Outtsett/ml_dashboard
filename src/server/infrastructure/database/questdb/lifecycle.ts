@@ -1,84 +1,63 @@
-import { logInfo } from "../../lib/log";
 /**
- * QuestDB Process Manager - Desktop/Local Version
+ * Serving-layer lifecycle.
  *
- * Assumes QuestDB is already installed and running locally.
- * No auto-download or process spawning needed.
- * Just checks connectivity to the existing QuestDB instance.
+ * There is no process to manage any more. QuestDB was an externally-managed
+ * Windows service on :9000; the replacement is an in-process DuckDB over the
+ * lake, so "is it running" collapses to "is the lake reachable and are the
+ * views defined" — a live probe, never a boot-time flag.
+ *
+ * The function names are the QuestDB ones because callers outside this
+ * directory import them; a later pass handles renaming.
  */
 
-const QUESTDB_HTTP_PORT = process.env.QUESTDB_HTTP_PORT || '9000';
-const QUESTDB_HOST = process.env.QUESTDB_HOST || 'localhost';
+import { checkQuestDBHealth, getServingLocation, getServingViewNames } from "./connection";
+import { logInfo } from "../../lib/log";
 
-// Last-known connectivity, refreshed by every live probe. On desktop QuestDB is
-// an externally-managed service (nssm), so this is never a process we own — the
-// only honest "is it up" signal is a live HTTP probe, not a one-shot boot flag.
+/** Last-known reachability, refreshed by every live probe. */
 let connected = false;
 
-/**
- * Single live connectivity probe with a hard timeout. The previous
- * implementation used a bare `fetch` with no AbortController, so a half-open
- * socket could hang the caller indefinitely. 2s is generous for a localhost
- * `SELECT 1`.
- */
-async function probeQuestDB(timeoutMs = 2000): Promise<boolean> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(
-      `http://${QUESTDB_HOST}:${QUESTDB_HTTP_PORT}/exec?query=SELECT%201`,
-      { signal: controller.signal }
-    );
-    connected = response.ok;
-  } catch {
-    connected = false;
-  } finally {
-    clearTimeout(timer);
-  }
+async function probe(): Promise<boolean> {
+  connected = await checkQuestDBHealth();
   return connected;
 }
 
+/**
+ * Verify the serving layer can answer.
+ *
+ * Nothing is started — the first probe builds the DuckDB catalog if it has not
+ * been built yet, which is the whole of "startup" now.
+ */
 export async function startQuestDB(): Promise<{ started: boolean; error?: string }> {
-  // For desktop: QuestDB should already be running as a local service.
-  // We just verify connectivity.
   try {
-    const isReady = await waitForQuestDB(10000);
-    if (isReady) {
-      connected = true;
+    if (await probe()) {
+      const { snapshot } = getServingLocation();
+      logInfo(`[lake] Serving layer verified: ${getServingViewNames().length} views over ${snapshot}`);
       return { started: true };
-    } else {
-      return {
-        started: false,
-        error: 'QuestDB not reachable. Please ensure QuestDB is running locally.'
-      };
     }
+    const { endpoint, snapshot } = getServingLocation();
+    return {
+      started: false,
+      error:
+        `Lake not reachable at ${endpoint} (snapshot ${snapshot}). ` +
+        "QuestDB was retired on 2026-09-10; ensure AIStor is running.",
+    };
   } catch (error) {
     return {
       started: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     };
   }
 }
 
-async function waitForQuestDB(timeout: number): Promise<boolean> {
-  const start = Date.now();
-  const checkInterval = 1000;
-
-  while (Date.now() - start < timeout) {
-    if (await probeQuestDB()) {
-      logInfo('[QuestDB] Connection verified (external instance)');
-      return true;
-    }
-    await new Promise(resolve => setTimeout(resolve, checkInterval));
-  }
-
-  logInfo('[QuestDB] Could not connect to QuestDB - is it running?');
-  return false;
-}
-
+/**
+ * Drop the cached reachability flag.
+ *
+ * The DuckDB instance itself is deliberately left open — `closeQuestDB()` in
+ * connection.ts owns that, and tearing the catalog down here would make the
+ * next read pay a full rebuild for a status toggle.
+ */
 export function stopQuestDB(): void {
-  // No-op: we don't manage the QuestDB process on desktop
-  logInfo('[QuestDB] Desktop mode: QuestDB lifecycle managed externally');
+  logInfo("[lake] Serving layer is in-process; nothing to stop");
   connected = false;
 }
 
@@ -91,15 +70,14 @@ export async function getQuestDBProcessStatus(): Promise<{
   pid: number | undefined;
   uptime: string;
 }> {
-  // Live-probe rather than trusting a boot-time flag: QuestDB is an external
-  // service we never spawn, so `connected` is only meaningful when refreshed
-  // against the running instance. Without this, the dashboard reported
-  // "not connected" on every boot even though QuestDB was fully serving,
-  // because `connected` was only ever set by an explicit POST /questdb/start.
-  const isUp = await probeQuestDB();
+  // Live-probe rather than trusting a cached flag: the lake is an external
+  // service this process never spawns, so `connected` is only meaningful when
+  // refreshed against it.
+  const isUp = await probe();
   return {
     running: isUp,
-    pid: undefined,
-    uptime: isUp ? 'running (external)' : 'not connected'
+    // In-process DuckDB — this server's own pid, not a database daemon's.
+    pid: isUp ? process.pid : undefined,
+    uptime: isUp ? "running (in-process DuckDB over the lake)" : "lake not reachable",
   };
 }

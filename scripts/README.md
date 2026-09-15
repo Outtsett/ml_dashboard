@@ -7,16 +7,15 @@
 ### Data Ingestion
 | Script | Language | Description |
 |---|---|---|
-| `ingest-futures.ts` | TypeScript | Futures OHLCV data ingestion to QuestDB |
-| `ingest-forex.ts` | TypeScript | Forex data ingestion to QuestDB |
-| `ingest-oanda.ts` | TypeScript | Oanda API forex data ingestion |
-| `ingest-trades.ts` | TypeScript | Trade-level data ingestion |
-| `ingest-mbp10.ts` | TypeScript | MBP-10 order book data ingestion |
+New data lands in `E:\lake\raw\vendor=<name>\` write-once with a `.sha256`
+sidecar (`datalake/scripts/land_raw.py`) and is promoted into the Iceberg
+tables from there. A fetch that writes anywhere else has to be done again.
+
+| Script | Language | Description |
+|---|---|---|
 | `ingest_dbn.py` | Python | Databento DBN format ingestion |
 | `ingest_forex.py` | Python | Forex data ingestion (Python path) |
 | `convert-dbn-trades.py` | Python | Convert DBN trade files |
-| `upload-tickdata-questdb.cjs` | JavaScript | Upload tick data to QuestDB |
-| `upload-trades-questdb.py` | Python | Upload trade data to QuestDB |
 
 ### ML Research & Visualization
 | Script | Language | Description |
@@ -31,13 +30,31 @@
 | `test_primitives.py` | Python | Primitives discovery model test |
 
 ### Database Maintenance
-| Script | Language | Description |
+
+The lake needs none of the maintenance a server did: no process to start, no
+schema to migrate, no tables to drop. SQLite schema changes go through
+`npm run db:push`.
+
+### Retired — do not run
+
+These still sit in this directory but their target store no longer exists.
+Every one of them starts, feeds, migrates or reads a database that holds zero
+tables; running one connects to a dead endpoint. They are queued for deletion.
+
+| Script | Language | Was |
 |---|---|---|
-| `dump-questdb-parquet.py` | Python | Export QuestDB tables to parquet (monthly partition fetch) |
-| `cleanup_questdb.py` | Python | Drop non-OHLCV tables (idempotent, --dry-run) |
-| `migrate-questdb-schema.py` | Python | QuestDB schema migration |
-| `start-questdb.js` | JavaScript | Start QuestDB process |
-| `start-questdb.sh` | Bash | Start QuestDB process (Unix) |
+| `ingest-futures.ts` | TypeScript | Futures OHLCV ingestion over ILP |
+| `ingest-forex.ts` | TypeScript | Forex ingestion over ILP |
+| `ingest-oanda.ts` | TypeScript | OANDA API forex streaming over ILP |
+| `ingest-trades.ts` | TypeScript | Trade-level ingestion over ILP |
+| `ingest-mbp10.ts` | TypeScript | MBP-10 order book ingestion over ILP |
+| `upload-trades-questdb.py` | Python | Bulk trade upload over HTTP `/imp` |
+| `dump-questdb-parquet.py` | Python | Export to parquet (superseded — the lake IS parquet) |
+| `cleanup_questdb.py` | Python | Drop non-OHLCV tables |
+| `migrate-questdb-schema.py` | Python | Schema migration |
+| `backup-questdb.py` | Python | Backup (superseded — see the retirement note in `docs/runbooks/`) |
+| `start-questdb.js` | JavaScript | Start the database process |
+| `start-questdb.sh` | Bash | Start the database process (Unix) |
 
 ### Seeding & Setup
 | Script | Language | Description |
@@ -57,7 +74,7 @@
 |---|---|---|
 | `inspect-sources.ts` | TypeScript | Inspect source data files |
 | `check_mnq_data.py` | Python | Verify MNQ data quality |
-| `check_cols.py` | Python | Check QuestDB column schemas |
+| `check_cols.py` | Python | Check lake table column schemas |
 | `count_trading_days.py` | Python | Count trading days in dataset |
 | `data_reader.py` | Python | Generic data file reader |
 
@@ -69,7 +86,6 @@ npx tsx scripts/seed-instruments.ts
 
 # Python scripts (use project venv)
 python scripts/feature-research.py --symbol MNQ --timeframe 1m --source parquet
-python scripts/dump-questdb-parquet.py --tables ohlcv --symbols MNQ
 python scripts/visualize-regimes.py --model latest
 python scripts/training_monitor.py --port 8050
 ```

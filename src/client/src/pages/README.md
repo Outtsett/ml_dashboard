@@ -9,7 +9,7 @@
 | `/` | `MarketData.tsx` | Main charting page: candlestick charts, 151 indicators, regime overlays, subchart panels |
 | `/ml-studio` | `MLStudio.tsx` | ML model management: dashboard + trades tabs |
 | `/model-catalog` | `ModelCatalog.tsx` | Browse 300+ model specs with taxonomy filtering |
-| `/databases` | `Databases.tsx` | QuestDB explorer: table list, query console, data upload |
+| `/databases` | `Databases.tsx` | Lake explorer: table list, query console, data upload |
 | `/portfolio` | `Portfolio.tsx` | Portfolio: positions, allocation, trade history |
 | `/watchlist` | `Watchlist.tsx` | Symbol watchlist |
 | `/news` | `News.tsx` | News feed with sentiment analysis |
@@ -17,7 +17,7 @@
 | `/terminals` | `Terminals.tsx` | Embedded terminal sessions (xterm.js + node-pty) |
 | `/fourier` | `FourierTransform.tsx` | FFT + Hilbert transform analysis on price data |
 | `/architecture` | `ArchitectureExplorer.tsx` | ML architecture comparison (Transformer, LSTM, XGBoost, Hybrid) |
-| `/settings` | `Settings.tsx` | App preferences, QuestDB config, training settings, server status |
+| `/settings` | `Settings.tsx` | App preferences, market-data config, training settings, server status |
 | `*` | `not-found.tsx` | 404 page |
 
 ## Multi-File Pages
@@ -37,12 +37,12 @@ Complex pages are split into subdirectories:
 - `PipelineOverview.tsx` — Training pipeline overview
 
 ### `databases/`
-- `TableList.tsx` — QuestDB table browser
+- `TableList.tsx` — Lake table browser
 - `TablePreview.tsx` — Table data preview
 - `QueryConsole.tsx` — SQL query console
 - `StatsCards.tsx` — Database statistics
 - `UploadTab.tsx` — File upload interface
-- `QuestDBControls.tsx` — QuestDB lifecycle controls
+- `QuestDBControls.tsx` — store lifecycle controls. The lake has no process to start or stop; pending removal with the `src/client` port.
 
 ### `backtest/`
 - `ConfigPanel.tsx` — Backtest configuration
@@ -55,7 +55,7 @@ Complex pages are split into subdirectories:
 
 ### `settings/`
 - `PreferencesTab.tsx` — User preferences
-- `QuestDBConfigTab.tsx` — QuestDB connection config
+- `QuestDBConfigTab.tsx` — market-data connection config. The lake needs no host/port/credential; pending removal with the `src/client` port.
 - `TrainingSettingsTab.tsx` — Training defaults
 - `ServerStatusTab.tsx` — Server health
 - `PerformanceTab.tsx` — Performance settings

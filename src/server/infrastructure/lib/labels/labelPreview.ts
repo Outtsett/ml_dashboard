@@ -139,7 +139,7 @@ export async function previewLabels(
     // balance numbers for the stratification check.
     const distSQL = `
       WITH label_data AS (${labelSQL})
-      SELECT CAST(label AS STRING) AS label_key, count() AS cnt
+      SELECT CAST(label AS VARCHAR) AS label_key, count(*) AS cnt
       FROM label_data
       GROUP BY label_key
     `;

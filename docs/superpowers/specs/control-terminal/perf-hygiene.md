@@ -1,11 +1,20 @@
 # Control Terminal — Performance / Hygiene / Frameworks Track (A6)
 
+> **Data-layer premise superseded (2026-09-10).** This spec was written against a local
+> QuestDB serving cache reached over HTTP `:9000` / ILP `:9009` / PG wire `:8812`. That store
+> was emptied and retired: all 41 objects were dropped after each was copied to parquet in the
+> lake and row-count verified (39/39 exact), and nothing may read or write it again. Market
+> data now lives in the Iceberg lake at `E:\lake` and is read **in-process by DuckDB**
+> (`from lake.serving import connect`). Everything below that names a database host, port,
+> Windows service, JVM process, WAL table, `SAMPLE BY`, materialized-view refresh or ILP
+> write is stale and must be re-derived against the lake before it is built.
+
 **Scope:** Design/audit only. No source was modified. Linters were run in report mode
 (no `--fix` applied, nothing committed). Findings are captured, categorized, and
 prioritized into a fix track for the Control Terminal build.
 
 **Repo:** `E:\source\repos\ml_dashboard` — Electron 34 + React 19 + Vite 7 + Tailwind 4 +
-NestJS 11/Express 5 + Python 3.13 ML engine; QuestDB + DuckDB + PostgreSQL (TypeORM) +
+NestJS 11/Express 5 + Python 3.13 ML engine; the Iceberg lake read by DuckDB + PostgreSQL (TypeORM) +
 SQLite (Drizzle); uv-managed venv.
 
 **Acronyms used in this doc:** LRU (Least-Recently-Used), TTL (Time-To-Live),
@@ -158,7 +167,7 @@ On a 200M+ row root this is the single heaviest query in the app (its own commen
 "the heaviest single query in the pipeline", 30s timeout). It runs on the **default Market
 page cold load**, so first paint can exceed the route's own 15s timeout → `504`.
 
-It *is* cached (`OHLCVCache.key('questdb', 'fm_MNQ', 'ranges_full')`, 60-min TTL) — but the
+It *is* cached (`OHLCVCache.key('market', 'fm_MNQ', 'ranges_full')`, 60-min TTL) — but the
 cache is a shared 500-entry LRU that chart scrolling churns, and it is **empty on every
 fresh server boot**, which is exactly the cold-start the user hits.
 
@@ -167,7 +176,7 @@ responses can go out as MessagePack (~50% smaller), and large PG-wire reads are
 month-chunked. The cost is purely the full-history daily-volume scan.
 
 **Fix (highest impact in this whole document):** replace the on-demand 200M-row scan with a
-**QuestDB materialized view** of daily volume per (root, symbol):
+**Pre-aggregated lake view** of daily volume per (root, symbol):
 
 ```sql
 CREATE MATERIALIZED VIEW front_month_daily AS
@@ -181,7 +190,7 @@ SAMPLE BY 1d
 `getFullFrontMonthRanges` then reads a few thousand pre-aggregated daily rows and runs the
 identical leader-detection JS on them — the 200M-row scan disappears. This is exactly the
 "time-bucket aggregate → materialized view" rule already codified in the repo's own schema
-section (candle-anatomy is already a mat view for the same reason). QuestDB refreshes the
+section (candle-anatomy is already a mat view for the same reason). The lake refreshes the
 view incrementally on ingest, so it stays current with whatever ILP feed writes for free.
 
 - **Effort:** M (create + backfill the mat view, repoint `getFullFrontMonthRanges`, verify
@@ -198,7 +207,7 @@ move, not a new pattern.
 `useSystemManifest.ts` `refetchInterval` was already changed 1000ms → 30000ms (it was
 `count()`-ing an 863M-row table every second). Confirmed fixed. **For the terminal:** do
 NOT re-introduce fast polling of any `count()`-class query. Row counts should come from
-QuestDB partition metadata / cached snapshots, never a live full scan on an interval.
+Iceberg partition metadata / cached snapshots, never a live full scan on an interval.
 
 **Takeaway:** The manifest lesson is the terminal's design constraint — heavy introspection
 is refreshed on a slow interval (or on-demand), streamed as deltas, never per-render-polled.
@@ -245,12 +254,12 @@ terminal turns previews into a tight interactive loop.
 
 Already parallel and correct: the `/ohlcv` route fires the health check and the anchor query
 concurrently (`Promise.all`), aborts on client disconnect, and stitching is a batched
-`UNION ALL`. **Do not** add a worker thread to the stitch — the bottleneck is I/O in QuestDB,
+`UNION ALL`. **Do not** add a worker thread to the stitch — the bottleneck is I/O in the store,
 not CPU in Node; a worker would just move the wait. The correct parallelism lever here is the
 database (mat view), not the runtime.
 
 **Takeaway:** The Node side is already doing the right async things. Speed comes from the
-QuestDB query shape, not from more threads.
+query shape, not from more threads.
 
 ### 2.6 Speed items — effort/impact summary
 
@@ -412,4 +421,4 @@ terminal; Phase 2 = alongside; Phase 3 = standing debt.
 **Single highest-impact change:** Item #2 — the `front_month_daily` materialized view.
 Expected win: Market page cold-start `/api/charts/ohlcv` drops from **~11–18s (often a 504
 timeout) to sub-500ms**, by replacing an on-demand 200M+-row full-history daily-volume scan
-with an incrementally-refreshed QuestDB mat view that the range builder reads in milliseconds.
+with a pre-aggregated lake view that the range builder reads in milliseconds.

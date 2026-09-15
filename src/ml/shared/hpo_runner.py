@@ -74,7 +74,7 @@ def _preload_feature_cache(model_type: str, training_args: dict[str, Any]) -> No
 
     Per-trial subprocesses share the same OHLCV + feature matrix (only
     hyperparameters change). Pre-warming the cache means trial 1 hits the
-    cache instead of querying QuestDB. No-op when the cache is already warm.
+    cache instead of re-reading the lake. No-op when the cache is already warm.
     """
     if model_type.lower() not in _MODEL_ENTRYPOINTS:
         return

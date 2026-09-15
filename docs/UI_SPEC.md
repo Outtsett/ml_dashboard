@@ -27,7 +27,7 @@ The UI is **100% Data-Driven**. It does not have hardcoded screens for specific 
 The UI consumes the **Manifest Service** (`/api/system/manifest`) to adjust its capabilities based on:
 - **Logical Threads**: Visualizing the 24-thread saturation.
 - **VRAM/RAM**: Throttling visual effects if resources are constrained.
-- **QuestDB Health**: Instantly switching to "Fallback Mode" if the speed layer is offline.
+- **Lake Health**: Instantly switching to "Fallback Mode" if the serving layer cannot reach the lake.
 
 ---
 
@@ -45,7 +45,7 @@ The UI consumes the **Manifest Service** (`/api/system/manifest`) to adjust its 
 ### **The "Pulse" HUD**
 - **Latency**: Sub-10ms propagation.
 - **Technology**: SSE (Server-Sent Events) + Direct REST Pulse.
-- **Visual**: "Alive" indicators that pulse Emerald when ingested data flushes into QuestDB.
+- **Visual**: "Alive" indicators that pulse Emerald when ingested data is promoted into the lake.
 
 ---
 
@@ -67,7 +67,7 @@ The UI consumes the **Manifest Service** (`/api/system/manifest`) to adjust its 
 
 ### **C. System Observatory**
 - **Hardware Page**: Real-time 24-thread load distribution visualizer.
-- **Infrastructure Page**: QuestDB table lineage, storage auditing, and cache hit-rates.
+- **Infrastructure Page**: lake table lineage, storage auditing, and cache hit-rates.
 
 ---
 

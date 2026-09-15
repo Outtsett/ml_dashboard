@@ -71,7 +71,7 @@ export async function estimateTimeWindow(
       sql = `SELECT max(timestamp) as latest FROM ${baseTable} WHERE root = '${safeEsc}'`;
     }
 
-    const [row] = await queryQuestDB(sql);
+    const [row] = await queryQuestDB<{ latest: Date | string | null }>(sql);
     if (!row?.latest) return undefined;
 
     const latestMs =
@@ -137,14 +137,14 @@ export async function queryOHLCV(params: OHLCVQueryParams): Promise<NormalizedOH
       getOHLCVSampleBy(symbol, tfLabel, effectiveStart, effectiveEnd, limitNum),
     );
 
-    return data.map((r: any) => ({
+    return data.map((r) => ({
       timestamp: normalizeTimestamp(r.timestamp),
       open: Number(r.open),
       high: Number(r.high),
       low: Number(r.low),
       close: Number(r.close),
       volume: Number(r.volume),
-      activeContract: r.activeContract || r.symbol,
+      activeContract: ("activeContract" in r && r.activeContract) || ("symbol" in r ? r.symbol : undefined),
     }));
   } catch (qdbErr) {
     console.warn('[ohlcv] QuestDB query failed:', (qdbErr as Error).message);

@@ -160,10 +160,6 @@ function createAppMenu(mainWindow) {
           accelerator: "CmdOrCtrl+`",
           click: () => sendAction(mainWindow, "open-terminal"),
         },
-        {
-          label: "Open QuestDB Console",
-          click: () => shell.openExternal("http://localhost:9000"),
-        },
         { type: "separator" },
         {
           label: "Restart Server",

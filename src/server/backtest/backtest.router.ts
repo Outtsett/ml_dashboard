@@ -238,15 +238,22 @@ router.post('/backtest/walk-forward', async (req: Request, res: Response) => {
 
     // Load OHLCV data
     const interval = TIMEFRAME_TO_INTERVAL[timeframe] || TIMEFRAME_TO_INTERVAL['1m'];
+    // The column is `timestamp`, not `ts` — `ts` is only the output alias these
+    // queries hand the backtester.
     let whereClause = `WHERE symbol = '${symbol}'`;
-    if (start) whereClause += ` AND ts >= '${start}'`;
-    if (end) whereClause += ` AND ts <= '${end}'`;
+    if (start) whereClause += ` AND timestamp >= '${start}'`;
+    if (end) whereClause += ` AND timestamp <= '${end}'`;
 
+    // arg_min/arg_max, not FIRST/LAST: DuckDB's FIRST and LAST are
+    // order-unspecified within a group, so a bucket spanning many rows can
+    // return any of them and the bar's open would drift between runs without
+    // ever raising. arg_min(open, timestamp) is "the open at the earliest
+    // timestamp in this bucket", which is what a bar means.
     let ohlcvSql: string;
     if (timeframe === '1m') {
-      ohlcvSql = `SELECT epoch_ms(ts)::DOUBLE AS ts, open, high, low, close, CAST(volume AS DOUBLE) AS volume FROM ohlcv ${whereClause} ORDER BY ts ASC`;
+      ohlcvSql = `SELECT epoch_ms(timestamp)::DOUBLE AS ts, open, high, low, close, CAST(volume AS DOUBLE) AS volume FROM ohlcv ${whereClause} ORDER BY 1 ASC`;
     } else {
-      ohlcvSql = `SELECT epoch_ms(time_bucket(${interval}, ts))::DOUBLE AS ts, FIRST(open) AS open, MAX(high) AS high, MIN(low) AS low, LAST(close) AS close, CAST(SUM(volume) AS DOUBLE) AS volume FROM ohlcv ${whereClause} GROUP BY time_bucket(${interval}, ts) ORDER BY 1 ASC`;
+      ohlcvSql = `SELECT epoch_ms(time_bucket(${interval}, timestamp))::DOUBLE AS ts, arg_min(open, timestamp) AS open, MAX(high) AS high, MIN(low) AS low, arg_max(close, timestamp) AS close, CAST(SUM(volume) AS DOUBLE) AS volume FROM ohlcv ${whereClause} GROUP BY time_bucket(${interval}, timestamp) ORDER BY 1 ASC`;
     }
 
     const bars = await marketQuery<{ ts: number; open: number; high: number; low: number; close: number; volume: number }>(ohlcvSql);
@@ -358,10 +365,10 @@ router.post('/backtest/benchmark', async (req: Request, res: Response) => {
     const testEnd = run.testEndTimestamp;
 
     let whereClause = `WHERE symbol = '${symbol}'`;
-    if (testStart) whereClause += ` AND ts >= epoch_ms(${testStart})`;
-    if (testEnd) whereClause += ` AND ts <= epoch_ms(${testEnd})`;
+    if (testStart) whereClause += ` AND timestamp >= epoch_ms(${testStart})`;
+    if (testEnd) whereClause += ` AND timestamp <= epoch_ms(${testEnd})`;
 
-    const ohlcvSql = `SELECT epoch_ms(ts)::DOUBLE AS ts, open, high, low, close, CAST(volume AS DOUBLE) AS volume FROM ohlcv ${whereClause} ORDER BY ts ASC`;
+    const ohlcvSql = `SELECT epoch_ms(timestamp)::DOUBLE AS ts, open, high, low, close, CAST(volume AS DOUBLE) AS volume FROM ohlcv ${whereClause} ORDER BY 1 ASC`;
     const bars = await marketQuery<{ ts: number; open: number; high: number; low: number; close: number; volume: number }>(ohlcvSql);
 
     if (bars.length === 0) {

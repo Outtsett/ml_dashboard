@@ -181,9 +181,6 @@ jobs:
 
       - name: Run pytest (excluding slow markers)
         run: uv run --with pytest-xdist pytest -m "not slow" -n auto --maxfail=10 -ra
-        env:
-          # Tests should not hit external services in CI.
-          OHLCV_DISABLE_QUESTDB: '1'
 
       - name: Run slow tests (informational only)
         continue-on-error: true

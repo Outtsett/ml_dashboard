@@ -32,7 +32,7 @@ flowchart TB
 
     subgraph DATA["Pre-Computed Data Layer (Read-Only)"]
         IND["Indicator Parquets\ndata/{futures|forex}/{symbol}/{tf}/\n10 category files × 344 cols"]
-        OHLCV["QuestDB OHLCV\n759.5M rows\n25 symbols × 8 timeframes"]
+        OHLCV["Lake OHLCV\n759.5M rows\n25 symbols × 8 timeframes"]
         FEAT["Feature Parquets\ndata/features/{futures|forex}/{symbol}/{tf}/\nnormalized.parquet"]
     end
 
@@ -84,7 +84,7 @@ flowchart TB
 | **Orchestrator** (`server/training/orchestrator.ts`)           | ✅ Built — session management, concurrent limits, SSE dispatch | None                                          |
 | **PythonRunner** (`server/training/runners/pythonRunner.ts`)   | ✅ Built — spawn, stdout parsing, timeout, cleanup             | Hardcoded HDP-HMM CLI flag map                |
 | **SSE streaming** (`routes/training.ts` + `useTrainingSSE.ts`) | ✅ Built — 10 endpoints, reconnect, replay                     | None                                          |
-| **Data Exporter** (`server/training/dataExporter.ts`)          | ✅ Built — QuestDB → parquet via DuckDB                        | Only exports OHLCV, not indicators/features   |
+| **Data Exporter** (`server/training/dataExporter.ts`)          | ✅ Built — lake → parquet via DuckDB                        | Only exports OHLCV, not indicators/features   |
 | **`models.json`**                                              | ❌ **EMPTY** `{ "version": 1, "models": {} }`                  | No model can train                            |
 | **`features.json`**                                            | ⚠️ Only `full-344` stub. No presets, no pipelines              | Can't select features                         |
 | **Parser registry** (`runners/parsers/index.ts`)               | ⚠️ Empty map — everything falls to DefaultParser               | No model-specific output parsing              |
@@ -252,10 +252,10 @@ FROM read_parquet([
   -- only the category files that contain requested columns
 ]);
 
--- 2. Read OHLCV from QuestDB
+-- 2. Read OHLCV from the lake
 CREATE TEMP TABLE ohlcv AS
 SELECT timestamp AS ts, open, high, low, close, volume
-FROM questdb.ohlcv_1d
+FROM ohlcv_1d
 WHERE symbol = 'ES'
   AND timestamp BETWEEN '2020-01-01' AND '2024-12-31'
 ORDER BY timestamp;
@@ -607,7 +607,7 @@ stateDiagram-v2
     note right of Assembling
         DuckDB in-memory reads
         1. Indicator parquets selected cols
-        2. OHLCV from QuestDB
+        2. OHLCV from the lake
         3. Computes label via SQL
         4. Exports training.parquet
     end note
@@ -1156,7 +1156,7 @@ scripts/
 
 | Decision                                             | Choice                   | Rationale                                                                                        |
 | ---------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------ |
-| **Data assembly happens server-side, not in Python** | TypeScript + DuckDB      | DuckDB is already in-process, can read parquets + QuestDB simultaneously, fastest path           |
+| **Data assembly happens server-side, not in Python** | TypeScript + DuckDB      | DuckDB is already in-process and reads the lake and loose parquets through one engine, fastest path           |
 | **One parser for all models**                        | `UniversalJsonParser`    | All runners emit the same JSON protocol — no per-model parsers needed (except legacy HDP-HMM)    |
 | **6 Python runner scripts, not 300**                 | Framework-based grouping | 300 models map to ~6 frameworks. The runner takes `--model ClassName` and imports dynamically    |
 | **Feature sets in JSON, not hardcoded**              | `features.json` presets  | Users can add new presets without code changes (OCP). Custom selection is a special "custom" key |

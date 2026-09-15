@@ -1,77 +1,71 @@
 /**
- * QuestDB HTTP API helpers.
+ * What used to be QuestDB's HTTP API (`/exec`, `/exp`, `/imp`).
  *
- * Use queryQuestDB() (PG wire) for standard SQL.
- * Use questdbHttpQuery() for HTTP-only features (e.g. SHOW COLUMNS).
+ * QuestDB is retired; these run against the DuckDB serving layer instead. The
+ * names and signatures are unchanged because callers outside this directory
+ * import them — a later pass handles renaming.
+ *
+ * `questdbHttpQuery` and `queryQuestDB` are now the same path. The QuestDB-era
+ * split existed because `/exec` could answer things PG wire could not
+ * (`SHOW COLUMNS`); DuckDB answers everything on one connection.
  */
 
-import { QUESTDB_HOST, QUESTDB_HTTP_PORT } from "./connection";
+import { queryQuestDB } from "./connection";
 
-const QUESTDB_HTTP_URL = `http://${QUESTDB_HOST}:${QUESTDB_HTTP_PORT}`;
-
-/**
- * Execute SQL via QuestDB HTTP API. Returns array of typed objects.
- * Prefer queryQuestDB() (PG wire) for most queries.
- * Use this for HTTP-only features like SHOW COLUMNS.
- */
+/** Execute SQL against the lake. Returns an array of typed row objects. */
 export async function questdbHttpQuery<T = Record<string, unknown>>(sql: string): Promise<T[]> {
-  const resp = await fetch(`${QUESTDB_HTTP_URL}/exec?query=${encodeURIComponent(sql)}`);
-  if (!resp.ok) {
-    const body = await resp.text();
-    throw new Error(`QuestDB HTTP query failed (${resp.status}): ${body.slice(0, 200)}`);
-  }
-  const json = await resp.json() as {
-    columns: Array<{ name: string; type: string }>;
-    dataset: unknown[][];
-    count: number;
-  };
-  if (!json.dataset || json.dataset.length === 0) return [];
-  const colNames = json.columns.map(c => c.name);
-  return json.dataset.map(row => {
-    const obj: Record<string, unknown> = {};
-    for (let i = 0; i < colNames.length; i++) {
-      obj[colNames[i]!] = row[i];
-    }
-    return obj as T;
-  });
+  return queryQuestDB<T>(sql);
 }
 
 /**
- * Export query results as CSV string via QuestDB HTTP /exp endpoint.
+ * Export query results as a CSV string.
+ *
+ * QuestDB's `/exp` endpoint did this server-side. DuckDB's own `COPY … TO` only
+ * writes files, so the rows are serialised here — RFC 4180 quoting, `NULL`
+ * rendered as an empty field, timestamps as ISO-8601 UTC.
  */
 export async function questdbExportCSV(sql: string): Promise<string> {
-  const resp = await fetch(
-    `${QUESTDB_HTTP_URL}/exp?query=${encodeURIComponent(sql)}`
-  );
-  if (!resp.ok) {
-    const body = await resp.text();
-    throw new Error(`QuestDB CSV export failed (${resp.status}): ${body.slice(0, 200)}`);
+  const rows = await queryQuestDB<Record<string, unknown>>(sql);
+  if (rows.length === 0) return "";
+
+  const columns = Object.keys(rows[0]!);
+  const lines = [columns.map(csvField).join(",")];
+  for (const row of rows) {
+    lines.push(columns.map((column) => csvField(row[column])).join(","));
   }
-  return resp.text();
+  return `${lines.join("\r\n")}\r\n`;
+}
+
+function csvField(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const text =
+    value instanceof Date
+      ? value.toISOString()
+      : typeof value === "object"
+        ? JSON.stringify(value)
+        : String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 /**
- * Upload CSV file to QuestDB via /imp endpoint.
- * Returns the import response text.
+ * Retired. Nothing writes to the lake from this server.
+ *
+ * The QuestDB `/imp` endpoint it wrapped no longer exists. Land CSV through
+ * datalake instead: `scripts/land_raw.py` writes it write-once under
+ * `E:\lake\raw\vendor=<name>\` with a `.sha256` sidecar, and
+ * `scripts/migrate_to_iceberg.py` promotes it.
  */
 export async function questdbImportCSV(
   csvContent: Buffer | string,
   tableName: string,
-  opts: { timestamp?: string; partitionBy?: string; overwrite?: boolean } = {}
+  opts: { timestamp?: string; partitionBy?: string; overwrite?: boolean } = {},
 ): Promise<string> {
-  const form = new FormData();
-  const blob = new Blob([csvContent], { type: "text/csv" });
-  form.append("data", blob);
-
-  let url = `${QUESTDB_HTTP_URL}/imp?name=${encodeURIComponent(tableName)}`;
-  if (opts.timestamp) url += `&timestamp=${encodeURIComponent(opts.timestamp)}`;
-  if (opts.partitionBy) url += `&partitionBy=${encodeURIComponent(opts.partitionBy)}`;
-  if (opts.overwrite) url += `&overwrite=true`;
-
-  const resp = await fetch(url, { method: "POST", body: form });
-  if (!resp.ok) {
-    const body = await resp.text();
-    throw new Error(`QuestDB /imp failed (${resp.status}): ${body.slice(0, 200)}`);
-  }
-  return resp.text();
+  void [csvContent, opts];
+  throw new Error(
+    `[lake] questdbImportCSV('${tableName}') is not available. QuestDB was retired on ` +
+      "2026-09-10 and this server is read-only over the lake. Land CSV through datalake " +
+      "(scripts/land_raw.py, then scripts/migrate_to_iceberg.py). Restore path if QuestDB " +
+      "is ever needed again: s3://meta/questdb_schema/questdb_schema_latest.sql plus the " +
+      "parquet at s3://derived/recipe=questdb_full_2026-09-09/.",
+  );
 }
