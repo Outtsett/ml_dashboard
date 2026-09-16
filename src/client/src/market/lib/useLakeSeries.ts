@@ -191,7 +191,15 @@ export function useLakeSeries({ symbol, timeframe, bars, visibleRange }: UseLake
   }, [loadedRange, visibleRange]);
 
   const requestedIds = useMemo(
-    () => selectedIds.filter((id) => columnsById.has(id)).slice(0, LAKE_SERIES_LIMIT),
+    () =>
+      selectedIds
+        // A column the catalog no longer draws drops out of a stored selection
+        // rather than sitting in the list explaining why it is empty.
+        .filter((id) => {
+          const entry = columnsById.get(id);
+          return entry !== undefined && entry.column.unavailableReason === undefined;
+        })
+        .slice(0, LAKE_SERIES_LIMIT),
     [selectedIds, columnsById],
   );
 

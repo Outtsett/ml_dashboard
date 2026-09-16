@@ -27,6 +27,7 @@ import { queryRateLimiter } from "../infrastructure/lib/rateLimiter";
 import {
   CATALOG_MISSING_MESSAGE,
   loadSeriesCatalog,
+  onSeriesCatalogReload,
   type CatalogIndex,
 } from "./seriesCatalog";
 import {
@@ -98,6 +99,10 @@ const seriesCache = new LRUCache<string, SeriesResponse["series"][number]>({
   max: 400,
   ttl: 5 * 60_000,
 });
+
+// A rebuilt catalog can change how a column is drawn, or drop it entirely, so
+// values cached under the old one are no longer answers to the same question.
+onSeriesCatalogReload(() => seriesCache.clear());
 
 interface WindowRequest {
   symbol: string;

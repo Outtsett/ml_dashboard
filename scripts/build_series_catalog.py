@@ -47,6 +47,21 @@ FOREX_SAMPLE_SYMBOL = "EURUSD"
 EVENT_OBJECTS = {"mnq_swing_5m", "mnq_tbl_5m", "talib_candle_patterns"}
 DIMENSION_OBJECTS = {"symbols"}
 
+# Objects the chart does not draw, because it already draws the same thing from
+# the bars on screen. Excluding them keeps one indicator from appearing twice,
+# computed two different ways over two different windows.
+CHART_EXCLUDED_OBJECTS = {
+    "ta_indicators_1m": (
+        "The chart computes these natively from the bars on screen — rsi, macd, bbands, "
+        "atr, obv, ema, sma and vwap are all in the indicator list. This view covers only "
+        "a sliver of MNQ, so the lake copy would disagree with the native one."
+    ),
+    "mnq_zigzag_1m": (
+        "The chart draws its own causal zigzag from the bars on screen — the ZZ toggle in "
+        "the toolbar."
+    ),
+}
+
 # Objects whose every column is computed from bars after the one it sits on.
 LABEL_OBJECTS = {"mnq_labels_1m", "mnq_labels_1m_new"}
 
@@ -467,7 +482,9 @@ def measure_object(connection: Any, name: str, symbol: str, sample_rows: int) ->
         mode = choose_render_mode(column, family, shape, name, fired_fraction)
 
         unavailable = None
-        if column in (timestamp_column,):
+        if name in CHART_EXCLUDED_OBJECTS:
+            unavailable = CHART_EXCLUDED_OBJECTS[name]
+        elif column in (timestamp_column,):
             unavailable = "This is the time axis itself."
         elif family == "reference" or shape == "text":
             unavailable = "Identifies the row rather than measuring anything."
