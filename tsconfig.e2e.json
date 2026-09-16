@@ -1,0 +1,33 @@
+{
+  /*
+   * Typechecking for the end-to-end suite.
+   *
+   * Separate from the root tsconfig on purpose. The root `include` drives
+   * `npm run check` (`tsc --noEmit`) over the shipped application, and adding
+   * `e2e/**` there would pull `@playwright/test`'s globals and node-only types
+   * into the same program as the browser client — `types: ["node",
+   * "vite/client"]` would have to grow, and a spec's `test`/`expect` would
+   * become ambient for application code that must never see them.
+   *
+   * So the specs get their own program with the same strictness, and
+   * `npm run check:e2e` runs it. Without this file the specs are never
+   * typechecked at all: the root program excludes them, and ESLint's config
+   * scopes to `src/`.
+   */
+  "extends": "./tsconfig.json",
+  "include": ["e2e/**/*.ts", "playwright.config.ts", "scripts/*.mjs"],
+  "exclude": ["node_modules", "dist", "test-results", "playwright-report"],
+  "compilerOptions": {
+    "noEmit": true,
+    /* Playwright's runner is the consumer here, not Vite. `vite/client` brings
+       `import.meta.env` typings the specs have no use for; `node` is what a
+       spec actually touches (process.env, path, fs in the config). */
+    "types": ["node"],
+    /* The suite is authored as ESM and run by Playwright's own loader, which
+       resolves `.ts` specifiers directly. */
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "checkJs": false
+  }
+}

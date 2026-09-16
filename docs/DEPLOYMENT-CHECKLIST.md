@@ -72,14 +72,18 @@ Audited against the 12 production lifecycles on 2026-05-28 — see Section 11 fo
 
 ## 5. Build
 
-- [ ] **Quality gates first** (block on failure):
+- [ ] **Quality gates first** (block on failure). One command runs all twelve
+      stages and prints a pass/fail table; it mirrors `.github/workflows/ci.yml`
+      stage for stage, so a green run here predicts a green run there:
   ```bash
-  npm run check          # tsc --noEmit
-  npm run lint           # ruff (py) + eslint (ts), --max-warnings 0
-  npm run check:architecture   # architecture_validator.ts
-  npm test               # vitest run
-  uv run pytest -m "not slow"  # python unit tests
+  npm run ci             # lint · typecheck · architecture · ruff · vitest · pytest · build · smoke · e2e
+  npm run ci:local:fast  # same, minus build/smoke/e2e
+  node scripts/ci-local.mjs --list
   ```
+  > **GitHub Actions has not run since 2026-08-25** — every run is
+  > `startup_failure` with zero jobs, an account/billing condition rather than a
+  > YAML defect. Until it is cleared, `npm run ci` **is** the gate. See
+  > `docs/CI-CD.md`.
 - [ ] **Build the app**:
   ```bash
   npm run build          # vite client → dist/public ; esbuild server → dist/index.cjs (CJS, node22, minified)
@@ -105,6 +109,30 @@ Pick the path for the target:
 > process is spawned. Close-to-tray + `/health` watchdog auto-restart a wedged backend.
 
 ## 7. Verify — smoke test
+
+- [ ] **Automated smoke** — builds (or reuses `dist/`), starts the server on a
+      free port, probes it, tears it down. Exits non-zero on any required probe:
+  ```bash
+  npm run smoke                     # build + boot + probe
+  node scripts/smoke.mjs --no-build # reuse the dist/ you have
+  node scripts/smoke.mjs --keep-alive --port 5099
+  ```
+  It checks: the artifact boots and binds · `/health` is 200 · `/` serves the SPA
+  shell with a `#root` mount point and a hashed bundle · **the bundle loads when
+  the request carries an `Origin` header** · `/api/instruments` returns the
+  catalog · `/api/docs/json` has paths · an unmounted `/api` path 404s as JSON ·
+  SQLite is up.
+
+  > The `Origin` probe exists because the CORS allow-list was hardcoded to port
+  > 5000 while `PORT` is configurable, so on any other port the server rejected
+  > its own bundle with a 500 and rendered a blank page — while `/health` stayed
+  > green and every unit test passed.
+
+- [ ] **End-to-end** — the app in a real browser (`e2e/README.md`):
+  ```bash
+  npm run test:e2e        # 91 tests, ~1.6 min
+  npm run test:e2e:smoke  # the @smoke subset
+  ```
 
 - [ ] **Health endpoint** returns healthy:
   ```bash

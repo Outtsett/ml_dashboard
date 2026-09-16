@@ -13,9 +13,69 @@ permissions:
   contents: read
 
 jobs:
+  # ── Stage 0: refuse to release a commit CI has not passed ──────────────────
+  #
+  # release.yml triggers on push to master with no relationship to ci.yml, so a
+  # commit that failed every gate still cut a tag, built three installers and
+  # published them. This job asks GitHub what the CI workflow concluded for THIS
+  # exact SHA and fails if the answer is anything but success.
+  #
+  # It waits rather than reading once, because both workflows start from the same
+  # push and CI takes minutes — checking immediately would always find it still
+  # running.
+  ci-gate:
+    name: Require CI green
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Wait for the CI workflow on this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          deadline=$(( $(date +%s) + 2400 ))   # 40 minutes
+
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            payload=$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?head_sha=$SHA&per_page=1" \
+              --jq '.workflow_runs[0] | {status: .status, conclusion: .conclusion, url: .html_url}' 2>/dev/null || echo '')
+
+            if [ -z "$payload" ] || [ "$payload" = "null" ]; then
+              echo "No CI run found for $SHA yet; waiting..."
+              sleep 30
+              continue
+            fi
+
+            status=$(echo "$payload" | jq -r .status)
+            conclusion=$(echo "$payload" | jq -r .conclusion)
+            url=$(echo "$payload" | jq -r .url)
+
+            if [ "$status" != "completed" ]; then
+              echo "CI is $status for $SHA ($url); waiting..."
+              sleep 30
+              continue
+            fi
+
+            if [ "$conclusion" = "success" ]; then
+              echo "CI succeeded for $SHA ($url) — releasing."
+              exit 0
+            fi
+
+            echo "::error::CI concluded '$conclusion' for $SHA ($url). Refusing to release."
+            exit 1
+          done
+
+          echo "::error::Timed out waiting for CI to complete on $SHA. Refusing to release."
+          exit 1
+
   # ── Stage 1: release-please drafts/promotes the release PR ─────────────────
   release-please:
     name: Release-please
+    needs: [ci-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -80,7 +140,11 @@ jobs:
         with:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: ${{ matrix.artifact_glob }}
-          fail_on_unmatched_files: false
+          # Fail loudly. With this false, an electron-builder run that produced
+          # no installer attached nothing and the job still went green — the
+          # release page would simply be missing a platform and nobody would know
+          # until someone tried to download it.
+          fail_on_unmatched_files: true
 
   # ── Stage 3: SBOM + provenance for every release ───────────────────────────
   sbom:
@@ -103,9 +167,15 @@ jobs:
 
       - run: npm ci --legacy-peer-deps --no-audit --no-fund --ignore-scripts
 
+      # Pinned, not @latest. Every `uses:` in this repository is SHA-pinned; this
+      # line was the one place a release reached outside the lockfiles and
+      # executed whatever the registry served at that moment — inside a job
+      # holding `contents: write`. An SBOM exists to state exactly what shipped,
+      # so generating it with an unpinned tool undercuts the artifact's whole
+      # purpose.
       - name: Generate CycloneDX SBOM (npm)
         run: |
-          npx --yes @cyclonedx/cyclonedx-npm@latest \
+          npx --yes @cyclonedx/cyclonedx-npm@6.0.1 \
             --output-file sbom-npm.cyclonedx.json \
             --output-format JSON
 
@@ -114,4 +184,5 @@ jobs:
         with:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: sbom-npm.cyclonedx.json
-          fail_on_unmatched_files: false
+          # A release with no SBOM is a release that cannot state what it ships.
+          fail_on_unmatched_files: true

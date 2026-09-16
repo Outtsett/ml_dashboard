@@ -18,12 +18,24 @@
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://127.0.0.1:5000/health && cross-env NODE_ENV=development electron .\"",
     "check": "tsc --noEmit",
     "check:watch": "tsc --noEmit --watch",
+    "check:e2e": "tsc --noEmit -p tsconfig.e2e.json",
     "db:push": "npx drizzle-kit push",
     "test": "vitest run",
     "test:watch": "vitest",
+    "//e2e": "End-to-end. `test:e2e` builds first because the server serves dist/public in production mode and refuses to start without it.",
+    "test:e2e": "npm run build && playwright test",
+    "test:e2e:only": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:smoke": "playwright test --grep @smoke",
+    "test:e2e:hermetic": "playwright test --grep-invert \"@lake|@stream\"",
+    "test:e2e:report": "playwright show-report",
+    "e2e:install": "playwright install --with-deps chromium",
+    "smoke": "node scripts/smoke.mjs",
     "test:ci": "vitest run --exclude \"tests/client/**\" --reporter=dot",
     "test:coverage": "vitest run --coverage --exclude \"tests/client/**\" --exclude \"**/performance.test.ts\" --reporter=dot",
-    "ci": "npm run lint:ci && npm run check && npm run lint:py:check && npm run test:ci && npm run test:coverage && npm run check:architecture && npm run build",
+    "ci": "node scripts/ci-local.mjs",
     "lint:py:check": "python -m ruff check src/ml/ scripts/",
     "lint": "npm run lint:py && npm run lint:ts",
     "lint:py": "python -m ruff check --fix src/ml/ scripts/",
@@ -34,7 +46,12 @@
     "lint:ci": "node scripts/lint-budget.mjs",
     "lint:baseline": "node scripts/lint-budget.mjs --update",
     "deps:report": "node scripts/dependency-report.mjs",
-    "prepare": "husky"
+    "prepare": "husky",
+    "ci:local": "node scripts/ci-local.mjs",
+    "ci:local:fast": "node scripts/ci-local.mjs --fast",
+    "//ci": "Single source of truth for \"is this green?\". scripts/ci-local.mjs mirrors .github/workflows/ci.yml stage for stage; the old hand-chained list drifted from CI (it ran check:architecture, which CI did not; CI ran ruff format --check and widened ruff check, which it did not).",
+    "test:e2e:a11y": "playwright test e2e/specs/a11y",
+    "test:e2e:a11y:record": "cross-env A11Y_UPDATE_BASELINE=1 playwright test e2e/specs/a11y"
   },
   "lint-staged": {
     "src/**/*.{ts,tsx}": [
@@ -176,6 +193,8 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@playwright/test": "^1.58.2",
     "@swc-node/register": "^1.11.1",
     "@swc/cli": "^0.8.0",
     "@tailwindcss/vite": "^4.1.14",

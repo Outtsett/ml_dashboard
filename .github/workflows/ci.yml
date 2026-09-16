@@ -57,6 +57,18 @@ jobs:
       - name: tsc --noEmit
         run: npx tsc --noEmit
 
+      # The root tsconfig deliberately excludes e2e/ (its `types` are node-only
+      # and its globals must not leak into the app program), so without this step
+      # the end-to-end specs are never typechecked by anything.
+      - name: tsc --noEmit (end-to-end suite)
+        run: npm run check:e2e
+
+      # Module-boundary rules. This is in `npm run ci` locally but had no CI step,
+      # so its two import-direction rules were enforced on developer machines and
+      # nowhere else — exactly backwards.
+      - name: Architecture boundaries
+        run: npm run check:architecture
+
   lint-py:
     name: Lint (Python)
     runs-on: ubuntu-latest
@@ -70,8 +82,15 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      # Pinned, and pinned to a version the project actually allows.
+      # This used to be ruff==0.7.4 while pyproject.toml declares `ruff>=0.14,<1`
+      # — seven minor versions apart. That is not cosmetic for `format --check`:
+      # the formatter's output changed between those releases, so a developer
+      # could format with the project's own ruff, commit a clean tree, and still
+      # watch CI report the same files as unformatted. Keep this in step with the
+      # pyproject constraint whenever either moves.
       - name: Install Ruff (pinned)
-        run: pip install ruff==0.7.4
+        run: pip install ruff==0.15.7
 
       - name: Ruff check
         run: ruff check src/ml/ scripts/ mcp_server/ tests/
@@ -110,20 +129,26 @@ jobs:
       # second measures coverage, and must skip performance.test.ts — v8
       # instrumentation puts a 1500ms wall-clock budget at ~4100ms, so a coverage
       # run would fail it every time while the code under test is unchanged.
-      # tests/client is quarantined below rather than here.
+      # The client suite runs in the SAME gate as the rest — see the note below.
       - name: Vitest (assertions)
-        run: npx vitest run --exclude "tests/client/**" --reporter=dot
+        run: npx vitest run --reporter=dot
 
       - name: Vitest (coverage thresholds)
         run: npx vitest run --coverage --exclude "tests/client/**" --exclude "**/performance.test.ts" --reporter=dot
 
-      # Quarantine, not a silent skip: these fail today because the
-      # architecture-explorer modules they import are still being written. The
-      # step reports red in the log without failing the build, and comes out of
-      # quarantine the moment those modules land.
-      - name: Vitest (client, quarantined)
-        continue-on-error: true
-        run: npx vitest run tests/client --reporter=dot
+      # NOTE (2026-09-16): tests/client used to run here under
+      # `continue-on-error: true`, quarantined because 17 of its files imported
+      # `@/system/architecture-explorer/**` modules that were "still being
+      # written". Those modules were never written — commit 4735f60 resolved the
+      # red by DELETING all 17 tests. What was left has been green ever since:
+      # 21 files, 235 tests, ~6.6s. The quarantine was therefore protecting
+      # nothing and hiding 235 real assertions from the gate, so the exclusion is
+      # gone and the client tests are gated like everything else.
+      #
+      # The coverage run above still excludes them, for a different and still
+      # valid reason: coverage thresholds were measured over the server/shared
+      # surface, and folding jsdom component tests in would move the ratchet
+      # without anyone deciding to.
 
       - name: Upload coverage artifact
         if: matrix.os == 'ubuntu-latest'
@@ -164,6 +189,141 @@ jobs:
           path: dist/
           retention-days: 7
           if-no-files-found: error
+
+  # ── Deployment smoke: does the built artifact actually RUN? ────────────────
+  smoke:
+    name: Deployment Smoke
+    runs-on: ubuntu-latest
+    needs: [build]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install
+        run: npm ci --legacy-peer-deps
+
+      # Reuse the artifact the build job already produced rather than spending
+      # another 70s rebuilding it. This also makes the smoke test a check on the
+      # EXACT bytes that were built, which is the point of a smoke test.
+      - name: Download build artifact
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        with:
+          name: build-${{ github.sha }}
+          path: dist/
+
+      # Only four of the 44 tables in src/shared/schema.ts self-create at boot
+      # (enforce-sqlite-invariants covers the CHECK-constraint tables). Without
+      # this, markOrphanedSessionsFailed() queries a training_sessions table that
+      # does not exist and the boot path throws.
+      - name: Create the SQLite schema
+        run: npm run db:push
+
+      # `npm run build` proves files were produced. This proves they boot, bind a
+      # port, serve the client shell, serve the hashed bundle WITH an Origin
+      # header, and answer the API. Those are different failures, and the build
+      # job cannot see any of them.
+      - name: Smoke the built artifact
+        run: node scripts/smoke.mjs --no-build
+
+  # ── End-to-end: the app in a real browser ──────────────────────────────────
+  e2e:
+    name: End-to-End (Playwright)
+    runs-on: ubuntu-latest
+    needs: [build]
+    timeout-minutes: 30
+    env:
+      # Never 5000. Keeps a CI run and a developer's local dashboard from ever
+      # being the same conversation, and matches the local default.
+      E2E_PORT: '5099'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # `--legacy-peer-deps` and NO `--ignore-scripts`, same as every other job:
+      # better-sqlite3, zeromq, node-pty and @duckdb/node-api resolve native
+      # bindings in postinstall, and the server's module graph imports all four
+      # at boot. Skipping scripts here produces a "cannot find module" from deep
+      # inside an unrelated file.
+      - name: Install
+        run: npm ci --legacy-peer-deps
+
+      - name: Download build artifact
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        with:
+          name: build-${{ github.sha }}
+          path: dist/
+
+      - name: Create the SQLite schema
+        run: npm run db:push
+
+      # Pinned to the exact @playwright/test version so the browser revision and
+      # the runner never drift. `--with-deps` installs the shared libraries
+      # Chromium needs on a bare ubuntu image.
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('./package.json').devDependencies['@playwright/test'].replace(/[^0-9.]/g,'')")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      # Even on a cache hit the OS-level shared libraries are not cached, so the
+      # dependency install still has to run.
+      - name: Install browser system dependencies
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      # `@lake` is excluded, and that exclusion is the honest part of this job.
+      # Those specs read the Iceberg lake at E:\lake through DuckDB; a GitHub
+      # runner has no lake, so they would fail for an environmental reason and
+      # teach everyone to ignore a red E2E job. Everything else — the full route
+      # sweep, all sixteen navigation journeys, the API contract, the SSE
+      # handshake, accessibility — runs here for real.
+      - name: Run end-to-end suite
+        run: npx playwright test --grep-invert @lake
+        env:
+          CI: 'true'
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-report-${{ github.sha }}
+          path: playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      # Traces, videos and screenshots — only written on failure, and the single
+      # most useful thing to have when a browser test fails on a machine you
+      # cannot see.
+      - name: Upload failure traces
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-traces-${{ github.sha }}
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore
 
   test-py:
     name: Unit Tests (Python)
@@ -207,7 +367,11 @@ jobs:
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [static, lint-py, test, test-py, build]
+    # Every gate that must be green for the ref to be considered good. A job
+    # missing from this list is a job branch protection cannot see — adding a
+    # workflow job without adding it here makes the required check pass while
+    # the job is red.
+    needs: [static, lint-py, test, test-py, build, smoke, e2e]
     if: always()
     timeout-minutes: 1
     steps:

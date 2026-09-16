@@ -1,0 +1,76 @@
+{
+  "readme": [
+    "Known-bad accessibility RULES, per route, recorded from a real scan.",
+    "The gate fails when a route triggers a rule NOT listed here \u2014 a new KIND of",
+    "violation. The numbers are node counts at record time, carried for information",
+    "only: they move with how many rows a data-driven page happens to have loaded,",
+    "so gating on them fails at random.",
+    "A rule may only ever be REMOVED from this file. Adding one means shipping a new",
+    "accessibility defect on purpose.",
+    "Re-record: A11Y_UPDATE_BASELINE=1 npx playwright test e2e/specs/a11y"
+  ],
+  "recordedAt": "2026-09-16",
+  "rules": [
+    "color-contrast",
+    "button-name",
+    "link-name",
+    "image-alt",
+    "aria-valid-attr-value",
+    "aria-required-attr",
+    "aria-required-children",
+    "duplicate-id-aria",
+    "label",
+    "html-has-lang"
+  ],
+  "counts": {
+    "/": {
+      "aria-valid-attr-value": 1,
+      "button-name": 1,
+      "color-contrast": 1
+    },
+    "/risk": {},
+    "/watchlist": {
+      "button-name": 24,
+      "color-contrast": 1
+    },
+    "/portfolio": {},
+    "/ml-studio": {
+      "button-name": 2,
+      "color-contrast": 15,
+      "label": 2
+    },
+    "/rl-console": {
+      "button-name": 1,
+      "color-contrast": 5
+    },
+    "/hpo": {
+      "button-name": 2
+    },
+    "/model-catalog": {
+      "button-name": 1
+    },
+    "/databases": {
+      "button-name": 3
+    },
+    "/lens": {
+      "button-name": 4,
+      "color-contrast": 5
+    },
+    "/marimo": {
+      "color-contrast": 1
+    },
+    "/glossary": {
+      "color-contrast": 44
+    },
+    "/operate": {
+      "color-contrast": 11
+    },
+    "/paper": {
+      "color-contrast": 1
+    },
+    "/news": {},
+    "/settings": {
+      "label": 4
+    }
+  }
+}

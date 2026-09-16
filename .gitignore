@@ -232,6 +232,15 @@ scripts/_*.py
 .playwright-mcp/
 outputs/
 
+# ── End-to-end run artifacts ─────────────────────────────────────────────────
+# Playwright writes traces, videos, screenshots and the HTML report per run.
+# A single failing route sweep produces tens of megabytes; none of it is source.
+# `e2e/` itself IS tracked — the specs, fixtures and route table are code.
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
 # ── Tool caches (never commit) ───────────────────────────────────────────────
 node_modules/.cache/
 .claude/state/
