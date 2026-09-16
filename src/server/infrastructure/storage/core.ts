@@ -41,7 +41,7 @@ export async function createUpload(upload: InsertUpload): Promise<Upload> {
 }
 
 export async function updateUploadStatus(id: number, status: string, recordCount?: number): Promise<void> {
-  const updateData: any = { status };
+  const updateData: Partial<InsertUpload> = { status };
   if (recordCount !== undefined) updateData.recordCount = recordCount;
   await db.update(uploads).set(updateData).where(eq(uploads.id, id));
 }

@@ -6,7 +6,6 @@ import { ScrollArea } from "@/shared/ui/scroll-area";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from "@/shared/ui/empty";
 import { ErrorCard } from "@/shared/ui/error-card";
 import { Newspaper, Search, ExternalLink, Clock, RefreshCw, Star, Sparkles, Radio } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useInstruments } from "@/ml/lib/useRegimeData";
@@ -24,7 +23,6 @@ interface NewsItem {
 }
 
 export default function News() {
-  const queryClient = useQueryClient();
   const [selectedSymbol, setSelectedSymbol] = useState<string>("MNQ");
   const [searchQuery, setSearchQuery] = useState("");
   const [isStreaming, setIsStreaming] = useState(true);

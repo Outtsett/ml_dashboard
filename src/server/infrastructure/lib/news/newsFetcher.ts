@@ -19,6 +19,16 @@ export interface NewsItem {
   sentimentScore?: number;
 }
 
+/** One entry in Alpha Vantage's NEWS_SENTIMENT `feed` array (fields we read). */
+interface AlphaVantageFeedItem {
+  title: string;
+  summary?: string;
+  url: string;
+  source?: string;
+  time_published?: string;
+  overall_sentiment_score?: number | string;
+}
+
 /** Fetch news from Yahoo Finance RSS feed */
 export async function fetchYahooNews(symbol: string): Promise<NewsItem[]> {
   try {
@@ -75,8 +85,8 @@ export async function fetchAlphaVantageNews(symbol: string): Promise<NewsItem[]>
 
     if (!data.feed) return [];
 
-    return data.feed.slice(0, 15).map((item: any) => {
-      const sentimentScore = parseFloat(item.overall_sentiment_score || 0);
+    return data.feed.slice(0, 15).map((item: AlphaVantageFeedItem) => {
+      const sentimentScore = parseFloat(String(item.overall_sentiment_score ?? 0));
       let sentiment: Sentiment = 'neutral';
       if (sentimentScore > 0.15) sentiment = 'positive';
       else if (sentimentScore < -0.15) sentiment = 'negative';

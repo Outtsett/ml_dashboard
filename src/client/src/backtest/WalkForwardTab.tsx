@@ -4,7 +4,12 @@ import { ScrollArea } from "@/shared/ui/scroll-area";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
+import type { TooltipProps } from "recharts";
 import type { WalkForwardResult } from "@/backtest/types";
+
+type EquityLabelFormatterArgs = Parameters<
+  NonNullable<TooltipProps<number, string>["labelFormatter"]>
+>;
 
 interface WalkForwardTabProps {
   result: WalkForwardResult | null;
@@ -128,8 +133,11 @@ export function WalkForwardTab({ result, isPending }: WalkForwardTabProps) {
                   tickFormatter={(v: number) => `$${v.toLocaleString()}`} />
                 <Tooltip
                   contentStyle={{ backgroundColor: 'hsla(250, 25%, 14%, 0.95)', borderRadius: '8px', fontSize: '11px' }}
-                  formatter={(v: number) => [`$${v.toFixed(2)}`, 'Equity']}
-                  labelFormatter={(label: string, payload: any[]) => {
+                  // Annotated: without it the literal 'Equity' narrows the whole
+                  // Tooltip to TooltipProps<number, 'Equity'>, which no longer
+                  // matches the labelFormatter typed against <number, string>.
+                  formatter={(v: number): [string, string] => [`$${v.toFixed(2)}`, 'Equity']}
+                  labelFormatter={(label: EquityLabelFormatterArgs[0], payload: EquityLabelFormatterArgs[1]) => {
                     const w = payload?.[0]?.payload?.window;
                     return w ? `${label} (Window ${w})` : label;
                   }}

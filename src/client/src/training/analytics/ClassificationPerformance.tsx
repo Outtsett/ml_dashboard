@@ -5,7 +5,18 @@ import {
 } from "recharts";
 import { useTrainingModelState } from "@/shared/contexts/TrainingModelStateCtx";
 import { Clock, Zap, Target, BarChart3 } from "lucide-react";
-import type { MetricsSnapshot } from "@/training/lib/types";
+import type { MetricsBag, MetricsSnapshot } from "@/training/lib/types";
+
+/**
+ * The head-calibration reliability curve, written by the Python eval block as
+ * three parallel arrays. Bins with no samples carry a non-finite value, which
+ * serializes to `null` — those points are dropped rather than plotted as 0.
+ */
+interface CalibrationCurve {
+  bin_midpoints?: Array<number | null>;
+  observed_frequency?: Array<number | null>;
+  predicted_frequency?: Array<number | null>;
+}
 
 const TOOLTIP_STYLE = {
   fontSize: 10,
@@ -16,10 +27,10 @@ const TOOLTIP_STYLE = {
   backdropFilter: "blur(12px)"
 };
 
-export const ClassificationPerformance = memo(({ diagnostics }: { diagnostics: any }) => {
+export const ClassificationPerformance = memo(({ diagnostics }: { diagnostics: MetricsSnapshot | null }) => {
   const { modelStateHistory } = useTrainingModelState();
-  const snap = diagnostics || {};
-  const metrics = snap.best_metrics || snap.metrics || {};
+  const snap: MetricsSnapshot = diagnostics ?? {};
+  const metrics: MetricsBag = snap.best_metrics || snap.metrics || {};
 
   // 1. Loss Convergence Curve
   const lossData = useMemo(() => {
@@ -45,7 +56,7 @@ export const ClassificationPerformance = memo(({ diagnostics }: { diagnostics: a
   // hardcoded 5-point curve for every model, which looked like a well-calibrated
   // result no matter what the model actually did.
   const calibrationData = useMemo(() => {
-    const curve = snap.calibration_curve;
+    const curve = snap.calibration_curve as CalibrationCurve | undefined;
     if (!curve) return [];
     const mids: unknown[] = curve.bin_midpoints ?? [];
     const observed: unknown[] = curve.observed_frequency ?? [];

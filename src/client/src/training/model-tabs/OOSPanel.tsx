@@ -3,11 +3,11 @@
  */
 
 import { Progress } from "@/shared/ui/progress";
-import type { Diagnostics } from "@/training/lib/types";
+import type { Diagnostics, OOSResult } from "@/training/lib/types";
 import { getRegimeColor, getOosVerdict } from "@/training/lib/types";
 
 export function OOSPanel({ diagnostics: _diagnostics, oos, oosSimilarity, profileCorrelation }: {
-  diagnostics: Diagnostics; oos: any; oosSimilarity: number; profileCorrelation: number;
+  diagnostics: Diagnostics; oos: OOSResult | undefined; oosSimilarity: number; profileCorrelation: number;
 }) {
   if (!oos) {
     return <div className="h-[300px] flex items-center justify-center text-muted-foreground text-xs">No out-of-sample data</div>;
@@ -84,7 +84,7 @@ export function OOSPanel({ diagnostics: _diagnostics, oos, oosSimilarity, profil
         <div className="bg-white/[0.02] rounded-xl p-4 border border-white/5">
           <div className="text-[9px] text-muted-foreground/50 uppercase tracking-widest mb-3">Per-Regime Profile Correlation</div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-            {oos.profile_consistency.map((pc: any) => {
+            {oos.profile_consistency.map((pc) => {
               const c = getRegimeColor(pc.regime);
               return (
                 <div key={pc.regime} className="flex items-center gap-2 bg-black/20 rounded-lg p-2">

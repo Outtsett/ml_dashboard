@@ -5,9 +5,6 @@ import type { StoredEvent, NewEvent, EventMetadata } from '@shared/event-types';
 
 type DrizzleDb = BetterSQLite3Database<Record<string, unknown>>;
 
-/** Terminal event type suffixes — streams containing one of these are "complete". */
-const TERMINAL_SUFFIXES = ['.completed', '.failed', '.compensated'];
-
 /**
  * Convert a raw DB row into a typed StoredEvent.
  * `data` and `metadata` are stored as JSON strings — parse them here.

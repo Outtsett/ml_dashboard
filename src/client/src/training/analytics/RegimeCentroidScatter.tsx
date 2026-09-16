@@ -18,7 +18,11 @@ import {
   Cell,
   ZAxis,
 } from "recharts";
+import type { TooltipProps } from "recharts";
 import { ChartCard } from "./shared";
+
+type ScatterFormatterArgs = Parameters<NonNullable<TooltipProps<number, string>["formatter"]>>;
+type ScatterLabelFormatterArgs = Parameters<NonNullable<TooltipProps<number, string>["labelFormatter"]>>;
 
 const REGIME_FILLS = [
   "#E69F00", "#3b82f6", "#f59e0b", "#0072B2", "#a855f7",
@@ -196,13 +200,13 @@ function RegimeCentroidScatterInner() {
               fontSize: 10,
               fontFamily: "monospace",
             }}
-            formatter={(_: any, name: string, props: any) => {
+            formatter={(_: ScatterFormatterArgs[0], name: ScatterFormatterArgs[1], props: ScatterFormatterArgs[2]) => {
               const d = props.payload;
               if (name === "x") return [d.x.toFixed(3), "PC1"];
               if (name === "y") return [d.y.toFixed(3), "PC2"];
               return [String(_), name];
             }}
-            labelFormatter={(_: any, payload: any[]) => {
+            labelFormatter={(_: ScatterLabelFormatterArgs[0], payload: ScatterLabelFormatterArgs[1]) => {
               const d = payload?.[0]?.payload;
               if (!d) return "";
               return `${d.label}: ${d.barCount} bars, Sharpe ${d.sharpe.toFixed(2)}`;

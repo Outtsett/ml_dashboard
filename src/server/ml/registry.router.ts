@@ -50,8 +50,6 @@ const router = Router();
 
 const StatusSchema = z.enum(['candidate', 'shadow', 'paper', 'live', 'retired']);
 
-const ModeSchema = z.enum(['shadow', 'paper', 'live']);
-
 /** Same timeframe enum used elsewhere in the API. */
 const TimeframeSchema = z.enum(['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w']);
 

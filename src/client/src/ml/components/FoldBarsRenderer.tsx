@@ -11,7 +11,7 @@ import { Bar } from '@visx/shape';
 import { Group } from '@visx/group';
 import { scaleLinear, scaleBand } from '@visx/scale';
 import { Text } from '@visx/text';
-import type { MetricSeriesEntry, RendererProps } from "@/ml/lib/diagnostics-schema";
+import type { RendererProps } from "@/ml/lib/diagnostics-schema";
 import { RendererShell, useShellProps } from './RendererShell';
 
 interface FoldData {
@@ -33,52 +33,6 @@ function parseFolds(value: RendererProps['metric']['value']): FoldData[] {
       }));
   }
   return [];
-}
-
-/** One run's fold bar within a grouped-by-fold overlay. */
-interface GroupedFoldBar {
-  runId: string;
-  label: string;
-  color: string;
-  metric_value: number;
-}
-interface FoldGroup {
-  fold: number;
-  bars: GroupedFoldBar[];
-}
-
-/**
- * Overlay mode drops the per-run train/val stacked-size bars (structurally
- * about the split, not the outcome, and comparing them across runs is not
- * the point of an overlay) and groups just `metric_value` per fold, one bar
- * per run — the TensorBoard-style comparison the plan asks for.
- */
-function buildFoldGroups(series: MetricSeriesEntry[]): FoldGroup[] {
-  const perRun = series.map((entry) => ({ entry, folds: parseFolds(entry.metric.value) }));
-
-  const foldNums: number[] = [];
-  const seen = new Set<number>();
-  for (const { folds } of perRun) {
-    for (const f of folds) {
-      if (!seen.has(f.fold)) {
-        seen.add(f.fold);
-        foldNums.push(f.fold);
-      }
-    }
-  }
-  foldNums.sort((a, b) => a - b);
-
-  return foldNums.map((fold) => ({
-    fold,
-    bars: perRun
-      .map(({ entry, folds }) => {
-        const found = folds.find((f) => f.fold === fold);
-        return found
-          ? { runId: entry.runId, label: entry.label, color: entry.color, metric_value: found.metric_value }
-          : null;
-      })
-      .filter((b): b is GroupedFoldBar => b != null),
-  }));
 }
 
 export function FoldBarsRenderer(props: RendererProps) {

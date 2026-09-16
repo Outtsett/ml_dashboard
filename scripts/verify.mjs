@@ -20,7 +20,7 @@
  *                      whole-program (see "pre-existing tsc debt" below),
  *                      and `vitest related` for affected tests only.
  *   --full            Whole-repo check: eslint over src/, ruff over
- *                      src/ml/+scripts/, tsc whole-program, full vitest run.
+ *                      every Python dir, tsc whole-program, full vitest run.
  *
  * Flags:
  *   --json            Emit a single machine-readable JSON object to stdout.
@@ -565,8 +565,11 @@ async function main() {
   checks.push(await checkEslint(tsTargets));
 
   // Ruff
+  // Every Python directory in the repo, not just the two that used to be listed:
+  // `mcp_server/` was outside the scope entirely and had accumulated five ruff
+  // problems that no gate here or in CI would ever have reported.
   const pyTargets = args.mode === 'full'
-    ? ['src/ml', 'scripts']
+    ? ['src/ml', 'scripts', 'mcp_server', 'tests']
     : scopeFiles.filter((f) => f.endsWith('.py')).map(toRel);
   checks.push(await checkRuff(pyTargets));
 

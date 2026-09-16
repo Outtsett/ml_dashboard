@@ -98,7 +98,13 @@ export function useRegimeAssignments(modelId: string | null, opts?: { enabled?: 
     queryKey: [...QUERY_KEYS.regimeAssignments(modelId || ''), 'chart'],
     queryFn: async ({ signal }) => {
       const res = await fetch(`/api/training/models/${modelId}/assignments?limit=${limit}`, { signal });
-      if (!res.ok) throw new Error('Failed to load regime assignments');
+      // A classifier has no regime assignments, and the server says so with a
+      // 404. That is an answer, not a failure: throwing turned it into a retried
+      // query error, which is why the log showed the same 404 twice per model.
+      if (res.status === 404) {
+        return { rows: [], total: 0, limit, offset: 0 };
+      }
+      if (!res.ok) throw new Error(`Failed to load regime assignments (${res.status})`);
       return res.json();
     },
     enabled: (opts?.enabled ?? true) && !!modelId,

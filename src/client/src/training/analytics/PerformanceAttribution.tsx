@@ -2,13 +2,14 @@ import React, { memo } from 'react';
 import { useTrainingControl } from "@/training/lib/TrainingContext";
 import { useMetricDescriptions } from "@/infrastructure/lib/useMetricDescriptions";
 import { Settings2, ArrowRight, TrendingUp, AlertTriangle } from 'lucide-react';
+import { metricNumber, type MetricsBag, type MetricsSnapshot } from "@/training/lib/types";
 
-export const PerformanceAttribution = memo(({ diagnostics }: { diagnostics: any }) => {
+export const PerformanceAttribution = memo(({ diagnostics }: { diagnostics: MetricsSnapshot | null }) => {
   const { selectedModelType } = useTrainingControl();
   const { descriptions, metricOrder } = useMetricDescriptions(selectedModelType);
 
-  const snap = diagnostics || {};
-  const metrics = snap.best_metrics || snap.metrics || {};
+  const snap: MetricsSnapshot = diagnostics ?? {};
+  const metrics: MetricsBag = snap.best_metrics || snap.metrics || {};
 
   // Find metrics with prescriptive data
   const attributedMetrics = metricOrder
@@ -16,7 +17,7 @@ export const PerformanceAttribution = memo(({ diagnostics }: { diagnostics: any 
     .map(key => ({
       key,
       ...descriptions[key],
-      currentValue: metrics[key]
+      currentValue: metricNumber(metrics, key)
     }));
 
   if (attributedMetrics.length === 0) return null;
@@ -32,8 +33,8 @@ export const PerformanceAttribution = memo(({ diagnostics }: { diagnostics: any 
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {attributedMetrics.map((metric) => {
-          const p = metric.prescriptive as any;
-          const isFailing = metric.target !== undefined && 
+          const p = metric.prescriptive!;
+          const isFailing = metric.target !== undefined && metric.currentValue !== undefined &&
             (metric.targetDirection === 'above' ? metric.currentValue < metric.target : metric.currentValue > metric.target);
 
           return (
@@ -63,7 +64,7 @@ export const PerformanceAttribution = memo(({ diagnostics }: { diagnostics: any 
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  {p.flags.map((flag: any) => (
+                  {p.flags.map((flag) => (
                     <div key={flag.name} className="flex items-center justify-between group/flag">
                       <div className="flex items-center gap-2">
                         <Settings2 className="w-3 h-3 text-muted-foreground/30 group-hover/flag:text-amber-400/60 transition-colors" />

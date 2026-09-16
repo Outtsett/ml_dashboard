@@ -20,16 +20,25 @@ from fastmcp import FastMCP
 from ..db import questdb_conn
 from ..db.validation import (
     enforce_row_limit,
-    get_row_limit,
     validate_questdb_table,
     validate_readonly_sql,
     validate_table_name,
 )
 
-# SAMPLE BY intervals for OHLCV timeframe aggregation (no materialized views)
-_SAMPLE_BY_MAP: dict[str, str] = {
-    "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m",
-    "1h": "1h", "4h": "4h", "1d": "1d", "1w": "7d",
+# Each timeframe already has a pre-aggregated view in the serving snapshot.
+# Reading it is the difference between a second and two minutes: `ohlcv` holds
+# 863 million ONE-SECOND rows, and rolling those up per request grouped the
+# whole table before the LIMIT could apply — measured at 116.7 s for three bars.
+_TIMEFRAME_VIEW: dict[str, str] = {
+    "1m": "ohlcv_1m", "5m": "ohlcv_5m", "15m": "ohlcv_15m", "30m": "ohlcv_30m",
+    "1h": "ohlcv_1h_v", "4h": "ohlcv_4h", "1d": "ohlcv_1d", "1w": "ohlcv_1w",
+}
+
+# Anything without a view is bucketed off the base table, which is why an
+# unknown timeframe is refused rather than silently resampled.
+_BUCKET_INTERVAL: dict[str, str] = {
+    "1m": "1 minute", "5m": "5 minutes", "15m": "15 minutes", "30m": "30 minutes",
+    "1h": "1 hour", "4h": "4 hours", "1d": "1 day", "1w": "7 days",
 }
 
 
@@ -50,13 +59,13 @@ def register(mcp: FastMCP) -> None:
         tags={"questdb", "query"},
     )
     def questdb_query(
-        sql: Annotated[str, "Read-only SQL query (QuestDB dialect). Supports SAMPLE BY, LATEST ON, ASOF JOIN, WHERE IN, LIMIT."],
+        sql: Annotated[str, "Read-only SQL (DuckDB dialect). Supports time_bucket, ASOF JOIN, window functions, QUALIFY, LIMIT."],
         row_limit: Annotated[int, "Max rows to return (1-100000, default 10000)"] = 10_000,
     ) -> str:
         """Execute an arbitrary read-only SQL query against QuestDB.
 
         QuestDB uses a SQL dialect with extensions:
-        - SAMPLE BY for time-based aggregation
+        - time_bucket(INTERVAL '5 minutes', timestamp) for time-based aggregation
         - LATEST ON for latest row per symbol
         - ASOF JOIN / LT JOIN for time-aligned joins
         - LIMIT with negative offset for last N rows
@@ -85,7 +94,7 @@ def register(mcp: FastMCP) -> None:
         """
         objects = questdb_conn.query(
             "SELECT table_name, table_type FROM information_schema.tables "
-            "WHERE table_schema = 'public';"
+            "WHERE table_schema = 'main' ORDER BY table_name;"
         )
 
         results = []
@@ -94,7 +103,7 @@ def register(mcp: FastMCP) -> None:
             try:
                 safe_name = validate_table_name(name)
                 count_result = questdb_conn.query(
-                    f"SELECT count() as cnt FROM {safe_name};"
+                    f"SELECT count(*) as cnt FROM {safe_name};"
                 )
                 row_count = int(count_result[0]["cnt"]) if count_result else 0
             except Exception:
@@ -118,7 +127,7 @@ def register(mcp: FastMCP) -> None:
     ) -> str:
         """Get column names and types for a specific QuestDB table."""
         safe_table = validate_questdb_table(table)
-        rows = questdb_conn.query(f"SHOW COLUMNS FROM {safe_table};")
+        rows = questdb_conn.query(f"DESCRIBE {safe_table};")
         return json.dumps(rows, default=str)
 
     @mcp.tool(
@@ -149,7 +158,7 @@ def register(mcp: FastMCP) -> None:
     ) -> str:
         """Get OHLCV candlestick data for a symbol at a specific timeframe.
 
-        Uses SAMPLE BY aggregation on the unified ohlcv table.
+        Reads the pre-aggregated view for the timeframe, newest bars first.
 
         Available timeframes: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w
         All asset classes in one table: futures (ESH5), forex (EURUSD), equities, crypto.
@@ -166,15 +175,21 @@ def register(mcp: FastMCP) -> None:
             where_parts.append(f"timestamp <= '{end_date}'")
         where_clause = " AND ".join(where_parts)
 
-        sample_interval = _SAMPLE_BY_MAP.get(tf, "1d")
+        view = _TIMEFRAME_VIEW.get(tf)
+        if view is None:
+            return json.dumps({
+                "error": f"unknown timeframe '{timeframe}'",
+                "available": sorted(_TIMEFRAME_VIEW),
+            })
+
+        # The view is already at this timeframe, so this is a filtered read, not
+        # an aggregation. Newest first, because a bare request for N bars of a
+        # multi-year series means the most recent N.
         sql = (
-            f"SELECT timestamp, symbol, "
-            f"first(open) as open, max(high) as high, "
-            f"min(low) as low, last(close) as close, "
-            f"sum(volume) as volume "
-            f"FROM ohlcv "
+            f"SELECT timestamp, symbol, open, high, low, close, volume "
+            f"FROM {view} "
             f"WHERE {where_clause} "
-            f"SAMPLE BY {sample_interval} "
+            f"ORDER BY timestamp DESC "
             f"LIMIT {limit};"
         )
 
@@ -207,12 +222,12 @@ def register(mcp: FastMCP) -> None:
         """Get per-symbol data coverage: date ranges and row counts.
 
         Useful for understanding what data is available before querying.
-        Uses SAMPLE BY 1d to aggregate before GROUP BY for performance on large tables.
+        Grouped per symbol straight off the lake.
         """
         safe_table = validate_questdb_table(table)
 
         rows = questdb_conn.query(
-            f"SELECT symbol, count() as rows, "
+            f"SELECT symbol, count(*) as rows, "
             f"min(timestamp) as first_ts, max(timestamp) as last_ts "
             f"FROM {safe_table} "
             f"GROUP BY symbol ORDER BY symbol;"

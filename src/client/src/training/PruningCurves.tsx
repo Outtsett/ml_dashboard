@@ -37,8 +37,6 @@ export interface PruningCurvesProps {
   fold?: number;
 }
 
-interface SseEnvelope { type: string; data: any; ts: number }
-
 export function PruningCurves({ sessionId, fold }: PruningCurvesProps) {
   const [trials, setTrials] = useState<Map<number, TrialSnapshot>>(new Map());
 
@@ -82,10 +80,10 @@ export function PruningCurves({ sessionId, fold }: PruningCurvesProps) {
       } catch { /* ignore */ }
     };
 
-    es.addEventListener("hpo-trial-intermediate", pickIntermediate as any);
-    es.addEventListener("hpo-trial-done", setStatus("completed") as any);
-    es.addEventListener("hpo-trial-pruned", setStatus("pruned") as any);
-    es.addEventListener("hpo-trial-killed", setStatus("killed") as any);
+    es.addEventListener("hpo-trial-intermediate", pickIntermediate as EventListener);
+    es.addEventListener("hpo-trial-done", setStatus("completed") as EventListener);
+    es.addEventListener("hpo-trial-pruned", setStatus("pruned") as EventListener);
+    es.addEventListener("hpo-trial-killed", setStatus("killed") as EventListener);
 
     return () => es.close();
   }, [sessionId, fold]);

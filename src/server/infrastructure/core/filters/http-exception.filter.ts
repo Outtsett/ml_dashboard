@@ -21,7 +21,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     response.status(status).json({
       statusCode: status,
-      message: typeof message === 'string' ? message : (message as any).message || message,
+      message: typeof message === 'string' ? message : (message as { message?: unknown }).message || message,
       timestamp: new Date().toISOString(),
     });
   }

@@ -53,8 +53,8 @@ export function FoldComparison({ sessionId }: FoldComparisonProps) {
       } catch { /* ignore */ }
     };
 
-    es.addEventListener("hpo-fold-best", onBest as any);
-    es.addEventListener("hpo-fold-final", onFinal as any);
+    es.addEventListener("hpo-fold-best", onBest as EventListener);
+    es.addEventListener("hpo-fold-final", onFinal as EventListener);
     return () => es.close();
   }, [sessionId]);
 

@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Database, Brain, Zap,
 } from "lucide-react";
+import type { Instrument } from "@shared/schema";
+import type { TrainedModel } from "@/ml/lib/useTrainedModels";
 
 function useDashboardMetrics() {
   const { data: health } = useQuery({
@@ -38,7 +40,7 @@ function useDashboardMetrics() {
     queryKey: ['dashboard-summary', 'instruments'],
     queryFn: async () => {
       const res = await fetch('/api/instruments');
-      return res.ok ? res.json() as Promise<any[]> : [];
+      return res.ok ? res.json() as Promise<Instrument[]> : [];
     },
     staleTime: 300000,
   });
@@ -79,7 +81,7 @@ function useDashboardMetrics() {
 }
 
 export function DashboardSummary() {
-  const { health, cacheStats, dbStats, instruments, models, featureConfig, questdbHealth } = useDashboardMetrics();
+  const { cacheStats, dbStats, models, questdbHealth } = useDashboardMetrics();
 
   const modelList = Array.isArray(models) ? models : [];
   const ohlcvCache = cacheStats?.ohlcv;
@@ -90,7 +92,7 @@ export function DashboardSummary() {
       {/* Ultra-Minimal History HUD */}
       {modelList.length > 0 && (
         <div className="flex flex-wrap gap-4 py-4 border-y border-white/5">
-          {modelList.slice(0, 4).map((model: any) => (
+          {modelList.slice(0, 4).map((model: TrainedModel) => (
             <div key={model.id} className="flex items-center gap-3 px-4 py-2 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors group cursor-default">
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                 <Brain className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" />

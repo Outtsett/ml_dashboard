@@ -14,7 +14,8 @@ export const MicrostructureAnalytics: React.FC = () => {
   const { iterationHistory } = useTrainingLive();
 
   // Extract relevant metrics from history
-  const data = iterationHistory.map((h: any) => ({
+  // useTrainingLive() is fully typed, so h infers as the iterationHistory element.
+  const data = iterationHistory.map((h) => ({
     iteration: h.iteration,
     imbalance: h.metrics.book_imbalance_top || 0,
     imbalance5: h.metrics.book_imbalance_5 || 0,

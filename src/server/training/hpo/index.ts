@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import crypto from "crypto";
+import type { ChildProcess } from "child_process";
 import { eq, desc } from "drizzle-orm";
 import { db } from "../../infrastructure/database/db";
 import {
@@ -180,13 +181,13 @@ export function listPastSessions(opts?: {
   symbol?: string;
   limit?: number;
 }): HpoSession[] {
-  let query = db.select().from(hpoSessions);
+  let query = db.select().from(hpoSessions).$dynamic();
 
   if (opts?.modelType) {
-    query = query.where(eq(hpoSessions.modelType, opts.modelType)) as any;
+    query = query.where(eq(hpoSessions.modelType, opts.modelType));
   }
   if (opts?.symbol) {
-    query = query.where(eq(hpoSessions.symbol, opts.symbol)) as any;
+    query = query.where(eq(hpoSessions.symbol, opts.symbol));
   }
 
   return query
@@ -209,7 +210,7 @@ export function applyBestParams(sessionId: string) {
 
 function attachProcessHandlers(
   session: HPOSessionState,
-  child: any,
+  child: ChildProcess,
   request: HPORequest,
 ): void {
   const timeoutSec = getTimeout(request);
@@ -305,7 +306,7 @@ export class HpoService {
   getSession(sessionId: string) { return getSession(sessionId); }
   listActiveSessions() { return listActiveSessions(); }
   getSessionResults(sessionId: string) { return getSessionResults(sessionId); }
-  listPastSessions(opts?: any) { return listPastSessions(opts); }
+  listPastSessions(opts?: Parameters<typeof listPastSessions>[0]) { return listPastSessions(opts); }
   applyBestParams(sessionId: string) { return applyBestParams(sessionId); }
 }
 

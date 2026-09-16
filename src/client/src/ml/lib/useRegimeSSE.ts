@@ -119,48 +119,54 @@ export function useRegimeSSE(callbacks: RegimeSSECallbacks) {
 
 // ─── Event dispatcher (pure function) ──────────────────────────────────────
 
+// The stream carries no schema beyond `event:`/`data:` framing — each frame's
+// JSON payload is asserted to the shape its own event name promises (the SSE
+// protocol contract this hook was written against), the same way the rest of
+// the codebase's stdout/SSE parsers trust their event-name-to-shape mapping.
 function dispatchEvent(
   cb: RegimeSSECallbacks,
   event: string,
-  data: any,
+  data: unknown,
   nBarsRef: React.MutableRefObject<number>,
 ) {
   switch (event) {
     case "progress":
-      cb.onProgress(data);
+      cb.onProgress(data as RegimeSSEProgressData);
       break;
     case "gibbs_progress":
-      cb.onGibbsProgress(data, nBarsRef.current);
+      cb.onGibbsProgress(data as RegimeSSEGibbsData, nBarsRef.current);
       break;
-    case "metric":
-      if (data.type === "data_size") {
-        nBarsRef.current = data.value;
+    case "metric": {
+      const metricData = data as RegimeSSEMetricData;
+      if (metricData.type === "data_size") {
+        nBarsRef.current = metricData.value;
       }
-      cb.onMetric(data);
+      cb.onMetric(metricData);
       break;
+    }
     case "status":
-      cb.onStatus(data);
+      cb.onStatus(data as { message?: string; phase?: string });
       break;
     case "log":
-      cb.onLog(data);
+      cb.onLog(data as { message: string });
       break;
     case "regime_line":
-      cb.onRegimeLine(data);
+      cb.onRegimeLine(data as { text: string });
       break;
     case "regime_timestamps":
-      cb.onRegimeTimestamps(data);
+      cb.onRegimeTimestamps(data as { timestamps: number[] });
       break;
     case "regime_snapshot":
-      cb.onRegimeSnapshot(data);
+      cb.onRegimeSnapshot(data as { assignments: number[] });
       break;
     case "done":
-      cb.onDone(data);
+      cb.onDone(data as RegimeSSEDoneData);
       break;
     case "error":
-      cb.onError(data);
+      cb.onError(data as RegimeSSEErrorData);
       break;
     case "warning":
-      cb.onWarning(data);
+      cb.onWarning(data as { message: string });
       break;
     case "caught_up":
       break; // no-op

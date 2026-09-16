@@ -74,6 +74,6 @@ known-first-party = ["ml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", "src/ml"]
+pythonpath = [".", "src", "src/ml"]
 addopts = "--import-mode=importlib"
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]

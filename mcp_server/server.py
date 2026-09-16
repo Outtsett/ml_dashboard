@@ -6,7 +6,6 @@ via streamable HTTP transport with optional bearer token auth.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from collections.abc import AsyncIterator

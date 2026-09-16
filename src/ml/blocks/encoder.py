@@ -219,7 +219,11 @@ class TransformerEncoder(nn.Module):
             batch_first=True,
             norm_first=True,
         )
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
+        # norm_first=True (pre-norm) disables the nested-tensor fast path anyway;
+        # PyTorch warns on every construction unless that is stated explicitly.
+        self.encoder = nn.TransformerEncoder(
+            encoder_layer, num_layers=n_layers, enable_nested_tensor=False
+        )
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -327,7 +331,10 @@ class TwoStreamPriceVolumeEncoder(nn.Module):
             batch_first=True,
             norm_first=True,
         )
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
+        # Same pre-norm reason as TransformerEncoderBlock above.
+        self.transformer = nn.TransformerEncoder(
+            encoder_layer, num_layers=n_layers, enable_nested_tensor=False
+        )
         self._init_weights()
 
     def _init_weights(self) -> None:

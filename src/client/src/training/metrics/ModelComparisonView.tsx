@@ -32,7 +32,6 @@ export default function ModelComparisonView({
   const {
     selectedIds,
     toggle,
-    clearAll,
     maxSelections,
     snapshots,
     isLoading,

@@ -74,7 +74,7 @@ jobs:
         run: pip install ruff==0.7.4
 
       - name: Ruff check
-        run: ruff check src/ml/ scripts/
+        run: ruff check src/ml/ scripts/ mcp_server/ tests/
 
       - name: Ruff format check
         run: ruff format --check src/ml/ scripts/

@@ -62,7 +62,6 @@ export function QuizComponent({ questions, onComplete }: QuizComponentProps) {
 
   const handleNext = useCallback(() => {
     if (currentIdx + 1 >= questions.length) {
-      const finalCorrect = correctCount + (isCorrect ? 0 : 0); // already counted
       const score = Math.round((correctCount / questions.length) * 100);
       setFinished(true);
       onComplete?.(score);

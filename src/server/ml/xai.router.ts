@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { sanitizeModelId, getModelShap } from "../infrastructure/lib/modelResults";
 import { CACHE_STATIC } from "../infrastructure/cache/headers";
 import { logInfo } from "../infrastructure/lib/log";
+import type { XAIMethodKey } from "@shared/mlTaxonomy";
 
 const router = Router();
 
@@ -9,7 +10,7 @@ const router = Router();
 // EXPLAINABLE AI (XAI) API ENDPOINTS
 // ============================================================
 
-let xaiServiceModule: any = null;
+let xaiServiceModule: typeof import("../infrastructure/lib/xai/xaiService") | null = null;
 
 async function getXAIService() {
   if (!xaiServiceModule) {
@@ -48,7 +49,7 @@ router.post("/xai/explain", async (req: Request, res: Response) => {
         if (healthy) {
           const ohlcv = await getOHLCVSampleBy(symbol, '1m', undefined, undefined, 30);
           if (ohlcv && ohlcv.length > 0) {
-            inputData = ohlcv.map((bar: any) => [
+            inputData = ohlcv.map((bar) => [
               Number(bar.open) || 0,
               Number(bar.high) || 0,
               Number(bar.low) || 0,
@@ -78,7 +79,7 @@ router.post("/xai/explain", async (req: Request, res: Response) => {
     }
 
     const config = {
-      method: method as any,
+      method: method as XAIMethodKey,
       params: params || {}
     };
 
@@ -110,7 +111,7 @@ router.post("/xai/explain-batch", async (req: Request, res: Response) => {
     }
 
     const config = {
-      method: method as any,
+      method: method as XAIMethodKey,
       params: params || {}
     };
 

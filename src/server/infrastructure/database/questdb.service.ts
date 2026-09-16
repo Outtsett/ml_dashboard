@@ -32,7 +32,7 @@ export class QuestDBService implements OnModuleInit, OnModuleDestroy {
     this.logger.log('Connections closed');
   }
 
-  query<T = any>(sql: string) {
+  query<T = never>(sql: string) {
     return queryQuestDB<T>(sql);
   }
 

@@ -1,5 +1,13 @@
 ﻿import { useEffect, useRef } from 'react';
-import { LineSeries, createSeriesMarkers, type IChartApi, type Time } from 'lightweight-charts';
+import {
+  LineSeries,
+  createSeriesMarkers,
+  type IChartApi,
+  type IPriceLine,
+  type ISeriesApi,
+  type ISeriesMarkersPluginApi,
+  type Time,
+} from 'lightweight-charts';
 import type { SupportResistanceLevel, ZigZagPoint } from '@/market/lib/chart_overlays';
 import { dedupByTime } from './chartConfig';
 
@@ -7,7 +15,7 @@ import { dedupByTime } from './chartConfig';
 
 interface ChartPriceLinesOptions {
   chartRef: React.MutableRefObject<IChartApi | null>;
-  candleSeriesRef: React.MutableRefObject<any>;
+  candleSeriesRef: React.MutableRefObject<ISeriesApi<'Candlestick'> | null>;
   supportResistanceLevels: SupportResistanceLevel[];
   zigZagPoints: ZigZagPoint[];
   swingZigZagPoints: ZigZagPoint[];
@@ -28,11 +36,11 @@ export function useChartPriceLines({
 
   // â”€â”€ Refs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  const srPriceLinesRef = useRef<any[]>([]);
-  const zigZagSeriesRef = useRef<any>(null);
-  const zigZagMarkersRef = useRef<any>(null);
-  const swingZZSeriesRef = useRef<any>(null);
-  const swingZZMarkersRef = useRef<any>(null);
+  const srPriceLinesRef = useRef<IPriceLine[]>([]);
+  const zigZagSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const zigZagMarkersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const swingZZSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const swingZZMarkersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
 
   // â”€â”€ Support / Resistance price lines â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 

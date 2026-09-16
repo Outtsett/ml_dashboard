@@ -20,9 +20,35 @@ import {
 } from "recharts";
 import { Activity, TrendingUp } from "lucide-react";
 
+/** One point of the optimization-history line chart — one entry per trial. */
+interface HPOChartPoint {
+  trial: number;
+  score: number;
+  bestSoFar: number;
+  pruned: boolean;
+}
+
+/** One point of the parameter-vs-score scatter chart. */
+interface HPOScatterPoint {
+  value: number;
+  score: number;
+  trial: number;
+}
+
+/**
+ * Props recharts passes to a `Line`'s custom `dot` renderer — `cx`/`cy` are
+ * always computed by `Line.renderDots` before this callback runs (see
+ * recharts/es6/cartesian/Line.js).
+ */
+interface HPOHistoryDotProps {
+  cx: number;
+  cy: number;
+  payload?: HPOChartPoint;
+}
+
 interface HPOChartsSectionProps {
-  chartData: any[];
-  scatterData: any[];
+  chartData: HPOChartPoint[];
+  scatterData: HPOScatterPoint[];
   paramNames: string[];
   selectedParam: string;
   setSelectedParam: (val: string) => void;
@@ -104,7 +130,7 @@ export function HPOChartsSection({
                   type="monotone"
                   dataKey="score"
                   stroke="#3b82f680"
-                  dot={(props: any) => {
+                  dot={(props: HPOHistoryDotProps) => {
                     const { cx, cy, payload } = props;
                     if (payload?.pruned) {
                       return (

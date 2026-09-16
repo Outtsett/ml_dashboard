@@ -25,6 +25,7 @@ import { ModelBrowser } from "@/training/ModelBrowser";
 import { TooltipProvider } from "@/shared/ui/tooltip";
 import { QUERY_KEYS } from "@/shared/utils/types";
 import type { SelfDescribingDiagnostics } from "@/ml/lib/diagnostics-schema";
+import type { TrainedModel } from "@/ml/lib/useTrainedModels";
 
 const TrainingLogTab = lazy(() =>
   import("@/system/components/TrainingLogTab").then(m => ({ default: m.TrainingLogTab }))
@@ -108,7 +109,7 @@ export default function Training({ embedded = false }: TrainingProps = {}) {
   }, [selectedModelType, availableModels]);
 
   // ── Fetch trained models ─────────────────────────────────────────────────────
-  const { data: trainedModels } = useQuery<any[]>({
+  const { data: trainedModels } = useQuery<TrainedModel[]>({
     queryKey: QUERY_KEYS.regimeModels,
     queryFn: async () => {
       const res = await fetch("/api/training/models");

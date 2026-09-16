@@ -89,7 +89,7 @@ function QualityGatePanelInner({ diagnostics }: { diagnostics?: MetricsSnapshot 
 
   return (
     <div className="grid grid-cols-1 gap-2.5">
-      {gates.map((gate: any) => {
+      {gates.map((gate) => {
         const color = STATUS_COLORS[gate.status] || "#6b7280";
         const Icon = STATUS_ICONS[gate.status] || Info;
         const bg = STATUS_BG[gate.status] || "bg-white/[0.02]";

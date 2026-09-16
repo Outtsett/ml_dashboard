@@ -5,9 +5,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { BarChart3 } from "lucide-react";
 import { SPECTRUM_COLORS } from "./constants";
+import type { DFTSpectrumPoint } from "./types";
 
 interface SpectrumChartProps {
-  data: any[];
+  data: DFTSpectrumPoint[];
 }
 
 export function SpectrumChart({ data }: SpectrumChartProps) {

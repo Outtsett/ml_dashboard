@@ -112,7 +112,7 @@ export async function executeStrategy(
     }
 
     default:
-      throw new Error(`[StrategyEngine] Unknown strategy type: ${(strategy as any).type}`);
+      throw new Error(`[StrategyEngine] Unknown strategy type: ${(strategy as StrategyDefinition).type}`);
   }
 
   // Apply session filter

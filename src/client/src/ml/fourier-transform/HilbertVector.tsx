@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Compass } from "lucide-react";
+import type { HilbertSeriesPoint } from "./types";
 
 interface HilbertVectorProps {
-  data: any[];
+  data: HilbertSeriesPoint[];
 }
 
 export function HilbertVector({ data }: HilbertVectorProps) {
@@ -10,7 +11,7 @@ export function HilbertVector({ data }: HilbertVectorProps) {
 
   // Use the last 50 points for the vector path
   const points = data.slice(-50);
-  const latest = points[points.length - 1];
+  const latest = points[points.length - 1]!;
   
   const size = 300;
   const center = size / 2;
@@ -18,7 +19,7 @@ export function HilbertVector({ data }: HilbertVectorProps) {
   const radius = (size / 2) - padding;
 
   // Scale data to fit radius
-  const maxAmp = Math.max(...points.map(p => Math.abs(p.signal), ...points.map(p => Math.abs(p.transformed)))) || 1;
+  const maxAmp = Math.max(...points.map(p => Math.abs(p.signal), ...points.map(p => Math.abs(p.transformed ?? NaN)))) || 1;
   const scale = radius / maxAmp;
 
   return (
@@ -43,7 +44,7 @@ export function HilbertVector({ data }: HilbertVectorProps) {
             <path
               d={points.map((p, i) => {
                 const x = center + p.signal * scale;
-                const y = center - p.transformed * scale;
+                const y = center - (p.transformed ?? NaN) * scale;
                 return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
               }).join(' ')}
               fill="none"
@@ -54,19 +55,19 @@ export function HilbertVector({ data }: HilbertVectorProps) {
             />
 
             {/* Latest Vector */}
-            <line 
-              x1={center} 
-              y1={center} 
-              x2={center + latest.signal * scale} 
-              y2={center - latest.transformed * scale} 
-              stroke="#fbbf24" 
+            <line
+              x1={center}
+              y1={center}
+              x2={center + latest.signal * scale}
+              y2={center - (latest.transformed ?? NaN) * scale}
+              stroke="#fbbf24"
               strokeWidth="3"
               strokeLinecap="round"
             />
-            <circle 
-              cx={center + latest.signal * scale} 
-              cy={center - latest.transformed * scale} 
-              r="5" 
+            <circle
+              cx={center + latest.signal * scale}
+              cy={center - (latest.transformed ?? NaN) * scale}
+              r="5"
               fill="#fbbf24"
               className="animate-pulse"
             />
@@ -83,7 +84,7 @@ export function HilbertVector({ data }: HilbertVectorProps) {
           <div className="absolute top-0 right-0 text-[10px] font-mono text-muted-foreground/60 space-y-1 bg-black/40 p-2 rounded border border-white/5">
             <div>Real: Signal</div>
             <div>Imag: Hilbert</div>
-            <div className="text-amber-400 font-bold">Phase: {(latest.phase * 180 / Math.PI).toFixed(1)}Â°</div>
+            <div className="text-amber-400 font-bold">Phase: {((latest.phase ?? NaN) * 180 / Math.PI).toFixed(1)}Â°</div>
           </div>
         </div>
       </CardContent>

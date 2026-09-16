@@ -391,7 +391,6 @@ function CorrelationHeatmap({
   names: string[];
   matrix: number[][];
 }) {
-  const n = names.length;
   // Cell colored by sign × magnitude. Blue = positive, red = negative,
   // alpha tracks |corr|. Diagonal pinned to 1.0.
   const cellColor = (v: number): string => {

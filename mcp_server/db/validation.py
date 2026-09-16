@@ -12,45 +12,42 @@ import re
 from typing import Literal
 
 # ---------------------------------------------------------------------------
-# Table allowlists
+# Table allowlist
 # ---------------------------------------------------------------------------
 
-# Base tables. The instance is multi-tenant: futures and forex share `ohlcv`
-# (separated by its asset_class column), while crypto is hourly-only and lives
-# in `ohlcv_1h` — a physical table owned by Trading/crypto, NOT the futures
-# hourly rollup. The futures hourly view is `ohlcv_1h_v`.
-QUESTDB_BASE_TABLES: set[str] = {
-    "ohlcv",
-    "symbols",
-    "ticks",
-    "ohlcv_1h",
-    "candle_anatomy",
-    "mnq_labels_1m",
-    "mnq_zigzag_1m",
-    "mnq_indicators_norm_1m",
-}
+# The allowlist is READ FROM THE LAKE, not hardcoded.
+#
+# It used to be three hand-maintained sets naming QuestDB's tables and
+# materialized views. QuestDB was retired on 2026-09-10 and the serving layer
+# moved to DuckDB over Iceberg, so the list went stale: it rejected 12 of the
+# lake's 42 objects, `bars` — the system of record — among them, and every
+# forex view. A list of what exists cannot be maintained by hand next to the
+# thing that actually has the list.
+#
+# The injection guard is `_TABLE_NAME_RE` below, which is what actually keeps a
+# name safe to interpolate. Membership answers a different question: does this
+# object exist? The lake answers that itself.
 
-# Materialized views, in three deliberate families:
-#   ohlcv_*       multi-symbol, TTL-limited (2-10y)
-#   ohlcv_full_*  multi-symbol, full history, no TTL
-#   mnq_ohlcv_*   MNQ-only, full history
-QUESTDB_MAT_VIEWS: set[str] = {
-    "ohlcv_1m", "ohlcv_5m", "ohlcv_15m", "ohlcv_30m",
-    "ohlcv_1h_v", "ohlcv_4h", "ohlcv_1d", "ohlcv_1w",
-    "ohlcv_full_1m", "ohlcv_full_5m", "ohlcv_full_15m",
-    "ohlcv_full_30m", "ohlcv_full_1h", "ohlcv_full_4h",
-    "mnq_ohlcv_1m", "mnq_ohlcv_5m", "mnq_ohlcv_15m",
-    "mnq_ohlcv_30m", "mnq_ohlcv_1h", "mnq_ohlcv_4h",
-    "candle_anatomy_1m",
-}
+_object_names: set[str] | None = None
 
-# Regular (non-materialized) views
-QUESTDB_VIEWS: set[str] = {
-    "ta_indicators_1m",
-    "candle_geometry_1m",
-}
 
-QUESTDB_TABLE_ALLOWLIST: set[str] = QUESTDB_BASE_TABLES | QUESTDB_MAT_VIEWS | QUESTDB_VIEWS
+def _load_object_names() -> set[str]:
+    """Every object the serving connection exposes, read once and cached."""
+    from . import questdb_conn
+
+    rows = questdb_conn.query(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main'"
+    )
+    return {str(row["table_name"]) for row in rows}
+
+
+def get_table_allowlist(refresh: bool = False) -> set[str]:
+    """The set of readable objects. Pass refresh=True after the lake gains one."""
+    global _object_names
+    if _object_names is None or refresh:
+        _object_names = _load_object_names()
+    return _object_names
+
 
 # ---------------------------------------------------------------------------
 # Table name validation
@@ -67,10 +64,14 @@ def validate_table_name(name: str) -> str:
 
 
 def validate_questdb_table(name: str) -> str:
-    """Validate table name format AND check against QuestDB allowlist."""
+    """Validate the name's format, then confirm the lake actually has that object."""
     safe = validate_table_name(name)
-    if safe not in QUESTDB_TABLE_ALLOWLIST:
-        raise ValueError(f"Table {safe!r} is not in the QuestDB allowlist")
+    allowlist = get_table_allowlist()
+    if safe not in allowlist:
+        # One refresh in case the object was created after this process started.
+        allowlist = get_table_allowlist(refresh=True)
+    if safe not in allowlist:
+        raise ValueError(f"No object named {safe!r} in the lake")
     return safe
 
 

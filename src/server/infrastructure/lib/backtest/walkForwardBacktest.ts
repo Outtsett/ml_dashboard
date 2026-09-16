@@ -199,13 +199,14 @@ function averageMetrics(metricsArr: BacktestMetrics[]): BacktestMetrics {
 
   for (const m of metricsArr) {
     for (const key of keys) {
-      (sum as any)[key] += safeNumber(m[key] as number);
+      (sum as Record<keyof BacktestMetrics, number>)[key] += safeNumber(m[key] as number);
     }
   }
 
   const avg = { ...sum };
   for (const key of keys) {
-    (avg as any)[key] = (sum as any)[key] / n;
+    (avg as Record<keyof BacktestMetrics, number>)[key] =
+      (sum as Record<keyof BacktestMetrics, number>)[key] / n;
   }
 
   // Some metrics make more sense summed than averaged

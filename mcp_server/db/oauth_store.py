@@ -7,12 +7,12 @@ Auto-approves all authorization requests since the server is local/tunneled.
 
 from __future__ import annotations
 
-import hashlib
 import secrets
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from fastmcp.server.auth.auth import AccessToken, OAuthProvider
 from mcp.server.auth.provider import (
     AuthorizationCode,
     AuthorizationParams,
@@ -20,8 +20,6 @@ from mcp.server.auth.provider import (
     OAuthToken,
     RefreshToken,
 )
-
-from fastmcp.server.auth.auth import AccessToken, OAuthProvider
 
 
 @dataclass

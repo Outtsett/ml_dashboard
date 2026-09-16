@@ -1,6 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { LessonProgress, PathProgress, CurriculumStats, CurriculumBookmark } from "@/training/curriculum_types";
+import type { LessonProgress, LessonStatus, PathProgress, CurriculumStats, CurriculumBookmark } from "@/training/curriculum_types";
 import { allPaths } from "@/training/paths";
+import type { CurriculumProgress } from "@shared/schema";
+
+/**
+ * The shape of a `curriculum_progress` row as it actually arrives over the
+ * wire: `status` is DB-constrained to the three lesson states (see the
+ * column comment in shared/schema.ts), and the `timestamp_ms` `completedAt`
+ * column serializes to an ISO string through `res.json()`, not the `Date`
+ * `$inferSelect` carries.
+ */
+type CurriculumProgressRow = Omit<CurriculumProgress, "completedAt" | "status"> & {
+  status: LessonStatus;
+  completedAt: string | null;
+};
 
 // ─── Streak computation ─────────────────────────────────────────
 /**
@@ -72,11 +85,15 @@ export function useCurriculumProgress() {
       const res = await fetch("/api/curriculum/progress");
       if (!res.ok) return [];
       const data = await res.json();
-      return (data ?? []).map((r: any) => ({
+      return (data ?? []).map((r: CurriculumProgressRow) => ({
         lessonId: r.lessonId,
         status: r.status,
         score: r.score ?? undefined,
-        completedAt: r.completedAt ?? undefined,
+        // `LessonProgress.completedAt` is declared `number` in curriculum_types.ts
+        // (out of scope here), but the `timestamp_ms` column actually reaches the
+        // client as an ISO string once `res.json()` serializes the Date — passed
+        // through unchanged, exactly as the pre-typing code did.
+        completedAt: (r.completedAt ?? undefined) as LessonProgress["completedAt"],
         timeSpentMs: r.timeSpentMs ?? 0,
       }));
     },

@@ -25,6 +25,7 @@ import {
   applyBestParams,
 } from "./hpo";
 import { hpoRequestSchema } from "@shared/hpoTypes";
+import type { HPOEvent } from "./hpo/types";
 import { logInfo } from "../infrastructure/lib/log";
 
 const router = Router();
@@ -86,7 +87,7 @@ router.get("/hpo/stream/:sessionId", (req: Request, res: Response) => {
     try { res.write(': heartbeat\n\n'); } catch { clearInterval(heartbeat); }
   }, 30000);
 
-  const send = (evt: { type: string; data: any }) => {
+  const send = (evt: HPOEvent) => {
     try {
       res.write(`event: ${evt.type}\ndata: ${JSON.stringify(evt.data)}\n\n`);
     } catch {
@@ -111,7 +112,7 @@ router.get("/hpo/stream/:sessionId", (req: Request, res: Response) => {
   }
 
   // Subscribe to live events
-  const listener = (evt: { type: string; data: any }) => {
+  const listener = (evt: HPOEvent) => {
     send(evt);
     if (evt.type === "hpo-complete" || evt.type === "hpo-error") {
       clearInterval(heartbeat);

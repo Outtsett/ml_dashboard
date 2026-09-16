@@ -23,12 +23,13 @@ import {
   Minus,
 } from 'lucide-react';
 import type { PlaybackSpeed, PlaybackState } from "@/market/lib/useLocalReplay";
+import type { OhlcvData } from "@/market/components/types";
 
 interface ReplaySnapshot {
   currentBarIndex: number;
   totalBars: number;
   progress: number;
-  currentBar: any | null;
+  currentBar: OhlcvData | null;
   // Optional fields — only present when using full replay engine with backtest
   currentPrediction?: { prediction: number; confidence: number } | null;
   openPosition?: { side: string; entryPrice: number } | null;
@@ -82,7 +83,7 @@ export function ReplayControls({
     onChangeSpeed(next);
   }, [speed, onChangeSpeed]);
 
-  const { currentBar, currentPrediction, openPosition, currentEquity } = snapshot as any;
+  const { currentBar, currentPrediction, openPosition, currentEquity } = snapshot;
 
   return (
     <div className="space-y-2">
@@ -98,7 +99,7 @@ export function ReplayControls({
           className="w-full"
         />
         <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5 font-mono">
-          <span>{currentBar ? formatTimestamp(currentBar.timestamp || currentBar.ts) : '—'}</span>
+          <span>{currentBar ? formatTimestamp(currentBar.timestamp) : '—'}</span>
           <span>Bar {snapshot.currentBarIndex + 1} / {snapshot.totalBars}</span>
           <span>{(snapshot.progress * 100).toFixed(1)}%</span>
         </div>

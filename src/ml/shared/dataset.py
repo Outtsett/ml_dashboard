@@ -50,6 +50,7 @@ import dataclasses
 import hashlib
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -351,10 +352,23 @@ def _infer_time_column(df: pl.DataFrame) -> str | None:
 
 
 def _timestamps_to_index(timestamps: Any) -> np.ndarray:
-    """Convert `load_ohlcv_arrays`'s `timestamp` (list[datetime]) to datetime64[us]."""
+    """Convert `load_ohlcv_arrays`'s `timestamp` (list[datetime]) to datetime64[us].
+
+    `datetime64` has no timezone. Handing it an aware datetime makes numpy drop the
+    offset and warn, so an aware value is converted to UTC and made naive here —
+    the lake stores UTC, so this is a change of representation, not of instant.
+    """
     if isinstance(timestamps, np.ndarray) and timestamps.dtype.kind == "M":
         return timestamps.astype("datetime64[us]")
-    return np.array(timestamps, dtype="datetime64[us]")
+
+    values = list(timestamps)
+    normalized = [
+        value.astimezone(timezone.utc).replace(tzinfo=None)
+        if isinstance(value, datetime) and value.tzinfo is not None
+        else value
+        for value in values
+    ]
+    return np.array(normalized, dtype="datetime64[us]")
 
 
 def _column_to_index(series: pl.Series) -> np.ndarray:

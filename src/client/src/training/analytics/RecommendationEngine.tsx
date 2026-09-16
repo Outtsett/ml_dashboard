@@ -32,7 +32,7 @@ function RecommendationEngineInner({ diagnostics }: { diagnostics?: MetricsSnaps
 
   const gates = modelState?.snapshot?.quality_gates ?? diagnostics?.quality_gates ?? [];
   const actionable = gates.filter(
-    (g: any) => (g.status === "warn" || g.status === "fail") && g.recommendation
+    (g) => (g.status === "warn" || g.status === "fail") && g.recommendation
   );
   const hasData = !!modelState || !!diagnostics;
 
@@ -60,7 +60,7 @@ function RecommendationEngineInner({ diagnostics }: { diagnostics?: MetricsSnaps
       </div>
       
       <div className="grid grid-cols-1 gap-2">
-        {actionable.map((gate: any) => {
+        {actionable.map((gate) => {
           const severity = gate.status === "fail" ? "fail" : "warn";
           const config = SEVERITY_CONFIG[severity];
           const { Icon } = config;

@@ -98,13 +98,21 @@ export class XAIService {
     }
 
     const savedModel = await storage.getMlModel(modelId);
-    if (!savedModel || !savedModel.modelPath) {
-      logInfo(`[XAI] Model ${modelId} not found or no path`);
+    // `ml_models` has no modelPath column (src/shared/schema.ts), so this is
+    // always null and the TensorFlow.js load below is unreachable. The models
+    // this repo trains are Python artifacts under data/models/ scored over
+    // MLBridge; there is no .js model in the tree for tf.loadLayersModel to read.
+    const modelPath = (savedModel as { modelPath?: string } | undefined)?.modelPath;
+    if (!savedModel || !modelPath) {
+      logInfo(
+        `[XAI] Model ${modelId} has no TensorFlow.js artifact path — ml_models stores no path ` +
+          `and this build ships no .js models. SHAP served from data/models/ is unaffected.`,
+      );
       return false;
     }
 
     try {
-      this.model = await tf.loadLayersModel(`file://${savedModel.modelPath}/model.json`);
+      this.model = await tf.loadLayersModel(`file://${modelPath}/model.json`);
       this.modelId = modelId;
       logInfo(`[XAI] Loaded model ${modelId}`);
       return true;

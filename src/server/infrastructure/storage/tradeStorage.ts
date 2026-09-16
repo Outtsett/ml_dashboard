@@ -2,11 +2,12 @@
  * Storage — Trades
  */
 
-import { trades } from '@shared/schema';
+import { trades, type Trade } from '@shared/schema';
 import { db } from '../database/db';
 import { eq, and, desc } from 'drizzle-orm';
+import type { CreateTradeParams } from './types';
 
-export async function createTrade(data: any): Promise<any> {
+export async function createTrade(data: CreateTradeParams): Promise<Trade> {
   const [result] = await db.insert(trades).values({
     symbol: data.symbol,
     side: data.side,
@@ -26,13 +27,13 @@ export async function createTrade(data: any): Promise<any> {
     notes: data.notes,
     status: data.status || 'open',
   }).returning();
-  return result;
+  return result!;
 }
 
 export async function getTrades(
   options?: { symbol?: string; modelId?: number; status?: string; limit?: number },
-): Promise<any[]> {
-  const conditions: any[] = [];
+): Promise<Trade[]> {
+  const conditions = [];
   if (options?.symbol) conditions.push(eq(trades.symbol, options.symbol));
   if (options?.modelId) conditions.push(eq(trades.modelId, options.modelId));
   if (options?.status) conditions.push(eq(trades.status, options.status));
@@ -43,7 +44,7 @@ export async function getTrades(
   return query.orderBy(desc(trades.entryTimestamp)).limit(options?.limit || 100);
 }
 
-export async function closeTrade(id: number, exitPrice: number, exitTimestamp: number): Promise<any> {
+export async function closeTrade(id: number, exitPrice: number, exitTimestamp: number): Promise<Trade | null> {
   const [trade] = await db.select().from(trades).where(eq(trades.id, id));
   if (!trade) return null;
 
@@ -57,5 +58,5 @@ export async function closeTrade(id: number, exitPrice: number, exitTimestamp: n
     .set({ exitTimestamp, exitPrice, pnl, pnlPct, status: 'closed' })
     .where(eq(trades.id, id))
     .returning();
-  return result;
+  return result ?? null;
 }

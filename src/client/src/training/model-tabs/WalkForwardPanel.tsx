@@ -6,11 +6,11 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
 } from "recharts";
-import type { Diagnostics } from "@/training/lib/types";
+import type { Diagnostics, WalkForwardWindow } from "@/training/lib/types";
 import { getStabilityVerdict, CHART_GRID, CHART_AXIS, CHART_TOOLTIP } from "@/training/lib/types";
 
 export function WalkForwardPanel({ diagnostics, wfWindResults, stability }: {
-  diagnostics: Diagnostics; wfWindResults: any[]; stability: number;
+  diagnostics: Diagnostics; wfWindResults: WalkForwardWindow[]; stability: number;
 }) {
   return (
     <div className="space-y-4">

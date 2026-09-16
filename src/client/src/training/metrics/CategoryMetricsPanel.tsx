@@ -158,7 +158,6 @@ export default function CategoryMetricsPanel({ config, snapshots }: CategoryMetr
               >
                 <div className="text-[9px] text-muted-foreground/40 italic">Pass Rate</div>
                 {snapshots.map((snap) => {
-                  const total = group.metrics.length;
                   const passed = group.metrics.filter((m) => {
                     const mv = snap.categoryMetrics.find((cm) => cm.id === m.id);
                     return mv?.passed === true;

@@ -8,7 +8,7 @@ const router = Router();
 // LABEL GENERATION API
 // ============================================================
 
-let labelServiceModule: any = null;
+let labelServiceModule: typeof import("../infrastructure/lib/labels/labelService") | null = null;
 
 async function getLabelService() {
   if (!labelServiceModule) {

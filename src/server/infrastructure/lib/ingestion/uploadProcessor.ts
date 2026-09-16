@@ -189,7 +189,7 @@ export async function processOhlcvFileFromDisk(
     inputStream.pipe(parser);
     const records: Array<{ ts: Date; symbol: string; open: number; high: number; low: number; close: number; volume: number }> = [];
     let recordCount = 0;
-    let batchPromises: Promise<any>[] = [];
+    let batchPromises: Promise<void>[] = [];
 
     parser.on('readable', function () {
       let record;

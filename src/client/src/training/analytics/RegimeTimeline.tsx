@@ -11,9 +11,14 @@ import { ResponsiveContainer, ComposedChart, Area, Line, XAxis, YAxis, Tooltip, 
 import type { AnalyticsComponentProps } from "./index";
 import { CHART_GRID, CHART_AXIS, CHART_TOOLTIP } from "@/training/lib/types";
 import { ChartCard, EmptyState } from "./shared";
+import type { RegimeAssignmentsResponse, RegimeRow } from "@/ml/lib/useRegimeData";
+
+/** The assignments endpoint responds with `.rows`; `.assignments` is a defensive
+ * fallback for an alternate response shape that is never actually sent. */
+type AssignmentsResponse = RegimeAssignmentsResponse & { assignments?: RegimeRow[] };
 
 export default function RegimeTimeline({ diagnostics: _diagnostics, modelId }: AnalyticsComponentProps) {
-  const { data } = useQuery({
+  const { data } = useQuery<AssignmentsResponse | null>({
     queryKey: ["regimeAssignments", modelId, "timeline"],
     queryFn: async () => {
       const res = await fetch(`/api/training/models/${modelId}/assignments?limit=2000`);
@@ -27,12 +32,12 @@ export default function RegimeTimeline({ diagnostics: _diagnostics, modelId }: A
   const chartData = useMemo(() => {
     const rows = data?.assignments || data?.rows;
     if (!rows?.length) return [];
-    return rows.map((r: any, i: number) => ({
+    return rows.map((r, i) => ({
       idx: i,
       regime: r.regime,
-      confidence: r.confidence ?? 1,
-      entropy: r.entropy ?? 0,
-      transition_prob: r.transition_prob ?? 0,
+      confidence: Number(r.confidence ?? 1),
+      entropy: Number(r.entropy ?? 0),
+      transition_prob: Number(r.transition_prob ?? 0),
     }));
   }, [data]);
 
@@ -44,7 +49,7 @@ export default function RegimeTimeline({ diagnostics: _diagnostics, modelId }: A
     );
   }
 
-  const regimeIds = [...new Set(chartData.map((d: any) => d.regime))].sort() as number[];
+  const regimeIds = [...new Set(chartData.map((d) => d.regime))].sort() as number[];
 
   return (
     <ChartCard

@@ -9,9 +9,14 @@ import { useQuery } from "@tanstack/react-query";
 import type { AnalyticsComponentProps } from "./index";
 import { getRegimeColor } from "@/training/lib/types";
 import { ChartCard, EmptyState } from "./shared";
+import type { RegimeAssignmentsResponse, RegimeRow } from "@/ml/lib/useRegimeData";
+
+/** The assignments endpoint responds with `.rows`; `.assignments` is a defensive
+ * fallback for an alternate response shape that is never actually sent. */
+type AssignmentsResponse = RegimeAssignmentsResponse & { assignments?: RegimeRow[] };
 
 export default function PosteriorHeatmap({ diagnostics, modelId }: AnalyticsComponentProps) {
-  const { data } = useQuery({
+  const { data } = useQuery<AssignmentsResponse | null>({
     queryKey: ["regimeAssignments", modelId, "posterior"],
     queryFn: async () => {
       const res = await fetch(`/api/training/models/${modelId}/assignments?limit=500`);
@@ -26,10 +31,10 @@ export default function PosteriorHeatmap({ diagnostics, modelId }: AnalyticsComp
     const raw = data?.assignments || data?.rows;
     if (!raw?.length) return [];
     const step = Math.max(1, Math.floor(raw.length / 200));
-    return raw.filter((_: any, i: number) => i % step === 0).map((r: any) => ({
+    return raw.filter((_, i) => i % step === 0).map((r) => ({
       regime: r.regime ?? 0,
-      confidence: r.confidence ?? 1,
-      entropy: r.entropy ?? 0,
+      confidence: Number(r.confidence ?? 1),
+      entropy: Number(r.entropy ?? 0),
     }));
   }, [data]);
 
@@ -45,7 +50,7 @@ export default function PosteriorHeatmap({ diagnostics, modelId }: AnalyticsComp
     <ChartCard title="Posterior Heatmap" subtitle={`${rows.length} sampled bars · Color = regime · Opacity = confidence`}>
       <div className="text-[8px] text-muted-foreground/40 mb-1">Regime assignment (opacity = confidence)</div>
       <div className="flex h-6 rounded overflow-hidden border border-white/5">
-        {rows.map((r: any, i: number) => {
+        {rows.map((r, i) => {
           const color = getRegimeColor(r.regime);
           return (
             <div
@@ -60,7 +65,7 @@ export default function PosteriorHeatmap({ diagnostics, modelId }: AnalyticsComp
 
       <div className="text-[8px] text-muted-foreground/40 mb-1 mt-2">Entropy (brighter = more uncertain)</div>
       <div className="flex h-4 rounded overflow-hidden border border-white/5">
-        {rows.map((r: any, i: number) => (
+        {rows.map((r, i) => (
           <div
             key={i}
             className="flex-1 min-w-0"

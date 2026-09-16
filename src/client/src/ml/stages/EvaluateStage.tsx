@@ -115,14 +115,7 @@ function toCalibrationExperiment(exp: ExperimentRecord) {
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-const TAB_VALUES = [
-  "folds",
-  "regime",
-  "calibration",
-  "bootstrap",
-  "baselines",
-] as const;
-type TabValue = (typeof TAB_VALUES)[number];
+type TabValue = "folds" | "regime" | "calibration" | "bootstrap" | "baselines";
 
 const TabFallback = (
   <div className="flex h-72 items-center justify-center text-xs text-muted-foreground">

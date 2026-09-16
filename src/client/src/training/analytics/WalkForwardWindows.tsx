@@ -4,11 +4,13 @@
  * SRP: Renders walk-forward window results only.
  */
 
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell, ReferenceLine } from "recharts";
 import type { AnalyticsComponentProps } from "./index";
 import { CHART_GRID, CHART_AXIS, CHART_TOOLTIP, getRegimeColor } from "@/training/lib/types";
 import { ChartCard, EmptyState } from "./shared";
+
+type BarChartClickArgs = Parameters<NonNullable<ComponentProps<typeof BarChart>["onClick"]>>;
 
 export default function WalkForwardWindows({ diagnostics }: AnalyticsComponentProps) {
   const wf = diagnostics.walk_forward;
@@ -44,7 +46,7 @@ export default function WalkForwardWindows({ diagnostics }: AnalyticsComponentPr
       }
     >
       <ResponsiveContainer width="100%" height={180}>
-        <BarChart data={chartData} barGap={2} onClick={(data: any) => {
+        <BarChart data={chartData} barGap={2} onClick={(data: BarChartClickArgs[0]) => {
           if (data?.activeTooltipIndex != null) {
             const idx = data.activeTooltipIndex;
             setSelectedWindow(idx === selectedWindow ? null : idx);

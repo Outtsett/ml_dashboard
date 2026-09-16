@@ -2,9 +2,10 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Activity, Zap, ShieldAlert } from 'lucide-react';
 import { smooth } from './math';
+import type { HilbertResult } from './types';
 
 interface HilbertAnalyticsProps {
-  hData: any;
+  hData: HilbertResult | null;
   isPriceMode: boolean;
 }
 
