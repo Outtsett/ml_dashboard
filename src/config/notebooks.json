@@ -41,11 +41,6 @@
           "path": "E:/source/repos/Trading/quant/chart_cnn/synth",
           "category": "Chart CNN",
           "repoLabel": "Trading/quant/chart_cnn/synth"
-        },
-        {
-          "path": "E:/source/repos/Trading/quantower_strategies/research/notebooks",
-          "category": "Quantower strategy research",
-          "repoLabel": "Trading/quantower_strategies/research/notebooks"
         }
       ]
     },
@@ -74,20 +69,6 @@
           "path": "E:/source/repos/Trading/forexmodel/notebooks",
           "category": "Forex model",
           "repoLabel": "Trading/forexmodel/notebooks"
-        }
-      ]
-    },
-    {
-      "slug": "adorn",
-      "label": "Adorn",
-      "python": "C:/Users/tyler/anaconda3/envs/ml/python.exe",
-      "cwd": "E:/source/repos/adorn/adorn-app",
-      "port": 27185,
-      "roots": [
-        {
-          "path": "E:/source/repos/adorn/adorn-app/notebooks",
-          "category": "Adorn",
-          "repoLabel": "adorn/adorn-app/notebooks"
         }
       ]
     },

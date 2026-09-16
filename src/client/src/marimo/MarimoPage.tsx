@@ -28,6 +28,7 @@ interface NotebookEntry {
   description: string;
   sizeBytes: number;
   modifiedAtIso: string;
+  createdAtIso: string;
   url: string;
 }
 
@@ -44,6 +45,39 @@ interface GroupEntry {
 interface CatalogResponse {
   groups: GroupEntry[];
   notebooks: NotebookEntry[];
+}
+
+/** Local date and time, to the minute: "15 Sep 2026, 21:54". The catalog sends
+ *  UTC ISO strings; a research library is read in the clock you worked in. */
+function whenLabel(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return "unknown";
+  return at.toLocaleString(undefined, {
+    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+}
+
+/** The local calendar day a timestamp falls on, as YYYY-MM-DD. Bucketing on the
+ *  UTC date instead put 2026-09-16 06:01 UTC and 2026-09-15 23:31 UTC in
+ *  different groups that both rendered as "Today", because the label is local
+ *  and the key was not. */
+function localDayKey(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return "unknown";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
+}
+
+/** Today / Yesterday / the date — the heading a notebook is filed under. */
+function dayBucket(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return "Undated";
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOfDay(new Date()) - startOfDay(at)) / 86_400_000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  return at.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
 }
 
 const STATUS_WORDS: Record<GroupEntry["status"], string> = {
@@ -119,14 +153,18 @@ export default function MarimoPage() {
     );
   }, [notebooks, filter]);
 
-  const byCategory = useMemo(() => {
-    const map = new Map<string, NotebookEntry[]>();
+  // Filed by the day the work was last touched, newest first, because that is
+  // how research is looked for — "the thing I was doing on Tuesday" — and the
+  // server already sorts the notebooks by modified time descending.
+  const byDay = useMemo(() => {
+    const map = new Map<string, { label: string; entries: NotebookEntry[] }>();
     for (const notebook of visible) {
-      const list = map.get(notebook.category);
-      if (list) list.push(notebook);
-      else map.set(notebook.category, [notebook]);
+      const key = localDayKey(notebook.modifiedAtIso);
+      const bucket = map.get(key);
+      if (bucket) bucket.entries.push(notebook);
+      else map.set(key, { label: dayBucket(notebook.modifiedAtIso), entries: [notebook] });
     }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   }, [visible]);
 
   // Reopening the same notebook after a restart needs a fresh iframe.
@@ -174,10 +212,10 @@ export default function MarimoPage() {
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             {catalog.isLoading && <p className="px-2 text-xs text-muted-foreground">Scanning notebook roots…</p>}
             {catalog.error && <p className="px-2 text-xs text-destructive">Catalog failed: {(catalog.error as Error).message}</p>}
-            {byCategory.map(([category, entries]) => (
-              <section key={category} className="mb-3">
+            {byDay.map(([day, { label, entries }]) => (
+              <section key={day} className="mb-3">
                 <h3 className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {category} <span className="tnum">({entries.length})</span>
+                  {label} <span className="tnum">({entries.length})</span>
                 </h3>
                 <ul>
                   {entries.map((notebook) => {
@@ -203,6 +241,13 @@ export default function MarimoPage() {
                           </span>
                           <span className="ml-3 block truncate font-mono text-[10px] text-muted-foreground">
                             {notebook.relativePath}
+                          </span>
+                          <span
+                            className="ml-3 block truncate text-[10px] text-muted-foreground tnum"
+                            title={`created ${whenLabel(notebook.createdAtIso)}
+last run or edited ${whenLabel(notebook.modifiedAtIso)}`}
+                          >
+                            {whenLabel(notebook.modifiedAtIso)}
                           </span>
                         </button>
                       </li>
