@@ -13,10 +13,12 @@ import { serveStatic } from './infrastructure/core/static';
 import { runStartupSequence, getStartupReport } from './infrastructure/lib/startupManager';
 import { getStaticOpenApiSpec } from './infrastructure/core/swagger/swagger.config';
 import { log } from './infrastructure/lib/log';
-import { db } from './infrastructure/database/db';
+import { db, closeDatabases } from './infrastructure/database/db';
 import { setNestApp } from './infrastructure/lib/nest-context';
 import { shutdownAllPtySessions } from './infrastructure/lib/ptyServer';
 import { shutdownHardwareNode } from './system/telemetry.router';
+import { shutdownSSE } from './system/events.router';
+import { getRunner } from './training/runnerFactory';
 import { warmSymbolsCatalog } from './infrastructure/cache/symbols';
 
 declare module 'express-serve-static-core' {
@@ -268,14 +270,14 @@ async function bootstrap() {
     next();
   });
 
-  // ── Start QuestDB process if not running (timeout so app can start without QuestDB) ──
+  // ── Check the stores this app reads (timeout so a dark lake cannot hang boot) ──
   try {
     await Promise.race([
       runStartupSequence(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('QuestDB startup timeout')), 30_000)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('store health check timed out')), 30_000)),
     ]);
   } catch (e) {
-    console.warn('[startup] QuestDB unavailable — app will run with limited functionality:', (e as Error).message);
+    console.warn('[startup] Lake unavailable — app will run with limited functionality:', (e as Error).message);
   }
 
   // ── NestJS DI container (initializes DB connections via lifecycle hooks) ──
@@ -388,6 +390,17 @@ async function bootstrap() {
     shutdownAllPtySessions();
     await stopAllMarimoGroups();
 
+    // A training child is a detached Python process: on Windows it outlives this
+    // one, so a restart otherwise leaves the previous run writing checkpoints
+    // that nothing in the dashboard is tracking any more.
+    const pythonRunner = getRunner('python') as { stopAll?: () => number } | undefined;
+    const stopped = pythonRunner?.stopAll?.() ?? 0;
+    if (stopped > 0) log(`Stopped ${stopped} live training session(s)`, 'training');
+
+    // Ends open event streams and clears the keepalive interval that would
+    // otherwise hold the event loop open past this point.
+    shutdownSSE();
+
     // Race nestApp.close() against a 10s timeout
     const closeNest = async () => {
       try { await nestApp.close(); } catch {}
@@ -399,6 +412,10 @@ async function bootstrap() {
       }, 10_000),
     );
     await Promise.race([closeNest(), timeout]);
+
+    // Last, so nothing is mid-write: checkpoints the write-ahead log instead of
+    // leaving it for the next boot to recover.
+    closeDatabases();
 
     httpServer.close();
     process.exit(0);

@@ -45,3 +45,19 @@ export const db = drizzle(sqlite, { schema });
 const sqliteReadOnly = new Database(dbPath, { readonly: true });
 sqliteReadOnly.pragma("busy_timeout = 5000");
 export const dbReadOnly = drizzle(sqliteReadOnly, { schema });
+
+/**
+ * Close both handles. In WAL mode an unclosed database leaves its -wal and -shm
+ * files behind with the last transactions uncheckpointed; the next open recovers
+ * them, but a process that exits without closing has no chance to checkpoint and
+ * the file keeps growing. Called from the shutdown path in main.ts.
+ */
+export function closeDatabases(): void {
+  for (const handle of [sqlite, sqliteReadOnly]) {
+    try {
+      if (handle.open) handle.close();
+    } catch (err) {
+      log(`SQLite close failed: ${(err as Error).message}`, "database");
+    }
+  }
+}

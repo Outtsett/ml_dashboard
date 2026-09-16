@@ -1,26 +1,27 @@
 /**
  * Unified Startup Manager
  *
- * Single entry point that handles:
- * 1. SQLite: embedded, no external process needed
- * 2. QuestDB: detect -> start -> verify
+ * Single entry point that reports whether the two stores this app actually reads
+ * are usable:
+ *   1. SQLite: embedded, no external process
+ *   2. The lake: Iceberg at E:\lake, read in-process by DuckDB
  *
- * Each database has independent lifecycle — one failing doesn't block others.
- * Reports a structured status object the frontend can display.
+ * Each store has an independent lifecycle — one failing does not block the other.
+ * Returns a structured status object /api/readiness and /api/startup-report serve.
+ *
+ * Rewritten 2026-09-15. It used to probe QuestDB over HTTP and, failing that,
+ * SPAWN a QuestDB JVM from QUESTDB_ROOT on every boot. QuestDB was emptied and
+ * retired on 2026-09-10 — zero tables, nothing may read or write it — so that
+ * path could only ever do one of two things: nothing (java.exe absent, which is
+ * the case on this machine, giving status 'skipped'), or start a database
+ * serving nothing. Either way `overallHealthy` required questdb === 'running',
+ * so /api/readiness returned 503 forever while /api/health, which asks the
+ * real DuckDB serving layer, returned 200 on the same dependency in the same
+ * process. Two probes, opposite answers. The probe now asks the lake.
  */
 
-import { spawn } from 'child_process';
-import fs from 'fs';
-import path from 'path';
+import { checkQuestDBHealth } from '../database/questdb/connection';
 import { log } from './log';
-
-// ── Paths (configurable via env, fallback to legacy defaults) ──
-const QUESTDB_ROOT = process.env.QUESTDB_ROOT || '';
-const QUESTDB_JAVA = process.env.QUESTDB_JAVA || (QUESTDB_ROOT ? path.join(QUESTDB_ROOT, 'bin', 'java.exe') : '');
-const QUESTDB_PID_FILE = path.join(process.cwd(), '.questdb.pid');
-
-const QUESTDB_HOST = process.env.QUESTDB_HOST || 'localhost';
-const QUESTDB_HTTP_PORT = parseInt(process.env.QUESTDB_HTTP_PORT || '9000', 10);
 
 export interface DbStatus {
   name: string;
@@ -32,93 +33,26 @@ export interface DbStatus {
 
 export interface StartupReport {
   sqlite: DbStatus;
-  questdb: DbStatus;
+  lake: DbStatus;
   overallHealthy: boolean;
   timestamp: string;
 }
 
-// ── Stale PID cleanup ──
-function cleanStalePidFile(pidFile: string, label: string): boolean {
-  if (!fs.existsSync(pidFile)) return false;
-
+/**
+ * Is the lake readable? `checkQuestDBHealth` (named for the layer it replaced)
+ * opens the process-wide DuckDB instance, which installs the iceberg and httpfs
+ * extensions and defines one view per serving table, then counts those views.
+ * Zero views means the instance came up but the lake behind it did not.
+ */
+async function checkLake(): Promise<DbStatus> {
+  const base = { name: 'Lake (Iceberg via DuckDB)' } as const;
   try {
-    const content = fs.readFileSync(pidFile, 'utf-8');
-    const pid = parseInt((content.split('\n')[0] ?? '').trim(), 10);
-    if (isNaN(pid)) {
-      log(`Removing corrupt PID file for ${label}`, 'startup');
-      fs.unlinkSync(pidFile);
-      return true;
-    }
-
-    // Check if process is actually alive
-    try {
-      process.kill(pid, 0); // doesn't kill — just tests existence
-      return false; // process is alive, PID file is valid
-    } catch {
-      log(`Cleaning stale PID file for ${label} (PID ${pid} is dead)`, 'startup');
-      fs.unlinkSync(pidFile);
-      return true;
-    }
+    const healthy = await checkQuestDBHealth();
+    return healthy
+      ? { ...base, status: 'running', message: 'Serving views defined over the Iceberg lake', startedBy: 'already-running' }
+      : { ...base, status: 'failed', message: 'DuckDB opened but no serving views are defined — is AIStor up?', startedBy: 'failed' };
   } catch (err) {
-    log(`Error checking PID file for ${label}: ${(err as Error).message}`, 'startup');
-    return false;
-  }
-}
-
-// ── QuestDB ──
-async function isQuestDBReady(): Promise<boolean> {
-  try {
-    const resp = await fetch(`http://${QUESTDB_HOST}:${QUESTDB_HTTP_PORT}/exec?query=SELECT%201`);
-    return resp.ok;
-  } catch {
-    return false;
-  }
-}
-
-async function ensureQuestDB(): Promise<DbStatus> {
-  const base: Omit<DbStatus, 'status' | 'message' | 'startedBy'> = {
-    name: 'QuestDB',
-    port: QUESTDB_HTTP_PORT,
-  };
-
-  // Already running?
-  if (await isQuestDBReady()) {
-    return { ...base, status: 'running', message: `Already running on port ${QUESTDB_HTTP_PORT}`, startedBy: 'already-running' };
-  }
-
-  // Check if java.exe exists
-  if (!fs.existsSync(QUESTDB_JAVA)) {
-    return { ...base, status: 'skipped', message: 'QuestDB java.exe not found — external instance expected', startedBy: 'not-attempted' };
-  }
-
-  // Clean stale PID
-  cleanStalePidFile(QUESTDB_PID_FILE, 'QuestDB');
-
-  // Start as detached process
-  log('Starting QuestDB...', 'startup');
-  try {
-    const questdb = spawn(
-      QUESTDB_JAVA,
-      ['-m', 'io.questdb/io.questdb.ServerMain', '-d', QUESTDB_ROOT],
-      { stdio: 'ignore', detached: true }
-    );
-    questdb.unref();
-
-    fs.writeFileSync(QUESTDB_PID_FILE, String(questdb.pid), 'utf-8');
-    log(`QuestDB process spawned (PID: ${questdb.pid})`, 'startup');
-
-    // Wait for HTTP endpoint
-    const deadline = Date.now() + 30_000;
-    while (Date.now() < deadline) {
-      if (await isQuestDBReady()) {
-        return { ...base, status: 'running', message: `Auto-started on port ${QUESTDB_HTTP_PORT}`, startedBy: 'auto-started' };
-      }
-      await new Promise(r => setTimeout(r, 1000));
-    }
-
-    return { ...base, status: 'failed', message: 'Started but HTTP endpoint not responding after 30s', startedBy: 'failed' };
-  } catch (err) {
-    return { ...base, status: 'failed', message: `QuestDB start failed: ${(err as Error).message}`, startedBy: 'failed' };
+    return { ...base, status: 'failed', message: `Lake unreachable: ${(err as Error).message}`, startedBy: 'failed' };
   }
 }
 
@@ -126,9 +60,9 @@ async function ensureQuestDB(): Promise<DbStatus> {
 let lastReport: StartupReport | null = null;
 
 export async function runStartupSequence(): Promise<StartupReport> {
-  log('--- Startup Manager: checking databases ---', 'startup');
+  log('--- Startup Manager: checking stores ---', 'startup');
 
-  // SQLite is embedded — always available
+  // SQLite is embedded — available as soon as the file opens.
   const sqliteStatus: DbStatus = {
     name: 'SQLite',
     status: 'running',
@@ -136,20 +70,18 @@ export async function runStartupSequence(): Promise<StartupReport> {
     startedBy: 'not-attempted',
   };
 
-  // QuestDB needs external process
-  const questStatus = await ensureQuestDB();
+  const lakeStatus = await checkLake();
 
   const report: StartupReport = {
     sqlite: sqliteStatus,
-    questdb: questStatus,
-    overallHealthy: sqliteStatus.status === 'running' && questStatus.status === 'running',
+    lake: lakeStatus,
+    overallHealthy: sqliteStatus.status === 'running' && lakeStatus.status === 'running',
     timestamp: new Date().toISOString(),
   };
 
-  // Pretty-print status
-  const icon = (s: DbStatus) => s.status === 'running' ? '+' : s.status === 'skipped' ? 'o' : 'x';
-  log(`  ${icon(sqliteStatus)} SQLite:     ${sqliteStatus.message}`, 'startup');
-  log(`  ${icon(questStatus)} QuestDB:    ${questStatus.message}`, 'startup');
+  const icon = (s: DbStatus) => (s.status === 'running' ? '+' : s.status === 'skipped' ? 'o' : 'x');
+  log(`  ${icon(sqliteStatus)} SQLite:  ${sqliteStatus.message}`, 'startup');
+  log(`  ${icon(lakeStatus)} Lake:    ${lakeStatus.message}`, 'startup');
   log(`--- Overall: ${report.overallHealthy ? 'HEALTHY' : 'DEGRADED'} ---`, 'startup');
 
   lastReport = report;

@@ -41,8 +41,29 @@ export function getStaticOpenApiSpec() {
       version: '1.0.0',
     },
     paths: {
+      // The three probes are deliberately different questions, and a consumer
+      // that cannot tell them apart will wire the wrong one into a supervisor.
+      '/health': {
+        get: {
+          summary: 'Liveness — is the process alive',
+          description: 'Always 200 while the process runs. Says nothing about the stores; do not gate traffic on it.',
+          tags: ['databases'],
+          responses: { '200': { description: 'Process alive, with uptime and memory' } },
+        },
+      },
+      '/api/readiness': {
+        get: {
+          summary: 'Readiness — is it safe to send traffic',
+          description: 'Bootstrapping or a store that is not healthy returns 503 with the startup report attached.',
+          tags: ['databases'],
+          responses: {
+            '200': { description: 'Ready: bootstrap finished and every store healthy' },
+            '503': { description: 'Still bootstrapping, or a store is unhealthy' },
+          },
+        },
+      },
       '/api/health': {
-        get: { summary: 'Health check', tags: ['databases'], responses: { '200': { description: 'OK' } } },
+        get: { summary: 'Per-store health detail', tags: ['databases'], responses: { '200': { description: 'OK' } } },
       },
       '/api/charts/symbols': {
         get: { summary: 'List available symbols', tags: ['charts'], responses: { '200': { description: 'Symbol list' } } },

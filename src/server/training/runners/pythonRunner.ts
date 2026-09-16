@@ -126,7 +126,7 @@ export class PythonRunner implements ITrainerRunner {
     session.child = child;
 
     // Persist PID to SQLite for recovery/cleanup (DIP — storage abstraction)
-    const dbSessId = (session as any).dbSessionId;
+    const dbSessId = (session as { dbSessionId?: number | null }).dbSessionId;
     if (dbSessId != null && child.pid) {
       trainingStorage.updateSessionPid(dbSessId, child.pid);
     }
@@ -328,6 +328,27 @@ export class PythonRunner implements ITrainerRunner {
   isActive(sessionId: string): boolean {
     const session = this.sessions.get(sessionId);
     return !!session && !session.finished;
+  }
+
+  /**
+   * Terminate every live training child. Called on server shutdown: a detached
+   * Python process outlives the Node parent on Windows, so without this a restart
+   * left the previous run's process writing to the same checkpoint directory as
+   * the new one, and nothing in the dashboard knew it existed.
+   *
+   * Reuses stop(), so each session gets the same SIGTERM, the same 30s SIGKILL
+   * fallback and the same terminal-state bookkeeping as a stop from the UI.
+   */
+  stopAll(): number {
+    const live = [...this.sessions.values()].filter((s) => !s.finished);
+    for (const session of live) {
+      try {
+        this.stop(session.sessionId);
+      } catch (err) {
+        logger.warn(`Failed to stop session ${session.sessionId}: ${(err as Error).message}`);
+      }
+    }
+    return live.length;
   }
 
   getSession(sessionId: string): TrainingSession | undefined {

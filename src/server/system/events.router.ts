@@ -43,7 +43,14 @@ router.get('/events/:channel', (req: Request, res: Response) => {
 
 export default router;
 
-/** Gracefully shut down the SSE adapter (close all client connections). */
+/**
+ * Gracefully shut down the SSE adapter (close all client connections).
+ *
+ * Defined since the adapter was written, but nothing called it until 2026-09-15:
+ * the shutdown path in main.ts stopped PTY sessions and marimo groups and then
+ * exited, leaving the keepalive interval holding the event loop open and every
+ * connected browser holding a socket this process would never write to again.
+ */
 export function shutdownSSE(): void {
   if (sseAdapter) {
     sseAdapter.shutdown();
