@@ -8,6 +8,7 @@
 import { PATTERN_DETECTORS } from './candles/registry';
 import { Bar } from './candles/helpers';
 import { toTimeSec } from './calculators/math_primitives';
+import { getSeriesTitle } from "@/market/lib/indicator_panels";
 
 export interface PatternResult {
   name: string;        // e.g., "CDL_DOJI"
@@ -88,5 +89,11 @@ export function scanPatterns(
  */
 export function getPatternDisplayName(name: string): string {
   const detector = PATTERN_DETECTORS.find(d => d.name === name);
-  return detector?.displayName ?? name.replace('CDL_', '').replace(/_/g, ' ');
+  if (detector) return detector.displayName;
+  // A lake column also marks bars, and it registered its own name; without this
+  // a zigzag pivot labelled itself "lake:mnq_zigzag_1m:binary::zz_is_pivot" on
+  // the chart.
+  const registered = getSeriesTitle(name);
+  if (registered && registered !== name) return registered;
+  return name.replace('CDL_', '').replace(/_/g, ' ');
 }

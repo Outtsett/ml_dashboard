@@ -14,6 +14,7 @@ import dataManagementRouter from "../../data/data-management.router";
 import instrumentsRouter from "../../market/instruments.router";
 import newsRouter from "../../market/news.router";
 import chartRouter from "../../market/charts.router";
+import seriesRouter from "../../market/series.router";
 import marketReplayRouter from "../../market/ingestion/replay.router";
 
 // ML Domain
@@ -80,6 +81,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", mlRouter);
   app.use("/api", newsRouter);
   app.use("/api", databasesRouter);
+  app.use("/api/charts", seriesRouter);   // lake columns as chart series
   app.use("/api/charts", chartRouter);
   app.use("/api", marketReplayRouter);
   app.use("/api", backtestRouter);

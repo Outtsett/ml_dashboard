@@ -27,6 +27,7 @@ import { extractSymbolFromFilename, detectAssetType } from "@/data/lib/upload_ut
 import type { FileUploadItem } from "@/shared/utils/types";
 import { QueryConsole } from "./QueryConsole";
 import { StoreBrowser, type StoreKey } from "./stores/StoreBrowser";
+import { ColumnProfiles } from "./stores/ColumnProfiles";
 import { DuckDbPanel, IcebergPanel } from "./stores/StorePanels";
 
 interface StoreObject {
@@ -121,6 +122,8 @@ export default function Databases() {
   const [lakeObject, setLakeObject] = useState<string | null>(null);
   const [sqliteObject, setSqliteObject] = useState<string | null>(null);
   const [lakeFilter, setLakeFilter] = useState("");
+  // Profiles are scoped to one symbol; unscoped, a billion-row table takes minutes.
+  const [profileSymbol, setProfileSymbol] = useState("MNQ");
   const [sqliteFilter, setSqliteFilter] = useState("");
 
   const { toast } = useToast();
@@ -289,6 +292,14 @@ export default function Databases() {
                 </div>
               </div>
             </LensFrame>
+
+            {selected && store === "lake" && (
+              <ColumnProfiles
+                objectName={selected}
+                symbol={profileSymbol}
+                onSymbolChange={setProfileSymbol}
+              />
+            )}
 
             <IcebergPanel table="bars" />
             <DuckDbPanel />

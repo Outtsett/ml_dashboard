@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { useIndicatorData } from "@/market/lib/useIndicatorData";
 import { useLabelOverlay } from "@/market/lib/useLabelOverlay";
 import { useActiveIndicators } from "@/market/lib/useActiveIndicators";
+import { useLakeSeries } from "@/market/lib/useLakeSeries";
 import { useBreadcrumbs } from "@/shared/hooks/useBreadcrumbs";
 import { useDashboard } from "@/shared/contexts/UnifiedDashboardContext";
 import { useLocalReplay } from "@/market/lib/useLocalReplay";
@@ -134,10 +135,20 @@ export default function MarketData() {
     isLoading: patternsLoading,
   } = useIndicatorData(symbol, timeframe, isFutures, chartData);
 
-  // â”€â”€ Merge indicator overlays + pattern overlays â”€â”€
+  // What the chart is showing, shared by the lake series and the label overlay.
+  const [visibleRange, setVisibleRange] = useState<{ start: number; end: number } | null>(null);
+  // â”€â”€ Lake columns as chart series (fetched, not computed) â”€â”€
+  const lakeSeries = useLakeSeries({
+    symbol,
+    timeframe: minutesToApiKey(timeframe),
+    bars: chartData,
+    visibleRange,
+  });
+
+  // â”€â”€ Merge indicator overlays + pattern overlays + lake series â”€â”€
   const allOverlays = useMemo(() => {
-    return [...indicatorOverlays, ...patternOverlays];
-  }, [indicatorOverlays, patternOverlays]);
+    return [...indicatorOverlays, ...patternOverlays, ...lakeSeries.overlays];
+  }, [indicatorOverlays, patternOverlays, lakeSeries.overlays]);
 
   const handleRemoveIndicators = useCallback((columns: string[]) => {
     // For pattern columns (CDL_*), remove from pattern selection
@@ -152,11 +163,12 @@ export default function MarketData() {
     for (const id of instanceIds) {
       removeIndicator(id);
     }
-  }, [selectedPatterns, setSelectedPatterns, removeIndicator]);
+    // Lake columns are not instances — closing their pane deselects the column.
+    lakeSeries.removeByOverlayColumns(columns);
+  }, [selectedPatterns, setSelectedPatterns, removeIndicator, lakeSeries]);
 
   // â”€â”€ Label overlay (toolbar dropdown â†’ /api/labels/preview over the loaded bars) â”€â”€
   const [selectedLabelGenerator, setSelectedLabelGenerator] = useState<string | null>(null);
-  const [visibleRange, setVisibleRange] = useState<{ start: number; end: number } | null>(null);
   const {
     generators: labelGenerators,
     generatorsLoading: labelGeneratorsLoading,
@@ -263,6 +275,7 @@ export default function MarketData() {
         onUpdateParams={updateParams}
         onToggleVisibility={toggleVisibility}
         onClearAllIndicators={clearAllIndicators}
+        lakeSeries={lakeSeries}
         selectedPatterns={selectedPatterns}
         onPatternSelectionChange={setSelectedPatterns}
         indicatorsLoading={patternsLoading}

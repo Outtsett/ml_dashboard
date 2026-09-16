@@ -54,17 +54,17 @@ const RowsQuerySchema = z.object({
   filters: z.string().max(4000).optional(),
 });
 
-function quote(identifier: string): string {
+export function quote(identifier: string): string {
   return `"${identifier.replace(/"/g, '""')}"`;
 }
 
 /** A DuckDB/SQLite literal for a typed filter value. Strings are escaped, numbers pass as numbers. */
-function literal(value: string, numeric: boolean): string {
+export function literal(value: string, numeric: boolean): string {
   if (numeric && value.trim() !== "" && Number.isFinite(Number(value))) return String(Number(value));
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-interface ColumnInfo {
+export interface ColumnInfo {
   name: string;
   type: string;
   numeric: boolean;
@@ -111,7 +111,7 @@ async function sqliteColumns(name: string): Promise<ColumnInfo[]> {
   }));
 }
 
-async function columnsFor(store: "lake" | "sqlite", name: string): Promise<ColumnInfo[]> {
+export async function columnsFor(store: "lake" | "sqlite", name: string): Promise<ColumnInfo[]> {
   return store === "lake" ? lakeColumns(name) : sqliteColumns(name);
 }
 

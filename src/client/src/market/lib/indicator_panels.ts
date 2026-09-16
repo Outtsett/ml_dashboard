@@ -412,10 +412,34 @@ export function getReferenceLines(panelKey: string): { value: number; color: str
   return REFERENCE_LINES[family] || [];
 }
 
+
+// ─── Per-column registry (lake series) ───────────────────────────────────────
+// A lake column is not a parameterised indicator instance, so its title and its
+// histogram-ness are registered per column rather than derived from an output
+// key. Registered entries win over every rule below them.
+const seriesTitleMap = new Map<string, string>();
+const histogramColumns = new Set<string>();
+
+export function registerSeriesTitle(column: string, title: string) {
+  seriesTitleMap.set(column, title);
+}
+
+export function unregisterSeriesTitle(column: string) {
+  seriesTitleMap.delete(column);
+  histogramColumns.delete(column);
+}
+
+export function registerHistogramColumn(column: string) {
+  histogramColumns.add(column);
+}
+
 /** Get a display title for an individual series within a subchart panel.
  *  column format: "instanceId::outputKey" e.g. "ind_123_1_abc::value"
  *  Returns e.g. "RSI (14)" for single-output or "MACD Signal" for multi-output indicators. */
 export function getSeriesTitle(column: string): string {
+  const registered = seriesTitleMap.get(column);
+  if (registered) return registered;
+
   const parsed = parseInstanceColumn(column);
   if (!parsed) {
     // Legacy format â€” use column as-is
@@ -477,6 +501,8 @@ export function getSeriesTitle(column: string): string {
 
 /** Whether the indicator column should render as a histogram (colored bars). */
 export function shouldRenderAsHistogram(column: string): boolean {
+  if (histogramColumns.has(column)) return true;
+
   // New instance-based format: check outputKey
   const parsed = parseInstanceColumn(column);
   if (parsed) {

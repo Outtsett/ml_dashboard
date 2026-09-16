@@ -8,6 +8,8 @@ import {
   Layers, ZapOff, Play, Square, PanelRightOpen,
 } from "lucide-react";
 import { IndicatorSelector } from "@/market/components/IndicatorSelector";
+import { LakeSeriesSelector } from "@/market/components/LakeSeriesSelector";
+import type { LakeSeriesControls } from "@/market/lib/useLakeSeries";
 import { LabelSelector } from "@/market/components/LabelSelector";
 import type { LabelGenerator } from "@/market/lib/useLabelOverlay";
 import type { ActiveIndicator } from "@/market/lib/useActiveIndicators";
@@ -35,6 +37,8 @@ interface ToolbarProps {
   onUpdateParams: (instanceId: string, params: Record<string, number>) => void;
   onToggleVisibility: (instanceId: string) => void;
   onClearAllIndicators: () => void;
+  /** Every column in the lake, offered as a chart series. */
+  lakeSeries: LakeSeriesControls;
   // CDL Patterns
   selectedPatterns: string[];
   onPatternSelectionChange: (cols: string[]) => void;
@@ -79,6 +83,7 @@ export const Toolbar = memo(function Toolbar({
   timeframe, onTimeframeChange,
   activeIndicators, onAddIndicator, onRemoveIndicator, onUpdateParams,
   onToggleVisibility, onClearAllIndicators,
+  lakeSeries,
   selectedPatterns, onPatternSelectionChange,
   indicatorsLoading,
   labelGenerators, labelGeneratorsLoading, selectedLabelGenerator, onSelectLabelGenerator,
@@ -188,6 +193,19 @@ export const Toolbar = memo(function Toolbar({
         selectedPatterns={selectedPatterns}
         onPatternSelectionChange={onPatternSelectionChange}
         isLoading={indicatorsLoading}
+      />
+
+      {/* Every column in the lake, categorized and drawable */}
+      <LakeSeriesSelector
+        catalog={lakeSeries.catalog}
+        catalogError={lakeSeries.catalogError}
+        isCatalogLoading={lakeSeries.isCatalogLoading}
+        selectedIds={lakeSeries.selectedIds}
+        statuses={lakeSeries.statuses}
+        onToggle={lakeSeries.toggle}
+        onClear={lakeSeries.clear}
+        atLimit={lakeSeries.atLimit}
+        isFetching={lakeSeries.isFetching}
       />
 
       {/* Label overlay picker */}

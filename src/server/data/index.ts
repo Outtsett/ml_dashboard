@@ -1,6 +1,7 @@
 import { Router } from "express";
 import explorerRouter from "./explorer.router";
 import storesRouter from "./stores.router";
+import profileRouter from "./profile.router";
 import databaseInfraRouter from "./database-infra.router";
 import ingestionRouter from "./ingestion.router";
 
@@ -11,6 +12,8 @@ const router = Router();
 router.use("/databases", explorerRouter);
 // The three stores as they actually are: the Iceberg lake, DuckDB, SQLite.
 router.use("/", storesRouter);
+// Per-column distributions and sparklines, measured in DuckDB.
+router.use("/", profileRouter);
 router.use("/features", featuresRouter);
 router.use("/", databaseInfraRouter);
 router.use("/ingest", ingestionRouter);
