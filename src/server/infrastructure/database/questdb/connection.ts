@@ -184,6 +184,41 @@ async function resolveIcebergMetadataLocation(table: string): Promise<string> {
   return location;
 }
 
+/**
+ * The Iceberg catalog's own answer for one table: schema, partition spec,
+ * snapshot log, properties. This is the system of record describing itself —
+ * DuckDB's iceberg_* functions cannot reach it here (they resolve a path, and
+ * this catalog is only addressable over its signed REST API).
+ */
+export async function fetchIcebergTable(table: string): Promise<Record<string, unknown>> {
+  const configUrl = `${LAKE_CATALOG_URI}/v1/config?warehouse=${encodeURIComponent(LAKE_WAREHOUSE)}`;
+  const configResp = await fetch(configUrl, { headers: signedCatalogHeaders("GET", configUrl) });
+  if (!configResp.ok) throw new Error(`Iceberg catalog config failed (${configResp.status})`);
+  const config = (await configResp.json()) as { defaults?: Record<string, string>; overrides?: Record<string, string> };
+  const prefix = config.overrides?.prefix ?? config.defaults?.prefix ?? LAKE_WAREHOUSE;
+  const tableUrl =
+    `${LAKE_CATALOG_URI}/v1/${encodeURIComponent(prefix)}` +
+    `/namespaces/${encodeURIComponent(LAKE_NAMESPACE)}/tables/${encodeURIComponent(table)}`;
+  const resp = await fetch(tableUrl, { headers: signedCatalogHeaders("GET", tableUrl) });
+  if (!resp.ok) throw new Error(`Iceberg table ${LAKE_NAMESPACE}.${table} lookup failed (${resp.status})`);
+  return (await resp.json()) as Record<string, unknown>;
+}
+
+/** Every table the catalog holds in the configured namespace. */
+export async function listIcebergTables(): Promise<string[]> {
+  const configUrl = `${LAKE_CATALOG_URI}/v1/config?warehouse=${encodeURIComponent(LAKE_WAREHOUSE)}`;
+  const configResp = await fetch(configUrl, { headers: signedCatalogHeaders("GET", configUrl) });
+  if (!configResp.ok) throw new Error(`Iceberg catalog config failed (${configResp.status})`);
+  const config = (await configResp.json()) as { defaults?: Record<string, string>; overrides?: Record<string, string> };
+  const prefix = config.overrides?.prefix ?? config.defaults?.prefix ?? LAKE_WAREHOUSE;
+  const listUrl =
+    `${LAKE_CATALOG_URI}/v1/${encodeURIComponent(prefix)}/namespaces/${encodeURIComponent(LAKE_NAMESPACE)}/tables`;
+  const resp = await fetch(listUrl, { headers: signedCatalogHeaders("GET", listUrl) });
+  if (!resp.ok) throw new Error(`Iceberg table list failed (${resp.status})`);
+  const body = (await resp.json()) as { identifiers?: Array<{ name: string }> };
+  return (body.identifiers ?? []).map((i) => i.name);
+}
+
 // ─── DuckDB instance and view catalog ────────────────────────────────────────
 
 let instance: DuckDBInstance | null = null;

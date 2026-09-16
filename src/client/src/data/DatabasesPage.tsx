@@ -1,63 +1,134 @@
-import { useState } from "react";
+/**
+ * Data — the three stores this dashboard actually reads, and their contents.
+ *
+ *   Iceberg lake   the system of record at E:\lake, served by AIStor
+ *   DuckDB         in-process, in-memory; defines a view per table of the
+ *                  frozen serving snapshot, and runs every query on this page
+ *   SQLite         the dashboard's own metadata
+ *
+ * QuestDB was retired on 2026-09-10 and is not part of this stack. Pick any
+ * object and read its rows here — paging, sorting and filtering are controls,
+ * not SQL you have to write.
+ */
+
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Upload as UploadRecord } from "@shared/schema";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Clock, Upload, RefreshCw, Server, FileCode } from "lucide-react";
+import { Database, HardDrive, RefreshCw, Table2, Upload } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
-import { Button } from "@/shared/ui/button";
-import { ScrollArea } from "@/shared/ui/scroll-area";
-import { Badge } from "@/shared/ui/badge";
+import { Input } from "@/shared/ui/input";
+import { PageShell } from "@/backtest/components";
+import { LensFrame } from "@/lens/Frame";
+import { cn } from "@/shared/utils/utils";
+import { UploadTab } from "./UploadTab";
 import { useToast } from "@/shared/hooks/use-toast";
 import { databaseApi } from "@/infrastructure/api/api_service";
 import { extractSymbolFromFilename, detectAssetType } from "@/data/lib/upload_utils";
-import type { DatabaseStats, FileUploadItem } from "@/shared/utils/types";
-import { formatNumber } from "@/shared/utils/types";
-import { TableList } from "./TableList";
-import { StatsCards } from "./StatsCards";
-import { UploadTab } from "./UploadTab";
+import type { FileUploadItem } from "@/shared/utils/types";
 import { QueryConsole } from "./QueryConsole";
-import { VirtualDataTable } from "./VirtualDataTable";
-import { QuestDBControls } from "./QuestDBControls";
-import { DTaleExplorer } from "./DTaleExplorer";
+import { StoreBrowser, type StoreKey } from "./stores/StoreBrowser";
+import { DuckDbPanel, IcebergPanel } from "./stores/StorePanels";
 
+interface StoreObject {
+  name: string;
+  kind: string;
+  rowCount?: number;
+}
+
+interface Overview {
+  lake: {
+    label: string;
+    role: string;
+    catalog: string;
+    namespace: string;
+    objectCount: number;
+    objects: StoreObject[];
+  };
+  duckdb: {
+    label: string;
+    role: string;
+    version: string;
+    extensions: Array<{ name: string; loaded: boolean; installed: boolean }>;
+    vectorSearch: { available: boolean; loaded: boolean; note: string };
+  };
+  sqlite: {
+    label: string;
+    role: string;
+    path: string;
+    objectCount: number;
+    objects: StoreObject[];
+  };
+}
+
+function ObjectList({
+  objects,
+  selected,
+  onSelect,
+  filter,
+  onFilterChange,
+}: {
+  objects: StoreObject[];
+  selected: string | null;
+  onSelect: (name: string) => void;
+  filter: string;
+  onFilterChange: (value: string) => void;
+}) {
+  const visible = useMemo(() => {
+    const needle = filter.trim().toLowerCase();
+    return needle ? objects.filter((o) => o.name.toLowerCase().includes(needle)) : objects;
+  }, [objects, filter]);
+
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-1.5">
+      <Input
+        value={filter}
+        onChange={(event) => onFilterChange(event.target.value)}
+        placeholder={`Search ${objects.length} objects…`}
+        className="h-7 text-xs"
+        data-testid="object-filter"
+      />
+      <ul className="min-h-0 flex-1 overflow-y-auto">
+        {visible.map((object) => (
+          <li key={object.name}>
+            <button
+              type="button"
+              onClick={() => onSelect(object.name)}
+              className={cn(
+                "flex w-full items-baseline justify-between gap-2 rounded px-2 py-1 text-left text-xs transition-colors",
+                selected === object.name ? "bg-muted text-foreground" : "hover:bg-muted/50 text-muted-foreground",
+              )}
+            >
+              <span className="flex items-baseline gap-1.5 truncate">
+                <span aria-hidden className="text-[10px]">
+                  {selected === object.name ? "▸" : "·"}
+                </span>
+                <span className="truncate font-mono">{object.name}</span>
+              </span>
+              <span className="shrink-0 text-[10px] tnum">
+                {object.rowCount !== undefined ? object.rowCount.toLocaleString() : object.kind}
+              </span>
+            </button>
+          </li>
+        ))}
+        {visible.length === 0 && <li className="px-2 py-2 text-xs text-muted-foreground">Nothing matches.</li>}
+      </ul>
+    </div>
+  );
+}
 
 export default function Databases() {
-  const [activeTab, setActiveTab] = useState("questdb");
-  const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
-  const [previewTable, setPreviewTable] = useState<string | null>(null);
-  const [customQuery, setCustomQuery] = useState("");
-  const [queryDb, setQueryDb] = useState<"questdb" | "sqlite">("questdb");
-  const [selectedFiles, setSelectedFiles] = useState<FileUploadItem[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
+  const [activeTab, setActiveTab] = useState("lake");
+  const [lakeObject, setLakeObject] = useState<string | null>(null);
+  const [sqliteObject, setSqliteObject] = useState<string | null>(null);
+  const [lakeFilter, setLakeFilter] = useState("");
+  const [sqliteFilter, setSqliteFilter] = useState("");
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  const { data: sqliteStats, isLoading: sqliteLoading, refetch: refetchSqlite } = useQuery<DatabaseStats>({
-    queryKey: ["/api/databases/sqlite/stats"],
-    staleTime: 60_000,
-  });
-
-  const { data: questdbStats, isLoading: qdbLoading, refetch: refetchQdb } = useQuery<DatabaseStats>({
-    queryKey: ["/api/databases/questdb/stats"],
-    staleTime: 60_000,
-  });
-
-  const { data: tablePreview, isLoading: previewLoading } = useQuery<Record<string, unknown>[]>({
-    queryKey: ["/api/databases/preview", activeTab, previewTable],
-    enabled: !!previewTable,
-  });
-
-  const runQueryMutation = useMutation({
-    mutationFn: async (params: { db: string; sql: string }) => {
-      return databaseApi.query(params);
-    },
-    onSuccess: () => {
-      toast({ title: "Query executed successfully" });
-      queryClient.invalidateQueries({ queryKey: ["/api/databases"] });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Query failed", description: error.message, variant: "destructive" });
-    },
-  });
+  const [selectedFiles, setSelectedFiles] = useState<FileUploadItem[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [queryDb, setQueryDb] = useState<"questdb" | "sqlite">("questdb");
+  const [customQuery, setCustomQuery] = useState("");
 
   const { data: uploads = [] } = useQuery<UploadRecord[]>({
     queryKey: ["/api/uploads"],
@@ -65,262 +136,245 @@ export default function Databases() {
     refetchInterval: isUploading ? 5000 : 30_000,
   });
 
-  // ── File upload handlers ──
+  const runQuery = useMutation({
+    mutationFn: (params: { db: string; sql: string }) => databaseApi.query(params),
+    onSuccess: () => {
+      toast({ title: "Query ran" });
+      queryClient.invalidateQueries({ queryKey: ["stores"] });
+    },
+    onError: (error: Error) => toast({ title: "Query failed", description: error.message, variant: "destructive" }),
+  });
+
   const handleFilesSelected = (files: FileList | null) => {
     if (!files) return;
-    const newFiles: FileUploadItem[] = Array.from(files).map(file => {
-      const sym = extractSymbolFromFilename(file.name);
-      return {
-        file,
-        symbol: sym,
-        assetType: detectAssetType(sym),
-        status: "pending" as const,
-        progress: 0,
-      };
-    });
-    setSelectedFiles(prev => [...prev, ...newFiles]);
-  };
-
-  const removeFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const updateFileSymbol = (index: number, newSymbol: string) => {
-    const upper = newSymbol.toUpperCase();
-    setSelectedFiles(prev => prev.map((f, i) =>
-      i === index ? { ...f, symbol: upper, assetType: detectAssetType(upper) } : f
-    ));
+    setSelectedFiles((prev) => [
+      ...prev,
+      ...Array.from(files).map((file) => {
+        const symbol = extractSymbolFromFilename(file.name);
+        return { file, symbol, assetType: detectAssetType(symbol), status: "pending" as const, progress: 0 };
+      }),
+    ]);
   };
 
   const uploadAllFiles = async () => {
     if (selectedFiles.length === 0) return;
     setIsUploading(true);
-
-    for (let i = 0; i < selectedFiles.length; i++) {
-      const fileItem = selectedFiles[i];
-      if (!fileItem || fileItem.status !== "pending") continue;
-
-      setSelectedFiles(prev => prev.map((f, idx) =>
-        idx === i ? { ...f, status: "uploading", progress: 0 } : f
-      ));
-
+    for (let i = 0; i < selectedFiles.length; i += 1) {
+      const item = selectedFiles[i];
+      if (!item || item.status !== "pending") continue;
+      setSelectedFiles((prev) => prev.map((f, idx) => (idx === i ? { ...f, status: "uploading", progress: 0 } : f)));
       try {
-        const formData = new FormData();
-        formData.append("file", fileItem.file);
-        formData.append("symbol", fileItem.symbol);
-
+        const form = new FormData();
+        form.append("file", item.file);
+        form.append("symbol", item.symbol);
         let response: Response | null = null;
-        let retries = 0;
-        while (retries < 3) {
-          response = await fetch("/api/upload/ohlcv", { method: "POST", body: formData });
-          if (response.status === 429) {
-            const data = await response.json();
-            await new Promise(r => setTimeout(r, (data.retryAfter || 10) * 1000));
-            retries++;
-          } else break;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          response = await fetch("/api/upload/ohlcv", { method: "POST", body: form });
+          if (response.status !== 429) break;
+          const body = await response.json();
+          await new Promise((resolve) => setTimeout(resolve, (body.retryAfter || 10) * 1000));
         }
-
         if (!response?.ok) throw new Error(`Upload failed: ${response?.statusText}`);
-
-        setSelectedFiles(prev => prev.map((f, idx) =>
-          idx === i ? { ...f, status: "completed", progress: 100 } : f
-        ));
+        setSelectedFiles((prev) => prev.map((f, idx) => (idx === i ? { ...f, status: "completed", progress: 100 } : f)));
       } catch (error) {
         console.error("Upload error:", error);
-        setSelectedFiles(prev => prev.map((f, idx) =>
-          idx === i ? { ...f, status: "failed", progress: 0 } : f
-        ));
+        setSelectedFiles((prev) => prev.map((f, idx) => (idx === i ? { ...f, status: "failed", progress: 0 } : f)));
       }
-
-      if (i < selectedFiles.length - 1) await new Promise(r => setTimeout(r, 500));
     }
-
     setIsUploading(false);
     toast({ title: "Upload batch complete", description: `Processed ${selectedFiles.length} files` });
     queryClient.invalidateQueries({ queryKey: ["/api/uploads"] });
   };
 
-  const clearCompleted = () => {
-    setSelectedFiles(prev => prev.filter(f => f.status !== "completed"));
-  };
+  const overview = useQuery({
+    queryKey: ["stores", "overview"],
+    queryFn: ({ signal }) =>
+      fetch("/api/stores/overview", { signal }).then(async (r) => {
+        const body = await r.json();
+        if (!r.ok) throw new Error(typeof body?.error === "string" ? body.error : `${r.status}`);
+        return body as Overview;
+      }),
+    staleTime: 30_000,
+  });
 
-  const pendingCount = selectedFiles.filter(f => f.status === "pending").length;
-
-  const toggleTable = (tableName: string) => {
-    const newExpanded = new Set(expandedTables);
-    if (newExpanded.has(tableName)) {
-      newExpanded.delete(tableName);
-    } else {
-      newExpanded.add(tableName);
+  useEffect(() => {
+    if (!lakeObject && overview.data?.lake.objects.length) {
+      setLakeObject(overview.data.lake.objects.find((o) => o.name === "bars")?.name ?? overview.data.lake.objects[0]!.name);
     }
-    setExpandedTables(newExpanded);
-  };
+    if (!sqliteObject && overview.data?.sqlite.objects.length) {
+      const busiest = [...overview.data.sqlite.objects].sort((a, b) => (b.rowCount ?? 0) - (a.rowCount ?? 0))[0];
+      setSqliteObject(busiest?.name ?? null);
+    }
+  }, [overview.data, lakeObject, sqliteObject]);
 
-  const handlePreview = (tableName: string, dbType: string) => {
-    setPreviewTable(tableName);
-    setActiveTab(dbType);
-  };
-
-  const totalRows = 
-    (sqliteStats?.tableDetails || []).reduce((sum, t) => sum + (t.rowCount || 0), 0) +
-    (questdbStats?.tableDetails || []).reduce((sum, t) => sum + (t.rowCount || 0), 0);
+  const data = overview.data;
+  const store: StoreKey = activeTab === "sqlite" ? "sqlite" : "lake";
+  const selected = store === "lake" ? lakeObject : sqliteObject;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] flex items-center justify-center">
-              <Server className="h-5 w-5 text-foreground/80" />
-            </div>
-            <span className="text-sm font-medium text-foreground/80/80">Institutional Data Architecture</span>
-          </div>
-          <h1 className="text-4xl font-display font-bold bg-gradient-to-r from-foreground/90 to-foreground/40 bg-clip-text text-transparent">Database Explorer</h1>
-          <p className="text-muted-foreground text-sm mt-1">QuestDB (Speed) and SQLite (Metadata)</p>
-        </div>
-        <div className="flex gap-3">
-          <div className="bg-white/[0.02] border-white/[0.05] rounded-xl px-4 py-2 border border-[hsl(var(--data-pos)/0.2)] text-center">
-            <div className="text-[10px] text-foreground/80/70 uppercase tracking-wider mb-0.5">Active Tables</div>
-            <div className="text-xl font-bold text-foreground/80">
-              {(sqliteStats?.tables || 0) + (questdbStats?.tables || 0)}
-            </div>
-          </div>
-          <div className="bg-white/[0.02] border-white/[0.05] rounded-xl px-4 py-2 border border-cyan-500/20 text-center">
-            <div className="text-[10px] text-foreground/80/70 uppercase tracking-wider mb-0.5">Active Rows</div>
-            <div className="text-xl font-bold text-foreground/80">{formatNumber(totalRows)}</div>
-          </div>
-        </div>
+    <PageShell
+      title="Data"
+      subtitle="The Iceberg lake, the DuckDB layer that serves it, and the dashboard's own SQLite — with every table browsable"
+      icon={Database}
+      actions={[{ label: "Refresh", icon: RefreshCw, onClick: () => overview.refetch(), variant: "ghost" }]}
+      kpis={
+        data
+          ? [
+              { label: "LAKE OBJECTS", value: data.lake.objectCount.toLocaleString(), hint: data.lake.role },
+              { label: "DUCKDB", value: data.duckdb.version, hint: data.duckdb.role },
+              {
+                label: "VECTOR SEARCH",
+                value: data.duckdb.vectorSearch.loaded ? "loaded" : data.duckdb.vectorSearch.available ? "installed" : "absent",
+                hint: data.duckdb.vectorSearch.note,
+              },
+              { label: "SQLITE TABLES", value: data.sqlite.objectCount.toLocaleString(), hint: data.sqlite.role },
+            ]
+          : undefined
+      }
+    >
+      <div className="flex flex-col gap-3" data-testid="data-page">
+        {overview.error && (
+          <LensFrame title="Stores" unavailableReason={(overview.error as Error).message} />
+        )}
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
+          <TabsList className="w-fit">
+            <TabsTrigger value="lake" data-testid="tab-lake">
+              <HardDrive className="mr-1.5 h-3.5 w-3.5" />
+              Iceberg lake &amp; DuckDB
+              <span className="ml-1.5 text-[10px] text-muted-foreground tnum">{data?.lake.objectCount ?? ""}</span>
+            </TabsTrigger>
+            <TabsTrigger value="sqlite" data-testid="tab-sqlite">
+              <Table2 className="mr-1.5 h-3.5 w-3.5" />
+              SQLite metadata
+              <span className="ml-1.5 text-[10px] text-muted-foreground tnum">{data?.sqlite.objectCount ?? ""}</span>
+            </TabsTrigger>
+            <TabsTrigger value="query">SQL console</TabsTrigger>
+            <TabsTrigger value="upload">
+              <Upload className="mr-1.5 h-3.5 w-3.5" />
+              Upload
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ── Lake + DuckDB ─────────────────────────────────────── */}
+          <TabsContent value="lake" className="mt-3 flex flex-col gap-3">
+            <LensFrame
+              title="Browse the lake"
+              question="What is actually in this table? Sort, filter and page through it — no SQL."
+              basis={
+                data
+                  ? `${data.lake.role} · catalog ${data.lake.catalog} · served through DuckDB ${data.duckdb.version}, which defines one view per table of the frozen snapshot`
+                  : undefined
+              }
+              resizeKey="stores-lake-browser"
+              defaultHeight={620}
+              fillBody
+            >
+              <div className="flex min-h-0 flex-1 gap-3">
+                <div className="w-64 shrink-0">
+                  <ObjectList
+                    objects={data?.lake.objects ?? []}
+                    selected={lakeObject}
+                    onSelect={setLakeObject}
+                    filter={lakeFilter}
+                    onFilterChange={setLakeFilter}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  {selected && store === "lake" ? (
+                    <StoreBrowser store="lake" objectName={selected} />
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Choose an object to read its rows.</p>
+                  )}
+                </div>
+              </div>
+            </LensFrame>
+
+            <IcebergPanel table="bars" />
+            <DuckDbPanel />
+          </TabsContent>
+
+          {/* ── SQLite ────────────────────────────────────────────── */}
+          <TabsContent value="sqlite" className="mt-3">
+            <LensFrame
+              title="Browse the dashboard's metadata"
+              question="What is in the app's own database — models, training runs, instruments?"
+              basis={data ? `${data.sqlite.role} · ${data.sqlite.path}` : undefined}
+              resizeKey="stores-sqlite-browser"
+              defaultHeight={620}
+              fillBody
+            >
+              <div className="flex min-h-0 flex-1 gap-3">
+                <div className="w-64 shrink-0">
+                  <ObjectList
+                    objects={data?.sqlite.objects ?? []}
+                    selected={sqliteObject}
+                    onSelect={setSqliteObject}
+                    filter={sqliteFilter}
+                    onFilterChange={setSqliteFilter}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  {sqliteObject ? (
+                    <StoreBrowser store="sqlite" objectName={sqliteObject} />
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Choose a table to read its rows.</p>
+                  )}
+                </div>
+              </div>
+            </LensFrame>
+          </TabsContent>
+
+          {/* ── Console (still here for the cases a control cannot express) ── */}
+          <TabsContent value="query" className="mt-3">
+            <LensFrame
+              title="SQL console"
+              question="For the question the controls above cannot express."
+              basis="Read-only. Runs on the same in-process DuckDB, or on SQLite."
+              resizeKey="stores-console"
+              defaultHeight={420}
+            >
+              <QueryConsole
+                queryDb={queryDb}
+                customQuery={customQuery}
+                isPending={runQuery.isPending}
+                onQueryDbChange={setQueryDb}
+                onCustomQueryChange={setCustomQuery}
+                onRunQuery={() => runQuery.mutate({ db: queryDb, sql: customQuery })}
+              />
+            </LensFrame>
+          </TabsContent>
+
+          <TabsContent value="upload" className="mt-3">
+            <UploadTab
+              selectedFiles={selectedFiles}
+              isUploading={isUploading}
+              pendingCount={selectedFiles.filter((f) => f.status === "pending").length}
+              uploads={uploads}
+              onFilesSelected={handleFilesSelected}
+              onRemoveFile={(index) => setSelectedFiles((prev) => prev.filter((_, i) => i !== index))}
+              onUpdateFileSymbol={(index, symbol) =>
+                setSelectedFiles((prev) =>
+                  prev.map((f, i) =>
+                    i === index
+                      ? { ...f, symbol: symbol.toUpperCase(), assetType: detectAssetType(symbol.toUpperCase()) }
+                      : f,
+                  ),
+                )
+              }
+              onUploadAll={uploadAllFiles}
+              onClearCompleted={() => setSelectedFiles((prev) => prev.filter((f) => f.status !== "completed"))}
+            />
+          </TabsContent>
+        </Tabs>
+
+        {data && (
+          <p className="text-[11px] text-muted-foreground">
+            QuestDB was retired on 2026-09-10; nothing on this page reads it. The lake is the system of record, the
+            DuckDB views are a frozen serving snapshot of it, and SQLite holds only this dashboard&apos;s own records.
+          </p>
+        )}
       </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-black/30 backdrop-blur-xl border border-white/10 rounded-xl p-1 h-auto">
-          <TabsTrigger
-            value="questdb"
-            className="rounded-lg px-5 py-2.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground"
-            data-testid="tab-questdb"
-          >
-            <Clock className="h-4 w-4 mr-2" />
-            QuestDB (Speed)
-            <Badge className="ml-2 text-[10px] bg-white/5 text-muted-foreground/60 border-white/5">{questdbStats?.tables || 0}</Badge>
-          </TabsTrigger>
-          
-          <TabsTrigger
-            value="sqlite"
-            className="rounded-lg px-5 py-2.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground"
-            data-testid="tab-sqlite"
-          >
-            <FileCode className="h-4 w-4 mr-2" />
-            SQLite (Meta)
-            <Badge className="ml-2 text-[10px] bg-white/5 text-muted-foreground/60 border-white/5">{sqliteStats?.tables || 0}</Badge>
-          </TabsTrigger>
-          <TabsTrigger
-            value="dtale"
-            className="rounded-lg px-5 py-2.5 data-[state=active]:bg-white/10 data-[state=active]:text-foreground"
-            data-testid="tab-dtale"
-          >
-            <Server className="h-4 w-4 mr-2" />
-            D-Tale UI
-          </TabsTrigger>
-          <TabsTrigger
-            value="upload"
-            className="rounded-lg px-5 py-2.5 data-[state=active]:bg-[hsl(var(--data-pos)/0.2)] data-[state=active]:text-foreground/80"
-            data-testid="tab-upload"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Upload
-            {selectedFiles.length > 0 && (
-              <Badge className="ml-2 text-[10px] bg-[hsl(var(--data-pos)/0.2)] text-foreground/80">{selectedFiles.length}</Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        {/* QuestDB Tab */}
-        <TabsContent value="questdb" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-display font-semibold">QuestDB Speed Layer</h2>
-              <p className="text-sm text-muted-foreground">High-frequency tick data, OHLCV, and MBP-10</p>
-            </div>
-            <div className="flex gap-3">
-              <Button variant="outline" size="sm" onClick={() => refetchQdb()} data-testid="refresh-questdb">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-            </div>
-          </div>
-          
-          <QuestDBControls />
-          
-          <StatsCards stats={questdbStats} loading={qdbLoading} dbName="QuestDB" />
-
-          {questdbStats?.tableDetails && (
-            <ScrollArea className="h-[500px]">
-              <TableList tables={questdbStats.tableDetails} dbType="questdb" expandedTables={expandedTables} onToggleTable={toggleTable} onPreview={handlePreview} />
-            </ScrollArea>
-          )}
-        </TabsContent>
-
-        {/* SQLite Tab */}
-        <TabsContent value="sqlite" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-display font-semibold">SQLite Metadata Layer</h2>
-              <p className="text-sm text-muted-foreground">Local development state and configuration</p>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => refetchSqlite()} data-testid="refresh-sqlite">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
-          <StatsCards stats={sqliteStats} loading={sqliteLoading} dbName="SQLite" />
-          {sqliteStats?.tableDetails && (
-            <ScrollArea className="h-[500px]">
-              <TableList tables={sqliteStats.tableDetails} dbType="sqlite" expandedTables={expandedTables} onToggleTable={toggleTable} onPreview={handlePreview} />
-            </ScrollArea>
-          )}
-        </TabsContent>
-
-        {/* Upload Tab */}
-        <TabsContent value="upload" className="space-y-6">
-          <UploadTab
-            selectedFiles={selectedFiles}
-            isUploading={isUploading}
-            pendingCount={pendingCount}
-            uploads={uploads}
-            onFilesSelected={handleFilesSelected}
-            onRemoveFile={removeFile}
-            onUpdateFileSymbol={updateFileSymbol}
-            onUploadAll={uploadAllFiles}
-            onClearCompleted={clearCompleted}
-          />
-        </TabsContent>
-
-        {/* D-Tale Tab */}
-        <TabsContent value="dtale" className="space-y-6 h-[800px]">
-          <DTaleExplorer />
-        </TabsContent>
-      </Tabs>
-
-      {/* SQL Query Console */}
-      <QueryConsole
-        queryDb={queryDb}
-        customQuery={customQuery}
-        isPending={runQueryMutation.isPending}
-        onQueryDbChange={setQueryDb}
-        onCustomQueryChange={setCustomQuery}
-        onRunQuery={() => runQueryMutation.mutate({ db: queryDb, sql: customQuery })}
-      />
-
-      {/* Table Preview */}
-      {previewTable && (
-        <VirtualDataTable
-          tableName={previewTable}
-          data={tablePreview || []}
-          isLoading={previewLoading}
-          onClose={() => setPreviewTable(null)}
-        />
-      )}
-    </div>
+    </PageShell>
   );
 }

@@ -19,6 +19,8 @@ export {
   insertOHLCVStream,
   closeQuestDB,
   checkQuestDBHealth,
+  fetchIcebergTable,
+  listIcebergTables,
 } from "./connection";
 
 export type { OHLCVRow, ValidatedOHLCVRow } from "./connection";
