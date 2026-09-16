@@ -311,19 +311,16 @@ async function bootstrap() {
     log(`Marked ${orphanCount} orphaned training session(s) as failed`, 'training');
   }
 
-  // ── Routes + middleware ──
-  await registerRoutes(httpServer, expressApp);
-
-  // ── Marimo notebook proxy (before Vite's SPA catch-all, so a proxied
-  //    /marimo/<slug>/** request is never shadowed by index.html) ──
-  registerMarimoProxies(expressApp, httpServer);
-
-  // OpenAPI spec endpoint (static until NestJS handles HTTP directly)
+  // ── Two /api routes that must be registered BEFORE registerRoutes ──
+  // registerRoutes ends with a catch-all `app.use('/api/{*path}')` that answers
+  // 404 for anything not mounted by then. These two were registered after it and
+  // were therefore unreachable: both returned {"error":"Not found"} on every
+  // request (measured 2026-09-15), the OpenAPI spec included — so /api/docs/json
+  // served a 404 body to anything reading the API contract.
   expressApp.get('/api/docs/json', (_req: Request, res: Response) => {
     res.json(getStaticOpenApiSpec());
   });
 
-  // Startup report endpoint
   expressApp.get('/api/startup-report', (_req: Request, res: Response) => {
     const currentReport = getStartupReport();
     if (currentReport) {
@@ -331,6 +328,13 @@ async function bootstrap() {
     }
     return res.status(503).json({ error: 'Startup not yet complete' });
   });
+
+  // ── Routes + middleware ──
+  await registerRoutes(httpServer, expressApp);
+
+  // ── Marimo notebook proxy (before Vite's SPA catch-all, so a proxied
+  //    /marimo/<slug>/** request is never shadowed by index.html) ──
+  registerMarimoProxies(expressApp, httpServer);
 
   // Error handler — standardized error envelope with request ID
   expressApp.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
