@@ -83,15 +83,45 @@ export function createRateLimiter(config: RateLimitConfig) {
   };
 }
 
+/**
+ * Multiplier applied to every limit below.
+ *
+ * The ceilings are sized for one human driving one dashboard. An end-to-end run
+ * is a different shape of traffic entirely — several browser contexts plus an
+ * API project, all from 127.0.0.1, so all sharing one bucket — and it tripped
+ * the 50-per-10s query limit routinely: specs failed at random with 429s, a
+ * different set each run, which reads as flaky product code rather than as the
+ * limiter doing its job.
+ *
+ * Turning the limiter OFF for tests would be the wrong fix — it would stop
+ * testing the middleware that every API route actually runs through. Scaling it
+ * keeps the code path live while giving a known, trusted, local client room to
+ * work. Default 1 means production behaviour is byte-for-byte unchanged; the
+ * Playwright harness sets RATE_LIMIT_MULTIPLIER in `webServer.env`.
+ */
+const RATE_LIMIT_MULTIPLIER = Math.max(1, Number(process.env.RATE_LIMIT_MULTIPLIER ?? '1') || 1);
+
+/** Scale a ceiling by the multiplier, keeping it a whole number. */
+function ceiling(base: number): number {
+  return Math.ceil(base * RATE_LIMIT_MULTIPLIER);
+}
+
+if (RATE_LIMIT_MULTIPLIER !== 1) {
+  console.warn(
+    `[RateLimit] ceilings scaled x${RATE_LIMIT_MULTIPLIER} via RATE_LIMIT_MULTIPLIER. ` +
+      `This must never be set in a production deployment.`,
+  );
+}
+
 export const apiRateLimiter = createRateLimiter({
   windowMs: 60 * 1000,
-  maxRequests: 100,
+  maxRequests: ceiling(100),
   keyGenerator: (req) => `api:${req.ip || 'unknown'}`
 });
 
 export const uploadRateLimiter = createRateLimiter({
   windowMs: 60 * 1000,
-  maxRequests: 30,
+  maxRequests: ceiling(30),
   keyGenerator: (req) => `upload:${req.ip || 'unknown'}`,
   skipFailedRequests: true,
   onLimitReached: (req) => {
@@ -101,13 +131,13 @@ export const uploadRateLimiter = createRateLimiter({
 
 export const queryRateLimiter = createRateLimiter({
   windowMs: 10 * 1000,
-  maxRequests: 50,
+  maxRequests: ceiling(50),
   keyGenerator: (req) => `query:${req.ip || 'unknown'}`
 });
 
 export const mlRateLimiter = createRateLimiter({
   windowMs: 60 * 1000,
-  maxRequests: 20,
+  maxRequests: ceiling(20),
   keyGenerator: (req) => `ml:${req.ip || 'unknown'}`
 });
 

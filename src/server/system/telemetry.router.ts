@@ -67,20 +67,60 @@ let pythonNode: ChildProcessWithoutNullStreams | null = null;
 let lastSnapshot: SystemSnapshot | null = null;
 let lastNetBytes: { tx: number, rx: number, ts: number } | null = null;
 
+/**
+ * Hardware telemetry is a nice-to-have, so a missing interpreter must degrade
+ * rather than loop. Restarts are counted and capped: the node used to respawn
+ * unconditionally every 5s, which on any machine without the hardcoded
+ * interpreter meant a permanent crash loop for the life of the process.
+ */
+let hardwareNodeRestarts = 0;
+let hardwareNodeDisabled = false;
+const MAX_HARDWARE_NODE_RESTARTS = 5;
+
+/**
+ * The interpreter that runs `scripts/hardware_node.py`.
+ *
+ * `HARDWARE_NODE_PYTHON` wins; otherwise fall back per platform. This used to be
+ * the literal `C:\Users\tyler\anaconda3\python.exe`, which meant the telemetry
+ * node could only ever start on one machine — every CI runner, container and
+ * teammate checkout hit ENOENT instead.
+ */
+function resolveHardwareNodePython(): string {
+  if (process.env.HARDWARE_NODE_PYTHON) return process.env.HARDWARE_NODE_PYTHON;
+  return process.platform === 'win32' ? 'python' : 'python3';
+}
+
 function makeMetadata() {
   const id = crypto.randomUUID().slice(0, 12);
   return { correlationId: id, causationId: id, timestamp: Date.now() };
 }
 
 function startHardwareNode() {
-  if (pythonNode) return;
+  if (pythonNode || hardwareNodeDisabled) return;
 
   const scriptPath = path.resolve(process.cwd(), 'scripts', 'hardware_node.py');
-  const pythonPath = 'C:\\Users\\tyler\\anaconda3\\python.exe';
+  const pythonPath = resolveHardwareNodePython();
 
-  log(`Starting Python node: ${scriptPath}`, 'HardwareNode');
-  
+  log(`Starting Python node: ${scriptPath} (${pythonPath})`, 'HardwareNode');
+
   pythonNode = spawn(pythonPath, [scriptPath]);
+
+  /**
+   * Without this listener a failed spawn is an unhandled 'error' event, which
+   * Node throws. It landed in the global uncaughtException handler in main.ts —
+   * which deliberately does not exit — so the process stayed up, the 'close'
+   * handler below rescheduled, and the whole thing repeated every 5 seconds
+   * forever. An absent interpreter is a normal condition, not an exception.
+   */
+  pythonNode.on('error', (err: NodeJS.ErrnoException) => {
+    hardwareNodeDisabled = true;
+    pythonNode = null;
+    const why =
+      err.code === 'ENOENT'
+        ? `interpreter not found at "${pythonPath}" — set HARDWARE_NODE_PYTHON to override`
+        : err.message;
+    console.warn(`[HardwareNode] disabled: ${why}. GPU/CPU telemetry will be unavailable.`);
+  });
 
   pythonNode.stdout.on('data', (data: Buffer) => {
     const lines = data.toString().split('\n');
@@ -147,8 +187,25 @@ function startHardwareNode() {
   });
 
   pythonNode.on('close', (code: number | null) => {
-    console.warn(`[HardwareNode] Python node exited (code ${code ?? 'null'}). Restarting in 5s...`);
     pythonNode = null;
+
+    // A spawn that never started reports both 'error' and 'close'; the error
+    // handler has already disabled the node and said why, so stay quiet.
+    if (hardwareNodeDisabled) return;
+
+    if (++hardwareNodeRestarts > MAX_HARDWARE_NODE_RESTARTS) {
+      hardwareNodeDisabled = true;
+      console.warn(
+        `[HardwareNode] Python node exited ${hardwareNodeRestarts} times (last code ${code ?? 'null'}). ` +
+          `Giving up rather than restarting forever; telemetry will be unavailable.`,
+      );
+      return;
+    }
+
+    console.warn(
+      `[HardwareNode] Python node exited (code ${code ?? 'null'}). ` +
+        `Restarting in 5s (${hardwareNodeRestarts}/${MAX_HARDWARE_NODE_RESTARTS})...`,
+    );
     setTimeout(startHardwareNode, 5000);
   });
 }

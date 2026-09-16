@@ -252,8 +252,8 @@ export default function Databases() {
               SQLite metadata
               <span className="ml-1.5 text-[10px] text-muted-foreground tnum">{data?.sqlite.objectCount ?? ""}</span>
             </TabsTrigger>
-            <TabsTrigger value="query">SQL console</TabsTrigger>
-            <TabsTrigger value="upload">
+            <TabsTrigger value="query" data-testid="tab-query">SQL console</TabsTrigger>
+            <TabsTrigger value="upload" data-testid="tab-upload">
               <Upload className="mr-1.5 h-3.5 w-3.5" />
               Upload
             </TabsTrigger>

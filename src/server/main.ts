@@ -72,10 +72,24 @@ async function bootstrap() {
 
   // CORS — restrict which origins may READ a response to localhost only.
   // This does NOT stop CSRF; the same-origin gate below is what does.
+  //
+  // The port is read from the environment rather than written as a literal.
+  // `PORT` is configurable (`loadAppConfig()`, app.config.ts:139) and the listen
+  // call honours it, but this list used to hardcode 5000 — so on any other port
+  // the server rejected its OWN origin. A module script and a stylesheet are
+  // fetched in CORS mode and do send `Origin`, and the reject path here calls
+  // `callback(new Error(...))`, which Express renders as a 500. The result was
+  // that `PORT=5099 node dist/index.cjs` served `index.html` fine and then
+  // answered every `/assets/*` request with 500, leaving a blank page and
+  // "CORS blocked: http://127.0.0.1:5099" as the only clue. Deriving the origins
+  // from the same value the socket binds to keeps the two from drifting apart.
+  const configuredPort = parseInt(process.env.PORT || '5000', 10);
   const allowedOrigins = [
-    'http://127.0.0.1:5000',
-    'http://localhost:5000',
-    ...(process.env.NODE_ENV === 'development' ? ['http://host.docker.internal:5000'] : []),
+    `http://127.0.0.1:${configuredPort}`,
+    `http://localhost:${configuredPort}`,
+    ...(process.env.NODE_ENV === 'development'
+      ? [`http://host.docker.internal:${configuredPort}`]
+      : []),
   ];
   expressApp.use(cors({
     origin: (origin, callback) => {

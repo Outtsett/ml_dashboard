@@ -62,7 +62,18 @@ export function LeftSidebar({ collapsed = false }: { collapsed?: boolean }) {
             
             return (
               <NavigationMenu.Item key={item.href} className="w-full">
-                <Link href={item.href} className="w-full block outline-none">
+                {/* `data-testid` is the automation contract for the sidebar.
+                    The label span is hidden when the rail is collapsed, so a
+                    text selector works only in the expanded state and an E2E
+                    navigation silently stops finding links the moment someone
+                    collapses the rail. Keying on href instead is stable in both
+                    states: "/" becomes nav-market, "/ml-studio" nav-ml-studio. */}
+                <Link
+                  href={item.href}
+                  data-testid={`nav-${item.href === "/" ? "market" : item.href.slice(1)}`}
+                  aria-label={item.label}
+                  className="w-full block outline-none"
+                >
                   <div className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 cursor-pointer outline-none",
                     "hover:bg-neutral-800/50 hover:shadow-[0_0_15px_rgba(212,175,55,0.15)]",
