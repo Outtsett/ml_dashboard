@@ -24,6 +24,7 @@ import { getPatternDisplayName } from "@/market/lib/candle_patterns";
 import { ActiveIndicatorList } from '@/market/components/ActiveIndicatorList';
 import { IndicatorSearch } from '@/market/components/IndicatorSearch';
 import { PatternSelector } from '@/market/components/PatternSelector';
+import { TalibPatternSelector } from '@/market/components/TalibPatternSelector';
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -44,6 +45,10 @@ interface IndicatorSelectorProps {
   selectedPatterns: string[];
   /** Callback for CDL pattern selection changes */
   onPatternSelectionChange: (columns: string[]) => void;
+  /** Firings currently drawn from the lake, for the TA-Lib group's readout. */
+  talibFiringCount?: number;
+  /** Why the lake could not answer, shown rather than swallowed. */
+  talibError?: string | null;
   isLoading?: boolean;
 }
 
@@ -58,6 +63,8 @@ export function IndicatorSelector({
   onClearAll,
   selectedPatterns,
   onPatternSelectionChange,
+  talibFiringCount,
+  talibError,
 }: IndicatorSelectorProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -138,11 +145,20 @@ export function IndicatorSelector({
               onAddIndicator={onAddIndicator}
             />
 
-            {/* CDL Patterns */}
+            {/* CDL Patterns — recomputed in the browser from the bars on screen */}
             <PatternSelector
               selectedPatterns={selectedPatterns}
               onSelectionChange={onPatternSelectionChange}
               searchFilter={search}
+            />
+
+            {/* TA-Lib's own firings, read back from the lake */}
+            <TalibPatternSelector
+              selectedPatterns={selectedPatterns}
+              onSelectionChange={onPatternSelectionChange}
+              searchFilter={search}
+              firingCount={talibFiringCount}
+              error={talibError}
             />
           </div>
         </ScrollArea>

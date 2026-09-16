@@ -9,6 +9,8 @@ import { PATTERN_DETECTORS } from './candles/registry';
 import { Bar } from './candles/helpers';
 import { toTimeSec } from './calculators/math_primitives';
 import { getSeriesTitle } from "@/market/lib/indicator_panels";
+import { talibPatternDisplayName } from "@/market/lib/talibPatternCatalog";
+import { TALIB_PATTERN_PREFIX } from "@/market/lib/useTalibPatternOverlays";
 
 export interface PatternResult {
   name: string;        // e.g., "CDL_DOJI"
@@ -88,6 +90,12 @@ export function scanPatterns(
  * Get display name for a pattern by its CDL_* name.
  */
 export function getPatternDisplayName(name: string): string {
+  // A lake-sourced TA-Lib firing carries the `talib:` prefix so it can never be
+  // mistaken for the browser detector of the same shape. On the chart it reads as
+  // the pattern's name, marked so the source is visible at a glance.
+  if (name.startsWith(TALIB_PATTERN_PREFIX)) {
+    return `${talibPatternDisplayName(name.slice(TALIB_PATTERN_PREFIX.length))} (TA-Lib)`;
+  }
   const detector = PATTERN_DETECTORS.find(d => d.name === name);
   if (detector) return detector.displayName;
   // A lake column also marks bars, and it registered its own name; without this

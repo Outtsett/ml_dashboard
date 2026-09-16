@@ -1,6 +1,10 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { getIndicatorColor } from '@/market/lib/indicator_colors';
 import { scanPatterns } from "@/market/lib/candle_patterns";
+import {
+  isTalibPatternColumn,
+  useTalibPatternOverlays,
+} from "@/market/lib/useTalibPatternOverlays";
 
 // --- Types ---
 
@@ -81,8 +85,8 @@ function toMs(ts: number | string): number {
  * @param ohlcvBars - Current chart OHLCV bars to compute patterns from
  */
 export function useIndicatorData(
-  _symbol: string,
-  _timeframeMinutes: number,
+  symbol: string,
+  timeframeMinutes: number,
   _isFutures: boolean,
   ohlcvBars: OHLCVBarInput[] = [],
 ) {
@@ -110,14 +114,22 @@ export function useIndicatorData(
     }));
   }, [ohlcvBars]);
 
-  // Compute patterns client-side from OHLCV data
-  const patternOverlays = useMemo<IndicatorOverlay[]>(() => {
-    if (selectedPatterns.length === 0 || numericBars.length === 0) return [];
+  // Two vocabularies share one selection list and must not share a compute path:
+  // `CDL_*` names are rewritten in TypeScript and scanned here from the bars on
+  // screen, `talib:*` names are the C library's own output fetched from the lake.
+  const browserPatterns = useMemo(
+    () => selectedPatterns.filter(col => !isTalibPatternColumn(col)),
+    [selectedPatterns],
+  );
 
-    const patternMap = scanPatterns(numericBars, selectedPatterns);
+  // Compute the browser-side detectors from the chart's own OHLCV data
+  const patternOverlays = useMemo<IndicatorOverlay[]>(() => {
+    if (browserPatterns.length === 0 || numericBars.length === 0) return [];
+
+    const patternMap = scanPatterns(numericBars, browserPatterns);
     const result: IndicatorOverlay[] = [];
 
-    for (const col of selectedPatterns) {
+    for (const col of browserPatterns) {
       const hits = patternMap.get(col);
       if (hits && hits.length > 0) {
         result.push({
@@ -131,14 +143,37 @@ export function useIndicatorData(
     }
 
     return result;
-  }, [selectedPatterns, numericBars]);
+  }, [browserPatterns, numericBars]);
+
+  // Only ask the lake for the span the chart is holding. `numericBars` arrives
+  // sorted ascending from the loader, so its ends are the range.
+  const barRange = useMemo(() => {
+    if (numericBars.length === 0) return null;
+    return {
+      fromMs: numericBars[0]!.timestamp,
+      toMs: numericBars[numericBars.length - 1]!.timestamp,
+    };
+  }, [numericBars]);
+
+  // TA-Lib's own firings, read back from the lake for the same symbol/timeframe
+  const talib = useTalibPatternOverlays(
+    symbol, timeframeMinutes, selectedPatterns, barRange,
+  );
+
+  const allPatternOverlays = useMemo<IndicatorOverlay[]>(
+    () => [...patternOverlays, ...talib.overlays],
+    [patternOverlays, talib.overlays],
+  );
 
   return {
     catalog: null,
     catalogLoading: false,
     selectedPatterns,
     setSelectedPatterns,
-    patternOverlays,
-    isLoading: false,
+    patternOverlays: allPatternOverlays,
+    /** Firings drawn from the lake, so "none fired" reads differently to "failed". */
+    talibFiringCount: talib.firingCount,
+    talibError: talib.error,
+    isLoading: talib.isLoading,
   };
 }

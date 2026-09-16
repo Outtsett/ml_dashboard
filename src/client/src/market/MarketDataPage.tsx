@@ -132,6 +132,8 @@ export default function MarketData() {
     selectedPatterns,
     setSelectedPatterns,
     patternOverlays,
+    talibFiringCount,
+    talibError,
     isLoading: patternsLoading,
   } = useIndicatorData(symbol, timeframe, isFutures, chartData);
 
@@ -278,6 +280,8 @@ export default function MarketData() {
         lakeSeries={lakeSeries}
         selectedPatterns={selectedPatterns}
         onPatternSelectionChange={setSelectedPatterns}
+        talibFiringCount={talibFiringCount}
+        talibError={talibError}
         indicatorsLoading={patternsLoading}
         labelGenerators={labelGenerators}
         labelGeneratorsLoading={labelGeneratorsLoading}
