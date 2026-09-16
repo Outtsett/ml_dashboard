@@ -84,10 +84,19 @@ export default defineConfig({
     video: 'retain-on-failure',
     actionTimeout: 15_000,
     navigationTimeout: 45_000,
-    /* Every request the suite makes is same-origin loopback; this keeps the
-       server's own CORS allow-list and same-origin mutation gate
-       (`src/server/main.ts`) satisfied rather than bypassed. */
-    extraHTTPHeaders: { 'X-E2E-Run': '1' },
+
+    /* NO `extraHTTPHeaders`.
+     *
+     * An `X-E2E-Run: 1` marker header lived here briefly and broke a third of
+     * the suite. Playwright applies extraHTTPHeaders to EVERY request the page
+     * makes, cross-origin ones included, and a custom header promotes an
+     * otherwise-simple request to a CORS preflight. The app loads JetBrains Mono
+     * from fonts.gstatic.com, which does not allow `x-e2e-run` in
+     * Access-Control-Allow-Headers, so every page load logged two console errors
+     * and the console guard — correctly — failed the test.
+     *
+     * Nothing read the header. If a future marker is genuinely needed, set it
+     * per-request via `page.route`, scoped to the app's own origin. */
   },
 
   projects: [

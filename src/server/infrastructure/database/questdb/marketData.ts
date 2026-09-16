@@ -433,7 +433,22 @@ export async function getFrontMonthOHLCV(
     const parts = unionParts.filter((p): p is string => p !== null);
     if (parts.length === 0) continue;
 
-    const sql = parts.join('\nUNION ALL\n') + '\nORDER BY timestamp';
+    // Take the newest `safeLimit` bars IN SQL, not in JavaScript.
+    //
+    // This used to select the whole union and slice the tail off the array
+    // below. Measured on the real MNQ 1m front-month union: 1,068,765 rows
+    // came back, DuckDB spent 56-66 ms finding them, and Node then spent
+    // 2,869 ms building one JS object per row plus 546 ms normalizing
+    // bigints - 90.5% of a 3,772 ms request - to keep 5,000 and discard 99.5%.
+    //
+    // Each batch returning its own newest N is still correct: the newest N of
+    // the whole set is a subset of the union of each batch's newest N. The
+    // ascending sort and tail-slice below remain the backstop that picks the
+    // true newest N across batches.
+    const ordered = safeLimit
+      ? `\nORDER BY timestamp DESC\nLIMIT ${safeLimit}`
+      : '\nORDER BY timestamp';
+    const sql = parts.join('\nUNION ALL\n') + ordered;
     const rows = await queryQuestDBFast<LakeBarRow>(sql);
     allBars = allBars.concat(rows);
   }

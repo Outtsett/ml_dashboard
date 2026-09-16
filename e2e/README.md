@@ -34,6 +34,36 @@ why.
 That fixture is the reason this suite is worth having. A React page that blows up
 in a `useEffect` renders blank and returns HTTP 200; only the console knows.
 
+## The guards were inert once — check them if you change them
+
+The console/network guards are the reason this suite is worth running, and they
+spent their first hour doing nothing at all.
+
+Playwright instantiates a fixture the first time something asks for it. No spec
+body references `capturedErrors` — that is the whole point — so the first request
+came from the `afterEach`, which runs *after* the test body. The listeners
+attached to a page that had already finished, the array was always empty, and
+every test passed. `auto: true` on both guard fixtures is what fixes it.
+
+If you touch `e2e/fixtures/app.ts`, re-prove them with a throwaway spec that
+calls `console.error` on purpose and fetches a deliberate 404. Both must FAIL,
+and a clean page must still pass. A guard that only ever passes proves nothing.
+
+## Known defects
+
+`KNOWN_DEFECT_PATTERNS` in `e2e/fixtures/app.ts` lists real application faults
+the guards found the moment they started working. They are recorded, not
+silenced: a test whose page hits one is annotated so the HTML report names it,
+and the test still passes so the suite stays runnable.
+
+This list is meant to reach zero. Do not add to it to make a build green.
+
+| defect | where |
+|---|---|
+| Lens RollingPanel draws ReferenceLines at a NaN null-band — `Math.max(1, NaN)` returns NaN | `src/shared/lens/rolling.ts:40-44` |
+| `/api/experiments` answers 500 when PostgreSQL is absent, though Postgres is optional | `src/server/ml/experiments.router.ts` |
+| The market page 404s requesting label assignments for a model that has none | `/api/training/models/:id/assignments` |
+
 ## Layout
 
 ```
