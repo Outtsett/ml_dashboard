@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { CandlestickChart, Info } from 'lucide-react';
 import { SPECTRUM_COLORS } from './constants';
 import type { FourierCoeff, PriceDFTResult } from './types';
-import { readVestigialField } from './types';
 
 interface PriceFourierInfoProps {
   priceDFT: PriceDFTResult | null;
@@ -14,10 +13,12 @@ export const PriceFourierInfo: React.FC<PriceFourierInfoProps> = ({ priceDFT, nu
   if (!priceDFT) return null;
 
   const topTerms = priceDFT.coeffs.slice(0, 5);
-  // `closes` is a vestigial field the producing hook (useFourierState) never
-  // populates on PriceDFTResult — see readVestigialField's docstring. Read it
-  // the same way FourierCanvas.tsx does rather than declaring it on the type.
-  const closesLength = readVestigialField<number[]>(priceDFT, 'closes')!.length;
+  // The sample count the DFT was actually computed over. This read `closes.length`
+  // until 2026-09-16, and `closes` is a field useFourierState never populates —
+  // so it threw "Cannot read properties of undefined" on every render with real
+  // data, hidden behind an `any`. `analysisSeries` is one point per detrended
+  // sample, which is the same N the period below divides by.
+  const closesLength = priceDFT.analysisSeries.length;
   
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">

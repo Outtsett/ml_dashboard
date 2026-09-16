@@ -98,28 +98,21 @@ export class XAIService {
     }
 
     const savedModel = await storage.getMlModel(modelId);
-    // `ml_models` has no modelPath column (src/shared/schema.ts), so this is
-    // always null and the TensorFlow.js load below is unreachable. The models
-    // this repo trains are Python artifacts under data/models/ scored over
-    // MLBridge; there is no .js model in the tree for tf.loadLayersModel to read.
-    const modelPath = (savedModel as { modelPath?: string } | undefined)?.modelPath;
-    if (!savedModel || !modelPath) {
-      logInfo(
-        `[XAI] Model ${modelId} has no TensorFlow.js artifact path — ml_models stores no path ` +
-          `and this build ships no .js models. SHAP served from data/models/ is unaffected.`,
-      );
+    // Same absent column as modelInference.ts: `ml_models` has no artifact-path
+    // field, nothing writes one, and there is no TensorFlow.js model in the tree
+    // to point at — this repo's models are Python artifacts under data/models/.
+    // Casting MlModel to `{ modelPath?: string }` would only restate the fiction,
+    // so this refuses instead. The SHAP served from data/models/ is unaffected.
+    if (!savedModel) {
+      logInfo(`[XAI] Model ${modelId} not found in storage`);
       return false;
     }
+    logInfo(
+      `[XAI] Model ${modelId} has no TensorFlow.js artifact: ml_models stores no path ` +
+        `and this build ships no .js models. SHAP read from data/models/ is unaffected.`,
+    );
+    return false;
 
-    try {
-      this.model = await tf.loadLayersModel(`file://${modelPath}/model.json`);
-      this.modelId = modelId;
-      logInfo(`[XAI] Loaded model ${modelId}`);
-      return true;
-    } catch (err) {
-      console.error(`[XAI] Failed to load model:`, err);
-      return false;
-    }
   }
 
   async explainPrediction(

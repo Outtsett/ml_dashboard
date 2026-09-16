@@ -39,30 +39,31 @@ async function loadModel(modelId: number): Promise<tf.LayersModel> {
   if (!savedModel) {
     throw new Error(`[ModelInference] Model ${modelId} not found in storage`);
   }
-  // `ml_models` has no modelPath column and never has — see src/shared/schema.ts.
-  // Nothing populates one, so this branch is always taken, and the old message
-  // ("was it trained and saved?") blamed the user for a shape the schema does
-  // not have. Say what is actually true instead.
+  // There is nothing to load, and no cast can change that.
   //
-  // Nor is there anything for it to load: this repo trains Python models into
+  // `ml_models` has no artifact-path column (src/shared/schema.ts) — nothing
+  // writes one, so the old code read `savedModel.modelPath`, got `undefined`
+  // every time, and threw "was it trained and saved?", blaming the caller for a
+  // shape the schema does not have. Typing it honestly removed the `any` that
+  // hid this, and there is no honest type to give it: asserting
+  // `{ modelPath?: string }` would just relocate the same fiction.
+  //
+  // Nor is there a file to point at. This repo trains PYTHON models into
   // data/models/<id>/ (diagnostics.json, .ubj, .pkl) and scores them over the
-  // MLBridge ZMQ RPC. There is no TensorFlow.js artifact anywhere in the tree,
-  // so an ml_prediction strategy cannot run until one of those is wired up.
-  const modelPath = (savedModel as { modelPath?: string }).modelPath;
-  if (!modelPath) {
-    throw new Error(
-      `[ModelInference] Model ${modelId} ("${savedModel.name}") cannot be loaded: ` +
-        `ml_models carries no artifact path, and this build has no TensorFlow.js models. ` +
-        `Trained models live in data/models/ and are scored through MLBridge, not tf.loadLayersModel. ` +
-        `Use a momentum or indicator strategy, or wire ml_prediction to MLBridge.`,
-    );
-  }
-
-  const model = await tf.loadLayersModel(`file://${modelPath}/model.json`);
-  modelCache.set(modelId, model);
-  logInfo(`[ModelInference] Loaded and cached model ${modelId} from ${modelPath}`);
-  return model;
+  // MLBridge ZMQ RPC; there is no TensorFlow.js artifact anywhere in the tree
+  // for tf.loadLayersModel to read, and model_checkpoints is empty.
+  //
+  // So this refuses with the truth rather than keeping an unreachable load
+  // behind a fabricated cast. Wiring ml_prediction to MLBridge is a product
+  // decision, not something this function can paper over.
+  throw new Error(
+    `[ModelInference] Model ${modelId} ("${savedModel.name}") cannot be loaded: ` +
+      `ml_models stores no artifact path and this build ships no TensorFlow.js models. ` +
+      `Trained models live in data/models/ and are scored through MLBridge. ` +
+      `Use a momentum or indicator strategy until ml_prediction is wired to MLBridge.`,
+  );
 }
+
 
 // ─── Technical Indicator Helpers ────────────────────────────────────────────
 
