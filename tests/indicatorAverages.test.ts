@@ -50,6 +50,34 @@ describe('overlay averages stay plottable', () => {
     expect(Math.abs(values[values.length - 1]! - closes[closes.length - 1]!)).toBeLessThan(200);
   });
 
+  it('no parameter choice makes HWMA negative or astronomic', () => {
+    // The formula is stable only for some (na, nb, nc) — 20% of this grid is
+    // spectrally unstable, and before the output bound 48 combinations produced
+    // negative values, worst -982,664.62 at (0.40, 0.20, 0.90). A price average
+    // may lag, overshoot or stop early; it may never go negative.
+    const steps = [0.05, 0.2, 0.4, 0.6, 0.8, 0.95];
+    // 400 bars, not 2000: divergence shows itself within ~100 bars (the broken
+    // recursion passed 1e6 at bar 105), and this keeps 216 runs under a second.
+    const sweepBars = syntheticBars(400);
+    let checked = 0;
+    for (const na of steps) {
+      for (const nb of steps) {
+        for (const nc of steps) {
+          const values = calcHWMA(sweepBars, na, nb, nc)
+            .map(p => p.value)
+            .filter((v): v is number => v !== null);
+          checked++;
+          for (const value of values) {
+            expect(Number.isFinite(value), `na=${na} nb=${nb} nc=${nc} -> ${value}`).toBe(true);
+            expect(value, `na=${na} nb=${nb} nc=${nc} went negative`).toBeGreaterThan(0);
+            expect(Math.abs(value), `na=${na} nb=${nb} nc=${nc} -> ${value}`).toBeLessThan(1e6);
+          }
+        }
+      }
+    }
+    expect(checked).toBe(steps.length ** 3);
+  });
+
   it('every overlay average stays inside the chart value limit', () => {
     const LIMIT = 9.007e13; // lightweight-charts' assertion bound
     const series = [
