@@ -1,5 +1,5 @@
 {
-  "$comment": "Every marimo notebook group on this machine. One 'marimo run' process per group (interpreter + working directory), pinned port, proxied same-origin at /marimo/<slug>. Adding a new root is a JSON edit only (OCP) — no server code changes. Only direct-child *.py files containing 'marimo.App(' in the first 64KB of the source count as notebooks; catalog.ts enforces that at scan time.",
+  "$comment": "Every marimo notebook group on this machine. One 'marimo run' process per group (interpreter + working directory), pinned port, proxied same-origin at /marimo/<slug>. Adding a new root is a JSON edit only (OCP) \u2014 no server code changes. Only direct-child *.py files containing 'marimo.App(' in the first 64KB of the source count as notebooks; catalog.ts enforces that at scan time.",
   "groups": [
     {
       "slug": "datalake",
@@ -88,6 +88,20 @@
           "path": "E:/source/repos/adorn/adorn-app/notebooks",
           "category": "Adorn",
           "repoLabel": "adorn/adorn-app/notebooks"
+        }
+      ]
+    },
+    {
+      "slug": "ml-dashboard",
+      "label": "ML Dashboard",
+      "python": "E:/source/repos/datalake/.venv/Scripts/python.exe",
+      "cwd": "E:/source/repos/ml_dashboard",
+      "port": 27186,
+      "roots": [
+        {
+          "path": "E:/source/repos/ml_dashboard/notebooks",
+          "category": "ML Dashboard",
+          "repoLabel": "ml_dashboard/notebooks"
         }
       ]
     }
