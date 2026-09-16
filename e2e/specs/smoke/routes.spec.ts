@@ -57,14 +57,19 @@ test.describe('route sweep', () => {
         `${route.component} rendered an error boundary at ${route.path}`,
       ).toBe(false);
 
-      // Guard against a route that mounts an empty shell: the layout chrome alone
-      // is a few hundred characters, so a route rendering genuinely nothing is
-      // visible as a near-empty root.
-      const text = await app.rootText();
-      expect(text.length, `${route.path} rendered an empty tree`).toBeGreaterThan(0);
+      // Scoped to <main>, which holds the route's OWN content (Layout.tsx:63).
+      // Asserting on `#root` was tautological: the TopBar and the sixteen
+      // sidebar labels live outside <main> and put ~250 characters on every page
+      // before any route renders, so `length > 0` could not fail even for a
+      // route that rendered nothing at all.
+      const mainText = (await page.locator('main').innerText()).trim();
+      expect(
+        mainText.length,
+        `${route.path} mounted but <main> is empty — the route rendered no content of its own`,
+      ).toBeGreaterThan(0);
 
       if (route.expectText) {
-        expect(text).toMatch(route.expectText);
+        expect(mainText).toMatch(route.expectText);
       }
     });
   }

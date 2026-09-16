@@ -51,11 +51,21 @@ test.describe('SQL console', () => {
     expect(
       response.status(),
       `the query endpoint answered ${response.status()}`,
-    ).toBeLessThan(400);
+    ).toBe(200);
 
-    // The value must reach the screen. A 200 whose rows never render is the
-    // failure mode a network-only assertion misses entirely.
-    await expect(page.locator('#root')).toContainText(/e2e_probe|1/i, { timeout: 20_000 });
+    // The engine really ran it: the probe column name comes back in the body.
+    const body = await response.json();
+    expect(
+      JSON.stringify(body),
+      'the query response does not contain the probe column — the engine did not run this SQL',
+    ).toContain('e2e_probe');
+
+    // And the user is told. This is the ONLY visible success signal the console
+    // has: `DatabasesPage.tsx:144-147` shows a "Query ran" toast and throws the
+    // rows away — `runQuery.data` is never read and `QueryConsole` takes no
+    // results prop, so there is no grid to assert against. See the known-gap
+    // note at the bottom of this file.
+    await expect(page.getByText(/query ran/i)).toBeVisible({ timeout: 20_000 });
   });
 
   test('the Run button is disabled until a query is typed', { tag: ['@backend'] }, async ({ page }) => {
@@ -101,12 +111,32 @@ test.describe('SQL console error handling', () => {
       page.getByTestId('run-query').click(),
     ]);
 
+    // Asserted on the specific failure toast (`DatabasesPage.tsx:148`), not a
+    // loose /error|failed/ over the whole page — the app chrome contains those
+    // words in other contexts, so a broad match would pass without the console
+    // reporting anything.
     await expect(
-      page.locator('#root'),
+      page.getByText(/query failed/i),
       'an invalid query produced no visible error — the console is swallowing engine failures',
-    ).toContainText(/error|syntax|failed|invalid/i, { timeout: 20_000 });
+    ).toBeVisible({ timeout: 20_000 });
   });
 });
+
+/*
+ * KNOWN GAP, deliberately not asserted here.
+ *
+ * The SQL console runs a query and discards the result. `DatabasesPage.tsx:142-149`
+ * wires the mutation's `onSuccess` to a toast and a cache invalidation; nothing
+ * reads `runQuery.data`, and `QueryConsole` (src/client/src/data/QueryConsole.tsx)
+ * has no results prop and renders no grid. So a user can execute SQL and is told
+ * "Query ran" without ever seeing a row.
+ *
+ * An earlier version of this spec asserted `#root` contained /e2e_probe|1/i and
+ * passed — but only because the TopBar renders a hardcoded "TF: 1m", so the `1`
+ * alternative matched before any query was submitted. The assertion could not
+ * fail. It is now scoped to the response body and the toast, which are the two
+ * things that genuinely exist.
+ */
 
 test.describe('store browser', () => {
   test('the lake and SQLite tabs both render their object listings', { tag: ['@backend'] }, async ({

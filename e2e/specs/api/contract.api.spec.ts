@@ -51,11 +51,10 @@ test.describe('catalog endpoints', () => {
   });
 
   test('GET /api/models returns the model registry', { tag: ['@backend'] }, async ({ request }) => {
-    const res = await request.get('/api/models');
-    expect([200, 500]).toContain(res.status());
-    if (res.status() !== 200) return; // registry backed by a store this runner lacks
-
-    const body = await res.json();
+    // 200, not "200 or 500". Accepting 500 and returning early meant a registry
+    // that threw and a registry that was merely unconfigured produced the same
+    // green test — the endpoint could be completely broken and this would pass.
+    const body = await json(await request.get('/api/models'));
     const rows = Array.isArray(body) ? body : (body.models ?? body.data);
     expect(Array.isArray(rows), '/api/models must return an array or {models|data:[]}').toBe(true);
   });
@@ -106,9 +105,18 @@ test.describe('observability endpoints', () => {
   }) => {
     const res = await request.get('/api/metrics');
     expect([200, 503]).toContain(res.status());
-    if (res.status() === 200) {
-      expect(typeof await res.json()).toBe('object');
-    }
+    if (res.status() !== 200) return;
+
+    // `typeof x === 'object'` was the previous assertion, which is true of null
+    // and of []. The title promises pipeline and circuit-breaker state, so the
+    // body must actually be a non-null object with keys.
+    const body = await res.json();
+    expect(body, '/api/metrics returned null').not.toBeNull();
+    expect(Array.isArray(body), '/api/metrics returned an array, not a metrics object').toBe(false);
+    expect(
+      Object.keys(body).length,
+      '/api/metrics returned an empty object — it reports no metrics at all',
+    ).toBeGreaterThan(0);
   });
 });
 
@@ -122,15 +130,21 @@ test.describe('market data', () => {
       ?? instruments[0]?.symbol;
     expect(symbol, 'no instrument to query bars for').toBeTruthy();
 
+    // Asserted strictly. The previous version accepted 404 and 429 and then
+    // returned early, and guarded the invariants behind `if (bars.length > 0)` —
+    // so on a rate-limited or empty response the OHLC checks below, which are the
+    // entire point of the test, silently never executed.
     const res = await request.get(`/api/ohlcv/${symbol}?timeframe=1m&limit=10`);
-    expect([200, 404, 429]).toContain(res.status());
-    if (res.status() !== 200) return;
+    const body = await json(res);
 
-    const body = await res.json();
     const bars = Array.isArray(body) ? body : (body.bars ?? body.data ?? []);
-    expect(Array.isArray(bars)).toBe(true);
+    expect(Array.isArray(bars), '/api/ohlcv did not return a bar array').toBe(true);
+    expect(
+      bars.length,
+      `/api/ohlcv returned zero bars for ${symbol} — this test is tagged @lake and only runs where the lake is present`,
+    ).toBeGreaterThan(0);
 
-    if (bars.length > 0) {
+    {
       const bar = bars[0];
       // OHLC invariants. These are the assertions worth having: a bar whose
       // high is below its low is corrupt data that every downstream model
@@ -219,21 +233,39 @@ test.describe('server-sent events', () => {
     expect(head).toContain('pipeline');
   });
 
-  test('the server survives a client hanging up mid-stream', { tag: ['@stream'] }, async ({
+  test('abandoned SSE clients are actually unregistered', { tag: ['@stream'] }, async ({
     baseURL,
     request,
   }) => {
-    // Every SSE handler registers listeners on an in-process event bus and must
-    // remove them when the socket closes. A leak here is invisible until the
-    // dashboard has been open for hours and every emit fans out to hundreds of
-    // dead responses. Opening and abandoning several streams, then checking the
-    // process still answers, is the cheap end-to-end version of that check.
+    // Every SSE handler registers listeners on the in-process event bus and must
+    // remove them when the socket closes. A leak is invisible for hours, until
+    // every emit fans out to hundreds of dead responses.
+    //
+    // This asserts the CLIENT COUNT, not liveness. An earlier version opened five
+    // streams, abandoned them, and then checked `/health` still answered 200 —
+    // which it always would: a leaked listener does not unbind the socket, so
+    // that test could not detect the leak it was named for.
+    const clientCount = async () => {
+      const stats = await (await request.get('/api/events/stats')).json();
+      return Number(stats.pipeline ?? 0);
+    };
+
+    const before = await clientCount();
+
     for (let i = 0; i < 5; i++) {
       await readSseHead(`${baseURL}/api/events/pipeline`, { budgetMs: 3_000 });
     }
 
-    const res = await request.get('/health');
-    expect(res.status(), 'the server stopped answering after repeated SSE disconnects').toBe(200);
+    // The server notices a disconnect on its own schedule, so allow it to settle
+    // rather than reading the instant the last socket closes.
+    await expect(async () => {
+      expect(await clientCount()).toBeLessThanOrEqual(before);
+    }).toPass({ timeout: 20_000 });
+
+    expect(
+      (await request.get('/health')).status(),
+      'the server stopped answering after repeated SSE disconnects',
+    ).toBe(200);
   });
 
   test('an unknown SSE channel does not open a silent dead stream', { tag: ['@stream'] }, async ({
@@ -247,9 +279,17 @@ test.describe('server-sent events', () => {
     // least says something on attach. What must NOT happen is a 200
     // text/event-stream that never sends a byte — a client subscribing to a typo
     // would then wait forever with no error and no data.
-    if (status >= 400) return;
-    if (!headers.get('content-type')?.includes('text/event-stream')) return;
+    // The router validates the channel against {pipeline, training, system} and
+    // answers 400 for anything else, so that is what is asserted. The earlier
+    // version began `if (status >= 400) return;`, which fired on every run and
+    // meant the test asserted nothing at all on the only path it ever took.
+    if (status >= 400) {
+      expect(status, 'an unknown SSE channel should be rejected with 400').toBe(400);
+      return;
+    }
 
+    // If it ever stops rejecting, it must at least not open a silent dead stream:
+    // a client subscribing to a typo would wait forever with no error and no data.
     expect(
       head.length,
       'an unknown channel opened an event stream and sent nothing — a typo in a channel name would hang a client silently',
