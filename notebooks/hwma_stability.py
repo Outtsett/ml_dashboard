@@ -16,11 +16,9 @@ def _():
     import numpy as np
     import polars as pl
 
-    # Okabe-Ito. Price is black, the average orange, the danger line vermillion;
+    # Okabe-Ito. Price is black, the average orange, the boundary vermillion;
     # every colour also carries a label or a dash pattern.
-    ORANGE, BLUE, SKY = "#E69F00", "#0072B2", "#56B4E9"
-    VERMILLION, PURPLE, GREEN, YELLOW = "#D55E00", "#CC79A7", "#009E73", "#F0E442"
-    GREY, BLACK = "#8C8C8C", "#000000"
+    ORANGE, BLUE, VERMILLION, GREY, BLACK = "#E69F00", "#0072B2", "#D55E00", "#8C8C8C", "#000000"
     alt.data_transformers.options["max_rows"] = 200_000
 
     DATABASE = Path(os.environ.get("HWMA_STABILITY_DATABASE", r"E:\lake-workspace\hwma_stability.duckdb"))
@@ -252,7 +250,8 @@ which is exactly why the chart now stops drawing once the line leaves the data's
 
 @app.cell
 def _(alt, grid, mo, np, pl):
-    from scipy.stats import kurtosis as _kurtosis, skew as _skew
+    from scipy.stats import kurtosis as _kurtosis
+    from scipy.stats import skew as _skew
 
     _numeric = [c for c, t in grid.schema.items() if t.is_numeric()]
     _hist_rows, _summary_rows = [], []
