@@ -24,13 +24,13 @@ vi.mock("lightweight-charts", () => {
 });
 
 import { EquityLens } from "../../../src/client/src/lens/charts/EquityLens";
-import { makeEquity, makeHeadline } from "./fixtures";
+import { makeEquity, makeHeadline, makeManifest } from "./fixtures";
 
 afterEach(() => cleanup());
 
 describe("EquityLens", () => {
   it("renders inside its own LensFrame with the question and a basis line carrying trade count, exposure and drawdown", () => {
-    render(<EquityLens equity={makeEquity(5)} headline={makeHeadline()} cursorTimestampSeconds={null} height={200} />);
+    render(<EquityLens equity={makeEquity(5)} headline={makeHeadline()} manifest={makeManifest()} cursorTimestampSeconds={null} height={200} />);
     expect(screen.getByTestId("equity-lens")).toBeInTheDocument();
     expect(screen.getByText(/Would simply holding the contract have done better/)).toBeInTheDocument();
     const frame = screen.getByTestId("equity-lens").textContent ?? "";
@@ -41,7 +41,7 @@ describe("EquityLens", () => {
   });
 
   it("shows the model-vs-buy-and-hold edge with a glyph, not color alone", () => {
-    render(<EquityLens equity={makeEquity(3)} headline={makeHeadline({ buyHoldNetUsd: 0 })} cursorTimestampSeconds={null} height={200} />);
+    render(<EquityLens equity={makeEquity(3)} headline={makeHeadline({ buyHoldNetUsd: 0 })} manifest={makeManifest()} cursorTimestampSeconds={null} height={200} />);
     const text = screen.getByTestId("equity-lens").textContent ?? "";
     expect(text).toMatch(/[▲▼]/);
     expect(text).toContain("vs holding");

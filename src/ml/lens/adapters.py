@@ -16,6 +16,12 @@ Two shapes exist on disk today (``LensSourceSchema`` in
     ``oos_predictions.npz`` with (timestamps, open, high, low, close, probs,
     labels), written by the cnn-transformer trainer. Prices are real.
 
+``class_confidence_parquet``
+    ``oos_predictions.parquet`` with (timestamp, symbol, prediction, confidence)
+    and, since 2026-09-15, (probability_up, label) — what every generated
+    template writes. Those models are trained from the current lake, so their
+    prices are READ from it and the join is verified row by row.
+
 Anything else is refused with a reason a person can act on.
 """
 
@@ -68,6 +74,8 @@ class Record:
     attribution: tuple[list[str], np.ndarray, np.ndarray | None] | None = None
     attribution_reason: str | None = None
     attribution_method: str | None = None
+    #: Price jumps across a break in trading (contract roll or session gap).
+    roll_gaps: list[dict] = field(default_factory=list)
 
     @property
     def row_count(self) -> int:
@@ -202,12 +210,6 @@ def reconstruct_close(
     )
     close = cumulative * scale[np.arange(n) % horizon_bars]
 
-    # Does the recovered series reproduce what it was built from?
-    recomputed = np.full(n, np.nan)
-    valid = np.arange(n - horizon_bars)
-    recomputed[valid] = np.log(close[valid + horizon_bars] / close[valid]) * 10_000.0
-    finite = np.isfinite(recomputed) & np.isfinite(realized_return_basis_points)
-    return_error = float(np.max(np.abs(recomputed[finite] - realized_return_basis_points[finite]))) if finite.any() else float("nan")
 
     replay_error = 0.0
     for (row, direction), net in zip(trades, trade_net_dollars):
@@ -215,18 +217,29 @@ def reconstruct_close(
         replayed = (close[exit_row] - close[row]) * direction * point_value - cost_dollars
         replay_error = max(replay_error, abs(replayed - net))
 
+    # The ratio check below is an algebraic identity — close was BUILT from these
+    # returns, so it passes even on shuffled garbage. The tick-grid test is the
+    # one that uses information the solve never consumed: MNQ trades in 0.25
+    # point increments, and a correct reconstruction lands on that grid.
+    tick = float(cost.get("tickSize") or 0.0)
+    if tick > 0:
+        remainder = np.abs(close / tick - np.round(close / tick)) * tick
+        off_grid = float(np.nanmax(remainder))
+    else:
+        off_grid = float("nan")
+
     checks = [
         check(
-            "reconstructed_close_reproduces_realized_return",
-            return_error < 1e-3,
-            f"max absolute difference {return_error:.3e} basis points over {int(finite.sum())} rows",
-            "< 1e-3 basis points",
+            "reconstructed_prices_land_on_the_instrument_tick_grid",
+            bool(np.isfinite(off_grid)) and off_grid < max(tick / 100.0, 1e-3),
+            f"furthest any recovered close sits from a {tick} point tick: {off_grid:.2e} points",
+            f"< {max(tick / 100.0, 1e-3):.2e} points — a price the solve never saw still lands on the grid",
         ),
         check(
             "reconstructed_close_reproduces_trade_profit_and_loss",
             replay_error < 1e-4,
             f"max absolute difference {replay_error:.3e} US dollars over {len(trades)} trades",
-            "< 1e-4 US dollars (a hundredth of a cent)",
+            "< 1e-4 US dollars (a hundredth of a cent) — fails on a shuffled return series",
         ),
         check(
             "price_anchor_agreement",
@@ -366,6 +379,205 @@ def _attach_shap(record: Record, model_dir: Path) -> None:
     )
 
 
+def detect_price_discontinuities(timestamp_seconds: np.ndarray, close: np.ndarray) -> list[dict]:
+    """Bar-to-bar price jumps across a break in trading, measured not assumed.
+
+    An unadjusted front-month series moves in two ways no strategy can trade:
+    the front contract changes and the new one prices in the carry, and the
+    market closes and reopens somewhere else. Both land as one enormous
+    "return" between two adjacent rows. This reports every jump across a break
+    that is far outside ordinary intraday movement, and labels it by the kind of
+    break it crossed — a date boundary (what a contract roll looks like in this
+    data) or a longer session gap (a weekend or holiday reopen). It does not
+    claim to know which contract was rolled; nothing in the record says.
+    """
+    if close.size < 3:
+        return []
+    step = np.abs(np.diff(close))
+    finite = step[np.isfinite(step)]
+    if finite.size == 0:
+        return []
+    threshold = max(float(np.quantile(finite, 0.999)) * 3.0, 50.0)
+
+    elapsed = np.diff(timestamp_seconds)
+    day = timestamp_seconds // 86_400
+    crosses_day = np.diff(day) != 0
+    typical_step = float(np.median(elapsed)) if elapsed.size else 60.0
+    long_break = elapsed > max(typical_step * 30, 3 * 3600)
+    jump = step > threshold
+
+    out: list[dict] = []
+    for row in np.flatnonzero(jump & (crosses_day | long_break)):
+        seconds_closed = int(elapsed[row])
+        out.append({
+            "rowIndex": int(row) + 1,
+            "timestampSeconds": int(timestamp_seconds[row + 1]),
+            "gapPoints": float(close[row + 1] - close[row]),
+            "hoursClosed": round(seconds_closed / 3600.0, 2),
+            "kind": "date_boundary" if seconds_closed <= 2 * 3600 else "session_gap",
+        })
+    return out
+
+
+# ─── Adapter: class_confidence_parquet (every generated template) ────────────
+
+
+def _load_class_confidence_parquet(model_dir: Path, model_id: str) -> Record:
+    import polars as pl
+
+    predictions_path = model_dir / "oos_predictions.parquet"
+    frame = pl.read_parquet(predictions_path)
+    columns = set(frame.columns)
+
+    ts = frame["timestamp"].to_numpy().astype(np.int64)
+    if ts.size and int(ts.max()) < 10_000_000:
+        raise Refusal(
+            "timestamps are row indices (0..N-1), not bar times — this model predates the "
+            "walk-forward timestamp fix; retrain to regenerate its predictions"
+        )
+
+    if "probability_up" in columns:
+        probability = frame["probability_up"].to_numpy().astype(np.float64)
+    else:
+        # `confidence` is the winning class's probability, so a down call carries
+        # 1 - P(up). Exactly recoverable for a two-way head, and nothing else.
+        prediction = frame["prediction"].to_numpy().astype(np.int64)
+        confidence = frame["confidence"].to_numpy().astype(np.float64)
+        distinct = set(np.unique(prediction).tolist())
+        if not distinct <= {0, 1}:
+            raise Refusal(
+                f"predictions are multi-class labels {sorted(distinct)}; this lens reads "
+                "a two-way direction call"
+            )
+        probability = np.where(prediction == 1, confidence, 1.0 - confidence)
+
+    label = (
+        frame["label"].to_numpy().astype(np.float64)
+        if "label" in columns
+        else np.full(ts.size, np.nan)
+    )
+    symbols = frame["symbol"].unique().to_list() if "symbol" in columns else []
+    symbol = str(symbols[0]) if len(symbols) == 1 else "MNQ"
+
+    diagnostics_path = model_dir / "diagnostics.json"
+    diagnostics = json.loads(diagnostics_path.read_text(encoding="utf-8")) if diagnostics_path.exists() else {}
+    params = diagnostics.get("params") or diagnostics.get("hyperparameters") or {}
+    timeframe = str(diagnostics.get("timeframe", "1m"))
+    horizon = int(params.get("label_horizon_bars", params.get("forward_n", 1)) or 1)
+    threshold = float(params.get("pnl_threshold", 0.55))
+
+    bars, price_checks = _lake_prices(symbol, timeframe, ts)
+    close = bars["close"]
+
+    n = ts.size
+    realized = np.full(n, np.nan)
+    if n > horizon:
+        realized[: n - horizon] = np.log(close[horizon:] / close[: n - horizon]) * 10_000.0
+
+    record = Record(
+        model_id=model_id,
+        source_schema="class_confidence_parquet",
+        symbol=symbol,
+        timeframe=timeframe,
+        horizon_bars=horizon,
+        horizon_source=(
+            "diagnostics.json params.label_horizon_bars"
+            if "label_horizon_bars" in params
+            else "no horizon recorded by this trainer; the lens reads it as one bar"
+        ),
+        label_definition=str(
+            diagnostics.get("label_definition")
+            or f"class label written by this model's own evaluator ({diagnostics.get('model_type', 'family not recorded')})"
+        ),
+        default_threshold=threshold,
+        timestamp_seconds=ts,
+        open=bars["open"],
+        high=bars["high"],
+        low=bars["low"],
+        close=close,
+        volume=bars["volume"],
+        probability_up=probability,
+        label=label,
+        realized_return_basis_points=realized,
+        reference={
+            "tradeCount": None,
+            "cumulativeNetUsd": None,
+            "longCount": None,
+            "shortCount": None,
+            "hitRateAtHalf": None,
+            "areaUnderCurve": None,
+        },
+        notes=[
+            "Prices are read from the lake and joined to this model's own bar timestamps — it was "
+            "trained from the same source, so the join is exact wherever the lake holds the bar.",
+        ]
+        + ([] if "probability_up" in columns else [
+            "This model predates the probability_up column, so its probability of up was recovered "
+            "from (prediction, confidence) — exact for a two-way call."
+        ]),
+        verification=price_checks,
+        source_files=[file_record(predictions_path)]
+        + ([file_record(diagnostics_path)] if diagnostics_path.exists() else []),
+    )
+    record.attribution_reason = "this trainer writes no attribution artifact"
+    return record
+
+
+def _lake_prices(symbol: str, timeframe: str, timestamp_seconds: np.ndarray) -> tuple[dict, list[dict]]:
+    """Join bars from the lake onto a model's out-of-sample timestamps."""
+    import datetime
+    import sys
+
+    sys.path.insert(0, str(PROJECT_ROOT / "src" / "ml"))
+    from shared.data import load_ohlcv_arrays
+
+    first = int(timestamp_seconds.min())
+    last = int(timestamp_seconds.max())
+    date_range = {
+        "start": datetime.datetime.fromtimestamp(first, datetime.UTC).strftime("%Y-%m-%d"),
+        "end": datetime.datetime.fromtimestamp(last + 86_400, datetime.UTC).strftime("%Y-%m-%d"),
+    }
+    raw = load_ohlcv_arrays(symbol, timeframe, 0, date_range)
+    lake_ts = np.asarray(
+        [int(t.timestamp()) if hasattr(t, "timestamp") else int(t) for t in raw["timestamp"]],
+        dtype=np.int64,
+    )
+    order = np.argsort(lake_ts)
+    lake_ts = lake_ts[order]
+    position = np.clip(np.searchsorted(lake_ts, timestamp_seconds), 0, max(0, lake_ts.size - 1))
+    matched = (
+        np.equal(lake_ts[position], timestamp_seconds)
+        if lake_ts.size
+        else np.zeros(timestamp_seconds.size, dtype=bool)
+    )
+
+    def column(name: str) -> np.ndarray:
+        values = np.asarray(raw[name], dtype=np.float64)[order]
+        out = np.full(timestamp_seconds.size, np.nan)
+        if lake_ts.size:
+            out[matched] = values[position[matched]]
+        return out
+
+    bars = {name: column(name) for name in ("open", "high", "low", "close", "volume")}
+    matched_count = int(np.count_nonzero(matched))
+    total = int(timestamp_seconds.size)
+    coverage = matched_count / total if total else 0.0
+    if coverage < 0.99:
+        raise Refusal(
+            f"the lake holds only {matched_count:,} of this model's {total:,} out-of-sample bars "
+            f"({coverage:.1%}) — its prices cannot be shown honestly"
+        )
+    checks = [
+        check(
+            "lake_bars_cover_every_out_of_sample_row",
+            coverage >= 0.99,
+            f"{matched_count:,} of {total:,} bars matched a lake bar at the same second ({coverage:.2%})",
+            "at least 99% of rows join to a bar in the lake",
+        )
+    ]
+    return bars, checks
+
+
 # ─── Adapter: ohlc_probability_npz ───────────────────────────────────────────
 
 
@@ -421,10 +633,23 @@ def _load_ohlc_npz(model_dir: Path, model_id: str) -> Record:
         f"{direction_accuracy * 100:.1f}% — a coin flip. High accuracy here is agreement with an "
         "autocorrelated swing label, not a tradeable direction call."
     )
-    notes.append(
-        "Prices come from the model's own record (the npz carries open/high/low/close per bar), "
-        "unadjusted front-month, so a bar spanning a contract roll carries the roll gap."
-    )
+    discontinuities = detect_price_discontinuities(timestamps, close)
+    if discontinuities:
+        rolls = [d for d in discontinuities if d["kind"] == "date_boundary"]
+        signed = sum(d["gapPoints"] for d in discontinuities)
+        roll_signed = sum(d["gapPoints"] for d in rolls)
+        notes.append(
+            f"Prices are unadjusted front-month. {len(discontinuities)} price jumps in this record "
+            f"happen across a break in trading rather than inside it, worth {signed:+.2f} index points "
+            f"in total; {len(rolls)} of them sit exactly on a date boundary ({roll_signed:+.2f} points), "
+            "which is what a contract roll looks like here. Buy-and-hold contains all of it, and so does "
+            "any trade held across one — none of it is a move the model called."
+        )
+    else:
+        notes.append(
+            "Prices come from the model's own record (the npz carries open/high/low/close per bar), "
+            "unadjusted front-month."
+        )
 
     record = Record(
         model_id=model_id,
@@ -457,6 +682,7 @@ def _load_ohlc_npz(model_dir: Path, model_id: str) -> Record:
             "areaUnderCurve": None,
         },
         notes=notes,
+        roll_gaps=discontinuities,
         verification=[
             check(
                 "probability_head_identified",
@@ -502,10 +728,7 @@ def detect_schema(model_dir: Path) -> str:
                     "timestamps are row indices (0..N-1), not bar times — the walk-forward templates "
                     "dropped them; retrain to regenerate this model's predictions"
                 )
-            raise Refusal(
-                "predictions are class labels with a confidence, not a probability of up — "
-                "this lens reads direction classifiers"
-            )
+            return "class_confidence_parquet"
         raise Refusal(f"oos_predictions.parquet has unrecognised columns: {sorted(columns)}")
     if (model_dir / "oos_predictions.npz").exists():
         with np.load(model_dir / "oos_predictions.npz") as data:
@@ -520,4 +743,6 @@ def load_record(model_dir: Path) -> Record:
     schema = detect_schema(model_dir)
     if schema == "probability_parquet":
         return _load_probability_parquet(model_dir, model_dir.name)
+    if schema == "class_confidence_parquet":
+        return _load_class_confidence_parquet(model_dir, model_dir.name)
     return _load_ohlc_npz(model_dir, model_dir.name)

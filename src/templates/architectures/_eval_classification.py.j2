@@ -15,6 +15,7 @@
 
    Cost model: src/config/cost_model.json (same shape as xgb_classifier/eval.py).
    Output schema: oos_predictions.parquet = {timestamp, symbol, prediction,
+   confidence, probability_up, label}   (the last two are the Model Lens contract)
    confidence}. diagnostics.json = SelfDescribingDiagnostics-compatible.
    ============================================================================ #}
 # ──────────────────────────────────────────────────────────────────────────────
@@ -713,10 +714,12 @@ def build_diagnostics(
 def write_oos_predictions(ts, y_true, y_pred, output_path, *, symbol: str = "MNQ") -> None:
     """Write oos_predictions.parquet via polars with the standard schema.
 
-    Schema: {timestamp, symbol, prediction, confidence}. The existing backtest
-    engine consumes this contract for any model with no per-model code.
-    Predictions are integer class labels; confidence is the maximum class
-    probability (or P(class==1) for binary heads).
+    Schema: {timestamp, symbol, prediction, confidence, probability_up, label}.
+    The existing backtest engine consumes the first four; `probability_up` and
+    `label` are what the Model Lens reads, and they are written here because
+    neither is recoverable afterwards: `confidence` is the maximum class
+    probability, so for a class-0 call it is 1 - P(up), and the truth column is
+    not otherwise persisted at all.
     """
     import polars as _eval_pl
 
@@ -736,9 +739,18 @@ def write_oos_predictions(ts, y_true, y_pred, output_path, *, symbol: str = "MNQ
 
     out = _EvalPath(output_path)
     out.parent.mkdir(parents=True, exist_ok=True)
+    truth = _eval_np.asarray(y_true)
+    label_column = (
+        truth.astype(_eval_np.float64)
+        if truth.size == ts_int.size
+        else _eval_np.full(ts_int.size, _eval_np.nan)
+    )
+
     _eval_pl.DataFrame({
         "timestamp": ts_int.astype(_eval_np.int64),
         "symbol": [symbol] * int(ts_int.size),
         "prediction": y_labels.astype(_eval_np.int64),
         "confidence": confidence,
+        "probability_up": p_up.astype(_eval_np.float32),
+        "label": label_column,
     }).write_parquet(str(out), compression="zstd", compression_level=3)

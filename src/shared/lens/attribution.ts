@@ -153,12 +153,14 @@ export function computeAttribution(
     const shapColumn = attribution.shap[index];
     const valueColumn = attribution.value[index];
     if (!shapColumn) continue;
-    const points: Array<{ shap: number; featureValue: number }> = [];
+    const points: Array<{ shap: number; featureValue: number | null }> = [];
     for (let row = range.firstRowIndex; row <= range.lastRowIndex; row += stride) {
       const shap = shapColumn[row] as number;
       if (!Number.isFinite(shap)) continue;
       const featureValue = valueColumn ? (valueColumn[row] as number) : Number.NaN;
-      points.push({ shap, featureValue: Number.isFinite(featureValue) ? featureValue : 0 });
+      // A value the artifact never stored is null. Shipping 0 would colour the
+      // point as if the feature had been measured at zero.
+      points.push({ shap, featureValue: Number.isFinite(featureValue) ? featureValue : null });
     }
     beeswarm.push({
       feature: attribution.featureNames[index] as string,

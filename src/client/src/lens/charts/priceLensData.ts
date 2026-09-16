@@ -123,9 +123,13 @@ export function buildRegimeHistogram(
   bars: LensBar[],
   colors: { bull: string; bear: string; sideways: string },
 ): RegimeHistogramPoint[] {
-  return bars.map((bar) => ({
-    time: bar.timestampSeconds as Time,
-    value: regimeValue(bar.regime),
-    color: bar.regime === "bull" ? colors.bull : bar.regime === "bear" ? colors.bear : colors.sideways,
-  }));
+  // A bar inside the regime warm-up has no classification at all. Painting it
+  // like a measured "sideways" bar would invent a reading; it gets no bar.
+  return bars
+    .filter((bar) => bar.regime !== null)
+    .map((bar) => ({
+      time: bar.timestampSeconds as Time,
+      value: regimeValue(bar.regime),
+      color: bar.regime === "bull" ? colors.bull : bar.regime === "bear" ? colors.bear : colors.sideways,
+    }));
 }

@@ -151,7 +151,7 @@ def _resolve_cost(symbol: str) -> dict:
     return entry
 
 
-def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None, ts_test=None):
     """Fit a fresh DQN agent on the train window, deterministic-eval on test.
 
     y_train / y_test carry the raw-row indices (see generate_labels). We use

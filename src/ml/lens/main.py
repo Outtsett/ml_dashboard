@@ -99,24 +99,20 @@ def build(model_id: str, models_root: Path = MODELS_ROOT) -> dict:
     )
 
     verification = list(record.verification)
-    verification.append(
-        check(
-            "forward_return_horizon_consistent",
-            _horizon_is_consistent(record),
-            f"realized return recomputed from close over {record.horizon_bars} rows "
-            f"differs by at most {_horizon_error(record):.3e} basis points",
-            "< 1e-3 basis points (the stored realized return matches the stored prices)",
+    if record.source_schema != "probability_parquet":
+        # For a reconstructed record this is an identity (close was solved FROM
+        # these returns); it is evidence only where the two came from different
+        # places, which is every other schema.
+        verification.append(
+            check(
+                "forward_return_matches_the_stored_prices",
+                _horizon_is_consistent(record),
+                f"realized return recomputed from close over {record.horizon_bars} rows "
+                f"differs by at most {_horizon_error(record):.3e} basis points",
+                "< 1e-3 basis points",
+            )
         )
-    )
-    verification.append(
-        check(
-            "interval_is_causal",
-            interval_meta["coveredBarCount"] < record.row_count,
-            f"{interval_meta['coveredBarCount']} of {record.row_count} bars carry an interval; "
-            f"the first {record.row_count - interval_meta['coveredBarCount']} are warm-up",
-            "early bars carry no interval (calibration uses only rows whose horizon has elapsed)",
-        )
-    )
+    verification.append(_interval_lookahead_check(record))
 
     _write_bars(lens_dir, record, quantiles)
     attribution_block = _write_attribution(lens_dir, record)
@@ -140,12 +136,53 @@ def build(model_id: str, models_root: Path = MODELS_ROOT) -> dict:
         "lastTimestampSeconds": int(record.timestamp_seconds[-1]),
         "interval": {k: v for k, v in interval_meta.items() if k != "recalibrationCount"},
         "attribution": attribution_block,
+        "priceDiscontinuities": record.roll_gaps,
         "reference": record.reference,
         "verification": verification,
         "notes": record.notes,
     }
     (lens_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest
+
+
+def _interval_lookahead_check(record: Record) -> dict:
+    """Does a return the interval must not have seen change a quantile before it?
+
+    Rewrite every realized return from a row in the middle of the record onward
+    with noise, recompute, and compare. A causal mapping cannot move any row at
+    or before `cut - horizon`; a mapping fitted on the whole record moves rows
+    immediately. Asserting only that a warm-up prefix exists proves neither.
+    """
+    n = record.row_count
+    horizon = record.horizon_bars
+    cut = n // 2
+    if n < 200 or cut <= horizon:
+        return check(
+            "interval_has_no_lookahead",
+            False,
+            f"record too short to test ({n} rows)",
+            "a record long enough to perturb",
+        )
+
+    baseline, _ = causal_conformal_quantiles(
+        record.probability_up, record.realized_return_basis_points, horizon
+    )
+    perturbed_returns = record.realized_return_basis_points.copy()
+    finite_tail = np.isfinite(perturbed_returns[cut:])
+    perturbed_returns[cut:][finite_tail] = -perturbed_returns[cut:][finite_tail] * 7.0 + 250.0
+    perturbed, _ = causal_conformal_quantiles(record.probability_up, perturbed_returns, horizon)
+
+    difference = np.abs(np.nan_to_num(baseline, nan=0.0) - np.nan_to_num(perturbed, nan=0.0)).max(axis=1)
+    moved = np.flatnonzero(difference > 1e-9)
+    first_moved = int(moved[0]) if moved.size else n
+    floor = cut - horizon
+    return check(
+        "interval_has_no_lookahead",
+        first_moved > floor,
+        f"rewriting every return from row {cut:,} onward first moved a quantile at row "
+        f"{first_moved:,} (nothing at or before row {floor:,} moved)",
+        f"the first moved row is after {floor:,} — a mapping calibrated on the whole record fails this",
+    )
 
 
 def _horizon_error(record: Record) -> float:

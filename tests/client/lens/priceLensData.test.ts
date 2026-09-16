@@ -82,7 +82,7 @@ describe("buildTradeMarkers", () => {
 });
 
 describe("buildRegimeHistogram", () => {
-  it("maps bull/bear/sideways to +1/-1/0 with the paired color", () => {
+  it("maps bull/bear/sideways to +1/-1/0 with the paired color, and draws nothing for a warm-up bar", () => {
     const bars = [
       makeBar({ timestampSeconds: 1000, regime: "bull" }),
       makeBar({ timestampSeconds: 1060, regime: "bear" }),
@@ -90,11 +90,12 @@ describe("buildRegimeHistogram", () => {
       makeBar({ timestampSeconds: 1180, regime: null }),
     ];
     const colors = { bull: "#E69F00", bear: "#0072B2", sideways: "#808A99" };
+    // The last bar has no regime yet (lookback warm-up). It must not be drawn
+    // as a measured "sideways" bar — the two are different claims.
     expect(buildRegimeHistogram(bars, colors)).toEqual([
       { time: 1000, value: 1, color: "#E69F00" },
       { time: 1060, value: -1, color: "#0072B2" },
       { time: 1120, value: 0, color: "#808A99" },
-      { time: 1180, value: 0, color: "#808A99" },
     ]);
   });
 });

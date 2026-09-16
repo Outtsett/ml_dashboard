@@ -28,8 +28,14 @@ export function HeadlineStrip({ headline, manifest }: HeadlineStripProps) {
 
   return (
     <LensFrame title="Headline" question="What does this model's out-of-sample record say, taken as a whole?" basis={basis} testId="lens-headline">
-      <p className="mb-3 text-sm font-medium leading-relaxed text-foreground" data-testid="lens-headline-verdict">
+      <p className="mb-2 text-sm font-medium leading-relaxed text-foreground" data-testid="lens-headline-verdict">
         {headline.verdict}
+      </p>
+      {/* Hit rate, AUC, Brier and the whole confusion matrix are measured against
+          THIS label. Without it on screen, 91.8% reads as "gets direction right". */}
+      <p className="mb-3 text-xs leading-relaxed text-muted-foreground" data-testid="lens-headline-label-definition">
+        <span className="font-semibold text-foreground">Hit rate, AUC and Brier score are measured against this label:</span>{" "}
+        {manifest.labelDefinition}
       </p>
       <div className="flex flex-wrap gap-2">
         <StatCell

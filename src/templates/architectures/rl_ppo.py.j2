@@ -134,7 +134,7 @@ def _resolve_cost(symbol: str) -> dict:
     return entry
 
 
-def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None, ts_test=None):
     """Fit a fresh PPO agent on the train window, deterministic-eval on test."""
     if _RAW_PRICES is None:
         raise RuntimeError(

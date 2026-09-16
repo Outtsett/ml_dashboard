@@ -19,6 +19,7 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
+import { DATA_COLORS } from "@/shared/theme/dataColors";
 import type { LensAttribution } from "@shared/lens/types";
 import { LensFrame } from "../Frame";
 import { CaptionRow, SectionHeading } from "./common";
@@ -208,7 +209,9 @@ export function AttributionPanel({ attribution }: AttributionPanelProps) {
                   <ZAxis range={[14, 14]} />
                   <Tooltip {...LENS_CHART_TOOLTIP_STYLE} formatter={(value: number, name: string) => [formatNumber(value, 4), name === "shap" ? "SHAP" : "feature value"]} />
                   {beeswarmFeatures.map((entry) => {
-                    const values = entry.points.map((p) => p.featureValue).filter((v) => Number.isFinite(v));
+                    const values = entry.points
+                      .map((p) => p.featureValue)
+                      .filter((v): v is number => v !== null && Number.isFinite(v));
                     const lo = values.length ? Math.min(...values) : 0;
                     const hi = values.length ? Math.max(...values) : 1;
                     const span = hi - lo || 1;
@@ -220,12 +223,19 @@ export function AttributionPanel({ attribution }: AttributionPanelProps) {
                           shap: p.shap,
                           featureValue: p.featureValue,
                           jitter: ((i % 7) - 3) * 0.06,
-                          t: Number.isFinite(p.featureValue) ? (p.featureValue - lo) / span : 0.5,
+                          t: p.featureValue !== null ? (p.featureValue - lo) / span : null,
                         }))}
                         isAnimationActive={false}
                       >
                         {entry.points.map((p, i) => (
-                          <Cell key={i} fill={sequentialColor(Number.isFinite(p.featureValue) ? (p.featureValue - lo) / span : 0.5)} fillOpacity={0.75} />
+                          <Cell
+                            key={i}
+                            // No value behind this contribution: draw it in the
+                            // neutral ink rather than mid-scale, which would read
+                            // as a measured middling value.
+                            fill={p.featureValue !== null ? sequentialColor((p.featureValue - lo) / span) : DATA_COLORS.neutral}
+                            fillOpacity={0.75}
+                          />
                         ))}
                       </Scatter>
                     );

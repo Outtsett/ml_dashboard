@@ -120,9 +120,17 @@ export function RightSidebar() {
                       </span>
                     </div>
                     <div className="text-[11px] text-neutral-500 tnum">
-                      {model.symbol} {model.timeframe} · {headline.tradeCount.toLocaleString()} trades · hit rate{" "}
+                      {model.symbol} {model.timeframe} · {headline.tradeCount.toLocaleString()} trades · agrees with its
+                      own label{" "}
                       {headline.hitRate.value === null ? "n/a" : `${(headline.hitRate.value * 100).toFixed(1)}%`}
                     </div>
+                    {/* A high agreement rate beside a loss is the point of the lens, not a
+                        contradiction to hide: say which way it cuts right here. */}
+                    {headline.hitRate.value !== null && headline.hitRate.value > 0.6 && headline.totalNetUsd < 0 && (
+                      <div className="mt-1 text-[10px] leading-snug text-neutral-500">
+                        Agreeing with its label did not pay — open the lens to see what the label is.
+                      </div>
+                    )}
                   </Link>
                 );
               })}

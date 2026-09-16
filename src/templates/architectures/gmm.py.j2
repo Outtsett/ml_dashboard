@@ -33,7 +33,7 @@ def generate_labels(raw, args):
 {% endblock %}
 
 {% block train_loop %}
-def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None, ts_test=None):
     """GMM unsupervised fit on X_train, posterior predict on X_test.
 
     The walk-forward loop still passes y_train / y_test (the placeholder

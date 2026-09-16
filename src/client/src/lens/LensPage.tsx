@@ -371,6 +371,7 @@ export default function LensPage() {
               <EquityLens
                 equity={evaluation.data.equity}
                 headline={evaluation.data.headline}
+                manifest={manifest.data}
                 cursorTimestampSeconds={cursorBar?.timestampSeconds ?? null}
               />
             )}

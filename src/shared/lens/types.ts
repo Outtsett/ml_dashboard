@@ -31,8 +31,11 @@
  *                          — hand-written xgb_classifier writer.
  *  - ohlc_probability_npz: oos_predictions.npz with (timestamps, open, high, low, close, probs, labels)
  *                          — cnn_transformer writer.
+ *  - class_confidence_parquet: oos_predictions.parquet with (timestamp, symbol, prediction,
+ *                          confidence[, probability_up, label]) — what every generated template
+ *                          writes. Prices for these come from the lake, joined on the bar second.
  */
-export type LensSourceSchema = "probability_parquet" | "ohlc_probability_npz";
+export type LensSourceSchema = "probability_parquet" | "ohlc_probability_npz" | "class_confidence_parquet";
 
 /** ready: lens built and current. stale: source artifacts changed since build. */
 export type LensModelStatus = "ready" | "stale" | "not_built" | "refused" | "failed";
@@ -156,7 +159,20 @@ export interface LensManifest {
     areaUnderCurve: number | null;
   };
   verification: LensVerificationCheck[];
-  /** Model-authored notes (e.g. deprecation) and builder caveats (roll gaps). */
+  /**
+   * Bar-to-bar price jumps across a break in trading, in an unadjusted
+   * front-month series: a contract roll pricing in carry (kind
+   * "date_boundary") or a weekend/holiday reopen ("session_gap"). Buy-and-hold
+   * contains every one of them, and so does any trade held across one.
+   */
+  priceDiscontinuities?: Array<{
+    rowIndex: number;
+    timestampSeconds: number;
+    gapPoints: number;
+    hoursClosed: number;
+    kind: "date_boundary" | "session_gap";
+  }>;
+  /** Model-authored notes (e.g. deprecation) and builder caveats. */
   notes: string[];
 }
 
@@ -525,7 +541,8 @@ export interface LensAttribution extends LensAvailability {
   beeswarm: Array<{
     feature: string;
     family: LensFeatureFamilyKey;
-    points: Array<{ shap: number; featureValue: number }>;
+    /** featureValue is null when the artifact stores contributions without the values behind them. */
+    points: Array<{ shap: number; featureValue: number | null }>;
   }>;
 }
 

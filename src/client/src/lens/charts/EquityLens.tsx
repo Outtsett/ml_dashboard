@@ -8,7 +8,7 @@
 
 import { useEffect, useRef } from "react";
 import { createChart, AreaSeries, LineSeries, LineStyle, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts";
-import type { LensEquityPoint, LensHeadline } from "@shared/lens/types";
+import type { LensEquityPoint, LensHeadline, LensManifest } from "@shared/lens/types";
 import { createChartOptions } from "@/market/components/chartConfig";
 import { DATA_COLORS } from "@/shared/theme/dataColors";
 import { LensFrame } from "../Frame";
@@ -16,6 +16,7 @@ import { LensFrame } from "../Frame";
 export interface EquityLensProps {
   equity: LensEquityPoint[];
   headline: LensHeadline;
+  manifest: LensManifest;
   cursorTimestampSeconds: number | null;
   /** Fixed pixel height. Omit to fill the parent, which is what a resizable frame gives it. */
   height?: number;
@@ -28,7 +29,7 @@ function formatUsd(value: number | null): string {
   return `${value >= 0 ? "+" : "-"}$${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
 
-export function EquityLens({ equity, headline, cursorTimestampSeconds, height }: EquityLensProps) {
+export function EquityLens({ equity, headline, manifest, cursorTimestampSeconds, height }: EquityLensProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const modelSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
@@ -113,6 +114,14 @@ export function EquityLens({ equity, headline, cursorTimestampSeconds, height }:
 
   const exposurePercent = Math.round(headline.exposureShare * 1000) / 10;
 
+  // Buy-and-hold on an unadjusted front-month series collects the carry priced
+  // in at every contract roll. Saying so beside the number is the difference
+  // between a benchmark and a flattering one.
+  const discontinuities = manifest.priceDiscontinuities ?? [];
+  const rolls = discontinuities.filter((d) => d.kind === "date_boundary");
+  const rollPoints = rolls.reduce((total, d) => total + d.gapPoints, 0);
+  const rollUsd = rollPoints * manifest.cost.pointValueUsd;
+
   return (
     <LensFrame
       resizeKey="equity"
@@ -121,7 +130,12 @@ export function EquityLens({ equity, headline, cursorTimestampSeconds, height }:
       title="Cumulative PnL vs buy-and-hold"
       question="Would simply holding the contract have done better than trading the model's signals?"
       testId="equity-lens"
-      basis={`${headline.tradeCount.toLocaleString()} trades · exposure ${exposurePercent}% of bars · max drawdown ${formatUsd(-Math.abs(headline.maxDrawdownUsd))} · net of round-trip cost`}
+      basis={
+        `${headline.tradeCount.toLocaleString()} trades · exposure ${exposurePercent}% of bars · max drawdown ${formatUsd(-Math.abs(headline.maxDrawdownUsd))} · net of round-trip cost` +
+        (rolls.length
+          ? ` · buy & hold includes ${formatUsd(rollUsd)} of carry priced in at ${rolls.length} contract rolls (${rollPoints >= 0 ? "+" : ""}${rollPoints.toFixed(2)} index points), which no strategy traded`
+          : "")
+      }
       actions={
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
           <span className="flex items-center gap-1.5">
