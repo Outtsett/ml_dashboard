@@ -181,7 +181,22 @@ export function calcVWMA(bars: Bar[], period: number): IndicatorPoint[] {
   return toPoints(result, bars);
 }
 
-export function calcHWMA(bars: Bar[], na: number, nb: number, nc: number): IndicatorPoint[] { 
+/**
+ * Holt-Winters moving average: level (F), velocity (V) and acceleration (A).
+ *
+ * Each line is a weighted blend of "carry the previous estimate forward" and
+ * "correct toward what just happened", which is what keeps it bounded. Written
+ * without the (1 - n) carry terms — as this was until 2026-09-15 — F becomes a
+ * pure double integrator with no pull toward price and A feeds back positively
+ * through V, so the recursion diverges geometrically: on 2000 real MNQ
+ * 1-minute closes (25,648-25,803) it passed 1e6 by bar 105 and reached 1e93 at
+ * the end, far outside the ±9.007e13 a chart value may take. lightweight-charts
+ * asserts on that, the assertion escaped to the error boundary, and the whole
+ * Market page rendered as "Something went wrong" whenever HWMA was enabled.
+ * Corrected, the same input tracks price and ends at 25,656.84 against a last
+ * close of 25,656.75.
+ */
+export function calcHWMA(bars: Bar[], na: number, nb: number, nc: number): IndicatorPoint[] {
   if (bars.length === 0) return [];
   const closes = bars.map(b => b.close);
   const n = closes.length;
@@ -192,9 +207,11 @@ export function calcHWMA(bars: Bar[], na: number, nb: number, nc: number): Indic
   result[0] = F;
   for (let i = 1; i < n; i++) {
     const Fprev = F;
-    F = Fprev + V + 0.5 * A;
-    V = V + A;
-    A = na * (closes[i]! - F) + nb * V + nc * A;
+    const Vprev = V;
+    const Aprev = A;
+    F = (1 - na) * (Fprev + Vprev + 0.5 * Aprev) + na * closes[i]!;
+    V = (1 - nb) * (Vprev + Aprev) + nb * (F - Fprev);
+    A = (1 - nc) * Aprev + nc * (V - Vprev);
     result[i] = F;
   }
   return toPoints(result, bars);

@@ -1,13 +1,25 @@
 import { useEffect, useRef } from 'react';
 import {
   LineSeries, AreaSeries, createSeriesMarkers,
-  LineStyle, type IChartApi, type Time,
+  LineStyle, type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type Time,
 } from 'lightweight-charts';
 import type { IndicatorOverlay } from "@/market/lib/useIndicatorData";
 import { getPatternDisplayName } from "@/market/lib/candle_patterns";
 import { getSeriesTitle } from "@/market/lib/indicator_panels";
 import { colorToRgba } from '@/market/lib/indicator_colors';
 import { dedupByTime } from './chartConfig';
+
+/**
+ * What the overlay map holds. Indicator lines and band fills are series; the CDL
+ * pattern markers are a plugin attached to the candle series, parked in the same
+ * map under the `__cdl_markers__` key. They answer to different methods, so the
+ * union is narrowed at each use rather than typed away as `any`.
+ */
+type OverlayEntry = ISeriesApi<'Line'> | ISeriesApi<'Area'> | ISeriesMarkersPluginApi<Time>;
+
+function isMarkers(entry: OverlayEntry): entry is ISeriesMarkersPluginApi<Time> {
+  return 'setMarkers' in entry;
+}
 
 // ─── Band / line classification helpers ──────────────────────────────────────
 
@@ -96,11 +108,11 @@ function snapToCandle(
  */
 export function useChartOverlays(
   chartRef: React.RefObject<IChartApi | null>,
-  candleSeriesRef: React.RefObject<any>,
+  candleSeriesRef: React.RefObject<ISeriesApi<'Candlestick'> | null>,
   indicatorOverlays: IndicatorOverlay[],
   candleTimes: { time: Time }[],
 ) {
-  const overlaySeriesRef = useRef<Map<string, any>>(new Map());
+  const overlaySeriesRef = useRef<Map<string, OverlayEntry>>(new Map());
 
   // Cleanup on unmount
   useEffect(() => {
@@ -127,7 +139,7 @@ export function useChartOverlays(
       if (markerKeys.has(key)) continue;
       if (!currentKeys.has(key)) {
         const series = overlaySeriesRef.current.get(key);
-        if (series) {
+        if (series && !isMarkers(series)) {
           try { chart.removeSeries(series); } catch { /* series already removed from chart */ }
         }
         overlaySeriesRef.current.delete(key);
@@ -137,9 +149,19 @@ export function useChartOverlays(
     // Add or update overlay series
     for (const overlay of indicatorOverlays) {
       const existing = overlaySeriesRef.current.get(overlay.column);
-      const seriesData = dedupByTime(overlay.data.map(d => ({ time: d.time as Time, value: d.value })));
+      // One indicator must not be able to blank the chart. lightweight-charts
+      // asserts on a value outside ±9.007e13 (Number.MAX_SAFE_INTEGER / 100),
+      // and the assertion escapes to the error boundary, so the candles, every
+      // other overlay and the whole Market page disappear behind "Something went
+      // wrong" — which is exactly what a diverging HWMA did until 2026-09-15.
+      // Drop the unplottable points and keep drawing the rest.
+      const seriesData = dedupByTime(
+        overlay.data
+          .filter(d => Number.isFinite(d.value) && Math.abs(d.value) <= 9.007e13)
+          .map(d => ({ time: d.time as Time, value: d.value })),
+      );
 
-      if (existing) {
+      if (existing && !isMarkers(existing)) {
         existing.setData(seriesData);
       } else if (overlay.displayType === 'marker') {
         // CDL pattern markers — handled via createSeriesMarkers below
@@ -156,7 +178,7 @@ export function useChartOverlays(
           ? colorToRgba(overlay.color, opacity)
           : overlay.color;
 
-        let series: any;
+        let series: ISeriesApi<'Line'> | ISeriesApi<'Area'>;
 
         if (isUpper || isLower) {
           // Band boundary lines — use AreaSeries for subtle shaded fill
@@ -253,12 +275,13 @@ export function useChartOverlays(
             const sm = createSeriesMarkers(candleSeriesRef.current, deduped);
             overlaySeriesRef.current.set('__cdl_markers__', sm);
           } else {
-            overlaySeriesRef.current.get('__cdl_markers__').setMarkers(deduped);
+            const existingMarkers = overlaySeriesRef.current.get('__cdl_markers__');
+            if (existingMarkers && isMarkers(existingMarkers)) existingMarkers.setMarkers(deduped);
           }
         } else {
           // No markers matched — clear any existing
           const cdlSm = overlaySeriesRef.current.get('__cdl_markers__');
-          if (cdlSm) {
+          if (cdlSm && isMarkers(cdlSm)) {
             cdlSm.setMarkers([]);
             overlaySeriesRef.current.delete('__cdl_markers__');
           }
@@ -266,7 +289,7 @@ export function useChartOverlays(
       } else {
         // Clear CDL markers if none selected
         const cdlSm = overlaySeriesRef.current.get('__cdl_markers__');
-        if (cdlSm) {
+        if (cdlSm && isMarkers(cdlSm)) {
           cdlSm.setMarkers([]);
           overlaySeriesRef.current.delete('__cdl_markers__');
         }
