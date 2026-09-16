@@ -149,6 +149,8 @@ export function PlaybackPanel({ window: barWindow, manifest, cursorIndex, onCurs
 
   return (
     <LensFrame
+      resizeKey="playback"
+      defaultHeight={460}
       title="Backtest playback"
       question="At each bar: what did the market look like, what did the model see and predict, what did it do, and what did that earn?"
       testId="playback-panel"

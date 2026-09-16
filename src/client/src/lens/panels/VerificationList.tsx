@@ -17,6 +17,8 @@ export function VerificationList({ checks }: VerificationListProps) {
 
   return (
     <LensFrame
+      resizeKey="verification"
+      defaultHeight={300}
       title="Verification"
       question="What was actually checked before these numbers were trusted?"
       basis={`${formatInt(passCount)} / ${formatInt(checks.length)} checks passed`}

@@ -95,6 +95,8 @@ export function ScatterPanel({ scatter }: ScatterPanelProps) {
 
   return (
     <LensFrame
+      resizeKey="scatter"
+      defaultHeight={520}
       title="Prediction vs reality"
       question="When the model says up, does price actually go up — and by as much as it implies?"
       basis={basis}

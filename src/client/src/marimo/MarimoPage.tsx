@@ -16,6 +16,7 @@ import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { useToast } from "@/shared/hooks/use-toast";
 import { cn } from "@/shared/utils/utils";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/shared/ui/resizable";
 
 interface NotebookEntry {
   path: string;
@@ -154,9 +155,14 @@ export default function MarimoPage() {
         { label: "Rescan", icon: RefreshCw, onClick: () => catalog.refetch(), variant: "ghost" },
       ]}
     >
-      <div className="flex h-full min-h-0 gap-3" data-testid="notebooks-page">
+      <ResizablePanelGroup
+        direction="horizontal"
+        autoSaveId="notebooks-split"
+        className="h-full min-h-0"
+        data-testid="notebooks-page"
+      >
         {/* ── Catalog ─────────────────────────────────────────────── */}
-        <div className="flex w-96 shrink-0 flex-col gap-2 overflow-hidden">
+        <ResizablePanel defaultSize={26} minSize={14} maxSize={60} className="flex min-w-0 flex-col gap-2 overflow-hidden">
           <Input
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
@@ -245,10 +251,12 @@ export default function MarimoPage() {
               </p>
             )}
           </div>
-        </div>
+        </ResizablePanel>
+
+        <ResizableHandle withHandle className="mx-1.5 bg-transparent" />
 
         {/* ── Notebook ────────────────────────────────────────────── */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+        <ResizablePanel defaultSize={74} minSize={30} className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
           <header className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
             <div className="min-w-0">
               <h2 className="truncate text-sm font-semibold text-foreground">{selected ? selected.title : "No notebook open"}</h2>
@@ -294,8 +302,8 @@ export default function MarimoPage() {
               </div>
             )}
           </div>
-        </div>
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </PageShell>
   );
 }

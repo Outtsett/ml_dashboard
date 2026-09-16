@@ -56,6 +56,7 @@ export interface PriceLensProps {
   cursorRowIndex: number | null;
   /** Clicking a bar moves the cursor (rowIndex). */
   onCursorChange?: (rowIndex: number) => void;
+  /** Fixed pixel height. Omit to fill the parent, which is what a resizable frame gives it. */
   height?: number;
 }
 
@@ -88,7 +89,7 @@ function LegendItem({ color, label, dashed, glyph, dim }: LegendItemProps) {
   );
 }
 
-export function PriceLens({ window: barWindow, trades, manifest, layers, cursorRowIndex, onCursorChange, height = 440 }: PriceLensProps) {
+export function PriceLens({ window: barWindow, trades, manifest, layers, cursorRowIndex, onCursorChange, height }: PriceLensProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -300,8 +301,8 @@ export function PriceLens({ window: barWindow, trades, manifest, layers, cursorR
   const coveragePercent = Math.round(barWindow.params.intervalCoverage * 100);
 
   return (
-    <div data-testid="price-lens">
-      <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+    <div className="flex h-full min-h-0 flex-col" data-testid="price-lens">
+      <div className="mb-2 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
         <LegendItem color={CANDLE_UP_COLOR} label="up bar" />
         <LegendItem color={CANDLE_DOWN_COLOR} label="down bar" />
         <LegendItem
@@ -318,8 +319,13 @@ export function PriceLens({ window: barWindow, trades, manifest, layers, cursorR
         <LegendItem color={DATA_COLORS.neg} glyph="▼" label="bear regime" dim={!layers.regimes} />
         <LegendItem color={DATA_COLORS.neutral} glyph="◆" label="sideways regime" dim={!layers.regimes} />
       </div>
-      <div ref={containerRef} style={{ height, width: "100%" }} data-testid="price-lens-chart" />
-      <div className="mt-1 text-[10px] text-muted-foreground">Time axis: UTC</div>
+      <div
+        ref={containerRef}
+        className={height ? undefined : "min-h-0 flex-1"}
+        style={height ? { height, width: "100%" } : { width: "100%" }}
+        data-testid="price-lens-chart"
+      />
+      <div className="mt-1 shrink-0 text-[10px] text-muted-foreground">Time axis: UTC</div>
     </div>
   );
 }

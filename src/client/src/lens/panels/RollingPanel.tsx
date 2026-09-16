@@ -67,6 +67,8 @@ export function RollingPanel({ rolling, horizonBars }: RollingPanelProps) {
 
   return (
     <LensFrame
+      resizeKey="rolling"
+      defaultHeight={520}
       title="Rolling stability"
       question="Is the edge stable, or does it come and go — and is it decaying?"
       basis={basis}

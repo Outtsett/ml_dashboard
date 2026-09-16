@@ -33,6 +33,8 @@ export function RegimePanel({ regimes }: RegimePanelProps) {
 
   return (
     <LensFrame
+      resizeKey="regime"
+      defaultHeight={620}
       title="Regime performance"
       question="Does the model only work in one kind of market?"
       basis={`lookback ${formatInt(regimes.lookbackBars)} bars · threshold ${formatNumber(regimes.threshold, 2)}σ · ${formatInt(regimes.segments.length)} segments`}

@@ -17,6 +17,7 @@ export interface EquityLensProps {
   equity: LensEquityPoint[];
   headline: LensHeadline;
   cursorTimestampSeconds: number | null;
+  /** Fixed pixel height. Omit to fill the parent, which is what a resizable frame gives it. */
   height?: number;
 }
 
@@ -27,7 +28,7 @@ function formatUsd(value: number | null): string {
   return `${value >= 0 ? "+" : "-"}$${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
 
-export function EquityLens({ equity, headline, cursorTimestampSeconds, height = 260 }: EquityLensProps) {
+export function EquityLens({ equity, headline, cursorTimestampSeconds, height }: EquityLensProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const modelSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
@@ -114,6 +115,9 @@ export function EquityLens({ equity, headline, cursorTimestampSeconds, height = 
 
   return (
     <LensFrame
+      resizeKey="equity"
+      defaultHeight={320}
+      fillBody
       title="Cumulative PnL vs buy-and-hold"
       question="Would simply holding the contract have done better than trading the model's signals?"
       testId="equity-lens"
@@ -140,7 +144,7 @@ export function EquityLens({ equity, headline, cursorTimestampSeconds, height = 
         </div>
       }
     >
-      <div ref={containerRef} style={{ height, width: "100%" }} data-testid="equity-lens-chart" />
+      <div ref={containerRef} className="min-h-0 flex-1" style={height ? { height, width: "100%" } : { width: "100%" }} data-testid="equity-lens-chart" />
     </LensFrame>
   );
 }

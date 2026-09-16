@@ -35,7 +35,9 @@ export function RightSidebar() {
   // three hardcoded models with Math.random() sparklines.
   const lens = useLensModels();
   const ranked = (lens.data?.models ?? [])
-    .filter((m) => m.headline !== null && m.duplicateOf === null)
+    // Each member of a byte-identical pair names the other, so keep the one
+    // that sorts first rather than dropping both.
+    .filter((m) => m.headline !== null && (m.duplicateOf === null || m.modelId < m.duplicateOf))
     .sort((a, b) => (b.headline?.totalNetUsd ?? 0) - (a.headline?.totalNetUsd ?? 0));
 
   return (

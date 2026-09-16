@@ -81,6 +81,8 @@ export function AttributionPanel({ attribution }: AttributionPanelProps) {
 
   return (
     <LensFrame
+      resizeKey="attribution"
+      defaultHeight={620}
       title="Attribution"
       question="Which kinds of information drive the model's calls?"
       basis={basis}

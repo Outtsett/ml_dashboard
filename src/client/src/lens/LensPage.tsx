@@ -27,6 +27,7 @@ import {
 } from "@shared/lens/types";
 import { useBuildLens, useLensBars, useLensEvaluation, useLensManifest, useLensModels } from "./api";
 import { LensFrame } from "./Frame";
+import { LensRow } from "./Row";
 import { PriceLens, type LensPriceLayers } from "./charts/PriceLens";
 import { EquityLens } from "./charts/EquityLens";
 import { PlaybackPanel } from "./playback/PlaybackPanel";
@@ -293,6 +294,9 @@ export default function LensPage() {
 
             {/* ── Price + window navigation ───────────────────────────── */}
             <LensFrame
+              resizeKey="price"
+              defaultHeight={620}
+              fillBody
               title="Prediction on price"
               question="Where did the model expect price to go, how sure was it, what did it trade, and in which regime?"
               basis={
@@ -314,7 +318,7 @@ export default function LensPage() {
                 </div>
               }
             >
-              <div className="mb-2 flex flex-wrap items-center gap-3">
+              <div className="mb-2 flex shrink-0 flex-wrap items-center gap-3">
                 <ToggleGroup
                   type="single"
                   size="sm"
@@ -344,7 +348,8 @@ export default function LensPage() {
                 </div>
               </div>
               {bars.data && evaluation.data ? (
-                <PriceLens
+                <div className="min-h-0 flex-1">
+                  <PriceLens
                   window={bars.data}
                   trades={evaluation.data.trades}
                   regimes={evaluation.data.regimes}
@@ -355,8 +360,8 @@ export default function LensPage() {
                     const index = windowBars.findIndex((bar) => bar.rowIndex === rowIndex);
                     if (index >= 0) setCursorIndex(index);
                   }}
-                  height={440}
-                />
+                  />
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground">{bars.error ? bars.error.message : "Loading bars…"}</p>
               )}
@@ -367,7 +372,6 @@ export default function LensPage() {
                 equity={evaluation.data.equity}
                 headline={evaluation.data.headline}
                 cursorTimestampSeconds={cursorBar?.timestampSeconds ?? null}
-                height={260}
               />
             )}
 
@@ -387,26 +391,24 @@ export default function LensPage() {
 
             {evaluation.data && (
               <>
-                <div className="grid grid-cols-1 gap-3 xl:grid-cols-12">
-                  <div className="xl:col-span-8">
-                    <RollingPanel rolling={evaluation.data.rolling} horizonBars={manifest.data.horizonBars} />
-                  </div>
-                  <div className="xl:col-span-4">
-                    <ConfusionPanel confusion={evaluation.data.confusion} threshold={params.threshold} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                  <ScatterPanel scatter={evaluation.data.scatter} />
-                  <DistributionPanel distribution={evaluation.data.distribution} />
-                </div>
-                <div className="grid grid-cols-1 gap-3 xl:grid-cols-12">
-                  <div className="xl:col-span-8">
-                    <AttributionPanel attribution={evaluation.data.attribution} />
-                  </div>
-                  <div className="xl:col-span-4">
-                    <RegimePanel regimes={evaluation.data.regimes} />
-                  </div>
-                </div>
+                <LensRow
+                  id="rolling-confusion"
+                  defaultLeftPercent={66}
+                  left={<RollingPanel rolling={evaluation.data.rolling} horizonBars={manifest.data.horizonBars} />}
+                  right={<ConfusionPanel confusion={evaluation.data.confusion} threshold={params.threshold} />}
+                />
+                <LensRow
+                  id="scatter-distribution"
+                  defaultLeftPercent={50}
+                  left={<ScatterPanel scatter={evaluation.data.scatter} />}
+                  right={<DistributionPanel distribution={evaluation.data.distribution} />}
+                />
+                <LensRow
+                  id="attribution-regime"
+                  defaultLeftPercent={66}
+                  left={<AttributionPanel attribution={evaluation.data.attribution} />}
+                  right={<RegimePanel regimes={evaluation.data.regimes} />}
+                />
                 <VerificationList checks={[...manifest.data.verification, ...evaluation.data.verification]} />
               </>
             )}

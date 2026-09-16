@@ -94,6 +94,8 @@ export function ConfusionPanel({ confusion, threshold }: ConfusionPanelProps) {
 
   return (
     <LensFrame
+      resizeKey="confusion"
+      defaultHeight={520}
       title="Direction confusion"
       question="How often is the direction right, and why is that not the same as winning trades?"
       basis={`threshold ${threshold.toFixed(3)} · all rows n=${formatInt(confusion.allRows.n)} · gated rows n=${formatInt(confusion.gatedRows.n)}`}

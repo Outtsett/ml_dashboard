@@ -59,6 +59,8 @@ export function DistributionPanel({ distribution }: DistributionPanelProps) {
 
   return (
     <LensFrame
+      resizeKey="distribution"
+      defaultHeight={520}
       title="Return distribution"
       question="Is the model overconfident, underestimating moves, or blind to the tails?"
       basis={basis}
