@@ -38,14 +38,13 @@ jobs:
       id-token: write
       actions: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 1
 
-      - uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@7b0b255830a1fab6e602658672acad11c12d841d # v1
         with:
           trigger_phrase: "@claude"
-          timeout_minutes: "30"
 
   claude-pr-review:
     name: Claude PR Review
@@ -59,11 +58,11 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 1
 
-      - uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@7b0b255830a1fab6e602658672acad11c12d841d # v1
         with:
           prompt: |
             Review this pull request. Focus on:
@@ -73,7 +72,6 @@ jobs:
             4. Adherence to project conventions (check CLAUDE.md if present)
 
             Be concise. Only comment on issues that matter.
-          timeout_minutes: "15"
 
   claude-issue-impl:
     name: Claude Issue Implementation
@@ -88,11 +86,10 @@ jobs:
       issues: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
-      - uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@7b0b255830a1fab6e602658672acad11c12d841d # v1
         with:
           label_trigger: "claude"
-          timeout_minutes: "60"
