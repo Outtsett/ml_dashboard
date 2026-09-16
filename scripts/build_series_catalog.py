@@ -56,6 +56,12 @@ REFERENCE_COLUMNS = {
     "tf", "exchange", "config", "currency",
 }
 
+# Columns that are bounded at 0 and 100 by construction, not by coincidence.
+OSCILLATOR_NAMES = re.compile(
+    r"^(rsi|stoch|stochrsi|mfi|adx|dmi|aroon|willr|cmo|uo|ultosc|percent_?[kd]|pct_?[kd])",
+    re.IGNORECASE,
+)
+
 NUMERIC_TYPES = {
     "BIGINT", "INTEGER", "DOUBLE", "FLOAT", "DECIMAL", "HUGEINT", "SMALLINT",
     "TINYINT", "UBIGINT", "UINTEGER", "REAL",
@@ -270,7 +276,12 @@ def classify_shape(
             return "price_level"
 
     if minimum is not None and maximum is not None:
-        if -1 <= minimum <= 5 and 95 <= maximum <= 105:
+        # A column is a 0-100 oscillator because it is BOUNDED at 0 and 100 by
+        # construction, not because one sample happened to land there. The
+        # average true range of MNQ spans roughly 0 to 100 points, and on the
+        # coincidence alone it was being drawn with oversold and overbought
+        # lines that mean nothing for a volatility measure.
+        if -1 <= minimum <= 5 and 95 <= maximum <= 105 and OSCILLATOR_NAMES.search(column):
             return "bounded_oscillator"
         if -1.01 <= minimum and maximum <= 1.01 and (maximum - minimum) > 0:
             return "bounded_ratio"
@@ -294,7 +305,13 @@ def choose_render_mode(
     two states that never existed.
     """
     if object_name in EVENT_OBJECTS or family == "pattern":
-        return "markers"
+        # Only a flag or a state marks a bar. The chart draws a marker's sign as
+        # bullish or bearish direction, so an exit price or an excursion in
+        # average true ranges would have been drawn as a direction it does not
+        # carry; those take a pane instead.
+        if shape in ("binary", "categorical") or family == "pattern":
+            return "markers"
+        return "pane_line"
     if shape in ("binary", "categorical"):
         if shape == "binary" and fired_fraction is not None and fired_fraction <= 0.2:
             return "markers"
@@ -316,6 +333,14 @@ def choose_render_mode(
 
 
 def reference_lines(column: str, shape: str, family: str) -> list[dict[str, Any]]:
+    # Percent-B is read against the bands themselves: 0 is the lower band, 1 the
+    # upper, and outside that range the price has left the channel.
+    if re.search(r"^bb_position$|percent_b$", column):
+        return [
+            {"value": 0, "label": "lower band", "kind": "level"},
+            {"value": 0.5, "label": "middle band", "kind": "level"},
+            {"value": 1, "label": "upper band", "kind": "level"},
+        ]
     if shape == "bounded_oscillator":
         return [
             {"value": 30, "label": "oversold", "kind": "level"},

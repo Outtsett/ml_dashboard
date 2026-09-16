@@ -28,6 +28,8 @@ interface ColumnProfile {
   name: string;
   type: string;
   numeric: boolean;
+  /** Computed from bars after the one it sits on — never a feature. */
+  forwardLooking?: boolean;
   nonNullCount: number;
   nullFraction: number | null;
   distinctApproximate: number;
@@ -173,6 +175,14 @@ function ColumnPanel({ profile }: { profile: ColumnProfile }) {
       <header className="mb-1 flex items-baseline gap-1.5">
         <h4 className="truncate font-mono text-[11px] font-semibold text-foreground">{profile.name}</h4>
         <span className="shrink-0 text-[9px] text-muted-foreground">{profile.type}</span>
+        {profile.forwardLooking && (
+          <span
+            className="shrink-0 rounded border border-[#D55E00]/50 px-1 text-[9px] text-[#D55E00]"
+            title="Computed from bars after this one. It cannot be used as a feature."
+          >
+            forward-looking
+          </span>
+        )}
         <span
           className={cn(
             "ml-auto shrink-0 tnum text-[9px]",

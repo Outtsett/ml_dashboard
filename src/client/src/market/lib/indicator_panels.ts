@@ -427,10 +427,26 @@ export function registerSeriesTitle(column: string, title: string) {
 export function unregisterSeriesTitle(column: string) {
   seriesTitleMap.delete(column);
   histogramColumns.delete(column);
+  stepColumns.delete(column);
 }
 
 export function registerHistogramColumn(column: string) {
   histogramColumns.add(column);
+}
+
+/**
+ * A discrete state holds its value until it changes. Drawing a straight line
+ * between two states renders a value that never existed, so these draw as
+ * steps.
+ */
+const stepColumns = new Set<string>();
+
+export function registerStepColumn(column: string) {
+  stepColumns.add(column);
+}
+
+export function shouldRenderAsStep(column: string): boolean {
+  return stepColumns.has(column);
 }
 
 /** Get a display title for an individual series within a subchart panel.

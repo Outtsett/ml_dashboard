@@ -30,6 +30,7 @@ import {
   registerInstanceReferenceLines,
   registerHistogramColumn,
   registerSeriesTitle,
+  registerStepColumn,
   unregisterInstanceLabel,
   unregisterInstanceReferenceLines,
   unregisterSeriesTitle,
@@ -95,10 +96,18 @@ function saveSelection(ids: string[]) {
   }
 }
 
-/** Columns that share an object AND a value shape can share one axis. */
+/**
+ * Columns that share an object, a value shape AND an order of magnitude can
+ * share one axis. Without the magnitude, a ratio that spans ±1 and one that
+ * spans ±0.01 land on the same scale and the smaller one reads as a flat line.
+ */
 export function paneKeyFor(column: SeriesColumn): string {
   if (column.renderMode === "price_overlay") return "__price__";
-  return `lake:${column.object}:${column.valueShape}`;
+  const low = column.percentile01;
+  const high = column.percentile99;
+  const spread = low !== null && high !== null ? Math.abs(high - low) : null;
+  const magnitude = spread && spread > 0 ? Math.round(Math.log10(spread)) : 0;
+  return `lake:${column.object}:${column.valueShape}:e${magnitude}`;
 }
 
 function overlayColumnFor(column: SeriesColumn): string {
@@ -250,19 +259,38 @@ export function useLakeSeries({ symbol, timeframe, bars, visibleRange }: UseLake
           `${column.label}${column.forwardLooking ? " (forward-looking)" : ""}`,
         );
         if (column.renderMode === "pane_histogram") registerHistogramColumn(overlayColumn);
+        if (column.renderMode === "pane_step") registerStepColumn(overlayColumn);
         registeredColumns.push(overlayColumn);
       });
     }
 
-    // A marker prints its name on every bar it fires, so it gets the short
-    // column name. "is a confirmed zigzag pivot" repeated forty times buried
-    // the candles underneath it.
     for (const id of requestedIds) {
       const entry = columnsById.get(id);
-      if (!entry || entry.column.renderMode !== "markers") continue;
+      if (!entry) continue;
       const overlayColumn = overlayColumnFor(entry.column);
-      registerSeriesTitle(overlayColumn, entry.column.column);
-      registeredColumns.push(overlayColumn);
+
+      // A price overlay has no pane, so the loop above never named it and the
+      // chart showed the internal pane key instead.
+      if (entry.column.renderMode === "price_overlay") {
+        registerSeriesTitle(
+          overlayColumn,
+          `${entry.column.column}${entry.column.forwardLooking ? " (forward-looking)" : ""}`,
+        );
+        registeredColumns.push(overlayColumn);
+        continue;
+      }
+
+      // A marker prints its name on every bar it fires, so it gets the short
+      // column name — "is a confirmed zigzag pivot" repeated forty times buried
+      // the candles. The forward-looking warning stays: it is the one thing
+      // that must not be shortened away.
+      if (entry.column.renderMode === "markers") {
+        registerSeriesTitle(
+          overlayColumn,
+          `${entry.column.column}${entry.column.forwardLooking ? " (forward-looking)" : ""}`,
+        );
+        registeredColumns.push(overlayColumn);
+      }
     }
 
     return () => {

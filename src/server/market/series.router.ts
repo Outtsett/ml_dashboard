@@ -18,8 +18,6 @@
  *   GET /series?ids=&symbol=&... -> the values for a window
  */
 
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { Logger } from "@nestjs/common";
@@ -27,10 +25,14 @@ import { LRUCache } from "lru-cache";
 import { queryQuestDB as queryLake } from "../infrastructure/database/questdb";
 import { queryRateLimiter } from "../infrastructure/lib/rateLimiter";
 import {
+  CATALOG_MISSING_MESSAGE,
+  loadSeriesCatalog,
+  type CatalogIndex,
+} from "./seriesCatalog";
+import {
   SERIES_MAX_COLUMNS,
   SERIES_MAX_MARKERS,
   SERIES_MAX_POINTS,
-  type SeriesCatalog,
   type SeriesColumn,
   type SeriesObject,
   type SeriesPoint,
@@ -40,56 +42,30 @@ import {
 const router = Router();
 const logger = new Logger("SeriesRoutes");
 
-const CATALOG_PATH = path.join(process.cwd(), "src", "config", "series_catalog.json");
+/**
+ * Seconds per chart timeframe. The chart only ever asks for one of these.
+ *
+ * A Map, not an object: `"constructor" in {}` is true, so an object lookup
+ * accepted `timeframe=constructor` and then handed a FUNCTION to the interval
+ * that is interpolated into SQL.
+ */
+const TIMEFRAME_SECONDS = new Map<string, number>([
+  ["1s", 1], ["5s", 5], ["15s", 15], ["30s", 30],
+  ["1m", 60], ["5m", 300], ["15m", 900], ["30m", 1800],
+  ["1h", 3600], ["2h", 7200], ["4h", 14400], ["1d", 86400], ["1w", 604800],
+]);
 
-/** Seconds per chart timeframe. The chart only ever asks for one of these. */
-const TIMEFRAME_SECONDS: Record<string, number> = {
-  "1s": 1, "5s": 5, "15s": 15, "30s": 30,
-  "1m": 60, "5m": 300, "15m": 900, "30m": 1800,
-  "1h": 3600, "2h": 7200, "4h": 14400, "1d": 86400, "1w": 604800,
-};
+/** The widest window a single request may scan, so one call cannot read a decade. */
+const MAX_WINDOW_SECONDS = 20 * 365 * 24 * 3600;
 
 const QuerySchema = z.object({
   ids: z.string().min(1).max(2000),
   symbol: z.string().regex(/^[A-Za-z0-9_.\-]{1,32}$/),
-  timeframe: z.string().refine((value) => value in TIMEFRAME_SECONDS, "unknown timeframe"),
+  timeframe: z.string().refine((value) => TIMEFRAME_SECONDS.has(value), "unknown timeframe"),
   from: z.coerce.number().int().min(0),
   to: z.coerce.number().int().min(1),
   maxPoints: z.coerce.number().int().min(10).max(SERIES_MAX_POINTS).default(2000),
 });
-
-interface CatalogIndex {
-  catalog: SeriesCatalog;
-  objects: Map<string, SeriesObject>;
-  columns: Map<string, { object: SeriesObject; column: SeriesColumn }>;
-}
-
-let catalogPromise: Promise<CatalogIndex> | null = null;
-
-async function loadCatalog(): Promise<CatalogIndex> {
-  if (!catalogPromise) {
-    catalogPromise = readFile(CATALOG_PATH, "utf8")
-      .then((text) => {
-        const catalog = JSON.parse(text) as SeriesCatalog;
-        const objects = new Map<string, SeriesObject>();
-        const columns = new Map<string, { object: SeriesObject; column: SeriesColumn }>();
-        for (const object of catalog.objects) {
-          objects.set(object.object, object);
-          for (const column of object.columns) columns.set(column.id, { object, column });
-        }
-        logger.log(
-          `series catalog: ${catalog.objectCount} objects, ${catalog.columnCount} columns, ` +
-            `${catalog.chartableColumnCount} chartable (generated ${catalog.generatedAtIso})`,
-        );
-        return { catalog, objects, columns };
-      })
-      .catch((error) => {
-        catalogPromise = null;
-        throw error;
-      });
-  }
-  return catalogPromise;
-}
 
 function quote(identifier: string): string {
   return `"${identifier.replace(/"/g, '""')}"`;
@@ -157,9 +133,23 @@ async function fetchOneSeries(
   if (cached) return cached;
 
   const ts = quote(object.timestampColumn);
+  // The catalog knows when this object starts and stops. Clamping to it means a
+  // request for a century of one-second bars still only reads what exists —
+  // `maxPoints` bounds the answer, never the scan.
+  const fromSeconds = Math.max(window.fromSeconds, object.firstTimestampSeconds ?? window.fromSeconds);
+  const toSeconds = Math.min(window.toSeconds, (object.lastTimestampSeconds ?? window.toSeconds) + 1);
+  if (toSeconds <= fromSeconds) {
+    return {
+      ...base,
+      downsampled: false,
+      pointCount: 0,
+      points: [],
+      emptyReason: `No rows in this window. ${object.object} covers ${coverageSentence(object)}.`,
+    };
+  }
   const filters = [
-    `${ts} >= to_timestamp(${window.fromSeconds})`,
-    `${ts} < to_timestamp(${window.toSeconds})`,
+    `${ts} >= to_timestamp(${fromSeconds})`,
+    `${ts} < to_timestamp(${toSeconds})`,
   ];
   if (object.symbolColumn) filters.push(`${quote(object.symbolColumn)} = ${literal(window.symbol)}`);
 
@@ -187,6 +177,7 @@ async function fetchOneSeries(
       `) SELECT epoch(event_time)::BIGINT AS bucket_seconds, value, bucket_count ` +
       `FROM numbered WHERE bucket_count <= ${markerLimit} ` +
       `OR position % CAST(ceil(bucket_count::DOUBLE / ${markerLimit}) AS BIGINT) = 0 ` +
+      `OR position = 1 OR position = bucket_count ` +
       `ORDER BY bucket_seconds`;
   } else {
     // Bucket at the chart's own timeframe, then thin by ROW COUNT if there are
@@ -210,6 +201,10 @@ async function fetchOneSeries(
       `bucket_count ` +
       `FROM numbered WHERE bucket_count <= ${window.maxPoints} ` +
       `OR position % CAST(ceil(bucket_count::DOUBLE / ${window.maxPoints}) AS BIGINT) = 0 ` +
+      // Always keep the first and the last, or the newest value — the one the
+      // price label reads from — falls off whenever the count is not a
+      // multiple of the stride.
+      `OR position = 1 OR position = bucket_count ` +
       `ORDER BY bucket_seconds`;
   }
 
@@ -261,14 +256,13 @@ function coverageSentence(object: SeriesObject): string {
 
 router.get("/series/catalog", async (_request: Request, response: Response) => {
   try {
-    const { catalog } = await loadCatalog();
+    const { catalog } = await loadSeriesCatalog();
     response.set("Cache-Control", "public, max-age=300");
     response.json(catalog);
   } catch (error) {
     logger.error(`series catalog unavailable: ${(error as Error).message}`);
     response.status(503).json({
-      error:
-        "The series catalog has not been built. Run: uv run python scripts/build_series_catalog.py",
+      error: CATALOG_MISSING_MESSAGE,
     });
   }
 });
@@ -284,13 +278,19 @@ router.get("/series", queryRateLimiter, async (request: Request, response: Respo
     response.status(400).json({ error: "the window ends before it starts" });
     return;
   }
+  if (to - from > MAX_WINDOW_SECONDS) {
+    response.status(400).json({
+      error: `the window is wider than ${Math.round(MAX_WINDOW_SECONDS / (365 * 24 * 3600))} years`,
+    });
+    return;
+  }
 
   let index: CatalogIndex;
   try {
-    index = await loadCatalog();
+    index = await loadSeriesCatalog();
   } catch {
     response.status(503).json({
-      error: "The series catalog has not been built. Run: uv run python scripts/build_series_catalog.py",
+      error: CATALOG_MISSING_MESSAGE,
     });
     return;
   }
@@ -313,7 +313,7 @@ router.get("/series", queryRateLimiter, async (request: Request, response: Respo
 
   const window: WindowRequest = {
     symbol,
-    timeframeSeconds: TIMEFRAME_SECONDS[timeframe] ?? 60,
+    timeframeSeconds: TIMEFRAME_SECONDS.get(timeframe) ?? 60,
     fromSeconds: from,
     toSeconds: to,
     maxPoints,

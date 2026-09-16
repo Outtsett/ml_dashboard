@@ -17,12 +17,13 @@ import {
   type Time,
   LineSeries,
   HistogramSeries,
+  LineType,
   type LogicalRange,
   type ISeriesApi,
   type SeriesType,
 } from 'lightweight-charts';
 import type { IndicatorOverlay } from "@/market/lib/useIndicatorData";
-import { getPanelLabel, getReferenceLines, shouldRenderAsHistogram, getSeriesTitle, getHistogramStyle } from "@/market/lib/indicator_panels";
+import { getPanelLabel, getReferenceLines, shouldRenderAsHistogram, shouldRenderAsStep, getSeriesTitle, getHistogramStyle } from "@/market/lib/indicator_panels";
 import { getHistogramColors } from '@/market/lib/indicator_colors';
 
 /** Deduplicate & sort series data by time (last-write-wins for dupes). Filters out invalid entries. */
@@ -273,6 +274,11 @@ const SubchartPanel = forwardRef<SubchartPanelHandle, SubchartPanelProps>(
             : chart.addSeries(LineSeries, {
                 color: indicator.color,
                 lineWidth: indicator.lineWidth as 1 | 2 | 3 | 4,
+                // A discrete state holds until it changes; interpolating between
+                // two states draws a value the data never took.
+                lineType: shouldRenderAsStep(indicator.column)
+                  ? LineType.WithSteps
+                  : LineType.Simple,
                 priceScaleId: 'right',
                 lastValueVisible: true,
                 priceLineVisible: false,

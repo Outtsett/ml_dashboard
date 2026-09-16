@@ -22,6 +22,7 @@ import { LRUCache } from "lru-cache";
 import { queryQuestDB as queryLake } from "../infrastructure/database/questdb";
 import { queryRateLimiter } from "../infrastructure/lib/rateLimiter";
 import { columnsFor, literal, quote } from "./stores.router";
+import { loadSeriesCatalog } from "../market/seriesCatalog";
 
 const router = Router();
 const logger = new Logger("ProfileRoutes");
@@ -76,6 +77,19 @@ router.get("/stores/profile/:store/:name", queryRateLimiter, async (request: Req
     if (columns.length === 0) {
       response.status(404).json({ error: `No object named ${objectName} in the lake.` });
       return;
+    }
+
+    // The catalog knows which columns read bars that had not happened yet. A
+    // profile that showed a forward return looking like any other column would
+    // invite someone to treat it as a feature.
+    const forwardLooking = new Set<string>();
+    try {
+      const { objects } = await loadSeriesCatalog();
+      for (const column of objects.get(objectName)?.columns ?? []) {
+        if (column.forwardLooking) forwardLooking.add(column.column);
+      }
+    } catch {
+      // No catalog yet — the profile still stands, it just cannot label these.
     }
 
     const columnNames = columns.map((column) => column.name);
@@ -205,6 +219,7 @@ router.get("/stores/profile/:store/:name", queryRateLimiter, async (request: Req
         name: column.name,
         type: column.type,
         numeric: column.numeric,
+        forwardLooking: forwardLooking.has(column.name),
         nonNullCount: nonNull,
         nullFraction: totalRows ? 1 - nonNull / totalRows : null,
         distinctApproximate: Number(stats?.[`${column.name}__distinct`] ?? 0),
