@@ -79,7 +79,7 @@ _DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Module-level fold state - composite owns aggregation; experts also keep
 # their own _FOLD_STATE inside their generated main.py modules.
-_FOLD_STATE: dict = {"y": [], "preds": [], "expert_preds": [], "gates": []}
+_FOLD_STATE: dict = {"y": [], "preds": [], "expert_preds": [], "gates": [], "ts": []}
 
 
 class _MoEHead(nn.Module):
@@ -207,7 +207,7 @@ def _gate_weights(head: _MoEHead, X: np.ndarray) -> np.ndarray:
     return w.detach().cpu().numpy().astype(np.float64)
 
 
-def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None, ts_test=None):
     """MoE fold trainer.
 
     1. For each expert slot, call its imported train_one_fold() on the same
@@ -245,6 +245,8 @@ def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
     _FOLD_STATE["preds"].append(composite_preds.astype(np.float64))
     _FOLD_STATE["expert_preds"].append(test_matrix)
     _FOLD_STATE["gates"].append(val_gates)
+    if ts_test is not None:
+        _FOLD_STATE["ts"].append(np.asarray(ts_test))
 
     composite_model = {"head": head, "experts": expert_models}
     return composite_model, composite_preds
@@ -331,8 +333,13 @@ def predict(model, X) -> np.ndarray:
 
     if all_y.size and all_preds.size:
         out_path = _PROJECT_ROOT / "data" / "models" / args.model_id / "oos_predictions.parquet"
+        all_ts = (
+            np.concatenate(_FOLD_STATE["ts"]).astype(np.int64)
+            if _FOLD_STATE["ts"] and sum(t.size for t in _FOLD_STATE["ts"]) == all_y.size
+            else np.arange(all_y.size, dtype=np.int64)
+        )
         write_oos_predictions(
-            ts=np.arange(all_y.size, dtype=np.int64),
+            ts=all_ts,
             y_true=all_y,
             y_pred=all_preds,
             output_path=out_path,

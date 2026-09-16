@@ -57,7 +57,7 @@ _PATIENCE: int = {{ _patience | python_repr }}
 _DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Module-level state for per-fold OOS aggregation.
-_FOLD_STATE: dict = {"recon_err": [], "n_input": []}
+_FOLD_STATE: dict = {"recon_err": [], "n_input": [], "ts": []}
 _DIAG_DECLARED: dict = {"done": False}
 
 
@@ -126,7 +126,7 @@ def _make_loaders(X_train, X_test):
     return train_loader, val_loader
 
 
-def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None, ts_test=None):
     """AE + AdamW + early-stop on val MSE. Returns (model, anomaly_scores)."""
     fold_tag = "single" if fold_idx is None else str(fold_idx)
     input_dim = int(X_train.shape[1])
@@ -223,6 +223,8 @@ def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
 
     _FOLD_STATE["recon_err"].append(scores)
     _FOLD_STATE["n_input"].append(int(input_dim))
+    if ts_test is not None:
+        _FOLD_STATE["ts"].append(np.asarray(ts_test))
     return model, scores
 
 
@@ -312,8 +314,13 @@ def compute_fold_metrics(y_test, preds, *, fold_idx=None) -> dict[str, float]:
     if all_scores.size:
         import polars as _ae_pl
         out_path = out_dir / "oos_predictions.parquet"
+        all_ts = (
+            np.concatenate(_FOLD_STATE["ts"]).astype(np.int64)
+            if _FOLD_STATE["ts"] and sum(t.size for t in _FOLD_STATE["ts"]) == all_scores.size
+            else np.arange(all_scores.size, dtype=np.int64)
+        )
         _ae_pl.DataFrame({
-            "timestamp": np.arange(all_scores.size, dtype=np.int64),
+            "timestamp": all_ts,
             "symbol": [args.symbol] * int(all_scores.size),
             "prediction": all_scores.astype(np.float64),
             "confidence": np.ones(int(all_scores.size), dtype=np.float32),

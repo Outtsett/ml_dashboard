@@ -34,9 +34,11 @@
         emit_progress(fold.idx, 0, "walk_forward")
         X_train, y_train = X[fold.train_idx], y[fold.train_idx]
         X_test, y_test = X[fold.test_idx], y[fold.test_idx]
+        ts_test = ts_kept[fold.test_idx]
 
         model, preds = train_one_fold(
             X_train, y_train, X_test, y_test, args, fold_idx=fold.idx,
+            ts_test=ts_test,
         )
         fold_metrics = compute_fold_metrics(y_test, preds, fold_idx=fold.idx)
         for name, value in fold_metrics.items():

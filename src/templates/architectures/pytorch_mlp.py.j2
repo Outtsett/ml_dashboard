@@ -65,7 +65,7 @@ _PATIENCE: int = {{ _patience | python_repr }}
 _DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Module-level state for per-fold OOS aggregation (read by rollup block).
-_FOLD_STATE: dict = {"y": [], "preds": []}
+_FOLD_STATE: dict = {"y": [], "preds": [], "ts": []}
 _DIAG_DECLARED: dict = {"done": False}
 
 
@@ -155,7 +155,7 @@ def _logits_to_preds(logits: torch.Tensor) -> np.ndarray:
     {% endif %}
 
 
-def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None, ts_test=None):
     """MLP + AdamW + early-stop on val loss. Returns (model, preds)."""
     fold_tag = "single" if fold_idx is None else str(fold_idx)
     input_dim = int(X_train.shape[1])
@@ -256,6 +256,8 @@ def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
 
     _FOLD_STATE["y"].append(np.asarray(y_test))
     _FOLD_STATE["preds"].append(preds)
+    if ts_test is not None:
+        _FOLD_STATE["ts"].append(np.asarray(ts_test))
 
     return model, preds
 
@@ -342,8 +344,13 @@ def predict(model, X) -> np.ndarray:
 
     if all_y.size and all_preds.size:
         out_path = _PROJECT_ROOT / "data" / "models" / args.model_id / "oos_predictions.parquet"
+        all_ts = (
+            np.concatenate(_FOLD_STATE["ts"]).astype(np.int64)
+            if _FOLD_STATE["ts"] and sum(t.size for t in _FOLD_STATE["ts"]) == all_y.size
+            else np.arange(all_y.size, dtype=np.int64)
+        )
         write_oos_predictions(
-            ts=np.arange(all_y.size, dtype=np.int64),
+            ts=all_ts,
             y_true=all_y,
             y_pred=all_preds,
             output_path=out_path,

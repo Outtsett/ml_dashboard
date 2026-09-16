@@ -16,7 +16,7 @@
 {#                                                                         #}
 {# Required convention enforced here per ml sub-plan §6 footer:            #}
 {#   - train_one_fold(X_train, y_train, X_test, y_test, args, *,           #}
-{#                    fold_idx=None) -> (model, preds)                      #}
+{#                    fold_idx=None, ts_test=None) -> (model, preds)                      #}
 {#   - predict(model, X) -> np.ndarray                                      #}
 {# Composite templates in W5 import these by name, so the signature is     #}
 {# part of the cross-domain contract.                                       #}
@@ -259,15 +259,15 @@ def generate_labels(raw, args):
 # Training loop + fold metric helper.
 #
 # Required cross-domain contract (ml sub-plan §6 footer):
-#   train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None)
-#       -> (model, preds)
+#   train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None,
+#                  ts_test=None) -> (model, preds)
 #   predict(model, X) -> np.ndarray
 # Composite templates (W5) import these names directly, so changing the
 # signature here is a breaking change for every downstream composite.
 # --------------------------------------------------------------------------- #
 
 {% block train_loop %}
-def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None, ts_test=None):
     """W1 stub — family templates override this block.
 
     The placeholder below is intentionally deterministic so generated

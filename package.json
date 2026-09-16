@@ -132,6 +132,7 @@
     "framer-motion": "^12.38.0",
     "fuse.js": "^7.1.0",
     "fzstd": "^0.1.1",
+    "http-proxy-middleware": "^4.2.0",
     "idb": "^8.0.2",
     "input-otp": "^1.4.2",
     "lightweight-charts": "^5.1.0",

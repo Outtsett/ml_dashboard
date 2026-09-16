@@ -43,7 +43,7 @@ _WEIGHTS: list[float] = [
 ]
 
 # Module-level fold state for eval rollup.
-_FOLD_STATE: dict = {"y": [], "preds": [], "member_preds": []}
+_FOLD_STATE: dict = {"y": [], "preds": [], "member_preds": [], "ts": []}
 {% endblock %}
 
 {% block train_loop %}
@@ -109,7 +109,7 @@ def _combine(member_matrix: np.ndarray) -> np.ndarray:
     return member_matrix.mean(axis=-1).astype(np.float64)
 
 
-def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None, ts_test=None):
     """Voting fold trainer.
 
     1. For each member, call its train_one_fold() on the SAME (X_train, y_train,
@@ -132,6 +132,8 @@ def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
     _FOLD_STATE["y"].append(np.asarray(y_test))
     _FOLD_STATE["preds"].append(composite_preds.astype(np.float64))
     _FOLD_STATE["member_preds"].append(member_matrix)
+    if ts_test is not None:
+        _FOLD_STATE["ts"].append(np.asarray(ts_test))
 
     composite_model = {"members": member_models, "combiner": _COMBINER}
     return composite_model, composite_preds
@@ -227,8 +229,13 @@ def predict(model, X) -> np.ndarray:
 
     if all_y.size and all_preds.size:
         out_path = _PROJECT_ROOT / "data" / "models" / args.model_id / "oos_predictions.parquet"
+        all_ts = (
+            np.concatenate(_FOLD_STATE["ts"]).astype(np.int64)
+            if _FOLD_STATE["ts"] and sum(t.size for t in _FOLD_STATE["ts"]) == all_y.size
+            else np.arange(all_y.size, dtype=np.int64)
+        )
         write_oos_predictions(
-            ts=np.arange(all_y.size, dtype=np.int64),
+            ts=all_ts,
             y_true=all_y,
             y_pred=all_preds,
             output_path=out_path,

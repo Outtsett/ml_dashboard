@@ -24,6 +24,7 @@ import registryRouter from "../../ml/registry.router";
 import evalRouter from "../../ml/eval.router";
 import anatomyRouter from "../../ml/anatomy.router";
 import experimentsRouter from "../../ml/experiments.router";
+import lensRouter from "../../lens/lens.router";
 
 // Training Domain
 import trainingRouter from "../../training/training.router";
@@ -45,6 +46,9 @@ import settingsRouter from "../../system/settings.router";
 import systemRouter from "../../system/telemetry.router";
 import eventsRouter from "../../system/events.router";
 import copilotRouter from "../../ai/copilot.router";
+
+// Marimo Domain
+import marimoRouter from "../../marimo/marimo.router";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
 
@@ -70,6 +74,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", codegenRouter);   // before mlRouter
   app.use("/api", evalRouter);
   app.use("/api", anatomyRouter);  // before mlRouter
+  app.use("/api", lensRouter);     // before mlRouter
   app.use("/api", hpoRouter);      // before mlRouter
   app.use("/api", experimentsRouter);
   app.use("/api", mlRouter);
@@ -87,6 +92,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", deploymentsRouter);
   app.use("/api", agentsRouter);
   app.use("/api/ai", copilotRouter);
+  app.use("/api", marimoRouter);
 
   // Deployments SSE — mounted BEFORE the generic eventsRouter
   app.use("/api", eventsDeploymentsRouter);

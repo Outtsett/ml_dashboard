@@ -16,6 +16,8 @@ import {
   Goal,
   Sliders,
   Bot,
+  Microscope,
+  NotebookPen,
 } from "lucide-react";
 
 // This list is the app's actual rendered sidebar. shared/hooks/navigation.ts's
@@ -35,6 +37,8 @@ const NAV_ITEMS = [
   { label: "HPO", href: "/hpo", icon: Sliders },
   { label: "Catalog", href: "/model-catalog", icon: Library },
   { label: "Data", href: "/databases", icon: Database },
+  { label: "Lens", href: "/lens", icon: Microscope },
+  { label: "Notebooks", href: "/marimo", icon: NotebookPen },
   { label: "Glossary", href: "/glossary", icon: BookMarked },
   { label: "Operate", href: "/operate", icon: Cpu },
   { label: "Paper", href: "/paper", icon: BookOpen },

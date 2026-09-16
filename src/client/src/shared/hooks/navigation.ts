@@ -34,6 +34,8 @@ import {
   BarChart2,
   BookOpen,
   BookMarked,
+  Microscope,
+  NotebookPen,
   BrainCircuit,
   Cpu,
   Database,
@@ -133,6 +135,18 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
         label: "Data",
         href: "/databases",
         description: "Data pipeline + freshness",
+      },
+      {
+        icon: Microscope,
+        label: "Model Lens",
+        href: "/lens",
+        description: "A model's out-of-sample record: predictions, trades, stability, attribution",
+      },
+      {
+        icon: NotebookPen,
+        label: "Notebooks",
+        href: "/marimo",
+        description: "Every marimo notebook on the machine, served in place",
       },
       {
         icon: BookMarked,

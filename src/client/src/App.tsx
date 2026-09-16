@@ -144,6 +144,14 @@ const HardwareFactory = () => import("@/system/HardwarePage");
 const Hardware = lazyRetry(HardwareFactory, "Hardware");
 registerComponentFactory("/hardware", HardwareFactory);
 
+const LensFactory = () => import("@/lens/LensPage");
+const Lens = lazyRetry(LensFactory, "Lens");
+registerComponentFactory("/lens", LensFactory);
+
+const MarimoFactory = () => import("@/marimo/MarimoPage");
+const Marimo = lazyRetry(MarimoFactory, "Marimo");
+registerComponentFactory("/marimo", MarimoFactory);
+
 const NotFound = lazyRetry(() => import("@/shared/layout/not-found"), "NotFound");
 
 /**
@@ -191,6 +199,8 @@ function Router() {
 
         <AppRoute path="/terminals" component={Terminals} />
         <AppRoute path="/hardware" component={Hardware} />
+        <AppRoute path="/lens" component={Lens} />
+        <AppRoute path="/marimo" component={Marimo} />
 
         <AppRoute path="/settings" component={Settings} />
         <AppRoute path="/training" component={Training} />

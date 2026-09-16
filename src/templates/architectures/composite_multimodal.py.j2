@@ -205,10 +205,10 @@ def _make_train_loader(X: np.ndarray, y: np.ndarray, batch_size: int):
 
 
 # Module-level fold state for eval rollup.
-_FOLD_STATE: dict = {"y": [], "preds": []}
+_FOLD_STATE: dict = {"y": [], "preds": [], "ts": []}
 
 
-def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None, ts_test=None):
     """Multimodal fold trainer."""
     fold_tag = "single" if fold_idx is None else str(fold_idx)
     n_features = int(X_train.shape[1])
@@ -247,6 +247,8 @@ def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
         preds = probs.max(axis=1)
     _FOLD_STATE["y"].append(np.asarray(y_test))
     _FOLD_STATE["preds"].append(np.asarray(preds, dtype=np.float64))
+    if ts_test is not None:
+        _FOLD_STATE["ts"].append(np.asarray(ts_test))
     return model, preds
 
 
@@ -311,8 +313,13 @@ def predict(model, X) -> np.ndarray:
 
     if all_y.size and all_preds.size:
         out_path = _PROJECT_ROOT / "data" / "models" / args.model_id / "oos_predictions.parquet"
+        all_ts = (
+            np.concatenate(_FOLD_STATE["ts"]).astype(np.int64)
+            if _FOLD_STATE["ts"] and sum(t.size for t in _FOLD_STATE["ts"]) == all_y.size
+            else np.arange(all_y.size, dtype=np.int64)
+        )
         write_oos_predictions(
-            ts=np.arange(all_y.size, dtype=np.int64),
+            ts=all_ts,
             y_true=all_y,
             y_pred=all_preds,
             output_path=out_path,

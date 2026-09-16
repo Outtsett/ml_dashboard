@@ -34,7 +34,7 @@ _FOLD_STATE: dict = {"y": [], "preds": [], "ts": [], "prices": []}
 {% endblock %}
 
 {% block train_loop %}
-def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None, ts_test=None):
     """Generic sklearn fit/predict — instantiated with the catalog hyperparameters."""
     {% if not (_module_path and _class_name) %}
     raise NotImplementedError(
@@ -65,6 +65,8 @@ def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
     # Accumulate per-fold OOS arrays for the eval block to aggregate.
     _FOLD_STATE["y"].append(np.asarray(y_test))
     _FOLD_STATE["preds"].append(preds if preds.ndim == 1 else preds[:, -1])
+    if ts_test is not None:
+        _FOLD_STATE["ts"].append(np.asarray(ts_test))
     return model, preds
 
 
@@ -130,8 +132,13 @@ def predict(model, X):
 
     if all_y.size and all_preds.size:
         out_path = _PROJECT_ROOT / "data" / "models" / args.model_id / "oos_predictions.parquet"
+        all_ts = (
+            np.concatenate(_FOLD_STATE["ts"]).astype(np.int64)
+            if _FOLD_STATE["ts"] and sum(t.size for t in _FOLD_STATE["ts"]) == all_y.size
+            else np.arange(all_y.size, dtype=np.int64)
+        )
         write_oos_predictions(
-            ts=np.arange(all_y.size, dtype=np.int64),
+            ts=all_ts,
             y_true=all_y,
             y_pred=all_preds,
             output_path=out_path,

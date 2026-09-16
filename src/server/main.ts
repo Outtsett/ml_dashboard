@@ -26,6 +26,8 @@ declare module 'express-serve-static-core' {
   }
 }
 import { attachMetricsWebSocket } from './infrastructure/core/ws';
+import { registerMarimoProxies } from './marimo/proxy';
+import { stopAllGroups as stopAllMarimoGroups } from './marimo/servers';
 
 // Re-export for backward compat
 export { log } from './infrastructure/lib/log';
@@ -148,6 +150,7 @@ async function bootstrap() {
     threshold: 1024,
     filter: (req: Request) => {
       if (req.path.includes('/stream/') || req.path.includes('/events/')) return false;
+      if (req.path.startsWith('/marimo/')) return false; // proxied marimo pages/assets — let them through unbuffered
       if (process.env.NODE_ENV === 'production' && req.path.startsWith('/assets/')) return false;
       return true;
     },
@@ -163,8 +166,9 @@ async function bootstrap() {
 
   // ── Request timeout (30s default, prevents hung queries) ──
   expressApp.use((req: Request, res: Response, next: NextFunction) => {
-    // SSE streams and training endpoints get longer timeout
-    const isLongRunning = req.path.includes('/stream/') || req.path.includes('/training/start');
+    // SSE streams, training endpoints and proxied marimo notebooks get longer timeout
+    const isLongRunning =
+      req.path.includes('/stream/') || req.path.includes('/training/start') || req.path.startsWith('/marimo/');
     const timeout = isLongRunning ? 0 : 30_000;
     if (timeout > 0) {
       req.setTimeout(timeout, () => {
@@ -187,9 +191,13 @@ async function bootstrap() {
   expressApp.use(express.urlencoded({ extended: false }));
 
   // ── Security headers ──
-  expressApp.use((_req: Request, res: Response, next: NextFunction) => {
+  expressApp.use((req: Request, res: Response, next: NextFunction) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'DENY');
+    // Proxied marimo pages (and the dashboard's own /marimo page, which frames
+    // them same-origin) need to be embeddable in our iframe; everything else
+    // stays DENY.
+    const isMarimo = req.path === '/marimo' || req.path.startsWith('/marimo/');
+    res.setHeader('X-Frame-Options', isMarimo ? 'SAMEORIGIN' : 'DENY');
     next();
   });
 
@@ -304,6 +312,10 @@ async function bootstrap() {
   // ── Routes + middleware ──
   await registerRoutes(httpServer, expressApp);
 
+  // ── Marimo notebook proxy (before Vite's SPA catch-all, so a proxied
+  //    /marimo/<slug>/** request is never shadowed by index.html) ──
+  registerMarimoProxies(expressApp, httpServer);
+
   // OpenAPI spec endpoint (static until NestJS handles HTTP directly)
   expressApp.get('/api/docs/json', (_req: Request, res: Response) => {
     res.json(getStaticOpenApiSpec());
@@ -374,6 +386,7 @@ async function bootstrap() {
 
     shutdownHardwareNode();
     shutdownAllPtySessions();
+    await stopAllMarimoGroups();
 
     // Race nestApp.close() against a 10s timeout
     const closeNest = async () => {

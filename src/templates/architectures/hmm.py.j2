@@ -61,6 +61,7 @@ _FOLD_STATE: dict = {
     "posteriors": [],
     "X_test": [],
     "models": [],
+    "ts": [],
     "n_states": 0,
 }
 {% endblock %}
@@ -103,7 +104,7 @@ def _build_hmm() -> _HMMClass:
     {% endif %}
 
 
-def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None, ts_test=None):
     """HMM unsupervised fit on X_train; Viterbi decode + posteriors on X_test.
 
     Returns (model, posteriors_2d) per the cross-domain contract documented
@@ -127,6 +128,8 @@ def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
     _FOLD_STATE["X_test"].append(np.asarray(X_test, dtype=np.float64))
     _FOLD_STATE["models"].append(model)
     _FOLD_STATE["n_states"] = int(model.n_components)
+    if ts_test is not None:
+        _FOLD_STATE["ts"].append(np.asarray(ts_test))
     return model, posteriors
 
 
@@ -163,6 +166,16 @@ def predict(model, X):
         all_states = np.asarray([], dtype=np.int64)
         all_X = np.zeros((0, X.shape[1]), dtype=np.float64)
         all_posteriors = np.zeros((0, _FOLD_STATE["n_states"] or 1), dtype=np.float64)
+
+    # Real per-fold OOS row timestamps, accumulated by train_one_fold via
+    # ts_test — not a tail-slice of ts_kept, which is wrong whenever the walk-
+    # forward test folds are not the literal last N rows (embargo/purge gaps,
+    # non-expanding windows).
+    all_ts = (
+        np.concatenate(_FOLD_STATE["ts"]).astype(np.int64)
+        if _FOLD_STATE["ts"] and sum(t.size for t in _FOLD_STATE["ts"]) == all_states.size
+        else (ts_kept[-int(all_states.size):] if all_states.size and ts_kept.size >= all_states.size else np.arange(int(all_states.size), dtype=np.int64))
+    )
 
     n_states_configured = int(_FOLD_STATE["n_states"])
     n_states_used = int(np.unique(all_states).size) if all_states.size else 0
@@ -211,26 +224,12 @@ def predict(model, X):
     emit_metric(name="n_states_used", value=float(n_states_used), iteration=0)
 
     # Regime-tag overlay (chart paints colored regime bands on the OOS span).
-    # Align overlay timestamps to the OOS portion of ts_kept by walking
-    # fold_results in order; falls back to ts_kept[-N:] when the per-fold
-    # geometry isn't available.
+    # Uses the real per-fold OOS timestamps in all_ts (see above) — not a
+    # cursor walk over ts_kept, which assumed the test folds tile ts_kept
+    # from row 0, true only for a single contiguous fold.
     overlay_cap = 50_000
-    if all_states.size and ts_kept.size:
-        try:
-            test_ts_chunks: list[np.ndarray] = []
-            cursor = 0
-            for fr in fold_results:
-                n_test = int(fr.get("n_test", 0))
-                if n_test <= 0:
-                    continue
-                test_ts_chunks.append(ts_kept[cursor:cursor + n_test])
-                cursor += n_test
-            if test_ts_chunks:
-                overlay_ts = np.concatenate(test_ts_chunks)
-            else:
-                overlay_ts = ts_kept[-all_states.size:]
-        except Exception:
-            overlay_ts = ts_kept[-all_states.size:]
+    if all_states.size and all_ts.size:
+        overlay_ts = all_ts
 
         if overlay_ts.size and overlay_ts.size == all_states.size:
             if overlay_ts.size > overlay_cap:
@@ -283,7 +282,7 @@ def predict(model, X):
         X_test=all_X if all_X.size else None,
         y_test=all_states,
         predictions=all_posteriors if all_posteriors.size else all_states,
-        ts_test=ts_kept[-int(all_states.size):] if all_states.size else None,
+        ts_test=all_ts if all_states.size else None,
         fold_results=fold_results,
         output_dir=out_dir,
         model_id=args.model_id,
@@ -301,16 +300,11 @@ def predict(model, X):
     # Write OOS predictions parquet for downstream backtest/eval consumers.
     # Schema {timestamp, symbol, prediction, confidence} per W1.c contract;
     # for HMM: prediction = state ID, confidence = max posterior.
-    if all_states.size and ts_kept.size:
+    if all_states.size and all_ts.size:
         oos_path = out_dir / "oos_predictions.parquet"
         try:
-            oos_ts = (
-                ts_kept[-int(all_states.size):]
-                if int(all_states.size) <= ts_kept.size
-                else np.arange(int(all_states.size), dtype=np.int64)
-            )
             write_oos_predictions(
-                ts=oos_ts,
+                ts=all_ts,
                 y_test=all_states,
                 predictions=all_posteriors if all_posteriors.size else all_states,
                 output_path=oos_path,

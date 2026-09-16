@@ -1,7 +1,9 @@
 import * as ScrollArea from "@radix-ui/react-scroll-area";
+import { Link } from "wouter";
+import { useLensModels } from "@/lens/api";
 import { LineChart, Line, YAxis, ResponsiveContainer } from "recharts";
 import { useWebSocketMetrics } from "@/hooks/useWebSocketMetrics";
-import { trendTone, trendToneClass, trendToneColor, trendGlyph, trendLabel, paletteColorDark } from "@/shared/theme/dataColors";
+import { trendTone, trendToneClass, trendToneColor, trendGlyph, trendLabel } from "@/shared/theme/dataColors";
 
 function Sparkline({ data, color }: { data: number[], color: string }) {
   const chartData = data.map((val, i) => ({ index: i, value: val }));
@@ -29,13 +31,12 @@ function Sparkline({ data, color }: { data: number[], color: string }) {
 
 export function RightSidebar() {
   const { metrics, history } = useWebSocketMetrics();
-
-  // Mock experiments for leaderboard
-  const experiments = [
-    { id: 12, model: "Transformer-L", reward: 0.82, valScore: 0.74 },
-    { id: 11, model: "Transformer-M", reward: 0.75, valScore: 0.68 },
-    { id: 10, model: "LSTM-Deep", reward: 0.45, valScore: 0.51 },
-  ];
+  // Real out-of-sample results, ranked by net PnL — the leaderboard used to be
+  // three hardcoded models with Math.random() sparklines.
+  const lens = useLensModels();
+  const ranked = (lens.data?.models ?? [])
+    .filter((m) => m.headline !== null && m.duplicateOf === null)
+    .sort((a, b) => (b.headline?.totalNetUsd ?? 0) - (a.headline?.totalNetUsd ?? 0));
 
   return (
     <div className="w-80 h-full bg-neutral-950 border-l border-neutral-800 flex flex-col">
@@ -89,28 +90,40 @@ export function RightSidebar() {
           </div>
 
           <div className="mt-8 border-t border-neutral-800 pt-6">
-            <h3 className="text-sm font-bold text-neutral-300 uppercase tracking-wider mb-4">Experiment Leaderboard</h3>
-            
+            <h3 className="text-sm font-bold text-neutral-300 uppercase tracking-wider mb-1">Out-of-sample leaderboard</h3>
+            <p className="mb-4 text-[11px] text-neutral-500">Net of costs, from each model&apos;s lens. Click to inspect.</p>
+
+            {lens.isLoading && <p className="text-xs text-neutral-500">Loading models…</p>}
+            {lens.error && <p className="text-xs text-neutral-500">Model list unavailable: {lens.error.message}</p>}
+            {!lens.isLoading && !lens.error && ranked.length === 0 && (
+              <p className="text-xs text-neutral-500">No model has a built lens yet.</p>
+            )}
+
             <div className="space-y-3">
-              {experiments.map((exp) => (
-                <div key={exp.id} className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 hover:border-neutral-700 transition-colors cursor-pointer group">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-neutral-300 font-medium">Model #{exp.id}</span>
-                    <span className="text-(--color-data-pos) text-sm">Reward +{exp.reward}</span>
-                  </div>
-                  <div className="text-xs text-neutral-500 mb-2">
-                    {exp.model} | Val Score {exp.valScore}
-                  </div>
-                  {/* Fake sparkline for leaderboard */}
-                  <div className="h-6 w-full opacity-50 group-hover:opacity-100 transition-opacity">
-                     <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={[{v: Math.random()},{v: Math.random()},{v: Math.random()},{v: Math.random()}]}>
-                          <Line type="monotone" dataKey="v" stroke={paletteColorDark(1)} strokeWidth={1.5} dot={false} />
-                        </LineChart>
-                     </ResponsiveContainer>
-                  </div>
-                </div>
-              ))}
+              {ranked.map((model) => {
+                const headline = model.headline!;
+                const tone = trendTone(headline.totalNetUsd);
+                return (
+                  <Link
+                    key={model.modelId}
+                    href={`/lens?model=${encodeURIComponent(model.modelId)}`}
+                    className="block bg-neutral-900 border border-neutral-800 rounded-lg p-3 hover:border-neutral-600 transition-colors"
+                  >
+                    <div className="flex justify-between items-baseline gap-2 mb-1">
+                      <span className="truncate font-mono text-xs text-neutral-200" title={model.modelId}>{model.modelId}</span>
+                      <span className={`shrink-0 font-mono text-xs tnum ${trendToneClass(tone)}`}>
+                        <span aria-hidden="true">{trendGlyph(tone)} </span>
+                        {headline.totalNetUsd >= 0 ? "+" : "−"}${Math.abs(headline.totalNetUsd).toFixed(2)}
+                        <span className="sr-only"> {trendLabel(tone)}</span>
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-neutral-500 tnum">
+                      {model.symbol} {model.timeframe} · {headline.tradeCount.toLocaleString()} trades · hit rate{" "}
+                      {headline.hitRate.value === null ? "n/a" : `${(headline.hitRate.value * 100).toFixed(1)}%`}
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </div>
 

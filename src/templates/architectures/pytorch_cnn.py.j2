@@ -74,7 +74,7 @@ _PATIENCE: int = {{ _patience | python_repr }}
 _DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Module-level state for per-fold OOS aggregation.
-_FOLD_STATE: dict = {"y": [], "preds": []}
+_FOLD_STATE: dict = {"y": [], "preds": [], "ts": []}
 _DIAG_DECLARED: dict = {"done": False}
 
 
@@ -184,7 +184,7 @@ def _logits_to_preds(logits: torch.Tensor) -> np.ndarray:
     {% endif %}
 
 
-def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None, ts_test=None):
     """1D CNN + AdamW + early-stop. Returns (model, preds_aligned_to_y_test).
 
     Note: predictions are per WINDOW (one per row of X_test starting from index
@@ -204,6 +204,8 @@ def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
         empty = np.zeros(int(np.asarray(y_test).shape[0]), dtype=np.float64)
         _FOLD_STATE["y"].append(np.asarray(y_test))
         _FOLD_STATE["preds"].append(empty)
+        if ts_test is not None:
+            _FOLD_STATE["ts"].append(np.asarray(ts_test))
         return model, empty
 
     best_val_loss = float("inf")
@@ -295,6 +297,12 @@ def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
 
     _FOLD_STATE["y"].append(np.asarray(yw_te))
     _FOLD_STATE["preds"].append(preds)
+    if ts_test is not None:
+        ts_arr = np.asarray(ts_test)
+        # Windowed prediction i corresponds to the window ending at row
+        # (window_size - 1 + i) of this fold's test set — tail-align the
+        # timestamps identically to how _build_windows tail-aligns yw_te.
+        _FOLD_STATE["ts"].append(ts_arr[_WINDOW_SIZE - 1:] if ts_arr.size >= _WINDOW_SIZE else ts_arr[:0])
     return model, preds
 
 
@@ -405,8 +413,13 @@ def compute_fold_metrics(y_true, y_pred, fold_idx=None):
 
     if all_y.size and all_preds.size:
         out_path = _PROJECT_ROOT / "data" / "models" / args.model_id / "oos_predictions.parquet"
+        all_ts = (
+            np.concatenate(_FOLD_STATE["ts"]).astype(np.int64)
+            if _FOLD_STATE["ts"] and sum(t.size for t in _FOLD_STATE["ts"]) == all_y.size
+            else np.arange(all_y.size, dtype=np.int64)
+        )
         write_oos_predictions(
-            ts=np.arange(all_y.size, dtype=np.int64),
+            ts=all_ts,
             y_true=all_y,
             y_pred=all_preds,
             output_path=out_path,

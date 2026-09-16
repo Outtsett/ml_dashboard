@@ -73,7 +73,7 @@ if _D_MODEL % _N_HEADS != 0:
         f"d_model ({_D_MODEL}) must be divisible by n_heads ({_N_HEADS})."
     )
 
-_FOLD_STATE: dict = {"y": [], "preds": []}
+_FOLD_STATE: dict = {"y": [], "preds": [], "ts": []}
 _DIAG_DECLARED: dict = {"done": False}
 _SURFACE_DONE: dict = {"done": False}
 
@@ -208,7 +208,7 @@ def _maybe_compute_loss_surface(model, val_loader, feature_names) -> None:
         emit_log(f"[tft] loss surface skipped: {exc}", level="warning")
 
 
-def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
+def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None, ts_test=None):
     fold_tag = "single" if fold_idx is None else str(fold_idx)
     n_features = int(X_train.shape[1])
     model = _build_model(n_features=n_features)
@@ -227,6 +227,8 @@ def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
         empty = np.zeros(int(np.asarray(y_test).shape[0]), dtype=np.float64)
         _FOLD_STATE["y"].append(np.asarray(y_test))
         _FOLD_STATE["preds"].append(empty)
+        if ts_test is not None:
+            _FOLD_STATE["ts"].append(np.asarray(ts_test))
         return model, empty
 
     if _DEVICE.type == "cuda":
@@ -312,6 +314,12 @@ def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
 
     _FOLD_STATE["y"].append(np.asarray(yw_te))
     _FOLD_STATE["preds"].append(preds)
+    if ts_test is not None:
+        ts_arr = np.asarray(ts_test)
+        # Windowed prediction i corresponds to the window ending at row
+        # (window_size - 1 + i) of this fold's test set — tail-align the
+        # timestamps identically to how _build_windows tail-aligns yw_te.
+        _FOLD_STATE["ts"].append(ts_arr[_WINDOW_SIZE - 1:] if ts_arr.size >= _WINDOW_SIZE else ts_arr[:0])
 
     _emit_interpretability(model, getattr(args, "_feature_names", []) or [])
     _maybe_compute_loss_surface(model, val_loader, getattr(args, "_feature_names", []) or [])
@@ -421,8 +429,13 @@ def compute_fold_metrics(y_true, y_pred, fold_idx=None):
 
     if all_y.size and all_preds.size:
         out_path = _PROJECT_ROOT / "data" / "models" / args.model_id / "oos_predictions.parquet"
+        all_ts = (
+            np.concatenate(_FOLD_STATE["ts"]).astype(np.int64)
+            if _FOLD_STATE["ts"] and sum(t.size for t in _FOLD_STATE["ts"]) == all_y.size
+            else np.arange(all_y.size, dtype=np.int64)
+        )
         write_oos_predictions(
-            ts=np.arange(all_y.size, dtype=np.int64),
+            ts=all_ts,
             y_true=all_y,
             y_pred=all_preds,
             output_path=out_path,
