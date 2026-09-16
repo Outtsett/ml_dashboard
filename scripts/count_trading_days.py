@@ -1,7 +1,8 @@
 """Count actual RTH trading days per year for MNQ."""
+
 import psycopg2
 
-conn = psycopg2.connect(host='localhost', port=8812, user='admin', password='quest', database='qdb')
+conn = psycopg2.connect(host="localhost", port=8812, user="admin", password="quest", database="qdb")
 cur = conn.cursor()
 
 for year in range(2020, 2025):

@@ -40,6 +40,7 @@ RendererType = Literal[
 
 # ── Numpy-safe serialization ────────────────────────────────────────────────
 
+
 def _numpy_safe(obj: Any) -> Any:
     """Recursively convert numpy types to native Python types for JSON."""
     if isinstance(obj, dict):
@@ -85,6 +86,7 @@ def _coerce_numpy(v: Any) -> Any:
 
 # ── Metric Context ───────────────────────────────────────────────────────────
 
+
 class MetricContext(BaseModel):
     """Thresholds that define what good/bad/neutral looks like for a metric."""
 
@@ -117,6 +119,7 @@ MetricValue = Union[float, dict[str, float], list[float], list[list[float]]]
 
 # ── Metric Declaration ───────────────────────────────────────────────────────
 
+
 class MetricDeclaration(BaseModel):
     """A single self-describing metric emitted by a trained model."""
 
@@ -141,7 +144,9 @@ class MetricDeclaration(BaseModel):
         if isinstance(v, dict):
             for k, val in v.items():
                 if not isinstance(k, str):
-                    raise ValueError(f"Metric value dict keys must be strings, got {type(k).__name__}")
+                    raise ValueError(
+                        f"Metric value dict keys must be strings, got {type(k).__name__}"
+                    )
                 if not isinstance(val, (int, float)):
                     raise ValueError(
                         f"Metric value dict values must be numbers, got {type(val).__name__} for key '{k}'"
@@ -154,7 +159,9 @@ class MetricDeclaration(BaseModel):
             if isinstance(v[0], list):
                 for i, row in enumerate(v):
                     if not isinstance(row, list):
-                        raise ValueError(f"Nested metric value row {i} must be a list, got {type(row).__name__}")
+                        raise ValueError(
+                            f"Nested metric value row {i} must be a list, got {type(row).__name__}"
+                        )
                     for j, val in enumerate(row):
                         if not isinstance(val, (int, float)):
                             raise ValueError(
@@ -164,7 +171,9 @@ class MetricDeclaration(BaseModel):
             # list[float]
             for i, val in enumerate(v):
                 if not isinstance(val, (int, float)):
-                    raise ValueError(f"Metric value list[{i}] must be a number, got {type(val).__name__}")
+                    raise ValueError(
+                        f"Metric value list[{i}] must be a number, got {type(val).__name__}"
+                    )
             return [float(val) for val in v]
         raise ValueError(
             f"Metric value must be float, dict[str,float], list[float], or list[list[float]], got {type(v).__name__}"
@@ -172,6 +181,7 @@ class MetricDeclaration(BaseModel):
 
 
 # ── Training Metadata ────────────────────────────────────────────────────────
+
 
 class TrainingMetadata(BaseModel):
     """Training metadata for timing and data split info."""
@@ -193,6 +203,7 @@ class TrainingMetadata(BaseModel):
 
 # ── Architecture Info ─────────────────────────────────────────────────────────
 
+
 class ArchitectureInfo(BaseModel):
     """Model architecture info — allows arbitrary extra fields."""
 
@@ -210,6 +221,7 @@ class ArchitectureInfo(BaseModel):
 
 
 # ── Self-Describing Diagnostics ──────────────────────────────────────────────
+
 
 class SelfDescribingDiagnostics(BaseModel):
     """
@@ -240,10 +252,14 @@ class SelfDescribingDiagnostics(BaseModel):
 
     @field_validator("convergence")
     @classmethod
-    def _validate_convergence_has_epochs(cls, v: dict[str, list[float]] | None) -> dict[str, list[float]] | None:
+    def _validate_convergence_has_epochs(
+        cls, v: dict[str, list[float]] | None
+    ) -> dict[str, list[float]] | None:
         """TypeScript schema requires 'epochs' key in convergence dict."""
         if v is not None and "epochs" not in v:
-            raise ValueError("convergence dict must contain an 'epochs' key (TypeScript schema requirement)")
+            raise ValueError(
+                "convergence dict must contain an 'epochs' key (TypeScript schema requirement)"
+            )
         return v
 
     @field_validator("extra", mode="before")
@@ -271,6 +287,7 @@ class SelfDescribingDiagnostics(BaseModel):
 
 
 # ── Public Helper ─────────────────────────────────────────────────────────────
+
 
 def validate_diagnostics(data: dict[str, Any]) -> SelfDescribingDiagnostics:
     """Validate a raw dict against the self-describing diagnostics schema.

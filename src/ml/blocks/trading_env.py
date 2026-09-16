@@ -148,13 +148,9 @@ class TradingEnv(gym.Env):
         prices_arr = np.asarray(prices, dtype=np.float64)
 
         if features_arr.ndim != 2:
-            raise ValueError(
-                f"features must be 2-D (T, F); got shape {features_arr.shape}"
-            )
+            raise ValueError(f"features must be 2-D (T, F); got shape {features_arr.shape}")
         if prices_arr.ndim != 1:
-            raise ValueError(
-                f"prices must be 1-D (T,); got shape {prices_arr.shape}"
-            )
+            raise ValueError(f"prices must be 1-D (T,); got shape {prices_arr.shape}")
         if features_arr.shape[0] != prices_arr.shape[0]:
             raise ValueError(
                 f"features rows ({features_arr.shape[0]}) must equal prices "
@@ -164,8 +160,7 @@ class TradingEnv(gym.Env):
             raise ValueError(f"window_size must be >= 1; got {window_size}")
         if features_arr.shape[0] < window_size + 1:
             raise ValueError(
-                f"need at least window_size+1 ({window_size + 1}) bars; "
-                f"got {features_arr.shape[0]}"
+                f"need at least window_size+1 ({window_size + 1}) bars; got {features_arr.shape[0]}"
             )
         if not isinstance(cost_model, dict):
             raise TypeError(f"cost_model must be dict; got {type(cost_model)!r}")
@@ -244,13 +239,11 @@ class TradingEnv(gym.Env):
             requested = int(options["start_bar"])
             if requested < self._window_size - 1:
                 raise ValueError(
-                    f"start_bar must be >= window_size-1 ({self._window_size - 1}); "
-                    f"got {requested}"
+                    f"start_bar must be >= window_size-1 ({self._window_size - 1}); got {requested}"
                 )
             if requested >= self._n_bars - 1:
                 raise ValueError(
-                    f"start_bar must be < n_bars-1 ({self._n_bars - 1}); "
-                    f"got {requested}"
+                    f"start_bar must be < n_bars-1 ({self._n_bars - 1}); got {requested}"
                 )
             start_bar = requested
 
@@ -262,9 +255,7 @@ class TradingEnv(gym.Env):
         info = self._build_info(last_reward=0.0)
         return obs, info
 
-    def step(
-        self, action: int
-    ) -> tuple[np.ndarray, float, bool, bool, dict]:
+    def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict]:
         if not self.action_space.contains(int(action)):
             raise ValueError(
                 f"invalid action {action!r}; must be one of "
@@ -312,9 +303,7 @@ class TradingEnv(gym.Env):
         price_next = self._prices[next_bar]
         price_delta_points = float(price_next - price_now)
 
-        gross_pnl_dollars = (
-            float(target_position) * price_delta_points * self._point_value
-        )
+        gross_pnl_dollars = float(target_position) * price_delta_points * self._point_value
         cost_dollars = float(sides_traded) * self._cost_per_side
         reward = gross_pnl_dollars - cost_dollars
 

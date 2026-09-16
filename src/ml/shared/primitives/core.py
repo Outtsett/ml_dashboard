@@ -1,4 +1,4 @@
-﻿"""
+"""
 Primitive computation engine -- computes all trading primitives from raw OHLCV data.
 
 Generates ~60 core primitives across 6 categories (price-derived, OHLC, temporal,
@@ -228,7 +228,7 @@ def _rolling_hurst(arr, N):
         m = 0.0
         for j in range(1, N):
             m += arr[start + j] - arr[start + j - 1]
-        m /= (N - 1)
+        m /= N - 1
         cum_dev = 0.0
         max_dev = -1e30
         min_dev = 1e30

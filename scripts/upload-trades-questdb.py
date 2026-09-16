@@ -17,17 +17,21 @@ TRADES_DIR = r"E:\lake\raw\vendor=databento\dataset=GLBX.MDP3"
 TEMP_CSV = os.path.join(os.environ.get("TEMP", "/tmp"), "trades_upload.csv")
 
 # All daily trade parquet files
-TRADE_FILES = sorted([
-    os.path.join(TRADES_DIR, f)
-    for f in os.listdir(TRADES_DIR)
-    if f.endswith(".trades.parquet") and "merged" not in f
-])
+TRADE_FILES = sorted(
+    [
+        os.path.join(TRADES_DIR, f)
+        for f in os.listdir(TRADES_DIR)
+        if f.endswith(".trades.parquet") and "merged" not in f
+    ]
+)
+
 
 def questdb_exec(sql):
     url = f"{QUESTDB_URL}/exec?query={urllib.parse.quote(sql)}"
     req = urllib.request.Request(url)
     with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read())
+
 
 def check_table_exists():
     """Verify trades table exists in QuestDB."""
@@ -39,6 +43,7 @@ def check_table_exists():
     except Exception as e:
         print(f"[trades] Table check failed: {e}")
         return False
+
 
 def convert_and_upload(parquet_path):
     """Convert parquet to CSV via DuckDB, upload to QuestDB /imp."""
@@ -82,11 +87,17 @@ def convert_and_upload(parquet_path):
     upload_start = time.time()
     result = subprocess.run(
         [
-            "curl", "-s", "-w", "%{http_code}",
-            "-F", f"data=@{TEMP_CSV}",
-            f"{QUESTDB_URL}/imp?name=trades&timestamp=ts_event&partitionBy=DAY"
+            "curl",
+            "-s",
+            "-w",
+            "%{http_code}",
+            "-F",
+            f"data=@{TEMP_CSV}",
+            f"{QUESTDB_URL}/imp?name=trades&timestamp=ts_event&partitionBy=DAY",
         ],
-        capture_output=True, text=True, timeout=300
+        capture_output=True,
+        text=True,
+        timeout=300,
     )
     upload_time = time.time() - upload_start
 
@@ -107,6 +118,7 @@ def convert_and_upload(parquet_path):
 
     return http_code == "200"
 
+
 def main():
 
     print(f"=== Trade Parquet -> QuestDB Upload ===")
@@ -120,7 +132,7 @@ def main():
     failed = []
 
     for i, f in enumerate(TRADE_FILES):
-        print(f"\n--- File {i+1}/{len(TRADE_FILES)} ---")
+        print(f"\n--- File {i + 1}/{len(TRADE_FILES)} ---")
         if convert_and_upload(f):
             success += 1
         else:
@@ -145,6 +157,7 @@ def main():
         print(f"Verification failed: {e}")
 
     print("\nDone.")
+
 
 if __name__ == "__main__":
     main()

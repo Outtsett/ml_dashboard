@@ -121,7 +121,9 @@ def main():
     # First, dump all to a temporary parquet to avoid multiple heavy queries to QuestDB
     temp_path = f"{out_dir}/temp_full.parquet"
     print(f"Exporting data from QuestDB to {temp_path}...")
-    con.execute(f"COPY (SELECT * FROM qdb.{table_name} ORDER BY timestamp ASC {limit_clause}) TO '{temp_path}' (FORMAT PARQUET);")
+    con.execute(
+        f"COPY (SELECT * FROM qdb.{table_name} ORDER BY timestamp ASC {limit_clause}) TO '{temp_path}' (FORMAT PARQUET);"
+    )
 
     # Get count from parquet
     count = con.execute(f"SELECT COUNT(*) FROM '{temp_path}'").fetchone()[0]
@@ -129,8 +131,12 @@ def main():
 
     print(f"Total rows: {count}. Splitting at {split_idx}...")
 
-    con.execute(f"COPY (SELECT * FROM '{temp_path}' ORDER BY timestamp ASC LIMIT {split_idx}) TO '{train_path}' (FORMAT PARQUET);")
-    con.execute(f"COPY (SELECT * FROM '{temp_path}' ORDER BY timestamp ASC OFFSET {split_idx}) TO '{test_path}' (FORMAT PARQUET);")
+    con.execute(
+        f"COPY (SELECT * FROM '{temp_path}' ORDER BY timestamp ASC LIMIT {split_idx}) TO '{train_path}' (FORMAT PARQUET);"
+    )
+    con.execute(
+        f"COPY (SELECT * FROM '{temp_path}' ORDER BY timestamp ASC OFFSET {split_idx}) TO '{test_path}' (FORMAT PARQUET);"
+    )
 
     # Cleanup temp
     os.remove(temp_path)

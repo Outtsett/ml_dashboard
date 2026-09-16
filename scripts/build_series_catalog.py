@@ -36,7 +36,15 @@ OUTPUT_PATH = REPO_ROOT / "src" / "config" / "series_catalog.json"
 # The one schema outlier: every other object names its time column `timestamp`.
 TIMESTAMP_COLUMN_OVERRIDE = {"bars": "ts"}
 SYMBOL_COLUMN_OVERRIDE = dict.fromkeys(
-    ["fx_ohlcv_1m", "fx_ohlcv_5m", "fx_ohlcv_15m", "fx_ohlcv_30m", "fx_ohlcv_1h", "fx_ohlcv_4h", "fx_ohlcv_1d"],
+    [
+        "fx_ohlcv_1m",
+        "fx_ohlcv_5m",
+        "fx_ohlcv_15m",
+        "fx_ohlcv_30m",
+        "fx_ohlcv_1h",
+        "fx_ohlcv_4h",
+        "fx_ohlcv_1d",
+    ],
     "pair",
 )
 FOREX_SAMPLE_SYMBOL = "EURUSD"
@@ -67,8 +75,17 @@ LABEL_OBJECTS = {"mnq_labels_1m", "mnq_labels_1m_new"}
 
 # Columns that identify a row rather than measure anything.
 REFERENCE_COLUMNS = {
-    "symbol", "pair", "asset_class", "root", "year", "vendor", "timeframe",
-    "tf", "exchange", "config", "currency",
+    "symbol",
+    "pair",
+    "asset_class",
+    "root",
+    "year",
+    "vendor",
+    "timeframe",
+    "tf",
+    "exchange",
+    "config",
+    "currency",
 }
 
 # Columns that are bounded at 0 and 100 by construction, not by coincidence.
@@ -78,8 +95,17 @@ OSCILLATOR_NAMES = re.compile(
 )
 
 NUMERIC_TYPES = {
-    "BIGINT", "INTEGER", "DOUBLE", "FLOAT", "DECIMAL", "HUGEINT", "SMALLINT",
-    "TINYINT", "UBIGINT", "UINTEGER", "REAL",
+    "BIGINT",
+    "INTEGER",
+    "DOUBLE",
+    "FLOAT",
+    "DECIMAL",
+    "HUGEINT",
+    "SMALLINT",
+    "TINYINT",
+    "UBIGINT",
+    "UINTEGER",
+    "REAL",
 }
 
 OBJECT_DESCRIPTIONS = {
@@ -123,11 +149,25 @@ FAMILY_PATTERNS: list[tuple[str, str]] = [
 ]
 
 LABEL_PATTERNS = [
-    r"^fwd_", r"^dir_h\d+$", r"^dir_delta_pts_h\d+$", r"^tbl_", r"^meta_",
-    r"^swing_(label|ret_pts)$", r"_h\d+$", r"^outcome$", r"^label$",
-    r"^exit_(bar|ts|px)$", r"^(mfe|mae|edge)_", r"^r_(struct|long|short)$",
-    r"^ret_pts$", r"^next_pivot_", r"^amp_to_pivot_", r"^(ambiguous|gap_crossed|usable)$",
-    r"^w_(uniqueness|proximity)$", r"^strength$", r"^zero_range$",
+    r"^fwd_",
+    r"^dir_h\d+$",
+    r"^dir_delta_pts_h\d+$",
+    r"^tbl_",
+    r"^meta_",
+    r"^swing_(label|ret_pts)$",
+    r"_h\d+$",
+    r"^outcome$",
+    r"^label$",
+    r"^exit_(bar|ts|px)$",
+    r"^(mfe|mae|edge)_",
+    r"^r_(struct|long|short)$",
+    r"^ret_pts$",
+    r"^next_pivot_",
+    r"^amp_to_pivot_",
+    r"^(ambiguous|gap_crossed|usable)$",
+    r"^w_(uniqueness|proximity)$",
+    r"^strength$",
+    r"^zero_range$",
 ]
 
 FULL_WORD_LABELS = {
@@ -215,7 +255,9 @@ def assign_family(object_name: str, column: str) -> str:
     if column in REFERENCE_COLUMNS:
         return "reference"
     if object_name in LABEL_OBJECTS or matches_any(column, LABEL_PATTERNS):
-        if object_name in EVENT_OBJECTS and re.match(r"^(entry_px|stop_px|target_px|upper|lower|k_up|k_dn|risk_pts|atr|prior_)", column):
+        if object_name in EVENT_OBJECTS and re.match(
+            r"^(entry_px|stop_px|target_px|upper|lower|k_up|k_dn|risk_pts|atr|prior_)", column
+        ):
             return "trade_level"
         return "label"
     if object_name == "talib_candle_patterns":
@@ -237,8 +279,20 @@ def is_forward_looking(object_name: str, column: str) -> bool:
         return True
     if object_name in ("mnq_swing_5m", "mnq_tbl_5m"):
         # The setup's own levels are known at the bar; how it RESOLVED is not.
-        known_at_bar = {"entry_px", "stop_px", "target_px", "upper", "lower",
-                        "k_up", "k_dn", "risk_pts", "atr", "prior_low", "prior_high", "horizon"}
+        known_at_bar = {
+            "entry_px",
+            "stop_px",
+            "target_px",
+            "upper",
+            "lower",
+            "k_up",
+            "k_dn",
+            "risk_pts",
+            "atr",
+            "prior_low",
+            "prior_high",
+            "horizon",
+        }
         return column not in known_at_bar
     return matches_any(column, LABEL_PATTERNS)
 
@@ -271,20 +325,33 @@ def classify_shape(
     maximum = finite(stats.get("maximum"))
     mean = finite(stats.get("mean"))
 
-    if minimum is not None and maximum is not None and distinct <= 2 and {minimum, maximum} <= {0.0, 1.0}:
+    if (
+        minimum is not None
+        and maximum is not None
+        and distinct <= 2
+        and {minimum, maximum} <= {0.0, 1.0}
+    ):
         return "binary"
-    if distinct and distinct <= 12 and duckdb_type.split("(")[0].upper() in (
-        "BIGINT", "INTEGER", "SMALLINT", "TINYINT", "DOUBLE"
-    ) and minimum is not None and maximum is not None and abs(maximum - minimum) <= 12:
+    if (
+        distinct
+        and distinct <= 12
+        and duckdb_type.split("(")[0].upper()
+        in ("BIGINT", "INTEGER", "SMALLINT", "TINYINT", "DOUBLE")
+        and minimum is not None
+        and maximum is not None
+        and abs(maximum - minimum) <= 12
+    ):
         return "categorical"
 
     if re.search(r"^obv$|cumulative", column):
         return "cumulative"
 
-    price_named = bool(re.match(
-        r"^(open|high|low|close|vwap|ema_|sma_|entry_px|stop_px|target_px|exit_px|prior_low|prior_high|upper|lower)$|^(ema_|sma_)\d+$",
-        column,
-    ))
+    price_named = bool(
+        re.match(
+            r"^(open|high|low|close|vwap|ema_|sma_|entry_px|stop_px|target_px|exit_px|prior_low|prior_high|upper|lower)$|^(ema_|sma_)\d+$",
+            column,
+        )
+    )
     if price_named and close_average and mean is not None and close_average > 0:
         ratio = abs(mean) / close_average
         if 0.1 <= ratio <= 10:
@@ -375,12 +442,16 @@ def reference_lines(column: str, shape: str, family: str) -> list[dict[str, Any]
     return []
 
 
-def measure_object(connection: Any, name: str, symbol: str, sample_rows: int) -> dict[str, Any] | None:
+def measure_object(
+    connection: Any, name: str, symbol: str, sample_rows: int
+) -> dict[str, Any] | None:
     schema = connection.execute(f'DESCRIBE "{name}"').fetchall()
     columns = [(row[0], row[1]) for row in schema]
     column_names = [column for column, _ in columns]
 
-    timestamp_column = TIMESTAMP_COLUMN_OVERRIDE.get(name, "timestamp" if "timestamp" in column_names else None)
+    timestamp_column = TIMESTAMP_COLUMN_OVERRIDE.get(
+        name, "timestamp" if "timestamp" in column_names else None
+    )
     symbol_column = SYMBOL_COLUMN_OVERRIDE.get(name, "symbol" if "symbol" in column_names else None)
     sample_symbol = FOREX_SAMPLE_SYMBOL if symbol_column == "pair" else symbol
 
@@ -403,7 +474,9 @@ def measure_object(connection: Any, name: str, symbol: str, sample_rows: int) ->
     close_average = None
     if "close" in column_names:
         close_average = finite(
-            connection.execute(f'SELECT avg(close) FROM "{view}" WHERE close IS NOT NULL').fetchone()[0]
+            connection.execute(
+                f'SELECT avg(close) FROM "{view}" WHERE close IS NOT NULL'
+            ).fetchone()[0]
         )
 
     expressions = ["count(*) AS total_rows"]
@@ -412,7 +485,9 @@ def measure_object(connection: Any, name: str, symbol: str, sample_rows: int) ->
         expressions.append(f'approx_count_distinct("{column}") AS "{column}__distinct"')
         if is_numeric(duckdb_type):
             for function, suffix in (
-                ("min", "min"), ("max", "max"), ("avg", "mean"),
+                ("min", "min"),
+                ("max", "max"),
+                ("avg", "mean"),
                 ("stddev_samp", "std"),
             ):
                 expressions.append(f'{function}("{column}") AS "{column}__{suffix}"')
@@ -458,8 +533,10 @@ def measure_object(connection: Any, name: str, symbol: str, sample_rows: int) ->
         ]
 
     grain = (
-        "dimension" if name in DIMENSION_OBJECTS
-        else "per_event" if name in EVENT_OBJECTS
+        "dimension"
+        if name in DIMENSION_OBJECTS
+        else "per_event"
+        if name in EVENT_OBJECTS
         else "per_bar"
     )
 
@@ -497,26 +574,28 @@ def measure_object(connection: Any, name: str, symbol: str, sample_rows: int) ->
         elif grain == "dimension":
             unavailable = "Reference data, not a time series."
 
-        catalog_columns.append({
-            "id": f"lake:{name}:{column}",
-            "object": name,
-            "column": column,
-            "label": human_label(column),
-            "family": family,
-            "valueShape": shape,
-            "renderMode": mode,
-            "duckdbType": duckdb_type,
-            "nullFraction": null_fraction,
-            "distinctApproximate": stats["distinct_approximate"],
-            "minimum": stats["minimum"],
-            "maximum": stats["maximum"],
-            "percentile01": finite(row.get(f"{column}__p01")),
-            "percentile50": finite(row.get(f"{column}__p50")),
-            "percentile99": finite(row.get(f"{column}__p99")),
-            "referenceLines": reference_lines(column, shape, family),
-            "forwardLooking": forward,
-            **({"unavailableReason": unavailable} if unavailable else {}),
-        })
+        catalog_columns.append(
+            {
+                "id": f"lake:{name}:{column}",
+                "object": name,
+                "column": column,
+                "label": human_label(column),
+                "family": family,
+                "valueShape": shape,
+                "renderMode": mode,
+                "duckdbType": duckdb_type,
+                "nullFraction": null_fraction,
+                "distinctApproximate": stats["distinct_approximate"],
+                "minimum": stats["minimum"],
+                "maximum": stats["maximum"],
+                "percentile01": finite(row.get(f"{column}__p01")),
+                "percentile50": finite(row.get(f"{column}__p50")),
+                "percentile99": finite(row.get(f"{column}__p99")),
+                "referenceLines": reference_lines(column, shape, family),
+                "forwardLooking": forward,
+                **({"unavailableReason": unavailable} if unavailable else {}),
+            }
+        )
 
     return {
         "object": name,
@@ -536,8 +615,17 @@ def measure_object(connection: Any, name: str, symbol: str, sample_rows: int) ->
 def seconds_to_timeframe(seconds: float | None) -> str | None:
     if not seconds or seconds <= 0:
         return None
-    table = [(1, "1s"), (60, "1m"), (300, "5m"), (900, "15m"), (1800, "30m"),
-             (3600, "1h"), (14400, "4h"), (86400, "1d"), (604800, "1w")]
+    table = [
+        (1, "1s"),
+        (60, "1m"),
+        (300, "5m"),
+        (900, "15m"),
+        (1800, "30m"),
+        (3600, "1h"),
+        (14400, "4h"),
+        (86400, "1d"),
+        (604800, "1w"),
+    ]
     for value, name in table:
         if abs(seconds - value) <= max(1.0, value * 0.2):
             return name
@@ -546,7 +634,9 @@ def seconds_to_timeframe(seconds: float | None) -> str | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--symbol", default="MNQ", help="Symbol the column statistics are measured on.")
+    parser.add_argument(
+        "--symbol", default="MNQ", help="Symbol the column statistics are measured on."
+    )
     parser.add_argument("--sample-rows", type=int, default=50000)
     parser.add_argument("--output", type=Path, default=OUTPUT_PATH)
     arguments = parser.parse_args()
@@ -577,12 +667,15 @@ def main() -> int:
 
     column_count = sum(len(entry["columns"]) for entry in catalog_objects)
     chartable_count = sum(
-        1 for entry in catalog_objects for column in entry["columns"] if "unavailableReason" not in column
+        1
+        for entry in catalog_objects
+        for column in entry["columns"]
+        if "unavailableReason" not in column
     )
     catalog = {
         "generatedAtIso": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "source": f"lake.serving over s3://derived/recipe=questdb_full_2026-09-09 plus live Iceberg bars; "
-                  f"statistics measured on {arguments.symbol} over the most recent {arguments.sample_rows} rows",
+        f"statistics measured on {arguments.symbol} over the most recent {arguments.sample_rows} rows",
         "objectCount": len(catalog_objects),
         "columnCount": column_count,
         "chartableColumnCount": chartable_count,

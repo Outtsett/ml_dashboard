@@ -53,14 +53,12 @@ def normalize_spatial(distances: np.ndarray, benchmarks: np.ndarray) -> np.ndarr
     """
     if distances.shape[0] < _N_PRICE_BENCH:
         raise ValueError(
-            f"distances must have at least {_N_PRICE_BENCH} elements, "
-            f"got {distances.shape[0]}"
+            f"distances must have at least {_N_PRICE_BENCH} elements, got {distances.shape[0]}"
         )
     required_bench = max(BENCH_DH, BENCH_DL) + 1
     if benchmarks.shape[0] < required_bench:
         raise ValueError(
-            f"benchmarks must have at least {required_bench} elements, "
-            f"got {benchmarks.shape[0]}"
+            f"benchmarks must have at least {required_bench} elements, got {benchmarks.shape[0]}"
         )
 
     # ATR proxy: intraday high-low range, floored at one tick to avoid /0.
@@ -81,9 +79,7 @@ def normalize_spatial(distances: np.ndarray, benchmarks: np.ndarray) -> np.ndarr
     return normalised  # shape (15,), dtype float32
 
 
-def normalize_spatial_full(
-    distances: np.ndarray, benchmarks: np.ndarray
-) -> dict[str, np.ndarray]:
+def normalize_spatial_full(distances: np.ndarray, benchmarks: np.ndarray) -> dict[str, np.ndarray]:
     """Normalise both price-to-benchmark (15) and pair (195) distances.
 
     Uses the same ATR proxy and clip-rescale as :func:`normalize_spatial` but
@@ -110,15 +106,11 @@ def normalize_spatial_full(
     # Normalise the remaining 195 benchmark-pair distances.
     n_pairs = min(_N_PAIR_BENCH, distances.shape[0] - _N_PRICE_BENCH)
     if n_pairs > 0:
-        raw_pairs = distances[_N_PRICE_BENCH : _N_PRICE_BENCH + n_pairs].astype(
-            np.float32
-        )
+        raw_pairs = distances[_N_PRICE_BENCH : _N_PRICE_BENCH + n_pairs].astype(np.float32)
         pair_normalised = raw_pairs / np.float32(atr)
         pair_normalised = np.clip(pair_normalised, -3.0, 3.0)
         pair_normalised = pair_normalised / np.float32(3.0)
-        pair_normalised = np.nan_to_num(
-            pair_normalised, nan=0.0, posinf=0.0, neginf=0.0
-        )
+        pair_normalised = np.nan_to_num(pair_normalised, nan=0.0, posinf=0.0, neginf=0.0)
     else:
         pair_normalised = np.zeros(_N_PAIR_BENCH, dtype=np.float32)
 

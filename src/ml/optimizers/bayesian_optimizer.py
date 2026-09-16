@@ -24,6 +24,7 @@ try:
     from skopt.learning.gbrt import GradientBoostingQuantileRegressor as _GBQR
 
     if not _is_reg(_GBQR()):
+
         def _sklearn_tags(self):
             tags = _BaseEstimator.__sklearn_tags__(self)
             tags.estimator_type = "regressor"
@@ -136,8 +137,7 @@ class BayesianOptimizer(BaseOptimizer):
 
         if method not in _SURROGATE_FUNCS:
             raise ValueError(
-                f"Unknown surrogate method '{method}'. "
-                f"Choose from {sorted(_SURROGATE_FUNCS)}."
+                f"Unknown surrogate method '{method}'. Choose from {sorted(_SURROGATE_FUNCS)}."
             )
         if acq_func not in _VALID_ACQ_FUNCS:
             raise ValueError(
@@ -201,9 +201,7 @@ class BayesianOptimizer(BaseOptimizer):
     ) -> OptimizationResult:
         # Build skopt dimension list (preserving insertion order)
         dim_names = list(self.search_space.dimensions.keys())
-        skopt_dims = [
-            _dimension_to_skopt(self.search_space.dimensions[n]) for n in dim_names
-        ]
+        skopt_dims = [_dimension_to_skopt(self.search_space.dimensions[n]) for n in dim_names]
 
         sign = -1.0 if self.direction == "maximize" else 1.0
         trials: list[TrialResult] = []
@@ -219,7 +217,10 @@ class BayesianOptimizer(BaseOptimizer):
             params = self._cast_params(kwargs, dim_names)
 
             logger.info(
-                "[Trial %d/%d] params=%s", tid + 1, self.n_trials, params,
+                "[Trial %d/%d] params=%s",
+                tid + 1,
+                self.n_trials,
+                params,
             )
             self._notify_trial_start(tid, params)
 
@@ -245,7 +246,10 @@ class BayesianOptimizer(BaseOptimizer):
 
             logger.info(
                 "[Trial %d/%d] score=%.6f  (%.2fs)",
-                tid + 1, self.n_trials, result.score, duration,
+                tid + 1,
+                self.n_trials,
+                result.score,
+                duration,
             )
             self._notify_trial_end(result)
 
@@ -255,7 +259,10 @@ class BayesianOptimizer(BaseOptimizer):
         minimize_fn = _SURROGATE_FUNCS[self.method]
         logger.info(
             "Bayesian optimisation: method=%s  acq=%s  n_initial=%d  xi=%.4f",
-            self.method, self.acq_func, self.n_initial_points, self.xi,
+            self.method,
+            self.acq_func,
+            self.n_initial_points,
+            self.xi,
         )
 
         # skopt takes xi/kappa as top-level kwargs (only meaningful for GP surrogates)
@@ -281,7 +288,9 @@ class BayesianOptimizer(BaseOptimizer):
     # -- helpers -------------------------------------------------------------
 
     def _cast_params(
-        self, raw: dict[str, Any], dim_names: list[str],
+        self,
+        raw: dict[str, Any],
+        dim_names: list[str],
     ) -> dict[str, Any]:
         """Cast numpy scalars back to native Python types."""
         params: dict[str, Any] = {}
@@ -302,8 +311,14 @@ class BayesianOptimizer(BaseOptimizer):
         completed = [t for t in trials if t.error is None and not t.pruned]
 
         if not completed:
-            best = trials[0] if trials else TrialResult(
-                trial_id=-1, params={}, score=float("inf"),
+            best = (
+                trials[0]
+                if trials
+                else TrialResult(
+                    trial_id=-1,
+                    params={},
+                    score=float("inf"),
+                )
             )
         else:
             if self.direction == "minimize":

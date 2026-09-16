@@ -161,13 +161,14 @@ def _distance_from(
         window = 100
         # Vectorized rolling min/max via stride tricks
         from numpy.lib.stride_tricks import sliding_window_view
+
         n = len(arr)
         mid = np.full(n, np.nan, dtype=np.float64)
         if n > window:
             windows = sliding_window_view(arr, window)
             roll_min = np.nanmin(windows, axis=1)
             roll_max = np.nanmax(windows, axis=1)
-            mid[window - 1:] = (roll_min + roll_max) / 2.0
+            mid[window - 1 :] = (roll_min + roll_max) / 2.0
     else:
         mid = float(level)
     dist = arr - mid
@@ -186,9 +187,7 @@ def _percentile_rank(
     return series.rolling(window, min_periods=10).rank(pct=True).values
 
 
-def _zscore(
-    arr: np.ndarray, close: np.ndarray | None = None, *, window: int = 50
-) -> np.ndarray:
+def _zscore(arr: np.ndarray, close: np.ndarray | None = None, *, window: int = 50) -> np.ndarray:
     """Rolling z-score, clipped [-5, 5]."""
     if _HAS_NUMBA:
         return _rolling_zscore_numba(arr, window, -5.0, 5.0)
@@ -210,17 +209,17 @@ def _divergence(
         cs = np.insert(cs, 0, 0.0)
         rm = (cs[w:] - cs[:-w]) / w
         out = np.full(len(x), np.nan, dtype=np.float64)
-        out[w - 1:] = rm
+        out[w - 1 :] = rm
         return out
 
     ind_late = _rolling_mean_cumsum(arr, half)
     ind_early = np.roll(_rolling_mean_cumsum(arr, half), half)
-    ind_early[:half * 2] = np.nan
+    ind_early[: half * 2] = np.nan
     ind_dir = np.sign(ind_late - ind_early)
 
     price_late = _rolling_mean_cumsum(close, half)
     price_early = np.roll(_rolling_mean_cumsum(close, half), half)
-    price_early[:half * 2] = np.nan
+    price_early[: half * 2] = np.nan
     price_dir = np.sign(price_late - price_early)
 
     result = np.zeros(len(arr), dtype=np.float64)
@@ -364,7 +363,7 @@ def _resolve_signal_series(
 
     for prefix_candidate in ["MACD_", "MACDh_"]:
         if source_col.startswith(prefix_candidate):
-            param_suffix = source_col[len(prefix_candidate):]
+            param_suffix = source_col[len(prefix_candidate) :]
             signal_col = signal_prefix + param_suffix
             if signal_col in df.columns:
                 return df[signal_col].values
@@ -486,13 +485,11 @@ def extract_derived_features(
         from joblib import Parallel, delayed
 
         def _safe_process(cat_name, cat_spec):
-            return _process_category(
-                cat_name, cat_spec, col_data, close, signal_lookup, set()
-            )
+            return _process_category(cat_name, cat_spec, col_data, close, signal_lookup, set())
 
-        parallel_results = Parallel(n_jobs=min(n_jobs if n_jobs > 0 else 8, len(categories)), prefer="threads")(
-            delayed(_safe_process)(name, spec) for name, spec in categories
-        )
+        parallel_results = Parallel(
+            n_jobs=min(n_jobs if n_jobs > 0 else 8, len(categories)), prefer="threads"
+        )(delayed(_safe_process)(name, spec) for name, spec in categories)
 
         # Merge results, deduplicating
         all_results = []
@@ -513,8 +510,10 @@ def extract_derived_features(
         derived_df = pd.DataFrame(index=df.index)
 
     elapsed = time.time() - t0
-    print(f"[extract] {len(derived_names)} features in {elapsed:.1f}s "
-          f"({'numba+parallel' if _HAS_NUMBA else 'numpy'})")
+    print(
+        f"[extract] {len(derived_names)} features in {elapsed:.1f}s "
+        f"({'numba+parallel' if _HAS_NUMBA else 'numpy'})"
+    )
 
     return derived_df, derived_names
 
@@ -531,7 +530,9 @@ def _cache_key(symbol: str, timeframe: str, max_bars: int, source: str) -> str:
     return hashlib.md5(raw.encode()).hexdigest()[:12]
 
 
-def _load_from_cache(symbol: str, timeframe: str, max_bars: int, source: str) -> pd.DataFrame | None:
+def _load_from_cache(
+    symbol: str, timeframe: str, max_bars: int, source: str
+) -> pd.DataFrame | None:
     """Load indicator data from parquet cache if available and fresh."""
     key = _cache_key(symbol, timeframe, max_bars, source)
     cache_path = _CACHE_DIR / f"{key}.parquet"
@@ -568,11 +569,17 @@ def _save_to_cache(df: pd.DataFrame, symbol: str, timeframe: str, max_bars: int,
 
     df.to_parquet(str(cache_path), compression="zstd", compression_level=1)
     with open(meta_path, "w") as f:
-        json.dump({
-            "symbol": symbol, "timeframe": timeframe,
-            "max_bars": max_bars, "source": source,
-            "rows": len(df), "cols": len(df.columns),
-        }, f)
+        json.dump(
+            {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "max_bars": max_bars,
+                "source": source,
+                "rows": len(df),
+                "cols": len(df.columns),
+            },
+            f,
+        )
     print(f"[cache] Saved {len(df):,} rows to {cache_path.name}")
 
 
@@ -601,19 +608,19 @@ def load_indicators_from_parquet(
     try:
         # First file is the base
         main_df = pl.read_parquet(parquet_files[0])
-        
+
         # Join subsequent files on timestamp if available, otherwise horizontal concat
         for pf in parquet_files[1:]:
             next_df = pl.read_parquet(pf)
             # Deduplicate columns (except timestamp)
             overlap = set(main_df.columns) & set(next_df.columns)
             if overlap:
-                next_df = next_df.drop([c for c in overlap if c != 'timestamp'])
-            
-            if 'timestamp' in main_df.columns and 'timestamp' in next_df.columns:
-                main_df = main_df.join(next_df, on='timestamp', how='left')
+                next_df = next_df.drop([c for c in overlap if c != "timestamp"])
+
+            if "timestamp" in main_df.columns and "timestamp" in next_df.columns:
+                main_df = main_df.join(next_df, on="timestamp", how="left")
             else:
-                main_df = pl.concat([main_df, next_df], how='horizontal')
+                main_df = pl.concat([main_df, next_df], how="horizontal")
 
         return main_df.to_pandas()
     except Exception as e:
@@ -635,6 +642,5 @@ def load_indicators_from_questdb(
     rather than returning an empty frame.
     """
     raise RuntimeError(
-        "The 'talib_features' table no longer exists. "
-        "Use load_indicators_from_parquet() instead."
+        "The 'talib_features' table no longer exists. Use load_indicators_from_parquet() instead."
     )

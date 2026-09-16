@@ -46,6 +46,7 @@ _DRIFT_THRESHOLD: float = TICK_SIZE * 0.5
 
 class _VwapZone(IntEnum):
     """Price zone relative to VWAP envelope."""
+
     ABOVE_UPPER = 0
     VWAP_TO_UPPER = 1
     AT_VWAP = 2
@@ -55,6 +56,7 @@ class _VwapZone(IntEnum):
 
 class _BandDirection(IntEnum):
     """Band width change direction."""
+
     EXPANDING = 0
     STABLE = 1
     CONTRACTING = 2
@@ -429,9 +431,7 @@ def compute_band_direction(
         return 0.0
 
     if benchmarks.shape[0] != BENCHMARKS:
-        raise ValueError(
-            f"benchmarks must have shape ({BENCHMARKS},), got {benchmarks.shape}"
-        )
+        raise ValueError(f"benchmarks must have shape ({BENCHMARKS},), got {benchmarks.shape}")
     if prev_benchmarks.shape[0] != BENCHMARKS:
         raise ValueError(
             f"prev_benchmarks must have shape ({BENCHMARKS},), got {prev_benchmarks.shape}"

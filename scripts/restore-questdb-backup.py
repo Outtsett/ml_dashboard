@@ -73,7 +73,9 @@ def parse_ts(value):
 def load_manifest(backup_dir: Path) -> dict:
     manifest_path = backup_dir / "_manifest_latest.json"
     if not manifest_path.exists():
-        raise FileNotFoundError(f"No manifest found at {manifest_path} -- run backup-questdb.py first")
+        raise FileNotFoundError(
+            f"No manifest found at {manifest_path} -- run backup-questdb.py first"
+        )
     return json.loads(manifest_path.read_text())
 
 
@@ -95,7 +97,9 @@ def restore_via_questdb_engine(backup_dir: Path, table: str, log) -> dict:
         staged = stage_dir / f.name
         shutil.copy2(f, staged)
         rel_path = f"{STAGING_SUBDIR}/{table}/{f.name}"
-        rows = http_query(f"SELECT count() cnt, min(timestamp) mn, max(timestamp) mx FROM read_parquet('{rel_path}')")
+        rows = http_query(
+            f"SELECT count() cnt, min(timestamp) mn, max(timestamp) mx FROM read_parquet('{rel_path}')"
+        )
         row = rows[0]
         total_rows += row["cnt"]
         mn = parse_ts(row["mn"])
@@ -178,8 +182,17 @@ def diff_row(label, expected, restored):
 def main():
     parser = argparse.ArgumentParser(description="Restore drill for a QuestDB parquet backup")
     parser.add_argument("--backup-dir", type=str, default=str(DEFAULT_BACKUP_DIR))
-    parser.add_argument("--tables", type=str, default=None, help="Comma-separated table override (default: every table in the latest manifest)")
-    parser.add_argument("--keep-staged", action="store_true", help="Do not delete the scratch staging copies under the import root when done")
+    parser.add_argument(
+        "--tables",
+        type=str,
+        default=None,
+        help="Comma-separated table override (default: every table in the latest manifest)",
+    )
+    parser.add_argument(
+        "--keep-staged",
+        action="store_true",
+        help="Do not delete the scratch staging copies under the import root when done",
+    )
     args = parser.parse_args()
 
     backup_dir = Path(args.backup_dir)
@@ -195,7 +208,9 @@ def main():
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print(f"[{ts}] {msg}", flush=True)
 
-    log(f"Restore drill starting. Backup dir: {backup_dir}. Manifest run: {manifest['run_started_utc']}")
+    log(
+        f"Restore drill starting. Backup dir: {backup_dir}. Manifest run: {manifest['run_started_utc']}"
+    )
     log(f"Tables to drill: {tables}")
 
     results = []
@@ -205,7 +220,9 @@ def main():
             log(f"  SKIP {table}: not present in manifest")
             continue
         expected = manifest_tables[table]["live_snapshot"]
-        log(f"Drilling: {table} (expected {expected['row_count']:,} rows, max_ts={expected['max_timestamp']})")
+        log(
+            f"Drilling: {table} (expected {expected['row_count']:,} rows, max_ts={expected['max_timestamp']})"
+        )
 
         t0 = time.time()
         engine_result = restore_via_questdb_engine(backup_dir, table, log)
@@ -228,7 +245,14 @@ def main():
         if engine_diff["status"] != "MATCH" or pyarrow_diff["status"] != "MATCH":
             any_mismatch = True
 
-        results.append({"table": table, "expected": expected, "questdb_engine": engine_diff, "pyarrow": pyarrow_diff})
+        results.append(
+            {
+                "table": table,
+                "expected": expected,
+                "questdb_engine": engine_diff,
+                "pyarrow": pyarrow_diff,
+            }
+        )
 
     if not args.keep_staged:
         stage_root = IMPORT_ROOT / STAGING_SUBDIR
@@ -248,10 +272,16 @@ def main():
     log(f"Restore drill result written: {out_path}")
 
     print("\n" + "=" * 100)
-    print(f"{'TABLE':<28}{'EXPECTED ROWS':>16}{'RESTORED (QDB)':>16}{'RESTORED (PA)':>16}{'STATUS':>12}")
+    print(
+        f"{'TABLE':<28}{'EXPECTED ROWS':>16}{'RESTORED (QDB)':>16}{'RESTORED (PA)':>16}{'STATUS':>12}"
+    )
     print("-" * 100)
     for r in results:
-        status = "MATCH" if r["questdb_engine"]["status"] == "MATCH" and r["pyarrow"]["status"] == "MATCH" else "MISMATCH"
+        status = (
+            "MATCH"
+            if r["questdb_engine"]["status"] == "MATCH" and r["pyarrow"]["status"] == "MATCH"
+            else "MISMATCH"
+        )
         print(
             f"{r['table']:<28}{r['expected']['row_count']:>16,}"
             f"{r['questdb_engine']['restored_row_count']:>16,}"
@@ -262,7 +292,9 @@ def main():
     if any_mismatch:
         log("RESTORE DRILL FAILED: at least one table had a count/timestamp mismatch")
         sys.exit(1)
-    log("RESTORE DRILL PASSED: every table's restored row count and timestamp range matches the live snapshot")
+    log(
+        "RESTORE DRILL PASSED: every table's restored row count and timestamp range matches the live snapshot"
+    )
     sys.exit(0)
 
 

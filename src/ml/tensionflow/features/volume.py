@@ -72,24 +72,23 @@ def normalize_volume(features: np.ndarray) -> dict[str, np.ndarray]:
     """
     if features.shape != (RAW_FIELDS, SHMEM_LEVELS):
         raise ValueError(
-            f"features must have shape ({RAW_FIELDS}, {SHMEM_LEVELS}), "
-            f"got {features.shape}"
+            f"features must have shape ({RAW_FIELDS}, {SHMEM_LEVELS}), got {features.shape}"
         )
 
-    volume_z    = _zscore_clip(features[F_VOLUME].astype(np.float64))
-    buy_vol_z   = _zscore_clip(features[F_BUY_VOLUME].astype(np.float64))
-    sell_vol_z  = _zscore_clip(features[F_SELL_VOLUME].astype(np.float64))
-    delta_z     = _zscore_clip(features[F_DELTA].astype(np.float64))
+    volume_z = _zscore_clip(features[F_VOLUME].astype(np.float64))
+    buy_vol_z = _zscore_clip(features[F_BUY_VOLUME].astype(np.float64))
+    sell_vol_z = _zscore_clip(features[F_SELL_VOLUME].astype(np.float64))
+    delta_z = _zscore_clip(features[F_DELTA].astype(np.float64))
     cum_delta_z = _zscore_clip(features[F_CUM_DELTA].astype(np.float64))
 
     # filtered_pct is already in [0, 1] from the C engine — pass through.
     filtered_pct = features[F_FILTERED_PCT].astype(np.float32).copy()
 
     return {
-        "volume_z":    volume_z,
-        "buy_vol_z":   buy_vol_z,
-        "sell_vol_z":  sell_vol_z,
-        "delta_z":     delta_z,
+        "volume_z": volume_z,
+        "buy_vol_z": buy_vol_z,
+        "sell_vol_z": sell_vol_z,
+        "delta_z": delta_z,
         "filtered_pct": filtered_pct,
         "cum_delta_z": cum_delta_z,
     }

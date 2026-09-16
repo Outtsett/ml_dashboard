@@ -74,6 +74,7 @@ _FOLD_STATE: dict = {
 
 try:
     from src.ml.shared.labels import _warmup_numba  # type: ignore[attr-defined]
+
     _warmup_numba()
 except Exception:
     # Warmup is opportunistic — the labels module may not expose _warmup_numba
@@ -99,7 +100,8 @@ def _parse_args() -> argparse.Namespace:
     ap.add_argument("--date-start", default=None)
     ap.add_argument("--date-end", default=None)
     ap.add_argument(
-        "--feature-categories", default='volatility,momentum',
+        "--feature-categories",
+        default="volatility,momentum",
         help="Comma-separated list of feature categories.",
     )
     # Hyperparameters (one ap.add_argument per key in the catalog spec)
@@ -110,12 +112,12 @@ def _parse_args() -> argparse.Namespace:
     )
     ap.add_argument(
         "--covariance-type",
-        default='diag',
+        default="diag",
         type=str,
     )
     ap.add_argument(
         "--emission",
-        default='gaussian',
+        default="gaussian",
         type=str,
     )
     ap.add_argument(
@@ -142,12 +144,12 @@ def _parse_args() -> argparse.Namespace:
 
 
 _HP_KEYS: tuple[str, ...] = (
-    'n_states',
-    'covariance_type',
-    'emission',
-    'n_iter',
-    'tol',
-    'random_state',
+    "n_states",
+    "covariance_type",
+    "emission",
+    "n_iter",
+    "tol",
+    "random_state",
 )
 
 
@@ -196,25 +198,31 @@ def load_features(args: argparse.Namespace) -> tuple[np.ndarray, list[str], np.n
     if args.feature_categories:
         categories = [s.strip() for s in args.feature_categories.split(",") if s.strip()]
 
-    raw = load_ohlcv_arrays(args.symbol, args.timeframe, max_bars=int(args.max_bars or 0),
-                             date_range=date_range)
+    raw = load_ohlcv_arrays(
+        args.symbol, args.timeframe, max_bars=int(args.max_bars or 0), date_range=date_range
+    )
 
     def _compute() -> tuple[np.ndarray, list[str], np.ndarray]:
         ohlcv = {
-            "open_": raw["open"], "high": raw["high"], "low": raw["low"],
-            "close": raw["close"], "volume": raw["volume"],
+            "open_": raw["open"],
+            "high": raw["high"],
+            "low": raw["low"],
+            "close": raw["close"],
+            "volume": raw["volume"],
         }
         matrix, names, _ts = compute_features(ohlcv, categories=categories, n_jobs=1)
         ts_arr = np.asarray(
-            [t.timestamp() if hasattr(t, "timestamp") else float(t)
-             for t in raw["timestamp"]],
+            [t.timestamp() if hasattr(t, "timestamp") else float(t) for t in raw["timestamp"]],
             dtype=np.int64,
         )
         return matrix.astype(np.float32), list(names), ts_arr
 
     matrix, names, timestamps = cached_features(
-        symbol=args.symbol, timeframe=args.timeframe, date_range=date_range,
-        categories=categories, compute_fn=_compute,
+        symbol=args.symbol,
+        timeframe=args.timeframe,
+        date_range=date_range,
+        categories=categories,
+        compute_fn=_compute,
     )
     return matrix, names, timestamps, raw
 
@@ -224,6 +232,7 @@ def load_features(args: argparse.Namespace) -> tuple[np.ndarray, list[str], np.n
 # template-context label_strategy. Override the label_generation block in a
 # child template to plug in a custom label fn.
 # --------------------------------------------------------------------------- #
+
 
 def generate_labels(raw, args):
     """HMM is unsupervised — return placeholder zeros + all-True mask.
@@ -246,6 +255,7 @@ def generate_labels(raw, args):
 # signature here is a breaking change for every downstream composite.
 # --------------------------------------------------------------------------- #
 
+
 def _build_hmm() -> _HMMClass:
     """Instantiate the hmmlearn estimator with the catalog hyperparameters.
 
@@ -254,7 +264,7 @@ def _build_hmm() -> _HMMClass:
     """
     return _HMMClass(
         n_components=4,
-        covariance_type='diag',
+        covariance_type="diag",
         n_iter=20,
         tol=0.001,
         random_state=42,
@@ -275,8 +285,8 @@ def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
     # multi-sequence training (e.g. multiple symbols) the caller passes
     # `lengths`. The generated runner is single-sequence per fold.
     model.fit(X_train)
-    state_path = model.predict(X_test)              # (n_test,) int Viterbi
-    posteriors = model.predict_proba(X_test)        # (n_test, n_states) float
+    state_path = model.predict(X_test)  # (n_test,) int Viterbi
+    posteriors = model.predict_proba(X_test)  # (n_test, n_states) float
 
     _FOLD_STATE["states"].append(np.asarray(state_path, dtype=np.int64))
     _FOLD_STATE["posteriors"].append(np.asarray(posteriors, dtype=np.float64))
@@ -320,6 +330,7 @@ try:
         emit_overlay as _eval_emit_overlay,
     )
 except Exception:  # pragma: no cover — protocol must exist in real runs
+
     def _eval_emit_decls(_decls):  # type: ignore[no-redef]
         return None
 
@@ -436,7 +447,11 @@ def compute_fold_metrics(y_test, predictions, *, fold_idx=None) -> dict:
 
 
 def compute_clustering_metrics_full(
-    X_test, predictions, *, fold_idx=None, sample_cap: int = 10000,
+    X_test,
+    predictions,
+    *,
+    fold_idx=None,
+    sample_cap: int = 10000,
 ) -> dict:
     """3-arg per-fold clustering metrics — full version with sklearn metrics.
 
@@ -483,7 +498,8 @@ def compute_clustering_metrics_full(
             try:
                 silhouette = _eval_safe_finite(
                     _silhouette_score(
-                        X, states,
+                        X,
+                        states,
                         metric="euclidean",
                         sample_size=cap if cap < n else None,
                         random_state=42,
@@ -518,35 +534,54 @@ def _emit_metric_declarations() -> None:
     so the dashboard's metric-renderer registry can pre-configure renderers
     before per-fold metrics start streaming.
     """
-    _eval_emit_decls({
-        "silhouette": {
-            "renderer": "gauge", "group": "clustering quality",
-            "mission": "How well-separated are the clusters? 1=perfect, 0=overlap, <0=mis-assigned.",
-            "context": {"min": -1.0, "baseline": 0.0, "good": 0.25, "great": 0.5, "max": 1.0,
-                        "decimals": 4},
-        },
-        "davies_bouldin": {
-            "renderer": "number", "group": "clustering quality",
-            "mission": "Avg ratio of within-cluster scatter to between-cluster separation. LOWER is better; 0 = perfect.",
-            "context": {"min": 0.0, "good": 1.0, "great": 0.5, "decimals": 4},
-        },
-        "n_clusters": {
-            "renderer": "number", "group": "clustering structure",
-            "mission": "Number of distinct state IDs the model assigned in this fold.",
-            "context": {"min": 1, "decimals": 0},
-        },
-        "n_samples": {
-            "renderer": "number", "group": "clustering structure",
-            "mission": "Number of OOS samples assigned in this fold.",
-            "context": {"min": 0, "decimals": 0},
-        },
-        "cluster_balance": {
-            "renderer": "percent", "group": "clustering structure",
-            "mission": "min(state population) / max(state population). 1.0 = perfectly balanced.",
-            "context": {"min": 0.0, "baseline": 0.0, "good": 0.25, "great": 0.5, "max": 1.0,
-                        "decimals": 4},
-        },
-    })
+    _eval_emit_decls(
+        {
+            "silhouette": {
+                "renderer": "gauge",
+                "group": "clustering quality",
+                "mission": "How well-separated are the clusters? 1=perfect, 0=overlap, <0=mis-assigned.",
+                "context": {
+                    "min": -1.0,
+                    "baseline": 0.0,
+                    "good": 0.25,
+                    "great": 0.5,
+                    "max": 1.0,
+                    "decimals": 4,
+                },
+            },
+            "davies_bouldin": {
+                "renderer": "number",
+                "group": "clustering quality",
+                "mission": "Avg ratio of within-cluster scatter to between-cluster separation. LOWER is better; 0 = perfect.",
+                "context": {"min": 0.0, "good": 1.0, "great": 0.5, "decimals": 4},
+            },
+            "n_clusters": {
+                "renderer": "number",
+                "group": "clustering structure",
+                "mission": "Number of distinct state IDs the model assigned in this fold.",
+                "context": {"min": 1, "decimals": 0},
+            },
+            "n_samples": {
+                "renderer": "number",
+                "group": "clustering structure",
+                "mission": "Number of OOS samples assigned in this fold.",
+                "context": {"min": 0, "decimals": 0},
+            },
+            "cluster_balance": {
+                "renderer": "percent",
+                "group": "clustering structure",
+                "mission": "min(state population) / max(state population). 1.0 = perfectly balanced.",
+                "context": {
+                    "min": 0.0,
+                    "baseline": 0.0,
+                    "good": 0.25,
+                    "great": 0.5,
+                    "max": 1.0,
+                    "decimals": 4,
+                },
+            },
+        }
+    )
 
 
 # ─── Diagnostics dict assembly ────────────────────────────────────────────────
@@ -629,27 +664,32 @@ def build_diagnostics(
     metrics_block = {
         "silhouette": {
             "value": full["silhouette"],
-            "renderer": "gauge", "group": "clustering quality",
+            "renderer": "gauge",
+            "group": "clustering quality",
             "mission": "How well-separated are the clusters?",
         },
         "davies_bouldin": {
             "value": full["davies_bouldin"],
-            "renderer": "number", "group": "clustering quality",
+            "renderer": "number",
+            "group": "clustering quality",
             "mission": "Avg within-vs-between scatter ratio (lower better)",
         },
         "n_clusters": {
             "value": int(full["n_clusters"]),
-            "renderer": "number", "group": "clustering structure",
+            "renderer": "number",
+            "group": "clustering structure",
             "mission": "Distinct states observed",
         },
         "n_samples": {
             "value": int(full["n_samples"]),
-            "renderer": "number", "group": "clustering structure",
+            "renderer": "number",
+            "group": "clustering structure",
             "mission": "OOS samples assigned",
         },
         "cluster_balance": {
             "value": full["cluster_balance"],
-            "renderer": "percent", "group": "clustering structure",
+            "renderer": "percent",
+            "group": "clustering structure",
             "mission": "min/max state population ratio",
         },
     }
@@ -665,7 +705,8 @@ def build_diagnostics(
     if model is not None and hasattr(model, "transmat_"):
         try:
             model_summary["transition_matrix"] = _eval_np.asarray(
-                model.transmat_, dtype=_eval_np.float64,
+                model.transmat_,
+                dtype=_eval_np.float64,
             ).tolist()
         except Exception:
             pass
@@ -697,8 +738,10 @@ def build_diagnostics(
         # dumps_safe, not json.dumps — a bare NaN makes the whole file
         # unparseable by JSON.parse and 500s the diagnostics endpoint.
         from src.ml.shared.protocol import dumps_safe as _eval_dumps_safe
+
         (out_dir / "diagnostics.json").write_text(
-            _eval_dumps_safe(diagnostics, indent=2), encoding="utf-8",
+            _eval_dumps_safe(diagnostics, indent=2),
+            encoding="utf-8",
         )
     return diagnostics
 
@@ -728,12 +771,14 @@ def write_oos_predictions(ts, y_test, predictions, output_path, *, symbol: str =
 
     out = _EvalPath(output_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    _eval_pl.DataFrame({
-        "timestamp": ts_int.astype(_eval_np.int64),
-        "symbol": [symbol] * int(ts_int.size),
-        "prediction": states.astype(_eval_np.int64),
-        "confidence": confidence.astype(_eval_np.float32),
-    }).write_parquet(str(out), compression="zstd", compression_level=3)
+    _eval_pl.DataFrame(
+        {
+            "timestamp": ts_int.astype(_eval_np.int64),
+            "symbol": [symbol] * int(ts_int.size),
+            "prediction": states.astype(_eval_np.int64),
+            "confidence": confidence.astype(_eval_np.float32),
+        }
+    ).write_parquet(str(out), compression="zstd", compression_level=3)
 
 
 # ─── Regime-tag emission for chart overlays ──────────────────────────────────
@@ -759,7 +804,10 @@ def _eval_regime_label(state_id: int) -> str:
 
 
 def emit_regime_tags(
-    ts_test, predictions, *, palette: tuple[str, ...] = _EVAL_REGIME_PALETTE,
+    ts_test,
+    predictions,
+    *,
+    palette: tuple[str, ...] = _EVAL_REGIME_PALETTE,
     transition_matrix=None,
 ) -> None:
     """Emit a chart-overlay event so the dashboard can render regime bands.
@@ -816,14 +864,18 @@ def emit_regime_tags(
 
 def _filter_valid(X, y, valid, timestamps):
     keep = np.flatnonzero(valid)
-    X = X[keep]; y = y[keep]; timestamps = timestamps[keep]
+    X = X[keep]
+    y = y[keep]
+    timestamps = timestamps[keep]
     finite = np.isfinite(X).all(axis=1)
     return X[finite], y[finite], timestamps[finite]
 
 
 def run_training(args: argparse.Namespace) -> dict:
-    emit_log(f"[hmm] Loading {args.symbol}@{args.timeframe} "
-             f"(categories={args.feature_categories or 'all'})")
+    emit_log(
+        f"[hmm] Loading {args.symbol}@{args.timeframe} "
+        f"(categories={args.feature_categories or 'all'})"
+    )
     matrix, names, timestamps, raw = load_features(args)
     n_total = matrix.shape[0]
     emit_log(f"[hmm] Loaded {n_total:,} bars x {matrix.shape[1]} features")
@@ -840,9 +892,7 @@ def run_training(args: argparse.Namespace) -> dict:
     split = max(1, int(n_kept * 0.8))
     train_idx = np.arange(0, split, dtype=np.int64)
     test_idx = np.arange(split, n_kept, dtype=np.int64)
-    emit_log(
-        f"[single-fold] train={train_idx.size:,} test={test_idx.size:,} (80/20 time split)"
-    )
+    emit_log(f"[single-fold] train={train_idx.size:,} test={test_idx.size:,} (80/20 time split)")
 
     X_train, y_train = X[train_idx], y[train_idx]
     X_test, y_test = X[test_idx], y[test_idx]
@@ -860,12 +910,14 @@ def run_training(args: argparse.Namespace) -> dict:
         emit_metric(name=f"fold_0_{name}", value=fv, iteration=0)
     emit_fold_complete(fold_idx=0, metrics=fold_metrics)
 
-    fold_results = [{
-        "fold": 0,
-        "n_train": int(train_idx.size),
-        "n_test": int(test_idx.size),
-        "metrics": fold_metrics,
-    }]
+    fold_results = [
+        {
+            "fold": 0,
+            "n_train": int(train_idx.size),
+            "n_test": int(test_idx.size),
+            "metrics": fold_metrics,
+        }
+    ]
 
     # ─── W4.a HMM clustering rollup + diagnostics ────────────────────────
     # Concatenate per-fold OOS arrays accumulated by train_one_fold.
@@ -896,22 +948,28 @@ def run_training(args: argparse.Namespace) -> dict:
 
     per_fold_convergence: list[dict] = []
     for k, m in enumerate(_FOLD_STATE["models"]):
-        per_fold_convergence.append({
-            "fold": k,
-            "converged": bool(m.monitor_.converged),
-            "n_iter": int(len(m.monitor_.history)) if m.monitor_.history else 0,
-            "log_likelihood": float(m.monitor_.history[-1]) if m.monitor_.history else None,
-        })
+        per_fold_convergence.append(
+            {
+                "fold": k,
+                "converged": bool(m.monitor_.converged),
+                "n_iter": int(len(m.monitor_.history)) if m.monitor_.history else 0,
+                "log_likelihood": float(m.monitor_.history[-1]) if m.monitor_.history else None,
+            }
+        )
 
     # Compute clustering quality on the concatenated OOS span. The shared
     # helper handles the n_clusters >= 2 guard + sample-cap silhouette.
-    full_metrics = compute_clustering_metrics_full(all_X, all_posteriors) if all_X.size else {
-        "silhouette": None,
-        "davies_bouldin": None,
-        "n_clusters": n_states_used,
-        "n_samples": int(all_states.size),
-        "cluster_balance": None,
-    }
+    full_metrics = (
+        compute_clustering_metrics_full(all_X, all_posteriors)
+        if all_X.size
+        else {
+            "silhouette": None,
+            "davies_bouldin": None,
+            "n_clusters": n_states_used,
+            "n_samples": int(all_states.size),
+            "cluster_balance": None,
+        }
+    )
 
     # Emit run-level rollup metrics so the live dashboard shows clustering
     # quality once the WF loop closes. iteration=0 because these are
@@ -937,14 +995,14 @@ def run_training(args: argparse.Namespace) -> dict:
                 n_test = int(fr.get("n_test", 0))
                 if n_test <= 0:
                     continue
-                test_ts_chunks.append(ts_kept[cursor:cursor + n_test])
+                test_ts_chunks.append(ts_kept[cursor : cursor + n_test])
                 cursor += n_test
             if test_ts_chunks:
                 overlay_ts = np.concatenate(test_ts_chunks)
             else:
-                overlay_ts = ts_kept[-all_states.size:]
+                overlay_ts = ts_kept[-all_states.size :]
         except Exception:
-            overlay_ts = ts_kept[-all_states.size:]
+            overlay_ts = ts_kept[-all_states.size :]
 
         if overlay_ts.size and overlay_ts.size == all_states.size:
             if overlay_ts.size > overlay_cap:
@@ -954,9 +1012,7 @@ def run_training(args: argparse.Namespace) -> dict:
             else:
                 overlay_states_capped = all_states
             try:
-                tm_for_overlay = (
-                    last_model.transmat_ if last_model is not None else None
-                )
+                tm_for_overlay = last_model.transmat_ if last_model is not None else None
                 emit_regime_tags(
                     ts_test=overlay_ts,
                     predictions=overlay_states_capped,
@@ -972,18 +1028,14 @@ def run_training(args: argparse.Namespace) -> dict:
     # LEVEL so frontend's W7 LineageCard can read them directly without
     # walking into model_summary.
     hmm_extra: dict = {
-        "transition_matrix": (
-            last_model.transmat_.tolist() if last_model is not None else None
-        ),
-        "start_probabilities": (
-            last_model.startprob_.tolist() if last_model is not None else None
-        ),
+        "transition_matrix": (last_model.transmat_.tolist() if last_model is not None else None),
+        "start_probabilities": (last_model.startprob_.tolist() if last_model is not None else None),
         "n_states": n_states_configured,
         "n_states_used": n_states_used,
         "converged": converged,
         "log_likelihood": last_ll,
         "emission": "gaussian",
-        "covariance_type": 'diag',
+        "covariance_type": "diag",
         "per_fold_convergence": per_fold_convergence,
         "n_total_bars": int(n_total),
         "n_kept_samples": int(X.shape[0]),
@@ -997,7 +1049,7 @@ def run_training(args: argparse.Namespace) -> dict:
         X_test=all_X if all_X.size else None,
         y_test=all_states,
         predictions=all_posteriors if all_posteriors.size else all_states,
-        ts_test=ts_kept[-int(all_states.size):] if all_states.size else None,
+        ts_test=ts_kept[-int(all_states.size) :] if all_states.size else None,
         fold_results=fold_results,
         output_dir=out_dir,
         model_id=args.model_id,
@@ -1019,7 +1071,7 @@ def run_training(args: argparse.Namespace) -> dict:
         oos_path = out_dir / "oos_predictions.parquet"
         try:
             oos_ts = (
-                ts_kept[-int(all_states.size):]
+                ts_kept[-int(all_states.size) :]
                 if int(all_states.size) <= ts_kept.size
                 else np.arange(int(all_states.size), dtype=np.int64)
             )

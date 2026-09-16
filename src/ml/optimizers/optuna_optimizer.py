@@ -78,8 +78,7 @@ def _build_sampler(
     key = sampler_type.lower().replace(" ", "")
     if key not in _SAMPLER_MAP:
         raise ValueError(
-            f"Unknown sampler_type '{sampler_type}'. "
-            f"Choose from: {', '.join(sorted(_SAMPLER_MAP))}"
+            f"Unknown sampler_type '{sampler_type}'. Choose from: {', '.join(sorted(_SAMPLER_MAP))}"
         )
 
     cls = _SAMPLER_MAP[key]
@@ -98,6 +97,7 @@ def _build_sampler(
             elif dim.dim_type == "float":
                 if dim.step:
                     import numpy as np
+
                     grid[dim.name] = np.arange(dim.low, dim.high + dim.step / 2, dim.step).tolist()
                 else:
                     # Can't grid-search a continuous float without step.
@@ -309,7 +309,10 @@ class OptunaOptimizer(BaseOptimizer):
         t0 = time.perf_counter()
 
         sampler = _build_sampler(
-            self.sampler_type, self.seed, self.n_startup_trials, self.search_space,
+            self.sampler_type,
+            self.seed,
+            self.n_startup_trials,
+            self.search_space,
         )
         pruner = _build_pruner(self.pruner_type, self.n_startup_trials)
 
@@ -348,7 +351,9 @@ class OptunaOptimizer(BaseOptimizer):
                 params[dim.name] = _suggest_param(trial, dim)
 
             logger.info(
-                "Trial %d started — params=%s", trial_id, params,
+                "Trial %d started — params=%s",
+                trial_id,
+                params,
             )
             self._notify_trial_start(trial_id, params)
 
@@ -374,7 +379,9 @@ class OptunaOptimizer(BaseOptimizer):
                         if trial.should_prune():
                             logger.info(
                                 "Trial %d pruned at step %d (value=%.6f)",
-                                trial_id, step, float(value),
+                                trial_id,
+                                step,
+                                float(value),
                             )
                             pruned = True
                             raise optuna.TrialPruned()
@@ -410,7 +417,10 @@ class OptunaOptimizer(BaseOptimizer):
             status = "pruned" if pruned else ("error" if error else "ok")
             logger.info(
                 "Trial %d finished [%s] in %.2fs — score=%.6f",
-                trial_id, status, duration, score,
+                trial_id,
+                status,
+                duration,
+                score,
             )
             self._notify_trial_end(result)
 
@@ -451,7 +461,9 @@ class OptunaOptimizer(BaseOptimizer):
         else:
             # No trials at all (shouldn't happen but be safe)
             best_trial = TrialResult(
-                trial_id=-1, params={}, score=float("nan"),
+                trial_id=-1,
+                params={},
+                score=float("nan"),
             )
 
         result = OptimizationResult(

@@ -23,6 +23,7 @@ VALID_CATEGORIES = frozenset({CATEGORY_TREND, CATEGORY_REVERSAL, CATEGORY_RANGE}
 
 # ── Label result ─────────────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True, slots=True)
 class LabelResult:
     """Immutable output of a regime labeler.
@@ -40,12 +41,12 @@ class LabelResult:
     def __post_init__(self) -> None:
         if self.category not in VALID_CATEGORIES:
             raise ValueError(
-                f"Invalid category '{self.category}'. "
-                f"Must be one of {sorted(VALID_CATEGORIES)}."
+                f"Invalid category '{self.category}'. Must be one of {sorted(VALID_CATEGORIES)}."
             )
 
 
 # ── Labeler protocol ────────────────────────────────────────────────────────
+
 
 @runtime_checkable
 class RegimeLabeler(Protocol):

@@ -38,7 +38,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 COST_MODEL_PATH = PROJECT_ROOT / "src" / "config" / "cost_model.json"
 
 #: Bar length per timeframe label, in seconds.
-TIMEFRAME_SECONDS = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400}
+TIMEFRAME_SECONDS = {
+    "1m": 60,
+    "5m": 300,
+    "15m": 900,
+    "30m": 1800,
+    "1h": 3600,
+    "4h": 14400,
+    "1d": 86400,
+}
 
 
 class Refusal(Exception):
@@ -64,7 +72,7 @@ class Record:
     close: np.ndarray
     volume: np.ndarray
     probability_up: np.ndarray
-    label: np.ndarray            # float64, NaN where absent
+    label: np.ndarray  # float64, NaN where absent
     realized_return_basis_points: np.ndarray
     reference: dict
     notes: list[str] = field(default_factory=list)
@@ -116,7 +124,9 @@ def load_cost(symbol: str) -> dict:
             "source": f"src/config/cost_model.json has no {symbol.upper()} entry — costs shown as zero",
         }
     return {
-        "roundTripPoints": float(entry.get("total_round_trip_points", entry.get("total_round_trip", 0.0))),
+        "roundTripPoints": float(
+            entry.get("total_round_trip_points", entry.get("total_round_trip", 0.0))
+        ),
         "pointValueUsd": float(entry.get("point_value", 1.0)),
         "tickSize": float(entry.get("tick_size", 0.0)),
         "source": f"src/config/cost_model.json {symbol.upper()}",
@@ -126,7 +136,9 @@ def load_cost(symbol: str) -> dict:
 # ─── Trade replay (mirrors src/ml/xgb_classifier/eval.py simulate_pnl) ────────
 
 
-def entry_rows(probability_up: np.ndarray, threshold: float, horizon_bars: int) -> list[tuple[int, int]]:
+def entry_rows(
+    probability_up: np.ndarray, threshold: float, horizon_bars: int
+) -> list[tuple[int, int]]:
     """Rows where a trade opens, as (row, direction), under the non-overlap rule."""
     out: list[tuple[int, int]] = []
     last_exit = -1
@@ -191,7 +203,7 @@ def reconstruct_close(
         step = ratio[row]
         if not np.isfinite(step) or step == 1.0:
             continue
-        move_points = (net + cost_dollars) / point_value          # (close_out - close_in) * direction
+        move_points = (net + cost_dollars) / point_value  # (close_out - close_in) * direction
         close_in = move_points / (direction * (step - 1.0))
         base = close_in / cumulative[row]
         anchors.setdefault(row % horizon_bars, []).append(base)
@@ -209,7 +221,6 @@ def reconstruct_close(
         for r, v in anchors.items()
     )
     close = cumulative * scale[np.arange(n) % horizon_bars]
-
 
     replay_error = 0.0
     for (row, direction), net in zip(trades, trade_net_dollars):
@@ -282,9 +293,13 @@ def _load_probability_parquet(model_dir: Path, model_id: str) -> Record:
     pnl_curve = diagnostics.get("pnl_curve", {})
     trade_net = [float(x) for x in pnl_curve.get("trade_pnl_dollars", [])]
     if not trade_net:
-        raise Refusal("diagnostics.json carries no trade profit-and-loss series, so prices cannot be recovered")
+        raise Refusal(
+            "diagnostics.json carries no trade profit-and-loss series, so prices cannot be recovered"
+        )
 
-    close, price_checks = reconstruct_close(realized, probability, horizon, threshold, trade_net, cost)
+    close, price_checks = reconstruct_close(
+        realized, probability, horizon, threshold, trade_net, cost
+    )
 
     metrics = diagnostics.get("metrics", {})
 
@@ -330,7 +345,14 @@ def _load_probability_parquet(model_dir: Path, model_id: str) -> Record:
             "is flat. The shape of these bars is not data.",
         ],
         verification=price_checks,
-        source_files=[file_record(p) for p in (predictions_path, model_dir / "checkpoint.json", model_dir / "diagnostics.json")],
+        source_files=[
+            file_record(p)
+            for p in (
+                predictions_path,
+                model_dir / "checkpoint.json",
+                model_dir / "diagnostics.json",
+            )
+        ],
     )
     _attach_shap(record, model_dir)
     return record
@@ -409,13 +431,15 @@ def detect_price_discontinuities(timestamp_seconds: np.ndarray, close: np.ndarra
     out: list[dict] = []
     for row in np.flatnonzero(jump & (crosses_day | long_break)):
         seconds_closed = int(elapsed[row])
-        out.append({
-            "rowIndex": int(row) + 1,
-            "timestampSeconds": int(timestamp_seconds[row + 1]),
-            "gapPoints": float(close[row + 1] - close[row]),
-            "hoursClosed": round(seconds_closed / 3600.0, 2),
-            "kind": "date_boundary" if seconds_closed <= 2 * 3600 else "session_gap",
-        })
+        out.append(
+            {
+                "rowIndex": int(row) + 1,
+                "timestampSeconds": int(timestamp_seconds[row + 1]),
+                "gapPoints": float(close[row + 1] - close[row]),
+                "hoursClosed": round(seconds_closed / 3600.0, 2),
+                "kind": "date_boundary" if seconds_closed <= 2 * 3600 else "session_gap",
+            }
+        )
     return out
 
 
@@ -460,7 +484,11 @@ def _load_class_confidence_parquet(model_dir: Path, model_id: str) -> Record:
     symbol = str(symbols[0]) if len(symbols) == 1 else "MNQ"
 
     diagnostics_path = model_dir / "diagnostics.json"
-    diagnostics = json.loads(diagnostics_path.read_text(encoding="utf-8")) if diagnostics_path.exists() else {}
+    diagnostics = (
+        json.loads(diagnostics_path.read_text(encoding="utf-8"))
+        if diagnostics_path.exists()
+        else {}
+    )
     params = diagnostics.get("params") or diagnostics.get("hyperparameters") or {}
     timeframe = str(diagnostics.get("timeframe", "1m"))
     horizon = int(params.get("label_horizon_bars", params.get("forward_n", 1)) or 1)
@@ -511,10 +539,14 @@ def _load_class_confidence_parquet(model_dir: Path, model_id: str) -> Record:
             "Prices are read from the lake and joined to this model's own bar timestamps — it was "
             "trained from the same source, so the join is exact wherever the lake holds the bar.",
         ]
-        + ([] if "probability_up" in columns else [
-            "This model predates the probability_up column, so its probability of up was recovered "
-            "from (prediction, confidence) — exact for a two-way call."
-        ]),
+        + (
+            []
+            if "probability_up" in columns
+            else [
+                "This model predates the probability_up column, so its probability of up was recovered "
+                "from (prediction, confidence) — exact for a two-way call."
+            ]
+        ),
         verification=price_checks,
         source_files=[file_record(predictions_path)]
         + ([file_record(diagnostics_path)] if diagnostics_path.exists() else []),
@@ -523,7 +555,9 @@ def _load_class_confidence_parquet(model_dir: Path, model_id: str) -> Record:
     return record
 
 
-def _lake_prices(symbol: str, timeframe: str, timestamp_seconds: np.ndarray) -> tuple[dict, list[dict]]:
+def _lake_prices(
+    symbol: str, timeframe: str, timestamp_seconds: np.ndarray
+) -> tuple[dict, list[dict]]:
     """Join bars from the lake onto a model's out-of-sample timestamps."""
     import datetime
     import sys
@@ -596,7 +630,10 @@ def _load_ohlc_npz(model_dir: Path, model_id: str) -> Record:
         label = np.asarray(data["labels"], dtype=np.float64)
 
     timestamps = np.array(
-        [np.datetime64(str(s).replace(" ", "T")).astype("datetime64[s]").astype(np.int64) for s in raw_timestamps],
+        [
+            np.datetime64(str(s).replace(" ", "T")).astype("datetime64[s]").astype(np.int64)
+            for s in raw_timestamps
+        ],
         dtype=np.int64,
     )
 
@@ -611,7 +648,11 @@ def _load_ohlc_npz(model_dir: Path, model_id: str) -> Record:
         realized[: n - horizon] = np.log(close[horizon:] / close[: n - horizon]) * 10_000.0
 
     labelled = np.isfinite(label)
-    label_accuracy = float(((probability[labelled] > 0.5) == (label[labelled] > 0.5)).mean()) if labelled.any() else float("nan")
+    label_accuracy = (
+        float(((probability[labelled] > 0.5) == (label[labelled] > 0.5)).mean())
+        if labelled.any()
+        else float("nan")
+    )
     forward = realized[: n - horizon]
     comparable = np.isfinite(forward) & labelled[: n - horizon]
     direction_accuracy = (
@@ -698,14 +739,24 @@ def _load_ohlc_npz(model_dir: Path, model_id: str) -> Record:
             ),
             check(
                 "price_bars_well_formed",
-                bool(np.all((high >= low) & (high >= open_) & (high >= close) & (low <= open_) & (low <= close))),
+                bool(
+                    np.all(
+                        (high >= low)
+                        & (high >= open_)
+                        & (high >= close)
+                        & (low <= open_)
+                        & (low <= close)
+                    )
+                ),
                 f"{int(np.sum(~((high >= low) & (high >= open_) & (high >= close) & (low <= open_) & (low <= close))))} bars violate high/low bounds",
                 "high >= max(open, close) and low <= min(open, close) on every bar",
             ),
         ],
         source_files=[file_record(p) for p in (predictions_path, model_dir / "diagnostics.json")],
     )
-    record.attribution_reason = "no attribution artifact for this deep model (SHAP is written only by the tree trainer)"
+    record.attribution_reason = (
+        "no attribution artifact for this deep model (SHAP is written only by the tree trainer)"
+    )
     return record
 
 

@@ -103,9 +103,7 @@ class ALiBiBias(nn.Module):
         # input:  scalar batch_size, seq_len
         # output: (batch_size * n_heads, seq_len, seq_len)
         if seq_len > self.max_seq_len:
-            raise ValueError(
-                f"ALiBiBias seq_len {seq_len} exceeds max_seq_len {self.max_seq_len}"
-            )
+            raise ValueError(f"ALiBiBias seq_len {seq_len} exceeds max_seq_len {self.max_seq_len}")
         if batch_size <= 0:
             raise ValueError(f"batch_size must be > 0, got {batch_size}")
         bias = self.bias[:, :seq_len, :seq_len]  # (H, T, T)
@@ -131,9 +129,7 @@ class MultiHeadSelfAttention(nn.Module):
         if d_model <= 0:
             raise ValueError(f"d_model must be > 0, got {d_model}")
         if n_heads <= 0 or d_model % n_heads != 0:
-            raise ValueError(
-                f"d_model ({d_model}) must be divisible by n_heads ({n_heads})"
-            )
+            raise ValueError(f"d_model ({d_model}) must be divisible by n_heads ({n_heads})")
         if not 0.0 <= dropout < 1.0:
             raise ValueError(f"dropout must be in [0, 1), got {dropout}")
 
@@ -165,7 +161,9 @@ class MultiHeadSelfAttention(nn.Module):
         # input:  (B, T, d_model)
         # output: (B, T, d_model)
         out, _ = self.attn(
-            x, x, x,
+            x,
+            x,
+            x,
             attn_mask=attn_mask,
             key_padding_mask=key_padding_mask,
             need_weights=False,
@@ -194,13 +192,9 @@ class CrossAttention(nn.Module):
     ):
         super().__init__()
         if d_model_q <= 0 or d_model_kv <= 0:
-            raise ValueError(
-                f"d_model_q ({d_model_q}) and d_model_kv ({d_model_kv}) must be > 0"
-            )
+            raise ValueError(f"d_model_q ({d_model_q}) and d_model_kv ({d_model_kv}) must be > 0")
         if n_heads <= 0 or d_model_q % n_heads != 0:
-            raise ValueError(
-                f"d_model_q ({d_model_q}) must be divisible by n_heads ({n_heads})"
-            )
+            raise ValueError(f"d_model_q ({d_model_q}) must be divisible by n_heads ({n_heads})")
         if not 0.0 <= dropout < 1.0:
             raise ValueError(f"dropout must be in [0, 1), got {dropout}")
 
@@ -242,7 +236,9 @@ class CrossAttention(nn.Module):
         # output: (B, T_q, d_model_q)
         kv_proj = self.kv_proj(kv)
         out, _ = self.attn(
-            q, kv_proj, kv_proj,
+            q,
+            kv_proj,
+            kv_proj,
             attn_mask=attn_mask,
             key_padding_mask=key_padding_mask,
             need_weights=False,

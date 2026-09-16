@@ -61,7 +61,7 @@ from src.ml.shared.torch_logging import (
 )
 from torch.utils.data import DataLoader, TensorDataset
 
-_TASK_KIND: str = 'classification'
+_TASK_KIND: str = "classification"
 _N_CLASSES: int = 2
 _WINDOW_SIZE: int = 32
 _D_MODEL: int = 32
@@ -78,9 +78,7 @@ _SURFACE_RES: int = 7
 _DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 if _D_MODEL % _N_HEADS != 0:
-    raise ValueError(
-        f"d_model ({_D_MODEL}) must be divisible by n_heads ({_N_HEADS})."
-    )
+    raise ValueError(f"d_model ({_D_MODEL}) must be divisible by n_heads ({_N_HEADS}).")
 
 _FOLD_STATE: dict = {"y": [], "preds": []}
 _DIAG_DECLARED: dict = {"done": False}
@@ -97,11 +95,9 @@ def _build_windows(X: np.ndarray, y: np.ndarray):
             np.zeros((0, _WINDOW_SIZE, n_feat), dtype=np.float32),
             np.zeros((0,), dtype=yarr.dtype),
         )
-    raw_win = np.lib.stride_tricks.sliding_window_view(
-        arr, window_shape=_WINDOW_SIZE, axis=0
-    )
+    raw_win = np.lib.stride_tricks.sliding_window_view(arr, window_shape=_WINDOW_SIZE, axis=0)
     Xw = np.ascontiguousarray(np.transpose(raw_win, (0, 2, 1))).astype(np.float32)
-    yw = yarr[_WINDOW_SIZE - 1:]
+    yw = yarr[_WINDOW_SIZE - 1 :]
     return Xw, yw
 
 
@@ -125,6 +121,7 @@ def _build_model(n_features: int) -> TemporalFusionTransformer:
 
 try:
     from src.ml.shared.labels import _warmup_numba  # type: ignore[attr-defined]
+
     _warmup_numba()
 except Exception:
     # Warmup is opportunistic — the labels module may not expose _warmup_numba
@@ -150,7 +147,8 @@ def _parse_args() -> argparse.Namespace:
     ap.add_argument("--date-start", default=None)
     ap.add_argument("--date-end", default=None)
     ap.add_argument(
-        "--feature-categories", default='price_action,volatility,momentum,volume',
+        "--feature-categories",
+        default="price_action,volatility,momentum,volume",
         help="Comma-separated list of feature categories.",
     )
     # Hyperparameters (one ap.add_argument per key in the catalog spec)
@@ -207,7 +205,7 @@ def _parse_args() -> argparse.Namespace:
     ap.add_argument(
         "--loss-surface",
         default=True,
-        action='store_false',
+        action="store_false",
     )
     ap.add_argument(
         "--loss-surface-resolution",
@@ -223,18 +221,18 @@ def _parse_args() -> argparse.Namespace:
 
 
 _HP_KEYS: tuple[str, ...] = (
-    'window_size',
-    'd_model',
-    'n_heads',
-    'lstm_layers',
-    'dropout',
-    'learning_rate',
-    'n_epochs',
-    'batch_size',
-    'early_stop_patience',
-    'weight_decay',
-    'loss_surface',
-    'loss_surface_resolution',
+    "window_size",
+    "d_model",
+    "n_heads",
+    "lstm_layers",
+    "dropout",
+    "learning_rate",
+    "n_epochs",
+    "batch_size",
+    "early_stop_patience",
+    "weight_decay",
+    "loss_surface",
+    "loss_surface_resolution",
 )
 
 
@@ -283,25 +281,31 @@ def load_features(args: argparse.Namespace) -> tuple[np.ndarray, list[str], np.n
     if args.feature_categories:
         categories = [s.strip() for s in args.feature_categories.split(",") if s.strip()]
 
-    raw = load_ohlcv_arrays(args.symbol, args.timeframe, max_bars=int(args.max_bars or 0),
-                             date_range=date_range)
+    raw = load_ohlcv_arrays(
+        args.symbol, args.timeframe, max_bars=int(args.max_bars or 0), date_range=date_range
+    )
 
     def _compute() -> tuple[np.ndarray, list[str], np.ndarray]:
         ohlcv = {
-            "open_": raw["open"], "high": raw["high"], "low": raw["low"],
-            "close": raw["close"], "volume": raw["volume"],
+            "open_": raw["open"],
+            "high": raw["high"],
+            "low": raw["low"],
+            "close": raw["close"],
+            "volume": raw["volume"],
         }
         matrix, names, _ts = compute_features(ohlcv, categories=categories, n_jobs=1)
         ts_arr = np.asarray(
-            [t.timestamp() if hasattr(t, "timestamp") else float(t)
-             for t in raw["timestamp"]],
+            [t.timestamp() if hasattr(t, "timestamp") else float(t) for t in raw["timestamp"]],
             dtype=np.int64,
         )
         return matrix.astype(np.float32), list(names), ts_arr
 
     matrix, names, timestamps = cached_features(
-        symbol=args.symbol, timeframe=args.timeframe, date_range=date_range,
-        categories=categories, compute_fn=_compute,
+        symbol=args.symbol,
+        timeframe=args.timeframe,
+        date_range=date_range,
+        categories=categories,
+        compute_fn=_compute,
     )
     return matrix, names, timestamps, raw
 
@@ -314,7 +318,7 @@ def load_features(args: argparse.Namespace) -> tuple[np.ndarray, list[str], np.n
 
 from src.ml.shared.labels import triple_barrier_labels as _label_fn  # noqa: E402
 
-_LABEL_PARAMS: dict = {'horizon_bars': 5, 'threshold_bp': 5}
+_LABEL_PARAMS: dict = {"horizon_bars": 5, "threshold_bp": 5}
 
 
 def generate_labels(raw, args):
@@ -342,6 +346,7 @@ def generate_labels(raw, args):
 # signature here is a breaking change for every downstream composite.
 # --------------------------------------------------------------------------- #
 
+
 def _make_loaders(X_train, y_train, X_test, y_test):
     Xw_tr, yw_tr = _build_windows(X_train, y_train)
     Xw_te, yw_te = _build_windows(X_test, y_test)
@@ -352,12 +357,18 @@ def _make_loaders(X_train, y_train, X_test, y_test):
     train_ds = TensorDataset(X_tr, y_tr)
     val_ds = TensorDataset(X_te, y_te)
     train_loader = DataLoader(
-        train_ds, batch_size=_BATCH_SIZE, shuffle=True,
-        num_workers=0, pin_memory=(_DEVICE.type == "cuda"),
+        train_ds,
+        batch_size=_BATCH_SIZE,
+        shuffle=True,
+        num_workers=0,
+        pin_memory=(_DEVICE.type == "cuda"),
     )
     val_loader = DataLoader(
-        val_ds, batch_size=_BATCH_SIZE, shuffle=False,
-        num_workers=0, pin_memory=(_DEVICE.type == "cuda"),
+        val_ds,
+        batch_size=_BATCH_SIZE,
+        shuffle=False,
+        num_workers=0,
+        pin_memory=(_DEVICE.type == "cuda"),
     )
     return train_loader, val_loader, yw_te
 
@@ -416,7 +427,10 @@ def _maybe_compute_loss_surface(model, val_loader, feature_names) -> None:
 
         probe = LossSurfaceProbe(model)
         probe.compute_and_emit(
-            model, _loss_closure, resolution=int(_SURFACE_RES), device=_DEVICE,
+            model,
+            _loss_closure,
+            resolution=int(_SURFACE_RES),
+            device=_DEVICE,
         )
         _SURFACE_DONE["done"] = True
         emit_log(f"[tft] loss surface emitted ({_SURFACE_RES}x{_SURFACE_RES})")
@@ -491,14 +505,15 @@ def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
         emit_metric(name=f"fold_{fold_tag}_train_loss", value=float(train_loss), iteration=epoch)
         emit_metric(name=f"fold_{fold_tag}_val_loss", value=float(val_loss), iteration=epoch)
         emit_step_diagnostics(
-            step=epoch, total=_N_EPOCHS,
+            step=epoch,
+            total=_N_EPOCHS,
             grad_norm=grad_norm_sum / max(1, n_batches),
             lr=current_lr(optimizer),
             throughput=n_train_samples / epoch_dt,
             vram=vram_mb(),
         )
         emit_log(
-            f"[tft][fold={fold_tag}] epoch {epoch+1}/{_N_EPOCHS} "
+            f"[tft][fold={fold_tag}] epoch {epoch + 1}/{_N_EPOCHS} "
             f"train_loss={train_loss:.6f} val_loss={val_loss:.6f}"
         )
 
@@ -512,7 +527,7 @@ def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
         else:
             epochs_no_improve += 1
             if epochs_no_improve >= _PATIENCE:
-                emit_log(f"[tft][fold={fold_tag}] early stop at epoch {epoch+1}")
+                emit_log(f"[tft][fold={fold_tag}] early stop at epoch {epoch + 1}")
                 break
 
     if best_state is not None:
@@ -524,7 +539,9 @@ def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
         for xb, _yb in val_loader:
             xb = xb.to(_DEVICE, non_blocking=True)
             preds_chunks.append(_logits_to_preds(model(xb)))
-    preds = np.concatenate(preds_chunks, axis=0) if preds_chunks else np.asarray([], dtype=np.float64)
+    preds = (
+        np.concatenate(preds_chunks, axis=0) if preds_chunks else np.asarray([], dtype=np.float64)
+    )
 
     _FOLD_STATE["y"].append(np.asarray(yw_te))
     _FOLD_STATE["preds"].append(preds)
@@ -546,7 +563,7 @@ def predict(model, X) -> np.ndarray:
     out_chunks = []
     with torch.no_grad():
         for i in range(0, X_t.shape[0], _BATCH_SIZE):
-            chunk = X_t[i:i + _BATCH_SIZE].to(_DEVICE, non_blocking=True)
+            chunk = X_t[i : i + _BATCH_SIZE].to(_DEVICE, non_blocking=True)
             out_chunks.append(_logits_to_preds(model(chunk)))
     return np.concatenate(out_chunks, axis=0) if out_chunks else np.asarray([], dtype=np.float64)
 
@@ -570,8 +587,10 @@ import numpy as _eval_np
 try:
     from src.ml.shared.protocol import emit_metric_declarations as _eval_emit_decls
 except Exception:  # pragma: no cover — protocol must exist in real runs
+
     def _eval_emit_decls(_decls):  # type: ignore[no-redef]
         return None
+
 
 def _eval_locate_cost_model() -> _EvalPath:
     """Walk up from this file looking for src/config/cost_model.json.
@@ -708,9 +727,7 @@ def _eval_brier(y_true: _eval_np.ndarray, p_up: _eval_np.ndarray) -> float:
 # ─── Calibration ──────────────────────────────────────────────────────────────
 
 
-def _eval_reliability(
-    y_true: _eval_np.ndarray, p_up: _eval_np.ndarray, n_bins: int = 10
-) -> dict:
+def _eval_reliability(y_true: _eval_np.ndarray, p_up: _eval_np.ndarray, n_bins: int = 10) -> dict:
     """10-bin equal-width reliability diagram + ECE + MCE.
 
     ECE = sum(|acc(bin) - conf(bin)| * (n_bin / n_total)) over confidence bins.
@@ -748,12 +765,8 @@ def _eval_reliability(
 
     return {
         "bin_midpoints": mids.tolist(),
-        "observed_frequency": [
-            None if (v != v) else float(v) for v in observed.tolist()
-        ],
-        "predicted_frequency": [
-            None if (v != v) else float(v) for v in predicted.tolist()
-        ],
+        "observed_frequency": [None if (v != v) else float(v) for v in observed.tolist()],
+        "predicted_frequency": [None if (v != v) else float(v) for v in predicted.tolist()],
         "counts": counts.tolist(),
         "ece": ece,
         "mce": mce,
@@ -848,9 +861,7 @@ def simulate_pnl(
     p_up = _eval_to_binary_proba(preds)
     close = _eval_np.asarray(prices, dtype=_eval_np.float64)
     if close.shape != p_up.shape:
-        raise ValueError(
-            f"prices shape {close.shape} != preds shape {p_up.shape}"
-        )
+        raise ValueError(f"prices shape {close.shape} != preds shape {p_up.shape}")
     n = close.shape[0]
     cm = _eval_load_cost_model(symbol)
     rtp = cm["round_trip_points"]
@@ -921,9 +932,7 @@ def simulate_pnl(
     wins_arr = pnl_arr[pnl_arr > 0]
     losses_arr = pnl_arr[pnl_arr < 0]
     sum_losses = float(losses_arr.sum())
-    profit_factor = (
-        float(wins_arr.sum() / abs(sum_losses)) if sum_losses != 0 else float("inf")
-    )
+    profit_factor = float(wins_arr.sum() / abs(sum_losses)) if sum_losses != 0 else float("inf")
     win_rate = float((pnl_arr > 0).mean())
     mean_pnl = float(pnl_arr.mean())
     if pnl_arr.std() > 0:
@@ -1026,88 +1035,106 @@ def compute_fold_metrics(y_true, y_pred, fold_idx: int) -> dict:
 
 def _emit_metric_declarations() -> None:
     """Publish the metric-rendering schema. Lifted from xgb_classifier/main.py."""
-    _eval_emit_decls({
-        "auc": {
-            "renderer": "gauge", "group": "discrimination",
-            "mission": "Does the model rank positives above negatives?",
-            "context": {"min": 0.5, "good": 0.55, "great": 0.60, "max": 1.0},
-        },
-        "log_loss": {
-            "renderer": "number", "group": "discrimination",
-            "mission": "Lower is better. ln(2)=0.693 is no-info baseline.",
-            "context": {"min": 0.0, "baseline": 0.693, "decimals": 4},
-        },
-        "brier": {
-            "renderer": "number", "group": "calibration",
-            "mission": "Squared error of probabilities. 0.25 is uninformative.",
-            "context": {"min": 0.0, "baseline": 0.25, "decimals": 4},
-        },
-        "ece": {
-            "renderer": "number", "group": "calibration",
-            "mission": "Expected calibration error (lower better).",
-            "context": {"min": 0.0, "good": 0.05, "decimals": 4},
-        },
-        "accuracy": {
-            "renderer": "percent", "group": "operating_points",
-            "mission": "Top-1 classification accuracy.",
-            "context": {"baseline": 0.5, "good": 0.55, "great": 0.60},
-        },
-        "hit_rate": {
-            "renderer": "percent", "group": "operating_points",
-            "mission": "Direction accuracy on conviction trades (p>=0.55 or p<=0.45).",
-            "context": {"baseline": 0.5, "good": 0.55, "great": 0.60},
-        },
-        "precision": {
-            "renderer": "percent", "group": "operating_points",
-            "mission": "Macro-averaged precision across all classes.",
-            "context": {"baseline": 0.5, "good": 0.6, "great": 0.7},
-        },
-        "recall": {
-            "renderer": "percent", "group": "operating_points",
-            "mission": "Macro-averaged recall across all classes.",
-            "context": {"baseline": 0.5, "good": 0.6, "great": 0.7},
-        },
-        "f1": {
-            "renderer": "percent", "group": "operating_points",
-            "mission": "Macro-averaged F1 score across all classes.",
-            "context": {"baseline": 0.5, "good": 0.6, "great": 0.7},
-        },
-        "profit_factor": {
-            "renderer": "gauge", "group": "pnl",
-            "mission": "Sum of wins / |sum of losses| after costs. 1.0 = breakeven.",
-            "context": {"min": 0.0, "breakeven": 1.0, "good": 1.5, "great": 2.0},
-        },
-        "win_rate": {
-            "renderer": "percent", "group": "pnl",
-            "mission": "Fraction of trades closed for a profit after costs.",
-            "context": {"baseline": 0.5, "good": 0.55, "great": 0.6},
-        },
-        "sharpe_after_costs": {
-            "renderer": "number", "group": "pnl",
-            "mission": "Sharpe ratio of trade-by-trade PnL after costs (unitless).",
-            "context": {"baseline": 0.0, "good": 1.0, "great": 2.0, "decimals": 3},
-        },
-        "pnl_after_costs": {
-            "renderer": "number", "group": "pnl",
-            "mission": "Cumulative dollars of trade-by-trade PnL after costs.",
-            "context": {"prefix": "$", "decimals": 0},
-        },
-        "max_drawdown": {
-            "renderer": "number", "group": "pnl",
-            "mission": "Worst drawdown of cumulative PnL ($).",
-            "context": {"prefix": "$", "decimals": 0},
-        },
-        "n_trades": {
-            "renderer": "number", "group": "pnl",
-            "mission": "How many trades the model took at the conviction threshold.",
-            "context": {"min": 0, "good": 50, "decimals": 0},
-        },
-        "calibration_curve": {
-            "renderer": "calibration", "group": "calibration",
-            "mission": "Predicted vs observed frequency in 10 equal-width bins.",
-            "context": {},
-        },
-    })
+    _eval_emit_decls(
+        {
+            "auc": {
+                "renderer": "gauge",
+                "group": "discrimination",
+                "mission": "Does the model rank positives above negatives?",
+                "context": {"min": 0.5, "good": 0.55, "great": 0.60, "max": 1.0},
+            },
+            "log_loss": {
+                "renderer": "number",
+                "group": "discrimination",
+                "mission": "Lower is better. ln(2)=0.693 is no-info baseline.",
+                "context": {"min": 0.0, "baseline": 0.693, "decimals": 4},
+            },
+            "brier": {
+                "renderer": "number",
+                "group": "calibration",
+                "mission": "Squared error of probabilities. 0.25 is uninformative.",
+                "context": {"min": 0.0, "baseline": 0.25, "decimals": 4},
+            },
+            "ece": {
+                "renderer": "number",
+                "group": "calibration",
+                "mission": "Expected calibration error (lower better).",
+                "context": {"min": 0.0, "good": 0.05, "decimals": 4},
+            },
+            "accuracy": {
+                "renderer": "percent",
+                "group": "operating_points",
+                "mission": "Top-1 classification accuracy.",
+                "context": {"baseline": 0.5, "good": 0.55, "great": 0.60},
+            },
+            "hit_rate": {
+                "renderer": "percent",
+                "group": "operating_points",
+                "mission": "Direction accuracy on conviction trades (p>=0.55 or p<=0.45).",
+                "context": {"baseline": 0.5, "good": 0.55, "great": 0.60},
+            },
+            "precision": {
+                "renderer": "percent",
+                "group": "operating_points",
+                "mission": "Macro-averaged precision across all classes.",
+                "context": {"baseline": 0.5, "good": 0.6, "great": 0.7},
+            },
+            "recall": {
+                "renderer": "percent",
+                "group": "operating_points",
+                "mission": "Macro-averaged recall across all classes.",
+                "context": {"baseline": 0.5, "good": 0.6, "great": 0.7},
+            },
+            "f1": {
+                "renderer": "percent",
+                "group": "operating_points",
+                "mission": "Macro-averaged F1 score across all classes.",
+                "context": {"baseline": 0.5, "good": 0.6, "great": 0.7},
+            },
+            "profit_factor": {
+                "renderer": "gauge",
+                "group": "pnl",
+                "mission": "Sum of wins / |sum of losses| after costs. 1.0 = breakeven.",
+                "context": {"min": 0.0, "breakeven": 1.0, "good": 1.5, "great": 2.0},
+            },
+            "win_rate": {
+                "renderer": "percent",
+                "group": "pnl",
+                "mission": "Fraction of trades closed for a profit after costs.",
+                "context": {"baseline": 0.5, "good": 0.55, "great": 0.6},
+            },
+            "sharpe_after_costs": {
+                "renderer": "number",
+                "group": "pnl",
+                "mission": "Sharpe ratio of trade-by-trade PnL after costs (unitless).",
+                "context": {"baseline": 0.0, "good": 1.0, "great": 2.0, "decimals": 3},
+            },
+            "pnl_after_costs": {
+                "renderer": "number",
+                "group": "pnl",
+                "mission": "Cumulative dollars of trade-by-trade PnL after costs.",
+                "context": {"prefix": "$", "decimals": 0},
+            },
+            "max_drawdown": {
+                "renderer": "number",
+                "group": "pnl",
+                "mission": "Worst drawdown of cumulative PnL ($).",
+                "context": {"prefix": "$", "decimals": 0},
+            },
+            "n_trades": {
+                "renderer": "number",
+                "group": "pnl",
+                "mission": "How many trades the model took at the conviction threshold.",
+                "context": {"min": 0, "good": 50, "decimals": 0},
+            },
+            "calibration_curve": {
+                "renderer": "calibration",
+                "group": "calibration",
+                "mission": "Predicted vs observed frequency in 10 equal-width bins.",
+                "context": {},
+            },
+        }
+    )
 
 
 # ─── Diagnostics dict assembly ────────────────────────────────────────────────
@@ -1160,68 +1187,117 @@ def build_diagnostics(
             pnl = {}
 
     metrics_block = {
-        "auc": {"value": auc, "renderer": "gauge", "group": "discrimination",
-                "mission": "Rank positives above negatives"},
-        "log_loss": {"value": ll, "renderer": "number", "group": "discrimination",
-                     "mission": "Lower better; baseline ln(2)=0.693"},
-        "brier": {"value": brier, "renderer": "number", "group": "calibration",
-                  "mission": "Squared error of probabilities"},
-        "ece": {"value": _eval_safe_finite(rel["ece"]), "renderer": "number",
-                "group": "calibration", "mission": "Expected calibration error"},
-        "accuracy": {"value": _eval_safe_finite(acc), "renderer": "percent",
-                     "group": "operating_points", "mission": "Top-1 accuracy"},
-        "precision": {"value": _eval_safe_finite(precision), "renderer": "percent",
-                      "group": "operating_points", "mission": "Macro precision"},
-        "recall": {"value": _eval_safe_finite(recall), "renderer": "percent",
-                   "group": "operating_points", "mission": "Macro recall"},
-        "f1": {"value": _eval_safe_finite(f1), "renderer": "percent",
-               "group": "operating_points", "mission": "Macro F1"},
-        "hit_rate_50": {"value": _eval_safe_finite(hr_50), "renderer": "percent",
-                        "group": "operating_points",
-                        "mission": "Direction accuracy on all picks",
-                        "context": {"n_picks": int(n_50)}},
-        "hit_rate_55": {"value": _eval_safe_finite(hr_55), "renderer": "percent",
-                        "group": "operating_points",
-                        "mission": "Direction accuracy at p>=0.55",
-                        "context": {"n_picks": int(n_55)}},
-        "hit_rate_60": {"value": _eval_safe_finite(hr_60), "renderer": "percent",
-                        "group": "operating_points",
-                        "mission": "Direction accuracy at p>=0.60",
-                        "context": {"n_picks": int(n_60)}},
+        "auc": {
+            "value": auc,
+            "renderer": "gauge",
+            "group": "discrimination",
+            "mission": "Rank positives above negatives",
+        },
+        "log_loss": {
+            "value": ll,
+            "renderer": "number",
+            "group": "discrimination",
+            "mission": "Lower better; baseline ln(2)=0.693",
+        },
+        "brier": {
+            "value": brier,
+            "renderer": "number",
+            "group": "calibration",
+            "mission": "Squared error of probabilities",
+        },
+        "ece": {
+            "value": _eval_safe_finite(rel["ece"]),
+            "renderer": "number",
+            "group": "calibration",
+            "mission": "Expected calibration error",
+        },
+        "accuracy": {
+            "value": _eval_safe_finite(acc),
+            "renderer": "percent",
+            "group": "operating_points",
+            "mission": "Top-1 accuracy",
+        },
+        "precision": {
+            "value": _eval_safe_finite(precision),
+            "renderer": "percent",
+            "group": "operating_points",
+            "mission": "Macro precision",
+        },
+        "recall": {
+            "value": _eval_safe_finite(recall),
+            "renderer": "percent",
+            "group": "operating_points",
+            "mission": "Macro recall",
+        },
+        "f1": {
+            "value": _eval_safe_finite(f1),
+            "renderer": "percent",
+            "group": "operating_points",
+            "mission": "Macro F1",
+        },
+        "hit_rate_50": {
+            "value": _eval_safe_finite(hr_50),
+            "renderer": "percent",
+            "group": "operating_points",
+            "mission": "Direction accuracy on all picks",
+            "context": {"n_picks": int(n_50)},
+        },
+        "hit_rate_55": {
+            "value": _eval_safe_finite(hr_55),
+            "renderer": "percent",
+            "group": "operating_points",
+            "mission": "Direction accuracy at p>=0.55",
+            "context": {"n_picks": int(n_55)},
+        },
+        "hit_rate_60": {
+            "value": _eval_safe_finite(hr_60),
+            "renderer": "percent",
+            "group": "operating_points",
+            "mission": "Direction accuracy at p>=0.60",
+            "context": {"n_picks": int(n_60)},
+        },
     }
     if pnl:
-        metrics_block.update({
-            "profit_factor": {
-                "value": _eval_safe_finite(pnl.get("profit_factor")),
-                "renderer": "gauge", "group": "pnl",
-                "mission": "Wins / |losses| after costs",
-            },
-            "sharpe_after_costs": {
-                "value": _eval_safe_finite(pnl.get("sharpe_after_costs")),
-                "renderer": "number", "group": "pnl",
-                "mission": "Trade-by-trade Sharpe after costs",
-            },
-            "pnl_after_costs": {
-                "value": _eval_safe_finite(pnl.get("cum_pnl_dollars")),
-                "renderer": "number", "group": "pnl",
-                "mission": "Total dollars after costs",
-            },
-            "max_drawdown": {
-                "value": _eval_safe_finite(pnl.get("max_drawdown_dollars")),
-                "renderer": "number", "group": "pnl",
-                "mission": "Worst drawdown ($)",
-            },
-            "win_rate": {
-                "value": _eval_safe_finite(pnl.get("win_rate")),
-                "renderer": "percent", "group": "pnl",
-                "mission": "Fraction of trades profitable",
-            },
-            "n_trades": {
-                "value": int(pnl.get("n_trades", 0)),
-                "renderer": "number", "group": "pnl",
-                "mission": "Number of trades taken",
-            },
-        })
+        metrics_block.update(
+            {
+                "profit_factor": {
+                    "value": _eval_safe_finite(pnl.get("profit_factor")),
+                    "renderer": "gauge",
+                    "group": "pnl",
+                    "mission": "Wins / |losses| after costs",
+                },
+                "sharpe_after_costs": {
+                    "value": _eval_safe_finite(pnl.get("sharpe_after_costs")),
+                    "renderer": "number",
+                    "group": "pnl",
+                    "mission": "Trade-by-trade Sharpe after costs",
+                },
+                "pnl_after_costs": {
+                    "value": _eval_safe_finite(pnl.get("cum_pnl_dollars")),
+                    "renderer": "number",
+                    "group": "pnl",
+                    "mission": "Total dollars after costs",
+                },
+                "max_drawdown": {
+                    "value": _eval_safe_finite(pnl.get("max_drawdown_dollars")),
+                    "renderer": "number",
+                    "group": "pnl",
+                    "mission": "Worst drawdown ($)",
+                },
+                "win_rate": {
+                    "value": _eval_safe_finite(pnl.get("win_rate")),
+                    "renderer": "percent",
+                    "group": "pnl",
+                    "mission": "Fraction of trades profitable",
+                },
+                "n_trades": {
+                    "value": int(pnl.get("n_trades", 0)),
+                    "renderer": "number",
+                    "group": "pnl",
+                    "mission": "Number of trades taken",
+                },
+            }
+        )
 
     diagnostics = {
         "model_id": model_id,
@@ -1277,12 +1353,15 @@ def write_oos_predictions(ts, y_true, y_pred, output_path, *, symbol: str = "MNQ
 
     out = _EvalPath(output_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    _eval_pl.DataFrame({
-        "timestamp": ts_int.astype(_eval_np.int64),
-        "symbol": [symbol] * int(ts_int.size),
-        "prediction": y_labels.astype(_eval_np.int64),
-        "confidence": confidence,
-    }).write_parquet(str(out), compression="zstd", compression_level=3)
+    _eval_pl.DataFrame(
+        {
+            "timestamp": ts_int.astype(_eval_np.int64),
+            "symbol": [symbol] * int(ts_int.size),
+            "prediction": y_labels.astype(_eval_np.int64),
+            "confidence": confidence,
+        }
+    ).write_parquet(str(out), compression="zstd", compression_level=3)
+
 
 # Windowed models emit one prediction per window (length N - window_size + 1),
 # but the walk-forward / single-fold loop calls compute_fold_metrics(y_test,
@@ -1308,14 +1387,18 @@ def compute_fold_metrics(y_true, y_pred, fold_idx=None):
 
 def _filter_valid(X, y, valid, timestamps):
     keep = np.flatnonzero(valid)
-    X = X[keep]; y = y[keep]; timestamps = timestamps[keep]
+    X = X[keep]
+    y = y[keep]
+    timestamps = timestamps[keep]
     finite = np.isfinite(X).all(axis=1)
     return X[finite], y[finite], timestamps[finite]
 
 
 def run_training(args: argparse.Namespace) -> dict:
-    emit_log(f"[temporal_fusion_transformer] Loading {args.symbol}@{args.timeframe} "
-             f"(categories={args.feature_categories or 'all'})")
+    emit_log(
+        f"[temporal_fusion_transformer] Loading {args.symbol}@{args.timeframe} "
+        f"(categories={args.feature_categories or 'all'})"
+    )
     matrix, names, timestamps, raw = load_features(args)
     n_total = matrix.shape[0]
     emit_log(f"[temporal_fusion_transformer] Loaded {n_total:,} bars x {matrix.shape[1]} features")
@@ -1324,7 +1407,9 @@ def run_training(args: argparse.Namespace) -> dict:
     labels, valid = generate_labels(raw, args)
 
     X, y, ts_kept = _filter_valid(matrix, labels, valid, timestamps)
-    emit_log(f"[temporal_fusion_transformer] After dropping non-finite rows: {X.shape[0]:,} samples")
+    emit_log(
+        f"[temporal_fusion_transformer] After dropping non-finite rows: {X.shape[0]:,} samples"
+    )
 
     from src.ml.shared.protocol import emit_fold_complete
 
@@ -1332,9 +1417,7 @@ def run_training(args: argparse.Namespace) -> dict:
     split = max(1, int(n_kept * 0.8))
     train_idx = np.arange(0, split, dtype=np.int64)
     test_idx = np.arange(split, n_kept, dtype=np.int64)
-    emit_log(
-        f"[single-fold] train={train_idx.size:,} test={test_idx.size:,} (80/20 time split)"
-    )
+    emit_log(f"[single-fold] train={train_idx.size:,} test={test_idx.size:,} (80/20 time split)")
 
     X_train, y_train = X[train_idx], y[train_idx]
     X_test, y_test = X[test_idx], y[test_idx]
@@ -1352,12 +1435,14 @@ def run_training(args: argparse.Namespace) -> dict:
         emit_metric(name=f"fold_0_{name}", value=fv, iteration=0)
     emit_fold_complete(fold_idx=0, metrics=fold_metrics)
 
-    fold_results = [{
-        "fold": 0,
-        "n_train": int(train_idx.size),
-        "n_test": int(test_idx.size),
-        "metrics": fold_metrics,
-    }]
+    fold_results = [
+        {
+            "fold": 0,
+            "n_train": int(train_idx.size),
+            "n_test": int(test_idx.size),
+            "metrics": fold_metrics,
+        }
+    ]
 
     # TFT classification rollup
     if _FOLD_STATE["y"]:
@@ -1366,7 +1451,9 @@ def run_training(args: argparse.Namespace) -> dict:
         if preds_list and preds_list[0].ndim == 2:
             all_preds = np.concatenate(preds_list, axis=0).astype(np.float64)
         else:
-            all_preds = np.concatenate([np.asarray(p).reshape(-1) for p in preds_list]).astype(np.float64)
+            all_preds = np.concatenate([np.asarray(p).reshape(-1) for p in preds_list]).astype(
+                np.float64
+            )
     else:
         all_y_raw = np.asarray([], dtype=np.float64)
         all_preds = np.asarray([], dtype=np.float64)

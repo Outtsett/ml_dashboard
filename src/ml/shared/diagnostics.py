@@ -16,8 +16,10 @@ import numpy as np
 
 # ── A. Cluster Quality ─────────────────────────────────────────────────────
 
-def compute_cluster_quality(X, states, prev_states, model_means, model_vars,
-                            close, max_samples=5000):
+
+def compute_cluster_quality(
+    X, states, prev_states, model_means, model_vars, close, max_samples=5000
+):
     """
     External cluster validation metrics.
 
@@ -44,10 +46,9 @@ def compute_cluster_quality(X, states, prev_states, model_means, model_vars,
                 davies_bouldin_score,
                 silhouette_score,
             )
+
             sample_size = min(max_samples, len(X))
-            result["silhouette"] = float(
-                silhouette_score(X, states, sample_size=sample_size)
-            )
+            result["silhouette"] = float(silhouette_score(X, states, sample_size=sample_size))
             result["calinski_harabasz"] = float(calinski_harabasz_score(X, states))
             result["davies_bouldin"] = float(davies_bouldin_score(X, states))
         except Exception:
@@ -64,9 +65,8 @@ def compute_cluster_quality(X, states, prev_states, model_means, model_vars,
     if prev_states is not None:
         try:
             from sklearn.metrics import adjusted_rand_score
-            result["adjusted_rand_index"] = float(
-                adjusted_rand_score(prev_states, states)
-            )
+
+            result["adjusted_rand_index"] = float(adjusted_rand_score(prev_states, states))
         except Exception:
             result["adjusted_rand_index"] = 0.0
     else:
@@ -92,6 +92,7 @@ def compute_cluster_quality(X, states, prev_states, model_means, model_vars,
     if len(unique_regimes) >= 2:
         try:
             from scipy.stats import ttest_ind
+
             for i_idx in range(len(unique_regimes)):
                 for j_idx in range(i_idx + 1, len(unique_regimes)):
                     ki = int(unique_regimes[i_idx])
@@ -118,10 +119,9 @@ def compute_cluster_quality(X, states, prev_states, model_means, model_vars,
                     v1 = np.maximum(model_vars[ki], 1e-10)
                     v2 = np.maximum(model_vars[kj], 1e-10)
                     # Per-dimension Bhattacharyya distance
-                    db_per_d = (
-                        0.25 * np.log(0.25 * (v1 / v2 + v2 / v1 + 2.0))
-                        + 0.25 * (m1 - m2) ** 2 / (v1 + v2)
-                    )
+                    db_per_d = 0.25 * np.log(0.25 * (v1 / v2 + v2 / v1 + 2.0)) + 0.25 * (
+                        m1 - m2
+                    ) ** 2 / (v1 + v2)
                     bhatt_distances[f"{ki}_vs_{kj}"] = float(np.mean(db_per_d))
     result["bhattacharyya_distances"] = bhatt_distances
 
@@ -130,8 +130,8 @@ def compute_cluster_quality(X, states, prev_states, model_means, model_vars,
 
 # ── B. Feature Attribution ─────────────────────────────────────────────────
 
-def compute_feature_attribution(model_means, model_vars, feature_names,
-                                active_mask):
+
+def compute_feature_attribution(model_means, model_vars, feature_names, active_mask):
     """
     Per-regime and global feature importance via standardized deviation.
 
@@ -166,17 +166,11 @@ def compute_feature_attribution(model_means, model_vars, feature_names,
         std_k = np.sqrt(np.maximum(model_vars[k], 1e-10))
         imp = np.abs(model_means[k] - mu_global) / std_k
         importance_matrix[idx] = imp
-        per_regime[int(k)] = {
-            fn: round(float(imp[d]), 4)
-            for d, fn in enumerate(feature_names)
-        }
+        per_regime[int(k)] = {fn: round(float(imp[d]), 4) for d, fn in enumerate(feature_names)}
 
     # Global importance: mean across active regimes
     global_imp = np.mean(importance_matrix, axis=0)
-    global_importance = {
-        fn: round(float(global_imp[d]), 4)
-        for d, fn in enumerate(feature_names)
-    }
+    global_importance = {fn: round(float(global_imp[d]), 4) for d, fn in enumerate(feature_names)}
 
     # Feature interaction scores: pairwise correlation of importance vectors
     # Each regime is a sample, each feature is a variable
@@ -184,7 +178,7 @@ def compute_feature_attribution(model_means, model_vars, feature_names,
     if len(active_indices) >= 2 and D >= 2:
         # importance_matrix is (n_active, D) — correlate columns (features)
         # Only compute for top features to keep payload small
-        top_indices = np.argsort(-global_imp)[:min(10, D)]
+        top_indices = np.argsort(-global_imp)[: min(10, D)]
         sub_matrix = importance_matrix[:, top_indices]
         if sub_matrix.shape[0] >= 2:
             # Correlation matrix of feature importance across regimes
@@ -195,19 +189,17 @@ def compute_feature_attribution(model_means, model_vars, feature_names,
                     fj = int(top_indices[j])
                     val = corr[i, j] if np.isfinite(corr[i, j]) else 0.0
                     if abs(val) > 0.3:  # only report meaningful correlations
-                        interactions.append({
-                            "feature_a": feature_names[fi],
-                            "feature_b": feature_names[fj],
-                            "correlation": round(float(val), 4),
-                        })
+                        interactions.append(
+                            {
+                                "feature_a": feature_names[fi],
+                                "feature_b": feature_names[fj],
+                                "correlation": round(float(val), 4),
+                            }
+                        )
 
     # Dead feature detection: max importance < 0.1 across all active regimes
     max_imp_per_feature = np.max(importance_matrix, axis=0)
-    dead_features = [
-        feature_names[d]
-        for d in range(D)
-        if max_imp_per_feature[d] < 0.1
-    ]
+    dead_features = [feature_names[d] for d in range(D) if max_imp_per_feature[d] < 0.1]
 
     return {
         "per_regime": per_regime,
@@ -219,8 +211,16 @@ def compute_feature_attribution(model_means, model_vars, feature_names,
 
 # ── C. Quality Gates ──────────────────────────────────────────────────────
 
-def evaluate_quality_gates(cluster_metrics, n_active_regimes, self_transition,
-                           switch_rate, avg_dwell, beta_entropy, hyperparams):
+
+def evaluate_quality_gates(
+    cluster_metrics,
+    n_active_regimes,
+    self_transition,
+    switch_rate,
+    avg_dwell,
+    beta_entropy,
+    hyperparams,
+):
     """
     Deterministic rule engine for training quality assessment.
 
@@ -248,8 +248,9 @@ def evaluate_quality_gates(cluster_metrics, n_active_regimes, self_transition,
     else:
         status = "pass"
         rec = ""
-    gates.append({"metric": "silhouette", "value": round(sil, 4),
-                  "status": status, "recommendation": rec})
+    gates.append(
+        {"metric": "silhouette", "value": round(sil, 4), "status": status, "recommendation": rec}
+    )
 
     # Davies-Bouldin index (lower is better)
     db = cluster_metrics.get("davies_bouldin", 999.0)
@@ -262,8 +263,9 @@ def evaluate_quality_gates(cluster_metrics, n_active_regimes, self_transition,
     else:
         status = "pass"
         rec = ""
-    gates.append({"metric": "davies_bouldin", "value": round(db, 4),
-                  "status": status, "recommendation": rec})
+    gates.append(
+        {"metric": "davies_bouldin", "value": round(db, 4), "status": status, "recommendation": rec}
+    )
 
     # Number of active regimes
     n = n_active_regimes
@@ -276,8 +278,7 @@ def evaluate_quality_gates(cluster_metrics, n_active_regimes, self_transition,
     else:
         status = "pass"
         rec = ""
-    gates.append({"metric": "n_regimes", "value": n,
-                  "status": status, "recommendation": rec})
+    gates.append({"metric": "n_regimes", "value": n, "status": status, "recommendation": rec})
 
     # Self-transition probability
     st = self_transition
@@ -287,8 +288,14 @@ def evaluate_quality_gates(cluster_metrics, n_active_regimes, self_transition,
     else:
         status = "pass"
         rec = ""
-    gates.append({"metric": "self_transition", "value": round(st, 4),
-                  "status": status, "recommendation": rec})
+    gates.append(
+        {
+            "metric": "self_transition",
+            "value": round(st, 4),
+            "status": status,
+            "recommendation": rec,
+        }
+    )
 
     # Average dwell time
     dw = avg_dwell
@@ -301,8 +308,9 @@ def evaluate_quality_gates(cluster_metrics, n_active_regimes, self_transition,
     else:
         status = "pass"
         rec = ""
-    gates.append({"metric": "avg_dwell", "value": round(dw, 2),
-                  "status": status, "recommendation": rec})
+    gates.append(
+        {"metric": "avg_dwell", "value": round(dw, 2), "status": status, "recommendation": rec}
+    )
 
     # Max regime dominance (from cluster_metrics or compute from switch_rate context)
     # We receive n_active_regimes; dominance needs per-regime counts.
@@ -317,13 +325,20 @@ def evaluate_quality_gates(cluster_metrics, n_active_regimes, self_transition,
     else:
         status = "pass"
         rec = ""
-    gates.append({"metric": "max_regime_dominance", "value": round(max_dom, 4),
-                  "status": status, "recommendation": rec})
+    gates.append(
+        {
+            "metric": "max_regime_dominance",
+            "value": round(max_dom, 4),
+            "status": status,
+            "recommendation": rec,
+        }
+    )
 
     return gates
 
 
 # ── D. Sampler Diagnostics ─────────────────────────────────────────────────
+
 
 def compute_sampler_diagnostics(log_likelihoods, state_stabilities):
     """
@@ -375,15 +390,14 @@ def compute_sampler_diagnostics(log_likelihoods, state_stabilities):
         stab_centered = stab - np.mean(stab)
         var_stab = np.var(stab)
         if var_stab > 1e-15:
-            lag1 = np.sum(stab_centered[:-1] * stab_centered[1:]) / (
-                (len(stab) - 1) * var_stab
-            )
+            lag1 = np.sum(stab_centered[:-1] * stab_centered[1:]) / ((len(stab) - 1) * var_stab)
             result["autocorrelation_lag1"] = round(float(np.clip(lag1, -1.0, 1.0)), 4)
 
     return result
 
 
 # ── E. Emission Heatmap ────────────────────────────────────────────────────
+
 
 def compute_emission_heatmap(model_means, model_vars, active_mask):
     """
@@ -404,10 +418,10 @@ def compute_emission_heatmap(model_means, model_vars, active_mask):
     if len(active_indices) == 0:
         return {"matrix": [], "active_regime_ids": []}
 
-    active_means = model_means[active_indices]   # (K_active, D)
-    active_vars = model_vars[active_indices]      # (K_active, D)
+    active_means = model_means[active_indices]  # (K_active, D)
+    active_vars = model_vars[active_indices]  # (K_active, D)
 
-    mu_global = np.mean(active_means, axis=0)     # (D,)
+    mu_global = np.mean(active_means, axis=0)  # (D,)
     std_k = np.sqrt(np.maximum(active_vars, 1e-10))
 
     heatmap = (active_means - mu_global[np.newaxis, :]) / std_k

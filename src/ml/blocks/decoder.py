@@ -27,9 +27,7 @@ _ACTIVATIONS: dict[str, type[nn.Module]] = {
 def _resolve_activation(name: str) -> nn.Module:
     name = name.lower()
     if name not in _ACTIVATIONS:
-        raise ValueError(
-            f"unknown activation {name!r}; expected one of {sorted(_ACTIVATIONS)}"
-        )
+        raise ValueError(f"unknown activation {name!r}; expected one of {sorted(_ACTIVATIONS)}")
     return _ACTIVATIONS[name]()
 
 
@@ -134,9 +132,7 @@ class Conv1DDecoder(nn.Module):
         prev = in_channels
         for c, k in zip(channels, kernel_sizes):
             pad = k // 2
-            blocks.append(
-                nn.ConvTranspose1d(prev, c, kernel_size=k, padding=pad)
-            )
+            blocks.append(nn.ConvTranspose1d(prev, c, kernel_size=k, padding=pad))
             blocks.append(nn.GELU())
             if dropout > 0:
                 blocks.append(nn.Dropout(dropout))

@@ -57,7 +57,7 @@ def _http_csv(sql: str, host: str, http_port: int) -> pd.DataFrame:
     t0 = time.time()
     with urllib.request.urlopen(url, timeout=900) as resp:
         csv_bytes = resp.read()
-    print(f"  fetched {len(csv_bytes)/1e6:.1f} MB in {time.time()-t0:.1f}s", flush=True)
+    print(f"  fetched {len(csv_bytes) / 1e6:.1f} MB in {time.time() - t0:.1f}s", flush=True)
     df = pd.read_csv(io.BytesIO(csv_bytes))
     return df
 
@@ -89,9 +89,18 @@ def build_tf(tf: str, host: str, http_port: int) -> pd.DataFrame:
     df = _http_csv(sql, host, http_port)
     # Coerce dtypes to match existing parquet schema
     df["timestamp"] = pd.to_datetime(df["timestamp"])
-    for col in ("open", "high", "low", "close", "volume",
-                "trades", "vol_at_bid", "vol_at_ask",
-                "trades_at_bid", "trades_at_ask"):
+    for col in (
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "trades",
+        "vol_at_bid",
+        "vol_at_ask",
+        "trades_at_bid",
+        "trades_at_ask",
+    ):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     # Drop rows where every OHLC is NaN (SAMPLE BY can emit empty slots in
@@ -102,17 +111,26 @@ def build_tf(tf: str, host: str, http_port: int) -> pd.DataFrame:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description=__doc__,
-                                formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--tfs", default=",".join(TIMEFRAMES),
-                   help="Comma-separated timeframes (default: all 8)")
-    p.add_argument("--out-dir", default=str(PARQUET_DIR / SYMBOL),
-                   help="Output directory (default: %(default)s)")
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    p.add_argument(
+        "--tfs", default=",".join(TIMEFRAMES), help="Comma-separated timeframes (default: all 8)"
+    )
+    p.add_argument(
+        "--out-dir",
+        default=str(PARQUET_DIR / SYMBOL),
+        help="Output directory (default: %(default)s)",
+    )
     p.add_argument("--host", default=os.environ.get("QUESTDB_HOST", "127.0.0.1"))
-    p.add_argument("--http-port", type=int,
-                   default=int(os.environ.get("QUESTDB_HTTP_PORT", "9000")))
-    p.add_argument("--dry-run", action="store_true",
-                   help="Print row counts and span only; do not write parquets")
+    p.add_argument(
+        "--http-port", type=int, default=int(os.environ.get("QUESTDB_HTTP_PORT", "9000"))
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print row counts and span only; do not write parquets",
+    )
     args = p.parse_args()
 
     tfs = [tf.strip() for tf in args.tfs.split(",") if tf.strip()]
@@ -149,8 +167,10 @@ def main() -> int:
             out_path = out_dir / f"{tf}.parquet"
             df.to_parquet(str(out_path), compression="zstd", compression_level=3, index=False)
             size_mb = out_path.stat().st_size / (1024 * 1024)
-            print(f"  wrote {out_path.name}  rows={n:,}  span={first_ts} .. {last_ts}  "
-                  f"size={size_mb:.1f} MB  elapsed={elapsed:.1f}s")
+            print(
+                f"  wrote {out_path.name}  rows={n:,}  span={first_ts} .. {last_ts}  "
+                f"size={size_mb:.1f} MB  elapsed={elapsed:.1f}s"
+            )
         summary.append((tf, n, first_ts, last_ts, elapsed))
         print()
 

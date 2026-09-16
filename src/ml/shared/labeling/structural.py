@@ -1,4 +1,4 @@
-﻿"""Structural regime labeler — the primary, feature-rich labeler.
+"""Structural regime labeler — the primary, feature-rich labeler.
 
 Classifies regimes into 30+ market-structure labels across three categories
 (trend / reversal / range) using momentum alignment, volatility dynamics,
@@ -73,16 +73,8 @@ class StructuralLabeler:
         trending = abs(ret_bps) > 1.5
 
         # Volatility dynamics
-        vol_expanding = (
-            vol10 is not None
-            and vol50 is not None
-            and vol10 > vol50 * 1.2
-        )
-        vol_contracting = (
-            vol10 is not None
-            and vol50 is not None
-            and vol10 < vol50 * 0.8
-        )
+        vol_expanding = vol10 is not None and vol50 is not None and vol10 > vol50 * 1.2
+        vol_contracting = vol10 is not None and vol50 is not None and vol10 < vol50 * 0.8
 
         # Momentum acceleration / deceleration
         accel = (
@@ -153,9 +145,19 @@ class StructuralLabeler:
 
         # —— Nickname: numeric fingerprint ————————————————————————————————
         nickname = self._build_nickname(
-            ret_bps, vol_pct, vol_expanding, vol_contracting,
-            bar_range, body, vol_surge, vol_ratio,
-            has_micro, micro_dur, pivot_count, avg_duration, pct,
+            ret_bps,
+            vol_pct,
+            vol_expanding,
+            vol_contracting,
+            bar_range,
+            body,
+            vol_surge,
+            vol_ratio,
+            has_micro,
+            micro_dur,
+            pivot_count,
+            avg_duration,
+            pct,
         )
 
         return LabelResult(label=lbl, nickname=nickname, category=cat)
@@ -205,4 +207,3 @@ class StructuralLabeler:
         parts.append(f"{pct:.0f}% of data")
 
         return ", ".join(parts)
-

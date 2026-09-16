@@ -55,7 +55,9 @@ def ingest_pair(conn, filepath: Path, symbol: str, pip_size: float, dry_run: boo
         fmt = f"%.{decimals}f"
         for i in range(min(5, rows)):
             row = df.row(i)
-            print(f"    {row[0]} | O={fmt % row[1]} H={fmt % row[2]} L={fmt % row[3]} C={fmt % row[4]} V={row[5]}")
+            print(
+                f"    {row[0]} | O={fmt % row[1]} H={fmt % row[2]} L={fmt % row[3]} C={fmt % row[4]} V={row[5]}"
+            )
         return 0
 
     cur = conn.cursor()
@@ -73,17 +75,18 @@ def ingest_pair(conn, filepath: Path, symbol: str, pip_size: float, dry_run: boo
         # Just replace T and trim nanosecond Z format
         ts_pg = ts_str.replace("T", " ").replace("Z", "+00")
 
-        buf.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" % (
-            ts_pg, symbol, row[1], row[2], row[3], row[4], row[5], pip_size
-        ))
+        buf.write(
+            "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+            % (ts_pg, symbol, row[1], row[2], row[3], row[4], row[5], pip_size)
+        )
         count += 1
 
         if count % batch_size == 0:
             buf.seek(0)
             cur.copy_from(
                 buf,
-                'forex_1m',
-                columns=('ts', 'symbol', 'open', 'high', 'low', 'close', 'volume', 'pip_size'),
+                "forex_1m",
+                columns=("ts", "symbol", "open", "high", "low", "close", "volume", "pip_size"),
             )
             conn.commit()
             buf = io.StringIO()
@@ -95,8 +98,8 @@ def ingest_pair(conn, filepath: Path, symbol: str, pip_size: float, dry_run: boo
         buf.seek(0)
         cur.copy_from(
             buf,
-            'forex_1m',
-            columns=('ts', 'symbol', 'open', 'high', 'low', 'close', 'volume', 'pip_size'),
+            "forex_1m",
+            columns=("ts", "symbol", "open", "high", "low", "close", "volume", "pip_size"),
         )
         conn.commit()
 
@@ -107,6 +110,7 @@ def ingest_pair(conn, filepath: Path, symbol: str, pip_size: float, dry_run: boo
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Ingest forex parquet -> TimescaleDB")
     parser.add_argument("--dry-run", action="store_true", help="Preview without inserting")
     args = parser.parse_args()
@@ -156,7 +160,9 @@ def main():
 
         # Verify
         cur = conn.cursor()
-        cur.execute("SELECT symbol, count(*), min(ts)::date, max(ts)::date FROM forex_1m GROUP BY symbol ORDER BY symbol")
+        cur.execute(
+            "SELECT symbol, count(*), min(ts)::date, max(ts)::date FROM forex_1m GROUP BY symbol ORDER BY symbol"
+        )
         print(f"\n  Summary:")
         for row in cur.fetchall():
             print(f"    {row[0]}: {row[1]:>10,} rows  ({row[2]} to {row[3]})")

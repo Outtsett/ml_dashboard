@@ -62,7 +62,9 @@ def get_row_count(table: str) -> int:
 
 def main():
     parser = argparse.ArgumentParser(description="Drop feature tables from QuestDB")
-    parser.add_argument("--dry-run", action="store_true", help="Print what would be dropped without executing")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Print what would be dropped without executing"
+    )
     args = parser.parse_args()
 
     # 1. List current tables

@@ -63,8 +63,8 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[3]  # …/ml_dashboard
 # These are *training* scripts (single-fold CLI). HPO drivers spawn them
 # per-trial; nested HPO drivers spawn them per-fold.
 _MODEL_ENTRYPOINTS: dict[str, str] = {
-    "xgb_classifier":      "src/ml/xgb_classifier/main.py",
-    "xgb_classifier_wf":   "src/ml/xgb_classifier/main.py",  # WF reuses single-fold entry
+    "xgb_classifier": "src/ml/xgb_classifier/main.py",
+    "xgb_classifier_wf": "src/ml/xgb_classifier/main.py",  # WF reuses single-fold entry
     "xgb_classifier_nest": "src/ml/xgb_classifier/main.py",  # nested HPO uses fold-level driver, see hpo_main.py
 }
 
@@ -113,12 +113,18 @@ def _preload_feature_cache(model_type: str, training_args: dict[str, Any]) -> No
 
         def _compute():
             ohlcv = {
-                "open_": raw["open"], "high": raw["high"], "low": raw["low"],
-                "close": raw["close"], "volume": raw["volume"],
+                "open_": raw["open"],
+                "high": raw["high"],
+                "low": raw["low"],
+                "close": raw["close"],
+                "volume": raw["volume"],
             }
             matrix, names, _ts = compute_features(ohlcv, categories=categories, n_jobs=1)
-            ts_arr = [t.timestamp() if hasattr(t, "timestamp") else float(t) for t in raw["timestamp"]]
+            ts_arr = [
+                t.timestamp() if hasattr(t, "timestamp") else float(t) for t in raw["timestamp"]
+            ]
             import numpy as _np
+
             return matrix.astype(_np.float32), list(names), _np.asarray(ts_arr, dtype=_np.int64)
 
         cached_features(symbol, timeframe, date_range, categories, _compute)
@@ -126,6 +132,7 @@ def _preload_feature_cache(model_type: str, training_args: dict[str, Any]) -> No
     except Exception as exc:  # noqa: BLE001
         logger.warning("Feature cache pre-warm skipped: %s", exc)
         emit_log(f"[hpo] Feature cache pre-warm skipped: {exc}", level="warning")
+
 
 # ---------------------------------------------------------------------------
 # Objective function builder
@@ -158,8 +165,7 @@ def _build_subprocess_objective(
     entrypoint = _MODEL_ENTRYPOINTS.get(model_type.lower())
     if entrypoint is None:
         raise ValueError(
-            f"Unknown model_type '{model_type}'. "
-            f"Known models: {sorted(_MODEL_ENTRYPOINTS)}"
+            f"Unknown model_type '{model_type}'. Known models: {sorted(_MODEL_ENTRYPOINTS)}"
         )
     script = str(_PROJECT_ROOT / entrypoint)
     fail_score = float("inf") if direction == "minimize" else float("-inf")
@@ -214,9 +220,7 @@ def _build_subprocess_objective(
         # Scan stdout for the last JSON ``done`` event and extract the metric.
         score = _extract_metric(proc.stdout, objective_metric)
         if score is None:
-            logger.warning(
-                "Could not find metric '%s' in trial output", objective_metric
-            )
+            logger.warning("Could not find metric '%s' in trial output", objective_metric)
             emit_log(
                 f"[hpo] Metric '{objective_metric}' not found in output",
                 level="warning",
@@ -270,7 +274,9 @@ def _extract_metric(stdout: str, metric_name: str) -> float | None:
         return last_metric_value
 
     # Last resort: regex scan.
-    pattern = re.compile(rf"{re.escape(metric_name)}\s*[:=]\s*([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)")
+    pattern = re.compile(
+        rf"{re.escape(metric_name)}\s*[:=]\s*([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)"
+    )
     for line in reversed(stdout.splitlines()):
         m = pattern.search(line)
         if m:
@@ -356,16 +362,18 @@ def run_hpo(config: dict[str, Any]) -> OptimizationResult:
     logger.info("=" * 72)
 
     # ---- Emit hpo-started event -------------------------------------------
-    emit({
-        "type": "hpo-started",
-        "modelType": model_type,
-        "optimizer": optimizer_type,
-        "direction": direction,
-        "objectiveMetric": objective_metric,
-        "searchSpace": search_space_dict,
-        "nTrials": optimizer_config.get("n_trials"),
-        "timeout": timeout,
-    })
+    emit(
+        {
+            "type": "hpo-started",
+            "modelType": model_type,
+            "optimizer": optimizer_type,
+            "direction": direction,
+            "objectiveMetric": objective_metric,
+            "searchSpace": search_space_dict,
+            "nTrials": optimizer_config.get("n_trials"),
+            "timeout": timeout,
+        }
+    )
 
     # ---- Build search space -----------------------------------------------
     search_space = SearchSpace.from_dict(search_space_dict)
@@ -387,9 +395,7 @@ def run_hpo(config: dict[str, Any]) -> OptimizationResult:
     opt_kwargs["callbacks"] = callbacks
 
     try:
-        optimizer = OptimizerRegistry.create(
-            optimizer_type, search_space, **opt_kwargs
-        )
+        optimizer = OptimizerRegistry.create(optimizer_type, search_space, **opt_kwargs)
     except KeyError as exc:
         available = OptimizerRegistry.list_available()
         msg = f"Unknown optimizer '{optimizer_type}'. Available: {available}"
@@ -441,25 +447,27 @@ def run_hpo(config: dict[str, Any]) -> OptimizationResult:
     logger.info("-" * 72)
 
     # ---- Emit final hpo-complete (in addition to SSECallback's event) -----
-    emit({
-        "type": "hpo-complete",
-        "bestScore": result.best_score,
-        "bestParams": result.best_params,
-        "totalTrials": result.total_trials,
-        "completedTrials": result.completed_trials,
-        "prunedTrials": result.pruned_trials,
-        "elapsedSec": round(total_elapsed, 2),
-        "optimizerType": result.optimizer_type,
-        "topTrials": [
-            {
-                "trialId": t.trial_id,
-                "score": t.score,
-                "params": t.params,
-                "durationSec": round(t.duration_sec, 2),
-            }
-            for t in result.top_n(5)
-        ],
-    })
+    emit(
+        {
+            "type": "hpo-complete",
+            "bestScore": result.best_score,
+            "bestParams": result.best_params,
+            "totalTrials": result.total_trials,
+            "completedTrials": result.completed_trials,
+            "prunedTrials": result.pruned_trials,
+            "elapsedSec": round(total_elapsed, 2),
+            "optimizerType": result.optimizer_type,
+            "topTrials": [
+                {
+                    "trialId": t.trial_id,
+                    "score": t.score,
+                    "params": t.params,
+                    "durationSec": round(t.duration_sec, 2),
+                }
+                for t in result.top_n(5)
+            ],
+        }
+    )
 
     return result
 
@@ -498,7 +506,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Overall HPO timeout in seconds (overrides config value).",
     )
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         default=False,
         help="Enable DEBUG-level logging.",

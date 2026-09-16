@@ -40,10 +40,10 @@ from bokeh.server.server import Server
 # ── Globals (shared between training thread and bokeh callback) ───────────
 
 _state = {
-    "X_2d": None,           # (T, 2) PCA projection
-    "close": None,          # (T,) close prices
-    "timestamps": None,     # (T,) timestamps
-    "regimes": None,        # (T,) current regime assignments
+    "X_2d": None,  # (T, 2) PCA projection
+    "close": None,  # (T,) close prices
+    "timestamps": None,  # (T,) timestamps
+    "regimes": None,  # (T,) current regime assignments
     "n_regimes": 0,
     "iteration": 0,
     "total_iter": 0,
@@ -51,11 +51,21 @@ _state = {
     "metrics_history": [],  # list of dicts per iteration
     "training_done": False,
     "status": "Initializing...",
-    "regime_stats": {},     # {regime_id: {count, pct, avg_return, avg_vol}}
+    "regime_stats": {},  # {regime_id: {count, pct, avg_return, avg_vol}}
 }
 
-REGIME_COLORS = ["#f43f5e", "#f97316", "#f59e0b", "#10b981", "#06b6d4",
-                 "#3b82f6", "#8b5cf6", "#ec4899", "#ef4444", "#14b8a6"]
+REGIME_COLORS = [
+    "#f43f5e",
+    "#f97316",
+    "#f59e0b",
+    "#10b981",
+    "#06b6d4",
+    "#3b82f6",
+    "#8b5cf6",
+    "#ec4899",
+    "#ef4444",
+    "#14b8a6",
+]
 
 METRIC_DESCRIPTIONS = {
     "log_likelihood": "Joint probability of data given model parameters. Should increase and plateau. Measures how well the emission distributions explain the observed features.",
@@ -140,8 +150,10 @@ def run_training(args):
 
     # Train
     model = StickyHDPHMM(
-        alpha=args.alpha, gamma=args.gamma,
-        kappa=args.kappa, K_max=args.k_max,
+        alpha=args.alpha,
+        gamma=args.gamma,
+        kappa=args.kappa,
+        K_max=args.k_max,
     )
     model._init_params(X_valid)
 
@@ -168,9 +180,11 @@ def run_training(args):
         switches = int(np.sum(state_changes))
         switch_rate = switches / max(1, T - 1)
 
-        active_self_trans = float(np.mean([
-            model.transition_matrix[k, k] for k in active
-        ])) if len(active) > 0 else 0.0
+        active_self_trans = (
+            float(np.mean([model.transition_matrix[k, k] for k in active]))
+            if len(active) > 0
+            else 0.0
+        )
 
         beta_entropy = float(-np.sum(model.beta * np.log(model.beta + 1e-300)))
 
@@ -208,19 +222,21 @@ def run_training(args):
         _state["n_regimes"] = n_active
         _state["log_likelihood"] = total_ll
         _state["regime_stats"] = regime_stats
-        _state["metrics_history"].append({
-            "iter": it,
-            "log_likelihood": total_ll,
-            "num_regimes": n_active,
-            "assignment_stability": round(stability, 4),
-            "mean_self_transition": round(active_self_trans, 4),
-            "switch_rate": round(switch_rate, 6),
-            "beta_entropy": round(beta_entropy, 4),
-            "avg_dwell": round(avg_dwell, 2),
-            "elapsed": round(elapsed, 1),
-            "ips": round(ips, 2),
-            "eta": round(eta, 0),
-        })
+        _state["metrics_history"].append(
+            {
+                "iter": it,
+                "log_likelihood": total_ll,
+                "num_regimes": n_active,
+                "assignment_stability": round(stability, 4),
+                "mean_self_transition": round(active_self_trans, 4),
+                "switch_rate": round(switch_rate, 6),
+                "beta_entropy": round(beta_entropy, 4),
+                "avg_dwell": round(avg_dwell, 2),
+                "elapsed": round(elapsed, 1),
+                "ips": round(ips, 2),
+                "eta": round(eta, 0),
+            }
+        )
         _state["status"] = (
             f"Iter {it}/{args.gibbs_iter} | "
             f"LL={total_ll:.0f} | K={n_active} | "
@@ -255,96 +271,106 @@ def make_dashboard(doc):
 
     # Price chart colored by regime
     price_plot = figure(
-        width=1200, height=250,
+        width=1200,
+        height=250,
         title="Price - colored by regime assignment",
         tools="pan,wheel_zoom,box_zoom,reset,crosshair",
         active_scroll="wheel_zoom",
         active_drag="pan",
     )
-    price_plot.scatter("idx", "close", source=price_source, size=1.5,
-                       alpha=0.6, color="color", line_color=None)
+    price_plot.scatter(
+        "idx", "close", source=price_source, size=1.5, alpha=0.6, color="color", line_color=None
+    )
     price_plot.yaxis.axis_label = "Price"
     price_plot.xaxis.axis_label = None
     shared_x = price_plot.x_range
 
     # PC1 oscillator over time
     pc1_plot = figure(
-        width=1200, height=180,
+        width=1200,
+        height=180,
         title="PC1 (primary feature axis) - regime colored",
         tools="pan,wheel_zoom,reset,crosshair",
         active_scroll="wheel_zoom",
         x_range=shared_x,
     )
-    pc1_plot.scatter("idx", "val", source=pc1_source, size=1, alpha=0.5,
-                     color="color", line_color=None)
+    pc1_plot.scatter(
+        "idx", "val", source=pc1_source, size=1, alpha=0.5, color="color", line_color=None
+    )
     pc1_plot.yaxis.axis_label = "PC1"
     # Zero line
     from bokeh.models import Span
-    pc1_plot.add_layout(Span(location=0, dimension="width", line_color="#9ca3af",
-                             line_dash="dashed", line_width=1))
+
+    pc1_plot.add_layout(
+        Span(location=0, dimension="width", line_color="#9ca3af", line_dash="dashed", line_width=1)
+    )
 
     # PC2 oscillator over time
     pc2_plot = figure(
-        width=1200, height=180,
+        width=1200,
+        height=180,
         title="PC2 (secondary feature axis) - regime colored",
         tools="pan,wheel_zoom,reset,crosshair",
         active_scroll="wheel_zoom",
         x_range=shared_x,
     )
-    pc2_plot.scatter("idx", "val", source=pc2_source, size=1, alpha=0.5,
-                     color="color", line_color=None)
+    pc2_plot.scatter(
+        "idx", "val", source=pc2_source, size=1, alpha=0.5, color="color", line_color=None
+    )
     pc2_plot.yaxis.axis_label = "PC2"
-    pc2_plot.add_layout(Span(location=0, dimension="width", line_color="#9ca3af",
-                             line_dash="dashed", line_width=1))
+    pc2_plot.add_layout(
+        Span(location=0, dimension="width", line_color="#9ca3af", line_dash="dashed", line_width=1)
+    )
 
     # Regime strip (thin color bar over time)
     regime_strip = figure(
-        width=1200, height=60,
+        width=1200,
+        height=60,
         title="Regime assignments",
         tools="pan,wheel_zoom,reset",
         active_scroll="wheel_zoom",
         x_range=shared_x,
     )
-    regime_strip.vbar(x="idx", top=1, source=regime_strip_source, width=1.0,
-                      color="color", line_color=None)
+    regime_strip.vbar(
+        x="idx", top=1, source=regime_strip_source, width=1.0, color="color", line_color=None
+    )
     regime_strip.yaxis.visible = False
     regime_strip.ygrid.visible = False
 
     # Log-likelihood convergence
-    ll_plot = figure(width=500, height=200, title="Log-Likelihood",
-                     tools="pan,wheel_zoom,reset")
+    ll_plot = figure(width=500, height=200, title="Log-Likelihood", tools="pan,wheel_zoom,reset")
     ll_plot.line("iter", "ll", source=ll_source, line_width=2, color="#3b82f6")
     ll_plot.xaxis.axis_label = "Iteration"
 
     # Active regimes over iterations
-    reg_plot = figure(width=500, height=200, title="Active Regimes",
-                      tools="pan,wheel_zoom,reset")
+    reg_plot = figure(width=500, height=200, title="Active Regimes", tools="pan,wheel_zoom,reset")
     reg_plot.line("iter", "n", source=regimes_source, line_width=2, color="#10b981")
     reg_plot.xaxis.axis_label = "Iteration"
 
     # Stability over iterations
-    stab_plot = figure(width=500, height=200, title="Assignment Stability",
-                       tools="pan,wheel_zoom,reset")
+    stab_plot = figure(
+        width=500, height=200, title="Assignment Stability", tools="pan,wheel_zoom,reset"
+    )
     stab_plot.line("iter", "val", source=stability_source, line_width=2, color="#f59e0b")
     stab_plot.xaxis.axis_label = "Iteration"
 
     # Regime distribution bar
-    dist_plot = figure(width=500, height=200, title="Regime Distribution",
-                       x_range=[], tools="")
-    dist_plot.vbar(x="regime", top="pct", source=dist_source, width=0.8,
-                   color="color", alpha=0.8)
+    dist_plot = figure(width=500, height=200, title="Regime Distribution", x_range=[], tools="")
+    dist_plot.vbar(x="regime", top="pct", source=dist_source, width=0.8, color="color", alpha=0.8)
     dist_plot.yaxis.axis_label = "% of bars"
 
     # ── Status + metrics panel ────────────────────────────────────────
 
     status_div = Div(
         text="<h2 style='color:#3b82f6;font-family:monospace'>Initializing...</h2>",
-        width=700, height=50,
+        width=700,
+        height=50,
     )
 
     metrics_div = Div(
         text="<div style='font-family:monospace;font-size:12px'>Waiting for training...</div>",
-        width=700, height=400,
+        width=700,
+        height=400,
     )
 
     # ── Periodic callback ─────────────────────────────────────────────
@@ -366,8 +392,7 @@ def make_dashboard(doc):
         # Status
         color = "#10b981" if _state["training_done"] else "#3b82f6"
         status_div.text = (
-            f"<h3 style='color:{color};font-family:monospace;margin:5px 0'>"
-            f"{_state['status']}</h3>"
+            f"<h3 style='color:{color};font-family:monospace;margin:5px 0'>{_state['status']}</h3>"
         )
 
         # Time-series panels (price + PC1 + PC2 + regime strip)
@@ -381,8 +406,7 @@ def make_dashboard(doc):
             close = _state["close"].tolist() if _state["close"] is not None else [0] * n_pts
             price_source.data = dict(idx=idx, close=close, color=colors)
             price_plot.title.text = (
-                f"Price - {_state['n_regimes']} regimes, "
-                f"iter {current_iter}/{_state['total_iter']}"
+                f"Price - {_state['n_regimes']} regimes, iter {current_iter}/{_state['total_iter']}"
             )
 
             # PC1 / PC2 oscillators
@@ -557,6 +581,7 @@ def main():
     print("Opening browser...")
 
     import webbrowser
+
     webbrowser.open(f"http://localhost:{args.port}/train-live")
 
     try:

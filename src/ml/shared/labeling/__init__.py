@@ -36,10 +36,7 @@ def get_labeler(name: str | None = None) -> RegimeLabeler:
     """
     name = name or _DEFAULT_LABELER
     if name not in _LABELER_CLASSES:
-        raise ValueError(
-            f"Unknown labeler '{name}'. "
-            f"Available: {sorted(_LABELER_CLASSES)}."
-        )
+        raise ValueError(f"Unknown labeler '{name}'. Available: {sorted(_LABELER_CLASSES)}.")
 
     module_name, class_name = _LABELER_CLASSES[name].rsplit(".", 1)
     import importlib

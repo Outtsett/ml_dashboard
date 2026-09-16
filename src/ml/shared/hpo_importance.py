@@ -50,8 +50,9 @@ def _per_fold(study_dir: Path, base_name: str, folds: list[int]) -> dict:
         except Exception as exc:  # noqa: BLE001
             out_folds.append({"fold": f, "n_trials": n_trials, "error": str(exc)})
             continue
-        out_folds.append({"fold": f, "n_trials": n_trials,
-                          "importance": {k: float(v) for k, v in imp.items()}})
+        out_folds.append(
+            {"fold": f, "n_trials": n_trials, "importance": {k: float(v) for k, v in imp.items()}}
+        )
         for k, v in imp.items():
             accum.setdefault(k, []).append(float(v))
 

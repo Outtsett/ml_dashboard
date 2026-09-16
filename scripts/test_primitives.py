@@ -1,4 +1,5 @@
 """Smoke test + benchmark for primitives computation engine."""
+
 import os
 import sys
 import time
@@ -29,21 +30,28 @@ X, names = compute_primitives(ohlcv, N=20, k=1)
 t1 = time.time()
 print(f"Shape: {X.shape}")
 print(f"Features: {len(names)}")
-print(f"First run (JIT compile): {t1-t0:.2f}s")
+print(f"First run (JIT compile): {t1 - t0:.2f}s")
 print(f"NaN fraction (bar 300+): {np.isnan(X[300:]).mean():.4f}")
-core_count = sum(1 for n in names if not any(n.endswith(s) for s in ["_volatility","_autocorr","_change","_vol_adj","_skew","_kurtosis","_accel"]))
+core_count = sum(
+    1
+    for n in names
+    if not any(
+        n.endswith(s)
+        for s in ["_volatility", "_autocorr", "_change", "_vol_adj", "_skew", "_kurtosis", "_accel"]
+    )
+)
 print(f"Core: {core_count}, Derived: {len(names) - core_count}")
 
 # Cached run
 t0 = time.time()
 X, names = compute_primitives(ohlcv, N=20, k=1)
 t1 = time.time()
-print(f"Cached 5K bars: {t1-t0:.3f}s")
+print(f"Cached 5K bars: {t1 - t0:.3f}s")
 
 # 100K bars
 ohlcv_big = make_ohlcv(100000, seed=0)
 t0 = time.time()
 X2, _ = compute_primitives(ohlcv_big, N=20, k=1)
 t1 = time.time()
-print(f"100K bars: {t1-t0:.2f}s -> {X2.shape}")
+print(f"100K bars: {t1 - t0:.2f}s -> {X2.shape}")
 print(f"First 15: {names[:15]}")

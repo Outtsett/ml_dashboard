@@ -69,8 +69,11 @@ def _parse_args() -> argparse.Namespace:
     ap.add_argument("--max-bars", type=int, default=0)
     ap.add_argument("--date-start", default=None)
     ap.add_argument("--date-end", default=None)
-    ap.add_argument("--feature-categories", default=None,
-                    help="Comma-separated list. None = use registry default for the model.")
+    ap.add_argument(
+        "--feature-categories",
+        default=None,
+        help="Comma-separated list. None = use registry default for the model.",
+    )
     # Hyperparameters
     ap.add_argument("--n-estimators", type=int, default=500)
     ap.add_argument("--max-depth", type=int, default=6)
@@ -85,69 +88,86 @@ def _parse_args() -> argparse.Namespace:
     ap.add_argument("--label-threshold-bp", type=float, default=5.0)
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--train-frac", type=float, default=0.8)
-    ap.add_argument("--pnl-threshold", type=float, default=0.55,
-                    help="Conviction threshold for the cost-adjusted PnL sim.")
+    ap.add_argument(
+        "--pnl-threshold",
+        type=float,
+        default=0.55,
+        help="Conviction threshold for the cost-adjusted PnL sim.",
+    )
     return ap.parse_args()
 
 
 def _emit_metric_declarations() -> None:
-    emit_metric_declarations({
-        "auc": {
-            "renderer": "gauge", "group": "discrimination",
-            "mission": "Does the model rank positives above negatives?",
-            "context": {"min": 0.5, "good": 0.55, "great": 0.60, "max": 1.0},
-        },
-        "log_loss": {
-            "renderer": "number", "group": "discrimination",
-            "mission": "Lower is better. ln(2)=0.693 is no-info baseline.",
-            "context": {"min": 0.0, "baseline": 0.693, "decimals": 4},
-        },
-        "brier_score": {
-            "renderer": "number", "group": "calibration",
-            "mission": "Squared error of probabilities. 0.25 is uninformative.",
-            "context": {"min": 0.0, "baseline": 0.25, "decimals": 4},
-        },
-        "ece": {
-            "renderer": "number", "group": "calibration",
-            "mission": "Expected calibration error (lower better).",
-            "context": {"min": 0.0, "good": 0.05, "decimals": 4},
-        },
-        "hit_rate_55": {
-            "renderer": "percent", "group": "operating_points",
-            "mission": "Direction accuracy on conviction trades (p>=0.55 or p<=0.45).",
-            "context": {"baseline": 0.5, "good": 0.55, "great": 0.60},
-        },
-        "profit_factor": {
-            "renderer": "gauge", "group": "pnl",
-            "mission": "Sum of wins / |sum of losses| after costs. 1.0 = breakeven.",
-            "context": {"min": 0.0, "breakeven": 1.0, "good": 1.5, "great": 2.0},
-        },
-        "sharpe_after_costs": {
-            "renderer": "number", "group": "pnl",
-            "mission": "Sharpe ratio of trade-by-trade PnL after costs (unitless).",
-            "context": {"baseline": 0.0, "good": 1.0, "great": 2.0, "decimals": 3},
-        },
-        "cum_pnl_dollars": {
-            "renderer": "number", "group": "pnl",
-            "mission": "Cumulative dollars of trade-by-trade PnL after costs.",
-            "context": {"prefix": "$", "decimals": 0},
-        },
-        "max_drawdown_dollars": {
-            "renderer": "number", "group": "pnl",
-            "mission": "Worst drawdown of cumulative PnL ($).",
-            "context": {"prefix": "$", "decimals": 0},
-        },
-        "n_trades": {
-            "renderer": "number", "group": "pnl",
-            "mission": "How many trades the model took at the conviction threshold.",
-            "context": {"min": 0, "good": 50, "decimals": 0},
-        },
-        "calibration_curve": {
-            "renderer": "calibration", "group": "calibration",
-            "mission": "Predicted vs observed frequency in 10 equal-width bins.",
-            "context": {},
-        },
-    })
+    emit_metric_declarations(
+        {
+            "auc": {
+                "renderer": "gauge",
+                "group": "discrimination",
+                "mission": "Does the model rank positives above negatives?",
+                "context": {"min": 0.5, "good": 0.55, "great": 0.60, "max": 1.0},
+            },
+            "log_loss": {
+                "renderer": "number",
+                "group": "discrimination",
+                "mission": "Lower is better. ln(2)=0.693 is no-info baseline.",
+                "context": {"min": 0.0, "baseline": 0.693, "decimals": 4},
+            },
+            "brier_score": {
+                "renderer": "number",
+                "group": "calibration",
+                "mission": "Squared error of probabilities. 0.25 is uninformative.",
+                "context": {"min": 0.0, "baseline": 0.25, "decimals": 4},
+            },
+            "ece": {
+                "renderer": "number",
+                "group": "calibration",
+                "mission": "Expected calibration error (lower better).",
+                "context": {"min": 0.0, "good": 0.05, "decimals": 4},
+            },
+            "hit_rate_55": {
+                "renderer": "percent",
+                "group": "operating_points",
+                "mission": "Direction accuracy on conviction trades (p>=0.55 or p<=0.45).",
+                "context": {"baseline": 0.5, "good": 0.55, "great": 0.60},
+            },
+            "profit_factor": {
+                "renderer": "gauge",
+                "group": "pnl",
+                "mission": "Sum of wins / |sum of losses| after costs. 1.0 = breakeven.",
+                "context": {"min": 0.0, "breakeven": 1.0, "good": 1.5, "great": 2.0},
+            },
+            "sharpe_after_costs": {
+                "renderer": "number",
+                "group": "pnl",
+                "mission": "Sharpe ratio of trade-by-trade PnL after costs (unitless).",
+                "context": {"baseline": 0.0, "good": 1.0, "great": 2.0, "decimals": 3},
+            },
+            "cum_pnl_dollars": {
+                "renderer": "number",
+                "group": "pnl",
+                "mission": "Cumulative dollars of trade-by-trade PnL after costs.",
+                "context": {"prefix": "$", "decimals": 0},
+            },
+            "max_drawdown_dollars": {
+                "renderer": "number",
+                "group": "pnl",
+                "mission": "Worst drawdown of cumulative PnL ($).",
+                "context": {"prefix": "$", "decimals": 0},
+            },
+            "n_trades": {
+                "renderer": "number",
+                "group": "pnl",
+                "mission": "How many trades the model took at the conviction threshold.",
+                "context": {"min": 0, "good": 50, "decimals": 0},
+            },
+            "calibration_curve": {
+                "renderer": "calibration",
+                "group": "calibration",
+                "mission": "Predicted vs observed frequency in 10 equal-width bins.",
+                "context": {},
+            },
+        }
+    )
 
 
 # ─── Training callback for streaming metrics ──────────────────────────────────
@@ -188,6 +208,7 @@ def _make_xgb_callback(total: int, every: int):
 
 def _shap_summary(booster, x_sample: np.ndarray, feature_names: list[str]) -> dict:
     import xgboost as xgb
+
     dmat = xgb.DMatrix(x_sample, feature_names=feature_names)
     shap_values = booster.predict(dmat, pred_contribs=True)
     # Last column is the bias term (expected value); drop it.
@@ -234,8 +255,7 @@ def _args_to_config(args: argparse.Namespace) -> dict:
     }
 
 
-def train_with_config(config: dict, *, save_artifacts: bool = True,
-                      xgb_callback_obj=None) -> dict:
+def train_with_config(config: dict, *, save_artifacts: bool = True, xgb_callback_obj=None) -> dict:
     """Programmatic single-fold training entry — used by both CLI and hpo_main.py.
 
     Parameters
@@ -249,15 +269,18 @@ def train_with_config(config: dict, *, save_artifacts: bool = True,
         Optional caller-supplied callback (e.g. an Optuna pruning callback that
         wraps ``trial.report``).
     """
-    ns = argparse.Namespace(**{
-        # Pull through everything from the dict
-        **config,
-        # Argparse-style names with hyphens converted (most are already snake)
-        "json": True,
-    })
+    ns = argparse.Namespace(
+        **{
+            # Pull through everything from the dict
+            **config,
+            # Argparse-style names with hyphens converted (most are already snake)
+            "json": True,
+        }
+    )
     # Re-attach as attributes named the way train_one_fold uses them.
-    return _train_one_fold_inner(ns, save_artifacts=save_artifacts,
-                                  xgb_callback_obj=xgb_callback_obj)
+    return _train_one_fold_inner(
+        ns, save_artifacts=save_artifacts, xgb_callback_obj=xgb_callback_obj
+    )
 
 
 def train_one_fold(args: argparse.Namespace) -> dict:
@@ -265,8 +288,9 @@ def train_one_fold(args: argparse.Namespace) -> dict:
     return _train_one_fold_inner(args, save_artifacts=True, xgb_callback_obj=None)
 
 
-def _train_one_fold_inner(args: argparse.Namespace, *, save_artifacts: bool,
-                           xgb_callback_obj) -> dict:
+def _train_one_fold_inner(
+    args: argparse.Namespace, *, save_artifacts: bool, xgb_callback_obj
+) -> dict:
     import xgboost as xgb
 
     date_range = None
@@ -283,15 +307,23 @@ def _train_one_fold_inner(args: argparse.Namespace, *, save_artifacts: bool,
 
     emit_log(f"[xgb] Loading {args.symbol}@{args.timeframe} (categories={categories or 'all'})")
     matrix, names, timestamps, raw = load_features_with_cache(
-        args.symbol, args.timeframe, date_range, categories, args.max_bars,
+        args.symbol,
+        args.timeframe,
+        date_range,
+        categories,
+        args.max_bars,
     )
     n_total = matrix.shape[0]
     emit_log(f"[xgb] Loaded {n_total:,} bars x {matrix.shape[1]} features")
 
-    emit_log(f"[xgb] Generating triple-barrier labels (H={args.label_horizon_bars}, "
-             f"thr={args.label_threshold_bp}bp)")
+    emit_log(
+        f"[xgb] Generating triple-barrier labels (H={args.label_horizon_bars}, "
+        f"thr={args.label_threshold_bp}bp)"
+    )
     labels, valid = make_labels(
-        raw["high"], raw["low"], raw["close"],
+        raw["high"],
+        raw["low"],
+        raw["close"],
         horizon_bars=args.label_horizon_bars,
         threshold_bp=args.label_threshold_bp,
     )
@@ -313,11 +345,16 @@ def _train_one_fold_inner(args: argparse.Namespace, *, save_artifacts: bool,
 
     # Drop rows with NaN/Inf features (warmup region of indicators).
     finite = np.isfinite(X).all(axis=1)
-    X = X[finite]; y = y[finite]; ts_kept = ts_kept[finite]; close_kept = close_kept[finite]
+    X = X[finite]
+    y = y[finite]
+    ts_kept = ts_kept[finite]
+    close_kept = close_kept[finite]
     emit_log(f"[xgb] After dropping non-finite rows: {X.shape[0]:,} samples")
 
     train_idx, val_idx = time_split_indices(
-        n_valid=X.shape[0], train_frac=args.train_frac, embargo=args.label_horizon_bars,
+        n_valid=X.shape[0],
+        train_frac=args.train_frac,
+        embargo=args.label_horizon_bars,
     )
     n_train, n_val = train_idx.size, val_idx.size
     emit_log(f"[xgb] Time split: train={n_train:,} val={n_val:,} embargo={args.label_horizon_bars}")
@@ -365,7 +402,11 @@ def _train_one_fold_inner(args: argparse.Namespace, *, save_artifacts: bool,
         verbose_eval=False,
     )
     train_secs = time.perf_counter() - t0
-    best_iter = int(booster.best_iteration) if booster.best_iteration is not None else int(args.n_estimators)
+    best_iter = (
+        int(booster.best_iteration)
+        if booster.best_iteration is not None
+        else int(args.n_estimators)
+    )
     emit_log(f"[xgb] Train done in {train_secs:.1f}s (best_iteration={best_iter})")
 
     # OOS predictions on val
@@ -380,7 +421,8 @@ def _train_one_fold_inner(args: argparse.Namespace, *, save_artifacts: bool,
     hr_55, n_55 = hit_rate_at(y_val, p_val, 0.55)
     hr_60, n_60 = hit_rate_at(y_val, p_val, 0.60)
     pnl = simulate_pnl(
-        close=close_val, p_up=p_val,
+        close=close_val,
+        p_up=p_val,
         threshold=float(args.pnl_threshold),
         horizon_bars=int(args.label_horizon_bars),
         symbol=args.symbol,
@@ -391,7 +433,9 @@ def _train_one_fold_inner(args: argparse.Namespace, *, save_artifacts: bool,
     rng = np.random.default_rng(seed=42)
     shap_idx = rng.choice(n_val, size=sample_n, replace=False)
     shap_summary, shap_contribs = _shap_summary(
-        booster, X_val[shap_idx], names,
+        booster,
+        X_val[shap_idx],
+        names,
     )
 
     # Per-bar realized return at labeling horizon (bp, NaN where horizon overflows)
@@ -414,12 +458,17 @@ def _train_one_fold_inner(args: argparse.Namespace, *, save_artifacts: bool,
             feature_names=np.array(names, dtype=object),
         )
         import polars as pl
-        pl.DataFrame({
-            "ts": ts_val.astype("int64"),
-            "prob_up": p_val.astype(np.float32),
-            "label": y_val.astype(np.int8),
-            "realized_return_bp": realized_full.astype(np.float32),
-        }).write_parquet(out_dir / "oos_predictions.parquet", compression="zstd", compression_level=3)
+
+        pl.DataFrame(
+            {
+                "ts": ts_val.astype("int64"),
+                "prob_up": p_val.astype(np.float32),
+                "label": y_val.astype(np.int8),
+                "realized_return_bp": realized_full.astype(np.float32),
+            }
+        ).write_parquet(
+            out_dir / "oos_predictions.parquet", compression="zstd", compression_level=3
+        )
 
     # Diagnostics shape — SelfDescribingDiagnostics-compatible (group + mission per metric)
     diagnostics = {
@@ -432,19 +481,87 @@ def _train_one_fold_inner(args: argparse.Namespace, *, save_artifacts: bool,
         "best_iteration": best_iter,
         "train_secs": round(train_secs, 2),
         "metrics": {
-            "auc":                  {"value": auc,             "renderer": "gauge",  "group": "discrimination", "mission": "Rank positives above negatives"},
-            "log_loss":             {"value": ll,              "renderer": "number", "group": "discrimination", "mission": "Lower better; baseline ln(2)=0.693"},
-            "brier_score":          {"value": brier,           "renderer": "number", "group": "calibration",    "mission": "Squared error of probabilities"},
-            "ece":                  {"value": rel["ece"],      "renderer": "number", "group": "calibration",    "mission": "Expected calibration error"},
-            "hit_rate_55":          {"value": hr_55,           "renderer": "percent","group": "operating_points","mission": "Direction accuracy at p>=0.55", "context": {"n_picks": n_55}},
-            "hit_rate_60":          {"value": hr_60,           "renderer": "percent","group": "operating_points","mission": "Direction accuracy at p>=0.60", "context": {"n_picks": n_60}},
-            "hit_rate_50":          {"value": hr_50,           "renderer": "percent","group": "operating_points","mission": "Direction accuracy on all picks", "context": {"n_picks": n_50}},
-            "profit_factor":        {"value": pnl["profit_factor"],         "renderer": "gauge",  "group": "pnl", "mission": "Wins / |losses| after costs"},
-            "sharpe_after_costs":   {"value": pnl["sharpe_after_costs"],    "renderer": "number", "group": "pnl", "mission": "Trade-by-trade Sharpe after costs"},
-            "cum_pnl_dollars":      {"value": pnl["cum_pnl_dollars"],       "renderer": "number", "group": "pnl", "mission": "Total dollars after costs"},
-            "max_drawdown_dollars": {"value": pnl["max_drawdown_dollars"],  "renderer": "number", "group": "pnl", "mission": "Worst drawdown ($)"},
-            "max_drawdown_pct":     {"value": pnl["max_drawdown_pct"],      "renderer": "number", "group": "pnl", "mission": "Worst drawdown (%)"},
-            "n_trades":             {"value": pnl["n_trades"],              "renderer": "number", "group": "pnl", "mission": "Number of trades taken"},
+            "auc": {
+                "value": auc,
+                "renderer": "gauge",
+                "group": "discrimination",
+                "mission": "Rank positives above negatives",
+            },
+            "log_loss": {
+                "value": ll,
+                "renderer": "number",
+                "group": "discrimination",
+                "mission": "Lower better; baseline ln(2)=0.693",
+            },
+            "brier_score": {
+                "value": brier,
+                "renderer": "number",
+                "group": "calibration",
+                "mission": "Squared error of probabilities",
+            },
+            "ece": {
+                "value": rel["ece"],
+                "renderer": "number",
+                "group": "calibration",
+                "mission": "Expected calibration error",
+            },
+            "hit_rate_55": {
+                "value": hr_55,
+                "renderer": "percent",
+                "group": "operating_points",
+                "mission": "Direction accuracy at p>=0.55",
+                "context": {"n_picks": n_55},
+            },
+            "hit_rate_60": {
+                "value": hr_60,
+                "renderer": "percent",
+                "group": "operating_points",
+                "mission": "Direction accuracy at p>=0.60",
+                "context": {"n_picks": n_60},
+            },
+            "hit_rate_50": {
+                "value": hr_50,
+                "renderer": "percent",
+                "group": "operating_points",
+                "mission": "Direction accuracy on all picks",
+                "context": {"n_picks": n_50},
+            },
+            "profit_factor": {
+                "value": pnl["profit_factor"],
+                "renderer": "gauge",
+                "group": "pnl",
+                "mission": "Wins / |losses| after costs",
+            },
+            "sharpe_after_costs": {
+                "value": pnl["sharpe_after_costs"],
+                "renderer": "number",
+                "group": "pnl",
+                "mission": "Trade-by-trade Sharpe after costs",
+            },
+            "cum_pnl_dollars": {
+                "value": pnl["cum_pnl_dollars"],
+                "renderer": "number",
+                "group": "pnl",
+                "mission": "Total dollars after costs",
+            },
+            "max_drawdown_dollars": {
+                "value": pnl["max_drawdown_dollars"],
+                "renderer": "number",
+                "group": "pnl",
+                "mission": "Worst drawdown ($)",
+            },
+            "max_drawdown_pct": {
+                "value": pnl["max_drawdown_pct"],
+                "renderer": "number",
+                "group": "pnl",
+                "mission": "Worst drawdown (%)",
+            },
+            "n_trades": {
+                "value": pnl["n_trades"],
+                "renderer": "number",
+                "group": "pnl",
+                "mission": "Number of trades taken",
+            },
         },
         "calibration_curve": rel,
         "pnl_curve": {
@@ -454,20 +571,20 @@ def _train_one_fold_inner(args: argparse.Namespace, *, save_artifacts: bool,
         },
         "shap": shap_summary,
         "params": {
-            "n_estimators":          int(args.n_estimators),
-            "max_depth":             int(args.max_depth),
-            "learning_rate":         float(args.learning_rate),
-            "subsample":             float(args.subsample),
-            "colsample_bytree":      float(args.colsample_bytree),
-            "min_child_weight":      float(args.min_child_weight),
-            "reg_lambda":            float(args.reg_lambda),
-            "reg_alpha":             float(args.reg_alpha),
+            "n_estimators": int(args.n_estimators),
+            "max_depth": int(args.max_depth),
+            "learning_rate": float(args.learning_rate),
+            "subsample": float(args.subsample),
+            "colsample_bytree": float(args.colsample_bytree),
+            "min_child_weight": float(args.min_child_weight),
+            "reg_lambda": float(args.reg_lambda),
+            "reg_alpha": float(args.reg_alpha),
             "early_stopping_rounds": int(args.early_stopping_rounds),
-            "label_horizon_bars":    int(args.label_horizon_bars),
-            "label_threshold_bp":    float(args.label_threshold_bp),
-            "device":                args.device,
-            "train_frac":            float(args.train_frac),
-            "pnl_threshold":         float(args.pnl_threshold),
+            "label_horizon_bars": int(args.label_horizon_bars),
+            "label_threshold_bp": float(args.label_threshold_bp),
+            "device": args.device,
+            "train_frac": float(args.train_frac),
+            "pnl_threshold": float(args.pnl_threshold),
         },
     }
 
@@ -476,15 +593,21 @@ def _train_one_fold_inner(args: argparse.Namespace, *, save_artifacts: bool,
 
     # dumps_safe, not json.dumps — a bare NaN makes the whole file unparseable
     # by JSON.parse and 500s /api/training/models/:id/diagnostics.
-    (out_dir / "checkpoint.json").write_text(dumps_safe({
-        "model_id": args.model_id,
-        "best_iteration": best_iter,
-        "n_train": n_train,
-        "n_val": n_val,
-        "feature_names": names,
-        "params": diagnostics["params"],
-        "saved_at_ms": int(time.time() * 1000),
-    }, indent=2), encoding="utf-8")
+    (out_dir / "checkpoint.json").write_text(
+        dumps_safe(
+            {
+                "model_id": args.model_id,
+                "best_iteration": best_iter,
+                "n_train": n_train,
+                "n_val": n_val,
+                "feature_names": names,
+                "params": diagnostics["params"],
+                "saved_at_ms": int(time.time() * 1000),
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     (out_dir / "diagnostics.json").write_text(dumps_safe(diagnostics, indent=2), encoding="utf-8")
 
     return diagnostics
@@ -494,9 +617,12 @@ def main() -> None:
     args = _parse_args()
     try:
         diag = train_one_fold(args)
-        emit_done(model_path=str(_PROJECT_ROOT / "data" / "models" / args.model_id), diagnostics=diag)
+        emit_done(
+            model_path=str(_PROJECT_ROOT / "data" / "models" / args.model_id), diagnostics=diag
+        )
     except Exception as exc:
         import traceback
+
         emit_error(message=str(exc), details=traceback.format_exc())
         raise
 

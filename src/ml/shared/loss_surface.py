@@ -71,7 +71,7 @@ def _generate_random_directions(
     # backends), then move each direction tensor to the target device. A CPU
     # generator cannot drive torch.randn(..., device='cuda') — PyTorch requires
     # the generator's device to match the allocation device.
-    gen = torch.Generator(device='cpu').manual_seed(seed)
+    gen = torch.Generator(device="cpu").manual_seed(seed)
     dir1 = []
     dir2 = []
     for w in weights:
@@ -105,7 +105,7 @@ def _pca_to_param_directions(
     offset = 0
     for w in weights:
         numel = w.numel()
-        chunk = pc_vector[offset:offset + numel]
+        chunk = pc_vector[offset : offset + numel]
         direction.append(torch.from_numpy(chunk.copy()).float().reshape(w.shape).to(device))
         offset += numel
     return direction
@@ -206,7 +206,7 @@ def _evaluate_loss(
         count += 1
 
     if count == 0:
-        return float('inf')
+        return float("inf")
     return total_loss / count
 
 
@@ -258,13 +258,17 @@ def _compute_surface_diagnostics(
     second_derivs = []
 
     if 1 <= i_min < n_alpha - 1:
-        d2_alpha = (losses[i_min + 1, j_min] - 2 * losses[i_min, j_min] + losses[i_min - 1, j_min]) / (da ** 2)
+        d2_alpha = (
+            losses[i_min + 1, j_min] - 2 * losses[i_min, j_min] + losses[i_min - 1, j_min]
+        ) / (da**2)
         second_derivs.append(d2_alpha)
     else:
         d2_alpha = None
 
     if 1 <= j_min < n_beta - 1:
-        d2_beta = (losses[i_min, j_min + 1] - 2 * losses[i_min, j_min] + losses[i_min, j_min - 1]) / (db ** 2)
+        d2_beta = (
+            losses[i_min, j_min + 1] - 2 * losses[i_min, j_min] + losses[i_min, j_min - 1]
+        ) / (db**2)
         second_derivs.append(d2_beta)
     else:
         d2_beta = None
@@ -286,14 +290,12 @@ def _compute_surface_diagnostics(
 
     # Valley width: distance from minimum to nearest point with loss > 1.01 * min_loss
     threshold = 1.01 * min_loss
-    min_distance = float('inf')
+    min_distance = float("inf")
 
     for i in range(n_alpha):
         for j in range(n_beta):
             if losses[i, j] > threshold:
-                dist = np.sqrt(
-                    (alphas[i] - alphas[i_min]) ** 2 + (betas[j] - betas[j_min]) ** 2
-                )
+                dist = np.sqrt((alphas[i] - alphas[i_min]) ** 2 + (betas[j] - betas[j_min]) ** 2)
                 if dist < min_distance:
                     min_distance = dist
 
@@ -387,7 +389,7 @@ def compute_loss_surface(
     resolution: int = 51,
     alpha_range: tuple[float, float] = (-1.0, 1.0),
     num_batches: int = 8,
-    device: str = 'cuda',
+    device: str = "cuda",
     seed: int = 42,
     trajectory_recorder=None,
     emit_coarse=None,
@@ -458,10 +460,7 @@ def compute_loss_surface(
 
     try:
         # 2. Generate or compute directions
-        use_pca = (
-            trajectory_recorder is not None
-            and trajectory_recorder.snapshot_count >= 3
-        )
+        use_pca = trajectory_recorder is not None and trajectory_recorder.snapshot_count >= 3
 
         if use_pca:
             pc1_flat, pc2_flat, _center = trajectory_recorder.get_pca_directions()
@@ -481,13 +480,22 @@ def compute_loss_surface(
                 coarse_alphas = np.linspace(alpha_range[0], alpha_range[1], coarse_res)
                 coarse_betas = np.linspace(alpha_range[0], alpha_range[1], coarse_res)
                 coarse_losses = _compute_grid(
-                    model, criterion, data_loader, base_weights,
-                    dir1, dir2, coarse_alphas, coarse_betas,
-                    num_batches, torch_device,
+                    model,
+                    criterion,
+                    data_loader,
+                    base_weights,
+                    dir1,
+                    dir2,
+                    coarse_alphas,
+                    coarse_betas,
+                    num_batches,
+                    torch_device,
                 )
                 _restore_weights(model, base_weights)
 
-                coarse_diag = _compute_surface_diagnostics(coarse_alphas, coarse_betas, coarse_losses)
+                coarse_diag = _compute_surface_diagnostics(
+                    coarse_alphas, coarse_betas, coarse_losses
+                )
                 coarse_result = {
                     "alphas": coarse_alphas.tolist(),
                     "betas": coarse_betas.tolist(),
@@ -502,9 +510,16 @@ def compute_loss_surface(
             alphas = np.linspace(alpha_range[0], alpha_range[1], resolution)
             betas = np.linspace(alpha_range[0], alpha_range[1], resolution)
             losses = _compute_grid(
-                model, criterion, data_loader, base_weights,
-                dir1, dir2, alphas, betas,
-                num_batches, torch_device,
+                model,
+                criterion,
+                data_loader,
+                base_weights,
+                dir1,
+                dir2,
+                alphas,
+                betas,
+                num_batches,
+                torch_device,
             )
 
     finally:

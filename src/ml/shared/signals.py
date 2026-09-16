@@ -19,9 +19,9 @@ import numpy as np
 
 
 def compute_signal_columns(
-    assignments: np.ndarray,           # (T,) int regime assignments
+    assignments: np.ndarray,  # (T,) int regime assignments
     posteriors: Optional[np.ndarray],  # (T, K) posterior probabilities per bar (or None)
-    close: np.ndarray,                 # (T,) close prices
+    close: np.ndarray,  # (T,) close prices
     transition_matrix: Optional[np.ndarray],  # (K, K) row-stochastic transition probs (or None)
 ) -> dict:
     """
@@ -32,8 +32,17 @@ def compute_signal_columns(
     """
     T = len(assignments)
     if T == 0:
-        return {k: np.array([]) for k in
-                ["confidence", "entropy", "magnitude", "volatility", "duration_bars", "transition_prob"]}
+        return {
+            k: np.array([])
+            for k in [
+                "confidence",
+                "entropy",
+                "magnitude",
+                "volatility",
+                "duration_bars",
+                "transition_prob",
+            ]
+        }
 
     K = int(assignments.max()) + 1
 
@@ -81,11 +90,14 @@ def compute_signal_columns(
 
     # ── Transition probability: P(switch regime at this bar) ──
     if transition_matrix is not None:
-        transition_prob = np.array([
-            1.0 - float(transition_matrix[int(a)][int(a)])
-            if int(a) < len(transition_matrix) else 0.0
-            for a in assignments
-        ])
+        transition_prob = np.array(
+            [
+                1.0 - float(transition_matrix[int(a)][int(a)])
+                if int(a) < len(transition_matrix)
+                else 0.0
+                for a in assignments
+            ]
+        )
     else:
         transition_prob = np.zeros(T)
 

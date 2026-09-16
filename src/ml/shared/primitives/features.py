@@ -1,4 +1,4 @@
-﻿import numpy as np
+import numpy as np
 from numba import njit
 
 from .core import (
@@ -116,9 +116,7 @@ def _momentum_curvature(close, N):
         s2 += xj * xj
         s3 += xj * xj * xj
         s4 += xj * xj * xj * xj
-    det = (s0 * (s2 * s4 - s3 * s3)
-           - s1 * (s1 * s4 - s3 * s2)
-           + s2 * (s1 * s3 - s2 * s2))
+    det = s0 * (s2 * s4 - s3 * s3) - s1 * (s1 * s4 - s3 * s2) + s2 * (s1 * s3 - s2 * s2)
     if abs(det) < 1e-30:
         return out
     for i in range(N - 1, n):
@@ -131,9 +129,7 @@ def _momentum_curvature(close, N):
             sy += y
             sxy += xj * y
             sx2y += xj * xj * y
-        det_c = (s0 * (s2 * sx2y - sxy * s3)
-                 - s1 * (s1 * sx2y - sxy * s2)
-                 + sy * (s1 * s3 - s2 * s2))
+        det_c = s0 * (s2 * sx2y - sxy * s3) - s1 * (s1 * sx2y - sxy * s2) + sy * (s1 * s3 - s2 * s2)
         c = det_c / det
         out[i] = 2.0 * c
     return out
@@ -603,7 +599,7 @@ def _event_latency(close, N):
         m = 0.0
         for j in range(1, N):
             m += close[start + j] - close[start + j - 1]
-        m /= (N - 1)
+        m /= N - 1
         s2 = 0.0
         for j in range(1, N):
             d = (close[start + j] - close[start + j - 1]) - m
@@ -1203,5 +1199,3 @@ def _regime_transition_frequency(close, N):
             prev_regime = regime
         out[i] = float(transitions)
     return out
-
-

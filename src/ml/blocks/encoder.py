@@ -31,9 +31,7 @@ _ACTIVATIONS: dict[str, type[nn.Module]] = {
 def _resolve_activation(name: str) -> nn.Module:
     name = name.lower()
     if name not in _ACTIVATIONS:
-        raise ValueError(
-            f"unknown activation {name!r}; expected one of {sorted(_ACTIVATIONS)}"
-        )
+        raise ValueError(f"unknown activation {name!r}; expected one of {sorted(_ACTIVATIONS)}")
     return _ACTIVATIONS[name]()
 
 
@@ -191,9 +189,7 @@ class TransformerEncoder(nn.Module):
         if d_model <= 0:
             raise ValueError(f"d_model must be > 0, got {d_model}")
         if n_heads <= 0 or d_model % n_heads != 0:
-            raise ValueError(
-                f"d_model ({d_model}) must be divisible by n_heads ({n_heads})"
-            )
+            raise ValueError(f"d_model ({d_model}) must be divisible by n_heads ({n_heads})")
         if n_layers <= 0:
             raise ValueError(f"n_layers must be > 0, got {n_layers}")
         if d_ff <= 0:
@@ -242,9 +238,7 @@ class TransformerEncoder(nn.Module):
         # input:  (B, T, d_model)
         # output: (B, T, d_model)
         x = self.pos_enc(x)
-        return self.encoder(
-            x, mask=src_mask, src_key_padding_mask=src_key_padding_mask
-        )
+        return self.encoder(x, mask=src_mask, src_key_padding_mask=src_key_padding_mask)
 
 
 class TwoStreamPriceVolumeEncoder(nn.Module):
@@ -366,26 +360,22 @@ class TwoStreamPriceVolumeEncoder(nn.Module):
         # input:  x_price (B, T, 4), x_volume (B, T, 1)
         # output: (B, T, d_model_price + d_model_vol)
         if x_price.dim() != 3 or x_price.size(-1) != 4:
-            raise ValueError(
-                f"x_price must be (B, T, 4), got {tuple(x_price.shape)}"
-            )
+            raise ValueError(f"x_price must be (B, T, 4), got {tuple(x_price.shape)}")
         if x_volume.dim() != 3 or x_volume.size(-1) != 1:
-            raise ValueError(
-                f"x_volume must be (B, T, 1), got {tuple(x_volume.shape)}"
-            )
+            raise ValueError(f"x_volume must be (B, T, 1), got {tuple(x_volume.shape)}")
         if x_price.size(0) != x_volume.size(0) or x_price.size(1) != x_volume.size(1):
             raise ValueError(
                 f"x_price ({tuple(x_price.shape)}) and x_volume "
                 f"({tuple(x_volume.shape)}) must agree on batch and time dims"
             )
 
-        price_norm = self.normalize_price(x_price)         # (B, T, 4)
-        volume_norm = self.normalize_volume(x_volume)      # (B, T, 1)
+        price_norm = self.normalize_price(x_price)  # (B, T, 4)
+        volume_norm = self.normalize_volume(x_volume)  # (B, T, 1)
 
-        p = self.input_proj_price(price_norm)              # (B, T, d_model_price)
+        p = self.input_proj_price(price_norm)  # (B, T, d_model_price)
         if self.pos_enc_price is not None:
             p = self.pos_enc_price(p)
-        v = self.input_proj_vol(volume_norm)               # (B, T, d_model_vol)
+        v = self.input_proj_vol(volume_norm)  # (B, T, d_model_vol)
 
-        x_fused = torch.cat([p, v], dim=-1)                # (B, T, d_model)
-        return self.transformer(x_fused)                   # (B, T, d_model)
+        x_fused = torch.cat([p, v], dim=-1)  # (B, T, d_model)
+        return self.transformer(x_fused)  # (B, T, d_model)

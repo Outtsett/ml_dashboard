@@ -49,8 +49,7 @@ def compute_spatial(
     """
     if norm_distances.shape[0] != BENCHMARKS:
         raise ValueError(
-            f"norm_distances must have shape ({BENCHMARKS},), "
-            f"got {norm_distances.shape}"
+            f"norm_distances must have shape ({BENCHMARKS},), got {norm_distances.shape}"
         )
 
     price_signal: float = float(np.dot(_WEIGHTS, norm_distances))

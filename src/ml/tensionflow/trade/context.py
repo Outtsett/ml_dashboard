@@ -79,9 +79,7 @@ def classify_context(benchmarks: np.ndarray, distances: np.ndarray) -> str:
         If ``distances`` has fewer than 15 elements.
     """
     if distances.shape[0] < 15:
-        raise ValueError(
-            f"distances must have at least 15 elements, got {distances.shape[0]}"
-        )
+        raise ValueError(f"distances must have at least 15 elements, got {distances.shape[0]}")
 
     # Extract the first 15 benchmark distances and convert to ticks.
     bench_distances: np.ndarray = np.asarray(distances[:15], dtype=np.float64)

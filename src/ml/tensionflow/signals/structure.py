@@ -54,15 +54,9 @@ def compute_structure(benchmarks: np.ndarray, distances: np.ndarray) -> float:
         pair compression.
     """
     if benchmarks.shape[0] != BENCHMARKS:
-        raise ValueError(
-            f"benchmarks must have shape ({BENCHMARKS},), "
-            f"got {benchmarks.shape}"
-        )
+        raise ValueError(f"benchmarks must have shape ({BENCHMARKS},), got {benchmarks.shape}")
     if distances.shape[0] != DISTANCES:
-        raise ValueError(
-            f"distances must have shape ({DISTANCES},), "
-            f"got {distances.shape}"
-        )
+        raise ValueError(f"distances must have shape ({DISTANCES},), got {distances.shape}")
 
     # ── Cluster strength ────────────────────────────────────────────────────
     # How many benchmarks sit within _NEARBY_TICKS of price?
@@ -80,11 +74,13 @@ def compute_structure(benchmarks: np.ndarray, distances: np.ndarray) -> float:
         directional: float = 0.0
     else:
         directional = float(np.mean(price_to_bench[nearby_mask]))
-        directional = float(np.clip(
-            directional / _NEARBY_THRESHOLD,
-            -1.0,
-            1.0,
-        ))
+        directional = float(
+            np.clip(
+                directional / _NEARBY_THRESHOLD,
+                -1.0,
+                1.0,
+            )
+        )
 
     # ── Pair compression ────────────────────────────────────────────────────
     # Fraction of pairwise distances that are compressed (benchmarks

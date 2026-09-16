@@ -200,9 +200,7 @@ class VariationalHead(nn.Module):
         output: z (B, latent_dim)
         """
         if mu.shape != logvar.shape:
-            raise ValueError(
-                f"mu shape {tuple(mu.shape)} != logvar shape {tuple(logvar.shape)}"
-            )
+            raise ValueError(f"mu shape {tuple(mu.shape)} != logvar shape {tuple(logvar.shape)}")
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return mu + eps * std

@@ -25,6 +25,7 @@ Usage:
     uv run python scripts/candle_geometry.py                       # MNQ + EURUSD, all TFs
     uv run python scripts/candle_geometry.py --symbols MNQ --window 100
 """
+
 import argparse
 import os
 from pathlib import Path
@@ -32,9 +33,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-DEFAULT_ROOT = os.environ.get(
-    "OHLCV_PARQUET_ROOT", r"E:\source\repos\ml_dashboard\data\parquet"
-)
+DEFAULT_ROOT = os.environ.get("OHLCV_PARQUET_ROOT", r"E:\source\repos\ml_dashboard\data\parquet")
 TIMEFRAMES = ("1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w")
 Z_CLIP = 5.0
 
@@ -49,17 +48,19 @@ def _causal_z(x: pd.Series, window: int) -> np.ndarray:
 
 def compute_relative_embedding(df: pd.DataFrame, window: int) -> pd.DataFrame:
     df = df.sort_values("timestamp")
-    o = df["open"].to_numpy(float); h = df["high"].to_numpy(float)
-    l = df["low"].to_numpy(float);  c = df["close"].to_numpy(float)
+    o = df["open"].to_numpy(float)
+    h = df["high"].to_numpy(float)
+    l = df["low"].to_numpy(float)
+    c = df["close"].to_numpy(float)
     v = df["volume"].to_numpy(float) if "volume" in df.columns else np.ones(len(df))
 
     rng = h - l
     pos = rng > 0
     denom = np.where(pos, rng, 1.0)
     # In-candle shape (scale-free). Flat bar (range==0) -> neutral.
-    open_norm  = np.where(pos, (o - l) / denom, 0.5)
+    open_norm = np.where(pos, (o - l) / denom, 0.5)
     close_norm = np.where(pos, (c - l) / denom, 0.5)
-    body_norm  = np.where(pos, (c - o) / denom, 0.0)
+    body_norm = np.where(pos, (c - o) / denom, 0.0)
     upper_norm = np.where(pos, (h - np.maximum(o, c)) / denom, 0.0)
     lower_norm = np.where(pos, (np.minimum(o, c) - l) / denom, 0.0)
 
@@ -69,19 +70,20 @@ def compute_relative_embedding(df: pd.DataFrame, window: int) -> pd.DataFrame:
     log_range = np.log(np.maximum(rng, eps_r))
     log_vol = np.log(np.maximum(v, 1.0))
     with np.errstate(divide="ignore", invalid="ignore"):
-        ret = np.log(c / np.roll(c, 1)); ret[0] = np.nan
+        ret = np.log(c / np.roll(c, 1))
+        ret[0] = np.nan
 
     out = pd.DataFrame({"timestamp": df["timestamp"].to_numpy()})
     if "symbol" in df.columns:
         out["symbol"] = df["symbol"].to_numpy()
-    out["open_norm"]  = open_norm
+    out["open_norm"] = open_norm
     out["close_norm"] = close_norm
-    out["body_norm"]  = body_norm
+    out["body_norm"] = body_norm
     out["upper_norm"] = upper_norm
     out["lower_norm"] = lower_norm
-    out["range_z"]  = _causal_z(pd.Series(log_range), window)
-    out["body_z"]   = _causal_z(pd.Series(body_norm), window)
-    out["wick_z"]   = _causal_z(pd.Series(upper_norm - lower_norm), window)
+    out["range_z"] = _causal_z(pd.Series(log_range), window)
+    out["body_z"] = _causal_z(pd.Series(body_norm), window)
+    out["wick_z"] = _causal_z(pd.Series(upper_norm - lower_norm), window)
     out["return_z"] = _causal_z(pd.Series(ret), window)
     out["volume_z"] = _causal_z(pd.Series(log_vol), window)
     return out
@@ -90,7 +92,8 @@ def compute_relative_embedding(df: pd.DataFrame, window: int) -> pd.DataFrame:
 def process(symbol: str, root: Path, window: int) -> None:
     sym_dir = root / symbol
     if not sym_dir.is_dir():
-        print(f"  [skip] {symbol}: no directory"); return
+        print(f"  [skip] {symbol}: no directory")
+        return
     for tf in TIMEFRAMES:
         src = sym_dir / f"{tf}.parquet"
         if not src.exists():

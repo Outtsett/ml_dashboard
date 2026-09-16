@@ -1,4 +1,4 @@
-﻿"""
+"""
 Microstructure — causal bar-by-bar pivot detection and feature extraction.
 
 Port of computemicrostructuremicrostructure() from client/src/lib/chartOverlays.ts, redesigned
@@ -51,8 +51,13 @@ def compute_microstructure_features(
     """
     n = len(high)
     names = [
-        "micro_direction", "micro_pct", "micro_duration", "micro_velocity",
-        "prev_micro_pct", "prev_micro_duration", "retracement_ratio",
+        "micro_direction",
+        "micro_pct",
+        "micro_duration",
+        "micro_velocity",
+        "prev_micro_pct",
+        "prev_micro_duration",
+        "retracement_ratio",
         "pivot_count_50",
     ]
     features = {name: np.zeros(n, dtype=np.float64) for name in names}
@@ -151,7 +156,7 @@ def compute_microstructure_features(
         if n_conf >= 2:
             prev_piv = confirmed[-2]
             if prev_piv[1] > 0:
-                features["prev_micro_pct"][i] = (piv_price - prev_piv[1]) / prev_piv[1]       
+                features["prev_micro_pct"][i] = (piv_price - prev_piv[1]) / prev_piv[1]
             features["prev_micro_duration"][i] = float(piv_bar - prev_piv[0])
 
         # Retracement ratio: |current| / |previous|
@@ -160,7 +165,7 @@ def compute_microstructure_features(
         if prev_mag > 1e-10:
             features["retracement_ratio"][i] = curr_mag / prev_mag
 
-    # ——— Pivot count in rolling 50-bar window (uses confirmation bars) ————— 
+    # ——— Pivot count in rolling 50-bar window (uses confirmation bars) —————
 
     if confirmed:
         conf_bars = np.array([p[3] for p in confirmed])  # sorted by construction
@@ -170,5 +175,3 @@ def compute_microstructure_features(
             features["pivot_count_50"][i] = float(hi - lo)
 
     return features
-
-

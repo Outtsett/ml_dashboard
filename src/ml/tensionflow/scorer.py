@@ -121,7 +121,9 @@ class TensionFlowScorer:
         """Poll shared memory and score every new tick.  Blocks until stopped."""
         self._reader.open()
         self._writer.open()
-        log.info("event=start msg='TensionFlow scorer started' poll_interval=%.3f", POLL_INTERVAL_SEC)
+        log.info(
+            "event=start msg='TensionFlow scorer started' poll_interval=%.3f", POLL_INTERVAL_SEC
+        )
 
         running = True
 
@@ -189,9 +191,9 @@ class TensionFlowScorer:
           - S_structure: benchmark confluence, distance graph topology
         """
 
-        features_2d = snap.features          # (57, SHMEM_LEVELS)
-        benchmarks = snap.benchmarks         # (15,) f64
-        distances = snap.distances           # (210,) f32
+        features_2d = snap.features  # (57, SHMEM_LEVELS)
+        benchmarks = snap.benchmarks  # (15,) f64
+        distances = snap.distances  # (210,) f32
 
         # ── Layer 1: Normalize ───────────────────────────────────────────────
 
@@ -207,13 +209,9 @@ class TensionFlowScorer:
         s_momentum = compute_momentum(norm_spatial, self._prev_distances, spread_tension)
         self._prev_distances = norm_spatial.copy()
 
-        s_band_direction = compute_band_direction(
-            benchmarks, self._prev_benchmarks, distances
-        )
+        s_band_direction = compute_band_direction(benchmarks, self._prev_benchmarks, distances)
 
-        s_volume_profile = compute_volume_profile(
-            benchmarks, self._prev_benchmarks, distances
-        )
+        s_volume_profile = compute_volume_profile(benchmarks, self._prev_benchmarks, distances)
 
         self._prev_benchmarks = benchmarks.copy()
 
@@ -224,8 +222,7 @@ class TensionFlowScorer:
         weight_profile = select_weight_profile(snap.markov_state, snap.vol_regime)
 
         d_score = compute_composite(
-            s_spatial, s_momentum, s_band_direction,
-            s_volume_profile, s_structure, weight_profile
+            s_spatial, s_momentum, s_band_direction, s_volume_profile, s_structure, weight_profile
         )
 
         # TensionDelta: distance-graph based, modulated by D_score
@@ -237,12 +234,10 @@ class TensionFlowScorer:
         # ── Confluence and Alignment gates ───────────────────────────────────
 
         confluence = compute_confluence(
-            s_spatial, s_momentum, s_band_direction,
-            s_volume_profile, s_structure
+            s_spatial, s_momentum, s_band_direction, s_volume_profile, s_structure
         )
         alignment = compute_alignment(
-            s_spatial, s_momentum, s_band_direction,
-            s_volume_profile, s_structure
+            s_spatial, s_momentum, s_band_direction, s_volume_profile, s_structure
         )
 
         # ── Layer 4: Trade Decision ──────────────────────────────────────────
@@ -271,7 +266,10 @@ class TensionFlowScorer:
         confidence = compute_confidence(d_score, tension_delta, alignment)
 
         # Confluence gate: suppress entry when insufficient signal agreement
-        if (confluence < MIN_CONFLUENCE or alignment < MIN_ALIGNMENT) and action in (ACTION_BUY, ACTION_SELL):
+        if (confluence < MIN_CONFLUENCE or alignment < MIN_ALIGNMENT) and action in (
+            ACTION_BUY,
+            ACTION_SELL,
+        ):
             signal = self._hysteresis.position
             action = ACTION_NONE
             confidence = 0.0

@@ -122,11 +122,13 @@ def unsupervised_permutation_importance(
             ari = adjusted_rand_score(base_labels, perm_labels)
             ari_drops.append(1.0 - ari)  # Higher = more disruption = more important
 
-        results.append({
-            "feature": feature_names[d],
-            "importance_mean": round(float(np.mean(ari_drops)), 6),
-            "importance_std": round(float(np.std(ari_drops)), 6),
-        })
+        results.append(
+            {
+                "feature": feature_names[d],
+                "importance_mean": round(float(np.mean(ari_drops)), 6),
+                "importance_std": round(float(np.std(ari_drops)), 6),
+            }
+        )
 
     results.sort(key=lambda r: r["importance_mean"], reverse=True)
     return results
@@ -330,12 +332,14 @@ def compute_cumulative_importance(
     for i, r in enumerate(ranked_features):
         imp = max(r.get(importance_key, r.get("value", 0)), 0)
         cumulative += imp
-        results.append({
-            "feature": r.get("feature", ""),
-            "importance": round(float(imp), 6),
-            "cumulative_pct": round(float(cumulative / total), 6),
-            "rank": i + 1,
-        })
+        results.append(
+            {
+                "feature": r.get("feature", ""),
+                "importance": round(float(imp), 6),
+                "cumulative_pct": round(float(cumulative / total), 6),
+                "rank": i + 1,
+            }
+        )
 
     return results
 
@@ -405,13 +409,15 @@ def aggregate_importance(
 
         avg_rank = sum(ranks) / len(ranks) if ranks else n
 
-        results.append({
-            "feature": feat,
-            "aggregate_rank": round(float(avg_rank), 2),
-            "permutation_rank": pr,
-            "mi_rank": mr,
-            "shap_rank": sr,
-        })
+        results.append(
+            {
+                "feature": feat,
+                "aggregate_rank": round(float(avg_rank), 2),
+                "permutation_rank": pr,
+                "mi_rank": mr,
+                "shap_rank": sr,
+            }
+        )
 
     results.sort(key=lambda r: r["aggregate_rank"])
     return results
@@ -474,22 +480,33 @@ def run_importance_analysis(
     # 1. Supervised permutation importance
     if model_predict_fn is not None and y is not None:
         perm_results = permutation_importance(
-            model_predict_fn, X, y, feature_names,
-            n_repeats=n_repeats, scoring=scoring, random_state=random_state,
+            model_predict_fn,
+            X,
+            y,
+            feature_names,
+            n_repeats=n_repeats,
+            scoring=scoring,
+            random_state=random_state,
         )
 
     # 2. Unsupervised permutation importance (for clustering models)
     if model_assign_fn is not None:
         unsup_results = unsupervised_permutation_importance(
-            model_assign_fn, X, feature_names,
-            n_repeats=n_repeats, random_state=random_state,
+            model_assign_fn,
+            X,
+            feature_names,
+            n_repeats=n_repeats,
+            random_state=random_state,
         )
 
     # 3. Mutual information
     if y is not None:
         mi_results = mutual_information_analysis(
-            X, y, feature_names,
-            discrete_target=discrete_target, random_state=random_state,
+            X,
+            y,
+            feature_names,
+            discrete_target=discrete_target,
+            random_state=random_state,
         )
 
     # 4. SHAP
@@ -498,13 +515,19 @@ def run_importance_analysis(
 
     # 5. Cumulative importance (from best available method)
     primary_ranking = (
-        perm_results or unsup_results or
-        (shap_results.get("mean_abs_shap") if shap_results else None) or
-        mi_results or []
+        perm_results
+        or unsup_results
+        or (shap_results.get("mean_abs_shap") if shap_results else None)
+        or mi_results
+        or []
     )
     cumulative = compute_cumulative_importance(
         primary_ranking,
-        importance_key="importance_mean" if (perm_results or unsup_results) else "mi_score" if mi_results else "value",
+        importance_key="importance_mean"
+        if (perm_results or unsup_results)
+        else "mi_score"
+        if mi_results
+        else "value",
     )
 
     # 6. Aggregate across methods

@@ -34,11 +34,16 @@ SCRATCH = pathlib.Path(
 
 # Keys already hand-curated; never regenerate them.
 CURATED_KEYS = {
-    "k-means-clustering", "gaussian-mixture-model-gmm",
-    "dbscan-density-based-spatial-clustering", "mean-shift-clustering",
-    "spectral-clustering", "hierarchical-clustering-agglomerative-divisive",
-    "affinity-propagation", "semi-supervised-clustering",
-    "self-organizing-maps-som", "deep-clustering-network",
+    "k-means-clustering",
+    "gaussian-mixture-model-gmm",
+    "dbscan-density-based-spatial-clustering",
+    "mean-shift-clustering",
+    "spectral-clustering",
+    "hierarchical-clustering-agglomerative-divisive",
+    "affinity-propagation",
+    "semi-supervised-clustering",
+    "self-organizing-maps-som",
+    "deep-clustering-network",
 }
 
 # Repo-sourced entries: real code here, no markdown spec.
@@ -59,22 +64,58 @@ REPO_SOURCED = {
 # Ordered: first match wins. Patterns are matched against name + category.
 ARCHETYPE_RULES: list[tuple[str, str]] = [
     ("adversarial-duel", r"\bgan\b|adversarial|discriminator|cyclegan|stylegan|wasserstein|biggan"),
-    ("contrastive-pair", r"contrastive|simclr|moco|byol|simsiam|barlow|dino|swav|siamese|cross-view|self-predictive"),
-    ("teacher-student", r"teacher|student|distill|fixmatch|mixmatch|pseudo|self-train|tri-train|co-training|mean teacher|consistency|virtual adversarial|entropy minim"),
-    ("iterative-denoise", r"diffusion|score-based|denois|normalizing flow|neural ode|energy-based|boltzmann|langevin"),
-    ("encode-bottleneck-decode", r"autoencoder|\bvae\b|\bae\b|u-net|unet|ladder|masked autoencoder|bottleneck"),
+    (
+        "contrastive-pair",
+        r"contrastive|simclr|moco|byol|simsiam|barlow|dino|swav|siamese|cross-view|self-predictive",
+    ),
+    (
+        "teacher-student",
+        r"teacher|student|distill|fixmatch|mixmatch|pseudo|self-train|tri-train|co-training|mean teacher|consistency|virtual adversarial|entropy minim",
+    ),
+    (
+        "iterative-denoise",
+        r"diffusion|score-based|denois|normalizing flow|neural ode|energy-based|boltzmann|langevin",
+    ),
+    (
+        "encode-bottleneck-decode",
+        r"autoencoder|\bvae\b|\bae\b|u-net|unet|ladder|masked autoencoder|bottleneck",
+    ),
     ("attention-match", r"attention|transformer|\bvit\b|\bbert\b|slot"),
     ("autoregressive", r"autoregressive|pixelrnn|pixelcnn|\bgpt\b|masked language|next-token"),
-    ("tree-route", r"xgboost|lightgbm|catboost|gradient boosting|random forest|decision tree|isolation forest|\bgbm\b"),
-    ("graph-message-pass", r"\bgnn\b|graph|\bgcn\b|\bgat\b|label propagation|label spreading|manifold regular"),
-    ("projection-embed", r"\bpca\b|\bica\b|\bnmf\b|t-sne|umap|isomap|manifold learning|dimensionality|matrix factor"),
-    ("cluster-loop", r"cluster|k-means|dbscan|mean shift|affinity|self-organizing|gaussian mixture"),
+    (
+        "tree-route",
+        r"xgboost|lightgbm|catboost|gradient boosting|random forest|decision tree|isolation forest|\bgbm\b",
+    ),
+    (
+        "graph-message-pass",
+        r"\bgnn\b|graph|\bgcn\b|\bgat\b|label propagation|label spreading|manifold regular",
+    ),
+    (
+        "projection-embed",
+        r"\bpca\b|\bica\b|\bnmf\b|t-sne|umap|isomap|manifold learning|dimensionality|matrix factor",
+    ),
+    (
+        "cluster-loop",
+        r"cluster|k-means|dbscan|mean shift|affinity|self-organizing|gaussian mixture",
+    ),
     ("density-boundary", r"outlier|one-class|novelty|anomaly|robust covariance|local outlier"),
-    ("ensemble-route", r"ensemble|stacking|voting|mixture of experts|\bmoe\b|hypernetwork|calibrated|blend"),
-    ("symbolic-hybrid", r"symbolic|rule|logic|probabilistic program|bayesian.*hybrid|neuro-symbolic"),
+    (
+        "ensemble-route",
+        r"ensemble|stacking|voting|mixture of experts|\bmoe\b|hypernetwork|calibrated|blend",
+    ),
+    (
+        "symbolic-hybrid",
+        r"symbolic|rule|logic|probabilistic program|bayesian.*hybrid|neuro-symbolic",
+    ),
     ("agent-environment", r"reinforcement|\brl\b|agent|policy|\bdqn\b|actor-critic|reward"),
-    ("convex-fit", r"regression|\bsvm\b|logistic|ridge|lasso|elasticnet|lars|quantile|probit|ordinal|bayesian ridge|stochastic gradient|linear"),
-    ("feedforward-stack", r"neural network|\bmlp\b|\bcnn\b|convolution|resnet|densenet|feedforward|perceptron|hypernet"),
+    (
+        "convex-fit",
+        r"regression|\bsvm\b|logistic|ridge|lasso|elasticnet|lars|quantile|probit|ordinal|bayesian ridge|stochastic gradient|linear",
+    ),
+    (
+        "feedforward-stack",
+        r"neural network|\bmlp\b|\bcnn\b|convolution|resnet|densenet|feedforward|perceptron|hypernet",
+    ),
 ]
 DEFAULT_ARCHETYPE = "feedforward-stack"
 
@@ -88,8 +129,14 @@ DEFAULT_ARCHETYPE = "feedforward-stack"
 ROLE_RULES: list[tuple[str, str]] = [
     ("input", r"^(input|data|dataset|feature|observation|latent z|noise|sample|initiali[sz])"),
     ("loss", r"loss|objective|likelihood|divergence|\berror\b|\bcost\b|elbo|regulari[sz]"),
-    ("update", r"update|optimi|backprop|gradient|m-step|maximi|re-?fit|adjust|propagat|convergence"),
-    ("score", r"discrimin|critic|\bscore\b|evaluat|assign|classif|probabilit|responsib|similarit|distance|attention"),
+    (
+        "update",
+        r"update|optimi|backprop|gradient|m-step|maximi|re-?fit|adjust|propagat|convergence",
+    ),
+    (
+        "score",
+        r"discrimin|critic|\bscore\b|evaluat|assign|classif|probabilit|responsib|similarit|distance|attention",
+    ),
     ("latent", r"latent|embedding|bottleneck|representation|\bcode\b|manifold"),
     ("output", r"^output|reconstruct|prediction|\bresult\b|synthesi"),
 ]

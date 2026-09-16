@@ -83,19 +83,14 @@ def compute_volume_profile(
         return 0.0
 
     if benchmarks.shape[0] != BENCHMARKS:
-        raise ValueError(
-            f"benchmarks must have shape ({BENCHMARKS},), "
-            f"got {benchmarks.shape}"
-        )
+        raise ValueError(f"benchmarks must have shape ({BENCHMARKS},), got {benchmarks.shape}")
     if prev_benchmarks.shape[0] != BENCHMARKS:
         raise ValueError(
-            f"prev_benchmarks must have shape ({BENCHMARKS},), "
-            f"got {prev_benchmarks.shape}"
+            f"prev_benchmarks must have shape ({BENCHMARKS},), got {prev_benchmarks.shape}"
         )
     if distances.shape[0] < BENCHMARKS:
         raise ValueError(
-            f"distances must have at least {BENCHMARKS} elements, "
-            f"got {distances.shape[0]}"
+            f"distances must have at least {BENCHMARKS} elements, got {distances.shape[0]}"
         )
 
     # ATR proxy from intraday range.

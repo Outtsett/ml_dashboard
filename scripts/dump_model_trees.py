@@ -68,6 +68,7 @@ class DumpError(Exception):
 # Loaders
 # ---------------------------------------------------------------------------
 
+
 def _load_xgboost(artifact: Path) -> tuple[str, list[str], list[str]]:
     """Return (learner, raw_json_dumps, feature_names) for a .ubj booster.
 
@@ -239,6 +240,7 @@ def load_model(model_dir: Path) -> tuple[str, list, list[str], bool]:
 # Modes
 # ---------------------------------------------------------------------------
 
+
 def mode_list_meta(learner: str, trees: list, features: list[str]) -> dict:
     return {
         "learner": learner,
@@ -335,8 +337,7 @@ def mode_summary(learner: str, trees: list, features: list[str], raw_json: bool)
     feature_usage.sort(key=lambda row: row["totalGain"], reverse=True)
 
     depth_histogram = [
-        {"depth": depth, "count": count}
-        for depth, count in sorted(acc["leaf_depths"].items())
+        {"depth": depth, "count": count} for depth, count in sorted(acc["leaf_depths"].items())
     ]
 
     leaf_values: list[float] = acc["leaf_values"]
@@ -366,6 +367,7 @@ def mode_summary(learner: str, trees: list, features: list[str], raw_json: bool)
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Dump tree ensemble structure as XgbTreeNode JSON.",
@@ -376,11 +378,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Absolute path to a data/models/<id> directory",
     )
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--list-meta", action="store_true", help="Emit learner/nTrees/features metadata")
+    mode.add_argument(
+        "--list-meta", action="store_true", help="Emit learner/nTrees/features metadata"
+    )
     mode.add_argument("--trees", action="store_true", help="Emit a slice of parsed trees")
-    mode.add_argument("--summary", action="store_true", help="Emit whole-forest aggregate statistics")
-    parser.add_argument("--start", type=int, default=0, help="First tree index for --trees (default 0)")
-    parser.add_argument("--count", type=int, default=4, help="Number of trees for --trees (default 4)")
+    mode.add_argument(
+        "--summary", action="store_true", help="Emit whole-forest aggregate statistics"
+    )
+    parser.add_argument(
+        "--start", type=int, default=0, help="First tree index for --trees (default 0)"
+    )
+    parser.add_argument(
+        "--count", type=int, default=4, help="Number of trees for --trees (default 4)"
+    )
     return parser
 
 

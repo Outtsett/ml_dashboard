@@ -42,9 +42,15 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _MODELS_ROOT = _PROJECT_ROOT / "data" / "models"
 
 _AGG_METRICS_DIST = (
-    "auc", "log_loss", "brier_score", "ece",
-    "hit_rate_50", "hit_rate_55", "hit_rate_60",
-    "profit_factor", "sharpe_after_costs",
+    "auc",
+    "log_loss",
+    "brier_score",
+    "ece",
+    "hit_rate_50",
+    "hit_rate_55",
+    "hit_rate_60",
+    "profit_factor",
+    "sharpe_after_costs",
     "max_drawdown_pct",
 )
 _AGG_METRICS_SUM = ("cum_pnl_dollars", "n_trades", "max_drawdown_dollars")
@@ -60,17 +66,30 @@ def _ci95(values: np.ndarray) -> tuple[float, float]:
 
 
 def _summarize_distribution(name: str, vals: list[float]) -> dict:
-    arr = np.asarray([v for v in vals if v is not None and not (isinstance(v, float) and math.isnan(v))])
+    arr = np.asarray(
+        [v for v in vals if v is not None and not (isinstance(v, float) and math.isnan(v))]
+    )
     if arr.size == 0:
-        return {"name": name, "n": 0, "mean": float("nan"), "std": float("nan"),
-                "min": float("nan"), "max": float("nan"), "ci95_lo": float("nan"), "ci95_hi": float("nan")}
+        return {
+            "name": name,
+            "n": 0,
+            "mean": float("nan"),
+            "std": float("nan"),
+            "min": float("nan"),
+            "max": float("nan"),
+            "ci95_lo": float("nan"),
+            "ci95_hi": float("nan"),
+        }
     lo, hi = _ci95(arr)
     return {
-        "name": name, "n": int(arr.size),
+        "name": name,
+        "n": int(arr.size),
         "mean": float(arr.mean()),
         "std": float(arr.std(ddof=1)) if arr.size > 1 else 0.0,
-        "min": float(arr.min()), "max": float(arr.max()),
-        "ci95_lo": lo, "ci95_hi": hi,
+        "min": float(arr.min()),
+        "max": float(arr.max()),
+        "ci95_lo": lo,
+        "ci95_hi": hi,
     }
 
 
@@ -91,11 +110,20 @@ def aggregate(base_model_id: str, window_count: int) -> dict:
             continue
         with diag_path.open(encoding="utf-8") as fh:
             diag = json.load(fh)
-        flat = {k: v["value"] if isinstance(v, dict) and "value" in v else v
-                for k, v in diag.get("metrics", {}).items()}
-        per_fold.append({"window": w, "model_id": window_id, "metrics": flat,
-                         "best_iteration": diag.get("best_iteration"),
-                         "n_train": diag.get("n_train"), "n_val": diag.get("n_val")})
+        flat = {
+            k: v["value"] if isinstance(v, dict) and "value" in v else v
+            for k, v in diag.get("metrics", {}).items()
+        }
+        per_fold.append(
+            {
+                "window": w,
+                "model_id": window_id,
+                "metrics": flat,
+                "best_iteration": diag.get("best_iteration"),
+                "n_train": diag.get("n_train"),
+                "n_val": diag.get("n_val"),
+            }
+        )
 
     aggregated: dict[str, Any] = {}
     for m in _AGG_METRICS_DIST:
@@ -115,8 +143,11 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Walk-forward aggregator for xgb_classifier")
     ap.add_argument("--base-model-id", required=True)
     ap.add_argument("--window-count", type=int, required=True)
-    ap.add_argument("--out", default=None,
-                    help="Optional output path; defaults to data/models/<base>/wf_summary.json")
+    ap.add_argument(
+        "--out",
+        default=None,
+        help="Optional output path; defaults to data/models/<base>/wf_summary.json",
+    )
     args = ap.parse_args()
 
     summary = aggregate(args.base_model_id, args.window_count)
@@ -125,13 +156,15 @@ def main() -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
 
-    emit({
-        "type": "walk-forward-summary",
-        "baseModelId": args.base_model_id,
-        "nWindows": summary["n_windows"],
-        "aggregated": summary["aggregated"],
-        "perFold": summary["per_fold"],
-    })
+    emit(
+        {
+            "type": "walk-forward-summary",
+            "baseModelId": args.base_model_id,
+            "nWindows": summary["n_windows"],
+            "aggregated": summary["aggregated"],
+            "perFold": summary["per_fold"],
+        }
+    )
     emit_log(f"[wf_agg] Wrote {out_path}")
 
 

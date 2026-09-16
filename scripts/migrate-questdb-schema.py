@@ -42,9 +42,24 @@ SPREAD_RE = re.compile(
 FOREX_RE = re.compile(r"^[A-Z]{6}$")
 
 KNOWN_FOREX = {
-    "EURUSD", "GBPUSD", "USDJPY", "USDCAD", "USDCHF", "AUDUSD", "NZDUSD",
-    "EURGBP", "EURJPY", "EURCHF", "GBPAUD", "GBPJPY", "GBPCHF", "AUDJPY",
-    "CADJPY", "CHFJPY", "NZDJPY", "EURAUD",
+    "EURUSD",
+    "GBPUSD",
+    "USDJPY",
+    "USDCAD",
+    "USDCHF",
+    "AUDUSD",
+    "NZDUSD",
+    "EURGBP",
+    "EURJPY",
+    "EURCHF",
+    "GBPAUD",
+    "GBPJPY",
+    "GBPCHF",
+    "AUDJPY",
+    "CADJPY",
+    "CHFJPY",
+    "NZDJPY",
+    "EURAUD",
 }
 
 KNOWN_ROOTS = {"ES", "NQ", "MNQ", "MES", "YM", "MYM", "RTY", "M2K"}
@@ -156,7 +171,9 @@ def phase1_discover():
         for u in unknowns:
             print(f"    {u}")
 
-    print(f"\n--- Futures roots ({len([r for r in root_groups if any(ac == 'futures' for _, ac in root_groups[r])])}) ---")
+    print(
+        f"\n--- Futures roots ({len([r for r in root_groups if any(ac == 'futures' for _, ac in root_groups[r])])}) ---"
+    )
     for root in sorted(root_groups.keys()):
         futures_syms = [s for s, ac in root_groups[root] if ac == "futures"]
         if futures_syms:
@@ -282,21 +299,37 @@ def phase2_alter_and_update(root_groups: dict, dry_run: bool = False):
 
 OLD_MAT_VIEWS = [
     "ohlcv_1m",
-    "ohlcv_5m", "ohlcv_15m", "ohlcv_30m", "ohlcv_1h", "ohlcv_4h", "ohlcv_1d", "ohlcv_1w",
-    "ohlcv_forex_5m", "ohlcv_forex_15m", "ohlcv_forex_30m",
-    "ohlcv_forex_1h", "ohlcv_forex_4h", "ohlcv_forex_1d", "ohlcv_forex_1w",
-    "futures_ohlcv_5m", "futures_ohlcv_15m", "futures_ohlcv_30m",
-    "futures_ohlcv_1h", "futures_ohlcv_4h", "futures_ohlcv_1d", "futures_ohlcv_1w",
+    "ohlcv_5m",
+    "ohlcv_15m",
+    "ohlcv_30m",
+    "ohlcv_1h",
+    "ohlcv_4h",
+    "ohlcv_1d",
+    "ohlcv_1w",
+    "ohlcv_forex_5m",
+    "ohlcv_forex_15m",
+    "ohlcv_forex_30m",
+    "ohlcv_forex_1h",
+    "ohlcv_forex_4h",
+    "ohlcv_forex_1d",
+    "ohlcv_forex_1w",
+    "futures_ohlcv_5m",
+    "futures_ohlcv_15m",
+    "futures_ohlcv_30m",
+    "futures_ohlcv_1h",
+    "futures_ohlcv_4h",
+    "futures_ohlcv_1d",
+    "futures_ohlcv_1w",
 ]
 
 NEW_MAT_VIEWS = [
-    ("ohlcv_5m",  "5m",  "MONTH", "2 YEARS"),
+    ("ohlcv_5m", "5m", "MONTH", "2 YEARS"),
     ("ohlcv_15m", "15m", "MONTH", "2 YEARS"),
     ("ohlcv_30m", "30m", "MONTH", "3 YEARS"),
-    ("ohlcv_1h",  "1h",  "MONTH", "3 YEARS"),
-    ("ohlcv_4h",  "4h",  "YEAR",  "5 YEARS"),
-    ("ohlcv_1d",  "1d",  "YEAR",  "10 YEARS"),
-    ("ohlcv_1w",  "1w",  "YEAR",  "10 YEARS"),
+    ("ohlcv_1h", "1h", "MONTH", "3 YEARS"),
+    ("ohlcv_4h", "4h", "YEAR", "5 YEARS"),
+    ("ohlcv_1d", "1d", "YEAR", "10 YEARS"),
+    ("ohlcv_1w", "1w", "YEAR", "10 YEARS"),
 ]
 
 
@@ -338,7 +371,9 @@ def phase3_mat_views(dry_run: bool = False):
 
     if not dry_run:
         print("\n  Verifying materialized views...")
-        rows = get_rows("SELECT view_name, view_status FROM materialized_views() ORDER BY view_name")
+        rows = get_rows(
+            "SELECT view_name, view_status FROM materialized_views() ORDER BY view_name"
+        )
         for r in rows:
             status = "OK" if r[1] == "active" else r[1]
             print(f"    {r[0]}: {status}")
@@ -454,8 +489,13 @@ def phase5_alter_tables(root_groups: dict, dry_run: bool = False):
 
     # Add root to indicator tables
     indicator_tables = [
-        "indicators_5m", "indicators_15m", "indicators_30m",
-        "indicators_1h", "indicators_4h", "indicators_1d", "indicators_1w",
+        "indicators_5m",
+        "indicators_15m",
+        "indicators_30m",
+        "indicators_1h",
+        "indicators_4h",
+        "indicators_1d",
+        "indicators_1w",
     ]
     print("\n  Adding root column to indicator tables...")
     for table in indicator_tables:

@@ -184,8 +184,7 @@ class BOHBOptimizer(BaseOptimizer):
 
             self._notify_trial_start(trial.number, {**params, "budget": budget})
             emit_log(
-                f"Trial {trial.number} started — "
-                f"budget={budget}, params={params}",
+                f"Trial {trial.number} started — budget={budget}, params={params}",
             )
 
             t0 = time.perf_counter()
@@ -199,19 +198,20 @@ class BOHBOptimizer(BaseOptimizer):
                     f"(budget used ≈{step}/{budget}) [{duration:.1f}s]",
                     level="warning",
                 )
-                emit({
-                    "type": "hpo-trial-pruned",
-                    "trialId": trial.number,
-                    "prunedAtStep": step,
-                    "maxBudget": budget,
-                    "params": params,
-                })
+                emit(
+                    {
+                        "type": "hpo-trial-pruned",
+                        "trialId": trial.number,
+                        "prunedAtStep": step,
+                        "maxBudget": budget,
+                        "params": params,
+                    }
+                )
                 raise  # let Optuna handle the pruned state
 
             duration = time.perf_counter() - t0
             emit_log(
-                f"Trial {trial.number} done — score={score:.6f}, "
-                f"budget={budget} [{duration:.1f}s]",
+                f"Trial {trial.number} done — score={score:.6f}, budget={budget} [{duration:.1f}s]",
             )
             return score
 
@@ -286,9 +286,7 @@ class BOHBOptimizer(BaseOptimizer):
                 metrics["pruned_at_step"] = float(pruned_step)
                 metrics["max_budget"] = float(self.max_resource)
                 metrics["budget_used_pct"] = (
-                    pruned_step / self.max_resource * 100.0
-                    if self.max_resource > 0
-                    else 0.0
+                    pruned_step / self.max_resource * 100.0 if self.max_resource > 0 else 0.0
                 )
 
             # Include any intermediate values the objective reported.
@@ -307,9 +305,7 @@ class BOHBOptimizer(BaseOptimizer):
             all_trials.append(result)
             self._notify_trial_end(result)
 
-        completed = [
-            t for t in all_trials if not t.pruned and t.error is None
-        ]
+        completed = [t for t in all_trials if not t.pruned and t.error is None]
         pruned_trials = [t for t in all_trials if t.pruned]
 
         if completed:

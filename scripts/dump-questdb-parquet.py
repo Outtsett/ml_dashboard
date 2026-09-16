@@ -139,6 +139,7 @@ def dump_symbol(conn, table, symbol, output_path, chunk_size=100_000):
         return 0
 
     import itertools
+
     all_rows = list(itertools.chain.from_iterable(all_chunks))
     df = pd.DataFrame(all_rows, columns=col_names)
     del all_rows, all_chunks
@@ -190,7 +191,9 @@ def run_multi_tf(args):
 
     conn.close()
     print(f"\n{'=' * 60}")
-    print(f"Multi-TF export complete: {grand_total:,} total rows across {len(symbols)} symbols x {len(TIMEFRAMES)} TFs")
+    print(
+        f"Multi-TF export complete: {grand_total:,} total rows across {len(symbols)} symbols x {len(TIMEFRAMES)} TFs"
+    )
     print(f"Output: {out_root}")
     if failures:
         print(f"\n{len(failures)} failure(s):")
@@ -202,14 +205,26 @@ def run_multi_tf(args):
 
 def main():
     parser = argparse.ArgumentParser(description="Dump QuestDB tables to parquet")
-    parser.add_argument("--tables", type=str, default="ohlcv",
-                        help="Comma-separated table names (default: ohlcv)")
-    parser.add_argument("--symbols", type=str, default=None,
-                        help="Comma-separated symbols (default: all; multi-tf default: MNQ,EURUSD)")
-    parser.add_argument("--output-dir", type=str, default=None,
-                        help=f"Output directory (default: {CACHE_DIR}; multi-tf default: {PARQUET_DIR})")
-    parser.add_argument("--multi-tf", action="store_true",
-                        help="Loop all 8 TFs ({1,5,15,30}m, {1,4}h, {1d,1w}); output {output_dir}/{symbol}/{tf}.parquet")
+    parser.add_argument(
+        "--tables", type=str, default="ohlcv", help="Comma-separated table names (default: ohlcv)"
+    )
+    parser.add_argument(
+        "--symbols",
+        type=str,
+        default=None,
+        help="Comma-separated symbols (default: all; multi-tf default: MNQ,EURUSD)",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help=f"Output directory (default: {CACHE_DIR}; multi-tf default: {PARQUET_DIR})",
+    )
+    parser.add_argument(
+        "--multi-tf",
+        action="store_true",
+        help="Loop all 8 TFs ({1,5,15,30}m, {1,4}h, {1d,1w}); output {output_dir}/{symbol}/{tf}.parquet",
+    )
     args = parser.parse_args()
 
     if args.multi_tf:

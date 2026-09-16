@@ -54,15 +54,12 @@ def compute_tension_delta(
         If ``distances`` does not have exactly ``DISTANCES`` elements.
     """
     if distances.shape[0] != DISTANCES:
-        raise ValueError(
-            f"distances must have shape ({DISTANCES},), got {distances.shape}"
-        )
+        raise ValueError(f"distances must have shape ({DISTANCES},), got {distances.shape}")
 
     if edge_weights is not None:
         if edge_weights.shape[0] != DISTANCES:
             raise ValueError(
-                f"edge_weights must have shape ({DISTANCES},), "
-                f"got {edge_weights.shape}"
+                f"edge_weights must have shape ({DISTANCES},), got {edge_weights.shape}"
             )
         weights: np.ndarray = np.asarray(edge_weights, dtype=np.float64)
     else:

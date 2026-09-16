@@ -268,81 +268,134 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
 
     # ----- Mode selector --------------------------------------------------- #
-    ap.add_argument("--composite", action="store_true",
-                    help="Composite mode: read --composite-spec-json and recurse "
-                         "into each expert/member slot, generating the atomic "
-                         "sub-models depth-first BEFORE rendering the parent "
-                         "composite. Mutually exclusive with the atomic CLI.")
-    ap.add_argument("--composite-spec-json", default=None,
-                    help="(--composite mode) JSON describing the composite tree. "
-                         "Schema in scripts/generate_model.py docstring section "
-                         "'Composite spec'.")
+    ap.add_argument(
+        "--composite",
+        action="store_true",
+        help="Composite mode: read --composite-spec-json and recurse "
+        "into each expert/member slot, generating the atomic "
+        "sub-models depth-first BEFORE rendering the parent "
+        "composite. Mutually exclusive with the atomic CLI.",
+    )
+    ap.add_argument(
+        "--composite-spec-json",
+        default=None,
+        help="(--composite mode) JSON describing the composite tree. "
+        "Schema in scripts/generate_model.py docstring section "
+        "'Composite spec'.",
+    )
 
     # ----- Atomic-mode flags (also reused by composite recursion) --------- #
     # Identity
-    ap.add_argument("--catalog-id", default=None,
-                    help="Slug of the source catalog spec (e.g. 'random-forest'). "
-                         "Required in atomic mode; ignored in composite mode.")
-    ap.add_argument("--model-id", default=None,
-                    help="Slug for the new src/ml/<model_id>/ package. "
-                         "Required in atomic mode; ignored in composite mode "
-                         "(model_id comes from --composite-spec-json).")
-    ap.add_argument("--template-id", default=None,
-                    help="Override family resolution (e.g. 'sklearn', 'tree'). "
-                         "Defaults to the family inferred from --catalog-id.")
-    ap.add_argument("--template-variant", default=None,
-                    help="Optional variant within a family (e.g. 'xgboost' for tree).")
+    ap.add_argument(
+        "--catalog-id",
+        default=None,
+        help="Slug of the source catalog spec (e.g. 'random-forest'). "
+        "Required in atomic mode; ignored in composite mode.",
+    )
+    ap.add_argument(
+        "--model-id",
+        default=None,
+        help="Slug for the new src/ml/<model_id>/ package. "
+        "Required in atomic mode; ignored in composite mode "
+        "(model_id comes from --composite-spec-json).",
+    )
+    ap.add_argument(
+        "--template-id",
+        default=None,
+        help="Override family resolution (e.g. 'sklearn', 'tree'). "
+        "Defaults to the family inferred from --catalog-id.",
+    )
+    ap.add_argument(
+        "--template-variant",
+        default=None,
+        help="Optional variant within a family (e.g. 'xgboost' for tree).",
+    )
 
     # Hyperparameters + WF + labels
-    ap.add_argument("--hyperparameters-json", default=None,
-                    help="JSON dict of user-chosen hyperparameter values "
-                         "(required atomic; in composite mode the per-slot "
-                         "hyperparameters live inside --composite-spec-json).")
-    ap.add_argument("--label-strategy", default=None,
-                    choices=sorted(VALID_LABEL_STRATEGIES) + [None],
-                    help="Which labeling function the generated model invokes.")
-    ap.add_argument("--label-params-json", default=None,
-                    help="JSON dict of label-strategy params (may be empty {}).")
-    ap.add_argument("--walk-forward-json", default=None,
-                    help="JSON dict {train_months, test_months, step_months, "
-                         "purge_bars?, embargo_bars?, expanding?}; omit for single-fold.")
+    ap.add_argument(
+        "--hyperparameters-json",
+        default=None,
+        help="JSON dict of user-chosen hyperparameter values "
+        "(required atomic; in composite mode the per-slot "
+        "hyperparameters live inside --composite-spec-json).",
+    )
+    ap.add_argument(
+        "--label-strategy",
+        default=None,
+        choices=sorted(VALID_LABEL_STRATEGIES) + [None],
+        help="Which labeling function the generated model invokes.",
+    )
+    ap.add_argument(
+        "--label-params-json",
+        default=None,
+        help="JSON dict of label-strategy params (may be empty {}).",
+    )
+    ap.add_argument(
+        "--walk-forward-json",
+        default=None,
+        help="JSON dict {train_months, test_months, step_months, "
+        "purge_bars?, embargo_bars?, expanding?}; omit for single-fold.",
+    )
 
     # Features + data context
-    ap.add_argument("--feature-pipeline", default=None,
-                    help="Pipeline ID consumed by src.ml.shared.features.")
-    ap.add_argument("--feature-categories-json", default=None,
-                    help="JSON list of feature category names.")
+    ap.add_argument(
+        "--feature-pipeline", default=None, help="Pipeline ID consumed by src.ml.shared.features."
+    )
+    ap.add_argument(
+        "--feature-categories-json", default=None, help="JSON list of feature category names."
+    )
     ap.add_argument("--symbol", default=None)
     ap.add_argument("--timeframe", default=None)
 
     # IO
-    ap.add_argument("--template-dir", required=True,
-                    help="Directory containing architecture .j2 files.")
-    ap.add_argument("--output-dir", default=None,
-                    help="Where to write the generated package "
-                         "(ignored when --dry-run; ignored in composite mode "
-                         "where output dirs are derived from each model_id).")
-    ap.add_argument("--src-ml-root", default="src/ml",
-                    help="Where to write generated packages in composite mode "
-                         "(default: src/ml). Each sub-model and the composite "
-                         "land at <src-ml-root>/<model_id>/.")
+    ap.add_argument(
+        "--template-dir", required=True, help="Directory containing architecture .j2 files."
+    )
+    ap.add_argument(
+        "--output-dir",
+        default=None,
+        help="Where to write the generated package "
+        "(ignored when --dry-run; ignored in composite mode "
+        "where output dirs are derived from each model_id).",
+    )
+    ap.add_argument(
+        "--src-ml-root",
+        default="src/ml",
+        help="Where to write generated packages in composite mode "
+        "(default: src/ml). Each sub-model and the composite "
+        "land at <src-ml-root>/<model_id>/.",
+    )
 
     # Modes
-    ap.add_argument("--dry-run", action="store_true",
-                    help="Print the {files, templateUsed, warnings} JSON to stdout. "
-                         "Write nothing.")
-    ap.add_argument("--register", action="store_true",
-                    help="Also patch src/config/runners.json with a runner entry "
-                         "so the generated model becomes trainable from the dashboard.")
-    ap.add_argument("--algorithm", default=None,
-                    help="Algorithm id for the runners.json key `${algorithm}+${task}`. "
-                         "Defaults to a slug of --catalog-id.")
-    ap.add_argument("--task", default=None,
-                    help="Task id for the runners.json key. Defaults to the task "
-                         "implied by --label-strategy (see LABEL_TO_TASK).")
-    ap.add_argument("--files-override-json", default=None,
-                    help="JSON {path: content} of user-edited files to write verbatim "
-                         "instead of re-rendering the templates (Monaco round-trip).")
+    ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the {files, templateUsed, warnings} JSON to stdout. Write nothing.",
+    )
+    ap.add_argument(
+        "--register",
+        action="store_true",
+        help="Also patch src/config/runners.json with a runner entry "
+        "so the generated model becomes trainable from the dashboard.",
+    )
+    ap.add_argument(
+        "--algorithm",
+        default=None,
+        help="Algorithm id for the runners.json key `${algorithm}+${task}`. "
+        "Defaults to a slug of --catalog-id.",
+    )
+    ap.add_argument(
+        "--task",
+        default=None,
+        help="Task id for the runners.json key. Defaults to the task "
+        "implied by --label-strategy (see LABEL_TO_TASK).",
+    )
+    ap.add_argument(
+        "--files-override-json",
+        default=None,
+        help="JSON {path: content} of user-edited files to write verbatim "
+        "instead of re-rendering the templates (Monaco round-trip).",
+    )
 
     args = ap.parse_args(argv)
 
@@ -353,16 +406,26 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     else:
         # Atomic mode required args.
         missing: list[str] = []
-        if not args.catalog_id:           missing.append("--catalog-id")
-        if not args.model_id:             missing.append("--model-id")
-        if not args.hyperparameters_json: missing.append("--hyperparameters-json")
-        if not args.label_strategy:       missing.append("--label-strategy")
-        if not args.label_params_json:    missing.append("--label-params-json")
-        if not args.feature_pipeline:     missing.append("--feature-pipeline")
-        if not args.feature_categories_json: missing.append("--feature-categories-json")
-        if not args.symbol:               missing.append("--symbol")
-        if not args.timeframe:            missing.append("--timeframe")
-        if not args.output_dir:           missing.append("--output-dir")
+        if not args.catalog_id:
+            missing.append("--catalog-id")
+        if not args.model_id:
+            missing.append("--model-id")
+        if not args.hyperparameters_json:
+            missing.append("--hyperparameters-json")
+        if not args.label_strategy:
+            missing.append("--label-strategy")
+        if not args.label_params_json:
+            missing.append("--label-params-json")
+        if not args.feature_pipeline:
+            missing.append("--feature-pipeline")
+        if not args.feature_categories_json:
+            missing.append("--feature-categories-json")
+        if not args.symbol:
+            missing.append("--symbol")
+        if not args.timeframe:
+            missing.append("--timeframe")
+        if not args.output_dir:
+            missing.append("--output-dir")
         if missing:
             ap.error(f"atomic mode requires: {', '.join(missing)}")
 
@@ -396,9 +459,7 @@ def _build_context(args: argparse.Namespace) -> dict:
     hyperparameters = json.loads(args.hyperparameters_json)
     label_params = json.loads(args.label_params_json)
     feature_categories = json.loads(args.feature_categories_json)
-    walk_forward = (
-        json.loads(args.walk_forward_json) if args.walk_forward_json else None
-    )
+    walk_forward = json.loads(args.walk_forward_json) if args.walk_forward_json else None
 
     if not isinstance(hyperparameters, dict):
         raise ValueError("--hyperparameters-json must decode to a JSON object")
@@ -437,17 +498,13 @@ def _build_context(args: argparse.Namespace) -> dict:
         "template_variant": template_variant,
         "template_version": TEMPLATE_VERSION,
         "generated_at": generated_at,
-
         # Hyperparameters (already type-coerced by upstream caller)
         "hyperparameters": hyperparameters,
-
         # Walk-forward
         "walk_forward": walk_forward,
-
         # Labels
         "label_strategy": args.label_strategy,
         "label_params": label_params,
-
         # Features + data
         "feature_pipeline": args.feature_pipeline,
         "feature_categories": feature_categories,
@@ -528,15 +585,12 @@ def _render_labels_shim(context: dict) -> str:
             "should not call make_labels')\n"
         )
     else:
-        body = (
-            f"from src.ml.shared.labels import {strategy}_labels as make_labels  "
-            f"# noqa: F401\n"
-        )
+        body = f"from src.ml.shared.labels import {strategy}_labels as make_labels  # noqa: F401\n"
     return (
         f'"""Labels shim for generated model {context["model_id"]!r}.\n\n'
         f"Auto-generated {context['generated_at']} from template "
         f"{context['template_id']}@{context['template_version']}.\n"
-        f'Edit freely — the canonical implementation lives in src/ml/shared/labels.py.\n'
+        f"Edit freely — the canonical implementation lives in src/ml/shared/labels.py.\n"
         f'"""\n\n{body}'
     )
 
@@ -548,8 +602,8 @@ def _render_eval_shim(context: dict) -> str:
         f'"""Eval shim for generated model {context["model_id"]!r}.\n\n'
         f"Auto-generated {context['generated_at']} from template "
         f"{context['template_id']}@{context['template_version']}.\n"
-        f'Override per-family eval logic by editing this file or the family\n'
-        f'template at src/templates/architectures/{context["template_id"]}.py.j2.\n'
+        f"Override per-family eval logic by editing this file or the family\n"
+        f"template at src/templates/architectures/{context['template_id']}.py.j2.\n"
         f'"""\n\n'
         f"# Family templates in W2 will inline classification/regression metric\n"
         f"# functions here via {{% include '_eval_classification.py.j2' %}}.\n"
@@ -596,8 +650,12 @@ def _atomic_write(path: Path, content: str) -> None:
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = tempfile.NamedTemporaryFile(
-        mode="w", encoding="utf-8", newline="\n",
-        dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp",
+        mode="w",
+        encoding="utf-8",
+        newline="\n",
+        dir=str(path.parent),
+        prefix=f".{path.name}.",
+        suffix=".tmp",
         delete=False,
     )
     try:
@@ -751,8 +809,12 @@ def _build_composite_context(spec: dict, parent_args, *, depth: int) -> dict:
         )
 
     template_id = spec["template_id"]
-    if template_id not in {"composite_moe", "composite_stacking",
-                            "composite_voting", "composite_multimodal"}:
+    if template_id not in {
+        "composite_moe",
+        "composite_stacking",
+        "composite_voting",
+        "composite_multimodal",
+    }:
         raise ValueError(
             f"composite spec.template_id={template_id!r} is not a known "
             "composite template (expected composite_moe/stacking/voting/multimodal)"
@@ -760,14 +822,12 @@ def _build_composite_context(spec: dict, parent_args, *, depth: int) -> dict:
 
     # Inherit common fields from parent_args (atomic flags reused)
     hyperparameters = (
-        json.loads(parent_args.hyperparameters_json)
-        if parent_args.hyperparameters_json else {}
+        json.loads(parent_args.hyperparameters_json) if parent_args.hyperparameters_json else {}
     )
     label_params = json.loads(parent_args.label_params_json or "{}")
     feature_categories = json.loads(parent_args.feature_categories_json or "[]")
     walk_forward = (
-        json.loads(parent_args.walk_forward_json) if parent_args.walk_forward_json
-        else None
+        json.loads(parent_args.walk_forward_json) if parent_args.walk_forward_json else None
     )
     generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -849,8 +909,7 @@ def _generate_composite_recursive(
         slot_list = spec.get(slot_key, [])
         if not slot_list:
             raise ValueError(
-                f"composite spec for {template_id} requires non-empty "
-                f"'{slot_key}' list"
+                f"composite spec for {template_id} requires non-empty '{slot_key}' list"
             )
         for slot in slot_list:
             slot_idx = int(slot["slot_idx"])
@@ -863,44 +922,54 @@ def _generate_composite_recursive(
                 existing_main = output_root / existing_id / "main.py"
                 if existing_main.exists():
                     slot["resolved_model_id"] = existing_id
-                    sub_results.append({
-                        "slotIdx": slot_idx,
-                        "resolvedModelId": existing_id,
-                        "writtenTo": str(existing_main.parent),
-                        "reused": True,
-                    })
+                    sub_results.append(
+                        {
+                            "slotIdx": slot_idx,
+                            "resolvedModelId": existing_id,
+                            "writtenTo": str(existing_main.parent),
+                            "reused": True,
+                        }
+                    )
                     continue
 
             # Detect if this catalog_id is itself a composite (nested case).
-            is_nested_composite = (
-                isinstance(slot.get("template_id"), str)
-                and slot["template_id"].startswith("composite_")
-            )
+            is_nested_composite = isinstance(slot.get("template_id"), str) and slot[
+                "template_id"
+            ].startswith("composite_")
             if is_nested_composite:
                 # Synthesize a child composite spec; recurse one level deeper.
                 child_model_id = _slot_child_model_id(
-                    parent_model_id, slot_catalog_id, slot_idx,
+                    parent_model_id,
+                    slot_catalog_id,
+                    slot_idx,
                 )
                 child_spec = dict(slot)
                 child_spec["model_id"] = child_model_id
                 child_result = _generate_composite_recursive(
-                    child_spec, parent_args,
-                    template_dir=template_dir, output_root=output_root,
-                    dry_run=dry_run, depth=depth + 1,
+                    child_spec,
+                    parent_args,
+                    template_dir=template_dir,
+                    output_root=output_root,
+                    dry_run=dry_run,
+                    depth=depth + 1,
                 )
                 slot["resolved_model_id"] = child_model_id
-                sub_results.append({
-                    "slotIdx": slot_idx,
-                    "resolvedModelId": child_model_id,
-                    "writtenTo": child_result.get("writtenTo"),
-                    "nested": True,
-                    "subModels": child_result.get("subModels", []),
-                })
+                sub_results.append(
+                    {
+                        "slotIdx": slot_idx,
+                        "resolvedModelId": child_model_id,
+                        "writtenTo": child_result.get("writtenTo"),
+                        "nested": True,
+                        "subModels": child_result.get("subModels", []),
+                    }
+                )
                 continue
 
             # Atomic leaf: synthesize child id + render via existing atomic flow.
             child_model_id = _slot_child_model_id(
-                parent_model_id, slot_catalog_id, slot_idx,
+                parent_model_id,
+                slot_catalog_id,
+                slot_idx,
             )
             slot_dir, slot_manifest = _render_atomic_for_slot(
                 parent_args=parent_args,
@@ -912,12 +981,14 @@ def _generate_composite_recursive(
                 dry_run=dry_run,
             )
             slot["resolved_model_id"] = child_model_id
-            sub_results.append({
-                "slotIdx": slot_idx,
-                "resolvedModelId": child_model_id,
-                "writtenTo": str(slot_dir),
-                "manifest": slot_manifest,
-            })
+            sub_results.append(
+                {
+                    "slotIdx": slot_idx,
+                    "resolvedModelId": child_model_id,
+                    "writtenTo": str(slot_dir),
+                    "manifest": slot_manifest,
+                }
+            )
 
     # Now every slot has resolved_model_id. Render the composite parent itself.
     composite_context = _build_composite_context(spec, parent_args, depth=depth)
@@ -994,7 +1065,9 @@ def _build_runner_entry(args: argparse.Namespace, context: dict, output_dir: Pat
     """
     repo_root = Path.cwd().resolve()
     try:
-        script_rel = str((output_dir / "main.py").resolve().relative_to(repo_root)).replace("\\", "/")
+        script_rel = str((output_dir / "main.py").resolve().relative_to(repo_root)).replace(
+            "\\", "/"
+        )
     except ValueError:
         script_rel = f"src/ml/{context['model_id']}/main.py"
 
@@ -1029,7 +1102,9 @@ def _build_runner_entry(args: argparse.Namespace, context: dict, output_dir: Pat
     }
 
 
-def _register_runner(args: argparse.Namespace, context: dict, output_dir: Path) -> tuple[str, list[str]]:
+def _register_runner(
+    args: argparse.Namespace, context: dict, output_dir: Path
+) -> tuple[str, list[str]]:
     """Patch src/config/runners.json with an entry for the generated model.
 
     Idempotent (re-registering the same key overwrites + warns). Atomic
@@ -1060,7 +1135,9 @@ def _register_runner(args: argparse.Namespace, context: dict, output_dir: Path) 
                 f"model under {key!r} to avoid overwriting it."
             )
         else:
-            warnings.append(f"runner key {key!r} already existed — overwritten with the regenerated entry.")
+            warnings.append(
+                f"runner key {key!r} already existed — overwritten with the regenerated entry."
+            )
     runners[key] = _build_runner_entry(args, context, output_dir)
 
     _atomic_write(runners_path, json.dumps(registry, indent=2) + "\n")
@@ -1085,9 +1162,7 @@ def main(argv: list[str] | None = None) -> int:
         if not isinstance(spec, dict):
             raise SystemExit("--composite-spec-json must decode to a JSON object")
         if "model_id" not in spec or "template_id" not in spec:
-            raise SystemExit(
-                "--composite-spec-json must include 'model_id' and 'template_id'"
-            )
+            raise SystemExit("--composite-spec-json must include 'model_id' and 'template_id'")
 
         # Resolve output root (composite mode: derive per-slot dirs from <root>/<model_id>)
         if args.output_dir:
@@ -1100,17 +1175,22 @@ def main(argv: list[str] | None = None) -> int:
 
         try:
             result = _generate_composite_recursive(
-                spec, args,
+                spec,
+                args,
                 template_dir=template_dir,
                 output_root=output_root,
                 dry_run=args.dry_run,
             )
         except RecursionError as exc:
-            print(json.dumps({
-                "ok": False,
-                "error": "RecursionError",
-                "message": str(exc),
-            }))
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error": "RecursionError",
+                        "message": str(exc),
+                    }
+                )
+            )
             return 2
 
         result["ok"] = True
@@ -1130,16 +1210,24 @@ def main(argv: list[str] | None = None) -> int:
             if isinstance(override, dict) and override:
                 files = {str(k): str(v) for k, v in override.items()}
             else:
-                warnings.append("--files-override-json was empty or not an object; using rendered files.")
+                warnings.append(
+                    "--files-override-json was empty or not an object; using rendered files."
+                )
         except json.JSONDecodeError as exc:
-            warnings.append(f"--files-override-json was not valid JSON ({exc}); using rendered files.")
+            warnings.append(
+                f"--files-override-json was not valid JSON ({exc}); using rendered files."
+            )
 
     if args.dry_run:
-        print(json.dumps({
-            "files": files,
-            "templateUsed": context["template_id"],
-            "warnings": warnings,
-        }))
+        print(
+            json.dumps(
+                {
+                    "files": files,
+                    "templateUsed": context["template_id"],
+                    "warnings": warnings,
+                }
+            )
+        )
         return 0
 
     output_dir = Path(args.output_dir).resolve()
@@ -1158,14 +1246,18 @@ def main(argv: list[str] | None = None) -> int:
         runner_key, reg_warnings = _register_runner(args, context, output_dir)
         warnings.extend(reg_warnings)
 
-    print(json.dumps({
-        "savedPaths": saved_paths,
-        "runnerKey": runner_key,
-        "templateUsed": context["template_id"],
-        "warnings": warnings,
-        "writtenTo": str(output_dir),
-        "files": list(files.keys()),
-    }))
+    print(
+        json.dumps(
+            {
+                "savedPaths": saved_paths,
+                "runnerKey": runner_key,
+                "templateUsed": context["template_id"],
+                "warnings": warnings,
+                "writtenTo": str(output_dir),
+                "files": list(files.keys()),
+            }
+        )
+    )
     return 0
 
 

@@ -145,7 +145,9 @@ def _load_cost_model(symbol: str) -> dict:
     if s in cost:
         c = cost[s]
         return {
-            "round_trip_points": float(c.get("total_round_trip_points", c.get("total_round_trip", 1.0))),
+            "round_trip_points": float(
+                c.get("total_round_trip_points", c.get("total_round_trip", 1.0))
+            ),
             "point_value": float(c.get("point_value", 1.0)),
         }
     return {"round_trip_points": 0.0, "point_value": 1.0, "fallback_bp": 0.5}

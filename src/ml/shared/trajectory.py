@@ -104,18 +104,19 @@ class TrajectoryRecorder:
 
         points = []
         for i in range(len(self._snapshots)):
-            points.append({
-                "pc1": round(float(projected[i, 0]), 6),
-                "pc2": round(float(projected[i, 1]), 6),
-                "loss": round(float(self._losses[i]), 6),
-                "epoch": self._epochs[i],
-            })
+            points.append(
+                {
+                    "pc1": round(float(projected[i, 0]), 6),
+                    "pc2": round(float(projected[i, 1]), 6),
+                    "loss": round(float(self._losses[i]), 6),
+                    "epoch": self._epochs[i],
+                }
+            )
 
         explained = pca.explained_variance_ratio_
         return {
             "points": points,
-            "explained_variance": [round(float(explained[0]), 6),
-                                   round(float(explained[1]), 6)],
+            "explained_variance": [round(float(explained[0]), 6), round(float(explained[1]), 6)],
         }
 
     def get_pca_directions(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -152,7 +153,7 @@ class TrajectoryRecorder:
 
         pc1 = self._pca.components_[0].astype(np.float32)  # (D,)
         pc2 = self._pca.components_[1].astype(np.float32)  # (D,)
-        center = self._pca.mean_.astype(np.float32)         # (D,)
+        center = self._pca.mean_.astype(np.float32)  # (D,)
 
         return pc1, pc2, center
 

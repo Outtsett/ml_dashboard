@@ -1,4 +1,4 @@
-﻿"""
+"""
 Shared normalization constants, classification, and transform functions.
 
 Used by:
@@ -32,10 +32,23 @@ CLIP_RANGE = 5.0
 
 # Columns to completely skip (raw OHLCV duplicates or broken data)
 SKIP_COLUMNS = {
-    "timestamp", "ts", "open", "high", "low", "close", "volume",
-    "HA_open", "HA_high", "HA_low", "HA_close",
-    "HL2", "HLC3", "OHLC4", "WCP",
-    "MIDPOINT_2", "MIDPRICE_2",
+    "timestamp",
+    "ts",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "HA_open",
+    "HA_high",
+    "HA_low",
+    "HA_close",
+    "HL2",
+    "HLC3",
+    "OHLC4",
+    "WCP",
+    "MIDPOINT_2",
+    "MIDPRICE_2",
     "HWPCT_1",  # numerically broken (values reach +/-2.6e15)
 }
 
@@ -43,24 +56,36 @@ SKIP_COLUMNS = {
 # Binary / signal columns (pass through as-is)
 # ---------------------------------------------------------------------------
 BINARY_PREFIXES = (
-    "CDL_",     # candle patterns: -100, 0, 100
-    "AMATe_",   # Archer MA signal: 0/1
-    "AOBV_",    # Archer OBV signal: 0/1
-    "EXHC_",    # exhaustion count: small integers
-    "microstructured_", # microstructure direction: -1/0/1
+    "CDL_",  # candle patterns: -100, 0, 100
+    "AMATe_",  # Archer MA signal: 0/1
+    "AOBV_",  # Archer OBV signal: 0/1
+    "EXHC_",  # exhaustion count: small integers
+    "microstructured_",  # microstructure direction: -1/0/1
 )
 
 BINARY_EXACT = {
-    "DEC_1", "INC_1",
-    "PSARr_0.02_0.2",       # PSAR reversal flag
-    "SQZ_NO", "SQZ_ON", "SQZ_OFF",
-    "SQZPRO_NO", "SQZPRO_OFF", "SQZPRO_ON_NARROW", "SQZPRO_ON_NORMAL", "SQZPRO_ON_WIDE",
-    "SUPERTd_7_3.0",        # SuperTrend direction
+    "DEC_1",
+    "INC_1",
+    "PSARr_0.02_0.2",  # PSAR reversal flag
+    "SQZ_NO",
+    "SQZ_ON",
+    "SQZ_OFF",
+    "SQZPRO_NO",
+    "SQZPRO_OFF",
+    "SQZPRO_ON_NARROW",
+    "SQZPRO_ON_NORMAL",
+    "SQZPRO_ON_WIDE",
+    "SUPERTd_7_3.0",  # SuperTrend direction
     "CHDLREXTd_22_22_14_2.0",
-    "THERMOl_20_2_0.5", "THERMOs_20_2_0.5",
-    "SMCbf_14_50_20_5", "SMChv_14_50_20_5", "SMCtf_14_50_20_5",
-    "TMOM_14_5_3", "TMOMs_14_5_3",
-    "PVR", "LDECAY_1",
+    "THERMOl_20_2_0.5",
+    "THERMOs_20_2_0.5",
+    "SMCbf_14_50_20_5",
+    "SMChv_14_50_20_5",
+    "SMCtf_14_50_20_5",
+    "TMOM_14_5_3",
+    "TMOMs_14_5_3",
+    "PVR",
+    "LDECAY_1",
 }
 
 # ---------------------------------------------------------------------------
@@ -78,36 +103,36 @@ BOUNDED_OSCILLATORS = {
     "STOCHFd_": (0, 100),
     "STOCHRSIk_": (0, 100),
     "STOCHRSId_": (0, 100),
-    "K_": (0, 100),         # KDJ K
-    "D_": (0, 100),         # KDJ D
+    "K_": (0, 100),  # KDJ K
+    "D_": (0, 100),  # KDJ D
     # Money flow / momentum: 0-100
     "MFI_": (0, 100),
     "UO_": (0, 100),
-    "PSL_": (0, 100),       # Psychological line
-    "CRSI_": (0, 100),      # Connors RSI
-    "STC_": (0, 100),       # Schaff Trend Cycle
+    "PSL_": (0, 100),  # Psychological line
+    "CRSI_": (0, 100),  # Connors RSI
+    "STC_": (0, 100),  # Schaff Trend Cycle
     # Directional / trend strength: 0-100
     "ADX_": (0, 100),
     "ADXR_": (0, 100),
     "AROONU_": (0, 100),
     "AROOND_": (0, 100),
     "CHOP_": (0, 100),
-    "NATR_": (0, 100),      # Normalized ATR (already %)
+    "NATR_": (0, 100),  # Normalized ATR (already %)
     # Symmetric bounded: -100 to 100
     "CMO_": (-100, 100),
     "AROONOSC_": (-100, 100),
-    "CCI_": (-200, 200),    # typical range, clips beyond
+    "CCI_": (-200, 200),  # typical range, clips beyond
     "WILLR_": (-100, 0),
     # 0-1 bounded
-    "BBP_": (0, 1),         # Bollinger %B
-    "BBB_": (0, 1),         # Bollinger bandwidth ratio
-    "ER_": (0, 1),          # Efficiency Ratio
-    "ATRr_": (0, 1),        # ATR ratio (already normalized)
+    "BBP_": (0, 1),  # Bollinger %B
+    "BBB_": (0, 1),  # Bollinger bandwidth ratio
+    "ER_": (0, 1),  # Efficiency Ratio
+    "ATRr_": (0, 1),  # ATR ratio (already normalized)
     # -1 to 1 bounded
-    "CMF_": (-1, 1),        # Chaikin Money Flow
-    "EBSW_": (-1, 1),       # Even Better Sinewave
-    "CTI_": (-1, 1),        # Correlation Trend Indicator
-    "BOP": (-1, 1),         # Balance of Power (exact match handled below)
+    "CMF_": (-1, 1),  # Chaikin Money Flow
+    "EBSW_": (-1, 1),  # Even Better Sinewave
+    "CTI_": (-1, 1),  # Correlation Trend Indicator
+    "BOP": (-1, 1),  # Balance of Power (exact match handled below)
     # RVI: 0-100 typical
     "RVI_": (0, 100),
 }
@@ -115,7 +140,7 @@ BOUNDED_OSCILLATORS = {
 # Exact bounded matches (columns that don't follow prefix patterns)
 BOUNDED_EXACT = {
     "BOP": (-1, 1),
-    "J_9_3": (-50, 150),    # KDJ J-line overshoots
+    "J_9_3": (-50, 150),  # KDJ J-line overshoots
 }
 
 # ---------------------------------------------------------------------------
@@ -124,32 +149,74 @@ BOUNDED_EXACT = {
 # ---------------------------------------------------------------------------
 PRICE_LEVEL_PREFIXES = (
     # Moving averages (all types)
-    "SMA_", "EMA_", "DEMA_", "TEMA_", "TRIMA_", "WMA_", "FWMA_",
-    "HMA_", "KAMA_", "ALMA_", "PWMA_", "RMA_", "SINWMA_",
-    "SMMA_", "SWMA_", "VIDYA_", "VWMA_", "ZL_EMA_",
-    "MCGD_", "T3_", "JMA_", "HWMA_", "SSF_", "SSF3_",
-    "MAMA_", "FAMA_",       # MESA Adaptive MA
-    "LINREG_",              # Linear regression value
-    "HT_TL",                # Hilbert Trendline
-    "ALPHAT_", "ALPHATl_",  # Alpha Trend (price-tracking)
+    "SMA_",
+    "EMA_",
+    "DEMA_",
+    "TEMA_",
+    "TRIMA_",
+    "WMA_",
+    "FWMA_",
+    "HMA_",
+    "KAMA_",
+    "ALMA_",
+    "PWMA_",
+    "RMA_",
+    "SINWMA_",
+    "SMMA_",
+    "SWMA_",
+    "VIDYA_",
+    "VWMA_",
+    "ZL_EMA_",
+    "MCGD_",
+    "T3_",
+    "JMA_",
+    "HWMA_",
+    "SSF_",
+    "SSF3_",
+    "MAMA_",
+    "FAMA_",  # MESA Adaptive MA
+    "LINREG_",  # Linear regression value
+    "HT_TL",  # Hilbert Trendline
+    "ALPHAT_",
+    "ALPHATl_",  # Alpha Trend (price-tracking)
     # Bollinger / Keltner / Donchian / Acceleration bands (the LEVELS, not %B/%bandwidth)
-    "BBL_", "BBM_", "BBU_",
-    "KCLe_", "KCBe_", "KCUe_",
-    "DCL_", "DCM_", "DCU_",
-    "ACCBL_", "ACCBM_", "ACCBU_",
+    "BBL_",
+    "BBM_",
+    "BBU_",
+    "KCLe_",
+    "KCBe_",
+    "KCUe_",
+    "DCL_",
+    "DCM_",
+    "DCU_",
+    "ACCBL_",
+    "ACCBM_",
+    "ACCBU_",
     # SuperTrend price levels (not direction flag)
-    "SUPERT_", "SUPERTl_", "SUPERTs_",
+    "SUPERT_",
+    "SUPERTl_",
+    "SUPERTs_",
     # PSAR price levels (not reversal flag)
-    "PSARl_", "PSARs_", "PSARaf_",
+    "PSARl_",
+    "PSARs_",
+    "PSARaf_",
     # Ichimoku lines (all track price)
-    "ISA_", "ISB_", "ITS_", "IKS_", "ICS_",
+    "ISA_",
+    "ISB_",
+    "ITS_",
+    "IKS_",
+    "ICS_",
     # Pivot points
     "PIVOTS_",
     # HILO channel
-    "HILO_", "HILOl_", "HILOs_",
+    "HILO_",
+    "HILOl_",
+    "HILOs_",
     # Chande Kroll Stop (price-level)
-    "CKSPl_", "CKSPs_",
-    "CHDLREXTl_", "CHDLREXTs_",
+    "CKSPl_",
+    "CKSPs_",
+    "CHDLREXTl_",
+    "CHDLREXTs_",
     # TOS StdDev bands (price levels)
     "TOS_STDEVALL_",
     # ATR Trailing Stop (price level)
@@ -158,9 +225,9 @@ PRICE_LEVEL_PREFIXES = (
 
 PRICE_LEVEL_EXACT = {
     "HT_TL",
-    "VWAP_D",               # Volume-weighted average price
-    "MEDIAN_30",            # Rolling median of price
-    "QTL_30_0.5",           # Rolling quantile of price
+    "VWAP_D",  # Volume-weighted average price
+    "MEDIAN_30",  # Rolling median of price
+    "QTL_30_0.5",  # Rolling quantile of price
 }
 
 # ---------------------------------------------------------------------------
@@ -169,15 +236,21 @@ PRICE_LEVEL_EXACT = {
 # ---------------------------------------------------------------------------
 PRICE_UNIT_PREFIXES = (
     "TRUERANGE_",
-    "HWM_", "HWL_", "HWU_", "HWW_",  # Holt-Winter bands & width
-    "STDEV_",               # Standard deviation of price
-    "MAD_",                 # Mean absolute deviation
-    "VAR_",                 # Variance of price
-    "ABER_ZG_", "ABER_SG_", "ABER_XG_",  # Aberration zone/signal levels
-    "BULLP_", "BEARP_",    # Bull/Bear power (distance from EMA)
-    "PDIST",                # Price distance
-    "DPO_",                 # Detrended Price Oscillator
-    "MOM_",                 # Momentum (price difference)
+    "HWM_",
+    "HWL_",
+    "HWU_",
+    "HWW_",  # Holt-Winter bands & width
+    "STDEV_",  # Standard deviation of price
+    "MAD_",  # Mean absolute deviation
+    "VAR_",  # Variance of price
+    "ABER_ZG_",
+    "ABER_SG_",
+    "ABER_XG_",  # Aberration zone/signal levels
+    "BULLP_",
+    "BEARP_",  # Bull/Bear power (distance from EMA)
+    "PDIST",  # Price distance
+    "DPO_",  # Detrended Price Oscillator
+    "MOM_",  # Momentum (price difference)
 )
 
 PRICE_UNIT_EXACT = {
@@ -189,14 +262,16 @@ PRICE_UNIT_EXACT = {
 # These accumulate over time and trend toward infinity.
 # ---------------------------------------------------------------------------
 CUMULATIVE_EXACT = {
-    "AD",                   # Accumulation/Distribution
-    "OBV",                  # On Balance Volume
-    "OBV_min_2", "OBV_max_2",
-    "OBVe_4", "OBVe_12",   # OBV EMAs (still cumulative)
-    "NVI_1",                # Negative Volume Index
-    "PVI",                  # Positive Volume Index
-    "PVIe_255",             # PVI EMA
-    "PVT",                  # Price Volume Trend
+    "AD",  # Accumulation/Distribution
+    "OBV",  # On Balance Volume
+    "OBV_min_2",
+    "OBV_max_2",
+    "OBVe_4",
+    "OBVe_12",  # OBV EMAs (still cumulative)
+    "NVI_1",  # Negative Volume Index
+    "PVI",  # Positive Volume Index
+    "PVIe_255",  # PVI EMA
+    "PVT",  # Price Volume Trend
 }
 
 # ---------------------------------------------------------------------------
@@ -204,15 +279,18 @@ CUMULATIVE_EXACT = {
 # These are already z-scores, percentile ranks, or dimensionless ratios.
 # ---------------------------------------------------------------------------
 PASSTHROUGH_PREFIXES = (
-    "open_Z_", "high_Z_", "low_Z_", "close_Z_",  # Pre-computed z-scores
+    "open_Z_",
+    "high_Z_",
+    "low_Z_",
+    "close_Z_",  # Pre-computed z-scores
 )
 
 PASSTHROUGH_EXACT = {
-    "ZS_30",                # Z-score (already normalized)
-    "SLOPE_1",              # Price slope (already rate)
-    "LOGRET_1",             # Log return (already %)
-    "PCTRET_1",             # Pct return (already %)
-    "BIAS_SMA_26",          # Bias (already % from MA)
+    "ZS_30",  # Z-score (already normalized)
+    "SLOPE_1",  # Price slope (already rate)
+    "LOGRET_1",  # Log return (already %)
+    "PCTRET_1",  # Pct return (already %)
+    "BIAS_SMA_26",  # Bias (already % from MA)
 }
 
 
@@ -312,7 +390,7 @@ def _rolling_zscore_numba(arr, window, clip):
         out = np.empty(n, dtype=np.float64)
         out[:w] = np.nan
         for i in range(w, n):
-            s = a[i - w:i]
+            s = a[i - w : i]
             m = 0.0
             for j in range(w):
                 m += s[j]
@@ -374,4 +452,3 @@ def cumulative_roc(arr: np.ndarray, window: int = ROLLING_WINDOW) -> np.ndarray:
     roc = diff / rolling_std.replace(0, np.nan)
     roc = roc.clip(-CLIP_RANGE, CLIP_RANGE)
     return roc.values
-

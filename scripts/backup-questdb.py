@@ -96,7 +96,9 @@ def table_partitions(table):
 def live_snapshot(table):
     """Point-in-time count/min/max for a table, captured before export begins -- this is
     the ground truth the restore drill diffs against."""
-    rows = http_query(f"SELECT count() cnt, min(timestamp) min_ts, max(timestamp) max_ts FROM {table}")
+    rows = http_query(
+        f"SELECT count() cnt, min(timestamp) min_ts, max(timestamp) max_ts FROM {table}"
+    )
     row = rows[0]
     return {"row_count": row["cnt"], "min_timestamp": row["min_ts"], "max_timestamp": row["max_ts"]}
 
@@ -234,15 +236,40 @@ def backup_table(conn, table: str, dest: Path, state: dict, force_full: bool, lo
 def main():
     raise SystemExit(RETIRED_REASON)
 
-    parser = argparse.ArgumentParser(description="Backup QuestDB to parquet on a separate physical drive")
-    parser.add_argument("--dest", type=str, default=str(DEFAULT_DEST), help=f"Backup destination (default: {DEFAULT_DEST})")
-    parser.add_argument("--tables", type=str, default=None, help="Comma-separated table override (default: all tables, priority order)")
-    parser.add_argument("--force-full", action="store_true", help="Ignore incremental state, re-export every partition")
+    parser = argparse.ArgumentParser(
+        description="Backup QuestDB to parquet on a separate physical drive"
+    )
+    parser.add_argument(
+        "--dest",
+        type=str,
+        default=str(DEFAULT_DEST),
+        help=f"Backup destination (default: {DEFAULT_DEST})",
+    )
+    parser.add_argument(
+        "--tables",
+        type=str,
+        default=None,
+        help="Comma-separated table override (default: all tables, priority order)",
+    )
+    parser.add_argument(
+        "--force-full",
+        action="store_true",
+        help="Ignore incremental state, re-export every partition",
+    )
     parser.add_argument("--pg-host", type=str, default=os.environ.get("QUESTDB_HOST", "127.0.0.1"))
-    parser.add_argument("--pg-port", type=int, default=int(os.environ.get("QUESTDB_PG_PORT", "8812")))
+    parser.add_argument(
+        "--pg-port", type=int, default=int(os.environ.get("QUESTDB_PG_PORT", "8812"))
+    )
     parser.add_argument("--pg-user", type=str, default=os.environ.get("QUESTDB_USER", "admin"))
-    parser.add_argument("--pg-password", type=str, default=os.environ.get("QUESTDB_PASSWORD", "quest"))
-    parser.add_argument("--source-drive", type=str, default=DEFAULT_SOURCE_DRIVE, help="Drive letter the live QuestDB data directory lives on -- refuses to run if --dest is on this drive")
+    parser.add_argument(
+        "--pg-password", type=str, default=os.environ.get("QUESTDB_PASSWORD", "quest")
+    )
+    parser.add_argument(
+        "--source-drive",
+        type=str,
+        default=DEFAULT_SOURCE_DRIVE,
+        help="Drive letter the live QuestDB data directory lives on -- refuses to run if --dest is on this drive",
+    )
     args = parser.parse_args()
 
     dest = Path(args.dest)
@@ -275,7 +302,9 @@ def main():
         if missing_priority:
             log(f"WARNING: priority tables not found in instance: {missing_priority}")
 
-    log(f"Backup run starting. Destination: {dest} (drive {dest_drive}, source drive {source_drive})")
+    log(
+        f"Backup run starting. Destination: {dest} (drive {dest_drive}, source drive {source_drive})"
+    )
     log(f"Tables ({len(tables)}), priority order: {tables}")
 
     state = load_state(dest) if not args.force_full else {}

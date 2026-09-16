@@ -77,10 +77,12 @@ def assign_families(
     blocks: list[dict] = []
     for family in FAMILY_ORDER:
         members = [n for n, f in zip(feature_names, per_feature) if f == family]
-        blocks.append({
-            "family": family,
-            "label": LENS_FAMILY_LABELS[family],
-            "features": members,
-            "sourceCategories": list(LENS_FAMILY_CATEGORIES[family]),
-        })
+        blocks.append(
+            {
+                "family": family,
+                "label": LENS_FAMILY_LABELS[family],
+                "features": members,
+                "sourceCategories": list(LENS_FAMILY_CATEGORIES[family]),
+            }
+        )
     return per_feature, blocks, unmapped

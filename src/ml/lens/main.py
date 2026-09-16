@@ -73,7 +73,9 @@ def _duplicate_of(model_dir: Path, models_root: Path) -> str | None:
         return None
     digest = _sha256(mine)
     matches = []
-    for other in sorted(p for p in models_root.iterdir() if p.is_dir() and p.name != model_dir.name):
+    for other in sorted(
+        p for p in models_root.iterdir() if p.is_dir() and p.name != model_dir.name
+    ):
         theirs = _prediction_artifact(other)
         if theirs is not None and theirs.name == mine.name and _sha256(theirs) == digest:
             matches.append(other.name)
@@ -172,7 +174,9 @@ def _interval_lookahead_check(record: Record) -> dict:
     perturbed_returns[cut:][finite_tail] = -perturbed_returns[cut:][finite_tail] * 7.0 + 250.0
     perturbed, _ = causal_conformal_quantiles(record.probability_up, perturbed_returns, horizon)
 
-    difference = np.abs(np.nan_to_num(baseline, nan=0.0) - np.nan_to_num(perturbed, nan=0.0)).max(axis=1)
+    difference = np.abs(np.nan_to_num(baseline, nan=0.0) - np.nan_to_num(perturbed, nan=0.0)).max(
+        axis=1
+    )
     moved = np.flatnonzero(difference > 1e-9)
     first_moved = int(moved[0]) if moved.size else n
     floor = cut - horizon
@@ -193,7 +197,9 @@ def _horizon_error(record: Record) -> float:
     recomputed = np.log(record.close[h:] / record.close[: n - h]) * 10_000.0
     stored = record.realized_return_basis_points[: n - h]
     finite = np.isfinite(recomputed) & np.isfinite(stored)
-    return float(np.max(np.abs(recomputed[finite] - stored[finite]))) if finite.any() else float("nan")
+    return (
+        float(np.max(np.abs(recomputed[finite] - stored[finite]))) if finite.any() else float("nan")
+    )
 
 
 def _horizon_is_consistent(record: Record) -> bool:
@@ -216,11 +222,15 @@ def _write_bars(lens_dir: Path, record: Record, quantiles: np.ndarray) -> None:
         "volume": pl.Series(record.volume.astype(np.float64)),
         "probability_up": pl.Series(record.probability_up.astype(np.float32)),
         "label": pl.Series(label).cast(pl.Int8, strict=False),
-        "realized_return_basis_points": pl.Series(record.realized_return_basis_points.astype(np.float32)),
+        "realized_return_basis_points": pl.Series(
+            record.realized_return_basis_points.astype(np.float32)
+        ),
     }
     for index, name in enumerate(QUANTILE_COLUMNS):
         columns[name] = pl.Series(quantiles[:, index].astype(np.float32))
-    pl.DataFrame(columns).write_parquet(lens_dir / "bars.parquet", compression="zstd", compression_level=3)
+    pl.DataFrame(columns).write_parquet(
+        lens_dir / "bars.parquet", compression="zstd", compression_level=3
+    )
 
 
 def _write_attribution(lens_dir: Path, record: Record) -> dict:
@@ -229,22 +239,31 @@ def _write_attribution(lens_dir: Path, record: Record) -> dict:
     target = lens_dir / "attribution.parquet"
     if record.attribution is None:
         target.unlink(missing_ok=True)
-        return {"available": False, "reason": record.attribution_reason or "no attribution artifact"}
+        return {
+            "available": False,
+            "reason": record.attribution_reason or "no attribution artifact",
+        }
 
     names, shap, values = record.attribution
     families, blocks, unmapped = assign_families(names)
     n, feature_count = shap.shape
     rows = np.arange(n, dtype=np.int32)
 
-    frame = pl.DataFrame({
-        "row_index": pl.Series(np.repeat(rows, feature_count)),
-        "feature_name": pl.Series(names * n),
-        "feature_family": pl.Series(families * n),
-        "shap_value": pl.Series(shap.reshape(-1).astype(np.float32)),
-        "feature_value": pl.Series(
-            (values.reshape(-1).astype(np.float32) if values is not None else np.full(n * feature_count, np.nan, dtype=np.float32))
-        ),
-    })
+    frame = pl.DataFrame(
+        {
+            "row_index": pl.Series(np.repeat(rows, feature_count)),
+            "feature_name": pl.Series(names * n),
+            "feature_family": pl.Series(families * n),
+            "shap_value": pl.Series(shap.reshape(-1).astype(np.float32)),
+            "feature_value": pl.Series(
+                (
+                    values.reshape(-1).astype(np.float32)
+                    if values is not None
+                    else np.full(n * feature_count, np.nan, dtype=np.float32)
+                )
+            ),
+        }
+    )
     # Rows whose attribution is absent carry no entries at all rather than zeros.
     frame = frame.filter(pl.col("shap_value").is_not_nan())
     frame.write_parquet(target, compression="zstd", compression_level=3)
@@ -256,7 +275,9 @@ def _write_attribution(lens_dir: Path, record: Record) -> dict:
         "families": blocks,
     }
     if unmapped:
-        block["reason"] = f"features with no registry category, counted under macro: {', '.join(unmapped)}"
+        block["reason"] = (
+            f"features with no registry category, counted under macro: {', '.join(unmapped)}"
+        )
     return block
 
 
@@ -300,26 +321,31 @@ def inspect(model_id: str, models_root: Path = MODELS_ROOT) -> dict:
         return out
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    out.update({
-        "symbol": manifest.get("symbol"),
-        "timeframe": manifest.get("timeframe"),
-        "barCount": manifest.get("barCount"),
-        "firstTimestampSeconds": manifest.get("firstTimestampSeconds"),
-        "lastTimestampSeconds": manifest.get("lastTimestampSeconds"),
-        "notes": manifest.get("notes", []),
-    })
+    out.update(
+        {
+            "symbol": manifest.get("symbol"),
+            "timeframe": manifest.get("timeframe"),
+            "barCount": manifest.get("barCount"),
+            "firstTimestampSeconds": manifest.get("firstTimestampSeconds"),
+            "lastTimestampSeconds": manifest.get("lastTimestampSeconds"),
+            "notes": manifest.get("notes", []),
+        }
+    )
 
     stale = [
         entry["path"]
         for entry in manifest.get("sourceFiles", [])
-        if not (PROJECT_ROOT / entry["path"]).exists() or _sha256(PROJECT_ROOT / entry["path"]) != entry["sha256"]
+        if not (PROJECT_ROOT / entry["path"]).exists()
+        or _sha256(PROJECT_ROOT / entry["path"]) != entry["sha256"]
     ]
     missing_tables = [
         name for name in ("bars.parquet",) if not (model_dir / "lens" / name).exists()
     ]
     if manifest.get("builderVersion") != LENS_BUILDER_VERSION:
         out["status"] = "stale"
-        out["reason"] = f"built by lens version {manifest.get('builderVersion')}, current is {LENS_BUILDER_VERSION}"
+        out["reason"] = (
+            f"built by lens version {manifest.get('builderVersion')}, current is {LENS_BUILDER_VERSION}"
+        )
     elif stale:
         out["status"] = "stale"
         out["reason"] = f"source artifact changed since the lens was built: {', '.join(stale)}"
@@ -345,12 +371,20 @@ def inspect_all(models_root: Path = MODELS_ROOT) -> dict:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build the Model Lens artifacts for a trained model.")
+    parser = argparse.ArgumentParser(
+        description="Build the Model Lens artifacts for a trained model."
+    )
     parser.add_argument("--model-id")
     parser.add_argument("--models-root", default=str(MODELS_ROOT))
     parser.add_argument("--inspect", action="store_true", help="report status without building")
-    parser.add_argument("--inspect-all", action="store_true", help="report status for every model directory")
-    parser.add_argument("--json", action="store_true", help="accepted for symmetry with the trainers; output is always JSON")
+    parser.add_argument(
+        "--inspect-all", action="store_true", help="report status for every model directory"
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="accepted for symmetry with the trainers; output is always JSON",
+    )
     args = parser.parse_args()
 
     models_root = Path(args.models_root)

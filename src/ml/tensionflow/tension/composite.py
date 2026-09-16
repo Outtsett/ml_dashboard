@@ -51,11 +51,11 @@ def compute_composite(
         If ``weight_profile`` is missing any of the five required keys.
     """
     d_score: float = (
-        weight_profile["spatial"]          * s_spatial
-        + weight_profile["momentum"]       * s_momentum
+        weight_profile["spatial"] * s_spatial
+        + weight_profile["momentum"] * s_momentum
         + weight_profile["band_direction"] * s_band_direction
         + weight_profile["volume_profile"] * s_volume_profile
-        + weight_profile["structure"]      * s_structure
+        + weight_profile["structure"] * s_structure
     )
 
     # Clip to keep the output in the canonical signal range.

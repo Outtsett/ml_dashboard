@@ -187,13 +187,12 @@ def _load_questdb_table(source: DataSource) -> dict:
         # Every identifier is quoted: a discovered column list is not under this
         # module's control and can collide with a DuckDB reserved word.
         select_list = ", ".join(
-            [f'time_bucket(INTERVAL {_interval_literal(sample_by)}, "{time_column}") AS "{time_column}"']
+            [
+                f'time_bucket(INTERVAL {_interval_literal(sample_by)}, "{time_column}") AS "{time_column}"'
+            ]
             + [f'arg_max("{c}", "{time_column}") AS "{c}"' for c in other_cols]
         )
-        sql = (
-            f"SELECT {select_list} FROM {table}{where} "
-            f"GROUP BY 1 ORDER BY {time_column}{limit}"
-        )
+        sql = f"SELECT {select_list} FROM {table}{where} GROUP BY 1 ORDER BY {time_column}{limit}"
     else:
         sql = f"SELECT * FROM {table}{where} ORDER BY {time_column}{limit}"
 
@@ -388,9 +387,16 @@ def _column_to_index(series: pl.Series) -> np.ndarray:
 
 
 _NUMERIC_POLARS_DTYPES = (
-    pl.Float64, pl.Float32,
-    pl.Int64, pl.Int32, pl.Int16, pl.Int8,
-    pl.UInt64, pl.UInt32, pl.UInt16, pl.UInt8,
+    pl.Float64,
+    pl.Float32,
+    pl.Int64,
+    pl.Int32,
+    pl.Int16,
+    pl.Int8,
+    pl.UInt64,
+    pl.UInt32,
+    pl.UInt16,
+    pl.UInt8,
 )
 
 

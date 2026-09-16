@@ -1,4 +1,4 @@
-﻿"""
+"""
 Config-driven feature computation — reads src/config/features.json.
 
 Computes features from raw OHLCV for regime discovery and other ML models.
@@ -23,6 +23,7 @@ from .microstructure import compute_microstructure_features
 # import. This deferral is safe because nothing between this comment and the
 # import below references first_principles.
 
+
 @njit(cache=True, parallel=True)
 def _rolling_mean(arr, window):
     n = len(arr)
@@ -33,6 +34,7 @@ def _rolling_mean(arr, window):
         out[i] = (cs[i] - (cs[i - window] if i >= window else 0.0)) / window
     return out
 
+
 @njit(cache=True, parallel=True)
 def _rolling_std(arr, window):
     n = len(arr)
@@ -42,6 +44,7 @@ def _rolling_std(arr, window):
         chunk = arr[i - window + 1 : i + 1]
         out[i] = np.std(chunk)
     return out
+
 
 # Deferred (see note above) — must come after the @njit definitions of
 # _rolling_mean / _rolling_std that first_principles imports.
@@ -61,12 +64,14 @@ def _compute_log_return(ohlcv, params):
     ret[h:] = np.log(close[h:] / close[:-h])
     return ret
 
+
 def _compute_realized_vol(ohlcv, params):
     window = params.get("window", 20)
     close = ohlcv["close"]
     ret = np.zeros_like(close)
     ret[1:] = np.log(close[1:] / close[:-1])
     return _rolling_std(ret, window)
+
 
 def _compute_parkinson_vol(ohlcv, params):
     window = params.get("window", 20)
@@ -83,21 +88,25 @@ def _compute_parkinson_vol(ohlcv, params):
         out[i] = np.sqrt(factor * s)
     return out
 
+
 def _compute_volume_ratio(ohlcv, params):
     window = params.get("window", 20)
     vol = ohlcv["volume"]
     ma_vol = _rolling_mean(vol, window)
     return np.divide(vol, ma_vol, out=np.zeros_like(vol), where=ma_vol != 0)
 
+
 def _compute_bar_range(ohlcv, params):
     high, low, close = ohlcv["high"], ohlcv["low"], ohlcv["close"]
     return np.divide(high - low, close, out=np.zeros_like(close), where=close != 0)
+
 
 def _compute_body_ratio(ohlcv, params):
     open_, high, low, close = ohlcv["open_"], ohlcv["high"], ohlcv["low"], ohlcv["close"]
     hl = high - low
     body = np.abs(close - open_)
     return np.divide(body, hl, out=np.zeros_like(hl), where=hl != 0)
+
 
 def _compute_upper_shadow(ohlcv, params):
     open_, high, low, close = ohlcv["open_"], ohlcv["high"], ohlcv["low"], ohlcv["close"]
@@ -106,12 +115,14 @@ def _compute_upper_shadow(ohlcv, params):
     shadow = high - top
     return np.divide(shadow, hl, out=np.zeros_like(hl), where=hl != 0)
 
+
 def _compute_lower_shadow(ohlcv, params):
     open_, high, low, close = ohlcv["open_"], ohlcv["high"], ohlcv["low"], ohlcv["close"]
     hl = high - low
     bottom = np.minimum(open_, close)
     shadow = bottom - low
     return np.divide(shadow, hl, out=np.zeros_like(hl), where=hl != 0)
+
 
 def _compute_roc(ohlcv, params):
     h = params.get("horizon", 10)
@@ -120,11 +131,13 @@ def _compute_roc(ohlcv, params):
     out[h:] = (close[h:] - close[:-h]) / close[:-h] * 100
     return out
 
+
 def _compute_ma_distance(ohlcv, params):
     window = params.get("window", 50)
     close = ohlcv["close"]
     ma = _rolling_mean(close, window)
     return np.divide(close - ma, ma, out=np.zeros_like(ma), where=ma != 0) * 100
+
 
 COMPUTE_FUNCTIONS = {
     "log_return": _compute_log_return,
@@ -145,16 +158,18 @@ COMPUTE_FUNCTIONS = {
     # "microstructure" handled specially via batch compute
 }
 
+
 def _load_feature_config():
     config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config", "features.json")
     with open(config_path, "r") as f:
         return json.load(f)
 
+
 def _extract_arrays(data):
     # Expects list of dicts or dict of lists
     if isinstance(data, dict) and "close" in data:
         return data, data.get("timestamp")
-    
+
     # Convert list of OHLCV objects to dict of arrays
     return {
         "open_": np.array([d.get("open", d.get("open_")) for d in data], dtype=np.float64),
@@ -163,6 +178,7 @@ def _extract_arrays(data):
         "close": np.array([d["close"] for d in data], dtype=np.float64),
         "volume": np.array([d.get("volume", 0) for d in data], dtype=np.float64),
     }, np.array([d.get("timestamp", 0) for d in data])
+
 
 def _safe_compute(feat_def, ohlcv):
     f_type = feat_def["type"]
@@ -173,6 +189,7 @@ def _safe_compute(feat_def, ohlcv):
         return feat_def["name"], arr
     except Exception:
         return feat_def["name"], None
+
 
 def compute_features(data, categories=None, n_jobs=1):
     config = _load_feature_config()
@@ -260,18 +277,25 @@ def load_features_with_cache(
     def _compute() -> tuple[np.ndarray, list[str], np.ndarray]:
         # Translate to the feature engine's expected dict shape (`open_` not `open`).
         ohlcv = {
-            "open_": raw["open"], "high": raw["high"], "low": raw["low"],
-            "close": raw["close"], "volume": raw["volume"],
+            "open_": raw["open"],
+            "high": raw["high"],
+            "low": raw["low"],
+            "close": raw["close"],
+            "volume": raw["volume"],
         }
         matrix, names, _ts = compute_features(ohlcv, categories=categories, n_jobs=1)
         # Use the OHLCV timestamps; the feature engine returns None for dict input.
-        ts_arr = np.asarray([t.timestamp() if hasattr(t, "timestamp") else float(t)
-                             for t in raw["timestamp"]], dtype=np.int64)
+        ts_arr = np.asarray(
+            [t.timestamp() if hasattr(t, "timestamp") else float(t) for t in raw["timestamp"]],
+            dtype=np.int64,
+        )
         return matrix.astype(np.float32), list(names), ts_arr
 
     matrix, names, timestamps = cached_features(
-        symbol=symbol, timeframe=timeframe, date_range=date_range,
-        categories=categories, compute_fn=_compute,
+        symbol=symbol,
+        timeframe=timeframe,
+        date_range=date_range,
+        categories=categories,
+        compute_fn=_compute,
     )
     return matrix, names, timestamps, raw
-

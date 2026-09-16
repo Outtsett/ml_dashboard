@@ -98,9 +98,7 @@ def load_bars(symbol: str, timeframe_sec: int, total_bars: int) -> list[dict]:
     for row in raw_data:
         ts_raw = row.get("timestamp") or row.get("ts") or row.get("time") or ""
         # Convert ms timestamp to ISO string if numeric
-        if isinstance(ts_raw, (int, float)) or (
-            isinstance(ts_raw, str) and ts_raw.isdigit()
-        ):
+        if isinstance(ts_raw, (int, float)) or (isinstance(ts_raw, str) and ts_raw.isdigit()):
             from datetime import datetime, timezone
 
             ts_ms = int(ts_raw)
@@ -172,9 +170,7 @@ def run_chronos_forecast(
     print(f"{'=' * 60}\n")
 
     # ── Extract close prices for context ─────────────────────────────
-    context_closes = torch.tensor(
-        [b["close"] for b in context_bars], dtype=torch.float32
-    )
+    context_closes = torch.tensor([b["close"] for b in context_bars], dtype=torch.float32)
 
     # ── Load pre-trained model ───────────────────────────────────────
     model_id = MODEL_SIZES.get(model_size, MODEL_SIZES["small"])
@@ -191,9 +187,7 @@ def run_chronos_forecast(
     )
 
     # ── Generate forecast ────────────────────────────────────────────
-    print(
-        f"[FORECAST] Generating {num_samples} sample paths, {forecast_horizon} bars ahead..."
-    )
+    print(f"[FORECAST] Generating {num_samples} sample paths, {forecast_horizon} bars ahead...")
     t0 = time.time()
 
     forecast = pipeline.predict(
@@ -288,24 +282,16 @@ def run_chronos_forecast(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Pre-trained model forecast on market data"
-    )
-    parser.add_argument(
-        "--symbol", type=str, default="ES", help="Symbol (e.g., ES, MNQ, EURUSD)"
-    )
+    parser = argparse.ArgumentParser(description="Pre-trained model forecast on market data")
+    parser.add_argument("--symbol", type=str, default="ES", help="Symbol (e.g., ES, MNQ, EURUSD)")
     parser.add_argument(
         "--timeframe",
         type=int,
         default=3600,
         help="Timeframe in seconds (60=1m, 300=5m, 3600=1H)",
     )
-    parser.add_argument(
-        "--context", type=int, default=200, help="Context bars (model input)"
-    )
-    parser.add_argument(
-        "--horizon", type=int, default=20, help="Forecast horizon (bars ahead)"
-    )
+    parser.add_argument("--context", type=int, default=200, help="Context bars (model input)")
+    parser.add_argument("--horizon", type=int, default=20, help="Forecast horizon (bars ahead)")
     parser.add_argument(
         "--model-size",
         type=str,
@@ -313,9 +299,7 @@ def main():
         choices=MODEL_SIZES.keys(),
         help="Model size: tiny/mini/small/base/large",
     )
-    parser.add_argument(
-        "--samples", type=int, default=20, help="Number of sample paths"
-    )
+    parser.add_argument("--samples", type=int, default=20, help="Number of sample paths")
     parser.add_argument(
         "--output",
         type=str,
@@ -331,9 +315,7 @@ def main():
     bars = load_bars(args.symbol, args.timeframe, total_bars)
 
     if len(bars) < args.context + args.horizon:
-        print(
-            f"[ERROR] Only {len(bars)} bars available, need {args.context + args.horizon}"
-        )
+        print(f"[ERROR] Only {len(bars)} bars available, need {args.context + args.horizon}")
         sys.exit(1)
 
     # Run forecast
@@ -348,9 +330,7 @@ def main():
     # Add symbol/timeframe to metadata
     result["metadata"]["symbol"] = args.symbol
     result["metadata"]["timeframe_sec"] = args.timeframe
-    result["metadata"]["timeframe_label"] = TIMEFRAME_MAP.get(
-        args.timeframe, f"{args.timeframe}s"
-    )
+    result["metadata"]["timeframe_label"] = TIMEFRAME_MAP.get(args.timeframe, f"{args.timeframe}s")
 
     # Save
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -358,9 +338,7 @@ def main():
         out_path = Path(args.output)
     else:
         tf_label = TIMEFRAME_MAP.get(args.timeframe, f"{args.timeframe}s")
-        out_path = (
-            OUTPUT_DIR / f"chronos_{args.symbol}_{tf_label}_{args.model_size}.json"
-        )
+        out_path = OUTPUT_DIR / f"chronos_{args.symbol}_{tf_label}_{args.model_size}.json"
 
     with open(out_path, "w") as f:
         json.dump(result, f, indent=2)

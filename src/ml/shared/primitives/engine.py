@@ -1,4 +1,4 @@
-﻿import numpy as np
+import numpy as np
 
 from .core import (
     _first_diff,
@@ -139,9 +139,7 @@ def compute_primitives(ohlcv, N=20, k=1):
     all_arrays["pattern_slope"] = _pattern_slope(high, low, N)
     all_arrays["structural_break"] = _structural_break(close, N)
     all_arrays["compression_duration"] = _compression_duration(high, low, close, N)
-    all_arrays["fractal_dimension_structure"] = _fractal_dimension_structure(
-        high, low, close, N
-    )
+    all_arrays["fractal_dimension_structure"] = _fractal_dimension_structure(high, low, close, N)
     all_arrays["breakout_intensity"] = _breakout_intensity(high, low, close, N)
     all_arrays["consolidation_entropy"] = _consolidation_entropy(close, N)
     all_arrays["range_expansion"] = _range_expansion(high, low, N)
@@ -216,4 +214,3 @@ def list_primitives(N=20, k=1):
     }
     _, names = compute_primitives(dummy, N, k)
     return names
-

@@ -62,8 +62,7 @@ def _build_bounds(
             if dim.log_scale:
                 if lo <= 0:
                     raise ValueError(
-                        f"log_scale requires positive bounds — "
-                        f"dim '{dim.name}' has low={lo}"
+                        f"log_scale requires positive bounds — dim '{dim.name}' has low={lo}"
                     )
                 lo, hi = math.log(lo), math.log(hi)
             mins.append(lo)
@@ -197,9 +196,7 @@ class PSOOptimizer(BaseOptimizer):
         )
 
         if topology not in {"global", "local"}:
-            raise ValueError(
-                f"topology must be 'global' or 'local', got '{topology}'"
-            )
+            raise ValueError(f"topology must be 'global' or 'local', got '{topology}'")
 
         self.n_particles = n_particles
         self.c1 = c1
@@ -231,8 +228,7 @@ class PSOOptimizer(BaseOptimizer):
                     "minimum": 0.0,
                     "default": 2.0,
                     "description": (
-                        "Cognitive acceleration coefficient — weight of "
-                        "personal best attraction."
+                        "Cognitive acceleration coefficient — weight of personal best attraction."
                     ),
                 },
                 "c2": {
@@ -267,8 +263,7 @@ class PSOOptimizer(BaseOptimizer):
                     "maxItems": 2,
                     "default": None,
                     "description": (
-                        "Optional [min, max] velocity clamp. "
-                        "None lets pyswarms use defaults."
+                        "Optional [min, max] velocity clamp. None lets pyswarms use defaults."
                     ),
                 },
                 "k": {
@@ -276,8 +271,7 @@ class PSOOptimizer(BaseOptimizer):
                     "minimum": 1,
                     "default": 3,
                     "description": (
-                        "Number of neighbours for LocalBestPSO "
-                        "(ignored when topology='global')."
+                        "Number of neighbours for LocalBestPSO (ignored when topology='global')."
                     ),
                 },
                 "p": {
@@ -295,9 +289,7 @@ class PSOOptimizer(BaseOptimizer):
 
     # -- core optimisation loop ----------------------------------------------
 
-    def _optimize(
-        self, objective_fn: Callable[[dict[str, Any]], float]
-    ) -> OptimizationResult:
+    def _optimize(self, objective_fn: Callable[[dict[str, Any]], float]) -> OptimizationResult:
         from pyswarms.single import GlobalBestPSO, LocalBestPSO
 
         dim_order = list(self.search_space.dimensions.values())
@@ -313,9 +305,7 @@ class PSOOptimizer(BaseOptimizer):
         maximizing = self.direction == "maximize"
 
         options = {"c1": self.c1, "c2": self.c2, "w": self.w}
-        vel_clamp = (
-            tuple(self.velocity_clamp) if self.velocity_clamp is not None else None
-        )
+        vel_clamp = tuple(self.velocity_clamp) if self.velocity_clamp is not None else None
 
         emit_log(
             f"PSO optimizer: topology={self.topology}, "
@@ -343,8 +333,7 @@ class PSOOptimizer(BaseOptimizer):
         # Log dimension details
         for dim in dim_order:
             logger.info(
-                "  dim '%s': type=%s, low=%s, high=%s, step=%s, "
-                "log_scale=%s, choices=%s",
+                "  dim '%s': type=%s, low=%s, high=%s, step=%s, log_scale=%s, choices=%s",
                 dim.name,
                 dim.dim_type,
                 dim.low,
@@ -371,9 +360,7 @@ class PSOOptimizer(BaseOptimizer):
             pso_kwargs["options"]["k"] = self.k
             pso_kwargs["options"]["p"] = self.p
             pso_opt = LocalBestPSO(**pso_kwargs)
-            logger.info(
-                "Created LocalBestPSO — k=%d, p=%d", self.k, self.p
-            )
+            logger.info("Created LocalBestPSO — k=%d, p=%d", self.k, self.p)
         else:
             pso_opt = GlobalBestPSO(**pso_kwargs)
             logger.info("Created GlobalBestPSO")
@@ -403,10 +390,7 @@ class PSOOptimizer(BaseOptimizer):
                         iteration,
                         n_iters,
                     )
-                    emit_log(
-                        f"Timeout after iteration {iteration}/{n_iters} "
-                        f"({elapsed:.1f}s)"
-                    )
+                    emit_log(f"Timeout after iteration {iteration}/{n_iters} ({elapsed:.1f}s)")
                     break
 
             t_iter = time.perf_counter()
@@ -449,7 +433,9 @@ class PSOOptimizer(BaseOptimizer):
 
             # Guard: if all particles returned inf, initialise global best
             if global_best_pos is None:
-                global_best_pos = swarm_pos[0].copy() if iteration == 0 else pso_opt.swarm.position[0].copy()
+                global_best_pos = (
+                    swarm_pos[0].copy() if iteration == 0 else pso_opt.swarm.position[0].copy()
+                )
                 global_best_cost = costs[0] if iteration == 0 else particle_costs[0]
 
             # --- Update global/neighbourhood best ---------------------------
@@ -466,6 +452,7 @@ class PSOOptimizer(BaseOptimizer):
                 # bests via its ring topology handler.
                 try:
                     from pyswarms.backend.topology import Ring
+
                     ring = Ring(static=False)
                     best_cost_this, best_pos_this = ring.compute_gbest(
                         pso_opt.swarm, p=self.p, k=self.k
@@ -501,13 +488,9 @@ class PSOOptimizer(BaseOptimizer):
                 min_bound,
                 max_bound,
             )
-            pso_opt.swarm.position = (
-                pso_opt.swarm.position + pso_opt.swarm.velocity
-            )
+            pso_opt.swarm.position = pso_opt.swarm.position + pso_opt.swarm.velocity
             # Clamp positions within bounds
-            pso_opt.swarm.position = np.clip(
-                pso_opt.swarm.position, min_bound, max_bound
-            )
+            pso_opt.swarm.position = np.clip(pso_opt.swarm.position, min_bound, max_bound)
 
             # --- Emit SSE event for this iteration --------------------------
             iter_duration = time.perf_counter() - t_iter
@@ -522,12 +505,12 @@ class PSOOptimizer(BaseOptimizer):
                 metrics={
                     "iteration": iteration,
                     "global_best_cost": global_best_cost,
-                    "mean_particle_cost": float(np.mean(
-                        particle_costs[particle_costs < float("inf")]
-                    )) if np.any(particle_costs < float("inf")) else float("inf"),
-                    "n_particles_evaluated": int(
-                        np.sum(particle_costs < float("inf"))
-                    ),
+                    "mean_particle_cost": float(
+                        np.mean(particle_costs[particle_costs < float("inf")])
+                    )
+                    if np.any(particle_costs < float("inf"))
+                    else float("inf"),
+                    "n_particles_evaluated": int(np.sum(particle_costs < float("inf"))),
                 },
                 duration_sec=iter_duration,
             )
@@ -551,9 +534,7 @@ class PSOOptimizer(BaseOptimizer):
 
         # ---- Assemble final result -----------------------------------------
         if global_best_pos is None:
-            raise RuntimeError(
-                "PSO produced no valid results — all particles failed."
-            )
+            raise RuntimeError("PSO produced no valid results — all particles failed.")
 
         total_elapsed = time.perf_counter() - t_start
         best_params = _decode_position(global_best_pos, dim_order)
@@ -574,8 +555,7 @@ class PSOOptimizer(BaseOptimizer):
         completed = [t for t in all_trials if t.error is None]
 
         logger.info(
-            "PSO search complete: %d iterations, %d total evaluations, "
-            "best_score=%.6f in %.1fs",
+            "PSO search complete: %d iterations, %d total evaluations, best_score=%.6f in %.1fs",
             len(all_trials),
             len(all_trials) * self.n_particles,
             best_score,

@@ -213,10 +213,13 @@ def run_correlate(
     names_valid = [feature_names[i] for i in range(len(feature_names)) if valid_mask[i]]
     n_dropped = len(feature_names) - len(names_valid)
     if n_dropped > 0:
-        print(f"[correlate] Dropped {n_dropped} all-NaN/constant columns ({len(names_valid)} remaining)")
+        print(
+            f"[correlate] Dropped {n_dropped} all-NaN/constant columns ({len(names_valid)} remaining)"
+        )
 
     results = run_correlation_analysis(
-        X_valid, names_valid,
+        X_valid,
+        names_valid,
         threshold=threshold,
         method=method,
         importance_ranking=importance_ranking,
@@ -225,7 +228,9 @@ def run_correlate(
 
     print(f"[correlate] {len(results['redundant_pairs'])} redundant pairs (|r| >= {threshold})")
     print(f"[correlate] {results['clusters']['n_clusters']} feature clusters")
-    print(f"[correlate] {results['n_after_drops']}/{results['n_original']} features after suggested drops")
+    print(
+        f"[correlate] {results['n_after_drops']}/{results['n_original']} features after suggested drops"
+    )
     print(f"[correlate] Time: {elapsed:.1f}s")
 
     # Save
@@ -255,13 +260,17 @@ def run_correlate(
 
     # Suggested drops
     with open(output_dir / "suggested_drops.json", "w") as f:
-        json.dump({
-            "suggested_drops": results["suggested_drops"],
-            "n_original": results["n_original"],
-            "n_after_drops": results["n_after_drops"],
-            "threshold": threshold,
-            "method": method,
-        }, f, indent=2)
+        json.dump(
+            {
+                "suggested_drops": results["suggested_drops"],
+                "n_original": results["n_original"],
+                "n_after_drops": results["n_after_drops"],
+                "threshold": threshold,
+                "method": method,
+            },
+            f,
+            indent=2,
+        )
 
     print(f"[correlate] Saved to {output_dir}")
     return results
@@ -328,7 +337,9 @@ def run_importance(
         return {}
 
     results = run_importance_analysis(
-        X_clean, y_clean, feature_names,
+        X_clean,
+        y_clean,
+        feature_names,
         model_predict_fn=model_predict_fn,
         model=model,
         model_type=model_type,
@@ -344,7 +355,7 @@ def run_importance(
     if aggregate:
         print(f"\n[importance] Top 15 features (aggregate rank):")
         for i, feat in enumerate(aggregate[:15]):
-            print(f"  {i+1:3d}. {feat['feature']:<40s} rank={feat['aggregate_rank']:.1f}")
+            print(f"  {i + 1:3d}. {feat['feature']:<40s} rank={feat['aggregate_rank']:.1f}")
 
     # Cumulative importance elbow
     cumulative = results.get("cumulative", [])
@@ -361,14 +372,18 @@ def run_importance(
 
     # Importance ranking (aggregate)
     with open(output_dir / "importance_ranking.json", "w") as f:
-        json.dump({
-            "aggregate": aggregate,
-            "permutation": results.get("permutation"),
-            "unsupervised_permutation": results.get("unsupervised_permutation"),
-            "mutual_information": results.get("mutual_information"),
-            "cumulative": cumulative,
-            "elapsed_seconds": round(elapsed, 2),
-        }, f, indent=2)
+        json.dump(
+            {
+                "aggregate": aggregate,
+                "permutation": results.get("permutation"),
+                "unsupervised_permutation": results.get("unsupervised_permutation"),
+                "mutual_information": results.get("mutual_information"),
+                "cumulative": cumulative,
+                "elapsed_seconds": round(elapsed, 2),
+            },
+            f,
+            indent=2,
+        )
 
     # Recommended features (top features up to 95% cumulative importance)
     recommended = []
@@ -378,13 +393,17 @@ def run_importance(
             break
 
     with open(output_dir / "recommended_features.json", "w") as f:
-        json.dump({
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "n_total": len(feature_names),
-            "n_recommended": len(recommended),
-            "coverage_pct": 0.95,
-            "features": recommended,
-        }, f, indent=2)
+        json.dump(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "n_total": len(feature_names),
+                "n_recommended": len(recommended),
+                "coverage_pct": 0.95,
+                "features": recommended,
+            },
+            f,
+            indent=2,
+        )
 
     print(f"[importance] Saved to {output_dir}")
     return results
@@ -410,30 +429,46 @@ Examples:
     parser.add_argument("--symbol", type=str, required=True, help="Symbol (e.g., ES, MNQ)")
     parser.add_argument("--timeframe", type=str, required=True, help="Timeframe (e.g., 1h, 1d)")
     parser.add_argument(
-        "--stages", type=str, default="extract,correlate,importance",
+        "--stages",
+        type=str,
+        default="extract,correlate,importance",
         help="Comma-separated stages: extract, correlate, importance (default: all)",
     )
     parser.add_argument(
-        "--source", type=str, default="parquet", choices=["parquet", "questdb"],
+        "--source",
+        type=str,
+        default="parquet",
+        choices=["parquet", "questdb"],
         help="Data source (default: parquet)",
     )
     parser.add_argument(
-        "--target", type=str, default="return_5",
+        "--target",
+        type=str,
+        default="return_5",
         choices=["return_5", "return_10", "regime", "none"],
         help="Target variable for importance analysis (default: return_5)",
     )
     parser.add_argument("--max-bars", type=int, default=0, help="Max bars to load (0 = all)")
     parser.add_argument(
-        "--corr-threshold", type=float, default=0.90,
+        "--corr-threshold",
+        type=float,
+        default=0.90,
         help="Correlation threshold for redundancy detection (default: 0.90)",
     )
     parser.add_argument(
-        "--corr-method", type=str, default="spearman", choices=["spearman", "pearson"],
+        "--corr-method",
+        type=str,
+        default="spearman",
+        choices=["spearman", "pearson"],
         help="Correlation method (default: spearman)",
     )
-    parser.add_argument("--n-repeats", type=int, default=10, help="Permutation repeats (default: 10)")
     parser.add_argument(
-        "--output-dir", type=str, default=None,
+        "--n-repeats", type=int, default=10, help="Permutation repeats (default: 10)"
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
         help="Custom output directory (default: data/feature_research/{symbol}/{timeframe})",
     )
     args = parser.parse_args()
@@ -492,7 +527,9 @@ Examples:
     # Stage 2: Correlate — run for its side effect (writes results to output_dir).
     if "correlate" in stages:
         run_correlate(
-            X, derived_names, output_dir,
+            X,
+            derived_names,
+            output_dir,
             threshold=args.corr_threshold,
             method=args.corr_method,
         )
@@ -506,7 +543,10 @@ Examples:
             print(f"[importance] Could not build target '{args.target}', running MI-only")
 
         run_importance(
-            X, y, derived_names, output_dir,
+            X,
+            y,
+            derived_names,
+            output_dir,
             n_repeats=args.n_repeats,
             scoring="accuracy",
             discrete_target=True,

@@ -119,11 +119,7 @@ def get_active_coordinates() -> dict:
 
 def _rfc3339_now() -> str:
     """UTC wall clock, RFC3339 with millisecond precision and a ``Z`` suffix."""
-    return (
-        datetime.now(timezone.utc)
-        .isoformat(timespec="milliseconds")
-        .replace("+00:00", "Z")
-    )
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _next_seq() -> int:
@@ -222,10 +218,15 @@ def emit(event: dict):
         # still carries the envelope: a serialization fault is precisely when
         # the consumer needs to know which run produced it. Envelope fields are
         # str/int/None only, so this second dumps cannot fail for the same reason.
-        line = json.dumps(_envelope("log", {
-            "level": "error",
-            "message": f"[protocol] unserializable {event.get('type', '?')!r} event: {exc}",
-        }))
+        line = json.dumps(
+            _envelope(
+                "log",
+                {
+                    "level": "error",
+                    "message": f"[protocol] unserializable {event.get('type', '?')!r} event: {exc}",
+                },
+            )
+        )
     print(line, flush=True)
 
 
@@ -234,12 +235,17 @@ def emit_progress(iteration: int, total: int, phase: str = "gibbs_sampling"):
 
 
 def emit_metric(name: str, value, iteration: int, total: int = 0):
-    emit(_envelope("metric", {
-        "name": name,
-        "value": float(value),
-        "iteration": iteration,
-        "total": total,
-    }))
+    emit(
+        _envelope(
+            "metric",
+            {
+                "name": name,
+                "value": float(value),
+                "iteration": iteration,
+                "total": total,
+            },
+        )
+    )
 
 
 def emit_fold_complete(fold_idx: int, metrics: dict) -> None:
@@ -262,10 +268,15 @@ def emit_fold_complete(fold_idx: int, metrics: dict) -> None:
         except (TypeError, ValueError):
             # Pass non-numeric values through verbatim (e.g. category strings).
             payload[str(k)] = v
-    emit(_envelope("fold_complete", {
-        "fold_idx": int(fold_idx),
-        "metrics": payload,
-    }))
+    emit(
+        _envelope(
+            "fold_complete",
+            {
+                "fold_idx": int(fold_idx),
+                "metrics": payload,
+            },
+        )
+    )
 
 
 def _to_epoch_sec(t) -> int:
@@ -275,26 +286,36 @@ def _to_epoch_sec(t) -> int:
         return int(t / 1000) if t > 1e12 else int(t)
     if isinstance(t, datetime):
         return int(t.timestamp())
-    if hasattr(t, 'as_py'):  # pyarrow scalar
+    if hasattr(t, "as_py"):  # pyarrow scalar
         return int(t.as_py().timestamp())
     return int(float(str(t)))
 
 
-def emit_overlay(timestamps, assignments, regime_colors, regime_labels,
-                  transition_matrix=None, n_regimes=None):
+def emit_overlay(
+    timestamps, assignments, regime_colors, regime_labels, transition_matrix=None, n_regimes=None
+):
     payload = {
         "colors": regime_colors,
         "labels": regime_labels,
     }
     if transition_matrix is not None:
-        payload["transition_matrix"] = transition_matrix.tolist() if hasattr(transition_matrix, 'tolist') else transition_matrix
+        payload["transition_matrix"] = (
+            transition_matrix.tolist()
+            if hasattr(transition_matrix, "tolist")
+            else transition_matrix
+        )
         payload["n_regimes"] = n_regimes or len(regime_colors)
-    emit(_envelope("overlay", {
-        "overlayType": "regime_zones",
-        "timestamps": [_to_epoch_sec(t) for t in timestamps],
-        "assignments": [int(a) for a in assignments],
-        "payload": payload,
-    }))
+    emit(
+        _envelope(
+            "overlay",
+            {
+                "overlayType": "regime_zones",
+                "timestamps": [_to_epoch_sec(t) for t in timestamps],
+                "assignments": [int(a) for a in assignments],
+                "payload": payload,
+            },
+        )
+    )
 
 
 def emit_log(message: str, level: str = "info"):
@@ -306,19 +327,29 @@ def emit_done(model_path: str, diagnostics: dict):
 
 
 def emit_model_state(iteration: int, total: int, snapshot: dict):
-    emit(_envelope("model_state", {
-        "iteration": iteration,
-        "total": total,
-        "snapshot": snapshot,
-    }))
+    emit(
+        _envelope(
+            "model_state",
+            {
+                "iteration": iteration,
+                "total": total,
+                "snapshot": snapshot,
+            },
+        )
+    )
 
 
 def emit_sampler_diagnostics(iteration: int, total: int, diagnostics: dict):
-    emit(_envelope("sampler_diagnostics", {
-        "iteration": iteration,
-        "total": total,
-        "diagnostics": diagnostics,
-    }))
+    emit(
+        _envelope(
+            "sampler_diagnostics",
+            {
+                "iteration": iteration,
+                "total": total,
+                "diagnostics": diagnostics,
+            },
+        )
+    )
 
 
 def emit_metric_declarations(declarations: dict):

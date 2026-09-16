@@ -81,22 +81,16 @@ def compute_stops(
         return 0.0, 0.0
 
     if benchmarks.shape[0] < 15:
-        raise ValueError(
-            f"benchmarks must have at least 15 elements, got {benchmarks.shape[0]}"
-        )
+        raise ValueError(f"benchmarks must have at least 15 elements, got {benchmarks.shape[0]}")
 
     bench = np.asarray(benchmarks, dtype=np.float64)
     vwap: float = float(bench[BENCH_VWAP])
 
     # Collect candidate resistance levels (those above VWAP).
-    resistance_levels = [
-        float(bench[i]) for i in _RESISTANCE_INDICES if float(bench[i]) > vwap
-    ]
+    resistance_levels = [float(bench[i]) for i in _RESISTANCE_INDICES if float(bench[i]) > vwap]
 
     # Collect candidate support levels (those below VWAP).
-    support_levels = [
-        float(bench[i]) for i in _SUPPORT_INDICES if float(bench[i]) < vwap
-    ]
+    support_levels = [float(bench[i]) for i in _SUPPORT_INDICES if float(bench[i]) < vwap]
 
     def _ticks_to(levels: list[float], nearest: bool) -> float:
         """Convert benchmark levels to tick distances, pick nearest or farthest."""

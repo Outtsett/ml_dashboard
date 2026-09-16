@@ -10,8 +10,8 @@ import numpy as np
 
 # ── Shared Memory Constants (must match tf_layout.h) ─────────────────────────
 
-SHMEM_LEVELS: int = 60      # Array allocation size — matches tf_layout.h
-MIN_DOM_LEVELS: int = 10      # Floor — always compute at least this many levels
+SHMEM_LEVELS: int = 60  # Array allocation size — matches tf_layout.h
+MIN_DOM_LEVELS: int = 10  # Floor — always compute at least this many levels
 RAW_FIELDS: int = 57
 COMPONENTS: int = 15
 BENCHMARKS: int = 15
@@ -117,24 +117,39 @@ ACTION_FLATTEN: int = 3
 
 REGIME_WEIGHTS: dict = {
     REGIME_VOLATILE: {
-        "spatial": 0.35, "momentum": 0.15, "band_direction": 0.20,
-        "volume_profile": 0.15, "structure": 0.15,
+        "spatial": 0.35,
+        "momentum": 0.15,
+        "band_direction": 0.20,
+        "volume_profile": 0.15,
+        "structure": 0.15,
     },
     REGIME_TREND_UP: {
-        "spatial": 0.25, "momentum": 0.25, "band_direction": 0.20,
-        "volume_profile": 0.15, "structure": 0.15,
+        "spatial": 0.25,
+        "momentum": 0.25,
+        "band_direction": 0.20,
+        "volume_profile": 0.15,
+        "structure": 0.15,
     },
     REGIME_TREND_DOWN: {
-        "spatial": 0.25, "momentum": 0.25, "band_direction": 0.20,
-        "volume_profile": 0.15, "structure": 0.15,
+        "spatial": 0.25,
+        "momentum": 0.25,
+        "band_direction": 0.20,
+        "volume_profile": 0.15,
+        "structure": 0.15,
     },
     REGIME_RANGE: {
-        "spatial": 0.20, "momentum": 0.15, "band_direction": 0.25,
-        "volume_profile": 0.20, "structure": 0.20,
+        "spatial": 0.20,
+        "momentum": 0.15,
+        "band_direction": 0.25,
+        "volume_profile": 0.20,
+        "structure": 0.20,
     },
     REGIME_UNKNOWN: {
-        "spatial": 0.25, "momentum": 0.20, "band_direction": 0.20,
-        "volume_profile": 0.15, "structure": 0.20,
+        "spatial": 0.25,
+        "momentum": 0.20,
+        "band_direction": 0.20,
+        "volume_profile": 0.15,
+        "structure": 0.20,
     },
 }
 
@@ -147,23 +162,26 @@ MIN_ALIGNMENT: float = 0.60
 # ── Spatial Signal Benchmark Weights ─────────────────────────────────────────
 # From Mathematical Framework: VWAP=0.25, TWAP=0.20, VPOC=0.20, VAH/VAL=0.10
 
-SPATIAL_BENCHMARK_WEIGHTS: np.ndarray = np.array([
-    0.04,  # PDH
-    0.04,  # PDL
-    0.03,  # PDS
-    0.04,  # PDC
-    0.05,  # DH
-    0.05,  # DL
-    0.20,  # VPOC
-    0.10,  # VAH
-    0.10,  # VAL
-    0.25,  # VWAP
-    0.025, # VWAP upper perm
-    0.025, # VWAP lower perm
-    0.025, # VWAP upper
-    0.025, # VWAP lower
-    0.20,  # TWAP
-], dtype=np.float32)
+SPATIAL_BENCHMARK_WEIGHTS: np.ndarray = np.array(
+    [
+        0.04,  # PDH
+        0.04,  # PDL
+        0.03,  # PDS
+        0.04,  # PDC
+        0.05,  # DH
+        0.05,  # DL
+        0.20,  # VPOC
+        0.10,  # VAH
+        0.10,  # VAL
+        0.25,  # VWAP
+        0.025,  # VWAP upper perm
+        0.025,  # VWAP lower perm
+        0.025,  # VWAP upper
+        0.025,  # VWAP lower
+        0.20,  # TWAP
+    ],
+    dtype=np.float32,
+)
 
 # ── Momentum Signal Weights ──────────────────────────────────────────────────
 

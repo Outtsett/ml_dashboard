@@ -35,51 +35,51 @@ import numpy as np
 # ─── string / magic constants ──────────────────────────────────────────────
 
 SHM_NAME: str = "Local\\TensionFlowHub"
-SHM_MAGIC: int = 0x54464C56   # "TFLV" little-endian
+SHM_MAGIC: int = 0x54464C56  # "TFLV" little-endian
 
 # ─── dimension constants (must match tf_layout.h #defines exactly) ─────────
 
-DOM_LEVELS:      int = 60
-RAW_FIELDS:      int = 57
-COMPONENTS:      int = 15
-FEATURE_COUNT:   int = RAW_FIELDS * DOM_LEVELS      # 3420
-COMPONENT_COUNT: int = COMPONENTS * DOM_LEVELS       # 900
-TICK_RING_CAP:   int = 65536
-BENCHMARKS:      int = 15
-DISTANCES:       int = 210
-BUCKETS:         int = 5
+DOM_LEVELS: int = 60
+RAW_FIELDS: int = 57
+COMPONENTS: int = 15
+FEATURE_COUNT: int = RAW_FIELDS * DOM_LEVELS  # 3420
+COMPONENT_COUNT: int = COMPONENTS * DOM_LEVELS  # 900
+TICK_RING_CAP: int = 65536
+BENCHMARKS: int = 15
+DISTANCES: int = 210
+BUCKETS: int = 5
 DETECTION_TYPES: int = 6
 
 # ─── block size constants (verified by C static_assert in tf_layout.h) ─────
 
-SZ_METADATA:   int = 256
-SZ_TICK:       int = 36
-SZ_TICK_RING:  int = TICK_RING_CAP * SZ_TICK           # 65536 * 36 = 2,359,296
-SZ_DOM:        int = 1000
+SZ_METADATA: int = 256
+SZ_TICK: int = 36
+SZ_TICK_RING: int = TICK_RING_CAP * SZ_TICK  # 65536 * 36 = 2,359,296
+SZ_DOM: int = 1000
 SZ_BENCHMARKS: int = 128
-SZ_DISTANCES:  int = 848
-SZ_BUCKETS:    int = 400
-SZ_MARKOV:     int = 80
-SZ_FEATURES:   int = RAW_FIELDS * DOM_LEVELS * 4       # 3420 * 4 = 13,680
-SZ_COMPONENTS: int = COMPONENTS * DOM_LEVELS * 4        # 900 * 4 = 3,600
+SZ_DISTANCES: int = 848
+SZ_BUCKETS: int = 400
+SZ_MARKOV: int = 80
+SZ_FEATURES: int = RAW_FIELDS * DOM_LEVELS * 4  # 3420 * 4 = 13,680
+SZ_COMPONENTS: int = COMPONENTS * DOM_LEVELS * 4  # 900 * 4 = 3,600
 SZ_DETECTIONS: int = 96
-SZ_SCORE:      int = 64
+SZ_SCORE: int = 64
 
 # ─── block offset constants (chained, matching TF_OFF_* macros) ─────────────
 
-OFF_METADATA:    int = 0
-OFF_TICK_RING:   int = OFF_METADATA    + SZ_METADATA    # 256
-OFF_DOM:         int = OFF_TICK_RING   + SZ_TICK_RING   # 2,359,552
-OFF_BENCHMARKS:  int = OFF_DOM         + SZ_DOM         # 2,360,552
-OFF_DISTANCES:   int = OFF_BENCHMARKS  + SZ_BENCHMARKS  # 2,360,680
-OFF_BUCKET_BLOCK: int = OFF_DISTANCES  + SZ_DISTANCES   # 2,361,528
-OFF_MARKOV:      int = OFF_BUCKET_BLOCK + SZ_BUCKETS    # 2,361,928
-OFF_FEATURES:    int = OFF_MARKOV      + SZ_MARKOV      # 2,362,008
-OFF_COMPONENTS:  int = OFF_FEATURES    + SZ_FEATURES    # 2,375,688
-OFF_DETECTIONS:  int = OFF_COMPONENTS  + SZ_COMPONENTS  # 2,379,288
-OFF_SCORE:       int = OFF_DETECTIONS  + SZ_DETECTIONS  # 2,379,384
+OFF_METADATA: int = 0
+OFF_TICK_RING: int = OFF_METADATA + SZ_METADATA  # 256
+OFF_DOM: int = OFF_TICK_RING + SZ_TICK_RING  # 2,359,552
+OFF_BENCHMARKS: int = OFF_DOM + SZ_DOM  # 2,360,552
+OFF_DISTANCES: int = OFF_BENCHMARKS + SZ_BENCHMARKS  # 2,360,680
+OFF_BUCKET_BLOCK: int = OFF_DISTANCES + SZ_DISTANCES  # 2,361,528
+OFF_MARKOV: int = OFF_BUCKET_BLOCK + SZ_BUCKETS  # 2,361,928
+OFF_FEATURES: int = OFF_MARKOV + SZ_MARKOV  # 2,362,008
+OFF_COMPONENTS: int = OFF_FEATURES + SZ_FEATURES  # 2,375,688
+OFF_DETECTIONS: int = OFF_COMPONENTS + SZ_COMPONENTS  # 2,379,288
+OFF_SCORE: int = OFF_DETECTIONS + SZ_DETECTIONS  # 2,379,384
 
-TOTAL_SIZE: int = OFF_SCORE + SZ_SCORE                  # 2,379,448
+TOTAL_SIZE: int = OFF_SCORE + SZ_SCORE  # 2,379,448
 
 # ─── TF_Metadata field offsets (byte positions within the metadata block) ──
 # Derived by counting bytes in TF_Metadata struct (packed, no compiler padding):
@@ -92,9 +92,9 @@ TOTAL_SIZE: int = OFF_SCORE + SZ_SCORE                  # 2,379,448
 #   component_seq(u64:8) offs 44
 #   score_seq(u64:8)     offs 52
 
-_META_OFF_FEATURE_SEQ:   int = 36
+_META_OFF_FEATURE_SEQ: int = 36
 _META_OFF_COMPONENT_SEQ: int = 44
-_META_OFF_SCORE_SEQ:     int = 52
+_META_OFF_SCORE_SEQ: int = 52
 
 # ─── TF_ScoreBlock field layout (within score block, relative to OFF_SCORE) ─
 # composite_score(f32:4) + upzone_dcs(f32:4) + downzone_dcs(f32:4) +
@@ -114,20 +114,23 @@ _SCORE_PACK_SIZE: int = struct.calcsize(_SCORE_FMT)  # must be 44
 
 # ─── dataclass ─────────────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class FeatureSnapshot:
     """Atomic snapshot of all Python-readable blocks from shared memory."""
-    feature_seq:        int
-    features:           np.ndarray   # shape (57, 60) float32, field-major
-    components:         np.ndarray   # shape (15, 60) float32, component-major
-    benchmarks:         np.ndarray   # shape (15,)   float64
-    distances:          np.ndarray   # shape (210,)  float32
-    markov_state:       int          # 0-3
-    markov_confidence:  float
-    vol_regime:         int          # 0-3
+
+    feature_seq: int
+    features: np.ndarray  # shape (57, 60) float32, field-major
+    components: np.ndarray  # shape (15, 60) float32, component-major
+    benchmarks: np.ndarray  # shape (15,)   float64
+    distances: np.ndarray  # shape (210,)  float32
+    markov_state: int  # 0-3
+    markov_confidence: float
+    vol_regime: int  # 0-3
 
 
 # ─── ShmemReader ────────────────────────────────────────────────────────────
+
 
 class ShmemReader:
     """
@@ -155,7 +158,7 @@ class ShmemReader:
         # OpenFileMapping(FILE_MAP_READ=4, bInheritHandle=False, lpName)
         kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
         handle = kernel32.OpenFileMappingW(
-            ctypes.c_ulong(4),   # FILE_MAP_READ
+            ctypes.c_ulong(4),  # FILE_MAP_READ
             ctypes.c_bool(False),
             SHM_NAME,
         )
@@ -274,6 +277,7 @@ class ShmemReader:
 
 # ─── ShmemWriter ────────────────────────────────────────────────────────────
 
+
 class ShmemWriter:
     """
     Opens the TensionFlow Windows named file mapping for read/write access.
@@ -373,12 +377,12 @@ class ShmemWriter:
             float(upzone),
             float(downzone),
             float(tension_delta),
-            int(signal),           # signal is int8_t: -2, -1, +1, +2
+            int(signal),  # signal is int8_t: -2, -1, +1, +2
             action & 0xFF,
             regime_id & 0xFF,
             weight_mode & 0xFF,
             float(confidence),
-            qty,                  # i16
+            qty,  # i16
             float(stop_ticks),
             float(target_ticks),
             timestamp_ms,

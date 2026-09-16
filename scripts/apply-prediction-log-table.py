@@ -114,8 +114,7 @@ def show_columns(cur, table: str) -> list[tuple[str, str]]:
 
 def list_mat_views(cur, prefix: str) -> list[str]:
     cur.execute(
-        "SELECT view_name FROM materialized_views() "
-        "WHERE view_name LIKE %s ORDER BY view_name",
+        "SELECT view_name FROM materialized_views() WHERE view_name LIKE %s ORDER BY view_name",
         (f"{prefix}%",),
     )
     return [r[0] for r in cur.fetchall()]

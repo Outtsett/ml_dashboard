@@ -134,9 +134,7 @@ class GatedResidualNetwork(nn.Module):
         self.fc1 = nn.Linear(input_size, hidden_size)
         # Context contributes additively to the Eq. (3) pre-activation, no bias.
         self.fc_context = (
-            nn.Linear(context_size, hidden_size, bias=False)
-            if context_size is not None
-            else None
+            nn.Linear(context_size, hidden_size, bias=False) if context_size is not None else None
         )
         self.fc2 = nn.Linear(hidden_size, output_size)
         self.glu = GatedLinearUnit(output_size, output_size, dropout=dropout)
@@ -339,7 +337,7 @@ class InterpretableMultiHeadAttention(nn.Module):
         # Shared V: (B, T, d_head) -> broadcast over heads.
         vs = self.v_proj(v)  # (B, T, d_head)
 
-        scores = torch.matmul(qh, kh.transpose(-2, -1)) / (self.d_head ** 0.5)  # (B,H,T,T)
+        scores = torch.matmul(qh, kh.transpose(-2, -1)) / (self.d_head**0.5)  # (B,H,T,T)
         if mask is not None:
             # Broadcast (T, T) or (B, T, T) up to (B, H, T, T).
             if mask.dim() == 2:
@@ -612,9 +610,9 @@ if __name__ == "__main__":
     # Interpretability summaries (use the binary model's cached tensors).
     interp = model_bin.interpretability()
     assert interp["variable_selection"].shape == (20,), interp["variable_selection"].shape
-    assert interp["variable_selection_time"].shape == (32, 20), (
-        interp["variable_selection_time"].shape
-    )
+    assert interp["variable_selection_time"].shape == (32, 20), interp[
+        "variable_selection_time"
+    ].shape
     assert interp["temporal_attention"].shape == (32, 32), interp["temporal_attention"].shape
     # Selection weights must form a valid distribution over variables per (B, t).
     sel_time_sum = interp["variable_selection_time"].sum(axis=1)

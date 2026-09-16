@@ -163,10 +163,7 @@ def _map_unit_to_value(
 
     if dim.log_scale or dist == "loguniform":
         if low <= 0:
-            raise ValueError(
-                f"Dimension '{dim.name}': log-scale requires low > 0 "
-                f"(got low={low})"
-            )
+            raise ValueError(f"Dimension '{dim.name}': log-scale requires low > 0 (got low={low})")
         log_low, log_high = math.log(low), math.log(high)
         value = math.exp(log_low + u * (log_high - log_low))
     elif dist == "normal":
@@ -257,10 +254,7 @@ class MonteCarloOptimizer(BaseOptimizer):
         **kwargs: Any,
     ) -> None:
         if method not in _METHODS:
-            raise ValueError(
-                f"Unknown sampling method '{method}'. "
-                f"Choose from {sorted(_METHODS)}."
-            )
+            raise ValueError(f"Unknown sampling method '{method}'. Choose from {sorted(_METHODS)}.")
         super().__init__(
             search_space=search_space,
             direction=direction,
@@ -318,14 +312,20 @@ class MonteCarloOptimizer(BaseOptimizer):
 
         # Pre-generate unit samples for continuous dimensions
         unit_samples = _generate_unit_samples(
-            self.n_trials, n_cont, self.method, rng,
+            self.n_trials,
+            n_cont,
+            self.method,
+            rng,
         )
 
         logger.info(
             "MonteCarloOptimizer: method=%s, n_trials=%d, "
             "continuous_dims=%d, categorical/bool_dims=%d, seed=%d",
-            self.method, self.n_trials, n_cont,
-            len(all_dims) - n_cont, self.seed,
+            self.method,
+            self.n_trials,
+            n_cont,
+            len(all_dims) - n_cont,
+            self.seed,
         )
         emit_log(
             f"Monte Carlo search: method={self.method}, "
@@ -342,7 +342,9 @@ class MonteCarloOptimizer(BaseOptimizer):
             if self.timeout and (time.perf_counter() - t_total) >= self.timeout:
                 logger.info(
                     "Timeout reached (%.1fs) after %d/%d trials",
-                    self.timeout, i, self.n_trials,
+                    self.timeout,
+                    i,
+                    self.n_trials,
                 )
                 emit_log(f"Timeout after {i} trials")
                 break
@@ -389,15 +391,27 @@ class MonteCarloOptimizer(BaseOptimizer):
             status = "ERROR" if error else "OK"
             logger.info(
                 "Trial %d/%d [%s] score=%.6f best=%s (%.3fs) params=%s",
-                i + 1, self.n_trials, status, score, best_str, duration, params,
+                i + 1,
+                self.n_trials,
+                status,
+                score,
+                best_str,
+                duration,
+                params,
             )
 
         elapsed = time.perf_counter() - t_total
 
         # Fallback if all trials errored
         if best_trial is None:
-            best_trial = trials[0] if trials else TrialResult(
-                trial_id=-1, params={}, score=float("nan"),
+            best_trial = (
+                trials[0]
+                if trials
+                else TrialResult(
+                    trial_id=-1,
+                    params={},
+                    score=float("nan"),
+                )
             )
             best_score = best_trial.score
 

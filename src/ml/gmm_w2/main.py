@@ -63,6 +63,7 @@ _FOLD_STATE: dict = {"states": [], "posteriors": [], "n_components": 0}
 
 try:
     from src.ml.shared.labels import _warmup_numba  # type: ignore[attr-defined]
+
     _warmup_numba()
 except Exception:
     # Warmup is opportunistic — the labels module may not expose _warmup_numba
@@ -88,7 +89,8 @@ def _parse_args() -> argparse.Namespace:
     ap.add_argument("--date-start", default=None)
     ap.add_argument("--date-end", default=None)
     ap.add_argument(
-        "--feature-categories", default='price_action,volatility,volume',
+        "--feature-categories",
+        default="price_action,volatility,volume",
         help="Comma-separated list of feature categories.",
     )
     # Hyperparameters (one ap.add_argument per key in the catalog spec)
@@ -99,7 +101,7 @@ def _parse_args() -> argparse.Namespace:
     )
     ap.add_argument(
         "--covariance-type",
-        default='full',
+        default="full",
         type=str,
     )
     return ap.parse_args()
@@ -111,8 +113,8 @@ def _parse_args() -> argparse.Namespace:
 
 
 _HP_KEYS: tuple[str, ...] = (
-    'n_components',
-    'covariance_type',
+    "n_components",
+    "covariance_type",
 )
 
 
@@ -161,25 +163,31 @@ def load_features(args: argparse.Namespace) -> tuple[np.ndarray, list[str], np.n
     if args.feature_categories:
         categories = [s.strip() for s in args.feature_categories.split(",") if s.strip()]
 
-    raw = load_ohlcv_arrays(args.symbol, args.timeframe, max_bars=int(args.max_bars or 0),
-                             date_range=date_range)
+    raw = load_ohlcv_arrays(
+        args.symbol, args.timeframe, max_bars=int(args.max_bars or 0), date_range=date_range
+    )
 
     def _compute() -> tuple[np.ndarray, list[str], np.ndarray]:
         ohlcv = {
-            "open_": raw["open"], "high": raw["high"], "low": raw["low"],
-            "close": raw["close"], "volume": raw["volume"],
+            "open_": raw["open"],
+            "high": raw["high"],
+            "low": raw["low"],
+            "close": raw["close"],
+            "volume": raw["volume"],
         }
         matrix, names, _ts = compute_features(ohlcv, categories=categories, n_jobs=1)
         ts_arr = np.asarray(
-            [t.timestamp() if hasattr(t, "timestamp") else float(t)
-             for t in raw["timestamp"]],
+            [t.timestamp() if hasattr(t, "timestamp") else float(t) for t in raw["timestamp"]],
             dtype=np.int64,
         )
         return matrix.astype(np.float32), list(names), ts_arr
 
     matrix, names, timestamps = cached_features(
-        symbol=args.symbol, timeframe=args.timeframe, date_range=date_range,
-        categories=categories, compute_fn=_compute,
+        symbol=args.symbol,
+        timeframe=args.timeframe,
+        date_range=date_range,
+        categories=categories,
+        compute_fn=_compute,
     )
     return matrix, names, timestamps, raw
 
@@ -189,6 +197,7 @@ def load_features(args: argparse.Namespace) -> tuple[np.ndarray, list[str], np.n
 # template-context label_strategy. Override the label_generation block in a
 # child template to plug in a custom label fn.
 # --------------------------------------------------------------------------- #
+
 
 def generate_labels(raw, args):
     """GMM is unsupervised — return a no-label sentinel and an all-True mask.
@@ -212,13 +221,17 @@ def generate_labels(raw, args):
 # signature here is a breaking change for every downstream composite.
 # --------------------------------------------------------------------------- #
 
+
 def train_one_fold(X_train, y_train, X_test, y_test, args, *, fold_idx=None):
     """GMM unsupervised fit on X_train, posterior predict on X_test.
 
     The walk-forward loop still passes y_train / y_test (the placeholder
     zeros from generate_labels above); they're ignored here.
     """
-    model = GaussianMixture(        n_components=3,        covariance_type='full',        random_state=42,
+    model = GaussianMixture(
+        n_components=3,
+        covariance_type="full",
+        random_state=42,
     )
     model.fit(X_train)
     posterior = model.predict_proba(X_test)
@@ -264,7 +277,6 @@ def compute_fold_metrics(y_test, preds, *, fold_idx=None) -> dict[str, float]:
 # --------------------------------------------------------------------------- #
 
 
-
 # --------------------------------------------------------------------------- #
 # Main pipeline — load, label, filter, walk-forward (or single fold), report.
 # --------------------------------------------------------------------------- #
@@ -272,14 +284,18 @@ def compute_fold_metrics(y_test, preds, *, fold_idx=None) -> dict[str, float]:
 
 def _filter_valid(X, y, valid, timestamps):
     keep = np.flatnonzero(valid)
-    X = X[keep]; y = y[keep]; timestamps = timestamps[keep]
+    X = X[keep]
+    y = y[keep]
+    timestamps = timestamps[keep]
     finite = np.isfinite(X).all(axis=1)
     return X[finite], y[finite], timestamps[finite]
 
 
 def run_training(args: argparse.Namespace) -> dict:
-    emit_log(f"[gmm] Loading {args.symbol}@{args.timeframe} "
-             f"(categories={args.feature_categories or 'all'})")
+    emit_log(
+        f"[gmm] Loading {args.symbol}@{args.timeframe} "
+        f"(categories={args.feature_categories or 'all'})"
+    )
     matrix, names, timestamps, raw = load_features(args)
     n_total = matrix.shape[0]
     emit_log(f"[gmm] Loaded {n_total:,} bars x {matrix.shape[1]} features")
@@ -316,7 +332,12 @@ def run_training(args: argparse.Namespace) -> dict:
         X_test, y_test = X[fold.test_idx], y[fold.test_idx]
 
         model, preds = train_one_fold(
-            X_train, y_train, X_test, y_test, args, fold_idx=fold.idx,
+            X_train,
+            y_train,
+            X_test,
+            y_test,
+            args,
+            fold_idx=fold.idx,
         )
         fold_metrics = compute_fold_metrics(y_test, preds, fold_idx=fold.idx)
         for name, value in fold_metrics.items():
@@ -335,16 +356,18 @@ def run_training(args: argparse.Namespace) -> dict:
             emit_metric(name=f"fold_{fold.idx}_{name}", value=fv, iteration=fold.idx)
         emit_fold_complete(fold_idx=fold.idx, metrics=fold_metrics)
 
-        fold_results.append({
-            "fold": int(fold.idx),
-            "train_start": str(fold.train_start),
-            "train_end": str(fold.train_end),
-            "test_start": str(fold.test_start),
-            "test_end": str(fold.test_end),
-            "n_train": int(fold.train_idx.size),
-            "n_test": int(fold.test_idx.size),
-            "metrics": fold_metrics,
-        })
+        fold_results.append(
+            {
+                "fold": int(fold.idx),
+                "train_start": str(fold.train_start),
+                "train_end": str(fold.train_end),
+                "test_start": str(fold.test_start),
+                "test_end": str(fold.test_end),
+                "n_train": int(fold.train_idx.size),
+                "n_test": int(fold.test_idx.size),
+                "metrics": fold_metrics,
+            }
+        )
 
     emit_log(f"[wf] Completed {fold_count} fold(s)")
 
@@ -364,7 +387,8 @@ def run_training(args: argparse.Namespace) -> dict:
     n_components = _FOLD_STATE["n_components"]
     state_counts = (
         {int(s): int((all_states == s).sum()) for s in range(n_components)}
-        if all_states.size and n_components else {}
+        if all_states.size and n_components
+        else {}
     )
 
     diagnostics = {
@@ -390,7 +414,8 @@ def run_training(args: argparse.Namespace) -> dict:
     # dumps_safe, not json.dumps — a bare NaN makes the whole file unparseable
     # by JSON.parse and 500s /api/training/models/:id/diagnostics.
     (out_dir / "diagnostics.json").write_text(
-        dumps_safe(diagnostics, indent=2), encoding="utf-8",
+        dumps_safe(diagnostics, indent=2),
+        encoding="utf-8",
     )
 
     return diagnostics

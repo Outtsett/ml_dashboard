@@ -140,8 +140,7 @@ class EvolutionaryOptimizer(BaseOptimizer):
 
         if algorithm not in _ALGORITHM_MAP:
             raise ValueError(
-                f"Unknown algorithm '{algorithm}'. "
-                f"Choose from: {', '.join(sorted(_ALGORITHM_MAP))}"
+                f"Unknown algorithm '{algorithm}'. Choose from: {', '.join(sorted(_ALGORITHM_MAP))}"
             )
 
         self.algorithm = algorithm
@@ -199,9 +198,7 @@ class EvolutionaryOptimizer(BaseOptimizer):
 
     # -- core optimisation loop ----------------------------------------------
 
-    def _optimize(
-        self, objective_fn: Callable[[dict[str, Any]], float]
-    ) -> OptimizationResult:
+    def _optimize(self, objective_fn: Callable[[dict[str, Any]], float]) -> OptimizationResult:
         parametrization = _build_parametrization(self.search_space, self.mutation_rate)
 
         ng_algo_name = _ALGORITHM_MAP[self.algorithm]
@@ -262,10 +259,7 @@ class EvolutionaryOptimizer(BaseOptimizer):
                         self.timeout,
                         trial_idx,
                     )
-                    emit_log(
-                        f"Timeout reached after {trial_idx} trials "
-                        f"({elapsed:.1f}s)"
-                    )
+                    emit_log(f"Timeout reached after {trial_idx} trials ({elapsed:.1f}s)")
                     break
 
             candidate = ng_opt.ask()
@@ -323,9 +317,7 @@ class EvolutionaryOptimizer(BaseOptimizer):
         # -- assemble result -------------------------------------------------
         completed = [t for t in all_trials if t.error is None]
         if not completed:
-            raise RuntimeError(
-                "All trials failed — cannot determine a best result."
-            )
+            raise RuntimeError("All trials failed — cannot determine a best result.")
 
         if maximizing:
             best = max(completed, key=lambda t: t.score)
@@ -335,8 +327,7 @@ class EvolutionaryOptimizer(BaseOptimizer):
         total_elapsed = time.perf_counter() - t_start
 
         logger.info(
-            "Evolutionary search complete: %d/%d trials succeeded, "
-            "best_score=%.6f in %.1fs",
+            "Evolutionary search complete: %d/%d trials succeeded, best_score=%.6f in %.1fs",
             len(completed),
             len(all_trials),
             best.score,

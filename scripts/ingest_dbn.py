@@ -30,12 +30,22 @@ DB_CONN = "postgresql://postgres:postgres@localhost:5432/ml_dashboard"
 
 # Futures month codes → month number
 MONTH_CODES = {
-    'F': 1, 'G': 2, 'H': 3, 'J': 4, 'K': 5, 'M': 6,
-    'N': 7, 'Q': 8, 'U': 9, 'V': 10, 'X': 11, 'Z': 12
+    "F": 1,
+    "G": 2,
+    "H": 3,
+    "J": 4,
+    "K": 5,
+    "M": 6,
+    "N": 7,
+    "Q": 8,
+    "U": 9,
+    "V": 10,
+    "X": 11,
+    "Z": 12,
 }
 
 # Regex for outright futures contracts: ESH24, MNQZ5, M2KU25, etc.
-CONTRACT_RE = re.compile(r'^([A-Z][A-Z0-9]{1,3})([FGHJKMNQUVXZ])(\d{1,2})$')
+CONTRACT_RE = re.compile(r"^([A-Z][A-Z0-9]{1,3})([FGHJKMNQUVXZ])(\d{1,2})$")
 
 
 def build_symbology_map(symbology_path: Path) -> dict:
@@ -63,12 +73,14 @@ def build_symbology_map(symbology_path: Path) -> dict:
 
         for dr in date_ranges:
             instrument_id = int(dr["s"])
-            id_map[instrument_id].append((
-                dr["d0"],
-                dr["d1"],
-                contract_name,
-                base_symbol,
-            ))
+            id_map[instrument_id].append(
+                (
+                    dr["d0"],
+                    dr["d1"],
+                    contract_name,
+                    base_symbol,
+                )
+            )
 
     # Sort each instrument's ranges by start date
     for iid in id_map:
@@ -104,7 +116,7 @@ def ns_to_datetime(ts_ns: int) -> datetime:
 
 def ns_to_date_str(ts_ns: int) -> str:
     """Convert nanosecond Unix timestamp to YYYY-MM-DD string."""
-    return datetime.fromtimestamp(ts_ns / 1_000_000_000, tz=timezone.utc).strftime('%Y-%m-%d')
+    return datetime.fromtimestamp(ts_ns / 1_000_000_000, tz=timezone.utc).strftime("%Y-%m-%d")
 
 
 def format_price(raw: int) -> float:
@@ -135,9 +147,11 @@ def ingest(batch_size: int = 50_000, dry_run: bool = False):
             )
             if contract:
                 ts = ns_to_datetime(rec.ts_event)
-                print(f"  {ts} | {contract} ({base}) | "
-                      f"O={format_price(rec.open):.2f} H={format_price(rec.high):.2f} "
-                      f"L={format_price(rec.low):.2f} C={format_price(rec.close):.2f} V={rec.volume}")
+                print(
+                    f"  {ts} | {contract} ({base}) | "
+                    f"O={format_price(rec.open):.2f} H={format_price(rec.high):.2f} "
+                    f"L={format_price(rec.low):.2f} C={format_price(rec.close):.2f} V={rec.volume}"
+                )
                 count += 1
             if count >= 100:
                 break
@@ -173,16 +187,18 @@ def ingest(batch_size: int = 50_000, dry_run: bool = False):
 
         ts = ns_to_datetime(rec.ts_event)
 
-        batch.append((
-            ts.isoformat(),
-            contract,
-            base,
-            format_price(rec.open),
-            format_price(rec.high),
-            format_price(rec.low),
-            format_price(rec.close),
-            rec.volume,
-        ))
+        batch.append(
+            (
+                ts.isoformat(),
+                contract,
+                base,
+                format_price(rec.open),
+                format_price(rec.high),
+                format_price(rec.low),
+                format_price(rec.close),
+                rec.volume,
+            )
+        )
         stats[base] += 1
 
         if len(batch) >= batch_size:
@@ -196,8 +212,10 @@ def ingest(batch_size: int = 50_000, dry_run: bool = False):
             rate = total_inserted / elapsed if elapsed > 0 else 0
 
             if now - t_last > 5:  # Progress every 5 seconds
-                print(f"  {total_inserted:>12,} rows | {rate:>10,.0f} rows/s | "
-                      f"skipped: {total_skipped:,} | elapsed: {elapsed:.0f}s")
+                print(
+                    f"  {total_inserted:>12,} rows | {rate:>10,.0f} rows/s | "
+                    f"skipped: {total_skipped:,} | elapsed: {elapsed:.0f}s"
+                )
                 t_last = now
 
     # Final batch
@@ -232,22 +250,24 @@ def _copy_batch(cur, batch: list):
     buf = io.StringIO()
     for row in batch:
         # ts, symbol, base_symbol, open, high, low, close, volume
-        buf.write('\t'.join(str(v) for v in row))
-        buf.write('\n')
+        buf.write("\t".join(str(v) for v in row))
+        buf.write("\n")
     buf.seek(0)
     cur.copy_from(
         buf,
-        'ohlcv_1s',
-        columns=('ts', 'symbol', 'base_symbol', 'open', 'high', 'low', 'close', 'volume'),
+        "ohlcv_1s",
+        columns=("ts", "symbol", "base_symbol", "open", "high", "low", "close", "volume"),
     )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Ingest Databento DBN → TimescaleDB")
-    parser.add_argument("--batch-size", type=int, default=50_000,
-                        help="Rows per COPY batch (default: 50000)")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Print first 100 resolved records without inserting")
+    parser.add_argument(
+        "--batch-size", type=int, default=50_000, help="Rows per COPY batch (default: 50000)"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Print first 100 resolved records without inserting"
+    )
     args = parser.parse_args()
 
     ingest(batch_size=args.batch_size, dry_run=args.dry_run)

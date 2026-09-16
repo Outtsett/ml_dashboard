@@ -54,14 +54,10 @@ class ConcatFusion(nn.Module):
         # input:  N tensors each (B, d_in_i)
         # output: (B, d_out)
         if len(modalities) != len(self.d_in_list):
-            raise ValueError(
-                f"expected {len(self.d_in_list)} modalities, got {len(modalities)}"
-            )
+            raise ValueError(f"expected {len(self.d_in_list)} modalities, got {len(modalities)}")
         for i, (m, d) in enumerate(zip(modalities, self.d_in_list)):
             if m.dim() != 2 or m.size(-1) != d:
-                raise ValueError(
-                    f"modality {i} must be (B, {d}), got {tuple(m.shape)}"
-                )
+                raise ValueError(f"modality {i} must be (B, {d}), got {tuple(m.shape)}")
         x = torch.cat(modalities, dim=-1)  # (B, sum_d)
         return self.proj(x)
 
@@ -96,9 +92,7 @@ class CrossAttentionFusion(nn.Module):
         if any(d <= 0 for d in d_kv_list):
             raise ValueError(f"d_kv_list must all be > 0, got {d_kv_list}")
         if n_heads <= 0 or d_query % n_heads != 0:
-            raise ValueError(
-                f"d_query ({d_query}) must be divisible by n_heads ({n_heads})"
-            )
+            raise ValueError(f"d_query ({d_query}) must be divisible by n_heads ({n_heads})")
 
         self.d_query = d_query
         self.d_kv_list = list(d_kv_list)
@@ -110,29 +104,22 @@ class CrossAttentionFusion(nn.Module):
             ]
         )
 
-    def forward(
-        self, query: torch.Tensor, modalities: list[torch.Tensor]
-    ) -> torch.Tensor:
+    def forward(self, query: torch.Tensor, modalities: list[torch.Tensor]) -> torch.Tensor:
         # input:  query (B, d_query), modalities[i] (B, d_kv_i)
         # output: (B, d_query)
         if len(modalities) != len(self.d_kv_list):
-            raise ValueError(
-                f"expected {len(self.d_kv_list)} modalities, got {len(modalities)}"
-            )
+            raise ValueError(f"expected {len(self.d_kv_list)} modalities, got {len(modalities)}")
         if query.dim() != 2 or query.size(-1) != self.d_query:
-            raise ValueError(
-                f"query must be (B, {self.d_query}), got {tuple(query.shape)}"
-            )
+            raise ValueError(f"query must be (B, {self.d_query}), got {tuple(query.shape)}")
 
         q = query.unsqueeze(1)  # (B, 1, d_query)
         out = torch.zeros_like(query)  # (B, d_query)
         for i, (m, attn) in enumerate(zip(modalities, self.attns)):
             if m.dim() != 2 or m.size(-1) != self.d_kv_list[i]:
                 raise ValueError(
-                    f"modality {i} must be (B, {self.d_kv_list[i]}), "
-                    f"got {tuple(m.shape)}"
+                    f"modality {i} must be (B, {self.d_kv_list[i]}), got {tuple(m.shape)}"
                 )
-            kv = m.unsqueeze(1)             # (B, 1, d_kv_i)
+            kv = m.unsqueeze(1)  # (B, 1, d_kv_i)
             out = out + attn(q, kv).squeeze(1)
         return out
 
@@ -178,18 +165,15 @@ class GatedFusion(nn.Module):
         # input:  N tensors each (B, d_in_i)
         # output: (B, d_out)
         if len(modalities) != len(self.d_in_list):
-            raise ValueError(
-                f"expected {len(self.d_in_list)} modalities, got {len(modalities)}"
-            )
+            raise ValueError(f"expected {len(self.d_in_list)} modalities, got {len(modalities)}")
         out = None
         for i, m in enumerate(modalities):
             if m.dim() != 2 or m.size(-1) != self.d_in_list[i]:
                 raise ValueError(
-                    f"modality {i} must be (B, {self.d_in_list[i]}), "
-                    f"got {tuple(m.shape)}"
+                    f"modality {i} must be (B, {self.d_in_list[i]}), got {tuple(m.shape)}"
                 )
-            g = torch.sigmoid(self.gates[i](m))   # (B, 1)
-            p = self.projs[i](m)                  # (B, d_out)
+            g = torch.sigmoid(self.gates[i](m))  # (B, 1)
+            p = self.projs[i](m)  # (B, d_out)
             contrib = g * p
             out = contrib if out is None else out + contrib
         return self.refine(out)

@@ -7,10 +7,26 @@ from __future__ import annotations
 
 # 20 visually distinct regime colors (Material Design palette)
 REGIME_COLORS = [
-    "#4CAF50", "#2196F3", "#FF9800", "#E91E63", "#9C27B0",
-    "#00BCD4", "#FFEB3B", "#795548", "#607D8B", "#F44336",
-    "#8BC34A", "#3F51B5", "#FF5722", "#009688", "#CDDC39",
-    "#673AB7", "#FFC107", "#03A9F4", "#FF4081", "#00E676",
+    "#4CAF50",
+    "#2196F3",
+    "#FF9800",
+    "#E91E63",
+    "#9C27B0",
+    "#00BCD4",
+    "#FFEB3B",
+    "#795548",
+    "#607D8B",
+    "#F44336",
+    "#8BC34A",
+    "#3F51B5",
+    "#FF5722",
+    "#009688",
+    "#CDDC39",
+    "#673AB7",
+    "#FFC107",
+    "#03A9F4",
+    "#FF4081",
+    "#00E676",
 ]
 
 

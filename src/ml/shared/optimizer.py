@@ -27,6 +27,7 @@ except ImportError:
     def _json_dumps(obj: Any) -> str:  # type: ignore[misc]
         return json.dumps(obj, default=str)
 
+
 from .protocol import emit, emit_log
 
 logger = logging.getLogger(__name__)
@@ -84,13 +85,10 @@ class SearchDimension:
             )
         if self.dim_type in {"int", "float"} and (self.low is None or self.high is None):
             raise ValueError(
-                f"Dimension '{self.name}' (type={self.dim_type}) "
-                f"requires both 'low' and 'high'."
+                f"Dimension '{self.name}' (type={self.dim_type}) requires both 'low' and 'high'."
             )
         if self.dim_type == "categorical" and not self.choices:
-            raise ValueError(
-                f"Dimension '{self.name}' (type=categorical) requires 'choices'."
-            )
+            raise ValueError(f"Dimension '{self.name}' (type=categorical) requires 'choices'.")
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dict, dropping ``None`` values."""
@@ -294,46 +292,54 @@ class SSECallback:
 
     def on_trial_start(self, trial_id: int, params: dict[str, Any]) -> None:
         """Emit ``hpo-trial-start`` event."""
-        emit({
-            "type": "hpo-trial-start",
-            "trialId": trial_id,
-            "params": params,
-        })
+        emit(
+            {
+                "type": "hpo-trial-start",
+                "trialId": trial_id,
+                "params": params,
+            }
+        )
 
     def on_trial_end(self, result: TrialResult) -> None:
         """Emit ``hpo-trial-done`` event."""
-        emit({
-            "type": "hpo-trial-done",
-            "trialId": result.trial_id,
-            "score": result.score,
-            "params": result.params,
-            "metrics": result.metrics,
-            "durationSec": result.duration_sec,
-            "pruned": result.pruned,
-            "error": result.error,
-        })
+        emit(
+            {
+                "type": "hpo-trial-done",
+                "trialId": result.trial_id,
+                "score": result.score,
+                "params": result.params,
+                "metrics": result.metrics,
+                "durationSec": result.duration_sec,
+                "pruned": result.pruned,
+                "error": result.error,
+            }
+        )
 
     def on_best_update(self, result: TrialResult) -> None:
         """Emit ``hpo-best-update`` event."""
-        emit({
-            "type": "hpo-best-update",
-            "trialId": result.trial_id,
-            "score": result.score,
-            "params": result.params,
-        })
+        emit(
+            {
+                "type": "hpo-best-update",
+                "trialId": result.trial_id,
+                "score": result.score,
+                "params": result.params,
+            }
+        )
 
     def on_optimization_complete(self, result: OptimizationResult) -> None:
         """Emit ``hpo-complete`` event."""
-        emit({
-            "type": "hpo-complete",
-            "bestScore": result.best_score,
-            "bestParams": result.best_params,
-            "totalTrials": result.total_trials,
-            "completedTrials": result.completed_trials,
-            "prunedTrials": result.pruned_trials,
-            "elapsedSec": result.elapsed_sec,
-            "optimizerType": result.optimizer_type,
-        })
+        emit(
+            {
+                "type": "hpo-complete",
+                "bestScore": result.best_score,
+                "bestParams": result.best_params,
+                "totalTrials": result.total_trials,
+                "completedTrials": result.completed_trials,
+                "prunedTrials": result.pruned_trials,
+                "elapsedSec": result.elapsed_sec,
+                "optimizerType": result.optimizer_type,
+            }
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -378,7 +384,9 @@ class BaseOptimizer(ABC):
         self.n_jobs = n_jobs
         self.seed = seed
         self.timeout = timeout
-        self.callbacks: list[OptimizerCallback] = callbacks if callbacks is not None else [SSECallback()]
+        self.callbacks: list[OptimizerCallback] = (
+            callbacks if callbacks is not None else [SSECallback()]
+        )
         self._best_score: float | None = None
         self._best_trial: TrialResult | None = None
 
@@ -399,7 +407,10 @@ class BaseOptimizer(ABC):
         """
         logger.info(
             "Starting %s optimisation — %d trials, %d jobs, direction=%s",
-            self.optimizer_type, self.n_trials, self.n_jobs, self.direction,
+            self.optimizer_type,
+            self.n_trials,
+            self.n_jobs,
+            self.direction,
         )
         emit_log(
             f"Starting {self.optimizer_type} optimisation: "
@@ -421,7 +432,8 @@ class BaseOptimizer(ABC):
 
         logger.info(
             "Optimisation complete in %.1fs — best score: %.6f",
-            elapsed, result.best_score,
+            elapsed,
+            result.best_score,
         )
 
         for cb in self.callbacks:
@@ -529,11 +541,13 @@ class OptimizerRegistry:
         Returns:
             The original class, unmodified.
         """
+
         def decorator(optimizer_cls: type[BaseOptimizer]) -> type[BaseOptimizer]:
             if name in cls._registry:
                 logger.warning("Overwriting registered optimizer '%s'", name)
             cls._registry[name] = optimizer_cls
             return optimizer_cls
+
         return decorator
 
     @classmethod
@@ -553,10 +567,7 @@ class OptimizerRegistry:
         """
         if optimizer_type not in cls._registry:
             available = ", ".join(sorted(cls._registry)) or "(none)"
-            raise KeyError(
-                f"Unknown optimizer '{optimizer_type}'. "
-                f"Available: {available}"
-            )
+            raise KeyError(f"Unknown optimizer '{optimizer_type}'. Available: {available}")
         return cls._registry[optimizer_type](search_space=search_space, **kwargs)
 
     @classmethod
@@ -582,10 +593,7 @@ class OptimizerRegistry:
         """
         if optimizer_type not in cls._registry:
             available = ", ".join(sorted(cls._registry)) or "(none)"
-            raise KeyError(
-                f"Unknown optimizer '{optimizer_type}'. "
-                f"Available: {available}"
-            )
+            raise KeyError(f"Unknown optimizer '{optimizer_type}'. Available: {available}")
         # Instantiate with a minimal empty search space to access the schema
         dummy_space = SearchSpace()
         instance = cls._registry[optimizer_type](search_space=dummy_space)

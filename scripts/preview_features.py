@@ -75,37 +75,41 @@ def _per_feature_stats(matrix: np.ndarray, names: list[str]) -> list[dict]:
         finite = col[mask]
         finite_ratio = float(mask.sum() / n_rows) if n_rows else 0.0
         if finite.size == 0:
-            out.append({
-                "name": names[j],
-                "mean": None,
-                "std": None,
-                "skew": None,
-                "kurt": None,
-                "finiteRatio": finite_ratio,
-                "p1": None,
-                "p99": None,
-            })
+            out.append(
+                {
+                    "name": names[j],
+                    "mean": None,
+                    "std": None,
+                    "skew": None,
+                    "kurt": None,
+                    "finiteRatio": finite_ratio,
+                    "p1": None,
+                    "p99": None,
+                }
+            )
             continue
         mu = float(finite.mean())
         sigma = float(finite.std(ddof=0))
         # Manual skew / excess-kurtosis to avoid scipy dependency on hot path.
         if sigma > 0:
             z = (finite - mu) / sigma
-            skew = float((z ** 3).mean())
-            kurt = float((z ** 4).mean() - 3.0)
+            skew = float((z**3).mean())
+            kurt = float((z**4).mean() - 3.0)
         else:
             skew = 0.0
             kurt = 0.0
-        out.append({
-            "name": names[j],
-            "mean": mu,
-            "std": sigma,
-            "skew": skew,
-            "kurt": kurt,
-            "finiteRatio": finite_ratio,
-            "p1": _percentile_robust(finite, 1.0),
-            "p99": _percentile_robust(finite, 99.0),
-        })
+        out.append(
+            {
+                "name": names[j],
+                "mean": mu,
+                "std": sigma,
+                "skew": skew,
+                "kurt": kurt,
+                "finiteRatio": finite_ratio,
+                "p1": _percentile_robust(finite, 1.0),
+                "p99": _percentile_robust(finite, 99.0),
+            }
+        )
     return out
 
 
@@ -155,11 +159,13 @@ def _compute_correlations(
     pairs = []
     for k in flagged_idx[:top_redundant]:
         i, j = int(iu[0][k]), int(iu[1][k])
-        pairs.append({
-            "a": names[i],
-            "b": names[j],
-            "corr": float(corr[i, j]),
-        })
+        pairs.append(
+            {
+                "a": names[i],
+                "b": names[j],
+                "corr": float(corr[i, j]),
+            }
+        )
 
     return {
         "meanAbsCorr": mean_abs,

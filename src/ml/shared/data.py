@@ -185,7 +185,9 @@ def _rows_to_arrays(rows: list[tuple]) -> dict:
     }
 
 
-def _fetch_front_month_rows(con, root: str, interval: str, max_bars: int, date_range: dict | None) -> list[tuple]:
+def _fetch_front_month_rows(
+    con, root: str, interval: str, max_bars: int, date_range: dict | None
+) -> list[tuple]:
     """Front-month stitching: pick the highest-volume contract per day, read each from the lake."""
     time_filter = ""
     if date_range:
@@ -236,16 +238,19 @@ def _fetch_front_month_rows(con, root: str, interval: str, max_bars: int, date_r
         s = f"{start}T00:00:00.000Z"
         e = f"{end}T23:59:59.999Z"
 
-        sql = _build_sample_sql(
-            sym, interval, 0, {"start": s, "end": e}
-        )
+        sql = _build_sample_sql(sym, interval, 0, {"start": s, "end": e})
         for row in con.execute(sql).fetchall():
-            all_rows.append((
-                sym, row[1],
-                float(row[2]), float(row[3]),
-                float(row[4]), float(row[5]),
-                float(row[6] or 0.0),
-            ))
+            all_rows.append(
+                (
+                    sym,
+                    row[1],
+                    float(row[2]),
+                    float(row[3]),
+                    float(row[4]),
+                    float(row[5]),
+                    float(row[6] or 0.0),
+                )
+            )
         emit_progress(idx + 1, total_contracts, "loading_data")
 
     if not all_rows:

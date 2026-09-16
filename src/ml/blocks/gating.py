@@ -65,17 +65,13 @@ class TopKGating(nn.Module):
         if self.proj.bias is not None:
             nn.init.zeros_(self.proj.bias)
 
-    def forward(
-        self, x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # input:  (B, d_model)
         # output: gates (B, n_experts), top_k_idx (B, k), top_k_weights (B, k)
         logits = self.proj(x) / self.temperature  # (B, n_experts)
         top_k_logits, top_k_idx = logits.topk(self.k, dim=-1)
         top_k_weights = F.softmax(top_k_logits, dim=-1)  # (B, k)
-        gates = torch.zeros_like(logits).scatter_(
-            dim=-1, index=top_k_idx, src=top_k_weights
-        )
+        gates = torch.zeros_like(logits).scatter_(dim=-1, index=top_k_idx, src=top_k_weights)
         return gates, top_k_idx, top_k_weights
 
 
@@ -155,10 +151,9 @@ class HashGating(nn.Module):
         # output: (B, n_experts) one-hot
         if x.size(-1) < self.hash_dim:
             raise ValueError(
-                f"HashGating input feature dim ({x.size(-1)}) "
-                f"must be >= hash_dim ({self.hash_dim})"
+                f"HashGating input feature dim ({x.size(-1)}) must be >= hash_dim ({self.hash_dim})"
             )
         # Use first hash_dim features for routing; deterministic per input.
         h = x[..., : self.hash_dim] @ self.H  # (B, n_experts)
-        idx = h.argmax(dim=-1)               # (B,)
+        idx = h.argmax(dim=-1)  # (B,)
         return F.one_hot(idx, num_classes=self.n_experts).to(dtype=x.dtype)

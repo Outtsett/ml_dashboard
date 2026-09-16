@@ -34,8 +34,11 @@ class HysteresisState:
         last_flip_seq: feature_seq value at the most recent flip.
     """
 
-    def __init__(self, hysteresis_bars: int = HYSTERESIS_BARS,
-                 neutral_zone_threshold: float = NEUTRAL_ZONE_THRESHOLD) -> None:
+    def __init__(
+        self,
+        hysteresis_bars: int = HYSTERESIS_BARS,
+        neutral_zone_threshold: float = NEUTRAL_ZONE_THRESHOLD,
+    ) -> None:
         """Initialise the hysteresis state machine.
 
         Args:
@@ -49,9 +52,9 @@ class HysteresisState:
         self._hysteresis_bars: int = hysteresis_bars
         self._neutral_threshold: float = neutral_zone_threshold
 
-        self.position: int = 0          # 0 = uninitialised, +1 LONG, -1 SHORT
-        self.neutral_bars: int = 0      # consecutive neutral-zone bar count
-        self.last_flip_seq: int = 0     # feature_seq at most recent flip
+        self.position: int = 0  # 0 = uninitialised, +1 LONG, -1 SHORT
+        self.neutral_bars: int = 0  # consecutive neutral-zone bar count
+        self.last_flip_seq: int = 0  # feature_seq at most recent flip
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -124,9 +127,7 @@ class HysteresisState:
             ValueError: If new_position is not +1 or -1.
         """
         if new_position not in (1, -1):
-            raise ValueError(
-                f"new_position must be +1 or -1, got {new_position!r}"
-            )
+            raise ValueError(f"new_position must be +1 or -1, got {new_position!r}")
         self.position = new_position
         self.last_flip_seq = feature_seq
         self.neutral_bars = 0  # start fresh after committing the flip

@@ -19,9 +19,9 @@ from shared.protocol import emit_log, emit_metric
 
 
 def run_stage1_regime_quality(
-    features: np.ndarray,        # (T, D) feature matrix
-    assignments: np.ndarray,     # (T,) regime assignments
-    close: np.ndarray,           # (T,) close prices
+    features: np.ndarray,  # (T, D) feature matrix
+    assignments: np.ndarray,  # (T,) regime assignments
+    close: np.ndarray,  # (T,) close prices
     iteration: int = 0,
 ) -> dict:
     """
@@ -45,20 +45,28 @@ def run_stage1_regime_quality(
     # ── Silhouette Score ──
     try:
         if K > 1 and K < len(assignments):
-            sil = float(silhouette_score(
-                features, assignments,
-                sample_size=min(5000, len(features)),
-            ))
+            sil = float(
+                silhouette_score(
+                    features,
+                    assignments,
+                    sample_size=min(5000, len(features)),
+                )
+            )
         else:
             sil = 0.0
         passed = sil > 0.2
         results["silhouette_score"] = {
-            "value": round(sil, 4), "passed": passed, "p_value": None,
+            "value": round(sil, 4),
+            "passed": passed,
+            "p_value": None,
         }
         emit_metric("eval_silhouette", sil, iteration)
     except Exception as e:
         results["silhouette_score"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     # ── Calinski-Harabasz Index ──
@@ -68,12 +76,17 @@ def run_stage1_regime_quality(
         else:
             ch = 0.0
         results["calinski_harabasz"] = {
-            "value": round(ch, 2), "passed": ch > 10, "p_value": None,
+            "value": round(ch, 2),
+            "passed": ch > 10,
+            "p_value": None,
         }
         emit_metric("eval_calinski_harabasz", ch, iteration)
     except Exception as e:
         results["calinski_harabasz"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     # ── Davies-Bouldin Index ──
@@ -84,27 +97,35 @@ def run_stage1_regime_quality(
             db_idx = 999.0
         passed = db_idx < 1.5
         results["davies_bouldin"] = {
-            "value": round(db_idx, 4), "passed": passed, "p_value": None,
+            "value": round(db_idx, 4),
+            "passed": passed,
+            "p_value": None,
         }
         emit_metric("eval_davies_bouldin", db_idx, iteration)
     except Exception as e:
         results["davies_bouldin"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     # ── Regime Return Separation (Welch's t-test on pairwise log returns) ──
     try:
-        regime_rets = {k: log_returns[assignments == k]
-                       for k in range(K) if (assignments == k).sum() > 2}
+        regime_rets = {
+            k: log_returns[assignments == k] for k in range(K) if (assignments == k).sum() > 2
+        }
         pairs_tested = 0
         pairs_significant = 0
         min_p = 1.0
 
         keys = sorted(regime_rets.keys())
         for i, k1 in enumerate(keys):
-            for k2 in keys[i + 1:]:
+            for k2 in keys[i + 1 :]:
                 _, p_val = stats.ttest_ind(
-                    regime_rets[k1], regime_rets[k2], equal_var=False,
+                    regime_rets[k1],
+                    regime_rets[k2],
+                    equal_var=False,
                 )
                 pairs_tested += 1
                 if p_val < 0.05:
@@ -113,33 +134,40 @@ def run_stage1_regime_quality(
 
         passed = pairs_significant >= 2 if pairs_tested >= 3 else pairs_significant >= 1
         results["return_separation"] = {
-            "value": pairs_significant, "passed": passed,
+            "value": pairs_significant,
+            "passed": passed,
             "p_value": round(min_p, 6),
             "details": {"pairs_tested": pairs_tested, "pairs_significant": pairs_significant},
         }
         emit_metric("eval_return_separation_pairs", pairs_significant, iteration)
     except Exception as e:
         results["return_separation"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     # ── Regime Volatility Separation (Levene's test) ──
     try:
-        groups = [log_returns[assignments == k]
-                  for k in range(K) if (assignments == k).sum() > 2]
+        groups = [log_returns[assignments == k] for k in range(K) if (assignments == k).sum() > 2]
         if len(groups) >= 2:
             stat, p_val = stats.levene(*groups)
             passed = float(p_val) < 0.05
         else:
             stat, p_val, passed = 0.0, 1.0, False
         results["volatility_separation"] = {
-            "value": round(float(stat), 4), "passed": passed,
+            "value": round(float(stat), 4),
+            "passed": passed,
             "p_value": round(float(p_val), 6),
         }
         emit_metric("eval_volatility_levene_p", float(p_val), iteration)
     except Exception as e:
         results["volatility_separation"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     # ── Minimum Regime Duration ──
@@ -148,7 +176,9 @@ def run_stage1_regime_quality(
         median_dur = float(np.median(durations)) if durations else 0
         passed = median_dur > 5
         results["min_duration"] = {
-            "value": round(median_dur, 1), "passed": passed, "p_value": None,
+            "value": round(median_dur, 1),
+            "passed": passed,
+            "p_value": None,
             "details": {
                 "median": round(median_dur, 1),
                 "mean": round(float(np.mean(durations)), 1) if durations else 0,
@@ -158,7 +188,10 @@ def run_stage1_regime_quality(
         emit_metric("eval_median_duration", median_dur, iteration)
     except Exception as e:
         results["min_duration"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     return results
@@ -199,14 +232,23 @@ def run_stage2_significance(
             if (i + 1) % 100 == 0:
                 emit_metric("eval_permutation_progress", (i + 1) / n_permutations * 100, iteration)
 
-        real_score = float(silhouette_score(
-            features, assignments, sample_size=min(5000, len(features)),
-        )) if K > 1 else 0.0
+        real_score = (
+            float(
+                silhouette_score(
+                    features,
+                    assignments,
+                    sample_size=min(5000, len(features)),
+                )
+            )
+            if K > 1
+            else 0.0
+        )
         p_value = float(np.mean(np.array(random_scores) >= real_score))
         passed = p_value < 0.05
 
         results["permutation_test"] = {
-            "value": round(real_score, 4), "passed": passed,
+            "value": round(real_score, 4),
+            "passed": passed,
             "p_value": round(p_value, 4),
             "details": {
                 "n_permutations": n_permutations,
@@ -218,7 +260,10 @@ def run_stage2_significance(
         emit_metric("eval_permutation_p", p_value, iteration)
     except Exception as e:
         results["permutation_test"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     # ── Bootstrap Confidence Interval ──
@@ -229,10 +274,13 @@ def run_stage2_significance(
         for i in range(n_bootstrap):
             idx = np.random.choice(T, size=T, replace=True)
             if K > 1 and K < len(idx):
-                score = float(silhouette_score(
-                    features[idx], assignments[idx],
-                    sample_size=min(2000, len(idx)),
-                ))
+                score = float(
+                    silhouette_score(
+                        features[idx],
+                        assignments[idx],
+                        sample_size=min(2000, len(idx)),
+                    )
+                )
             else:
                 score = 0.0
             boot_scores.append(score)
@@ -256,20 +304,23 @@ def run_stage2_significance(
         emit_metric("eval_bootstrap_ci_high", ci_high, iteration)
     except Exception as e:
         results["bootstrap_ci"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     return results
 
 
 def run_stage3_oos_validation(
-    train_assignments: np.ndarray,   # (T_train,) regime ids
-    test_assignments: np.ndarray,    # (T_test,) regime ids
-    train_close: np.ndarray,         # (T_train,) prices
-    test_close: np.ndarray,          # (T_test,) prices
-    train_confidence: np.ndarray,    # (T_train,) confidence values
-    test_confidence: np.ndarray,     # (T_test,) confidence values
-    transition_matrix: np.ndarray,   # (K, K) transition probabilities
+    train_assignments: np.ndarray,  # (T_train,) regime ids
+    test_assignments: np.ndarray,  # (T_test,) regime ids
+    train_close: np.ndarray,  # (T_train,) prices
+    test_close: np.ndarray,  # (T_test,) prices
+    train_confidence: np.ndarray,  # (T_train,) confidence values
+    test_confidence: np.ndarray,  # (T_test,) confidence values
+    transition_matrix: np.ndarray,  # (K, K) transition probabilities
     iteration: int = 0,
 ) -> dict:
     """
@@ -291,7 +342,9 @@ def run_stage3_oos_validation(
         ratio = test_mean_conf / max(train_mean_conf, 1e-10)
         passed = test_mean_conf >= 0.7 * train_mean_conf
         results["oos_confidence_calibration"] = {
-            "value": round(ratio, 4), "passed": passed, "p_value": None,
+            "value": round(ratio, 4),
+            "passed": passed,
+            "p_value": None,
             "details": {
                 "train_mean_confidence": round(train_mean_conf, 4),
                 "test_mean_confidence": round(test_mean_conf, 4),
@@ -301,7 +354,10 @@ def run_stage3_oos_validation(
         emit_metric("eval_oos_confidence_ratio", ratio, iteration)
     except Exception as e:
         results["oos_confidence_calibration"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     # ── OOS Return Separation (Welch's t-test on TEST data per-regime returns) ──
@@ -310,17 +366,22 @@ def run_stage3_oos_validation(
         test_log_returns = np.concatenate([[0.0], test_log_returns])
 
         K = int(max(train_assignments.max(), test_assignments.max())) + 1
-        regime_rets = {k: test_log_returns[test_assignments == k]
-                       for k in range(K) if (test_assignments == k).sum() > 2}
+        regime_rets = {
+            k: test_log_returns[test_assignments == k]
+            for k in range(K)
+            if (test_assignments == k).sum() > 2
+        }
 
         pairs_tested = 0
         pairs_significant = 0
         min_p = 1.0
         keys = sorted(regime_rets.keys())
         for i, k1 in enumerate(keys):
-            for k2 in keys[i + 1:]:
+            for k2 in keys[i + 1 :]:
                 _, p_val = stats.ttest_ind(
-                    regime_rets[k1], regime_rets[k2], equal_var=False,
+                    regime_rets[k1],
+                    regime_rets[k2],
+                    equal_var=False,
                 )
                 pairs_tested += 1
                 if p_val < 0.05:
@@ -329,14 +390,18 @@ def run_stage3_oos_validation(
 
         passed = pairs_significant >= 1
         results["oos_return_separation"] = {
-            "value": pairs_significant, "passed": passed,
+            "value": pairs_significant,
+            "passed": passed,
             "p_value": round(min_p, 6),
             "details": {"pairs_tested": pairs_tested, "pairs_significant": pairs_significant},
         }
         emit_metric("eval_oos_return_sep_pairs", pairs_significant, iteration)
     except Exception as e:
         results["oos_return_separation"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     # ── Regime Transition Prediction ──
@@ -367,7 +432,9 @@ def run_stage3_oos_validation(
         recall = correct_predictions / max(actual_transitions, 1)
         passed = precision > 0.3
         results["regime_transition_prediction"] = {
-            "value": round(precision, 4), "passed": passed, "p_value": None,
+            "value": round(precision, 4),
+            "passed": passed,
+            "p_value": None,
             "details": {
                 "precision": round(precision, 4),
                 "recall": round(recall, 4),
@@ -379,13 +446,18 @@ def run_stage3_oos_validation(
         emit_metric("eval_transition_precision", precision, iteration)
     except Exception as e:
         results["regime_transition_prediction"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     # ── Regime Distribution Drift (chi-squared on train vs test proportions) ──
     try:
         K = int(max(train_assignments.max(), test_assignments.max())) + 1
-        train_counts = np.array([np.sum(train_assignments == k) for k in range(K)], dtype=np.float64)
+        train_counts = np.array(
+            [np.sum(train_assignments == k) for k in range(K)], dtype=np.float64
+        )
         test_counts = np.array([np.sum(test_assignments == k) for k in range(K)], dtype=np.float64)
 
         # Expected test counts if same distribution as train
@@ -402,27 +474,33 @@ def run_stage3_oos_validation(
             chi2_stat, p_val, passed = 0.0, 1.0, True
 
         results["regime_distribution_drift"] = {
-            "value": round(float(chi2_stat), 4), "passed": passed,
+            "value": round(float(chi2_stat), 4),
+            "passed": passed,
             "p_value": round(float(p_val), 6),
             "details": {
-                "train_proportions": [round(float(x), 4) for x in train_counts / max(train_total, 1)],
+                "train_proportions": [
+                    round(float(x), 4) for x in train_counts / max(train_total, 1)
+                ],
                 "test_proportions": [round(float(x), 4) for x in test_counts / max(test_total, 1)],
             },
         }
         emit_metric("eval_distribution_drift_p", float(p_val), iteration)
     except Exception as e:
         results["regime_distribution_drift"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     return results
 
 
 def run_stage4_conditioned_performance(
-    assignments: np.ndarray,    # (T,) full dataset assignments
-    close: np.ndarray,          # (T,) close prices
-    confidence: np.ndarray,     # (T,) confidence values (can be None -> default 0.5)
-    split_idx: int,             # index where test period starts
+    assignments: np.ndarray,  # (T,) full dataset assignments
+    close: np.ndarray,  # (T,) close prices
+    confidence: np.ndarray,  # (T,) confidence values (can be None -> default 0.5)
+    split_idx: int,  # index where test period starts
     iteration: int = 0,
 ) -> dict:
     """
@@ -459,13 +537,18 @@ def run_stage4_conditioned_performance(
         best_sharpe = max(regime_sharpes.values()) if regime_sharpes else 0.0
         passed = best_sharpe > 0.5
         results["regime_sharpe"] = {
-            "value": round(best_sharpe, 4), "passed": passed, "p_value": None,
+            "value": round(best_sharpe, 4),
+            "passed": passed,
+            "p_value": None,
             "details": {f"regime_{k}": v for k, v in regime_sharpes.items()},
         }
         emit_metric("eval_best_regime_sharpe", best_sharpe, iteration)
     except Exception as e:
         results["regime_sharpe"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     # ── Long Bull / Short Bear Strategy ──
@@ -495,7 +578,9 @@ def run_stage4_conditioned_performance(
         passed = cumulative_return > 0.0
 
         results["long_bull_short_bear"] = {
-            "value": round(cumulative_return, 6), "passed": passed, "p_value": None,
+            "value": round(cumulative_return, 6),
+            "passed": passed,
+            "p_value": None,
             "details": {
                 "bull_regime": int(bull_regime),
                 "bear_regime": int(bear_regime),
@@ -507,7 +592,10 @@ def run_stage4_conditioned_performance(
         emit_metric("eval_long_bull_short_bear", cumulative_return, iteration)
     except Exception as e:
         results["long_bull_short_bear"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     # ── Transition Returns (avg 5-bar forward return after regime transitions) ──
@@ -516,7 +604,7 @@ def run_stage4_conditioned_performance(
         transition_rets = []
         for t in range(T - forward_window):
             if t > 0 and assignments[t] != assignments[t - 1]:
-                fwd_ret = float(np.sum(log_returns[t:t + forward_window]))
+                fwd_ret = float(np.sum(log_returns[t : t + forward_window]))
                 transition_rets.append(fwd_ret)
 
         if len(transition_rets) > 0:
@@ -527,18 +615,25 @@ def run_stage4_conditioned_performance(
             passed = False
 
         results["transition_returns"] = {
-            "value": round(mean_transition_ret, 6), "passed": passed, "p_value": None,
+            "value": round(mean_transition_ret, 6),
+            "passed": passed,
+            "p_value": None,
             "details": {
                 "n_transitions": len(transition_rets),
                 "forward_window": forward_window,
                 "mean_forward_return": round(mean_transition_ret, 6),
-                "std_forward_return": round(float(np.std(transition_rets)), 6) if transition_rets else 0.0,
+                "std_forward_return": round(float(np.std(transition_rets)), 6)
+                if transition_rets
+                else 0.0,
             },
         }
         emit_metric("eval_transition_returns", mean_transition_ret, iteration)
     except Exception as e:
         results["transition_returns"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     # ── Stability Premium (high-confidence vs low-confidence bar returns) ──
@@ -546,15 +641,21 @@ def run_stage4_conditioned_performance(
         high_conf_mask = confidence > 0.7
         low_conf_mask = confidence <= 0.7
 
-        high_abs_returns = np.abs(log_returns[high_conf_mask]) if high_conf_mask.sum() > 0 else np.array([0.0])
-        low_abs_returns = np.abs(log_returns[low_conf_mask]) if low_conf_mask.sum() > 0 else np.array([0.0])
+        high_abs_returns = (
+            np.abs(log_returns[high_conf_mask]) if high_conf_mask.sum() > 0 else np.array([0.0])
+        )
+        low_abs_returns = (
+            np.abs(log_returns[low_conf_mask]) if low_conf_mask.sum() > 0 else np.array([0.0])
+        )
 
         high_mean = float(np.mean(high_abs_returns))
         low_mean = float(np.mean(low_abs_returns))
         passed = high_mean > low_mean
 
         results["stability_premium"] = {
-            "value": round(high_mean - low_mean, 6), "passed": passed, "p_value": None,
+            "value": round(high_mean - low_mean, 6),
+            "passed": passed,
+            "p_value": None,
             "details": {
                 "high_conf_mean_abs_return": round(high_mean, 6),
                 "low_conf_mean_abs_return": round(low_mean, 6),
@@ -565,7 +666,10 @@ def run_stage4_conditioned_performance(
         emit_metric("eval_stability_premium", high_mean - low_mean, iteration)
     except Exception as e:
         results["stability_premium"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     # ── Max Regime Drawdown (report only — always passes) ──
@@ -585,22 +689,27 @@ def run_stage4_conditioned_performance(
 
         worst_dd = min(regime_drawdowns.values()) if regime_drawdowns else 0.0
         results["max_regime_drawdown"] = {
-            "value": round(worst_dd, 6), "passed": True, "p_value": None,
+            "value": round(worst_dd, 6),
+            "passed": True,
+            "p_value": None,
             "details": {f"regime_{k}": v for k, v in regime_drawdowns.items()},
         }
         emit_metric("eval_max_regime_drawdown", worst_dd, iteration)
     except Exception as e:
         results["max_regime_drawdown"] = {
-            "value": None, "passed": True, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": True,
+            "p_value": None,
+            "details": str(e),
         }
 
     return results
 
 
 def run_stage5_benchmarking(
-    assignments: np.ndarray,    # (T,) regime assignments
-    close: np.ndarray,          # (T,) close prices
-    split_idx: int,             # test period start
+    assignments: np.ndarray,  # (T,) regime assignments
+    close: np.ndarray,  # (T,) close prices
+    split_idx: int,  # test period start
     iteration: int = 0,
 ) -> dict:
     """
@@ -646,7 +755,9 @@ def run_stage5_benchmarking(
         passed = regime_cum > bnh_cum
 
         results["vs_buy_and_hold"] = {
-            "value": round(excess, 6), "passed": passed, "p_value": None,
+            "value": round(excess, 6),
+            "passed": passed,
+            "p_value": None,
             "details": {
                 "regime_cumulative": round(regime_cum, 6),
                 "bnh_cumulative": round(bnh_cum, 6),
@@ -658,7 +769,10 @@ def run_stage5_benchmarking(
         emit_metric("eval_vs_bnh_excess", excess, iteration)
     except Exception as e:
         results["vs_buy_and_hold"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     # ── vs SMA Crossover (50/200) ──
@@ -679,7 +793,9 @@ def run_stage5_benchmarking(
         passed = regime_cum > sma_cum
 
         results["vs_sma_crossover"] = {
-            "value": round(excess, 6), "passed": passed, "p_value": None,
+            "value": round(excess, 6),
+            "passed": passed,
+            "p_value": None,
             "details": {
                 "regime_cumulative": round(regime_cum, 6),
                 "sma_cumulative": round(sma_cum, 6),
@@ -689,7 +805,10 @@ def run_stage5_benchmarking(
         emit_metric("eval_vs_sma_excess", excess, iteration)
     except Exception as e:
         results["vs_sma_crossover"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     # ── Regime Information Ratio ──
@@ -704,7 +823,9 @@ def run_stage5_benchmarking(
 
         passed = ir > 0.0
         results["regime_information_ratio"] = {
-            "value": round(ir, 4), "passed": passed, "p_value": None,
+            "value": round(ir, 4),
+            "passed": passed,
+            "p_value": None,
             "details": {
                 "mean_excess": round(float(np.mean(excess_returns)), 6),
                 "std_excess": round(float(np.std(excess_returns)), 6),
@@ -714,7 +835,10 @@ def run_stage5_benchmarking(
         emit_metric("eval_information_ratio", ir, iteration)
     except Exception as e:
         results["regime_information_ratio"] = {
-            "value": None, "passed": False, "p_value": None, "details": str(e),
+            "value": None,
+            "passed": False,
+            "p_value": None,
+            "details": str(e),
         }
 
     return results
@@ -724,7 +848,7 @@ def run_all_stages(
     features: np.ndarray,
     assignments: np.ndarray,
     close: np.ndarray,
-    split_mask: np.ndarray,          # boolean: True = train
+    split_mask: np.ndarray,  # boolean: True = train
     confidence: Optional[np.ndarray],
     transition_matrix: Optional[np.ndarray],
     run_significance: bool = False,
@@ -773,7 +897,11 @@ def run_all_stages(
     # Stage 3: OOS Validation
     stage3 = {}
     if len(test_assignments) >= 20:
-        tm = transition_matrix if transition_matrix is not None else np.eye(int(assignments.max()) + 1)
+        tm = (
+            transition_matrix
+            if transition_matrix is not None
+            else np.eye(int(assignments.max()) + 1)
+        )
         stage3 = run_stage3_oos_validation(
             train_assignments=train_assignments,
             test_assignments=test_assignments,
@@ -862,17 +990,20 @@ def compute_evaluation_grade_v2(
     if stage4 and "regime_sharpe" in stage4:
         details = stage4["regime_sharpe"].get("details", {})
         if isinstance(details, dict):
-            s4_sharpe_above_1 = any(v > 1.0 for v in details.values() if isinstance(v, (int, float)))
+            s4_sharpe_above_1 = any(
+                v > 1.0 for v in details.values() if isinstance(v, (int, float))
+            )
 
     # Grade rubric
-    if (s1_pass_rate == 1.0
-            and perm_p is not None and perm_p < 0.01
-            and s3_all_pass
-            and s4_sharpe_above_1):
+    if (
+        s1_pass_rate == 1.0
+        and perm_p is not None
+        and perm_p < 0.01
+        and s3_all_pass
+        and s4_sharpe_above_1
+    ):
         return "A"
-    elif (s1_pass_rate == 1.0
-            and perm_p is not None and perm_p < 0.05
-            and s3_oos_ret_sep_pass):
+    elif s1_pass_rate == 1.0 and perm_p is not None and perm_p < 0.05 and s3_oos_ret_sep_pass:
         return "B"
     elif s1_pass_rate >= 0.6 and s3_conf_cal_pass:
         return "C"
@@ -939,7 +1070,9 @@ def _sma(close: np.ndarray, window: int) -> np.ndarray:
     if len(close) < window:
         return result
     cumsum = np.cumsum(close)
-    result[window - 1:] = (cumsum[window - 1:] - np.concatenate([[0.0], cumsum[:-window]])) / window
+    result[window - 1 :] = (
+        cumsum[window - 1 :] - np.concatenate([[0.0], cumsum[:-window]])
+    ) / window
     return result
 
 

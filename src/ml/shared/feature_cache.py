@@ -133,13 +133,19 @@ def cached_features(
             f"feature_cache: matrix has {matrix.shape[0]} rows but {timestamps.shape[0]} timestamps"
         )
     if matrix.shape[1] != len(names):
-        raise ValueError(
-            f"feature_cache: matrix has {matrix.shape[1]} cols but {len(names)} names"
-        )
+        raise ValueError(f"feature_cache: matrix has {matrix.shape[1]} cols but {len(names)} names")
 
-    _persist(parquet_path, sidecar_path, matrix, names, timestamps,
-             symbol=symbol, timeframe=timeframe, date_range=date_range,
-             categories=categories)
+    _persist(
+        parquet_path,
+        sidecar_path,
+        matrix,
+        names,
+        timestamps,
+        symbol=symbol,
+        timeframe=timeframe,
+        date_range=date_range,
+        categories=categories,
+    )
 
     emit_log(
         f"[feature_cache] Cached {matrix.shape[0]:,} rows x {matrix.shape[1]} features "
@@ -178,7 +184,7 @@ def _normalize_timestamps(ts) -> np.ndarray:
     """Coerce timestamps to a 1-D int64 numpy array of epoch seconds."""
     arr = np.asarray(ts)
     if arr.dtype.kind == "M":  # datetime64
-        return (arr.astype("datetime64[s]").astype("int64"))
+        return arr.astype("datetime64[s]").astype("int64")
     if arr.dtype.kind in ("i", "u"):
         sample = int(arr[0]) if arr.size else 0
         if sample > 10**14:
@@ -188,6 +194,7 @@ def _normalize_timestamps(ts) -> np.ndarray:
         return arr.astype("int64")
     if arr.dtype.kind == "O":
         from datetime import datetime as _dt
+
         out = np.empty(arr.shape[0], dtype="int64")
         for i, v in enumerate(arr):
             if isinstance(v, _dt):
@@ -202,7 +209,9 @@ def _normalize_timestamps(ts) -> np.ndarray:
     raise TypeError(f"feature_cache: unsupported timestamp dtype {arr.dtype}")
 
 
-def _load_cached(parquet_path: Path, sidecar_path: Path) -> tuple[np.ndarray, list[str], np.ndarray]:
+def _load_cached(
+    parquet_path: Path, sidecar_path: Path
+) -> tuple[np.ndarray, list[str], np.ndarray]:
     sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
     names: list[str] = sidecar["feature_names"]
     df = pl.read_parquet(parquet_path)

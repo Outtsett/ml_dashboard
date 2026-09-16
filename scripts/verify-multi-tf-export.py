@@ -24,8 +24,16 @@ BASE = f"http://{HOST}:{HTTP_PORT}"
 
 SYMBOLS = ["MNQ", "EURUSD"]
 TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"]
-EXPECTED_VIEWS = ["ohlcv_1m", "ohlcv_5m", "ohlcv_15m", "ohlcv_30m",
-                  "ohlcv_1h_v", "ohlcv_4h", "ohlcv_1d", "ohlcv_1w"]
+EXPECTED_VIEWS = [
+    "ohlcv_1m",
+    "ohlcv_5m",
+    "ohlcv_15m",
+    "ohlcv_30m",
+    "ohlcv_1h_v",
+    "ohlcv_4h",
+    "ohlcv_1d",
+    "ohlcv_1w",
+]
 
 
 def exec_sql(sql: str) -> dict:
@@ -52,8 +60,10 @@ def check_1_mat_view_status() -> bool:
     for name, status, inv_reason, refresh_txn, base_txn in rows:
         caught_up = (refresh_txn or 0) == (base_txn or 0)
         marker = "OK" if status == "valid" and caught_up else "FAIL"
-        print(f"  {marker:4s} {name:14s} status={status} "
-              f"refresh={refresh_txn}/{base_txn} inv={inv_reason or '-'}")
+        print(
+            f"  {marker:4s} {name:14s} status={status} "
+            f"refresh={refresh_txn}/{base_txn} inv={inv_reason or '-'}"
+        )
         if marker == "FAIL":
             ok = False
     return ok
@@ -98,7 +108,7 @@ def check_3_aggregation_correctness() -> bool:
     fields = [
         ("open", manual_open, view_open),
         ("high", manual_high, view_high),
-        ("low",  manual_low,  view_low),
+        ("low", manual_low, view_low),
         ("close", manual_close, view_close),
         ("volume", manual_vol, view_vol),
     ]
@@ -139,7 +149,9 @@ def check_4_parquet_readable() -> bool:
                 print(f"  FAIL: {path.relative_to(PARQUET_DIR)} empty")
                 ok = False
                 continue
-            print(f"  {sym:8s}/{tf:4s} {len(df):>12,}  {df['timestamp'].min()}  {df['timestamp'].max()}")
+            print(
+                f"  {sym:8s}/{tf:4s} {len(df):>12,}  {df['timestamp'].min()}  {df['timestamp'].max()}"
+            )
     return ok
 
 
@@ -163,11 +175,11 @@ def check_5_db_parquet_parity() -> bool:
 
 def main() -> int:
     results = [
-        ("Mat view status",        check_1_mat_view_status()),
-        ("Row counts",             check_2_row_counts()),
+        ("Mat view status", check_1_mat_view_status()),
+        ("Row counts", check_2_row_counts()),
         ("Aggregation correctness", check_3_aggregation_correctness()),
-        ("Parquet readability",    check_4_parquet_readable()),
-        ("DB/Parquet parity",      check_5_db_parquet_parity()),
+        ("Parquet readability", check_4_parquet_readable()),
+        ("DB/Parquet parity", check_5_db_parquet_parity()),
     ]
     print("\n" + "=" * 60)
     print("VERIFICATION SUMMARY")

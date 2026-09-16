@@ -121,6 +121,7 @@ _DIAGNOSTIC_ORDER = (GRAD_NORM, LEARNING_RATE, THROUGHPUT, VRAM)
 
 # ── Scalar diagnostics ──────────────────────────────────────────────────────
 
+
 def global_grad_norm(model: nn.Module) -> float:
     """L2 norm of all gradients across the model (post-backward, pre-step).
 
@@ -151,7 +152,7 @@ def global_grad_norm(model: nn.Module) -> float:
         total_sq += float(param_norm.item()) ** 2
     if not found:
         return 0.0
-    return float(total_sq ** 0.5)
+    return float(total_sq**0.5)
 
 
 def current_lr(optimizer: torch.optim.Optimizer) -> float:
@@ -192,6 +193,7 @@ def vram_mb() -> float:
 
 
 # ── Self-describing declarations + per-step emit ────────────────────────────
+
 
 def declare_diagnostics_metrics() -> None:
     """Declare the four training diagnostics so the dashboard can pre-render.
@@ -297,6 +299,7 @@ def emit_step_diagnostics(
 
 
 # ── Loss-surface bridging shims ─────────────────────────────────────────────
+
 
 class _ClosureCriterion(nn.Module):
     """Adapter criterion: ignores (output, targets) and returns loss_closure().
@@ -484,9 +487,7 @@ class LossSurfaceProbe:
             num_batches=1,
             device=str(resolved),
             seed=42,
-            trajectory_recorder=(
-                self._recorder if self._recorder.snapshot_count >= 3 else None
-            ),
+            trajectory_recorder=(self._recorder if self._recorder.snapshot_count >= 3 else None),
             emit_coarse=None,
         )
 
@@ -578,14 +579,17 @@ if __name__ == "__main__":
     buf = io.StringIO()
     with redirect_stdout(buf):
         emit_step_diagnostics(
-            step=1, total=10,
-            grad_norm=gn, lr=lr, throughput=1234.5, vram=vram,
+            step=1,
+            total=10,
+            grad_norm=gn,
+            lr=lr,
+            throughput=1234.5,
+            vram=vram,
         )
     metric_lines = [ln for ln in buf.getvalue().splitlines() if ln.strip()]
     assert len(metric_lines) == 4, f"expected 4 metric lines, got {len(metric_lines)}"
     metric_evts = [json.loads(ln) for ln in metric_lines]
-    assert all(e["type"] == "metric" for e in metric_evts), \
-        [e["type"] for e in metric_evts]
+    assert all(e["type"] == "metric" for e in metric_evts), [e["type"] for e in metric_evts]
     emitted_names = [e["name"] for e in metric_evts]
     assert emitted_names == list(_DIAGNOSTIC_ORDER), emitted_names
     assert all(e["iteration"] == 1 and e["total"] == 10 for e in metric_evts)
@@ -612,7 +616,11 @@ if __name__ == "__main__":
     buf = io.StringIO()
     with redirect_stdout(buf):
         payload = probe.compute_and_emit(
-            model, loss_closure, resolution=5, distance=1.0, device=device,
+            model,
+            loss_closure,
+            resolution=5,
+            distance=1.0,
+            device=device,
         )
     surf_lines = [ln for ln in buf.getvalue().splitlines() if ln.strip()]
     assert len(surf_lines) == 1, f"expected 1 surface line, got {len(surf_lines)}"
@@ -625,14 +633,17 @@ if __name__ == "__main__":
     # The renderer's isSurfaceGridData() guard requires these three arrays.
     grid = surf_decl["value"]
     for required in ("alphas", "betas", "losses"):
-        assert isinstance(grid[required], list) and grid[required], \
+        assert isinstance(grid[required], list) and grid[required], (
             f"surface payload missing array: {required}"
+        )
     # Surface3DGridData full contract (trainingTypes.ts:279).
     assert grid["resolution"] == 5, grid["resolution"]
     assert isinstance(grid["range"], list) and len(grid["range"]) == 2, grid["range"]
     assert isinstance(grid["losses"][0], list), "losses must be 2D"
-    assert len(grid["losses"]) == 5 and len(grid["losses"][0]) == 5, \
-        (len(grid["losses"]), len(grid["losses"][0]))
+    assert len(grid["losses"]) == 5 and len(grid["losses"][0]) == 5, (
+        len(grid["losses"]),
+        len(grid["losses"][0]),
+    )
     for dk in ("sharpness", "condition_number", "valley_width", "locally_convex"):
         assert dk in grid["diagnostics"], f"missing diagnostic: {dk}"
     # The returned payload is the same object that was emitted.

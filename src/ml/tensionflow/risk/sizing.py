@@ -56,9 +56,7 @@ def compute_qty(
         Number of contracts in [1, MAX_CONTRACTS].  Returns 1 when the edge
         estimate is zero or negative, or when confidence is very low.
     """
-    kelly: float = (
-        win_rate * avg_win - (1.0 - win_rate) * avg_loss
-    ) / max(avg_win, 0.01)
+    kelly: float = (win_rate * avg_win - (1.0 - win_rate) * avg_loss) / max(avg_win, 0.01)
 
     # Never risk capital on a measured negative edge.
     kelly = max(kelly, 0.0)

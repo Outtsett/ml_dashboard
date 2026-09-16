@@ -71,21 +71,20 @@ def extract_derived(features: np.ndarray) -> dict[str, np.ndarray]:
     """
     if features.shape != (RAW_FIELDS, SHMEM_LEVELS):
         raise ValueError(
-            f"features must have shape ({RAW_FIELDS}, {SHMEM_LEVELS}), "
-            f"got {features.shape}"
+            f"features must have shape ({RAW_FIELDS}, {SHMEM_LEVELS}), got {features.shape}"
         )
 
     # Pass-through fields — C engine already guarantees the correct range.
-    aggressor_ratio   = features[F_AGGRESSOR_RATIO].astype(np.float32).copy()
-    tick_direction    = features[F_TICK_DIRECTION].astype(np.float32).copy()
+    aggressor_ratio = features[F_AGGRESSOR_RATIO].astype(np.float32).copy()
+    tick_direction = features[F_TICK_DIRECTION].astype(np.float32).copy()
     volume_percentile = features[F_VOLUME_PERCENTILE].astype(np.float32).copy()
-    toxicity          = features[F_TOXICITY].astype(np.float32).copy()
+    toxicity = features[F_TOXICITY].astype(np.float32).copy()
     composite_tension = features[F_COMPOSITE_TENSION].astype(np.float32).copy()
 
     # Clip-and-rescale fields — engine produces unbounded positive scalars.
-    size_ratio = (
-        np.clip(features[F_SIZE_RATIO].astype(np.float64), 0.0, 5.0) / 5.0
-    ).astype(np.float32)
+    size_ratio = (np.clip(features[F_SIZE_RATIO].astype(np.float64), 0.0, 5.0) / 5.0).astype(
+        np.float32
+    )
 
     spread_tension = (
         np.clip(features[F_SPREAD_TENSION].astype(np.float64), 0.0, 5.0) / 5.0
@@ -96,12 +95,12 @@ def extract_derived(features: np.ndarray) -> dict[str, np.ndarray]:
     ).astype(np.float32)
 
     return {
-        "aggressor_ratio":   aggressor_ratio,
-        "tick_direction":    tick_direction,
+        "aggressor_ratio": aggressor_ratio,
+        "tick_direction": tick_direction,
         "volume_percentile": volume_percentile,
-        "size_ratio":        size_ratio,
-        "spread_tension":    spread_tension,
-        "toxicity":          toxicity,
-        "momentum_score":    momentum_score,
+        "size_ratio": size_ratio,
+        "spread_tension": spread_tension,
+        "toxicity": toxicity,
+        "momentum_score": momentum_score,
         "composite_tension": composite_tension,
     }

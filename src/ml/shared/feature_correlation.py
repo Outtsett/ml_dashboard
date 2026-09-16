@@ -37,15 +37,14 @@ def compute_correlation_matrix(
     ~10-50x faster than pandas .corr() on large matrices.
     """
     import time
+
     t0 = time.time()
 
     # Try polars first (Rust-native, ~3-5x faster for ranking)
     try:
         import polars as pl
 
-        pl_df = pl.DataFrame({
-            feature_names[d]: X[:, d] for d in range(X.shape[1])
-        })
+        pl_df = pl.DataFrame({feature_names[d]: X[:, d] for d in range(X.shape[1])})
         # Polars .corr() method is not yet available for spearman in all versions
         # Use polars for NaN fill + ranking, then numpy corrcoef
         pl_df = pl_df.fill_nan(None).fill_null(strategy="mean")
@@ -70,9 +69,10 @@ def compute_correlation_matrix(
 
         if method == "spearman":
             from scipy.stats import rankdata
+
             X_ranked = np.empty_like(X_clean)
             for d in range(X_clean.shape[1]):
-                X_ranked[:, d] = rankdata(X_clean[:, d], nan_policy='omit')
+                X_ranked[:, d] = rankdata(X_clean[:, d], nan_policy="omit")
             corr_matrix = np.corrcoef(X_ranked, rowvar=False)
         else:
             corr_matrix = np.corrcoef(X_clean, rowvar=False)
@@ -107,11 +107,13 @@ def find_redundant_pairs(
             if np.isnan(c):
                 continue
             if abs(c) >= threshold:
-                pairs.append({
-                    "feat_a": names[i],
-                    "feat_b": names[j],
-                    "corr": round(float(c), 6),
-                })
+                pairs.append(
+                    {
+                        "feat_a": names[i],
+                        "feat_b": names[j],
+                        "corr": round(float(c), 6),
+                    }
+                )
 
     pairs.sort(key=lambda p: abs(p["corr"]), reverse=True)
     return pairs
@@ -224,6 +226,7 @@ def compute_vif(
         [{"feature": str, "vif": float}] sorted by VIF descending.
     """
     import time
+
     t0 = time.time()
 
     T, D = X.shape
@@ -289,8 +292,7 @@ def compute_vif(
                 vif_values[d] = float("inf")
 
     results = [
-        {"feature": names_valid[d], "vif": round(float(vif_values[d]), 4)}
-        for d in range(D_valid)
+        {"feature": names_valid[d], "vif": round(float(vif_values[d]), 4)} for d in range(D_valid)
     ]
     results.sort(key=lambda r: r["vif"], reverse=True)
 

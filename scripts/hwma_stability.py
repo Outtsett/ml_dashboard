@@ -20,6 +20,7 @@ This measures the boundary, on real MNQ front-month closes:
 
     E:\\source\\repos\\datalake\\.venv\\Scripts\\python.exe scripts/hwma_stability.py
 """
+
 from __future__ import annotations
 
 import os
@@ -35,7 +36,9 @@ import numpy as np  # noqa: E402
 import polars as pl  # noqa: E402
 from lake.catalog import duckdb_connect  # noqa: E402
 
-RESULTS_DATABASE = Path(os.environ.get("HWMA_STABILITY_DATABASE", r"E:\lake-workspace\hwma_stability.duckdb"))
+RESULTS_DATABASE = Path(
+    os.environ.get("HWMA_STABILITY_DATABASE", r"E:\lake-workspace\hwma_stability.duckdb")
+)
 #: the snapshot the dashboard's own DuckDB serves
 SNAPSHOT = os.environ.get("LAKE_SERVING_SNAPSHOT", "derived/recipe=questdb_full_2026-09-09")
 SYMBOL = "MNQH6"
@@ -98,8 +101,12 @@ def run(closes: np.ndarray, na: float, nb: float, nc: float) -> dict:
     with np.errstate(over="ignore", invalid="ignore"):
         for index in range(1, len(closes)):
             previous_level, previous_velocity, previous_acceleration = level, velocity, acceleration
-            level = (1 - na) * (previous_level + previous_velocity + 0.5 * previous_acceleration) + na * closes[index]
-            velocity = (1 - nb) * (previous_velocity + previous_acceleration) + nb * (level - previous_level)
+            level = (1 - na) * (
+                previous_level + previous_velocity + 0.5 * previous_acceleration
+            ) + na * closes[index]
+            velocity = (1 - nb) * (previous_velocity + previous_acceleration) + nb * (
+                level - previous_level
+            )
             acceleration = (1 - nc) * previous_acceleration + nc * (velocity - previous_velocity)
             if np.isfinite(level):
                 unbounded_minimum = min(unbounded_minimum, level)
@@ -126,43 +133,67 @@ def main() -> int:
     started = time.time()
     prices = closes_from_lake()
     closes = prices["close"].to_numpy().astype(float)
-    print(f"{len(closes)} closes {prices['timestamp'][0]} .. {prices['timestamp'][-1]} "
-          f"({closes.min():.2f}..{closes.max():.2f})")
+    print(
+        f"{len(closes)} closes {prices['timestamp'][0]} .. {prices['timestamp'][-1]} "
+        f"({closes.min():.2f}..{closes.max():.2f})"
+    )
 
     rows = []
     for na in GRID:
         for nb in GRID:
             for nc in GRID:
                 radius = spectral_radius(na, nb, nc)
-                rows.append({"na": float(na), "nb": float(nb), "nc": float(nc),
-                             "spectral_radius": radius, "spectrally_stable": radius < 1.0,
-                             **run(closes, float(na), float(nb), float(nc))})
+                rows.append(
+                    {
+                        "na": float(na),
+                        "nb": float(nb),
+                        "nc": float(nc),
+                        "spectral_radius": radius,
+                        "spectrally_stable": radius < 1.0,
+                        **run(closes, float(na), float(nb), float(nc)),
+                    }
+                )
     grid = pl.DataFrame(rows)
 
     unstable = grid.filter(~pl.col("spectrally_stable")).height
     negative = grid.filter(pl.col("went_negative_unbounded")).height
     stopped = grid.filter(pl.col("left_range_at_bar").is_not_null()).height
-    print(f"grid {grid.height} combinations: {unstable} spectrally unstable, "
-          f"{negative} would go negative unbounded, {stopped} stopped early under the range bound")
-    print(f"emitted values negative anywhere: {grid.filter(pl.col('went_negative_emitted')).height}")
+    print(
+        f"grid {grid.height} combinations: {unstable} spectrally unstable, "
+        f"{negative} would go negative unbounded, {stopped} stopped early under the range bound"
+    )
+    print(
+        f"emitted values negative anywhere: {grid.filter(pl.col('went_negative_emitted')).height}"
+    )
 
-    information = pl.DataFrame([{
-        "generated_at": datetime.now(timezone.utc),
-        "symbol": SYMBOL, "bars": len(closes), "snapshot": SNAPSHOT,
-        "grid_step": 0.05, "grid_size": grid.height,
-        "default_na": DEFAULTS[0], "default_nb": DEFAULTS[1], "default_nc": DEFAULTS[2],
-        "default_spectral_radius": spectral_radius(*DEFAULTS),
-        "range_multiple": RANGE_MULTIPLE,
-        "source": "ml_dashboard/scripts/hwma_stability.py",
-        "measures": "src/client/src/market/lib/calculators/overlay/averages.ts::calcHWMA",
-        "build_seconds": time.time() - started,
-    }])
+    information = pl.DataFrame(
+        [
+            {
+                "generated_at": datetime.now(timezone.utc),
+                "symbol": SYMBOL,
+                "bars": len(closes),
+                "snapshot": SNAPSHOT,
+                "grid_step": 0.05,
+                "grid_size": grid.height,
+                "default_na": DEFAULTS[0],
+                "default_nb": DEFAULTS[1],
+                "default_nc": DEFAULTS[2],
+                "default_spectral_radius": spectral_radius(*DEFAULTS),
+                "range_multiple": RANGE_MULTIPLE,
+                "source": "ml_dashboard/scripts/hwma_stability.py",
+                "measures": "src/client/src/market/lib/calculators/overlay/averages.ts::calcHWMA",
+                "build_seconds": time.time() - started,
+            }
+        ]
+    )
 
     database = duckdb.connect(str(RESULTS_DATABASE))
     try:
-        for name, frame in (("hwma_parameter_grid", grid),
-                            ("hwma_price_series", prices),
-                            ("hwma_run_information", information)):
+        for name, frame in (
+            ("hwma_parameter_grid", grid),
+            ("hwma_price_series", prices),
+            ("hwma_run_information", information),
+        ):
             database.register("incoming", frame.to_arrow())
             database.execute(f"CREATE OR REPLACE TABLE {name} AS SELECT * FROM incoming")
             database.unregister("incoming")
