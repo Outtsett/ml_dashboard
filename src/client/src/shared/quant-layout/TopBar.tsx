@@ -1,11 +1,16 @@
 import * as Toolbar from "@radix-ui/react-toolbar";
 
 import { useWebSocketMetrics } from "@/hooks/useWebSocketMetrics";
-import { Activity, Cpu, Server } from "lucide-react";
+import { Activity, Cpu, PanelRight, Server } from "lucide-react";
 import * as Progress from "@radix-ui/react-progress";
 import { trendTone, trendToneClass, trendGlyph, trendLabel } from "@/shared/theme/dataColors";
 
-export function TopBar() {
+export interface TopBarProps {
+  sidePanelOpen: boolean;
+  onToggleSidePanel: () => void;
+}
+
+export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
   const { metrics, isConnected } = useWebSocketMetrics();
 
   return (
@@ -87,6 +92,25 @@ export function TopBar() {
             className={`h-2 w-2 rounded-full ${isConnected ? "bg-(--color-data-pos)" : "bg-(--color-data-neg) animate-pulse"}`}
           />
         </div>
+
+        {/* Live metrics and the leaderboard used to hold 320px of the window
+            open permanently. They are a drawer now, and this opens it. */}
+        <button
+          type="button"
+          onClick={onToggleSidePanel}
+          aria-expanded={sidePanelOpen}
+          aria-controls="side-panel"
+          title="Live metrics and leaderboard (Ctrl+J)"
+          data-testid="toggle-side-panel"
+          className={`flex items-center gap-1.5 rounded border px-2 py-1 transition-colors ${
+            sidePanelOpen
+              ? "border-neutral-600 bg-neutral-800 text-neutral-100"
+              : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
+          }`}
+        >
+          <PanelRight className="h-4 w-4" />
+          <span>Metrics</span>
+        </button>
       </div>
     </Toolbar.Root>
   );
