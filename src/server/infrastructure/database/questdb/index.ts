@@ -34,6 +34,7 @@ export {
 export {
   getOHLCVSampleBy,
   getFrontMonthRanges,
+  getFrontMonthAnchor,
   getFrontMonthOHLCV,
   getStitchedOHLCV,
   getSymbolsInQuestDB,

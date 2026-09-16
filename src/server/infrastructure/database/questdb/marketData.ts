@@ -170,6 +170,59 @@ export async function getOHLCVSampleBy(
 // ─── Front-Month Stitching ──────────────────────────────────────────────────
 
 /**
+ * A contract has to actually trade to lead.
+ *
+ * Measured 2026-09-15 on root MNQ: the chart was serving MNQM26, which holds 584
+ * one-minute bars scattered over 5 days (2026-03-02..2026-03-27) — about 8% of
+ * the bars a real front month has — while the liquid series (MNQ, MNQZ5) ends
+ * 2025-12-30. It won every one of those days because it was the only dated
+ * contract with a row, and its timestamps are the newest under the root, so the
+ * default window anchored there too. What the user saw was that fragment: runs
+ * of zero-volume padding bars drawn as a dashed line, and a 372-point cliff
+ * between two bars 23 hours apart (2026-03-26 07:00 close 24,287.50 ->
+ * 2026-03-27 06:00 open 23,915.50) — a hole in a thin series, not a rollover.
+ *
+ * So a symbol is a leadership candidate only if it has real history and real
+ * volume on the day in question. MNQM26 (5 days), MNQZ6 (10 days, 19 contracts
+ * total) and MNQU6 (142 contracts total) all fail; MNQZ5 (286 days) and MNQH6
+ * (196 days) pass.
+ */
+const MIN_CONTRACT_DAYS = 20;
+const MIN_DAILY_VOLUME = 1_000;
+
+/** Month codes in calendar order, as CME writes them. */
+const MONTH_CODES = 'FGHJKMNQUVXZ';
+
+/**
+ * The expiry a dated contract symbol encodes, as YYYYMM, or null if the symbol
+ * is not a dated contract (the bare root, or a calendar spread).
+ *
+ * The year is one or two digits (MNQZ5, MNQM26), so a single digit is resolved
+ * against the day the contract is leading — the year ending in that digit
+ * nearest that day — rather than assumed to be in the 2020s.
+ */
+function contractExpiry(symbol: string, referenceDay: string): number | null {
+  const match = symbol.match(/^[A-Z]+([FGHJKMNQUVXZ])(\d{1,2})$/);
+  if (!match) return null;
+  const month = MONTH_CODES.indexOf(match[1]!) + 1;
+  const digits = match[2]!;
+  const referenceYear = Number(referenceDay.slice(0, 4));
+  let year: number;
+  if (digits.length === 2) {
+    year = 2000 + Number(digits);
+  } else {
+    const decade = Math.floor(referenceYear / 10) * 10;
+    year = decade + Number(digits);
+    // Pick the nearest year ending in that digit: a December contract leading in
+    // January belongs to the year just gone, not the one nine years out.
+    for (const candidate of [year - 10, year + 10]) {
+      if (Math.abs(candidate - referenceYear) < Math.abs(year - referenceYear)) year = candidate;
+    }
+  }
+  return year * 100 + month;
+}
+
+/**
  * Get the full front-month date ranges for a futures root (no time filters).
  * Cached aggressively with a long-lived key so paginated requests don't re-scan.
  */
@@ -215,25 +268,58 @@ async function getFullFrontMonthRanges(
     const rank = (symbol: string): number =>
       symbol.includes("-") ? -1 : datedContract.test(symbol) ? 1 : 0;
 
-    const leaders = new Map<string, { symbol: string; volume: number; rank: number }>();
+    // How much history each symbol has under this root, so a fragment cannot
+    // lead a day just by being the only row on it (see MIN_CONTRACT_DAYS).
+    const daysPresent = new Map<string, number>();
+    for (const bar of dailyBars) {
+      if (rank(bar.symbol) < 0) continue;
+      daysPresent.set(bar.symbol, (daysPresent.get(bar.symbol) ?? 0) + 1);
+    }
+
+    const leaders = new Map<string, { symbol: string; volume: number; rank: number; expiry: number | null }>();
     for (const bar of dailyBars) {
       const symbolRank = rank(bar.symbol);
       if (symbolRank < 0) continue;
       const day = new Date(normalizeTimestamp(bar.timestamp)).toISOString().slice(0, 10);
       const vol = Number(bar.volume);
+      // Both floors, or a thin fragment charts as if it were the front month.
+      if (!(vol >= MIN_DAILY_VOLUME)) continue;
+      if ((daysPresent.get(bar.symbol) ?? 0) < MIN_CONTRACT_DAYS) continue;
       const existing = leaders.get(day);
       const wins = !existing
         || symbolRank > existing.rank
         || (symbolRank === existing.rank && (vol > existing.volume
           || (vol === existing.volume && bar.symbol < existing.symbol)));
       if (wins) {
-        leaders.set(day, { symbol: bar.symbol, volume: vol, rank: symbolRank });
+        leaders.set(day, {
+          symbol: bar.symbol, volume: vol, rank: symbolRank,
+          expiry: contractExpiry(bar.symbol, day),
+        });
       }
+    }
+
+    // Latch the roll forward. Volume migrates over 3-5 sessions and crosses back
+    // and forth while it does, so a pure per-day winner walks from the new
+    // contract to the old one and back — every flip a price jump on the chart.
+    // Once a later expiry has led, an earlier one never leads again.
+    let highestExpiry = 0;
+    const latched = new Map<string, string>();
+    for (const [day, leader] of [...leaders.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+      if (leader.expiry !== null) {
+        if (leader.expiry < highestExpiry) {
+          // An earlier contract out-traded the one we have already rolled to:
+          // keep the roll, and let this day belong to the contract we are on.
+          const previous = [...latched.values()].pop();
+          if (previous) { latched.set(day, previous); continue; }
+        }
+        highestExpiry = Math.max(highestExpiry, leader.expiry);
+      }
+      latched.set(day, leader.symbol);
     }
 
     const ranges: { symbol: string; start: string; end: string }[] = [];
     let current: { symbol: string; start: string; end: string } | null = null;
-    for (const [day, { symbol }] of [...leaders.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+    for (const [day, symbol] of [...latched.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
       if (!current || current.symbol !== symbol) {
         if (current) ranges.push(current);
         current = { symbol, start: day, end: day };
@@ -268,6 +354,29 @@ export async function getFrontMonthRanges(
     : '9999-12-31';
 
   return allRanges.filter(r => r.end >= startDay && r.start <= endDay);
+}
+
+/**
+ * The newest timestamp the stitched series actually reaches.
+ *
+ * `max(timestamp) WHERE root = ...` is not that: it answers with whatever thin
+ * fragment happens to carry the latest row — MNQM26's 2026-03-27 while the
+ * liquid series ends 2025-12-30 — and a default window anchored there lands on
+ * data no one trades, or (once that fragment stops leading) on nothing at all.
+ * Anchoring on the last qualifying front-month contract keeps the default view
+ * on the series the chart is actually going to draw.
+ */
+export async function getFrontMonthAnchor(root: string): Promise<number | null> {
+  const ranges = await getFrontMonthRanges(root);
+  const last = ranges[ranges.length - 1];
+  if (!last) return null;
+  const sym = last.symbol.replace(/'/g, "''");
+  const [row] = await queryQuestDBFast<{ latest: Date | string | null }>(
+    `SELECT max(timestamp) AS latest FROM ohlcv WHERE symbol = '${sym}'`,
+  );
+  if (!row?.latest) return null;
+  const latest = normalizeTimestamp(row.latest);
+  return Number.isFinite(latest) ? latest : null;
 }
 
 export async function getFrontMonthOHLCV(
@@ -310,9 +419,15 @@ export async function getFrontMonthOHLCV(
       if (fromMs > toMs) return null;
       const s = new Date(fromMs).toISOString();
       const e = new Date(toMs).toISOString();
+      // volume > 0 drops padding. A futures bar with no traded volume is
+      // open == high == low == close carried from the previous close; 45 of
+      // MNQM26's 584 minutes are these, and a run of them is the dashed
+      // horizontal line the user reported. A minute with even one real print
+      // keeps its bar, flat or not — that is a thin market, not a fabrication.
       return `(SELECT symbol, timestamp, open, high, low, close, volume,${ANATOMY_COLUMNS}
          FROM ${view}
-         WHERE symbol = '${sym}' AND timestamp >= '${s}' AND timestamp <= '${e}')`;
+         WHERE symbol = '${sym}' AND timestamp >= '${s}' AND timestamp <= '${e}'
+           AND volume > 0)`;
     });
 
     const parts = unionParts.filter((p): p is string => p !== null);
@@ -346,30 +461,115 @@ export async function getFrontMonthOHLCV(
  * Returns bars with `activeContract` populated so the client can display
  * rollover boundaries on the HUD.
  */
+/**
+ * The multiplier each front-month range needs so the splice has no step in it.
+ *
+ * Two contracts on the same day trade at different prices — the calendar spread,
+ * which is cost of carry, not a move anyone captured. Measured on MNQ's
+ * 2025-12 roll: MNQZ5 closed 24,992.25 while MNQH6 closed 25,248.50, so an
+ * unadjusted splice prints a 256.25-point cliff at the boundary. Ratio (Panama)
+ * adjustment scales every earlier bar by close(new)/close(old) at each roll, so
+ * the roll-bar return is exactly zero and every other percentage move is
+ * preserved. This is the same arithmetic as quant's `load_ohlcv_root` and the
+ * lake's `fmadj` macro; the newest range is always factor 1, so today's price is
+ * today's price and only history is restated.
+ *
+ * Returns one factor per range, oldest first.
+ */
+async function rollAdjustmentFactors(
+  root: string,
+  ranges: { symbol: string; start: string; end: string }[],
+): Promise<number[]> {
+  const factors = new Array<number>(ranges.length).fill(1);
+  if (ranges.length < 2) return factors;
+
+  const escapedRoot = validateSymbol(root).replace(/'/g, "''");
+  const symbols = [...new Set(ranges.map(r => r.symbol))]
+    .map(s => `'${s.replace(/'/g, "''")}'`).join(', ');
+  const firstDay = ranges[0]!.start;
+
+  // One daily row per (symbol, day) for every contract in the stitch: enough to
+  // read both sides of each boundary.
+  const closes = await queryQuestDB<{ symbol: string; timestamp: Date | string; close: number }>(
+    `SELECT symbol, timestamp, close FROM ${DAILY_VIEW}
+     WHERE root = '${escapedRoot}' AND asset_class = 'futures'
+       AND symbol IN (${symbols}) AND timestamp >= '${firstDay}T00:00:00.000Z'`,
+    30_000,
+  );
+
+  const closeByKey = new Map<string, number>();
+  for (const row of closes) {
+    const day = new Date(normalizeTimestamp(row.timestamp)).toISOString().slice(0, 10);
+    closeByKey.set(`${row.symbol}|${day}`, Number(row.close));
+  }
+
+  // Ratio at each boundary, newest boundary first, accumulated backwards.
+  const ratios = new Array<number>(Math.max(ranges.length - 1, 0)).fill(1);
+  for (let i = 0; i < ranges.length - 1; i++) {
+    const older = ranges[i]!;
+    const newer = ranges[i + 1]!;
+    // Prefer the last day the old contract led, where both normally trade; fall
+    // back to the first day of the new range.
+    for (const day of [older.end, newer.start]) {
+      const oldClose = closeByKey.get(`${older.symbol}|${day}`);
+      const newClose = closeByKey.get(`${newer.symbol}|${day}`);
+      if (oldClose && newClose && oldClose > 0) {
+        ratios[i] = newClose / oldClose;
+        break;
+      }
+    }
+  }
+
+  // factor(i) = product of every ratio at or after i, so the newest range is 1.
+  for (let i = ranges.length - 2; i >= 0; i--) {
+    factors[i] = factors[i + 1]! * ratios[i]!;
+  }
+  return factors;
+}
+
 export async function getStitchedOHLCV(
   root: string,
   timeframe: string,
   startTime?: number,
   endTime?: number,
   limit?: number,
-  _adjustment?: string,
+  adjustment: string = 'none',
 ): Promise<StitchedOHLCVBar[]> {
   const bars = await getFrontMonthOHLCV(root, timeframe, startTime, endTime, limit);
+  if (bars.length === 0) return [];
+
+  // 'panama' is the trader's name for the same ratio adjustment.
+  const adjusted = adjustment === 'ratio' || adjustment === 'panama';
+  const factorFor = new Map<string, number>();
+  if (adjusted) {
+    const ranges = await getFrontMonthRanges(root, startTime, endTime);
+    const factors = await rollAdjustmentFactors(root, ranges);
+    ranges.forEach((range, index) => {
+      // Keyed by contract: a symbol leads one contiguous stretch of this window,
+      // and the latch above guarantees it cannot come back after rolling away.
+      factorFor.set(range.symbol, factors[index] ?? 1);
+    });
+  }
+
   // Anatomy is computed per range in the SQL; dropping it here is what made
-  // every futures candle report body 0, wicks 0, bearish.
-  return bars.map((r) => ({
-    timestamp: normalizeTimestamp(r.timestamp),
-    open: Number(r.open),
-    high: Number(r.high),
-    low: Number(r.low),
-    close: Number(r.close),
-    volume: Number(r.volume),
-    body_magnitude: Number(r.body_magnitude),
-    upper_wick_pct: Number(r.upper_wick_pct),
-    lower_wick_pct: Number(r.lower_wick_pct),
-    is_bullish: Boolean(r.is_bullish),
-    activeContract: r.symbol,
-  }));
+  // every futures candle report body 0, wicks 0, bearish. It is also all ratios,
+  // so scaling the prices leaves it correct untouched.
+  return bars.map((r) => {
+    const factor = adjusted ? (factorFor.get(r.symbol) ?? 1) : 1;
+    return {
+      timestamp: normalizeTimestamp(r.timestamp),
+      open: Number(r.open) * factor,
+      high: Number(r.high) * factor,
+      low: Number(r.low) * factor,
+      close: Number(r.close) * factor,
+      volume: Number(r.volume),
+      body_magnitude: Number(r.body_magnitude),
+      upper_wick_pct: Number(r.upper_wick_pct),
+      lower_wick_pct: Number(r.lower_wick_pct),
+      is_bullish: Boolean(r.is_bullish),
+      activeContract: r.symbol,
+    };
+  });
 }
 
 // ─── Symbol Stats ───────────────────────────────────────────────────────────

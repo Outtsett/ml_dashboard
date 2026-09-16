@@ -12,7 +12,7 @@
  * This route normalises everything to a flat array of { timestamp, open, high, low, close, volume }.
  */
 import { Router, Request, Response } from 'express';
-import { getOHLCVSampleBy, getStitchedOHLCV, checkQuestDBHealth, queryQuestDB, queryQuestDBFast } from '../infrastructure/database/questdb';
+import { getOHLCVSampleBy, getStitchedOHLCV, getFrontMonthAnchor, checkQuestDBHealth, queryQuestDB, queryQuestDBFast } from '../infrastructure/database/questdb';
 import type { AdjustmentMode } from '@shared/ohlcv';
 import { cachedQuery, OHLCVCache } from '../infrastructure/cache/ohlcv';
 import { getCachedAnchor, setCachedAnchor } from '../infrastructure/cache/anchor';
@@ -159,9 +159,15 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
     const endMs   = parseTimestamp(req.query.endTime as string)   ?? parseTimestamp(req.query.end as string);
     const rowLimit = Math.min(parseInt(req.query.limit as string) || 10000, 100000);
     const orderDesc = (req.query.order as string)?.toLowerCase() !== 'asc';
+    // Ratio by default for a futures root, because the alternative is a chart
+    // with a cliff in it: MNQ's 2025-12 roll splices 24,992.25 to 25,248.50, a
+    // 256.25-point step that is the calendar spread and not a move. Pass
+    // adjustment=none to read raw per-contract prices.
     const adjustmentRaw = (req.query.adjustment as string)?.toLowerCase();
     const adjustment: AdjustmentMode = adjustmentRaw === 'panama' ? 'panama'
-      : adjustmentRaw === 'ratio' ? 'ratio' : 'none';
+      : adjustmentRaw === 'ratio' ? 'ratio'
+      : adjustmentRaw === 'none' ? 'none'
+      : isFuturesRoot(symbol) ? 'ratio' : 'none';
 
     const sampleLabel = MINUTES_TO_SAMPLE[tfMinutes]
       || LABEL_TO_SAMPLE[(req.query.timeframe as string)?.toLowerCase() ?? '']
@@ -185,12 +191,16 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
 
         try {
           const safeEsc = symbol.replace(/'/g, "''");
-          let anchorQuery: string;
           if (isFuturesRoot(symbol)) {
-            anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE root = '${safeEsc}' AND asset_class = 'futures'`;
-          } else {
-            anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE symbol = '${safeEsc}'`;
+            // Anchor on the stitched series, not on whichever contract under
+            // this root holds the newest row — those are not the same thing.
+            const frontMonthAnchor = await getFrontMonthAnchor(symbol);
+            if (frontMonthAnchor !== null) {
+              setCachedAnchor(symbol, frontMonthAnchor);
+              return frontMonthAnchor;
+            }
           }
+          const anchorQuery = `SELECT max(timestamp) as latest FROM ohlcv WHERE symbol = '${safeEsc}'`;
           const [row] = await queryQuestDBFast<{ latest: Date | string | null }>(anchorQuery); // 10s timeout for anchor
           if (row?.latest) {
             const latestDate = row.latest instanceof Date ? row.latest.getTime() : new Date(String(row.latest)).getTime();
