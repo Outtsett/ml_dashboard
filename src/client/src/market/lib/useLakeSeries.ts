@@ -125,10 +125,10 @@ export interface UseLakeSeriesOptions {
   /** The bars currently loaded, which bound how far a request may reach. */
   bars: Array<{ timestamp: number | string }>;
   /**
-   * What the chart is actually showing, in seconds. Values are fetched for
-   * this rather than for every loaded bar: the buffer can hold a hundred days
-   * while seven are on screen, and bucketing across all of it collapsed a
-   * moving average into half-day steps.
+   * What the chart is actually showing, in epoch MILLISECONDS — the unit
+   * `TradingChart` emits. Values are fetched for this rather than for every
+   * loaded bar: the buffer can hold a hundred days while seven are on screen,
+   * and thinning across all of it leaves the visible week sparse.
    */
   visibleRange?: { start: number; end: number } | null;
 }
@@ -172,9 +172,12 @@ export function useLakeSeries({ symbol, timeframe, bars, visibleRange }: UseLake
     // Pad the viewport so a small pan does not immediately run off the edge of
     // what was fetched, then round to whole minutes to keep the query key — and
     // therefore the cache — stable while the chart settles.
-    const pad = (visibleRange.end - visibleRange.start) * 0.25;
-    const from = Math.max(loadedRange.from, Math.floor((visibleRange.start - pad) / 60) * 60);
-    const to = Math.min(loadedRange.to, Math.ceil((visibleRange.end + pad) / 60) * 60);
+    // The chart reports milliseconds; the lake and this request speak seconds.
+    const startSeconds = toSeconds(visibleRange.start);
+    const endSeconds = toSeconds(visibleRange.end);
+    const pad = (endSeconds - startSeconds) * 0.25;
+    const from = Math.max(loadedRange.from, Math.floor((startSeconds - pad) / 60) * 60);
+    const to = Math.min(loadedRange.to, Math.ceil((endSeconds + pad) / 60) * 60);
     return to > from ? { from, to } : loadedRange;
   }, [loadedRange, visibleRange]);
 

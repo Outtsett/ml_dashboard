@@ -238,7 +238,11 @@ async function fetchOneSeries(
           emptyReason:
             object.symbolColumn && !object.symbols.includes(window.symbol)
               ? `${object.object} carries no rows for ${window.symbol}.`
-              : `No rows in this window. ${object.object} covers ${coverageSentence(object)}.`,
+              // A flag with no points did not fire; saying "no rows" would be
+              // wrong, because the rows are there and every one of them is off.
+              : column.valueShape === "binary" && column.renderMode === "markers"
+                ? `${column.column} never fired in this window. ${object.object} covers ${coverageSentence(object)}.`
+                : `No rows in this window. ${object.object} covers ${coverageSentence(object)}.`,
         }
       : {}),
   };
