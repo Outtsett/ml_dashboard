@@ -160,6 +160,21 @@ npm run electron:dev
 dash
 ```
 
+### Verifying a change
+
+```bash
+npm run ci              # all 12 gates, ~3.4 min — mirrors .github/workflows/ci.yml
+npm run ci:local:fast   # same, minus build/smoke/e2e
+npm run smoke           # does the built artifact boot and serve?
+npm run test:e2e        # 91 Playwright tests against the production build
+```
+
+> **GitHub Actions has not executed since 2026-08-25** — every run is
+> `startup_failure` with zero jobs created, an account/billing condition rather
+> than a workflow defect. Until it is cleared, `npm run ci` is the gate.
+> Details, and what each gate proves: [`docs/CI-CD.md`](docs/CI-CD.md).
+> End-to-end specifics: [`e2e/README.md`](e2e/README.md).
+
 ---
 
 ## 7. Project Structure (Domain-Driven Map)
