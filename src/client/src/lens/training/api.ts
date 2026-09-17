@@ -216,3 +216,77 @@ export function eventsOfType<T extends TrainingStreamEvent>(
   events: TrainingStreamEvent[] | undefined, type: string): T[] {
   return (events ?? []).filter(e => e.type === type) as T[];
 }
+
+// ── The vector space ─────────────────────────────────────────────────────────
+
+/** Which blocks form the space. Projection and k-NN always use the same one. */
+export type VectorBasis = "continuous" | "full";
+
+export interface AxisReport {
+  varianceExplained: number;
+  blockShare: Record<string, number>;
+  topLoadings: { field: string; loading: number }[];
+}
+
+export interface VectorPoint {
+  barIndex: number;
+  timestamp: string;
+  x: number;
+  y: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  patternCount: number;
+}
+
+export interface VectorSpaceResponse {
+  run: string;
+  basis: VectorBasis;
+  bases: VectorBasis[];
+  bars: number;
+  dimensions: number;
+  fields: string[];
+  blocks: { name: string; width: number; offset: number }[];
+  axes: [AxisReport, AxisReport];
+  points: VectorPoint[];
+}
+
+export interface NeighbourResponse {
+  run: string;
+  basis: VectorBasis;
+  bar: number;
+  k: number;
+  dimensions: number;
+  neighbours: (VectorPoint & { distance: number })[];
+}
+
+/**
+ * The space is built once per (run, basis) on the server and never changes
+ * after, so it is cached for the session rather than refetched per epoch.
+ */
+export function useVectorSpace(run: string | null, basis: VectorBasis) {
+  return useQuery({
+    queryKey: ["lens", "training", "vectors", run, basis],
+    enabled: run !== null,
+    queryFn: ({ signal }) =>
+      getJson<VectorSpaceResponse>(
+        `/api/lens/training/runs/${encodeURIComponent(run!)}/vectors?basis=${basis}`, signal),
+    staleTime: Infinity,
+  });
+}
+
+export function useNeighbours(
+  run: string | null, basis: VectorBasis, bar: number | null, k = 12,
+) {
+  return useQuery({
+    queryKey: ["lens", "training", "neighbours", run, basis, bar, k],
+    enabled: run !== null && bar !== null,
+    queryFn: ({ signal }) =>
+      getJson<NeighbourResponse>(
+        `/api/lens/training/runs/${encodeURIComponent(run!)}/vectors/${bar}/neighbours`
+        + `?k=${k}&basis=${basis}`, signal),
+    staleTime: Infinity,
+  });
+}

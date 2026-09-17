@@ -15,12 +15,13 @@
  * Every panel draws from the run's own artefacts. Nothing here is illustrative:
  * a heatmap cell is a number the model actually held.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { LensFrame } from "../Frame";
+import { VectorSpaceCanvas, type ColourBy } from "./VectorSpace";
 import {
-  eventsOfType, toMatrix, useSnapshot,
-  type BlocksEvent, type EpochEvent, type LayersEvent, type RunStartedEvent,
-  type TrainingStreamEvent,
+  eventsOfType, toMatrix, useNeighbours, useSnapshot, useVectorSpace,
+  type AxisReport, type BlocksEvent, type EpochEvent, type LayersEvent,
+  type RunStartedEvent, type TrainingStreamEvent, type VectorBasis, type VectorPoint,
 } from "./api";
 
 // Okabe-Ito. Nothing is distinguished by a red/green contrast.
@@ -246,9 +247,204 @@ export function VectorizeStage({ run, events, block, onBlockChange }: {
   run: string; events: TrainingStreamEvent[];
   block: string | null; onBlockChange: (block: string) => void;
 }) {
+  const [view, setView] = useState<"space" | "features">("space");
+  const [basis, setBasis] = useState<VectorBasis>("continuous");
+  const [colourBy, setColourBy] = useState<ColourBy>("time");
+  const [selected, setSelected] = useState<number | null>(null);
+
   const blocksEvent = eventsOfType<BlocksEvent>(events, "blocks")[0];
   const names = blocksEvent ? Object.keys(blocksEvent.fields) : [];
   const active = block ?? names[0] ?? null;
+
+  return view === "space"
+    ? <VectorSpaceView run={run} basis={basis} setBasis={setBasis}
+                       colourBy={colourBy} setColourBy={setColourBy}
+                       selected={selected} setSelected={setSelected}
+                       view={view} setView={setView} />
+    : <FeatureHeatmapView run={run} blocksEvent={blocksEvent} names={names} active={active}
+                          onBlockChange={onBlockChange} view={view} setView={setView} />;
+}
+
+/** The two-button switch both views carry, so the panel header never moves. */
+function ViewSwitch({ view, setView }: {
+  view: "space" | "features"; setView: (v: "space" | "features") => void;
+}) {
+  return (
+    <div className="flex gap-1">
+      {([["space", "vector space"], ["features", "feature values"]] as const).map(([id, label]) => (
+        <button key={id} onClick={() => setView(id)}
+                className={`rounded px-2 py-0.5 font-mono text-[10px] ${
+                  view === id ? "bg-white/10 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The bars as points in their own feature space, with true k-nearest-neighbours.
+ *
+ * The caption is not decoration. A projection compresses 19 or 32 dimensions
+ * into 2 and throws the rest away, so the panel states how much variance the
+ * two axes actually carry and which blocks drive each one — otherwise a reader
+ * has no way to know whether a visible cluster is structure or leftovers.
+ */
+function VectorSpaceView({ run, basis, setBasis, colourBy, setColourBy, selected, setSelected,
+                           view, setView }: {
+  run: string; basis: VectorBasis; setBasis: (b: VectorBasis) => void;
+  colourBy: ColourBy; setColourBy: (c: ColourBy) => void;
+  selected: number | null; setSelected: (bar: number | null) => void;
+  view: "space" | "features"; setView: (v: "space" | "features") => void;
+}) {
+  const space = useVectorSpace(run, basis);
+  const neighbours = useNeighbours(run, basis, selected, 12);
+  const found = neighbours.data?.neighbours ?? [];
+
+  const share = (axis: AxisReport) =>
+    Object.entries(axis.blockShare)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name, value]) => `${name} ${(value * 100).toFixed(0)}%`)
+      .join(", ");
+
+  return (
+    <LensFrame
+      title="2 / 3 — Vectorize and normalize"
+      question="Where does each bar sit in its own feature space, and what else looks like it?"
+      basis={space.data
+        ? `${space.data.bars.toLocaleString()} bars x ${space.data.dimensions} dims`
+          + ` \u00b7 PC1 ${(space.data.axes[0].varianceExplained * 100).toFixed(1)}%`
+          + ` + PC2 ${(space.data.axes[1].varianceExplained * 100).toFixed(1)}%`
+          + ` = ${((space.data.axes[0].varianceExplained + space.data.axes[1].varianceExplained) * 100).toFixed(1)}% of variance on screen`
+        : undefined}
+      actions={
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1">
+            {(["continuous", "full"] as const).map(id => (
+              <button key={id} onClick={() => setBasis(id)}
+                      title={id === "continuous"
+                        ? "geometry + kinematics + volume + structure (19 dims)"
+                        : "all five blocks (32 dims) — PC1 becomes mostly candlestick patterns"}
+                      className={`rounded px-2 py-0.5 font-mono text-[10px] ${
+                        basis === id ? "bg-[#E69F00]/15 text-[#E69F00]" : "text-zinc-500 hover:text-zinc-300"}`}>
+                {id}
+              </button>
+            ))}
+          </div>
+          <select value={colourBy} onChange={e => setColourBy(e.target.value as ColourBy)}
+                  className="rounded border border-border bg-card px-1.5 py-0.5 font-mono text-[10px] text-zinc-300">
+            <option value="time">colour: time</option>
+            <option value="pattern">colour: patterns fired</option>
+            <option value="volume">colour: volume</option>
+            <option value="direction">colour: up / down</option>
+          </select>
+          <ViewSwitch view={view} setView={setView} />
+        </div>
+      }
+      resizeKey="lens-train-blocks" defaultHeight={280} fillBody
+    >
+      {space.isError ? (
+        <div className="text-[11px] text-[#E69F00]">
+          {(space.error as Error).message}
+        </div>
+      ) : !space.data ? (
+        <div className="text-[11px] text-zinc-500">building the vector space…</div>
+      ) : (
+        <>
+          <div className="min-h-0 flex-1">
+            <VectorSpaceCanvas points={space.data.points} colourBy={colourBy}
+                               selected={selected} neighbours={found}
+                               onSelect={setSelected} />
+          </div>
+
+          {selected !== null && (
+            <div className="mt-2 shrink-0">
+              <div className="mb-1 font-mono text-[10px] text-zinc-500">
+                bar {selected} and its {found.length} nearest neighbours, measured across all{" "}
+                {space.data.dimensions} dimensions — not the two on screen
+              </div>
+              <NeighbourStrip
+                anchor={space.data.points.find(p => p.barIndex === selected) ?? null}
+                neighbours={found} />
+            </div>
+          )}
+
+          <div className="mt-2 shrink-0 space-y-1 text-[10px] leading-relaxed text-zinc-500">
+            <div>
+              <span className="text-zinc-400">PC1</span> {share(space.data.axes[0])}
+              {" \u00b7 "}
+              <span className="text-zinc-400">PC2</span> {share(space.data.axes[1])}.
+              Every dimension is z-scored over this run first, so no block dominates the
+              distance by the units it happens to be measured in.
+            </div>
+            <div>
+              The layout is a whole-sample fit: a point&apos;s position depends on every other
+              bar shown, including later ones. It is a view of inputs this run already
+              computed — it is <span className="text-zinc-400">not causal</span> and must
+              never be read back into the model as a feature.
+            </div>
+          </div>
+        </>
+      )}
+    </LensFrame>
+  );
+}
+
+/** The selected bar and its neighbours, as candles, at a shared price scale. */
+function NeighbourStrip({ anchor, neighbours }: {
+  anchor: VectorPoint | null;
+  neighbours: (VectorPoint & { distance: number })[];
+}) {
+  if (!anchor) return null;
+  // The anchor carries no distance to itself; typing it as optional beats
+  // casting it back in at render time.
+  const all: { bar: VectorPoint; distance: number | null }[] = [
+    { bar: anchor, distance: null },
+    ...neighbours.map(n => ({ bar: n as VectorPoint, distance: n.distance })),
+  ];
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-1">
+      {all.map(({ bar, distance }, index) => {
+        // Each candle is scaled to its OWN range: these bars are months apart at
+        // different price levels, and a shared axis would flatten every one of
+        // them to a line. Shape is the comparison being made, not level.
+        const span = bar.high - bar.low || 1;
+        const up = bar.close >= bar.open;
+        const colour = up ? "#E69F00" : "#0072B2";
+        const top = Math.max(bar.open, bar.close);
+        const bottom = Math.min(bar.open, bar.close);
+        return (
+          <div key={bar.barIndex}
+               className={`shrink-0 rounded border px-1.5 py-1 ${
+                 index === 0 ? "border-[#E69F00]/60" : "border-white/10"}`}
+               title={`bar ${bar.barIndex} \u00b7 ${bar.timestamp}\nO ${bar.open} H ${bar.high} L ${bar.low} C ${bar.close}`}>
+            <div className="relative h-[52px] w-[26px]">
+              <div className="absolute left-1/2 w-[1px] -translate-x-1/2"
+                   style={{ bottom: "0%", height: "100%", background: colour, opacity: 0.6 }} />
+              <div className="absolute left-[5px] right-[5px] rounded-[1px]"
+                   style={{
+                     bottom: `${((bottom - bar.low) / span) * 100}%`,
+                     height: `${Math.max(((top - bottom) / span) * 100, 3)}%`,
+                     background: colour,
+                   }} />
+            </div>
+            <div className="mt-0.5 text-center font-mono text-[9px] text-zinc-500">
+              {distance === null ? "this" : distance.toFixed(2)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The original view: one row per feature, value over time. */
+function FeatureHeatmapView({ run, blocksEvent, names, active, onBlockChange, view, setView }: {
+  run: string; blocksEvent: BlocksEvent | undefined; names: string[];
+  active: string | null; onBlockChange: (block: string) => void;
+  view: "space" | "features"; setView: (v: "space" | "features") => void;
+}) {
   const snapshot = useSnapshot(run, blocksEvent?.file ?? null, active ?? undefined, 40_000);
 
   const matrix = useMemo(() => {
@@ -268,16 +464,19 @@ export function VectorizeStage({ run, events, block, onBlockChange }: {
     <LensFrame
       title="2 / 3 — Vectorize and normalize"
       question="What did each bar become, and on what scale?"
-      basis={blocksEvent ? `${names.length} blocks · ${blocksEvent.count.toLocaleString()} bars` : undefined}
+      basis={blocksEvent ? `${names.length} blocks \u00b7 ${blocksEvent.count.toLocaleString()} bars` : undefined}
       actions={
-        <div className="flex gap-1">
-          {names.map(name => (
-            <button key={name} onClick={() => onBlockChange(name)}
-                    className={`rounded px-2 py-0.5 font-mono text-[10px] ${
-                      name === active ? "bg-white/10 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}>
-              {name}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1">
+            {names.map(name => (
+              <button key={name} onClick={() => onBlockChange(name)}
+                      className={`rounded px-2 py-0.5 font-mono text-[10px] ${
+                        name === active ? "bg-white/10 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}>
+                {name}
+              </button>
+            ))}
+          </div>
+          <ViewSwitch view={view} setView={setView} />
         </div>
       }
       resizeKey="lens-train-blocks" defaultHeight={280} fillBody

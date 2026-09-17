@@ -252,7 +252,13 @@ async function buildInstance(): Promise<DuckDBInstance> {
     // zone, which silently shifts hour-of-day by the host offset and nothing
     // complains.
     await con.run("SET TimeZone='UTC'");
-    for (const extension of ["iceberg", "httpfs"]) {
+    // vss carries HNSW, which the Lens vector-space panel searches for a bar's
+    // nearest neighbours in the full feature space. It loads at the INSTANCE
+    // level, so it has to be here rather than in that router — a second
+    // DuckDBInstance would not see the snapshot views this one defines.
+    // The instance is :memory:, so hnsw_enable_experimental_persistence is not
+    // needed; an HNSW index on a file-backed database would require it.
+    for (const extension of ["iceberg", "httpfs", "vss"]) {
       await con.run(`INSTALL ${extension}`);
       await con.run(`LOAD ${extension}`);
     }

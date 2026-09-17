@@ -28,6 +28,7 @@ import anatomyRouter from "../../ml/anatomy.router";
 import experimentsRouter from "../../ml/experiments.router";
 import lensRouter from "../../lens/lens.router";
 import lensTrainingRouter from "../../lens/training.router";
+import lensVectorsRouter from "../../lens/vectors.router";
 
 // Training Domain
 import trainingRouter from "../../training/training.router";
@@ -78,6 +79,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", evalRouter);
   app.use("/api", anatomyRouter);  // before mlRouter
   app.use("/api", lensTrainingRouter); // Lens training environment — before lensRouter
+  app.use("/api", lensVectorsRouter);  // Lens vector space — before lensRouter
   app.use("/api", lensRouter);     // before mlRouter
   app.use("/api", hpoRouter);      // before mlRouter
   app.use("/api", experimentsRouter);
