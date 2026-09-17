@@ -83,6 +83,9 @@ async function bootstrap() {
   // answered every `/assets/*` request with 500, leaving a blank page and
   // "CORS blocked: http://127.0.0.1:5099" as the only clue. Deriving the origins
   // from the same value the socket binds to keeps the two from drifting apart.
+  // Parsed exactly as loadAppConfig parses it (app.config.ts), so the allow-list
+  // and the socket cannot disagree. The schema there now rejects 0 and NaN, so a
+  // value that reaches here is one the server will actually bind.
   const configuredPort = parseInt(process.env.PORT || '5000', 10);
   const allowedOrigins = [
     `http://127.0.0.1:${configuredPort}`,

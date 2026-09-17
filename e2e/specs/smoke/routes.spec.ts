@@ -30,6 +30,13 @@ const TIER_TAG: Record<RouteSpec['tier'], string> = {
 };
 
 test.describe('route sweep', () => {
+  // A parameterized route is swept with a synthetic id, so the API calls it
+  // makes SHOULD 404 — no session `e2e-sessionId` exists. The network guard is
+  // therefore relaxed for the whole sweep, and the assertion that matters for
+  // those routes is the one below: it must render an empty state, not crash.
+  // Console errors are still gated; only failed API calls are tolerated.
+  test.use({ allowRequestFailures: true });
+
   for (const route of ROUTES) {
     const title = `${route.path} renders ${route.component}`;
 
@@ -58,15 +65,26 @@ test.describe('route sweep', () => {
       ).toBe(false);
 
       // Scoped to <main>, which holds the route's OWN content (Layout.tsx:63).
-      // Asserting on `#root` was tautological: the TopBar and the sixteen
-      // sidebar labels live outside <main> and put ~250 characters on every page
-      // before any route renders, so `length > 0` could not fail even for a
-      // route that rendered nothing at all.
-      const mainText = (await page.locator('main').innerText()).trim();
-      expect(
-        mainText.length,
-        `${route.path} mounted but <main> is empty — the route rendered no content of its own`,
-      ).toBeGreaterThan(0);
+      // Asserting on `#root` was tautological: the TopBar and the sixteen sidebar
+      // labels live outside <main> and put ~250 characters on every page before
+      // any route renders, so `length > 0` could not fail even for a route that
+      // rendered nothing at all.
+      //
+      // Auto-retrying, not a point-in-time read. Every route is lazy-loaded
+      // behind Suspense (`App.tsx:160-172`), so `#root > *` is satisfied by the
+      // layout chrome while <main> still holds the loading fallback — reading
+      // innerText immediately measured an empty <main> on a route that was about
+      // to render perfectly well.
+      // `.first()` because there are two <main> elements: Layout's outer one
+      // (Layout.tsx:63) and a nested `<main data-testid="page-body">` that
+      // PageShell renders inside it. The outer one is the route container — and
+      // the nesting is itself invalid HTML worth fixing in PageShell one day.
+      await expect(
+        page.locator('main').first(),
+        `${route.path} mounted but <main> stayed empty — the route rendered no content of its own`,
+      ).not.toBeEmpty();
+
+      const mainText = (await page.locator('main').first().innerText()).trim();
 
       if (route.expectText) {
         expect(mainText).toMatch(route.expectText);

@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { test, expect } from '../../fixtures/app';
-import { NAV_ROUTES } from '../../support/routes';
+import { NAV_ROUTES, tagsForRoute } from '../../support/routes';
 import {
   BASELINE_PATH,
   compareToBaseline,
@@ -57,7 +57,9 @@ test.describe('accessibility', () => {
   const baselineFile = loadBaseline();
 
   for (const route of NAV_ROUTES) {
-    test(`${route.path} introduces no new accessibility violations`, { tag: ['@a11y'] }, async ({
+    // Tier tag included: scanning `/` means mounting MarketDataPage, which needs
+    // the lake, so CI's `--grep-invert @lake` must be able to skip it.
+    test(`${route.path} introduces no new accessibility violations`, { tag: tagsForRoute(route, '@a11y') }, async ({
       app,
       page,
     }) => {
@@ -69,8 +71,12 @@ test.describe('accessibility', () => {
 
       const results = await new AxeBuilder({ page })
         .withRules(GATING_RULES)
-        // Scan the ROUTE, not the shell. `<main>` (Layout.tsx:63) holds the page;
-        // TopBar, LeftSidebar and RightSidebar are outside it.
+        // Scan the ROUTE, not the chrome. `<main>` (Layout.tsx:63) holds the page.
+        // TopBar and LeftSidebar are outside it; RightSidebar is NOT — it sits
+        // inside <main> at Layout.tsx:72, so the collapsed drawer is scanned on
+        // every route. That is a known imprecision in this split, recorded rather
+        // than papered over: moving RightSidebar out of <main> would fix it, and
+        // is a layout change rather than a test change.
         //
         // Two reasons this matters, and the second is why the gate was flaky.
         // First, chrome violations are identical on all sixteen routes, so
@@ -169,7 +175,7 @@ test.describe('accessibility', () => {
 });
 
 test.describe('app shell accessibility', () => {
-  test('the persistent chrome has no critical violations', { tag: ['@a11y'] }, async ({
+  test('the persistent chrome has no critical violations', { tag: ['@a11y', '@static'] }, async ({
     app,
     page,
   }) => {
@@ -178,12 +184,18 @@ test.describe('app shell accessibility', () => {
     // Scanned once, and asserted on IMPACT rather than node count — the ticker's
     // node count moves with live data, which is exactly what made the per-route
     // count unstable.
-    await app.goto('/');
+    //
+    // Scanned from `/glossary`: the chrome is route-independent, and `/` would
+    // pull in the lake-backed market page for no benefit.
+    await app.goto('/glossary');
     await page.waitForTimeout(1500);
 
     const results = await new AxeBuilder({ page })
       .withRules(GATING_RULES)
-      .exclude('main') // the route's own content is covered above
+      // Excludes <main>, which also excludes the RightSidebar drawer nested inside
+      // it (Layout.tsx:72). The drawer is therefore covered by the per-route scans
+      // above, not here.
+      .exclude('main')
       .exclude('canvas')
       .analyze();
 
@@ -212,31 +224,49 @@ test.describe('keyboard access', () => {
     app,
     page,
   }) => {
-    await app.goto('/');
+    // Starts at /settings, NOT at /. The first sidebar item is Market (href "/"),
+    // so tabbing from the root landed on a link to the page already open and the
+    // final assertion — pathname === href — was true before Enter was ever
+    // pressed. The test could not fail. Beginning somewhere else means activating
+    // the link has to actually change the route.
+    await app.goto('/settings');
 
-    // Tab until focus lands on a nav link, then activate it. A nav built from
-    // divs with click handlers passes every visual check and is completely
-    // unreachable this way.
-    let landed = false;
-    for (let i = 0; i < 40 && !landed; i++) {
+    // Tab until focus lands on a nav link pointing somewhere OTHER than here. A
+    // nav built from divs with click handlers passes every visual check and is
+    // completely unreachable this way.
+    const startPath = new URL(page.url()).pathname;
+    let href: string | null = null;
+
+    for (let i = 0; i < 40 && !href; i++) {
       await page.keyboard.press('Tab');
-      landed = await page.evaluate(() => !!document.activeElement?.closest('[data-testid^="nav-"]'));
+      href = await page.evaluate(() => {
+        const el = document.activeElement;
+        if (!el?.closest('[data-testid^="nav-"]')) return null;
+        return el.closest('a')?.getAttribute('href') ?? null;
+      });
+      if (href === startPath) href = null; // same page — keep looking
     }
 
-    expect(landed, 'no sidebar link could be reached with Tab within 40 presses').toBe(true);
-
-    const href = await page.evaluate(
-      () => document.activeElement?.closest('a')?.getAttribute('href') ?? null,
-    );
-    expect(href, 'the focused nav element is not a link').toBeTruthy();
+    expect(
+      href,
+      'no sidebar link to a different route could be reached with Tab within 40 presses',
+    ).toBeTruthy();
 
     await page.keyboard.press('Enter');
     await app.waitForMount();
-    expect(new URL(page.url()).pathname, 'Enter on a focused nav link did not navigate').toBe(href);
+
+    await expect(async () => {
+      expect(new URL(page.url()).pathname).toBe(href);
+    }).toPass({ timeout: 10_000 });
+
+    expect(
+      new URL(page.url()).pathname,
+      'Enter on a focused nav link did not change the route',
+    ).not.toBe(startPath);
   });
 
-  test('focus is visible wherever it lands', { tag: ['@a11y'] }, async ({ app, page }) => {
-    await app.goto('/');
+  test('focus is visible wherever it lands', { tag: ['@a11y', '@static'] }, async ({ app, page }) => {
+    await app.goto('/glossary');
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
 

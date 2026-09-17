@@ -240,11 +240,22 @@ export function registerTerminalRoutes(app: Express): void {
 
 // â”€â”€ WebSocket Server â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-/** Allowed origins for WebSocket connections (prevents CSRF-to-RCE). */
-const ALLOWED_WS_ORIGINS = new Set([
-  "http://127.0.0.1:5000",
-  "http://localhost:5000",
-]);
+/**
+ * Allowed origins for WebSocket connections (prevents CSRF-to-RCE).
+ *
+ * Derived from PORT, like the HTTP CORS allow-list in main.ts. Both were written
+ * as literal :5000 and both had the same consequence on any other port: the
+ * server rejected its OWN origin. Here it surfaced as the terminal failing to
+ * open with "WebSocket handshake: Unexpected response code: 403" — the shell is
+ * simply unreachable whenever the dashboard is not on 5000.
+ *
+ * Kept as a function rather than a module-scope Set so it reads the port at
+ * connection time, which also makes it testable.
+ */
+function allowedWsOrigins(): Set<string> {
+  const port = parseInt(process.env.PORT || "5000", 10);
+  return new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`]);
+}
 
 export function attachPtyWebSocket(httpServer: Server): void {
   const wss = new WebSocketServer({ noServer: true });
@@ -256,7 +267,7 @@ export function attachPtyWebSocket(httpServer: Server): void {
 
     // Origin validation â€” reject cross-origin WebSocket connections
     const origin = req.headers.origin ?? "";
-    if (origin && !ALLOWED_WS_ORIGINS.has(origin)) {
+    if (origin && !allowedWsOrigins().has(origin)) {
       log(`Rejected WebSocket from origin: ${origin}`, "pty");
       socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
       socket.destroy();

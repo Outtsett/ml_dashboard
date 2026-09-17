@@ -107,7 +107,18 @@ const TrainingConfigSchema = z.object({
 // ── Full merged config schema ──
 
 export const AppConfigSchema = z.object({
-  port: z.number().default(5000),
+  /**
+   * A real, bindable TCP port.
+   *
+   * Was `z.number().default(5000)`, which accepted 0 and NaN. Both are reachable
+   * from `parseInt(process.env.PORT ?? '5000', 10)`: `PORT=0` parses to 0, and
+   * `PORT=abc` parses to NaN. Neither is what the socket then binds — Node treats
+   * 0 as "pick any free port" — so the configured value and the listening port
+   * could disagree, and anything derived from the configured value (the CORS
+   * allow-list in main.ts) would be built for a port nothing was serving on.
+   * Rejecting them at the boundary makes a bad PORT a loud startup failure.
+   */
+  port: z.number().int().min(1).max(65535).default(5000),
   nodeEnv: z.enum(['development', 'production', 'test']).default('development'),
 
   questdb: z.object({
@@ -136,6 +147,9 @@ export function loadAppConfig(): AppConfig {
   const trainingJson = JSON.parse(fs.readFileSync(path.join(configDir, 'training.json'), 'utf-8'));
 
   const raw = {
+    // `|| '5000'` also covers an empty PORT=. NaN from a non-numeric value is
+    // left to the schema above to reject by name rather than silently defaulted,
+    // so a typo in .env is reported instead of quietly serving on 5000.
     port: parseInt(process.env.PORT || '5000', 10),
     nodeEnv: process.env.NODE_ENV || 'development',
     questdb: {

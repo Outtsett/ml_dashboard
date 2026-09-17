@@ -241,6 +241,10 @@ playwright-report/
 blob-report/
 playwright/.cache/
 
+# Throwaway database the local CI schema stage builds to verify the
+# create-from-scratch path without touching the working data/ml_dashboard.db.
+data/.ci-local-schema-check.db*
+
 # ── Tool caches (never commit) ───────────────────────────────────────────────
 node_modules/.cache/
 .claude/state/

@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/app';
-import { NAV_ROUTES } from '../../support/routes';
+import { NAV_ROUTES, tagsForRoute } from '../../support/routes';
 
 /**
  * Navigation through the app shell.
@@ -17,8 +17,11 @@ import { NAV_ROUTES } from '../../support/routes';
  */
 
 test.describe('sidebar navigation', () => {
-  test('the shell renders with all sixteen nav links', { tag: ['@smoke'] }, async ({ page, app }) => {
-    await app.goto('/');
+  test('the shell renders with all sixteen nav links', { tag: ['@smoke', '@static'] }, async ({ page, app }) => {
+    // `/glossary`, not `/`. The sidebar is identical on every route, and `/`
+    // mounts MarketDataPage, which needs the lake — asserting chrome from a
+    // lake-dependent page would make this spec unrunnable in CI for no reason.
+    await app.goto('/glossary');
 
     for (const route of NAV_ROUTES) {
       const slug = route.path === '/' ? 'market' : route.path.slice(1);
@@ -37,7 +40,9 @@ test.describe('sidebar navigation', () => {
   for (const route of NAV_ROUTES) {
     const slug = route.path === '/' ? 'market' : route.path.slice(1);
 
-    test(`clicking "${route.navLabel}" navigates to ${route.path}`, { tag: ['@nav'] }, async ({
+    // Inherits the destination route's tier tag, so `--grep-invert @lake` in CI
+    // skips the journeys whose destination needs data a runner does not have.
+    test(`clicking "${route.navLabel}" navigates to ${route.path}`, { tag: tagsForRoute(route, '@nav') }, async ({
       page,
       app,
     }) => {
@@ -71,7 +76,7 @@ test.describe('sidebar navigation', () => {
     const color = await active.locator('span').first().evaluate(
       (el) => getComputedStyle(el).color,
     );
-    await app.goto('/');
+    await app.goto('/settings');
     const inactiveColor = await page.getByTestId('nav-glossary').locator('span').first().evaluate(
       (el) => getComputedStyle(el).color,
     );
@@ -84,17 +89,20 @@ test.describe('sidebar navigation', () => {
 });
 
 test.describe('browser history', () => {
-  test('back and forward move through client-side routes', { tag: ['@nav'] }, async ({ page, app }) => {
+  test('back and forward move through client-side routes', { tag: ['@nav', '@backend'] }, async ({ page, app }) => {
     // A pushState router that does not handle popstate strands the user: Back
     // changes the URL and leaves the old page on screen.
-    await app.goto('/');
+    //
+    // Uses /settings and /glossary rather than `/`, so the spec exercises the
+    // router without dragging in the lake-backed market page.
+    await app.goto('/settings');
     await page.getByTestId('nav-glossary').click();
     await app.waitForMount();
     expect(new URL(page.url()).pathname).toBe('/glossary');
 
     await page.goBack();
     await app.waitForMount();
-    expect(new URL(page.url()).pathname, 'Back did not return to the previous route').toBe('/');
+    expect(new URL(page.url()).pathname, 'Back did not return to the previous route').toBe('/settings');
 
     await page.goForward();
     await app.waitForMount();

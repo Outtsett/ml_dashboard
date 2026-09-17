@@ -43,6 +43,7 @@ node scripts/ci-local.mjs --only e2e --bail
 | `test` | test | Vitest — every assertion, no instrumentation |
 | `coverage` | test | Vitest coverage thresholds |
 | `test-py` | test-py | pytest, excluding `slow` |
+| `schema` | smoke / e2e | `db:push` **and** a table count that proves it landed |
 | `build` | build | Vite client + esbuild server produce `dist/` |
 | `smoke` | smoke | the built artifact **boots and serves** |
 | `e2e` | e2e | the app works in a real browser |
@@ -79,8 +80,14 @@ for the rest. A GitHub runner has **no Iceberg lake**, so:
 - specs tagged `@lake` are excluded in CI (`--grep-invert @lake`) and run locally
 - `/health` is the readiness gate, never `/api/readiness` — that one requires the
   lake and would be 503 forever on a runner
-- `npm run db:push` runs before `smoke` and `e2e`: only 4 of the 44 tables in
-  `src/shared/schema.ts` self-create at boot
+- `node scripts/db-push-verify.mjs` runs before `smoke` and `e2e`. It does three
+  things a bare `npm run db:push` does not: creates `data/` (gitignored, so absent
+  on a clean checkout — better-sqlite3 will not create a database in a directory
+  that is not there), runs the push, then **counts the tables**. Only 4 of the 44
+  in `src/shared/schema.ts` self-create at boot, and drizzle-kit can report
+  success without the schema landing, so the count is the only honest check. The
+  local `schema` stage runs the same script against a throwaway database, because
+  pushing at an already-migrated developer database fails outright
 
 Install is always `npm ci --legacy-peer-deps` with **no** `--ignore-scripts`.
 `better-sqlite3`, `zeromq`, `node-pty` and `@duckdb/node-api` resolve native
@@ -121,8 +128,8 @@ no check — it looks like coverage.
   random. A **new rule** on a route fails; a rule disappearing is reported so the
   baseline gets tightened.
 
-Current accessibility backlog: **129 violating nodes across 13 routes** —
-`color-contrast` 84, `button-name` 38, `label` 6, `aria-valid-attr-value` 1.
+Current accessibility backlog: **129 violating nodes across 13 routes** — `color-contrast` 84,
+`button-name` 38, `label` 6, `aria-valid-attr-value` 1.
 
 The contrast finding has a single root cause worth naming: `text-neutral-500`
 (`#737373`) on `#0a0a0a` measures **4.17:1**, just under the 4.5:1 AA threshold,
@@ -154,3 +161,28 @@ GitHub Pro or make this repository public`.
 
 Step 3 is the one that gets forgotten, and forgetting it means the required check
 goes green while the new job is red.
+
+
+---
+
+## Defects this infrastructure found
+
+Every one of these was live before the suite existed, and each was found by a
+specific gate rather than by reading code.
+
+| defect | found by | status |
+|---|---|---|
+| CORS allow-list hardcoded to :5000 — server rejected its own bundle with 500 on any other port, blank page, `/health` still green | running E2E on a non-default port | **fixed** |
+| `/api/ml/forecasts` mounted under a doubled prefix — answered only at `/api/ml/forecasts/ml/forecasts`, so the Forecast page 404s | route sweep's console guard | **fixed** |
+| PTY WebSocket origin allow-list hardcoded to :5000 — the terminal cannot open on any other port (403) | `/terminals` route sweep | **fixed** |
+| Hardware telemetry spawned a hardcoded anaconda path with no `error` handler and an unconditional 5s restart — a permanent crash loop off that one machine | reading the boot path for CI | **fixed** |
+| CI pinned `ruff==0.7.4` while pyproject requires `>=0.14,<1`; formatter output differs, so `format --check` could never pass | aligning the local runner to CI | **fixed** |
+| `port: z.number()` accepted 0 and NaN, so the configured port and the bound port could disagree | adversarial review of the CORS fix | **fixed** |
+| Lens RollingPanel draws ReferenceLines at a NaN null-band (`Math.max(1, NaN)` is NaN) | console guard on `/lens` | **recorded** |
+| `/api/experiments` answers 500 when the *optional* PostgreSQL is absent | console guard on `/operate` | **recorded** |
+| SQL console runs a query and discards the result — no grid, no rows, just a toast | writing the console journey | **recorded** |
+| `tests/client` quarantined in CI for modules that were deleted, not landed — 235 passing tests excluded from the gate | auditing the workflow | **fixed** |
+
+"Recorded" means listed in `KNOWN_DEFECT_PATTERNS` (`e2e/fixtures/app.ts`) or
+`e2e/a11y-baseline.json`: reported in every run, not silenced, and meant to reach
+zero.

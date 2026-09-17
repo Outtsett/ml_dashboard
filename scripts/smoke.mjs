@@ -198,7 +198,11 @@ async function startServer(port) {
 }
 
 async function stopServer() {
-  if (!serverProcess || serverProcess.exitCode !== null) return;
+  // `exitCode` is null for a process killed by a SIGNAL — only `signalCode` is
+  // set — so testing exitCode alone treated an already-SIGTERMed child as still
+  // running and sent it a second kill.
+  if (!serverProcess) return;
+  if (serverProcess.exitCode !== null || serverProcess.signalCode !== null) return;
 
   const ended = new Promise((resolve) => serverProcess.once('exit', resolve));
   // The server installs a graceful shutdown on SIGTERM (closes SSE, PTY,
@@ -207,7 +211,9 @@ async function stopServer() {
   serverProcess.kill('SIGTERM');
 
   const timer = setTimeout(() => {
-    if (serverProcess.exitCode === null) serverProcess.kill('SIGKILL');
+    if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
+      serverProcess.kill('SIGKILL');
+    }
   }, 10_000);
 
   await ended;
@@ -393,9 +399,13 @@ async function main() {
 }
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
-  process.on(signal, async () => {
-    await stopServer();
-    process.exit(130);
+  process.on(signal, () => {
+    // `.catch` rather than a bare async handler: nothing observes a rejected
+    // handler promise, so a throw inside stopServer would surface as an
+    // unhandled rejection instead of an exit.
+    stopServer()
+      .catch((err) => console.error(`[smoke] shutdown failed: ${err.message}`))
+      .finally(() => process.exit(130));
   });
 }
 

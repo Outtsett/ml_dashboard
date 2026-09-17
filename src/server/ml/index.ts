@@ -17,6 +17,13 @@ router.use("/ml/sessions", sessionsRouter);
 // ever called. Every label call site uses /api/labels/*, so mount at root.
 router.use("/", labelsRouter);
 router.use("/ml/xai", xaiRouter);
-router.use("/ml/forecasts", forecastsRouter);
+// Mounted at "/" because forecasts.router.ts declares FULL paths
+// (`router.get("/ml/forecasts")`, forecasts.router.ts:20,51). Mounting it at
+// "/ml/forecasts" prefixed those again, so the endpoint only answered at
+// /api/ml/forecasts/ml/forecasts while every client call site — five of them,
+// api_service.ts:54-56, forecast-visualizer/index.tsx:48, types.ts:417 — asks
+// for /api/ml/forecasts and got a 404. The /forecast page has been broken by
+// this.
+router.use("/", forecastsRouter);
 
 export default router;

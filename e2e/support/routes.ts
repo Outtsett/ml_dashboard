@@ -92,6 +92,32 @@ export function concretePath(path: string): string {
   return path.replace(/:(\w+)/g, (_, name: string) => `e2e-${name}`);
 }
 
+/**
+ * Tier → Playwright tag.
+ *
+ * Every spec that NAVIGATES to a route must carry that route's tier tag, not
+ * just the route sweep. The tags are how CI selects a runnable subset, and a
+ * GitHub runner has no Iceberg lake: `/` mounts MarketDataPage, which requests
+ * `/api/charts/ohlcv` unconditionally, so on a runner that request fails and the
+ * fixture's network guard — correctly — fails the test.
+ *
+ * Tagging only the sweep left the navigation and accessibility specs visiting
+ * `/` untagged, so `--grep-invert @lake` would have run them anyway and they
+ * would have failed for an environmental reason. That is the failure mode that
+ * teaches people to ignore a red E2E job.
+ */
+export const TIER_TAG: Record<RouteTier, string> = {
+  static: '@static',
+  backend: '@backend',
+  lake: '@lake',
+  stream: '@stream',
+};
+
+/** The tags a spec visiting this route must declare. */
+export function tagsForRoute(route: RouteSpec, ...extra: string[]): string[] {
+  return [TIER_TAG[route.tier], ...extra];
+}
+
 /** Routes reachable by clicking the sidebar, in sidebar order. */
 export const NAV_ROUTES = ROUTES.filter((r) => r.navLabel);
 

@@ -48,6 +48,14 @@ const BENIGN_CONSOLE_PATTERNS: Array<{ pattern: RegExp; because: string }> = [
     pattern: /Content-Security-Policy|Permissions-Policy/i,
     because: 'Header policy warnings from Chrome about the Electron-oriented CSP, not page faults.',
   },
+  {
+    // `concretePath()` in support/routes.ts fills a `:param` with `e2e-<name>`,
+    // so /hpo/:sessionId is swept as /hpo/e2e-sessionId. No such session exists
+    // and the API correctly answers 404 — that IS the behaviour under test. The
+    // marker is specific enough that it cannot mask a real URL.
+    pattern: /\/e2e-[A-Za-z][A-Za-z0-9]*/,
+    because: 'A synthetic id the route sweep invented for a parameterized route; 404 is the correct answer.',
+  },
 ];
 
 /**
@@ -290,12 +298,23 @@ export const test = base.extend<AppFixtures>({
         if (!knownDefects.includes(known)) knownDefects.push(known);
         return;
       }
-      failures.push({
+      // Pushed BEFORE the body is read. `page.on('response')` handlers are
+      // fire-and-forget — Playwright does not await them — so awaiting
+      // `res.text()` first meant a late-resolving body could land the record
+      // after the afterEach had already inspected the array, and the failure
+      // would vanish. The detail is filled in asynchronously on the record that
+      // is already in the list.
+      const record: CapturedRequestFailure = {
         method: res.request().method(),
         url,
         status: res.status(),
-        detail: await res.text().catch(() => '<unreadable body>').then((t) => t.slice(0, 400)),
-      });
+        detail: '<body not read yet>',
+      };
+      failures.push(record);
+      record.detail = await res
+        .text()
+        .catch(() => '<unreadable body>')
+        .then((t) => t.slice(0, 400));
     };
 
     const onRequestFailed = (req: Request) => {

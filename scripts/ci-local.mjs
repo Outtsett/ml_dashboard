@@ -105,12 +105,25 @@ const STAGES = [
     ciJob: 'test-py',
     title: 'Pytest (not slow)',
     command: [pythonBin(), ['-m', 'pytest', '-m', 'not slow', '-q', '--maxfail=10']],
+    // NOT identical to CI, and the difference is deliberate: ci.yml runs
+    // `uv sync --frozen` then `uv run --with pytest-xdist pytest -n auto`, which
+    // resolves a clean locked environment. This runs the repo .venv directly, so
+    // it tests the interpreter you actually develop against and takes seconds
+    // rather than minutes. A lockfile drift will therefore show up in CI and not
+    // here — run `uv sync --frozen --all-extras` locally if you need that check.
     // `shell: false`. pythonBin() is an absolute path so no shell is needed, and
     // routing through cmd.exe splits the `-m "not slow"` marker expression on
     // the space — pytest then reads `slow` as a path and reports
     // "file or directory not found: slow" while running zero tests. A stage that
     // runs nothing and exits non-zero looks like a failing suite.
     shell: false,
+  },
+  {
+    id: 'schema',
+    ciJob: 'smoke / e2e',
+    title: 'SQLite schema (db:push + table count)',
+    command: ['node', ['scripts/db-push-verify.mjs', '--db', 'data/.ci-local-schema-check.db']],
+    why: 'Mirrors the schema step the smoke and e2e CI jobs run before starting the server. It exists because the CI failure it guards was invisible locally: data/ml_dashboard.db already exists on a developer machine.',
   },
   {
     id: 'build',
@@ -224,6 +237,21 @@ async function main() {
   for (const stage of selected) {
     // A stage whose prerequisite failed cannot produce a meaningful verdict;
     // reporting it as "failed" would double-count one root cause.
+    //
+    // A prerequisite that was never SELECTED is different and was previously
+    // missed: `--only e2e` ran the e2e stage against whatever stale dist/
+    // happened to be on disk and reported a verdict about the wrong bytes. It is
+    // now announced rather than silently assumed current.
+    const selectedIds = new Set(selected.map((x) => x.id));
+    const notSelected = (stage.needs ?? []).filter((n) => !selectedIds.has(n));
+    if (notSelected.length > 0) {
+      console.log(
+        `NOTE  ${stage.title} depends on [${notSelected.join(', ')}], which ${
+          notSelected.length === 1 ? 'was' : 'were'
+        } not selected — running against whatever is already on disk.`,
+      );
+    }
+
     const blockedBy = (stage.needs ?? []).filter((n) => failedIds.has(n));
     if (blockedBy.length > 0) {
       console.log(`SKIP  ${stage.title} — ${blockedBy.join(', ')} failed`);
@@ -281,6 +309,14 @@ async function main() {
   if (failed.length > 0) {
     console.log(`\nFailing stages: ${failed.map((f) => f.stage.id).join(', ')}`);
   }
+
+  // Wait for stdout to drain before exiting. On Windows a piped stdout is
+  // asynchronous, so `process.exit` immediately after the summary truncated it —
+  // `npm run ci | tee` and CI log capture both lost the results table.
+  await new Promise((resolve) => {
+    if (process.stdout.write('')) resolve();
+    else process.stdout.once('drain', resolve);
+  });
 
   process.exit(failed.length === 0 ? 0 : 1);
 }

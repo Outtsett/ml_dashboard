@@ -26,7 +26,10 @@ jobs:
   ci-gate:
     name: Require CI green
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # 70 minutes. ci.yml's critical path is static(12) -> build(15) -> e2e(30),
+    # so a 45-minute gate could time out and refuse a release while CI was still
+    # legitimately running. The job spends that time asleep between polls.
+    timeout-minutes: 70
     permissions:
       contents: read
       actions: read
@@ -38,7 +41,7 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          deadline=$(( $(date +%s) + 2400 ))   # 40 minutes
+          deadline=$(( $(date +%s) + 3900 ))   # 65 minutes, inside the job's 70
 
           while [ "$(date +%s)" -lt "$deadline" ]; do
             payload=$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?head_sha=$SHA&per_page=1" \

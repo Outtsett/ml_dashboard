@@ -65,7 +65,10 @@ test.describe('SQL console', () => {
     // rows away — `runQuery.data` is never read and `QueryConsole` takes no
     // results prop, so there is no grid to assert against. See the known-gap
     // note at the bottom of this file.
-    await expect(page.getByText(/query ran/i)).toBeVisible({ timeout: 20_000 });
+    // `.first()`: the toast renders twice — the visible element and an
+    // `aria-live="assertive"` mirror for screen readers — so a bare getByText is
+    // a strict-mode violation.
+    await expect(page.getByText(/query ran/i).first()).toBeVisible({ timeout: 20_000 });
   });
 
   test('the Run button is disabled until a query is typed', { tag: ['@backend'] }, async ({ page }) => {
@@ -116,7 +119,7 @@ test.describe('SQL console error handling', () => {
     // words in other contexts, so a broad match would pass without the console
     // reporting anything.
     await expect(
-      page.getByText(/query failed/i),
+      page.getByText(/query failed/i).first(),
       'an invalid query produced no visible error — the console is swallowing engine failures',
     ).toBeVisible({ timeout: 20_000 });
   });

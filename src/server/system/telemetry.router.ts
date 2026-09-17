@@ -8,6 +8,7 @@ import { log } from '../infrastructure/lib/log.js';
 import type { DomainEvent } from '../../shared/event-types.js';
 import crypto from 'crypto';
 import path from 'path';
+import fs from 'fs';
 
 const router = Router();
 
@@ -68,10 +69,13 @@ let lastSnapshot: SystemSnapshot | null = null;
 let lastNetBytes: { tx: number, rx: number, ts: number } | null = null;
 
 /**
- * Hardware telemetry is a nice-to-have, so a missing interpreter must degrade
- * rather than loop. Restarts are counted and capped: the node used to respawn
+ * Hardware telemetry is a nice-to-have, so a broken node must degrade rather
+ * than loop. Restarts are counted and capped: the node used to respawn
  * unconditionally every 5s, which on any machine without the hardcoded
  * interpreter meant a permanent crash loop for the life of the process.
+ *
+ * The counter resets as soon as the node emits a valid update, so the cap means
+ * "five failures in a row" rather than "five failures ever".
  */
 let hardwareNodeRestarts = 0;
 let hardwareNodeDisabled = false;
@@ -80,13 +84,29 @@ const MAX_HARDWARE_NODE_RESTARTS = 5;
 /**
  * The interpreter that runs `scripts/hardware_node.py`.
  *
- * `HARDWARE_NODE_PYTHON` wins; otherwise fall back per platform. This used to be
- * the literal `C:\Users\tyler\anaconda3\python.exe`, which meant the telemetry
- * node could only ever start on one machine — every CI runner, container and
- * teammate checkout hit ENOENT instead.
+ * Order: explicit override, then the repo's own virtualenv, then PATH.
+ *
+ * This used to be the literal `C:\Users\tyler\anaconda3\python.exe`, which meant
+ * telemetry could only ever start on one machine. Falling back to a bare
+ * `python` fixed that and introduced a quieter version of the same problem:
+ * `hardware_node.py` imports `psutil` and `pynvml`, and on this machine the repo
+ * `.venv` has them while the `python` that PATH resolves to does not. The script
+ * would exit 1 on ModuleNotFoundError, the counted-restart path below would give
+ * up, and GPU/CPU telemetry would go dark after ~25 seconds — on the developer
+ * machine, which is the one place it is actually wanted.
+ *
+ * `.venv` is the project interpreter the deployment checklist and pyproject both
+ * describe, so it is what gets tried first.
  */
 function resolveHardwareNodePython(): string {
   if (process.env.HARDWARE_NODE_PYTHON) return process.env.HARDWARE_NODE_PYTHON;
+
+  const venv =
+    process.platform === 'win32'
+      ? path.resolve(process.cwd(), '.venv', 'Scripts', 'python.exe')
+      : path.resolve(process.cwd(), '.venv', 'bin', 'python3');
+  if (fs.existsSync(venv)) return venv;
+
   return process.platform === 'win32' ? 'python' : 'python3';
 }
 
@@ -113,13 +133,23 @@ function startHardwareNode() {
    * forever. An absent interpreter is a normal condition, not an exception.
    */
   pythonNode.on('error', (err: NodeJS.ErrnoException) => {
-    hardwareNodeDisabled = true;
     pythonNode = null;
-    const why =
-      err.code === 'ENOENT'
-        ? `interpreter not found at "${pythonPath}" — set HARDWARE_NODE_PYTHON to override`
-        : err.message;
-    console.warn(`[HardwareNode] disabled: ${why}. GPU/CPU telemetry will be unavailable.`);
+
+    // A missing or unusable interpreter will not fix itself, so stop immediately
+    // and say what to set. Anything else — a transient EAGAIN under load, say —
+    // goes through the same counted-restart path as a normal exit rather than
+    // permanently disabling telemetry on one bad spawn.
+    if (err.code === 'ENOENT' || err.code === 'EACCES') {
+      hardwareNodeDisabled = true;
+      console.warn(
+        `[HardwareNode] disabled: interpreter "${pythonPath}" is ${
+          err.code === 'ENOENT' ? 'not found' : 'not executable'
+        } — set HARDWARE_NODE_PYTHON to override. GPU/CPU telemetry will be unavailable.`,
+      );
+      return;
+    }
+
+    console.warn(`[HardwareNode] spawn failed: ${err.message}. Will retry.`);
   });
 
   pythonNode.stdout.on('data', (data: Buffer) => {
@@ -129,6 +159,12 @@ function startHardwareNode() {
       try {
         const update = JSON.parse(line);
         if (update.type === 'hardware_node_update') {
+          // A parsed update means this spawn is working, so the crash-loop
+          // counter starts over. Without this reset it was a LIFETIME cap: five
+          // unrelated restarts spread across days of uptime — a GPU driver
+          // reload, a laptop resume — would permanently disable telemetry even
+          // though the node recovered cleanly every time.
+          hardwareNodeRestarts = 0;
           // Calculate network deltas
           let tx_sec = 0;
           let rx_sec = 0;

@@ -222,8 +222,17 @@ jobs:
       # (enforce-sqlite-invariants covers the CHECK-constraint tables). Without
       # this, markOrphanedSessionsFailed() queries a training_sessions table that
       # does not exist and the boot path throws.
-      - name: Create the SQLite schema
-        run: npm run db:push
+      #
+      # `mkdir -p data` is required, not defensive: data/ is gitignored so it does
+      # not exist on a clean checkout, and better-sqlite3 refuses to create a
+      # database in a directory that is not there.
+      # Creates data/ (gitignored, absent on a clean checkout) and then VERIFIES
+      # the schema landed. drizzle-kit push exits 0 even when it failed to open
+      # the database, so a bare `npm run db:push` step goes green while the
+      # server is left with only the four tables that self-heal at boot. The
+      # same script backs the `schema` stage in scripts/ci-local.mjs.
+      - name: Create and verify the SQLite schema
+        run: node scripts/db-push-verify.mjs
 
       # `npm run build` proves files were produced. This proves they boot, bind a
       # port, serve the client shell, serve the hashed bundle WITH an Origin
@@ -266,8 +275,13 @@ jobs:
           name: build-${{ github.sha }}
           path: dist/
 
-      - name: Create the SQLite schema
-        run: npm run db:push
+      # Creates data/ (gitignored, absent on a clean checkout) and then VERIFIES
+      # the schema landed. drizzle-kit push exits 0 even when it failed to open
+      # the database, so a bare `npm run db:push` step goes green while the
+      # server is left with only the four tables that self-heal at boot. The
+      # same script backs the `schema` stage in scripts/ci-local.mjs.
+      - name: Create and verify the SQLite schema
+        run: node scripts/db-push-verify.mjs
 
       # Pinned to the exact @playwright/test version so the browser revision and
       # the runner never drift. `--with-deps` installs the shared libraries
