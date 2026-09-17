@@ -73,6 +73,20 @@
       ]
     },
     {
+      "slug": "quantgo",
+      "label": "quantgo",
+      "python": "E:/source/repos/Trading/quant/.venv/Scripts/python.exe",
+      "cwd": "E:/source/repos/Trading/quantgo",
+      "port": 27187,
+      "roots": [
+        {
+          "path": "E:/source/repos/Trading/quantgo/notebooks",
+          "category": "quantgo",
+          "repoLabel": "Trading/quantgo/notebooks"
+        }
+      ]
+    },
+    {
       "slug": "ml-dashboard",
       "label": "ML Dashboard",
       "python": "E:/source/repos/datalake/.venv/Scripts/python.exe",
