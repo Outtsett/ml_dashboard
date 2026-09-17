@@ -10,9 +10,36 @@
  * let the chart fill whatever height the frame is given.
  */
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode,
+} from "react";
 import { GripHorizontal } from "lucide-react";
 import { cn } from "@/shared/utils/utils";
+
+/**
+ * A height every frame inside this subtree is pinned to, overriding the
+ * `defaultHeight` each one asks for.
+ *
+ * The Theatre layout puts one stage on a big stage, and the stage panels were
+ * written for a 240-300px card. Rather than thread a height prop through every
+ * panel, the layout declares the height once here and the frames read it.
+ *
+ * `slot` names the arrangement, and it is appended to each frame's storage key,
+ * so a height dragged on the big stage is remembered separately from the same
+ * frame's height in a stacked layout. Otherwise resizing one would silently
+ * resize the other.
+ */
+const LensFrameHeightContext = createContext<{ height: number; slot: string } | null>(null);
+
+export function LensFrameHeight(
+  { height, slot, children }: { height: number; slot: string; children: ReactNode },
+) {
+  return (
+    <LensFrameHeightContext.Provider value={{ height, slot }}>
+      {children}
+    </LensFrameHeightContext.Provider>
+  );
+}
 
 const STORAGE_PREFIX = "lens-frame-height:";
 const MIN_HEIGHT = 140;
@@ -77,11 +104,19 @@ export function LensFrame({
   className,
   children,
   testId,
-  resizeKey,
-  defaultHeight,
+  resizeKey: resizeKeyProp,
+  defaultHeight: defaultHeightProp,
   minHeight = MIN_HEIGHT,
   fillBody = false,
 }: LensFrameProps) {
+  // A frame only takes the override if it is resizable to begin with — a frame
+  // that sizes to its content has no height to override.
+  const heightOverride = useContext(LensFrameHeightContext);
+  const resizeKey = heightOverride && resizeKeyProp
+    ? `${resizeKeyProp}@${heightOverride.slot}` : resizeKeyProp;
+  const defaultHeight = heightOverride && resizeKeyProp
+    ? heightOverride.height : defaultHeightProp;
+
   const resizable = Boolean(resizeKey && defaultHeight);
   const [height, setHeight] = useState<number | null>(() => (resizable ? readStoredHeight(resizeKey) ?? defaultHeight! : null));
   const sectionRef = useRef<HTMLElement>(null);

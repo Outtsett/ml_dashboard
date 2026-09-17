@@ -25,7 +25,7 @@ import {
   RawBarsStage, VectorizeStage,
 } from "./stages";
 import {
-  LayoutPicker, StageLayout, type LayoutId, type StagePanel,
+  LAYOUTS, LayoutPicker, StageLayout, type LayoutId, type StagePanel,
 } from "./layouts";
 
 const LAYOUT_STORAGE_KEY = "lens-training-layout";
@@ -73,9 +73,12 @@ export function LensTrainingEnvironment() {
   // stop using the switcher at all.
   const [layout, setLayoutRaw] = useState<LayoutId>(() => {
     try {
-      return (localStorage.getItem(LAYOUT_STORAGE_KEY) as LayoutId | null) ?? "pipeline";
+      // Validated, not cast: the layout set has changed once already, and a
+      // stored id that no longer exists leaves the picker with nothing lit.
+      const stored = localStorage.getItem(LAYOUT_STORAGE_KEY);
+      return LAYOUTS.some(l => l.id === stored) ? (stored as LayoutId) : "theatre";
     } catch {
-      return "pipeline";
+      return "theatre";
     }
   });
   const setLayout = (next: LayoutId) => {

@@ -49,11 +49,17 @@ function cividis(t: number): string {
  * every epoch scrub, and a full chart runtime per panel costs more than the
  * pixels are worth.
  */
-export function Matrix({ values, rowLabels, columnLabel, maxRows = 24 }: {
+export function Matrix({ values, rowLabels, columnLabel, maxRows = 24, fill = false }: {
   values: number[][];
   rowLabels?: string[];
   columnLabel?: string;
   maxRows?: number;
+  /**
+   * Divide whatever height the frame has among the rows instead of pinning
+   * each to 12px. The Theatre layout gives a stage ~700px, and a matrix that
+   * keeps its card-sized rows leaves most of that empty.
+   */
+  fill?: boolean;
 }) {
   const { shown, low, high } = useMemo(() => {
     const rows = values.slice(0, maxRows);
@@ -75,25 +81,26 @@ export function Matrix({ values, rowLabels, columnLabel, maxRows = 24 }: {
   const span = high - low || 1;
 
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-500">
+    <div className={fill ? "flex h-full min-h-0 flex-col gap-1" : "space-y-1"}>
+      <div className="flex shrink-0 items-center gap-2 text-[10px] font-mono text-zinc-500">
         <span>{low.toFixed(3)}</span>
         <div className="h-2 flex-1 rounded-sm"
              style={{ background: `linear-gradient(to right, ${CIVIDIS.join(",")})` }} />
         <span>{high.toFixed(3)}</span>
       </div>
-      <div className="space-y-[1px]">
+      <div className={fill ? "flex min-h-0 flex-1 flex-col gap-[1px]" : "space-y-[1px]"}>
         {shown.map((row, rowIndex) => (
-          <div key={rowIndex} className="flex items-center gap-1">
+          <div key={rowIndex}
+               className={`flex items-center gap-1 ${fill ? "min-h-0 flex-1" : ""}`}>
             {rowLabels && (
               <span className="w-40 shrink-0 truncate text-right font-mono text-[10px] text-zinc-500">
                 {rowLabels[rowIndex]}
               </span>
             )}
-            <div className="flex flex-1 gap-[1px]">
+            <div className={`flex flex-1 gap-[1px] ${fill ? "h-full" : ""}`}>
               {row.map((value, columnIndex) => (
                 <div key={columnIndex}
-                     className="h-3 flex-1 rounded-[1px]"
+                     className={`flex-1 rounded-[1px] ${fill ? "h-full" : "h-3"}`}
                      title={`row ${rowIndex}, ${columnLabel ?? "col"} ${columnIndex}: ${
                        Number.isFinite(value) ? value.toFixed(5) : "—"}`}
                      style={{ background: cividis((value - low) / span) }} />
@@ -103,7 +110,7 @@ export function Matrix({ values, rowLabels, columnLabel, maxRows = 24 }: {
         ))}
       </div>
       {values.length > shown.length && (
-        <div className="text-[10px] text-zinc-500">
+        <div className="shrink-0 text-[10px] text-zinc-500">
           showing {shown.length} of {values.length} rows
         </div>
       )}
@@ -113,23 +120,32 @@ export function Matrix({ values, rowLabels, columnLabel, maxRows = 24 }: {
 
 /** A horizontal bar per named quantity — used wherever a per-layer or
  *  per-block magnitude is the whole point. */
-export function BarList({ items, colour = BLUE, format = (v: number) => v.toFixed(4), maxItems }: {
+export function BarList({
+  items, colour = BLUE, format = (v: number) => v.toFixed(4), maxItems, fill = false,
+}: {
   items: { label: string; value: number; hint?: string }[];
   colour?: string;
   format?: (value: number) => string;
   maxItems?: number;
+  /** Share the frame's height among the bars rather than pinning each to 12px. */
+  fill?: boolean;
 }) {
   const shown = maxItems ? items.slice(0, maxItems) : items;
   const peak = Math.max(...shown.map(i => Math.abs(i.value)), 1e-12);
   return (
-    <div className="space-y-[3px]">
+    // justify-around + a capped row height, rather than letting six bars split
+    // 700px into six 110px slabs. The bars stay a readable thickness and the
+    // slack becomes spacing between them.
+    <div className={fill
+      ? "flex h-full min-h-0 flex-col justify-around gap-[3px]" : "space-y-[3px]"}>
       {shown.map(item => (
-        <div key={item.label} className="flex items-center gap-2" title={item.hint}>
+        <div key={item.label} title={item.hint}
+             className={`flex items-center gap-2 ${fill ? "min-h-0 max-h-[52px] flex-1" : ""}`}>
           <span className="w-52 shrink-0 truncate text-right font-mono text-[10px] text-zinc-400">
             {item.label}
           </span>
-          <div className="h-3 flex-1 rounded-sm bg-white/[0.04]">
-            <div className="h-3 rounded-sm"
+          <div className={`flex-1 rounded-sm bg-white/[0.04] ${fill ? "h-full" : "h-3"}`}>
+            <div className={`rounded-sm ${fill ? "h-full" : "h-3"}`}
                  style={{ width: `${(Math.abs(item.value) / peak) * 100}%`, background: colour }} />
           </div>
           <span className="w-20 shrink-0 font-mono text-[10px] text-zinc-400">
@@ -178,11 +194,11 @@ export function RawBarsStage({ run, events }: { run: string; events: TrainingStr
       title="1 — Raw bars"
       question="What came out of the lake, before anything was done to it?"
       basis={started ? `${started.config.symbol} ${started.config.timeframe} · ${rows.length.toLocaleString()} bars loaded` : undefined}
-      resizeKey="lens-train-bars" defaultHeight={260}
+      resizeKey="lens-train-bars" defaultHeight={260} fillBody
     >
       {recent.length === 0 ? <div className="text-[11px] text-zinc-500">loading bars…</div> : (
         <>
-          <div className="flex h-[170px] items-end gap-[2px]">
+          <div className="flex min-h-[120px] flex-1 items-end gap-[2px]">
             {recent.map((bar, index) => {
               const up = bar.close >= bar.open;
               const bodyTop = Math.max(bar.open, bar.close);
@@ -210,7 +226,7 @@ export function RawBarsStage({ run, events }: { run: string; events: TrainingStr
               );
             })}
           </div>
-          <div className="mt-2 flex gap-5">
+          <div className="mt-2 flex shrink-0 gap-5">
             <Stat label="bars shown" value={String(recent.length)} hint="most recent" />
             <Stat label="price range" value={`${low.toFixed(2)} – ${high.toFixed(2)}`} />
             {started && (
@@ -264,12 +280,12 @@ export function VectorizeStage({ run, events, block, onBlockChange }: {
           ))}
         </div>
       }
-      resizeKey="lens-train-blocks" defaultHeight={280}
+      resizeKey="lens-train-blocks" defaultHeight={280} fillBody
     >
       {byFeature.length === 0 ? <div className="text-[11px] text-zinc-500">loading blocks…</div> : (
         <>
-          <Matrix values={byFeature} rowLabels={fields} columnLabel="bar" maxRows={16} />
-          <div className="mt-2 text-[10px] text-zinc-500">
+          <Matrix values={byFeature} rowLabels={fields} columnLabel="bar" maxRows={16} fill />
+          <div className="mt-2 shrink-0 text-[10px] text-zinc-500">
             One row per feature, most recent {matrix.length} bars left to right. Each block is
             LayerNorm&apos;d at its own input before projection, so no block enters the sum louder
             than another because of the units it happens to be measured in.
@@ -301,33 +317,37 @@ export function EmbedStage({ events, epoch }: { events: TrainingStreamEvent[]; e
       title="4 / 5 — Window into a tensor, then embed"
       question="How do many bars become one vector the model can attend over?"
       basis={started ? `(batch ${batch}, time ${window}, d_model 64) · summed block projections` : undefined}
-      resizeKey="lens-train-embed" defaultHeight={280}
+      resizeKey="lens-train-embed" defaultHeight={280} fillBody
     >
       {!current ? <div className="text-[11px] text-zinc-500">waiting for the first epoch…</div> : (
         <>
-          <div className="mb-3 flex flex-wrap gap-5">
+          <div className="mb-3 flex shrink-0 flex-wrap gap-5">
             <Stat label="window" value={`${window} bars`} hint="one training sample" />
             <Stat label="token width" value="64" hint="d_model" />
             <Stat label="blocks summed" value={String(Object.keys(current.block_norms).length)} />
           </div>
-          <div className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">
+          <div className="mb-1 shrink-0 text-[10px] uppercase tracking-wider text-zinc-500">
             each block&apos;s contribution to the summed token
           </div>
-          <BarList colour={ORANGE}
-                   items={Object.entries(current.block_norms)
-                     .sort((a, b) => b[1] - a[1])
-                     .map(([label, value]) => ({ label, value, hint: "mean token norm" }))} />
+          <div className="min-h-0 flex-1">
+            <BarList colour={ORANGE} fill
+                     items={Object.entries(current.block_norms)
+                       .sort((a, b) => b[1] - a[1])
+                       .map(([label, value]) => ({ label, value, hint: "mean token norm" }))} />
+          </div>
           {projections.length > 0 && (
             <>
-              <div className="mb-1 mt-3 text-[10px] uppercase tracking-wider text-zinc-500">
+              <div className="mb-1 mt-3 shrink-0 text-[10px] uppercase tracking-wider text-zinc-500">
                 the projection layers that produced it
               </div>
-              <BarList colour={BLUE}
-                       items={projections.map(r => ({
-                         label: r.name.replace("encoder.", ""),
-                         value: r.standard_deviation,
-                         hint: `${r.module_type} ${r.output_shape.join("x")} · mean ${r.mean.toFixed(4)}`,
-                       }))} />
+              <div className="min-h-0 flex-1">
+                <BarList colour={BLUE} fill
+                         items={projections.map(r => ({
+                           label: r.name.replace("encoder.", ""),
+                           value: r.standard_deviation,
+                           hint: `${r.module_type} ${r.output_shape.join("x")} · mean ${r.mean.toFixed(4)}`,
+                         }))} />
+              </div>
             </>
           )}
         </>
@@ -354,12 +374,12 @@ export function PositionStage({ run, events, epoch }: {
       question="How does the model know which bar came first?"
       basis={reading ? `${reading.module_type} · ${reading.output_shape.join(" x ")}` : undefined}
       unavailableReason={!reading ? "no positional-encoding capture in this run" : undefined}
-      resizeKey="lens-train-position" defaultHeight={260}
+      resizeKey="lens-train-position" defaultHeight={260} fillBody
     >
       {reading && (
         <>
-          <Matrix values={matrix} columnLabel="unit" maxRows={20} />
-          <div className="mt-2 text-[10px] text-zinc-500">
+          <Matrix values={matrix} columnLabel="unit" maxRows={20} fill />
+          <div className="mt-2 shrink-0 text-[10px] text-zinc-500">
             Every row is one position in the window, every column one of the 64 token
             dimensions. The banding is the sinusoid: position is added, not learned, so this
             pattern is identical at epoch 1 and epoch 100 — what changes is the token it is
@@ -388,26 +408,26 @@ export function AttentionStage({ events, epoch }: { events: TrainingStreamEvent[
       question="What did each encoder sub-layer actually emit?"
       basis={layerEvent ? `epoch ${layerEvent.epoch} · ${attention.length + feedForward.length} sub-layers` : undefined}
       unavailableReason={!layerEvent ? "no layer capture in this run" : undefined}
-      resizeKey="lens-train-attention" defaultHeight={300}
+      resizeKey="lens-train-attention" defaultHeight={300} fillBody
     >
       {layerEvent && (
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <div className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">
+        <div className="grid min-h-0 flex-1 grid-cols-2 gap-4">
+          <div className="flex min-h-0 flex-col">
+            <div className="mb-1 shrink-0 text-[10px] uppercase tracking-wider text-zinc-500">
               attention path — output spread
             </div>
-            <BarList colour={ORANGE}
+            <BarList colour={ORANGE} fill
                      items={attention.map(r => ({
                        label: r.name.replace("transformer.transformer.", ""),
                        value: r.standard_deviation,
                        hint: `${r.output_shape.join("x")} · ${(r.zero_fraction * 100).toFixed(1)}% zero`,
                      }))} />
           </div>
-          <div>
-            <div className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">
+          <div className="flex min-h-0 flex-col">
+            <div className="mb-1 shrink-0 text-[10px] uppercase tracking-wider text-zinc-500">
               feed-forward path — output spread
             </div>
-            <BarList colour={BLUE}
+            <BarList colour={BLUE} fill
                      items={feedForward.map(r => ({
                        label: r.name.replace("transformer.transformer.", ""),
                        value: r.standard_deviation,
@@ -438,9 +458,9 @@ export function PredictStage({ events, epoch }: { events: TrainingStreamEvent[];
       title="9 — Predict"
       question="What does the head output, and is it better than guessing?"
       basis={head.length > 0 ? `${head.length} head layers · 2 logits [down, up]` : undefined}
-      resizeKey="lens-train-predict" defaultHeight={240}
+      resizeKey="lens-train-predict" defaultHeight={240} fillBody
     >
-      <div className="mb-3 flex flex-wrap gap-5">
+      <div className="mb-3 flex shrink-0 flex-wrap gap-5">
         <Stat label="direction accuracy" value={accuracy !== null ? accuracy.toFixed(4) : "—"} />
         <Stat label="majority baseline" value={baseline !== null ? baseline.toFixed(4) : "—"}
               hint="what always-guess-one-side gets" />
@@ -448,14 +468,16 @@ export function PredictStage({ events, epoch }: { events: TrainingStreamEvent[];
               hint={skill !== null ? (skill > 0 ? "beats the baseline" : "does not beat it") : undefined} />
       </div>
       {head.length > 0 && (
-        <BarList colour={ORANGE}
-                 items={head.map(r => ({
-                   label: r.name.replace("transformer.", ""),
-                   value: r.standard_deviation,
-                   hint: `${r.module_type} ${r.output_shape.join("x")} · range ${r.minimum.toFixed(3)} to ${r.maximum.toFixed(3)}`,
-                 }))} />
+        <div className="min-h-0 flex-1">
+          <BarList colour={ORANGE} fill
+                   items={head.map(r => ({
+                     label: r.name.replace("transformer.", ""),
+                     value: r.standard_deviation,
+                     hint: `${r.module_type} ${r.output_shape.join("x")} · range ${r.minimum.toFixed(3)} to ${r.maximum.toFixed(3)}`,
+                   }))} />
+        </div>
       )}
-      <div className="mt-2 text-[10px] text-zinc-500">
+      <div className="mt-2 shrink-0 text-[10px] text-zinc-500">
         Accuracy above 50% is not the bar. The bar is the majority baseline, and after that the
         cost-implied break-even hit rate — MNQ&apos;s $2.8011 round trip needs 1.40 points of
         movement before a correct call is worth anything.
@@ -493,19 +515,21 @@ export function LossGradientStage({ events, epoch }: { events: TrainingStreamEve
       title="10 — Loss and gradient"
       question="Is it learning, and does the signal reach every layer?"
       basis={epochs.length > 0 ? `${epochs.length} epochs · ${gradients.length} modules taking gradient` : undefined}
-      resizeKey="lens-train-loss" defaultHeight={300}
+      resizeKey="lens-train-loss" defaultHeight={300} fillBody
     >
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <div className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-4">
+        <div className="flex min-h-0 flex-col">
+          <div className="mb-1 shrink-0 text-[10px] uppercase tracking-wider text-zinc-500">
             training loss, epoch by epoch
           </div>
-          <div className="flex h-[150px] items-end gap-[2px]">
+          <div className="flex min-h-[110px] flex-1 items-end gap-[2px]">
             {epochs.map((entry, index) => {
               const loss = losses[index] ?? Number.NaN;
               const isCurrent = entry.epoch === epoch;
               return (
-                <div key={entry.epoch} className="flex-1 rounded-sm"
+                // Capped, not just flex-1: a two-epoch run would otherwise
+                // draw two 300px slabs across the Theatre stage.
+                <div key={entry.epoch} className="max-w-[72px] flex-1 rounded-sm"
                      title={`epoch ${entry.epoch}: loss ${loss.toFixed(5)} · accuracy ${accuracies[index]?.toFixed(4)}`}
                      style={{
                        height: `${Number.isFinite(loss) ? ((lossHigh - loss) / lossSpan) * 85 + 10 : 2}%`,
@@ -515,17 +539,17 @@ export function LossGradientStage({ events, epoch }: { events: TrainingStreamEve
               );
             })}
           </div>
-          <div className="mt-1 flex justify-between font-mono text-[10px] text-zinc-500">
+          <div className="mt-1 flex shrink-0 justify-between font-mono text-[10px] text-zinc-500">
             <span>{Number.isFinite(lossHigh) ? lossHigh.toFixed(5) : "—"}</span>
             <span>taller is lower loss</span>
             <span>{Number.isFinite(lossLow) ? lossLow.toFixed(5) : "—"}</span>
           </div>
         </div>
-        <div>
-          <div className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">
+        <div className="flex min-h-0 flex-col">
+          <div className="mb-1 shrink-0 text-[10px] uppercase tracking-wider text-zinc-500">
             gradient norm reaching each module
           </div>
-          <BarList colour={GREY} maxItems={12}
+          <BarList colour={GREY} maxItems={12} fill
                    items={gradients.map(([label, value]) => ({
                      label: label.replace("transformer.transformer.", "").replace("encoder.", ""),
                      value,
@@ -534,7 +558,7 @@ export function LossGradientStage({ events, epoch }: { events: TrainingStreamEve
                    format={v => v.toExponential(2)} />
         </div>
       </div>
-      <div className="mt-2 text-[10px] text-zinc-500">
+      <div className="mt-2 shrink-0 text-[10px] text-zinc-500">
         {starved.length > 0
           ? `${starved.length} module(s) with parameters took no gradient: ${starved.slice(0, 3).map(r => r.name).join(", ")}.`
           : "Every module with parameters is taking gradient."}

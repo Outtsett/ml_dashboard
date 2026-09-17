@@ -1,135 +1,160 @@
 /**
- * Five ways to arrange the same ten stages.
+ * Three ways to arrange the stages, all built around one rule: a panel is
+ * large enough to read without squinting.
  *
- * These are five different information architectures, not five skins — each one
- * is shaped by a different question:
+ *   theatre  "explain THIS stage"   one stage on a big stage, tabs above
+ *   stack    "walk me through it"   every stage full width, in order
+ *   two-up   "compare two stages"   pick a left and a right, side by side
  *
- *   pipeline       "walk me through it"        one card per stage, in order
- *   console        "is it healthy right now"   dense grid, everything above the fold
- *   focus          "explain THIS stage"        one stage large, the rest a rail
- *   contact-sheet  "compare the stages"        thumbnails, click to open
- *   split          "inputs versus internals"   resizable two-column
+ * An earlier version offered a dense console grid and a thumbnail contact
+ * sheet. Both shrank the panels to fit more of them on screen, which is the
+ * opposite of what these views are for — a 4x4 attention matrix at thumbnail
+ * scale shows that attention exists, not what it is attending to. They are
+ * gone; the arrangements that survive differ in NAVIGATION, never in size.
  *
  * Every layout renders the identical stage components against the identical run
  * data. Nothing here generates a number.
  */
 import { useState, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { LensRow } from "../Row";
+import { LensFrameHeight } from "../Frame";
 
-export type LayoutId = "pipeline" | "console" | "focus" | "contact-sheet" | "split";
+export type LayoutId = "theatre" | "stack" | "two-up";
 
 export const LAYOUTS: { id: LayoutId; name: string; question: string }[] = [
-  { id: "pipeline", name: "Pipeline", question: "Walk me through it, stage by stage" },
-  { id: "console", name: "Console", question: "Is this run healthy right now?" },
-  { id: "focus", name: "Focus", question: "Explain one stage properly" },
-  { id: "contact-sheet", name: "Contact sheet", question: "Compare every stage at once" },
-  { id: "split", name: "Split", question: "Inputs on the left, internals on the right" },
+  { id: "theatre", name: "Theatre", question: "Put one stage on a big stage and explain it properly" },
+  { id: "stack", name: "Stack", question: "Walk me through every stage, full width, in order" },
+  { id: "two-up", name: "Two-up", question: "Show me two stages side by side" },
 ];
+
+/** How tall one stage gets in each arrangement, before any drag. */
+const THEATRE_HEIGHT = 700;
+const STACK_HEIGHT = 460;
+const TWO_UP_HEIGHT = 560;
 
 export interface StagePanel {
   id: string;
-  /** Short label for rails, tabs and thumbnails. */
+  /** Short label for the tab strip and the two-up pickers. */
   label: string;
-  /** Which half of the pipeline it belongs to, for the split layout. */
+  /** Which half of the pipeline it belongs to, for the two-up defaults. */
   side: "input" | "network";
   node: ReactNode;
 }
 
-// ── 1. Pipeline ──────────────────────────────────────────────────────────────
-
-function PipelineLayout({ stages }: { stages: StagePanel[] }) {
-  return <div className="space-y-3">{stages.map(s => <div key={s.id}>{s.node}</div>)}</div>;
-}
-
-// ── 2. Console ───────────────────────────────────────────────────────────────
+// ── 1. Theatre ───────────────────────────────────────────────────────────────
 
 /**
- * Two columns, every card clipped to a fixed height with its own scroll.
+ * One stage, ~700px tall and the full width of the page, with a tab strip above
+ * it. Switching stages costs one click and no scrolling, and the panel on
+ * screen is big enough that the matrices inside it are legible.
  *
- * The clip is the point: a console is for answering "is anything wrong" in one
- * screen, and a card that grows to fit its content pushes the next one off the
- * fold exactly when a run is busiest.
+ * Only the selected stage is mounted. That is deliberate: each panel fetches
+ * its own parquet snapshot, so keeping all seven alive would mean seven
+ * requests per epoch to draw one of them.
  */
-function ConsoleLayout({ stages }: { stages: StagePanel[] }) {
+function TheatreLayout({ stages }: { stages: StagePanel[] }) {
+  const [active, setActive] = useState(stages[0]!.id);
+  const index = Math.max(0, stages.findIndex(s => s.id === active));
+  const current = stages[index]!;
+  const step = (delta: number) =>
+    setActive(stages[(index + delta + stages.length) % stages.length]!.id);
+
   return (
-    <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-      {stages.map(stage => (
-        <div key={stage.id} className="max-h-[340px] overflow-auto rounded-md">
-          {stage.node}
+    <div className="space-y-2">
+      <div className="flex items-stretch gap-1 rounded-lg border border-border bg-card p-1">
+        <StepButton label="Previous stage" onClick={() => step(-1)}>
+          <ChevronLeft className="h-3.5 w-3.5" />
+        </StepButton>
+        <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
+          {/* No tab index is drawn: each label already opens with its position
+              in the ten-stage pipeline, and some panels cover two steps
+              ("2/3 - Vectorize"), so a second running count would contradict
+              the one that carries meaning. */}
+          {stages.map(stage => {
+            const selected = stage.id === current.id;
+            return (
+              <button
+                key={stage.id}
+                onClick={() => setActive(stage.id)}
+                aria-current={selected ? "true" : undefined}
+                title={stage.label}
+                className={`min-w-0 flex-1 truncate whitespace-nowrap rounded px-2.5 py-2 text-left font-mono text-[11px] transition-colors ${
+                  selected
+                    ? "bg-[#E69F00]/15 text-[#E69F00]"
+                    : "text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300"}`}
+              >
+                {stage.label}
+              </button>
+            );
+          })}
         </div>
-      ))}
+        <StepButton label="Next stage" onClick={() => step(1)}>
+          <ChevronRight className="h-3.5 w-3.5" />
+        </StepButton>
+      </div>
+
+      <LensFrameHeight height={THEATRE_HEIGHT} slot="theatre">
+        <div key={current.id}>{current.node}</div>
+      </LensFrameHeight>
     </div>
   );
 }
 
-// ── 3. Focus ─────────────────────────────────────────────────────────────────
-
-function FocusLayout({ stages }: { stages: StagePanel[] }) {
-  const [active, setActive] = useState(stages[0]?.id ?? "");
-  const current = stages.find(s => s.id === active) ?? stages[0];
+function StepButton({ label, onClick, children }: {
+  label: string; onClick: () => void; children: ReactNode;
+}) {
   return (
-    <div className="flex gap-3">
-      <nav className="w-44 shrink-0 space-y-[2px]">
-        {stages.map(stage => (
-          <button key={stage.id} onClick={() => setActive(stage.id)}
-                  className={`w-full rounded px-2 py-1.5 text-left font-mono text-[11px] transition-colors ${
-                    stage.id === (current?.id ?? "")
-                      ? "bg-[#E69F00]/15 text-[#E69F00]"
-                      : "text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300"}`}>
-            {stage.label}
-          </button>
-        ))}
-      </nav>
-      <div className="min-w-0 flex-1">{current?.node}</div>
-    </div>
+    <button onClick={onClick} aria-label={label} title={label}
+            className="shrink-0 rounded px-1.5 text-zinc-500 transition-colors hover:bg-white/[0.03] hover:text-zinc-200">
+      {children}
+    </button>
   );
 }
 
-// ── 4. Contact sheet ─────────────────────────────────────────────────────────
+// ── 2. Stack ─────────────────────────────────────────────────────────────────
+
+function StackLayout({ stages }: { stages: StagePanel[] }) {
+  return (
+    <LensFrameHeight height={STACK_HEIGHT} slot="stack">
+      <div className="space-y-3">{stages.map(s => <div key={s.id}>{s.node}</div>)}</div>
+    </LensFrameHeight>
+  );
+}
+
+// ── 3. Two-up ────────────────────────────────────────────────────────────────
 
 /**
- * Every stage at thumbnail scale, one expanded below.
- *
- * Scaled with a CSS transform rather than by re-rendering smaller: the panels
- * draw real matrices sized to their container, and asking each to re-layout at
- * thumbnail size on every hover is work for no gain. The transform keeps them
- * pixel-identical to the full-size version, just smaller.
+ * Two stages the reader picks, side by side in a draggable split. The defaults
+ * are the first input stage and the first network stage, because the comparison
+ * this view exists for is "what went in" against "what the network did with it".
  */
-function ContactSheetLayout({ stages }: { stages: StagePanel[] }) {
-  const [opened, setOpened] = useState(stages[0]?.id ?? "");
-  const current = stages.find(s => s.id === opened);
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3 2xl:grid-cols-4">
-        {stages.map(stage => (
-          <button key={stage.id} onClick={() => setOpened(stage.id)}
-                  className={`h-[190px] overflow-hidden rounded-md border text-left transition-colors ${
-                    stage.id === opened
-                      ? "border-[#E69F00]/50" : "border-white/5 hover:border-white/15"}`}>
-            <div className="pointer-events-none origin-top-left scale-[0.52]"
-                 style={{ width: "192%", height: "192%" }}>
-              {stage.node}
-            </div>
-          </button>
-        ))}
-      </div>
-      {current && <div>{current.node}</div>}
-    </div>
+function TwoUpLayout({ stages }: { stages: StagePanel[] }) {
+  const [leftId, setLeftId] = useState(
+    (stages.find(s => s.side === "input") ?? stages[0]!).id);
+  const [rightId, setRightId] = useState(
+    (stages.find(s => s.side === "network") ?? stages[stages.length - 1]!).id);
+  const left = stages.find(s => s.id === leftId) ?? stages[0]!;
+  const right = stages.find(s => s.id === rightId) ?? stages[stages.length - 1]!;
+
+  const picker = (value: string, onChange: (id: string) => void) => (
+    <select value={value} onChange={event => onChange(event.target.value)}
+            className="w-full rounded border border-border bg-card px-2 py-1.5 font-mono text-[11px] text-zinc-300">
+      {stages.map(stage => (
+        <option key={stage.id} value={stage.id}>{stage.label}</option>
+      ))}
+    </select>
   );
-}
 
-// ── 5. Split ─────────────────────────────────────────────────────────────────
-
-function SplitLayout({ stages }: { stages: StagePanel[] }) {
-  const inputs = stages.filter(s => s.side === "input");
-  const network = stages.filter(s => s.side === "network");
   return (
-    <LensRow
-      id="training-split"
-      defaultLeftPercent={46}
-      left={<div className="space-y-3">{inputs.map(s => <div key={s.id}>{s.node}</div>)}</div>}
-      right={<div className="space-y-3">{network.map(s => <div key={s.id}>{s.node}</div>)}</div>}
-    />
+    <LensFrameHeight height={TWO_UP_HEIGHT} slot="two-up">
+      <LensRow
+        id="training-two-up"
+        defaultLeftPercent={50}
+        left={<div className="space-y-2">{picker(left.id, setLeftId)}{left.node}</div>}
+        right={<div className="space-y-2">{picker(right.id, setRightId)}{right.node}</div>}
+      />
+    </LensFrameHeight>
   );
 }
 
@@ -138,11 +163,9 @@ function SplitLayout({ stages }: { stages: StagePanel[] }) {
 export function StageLayout({ layout, stages }: { layout: LayoutId; stages: StagePanel[] }) {
   if (stages.length === 0) return null;
   switch (layout) {
-    case "console": return <ConsoleLayout stages={stages} />;
-    case "focus": return <FocusLayout stages={stages} />;
-    case "contact-sheet": return <ContactSheetLayout stages={stages} />;
-    case "split": return <SplitLayout stages={stages} />;
-    default: return <PipelineLayout stages={stages} />;
+    case "stack": return <StackLayout stages={stages} />;
+    case "two-up": return <TwoUpLayout stages={stages} />;
+    default: return <TheatreLayout stages={stages} />;
   }
 }
 
@@ -163,3 +186,4 @@ export function LayoutPicker({ value, onChange }: {
     </div>
   );
 }
+
