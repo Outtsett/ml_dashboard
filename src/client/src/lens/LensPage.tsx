@@ -39,6 +39,7 @@ import { AttributionPanel } from "./panels/AttributionPanel";
 import { RegimePanel } from "./panels/RegimePanel";
 import { DistributionPanel } from "./panels/DistributionPanel";
 import { VerificationList } from "./panels/VerificationList";
+import { LensTrainingEnvironment } from "./training/LensTrainingEnvironment";
 
 const WINDOW_LENGTHS = [300, 600, 1500, 3000] as const;
 
@@ -83,8 +84,15 @@ function ParamSlider({ label, value, min, max, step, current, onChange, hint }: 
   );
 }
 
+/** Lens has two faces: watch a model being made, or inspect one that already was. */
+type LensTab = "train" | "inspect";
+
 export default function LensPage() {
   const { toast } = useToast();
+  // Training is the default. With no models on disk the inspect side has
+  // nothing to show, and the question "what is this model doing" is answered
+  // while it trains, not after.
+  const [tab, setTab] = useState<LensTab>("train");
   const models = useLensModels();
   const [requestedModelId, setRequestedModelId] = useState<string | null>(readModelFromUrl);
 
@@ -154,6 +162,21 @@ export default function LensPage() {
       icon={Microscope}
     >
       <div className="flex flex-col gap-3" data-testid="lens-page">
+        {/* ── Which face of the lens ──────────────────────────────────── */}
+        <ToggleGroup type="single" value={tab} className="justify-start"
+                     onValueChange={(value) => value && setTab(value as LensTab)}>
+          <ToggleGroupItem value="train" className="text-xs" data-testid="lens-tab-train">
+            Training environment
+          </ToggleGroupItem>
+          <ToggleGroupItem value="inspect" className="text-xs" data-testid="lens-tab-inspect">
+            Inspect a trained model
+          </ToggleGroupItem>
+        </ToggleGroup>
+
+        {tab === "train" && <LensTrainingEnvironment />}
+
+        {tab === "inspect" && (
+        <div className="flex flex-col gap-3">
         {/* ── Model selection ─────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-3">
           <Select value={modelId ?? undefined} onValueChange={selectModel}>
@@ -431,6 +454,8 @@ export default function LensPage() {
               ))}
             </ul>
           </LensFrame>
+        )}
+        </div>
         )}
       </div>
     </PageShell>
