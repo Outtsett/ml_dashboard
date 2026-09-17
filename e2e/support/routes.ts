@@ -1,10 +1,10 @@
 /**
  * The client route table, as data.
  *
- * Mirrors the `<Switch>` in `src/client/src/App.tsx:177-217`. Kept as a literal
- * rather than imported from the app because the point of the route-coverage spec
- * is to fail when App.tsx changes and this file does not — importing the real
- * table would make the spec agree with any regression automatically.
+ * Mirrors the `<Switch>` in `src/client/src/App.tsx`. Kept as a literal rather
+ * than imported from the app because the point of the route-coverage spec is to
+ * fail when App.tsx changes and this file does not — importing the real table
+ * would make the spec agree with any regression automatically.
  *
  * `e2e/specs/smoke/route-table-drift.spec.ts` reads App.tsx and asserts the two
  * lists still agree, so drift is caught in one place instead of silently
@@ -34,31 +34,30 @@ export interface RouteSpec {
    * frozen".
    */
   expectText?: RegExp;
-  /** Sidebar nav label, when the route has one (`LeftSidebar.tsx:30-47`). */
+  /** Sidebar nav label, when the route has one (`LeftSidebar.tsx`). */
   navLabel?: string;
   /** Skip in the route sweep, with a reason. Never skip without one. */
   skip?: string;
 }
 
 /**
- * Every route mounted by App.tsx. 16 carry a sidebar link; 6 are URL-only
+ * Every route mounted by App.tsx. 12 carry a sidebar link; 6 are URL-only
  * (`/forecast`, `/curriculum`, `/fourier`, `/terminals`, `/hardware`,
- * `/training`), which makes this table their only discovery path.
+ * `/training`), which makes this table their only discovery path; 3 are
+ * redirects left behind by the 2026-09-16 nav consolidation.
  */
 export const ROUTES: RouteSpec[] = [
   { path: '/', component: 'MarketDataPage', tier: 'lake', navLabel: 'Market' },
-  { path: '/risk', component: 'RiskPage', tier: 'backend', navLabel: 'Risk' },
   { path: '/watchlist', component: 'WatchlistPage', tier: 'backend', navLabel: 'Watchlist' },
+  // Holds the Positions and Risk tabs. `/risk` redirects here.
   { path: '/portfolio', component: 'PortfolioPage', tier: 'backend', navLabel: 'Portfolio' },
+  // Holds the Pipeline and RL Console tabs. `/rl-console` and `/ml-hub` redirect here.
   { path: '/ml-studio', component: 'MLStudioPage', tier: 'stream', navLabel: 'ML Studio' },
-  { path: '/rl-console', component: 'RLConsolePage', tier: 'backend', navLabel: 'RL Console' },
-  { path: '/hpo', component: 'HpoPage', tier: 'backend', navLabel: 'HPO' },
   { path: '/model-catalog', component: 'ModelCatalogPage', tier: 'backend', navLabel: 'Catalog' },
   { path: '/databases', component: 'DatabasesPage', tier: 'backend', navLabel: 'Data' },
   { path: '/lens', component: 'LensPage', tier: 'backend', navLabel: 'Lens' },
   { path: '/marimo', component: 'MarimoPage', tier: 'backend', navLabel: 'Notebooks' },
   { path: '/glossary', component: 'GlossaryPage', tier: 'static', navLabel: 'Glossary' },
-  { path: '/operate', component: 'OperatePage', tier: 'backend', navLabel: 'Operate' },
   { path: '/paper', component: 'PaperPage', tier: 'stream', navLabel: 'Paper' },
   { path: '/news', component: 'NewsPage', tier: 'stream', navLabel: 'News' },
   { path: '/settings', component: 'SettingsPage', tier: 'backend', navLabel: 'System' },
@@ -71,23 +70,31 @@ export const ROUTES: RouteSpec[] = [
   { path: '/hardware', component: 'HardwarePage', tier: 'stream' },
   { path: '/training', component: 'TrainingPage', tier: 'stream' },
 
-  // Redirect, not a component: App.tsx:180-182 sends this to /ml-studio.
-  { path: '/ml-hub', component: 'Redirect → /ml-studio', tier: 'static' },
-
-  // The app's only parameterized route. Swept with a synthetic id, which is
-  // expected to render an empty/not-found state rather than crash — that IS the
-  // assertion, because an unguarded `sessions.find(...)` here is exactly the
-  // shape of bug a route sweep is for.
-  { path: '/hpo/:sessionId', component: 'HpoDetailPage', tier: 'stream' },
+  // Redirects, not components. Each is swept like any other route: the sweep
+  // navigates and asserts something mounted, which for these means the redirect
+  // fired and the DESTINATION rendered. A redirect that silently stops firing
+  // lands on NotFound, and `hasCrashed()` plus the non-empty <main> assertion
+  // would not catch that on their own — `journeys/navigation.spec.ts` asserts
+  // the resulting pathname, which is the claim that matters.
+  //
+  // Their tier is the DESTINATION's tier, because that is what actually renders:
+  // tagging `/rl-console` `@static` would let CI run it on a runner where the
+  // ML Studio page it lands on cannot work.
+  { path: '/ml-hub', component: 'Redirect → /ml-studio', tier: 'stream' },
+  { path: '/rl-console', component: 'Redirect → /ml-studio', tier: 'stream' },
+  { path: '/risk', component: 'Redirect → /portfolio', tier: 'backend' },
 ];
 
 /**
- * Routes as they appear in `App.tsx`, including the `:param` form. Used by the
- * drift guard; the sweep substitutes a value before navigating.
+ * Routes as they appear in `App.tsx`. Used by the drift guard.
+ *
+ * The app currently mounts no parameterized route. `/hpo/:sessionId` was the
+ * only one and went with the HPO page; `concretePath` below is kept because the
+ * next one should not have to re-derive it.
  */
 export const ROUTE_PATHS = ROUTES.map((r) => r.path);
 
-/** Turn `/hpo/:sessionId` into something navigable. */
+/** Turn a `:param` segment into something navigable. */
 export function concretePath(path: string): string {
   return path.replace(/:(\w+)/g, (_, name: string) => `e2e-${name}`);
 }
@@ -130,5 +137,12 @@ export const STATIC_ROUTES = ROUTES.filter((r) => r.tier === 'static');
  */
 export const UNKNOWN_ROUTE = '/this-route-does-not-exist-e2e';
 
-/** The parameterized route, the only one in the app (`/hpo/:sessionId`). */
-export const HPO_DETAIL = (sessionId: string) => `/hpo/${sessionId}`;
+/**
+ * The redirects, as (from → to) pairs, so the navigation spec asserts where each
+ * one lands rather than merely that it rendered something.
+ */
+export const REDIRECTS: Array<{ from: string; to: string }> = [
+  { from: '/ml-hub', to: '/ml-studio' },
+  { from: '/rl-console', to: '/ml-studio' },
+  { from: '/risk', to: '/portfolio' },
+];

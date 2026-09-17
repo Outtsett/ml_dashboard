@@ -48,14 +48,6 @@ const BENIGN_CONSOLE_PATTERNS: Array<{ pattern: RegExp; because: string }> = [
     pattern: /Content-Security-Policy|Permissions-Policy/i,
     because: 'Header policy warnings from Chrome about the Electron-oriented CSP, not page faults.',
   },
-  {
-    // `concretePath()` in support/routes.ts fills a `:param` with `e2e-<name>`,
-    // so /hpo/:sessionId is swept as /hpo/e2e-sessionId. No such session exists
-    // and the API correctly answers 404 — that IS the behaviour under test. The
-    // marker is specific enough that it cannot mask a real URL.
-    pattern: /\/e2e-[A-Za-z][A-Za-z0-9]*/,
-    because: 'A synthetic id the route sweep invented for a parameterized route; 404 is the correct answer.',
-  },
 ];
 
 /**
@@ -84,17 +76,6 @@ const KNOWN_DEFECT_PATTERNS: Array<{ pattern: RegExp; defect: string }> = [
       '(src/client/src/lens/panels/RollingPanel.tsx:93-94). ' +
       'The same NaN already shows up in tests/client/lens/panels.test.tsx, which passes anyway. ' +
       'Fix: reject a non-finite window at the top of computeRolling rather than relying on Math.max.',
-  },
-  {
-    pattern: /\/api\/experiments(\?|$|\s)/i,
-    defect:
-      'GET /api/experiments answers 500 when PostgreSQL is not running, and the /operate page ' +
-      'calls it on load. Postgres is OPTIONAL in this architecture — ARCHITECTURE.md and the ' +
-      'deployment checklist both say the core dashboard does not need it — so its absence is a ' +
-      'known, expected state, not an internal server error. A 500 here is indistinguishable ' +
-      'from a genuine fault and makes the page look broken on a machine that is configured ' +
-      'exactly as documented. Fix: return 503 with a reason, or an empty ledger, when the ' +
-      'experiments store is unconfigured (src/server/ml/experiments.router.ts).',
   },
   {
     pattern: /Failed to load resource.*?\/api\/training\/models\/.*?\/assignments|\/api\/training\/models\/.*?\/assignments/i,

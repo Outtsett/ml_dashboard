@@ -28,7 +28,6 @@
       "button-name": 1,
       "color-contrast": 1
     },
-    "/risk": {},
     "/watchlist": {
       "button-name": 24,
       "color-contrast": 1
@@ -38,13 +37,6 @@
       "button-name": 2,
       "color-contrast": 15,
       "label": 2
-    },
-    "/rl-console": {
-      "button-name": 1,
-      "color-contrast": 5
-    },
-    "/hpo": {
-      "button-name": 2
     },
     "/model-catalog": {
       "button-name": 1
@@ -59,9 +51,6 @@
     "/marimo": {},
     "/glossary": {
       "color-contrast": 42
-    },
-    "/operate": {
-      "color-contrast": 11
     },
     "/paper": {},
     "/news": {},

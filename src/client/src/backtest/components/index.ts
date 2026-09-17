@@ -16,10 +16,9 @@ export { RegimeBadge } from "./RegimeBadge";
 export type { RegimeState } from "./RegimeBadge";
 export { DenseTable } from "./DenseTable";
 export type { DenseTableColumnMeta } from "./DenseTable";
-export { ParallelCoords } from "./ParallelCoords";
-export { ContourPlot } from "./ContourPlot";
-export { SlicePlot } from "./SlicePlot";
-export { BestSoFarLine } from "./BestSoFarLine";
+// ParallelCoords / ContourPlot / SlicePlot / BestSoFarLine were exported here
+// for HpoDetailPage's Optuna trial drill-down, which was their only consumer.
+// They went with it when the HPO route was removed.
 export { DrawdownChart } from "./DrawdownChart";
 export { ExposureBars } from "./ExposureBars";
 export { CorrelationMatrix } from "./CorrelationMatrix";

@@ -30,12 +30,12 @@ const TIER_TAG: Record<RouteSpec['tier'], string> = {
 };
 
 test.describe('route sweep', () => {
-  // A parameterized route is swept with a synthetic id, so the API calls it
-  // makes SHOULD 404 — no session `e2e-sessionId` exists. The network guard is
-  // therefore relaxed for the whole sweep, and the assertion that matters for
-  // those routes is the one below: it must render an empty state, not crash.
-  // Console errors are still gated; only failed API calls are tolerated.
-  test.use({ allowRequestFailures: true });
+  // The network guard is NOT relaxed here. It used to be, because the sweep
+  // navigated `/hpo/:sessionId` with a synthetic id whose API calls were
+  // supposed to 404 — so failed requests were tolerated across every route to
+  // accommodate one. That route is gone with the HPO page, and a guard that
+  // tolerates 4xx/5xx on every route is most of the value of this sweep given
+  // away. If a route legitimately needs the relaxation, scope it to that route.
 
   for (const route of ROUTES) {
     const title = `${route.path} renders ${route.component}`;
@@ -43,9 +43,6 @@ test.describe('route sweep', () => {
     test(title, { tag: [TIER_TAG[route.tier], '@smoke'] }, async ({ page, app }) => {
       test.skip(!!route.skip, route.skip ?? '');
 
-      // `/hpo/:sessionId` is navigated with a synthetic id. The page is expected
-      // to render an empty or not-found state for it; crashing on an id that
-      // matches no session is the defect this catches.
       const url = concretePath(route.path);
       const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
 
@@ -65,10 +62,10 @@ test.describe('route sweep', () => {
       ).toBe(false);
 
       // Scoped to <main>, which holds the route's OWN content (Layout.tsx:63).
-      // Asserting on `#root` was tautological: the TopBar and the sixteen sidebar
-      // labels live outside <main> and put ~250 characters on every page before
-      // any route renders, so `length > 0` could not fail even for a route that
-      // rendered nothing at all.
+      // Asserting on `#root` was tautological: the TopBar and the sidebar labels
+      // live outside <main> and put a couple of hundred characters on every page
+      // before any route renders, so `length > 0` could not fail even for a
+      // route that rendered nothing at all.
       //
       // Auto-retrying, not a point-in-time read. Every route is lazy-loaded
       // behind Suspense (`App.tsx:160-172`), so `#root > *` is satisfied by the

@@ -83,7 +83,7 @@ e2e/
   fixtures/app.ts              console + network guards, mount-aware navigation
   support/routes.ts            the route table, as data
   specs/
-    smoke/routes.spec.ts             all 25 routes render
+    smoke/routes.spec.ts             all 21 routes render
     smoke/route-table-drift.spec.ts  the table still matches App.tsx
     api/health.api.spec.ts           the four health endpoints and how they differ
     api/contract.api.spec.ts         API shape, OHLC invariants, SSE handshake

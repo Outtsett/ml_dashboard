@@ -179,7 +179,7 @@ specific gate rather than by reading code.
 | CI pinned `ruff==0.7.4` while pyproject requires `>=0.14,<1`; formatter output differs, so `format --check` could never pass | aligning the local runner to CI | **fixed** |
 | `port: z.number()` accepted 0 and NaN, so the configured port and the bound port could disagree | adversarial review of the CORS fix | **fixed** |
 | Lens RollingPanel draws ReferenceLines at a NaN null-band (`Math.max(1, NaN)` is NaN) | console guard on `/lens` | **recorded** |
-| `/api/experiments` answers 500 when the *optional* PostgreSQL is absent | console guard on `/operate` | **recorded** |
+| `/api/experiments` answers 500 when the *optional* PostgreSQL is absent | console guard on `/operate` | **unobserved** — still true server-side (`src/server/ml/experiments.router.ts`), but `/operate` was the only page that called it and was removed in the 2026-09-16 nav consolidation, so no spec reaches it any more |
 | SQL console runs a query and discards the result — no grid, no rows, just a toast | writing the console journey | **recorded** |
 | `tests/client` quarantined in CI for modules that were deleted, not landed — 235 passing tests excluded from the gate | auditing the workflow | **fixed** |
 

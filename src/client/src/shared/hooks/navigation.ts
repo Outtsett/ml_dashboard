@@ -25,12 +25,14 @@
  *   /backtest     — see the "// Backtest Domain / Consolidated into ML
  *                   Studio" comment in App.tsx; BacktestPage.tsx exists on
  *                   disk but may be superseded, not simply forgotten
- * /risk, /hpo, /paper are real, mounted, and NOT pending as of this date.
+ * /paper is real, mounted, and NOT pending as of this date.
+ *
+ * Consolidated 2026-09-16: Risk is a tab of /portfolio and RL Console a tab of
+ * /ml-studio, so neither has its own entry; /hpo and /operate were deleted.
  */
 
 import {
   Activity,
-  AlertTriangle,
   BarChart2,
   BookOpen,
   BookMarked,
@@ -46,10 +48,8 @@ import {
   List,
   Network,
   Newspaper,
-  PlayCircle,
   Radio,
   Settings,
-  Sliders,
   TerminalSquare,
   Workflow,
   type LucideIcon,
@@ -83,16 +83,10 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
         description: "Chart with model signals + replay",
       },
       {
-        icon: AlertTriangle,
-        label: "Risk",
-        href: "/risk",
-        description: "VaR / ES / exposure / drawdown / correlation",
-      },
-      {
         icon: Goal,
-        label: "Positions",
+        label: "Portfolio",
         href: "/portfolio",
-        description: "Open positions, P&L, equity curve",
+        description: "Positions, P&L, equity curve · Risk tab: VaR / ES / exposure",
       },
       {
         icon: List,
@@ -109,13 +103,8 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
         icon: BrainCircuit,
         label: "ML Studio",
         href: "/ml-studio",
-        description: "Data → Features → Labels → Train pipeline",
-      },
-      {
-        icon: Cpu,
-        label: "RL Console",
-        href: "/rl-console",
-        description: "PPO / DQN launcher, telemetry, architecture graph",
+        description:
+          "Data → Features → Labels → Train pipeline · RL Console tab: PPO / DQN launcher",
       },
       {
         icon: Network,
@@ -167,12 +156,6 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
         pending: true,
       },
       {
-        icon: Sliders,
-        label: "HPO",
-        href: "/hpo",
-        description: "Optuna sessions + trial drill-down",
-      },
-      {
         icon: Workflow,
         label: "Backtest",
         href: "/backtest",
@@ -196,12 +179,6 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
         label: "Paper",
         href: "/paper",
         description: "Paper trade + drift monitor",
-      },
-      {
-        icon: PlayCircle,
-        label: "Operate",
-        href: "/operate",
-        description: "Live RL experiment launcher + leaderboard",
       },
       {
         icon: Newspaper,

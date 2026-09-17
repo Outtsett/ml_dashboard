@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/app';
-import { NAV_ROUTES, tagsForRoute } from '../../support/routes';
+import { NAV_ROUTES, REDIRECTS, ROUTES, tagsForRoute } from '../../support/routes';
 
 /**
  * Navigation through the app shell.
@@ -17,7 +17,7 @@ import { NAV_ROUTES, tagsForRoute } from '../../support/routes';
  */
 
 test.describe('sidebar navigation', () => {
-  test('the shell renders with all sixteen nav links', { tag: ['@smoke', '@static'] }, async ({ page, app }) => {
+  test(`the shell renders with all ${NAV_ROUTES.length} nav links`, { tag: ['@smoke', '@static'] }, async ({ page, app }) => {
     // `/glossary`, not `/`. The sidebar is identical on every route, and `/`
     // mounts MarketDataPage, which needs the lake — asserting chrome from a
     // lake-dependent page would make this spec unrunnable in CI for no reason.
@@ -110,12 +110,65 @@ test.describe('browser history', () => {
     expect(await app.hasCrashed()).toBe(false);
   });
 
-  test('/ml-hub redirects to /ml-studio', { tag: ['@nav', '@smoke'] }, async ({ page, app }) => {
-    // The one redirect in the router. It exists so an old bookmark keeps working,
-    // which is precisely the kind of thing that breaks unnoticed.
-    await app.goto('/ml-hub');
-    await expect(async () => {
-      expect(new URL(page.url()).pathname).toBe('/ml-studio');
-    }).toPass({ timeout: 10_000 });
+  for (const { from, to } of REDIRECTS) {
+    // Redirects exist so old bookmarks and stale links keep working, which is
+    // precisely the kind of thing that breaks unnoticed — nothing in the UI
+    // points at these paths any more, so only a test can notice.
+    //
+    // Tagged with the DESTINATION's tier: landing on /ml-studio means mounting
+    // it, so CI must be able to skip these the same way it skips the
+    // destination itself.
+    const destination = ROUTES.find((r) => r.path === to);
+    const tags = destination ? tagsForRoute(destination, '@nav', '@smoke') : ['@nav', '@smoke'];
+
+    test(`${from} redirects to ${to}`, { tag: tags }, async ({ page, app }) => {
+      await app.goto(from);
+      await expect(async () => {
+        expect(new URL(page.url()).pathname).toBe(to);
+      }).toPass({ timeout: 10_000 });
+
+      expect(
+        await app.hasCrashed(),
+        `${from} redirected to ${to} but the destination crashed`,
+      ).toBe(false);
+    });
+  }
+});
+
+test.describe('consolidated tabs', () => {
+  // Risk and RL Console stopped being routes and became tabs. The redirects
+  // above prove the old URLs still land somewhere; these prove the content
+  // actually arrived rather than the page merely existing without it.
+
+  test('the Risk tab renders inside /portfolio', { tag: ['@nav', '@backend'] }, async ({
+    page,
+    app,
+  }) => {
+    await app.goto('/portfolio');
+    await expect(page.getByTestId('tab-positions')).toBeVisible();
+
+    const riskTab = page.getByTestId('tab-risk');
+    await expect(riskTab).toBeVisible();
+    await riskTab.click();
+
+    // The stress-scenario table is Risk-only — it never existed on the Portfolio
+    // page — so its presence is evidence the merged content is really there.
+    await expect(page.getByTestId('stress-scenarios')).toBeVisible();
+    expect(await app.hasCrashed()).toBe(false);
+  });
+
+  test('the RL Console tab renders inside /ml-studio', { tag: ['@nav', '@stream'] }, async ({
+    page,
+    app,
+  }) => {
+    await app.goto('/ml-studio');
+    await expect(page.getByTestId('tab-pipeline')).toBeVisible();
+
+    const rlTab = page.getByTestId('tab-rl-console');
+    await expect(rlTab).toBeVisible();
+    await rlTab.click();
+
+    await expect(page.locator('main').first()).toContainText(/RL Console/i);
+    expect(await app.hasCrashed()).toBe(false);
   });
 });

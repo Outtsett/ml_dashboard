@@ -5,17 +5,13 @@ import {
   BrainCircuit,
   Library,
   Database,
-  Cpu,
   BookOpen,
   BookMarked,
   Newspaper,
   ActivitySquare,
   BarChart3,
-  AlertTriangle,
   List,
   Goal,
-  Sliders,
-  Bot,
   Microscope,
   NotebookPen,
 } from "lucide-react";
@@ -27,20 +23,24 @@ import {
 // sees. Real, mounted routes belong in BOTH lists until those two nav systems
 // are unified; adding a page here without also adding it to navigation.ts
 // (or vice versa) silently reopens the "built but undiscoverable" gap.
+// Four entries were folded in or removed when the nav was consolidated, so a
+// link that used to be here now lives one level down:
+//   Risk       → the "Risk" tab of /portfolio
+//   RL Console → the "RL Console" tab of /ml-studio
+//   HPO        → deleted; study config and the trial list are the "HPO Config"
+//                tab of ML Studio's RL Console
+//   Operate    → deleted; deployment lives in ML Studio's Promote stage
+// /risk and /rl-console still resolve — App.tsx redirects them.
 const NAV_ITEMS = [
   { label: "Market", href: "/", icon: BarChart3 },
-  { label: "Risk", href: "/risk", icon: AlertTriangle },
   { label: "Watchlist", href: "/watchlist", icon: List },
   { label: "Portfolio", href: "/portfolio", icon: Goal },
   { label: "ML Studio", href: "/ml-studio", icon: BrainCircuit },
-  { label: "RL Console", href: "/rl-console", icon: Bot },
-  { label: "HPO", href: "/hpo", icon: Sliders },
   { label: "Catalog", href: "/model-catalog", icon: Library },
   { label: "Data", href: "/databases", icon: Database },
   { label: "Lens", href: "/lens", icon: Microscope },
   { label: "Notebooks", href: "/marimo", icon: NotebookPen },
   { label: "Glossary", href: "/glossary", icon: BookMarked },
-  { label: "Operate", href: "/operate", icon: Cpu },
   { label: "Paper", href: "/paper", icon: BookOpen },
   { label: "News", href: "/news", icon: Newspaper },
   { label: "System", href: "/settings", icon: ActivitySquare },

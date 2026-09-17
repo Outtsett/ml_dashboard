@@ -68,10 +68,6 @@ const PaperFactory = () => import("@/portfolio/PaperPage");
 const Paper = lazyRetry(PaperFactory, "Paper");
 registerComponentFactory("/paper", PaperFactory);
 
-const RiskFactory = () => import("@/portfolio/RiskPage");
-const Risk = lazyRetry(RiskFactory, "Risk");
-registerComponentFactory("/risk", RiskFactory);
-
 // Data Domain
 const DatabasesFactory = () => import("@/data/DatabasesPage");
 const Databases = lazyRetry(DatabasesFactory, "Databases");
@@ -81,10 +77,6 @@ registerComponentFactory("/databases", DatabasesFactory);
 const MLStudioFactory = () => import("@/ml/MLStudioPage");
 const MLStudio = lazyRetry(MLStudioFactory, "MLStudio");
 registerComponentFactory("/ml-studio", MLStudioFactory);
-
-const RLConsoleFactory = () => import("@/ml/RLConsolePage");
-const RLConsole = lazyRetry(RLConsoleFactory, "RLConsole");
-registerComponentFactory("/rl-console", RLConsoleFactory);
 
 const ForecastFactory = () => import("@/ml/ForecastPage");
 const Forecast = lazyRetry(ForecastFactory, "Forecast");
@@ -109,24 +101,9 @@ const TrainingFactory = () => import("@/training/TrainingPage");
 const Training = lazyRetry(TrainingFactory, "Training");
 registerComponentFactory("/training", TrainingFactory);
 
-// HpoPage is the Optuna session list; a row click opens /hpo/:sessionId. The
-// detail route below is unreachable without it, which is what the nav entry
-// labelled "Optuna sessions + trial drill-down" was landing on NotFound.
-const HpoFactory = () => import("@/training/HpoPage");
-const Hpo = lazyRetry(HpoFactory, "Hpo");
-registerComponentFactory("/hpo", HpoFactory);
-
-const HpoDetailFactory = () => import("@/training/HpoDetailPage");
-const HpoDetail = lazyRetry(HpoDetailFactory, "HpoDetail");
-registerComponentFactory("/hpo/:sessionId", HpoDetailFactory);
-
 const CurriculumFactory = () => import("@/training/CurriculumPage");
 const Curriculum = lazyRetry(CurriculumFactory, "Curriculum");
 registerComponentFactory("/curriculum", CurriculumFactory);
-
-const OperateFactory = () => import("@/ml/OperatePage");
-const Operate = lazyRetry(OperateFactory, "Operate");
-registerComponentFactory("/operate", OperateFactory);
 
 // Backtest Domain
 // Consolidated into ML Studio
@@ -177,8 +154,17 @@ function Router() {
       <Switch>
         <AppRoute path="/" component={MarketData} fallback={<ChartSkeleton />} />
         
+        {/* Redirects, not components. Old bookmarks and any link written
+            before the nav was consolidated keep working; wouter matches these
+            before the catch-all below. */}
         <Route path="/ml-hub">
           <Redirect to="/ml-studio" />
+        </Route>
+        <Route path="/rl-console">
+          <Redirect to="/ml-studio" />
+        </Route>
+        <Route path="/risk">
+          <Redirect to="/portfolio" />
         </Route>
         
         <AppRoute path="/portfolio" component={Portfolio} fallback={<DataGridSkeleton />} />
@@ -187,14 +173,11 @@ function Router() {
         <AppRoute path="/databases" component={Databases} fallback={<DataGridSkeleton />} />
         
         <AppRoute path="/ml-studio" component={MLStudio} />
-        <AppRoute path="/rl-console" component={RLConsole} />
         <AppRoute path="/forecast" component={Forecast} />
         <AppRoute path="/curriculum" component={Curriculum} />
         <AppRoute path="/model-catalog" component={ModelCatalog} />
         <AppRoute path="/glossary" component={Glossary} />
-        <AppRoute path="/operate" component={Operate} />
         <AppRoute path="/fourier" component={FourierTransform} />
-        <AppRoute path="/risk" component={Risk} fallback={<DataGridSkeleton />} />
         <AppRoute path="/paper" component={Paper} fallback={<DataGridSkeleton />} />
 
         <AppRoute path="/terminals" component={Terminals} />
@@ -204,8 +187,6 @@ function Router() {
 
         <AppRoute path="/settings" component={Settings} />
         <AppRoute path="/training" component={Training} />
-        <AppRoute path="/hpo" component={Hpo} />
-        <AppRoute path="/hpo/:sessionId" component={HpoDetail} />
 
         {/* Catch-all */}
         <Route>
