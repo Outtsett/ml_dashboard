@@ -64,6 +64,18 @@ This list is meant to reach zero. Do not add to it to make a build green.
 | `/api/experiments` answers 500 when PostgreSQL is absent, though Postgres is optional | `src/server/ml/experiments.router.ts` |
 | The market page 404s requesting label assignments for a model that has none | `/api/training/models/:id/assignments` |
 
+### One caveat about the baseline
+
+It was recorded on a machine **with** the Iceberg lake, so data-driven pages
+rendered real rows. A CI runner has no lake, so a page may render a different
+tree and trigger a rule the baseline has not seen — `/marimo` and `/paper`
+currently record zero rules, which is the tightest possible entry and therefore
+the most likely to move.
+
+That is a first-CI-run problem, not a design flaw: read the failure, and either
+re-record with `A11Y_UPDATE_BASELINE=1` on a runner-like environment or give the
+route the tier tag that excludes it. Do not widen the gate to make it quiet.
+
 ## Layout
 
 ```

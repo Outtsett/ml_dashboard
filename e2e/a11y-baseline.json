@@ -1,7 +1,7 @@
 {
   "readme": [
     "Known-bad accessibility RULES, per route, recorded from a real scan.",
-    "The gate fails when a route triggers a rule NOT listed here \u2014 a new KIND of",
+    "The gate fails when a route triggers a rule NOT listed here — a new KIND of",
     "violation. The numbers are node counts at record time, carried for information",
     "only: they move with how many rows a data-driven page happens to have loaded,",
     "so gating on them fails at random.",
@@ -9,7 +9,7 @@
     "accessibility defect on purpose.",
     "Re-record: A11Y_UPDATE_BASELINE=1 npx playwright test e2e/specs/a11y"
   ],
-  "recordedAt": "2026-09-16",
+  "recordedAt": "2026-09-17",
   "rules": [
     "color-contrast",
     "button-name",
@@ -56,18 +56,14 @@
       "button-name": 4,
       "color-contrast": 5
     },
-    "/marimo": {
-      "color-contrast": 1
-    },
+    "/marimo": {},
     "/glossary": {
-      "color-contrast": 44
+      "color-contrast": 42
     },
     "/operate": {
       "color-contrast": 11
     },
-    "/paper": {
-      "color-contrast": 1
-    },
+    "/paper": {},
     "/news": {},
     "/settings": {
       "label": 4

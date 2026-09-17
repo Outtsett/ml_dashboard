@@ -3,6 +3,7 @@ import { test, expect } from '../../fixtures/app';
 import { NAV_ROUTES, tagsForRoute } from '../../support/routes';
 import {
   BASELINE_PATH,
+  BASELINE_README,
   compareToBaseline,
   loadBaseline,
   writeBaseline,
@@ -160,13 +161,9 @@ test.describe('accessibility', () => {
   test.afterAll(() => {
     if (!UPDATING) return;
     writeBaseline({
-      readme: [
-        'Known-bad accessibility counts, per route, per axe rule, in NODES.',
-        'The gate in e2e/specs/a11y/accessibility.spec.ts fails on any count ABOVE these.',
-        'These numbers may only ever go DOWN. Never raise one to make a build green —',
-        'raising one means shipping a new accessibility defect on purpose.',
-        'Re-record after fixing violations: A11Y_UPDATE_BASELINE=1 npx playwright test e2e/specs/a11y',
-      ],
+      // Shared constant, not an inline copy — an inline one drifted from the
+      // committed file and described a count-based gate this spec no longer has.
+      readme: BASELINE_README,
       recordedAt: new Date().toISOString().slice(0, 10),
       rules: GATING_RULES,
       counts: recorded,

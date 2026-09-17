@@ -11,10 +11,13 @@ import path from 'path';
  * same change that adds the scanner.
  *
  * So this works the way `scripts/lint-budget.mjs` already works for ESLint in
- * this repo: a committed baseline of what is known-bad, a gate that fails on
- * anything ABOVE it, and a number that may only ever go down. New violations
- * fail immediately. Fixed violations are reported so the baseline gets tightened
- * rather than silently banking headroom for the next regression.
+ * this repo: a committed baseline of what is known-bad, and a gate that fails on
+ * anything the baseline has not seen.
+ *
+ * What is compared is the SET OF AXE RULES per route, not node counts — see
+ * `compareToBaseline` below for why counting nodes fails at random on a
+ * data-driven page. A rule that stops firing is reported so the baseline gets
+ * tightened rather than silently banking headroom for the next regression.
  *
  *   npm run test:e2e:a11y                     # gate against the baseline
  *   A11Y_UPDATE_BASELINE=1 npm run test:e2e:a11y   # re-record after fixing some
@@ -34,6 +37,27 @@ export interface A11yBaselineFile {
   rules: string[];
   counts: A11yBaseline;
 }
+
+/**
+ * The readme written into the baseline file.
+ *
+ * Defined here, once, because it was previously written inline at the
+ * re-record site and drifted: the committed file correctly described counts as
+ * informational while the writer still said "the gate fails on any count ABOVE
+ * these" and "these numbers may only ever go DOWN". Re-recording would have
+ * silently replaced the accurate text with the stale one, leaving the file
+ * describing a gate that no longer exists.
+ */
+export const BASELINE_README = [
+  'Known-bad accessibility RULES, per route, recorded from a real scan.',
+  'The gate fails when a route triggers a rule NOT listed here — a new KIND of',
+  'violation. The numbers are node counts at record time, carried for information',
+  'only: they move with how many rows a data-driven page happens to have loaded,',
+  'so gating on them fails at random.',
+  'A rule may only ever be REMOVED from this file. Adding one means shipping a new',
+  'accessibility defect on purpose.',
+  'Re-record: A11Y_UPDATE_BASELINE=1 npx playwright test e2e/specs/a11y',
+];
 
 export function loadBaseline(): A11yBaselineFile {
   if (!fs.existsSync(BASELINE_PATH)) {
