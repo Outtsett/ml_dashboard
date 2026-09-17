@@ -55,14 +55,8 @@ const NewsFactory = () => import("@/market/NewsPage");
 const News = lazyRetry(NewsFactory, "News");
 registerComponentFactory("/news", NewsFactory);
 
-const WatchlistFactory = () => import("@/market/WatchlistPage");
-const Watchlist = lazyRetry(WatchlistFactory, "Watchlist");
-registerComponentFactory("/watchlist", WatchlistFactory);
 
 // Portfolio Domain
-const PortfolioFactory = () => import("@/portfolio/PortfolioPage");
-const Portfolio = lazyRetry(PortfolioFactory, "Portfolio");
-registerComponentFactory("/portfolio", PortfolioFactory);
 
 const PaperFactory = () => import("@/portfolio/PaperPage");
 const Paper = lazyRetry(PaperFactory, "Paper");
@@ -164,11 +158,18 @@ function Router() {
           <Redirect to="/ml-studio" />
         </Route>
         <Route path="/risk">
-          <Redirect to="/portfolio" />
+          <Redirect to="/ml-studio" />
+        </Route>
+        {/* /portfolio and /watchlist were removed 2026-09-16. Portfolio's Risk
+            half became ML Studio's Risk tab; Watchlist has no successor, so it
+            lands on the Market chart it was always used alongside. */}
+        <Route path="/portfolio">
+          <Redirect to="/ml-studio" />
+        </Route>
+        <Route path="/watchlist">
+          <Redirect to="/" />
         </Route>
         
-        <AppRoute path="/portfolio" component={Portfolio} fallback={<DataGridSkeleton />} />
-        <AppRoute path="/watchlist" component={Watchlist} fallback={<DataGridSkeleton />} />
         <AppRoute path="/news" component={News} fallback={<DataGridSkeleton />} />
         <AppRoute path="/databases" component={Databases} fallback={<DataGridSkeleton />} />
         

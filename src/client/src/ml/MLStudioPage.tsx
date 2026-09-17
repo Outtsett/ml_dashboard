@@ -22,11 +22,12 @@
  */
 
 import { useState } from "react";
-import { BrainCircuit, Bot } from "lucide-react";
+import { BrainCircuit, Bot, AlertTriangle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import { MLStudioProvider, useMLStudio } from "./MLStudioContext";
 import { StageStepper } from "./StageStepper";
 import { RLConsolePanel } from "./RLConsolePanel";
+import { RiskPanel } from "@/ml/RiskPanel";
 import { DataStage } from "./stages/DataStage";
 import { FeaturesStage } from "./stages/FeaturesStage";
 import { LabelsStage } from "./stages/LabelsStage";
@@ -52,7 +53,7 @@ function ActiveStage() {
   }
 }
 
-type StudioTab = "pipeline" | "rl-console";
+type StudioTab = "pipeline" | "rl-console" | "risk";
 
 export default function MLStudioPage() {
   const [tab, setTab] = useState<StudioTab>("pipeline");
@@ -74,6 +75,10 @@ export default function MLStudioPage() {
               <Bot className="mr-1.5 h-3.5 w-3.5" />
               RL Console
             </TabsTrigger>
+            <TabsTrigger value="risk" data-testid="tab-risk">
+              <AlertTriangle className="mr-1.5 h-3.5 w-3.5" />
+              Risk
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent
@@ -88,6 +93,12 @@ export default function MLStudioPage() {
 
           <TabsContent value="rl-console" className="mt-2 flex min-h-0 flex-1 flex-col">
             <RLConsolePanel />
+          </TabsContent>
+
+          <TabsContent value="risk" className="mt-2 flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <RiskPanel />
+            </div>
           </TabsContent>
         </Tabs>
       </div>

@@ -10,8 +10,6 @@ import {
   Newspaper,
   ActivitySquare,
   BarChart3,
-  List,
-  Goal,
   Microscope,
   NotebookPen,
 } from "lucide-react";
@@ -31,10 +29,11 @@ import {
 //                tab of ML Studio's RL Console
 //   Operate    → deleted; deployment lives in ML Studio's Promote stage
 // /risk and /rl-console still resolve — App.tsx redirects them.
+//   Watchlist  → removed 2026-09-16 at the user's request.
+//   Portfolio  → removed with it; its Risk half is now the "Risk" tab of
+//                ML Studio, which is where Risk was asked to live.
 const NAV_ITEMS = [
   { label: "Market", href: "/", icon: BarChart3 },
-  { label: "Watchlist", href: "/watchlist", icon: List },
-  { label: "Portfolio", href: "/portfolio", icon: Goal },
   { label: "ML Studio", href: "/ml-studio", icon: BrainCircuit },
   { label: "Catalog", href: "/model-catalog", icon: Library },
   { label: "Data", href: "/databases", icon: Database },
