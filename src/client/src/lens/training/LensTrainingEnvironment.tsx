@@ -24,6 +24,11 @@ import {
   AttentionStage, EmbedStage, LossGradientStage, PositionStage, PredictStage,
   RawBarsStage, VectorizeStage,
 } from "./stages";
+import {
+  LayoutPicker, StageLayout, type LayoutId, type StagePanel,
+} from "./layouts";
+
+const LAYOUT_STORAGE_KEY = "lens-training-layout";
 
 const DEFAULTS: StartRunRequest = {
   symbol: "MNQ",
@@ -63,6 +68,20 @@ export function LensTrainingEnvironment() {
   const [epoch, setEpoch] = useState<number>(0);
   const [block, setBlock] = useState<string | null>(null);
   const [live, setLive] = useState(true);
+  // Remembered per browser: which arrangement suits the work is a preference,
+  // and re-picking it on every visit is the kind of friction that makes a person
+  // stop using the switcher at all.
+  const [layout, setLayoutRaw] = useState<LayoutId>(() => {
+    try {
+      return (localStorage.getItem(LAYOUT_STORAGE_KEY) as LayoutId | null) ?? "pipeline";
+    } catch {
+      return "pipeline";
+    }
+  });
+  const setLayout = (next: LayoutId) => {
+    setLayoutRaw(next);
+    try { localStorage.setItem(LAYOUT_STORAGE_KEY, next); } catch { /* private mode */ }
+  };
 
   const runs = useTrainingRuns(live ? 3_000 : 0);
   const start = useStartTraining();
@@ -111,6 +130,7 @@ export function LensTrainingEnvironment() {
                     className="h-7 gap-1.5 text-xs">
               <RefreshCw className="h-3 w-3" /> Refresh
             </Button>
+            <LayoutPicker value={layout} onChange={setLayout} />
           </div>
         }
         resizeKey="lens-train-run" defaultHeight={200}
@@ -229,13 +249,23 @@ export function LensTrainingEnvironment() {
             </div>
           )}
 
-          <RawBarsStage run={run} events={events} />
-          <VectorizeStage run={run} events={events} block={block} onBlockChange={setBlock} />
-          <EmbedStage events={events} epoch={shownEpoch} />
-          <PositionStage run={run} events={events} epoch={shownEpoch} />
-          <AttentionStage events={events} epoch={shownEpoch} />
-          <PredictStage events={events} epoch={shownEpoch} />
-          <LossGradientStage events={events} epoch={shownEpoch} />
+          <StageLayout layout={layout} stages={([
+            { id: "bars", label: "1 · Raw bars", side: "input",
+              node: <RawBarsStage run={run} events={events} /> },
+            { id: "vectorize", label: "2/3 · Vectorize", side: "input",
+              node: <VectorizeStage run={run} events={events}
+                                    block={block} onBlockChange={setBlock} /> },
+            { id: "embed", label: "4/5 · Embed", side: "input",
+              node: <EmbedStage events={events} epoch={shownEpoch} /> },
+            { id: "position", label: "6 · Position", side: "network",
+              node: <PositionStage run={run} events={events} epoch={shownEpoch} /> },
+            { id: "attention", label: "7/8 · Attention", side: "network",
+              node: <AttentionStage events={events} epoch={shownEpoch} /> },
+            { id: "predict", label: "9 · Predict", side: "network",
+              node: <PredictStage events={events} epoch={shownEpoch} /> },
+            { id: "loss", label: "10 · Loss & gradient", side: "network",
+              node: <LossGradientStage events={events} epoch={shownEpoch} /> },
+          ] satisfies StagePanel[])} />
 
           {/* ── The log ──────────────────────────────────────────────────── */}
           <LensFrame
