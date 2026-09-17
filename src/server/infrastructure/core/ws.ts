@@ -141,7 +141,11 @@ export function attachMetricsWebSocket(server: Server) {
 
   // Listen to hardware telemetry for CPU/GPU load
   bus.on('system.gpu', (event: DomainEvent) => {
-    const utilization = asNumber(asRecord(event.data)?.utilization);
+    // `utilizationGpu` is the field name in the system.gpu contract
+    // (shared/event-types.ts) and the one hardware_node.py emits. This read
+    // `utilization`, which has never existed on the payload, so asNumber saw
+    // undefined every tick and the TopBar gauge sat at 0% while CPU moved.
+    const utilization = asNumber(asRecord(event.data)?.utilizationGpu);
     if (utilization !== undefined) latestPayload.gpuLoad = utilization;
     broadcast(latestPayload);
   });

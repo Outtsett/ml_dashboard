@@ -157,9 +157,14 @@ export function toMetrics(type: string, raw: unknown): ActivityMetric[] {
     push('epoch', data.epoch);
     push('progress', data.progress);
   } else if (type === 'system.gpu') {
-    push('gpu_util_pct', data.utilization ?? data.utilizationPct);
-    push('vram_mb', data.memoryUsed ?? data.memoryUsedMb);
-    push('gpu_temp_c', data.temperature ?? data.temperatureC);
+    // Canonical names first — utilizationGpu / memoryUsedMB / temperatureC are
+    // what system.gpu actually carries. The older spellings are kept as
+    // fallbacks for replayed events, but none of them were ever the live shape,
+    // so utilisation and VRAM rendered blank here for the same reason the
+    // TopBar gauge read 0%.
+    push('gpu_util_pct', data.utilizationGpu ?? data.utilization ?? data.utilizationPct);
+    push('vram_mb', data.memoryUsedMB ?? data.memoryUsed ?? data.memoryUsedMb);
+    push('gpu_temp_c', data.temperatureC ?? data.temperature);
   } else if (type === 'deployment.pnl_update') {
     push('pnl', data.pnl ?? data.realizedPnl);
     push('position', data.position);
