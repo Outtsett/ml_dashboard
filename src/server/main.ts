@@ -199,6 +199,28 @@ async function bootstrap() {
     next();
   });
 
+  // ── Marimo notebook proxy — MOUNTED BEFORE THE BODY PARSERS, deliberately ──
+  //
+  // A proxy must hand the upstream server the request body it was given, and a
+  // body parser consumes the stream. With `express.json()` in front, every POST
+  // the marimo frontend makes reached marimo with a Content-Length header and
+  // no body, so marimo waited for bytes that never came and the request died as
+  // a 504 Gateway Timeout.
+  //
+  // The symptom was badly misleading: notebooks RENDERED fine and their
+  // WebSocket stayed healthy, because that socket only carries kernel -> browser
+  // output. It is the browser -> kernel direction that is a POST, so moving a
+  // slider silently did nothing and the page looked merely frozen rather than
+  // broken. Interactivity is the entire point of a marimo notebook, so this had
+  // made every notebook opened from the dashboard a static picture.
+  //
+  // Mounted here rather than fixed with http-proxy-middleware's `fixRequestBody`
+  // so the body is never buffered or re-serialised at all: the 1mb `express.json`
+  // limit above would otherwise reject a larger notebook save outright, which is
+  // the same defect wearing a different hat. It still sits after the request-id
+  // and timeout middleware, which exempts `/marimo/` from the 30s cap on purpose.
+  registerMarimoProxies(expressApp, httpServer);
+
   expressApp.use(
     express.json({
       limit: '1mb',
@@ -349,9 +371,9 @@ async function bootstrap() {
   // ── Routes + middleware ──
   await registerRoutes(httpServer, expressApp);
 
-  // ── Marimo notebook proxy (before Vite's SPA catch-all, so a proxied
-  //    /marimo/<slug>/** request is never shadowed by index.html) ──
-  registerMarimoProxies(expressApp, httpServer);
+  // The marimo proxy is mounted far earlier, ahead of the body parsers — see the
+  // comment there. It still precedes Vite's SPA catch-all, so a proxied
+  // /marimo/<slug>/** request is never shadowed by index.html.
 
   // Error handler — standardized error envelope with request ID
   expressApp.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
