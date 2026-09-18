@@ -7,10 +7,14 @@ import { ErrorCard } from "@/shared/ui/error-card";
 import { BookOpen, Tag, Cpu, Sparkles, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
 import type { CatalogModelSummary } from "@/ml/lib/catalog_types";
+import type { CatalogLifecycle } from "@shared/catalogLifecycle";
 import { categoryColor } from "./constants";
+import { LifecycleStrip } from "./LifecycleStrip";
 
 interface CatalogGridProps {
   models: CatalogModelSummary[];
+  /** Keyed by spec id; absent while the lifecycle query is in flight. */
+  lifecycle: Record<string, CatalogLifecycle>;
   isLoading: boolean;
   isError: boolean;
   error: Error | null;
@@ -26,6 +30,7 @@ interface CatalogGridProps {
 
 export function CatalogGrid({
   models,
+  lifecycle,
   isLoading,
   isError,
   error,
@@ -56,6 +61,7 @@ export function CatalogGrid({
               <ModelCard
                 key={m.relativePath}
                 model={m}
+                lifecycle={lifecycle[m.id]}
                 categoryLabels={categoryLabels}
                 onClick={() => onModelClick(m.id)}
               />
@@ -116,10 +122,12 @@ export function CatalogGrid({
 
 function ModelCard({
   model,
+  lifecycle,
   categoryLabels,
   onClick,
 }: {
   model: CatalogModelSummary;
+  lifecycle: CatalogLifecycle | undefined;
   categoryLabels: Record<string, string>;
   onClick: () => void;
 }) {
@@ -191,6 +199,11 @@ function ModelCard({
               {model.category} · {model.subcategory}
             </span>
           </p>
+        )}
+        {lifecycle && model.hasContent && (
+          <div className="mt-2.5 pt-2 border-t border-border/50">
+            <LifecycleStrip lifecycle={lifecycle} />
+          </div>
         )}
       </CardContent>
     </Card>

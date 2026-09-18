@@ -34,6 +34,9 @@ import { LabelsStage } from "./stages/LabelsStage";
 import { TrainStage } from "./stages/TrainStage";
 import { EvaluateStage } from "./stages/EvaluateStage";
 import { PromoteStage } from "./stages/PromoteStage";
+import { StudioSelectionSync, studioTimeframeOf } from "./StudioSelectionSync";
+import { StudioDeepLink } from "./StudioDeepLink";
+import { useSymbolContext } from "@/shared/contexts/SymbolContext";
 
 function ActiveStage() {
   const { state } = useMLStudio();
@@ -57,9 +60,13 @@ type StudioTab = "pipeline" | "rl-console" | "risk";
 
 export default function MLStudioPage() {
   const [tab, setTab] = useState<StudioTab>("pipeline");
+  const { symbol, timeframeMinutes } = useSymbolContext();
+  const timeframe = studioTimeframeOf(timeframeMinutes);
 
   return (
-    <MLStudioProvider>
+    <MLStudioProvider initialPair={timeframe ? { symbol, timeframe } : undefined}>
+      <StudioSelectionSync />
+      <StudioDeepLink />
       <div className="h-full flex flex-col w-full px-2 pb-2 gap-2 min-h-0">
         <Tabs
           value={tab}

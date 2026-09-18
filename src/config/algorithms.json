@@ -16,7 +16,7 @@
         "regression"
       ],
       "gpuRequired": true,
-      "catalogSpec": "machine-learning/supervised-learning/gradient-boosting/xgboost.md",
+      "catalogSpec": "machine-learning-supervised-learning-boosting-methods-xgboost",
       "description": "GPU histogram boosting with calibration + ECE, cost-adjusted PnL simulation, SHAP feature attribution.",
       "tags": [
         "tabular",
@@ -34,7 +34,7 @@
         "regression"
       ],
       "gpuRequired": true,
-      "catalogSpec": "deep-learning/neural-network-architectures/transformer.md",
+      "catalogSpec": "neural-network-architectures-attention-based-architectures-transformer-encoder-decoder",
       "description": "Two-stream attention encoder over OHLCV. Price stream Linear(4->112) + sinusoidal PE; volume stream Linear(1->16) no PE; concat to d=128, TransformerEncoder.",
       "tags": [
         "transformer",
@@ -51,7 +51,7 @@
         "classification"
       ],
       "gpuRequired": true,
-      "catalogSpec": "deep-learning/neural-network-architectures/transformer.md",
+      "catalogSpec": "neural-network-architectures-attention-based-architectures-transformer-encoder-decoder",
       "description": "~10-20k param single-stream Transformer for low-data regimes (e.g. daily MNQ with ~2k bars). Walk-forward folds + 2-bar purge.",
       "tags": [
         "transformer",
@@ -86,7 +86,7 @@
         "classification"
       ],
       "gpuRequired": true,
-      "catalogSpec": "generated_catalog_extras.json#temporal-fusion-transformer",
+      "catalogSpec": "temporal-fusion-transformer",
       "description": "Interpretable TFT (Lim et al. 2019) adapted for single-shot classification over rolling feature windows: per-timestep variable selection, GRN gating, LSTM local encoder, interpretable multi-head attention. Ships verbose diagnostics + filter-normalized loss surface. GENERATE family \u00e2\u20ac\u201d Jinja2 template temporal_fusion_transformer.py.j2.",
       "tags": [
         "transformer",

@@ -130,7 +130,9 @@ function composeEntry(
     description: runner.displayName
       ? `${runner.displayName} — ${algorithm.description ?? ""}`
       : algorithm.description,
-    tags: [...(algorithm.tags ?? []), ...(runner.tags ?? [])],
+    // A Set: both lists routinely carry the family tag ("transformer"), and the
+    // picker keys its tag chips by tag text.
+    tags: [...new Set([...(algorithm.tags ?? []), ...(runner.tags ?? [])])],
     family: algorithm.family as ModelRegistryEntry["family"],
     gpuRequired: algorithm.gpuRequired,
     estimatedTrainingTime: runner.estimatedTrainingTime,

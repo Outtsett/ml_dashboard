@@ -25,12 +25,33 @@ import {
   useCatalogList,
   useCatalogDetail,
   useRefreshCatalog,
+  useCatalogLifecycle,
 } from "@/ml/lib/useModelCatalog";
+import { LIFECYCLE_STAGES, type LifecycleStage } from "@shared/catalogLifecycle";
 
 import { CatalogSidebar } from "./CatalogSidebar";
 import { CatalogGrid } from "./CatalogGrid";
 import { ModelDetailView } from "./ModelDetailView";
 import { categoryColor } from "./constants";
+
+type StageFilter = "all" | "trainable" | "trained";
+
+const STAGE_FILTERS: { id: StageFilter; label: string; minimumStage: LifecycleStage | null }[] = [
+  { id: "all", label: "All", minimumStage: null },
+  { id: "trainable", label: "Trainable", minimumStage: "trainable" },
+  { id: "trained", label: "Trained", minimumStage: "trained" },
+];
+
+function readModelFromUrl(): string | null {
+  return new URLSearchParams(window.location.search).get("model");
+}
+
+function writeModelToUrl(modelId: string | null): void {
+  const url = new URL(window.location.href);
+  if (modelId) url.searchParams.set("model", modelId);
+  else url.searchParams.delete("model");
+  window.history.replaceState(null, "", url);
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 // Main page
@@ -40,7 +61,15 @@ export default function ModelCatalog() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  // `/model-catalog?model=<id>` opens that spec — the target of ML Studio's
+  // "open spec" link. Same read-once idiom as LensPage.
+  const [selectedModelId, setSelectedModelIdRaw] = useState<string | null>(readModelFromUrl);
+  const [stageFilter, setStageFilter] = useState<StageFilter>("all");
+
+  const setSelectedModelId = (id: string | null) => {
+    setSelectedModelIdRaw(id);
+    writeModelToUrl(id);
+  };
 
   // ── Data queries (one hook per concern — SRP) ─────────────────────────────
 
@@ -54,7 +83,15 @@ export default function ModelCatalog() {
   const { data: modelDetail } = useCatalogDetail(selectedModelId);
   const { mutate: refreshCatalog, isPending: refreshing } = useRefreshCatalog();
 
-  const models = catalog?.models ?? [];
+  const { data: lifecycleData } = useCatalogLifecycle();
+  const lifecycle = lifecycleData?.lifecycle ?? {};
+
+  const minimumStage = STAGE_FILTERS.find((f) => f.id === stageFilter)?.minimumStage ?? null;
+  const models = (catalog?.models ?? []).filter((m) => {
+    if (!minimumStage) return true;
+    const stage = lifecycle[m.id]?.stage;
+    return stage !== undefined && LIFECYCLE_STAGES.indexOf(stage) >= LIFECYCLE_STAGES.indexOf(minimumStage);
+  });
 
   // ── Derived counts per category for the sidebar badges ────────────────────
 
@@ -97,6 +134,7 @@ export default function ModelCatalog() {
     return (
       <ModelDetailView
         model={modelDetail}
+        lifecycle={lifecycle[modelDetail.id]}
         onBack={() => setSelectedModelId(null)}
         categoryLabels={categoryLabels}
       />
@@ -144,6 +182,25 @@ export default function ModelCatalog() {
             </Badge>
           )}
 
+          {/* Lifecycle filter — "what can I train today", "what have I trained" */}
+          <div className="flex items-center rounded-md border border-border overflow-hidden" role="group" aria-label="Filter by lifecycle stage">
+            {STAGE_FILTERS.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setStageFilter(f.id)}
+                aria-pressed={stageFilter === f.id}
+                data-testid={`stage-filter-${f.id}`}
+                className={`px-2.5 h-9 text-xs font-mono transition-colors ${
+                  stageFilter === f.id
+                    ? "bg-primary/15 text-primary font-semibold underline underline-offset-4"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
           <div className="flex-1" />
 
           {/* Stats badges */}
@@ -188,6 +245,7 @@ export default function ModelCatalog() {
         {/* Model grid */}
         <CatalogGrid
           models={models}
+          lifecycle={lifecycle}
           isLoading={isLoading}
           isError={isError}
           error={error}

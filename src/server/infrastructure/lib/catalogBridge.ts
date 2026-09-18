@@ -561,7 +561,8 @@ function rebuildCache(): BridgeCache {
       featureCategories: ['returns', 'volatility', 'momentum', 'volume'],
       catalogId: x.id,
       description: x.overview.slice(0, 500),
-      tags: [x.category, x.subcategory, x.compositeKind, 'composite'],
+      // A Set: a composite's subcategory is often its kind ("multimodal").
+      tags: [...new Set([x.category, x.subcategory, x.compositeKind, 'composite'])],
       // family is left undefined - composites are not a registry "family"
       gpuRequired: x.compositeKind === 'multimodal',
       estimatedTrainingTime: '5-30 min',

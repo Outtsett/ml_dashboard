@@ -24,7 +24,7 @@
  * `migrateV1ToV2()` upgrades old payloads on first load and never throws.
  */
 
-import { createContext, useContext, useEffect, useMemo, useReducer } from "react";
+import { createContext, useContext, useEffect, useMemo, useReducer, useState } from "react";
 import type { ReactNode } from "react";
 
 // ─── Stage definitions ────────────────────────────────────────────────────────
@@ -870,11 +870,25 @@ interface MLStudioContextValue {
 
 const MLStudioContext = createContext<MLStudioContextValue | null>(null);
 
-export function MLStudioProvider({ children }: { children: ReactNode }) {
-  const initial = useMemo(() => {
-    const persisted = loadFromStorage(DEFAULT_STATE.symbol, DEFAULT_STATE.timeframe);
-    return persisted ?? DEFAULT_STATE;
-  }, []);
+interface MLStudioProviderProps {
+  children: ReactNode;
+  /**
+   * The pair to open on. ML Studio follows the dashboard-wide selection (see
+   * `StudioSelectionSync`), so the page passes that pair here and the first
+   * render is already the right pipeline rather than MNQ 1m followed by a swap.
+   * Read once, at mount.
+   */
+  initialPair?: { symbol: string; timeframe: Timeframe };
+}
+
+export function MLStudioProvider({ children, initialPair }: MLStudioProviderProps) {
+  // A lazy initializer, not a memo: the seed is read exactly once by design.
+  const [initial] = useState(() =>
+    pipelineForPair(
+      initialPair?.symbol ?? DEFAULT_STATE.symbol,
+      initialPair?.timeframe ?? DEFAULT_STATE.timeframe,
+    ),
+  );
   const [state, dispatch] = useReducer(reducer, initial);
 
   // Persist on every change. Safe against cross-pair clobbering because the

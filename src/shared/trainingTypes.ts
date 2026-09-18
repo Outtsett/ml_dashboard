@@ -136,6 +136,12 @@ export interface TaskEntry {
 export interface RunnerEntry {
   /** Pre-2026-05-09 modelType key (e.g. "xgb_classifier") for backwards compat */
   legacyId?: string;
+  /**
+   * Catalog spec id this runner was generated from. Written by
+   * `scripts/generate_model.py --register`; absent on hand-curated runners,
+   * whose spec comes from their algorithm's `catalogSpec` instead.
+   */
+  catalogId?: string;
   displayName?: string;
   runner: TrainerRunner;
   script: string;

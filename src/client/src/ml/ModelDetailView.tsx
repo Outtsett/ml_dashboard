@@ -17,22 +17,29 @@ import {
 import type { LucideIcon } from "lucide-react";
 import type { CatalogModelDetail } from "@/ml/lib/catalog_types";
 import { categoryColor } from "./constants";
-import { ModelWizard } from "./experiments/ModelWizard";
 import { LiveTelemetryPanel } from "./experiments/LiveTelemetryPanel";
-import { useState } from "react";
+import { useLocation } from "wouter";
+import type { CatalogLifecycle } from "@shared/catalogLifecycle";
+import { LifecyclePanel } from "./LifecycleStrip";
 
 interface ModelDetailViewProps {
   model: CatalogModelDetail;
+  /** Absent while the lifecycle query is in flight. */
+  lifecycle: CatalogLifecycle | undefined;
   onBack: () => void;
   categoryLabels: Record<string, string>;
 }
 
 export function ModelDetailView({
   model,
+  lifecycle,
   onBack,
   categoryLabels,
 }: ModelDetailViewProps) {
-  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [, navigate] = useLocation();
+  // The key ML Studio trains this spec under — its wired runner when it has
+  // one, otherwise the spec itself. Null means nothing can train it yet.
+  const trainableKey = lifecycle?.trainableKey ?? null;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -61,23 +68,25 @@ export function ModelDetailView({
             </div>
           </div>
         </div>
-        <Button 
+        {/* One training path. This used to open a wizard that posted straight to
+            /api/experiments/launch, so a run started here never reached ML
+            Studio's experiment ledger -- and so never showed on this page's own
+            lifecycle. It hands off to the Train stage instead. */}
+        <Button
           className="shadow-[0_0_15px_rgba(var(--primary),0.3)] hover:shadow-[0_0_25px_rgba(var(--primary),0.5)] transition-shadow duration-300 ml-4"
-          onClick={() => setIsWizardOpen(true)}
+          disabled={!trainableKey}
+          title={trainableKey ? undefined : "No runner or template can train this spec yet"}
+          onClick={() => trainableKey && navigate(`/ml-studio?model=${encodeURIComponent(trainableKey)}`)}
+          data-testid="train-in-studio"
         >
-          <Play className="h-4 w-4 mr-2" /> Configure & Train
+          <Play className="h-4 w-4 mr-2" /> Train in ML Studio
         </Button>
       </div>
-
-      <ModelWizard 
-        model={model} 
-        isOpen={isWizardOpen} 
-        onClose={() => setIsWizardOpen(false)} 
-      />
 
       {/* Content */}
       <ScrollArea className="flex-1">
         <div className="p-6 max-w-5xl space-y-6">
+          {lifecycle && <LifecyclePanel lifecycle={lifecycle} />}
           <LiveTelemetryPanel />
           {/* Mechanism animation — the same engine and registry as
               /architecture -> Mechanism, shown here because this is where the

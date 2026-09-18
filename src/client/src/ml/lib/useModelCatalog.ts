@@ -17,6 +17,7 @@ import type {
   CatalogModelDetail,
 } from "@/ml/lib/catalog_types";
 import type { TrainableCatalogResponse } from "@shared/trainableModelTypes";
+import type { CatalogLifecycleResponse } from "@shared/catalogLifecycle";
 
 // Re-export trainable types so picker/composer consumers have one import surface.
 export type {
@@ -34,6 +35,7 @@ const KEYS = {
   list: (qs: string) => ["/api/model-catalog", qs] as const,
   detail: (id: string) => ["/api/model-catalog", id] as const,
   trainable: ["/api/model-catalog/trainable"] as const,
+  lifecycle: ["/api/model-catalog/lifecycle"] as const,
 };
 
 // ─── Stats (top-level badge counts) ─────────────────────────────────────────
@@ -110,6 +112,18 @@ export function useTrainableCatalog() {
   });
 }
 
+// ─── Lifecycle (what has been DONE with each spec) ─────────────────────────
+//
+// Short stale time: this is the page you come back to after a run finishes,
+// and a five-minute-old "0 completed" would be a lie by then.
+
+export function useCatalogLifecycle() {
+  return useQuery<CatalogLifecycleResponse>({
+    queryKey: KEYS.lifecycle,
+    staleTime: 15_000,
+  });
+}
+
 // ─── Refresh (invalidate cache) ─────────────────────────────────────────────
 
 export function useRefreshCatalog() {
@@ -124,6 +138,7 @@ export function useRefreshCatalog() {
       qc.invalidateQueries({ queryKey: KEYS.stats });
       qc.invalidateQueries({ queryKey: KEYS.taxonomy });
       qc.invalidateQueries({ queryKey: KEYS.trainable });
+      qc.invalidateQueries({ queryKey: KEYS.lifecycle });
     },
   });
 }

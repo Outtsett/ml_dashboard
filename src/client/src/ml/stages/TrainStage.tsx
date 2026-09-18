@@ -23,10 +23,12 @@
  */
 
 import { lazy, Suspense, useEffect } from "react";
-import { Brain } from "lucide-react";
+import { Brain, BookOpen } from "lucide-react";
+import { Link } from "wouter";
 import { PageLoader } from "@/shared/layout/LoadingSkeletons";
 import { useTrainingControl } from "@/training/lib/TrainingContext";
 import { useMLStudio } from "../MLStudioContext";
+import { useCatalogLifecycle } from "@/ml/lib/useModelCatalog";
 import ModelCatalogPicker from "@/training/ModelCatalogPicker";
 import { CodePreviewPane } from "./train/CodePreviewPane";
 import { TrainingExperimentBridge } from "./train/TrainingExperimentBridge";
@@ -41,6 +43,16 @@ const Training = lazy(() => import("@/training/TrainingPage"));
 export function TrainStage() {
   const { state, dispatch } = useMLStudio();
   const training = useTrainingControl();
+
+  // The catalog spec behind the selected model, for the "open spec" link. A
+  // wired runner is keyed by `algorithm+task`, so the spec is whichever one
+  // names this key as its trainable; a generated model is keyed by the spec id.
+  const { data: lifecycleData } = useCatalogLifecycle();
+  const specId = state.modelType
+    ? (Object.entries(lifecycleData?.lifecycle ?? {}).find(
+        ([id, l]) => l.trainableKey === state.modelType || id === state.modelType,
+      )?.[0] ?? null)
+    : null;
 
   // Sync the global training context's completedModelId into pipeline state
   // so the Evaluate stage can pick it up (legacy bridge — the ledger handles
@@ -69,9 +81,20 @@ export function TrainStage() {
         {/* 1 — Catalog picker */}
         <section className="rounded-lg border border-white/10 bg-white/[0.02] p-3">
           <header className="mb-2">
-            <h3 className="text-sm font-semibold text-foreground">
-              Model catalog
-            </h3>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-foreground">
+                Model catalog
+              </h3>
+              {specId && (
+                <Link
+                  href={`/model-catalog?model=${encodeURIComponent(specId)}`}
+                  className="flex items-center gap-1 text-xs text-primary hover:underline"
+                  data-testid="open-spec"
+                >
+                  <BookOpen className="h-3 w-3" /> Open spec
+                </Link>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               {state.modelType
                 ? `Selected: ${state.modelType}`

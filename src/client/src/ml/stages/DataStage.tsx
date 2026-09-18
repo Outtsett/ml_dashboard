@@ -22,6 +22,8 @@ import { Button } from "@/shared/ui/button";
 import { useChartOHLCV } from "@/market/lib/useChartOHLCV";
 import { fetchArray } from "@/infrastructure/api/fetch_array";
 import { useMLStudio, type Timeframe } from "../MLStudioContext";
+import { minutesOfStudioTimeframe } from "../StudioSelectionSync";
+import { useSymbolContext } from "@/shared/contexts/SymbolContext";
 
 interface DataPreview {
   symbol: string;
@@ -61,6 +63,9 @@ interface InstrumentRow {
 
 export function DataStage() {
   const { state, dispatch } = useMLStudio();
+  // The pair is the dashboard's, not this page's: the pickers below write it
+  // there, and `StudioSelectionSync` carries it into the pipeline.
+  const { setSymbol, setTimeframeMinutes } = useSymbolContext();
 
   const { data: instruments = [] } = useQuery<InstrumentRow[]>({
     queryKey: ["/api/instruments"],
@@ -193,7 +198,7 @@ export function DataStage() {
           <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Symbol</label>
           <Select
             value={state.symbol}
-            onValueChange={(s) => dispatch({ type: "setSymbol", symbol: s })}
+            onValueChange={setSymbol}
           >
             <SelectTrigger className="h-8 rounded-lg glass border-white/10">
               <SelectValue />
@@ -212,7 +217,7 @@ export function DataStage() {
           <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Timeframe</label>
           <Select
             value={state.timeframe}
-            onValueChange={(t) => dispatch({ type: "setTimeframe", timeframe: t as Timeframe })}
+            onValueChange={(t) => setTimeframeMinutes(minutesOfStudioTimeframe(t as Timeframe))}
           >
             <SelectTrigger className="h-8 rounded-lg glass border-white/10">
               <SelectValue />

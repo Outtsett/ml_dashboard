@@ -7,6 +7,7 @@
  * GET  /api/model-catalog              — filtered model list
  * GET  /api/model-catalog/stats        — summary counts
  * GET  /api/model-catalog/taxonomy     — category → subcategory tree
+ * GET  /api/model-catalog/lifecycle    — per-spec stage: trainable, trained, lens-ready, deployed
  * GET  /api/model-catalog/:id          — single model detail (raw markdown)
  * POST /api/model-catalog/refresh      — force cache refresh
  */
@@ -20,6 +21,7 @@ import {
 } from '../infrastructure/lib/modelImport';
 import { getTrainableModels } from '../infrastructure/lib/catalogBridge';
 import { CACHE_SEMI } from '../infrastructure/cache/headers';
+import { getCatalogLifecycle } from './lifecycle';
 
 const router = Router();
 
@@ -55,6 +57,19 @@ router.get('/model-catalog/taxonomy', CACHE_SEMI, (_req: Request, res: Response)
 router.get('/model-catalog/trainable', CACHE_SEMI, (_req: Request, res: Response) => {
   try {
     res.json(getTrainableModels());
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// ─── GET /model-catalog/lifecycle ───────────────────────────────────────────
+//
+// Not CACHE_SEMI: a session finishing or a lens record being built changes the
+// answer, and the page that reads it is the one you return to after training.
+
+router.get('/model-catalog/lifecycle', (_req: Request, res: Response) => {
+  try {
+    res.json(getCatalogLifecycle());
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }

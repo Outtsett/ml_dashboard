@@ -4,6 +4,8 @@ import { useWebSocketMetrics } from "@/hooks/useWebSocketMetrics";
 import { Activity, Cpu, PanelRight, Server } from "lucide-react";
 import * as Progress from "@radix-ui/react-progress";
 import { trendTone, trendToneClass, trendGlyph, trendLabel } from "@/shared/theme/dataColors";
+import { useSymbolContext } from "@/shared/contexts/SymbolContext";
+import { minutesToLabel } from "@/market/lib/timeframes";
 
 export interface TopBarProps {
   sidePanelOpen: boolean;
@@ -12,6 +14,10 @@ export interface TopBarProps {
 
 export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
   const { metrics, isConnected } = useWebSocketMetrics();
+  // The dashboard-wide selection. The timeframe here was the literal "1m" and
+  // the symbol fell back to a literal "MNQ", so the bar kept announcing a pair
+  // no page was on.
+  const { symbol, timeframeMinutes } = useSymbolContext();
 
   return (
     <Toolbar.Root className="flex items-center w-full h-12 bg-neutral-950 border-b border-neutral-800 px-4 shrink-0 text-sm">
@@ -19,11 +25,11 @@ export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
         <span className="font-bold text-white tracking-wider">Quant AI Dashboard</span>
         <div className="flex items-center gap-2">
           <span className="text-neutral-500">Symbol:</span>
-          <span className="text-yellow-500 font-mono">{metrics.symbol || "MNQ"}</span>
+          <span className="text-yellow-500 font-mono">{symbol}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-neutral-500">TF:</span>
-          <span className="text-neutral-200">1m</span>
+          <span className="text-neutral-200">{minutesToLabel(timeframeMinutes)}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-neutral-500">Date Range:</span>
