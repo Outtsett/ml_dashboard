@@ -113,7 +113,15 @@ export function getCatalogModels(filter: CatalogFilter = {}): CatalogListResult 
     models = models.filter(m => m.category === category || m.parentCategory === category);
   }
   if (subcategory) {
-    models = models.filter(m => m.subcategory === subcategory);
+    // Under a wrapper category the taxonomy rolls children up using the CHILD
+    // CATEGORY as the subcategory key (`buildTaxonomy`: `subKey = m.category`),
+    // so the sidebar sends `subcategory=neural-network` for Deep Learning >
+    // Neural Network and `subcategory=supervised` for Machine Learning >
+    // Supervised. No spec carries those as its own subcategory -- an ML spec's
+    // subcategory is `boosting-methods`, not `supervised` -- so matching only
+    // on `m.subcategory` returned zero for every nested entry in the sidebar.
+    // Accept either key.
+    models = models.filter(m => m.subcategory === subcategory || m.category === subcategory);
   }
   if (search) {
     const q = search.toLowerCase();

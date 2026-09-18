@@ -25,7 +25,7 @@ import type {
   ExtractedHyperparameter,
   AlgoModelCategory,
 } from './types';
-import { FOLDER_TO_CATEGORY } from './types';
+import { FOLDER_TO_CATEGORY, CATEGORY_TO_PARENT } from './types';
 import { lookupCatalogClass } from './classMap';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -391,6 +391,11 @@ export function parseModelSpec(
   const topFolder = parts[0]!;
   const category = FOLDER_TO_CATEGORY[topFolder];
   if (!category) return null;
+
+  // A wrapper folder in the path wins; otherwise fall back to the declared
+  // family membership. See CATEGORY_TO_PARENT — `deep-learning` has no folder
+  // of its own, so without this its rollup never receives a single spec.
+  parentCategory ??= CATEGORY_TO_PARENT[category];
 
   // Subcategory: second folder, or 'general' if file is directly in category
   const subcategory = parts.length >= 3

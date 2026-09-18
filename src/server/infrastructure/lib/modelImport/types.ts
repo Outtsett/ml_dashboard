@@ -163,6 +163,36 @@ export const FOLDER_TO_CATEGORY: Record<string, AlgoModelCategory> = {
   'Unsupervised Learning': 'unsupervised',
 };
 
+// --- Category ? parent-category rollup ---------------------------------------
+
+/**
+ * Which leaf categories aggregate under a wrapper category that has no folder
+ * of its own.
+ *
+ * `Machine Learning/` declares its children by containment: the four learning
+ * paradigms live inside that folder, so `parseModelSpec` reads the wrapper off
+ * the path and every spec under it carries `parentCategory: 'machine-learning'`.
+ * `deep-learning` was given the identical treatment in the parser, the
+ * taxonomy rollup, the `category || parentCategory` list filter and the
+ * sidebar's nesting rule -- but there is no `Deep Learning/` folder in the
+ * corpus and there never has been, so nothing ever set that parent. The whole
+ * path was live and unreachable: the sidebar advertised a Deep Learning
+ * category that matched zero specs and rendered "No models match your filters".
+ *
+ * The deep families sit at the top level instead (`Neural Network
+ * Architectures/`, `Generative Models/`, `Hybrid & Composite Architectures/`),
+ * and moving them under a new wrapper folder would rewrite every spec id --
+ * ids are slugified from the relative path, and the mechanism registry, the
+ * curated class map and the composite catalog extras all key on them. So the
+ * membership is declared here instead of by directory layout. Same result,
+ * no id churn.
+ */
+export const CATEGORY_TO_PARENT: Partial<Record<AlgoModelCategory, AlgoModelCategory>> = {
+  'neural-network': 'deep-learning',
+  'generative': 'deep-learning',
+  'hybrid-composite': 'deep-learning',
+};
+
 export const CATEGORY_LABELS: Record<AlgoModelCategory, string> = {
   'deep-learning': 'Deep Learning',
   'generative': 'Generative Models',
