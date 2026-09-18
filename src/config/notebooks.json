@@ -73,16 +73,16 @@
       ]
     },
     {
-      "slug": "quantgo",
-      "label": "quantgo",
+      "slug": "quantlab",
+      "label": "quantlab",
       "python": "E:/source/repos/Trading/quant/.venv/Scripts/python.exe",
-      "cwd": "E:/source/repos/Trading/quantgo",
+      "cwd": "E:/source/repos/Trading/quantlab",
       "port": 27187,
       "roots": [
         {
-          "path": "E:/source/repos/Trading/quantgo/notebooks",
-          "category": "quantgo",
-          "repoLabel": "Trading/quantgo/notebooks"
+          "path": "E:/source/repos/Trading/quantlab/notebooks",
+          "category": "quantlab",
+          "repoLabel": "Trading/quantlab/notebooks"
         }
       ]
     },
