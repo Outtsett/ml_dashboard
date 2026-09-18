@@ -21,6 +21,7 @@ import { LiveTelemetryPanel } from "./experiments/LiveTelemetryPanel";
 import { useLocation } from "wouter";
 import type { CatalogLifecycle } from "@shared/catalogLifecycle";
 import { LifecyclePanel } from "./LifecycleStrip";
+import { ArchitecturePreview } from "./architecture/ArchitecturePreview";
 
 interface ModelDetailViewProps {
   model: CatalogModelDetail;
@@ -85,17 +86,15 @@ export function ModelDetailView({
 
       {/* Content */}
       <ScrollArea className="flex-1">
-        <div className="p-6 max-w-5xl space-y-6">
+        {/* The diagram takes the full width — a 7-to-12 column graph squeezed
+            into the reading column rendered cards too small to read. The prose
+            below keeps the narrower measure. */}
+        <div className="px-6 pt-6 space-y-6">
           {lifecycle && <LifecyclePanel lifecycle={lifecycle} />}
+          <ArchitecturePreview specId={model.id} templateId={lifecycle?.templateId ?? null} />
+        </div>
+        <div className="p-6 max-w-5xl space-y-6">
           <LiveTelemetryPanel />
-          {/* Mechanism animation — the same engine and registry as
-              /architecture -> Mechanism, shown here because this is where the
-              model is actually being read. Renders a stated reason for catalog
-              specs with no researched entry; never a lookalike. */}
-          {/* Mechanism animation placeholder */}
-          <div className="bg-[#0a0a0a] border border-neutral-800 rounded p-4 text-center text-neutral-500 font-mono text-sm">
-            Architecture preview for {model.id}
-          </div>
 
           {/* Overview */}
           {model.overview && (

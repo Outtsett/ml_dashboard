@@ -49,6 +49,7 @@ export interface LifecycleSpec {
 
 export interface LifecycleTrainable {
   runnerSource: 'wired' | 'generate' | 'browse-only';
+  templateId?: string | null;
   /** Catalog spec this entry trains, when it names one. */
   catalogId?: string;
 }
@@ -148,12 +149,14 @@ export function buildCatalogLifecycle(inputs: LifecycleInputs): CatalogLifecycle
 
     let runnerSource: CatalogLifecycle['runnerSource'] = null;
     let trainableKey: string | null = null;
+    let templateId: string | null = null;
     if (wiredKey) {
       runnerSource = 'wired';
       trainableKey = wiredKey;
     } else if (own && own.runnerSource !== 'browse-only') {
       runnerSource = own.runnerSource;
       trainableKey = spec.id;
+      templateId = own.templateId ?? null;
     }
 
     const specSessions = runnerKeys.flatMap(key => sessionsByRunner.get(key) ?? []);
@@ -188,6 +191,7 @@ export function buildCatalogLifecycle(inputs: LifecycleInputs): CatalogLifecycle
     lifecycle[spec.id] = {
       stage,
       runnerSource,
+      templateId,
       trainableKey,
       runnerKeys,
       sessionCount: specSessions.length,

@@ -1,0 +1,886 @@
+{
+ "generative": [
+  {
+   "id": "generative-models-adversarial-adversarial-autoencoder",
+   "name": "Adversarial Autoencoder (AAE)",
+   "subcategory": "adversarial",
+   "path": "Generative Models/Adversarial/Adversarial Autoencoder.md"
+  },
+  {
+   "id": "generative-models-adversarial-biggan",
+   "name": "BigGAN",
+   "subcategory": "adversarial",
+   "path": "Generative Models/Adversarial/BigGAN.md"
+  },
+  {
+   "id": "generative-models-adversarial-conditional-gan-cgan",
+   "name": "Conditional Generative Adversarial Network (cGAN)",
+   "subcategory": "adversarial",
+   "path": "Generative Models/Adversarial/Conditional GAN (cGAN).md"
+  },
+  {
+   "id": "generative-models-adversarial-cyclegan",
+   "name": "CycleGAN",
+   "subcategory": "adversarial",
+   "path": "Generative Models/Adversarial/CycleGAN.md"
+  },
+  {
+   "id": "generative-models-adversarial-generative-adversarial-network-gan",
+   "name": "Generative Adversarial Network (GAN)",
+   "subcategory": "adversarial",
+   "path": "Generative Models/Adversarial/Generative Adversarial Network (GAN).md"
+  },
+  {
+   "id": "generative-models-adversarial-stylegan",
+   "name": "StyleGAN",
+   "subcategory": "adversarial",
+   "path": "Generative Models/Adversarial/StyleGAN.md"
+  },
+  {
+   "id": "generative-models-adversarial-wasserstein-gan-wgan",
+   "name": "Wasserstein Generative Adversarial Network (WGAN)",
+   "subcategory": "adversarial",
+   "path": "Generative Models/Adversarial/Wasserstein GAN (WGAN).md"
+  },
+  {
+   "id": "generative-models-autoregressive-autoregressive-model-pixelrnn-pixelcnn",
+   "name": "Autoregressive Models (PixelRNN and PixelCNN)",
+   "subcategory": "autoregressive",
+   "path": "Generative Models/Autoregressive/Autoregressive Model (PixelRNN, PixelCNN).md"
+  },
+  {
+   "id": "generative-models-autoregressive-transformer-based-generator-e-g-gpt",
+   "name": "Transformer-Based Generator (e.g., GPT)",
+   "subcategory": "autoregressive",
+   "path": "Generative Models/Autoregressive/Transformer-Based Generator (e.g. GPT).md"
+  },
+  {
+   "id": "generative-models-diffusion-score-based-diffusion-model",
+   "name": "Diffusion Models",
+   "subcategory": "diffusion-and-score-based",
+   "path": "Generative Models/Diffusion & Score-Based/Diffusion Model.md"
+  },
+  {
+   "id": "generative-models-diffusion-score-based-perceptual-loss-generator",
+   "name": "Perceptual Loss Generator",
+   "subcategory": "diffusion-and-score-based",
+   "path": "Generative Models/Diffusion & Score-Based/Perceptual Loss Generator.md"
+  },
+  {
+   "id": "generative-models-diffusion-score-based-score-based-generative-model",
+   "name": "Score-Based Generative Model",
+   "subcategory": "diffusion-and-score-based",
+   "path": "Generative Models/Diffusion & Score-Based/Score-Based Generative Model.md"
+  },
+  {
+   "id": "generative-models-diffusion-score-based-unet-generator-used-in-diffusion",
+   "name": "U-Net Generator (Used in Diffusion)",
+   "subcategory": "diffusion-and-score-based",
+   "path": "Generative Models/Diffusion & Score-Based/UNet Generator (used in diffusion).md"
+  },
+  {
+   "id": "generative-models-energy-based-model",
+   "name": "Energy-Based Model",
+   "subcategory": "general",
+   "path": "Generative Models/Energy-Based Model.md"
+  },
+  {
+   "id": "generative-models-latent-variable-models-bayesian-generator",
+   "name": "Bayesian Generator",
+   "subcategory": "latent-variable-models",
+   "path": "Generative Models/Latent Variable Models/Bayesian Generator.md"
+  },
+  {
+   "id": "generative-models-latent-variable-models-deep-boltzmann-machine-generator",
+   "name": "Deep Boltzmann Machine Generator",
+   "subcategory": "latent-variable-models",
+   "path": "Generative Models/Latent Variable Models/Deep Boltzmann Machine Generator.md"
+  },
+  {
+   "id": "generative-models-latent-variable-models-masked-autoencoder-for-distribution-learning",
+   "name": "Masked Autoencoder for Distribution Learning",
+   "subcategory": "latent-variable-models",
+   "path": "Generative Models/Latent Variable Models/Masked Autoencoder for Distribution Learning.md"
+  },
+  {
+   "id": "generative-models-latent-variable-models-neural-ode-generator",
+   "name": "Neural ODE Generator",
+   "subcategory": "latent-variable-models",
+   "path": "Generative Models/Latent Variable Models/Neural ODE Generator.md"
+  },
+  {
+   "id": "generative-models-latent-variable-models-normalizing-flow",
+   "name": "Normalizing Flow",
+   "subcategory": "latent-variable-models",
+   "path": "Generative Models/Latent Variable Models/Normalizing Flow.md"
+  },
+  {
+   "id": "generative-models-latent-variable-models-variational-autoencoder-vae",
+   "name": "Variational Autoencoder (VAE)",
+   "subcategory": "latent-variable-models",
+   "path": "Generative Models/Latent Variable Models/Variational Autoencoder (VAE).md"
+  }
+ ],
+ "hybrid-composite": [
+  {
+   "id": "hybrid-composite-architectures-classical-hybrids-rnn-cnn-hybrid",
+   "name": "RNN-CNN Hybrid",
+   "subcategory": "classical-hybrids",
+   "path": "Hybrid & Composite Architectures/Classical Hybrids/RNN-CNN Hybrid.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-classical-hybrids-stacked-ensemble-model",
+   "name": "Stacked Ensemble Model",
+   "subcategory": "classical-hybrids",
+   "path": "Hybrid & Composite Architectures/Classical Hybrids/Stacked Ensemble Model.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-composite-controllers-planners-hybrid-differentiable-planner",
+   "name": "Hybrid Differentiable Planner",
+   "subcategory": "composite-controllers-and-planners",
+   "path": "Hybrid & Composite Architectures/Composite Controllers & Planners/Hybrid Differentiable Planner.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-composite-controllers-planners-tree-boosted-neural-embedding",
+   "name": "Tree-Boosted Neural Embedding",
+   "subcategory": "composite-controllers-and-planners",
+   "path": "Hybrid & Composite Architectures/Composite Controllers & Planners/Tree-Boosted Neural Embedding.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-generative-discriminative-hybrids-autoencoder-gan-fusion",
+   "name": "Autoencoder-GAN Fusion",
+   "subcategory": "generative-discriminative-hybrids",
+   "path": "Hybrid & Composite Architectures/Generative-Discriminative Hybrids/Autoencoder-GAN Fusion.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-generative-discriminative-hybrids-bayesian-neural-hybrid-model",
+   "name": "Bayesian-Neural Hybrid Model",
+   "subcategory": "generative-discriminative-hybrids",
+   "path": "Hybrid & Composite Architectures/Generative-Discriminative Hybrids/Bayesian-Neural Hybrid Model.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-graph-attention-hybrids-gnn-reinforcement-learner",
+   "name": "GNN + Reinforcement Learner Hybrid",
+   "subcategory": "graph-and-attention-hybrids",
+   "path": "Hybrid & Composite Architectures/Graph & Attention Hybrids/GNN + Reinforcement Learner.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-graph-attention-hybrids-graph-augmented-lstm",
+   "name": "Graph-Augmented LSTM",
+   "subcategory": "graph-and-attention-hybrids",
+   "path": "Hybrid & Composite Architectures/Graph & Attention Hybrids/Graph-Augmented LSTM.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-graph-attention-hybrids-latent-attention-decision-graph",
+   "name": "Latent Attention Decision Graph",
+   "subcategory": "graph-and-attention-hybrids",
+   "path": "Hybrid & Composite Architectures/Graph & Attention Hybrids/Latent Attention Decision Graph.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-graph-attention-hybrids-transformer-gnn-hybrid",
+   "name": "Transformer-GNN Hybrid",
+   "subcategory": "graph-and-attention-hybrids",
+   "path": "Hybrid & Composite Architectures/Graph & Attention Hybrids/Transformer-GNN Hybrid.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-multi-modal-temporal-fusion-attention-weighted-forecast-stack",
+   "name": "Attention-Weighted Forecast Stack",
+   "subcategory": "multi-modal-and-temporal-fusion",
+   "path": "Hybrid & Composite Architectures/Multi-Modal & Temporal Fusion/Attention-Weighted Forecast Stack.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-multi-modal-temporal-fusion-hierarchical-task-oriented-agent",
+   "name": "Hierarchical Task-Oriented Agent",
+   "subcategory": "multi-modal-and-temporal-fusion",
+   "path": "Hybrid & Composite Architectures/Multi-Modal & Temporal Fusion/Hierarchical Task-Oriented Agent.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-multi-modal-temporal-fusion-multi-modal-reasoning-agent",
+   "name": "Multi-Modal Reasoning Agent",
+   "subcategory": "multi-modal-and-temporal-fusion",
+   "path": "Hybrid & Composite Architectures/Multi-Modal & Temporal Fusion/Multi-Modal Reasoning Agent.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-multi-modal-temporal-fusion-spatiotemporal-fusion-network",
+   "name": "Spatiotemporal Fusion Network",
+   "subcategory": "multi-modal-and-temporal-fusion",
+   "path": "Hybrid & Composite Architectures/Multi-Modal & Temporal Fusion/Spatiotemporal Fusion Network.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-neuro-symbolic-systems-differentiable-logic-layer",
+   "name": "Differentiable Logic Layer",
+   "subcategory": "neuro-symbolic-systems",
+   "path": "Hybrid & Composite Architectures/Neuro-Symbolic Systems/Differentiable Logic Layer.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-neuro-symbolic-systems-meta-learned-symbolic-router",
+   "name": "Meta-Learned Symbolic Router",
+   "subcategory": "neuro-symbolic-systems",
+   "path": "Hybrid & Composite Architectures/Neuro-Symbolic Systems/Meta-Learned Symbolic Router.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-neuro-symbolic-systems-neuro-symbolic-model",
+   "name": "Neuro-Symbolic Model",
+   "subcategory": "neuro-symbolic-systems",
+   "path": "Hybrid & Composite Architectures/Neuro-Symbolic Systems/Neuro-Symbolic Model.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-neuro-symbolic-systems-probabilistic-program-deepnet",
+   "name": "Probabilistic Program + DeepNet",
+   "subcategory": "neuro-symbolic-systems",
+   "path": "Hybrid & Composite Architectures/Neuro-Symbolic Systems/Probabilistic Program + DeepNet.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-neuro-symbolic-systems-residual-learning-over-rules",
+   "name": "Residual Learning over Rules",
+   "subcategory": "neuro-symbolic-systems",
+   "path": "Hybrid & Composite Architectures/Neuro-Symbolic Systems/Residual Learning over Rules.md"
+  },
+  {
+   "id": "hybrid-composite-architectures-neuro-symbolic-systems-rule-augmented-neural-net",
+   "name": "Rule-Augmented Neural Net",
+   "subcategory": "neuro-symbolic-systems",
+   "path": "Hybrid & Composite Architectures/Neuro-Symbolic Systems/Rule-Augmented Neural Net.md"
+  }
+ ],
+ "self-supervised": [
+  {
+   "id": "machine-learning-self-supervised-learning-augmentation-based-methods-denoising-autoencoder",
+   "name": "Denoising Autoencoder",
+   "subcategory": "augmentation-based-methods",
+   "path": "Machine Learning/Self-Supervised Learning/Augmentation-Based Methods/Denoising Autoencoder.md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-augmentation-based-methods-self-distillation-without-labels",
+   "name": "Self-Distillation Without Labels",
+   "subcategory": "augmentation-based-methods",
+   "path": "Machine Learning/Self-Supervised Learning/Augmentation-Based Methods/Self-Distillation Without Labels.md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-contrastive-learning-barlow-twins",
+   "name": "Barlow Twins",
+   "subcategory": "contrastive-learning",
+   "path": "Machine Learning/Self-Supervised Learning/Contrastive Learning/Barlow Twins.md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-contrastive-learning-byol-bootstrap-your-own-latent",
+   "name": "BYOL (Bootstrap Your Own Latent)",
+   "subcategory": "contrastive-learning",
+   "path": "Machine Learning/Self-Supervised Learning/Contrastive Learning/BYOL (Bootstrap Your Own Latent).md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-contrastive-learning-contrastive-learning-simclr-moco",
+   "name": "Contrastive Learning (SimCLR, MoCo)",
+   "subcategory": "contrastive-learning",
+   "path": "Machine Learning/Self-Supervised Learning/Contrastive Learning/Contrastive Learning (SimCLR, MoCo).md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-contrastive-learning-cross-view-prediction",
+   "name": "Cross-View Prediction",
+   "subcategory": "contrastive-learning",
+   "path": "Machine Learning/Self-Supervised Learning/Contrastive Learning/Cross-View Prediction.md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-contrastive-learning-momentum-contrast-moco-v3",
+   "name": "Momentum Contrast (MoCo v3)",
+   "subcategory": "contrastive-learning",
+   "path": "Machine Learning/Self-Supervised Learning/Contrastive Learning/Momentum Contrast (MoCo-v3).md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-contrastive-learning-patch-level-contrastive-learning-e-g-dino",
+   "name": "Patch-level Contrastive Learning (e.g., DINO)",
+   "subcategory": "contrastive-learning",
+   "path": "Machine Learning/Self-Supervised Learning/Contrastive Learning/Patch-level Contrastive Learning (e.g. DINO).md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-contrastive-learning-self-augmented-contrastive-encoder",
+   "name": "Self-Augmented Contrastive Encoder",
+   "subcategory": "contrastive-learning",
+   "path": "Machine Learning/Self-Supervised Learning/Contrastive Learning/Self-Augmented Contrastive Encoder.md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-contrastive-learning-simsiam",
+   "name": "SimSiam (Simple Siamese Representation Learning)",
+   "subcategory": "contrastive-learning",
+   "path": "Machine Learning/Self-Supervised Learning/Contrastive Learning/SimSiam.md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-contrastive-learning-swav-swapped-assignments",
+   "name": "SwAV (Swapped Assignments)",
+   "subcategory": "contrastive-learning",
+   "path": "Machine Learning/Self-Supervised Learning/Contrastive Learning/SwAV (Swapped Assignments).md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-latent-generative-self-supervised-gans",
+   "name": "Self-Supervised GANs",
+   "subcategory": "latent-and-generative",
+   "path": "Machine Learning/Self-Supervised Learning/Latent & Generative/Self-Supervised GANs.md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-masked-modeling-masked-autoencoder-mae",
+   "name": "Masked Autoencoder (MAE)",
+   "subcategory": "masked-modeling",
+   "path": "Machine Learning/Self-Supervised Learning/Masked Modeling/Masked Autoencoder (MAE).md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-masked-modeling-masked-graph-modeling",
+   "name": "Masked Graph Modeling",
+   "subcategory": "masked-modeling",
+   "path": "Machine Learning/Self-Supervised Learning/Masked Modeling/Masked Graph Modeling.md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-masked-modeling-masked-language-modeling-bert-style",
+   "name": "Masked Language Modeling (BERT-style)",
+   "subcategory": "masked-modeling",
+   "path": "Machine Learning/Self-Supervised Learning/Masked Modeling/Masked Language Modeling (BERT-style).md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-predictive-representation-learning-context-prediction-cpc",
+   "name": "Contrastive Predictive Coding (CPC)",
+   "subcategory": "predictive-representation-learning",
+   "path": "Machine Learning/Self-Supervised Learning/Predictive Representation Learning/Context Prediction (CPC).md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-predictive-representation-learning-predictive-coding-models",
+   "name": "Predictive Coding Models",
+   "subcategory": "predictive-representation-learning",
+   "path": "Machine Learning/Self-Supervised Learning/Predictive Representation Learning/Predictive Coding Models.md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-predictive-representation-learning-rotation-prediction-rotnet",
+   "name": "Rotation Prediction (RotNet)",
+   "subcategory": "predictive-representation-learning",
+   "path": "Machine Learning/Self-Supervised Learning/Predictive Representation Learning/Rotation Prediction (RotNet).md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-predictive-representation-learning-self-predictive-representations-spr",
+   "name": "Self-Predictive Representations (SPR)",
+   "subcategory": "predictive-representation-learning",
+   "path": "Machine Learning/Self-Supervised Learning/Predictive Representation Learning/Self-Predictive Representations (SPR).md"
+  },
+  {
+   "id": "machine-learning-self-supervised-learning-predictive-representation-learning-transformer-based-self-supervision",
+   "name": "Transformer-based Self-Supervision",
+   "subcategory": "predictive-representation-learning",
+   "path": "Machine Learning/Self-Supervised Learning/Predictive Representation Learning/Transformer-based Self-Supervision.md"
+  }
+ ],
+ "semi-supervised": [
+  {
+   "id": "machine-learning-semi-supervised-learning-clustering-based-methods-semi-supervised-clustering",
+   "name": "Semi-Supervised Clustering",
+   "subcategory": "clustering-based-methods",
+   "path": "Machine Learning/Semi-Supervised Learning/Clustering-Based Methods/Semi-Supervised Clustering.md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-consistency-based-methods-consistency-regularization-e-g-model-mean-teacher",
+   "name": "Consistency Regularization (\u00ce\u00a0-model, Mean Teacher)",
+   "subcategory": "consistency-based-methods",
+   "path": "Machine Learning/Semi-Supervised Learning/Consistency-Based Methods/Consistency Regularization (e.g. \u00ce\u00a0-model, Mean Teacher).md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-consistency-based-methods-fixmatch",
+   "name": "FixMatch",
+   "subcategory": "consistency-based-methods",
+   "path": "Machine Learning/Semi-Supervised Learning/Consistency-Based Methods/FixMatch.md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-consistency-based-methods-mixmatch",
+   "name": "MixMatch",
+   "subcategory": "consistency-based-methods",
+   "path": "Machine Learning/Semi-Supervised Learning/Consistency-Based Methods/MixMatch.md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-consistency-based-methods-virtual-adversarial-training-vat",
+   "name": "Virtual Adversarial Training (VAT)",
+   "subcategory": "consistency-based-methods",
+   "path": "Machine Learning/Semi-Supervised Learning/Consistency-Based Methods/Virtual Adversarial Training (VAT).md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-generative-hybrid-models-hybrid-generative-discriminative-ssl",
+   "name": "Hybrid Generative-Discriminative Semi-Supervised Learning",
+   "subcategory": "generative-and-hybrid-models",
+   "path": "Machine Learning/Semi-Supervised Learning/Generative & Hybrid Models/Hybrid Generative-Discriminative SSL.md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-generative-hybrid-models-ladder-network",
+   "name": "Ladder Network",
+   "subcategory": "generative-and-hybrid-models",
+   "path": "Machine Learning/Semi-Supervised Learning/Generative & Hybrid Models/Ladder Network.md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-generative-hybrid-models-semi-supervised-gan-sgan",
+   "name": "Semi-Supervised Generative Adversarial Network (SGAN)",
+   "subcategory": "generative-and-hybrid-models",
+   "path": "Machine Learning/Semi-Supervised Learning/Generative & Hybrid Models/Semi-Supervised GAN (SGAN).md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-graph-based-methods-graph-based-semi-supervised-learning",
+   "name": "Graph-Based Semi-Supervised Learning",
+   "subcategory": "graph-based-methods",
+   "path": "Machine Learning/Semi-Supervised Learning/Graph-Based Methods/Graph-Based Semi-Supervised Learning.md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-graph-based-methods-label-propagation",
+   "name": "Label Propagation",
+   "subcategory": "graph-based-methods",
+   "path": "Machine Learning/Semi-Supervised Learning/Graph-Based Methods/Label Propagation.md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-graph-based-methods-label-spreading",
+   "name": "Label Spreading",
+   "subcategory": "graph-based-methods",
+   "path": "Machine Learning/Semi-Supervised Learning/Graph-Based Methods/Label Spreading.md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-graph-based-methods-manifold-regularization",
+   "name": "Manifold Regularization",
+   "subcategory": "graph-based-methods",
+   "path": "Machine Learning/Semi-Supervised Learning/Graph-Based Methods/Manifold Regularization.md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-multi-view-co-training-co-training-dual-view",
+   "name": "Co-Training (Dual View)",
+   "subcategory": "multi-view-and-co-training",
+   "path": "Machine Learning/Semi-Supervised Learning/Multi-View & Co-Training/Co-Training (Dual View).md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-multi-view-co-training-multi-view-learning",
+   "name": "Multi-View Learning",
+   "subcategory": "multi-view-and-co-training",
+   "path": "Machine Learning/Semi-Supervised Learning/Multi-View & Co-Training/Multi-View Learning.md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-regularization-theoretical-entropy-minimization",
+   "name": "Entropy Minimization",
+   "subcategory": "regularization-and-theoretical",
+   "path": "Machine Learning/Semi-Supervised Learning/Regularization & Theoretical/Entropy Minimization.md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-regularization-theoretical-semi-supervised-svm-s3vm",
+   "name": "Semi-Supervised Support Vector Machine (S3VM)",
+   "subcategory": "regularization-and-theoretical",
+   "path": "Machine Learning/Semi-Supervised Learning/Regularization & Theoretical/Semi-Supervised SVM (S3VM).md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-self-training-bootstrapping-pseudo-labeling",
+   "name": "Pseudo-Labeling",
+   "subcategory": "self-training-and-bootstrapping",
+   "path": "Machine Learning/Semi-Supervised Learning/Self-Training & Bootstrapping/Pseudo-Labeling.md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-self-training-bootstrapping-self-training-classifier",
+   "name": "Self-Training Classifier",
+   "subcategory": "self-training-and-bootstrapping",
+   "path": "Machine Learning/Semi-Supervised Learning/Self-Training & Bootstrapping/Self-Training Classifier.md"
+  },
+  {
+   "id": "machine-learning-semi-supervised-learning-self-training-bootstrapping-tri-training",
+   "name": "Tri-Training",
+   "subcategory": "self-training-and-bootstrapping",
+   "path": "Machine Learning/Semi-Supervised Learning/Self-Training & Bootstrapping/Tri-Training.md"
+  }
+ ],
+ "supervised": [
+  {
+   "id": "machine-learning-supervised-learning-boosting-methods-catboost",
+   "name": "CatBoost",
+   "subcategory": "boosting-methods",
+   "path": "Machine Learning/Supervised Learning/Boosting Methods/CatBoost.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-boosting-methods-gradient-boosting-machine-gbm",
+   "name": "Gradient Boosting Machine (GBM)",
+   "subcategory": "boosting-methods",
+   "path": "Machine Learning/Supervised Learning/Boosting Methods/Gradient Boosting Machine (GBM).md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-boosting-methods-lightgbm",
+   "name": "LightGBM",
+   "subcategory": "boosting-methods",
+   "path": "Machine Learning/Supervised Learning/Boosting Methods/LightGBM.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-boosting-methods-xgboost",
+   "name": "XGBoost",
+   "subcategory": "boosting-methods",
+   "path": "Machine Learning/Supervised Learning/Boosting Methods/XGBoost.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-calibration-meta-learners-calibrated-classifier",
+   "name": "Calibrated Classifier",
+   "subcategory": "calibration-and-meta-learners",
+   "path": "Machine Learning/Supervised Learning/Calibration & Meta-Learners/Calibrated Classifier.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-ensemble-methods-random-forest",
+   "name": "Random Forest",
+   "subcategory": "ensemble-methods",
+   "path": "Machine Learning/Supervised Learning/Ensemble Methods/Random Forest.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-ensemble-methods-stacked-generalization-model",
+   "name": "Stacked Generalization Model",
+   "subcategory": "ensemble-methods",
+   "path": "Machine Learning/Supervised Learning/Ensemble Methods/Stacked Generalization Model.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-linear-models-bayesian-ridge-regression",
+   "name": "Bayesian Ridge Regression",
+   "subcategory": "linear-models",
+   "path": "Machine Learning/Supervised Learning/Linear Models/Bayesian Ridge Regression.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-linear-models-elasticnet-regression",
+   "name": "ElasticNet Regression",
+   "subcategory": "linear-models",
+   "path": "Machine Learning/Supervised Learning/Linear Models/ElasticNet Regression.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-linear-models-lars-least-angle-regression",
+   "name": "Least Angle Regression (LARS)",
+   "subcategory": "linear-models",
+   "path": "Machine Learning/Supervised Learning/Linear Models/LARS (Least Angle Regression).md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-linear-models-lasso-regression",
+   "name": "Lasso Regression",
+   "subcategory": "linear-models",
+   "path": "Machine Learning/Supervised Learning/Linear Models/Lasso Regression.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-linear-models-linear-regression",
+   "name": "Linear Regression",
+   "subcategory": "linear-models",
+   "path": "Machine Learning/Supervised Learning/Linear Models/Linear Regression.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-linear-models-logistic-regression",
+   "name": "Logistic Regression",
+   "subcategory": "linear-models",
+   "path": "Machine Learning/Supervised Learning/Linear Models/Logistic Regression.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-linear-models-ordinal-regression",
+   "name": "Ordinal Regression",
+   "subcategory": "linear-models",
+   "path": "Machine Learning/Supervised Learning/Linear Models/Ordinal Regression.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-linear-models-probit-regression",
+   "name": "Probit Regression",
+   "subcategory": "linear-models",
+   "path": "Machine Learning/Supervised Learning/Linear Models/Probit Regression.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-linear-models-quantile-regression",
+   "name": "Quantile Regression",
+   "subcategory": "linear-models",
+   "path": "Machine Learning/Supervised Learning/Linear Models/Quantile Regression.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-linear-models-ridge-regression",
+   "name": "Ridge Regression",
+   "subcategory": "linear-models",
+   "path": "Machine Learning/Supervised Learning/Linear Models/Ridge Regression.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-linear-models-stochastic-gradient-descent-sgd",
+   "name": "Stochastic Gradient Descent (SGD)",
+   "subcategory": "linear-models",
+   "path": "Machine Learning/Supervised Learning/Linear Models/Stochastic Gradient Descent (SGD).md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-margin-based-methods-support-vector-machine-svm",
+   "name": "Support Vector Machine (SVM)",
+   "subcategory": "margin-based-methods",
+   "path": "Machine Learning/Supervised Learning/Margin-Based Methods/Support Vector Machine (SVM).md"
+  }
+ ],
+ "unsupervised": [
+  {
+   "id": "machine-learning-unsupervised-learning-anomaly-detection-isolation-forest-anomaly-detection",
+   "name": "Isolation Forest (Anomaly Detection)",
+   "subcategory": "anomaly-detection",
+   "path": "Machine Learning/Unsupervised Learning/Anomaly Detection/Isolation Forest (Anomaly Detection).md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-anomaly-detection-lof-local-outlier-factor",
+   "name": "Local Outlier Factor (LOF)",
+   "subcategory": "anomaly-detection",
+   "path": "Machine Learning/Unsupervised Learning/Anomaly Detection/LOF (Local Outlier Factor).md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-anomaly-detection-one-class-svm",
+   "name": "One-Class SVM",
+   "subcategory": "anomaly-detection",
+   "path": "Machine Learning/Unsupervised Learning/Anomaly Detection/One-Class SVM.md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-anomaly-detection-robust-covariance-estimation",
+   "name": "Robust Covariance Estimation",
+   "subcategory": "anomaly-detection",
+   "path": "Machine Learning/Unsupervised Learning/Anomaly Detection/Robust Covariance Estimation.md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-clustering-affinity-propagation",
+   "name": "Affinity Propagation",
+   "subcategory": "clustering",
+   "path": "Machine Learning/Unsupervised Learning/Clustering/Affinity Propagation.md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-clustering-dbscan-density-based-spatial-clustering",
+   "name": "DBSCAN (Density-Based Spatial Clustering of Applications with Noise)",
+   "subcategory": "clustering",
+   "path": "Machine Learning/Unsupervised Learning/Clustering/DBSCAN (Density-Based Spatial Clustering).md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-clustering-gaussian-mixture-model-gmm",
+   "name": "Gaussian Mixture Model (GMM)",
+   "subcategory": "clustering",
+   "path": "Machine Learning/Unsupervised Learning/Clustering/Gaussian Mixture Model (GMM).md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-clustering-hierarchical-clustering-agglomerative-divisive",
+   "name": "Hierarchical Clustering (Agglomerative, Divisive)",
+   "subcategory": "clustering",
+   "path": "Machine Learning/Unsupervised Learning/Clustering/Hierarchical Clustering (Agglomerative, Divisive).md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-clustering-k-means-clustering",
+   "name": "K-Means Clustering",
+   "subcategory": "clustering",
+   "path": "Machine Learning/Unsupervised Learning/Clustering/K-Means Clustering.md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-clustering-mean-shift-clustering",
+   "name": "Mean Shift Clustering",
+   "subcategory": "clustering",
+   "path": "Machine Learning/Unsupervised Learning/Clustering/Mean Shift Clustering.md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-clustering-spectral-clustering",
+   "name": "Spectral Clustering",
+   "subcategory": "clustering",
+   "path": "Machine Learning/Unsupervised Learning/Clustering/Spectral Clustering.md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-dimensionality-reduction-independent-component-analysis-ica",
+   "name": "Independent Component Analysis (ICA)",
+   "subcategory": "dimensionality-reduction",
+   "path": "Machine Learning/Unsupervised Learning/Dimensionality Reduction/Independent Component Analysis (ICA).md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-dimensionality-reduction-non-negative-matrix-factorization-nmf",
+   "name": "Non-Negative Matrix Factorization (NMF)",
+   "subcategory": "dimensionality-reduction",
+   "path": "Machine Learning/Unsupervised Learning/Dimensionality Reduction/Non-Negative Matrix Factorization (NMF).md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-dimensionality-reduction-principal-component-analysis-pca",
+   "name": "Principal Component Analysis (PCA)",
+   "subcategory": "dimensionality-reduction",
+   "path": "Machine Learning/Unsupervised Learning/Dimensionality Reduction/Principal Component Analysis (PCA).md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-manifold-learning-manifold-learning-isomap-lle",
+   "name": "Manifold Learning (Isomap, LLE)",
+   "subcategory": "manifold-learning",
+   "path": "Machine Learning/Unsupervised Learning/Manifold Learning/Manifold Learning (Isomap, LLE).md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-manifold-learning-t-sne-t-distributed-stochastic-neighbor-embedding",
+   "name": "t-Distributed Stochastic Neighbor Embedding (t-SNE)",
+   "subcategory": "manifold-learning",
+   "path": "Machine Learning/Unsupervised Learning/Manifold Learning/t-SNE (t-Distributed Stochastic Neighbor Embedding).md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-manifold-learning-umap-uniform-manifold-approximation-and-projection",
+   "name": "Uniform Manifold Approximation and Projection (UMAP)",
+   "subcategory": "manifold-learning",
+   "path": "Machine Learning/Unsupervised Learning/Manifold Learning/UMAP (Uniform Manifold Approximation and Projection).md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-matrix-factorization-decomposition-autoencoder-unsupervised",
+   "name": "Autoencoder (Unsupervised)",
+   "subcategory": "matrix-factorization-and-decomposition",
+   "path": "Machine Learning/Unsupervised Learning/Matrix Factorization & Decomposition/Autoencoder (Unsupervised).md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-matrix-factorization-decomposition-deep-clustering-network",
+   "name": "Deep Clustering Network (DCN)",
+   "subcategory": "matrix-factorization-and-decomposition",
+   "path": "Machine Learning/Unsupervised Learning/Matrix Factorization & Decomposition/Deep Clustering Network.md"
+  },
+  {
+   "id": "machine-learning-unsupervised-learning-self-organizing-systems-self-organizing-maps-som",
+   "name": "Self-Organizing Maps (SOM)",
+   "subcategory": "self-organizing-systems",
+   "path": "Machine Learning/Unsupervised Learning/Self-Organizing Systems/Self-Organizing Maps (SOM).md"
+  }
+ ],
+ "neural-network": [
+  {
+   "id": "neural-network-architectures-attention-based-architectures-self-attention-mechanism",
+   "name": "Self-Attention Mechanism",
+   "subcategory": "attention-based-architectures",
+   "path": "Neural Network Architectures/Attention-Based Architectures/Self-Attention Mechanism.md"
+  },
+  {
+   "id": "neural-network-architectures-attention-based-architectures-slot-attention-network",
+   "name": "Slot Attention Network",
+   "subcategory": "attention-based-architectures",
+   "path": "Neural Network Architectures/Attention-Based Architectures/Slot Attention Network.md"
+  },
+  {
+   "id": "neural-network-architectures-attention-based-architectures-transformer-encoder-decoder",
+   "name": "Transformer (Encoder-Decoder)",
+   "subcategory": "attention-based-architectures",
+   "path": "Neural Network Architectures/Attention-Based Architectures/Transformer (Encoder-Decoder).md"
+  },
+  {
+   "id": "neural-network-architectures-attention-based-architectures-vision-transformer-vit",
+   "name": "Vision Transformer (ViT)",
+   "subcategory": "attention-based-architectures",
+   "path": "Neural Network Architectures/Attention-Based Architectures/Vision Transformer (ViT).md"
+  },
+  {
+   "id": "neural-network-architectures-convolutional-networks-convolutional-neural-network-cnn",
+   "name": "Convolutional Neural Network (CNN)",
+   "subcategory": "convolutional-networks",
+   "path": "Neural Network Architectures/Convolutional Networks/Convolutional Neural Network (CNN).md"
+  },
+  {
+   "id": "neural-network-architectures-convolutional-networks-densenet-densely-connected-cnn",
+   "name": "DenseNet (Densely Connected CNN)",
+   "subcategory": "convolutional-networks",
+   "path": "Neural Network Architectures/Convolutional Networks/DenseNet (Densely Connected CNN).md"
+  },
+  {
+   "id": "neural-network-architectures-convolutional-networks-residual-neural-network-resnet",
+   "name": "Residual Neural Network (ResNet)",
+   "subcategory": "convolutional-networks",
+   "path": "Neural Network Architectures/Convolutional Networks/Residual Neural Network (ResNet).md"
+  },
+  {
+   "id": "neural-network-architectures-convolutional-networks-u-net",
+   "name": "U-Net",
+   "subcategory": "convolutional-networks",
+   "path": "Neural Network Architectures/Convolutional Networks/U-Net.md"
+  },
+  {
+   "id": "neural-network-architectures-feedforward-mlps-feedforward-neural-network-fnn",
+   "name": "Feedforward Neural Network (FNN)",
+   "subcategory": "feedforward-and-mlps",
+   "path": "Neural Network Architectures/Feedforward & MLPs/Feedforward Neural Network (FNN).md"
+  },
+  {
+   "id": "neural-network-architectures-feedforward-mlps-multilayer-perceptron-mlp",
+   "name": "Multilayer Perceptron (MLP)",
+   "subcategory": "feedforward-and-mlps",
+   "path": "Neural Network Architectures/Feedforward & MLPs/Multilayer Perceptron (MLP).md"
+  },
+  {
+   "id": "neural-network-architectures-generative-latent-models-autoencoder-ae",
+   "name": "Autoencoder (AE)",
+   "subcategory": "generative-and-latent-models",
+   "path": "Neural Network Architectures/Generative & Latent Models/Autoencoder (AE).md"
+  },
+  {
+   "id": "neural-network-architectures-generative-latent-models-neural-ordinary-differential-equation-neural-ode",
+   "name": "Neural Ordinary Differential Equation (Neural ODE)",
+   "subcategory": "generative-and-latent-models",
+   "path": "Neural Network Architectures/Generative & Latent Models/Neural Ordinary Differential Equation (Neural ODE).md"
+  },
+  {
+   "id": "neural-network-architectures-generative-latent-models-variational-autoencoder-vae",
+   "name": "Variational Autoencoder (VAE)",
+   "subcategory": "generative-and-latent-models",
+   "path": "Neural Network Architectures/Generative & Latent Models/Variational Autoencoder (VAE).md"
+  },
+  {
+   "id": "neural-network-architectures-graph-neural-networks-graph-attention-network-gat",
+   "name": "Graph Attention Network (GAT)",
+   "subcategory": "graph-neural-networks",
+   "path": "Neural Network Architectures/Graph Neural Networks/Graph Attention Network (GAT).md"
+  },
+  {
+   "id": "neural-network-architectures-graph-neural-networks-graph-convolutional-network-gcn",
+   "name": "Graph Convolutional Network (GCN)",
+   "subcategory": "graph-neural-networks",
+   "path": "Neural Network Architectures/Graph Neural Networks/Graph Convolutional Network (GCN).md"
+  },
+  {
+   "id": "neural-network-architectures-graph-neural-networks-graph-neural-network-gnn",
+   "name": "Graph Neural Network (GNN)",
+   "subcategory": "graph-neural-networks",
+   "path": "Neural Network Architectures/Graph Neural Networks/Graph Neural Network (GNN).md"
+  },
+  {
+   "id": "neural-network-architectures-memory-routing-architectures-hypernetwork",
+   "name": "Hypernetwork",
+   "subcategory": "memory-and-routing-architectures",
+   "path": "Neural Network Architectures/Memory & Routing Architectures/Hypernetwork.md"
+  },
+  {
+   "id": "neural-network-architectures-memory-routing-architectures-mixture-of-experts",
+   "name": "Mixture of Experts (MoE)",
+   "subcategory": "memory-and-routing-architectures",
+   "path": "Neural Network Architectures/Memory & Routing Architectures/Mixture of Experts.md"
+  },
+  {
+   "id": "neural-network-architectures-memory-routing-architectures-neural-turing-machine",
+   "name": "Neural Turing Machine",
+   "subcategory": "memory-and-routing-architectures",
+   "path": "Neural Network Architectures/Memory & Routing Architectures/Neural Turing Machine.md"
+  },
+  {
+   "id": "neural-network-architectures-recurrent-sequential-models-attention-based-rnn",
+   "name": "Attention-Based RNN",
+   "subcategory": "recurrent-and-sequential-models",
+   "path": "Neural Network Architectures/Recurrent & Sequential Models/Attention-Based RNN.md"
+  },
+  {
+   "id": "neural-network-architectures-recurrent-sequential-models-gated-recurrent-unit-gru",
+   "name": "Gated Recurrent Unit (GRU)",
+   "subcategory": "recurrent-and-sequential-models",
+   "path": "Neural Network Architectures/Recurrent & Sequential Models/Gated Recurrent Unit (GRU).md"
+  },
+  {
+   "id": "neural-network-architectures-recurrent-sequential-models-long-short-term-memory-lstm",
+   "name": "Long Short-Term Memory (LSTM)",
+   "subcategory": "recurrent-and-sequential-models",
+   "path": "Neural Network Architectures/Recurrent & Sequential Models/Long Short-Term Memory (LSTM).md"
+  },
+  {
+   "id": "neural-network-architectures-recurrent-sequential-models-recurrent-neural-network-rnn",
+   "name": "Recurrent Neural Network (RNN)",
+   "subcategory": "recurrent-and-sequential-models",
+   "path": "Neural Network Architectures/Recurrent & Sequential Models/Recurrent Neural Network (RNN).md"
+  },
+  {
+   "id": "neural-network-architectures-specialized-modular-networks-capsule-network",
+   "name": "Capsule Network",
+   "subcategory": "specialized-and-modular-networks",
+   "path": "Neural Network Architectures/Specialized & Modular Networks/Capsule Network.md"
+  },
+  {
+   "id": "neural-network-architectures-specialized-modular-networks-dual-pathway-network",
+   "name": "Dual-Pathway Network",
+   "subcategory": "specialized-and-modular-networks",
+   "path": "Neural Network Architectures/Specialized & Modular Networks/Dual-Pathway Network.md"
+  },
+  {
+   "id": "neural-network-architectures-specialized-modular-networks-siamese-network",
+   "name": "Siamese Network",
+   "subcategory": "specialized-and-modular-networks",
+   "path": "Neural Network Architectures/Specialized & Modular Networks/Siamese Network.md"
+  },
+  {
+   "id": "neural-network-architectures-specialized-modular-networks-spiking-neural-network-snn",
+   "name": "Spiking Neural Network (SNN)",
+   "subcategory": "specialized-and-modular-networks",
+   "path": "Neural Network Architectures/Specialized & Modular Networks/Spiking Neural Network (SNN).md"
+  }
+ ]
+}

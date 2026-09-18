@@ -38,6 +38,12 @@ export interface CatalogLifecycle {
   stage: LifecycleStage;
   /** How ML Studio would run it; null when it cannot. */
   runnerSource: 'wired' | 'generate' | null;
+  /**
+   * Codegen template ML Studio renders for this spec. Null when a wired runner
+   * trains it, or when nothing can. Several specs share one template, so this is
+   * what gets TRAINED — not necessarily the architecture the spec describes.
+   */
+  templateId: string | null;
   /** The ML Studio model key that trains this spec — the deep-link target. */
   trainableKey: string | null;
   /** Every runner key whose sessions count toward this spec. */
