@@ -34,6 +34,14 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src", "client", "src"),
       "@shared": path.resolve(__dirname, "src", "shared"),
       "@assets": path.resolve(__dirname, "attached_assets"),
+      // react-plotly.js hard-imports the bare specifier "plotly.js/dist/plotly",
+      // but this project depends on the prebuilt `plotly.js-dist-min` bundle and
+      // never installs the full `plotly.js` source package. Without this alias
+      // esbuild throws "Could not resolve plotly.js/dist/plotly" during dependency
+      // optimization, the optimizer promise never resolves, and EVERY request for
+      // a pre-bundled dep (react, react-dom, wouter, ...) hangs forever — the app
+      // serves index.html and then renders a blank page with no console error.
+      "plotly.js/dist/plotly": "plotly.js-dist-min",
     },
   },
   css: {
