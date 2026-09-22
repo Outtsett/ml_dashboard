@@ -1,12 +1,12 @@
 {
-  "$comment": "Every marimo notebook group on this machine. One 'marimo run' process per group (interpreter + working directory), pinned port, proxied same-origin at /marimo/<slug>. Adding a new root is a JSON edit only (OCP) \u2014 no server code changes. Only direct-child *.py files containing 'marimo.App(' in the first 64KB of the source count as notebooks; catalog.ts enforces that at scan time.",
+  "$comment": "Every marimo notebook group on this machine. One 'marimo run' process per group (interpreter + working directory), pinned port, proxied same-origin at /marimo/<slug>. Adding a new root is a JSON edit only (OCP) — no server code changes. Only direct-child *.py files containing 'marimo.App(' in the first 64KB of the source count as notebooks; catalog.ts enforces that at scan time. Ports live below 20000 on purpose: Windows' dynamic/ephemeral TCP range starts at 20000 and Hyper-V reserves blocks inside it (27137-27236 covered every former 2718x pin), which made marimo fail to bind with WinError 10013.",
   "groups": [
     {
       "slug": "datalake",
       "label": "Data lake",
       "python": "E:/source/repos/datalake/.venv/Scripts/python.exe",
       "cwd": "E:/source/repos/datalake",
-      "port": 27181,
+      "port": 17181,
       "roots": [
         {
           "path": "E:/source/repos/datalake/notebooks",
@@ -23,22 +23,22 @@
     {
       "slug": "quant",
       "label": "Quant",
-      "python": "E:/source/repos/Trading/quant/.venv/Scripts/python.exe",
-      "cwd": "E:/source/repos/Trading/quant",
-      "port": 27182,
+      "python": "E:/source/repos/ml_dashboard/Trading/quant/.venv/Scripts/python.exe",
+      "cwd": "E:/source/repos/ml_dashboard/Trading/quant",
+      "port": 17182,
       "roots": [
         {
-          "path": "E:/source/repos/Trading/quant/analytics/notebooks",
+          "path": "E:/source/repos/ml_dashboard/Trading/quant/analytics/notebooks",
           "category": "Quant analytics",
           "repoLabel": "Trading/quant/analytics/notebooks"
         },
         {
-          "path": "E:/source/repos/Trading/quant/model/notebooks",
+          "path": "E:/source/repos/ml_dashboard/Trading/quant/model/notebooks",
           "category": "Quant model research",
           "repoLabel": "Trading/quant/model/notebooks"
         },
         {
-          "path": "E:/source/repos/Trading/quant/chart_cnn/synth",
+          "path": "E:/source/repos/ml_dashboard/Trading/quant/chart_cnn/synth",
           "category": "Chart CNN",
           "repoLabel": "Trading/quant/chart_cnn/synth"
         }
@@ -47,12 +47,12 @@
     {
       "slug": "chart-cnn",
       "label": "Chart CNN package",
-      "python": "E:/source/repos/Trading/quant/.venv/Scripts/python.exe",
-      "cwd": "E:/source/repos/Trading/quant/chart_cnn/pkg",
-      "port": 27183,
+      "python": "E:/source/repos/ml_dashboard/Trading/quant/.venv/Scripts/python.exe",
+      "cwd": "E:/source/repos/ml_dashboard/Trading/quant/chart_cnn/pkg",
+      "port": 17183,
       "roots": [
         {
-          "path": "E:/source/repos/Trading/quant/chart_cnn/pkg",
+          "path": "E:/source/repos/ml_dashboard/Trading/quant/chart_cnn/pkg",
           "category": "Chart CNN",
           "repoLabel": "Trading/quant/chart_cnn/pkg"
         }
@@ -61,12 +61,12 @@
     {
       "slug": "forexmodel",
       "label": "Forex model",
-      "python": "E:/source/repos/Trading/forexmodel/.venv/Scripts/python.exe",
-      "cwd": "E:/source/repos/Trading/forexmodel",
-      "port": 27184,
+      "python": "E:/source/repos/ml_dashboard/Trading/forexmodel/.venv/Scripts/python.exe",
+      "cwd": "E:/source/repos/ml_dashboard/Trading/forexmodel",
+      "port": 17184,
       "roots": [
         {
-          "path": "E:/source/repos/Trading/forexmodel/notebooks",
+          "path": "E:/source/repos/ml_dashboard/Trading/forexmodel/notebooks",
           "category": "Forex model",
           "repoLabel": "Trading/forexmodel/notebooks"
         }
@@ -75,12 +75,12 @@
     {
       "slug": "quantlab",
       "label": "quantlab",
-      "python": "E:/source/repos/Trading/quant/.venv/Scripts/python.exe",
-      "cwd": "E:/source/repos/Trading/quantlab",
-      "port": 27187,
+      "python": "E:/source/repos/ml_dashboard/Trading/quant/.venv/Scripts/python.exe",
+      "cwd": "E:/source/repos/ml_dashboard/Trading/quantlab",
+      "port": 17187,
       "roots": [
         {
-          "path": "E:/source/repos/Trading/quantlab/notebooks",
+          "path": "E:/source/repos/ml_dashboard/Trading/quantlab/notebooks",
           "category": "quantlab",
           "repoLabel": "Trading/quantlab/notebooks"
         }
@@ -91,7 +91,7 @@
       "label": "ML Dashboard",
       "python": "E:/source/repos/datalake/.venv/Scripts/python.exe",
       "cwd": "E:/source/repos/ml_dashboard",
-      "port": 27186,
+      "port": 17186,
       "roots": [
         {
           "path": "E:/source/repos/ml_dashboard/notebooks",
@@ -103,6 +103,6 @@
   ],
   "editor": {
     "slug": "editor",
-    "port": 27190
+    "port": 17190
   }
 }
