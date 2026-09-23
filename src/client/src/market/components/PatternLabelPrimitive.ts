@@ -50,6 +50,16 @@ export interface PatternLabel {
   direction: 1 | -1;
   /** Okabe-Ito colour; direction is also carried by position and shape. */
   color: string;
+  /**
+   * True when this is the pattern the bar matches BEST.
+   *
+   * Several TA-Lib rules fire on the same candle — a small body with two shadows
+   * is simultaneously a Doji, a Spinning Top, a High Wave and a Short Line — so
+   * drawing every firing stacked five names on one bar. Only the best match gets
+   * a drawn label. The rest still appear in the lane and in the hover readout,
+   * so nothing is hidden, it is just no longer all shouted at once.
+   */
+  isBestMatch: boolean;
 }
 
 /** One candle, used to compute the price envelope a label must clear. */
@@ -192,6 +202,9 @@ class PatternLabelRenderer implements IPrimitivePaneRenderer {
     const floorY = laneTop - GAP_BETWEEN_LABELS;
 
     for (const label of labels) {
+      // One name per candle. The others are in the lane and on hover.
+      if (!label.isBestMatch) continue;
+
       const x = timeScale.timeToCoordinate(label.time as unknown as Time);
       if (x === null) continue;
 
@@ -347,7 +360,9 @@ class PatternLabelRenderer implements IPrimitivePaneRenderer {
       }
       if (label.direction === 1) entry.bullish += 1;
       else entry.bearish += 1;
-      entry.texts.push(label.text);
+      // Best match first, so the hover list reads as "this, and also these".
+      if (label.isBestMatch) entry.texts.unshift(`${label.text}  (best match)`);
+      else entry.texts.push(label.text);
     }
 
     // Lane backdrop, so ticks read as one band rather than floating specks.

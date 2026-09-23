@@ -4,6 +4,11 @@ import {
   LineStyle, type CandlestickData, type IChartApi, type ISeriesApi, type Time,
 } from 'lightweight-charts';
 import { PatternLabelPrimitive, type PatternLabel } from './PatternLabelPrimitive';
+import {
+  selectBestMatchPerBar,
+  firingKey,
+  type PatternFiring,
+} from '@/market/lib/bestPatternMatch';
 import type { IndicatorOverlay } from "@/market/lib/useIndicatorData";
 import { getPatternDisplayName } from "@/market/lib/candle_patterns";
 import { getSeriesTitle } from "@/market/lib/indicator_panels";
@@ -259,9 +264,17 @@ export function useChartOverlays(
           .map(d => d.time as number)
           .sort((a, b) => a - b);
 
-        const barByTime = new Map<number, { high: number; low: number }>();
+        const barByTime = new Map<
+          number,
+          { open: number; high: number; low: number; close: number }
+        >();
         for (const candle of candles) {
-          barByTime.set(candle.time as number, { high: candle.high, low: candle.low });
+          barByTime.set(candle.time as number, {
+            open: candle.open,
+            high: candle.high,
+            low: candle.low,
+            close: candle.close,
+          });
         }
 
         // Candles are evenly spaced, so the first interval represents the rest.
@@ -270,7 +283,12 @@ export function useChartOverlays(
           maxGapSec = Math.max(sortedCandleTimes[1]! - sortedCandleTimes[0]!, 60);
         }
 
-        const labels: PatternLabel[] = [];
+        // Built in two passes: collect every firing with the bar's shape, then
+        // let bestPatternMatch decide which single pattern each candle is
+        // labelled with. Five rules routinely fire on one small-bodied bar, and
+        // drawing all five is what buried the price.
+        const draft: Array<PatternLabel & { patternColumn: string }> = [];
+        const firings: PatternFiring[] = [];
         const seenPerTime = new Map<number, Set<string>>();
 
         for (const overlay of patternOverlays) {
@@ -286,16 +304,47 @@ export function useChartOverlays(
             if (seen.has(text)) continue;
             seen.add(text);
 
-            labels.push({
+            // Shape as fractions of the bar's own range, so the comparison is
+            // about geometry and not about price level. A zero-range bar has no
+            // shape to speak of and is left at zero rather than dividing by it.
+            const totalRange = bar.high - bar.low;
+            const safeRange = totalRange > 0 ? totalRange : Number.NaN;
+            const bodyFraction = Math.abs(bar.close - bar.open) / safeRange;
+            const upperShadowFraction =
+              (bar.high - Math.max(bar.open, bar.close)) / safeRange;
+            const lowerShadowFraction =
+              (Math.min(bar.open, bar.close) - bar.low) / safeRange;
+
+            draft.push({
               time: snapped,
               high: bar.high,
               low: bar.low,
               text,
               direction: point.value > 0 ? 1 : -1,
               color: point.value > 0 ? '#E69F00' : '#0072B2',
+              isBestMatch: false,
+              patternColumn: overlay.column,
+            });
+            firings.push({
+              time: snapped,
+              patternColumn: overlay.column,
+              bodyFraction: Number.isFinite(bodyFraction) ? bodyFraction : 0,
+              upperShadowFraction: Number.isFinite(upperShadowFraction) ? upperShadowFraction : 0,
+              lowerShadowFraction: Number.isFinite(lowerShadowFraction) ? lowerShadowFraction : 0,
             });
           }
         }
+
+        const winners = selectBestMatchPerBar(firings);
+        const labels: PatternLabel[] = draft.map(entry => ({
+          time: entry.time,
+          high: entry.high,
+          low: entry.low,
+          text: entry.text,
+          direction: entry.direction,
+          color: entry.color,
+          isBestMatch: winners.has(firingKey(entry.time, entry.patternColumn)),
+        }));
 
         labels.sort((a, b) => a.time - b.time);
 
