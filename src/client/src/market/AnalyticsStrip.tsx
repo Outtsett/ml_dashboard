@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Badge } from "@/shared/ui/badge";
-import { Brain, Layers, Loader2, Play } from "lucide-react";
+import { Brain, Layers, Loader2, Play, RefreshCw } from "lucide-react";
 import type { RegimeInfo } from "@/ml/components/RegimeLegend";
 
 interface AnalyticsStripProps {
@@ -23,6 +23,16 @@ interface AnalyticsStripProps {
   regimeIsTraining: boolean;
   regimeQualityScore: number | null | undefined;
   isTrainingActive: boolean;
+  /**
+   * Refetch the bars for this symbol and timeframe.
+   *
+   * Sits beside the bar count because that is where you look when the number
+   * is wrong. The bars query has a 10-minute staleTime, retries once, and does
+   * not refetch on window focus, so after a failed load nothing retries on its
+   * own — the only recovery used to be reloading the whole page.
+   */
+  onReloadBars?: () => void;
+  isReloadingBars?: boolean;
 }
 
 export const AnalyticsStrip = memo(function AnalyticsStrip({
@@ -31,6 +41,7 @@ export const AnalyticsStrip = memo(function AnalyticsStrip({
   tradeMetrics, modelCount,
   matchedModelId, regimeLegendInfo, regimeIsTraining, regimeQualityScore,
   isTrainingActive,
+  onReloadBars, isReloadingBars = false,
 }: AnalyticsStripProps) {
   return (
     <div className="flex items-center gap-3 px-3 py-1.5 border-b border-white/[0.06] shrink-0 text-[11px] bg-gradient-to-b from-card/30 to-card/15 backdrop-blur-sm">
@@ -39,6 +50,23 @@ export const AnalyticsStrip = memo(function AnalyticsStrip({
       <span className="text-muted-foreground font-mono text-[10px] bg-white/[0.04] px-2 py-0.5 rounded-full border border-white/[0.06]">
         {displayDataLength.toLocaleString()}{replayActive ? ` / ${chartDataLength.toLocaleString()}` : ''} bars
       </span>
+
+      {onReloadBars && (
+        <button
+          type="button"
+          onClick={onReloadBars}
+          disabled={isReloadingBars}
+          title="Reload bars — clears the cached copy and asks the server again"
+          aria-label="Reload bars"
+          data-testid="button-reload-bars"
+          className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 p-0.5 rounded"
+        >
+          <RefreshCw
+            className={`h-3 w-3 ${isReloadingBars ? 'animate-spin' : ''}`}
+            aria-hidden="true"
+          />
+        </button>
+      )}
 
       <div className="flex-1" />
 

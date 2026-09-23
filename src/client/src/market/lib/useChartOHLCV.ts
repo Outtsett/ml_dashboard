@@ -9,7 +9,11 @@ import { useSSEConnection } from "@/infrastructure/lib/useSSEConnection";
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getFetchLimit, minutesToApiKey } from "@/market/lib/timeframes";
-import { getCachedBars, storeBars } from "@/infrastructure/storage/ohlcv_cache";
+import {
+  getCachedBars,
+  storeBars,
+  clearCachedBars,
+} from '@/infrastructure/storage/ohlcv_cache';
 import { decode as msgpackDecode } from '@msgpack/msgpack';
 import type { OhlcvData } from "@/market/components/types";
 
@@ -70,7 +74,13 @@ export function useChartOHLCV(symbol: string, timeframeMinutes: number) {
   }, [symbol, timeframeMinutes]);
 
   // ── Primary data query ──
-  const { data: chartQueryData, isFetching } = useQuery<OhlcvData[]>({
+  const {
+    data: chartQueryData,
+    isFetching,
+    isError,
+    error,
+    refetch,
+  } = useQuery<OhlcvData[]>({
     queryKey: ['/api/charts/ohlcv', symbol, apiTimeframe],
     queryFn: async ({ signal }) => {
       // L0: Check IndexedDB cache first — instant load on revisit
@@ -209,6 +219,25 @@ export function useChartOHLCV(symbol: string, timeframeMinutes: number) {
     resetScrollState();
   }, [queryClient, symbol, apiTimeframe, resetScrollState]);
 
+  /**
+   * Reload the bars for real, for when the chart came up empty.
+   *
+   * Three things fail together and each needs its own undoing, which is why a
+   * plain invalidate was not enough:
+   *
+   *   1. The IndexedDB entry is read BEFORE the network, so a short or
+   *      truncated cache short-circuits every retry. Evict the key first.
+   *   2. The infinite-scroll slice (`visibleData`) survives a refetch and would
+   *      keep rendering whatever it already held. Reset it.
+   *   3. `staleTime` is 10 minutes and window-focus refetching is off, so
+   *      nothing retries on its own after the retry budget is spent. Force it.
+   */
+  const reloadChart = useCallback(async () => {
+    await clearCachedBars(symbol, apiTimeframe);
+    resetScrollState();
+    await refetch();
+  }, [symbol, apiTimeframe, resetScrollState, refetch]);
+
   const useInfiniteScroll = visibleData.length > 0;
 
 
@@ -230,6 +259,12 @@ export function useChartOHLCV(symbol: string, timeframeMinutes: number) {
   return {
     chartData: rawData,
     isFetching,
+    /** True when the bar request failed and the retry budget is spent. */
+    isError,
+    /** The failure, so the chart can name it rather than showing a blank. */
+    error: error as Error | null,
+    /** Evict the cache and refetch. Wired to the chart's reload control. */
+    reloadChart,
     isLoadingMore,
     hasMoreLeft,
     hasMoreRight,

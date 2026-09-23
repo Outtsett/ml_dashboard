@@ -158,6 +158,29 @@ export async function storeBars(
 /**
  * Clear all cached OHLCV data. Exposed for settings/debug UI.
  */
+/**
+ * Drop the cached bars for ONE symbol and timeframe.
+ *
+ * Needed by the chart's reload control. `getCachedBars` is consulted before the
+ * network, so an entry that was stored short, truncated, or from a server that
+ * was mid-restart wins on every subsequent load and a plain query invalidation
+ * cannot dislodge it — the refetch reads the same bad cache and returns it
+ * again. Reloading therefore has to evict this key first.
+ *
+ * Scoped to one key on purpose: clearOhlcvCache() throws away every symbol the
+ * user has visited, which turns one stuck chart into a slow reload of all of
+ * them.
+ */
+export async function clearCachedBars(symbol: string, timeframe: string): Promise<void> {
+  try {
+    const db = await getDb();
+    await db.delete(STORE_NAME, cacheKey(symbol, timeframe));
+  } catch {
+    // A browser with IndexedDB blocked or a private window has no cache to
+    // clear, and that is not a reason to fail the reload the user asked for.
+  }
+}
+
 export async function clearOhlcvCache(): Promise<void> {
   try {
     const db = await getDb();
