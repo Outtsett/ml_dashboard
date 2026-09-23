@@ -122,6 +122,7 @@ node_modules.zip
 # inventory, and personal preferences that should not be public.
 CLAUDE.md
 docs/CLAUDE-archive.md
+docs/CLAUDE-reference.md
 CLAUDE.local.md
 GEMINI.md
 AGENTS.md
