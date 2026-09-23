@@ -171,6 +171,69 @@ function buildFallbackMap(): Record<string, string[]> {
   return map;
 }
 
+/**
+ * How many bars a pattern's rule reads, keyed by selection column.
+ *
+ * The distinction the name hides: only 13 of the 61 read a single bar. A
+ * one-bar rule is a statement about that candle's own shape; a three-bar rule
+ * is a statement about a sequence, which is why the picker lets you narrow to
+ * one group at a time instead of drowning the chart in all of them at once.
+ */
+export const BARS_READ_BY_COLUMN: Record<string, number> = Object.fromEntries(
+  CANDLE_PATTERNS.map(pattern => [pattern.column, pattern.candleCount]),
+);
+
+/**
+ * What KIND of claim the pattern makes, keyed by selection column.
+ *
+ * 'reversal' says the move should turn, 'continuation' says it should carry on,
+ * 'indecision' says neither side won this bar, and 'colour_line' is a plain
+ * statement about body size and direction. That distinction changes what the
+ * label means far more than the pattern's name does, which is why it is drawn
+ * on the chart beside it.
+ */
+export const PATTERN_TYPE_BY_COLUMN: Record<string, string> = buildPatternTypeMap();
+
+function buildPatternTypeMap(): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const pattern of TALIB_PATTERN_CATALOG) {
+    map[talibPatternColumn(pattern.name)] = pattern.patternType;
+  }
+  // A browser detector inherits the type of the TA-Lib pattern it stands in
+  // for, so a fallback label reads the same as the lake one it replaced.
+  for (const [lakeColumn, detectors] of Object.entries(BROWSER_DETECTORS_FOR_LAKE_PATTERN)) {
+    const type = map[lakeColumn];
+    if (!type) continue;
+    for (const detector of detectors) {
+      if (!map[detector]) map[detector] = type;
+    }
+  }
+  // Tweezer top and bottom have no TA-Lib function to inherit from. Both are
+  // reversal patterns by definition: a matched high or low that stops a move.
+  for (const detector of CANDLE_PATTERN_CATALOG) {
+    if (!map[detector.name]) map[detector.name] = 'reversal';
+  }
+  return map;
+}
+
+/** 'colour_line' reads badly on a chart; everything else is already a word. */
+function readablePatternType(type: string): string {
+  return type === 'colour_line' ? 'body' : type;
+}
+
+/**
+ * The text drawn on the chart: the pattern's name and what kind of claim it is.
+ *
+ * The old label carried "(TA-Lib)" to mark the source, which told you where the
+ * number came from but nothing about what it meant. The type is the more useful
+ * parenthetical, and the source is still shown per row in the picker.
+ */
+export function chartLabelForColumn(column: string, displayName: string): string {
+  const cleaned = displayName.replace(/\s*\(TA-Lib\)\s*$/, '');
+  const type = PATTERN_TYPE_BY_COLUMN[column];
+  return type ? `${cleaned} (${readablePatternType(type)})` : cleaned;
+}
+
 /** The true single-bar patterns, for the quick pick. */
 export const SINGLE_CANDLE_PATTERN_COLUMNS: string[] = CANDLE_PATTERNS
   .filter(p => p.candleCount === 1)

@@ -5,9 +5,23 @@ import { Checkbox } from '@/shared/ui/checkbox';
 import {
   CANDLE_PATTERNS,
   ALL_CANDLE_PATTERN_COLUMNS,
-  SINGLE_CANDLE_PATTERN_COLUMNS,
   isCandlePatternColumn,
 } from '@/market/lib/candlePatternCatalog';
+
+/**
+ * How many bars a rule reads is the distinction the pattern names hide.
+ *
+ * A one-bar rule describes a single candle's shape. A three-bar rule describes
+ * a sequence, and is a far stronger claim. Turning all 63 on at once buries the
+ * chart and mixes the two, so the picker narrows to one group at a time.
+ */
+const BAR_COUNT_GROUPS: Array<{ id: string; label: string; matches: (n: number) => boolean }> = [
+  { id: 'all', label: 'all', matches: () => true },
+  { id: 'single', label: 'single', matches: n => n === 1 },
+  { id: 'duo', label: 'duo', matches: n => n === 2 },
+  { id: 'triple', label: 'triple', matches: n => n === 3 },
+  { id: 'long', label: '4-5 bar', matches: n => n >= 4 },
+];
 
 /**
  * One "Candle patterns" group, replacing the old "Patterns" and "TA-Lib
@@ -37,16 +51,29 @@ export function CandlePatternSelector({
   error,
 }: CandlePatternSelectorProps) {
   const [expanded, setExpanded] = useState(false);
+  const [barCountGroup, setBarCountGroup] = useState('all');
 
   const filtered = useMemo(() => {
-    if (!searchFilter) return CANDLE_PATTERNS;
-    const query = searchFilter.toLowerCase();
-    return CANDLE_PATTERNS.filter(
-      pattern =>
-        pattern.displayName.toLowerCase().includes(query) ||
-        pattern.column.toLowerCase().includes(query),
-    );
-  }, [searchFilter]);
+    const group = BAR_COUNT_GROUPS.find(g => g.id === barCountGroup) ?? BAR_COUNT_GROUPS[0]!;
+    // candleCount is 0 for the two browser-only detectors, which TA-Lib has no
+    // function for and which therefore declare no bar count. They are two-bar
+    // rules in practice (a matched high or low against the previous bar), so
+    // they answer to the duo group rather than vanishing from every group.
+    const barsFor = (count: number) => (count === 0 ? 2 : count);
+    let list = CANDLE_PATTERNS.filter(pattern => group.matches(barsFor(pattern.candleCount)));
+    if (searchFilter) {
+      const query = searchFilter.toLowerCase();
+      list = list.filter(
+        pattern =>
+          pattern.displayName.toLowerCase().includes(query) ||
+          pattern.column.toLowerCase().includes(query),
+      );
+    }
+    return list;
+  }, [searchFilter, barCountGroup]);
+
+  /** Columns in the group currently shown, for the select-all. */
+  const visibleColumns = useMemo(() => filtered.map(p => p.column), [filtered]);
 
   const selectedSet = useMemo(
     () => new Set(selectedPatterns.filter(isCandlePatternColumn)),
@@ -97,18 +124,44 @@ export function CandlePatternSelector({
 
       {isExpanded && (
         <div className="ml-2">
+          {/* Bars the rule reads. Narrowing to one group is how you work on
+              triples without the single-bar noise on top of them. */}
+          <div className="flex items-center gap-1 px-2 py-1">
+            <span className="text-[9px] font-mono text-zinc-600 mr-1">bars</span>
+            {BAR_COUNT_GROUPS.map(group => {
+              const _count = CANDLE_PATTERNS.filter(p =>
+                group.matches(p.candleCount === 0 ? 2 : p.candleCount),
+              ).length;
+              const _active = group.id === barCountGroup;
+              return (
+                <button
+                  key={group.id}
+                  onClick={() => setBarCountGroup(group.id)}
+                  className={
+                    'text-[9px] font-mono px-1.5 py-0.5 rounded transition-colors ' +
+                    (_active
+                      ? 'bg-[#E69F00]/20 text-[#E69F00]'
+                      : 'text-zinc-500 hover:text-zinc-300')
+                  }
+                >
+                  {group.label} {_count}
+                </button>
+              );
+            })}
+          </div>
+
           <div className="flex items-center gap-2 px-2 py-1">
             <button
-              onClick={() => replacePatterns(ALL_CANDLE_PATTERN_COLUMNS)}
+              onClick={() => replacePatterns(visibleColumns)}
               className="text-[9px] font-mono text-[#E69F00] hover:underline"
             >
-              all {ALL_CANDLE_PATTERN_COLUMNS.length}
+              select these {visibleColumns.length}
             </button>
             <button
-              onClick={() => replacePatterns(SINGLE_CANDLE_PATTERN_COLUMNS)}
+              onClick={() => replacePatterns(ALL_CANDLE_PATTERN_COLUMNS)}
               className="text-[9px] font-mono text-[#56B4E9] hover:underline"
             >
-              the {SINGLE_CANDLE_PATTERN_COLUMNS.length} individual
+              all {ALL_CANDLE_PATTERN_COLUMNS.length}
             </button>
             {selectedSet.size > 0 && (
               <button
@@ -135,8 +188,11 @@ export function CandlePatternSelector({
                 className="h-3 w-3"
               />
               <span className="text-[11px] text-zinc-300 truncate">{pattern.displayName}</span>
+              <span className="text-[8px] font-mono text-zinc-500 ml-auto shrink-0">
+                {pattern.candleCount > 0 ? `${pattern.candleCount}b` : '2b'}
+              </span>
               <span
-                className="text-[8px] font-mono text-zinc-600 ml-auto shrink-0"
+                className="text-[8px] font-mono text-zinc-600 shrink-0"
                 title={
                   pattern.source === 'lake'
                     ? "TA-Lib's own output, stored per bar in the lake"

@@ -9,6 +9,7 @@ import {
   firingKey,
   type PatternFiring,
 } from '@/market/lib/bestPatternMatch';
+import { chartLabelForColumn } from '@/market/lib/candlePatternCatalog';
 import type { IndicatorOverlay } from "@/market/lib/useIndicatorData";
 import { getPatternDisplayName } from "@/market/lib/candle_patterns";
 import { getSeriesTitle } from "@/market/lib/indicator_panels";
@@ -292,7 +293,11 @@ export function useChartOverlays(
         const seenPerTime = new Map<number, Set<string>>();
 
         for (const overlay of patternOverlays) {
-          const text = getPatternDisplayName(overlay.column);
+          // Name plus what kind of claim it makes: "Morning Star (reversal)".
+          const text = chartLabelForColumn(
+            overlay.column,
+            getPatternDisplayName(overlay.column),
+          );
           for (const point of overlay.data) {
             const snapped = snapToCandle(point.time, sortedCandleTimes, maxGapSec);
             if (snapped === -1) continue;
