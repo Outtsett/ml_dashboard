@@ -1,25 +1,24 @@
 import { useEffect, useRef } from 'react';
 import {
-  LineSeries, AreaSeries, createSeriesMarkers,
-  LineStyle, type IChartApi, type ISeriesApi, type ISeriesMarkersPluginApi, type Time,
+  LineSeries, AreaSeries,
+  LineStyle, type CandlestickData, type IChartApi, type ISeriesApi, type Time,
 } from 'lightweight-charts';
+import { PatternLabelPrimitive, type PatternLabel } from './PatternLabelPrimitive';
 import type { IndicatorOverlay } from "@/market/lib/useIndicatorData";
 import { getPatternDisplayName } from "@/market/lib/candle_patterns";
 import { getSeriesTitle } from "@/market/lib/indicator_panels";
 import { colorToRgba } from '@/market/lib/indicator_colors';
-import { dedupByTime } from './chartConfig';
+import { dedupByTime, volumeScaleMargins } from './chartConfig';
 
 /**
- * What the overlay map holds. Indicator lines and band fills are series; the CDL
- * pattern markers are a plugin attached to the candle series, parked in the same
- * map under the `__cdl_markers__` key. They answer to different methods, so the
- * union is narrowed at each use rather than typed away as `any`.
+ * What the overlay map holds: indicator lines and band fills, nothing else.
+ *
+ * Contextual pattern labels used to be parked in this same map under a
+ * `__cdl_markers__` key as a markers plugin, which forced every read to narrow a
+ * three-way union. They now live in their own primitive (PatternLabelPrimitive),
+ * so this map holds one kind of thing again.
  */
-type OverlayEntry = ISeriesApi<'Line'> | ISeriesApi<'Area'> | ISeriesMarkersPluginApi<Time>;
-
-function isMarkers(entry: OverlayEntry): entry is ISeriesMarkersPluginApi<Time> {
-  return 'setMarkers' in entry;
-}
+type OverlayEntry = ISeriesApi<'Line'> | ISeriesApi<'Area'>;
 
 // ─── Band / line classification helpers ──────────────────────────────────────
 
@@ -110,16 +109,34 @@ export function useChartOverlays(
   chartRef: React.RefObject<IChartApi | null>,
   candleSeriesRef: React.RefObject<ISeriesApi<'Candlestick'> | null>,
   indicatorOverlays: IndicatorOverlay[],
-  candleTimes: { time: Time }[],
+  candles: CandlestickData<Time>[],
 ) {
   const overlaySeriesRef = useRef<Map<string, OverlayEntry>>(new Map());
+  const patternLabelsRef = useRef<PatternLabelPrimitive | null>(null);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       overlaySeriesRef.current.clear();
+      patternLabelsRef.current = null;
     };
   }, []);
+
+  // Crosshair -> hovered bar. In dense mode the pattern names are shown for the
+  // bar under the cursor rather than for every bar at once, so the primitive
+  // needs to know where the crosshair is.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const handler = (param: { time?: Time }) => {
+      const time = param.time === undefined ? null : (param.time as number);
+      patternLabelsRef.current?.setHoveredTime(time);
+    };
+    chart.subscribeCrosshairMove(handler);
+    return () => {
+      chart.unsubscribeCrosshairMove(handler);
+    };
+  }, [chartRef]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -131,15 +148,14 @@ export function useChartOverlays(
     );
     const existingKeys = Array.from(overlaySeriesRef.current.keys());
 
-    // Remove line series that are no longer selected.
-    // Skip __cdl_markers__ (managed separately) and marker-type overlay keys
-    // (CDL patterns don't have their own LineSeries — they share the markers primitive).
+    // Remove line series that are no longer selected. Marker-type overlays are
+    // skipped because they never had a LineSeries — they are drawn by the
+    // pattern-label primitive.
     for (const key of existingKeys) {
-      if (key === '__cdl_markers__') continue;
       if (markerKeys.has(key)) continue;
       if (!currentKeys.has(key)) {
         const series = overlaySeriesRef.current.get(key);
-        if (series && !isMarkers(series)) {
+        if (series) {
           try { chart.removeSeries(series); } catch { /* series already removed from chart */ }
         }
         overlaySeriesRef.current.delete(key);
@@ -161,10 +177,10 @@ export function useChartOverlays(
           .map(d => ({ time: d.time as Time, value: d.value })),
       );
 
-      if (existing && !isMarkers(existing)) {
+      if (existing) {
         existing.setData(seriesData);
       } else if (overlay.displayType === 'marker') {
-        // CDL pattern markers — handled via createSeriesMarkers below
+        // Contextual pattern labels — drawn by the primitive below
       } else {
         const outputKey = extractOutputKey(overlay.column);
         const isUpper = UPPER_BAND_KEYS.has(outputKey);
@@ -223,79 +239,82 @@ export function useChartOverlays(
       }
     }
 
-    // Handle CDL markers
+    // ── Contextual pattern labels ────────────────────────────────────────
+    //
+    // Drawn by a series primitive, not by createSeriesMarkers. The built-in
+    // marker centres its text on the bar's x coordinate, and a label such as
+    // "Gravestone Doji (TA-Lib)" is roughly 150px wide against a 6px bar, so the
+    // text painted straight across twenty neighbouring candles and over other
+    // labels. The primitive anchors each label outside the bar's high/low and
+    // pushes collisions further away, never toward the candle.
+    //
+    // This applies to labels that annotate a bar. Moving averages and band
+    // edges are deliberately untouched above: tracing the price through the
+    // candles is what they mean.
     if (candleSeriesRef.current) {
-      const cdlOverlays = indicatorOverlays.filter(o => o.displayType === 'marker');
-      if (cdlOverlays.length > 0) {
-        // Build sorted candle time array for binary-search snapping
-        const sortedCandleTimes = candleTimes
+      const patternOverlays = indicatorOverlays.filter(o => o.displayType === 'marker');
+
+      if (patternOverlays.length > 0) {
+        const sortedCandleTimes = candles
           .map(d => d.time as number)
           .sort((a, b) => a - b);
 
-        // Compute max snap gap: if we have >= 2 candles, use the median interval;
-        // otherwise default to 60s (1 minute).
+        const barByTime = new Map<number, { high: number; low: number }>();
+        for (const candle of candles) {
+          barByTime.set(candle.time as number, { high: candle.high, low: candle.low });
+        }
+
+        // Candles are evenly spaced, so the first interval represents the rest.
         let maxGapSec = 60;
         if (sortedCandleTimes.length >= 2) {
-          // Use first interval as representative (candles are evenly spaced)
-          const interval = sortedCandleTimes[1]! - sortedCandleTimes[0]!;
-          maxGapSec = Math.max(interval, 60);
+          maxGapSec = Math.max(sortedCandleTimes[1]! - sortedCandleTimes[0]!, 60);
         }
 
-        const cdlMarkers = cdlOverlays.flatMap(overlay =>
-          overlay.data
-            .map(d => {
-              const snapped = snapToCandle(d.time, sortedCandleTimes, maxGapSec);
-              if (snapped === -1) return null;
-              return {
-                time: snapped as Time,
-                position: (d.value > 0 ? 'belowBar' : 'aboveBar') as 'belowBar' | 'aboveBar',
-                color: d.value > 0 ? '#E69F00' : '#0072B2',
-                shape: (d.value > 0 ? 'arrowUp' : 'arrowDown') as 'arrowUp' | 'arrowDown',
-                text: getPatternDisplayName(overlay.column),
-              };
-            })
-            .filter((m): m is NonNullable<typeof m> => m !== null)
-        ).sort((a, b) => (a.time as number) - (b.time as number));
+        const labels: PatternLabel[] = [];
+        const seenPerTime = new Map<number, Set<string>>();
 
-        // Deduplicate markers at the same time (keep first per time)
-        const deduped: typeof cdlMarkers = [];
-        const seenTimes = new Map<number, Set<string>>();
-        for (const m of cdlMarkers) {
-          const t = m.time as number;
-          if (!seenTimes.has(t)) seenTimes.set(t, new Set());
-          const textSet = seenTimes.get(t)!;
-          if (!textSet.has(m.text)) {
-            textSet.add(m.text);
-            deduped.push(m);
+        for (const overlay of patternOverlays) {
+          const text = getPatternDisplayName(overlay.column);
+          for (const point of overlay.data) {
+            const snapped = snapToCandle(point.time, sortedCandleTimes, maxGapSec);
+            if (snapped === -1) continue;
+            const bar = barByTime.get(snapped);
+            if (!bar) continue;
+
+            let seen = seenPerTime.get(snapped);
+            if (!seen) { seen = new Set(); seenPerTime.set(snapped, seen); }
+            if (seen.has(text)) continue;
+            seen.add(text);
+
+            labels.push({
+              time: snapped,
+              high: bar.high,
+              low: bar.low,
+              text,
+              direction: point.value > 0 ? 1 : -1,
+              color: point.value > 0 ? '#E69F00' : '#0072B2',
+            });
           }
         }
 
-        if (deduped.length > 0) {
-          if (!overlaySeriesRef.current.has('__cdl_markers__')) {
-            const sm = createSeriesMarkers(candleSeriesRef.current, deduped);
-            overlaySeriesRef.current.set('__cdl_markers__', sm);
-          } else {
-            const existingMarkers = overlaySeriesRef.current.get('__cdl_markers__');
-            if (existingMarkers && isMarkers(existingMarkers)) existingMarkers.setMarkers(deduped);
-          }
-        } else {
-          // No markers matched — clear any existing
-          const cdlSm = overlaySeriesRef.current.get('__cdl_markers__');
-          if (cdlSm && isMarkers(cdlSm)) {
-            cdlSm.setMarkers([]);
-            overlaySeriesRef.current.delete('__cdl_markers__');
-          }
+        labels.sort((a, b) => a.time - b.time);
+
+        if (!patternLabelsRef.current) {
+          const primitive = new PatternLabelPrimitive();
+          // The volume histogram occupies the bottom slice of the same pane.
+          primitive.reservedBottomFraction = 1 - volumeScaleMargins.top;
+          candleSeriesRef.current.attachPrimitive(primitive);
+          patternLabelsRef.current = primitive;
         }
+        patternLabelsRef.current.setBars(
+          candles.map(c => ({ time: c.time as number, high: c.high, low: c.low })),
+        );
+        patternLabelsRef.current.setLabels(labels);
       } else {
-        // Clear CDL markers if none selected
-        const cdlSm = overlaySeriesRef.current.get('__cdl_markers__');
-        if (cdlSm && isMarkers(cdlSm)) {
-          cdlSm.setMarkers([]);
-          overlaySeriesRef.current.delete('__cdl_markers__');
-        }
+        patternLabelsRef.current?.setLabels([]);
       }
     }
-  }, [chartRef, candleSeriesRef, indicatorOverlays, candleTimes]);
+  }, [chartRef, candleSeriesRef, indicatorOverlays, candles]);
 
   return overlaySeriesRef;
 }
