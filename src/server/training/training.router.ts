@@ -47,6 +47,14 @@ import {
 import * as trainingStorage from "../infrastructure/storage/trainingStorage";
 import { logInfo } from "../infrastructure/lib/log";
 
+// Parser -> storage wiring. Every parsed training event is republished on the
+// domain event bus by `emitSessionEvent`; the recorder subscribes there and
+// persists metrics to `run_metrics` / `training_metrics` / `loss_history` and
+// rolls progress into the `training_sessions` row. Attaching it at module load
+// means persistence is live before the first `POST /training/start` can run,
+// and the call is idempotent.
+trainingStorage.ensureTrainingMetricRecorder();
+
 // ─── Zod schema for request validation (DIP — route depends on schema, not manual field copying) ──
 
 /** ISO date: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS */

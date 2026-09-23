@@ -111,6 +111,15 @@ const EpochMetricEventSchema = z.object({
   metrics: z.record(z.union([z.number(), z.string(), z.boolean(), z.null()])).optional(),
 }).passthrough();
 
+/**
+ * `fold_complete` — the row-commit signal for <ExperimentLedger>.
+ *
+ * `fold_idx` is the canonical key and stays REQUIRED here, because a fold
+ * row without its coordinate is not a ledger row. Tolerance for the `fold`
+ * spelling is applied *before* validation by `normalizeFoldCompleteAliases`
+ * (see below), so by the time a line reaches this schema the alias has
+ * already been folded into `fold_idx`.
+ */
 const FoldCompleteEventSchema = z.object({
   type: z.literal('fold_complete'),
   fold_idx: z.number(),
@@ -189,17 +198,72 @@ const GeneratedEventUnionSchema = z.discriminatedUnion('type', [
   ErrorEventSchema,
 ]);
 
+/** Every `type` literal the union knows about — used to tell a drifted
+ *  known event apart from a genuinely custom one when validation fails. */
+export const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set(
+  GeneratedEventUnionSchema.options.map(
+    (option) => (option.shape.type as z.ZodLiteral<string>).value,
+  ),
+);
+
 /**
- * The wire contract: envelope fields intersected onto the payload union.
+ * Fold-coordinate alias tolerance for `fold_complete`.
+ *
+ * `src/ml/shared/protocol.py::emit_fold_complete` emits `fold_idx`. The
+ * diverged fork at `Trading/quant/model/src/ml/shared/protocol.py:1201`
+ * emits `fold` (plus `total_folds`), and it is the emitter behind the
+ * registered runner `online_rls_mtf+online_direction_skill`. That fork has
+ * its own consumers, so the tolerance lives here rather than there: accept
+ * either spelling on the wire, normalise to `fold_idx` before validation.
+ *
+ * Precedence: a numeric `fold_idx` always wins. The envelope stamps
+ * `fold_idx: null` when no fold is active (`protocol.py::_envelope`), so
+ * "null envelope coordinate + numeric payload `fold`" resolves to the
+ * payload's fold — the emitter is closer to the truth than the envelope
+ * default. The nested `data` copy (the documented v1 transition form) is
+ * normalised alongside the flat copy so the two never disagree.
+ *
+ * Pure: returns a new object rather than mutating the caller's payload.
+ */
+export function normalizeFoldCompleteAliases(input: unknown): unknown {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return input;
+  const obj = input as Record<string, unknown>;
+  if (obj.type !== 'fold_complete') return input;
+
+  const needsFlat = typeof obj.fold_idx !== 'number' && typeof obj.fold === 'number';
+
+  const nested = obj.data;
+  const nestedIsObject = !!nested && typeof nested === 'object' && !Array.isArray(nested);
+  const nestedObj = nestedIsObject ? (nested as Record<string, unknown>) : null;
+  const needsNested =
+    nestedObj !== null &&
+    typeof nestedObj.fold_idx !== 'number' &&
+    typeof nestedObj.fold === 'number';
+
+  if (!needsFlat && !needsNested) return input;
+
+  const out: Record<string, unknown> = { ...obj };
+  if (needsFlat) out.fold_idx = obj.fold;
+  if (needsNested && nestedObj) out.data = { ...nestedObj, fold_idx: nestedObj.fold };
+  return out;
+}
+
+/**
+ * The wire contract: envelope fields intersected onto the payload union,
+ * behind the alias-normalisation preprocess.
  *
  * Intersection rather than replacement is what keeps legacy runners working —
  * every envelope field is optional, so a pre-envelope line validates exactly
  * as it did before, and an enveloped line validates with its identity fields
  * typed instead of merely passed through.
+ *
+ * The preprocess sits on the exported schema (not only inside
+ * `parseGeneratedLine`) so anything validating a raw line directly gets the
+ * same tolerance.
  */
-export const GeneratedEventSchema = z.intersection(
-  EnvelopeFieldsSchema,
-  GeneratedEventUnionSchema,
+export const GeneratedEventSchema = z.preprocess(
+  normalizeFoldCompleteAliases,
+  z.intersection(EnvelopeFieldsSchema, GeneratedEventUnionSchema),
 );
 
 export type GeneratedEvent = z.infer<typeof GeneratedEventSchema>;
@@ -211,8 +275,28 @@ export type GeneratedEvent = z.infer<typeof GeneratedEventSchema>;
  */
 export type ParsedLine =
   | { kind: 'event'; event: GeneratedEvent }
-  | { kind: 'unknown'; raw: Record<string, unknown> & { type?: string } }
+  | {
+      kind: 'unknown';
+      raw: Record<string, unknown> & { type?: string };
+      /** true when `raw.type` IS a type the union knows — i.e. protocol drift
+       *  in a recognised event, not a deliberately custom one. */
+      knownType: boolean;
+      /** Human-readable Zod failure: `path: message; path: message`. */
+      validationError: string;
+    }
   | { kind: 'log'; message: string };
+
+/** Compact, single-line rendering of a Zod failure for a log message. */
+function formatValidationError(error: z.ZodError): string {
+  const issues = error.issues.slice(0, 6).map((issue) => {
+    const path = issue.path.length ? issue.path.join('.') : '<root>';
+    return `${path}: ${issue.message}`;
+  });
+  if (error.issues.length > issues.length) {
+    issues.push(`(+${error.issues.length - issues.length} more)`);
+  }
+  return issues.join('; ');
+}
 
 /**
  * Pure-function parser used by both the live runner pipeline and the
@@ -238,13 +322,19 @@ export function parseGeneratedLine(line: string): ParsedLine {
   const obj = parsed as Record<string, unknown> & { type?: string };
   const result = GeneratedEventSchema.safeParse(obj);
   if (result.success) {
-    return { kind: 'event', event: result.data };
+    return { kind: 'event', event: result.data as GeneratedEvent };
   }
   // Recognised JSON shape but not in our discriminated union (or a known
   // type whose payload didn't validate). Either way, preserve the payload
   // — the frontend may still consume custom event types we don't know
-  // about, and we don't drop diagnostic detail on the floor.
-  return { kind: 'unknown', raw: obj };
+  // about, and we don't drop diagnostic detail on the floor. The Zod failure
+  // travels with it so the downgrade is explainable rather than mute.
+  return {
+    kind: 'unknown',
+    raw: obj,
+    knownType: typeof obj.type === 'string' && KNOWN_EVENT_TYPES.has(obj.type),
+    validationError: formatValidationError(result.error),
+  };
 }
 
 /**
@@ -280,6 +370,25 @@ export function withSynthesizedEnvelope(
   return payload;
 }
 
+/**
+ * Server-terminal half of the drift signal, deduplicated per
+ * (session, event type) so a runner emitting one bad line per epoch does not
+ * flood stdout — the first occurrence is the one that matters.
+ */
+const warnedDrift = new Set<string>();
+
+function warnOnce(sessionId: string, eventType: string, message: string): void {
+  const key = `${sessionId}:${eventType}`;
+  if (warnedDrift.has(key)) return;
+  warnedDrift.add(key);
+  console.warn(`[GeneratedParser] ${message}`);
+}
+
+/** Test hook — clears the per-session warn dedupe table. */
+export function resetDriftWarnings(): void {
+  warnedDrift.clear();
+}
+
 export class GeneratedParser implements IOutputParser {
   parseLine(session: TrainingSession, line: string, _ctx: ParserContext): boolean {
     const result = parseGeneratedLine(line);
@@ -293,10 +402,23 @@ export class GeneratedParser implements IOutputParser {
 
     if (result.kind === 'unknown') {
       // Forward as a log event so the verbose panel keeps the raw payload,
-      // but include the original `type` for client-side filtering.
+      // but say WHY it was downgraded. Before this, a `fold_complete` whose
+      // payload failed Zod arrived as a bare JSON blob — indistinguishable
+      // from a deliberately custom event, with no trace of the validation
+      // error. Protocol drift has to be loud.
+      const eventType = typeof result.raw.type === 'string' ? result.raw.type : '(none)';
+      const headline = result.knownType
+        ? `Protocol drift: "${eventType}" event failed validation and was downgraded to a log line — ${result.validationError}`
+        : `Unrecognised protocol event "${eventType}" forwarded verbatim — ${result.validationError}`;
+
+      warnOnce(session.sessionId, eventType, headline);
+
       emitSessionEvent(session, 'log', {
-        message: JSON.stringify(result.raw),
+        level: 'warn',
+        message: `${headline} | raw: ${JSON.stringify(result.raw)}`,
         unknownType: result.raw.type ?? null,
+        validationError: result.validationError,
+        knownType: result.knownType,
       });
       return true;
     }

@@ -9,6 +9,7 @@ Event types:
   progress             — iteration / phase progress
   metric               — per-iteration numeric metric
   metric_declarations  — self-describing metric schema (renderer, mission, context)
+  config               — config snapshot (model / data / optimizer / schedule / HPO)
   overlay              — chart overlay update (regime zones, predictions, etc.)
   model_state          — full model state snapshot (cluster quality, feature attribution, etc.)
   sampler_diagnostics  — sampler health metrics (ESS, autocorrelation, step timing)
@@ -380,6 +381,68 @@ def emit_metric_declarations(declarations: dict):
             }
     """
     emit(_envelope("metric_declarations", {"declarations": declarations}))
+
+
+def emit_config(
+    config: dict,
+    *,
+    scope: str = "trial",
+    trial: int | None = None,
+    fold: int | None = None,
+    label: str = "",
+) -> None:
+    """Emit a structured config snapshot — "what is being trained right now".
+
+    The server parser's ``ConfigEventSchema``
+    (`src/server/training/runners/parsers/generated.ts:96-103`) is the contract
+    this matches exactly: ``type`` (discriminator), ``config`` (required
+    record), and the optional ``scope`` / ``trial`` / ``fold`` / ``label``.
+    Nothing else is invented; the schema is ``.passthrough()`` so the envelope
+    fields ride along untouched.
+
+    Signature-compatible with the diverged fork at
+    `Trading/quant/model/src/ml/shared/protocol.py::emit_config`, so a script
+    written against either import resolves the same call.
+
+    ``config`` is free-form and nested; the Config tab flattens it. The shape
+    the existing callers use::
+
+        {
+          "model":    {"class": "TwoStreamTransformer", "layers": 4, ...},
+          "data":     {"symbol": "MNQ", "timeframe": "1d", "n_train": 8000, ...},
+          "optim":    {"optimizer": "AdamW", "lr": 1e-4, ...},
+          "schedule": {"epochs": 30, "patience": 4, "n_folds": 5},
+          "hpo":      {"study_name": "...", "n_trials": 80},
+        }
+
+    Parameters
+    ----------
+    config : dict
+        Nested dict of grouped settings (free-form; the renderer flattens it).
+    scope : str
+        ``"run" | "trial" | "fold"`` — which boundary this snapshot describes.
+        The Config tab shows the latest snapshot of each scope.
+    trial : int | None
+        HPO trial index; emitted only when not ``None`` (``scope == "trial"``).
+    fold : int | None
+        Walk-forward fold index; emitted only when not ``None``
+        (``scope == "fold"``). This is the payload coordinate, distinct from
+        the envelope's ``fold_idx`` set by :func:`set_active_fold`.
+    label : str
+        Optional human-readable tag, e.g. ``"trial_007/fold_2"``. Omitted when
+        empty so the key never appears carrying a meaningless ``""``.
+    """
+    payload: dict = {
+        "scope": str(scope),
+        "config": dict(config) if config else {},
+    }
+    if trial is not None:
+        payload["trial"] = int(trial)
+    if fold is not None:
+        payload["fold"] = int(fold)
+    if label:
+        payload["label"] = str(label)
+    emit(_envelope("config", payload))
 
 
 def emit_error(message: str, details: str = ""):

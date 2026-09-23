@@ -13,9 +13,17 @@ import {
   trainingMetrics,
   evaluationResults,
   modelStateSnapshots,
+  lossHistory,
+  runMetrics,
+  runs,
   type InsertTrainingMetric,
   type InsertEvaluationResult,
+  type InsertRunMetric,
+  type InsertLossHistory,
 } from "@shared/schema";
+import { getEventBus } from "../events/event-bus";
+import type { DomainEvent } from "@shared/event-types";
+import { log } from "../lib/log";
 
 // ─── Sessions ────────────────────────────────────────────────────────────────
 
@@ -310,4 +318,576 @@ export function getLatestModelStateSnapshot(sessionId: number) {
     .orderBy(desc(modelStateSnapshots.iteration))
     .limit(1)
     .get();
+}
+
+// ─── Loss History ─────────────────────────────────────────────────────────────
+
+/** Insert a batch of loss-history rows (epoch, loss, valLoss) for the 3D surface. */
+export function insertLossHistoryBatch(rows: InsertLossHistory[]) {
+  if (rows.length === 0) return;
+  db.insert(lossHistory).values(rows).run();
+}
+
+// ─── Run Metrics (durable, provenance-keyed per-iteration metrics) ───────────
+
+/** Insert a batch of `run_metrics` rows. Chunked so the SQLite variable cap is never hit. */
+export function insertRunMetricsBatch(rows: InsertRunMetric[]) {
+  if (rows.length === 0) return;
+  const CHUNK = 150; // 11 bound columns x 150 = 1650 variables, well under 32766
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    db.insert(runMetrics).values(rows.slice(i, i + CHUNK)).run();
+  }
+}
+
+/** All metric rows for a run, ordered by iteration then insertion order. */
+export function getRunMetrics(runId: string, metricName?: string) {
+  const conditions = [eq(runMetrics.runId, runId)];
+  if (metricName) conditions.push(eq(runMetrics.metricName, metricName));
+  return db.select().from(runMetrics)
+    .where(and(...conditions))
+    .orderBy(runMetrics.iteration, runMetrics.id)
+    .all();
+}
+
+/** Row count for a run — the cheap "did anything land?" probe. */
+export function countRunMetrics(runId: string): number {
+  const row = db.select({ n: sql<number>`count(*)` })
+    .from(runMetrics).where(eq(runMetrics.runId, runId)).get();
+  return row?.n ?? 0;
+}
+
+/** Latest provenance identity for a legacy model id, for events that carry none. */
+export function getLatestRunForModelId(legacyModelId: string) {
+  return db.select({
+    runId: runs.runId,
+    experimentId: runs.experimentId,
+    trialIdx: runs.trialIdx,
+    foldIdx: runs.foldIdx,
+  })
+    .from(runs)
+    .where(eq(runs.legacyModelId, legacyModelId))
+    .orderBy(desc(runs.startedAt))
+    .limit(1)
+    .get();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Durable training-metric recorder
+//
+// Why here and not in the parser: `emitSessionEvent` already publishes every
+// parsed training event onto the domain event bus. Subscribing to that bus is
+// the one place that sees ALL events from ALL runners and parsers without any
+// runner or parser knowing that persistence exists.
+//
+// What lands where:
+//   run_metrics        — one row per (metric name, iteration), provenance-keyed
+//   training_metrics   — the same numbers keyed by training_sessions.id, so the
+//                        pre-existing GET /training/sessions/:id/metrics route
+//                        keeps answering
+//   loss_history       — one row per epoch that reported BOTH loss and val_loss
+//                        (both columns are NOT NULL)
+//   training_sessions  — current_epoch / current_loss / current_val_loss /
+//                        total_bars / total_features, so a page reload shows
+//                        real numbers instead of 0/None
+//
+// Writes are buffered and flushed on a timer or at a row threshold, and every
+// flush is wrapped: a DB error is logged and the buffer dropped, never thrown
+// back into the stdout handler that is driving the training stream.
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Flush when this many rows are buffered for one model. */
+const METRIC_FLUSH_ROWS = 100;
+/** Flush at most this often while a run is streaming (milliseconds). */
+const METRIC_FLUSH_INTERVAL_MS = 750;
+
+interface SessionProgressDelta {
+  currentEpoch?: number;
+  currentLoss?: number;
+  currentValLoss?: number;
+  totalBars?: number;
+  totalFeatures?: number;
+}
+
+interface RecorderState {
+  modelId: string;
+  /** null = not resolved yet; -1 = resolved absent, stop retrying. */
+  dbSessionId: number | null;
+  runId: string | null;
+  experimentId: string | null;
+  runMetricRows: InsertRunMetric[];
+  legacyMetricRows: InsertTrainingMetric[];
+  lossRows: InsertLossHistory[];
+  progress: SessionProgressDelta;
+  progressDirty: boolean;
+  timer: NodeJS.Timeout | null;
+}
+
+const recorderStates = new Map<string, RecorderState>();
+let recorderSubscribed = false;
+
+function getRecorderState(modelId: string): RecorderState {
+  let state = recorderStates.get(modelId);
+  if (!state) {
+    state = {
+      modelId,
+      dbSessionId: null,
+      runId: null,
+      experimentId: null,
+      runMetricRows: [],
+      legacyMetricRows: [],
+      lossRows: [],
+      progress: {},
+      progressDirty: false,
+      timer: null,
+    };
+    recorderStates.set(modelId, state);
+  }
+  return state;
+}
+
+/** Resolve (and cache) the training_sessions row id for a versioned model id. */
+function resolveDbSessionId(state: RecorderState): number | null {
+  if (state.dbSessionId !== null) {
+    return state.dbSessionId === -1 ? null : state.dbSessionId;
+  }
+  try {
+    const row = getSessionByVersionedId(state.modelId);
+    if (!row) return null; // session row may not be committed yet — retry next event
+    state.dbSessionId = row.id;
+    return row.id;
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve (and cache) run/experiment identity, from the event or the runs table. */
+function resolveRunIdentity(state: RecorderState, data: Record<string, unknown>) {
+  const eventRunId = typeof data.run_id === "string" ? data.run_id : null;
+  const eventExperimentId = typeof data.experiment_id === "string" ? data.experiment_id : null;
+  if (eventRunId) state.runId = eventRunId;
+  if (eventExperimentId) state.experimentId = eventExperimentId;
+  if (state.runId && state.experimentId) return;
+  try {
+    const row = getLatestRunForModelId(state.modelId);
+    if (row) {
+      state.runId = state.runId ?? row.runId;
+      state.experimentId = state.experimentId ?? row.experimentId;
+    }
+  } catch {
+    // Provenance is observability — its absence must not stop metric capture.
+  }
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function toIntOrNull(value: unknown): number | null {
+  const n = toNumber(value);
+  return n === null ? null : Math.trunc(n);
+}
+
+const LOSS_NAMES = new Set(["loss", "train_loss", "training_loss"]);
+const VAL_LOSS_NAMES = new Set(["val_loss", "valid_loss", "validation_loss", "val_log_loss"]);
+
+/**
+ * Loss names as the runners actually spell them.
+ *
+ * The literal sets above matched nothing the wired runners emit. xgb_classifier
+ * builds its keys as `${split}_${metric}` (main.py:217), so a run reports
+ * `train_logloss` / `val_logloss` — no underscore before "loss" — and the
+ * `loss_history` insert gate below could never be satisfied. That is why the
+ * table held 0 rows after three completed runs while 26 terminal metrics landed
+ * in run_metrics.
+ */
+const TRAIN_LOSS_PATTERN = /^(?:train|training)_(?:log)?loss$/;
+const VALIDATION_LOSS_PATTERN = /^(?:val|valid|validation)_(?:log)?loss$/;
+
+/**
+ * Envelope and control keys that are not measurements.
+ *
+ * Needed because an epoch_metric payload carries its numbers FLAT beside these
+ * rather than nested under `metrics`, so the flat fallback has to know what to
+ * skip. Keep in sync with protocol.py::_envelope.
+ */
+const NON_METRIC_KEYS = new Set([
+  "type", "v", "kind", "ts", "mono_ns", "seq", "run_id", "experiment_id",
+  "catalog_id", "trial_idx", "fold_idx", "config_hash", "manifest_hash",
+  "data", "message", "level", "phase", "iteration", "total", "epoch", "fold",
+  "trial", "split", "name", "unit",
+]);
+
+/** Numeric measurements on an event, from `metrics` or flat beside the envelope. */
+function collectMetricEntries(data: Record<string, unknown>): Array<[string, number]> {
+  const out: Array<[string, number]> = [];
+  const nested = data.metrics;
+  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+    for (const [name, raw] of Object.entries(nested as Record<string, unknown>)) {
+      const value = toNumber(raw);
+      if (value !== null) out.push([name, value]);
+    }
+    if (out.length > 0) return out;
+  }
+  for (const [name, raw] of Object.entries(data)) {
+    if (NON_METRIC_KEYS.has(name)) continue;
+    const value = toNumber(raw);
+    if (value !== null) out.push([name, value]);
+  }
+  return out;
+}
+
+/** True when this metric name means the training loss for the epoch. */
+function isTrainLossName(lower: string): boolean {
+  return LOSS_NAMES.has(lower) || TRAIN_LOSS_PATTERN.test(lower);
+}
+
+/** True when this metric name means the validation loss for the epoch. */
+function isValidationLossName(lower: string): boolean {
+  return VAL_LOSS_NAMES.has(lower) || VALIDATION_LOSS_PATTERN.test(lower);
+}
+
+/** Keys that mean "how many bars / features did this run actually use". */
+const BAR_COUNT_KEYS = new Set([
+  "bars_loaded", "total_bars", "totalbars", "n_bars", "nbars", "n_rows", "bar_count",
+]);
+const FEATURE_COUNT_KEYS = new Set([
+  "total_features", "totalfeatures", "n_features", "nfeatures", "feature_count",
+]);
+
+/**
+ * Depth-limited search for a bar/feature count anywhere in a nested payload.
+ * `config` and `done`'s `diagnostics` are free-form, so the count is found by
+ * name rather than by a path that only one runner happens to use.
+ */
+function harvestCounts(value: unknown, into: SessionProgressDelta, depth = 0): void {
+  if (depth > 4 || value === null || typeof value !== "object") return;
+  if (Array.isArray(value)) return;
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    const lower = key.toLowerCase();
+    if (into.totalBars === undefined && BAR_COUNT_KEYS.has(lower)) {
+      const n = toIntOrNull(child);
+      if (n !== null && n > 0) into.totalBars = n;
+      continue;
+    }
+    if (into.totalFeatures === undefined && FEATURE_COUNT_KEYS.has(lower)) {
+      const n = toIntOrNull(child);
+      if (n !== null && n > 0) into.totalFeatures = n;
+      continue;
+    }
+    harvestCounts(child, into, depth + 1);
+  }
+}
+
+/**
+ * Final metrics from a `done` payload's diagnostics.
+ *
+ * Runners that report only at the end (xgb_classifier is one — it emits
+ * `progress` and `log` while training, and every number in
+ * `diagnostics.metrics`) would otherwise leave no metric row at all. The two
+ * shapes seen in the repo are `{name: 3.4}` and the declared form
+ * `{name: {value: 3.4, renderer: "gauge", ...}}`.
+ */
+function harvestFinalMetrics(diagnostics: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!diagnostics || typeof diagnostics !== "object" || Array.isArray(diagnostics)) return out;
+  const metrics = (diagnostics as Record<string, unknown>).metrics;
+  if (!metrics || typeof metrics !== "object" || Array.isArray(metrics)) return out;
+  for (const [name, entry] of Object.entries(metrics as Record<string, unknown>)) {
+    let value = toNumber(entry);
+    if (value === null && entry && typeof entry === "object" && !Array.isArray(entry)) {
+      value = toNumber((entry as Record<string, unknown>).value);
+    }
+    if (value !== null) out[name] = value;
+  }
+  return out;
+}
+
+function bufferedRowCount(state: RecorderState): number {
+  return state.runMetricRows.length + state.legacyMetricRows.length + state.lossRows.length;
+}
+
+function scheduleFlush(state: RecorderState): void {
+  if (bufferedRowCount(state) >= METRIC_FLUSH_ROWS) {
+    flushRecorderState(state);
+    return;
+  }
+  if (state.timer) return;
+  state.timer = setTimeout(() => {
+    state.timer = null;
+    flushRecorderState(state);
+  }, METRIC_FLUSH_INTERVAL_MS);
+  state.timer.unref?.();
+}
+
+/** Write everything buffered for one model. Never throws. */
+function flushRecorderState(state: RecorderState): void {
+  if (state.timer) {
+    clearTimeout(state.timer);
+    state.timer = null;
+  }
+
+  const runRows = state.runMetricRows;
+  const legacyRows = state.legacyMetricRows;
+  const lossRows = state.lossRows;
+  const progress = state.progress;
+  const progressDirty = state.progressDirty;
+  state.runMetricRows = [];
+  state.legacyMetricRows = [];
+  state.lossRows = [];
+  state.progress = {};
+  state.progressDirty = false;
+
+  try {
+    if (runRows.length) insertRunMetricsBatch(runRows);
+  } catch (err) {
+    log(`run_metrics insert failed for ${state.modelId}: ${(err as Error).message}`, "training");
+  }
+  try {
+    if (legacyRows.length) insertMetricsBatch(legacyRows);
+  } catch (err) {
+    log(`training_metrics insert failed for ${state.modelId}: ${(err as Error).message}`, "training");
+  }
+  try {
+    if (lossRows.length) insertLossHistoryBatch(lossRows);
+  } catch (err) {
+    log(`loss_history insert failed for ${state.modelId}: ${(err as Error).message}`, "training");
+  }
+  try {
+    const dbSessionId = resolveDbSessionId(state);
+    if (progressDirty && dbSessionId !== null && Object.keys(progress).length > 0) {
+      updateSessionProgress(dbSessionId, progress);
+    }
+  } catch (err) {
+    log(`training_sessions progress update failed for ${state.modelId}: ${(err as Error).message}`, "training");
+  }
+}
+
+/** Queue one metric value for both the provenance table and the legacy table. */
+function recordMetricValue(
+  state: RecorderState,
+  name: string,
+  value: number,
+  opts: {
+    iteration: number | null;
+    total: number | null;
+    foldIdx: number | null;
+    trialIdx: number | null;
+    seq: number | null;
+    ts: string | null;
+  },
+): void {
+  if (state.runId && state.experimentId) {
+    state.runMetricRows.push({
+      runId: state.runId,
+      experimentId: state.experimentId,
+      trialIdx: opts.trialIdx,
+      foldIdx: opts.foldIdx,
+      metricName: name,
+      metricValue: value,
+      iteration: opts.iteration,
+      total: opts.total,
+      seq: opts.seq,
+      ts: opts.ts,
+    });
+  }
+  const dbSessionId = resolveDbSessionId(state);
+  if (dbSessionId !== null) {
+    state.legacyMetricRows.push({
+      sessionId: dbSessionId,
+      iteration: opts.iteration ?? 0,
+      metricName: name,
+      metricValue: value,
+    });
+  }
+  const lower = name.toLowerCase();
+  if (isTrainLossName(lower)) {
+    state.progress.currentLoss = value;
+    state.progressDirty = true;
+  } else if (isValidationLossName(lower)) {
+    state.progress.currentValLoss = value;
+    state.progressDirty = true;
+  }
+  if (opts.iteration !== null && opts.iteration > (state.progress.currentEpoch ?? -1)) {
+    state.progress.currentEpoch = opts.iteration;
+    state.progressDirty = true;
+  }
+}
+
+/**
+ * Persist one parsed training event. Exported so a unit test can feed
+ * synthetic events straight through the write path without a live runner.
+ */
+export function recordTrainingEvent(
+  modelId: string,
+  type: string,
+  data: Record<string, unknown>,
+): void {
+  if (!modelId) return;
+  const state = getRecorderState(modelId);
+
+  try {
+    resolveRunIdentity(state, data);
+
+    const envelopeSeq = toIntOrNull(data.seq);
+    const envelopeTs = typeof data.ts === "string" ? data.ts : null;
+    const envelopeTrial = toIntOrNull(data.trial_idx);
+    const envelopeFold = toIntOrNull(data.fold_idx);
+
+    switch (type) {
+      case "started": {
+        resolveDbSessionId(state);
+        break;
+      }
+
+      case "progress": {
+        const iteration = toIntOrNull(data.iteration);
+        if (iteration !== null && iteration > (state.progress.currentEpoch ?? -1)) {
+          state.progress.currentEpoch = iteration;
+          state.progressDirty = true;
+        }
+        break;
+      }
+
+      case "metric": {
+        const name = typeof data.name === "string" ? data.name : null;
+        const value = toNumber(data.value);
+        if (name && value !== null) {
+          recordMetricValue(state, name, value, {
+            iteration: toIntOrNull(data.iteration),
+            total: toIntOrNull(data.total),
+            foldIdx: envelopeFold,
+            trialIdx: envelopeTrial,
+            seq: envelopeSeq,
+            ts: envelopeTs,
+          });
+        }
+        break;
+      }
+
+      case "epoch_metric": {
+        const iteration = toIntOrNull(data.epoch) ?? toIntOrNull(data.iteration);
+        const total = toIntOrNull(data.total);
+        const foldIdx = toIntOrNull(data.fold) ?? envelopeFold;
+        let epochLoss: number | null = null;
+        let epochValLoss: number | null = null;
+        for (const [name, value] of collectMetricEntries(data)) {
+          recordMetricValue(state, name, value, {
+            iteration, total, foldIdx, trialIdx: envelopeTrial, seq: envelopeSeq, ts: envelopeTs,
+          });
+          const lower = name.toLowerCase();
+          if (isTrainLossName(lower)) epochLoss = value;
+          else if (isValidationLossName(lower)) epochValLoss = value;
+        }
+        // loss_history.loss and .val_loss are both NOT NULL — only an epoch
+        // that reported both is a row that table can hold.
+        const dbSessionId = resolveDbSessionId(state);
+        if (dbSessionId !== null && iteration !== null && epochLoss !== null && epochValLoss !== null) {
+          state.lossRows.push({
+            sessionId: dbSessionId,
+            epoch: iteration,
+            loss: epochLoss,
+            valLoss: epochValLoss,
+          });
+        }
+        break;
+      }
+
+      case "fold_complete": {
+        const foldIdx = toIntOrNull(data.fold_idx) ?? toIntOrNull(data.fold) ?? envelopeFold;
+        const metrics = (data.metrics ?? {}) as Record<string, unknown>;
+        for (const [name, raw] of Object.entries(metrics)) {
+          const value = toNumber(raw);
+          if (value === null) continue;
+          recordMetricValue(state, `fold.${name}`, value, {
+            iteration: foldIdx,
+            total: null,
+            foldIdx,
+            trialIdx: envelopeTrial,
+            seq: envelopeSeq,
+            ts: envelopeTs,
+          });
+        }
+        break;
+      }
+
+      case "config": {
+        const found: SessionProgressDelta = {};
+        harvestCounts(data.config, found);
+        if (found.totalBars !== undefined) { state.progress.totalBars = found.totalBars; state.progressDirty = true; }
+        if (found.totalFeatures !== undefined) { state.progress.totalFeatures = found.totalFeatures; state.progressDirty = true; }
+        break;
+      }
+
+      case "done": {
+        const found: SessionProgressDelta = {};
+        harvestCounts(data.diagnostics, found);
+        if (found.totalBars !== undefined) { state.progress.totalBars = found.totalBars; state.progressDirty = true; }
+        if (found.totalFeatures !== undefined) { state.progress.totalFeatures = found.totalFeatures; state.progressDirty = true; }
+        // A runner that reports only at the end still gets durable rows.
+        // `iteration: null` marks them terminal rather than per-step.
+        for (const [name, value] of Object.entries(harvestFinalMetrics(data.diagnostics))) {
+          recordMetricValue(state, name, value, {
+            iteration: null,
+            total: null,
+            foldIdx: envelopeFold,
+            trialIdx: envelopeTrial,
+            seq: envelopeSeq,
+            ts: envelopeTs,
+          });
+        }
+        flushRecorderState(state);
+        recorderStates.delete(modelId);
+        return;
+      }
+
+      case "error": {
+        flushRecorderState(state);
+        recorderStates.delete(modelId);
+        return;
+      }
+
+      default:
+        return;
+    }
+
+    scheduleFlush(state);
+  } catch (err) {
+    // A recorder fault must never propagate into the stdout handler that is
+    // driving the live training stream.
+    log(`training metric recorder failed on '${type}' for ${modelId}: ${(err as Error).message}`, "training");
+  }
+}
+
+/**
+ * Subscribe the recorder to the domain event bus. Idempotent — safe to call
+ * from every module that wants to guarantee persistence is live.
+ */
+export function ensureTrainingMetricRecorder(): void {
+  if (recorderSubscribed) return;
+  recorderSubscribed = true;
+  getEventBus().on("training.event", (event: DomainEvent) => {
+    const payload = event.data as {
+      modelId?: string;
+      type?: string;
+      data?: Record<string, unknown>;
+    };
+    recordTrainingEvent(
+      payload.modelId ?? "",
+      payload.type ?? "",
+      payload.data ?? {},
+    );
+  });
+  log("durable training-metric recorder attached to the event bus", "training");
+}
+
+/** Flush everything buffered — called on shutdown and by tests. */
+export function flushTrainingMetricRecorder(): void {
+  for (const state of Array.from(recorderStates.values())) {
+    flushRecorderState(state);
+  }
 }

@@ -26,6 +26,10 @@
 
 import { createContext, useContext, useEffect, useMemo, useReducer, useState } from "react";
 import type { ReactNode } from "react";
+import {
+  useMLStudioPipelineSync,
+  type MLStudioPipelineDocument,
+} from "@/shared/hooks/useMLStudioPipelineSync";
 
 // ─── Stage definitions ────────────────────────────────────────────────────────
 
@@ -381,6 +385,7 @@ export type MLStudioAction =
   | { type: "setPromotedCheckpointId"; id: number | null }
   | { type: "setActiveDeployment"; deployment: DeploymentSummary | null }
   | { type: "setActiveStage"; stage: StageId }
+  | { type: "restorePipeline"; pipeline: MLStudioPipeline }
   // W4.c additions
   | { type: "addExperiment"; record: ExperimentRecord }
   | { type: "updateExperiment"; id: string; patch: Partial<ExperimentRecord> }
@@ -462,6 +467,18 @@ function pipelineForPair(symbol: string, timeframe: Timeframe): MLStudioPipeline
 
 function reducer(state: MLStudioPipeline, action: MLStudioAction): MLStudioPipeline {
   switch (action.type) {
+    case "restorePipeline":
+      // Replace wholesale, but only when the incoming pair still matches the
+      // one on screen. The server copy arrives asynchronously, and a user who
+      // switched symbol while it was in flight must not have the old pair's
+      // experiments dropped on top of the new one.
+      if (
+        action.pipeline.symbol !== state.symbol ||
+        action.pipeline.timeframe !== state.timeframe
+      ) {
+        return state;
+      }
+      return action.pipeline;
     case "setSymbol":
       // A pair change replaces the entire pipeline with that pair's persisted
       // state (or a fresh default), never a partial carry-over of the previous
@@ -891,12 +908,36 @@ export function MLStudioProvider({ children, initialPair }: MLStudioProviderProp
   );
   const [state, dispatch] = useReducer(reducer, initial);
 
+  // Server-side copy of this pair's pipeline. localStorage stays the instant
+  // first paint; this is what makes the Workshop resume on a second machine or
+  // after cleared site data, which localStorage alone cannot do.
+  const pipelineSync = useMLStudioPipelineSync(state.symbol, state.timeframe);
+  const { pull: pullPipeline, push: pushPipeline } = pipelineSync;
+
+  // Pull once per pair. The local seed has already painted; the server copy
+  // replaces it if one exists.
+  useEffect(() => {
+    let cancelled = false;
+    void pullPipeline().then((snapshot) => {
+      if (cancelled || !snapshot) return;
+      const restored = snapshot.pipelineState as unknown as MLStudioPipeline;
+      if (!restored || typeof restored !== "object") return;
+      dispatch({ type: "restorePipeline", pipeline: restored });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pullPipeline]);
+
   // Persist on every change. Safe against cross-pair clobbering because the
   // reducer swaps symbol/timeframe and payload together (see `pipelineForPair`),
   // so every committed state's key matches its own contents.
   useEffect(() => {
     saveToStorage(state);
-  }, [state]);
+    // Debounced inside the hook, and identical consecutive payloads are
+    // dropped, so reducer churn does not become a write per keystroke.
+    pushPipeline(state as unknown as MLStudioPipelineDocument);
+  }, [state, pushPipeline]);
 
   const gates = useMemo(
     () =>

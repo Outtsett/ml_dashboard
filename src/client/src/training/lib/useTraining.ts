@@ -19,6 +19,7 @@ import { buildSSECallbacks } from "@/training/sse_handlers";
 import { useTrainingConfig } from "@/training/lib/useTrainingConfig";
 import { useTrainingSSE } from "@/training/lib/useTrainingSSE";
 import { useTrainingLiveState } from "@/training/lib/useTrainingLiveState";
+import { useTrainingReattach, type ActiveTrainingSession } from "@/training/lib/useTrainingReattach";
 import { QUERY_KEYS } from "@/shared/utils/types";
 import type {
   TrainingRequest,
@@ -54,6 +55,11 @@ export function useTraining(): TrainingState & {
   sseConnected: boolean;
   /** SSE connection error (reconnect failures, connection lost) */
   sseError: string | null;
+  /**
+   * Live server-side runs this tab is NOT driving (found by the mount-time
+   * status probe). Empty in the common single-run case.
+   */
+  otherActiveSessions: ActiveTrainingSession[];
 } {
   const dashboard = useDashboard();
   const queryClient = useQueryClient();
@@ -98,32 +104,41 @@ export function useTraining(): TrainingState & {
   }, [availableModels, selectedModelType, setSelectedModelType]);
 
   // ── SSE callbacks → state updates (extracted to sseHandlers.ts — SRP) ────
-  const { connect: connectSSE, disconnect: disconnectSSE, connected: sseConnected, error: sseError } = useTrainingSSE(
-    buildSSECallbacks({
-      // Session setters (this hook)
-      setModelType, setPhase, setProgress,
-      setCompletedModelId, setError, setIsTraining,
-      // Live data setters (sub-hook)
-      setDataRange: liveSetters.setDataRange,
-      setTotalBars: liveSetters.setTotalBars,
-      setLogs: liveSetters.setLogs,
-      setMetrics: liveSetters.setMetrics,
-      setIterationHistory: liveSetters.setIterationHistory,
-      setOverlayType: liveSetters.setOverlayType,
-      setOverlayData: liveSetters.setOverlayData,
-      setLiveRegimeTimestamps: liveSetters.setLiveRegimeTimestamps,
-      setLiveRegimeAssignments: liveSetters.setLiveRegimeAssignments,
-      setDiagnostics: liveSetters.setDiagnostics,
-      setMetricDeclarations: liveSetters.setMetricDeclarations,
-      setElapsedSec: liveSetters.setElapsedSec,
-      setModelState: liveSetters.setModelState,
-      setModelStateHistory: liveSetters.setModelStateHistory,
-      clearElapsedTimer,
-      // External side effects
-      setTrainingContext: dashboard.setTrainingContext,
-      invalidateModels: () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.regimeModels }),
-    })
-  );
+  const baseSSECallbacks = buildSSECallbacks({
+    // Session setters (this hook)
+    setModelType, setPhase, setProgress,
+    setCompletedModelId, setError, setIsTraining,
+    // Live data setters (sub-hook)
+    setDataRange: liveSetters.setDataRange,
+    setTotalBars: liveSetters.setTotalBars,
+    setLogs: liveSetters.setLogs,
+    setMetrics: liveSetters.setMetrics,
+    setIterationHistory: liveSetters.setIterationHistory,
+    setOverlayType: liveSetters.setOverlayType,
+    setOverlayData: liveSetters.setOverlayData,
+    setLiveRegimeTimestamps: liveSetters.setLiveRegimeTimestamps,
+    setLiveRegimeAssignments: liveSetters.setLiveRegimeAssignments,
+    setDiagnostics: liveSetters.setDiagnostics,
+    setMetricDeclarations: liveSetters.setMetricDeclarations,
+    setElapsedSec: liveSetters.setElapsedSec,
+    setModelState: liveSetters.setModelState,
+    setModelStateHistory: liveSetters.setModelStateHistory,
+    clearElapsedTimer,
+    // External side effects
+    setTrainingContext: dashboard.setTrainingContext,
+    invalidateModels: () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.regimeModels }),
+  });
+
+  const { connect: connectSSE, disconnect: disconnectSSE, connected: sseConnected, error: sseError } = useTrainingSSE({
+    ...baseSSECallbacks,
+    // `started` is the only place sessionId reaches the client, and the stream
+    // replays it on reconnect. Capturing it here is what lets a reattached run
+    // keep the experiment bridge (which keys off sessionId) working after F5.
+    onStarted: (d) => {
+      if (d?.sessionId) setSessionId(d.sessionId);
+      baseSSECallbacks.onStarted(d);
+    },
+  });
 
   // ── Reset state when model type changes (multi-model isolation) ─────────
   // When the user switches model type in the dropdown, clear stale data from
@@ -154,6 +169,78 @@ export function useTraining(): TrainingState & {
     prevModelTypeRef.current = selectedModelType;
   }, [selectedModelType, isTraining, disconnectSSE, resetLiveState, clearElapsedTimer]);
 
+  // ── Reattach to an in-flight server-side run after a page reload ─────────
+  // The server keeps training and keeps buffering events when the EventSource
+  // goes away, so the whole job here is to ask once on mount and reconnect.
+
+  // Read inside the async probe callback, so a run started in this tab while
+  // the probe was in flight wins over whatever the probe found.
+  const modelIdRef = useRef<string | null>(null);
+  modelIdRef.current = modelId;
+  const currentModelId = useCallback(() => modelIdRef.current, []);
+
+  /**
+   * Wall-clock baseline for a reattached run. The shared elapsed timer always
+   * counts from the moment it is started, which would report a 20-minute-old
+   * run as 0s; this carries the server's own `elapsed` forward instead.
+   */
+  const [reattachClock, setReattachClock] = useState<{ startedAtMs: number; elapsedSeconds: number } | null>(null);
+  const { setElapsedSec } = liveSetters;
+
+  useEffect(() => {
+    if (!reattachClock || !isTraining) return;
+    const tick = () => setElapsedSec(
+      reattachClock.elapsedSeconds + (Date.now() - reattachClock.startedAtMs) / 1000,
+    );
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [reattachClock, isTraining, setElapsedSec]);
+
+  const onReattach = useCallback((session: ActiveTrainingSession) => {
+    resetLiveState();
+    clearElapsedTimer();
+    setModelId(session.modelId);
+    setModelType(session.modelType);
+    setIsTraining(true);
+    setIsPending(false);
+    setError(null);
+    setCompletedModelId(null);
+    setPhase("reattaching");
+    // Only what the status endpoint actually proves. The hyperparameters this
+    // run was launched with are not recoverable from it, so they stay unset
+    // rather than being invented.
+    setConfig({
+      modelType: session.modelType,
+      symbol: session.symbol,
+      timeframe: session.timeframe,
+    });
+    setReattachClock({ startedAtMs: Date.now(), elapsedSeconds: session.elapsedSeconds });
+    // Point the picker at the running model, and advance prevModelTypeRef in
+    // lockstep. Without that, the model-type-change effect above sees a switch,
+    // defers it because isTraining is true, and then wipes the replayed history
+    // the instant the run finishes.
+    prevModelTypeRef.current = session.modelType;
+    setSelectedModelType(session.modelType);
+    // Replays the buffered events (no `from`, so from index 0), then goes live.
+    connectSSE(session.modelId);
+  }, [connectSSE, resetLiveState, clearElapsedTimer]);
+
+  const { otherActiveSessions } = useTrainingReattach({ currentModelId, onReattach });
+
+  // The server calls res.end() right after `done`/`error`. An EventSource reads
+  // that close as a failure and reconnects with backoff — replaying the entire
+  // buffer and duplicating metric history on every attempt. Close it ourselves
+  // once the run is over.
+  const wasTrainingRef = useRef(false);
+  useEffect(() => {
+    if (isTraining) { wasTrainingRef.current = true; return; }
+    if (wasTrainingRef.current) {
+      wasTrainingRef.current = false;
+      disconnectSSE();
+    }
+  }, [isTraining, disconnectSSE]);
+
   // ── Start Training ───────────────────────────────────────────────────────
   const startTraining = useCallback(async (request: TrainingRequest) => {
     // Immediate visual feedback — button changes the instant you press it
@@ -163,6 +250,9 @@ export function useTraining(): TrainingState & {
     setProgress(0);
     setPhase("starting");
     resetLiveState();
+    // A fresh run owns the elapsed clock again — drop the reattach baseline so
+    // the two tickers never fight over elapsedSec.
+    setReattachClock(null);
 
     const enriched: TrainingRequest = {
       ...request,
@@ -194,6 +284,7 @@ export function useTraining(): TrainingState & {
     }
     disconnectSSE();
     resetLiveState();
+    setReattachClock(null);
     setIsTraining(false);
     dashboard.setTrainingContext(null);
     clearElapsedTimer();
@@ -208,6 +299,8 @@ export function useTraining(): TrainingState & {
     error, completedModelId,
     // SSE connection state
     sseConnected, sseError,
+    // Other live server-side runs this tab is not driving
+    otherActiveSessions,
     // Live state (from sub-hook)
     ...liveState,
     // Actions

@@ -1,8 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   GeneratedParser,
   parseGeneratedLine,
   GeneratedEventSchema,
+  normalizeFoldCompleteAliases,
+  resetDriftWarnings,
 } from '../../../src/server/training/runners/parsers/generated';
 import { getParser, generatedParser } from '../../../src/server/training/runners/parsers/index';
 import { createSession } from '../../../src/server/training/runners/types';
@@ -262,5 +264,202 @@ describe('getParser — registry routing', () => {
   it('still honors exact-match parsers (xgb_classifier)', () => {
     const p = getParser('xgb_classifier');
     expect(p).not.toBe(generatedParser);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fold-coordinate alias tolerance + loud validation failures.
+//
+// `src/ml/shared/protocol.py::emit_fold_complete` emits `fold_idx`; the
+// diverged fork at `Trading/quant/model/src/ml/shared/protocol.py:1201` — the
+// emitter behind the registered runner `online_rls_mtf+online_direction_skill`
+// — emits `fold` + `total_folds`. Before this tolerance its fold events failed
+// Zod and silently degraded to generic log lines.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('fold_complete — accepts either fold_idx or fold', () => {
+  it('parses the canonical fold_idx spelling', () => {
+    const result = parseGeneratedLine(
+      JSON.stringify({ type: 'fold_complete', fold_idx: 3, metrics: { sharpe: 0.8 } }),
+    );
+    expect(result.kind).toBe('event');
+    if (result.kind !== 'event') return;
+    if (result.event.type !== 'fold_complete') return;
+    expect(result.event.fold_idx).toBe(3);
+  });
+
+  it('parses the Trading/quant fork spelling (fold + total_folds) as an event', () => {
+    const result = parseGeneratedLine(
+      JSON.stringify({
+        type: 'fold_complete',
+        fold: 2,
+        total_folds: 5,
+        trial: 7,
+        metrics: { sharpe_after_costs: 0.41, profit_factor: 1.32 },
+      }),
+    );
+    expect(result.kind).toBe('event');
+    if (result.kind !== 'event') return;
+    expect(result.event.type).toBe('fold_complete');
+    if (result.event.type !== 'fold_complete') return;
+    expect(result.event.fold_idx).toBe(2);
+    expect(result.event.metrics?.profit_factor).toBe(1.32);
+    // The original keys survive — passthrough must not eat total_folds/trial.
+    const raw = result.event as unknown as Record<string, unknown>;
+    expect(raw.total_folds).toBe(5);
+    expect(raw.fold).toBe(2);
+    expect(raw.trial).toBe(7);
+  });
+
+  it('prefers a numeric fold_idx over a conflicting fold', () => {
+    const result = parseGeneratedLine(
+      JSON.stringify({ type: 'fold_complete', fold_idx: 9, fold: 1, metrics: {} }),
+    );
+    expect(result.kind).toBe('event');
+    if (result.kind !== 'event') return;
+    if (result.event.type !== 'fold_complete') return;
+    expect(result.event.fold_idx).toBe(9);
+  });
+
+  it('resolves a null envelope fold_idx from the payload fold', () => {
+    const result = parseGeneratedLine(
+      JSON.stringify({
+        type: 'fold_complete',
+        v: 1,
+        kind: 'training',
+        fold_idx: null,
+        fold: 4,
+        data: { fold: 4, metrics: { sharpe: 0.1 } },
+        metrics: { sharpe: 0.1 },
+      }),
+    );
+    expect(result.kind).toBe('event');
+    if (result.kind !== 'event') return;
+    if (result.event.type !== 'fold_complete') return;
+    expect(result.event.fold_idx).toBe(4);
+    // The nested v1 transition copy is normalised in step with the flat one.
+    expect((result.event.data as Record<string, unknown>).fold_idx).toBe(4);
+  });
+
+  it('still rejects a fold_complete with no coordinate at all', () => {
+    const result = parseGeneratedLine(JSON.stringify({ type: 'fold_complete', metrics: {} }));
+    expect(result.kind).toBe('unknown');
+    if (result.kind !== 'unknown') return;
+    expect(result.knownType).toBe(true);
+    expect(result.validationError).toContain('fold_idx');
+  });
+
+  it('normalizeFoldCompleteAliases does not mutate its input', () => {
+    const input = { type: 'fold_complete', fold: 2 };
+    const out = normalizeFoldCompleteAliases(input) as Record<string, unknown>;
+    expect(out.fold_idx).toBe(2);
+    expect('fold_idx' in input).toBe(false);
+  });
+
+  it('leaves non-fold_complete events untouched', () => {
+    const input = { type: 'metric', name: 'x', value: 1, fold: 3 };
+    expect(normalizeFoldCompleteAliases(input)).toBe(input);
+  });
+
+  it('emits a fold_complete session event with fold_idx for the fork spelling', () => {
+    const session = makeSession();
+    const parser = new GeneratedParser();
+    parser.parseLine(
+      session,
+      JSON.stringify({
+        type: 'fold_complete',
+        fold: 1,
+        total_folds: 3,
+        metrics: { profit_factor: 1.98 },
+      }),
+      { modelsDir: '.', modelId: 'MNQ_1d' },
+    );
+    const evt = lastEvent(session);
+    expect(evt.type).toBe('fold_complete');
+    expect(evt.data.fold_idx).toBe(1);
+    expect(evt.data.total_folds).toBe(3);
+    expect(evt.data.metrics).toMatchObject({ profit_factor: 1.98 });
+  });
+
+  it('GeneratedEventSchema itself tolerates the alias (not only the parser)', () => {
+    const validated = GeneratedEventSchema.safeParse({
+      type: 'fold_complete',
+      fold: 0,
+      total_folds: 4,
+      metrics: { sharpe: 0.2 },
+    });
+    expect(validated.success).toBe(true);
+    if (!validated.success) return;
+    expect((validated.data as { fold_idx: number }).fold_idx).toBe(0);
+  });
+});
+
+describe('validation failures are loud, not silent', () => {
+  beforeEach(() => {
+    resetDriftWarnings();
+  });
+
+  it('carries the Zod error and knownType on a drifted known event', () => {
+    const result = parseGeneratedLine(
+      JSON.stringify({ type: 'metric', name: 'val_auc', value: 'not-a-number' }),
+    );
+    expect(result.kind).toBe('unknown');
+    if (result.kind !== 'unknown') return;
+    expect(result.knownType).toBe(true);
+    expect(result.validationError).toContain('value');
+  });
+
+  it('marks a genuinely custom event type as knownType=false', () => {
+    const result = parseGeneratedLine(JSON.stringify({ type: 'experimental_xyz', stuff: 1 }));
+    expect(result.kind).toBe('unknown');
+    if (result.kind !== 'unknown') return;
+    expect(result.knownType).toBe(false);
+    expect(result.validationError).toContain('type');
+  });
+
+  it('emits a warn-level log naming the event type and the validation error', () => {
+    const session = makeSession();
+    const parser = new GeneratedParser();
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      parser.parseLine(
+        session,
+        JSON.stringify({ type: 'progress', iteration: 'seven', total: 30 }),
+        { modelsDir: '.', modelId: 'MNQ_1d' },
+      );
+    } finally {
+      spy.mockRestore();
+    }
+    const evt = lastEvent(session);
+    expect(evt.type).toBe('log');
+    expect(evt.data.level).toBe('warn');
+    expect(evt.data.knownType).toBe(true);
+    expect(evt.data.unknownType).toBe('progress');
+    expect(evt.data.validationError as string).toContain('iteration');
+    expect(evt.data.message as string).toContain('Protocol drift');
+    expect(evt.data.message as string).toContain('progress');
+    // The raw payload is still preserved alongside the diagnosis.
+    expect(evt.data.message as string).toContain('seven');
+  });
+
+  it('warns to the server log once per (session, event type)', () => {
+    const session = makeSession();
+    const parser = new GeneratedParser();
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      for (let i = 0; i < 3; i++) {
+        parser.parseLine(
+          session,
+          JSON.stringify({ type: 'progress', iteration: 'seven', total: 30 }),
+          { modelsDir: '.', modelId: 'MNQ_1d' },
+        );
+      }
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(String(spy.mock.calls[0]![0])).toContain('Protocol drift');
+    } finally {
+      spy.mockRestore();
+    }
+    // Every line still reaches the session — the dedupe is console-only.
+    expect(session.events.filter((e) => e.type === 'log').length).toBe(3);
   });
 });

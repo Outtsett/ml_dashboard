@@ -85,7 +85,27 @@ def _parse_args() -> argparse.Namespace:
     ap.add_argument("--reg-alpha", type=float, default=0.0)
     ap.add_argument("--early-stopping-rounds", type=int, default=50)
     ap.add_argument("--label-horizon-bars", type=int, default=5)
-    ap.add_argument("--label-threshold-bp", type=float, default=5.0)
+    ap.add_argument(
+        "--label-threshold-bp",
+        type=float,
+        default=5.0,
+        help=(
+            "In the default 'atr' threshold mode this is an absolute FLOOR in bp "
+            "on the barrier width, not the barrier itself. In 'fixed_bp' mode it "
+            "IS the barrier. See src/ml/xgb_classifier/labels.py."
+        ),
+    )
+    ap.add_argument(
+        "--label-threshold-mode",
+        choices=("atr", "fixed_bp"),
+        default="atr",
+        help=(
+            "atr (default): barrier = label-atr-multiple x trailing ATR, so it "
+            "scales with the timeframe. fixed_bp: constant label-threshold-bp."
+        ),
+    )
+    ap.add_argument("--label-atr-window", type=int, default=20)
+    ap.add_argument("--label-atr-multiple", type=float, default=1.0)
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--train-frac", type=float, default=0.8)
     ap.add_argument(
@@ -249,6 +269,9 @@ def _args_to_config(args: argparse.Namespace) -> dict:
         "early_stopping_rounds": int(args.early_stopping_rounds),
         "label_horizon_bars": int(args.label_horizon_bars),
         "label_threshold_bp": float(args.label_threshold_bp),
+        "label_threshold_mode": str(args.label_threshold_mode),
+        "label_atr_window": int(args.label_atr_window),
+        "label_atr_multiple": float(args.label_atr_multiple),
         "device": args.device,
         "train_frac": float(args.train_frac),
         "pnl_threshold": float(args.pnl_threshold),
@@ -316,22 +339,60 @@ def _train_one_fold_inner(
     n_total = matrix.shape[0]
     emit_log(f"[xgb] Loaded {n_total:,} bars x {matrix.shape[1]} features")
 
-    emit_log(
-        f"[xgb] Generating triple-barrier labels (H={args.label_horizon_bars}, "
-        f"thr={args.label_threshold_bp}bp)"
-    )
-    labels, valid = make_labels(
+    threshold_mode = str(getattr(args, "label_threshold_mode", "atr"))
+    atr_window = int(getattr(args, "label_atr_window", 20))
+    atr_multiple = float(getattr(args, "label_atr_multiple", 1.0))
+    floor_bp = float(args.label_threshold_bp)
+
+    if threshold_mode == "atr":
+        emit_log(
+            f"[xgb] Generating triple-barrier labels (H={args.label_horizon_bars}, "
+            f"barrier={atr_multiple}x trailing ATR over {atr_window} bars, "
+            f"floor={floor_bp}bp)"
+        )
+    else:
+        emit_log(
+            f"[xgb] Generating triple-barrier labels (H={args.label_horizon_bars}, "
+            f"barrier=fixed {floor_bp}bp)"
+        )
+    labels, valid, label_diag = make_labels(
         raw["high"],
         raw["low"],
         raw["close"],
         horizon_bars=args.label_horizon_bars,
-        threshold_bp=args.label_threshold_bp,
+        threshold_bp=floor_bp,
+        threshold_mode=threshold_mode,
+        atr_window=atr_window,
+        atr_multiple=atr_multiple,
+        return_diagnostics=True,
     )
     n_valid = int(valid.sum())
+    emit_log(
+        "[xgb] Barrier width in bp: "
+        f"median={label_diag['barrier_bp_median']:.1f} "
+        f"min={label_diag['barrier_bp_min']:.1f} max={label_diag['barrier_bp_max']:.1f}"
+    )
+    emit_log(
+        f"[xgb] Label drops — barrier warmup {label_diag['dropped_barrier_warmup']:,}, "
+        f"horizon overflow {label_diag['dropped_horizon_overflow']:,}, "
+        f"neither barrier touched {label_diag['dropped_no_barrier_touched']:,}, "
+        f"both touched in one bar {label_diag['dropped_both_barriers_same_bar']:,}, "
+        f"bad close {label_diag['dropped_bad_close']:,}"
+    )
     if n_valid < 1000:
+        tied = label_diag["dropped_both_barriers_same_bar"]
+        hint = (
+            "the barrier is too NARROW for this timeframe — both sides are touched "
+            "inside one forward bar, so the bar cannot be labelled. Widen it "
+            "(raise --label-atr-multiple, or --label-threshold-bp in fixed_bp mode). "
+            "Lowering the threshold makes this strictly worse."
+            if tied >= (n_total - n_valid) * 0.5
+            else "the barrier is too WIDE — it is rarely touched inside the horizon. "
+            "Lower --label-atr-multiple or lengthen --label-horizon-bars."
+        )
         raise RuntimeError(
-            f"Only {n_valid} valid labels — increase max_bars, lower threshold_bp, "
-            f"or shorten horizon_bars."
+            f"Only {n_valid} valid labels out of {n_total} bars. Dominant cause: {hint} "
+            f"(drop breakdown: {label_diag})"
         )
     pos_rate = float(labels[valid].mean())
     emit_log(f"[xgb] Labels: {n_valid:,} valid, pos_rate={pos_rate:.3f}")
@@ -349,7 +410,15 @@ def _train_one_fold_inner(
     y = y[finite]
     ts_kept = ts_kept[finite]
     close_kept = close_kept[finite]
+    # Index of every surviving row back into the ORIGINAL bar sequence. Realized
+    # returns and the PnL sim must step forward H *bars*, not H *surviving rows*.
+    orig_idx = keep_idx[finite]
     emit_log(f"[xgb] After dropping non-finite rows: {X.shape[0]:,} samples")
+    emit_log(
+        f"[xgb] Row accounting: {n_total:,} bars loaded -> "
+        f"{int(np.isfinite(matrix).all(axis=1).sum()):,} with all {matrix.shape[1]} features "
+        f"finite -> {n_valid:,} labelled -> {X.shape[0]:,} usable samples"
+    )
 
     train_idx, val_idx = time_split_indices(
         n_valid=X.shape[0],
@@ -361,7 +430,6 @@ def _train_one_fold_inner(
 
     X_train, y_train = X[train_idx], y[train_idx]
     X_val, y_val = X[val_idx], y[val_idx]
-    close_val = close_kept[val_idx]
     ts_val = ts_kept[val_idx]
 
     dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=names)
@@ -420,11 +488,28 @@ def _train_one_fold_inner(
     hr_50, n_50 = hit_rate_at(y_val, p_val, 0.50)
     hr_55, n_55 = hit_rate_at(y_val, p_val, 0.55)
     hr_60, n_60 = hit_rate_at(y_val, p_val, 0.60)
+    # PnL sim on the ORIGINAL bar grid.
+    #
+    # simulate_pnl exits at close[i + horizon_bars]. Feeding it the filtered
+    # validation closes would step forward H *surviving rows*, which is more
+    # than H bars wherever a bar was dropped — that silently lengthens every
+    # holding period and inflates the move. So hand it the raw close series
+    # over the validation span (plus H bars of exit room) with probabilities
+    # placed at their true bar positions; bars with no prediction carry NaN,
+    # which fails both the long and the short test and is therefore flat.
+    horizon = int(args.label_horizon_bars)
+    raw_close = np.asarray(raw["close"], dtype=np.float64)
+    val_orig = orig_idx[val_idx]
+    span_start = int(val_orig[0])
+    span_end = min(int(val_orig[-1]) + horizon + 1, raw_close.shape[0])
+    close_span = raw_close[span_start:span_end]
+    p_span = np.full(close_span.shape[0], np.nan, dtype=np.float64)
+    p_span[val_orig - span_start] = p_val
     pnl = simulate_pnl(
-        close=close_val,
-        p_up=p_val,
+        close=close_span,
+        p_up=p_span,
         threshold=float(args.pnl_threshold),
-        horizon_bars=int(args.label_horizon_bars),
+        horizon_bars=horizon,
         symbol=args.symbol,
     )
 
@@ -438,14 +523,16 @@ def _train_one_fold_inner(
         names,
     )
 
-    # Per-bar realized return at labeling horizon (bp, NaN where horizon overflows)
-    horizon = int(args.label_horizon_bars)
-    pos_for_realized = val_idx[val_idx + horizon < X.shape[0]]
-    real_close_in = close_kept[pos_for_realized]
-    real_close_out = close_kept[pos_for_realized + horizon]
-    realized_log = np.log(real_close_out / real_close_in) * 10000.0  # bp
+    # Per-bar realized return at the labeling horizon (bp, NaN where the horizon
+    # runs past the end of the data). Stepped on the ORIGINAL bar grid, so this
+    # is genuinely H bars ahead — walking H rows through the filtered array
+    # would skip over every dropped bar and overstate the move.
     realized_full = np.full(val_idx.size, np.nan, dtype=np.float64)
-    realized_full[: realized_log.size] = realized_log
+    exit_idx = val_orig + horizon
+    has_exit = exit_idx < raw_close.shape[0]
+    realized_full[has_exit] = (
+        np.log(raw_close[exit_idx[has_exit]] / raw_close[val_orig[has_exit]]) * 10000.0
+    )
 
     out_dir = _PROJECT_ROOT / "data" / "models" / args.model_id
     if save_artifacts:
@@ -564,6 +651,13 @@ def _train_one_fold_inner(
             },
         },
         "calibration_curve": rel,
+        "label_diagnostics": label_diag,
+        "row_accounting": {
+            "bars_loaded": int(n_total),
+            "bars_all_features_finite": int(np.isfinite(matrix).all(axis=1).sum()),
+            "bars_labelled": int(n_valid),
+            "usable_samples": int(X.shape[0]),
+        },
         "pnl_curve": {
             "trade_pnl_dollars": pnl.get("trade_pnl_dollars", []),
             "n_long": pnl.get("n_long", 0),
@@ -582,6 +676,9 @@ def _train_one_fold_inner(
             "early_stopping_rounds": int(args.early_stopping_rounds),
             "label_horizon_bars": int(args.label_horizon_bars),
             "label_threshold_bp": float(args.label_threshold_bp),
+            "label_threshold_mode": threshold_mode,
+            "label_atr_window": atr_window,
+            "label_atr_multiple": atr_multiple,
             "device": args.device,
             "train_frac": float(args.train_frac),
             "pnl_threshold": float(args.pnl_threshold),

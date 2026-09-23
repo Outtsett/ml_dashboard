@@ -203,6 +203,8 @@
     "transformer_2s+range_classifier": {
       "legacyId": "transformer_range",
       "displayName": "Two-Stream Transformer + Range-Bucket (HPO)",
+      "available": false,
+      "unavailableReason": "Verified absent 2026-09-22: scripts/wrap-transformer-range.py exists but shells out to E:\\source\\repos\\trading_model\\scripts\\train_range_hpo.py, and the repository E:\\source\\repos\\trading_model does not exist on disk. Clone or restore that repository to make this runner trainable again.",
       "runner": "python",
       "script": "scripts/wrap-transformer-range.py",
       "outputDir": "data/models",
@@ -322,6 +324,8 @@
     "transformer_tiny+direction_classifier": {
       "legacyId": "transformer_direction_daily",
       "displayName": "Tiny Transformer + Daily Direction (HPO)",
+      "available": false,
+      "unavailableReason": "Verified absent 2026-09-22: scripts/wrap-transformer-direction-daily.py exists but shells out to E:\\source\\repos\\trading_model\\scripts\\train_daily_direction_hpo.py, and the repository E:\\source\\repos\\trading_model does not exist on disk. Clone or restore that repository to make this runner trainable again.",
       "runner": "python",
       "script": "scripts/wrap-transformer-direction-daily.py",
       "outputDir": "data/models",
@@ -443,6 +447,8 @@
     "primitives_cnn+multi_head": {
       "legacyId": "primitives",
       "displayName": "CNN+Transformer Primitives (Multi-Head)",
+      "available": false,
+      "unavailableReason": "Verified absent 2026-09-22: the training script E:\\source\\repos\\primitives_discovery\\src\\ml\\primitives_discovery\\main.py does not exist, and neither does the repository E:\\source\\repos\\primitives_discovery. Clone or restore that repository to make this runner trainable again.",
       "runner": "python",
       "script": "E:\\source\\repos\\primitives_discovery\\src\\ml\\primitives_discovery\\main.py",
       "outputDir": "data/models",
@@ -702,7 +708,7 @@
       "legacyId": "online_mtf_trader",
       "displayName": "Online MTF Trader (sliding HAR + RLS)",
       "runner": "python",
-      "script": "E:/source/repos/Trading/quant/model/scripts/online_mtf_trader.py",
+      "script": "E:/source/repos/ml_dashboard/Trading/quant/model/scripts/online_mtf_trader.py",
       "outputDir": "data/models",
       "outputs": [
         "diagnostics.json",

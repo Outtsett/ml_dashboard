@@ -77,6 +77,8 @@
 
     "primitives": {
       "name": "Primitives Discovery",
+      "available": false,
+      "unavailableReason": "Verified absent 2026-09-22: the training script E:\\source\\repos\\primitives_discovery\\src\\ml\\primitives_discovery\\main.py does not exist, and neither does the repository E:\\source\\repos\\primitives_discovery. Clone or restore that repository to make this model trainable again.",
       "category": "neural-network",
       "subcategory": "Hybrid Architectures",
       "runner": "python",
@@ -121,6 +123,8 @@
 
     "transformer_range": {
       "name": "Range-Bucket Transformer (HPO)",
+      "available": false,
+      "unavailableReason": "Verified absent 2026-09-22: scripts/wrap-transformer-range.py exists but shells out to E:\\source\\repos\\trading_model\\scripts\\train_range_hpo.py, and the repository E:\\source\\repos\\trading_model does not exist on disk. Clone or restore that repository to make this model trainable again.",
       "category": "neural-network",
       "subcategory": "Time-Series Transformers",
       "runner": "python",
@@ -161,6 +165,8 @@
 
     "transformer_direction_daily": {
       "name": "Daily-Direction Transformer (HPO)",
+      "available": false,
+      "unavailableReason": "Verified absent 2026-09-22: scripts/wrap-transformer-direction-daily.py exists but shells out to E:\\source\\repos\\trading_model\\scripts\\train_daily_direction_hpo.py, and the repository E:\\source\\repos\\trading_model does not exist on disk. Clone or restore that repository to make this model trainable again.",
       "category": "neural-network",
       "subcategory": "Time-Series Transformers",
       "runner": "python",

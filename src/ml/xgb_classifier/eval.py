@@ -246,11 +246,25 @@ def simulate_pnl(
     profit_factor = float(wins.sum() / abs(losses.sum())) if losses.sum() != 0 else float("inf")
     hit_rate = float((pnl_arr > 0).mean())
 
-    # Sharpe of trade returns (unitless)
+    # Two different quantities that were previously conflated under one name.
+    #
+    # mean/std is the per-trade Sharpe: the edge per unit of risk, and the thing
+    # you compare between strategies. Multiplying it by sqrt(n_trades) gives the
+    # t-statistic of the mean trade, which answers "is this edge distinguishable
+    # from zero" and GROWS WITH TRADE COUNT for a fixed edge.
+    #
+    # `sharpe_after_costs` used to hold the second while being named and ranked
+    # as the first, so the experiment leaderboard (client ranking.ts, and the
+    # default metric in WalkForwardPanel.tsx) rewarded trading more often rather
+    # than trading better. Session 35 stored 1.5387; its per-trade Sharpe over 78
+    # trades is 1.5387/sqrt(78) = 0.174. Both are now reported under their own
+    # names so neither reading is lost.
     if pnl_arr.std() > 0:
-        sharpe_units = float(pnl_arr.mean() / pnl_arr.std() * math.sqrt(n_trades))
+        sharpe_units = float(pnl_arr.mean() / pnl_arr.std())
+        t_statistic = float(pnl_arr.mean() / pnl_arr.std() * math.sqrt(n_trades))
     else:
         sharpe_units = 0.0
+        t_statistic = 0.0
 
     return {
         "n_trades": int(n_trades),
@@ -259,6 +273,7 @@ def simulate_pnl(
         "hit_rate": hit_rate,
         "avg_win_dollars": float(wins.mean()) if wins.size else 0.0,
         "avg_loss_dollars": float(losses.mean()) if losses.size else 0.0,
+        "t_statistic_of_mean_trade_pnl": t_statistic,
         "max_drawdown_dollars": max_dd_dollars,
         "max_drawdown_pct": max_dd_pct,
         "sharpe_after_costs": sharpe_units,

@@ -1,5 +1,5 @@
 import { sql, type InferSelectModel, type InferInsertModel } from "drizzle-orm";
-import { sqliteTable, text, integer, real, index, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index, uniqueIndex, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import crypto from "crypto";
@@ -1419,3 +1419,80 @@ export const runMetrics = sqliteTable("run_metrics", {
 export const insertRunMetricSchema = createInsertSchema(runMetrics).omit({ id: true, recordedAt: true });
 export type InsertRunMetric = InferInsertModel<typeof runMetrics>;
 export type RunMetric = InferSelectModel<typeof runMetrics>;
+
+// ============================================================
+// ML STUDIO — SERVER-SIDE "WHERE I LEFT OFF"
+// ============================================================
+
+/**
+ * The ML Studio Workshop pipeline blob, as the client persists it.
+ *
+ * The authoritative shape lives in `src/client/src/ml/MLStudioContext.tsx`
+ * (`MLStudioPipeline`). It is NOT imported here on purpose: `@shared/schema`
+ * is loaded by the server and by drizzle-kit, and neither may pull a .tsx
+ * client module into its graph. The index signature is the contract — the
+ * server stores the document whole and never reaches inside it, so a client
+ * that adds a stage or a field needs no schema change.
+ *
+ * The few keys named below are the ones the server DOES read, to denormalise
+ * the list columns that make a resume picker cheap (no JSON parse per row).
+ */
+export interface MlStudioPipelineDocument {
+  symbol?: string;
+  timeframe?: string;
+  activeStage?: string;
+  experiments?: unknown[];
+  [key: string]: unknown;
+}
+
+/**
+ * Server-side ML Studio pipeline state — one row per (user, symbol, timeframe).
+ *
+ * Why its own table rather than a `user_preferences` key: the Workshop state is
+ * a six-stage document with an experiments ledger, a composition config and the
+ * Stage-5/6 selections, and it is keyed by the pair the client already keys its
+ * localStorage by. A scalar key/value row gives no natural key, no per-pair
+ * listing, and no place to hang the revision counter that makes a two-device
+ * write detectable.
+ *
+ * `userId` is a plain column with NO foreign key to `users.id`. The connection
+ * runs `PRAGMA foreign_keys = ON` (see infrastructure/database/db.ts) and the
+ * `users` table is empty — a reference would make every insert fail until an
+ * auth flow exists. `"local"` is the single-operator default, and the column is
+ * already in the unique key, so adding real users later is a backfill, not a
+ * schema change.
+ */
+export const mlStudioPipelineStates = sqliteTable("ml_studio_pipeline_states", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull().default("local"),
+  symbol: text("symbol").notNull(),
+  timeframe: text("timeframe").notNull(),
+  /** Client payload version — mirrors the `mlstudio:pipeline:v2:` key suffix. */
+  schemaVersion: integer("schema_version").notNull().default(2),
+  /** Denormalised from the document so a resume list needs no JSON parse. */
+  activeStage: text("active_stage"),
+  experimentCount: integer("experiment_count").notNull().default(0),
+  /** Size of the stored document in bytes — the growth signal for the ledger. */
+  stateByteCount: integer("state_byte_count").notNull().default(0),
+  pipelineState: text("pipeline_state", { mode: "json" })
+    .$type<MlStudioPipelineDocument>()
+    .notNull(),
+  /** Monotonic per-row counter, bumped server-side on every accepted write. A
+   *  client that holds a lower revision is looking at a stale device's copy. */
+  clientRevision: integer("client_revision").notNull().default(0),
+  /** Opaque id of the browser/tab that wrote last — names the other device. */
+  updatedByClientId: text("updated_by_client_id"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+}, (table) => ({
+  pairIdx: uniqueIndex("idx_ml_studio_pipeline_states_pair").on(table.userId, table.symbol, table.timeframe),
+  recentIdx: index("idx_ml_studio_pipeline_states_recent").on(table.userId, table.updatedAt),
+}));
+
+export const insertMlStudioPipelineStateSchema = createInsertSchema(mlStudioPipelineStates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertMlStudioPipelineState = InferInsertModel<typeof mlStudioPipelineStates>;
+export type MlStudioPipelineState = InferSelectModel<typeof mlStudioPipelineStates>;

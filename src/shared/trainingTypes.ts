@@ -75,6 +75,14 @@ export interface ModelRegistryEntry {
   estimatedTrainingTime?: string;
   /** Supported optimization objectives (e.g. ["log_likelihood", "silhouette_score"]) */
   supportedObjectives?: string[];
+  /**
+   * False when the model's script cannot possibly run on this machine — the
+   * entry is kept as a record of intent, with `unavailableReason` naming what
+   * is missing. The Train picker reads this to stop offering dead models.
+   */
+  available?: boolean;
+  /** Why this entry is unavailable, shown next to the disabled option. */
+  unavailableReason?: string;
   /** Reference to model-templates.json (null when no template matched). */
   templateId?: string | null;
   /** Self-describing metric declarations — defines what metrics this model produces */
@@ -160,6 +168,14 @@ export interface RunnerEntry {
   defaultHyperparameters: Record<string, HyperparameterDef>;
   cliFlags?: Record<string, string>;
   defaultSearchSpace?: Record<string, unknown>;
+  /**
+   * False when the model's script cannot possibly run on this machine — the
+   * entry is kept as a record of intent, with `unavailableReason` naming what
+   * is missing. The Train picker reads this to stop offering dead models.
+   */
+  available?: boolean;
+  /** Why this entry is unavailable, shown next to the disabled option. */
+  unavailableReason?: string;
 }
 
 export interface AlgorithmRegistry {

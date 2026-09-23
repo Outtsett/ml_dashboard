@@ -21,6 +21,7 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useTraining } from "@/training/lib/useTraining";
+import type { ActiveTrainingSession } from "@/training/lib/useTrainingReattach";
 import type {
   TrainingState,
   ModelRegistryEntry,
@@ -45,6 +46,7 @@ export { useTrainingModelState } from "@/shared/contexts/TrainingModelStateCtx";
 // ── Full context type (backward compat) ─────────────────────────────────────
 type TrainingContextValue = TrainingState & {
   isPending: boolean;
+  otherActiveSessions: ActiveTrainingSession[];
   availableModels: Record<string, ModelRegistryEntry>;
   selectedModelType: string;
   setSelectedModelType: (type: string) => void;
@@ -55,6 +57,11 @@ type TrainingContextValue = TrainingState & {
 type ControlValue = TrainingControl & {
   availableModels: Record<string, ModelRegistryEntry>;
   timeframeLabel: string;
+  /**
+   * Live server-side runs this tab is not driving, found by the mount-time
+   * reattach probe. Non-empty only when more than one run is in flight.
+   */
+  otherActiveSessions: ActiveTrainingSession[];
 };
 
 const TrainingControlCtx = createContext<ControlValue | null>(null);
@@ -82,12 +89,14 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     modelType: state.modelType,
     sessionId: state.sessionId,
     modelId: state.modelId,
+    otherActiveSessions: state.otherActiveSessions,
   }), [
     state.isTraining, state.isPending, state.phase, state.progress, state.error,
     state.sseError, state.startTraining, state.stopTraining,
     state.selectedModelType, state.setSelectedModelType,
     state.availableModels, state.completedModelId, state.config,
     state.timeframeLabel, state.modelType, state.sessionId, state.modelId,
+    state.otherActiveSessions,
   ]);
 
   // Live data plane — changes per iteration/tick

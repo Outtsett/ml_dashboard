@@ -137,6 +137,12 @@ function composeEntry(
     gpuRequired: algorithm.gpuRequired,
     estimatedTrainingTime: runner.estimatedTrainingTime,
     supportedObjectives: runner.supportedObjectives ?? task.supportedObjectives,
+    // config.runners already marked three entries unavailable (their scripts
+    // point at repositories that are not on this machine), but composeEntry
+    // enumerates the fields it copies, so config.models — which is what the
+    // Train dropdown reads — kept reporting all six as runnable.
+    available: runner.available ?? true,
+    unavailableReason: runner.unavailableReason,
   };
 }
 

@@ -99,14 +99,29 @@ def _build_sample_sql(symbol: str, interval: str, max_bars: int, date_range: dic
     from lake.serving import TIMEFRAME_VIEW, resample_sql
 
     where = _build_where(symbol, date_range)
-    limit = f" LIMIT {max_bars}" if max_bars > 0 else ""
     view = TIMEFRAME_VIEW.get(interval)
-    if view:
-        return (
-            f"SELECT symbol, timestamp, open, high, low, close, volume "
-            f"FROM {view} {where} ORDER BY timestamp{limit}"
-        )
-    return resample_sql("ohlcv", interval, where.removeprefix("WHERE ")) + limit
+    inner = (
+        f"SELECT symbol, timestamp, open, high, low, close, volume "
+        f"FROM {view} {where} ORDER BY timestamp"
+        if view
+        else resample_sql("ohlcv", interval, where.removeprefix("WHERE "))
+    )
+    if max_bars <= 0:
+        return inner
+
+    # max_bars means the MOST RECENT n bars, which is what "train on the last
+    # 5,000 bars" means to anyone who types it. A plain `ORDER BY timestamp
+    # LIMIT n` returns the OLDEST n instead: before this, --max-bars 500 on MNQ
+    # 1d silently trained and evaluated on 2019-05-05..2020-12-08 while the
+    # series runs to 2025-12-30, so lowering the control to make a run fast
+    # moved the whole experiment five years into the past without saying so.
+    # Take the tail, then restore ascending order for every downstream consumer.
+    return (
+        f"SELECT * FROM ({inner} DESC LIMIT {max_bars}) ORDER BY timestamp"
+        if view
+        else f"SELECT * FROM (SELECT * FROM ({inner}) ORDER BY timestamp DESC "
+             f"LIMIT {max_bars}) ORDER BY timestamp"
+    )
 
 
 # ── Public entry point ────────────────────────────────────────────────────
@@ -258,5 +273,7 @@ def _fetch_front_month_rows(
 
     all_rows.sort(key=lambda r: r[1])
     if max_bars > 0 and len(all_rows) > max_bars:
-        all_rows = all_rows[:max_bars]
+        # The TAIL, not the head — see the note in _build_sample_sql. Slicing
+        # from the front handed back the oldest bars in the stitched series too.
+        all_rows = all_rows[-max_bars:]
     return all_rows
