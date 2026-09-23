@@ -120,6 +120,57 @@ export function isCandlePatternColumn(column: string): boolean {
 
 const CANDLE_PATTERN_COLUMN_SET = new Set(ALL_CANDLE_PATTERN_COLUMNS);
 
+/**
+ * Browser detectors that can stand in for a lake pattern, keyed by lake column.
+ *
+ * The lake copy is preferred, but its coverage is PARTIAL: `talib_candle_patterns`
+ * spans 2025-09-30 to 2025-12-30 on 1m/5m/15m only, while the bars run 2024-03 to
+ * 2026-03 across seven timeframes. Outside that window every lake pattern returns
+ * zero rows, which left the chart drawing only the two browser-only detectors
+ * even with all 63 patterns selected.
+ *
+ * So a selected pattern the lake cannot answer falls back to the equivalent
+ * browser detector rather than silently drawing nothing. A directional pair maps
+ * to BOTH of its splits, because TA-Lib's `engulfing` is one signed series while
+ * the browser has a bullish and a bearish detector, and direction has to survive
+ * the fallback.
+ *
+ * This is a stopgap for partial coverage, not a second source of truth. Widening
+ * the serving layer so the lake answers every timeframe over the full span is the
+ * real fix.
+ */
+export const BROWSER_DETECTORS_FOR_LAKE_PATTERN: Record<string, string[]> =
+  buildFallbackMap();
+
+function buildFallbackMap(): Record<string, string[]> {
+  const detectorsByNormalizedName = new Map<string, string[]>();
+  const add = (key: string, detectorName: string) => {
+    const existing = detectorsByNormalizedName.get(key);
+    if (existing) {
+      if (!existing.includes(detectorName)) existing.push(detectorName);
+    } else {
+      detectorsByNormalizedName.set(key, [detectorName]);
+    }
+  };
+
+  for (const detector of CANDLE_PATTERN_CATALOG) {
+    add(normalizeName(detector.name), detector.name);
+  }
+  // A directional split also covers its TA-Lib parent.
+  for (const [detectorName, parent] of Object.entries(DIRECTIONAL_SPLIT_ALIASES)) {
+    add(normalizeName(parent), detectorName);
+  }
+
+  const map: Record<string, string[]> = {};
+  for (const pattern of TALIB_PATTERN_CATALOG) {
+    const detectors = detectorsByNormalizedName.get(normalizeName(pattern.name));
+    if (detectors && detectors.length > 0) {
+      map[talibPatternColumn(pattern.name)] = detectors;
+    }
+  }
+  return map;
+}
+
 /** The true single-bar patterns, for the quick pick. */
 export const SINGLE_CANDLE_PATTERN_COLUMNS: string[] = CANDLE_PATTERNS
   .filter(p => p.candleCount === 1)
