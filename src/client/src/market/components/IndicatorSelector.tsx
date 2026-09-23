@@ -23,8 +23,7 @@ import { getPatternDisplayName } from "@/market/lib/candle_patterns";
 // Sub-components
 import { ActiveIndicatorList } from '@/market/components/ActiveIndicatorList';
 import { IndicatorSearch } from '@/market/components/IndicatorSearch';
-import { PatternSelector } from '@/market/components/PatternSelector';
-import { TalibPatternSelector } from '@/market/components/TalibPatternSelector';
+import { CandlePatternSelector } from '@/market/components/CandlePatternSelector';
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -145,15 +144,9 @@ export function IndicatorSelector({
               onAddIndicator={onAddIndicator}
             />
 
-            {/* CDL Patterns — recomputed in the browser from the bars on screen */}
-            <PatternSelector
-              selectedPatterns={selectedPatterns}
-              onSelectionChange={onPatternSelectionChange}
-              searchFilter={search}
-            />
-
-            {/* TA-Lib's own firings, read back from the lake */}
-            <TalibPatternSelector
+            {/* One list: the browser detectors and the lake's TA-Lib firings
+                deduplicated to a single row per pattern. */}
+            <CandlePatternSelector
               selectedPatterns={selectedPatterns}
               onSelectionChange={onPatternSelectionChange}
               searchFilter={search}
