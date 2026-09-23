@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, type ComponentType } from "react";
-import { Switch, Route, Redirect } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "@/infrastructure/api/query_client";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/shared/ui/toaster";
@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { AICopilot } from "@/shared/ai/AICopilot";
 import { TooltipProvider } from "@/shared/ui/tooltip";
 import Layout from "@/shared/layout/Layout";
+import { ResizableSidePanel } from "@/shared/layout/ResizableSidePanel";
 import { BreadcrumbProvider } from "@/shared/hooks/useBreadcrumbs";
 import { UnifiedDashboardProvider } from "@/shared/contexts/UnifiedDashboardContext";
 import { TrainingProvider } from "@/training/lib/TrainingContext";
@@ -59,7 +60,6 @@ const RegressionFactory = () => import("@/market/regression/RegressionPage");
 const Regression = lazyRetry(RegressionFactory, "Regression");
 registerComponentFactory("/regression", RegressionFactory);
 
-
 // Portfolio Domain
 
 const PaperFactory = () => import("@/portfolio/PaperPage");
@@ -87,8 +87,6 @@ registerComponentFactory("/model-catalog", ModelCatalogFactory);
 const GlossaryFactory = () => import("@/ml/GlossaryPage");
 const Glossary = lazyRetry(GlossaryFactory, "Glossary");
 registerComponentFactory("/glossary", GlossaryFactory);
-
-
 
 const FourierTransformFactory = () => import("@/ml/FourierTransformPage");
 const FourierTransform = lazyRetry(FourierTransformFactory, "FourierTransform");
@@ -129,80 +127,67 @@ registerComponentFactory("/marimo", MarimoFactory);
 
 const NotFound = lazyRetry(() => import("@/shared/layout/not-found"), "NotFound");
 
-/**
- * Route definition helper to ensure consistent suspense and error boundary wrapping
- */
-const AppRoute = ({ path, component: Component, fallback = <PageLoader /> }: {
-  path: string,
-  component: ComponentType,
-  fallback?: React.ReactNode
-}) => (
-  <Route path={path}>
-    <ErrorBoundary>
-      <Suspense fallback={fallback}>
-        <Component />
-      </Suspense>
-    </ErrorBoundary>
-  </Route>
-);
-
 function Router() {
+  const [location] = useLocation();
+  const isMarketData = location === "/";
+
   return (
     <Layout>
-      <Switch>
-        <AppRoute path="/" component={MarketData} fallback={<ChartSkeleton />} />
-        
-        {/* Redirects, not components. Old bookmarks and any link written
-            before the nav was consolidated keep working; wouter matches these
-            before the catch-all below. */}
-        <Route path="/ml-hub">
-          <Redirect to="/ml-studio" />
-        </Route>
-        <Route path="/rl-console">
-          <Redirect to="/ml-studio" />
-        </Route>
-        <Route path="/risk">
-          <Redirect to="/ml-studio" />
-        </Route>
-        {/* /portfolio and /watchlist were removed 2026-09-16. Portfolio's Risk
-            half became ML Studio's Risk tab; Watchlist has no successor, so it
-            lands on the Market chart it was always used alongside. */}
-        <Route path="/portfolio">
-          <Redirect to="/ml-studio" />
-        </Route>
-        <Route path="/watchlist">
-          <Redirect to="/" />
-        </Route>
-        
-        <AppRoute path="/news" component={News} fallback={<DataGridSkeleton />} />
-        <AppRoute path="/regression" component={Regression} />
-        <AppRoute path="/databases" component={Databases} fallback={<DataGridSkeleton />} />
-        
-        <AppRoute path="/ml-studio" component={MLStudio} />
-        <AppRoute path="/forecast" component={Forecast} />
-        <AppRoute path="/curriculum" component={Curriculum} />
-        <AppRoute path="/model-catalog" component={ModelCatalog} />
-        <AppRoute path="/glossary" component={Glossary} />
-        <AppRoute path="/fourier" component={FourierTransform} />
-        <AppRoute path="/paper" component={Paper} fallback={<DataGridSkeleton />} />
-
-        <AppRoute path="/terminals" component={Terminals} />
-        <AppRoute path="/hardware" component={Hardware} />
-        <AppRoute path="/lens" component={Lens} />
-        <AppRoute path="/marimo" component={Marimo} />
-
-        <AppRoute path="/settings" component={Settings} />
-        <AppRoute path="/training" component={Training} />
-
-        {/* Catch-all */}
-        <Route>
+      <div className="flex flex-row flex-1 w-full h-full overflow-hidden">
+        {/* Persistent Background Layer: The Global Chart.
+            min-w-0: a flex item will not shrink below its content by default,
+            and the chart canvas carries an explicit pixel width — without it,
+            widening the side panel pushed the panel off-screen instead of
+            narrowing the chart. */}
+        <div className="flex-1 min-w-0 relative z-0 bg-neutral-950">
           <ErrorBoundary>
-            <Suspense fallback={<PageLoader />}>
-              <NotFound />
+            <Suspense fallback={<ChartSkeleton />}>
+              <MarketData />
             </Suspense>
           </ErrorBoundary>
-        </Route>
-      </Switch>
+        </div>
+
+        {/* Foreground Overlay Layer */}
+        {!isMarketData && (
+          <ResizableSidePanel className="z-10 bg-neutral-950/90 backdrop-blur-2xl border-l border-white/5 shadow-[0_0_50px_rgba(0,0,0,0.5)] animate-in slide-in-from-right-8 duration-300">
+            <Switch>
+              {/* Redirects */}
+              <Route path="/ml-hub"><Redirect to="/ml-studio" /></Route>
+              <Route path="/rl-console"><Redirect to="/ml-studio" /></Route>
+              <Route path="/risk"><Redirect to="/ml-studio" /></Route>
+              <Route path="/portfolio"><Redirect to="/ml-studio" /></Route>
+              <Route path="/watchlist"><Redirect to="/" /></Route>
+              
+              {/* Routes rendered in the side panel */}
+              <Route path="/news"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><News /></Suspense></ErrorBoundary></Route>
+              <Route path="/regression"><ErrorBoundary><Suspense fallback={<PageLoader />}><Regression /></Suspense></ErrorBoundary></Route>
+              <Route path="/databases"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><Databases /></Suspense></ErrorBoundary></Route>
+              <Route path="/ml-studio"><ErrorBoundary><Suspense fallback={<PageLoader />}><MLStudio /></Suspense></ErrorBoundary></Route>
+              <Route path="/forecast"><ErrorBoundary><Suspense fallback={<PageLoader />}><Forecast /></Suspense></ErrorBoundary></Route>
+              <Route path="/curriculum"><ErrorBoundary><Suspense fallback={<PageLoader />}><Curriculum /></Suspense></ErrorBoundary></Route>
+              <Route path="/model-catalog"><ErrorBoundary><Suspense fallback={<PageLoader />}><ModelCatalog /></Suspense></ErrorBoundary></Route>
+              <Route path="/glossary"><ErrorBoundary><Suspense fallback={<PageLoader />}><Glossary /></Suspense></ErrorBoundary></Route>
+              <Route path="/fourier"><ErrorBoundary><Suspense fallback={<PageLoader />}><FourierTransform /></Suspense></ErrorBoundary></Route>
+              <Route path="/paper"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><Paper /></Suspense></ErrorBoundary></Route>
+              <Route path="/terminals"><ErrorBoundary><Suspense fallback={<PageLoader />}><Terminals /></Suspense></ErrorBoundary></Route>
+              <Route path="/hardware"><ErrorBoundary><Suspense fallback={<PageLoader />}><Hardware /></Suspense></ErrorBoundary></Route>
+              <Route path="/lens"><ErrorBoundary><Suspense fallback={<PageLoader />}><Lens /></Suspense></ErrorBoundary></Route>
+              <Route path="/marimo"><ErrorBoundary><Suspense fallback={<PageLoader />}><Marimo /></Suspense></ErrorBoundary></Route>
+              <Route path="/settings"><ErrorBoundary><Suspense fallback={<PageLoader />}><Settings /></Suspense></ErrorBoundary></Route>
+              <Route path="/training"><ErrorBoundary><Suspense fallback={<PageLoader />}><Training /></Suspense></ErrorBoundary></Route>
+
+              {/* Catch-all */}
+              <Route>
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <NotFound />
+                  </Suspense>
+                </ErrorBoundary>
+              </Route>
+            </Switch>
+          </ResizableSidePanel>
+        )}
+      </div>
     </Layout>
   );
 }
