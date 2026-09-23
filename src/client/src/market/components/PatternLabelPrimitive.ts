@@ -22,19 +22,18 @@ import type { CanvasRenderingTarget2D } from 'fancy-canvas';
  * a band edge — is exempt and still draws through the candles, because tracing
  * the price IS its meaning.
  *
- * Two render modes, chosen by how many firings are actually in view:
+ * Two layers, both drawn every frame:
  *
- *   SPARSE — a named pill per firing, anchored clear of every candle it spans,
- *     stacked away from the bar when pills collide. Readable, and what you want
- *     with a handful of patterns enabled.
+ *   PILLS — a named label per firing, anchored clear of every candle it spans
+ *     and stacked away from the bar when labels collide. This is the layer the
+ *     user asked for: the pattern name, readable, above or below the candle.
+ *     As many are drawn as physically fit; the rest are dropped rather than
+ *     squeezed, and zooming in frees room for more.
  *
- *   DENSE — with all 61 TA-Lib patterns on a 1-minute chart there are hundreds
- *     of firings per screen and no arrangement of text is readable; pills alone
- *     would bury the price. So the labels collapse into a reserved LANE outside
- *     the price envelope: one tick per bar, coloured by net direction, its
- *     height carrying how many patterns fired there. Names appear for the bar
- *     under the crosshair. Nothing is dropped — it is re-encoded so the chart
- *     survives its own data.
+ *   LANE — a thin strip pinned above the volume band, one tick per bar that
+ *     fired anything, coloured by net direction with height carrying how many
+ *     patterns agreed. This is the complete picture, so a firing whose name did
+ *     not fit is still visible. Hovering a bar names everything on it.
  */
 
 /** One pattern firing to draw. */
@@ -86,13 +85,6 @@ const TRIANGLE_SIZE = 5;
 const EDGE_MARGIN = 4;
 /** Widest half-label expected; bars this far off-pane can still sit under one. */
 const MAX_LABEL_HALF_WIDTH = 140;
-
-/**
- * Above this many firings in view, named pills stop being readable and the lane
- * takes over. Tuned against the worst real case: all 61 TA-Lib patterns on MNQ
- * 1-minute, which puts several hundred firings on screen.
- */
-const DENSE_MODE_THRESHOLD = 28;
 
 /** Height of the reserved marker lane in dense mode. */
 const LANE_HEIGHT = 16;
@@ -162,11 +154,21 @@ class PatternLabelRenderer implements IPrimitivePaneRenderer {
       const visibleBars = this._projectVisibleBars(paneWidth);
       const visibleLabels = this._visibleLabels();
 
-      if (visibleLabels.length > DENSE_MODE_THRESHOLD) {
-        this._drawLane(context, visibleLabels, visibleBars, paneWidth, paneHeight);
-      } else {
-        this._drawPills(context, visibleLabels, visibleBars, paneWidth, paneHeight);
-      }
+      // Both, always, because they answer different questions and the user asked
+      // for the names.
+      //
+      // The LANE is the complete picture: one tick per bar that fired anything,
+      // so nothing is hidden no matter how dense the chart gets. The PILLS are
+      // the readable part: as many named labels as physically fit above or below
+      // the candles without covering them.
+      //
+      // An earlier version switched between the two and showed only the lane
+      // once more than 28 firings were in view. On a daily chart that is always,
+      // so the chart carried a nameless strip and the labels the user actually
+      // asked for never appeared. Drawing the lane first also gives the pills a
+      // floor to stack against, so they can never cover it.
+      const laneTop = this._drawLane(context, visibleLabels, visibleBars, paneWidth, paneHeight);
+      this._drawPills(context, visibleLabels, visibleBars, paneWidth, laneTop);
 
       context.restore();
     });
@@ -179,12 +181,15 @@ class PatternLabelRenderer implements IPrimitivePaneRenderer {
     labels: readonly PatternLabel[],
     visibleBars: readonly ProjectedBar[],
     paneWidth: number,
-    paneHeight: number,
+    laneTop: number,
   ): void {
     const timeScale = this._chart.timeScale();
     const placedBelow: PlacedBox[] = [];
     const placedAbove: PlacedBox[] = [];
-    const floorY = paneHeight * (1 - this._source.reservedBottomFraction) - EDGE_MARGIN;
+    // Stop short of the lane so a pill never covers the density strip. A label
+    // that will not fit is DROPPED, not squeezed in: the lane still records that
+    // the bar fired, so nothing is lost, and zooming in frees room for the name.
+    const floorY = laneTop - GAP_BETWEEN_LABELS;
 
     for (const label of labels) {
       const x = timeScale.timeToCoordinate(label.time as unknown as Time);
@@ -320,18 +325,15 @@ class PatternLabelRenderer implements IPrimitivePaneRenderer {
     visibleBars: readonly ProjectedBar[],
     paneWidth: number,
     paneHeight: number,
-  ): void {
+  ): number {
     const timeScale = this._chart.timeScale();
 
-    // The lane sits under the lowest low on screen and above the volume region.
-    // Placing it outside the envelope is what keeps every tick off the candles.
-    let lowestY = -Infinity;
-    for (const bar of visibleBars) {
-      if (bar.yLow > lowestY) lowestY = bar.yLow;
-    }
-    const floorY = paneHeight * (1 - this._source.reservedBottomFraction) - EDGE_MARGIN;
-    let laneTop = (lowestY === -Infinity ? paneHeight / 2 : lowestY) + GAP_FROM_CANDLE;
-    if (laneTop + LANE_HEIGHT > floorY) laneTop = floorY - LANE_HEIGHT;
+    // Pinned directly above the volume band rather than floating under the
+    // lowest low, so it does not jump while panning and so the pills above it
+    // get a stable floor to stack against.
+    void visibleBars;
+    const volumeTop = paneHeight * (1 - this._source.reservedBottomFraction);
+    let laneTop = volumeTop - LANE_HEIGHT - EDGE_MARGIN;
     if (laneTop < EDGE_MARGIN) laneTop = EDGE_MARGIN;
     const laneCentre = laneTop + LANE_HEIGHT / 2;
 
@@ -380,10 +382,10 @@ class PatternLabelRenderer implements IPrimitivePaneRenderer {
 
     // Names for the bar under the crosshair — nothing is lost, it is on demand.
     const hovered = this._source.hoveredTime;
-    if (hovered === null) return;
+    if (hovered === null) return laneTop;
     const entry = byTime.get(hovered);
     const hoveredX = timeScale.timeToCoordinate(hovered as unknown as Time);
-    if (!entry || hoveredX === null) return;
+    if (!entry || hoveredX === null) return laneTop;
 
     context.font = FONT;
     context.textAlign = 'left';
@@ -419,6 +421,8 @@ class PatternLabelRenderer implements IPrimitivePaneRenderer {
         top + PADDING_VERTICAL + lineHeight * index + lineHeight / 2,
       );
     });
+
+    return laneTop;
   }
 
   // ── Geometry helpers ────────────────────────────────────────────────────
