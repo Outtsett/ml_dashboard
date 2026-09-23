@@ -12,8 +12,8 @@
       "symbolColumn": "symbol",
       "timeframe": "1s",
       "rowCount": 882502897,
-      "firstTimestampSeconds": 1767039801,
-      "lastTimestampSeconds": 1767110395,
+      "firstTimestampSeconds": 946857600,
+      "lastTimestampSeconds": 1789761600,
       "symbols": [
         "UD:1V: 12 0207875306",
         "UD:1V: 12 0208817219",
@@ -1080,7 +1080,7 @@
       "symbolColumn": "symbol",
       "timeframe": "1s",
       "rowCount": 96735629,
-      "firstTimestampSeconds": 1767039801,
+      "firstTimestampSeconds": 1557068597,
       "lastTimestampSeconds": 1767110395,
       "symbols": [
         "MNQ"
@@ -1364,8 +1364,8 @@
       "symbolColumn": "symbol",
       "timeframe": "1m",
       "rowCount": 23062859,
-      "firstTimestampSeconds": 1762424700,
-      "lastTimestampSeconds": 1767110340,
+      "firstTimestampSeconds": 1709251200,
+      "lastTimestampSeconds": 1774891140,
       "symbols": [
         "AUDCAD",
         "AUDJPY",
@@ -1945,8 +1945,8 @@
       "symbolColumn": "symbol",
       "timeframe": "1m",
       "rowCount": 23062859,
-      "firstTimestampSeconds": 1762424700,
-      "lastTimestampSeconds": 1767110340,
+      "firstTimestampSeconds": 1709251200,
+      "lastTimestampSeconds": 1774891140,
       "symbols": [
         "AUDCAD",
         "AUDJPY",
@@ -2578,7 +2578,7 @@
       "symbolColumn": "pair",
       "timeframe": "15m",
       "rowCount": 2630475,
-      "firstTimestampSeconds": 1703856600,
+      "firstTimestampSeconds": 1577916000,
       "lastTimestampSeconds": 1767604500,
       "symbols": [
         "AUDJPY",
@@ -3082,8 +3082,8 @@
       "symbolColumn": "pair",
       "timeframe": "1m",
       "rowCount": 38621245,
-      "firstTimestampSeconds": 1763033460,
-      "lastTimestampSeconds": 1767604620,
+      "firstTimestampSeconds": 1577916000,
+      "lastTimestampSeconds": 1767604980,
       "symbols": [
         "AUDJPY",
         "AUDUSD",
@@ -3270,7 +3270,7 @@
       "symbolColumn": "pair",
       "timeframe": "30m",
       "rowCount": 1315567,
-      "firstTimestampSeconds": 1640709000,
+      "firstTimestampSeconds": 1577916000,
       "lastTimestampSeconds": 1767603600,
       "symbols": [
         "AUDJPY",
@@ -3606,8 +3606,8 @@
       "symbolColumn": "pair",
       "timeframe": "5m",
       "rowCount": 7876873,
-      "firstTimestampSeconds": 1746206100,
-      "lastTimestampSeconds": 1767604500,
+      "firstTimestampSeconds": 1577916000,
+      "lastTimestampSeconds": 1767604800,
       "symbols": [
         "AUDJPY",
         "AUDUSD",
@@ -3774,7 +3774,7 @@
       "symbolColumn": "symbol",
       "timeframe": "1m",
       "rowCount": 2344645,
-      "firstTimestampSeconds": 1762424700,
+      "firstTimestampSeconds": 1557068580,
       "lastTimestampSeconds": 1767110340,
       "symbols": [
         "MNQ"
@@ -4315,7 +4315,7 @@
       "symbolColumn": "symbol",
       "timeframe": "1m",
       "rowCount": 2340445,
-      "firstTimestampSeconds": 1762161900,
+      "firstTimestampSeconds": 1557068580,
       "lastTimestampSeconds": 1766571240,
       "symbols": [
         "MNQ"
@@ -5451,7 +5451,7 @@
       "symbolColumn": "symbol",
       "timeframe": "1m",
       "rowCount": 2340445,
-      "firstTimestampSeconds": 1762161900,
+      "firstTimestampSeconds": 1557068580,
       "lastTimestampSeconds": 1766571240,
       "symbols": [
         "MNQ"
@@ -6587,7 +6587,7 @@
       "symbolColumn": "symbol",
       "timeframe": "15m",
       "rowCount": 156663,
-      "firstTimestampSeconds": 1699975800,
+      "firstTimestampSeconds": 1557068400,
       "lastTimestampSeconds": 1767109500,
       "symbols": [
         "MNQ"
@@ -6889,7 +6889,7 @@
       "symbolColumn": "symbol",
       "timeframe": "1m",
       "rowCount": 2344645,
-      "firstTimestampSeconds": 1762424700,
+      "firstTimestampSeconds": 1557068580,
       "lastTimestampSeconds": 1767110340,
       "symbols": [
         "MNQ"
@@ -7040,7 +7040,7 @@
       "symbolColumn": "symbol",
       "timeframe": "30m",
       "rowCount": 78615,
-      "firstTimestampSeconds": 1633393800,
+      "firstTimestampSeconds": 1557068400,
       "lastTimestampSeconds": 1767108600,
       "symbols": [
         "MNQ"
@@ -7342,7 +7342,7 @@
       "symbolColumn": "symbol",
       "timeframe": "5m",
       "rowCount": 469851,
-      "firstTimestampSeconds": 1744734000,
+      "firstTimestampSeconds": 1557068400,
       "lastTimestampSeconds": 1767110100,
       "symbols": [
         "MNQ"
@@ -7493,7 +7493,7 @@
       "symbolColumn": "symbol",
       "timeframe": "5m",
       "rowCount": 469851,
-      "firstTimestampSeconds": 1744734000,
+      "firstTimestampSeconds": 1557068400,
       "lastTimestampSeconds": 1767110100,
       "symbols": [
         "MNQ"
@@ -8189,7 +8189,7 @@
       "symbolColumn": "symbol",
       "timeframe": "5m",
       "rowCount": 1409553,
-      "firstTimestampSeconds": 1759474200,
+      "firstTimestampSeconds": 1557068400,
       "lastTimestampSeconds": 1767110100,
       "symbols": [
         "MNQ"
@@ -8697,7 +8697,7 @@
       "symbolColumn": "symbol",
       "timeframe": "1m",
       "rowCount": 647506,
-      "firstTimestampSeconds": 1762463100,
+      "firstTimestampSeconds": 1709251560,
       "lastTimestampSeconds": 1774594380,
       "symbols": [
         "MNQ"
@@ -9051,8 +9051,8 @@
       "symbolColumn": "symbol",
       "timeframe": "1s",
       "rowCount": 863323657,
-      "firstTimestampSeconds": 1767039801,
-      "lastTimestampSeconds": 1767110395,
+      "firstTimestampSeconds": 1275836400,
+      "lastTimestampSeconds": 1774891140,
       "symbols": [
         "AUDCAD",
         "AUDNZD",
@@ -9862,7 +9862,7 @@
       "timeframe": "15m",
       "rowCount": 1816221,
       "firstTimestampSeconds": 1709251200,
-      "lastTimestampSeconds": 1767109500,
+      "lastTimestampSeconds": 1774890900,
       "symbols": [
         "AUDCAD",
         "AUDJPY",
@@ -10459,8 +10459,8 @@
       "symbolColumn": "symbol",
       "timeframe": "1d",
       "rowCount": 123876,
-      "firstTimestampSeconds": 1557014400,
-      "lastTimestampSeconds": 1767052800,
+      "firstTimestampSeconds": 1451779200,
+      "lastTimestampSeconds": 1774828800,
       "symbols": [
         "AUDCAD",
         "AUDJPY",
@@ -11280,7 +11280,7 @@
       "timeframe": "1h",
       "rowCount": 758515,
       "firstTimestampSeconds": 1677628800,
-      "lastTimestampSeconds": 1767106800,
+      "lastTimestampSeconds": 1774890000,
       "symbols": [
         "AUDCAD",
         "AUDJPY",
@@ -11980,8 +11980,8 @@
       "symbolColumn": "symbol",
       "timeframe": "1m",
       "rowCount": 23062859,
-      "firstTimestampSeconds": 1762424700,
-      "lastTimestampSeconds": 1767110340,
+      "firstTimestampSeconds": 1709251200,
+      "lastTimestampSeconds": 1774891140,
       "symbols": [
         "AUDCAD",
         "AUDJPY",
@@ -12568,8 +12568,8 @@
       "symbolColumn": "symbol",
       "timeframe": "1w",
       "rowCount": 25169,
-      "firstTimestampSeconds": 1556496000,
-      "lastTimestampSeconds": 1766966400,
+      "firstTimestampSeconds": 1451865600,
+      "lastTimestampSeconds": 1774828800,
       "symbols": [
         "AUDCAD",
         "AUDNZD",
@@ -13389,7 +13389,7 @@
       "timeframe": "30m",
       "rowCount": 1437603,
       "firstTimestampSeconds": 1677628800,
-      "lastTimestampSeconds": 1767108600,
+      "lastTimestampSeconds": 1774890000,
       "symbols": [
         "AUDCAD",
         "AUDJPY",
@@ -14090,7 +14090,7 @@
       "timeframe": "4h",
       "rowCount": 381712,
       "firstTimestampSeconds": 1609675200,
-      "lastTimestampSeconds": 1767096000,
+      "lastTimestampSeconds": 1774886400,
       "symbols": [
         "AUDCAD",
         "AUDJPY",
@@ -14909,8 +14909,8 @@
       "symbolColumn": "symbol",
       "timeframe": "5m",
       "rowCount": 5062627,
-      "firstTimestampSeconds": 1744734000,
-      "lastTimestampSeconds": 1767110100,
+      "firstTimestampSeconds": 1709251200,
+      "lastTimestampSeconds": 1774890900,
       "symbols": [
         "AUDCAD",
         "AUDJPY",
@@ -15507,8 +15507,8 @@
       "symbolColumn": "symbol",
       "timeframe": "15m",
       "rowCount": 6995450,
-      "firstTimestampSeconds": 1699975800,
-      "lastTimestampSeconds": 1767109500,
+      "firstTimestampSeconds": 1275836400,
+      "lastTimestampSeconds": 1774890900,
       "symbols": [
         "AUDCAD",
         "AUDJPY",
@@ -16157,8 +16157,8 @@
       "symbolColumn": "symbol",
       "timeframe": "1h",
       "rowCount": 2011029,
-      "firstTimestampSeconds": 1557068400,
-      "lastTimestampSeconds": 1767106800,
+      "firstTimestampSeconds": 1275836400,
+      "lastTimestampSeconds": 1774890000,
       "symbols": [
         "AUDCAD",
         "AUDJPY",
@@ -16807,8 +16807,8 @@
       "symbolColumn": "symbol",
       "timeframe": "1m",
       "rowCount": 84808665,
-      "firstTimestampSeconds": 1762424700,
-      "lastTimestampSeconds": 1767110340,
+      "firstTimestampSeconds": 1275836400,
+      "lastTimestampSeconds": 1774891140,
       "symbols": [
         "AUDUSD",
         "CADJPY",
@@ -17477,8 +17477,8 @@
       "symbolColumn": "symbol",
       "timeframe": "30m",
       "rowCount": 3746796,
-      "firstTimestampSeconds": 1633393800,
-      "lastTimestampSeconds": 1767108600,
+      "firstTimestampSeconds": 1275836400,
+      "lastTimestampSeconds": 1774890000,
       "symbols": [
         "AUDCAD",
         "AUDNZD",
@@ -18127,8 +18127,8 @@
       "symbolColumn": "symbol",
       "timeframe": "4h",
       "rowCount": 613851,
-      "firstTimestampSeconds": 1557057600,
-      "lastTimestampSeconds": 1767096000,
+      "firstTimestampSeconds": 1275825600,
+      "lastTimestampSeconds": 1774886400,
       "symbols": [
         "AUDCAD",
         "AUDJPY",
@@ -18777,8 +18777,8 @@
       "symbolColumn": "symbol",
       "timeframe": "5m",
       "rowCount": 19110307,
-      "firstTimestampSeconds": 1744734000,
-      "lastTimestampSeconds": 1767110100,
+      "firstTimestampSeconds": 1275836400,
+      "lastTimestampSeconds": 1774890900,
       "symbols": [
         "AUDUSD",
         "CADJPY",
@@ -19662,7 +19662,7 @@
       "timeframe": "1m",
       "rowCount": 2383290,
       "firstTimestampSeconds": 1765335360,
-      "lastTimestampSeconds": 1767110340,
+      "lastTimestampSeconds": 1774891140,
       "symbols": [
         "AUDCAD",
         "AUDJPY",
@@ -20352,7 +20352,7 @@
       "symbolColumn": "symbol",
       "timeframe": "1m",
       "rowCount": 216540,
-      "firstTimestampSeconds": 1765219080,
+      "firstTimestampSeconds": 1759190520,
       "lastTimestampSeconds": 1767110340,
       "symbols": [
         "MNQ"

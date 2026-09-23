@@ -510,8 +510,13 @@ def measure_object(
     first_seconds = last_seconds = None
     timeframe = None
     if timestamp_column:
+        # Bounds come from the whole table, never the sample: series.router.ts
+        # and regression.router.ts clamp requests to them, and the sample is the
+        # newest `sample_rows` rows of one symbol, so its minimum cut every lake
+        # column off decades short (mnq_indicators_norm_1m read as starting
+        # 2025-11-06 when it holds rows from 2019-05-05).
         bounds = connection.execute(
-            f'SELECT min("{timestamp_column}"), max("{timestamp_column}") FROM "{view}"'
+            f'SELECT min("{timestamp_column}"), max("{timestamp_column}") FROM "{name}"'
         ).fetchone()
         first_seconds = int(bounds[0].timestamp()) if bounds[0] else None
         last_seconds = int(bounds[1].timestamp()) if bounds[1] else None

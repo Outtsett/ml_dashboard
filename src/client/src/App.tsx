@@ -55,6 +55,10 @@ const NewsFactory = () => import("@/market/NewsPage");
 const News = lazyRetry(NewsFactory, "News");
 registerComponentFactory("/news", NewsFactory);
 
+const RegressionFactory = () => import("@/market/regression/RegressionPage");
+const Regression = lazyRetry(RegressionFactory, "Regression");
+registerComponentFactory("/regression", RegressionFactory);
+
 
 // Portfolio Domain
 
@@ -171,6 +175,7 @@ function Router() {
         </Route>
         
         <AppRoute path="/news" component={News} fallback={<DataGridSkeleton />} />
+        <AppRoute path="/regression" component={Regression} />
         <AppRoute path="/databases" component={Databases} fallback={<DataGridSkeleton />} />
         
         <AppRoute path="/ml-studio" component={MLStudio} />

@@ -12,6 +12,7 @@ import {
   BarChart3,
   Microscope,
   NotebookPen,
+  ScatterChart,
 } from "lucide-react";
 
 // This list is the app's actual rendered sidebar. shared/hooks/navigation.ts's
@@ -34,6 +35,7 @@ import {
 //                ML Studio, which is where Risk was asked to live.
 const NAV_ITEMS = [
   { label: "Market", href: "/", icon: BarChart3 },
+  { label: "Regression", href: "/regression", icon: ScatterChart },
   { label: "ML Studio", href: "/ml-studio", icon: BrainCircuit },
   { label: "Catalog", href: "/model-catalog", icon: Library },
   { label: "Data", href: "/databases", icon: Database },
