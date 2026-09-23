@@ -239,7 +239,9 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
         rowLimit * tfMinutes * 3,
         MIN_LOOKBACK_MINUTES,
       );
-      effectiveStart = anchorMs - estimatedMinutesNeeded * 60_000;
+      // Floored at the epoch: 990 weekly bars × 3 is 57 years of lookback, a
+      // pre-1970 start the SAMPLE BY path rejects ("Invalid numeric value").
+      effectiveStart = Math.max(0, anchorMs - estimatedMinutesNeeded * 60_000);
     }
 
     const cacheKey = OHLCVCache.key('chart', symbol, tfMinutes, {
