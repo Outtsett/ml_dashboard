@@ -231,6 +231,84 @@ def _(mo, selected_pattern):
 def _(mo):
     mo.md(
         r"""
+## The context for every one of the 61
+
+What each rule reads, what trend it needs before it to mean what it claims, and
+how often that trend was actually there. A dash means the pattern makes no
+demand on the prior trend, which is true of every indecision and colour-line
+pattern: a Doji is a statement about one bar and nothing else.
+"""
+    )
+    return
+
+
+@app.cell
+def _(exemplars, mo, pd, rules):
+    context_scope = mo.ui.radio(
+        options={
+            "all 61": "all",
+            "only the 47 that need a prior trend": "needs_context",
+            "only the ones that fired here": "fired",
+        },
+        value="all 61",
+        label="Show",
+    )
+    context_scope
+    return (context_scope,)
+
+
+@app.cell
+def _(context_scope, exemplars, mo, pd, rules):
+    _fired = (
+        exemplars.assign(
+            context_required=exemplars.required_prior_trend.isin(["up", "down"]).astype(int),
+            context_held=(
+                exemplars.required_prior_trend.isin(["up", "down"])
+                & (exemplars.prior_trend_direction == exemplars.required_prior_trend)
+            ).astype(int),
+        )
+        .groupby("talib_function", as_index=False)
+        .agg(
+            firings=("context_required", "size"),
+            context_required=("context_required", "sum"),
+            context_held=("context_held", "sum"),
+        )
+    )
+
+    _table = rules.merge(_fired, on="talib_function", how="left")
+    for _column in ("firings", "context_required", "context_held"):
+        _table[_column] = _table[_column].fillna(0).astype(int)
+
+    # Float NaN rather than pd.NA: a pandas NA has no __round__ and the round
+    # below would fail the whole cell on any pattern that needs no context.
+    _denominator = _table.context_required.astype(float).replace(0.0, float("nan"))
+    _table["context_held_percent"] = (
+        100.0 * _table.context_held.astype(float) / _denominator
+    ).round(1)
+
+    _needs = _table.required_prior_trend_for_bullish_signal.isin(["up", "down"]) | \
+        _table.required_prior_trend_for_bearish_signal.isin(["up", "down"])
+    if context_scope.value == "needs_context":
+        _table = _table[_needs]
+    elif context_scope.value == "fired":
+        _table = _table[_table.firings > 0]
+
+    all_pattern_context = _table[[
+        "talib_function", "bars_the_rule_reads", "pattern_type",
+        "required_prior_trend_for_bullish_signal",
+        "required_prior_trend_for_bearish_signal",
+        "talib_verifies_prior_trend",
+        "firings", "context_required", "context_held", "context_held_percent",
+    ]].sort_values(["bars_the_rule_reads", "talib_function"]).reset_index(drop=True)
+
+    mo.ui.table(all_pattern_context, selection=None, page_size=20)
+    return (all_pattern_context,)
+
+
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
 ## Close versus **open** and close versus **previous close** are different things
 
 The first decides the candle's colour and the sign TA-Lib emits. The second is
