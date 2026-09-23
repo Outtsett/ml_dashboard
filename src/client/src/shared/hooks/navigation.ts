@@ -49,6 +49,7 @@ import {
   Network,
   Newspaper,
   Radio,
+  ScatterChart,
   Settings,
   TerminalSquare,
   Workflow,
@@ -81,6 +82,13 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
         label: "Market",
         href: "/",
         description: "Chart with model signals + replay",
+      },
+      {
+        icon: ScatterChart,
+        label: "Regression",
+        href: "/regression",
+        description:
+          "Price against every variable, one scatter each: fitted line, confidence and prediction bands, outliers",
       },
       {
         icon: Goal,

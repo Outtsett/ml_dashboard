@@ -30,6 +30,7 @@ import {
   onSeriesCatalogReload,
   type CatalogIndex,
 } from "./seriesCatalog";
+import { MAX_WINDOW_SECONDS, TIMEFRAME_SECONDS, bucketExpression, literal, quote } from "./bucketing";
 import {
   SERIES_MAX_COLUMNS,
   SERIES_MAX_MARKERS,
@@ -43,22 +44,6 @@ import {
 const router = Router();
 const logger = new Logger("SeriesRoutes");
 
-/**
- * Seconds per chart timeframe. The chart only ever asks for one of these.
- *
- * A Map, not an object: `"constructor" in {}` is true, so an object lookup
- * accepted `timeframe=constructor` and then handed a FUNCTION to the interval
- * that is interpolated into SQL.
- */
-const TIMEFRAME_SECONDS = new Map<string, number>([
-  ["1s", 1], ["5s", 5], ["15s", 15], ["30s", 30],
-  ["1m", 60], ["5m", 300], ["15m", 900], ["30m", 1800],
-  ["1h", 3600], ["2h", 7200], ["4h", 14400], ["1d", 86400], ["1w", 604800],
-]);
-
-/** The widest window a single request may scan, so one call cannot read a decade. */
-const MAX_WINDOW_SECONDS = 20 * 365 * 24 * 3600;
-
 const QuerySchema = z.object({
   ids: z.string().min(1).max(2000),
   symbol: z.string().regex(/^[A-Za-z0-9_.\-]{1,32}$/),
@@ -67,33 +52,6 @@ const QuerySchema = z.object({
   to: z.coerce.number().int().min(1),
   maxPoints: z.coerce.number().int().min(10).max(SERIES_MAX_POINTS).default(2000),
 });
-
-function quote(identifier: string): string {
-  return `"${identifier.replace(/"/g, '""')}"`;
-}
-
-function literal(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
-}
-
-/**
- * How a bucket collapses several rows into one value.
- *
- * Levels and states take the value at the end of the bucket, exactly as a
- * candle takes its close. Volume adds up. A flag is on if it was on anywhere
- * inside the bucket, because a flag that fired is a fact about the bucket.
- */
-function bucketExpression(column: SeriesColumn, timestampColumn: string): string {
-  const name = quote(column.column);
-  const ts = quote(timestampColumn);
-  const numeric = column.duckdbType.toUpperCase() === "BOOLEAN" ? `CAST(${name} AS INTEGER)` : name;
-
-  if (column.family === "volume" && column.valueShape === "positive_magnitude") {
-    return `sum(${numeric})`;
-  }
-  if (column.valueShape === "binary") return `max(${numeric})`;
-  return `arg_max(${numeric}, ${ts}) FILTER (WHERE ${name} IS NOT NULL)`;
-}
 
 const seriesCache = new LRUCache<string, SeriesResponse["series"][number]>({
   max: 400,
