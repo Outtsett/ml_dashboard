@@ -17,6 +17,7 @@ import {
   type RegressionColumnsResponse,
   type RegressionVariablesResponse,
 } from "@shared/regression/types";
+import { barsKey, type AlignedColumn, type AlignedColumns } from "./panels";
 
 async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { signal });
@@ -63,15 +64,6 @@ export function useRegressionVariables(symbol: string, timeframeApiKey: string) 
   });
 }
 
-export interface AlignedColumn {
-  id: string;
-  /** One value per bar, in bar order. Null where the lake has nothing for that bar. */
-  values: Array<number | null>;
-  /** Bars that found a value. */
-  matchedBars: number;
-  emptyReason?: string;
-}
-
 export function useRegressionColumns(
   symbol: string,
   timeframeApiKey: string,
@@ -111,22 +103,6 @@ export function useRegressionColumns(
       return alignColumns(bars ?? [], responses);
     },
   });
-}
-
-/**
- * Identifies a bar window. Aligned columns carry the key of the bars they were
- * aligned to, and are only ever paired with bars that have the same key — an
- * array aligned to one window, indexed against another, would pair every value
- * with the wrong bar and nothing would look wrong.
- */
-export function barsKey(bars: ReadonlyArray<OhlcvData> | undefined): string {
-  if (!bars || bars.length === 0) return "empty";
-  return `${bars.length}:${bars[0]!.timestamp}:${bars[bars.length - 1]!.timestamp}`;
-}
-
-export interface AlignedColumns {
-  barsKey: string;
-  columns: Map<string, AlignedColumn>;
 }
 
 /** Put every lake value on the bar it belongs to. */

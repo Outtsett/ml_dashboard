@@ -7,7 +7,7 @@ import { AlertTriangle, Clock } from "lucide-react";
 import { SERIES_FAMILY_LABELS } from "@shared/series/types";
 import type { PanelModel } from "./panels";
 import { ScatterPlot, useMeasuredWidth } from "./ScatterPlot";
-import { REGRESSION_COLORS, formatProbability, formatValue } from "./scales";
+import { REGRESSION_COLORS, THUMBNAIL_POINT_BUDGET, formatProbability, formatValue } from "./scales";
 
 export const PANEL_PLOT_HEIGHT = 150;
 
@@ -57,12 +57,12 @@ export function ScatterPanel({ panel, showConfidence, showPrediction, onOpen }: 
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-1">
-          {variable.source === "lake" && variable.values.length > 0 && variable.matchedBars / variable.values.length < 0.5 && (
+          {variable.source === "lake" && variable.barCount > 0 && variable.matchedBars / variable.barCount < 0.5 && (
             <span
               className="inline-flex items-center rounded bg-[#56B4E9]/12 px-1 py-px text-[9px] font-medium text-[#56B4E9]"
-              title={`The lake holds this column for ${variable.matchedBars.toLocaleString()} of the ${variable.values.length.toLocaleString()} loaded bars; the fit uses only those.`}
+              title={`The lake holds this column for ${variable.matchedBars.toLocaleString()} of the ${variable.barCount.toLocaleString()} loaded bars; the fit uses only those.`}
             >
-              {Math.round((100 * variable.matchedBars) / variable.values.length)}% of bars
+              {Math.round((100 * variable.matchedBars) / variable.barCount)}% of bars
             </span>
           )}
           {variable.forwardLooking && (
@@ -89,7 +89,7 @@ export function ScatterPanel({ panel, showConfidence, showPrediction, onOpen }: 
             showConfidence={showConfidence}
             showPrediction={showPrediction}
             compact
-            maxBackgroundPoints={700}
+            maxBackgroundPoints={THUMBNAIL_POINT_BUDGET}
           />
         ) : (
           <div className="flex h-full items-center justify-center px-3 text-center text-[10px] text-muted-foreground/70">

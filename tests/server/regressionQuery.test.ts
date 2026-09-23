@@ -53,6 +53,27 @@ describe("eligibleVariables", () => {
   });
 });
 
+describe("duplicate tables at two grains", () => {
+  const anatomy = catalog.objects.find((entry) => entry.object === "candle_anatomy_1m") as SeriesObject;
+
+  it("keeps both when the coarser table does not cover the finer one's history", () => {
+    // MNQ: candle_anatomy (one-second) reaches back to 2019, the one-minute copy to 2024.
+    const daily = eligibleVariables(catalog.objects, "MNQ", 86400);
+    const objects = new Set(daily.variables.map((variable) => variable.object));
+    expect(objects.has("candle_anatomy_1m")).toBe(true);
+    expect(objects.has("candle_anatomy")).toBe(true);
+  });
+
+  it("drops the finer table when a coarser one covers its whole span", () => {
+    const finer = { ...anatomy, object: "anatomy_fine", timeframe: "1s", firstTimestampSeconds: (anatomy.firstTimestampSeconds as number) + 86400, lastTimestampSeconds: (anatomy.lastTimestampSeconds as number) - 86400 };
+    const daily = eligibleVariables([anatomy, finer], "MNQ", 86400);
+    const objects = new Set(daily.variables.map((variable) => variable.object));
+    expect(objects.has("candle_anatomy_1m")).toBe(true);
+    expect(objects.has("anatomy_fine")).toBe(false);
+    expect(daily.excludedReasons["a coarser table holds the same columns"]).toBeGreaterThan(0);
+  });
+});
+
 describe("bucketing from a finer table", () => {
   it("labels exact, summed and last-value columns", () => {
     const hourly = new Map(eligibleVariables(catalog.objects, "MNQ", 3600).variables.map((variable) => [variable.id, variable]));

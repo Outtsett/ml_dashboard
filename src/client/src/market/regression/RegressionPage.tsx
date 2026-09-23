@@ -10,16 +10,16 @@
  * q-value across panels, Durbin-Watson's spurious-regression warning).
  */
 
-import { useDeferredValue, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { ScatterChart } from "lucide-react";
 import { PageShell } from "@/backtest/components";
 import { useSymbolContext } from "@/shared/contexts/SymbolContext";
 import { minutesToApiKey, minutesToLabel } from "@/market/lib/timeframes";
 import { SERIES_FAMILY_LABELS } from "@shared/series/types";
 import type { CookCutoffRule, ResponseMode } from "@shared/regression/types";
-import { barsKey, useRegressionBars, useRegressionColumns, useRegressionVariables } from "./data";
-import { BAR_VARIABLES } from "./variables";
-import { computePanels, responseAxisLabel, sortPanels, type PanelSettings, type PanelSort, type PanelVariable } from "./panels";
+import { useRegressionBars, useRegressionColumns, useRegressionVariables } from "./data";
+import { responseAxisLabel, selectLakeVariables, sortPanels, type PanelSettings, type PanelSort } from "./panels";
+import { useRegressionPanels } from "./usePanels";
 import { ScatterPanel } from "./ScatterPanel";
 import { DetailView } from "./DetailView";
 import { formatTimestamp, stampClockFor } from "./scales";
@@ -136,13 +136,7 @@ export default function RegressionPage() {
   const variablesQuery = useRegressionVariables(symbol, timeframeApiKey);
   const bars = barsQuery.data;
 
-  const lakeVariablesFor = (current: StoredSettings) =>
-    (variablesQuery.data?.variables ?? []).filter(
-      (variable) =>
-        (current.includeForwardLooking || !variable.forwardLooking) &&
-        (current.includePriceLevel || !variable.priceLevel),
-    );
-  const lakeVariables = lakeVariablesFor(settings);
+  const lakeVariables = selectLakeVariables(variablesQuery.data?.variables ?? [], settings);
   const columnsQuery = useRegressionColumns(
     symbol,
     timeframeApiKey,
@@ -151,62 +145,25 @@ export default function RegressionPage() {
     lakeVariables.map((variable) => variable.id),
   );
 
-  // The fits run on deferred copies, so a dragged slider repaints its own
-  // label at once and the forty regressions follow a frame later. Every value
-  // deferred here keeps its identity until it genuinely changes.
-  const deferredSettings = useDeferredValue(settings);
-  const deferredBars = useDeferredValue(bars);
-  const deferredColumns = useDeferredValue(columnsQuery.data);
-  const stale = deferredSettings !== settings || deferredBars !== bars || deferredColumns !== columnsQuery.data;
-
-  const panelVariables: PanelVariable[] = [];
-  if (deferredBars && deferredBars.length > 0) {
-    for (const variable of BAR_VARIABLES) {
-      panelVariables.push({
-        id: variable.id,
-        label: variable.label,
-        family: variable.family,
-        source: "bar",
-        detail: variable.definition,
-        forwardLooking: false,
-        priceLevel: false,
-        containsClose: variable.containsClose,
-        values: variable.compute(deferredBars),
-        matchedBars: deferredBars.length,
-      });
-    }
-    const columnsMatchBars = deferredColumns?.barsKey === barsKey(deferredBars);
-    for (const variable of lakeVariablesFor(deferredSettings)) {
-      const aligned = columnsMatchBars ? deferredColumns?.columns.get(variable.id) : undefined;
-      if (!aligned) continue;
-      panelVariables.push({
-        id: variable.id,
-        label: variable.bucketingNote ? `${variable.label} (${variable.bucketingNote})` : variable.label,
-        family: variable.family,
-        source: "lake",
-        detail: `${variable.object}.${variable.column}`,
-        forwardLooking: variable.forwardLooking,
-        priceLevel: variable.priceLevel,
-        containsClose: false,
-        values: aligned.values,
-        matchedBars: aligned.matchedBars,
-        ...(aligned.emptyReason ? { emptyReason: aligned.emptyReason } : {}),
-      });
-    }
-  }
-
-  const panelSettings: PanelSettings = {
-    mode: deferredSettings.mode,
-    horizonBars: deferredSettings.horizonBars,
-    confidenceLevel: deferredSettings.confidenceLevel,
-    cookCutoff: deferredSettings.cookCutoff,
-    refitWithoutFlagged: deferredSettings.refitWithoutFlagged,
+  // Only the settings that change a fit go to the worker; the band toggles and
+  // the sort order redraw without refitting.
+  const fitSettings = {
+    mode: settings.mode,
+    horizonBars: settings.horizonBars,
+    confidenceLevel: settings.confidenceLevel,
+    cookCutoff: settings.cookCutoff,
+    refitWithoutFlagged: settings.refitWithoutFlagged,
+    includeForwardLooking: settings.includeForwardLooking,
+    includePriceLevel: settings.includePriceLevel,
   };
-  const close = deferredBars ? deferredBars.map((bar) => bar.close) : [];
-  const panels = computePanels(close, panelVariables, panelSettings, {
-    timestampsMilliseconds: deferredBars ? deferredBars.map((bar) => bar.timestamp) : [],
+  const { panels, bars: fittedBars, computing, error: fitError, milliseconds: fitMilliseconds } = useRegressionPanels({
+    bars,
+    lakeVariables: variablesQuery.data?.variables,
+    columns: columnsQuery.data,
+    settings: fitSettings,
     barMilliseconds: timeframeMinutes * 60_000,
   });
+  const panelSettings: PanelSettings = fitSettings;
 
   const needle = filter.trim().toLowerCase();
   const visible = sortPanels(panels, settings.sort).filter(
@@ -320,7 +277,10 @@ export default function RegressionPage() {
             {significant} significant at q &lt; 0.05
           </span>
           {spurious > 0 && <span className="text-[#F0E442]" title="R² above Durbin-Watson.">{spurious} suspected spurious</span>}
-          {(stale || columnsQuery.isFetching || barsQuery.isFetching) && <span className="text-[#56B4E9]">updating…</span>}
+          {(computing || columnsQuery.isFetching || barsQuery.isFetching) && <span className="text-[#56B4E9]">updating…</span>}
+          {!computing && fitMilliseconds !== null && (
+            <span title="Time the background worker took to fit every panel.">fitted in {Math.round(fitMilliseconds)} ms</span>
+          )}
         </div>
 
         {barsQuery.isError && (
@@ -341,10 +301,15 @@ export default function RegressionPage() {
         {barsQuery.isLoading && <p className="p-4 text-center text-[12px] text-muted-foreground">Loading {settings.barCount.toLocaleString()} bars of {symbol}…</p>}
         {bars && bars.length === 0 && <p className="p-4 text-center text-[12px] text-muted-foreground">The lake returned no bars for {symbol} at {minutesToLabel(timeframeMinutes)}.</p>}
 
-        {opened && deferredBars ? (
+        {fitError && (
+          <p className="rounded border border-[#D55E00]/30 bg-[#D55E00]/10 p-2 text-[11px] text-foreground">
+            The fits could not be computed: {fitError}
+          </p>
+        )}
+        {opened && fittedBars ? (
           <DetailView
             panel={opened}
-            bars={deferredBars}
+            bars={fittedBars}
             clock={clock}
             settings={panelSettings}
             showConfidence={settings.showConfidence}

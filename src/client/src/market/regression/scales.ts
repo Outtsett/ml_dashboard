@@ -19,6 +19,28 @@ export const REGRESSION_COLORS = {
   highlight: "#FFFFFF",
 } as const;
 
+/**
+ * How many ordinary points a scatter draws; flagged points are always drawn on
+ * top. Measured 2026-09-23 on real MNQ bars (1m and 1h, 20,000 and 16,727
+ * bars; 5 variables × 3 Y modes; thumbnail and detail sizes), thinning exactly
+ * as ScatterPlot does (lake: derived/regression_tab_performance):
+ *   - "shape error" is the total-variation distance between a 30 × 20
+ *     histogram of the drawn points and of all the points: the share of the
+ *     cloud drawn in the wrong place. Under 0.05 the picture reads as the data.
+ *   - at 2,000 points only 31% of variables are under 0.05; at 3,000, 73%;
+ *     at 5,000, 90% — and the 90th-percentile error is itself under 0.05;
+ *     at 10,000, all of them. Painted-pixel coverage keeps rising the whole
+ *     way, so there is no earlier point where extra dots stop mattering.
+ *   - canvas cost is about 1 µs a point (0.6-1.2 µs over three runs), so
+ *     5,000 is 3-6 ms per thumbnail — fine once, too much for every frame of
+ *     a panel drag across several panels, hence the resizing budget.
+ */
+export const THUMBNAIL_POINT_BUDGET = 5000;
+export const DETAIL_POINT_BUDGET = 10000;
+/** Points drawn while a panel's width is still changing; the full budget follows once it settles. */
+export const RESIZING_POINT_BUDGET = 700;
+export const RESIZE_SETTLE_MILLISECONDS = 150;
+
 export interface LinearScale {
   (value: number): number;
   domain: [number, number];

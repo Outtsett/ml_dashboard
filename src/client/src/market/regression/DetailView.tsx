@@ -15,7 +15,7 @@ import { predictorAxisLabel, responseAxisLabel } from "./panels";
 import { ScatterPlot, useMeasuredWidth } from "./ScatterPlot";
 import { Formula } from "./Formula";
 import { BucketMeans, EightNumberTable, ResidualHistogram, ResidualTimeline } from "./Diagnostics";
-import { REGRESSION_COLORS, formatProbability, formatTimestamp, formatValue, type StampClock } from "./scales";
+import { DETAIL_POINT_BUDGET, REGRESSION_COLORS, formatProbability, formatTimestamp, formatValue, type StampClock } from "./scales";
 
 interface DetailViewProps {
   panel: PanelModel;
@@ -180,6 +180,7 @@ export function DetailView({ panel, bars, clock, settings, showConfidence, showP
               showConfidence={showConfidence}
               showPrediction={showPrediction}
               clipToPercentiles={clip}
+              maxBackgroundPoints={DETAIL_POINT_BUDGET}
               xLabel={xLabel}
               yLabel={yLabel}
               highlightIndex={active}

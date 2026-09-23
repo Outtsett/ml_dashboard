@@ -30,7 +30,8 @@ export type ExclusionReason =
   | "no rows for this symbol"
   | "coarser than the chart timeframe"
   | "not numeric"
-  | "the chart's own bars";
+  | "the chart's own bars"
+  | "a coarser table holds the same columns";
 
 export interface Eligibility {
   variables: RegressionVariable[];
@@ -91,20 +92,58 @@ export function eligibleVariables(
   symbol: string,
   timeframeSeconds: number,
 ): Eligibility {
-  const variables: RegressionVariable[] = [];
   const excludedReasons: Partial<Record<ExclusionReason, number>> = {};
   let excludedCount = 0;
+  const exclude = (reason: ExclusionReason, count = 1) => {
+    excludedReasons[reason] = (excludedReasons[reason] ?? 0) + count;
+    excludedCount += count;
+  };
+
+  const perObject: Array<{ object: SeriesObject; columns: SeriesColumn[]; seconds: number }> = [];
   for (const object of objects) {
+    const kept: SeriesColumn[] = [];
     for (const column of object.columns) {
       const reason = exclusionFor(object, column, symbol, timeframeSeconds);
-      if (reason) {
-        excludedReasons[reason] = (excludedReasons[reason] ?? 0) + 1;
-        excludedCount += 1;
-        continue;
+      if (reason) exclude(reason);
+      else kept.push(column);
+    }
+    if (kept.length > 0) {
+      perObject.push({ object, columns: kept, seconds: TIMEFRAME_SECONDS.get(object.timeframe as string) as number });
+    }
+  }
+
+  // The same columns at two grains — candle_anatomy_1m and a one-second
+  // table — describe the same bars, and the finer table costs an order of
+  // magnitude more to read (1,959 ms against 162 ms cold for five daily
+  // columns of MNQ). The finer table is dropped only when a coarser one, still
+  // no coarser than the chart, covers its whole span: MNQ's one-second
+  // candle_anatomy starts 2019-05-05 and its one-minute copy 2024-02-29, so
+  // there both stay, rather than five years of history quietly vanishing.
+  const signature = (columns: SeriesColumn[]) => columns.map((column) => column.column).sort().join(",");
+  const covers = (outer: SeriesObject, inner: SeriesObject) =>
+    outer.firstTimestampSeconds !== null && inner.firstTimestampSeconds !== null &&
+    outer.lastTimestampSeconds !== null && inner.lastTimestampSeconds !== null &&
+    outer.firstTimestampSeconds <= inner.firstTimestampSeconds &&
+    outer.lastTimestampSeconds >= inner.lastTimestampSeconds;
+  const superseded = new Set<SeriesObject>();
+  for (const finer of perObject) {
+    for (const coarser of perObject) {
+      if (coarser === finer || coarser.seconds <= finer.seconds) continue;
+      if (signature(coarser.columns) === signature(finer.columns) && covers(coarser.object, finer.object)) {
+        superseded.add(finer.object);
       }
-      const objectSeconds = TIMEFRAME_SECONDS.get(object.timeframe as string) as number;
-      const finer = objectSeconds < timeframeSeconds;
-      const chartLabel = timeframeLabel(timeframeSeconds);
+    }
+  }
+
+  const variables: RegressionVariable[] = [];
+  const chartLabel = timeframeLabel(timeframeSeconds);
+  for (const { object, columns, seconds } of perObject) {
+    if (superseded.has(object)) {
+      exclude("a coarser table holds the same columns", columns.length);
+      continue;
+    }
+    for (const column of columns) {
+      const finer = seconds < timeframeSeconds;
       const bucketing = !finer ? "exact" : isSummed(column) ? "summed" : "last";
       variables.push({
         id: column.id,

@@ -1,8 +1,10 @@
 /**
  * One regression per X variable — the model behind every panel.
  *
- * Pure: bars and aligned columns in, fitted panels out. The page runs it in a
- * deferred render so dragging the horizon slider never blocks the controls.
+ * Pure: bars and aligned columns in, fitted panels out. It runs in a Web
+ * Worker (panels.worker.ts): 49 fits over 20,000 bars measured 852 ms of
+ * synchronous work, which on the main thread froze every control for that
+ * long on each symbol, timeframe or setting change.
  */
 
 import {
@@ -17,7 +19,10 @@ import {
   type RegressionResult,
   type ResponseMode,
 } from "@shared/regression/index";
+import type { RegressionVariable } from "@shared/regression/types";
 import type { SeriesFamily } from "@shared/series/types";
+import type { OhlcvData } from "@/market/components/types";
+import { BAR_VARIABLES } from "./variables";
 
 export interface PanelVariable {
   id: string;
@@ -34,6 +39,12 @@ export interface PanelVariable {
   emptyReason?: string;
 }
 
+/** What a panel keeps of its variable once fitted — the values stay behind. */
+export type PanelVariableSummary = Omit<PanelVariable, "values"> & {
+  /** Bars the variable was aligned to. */
+  barCount: number;
+};
+
 export interface PanelSettings {
   mode: ResponseMode;
   horizonBars: number;
@@ -43,7 +54,7 @@ export interface PanelSettings {
 }
 
 export interface PanelModel {
-  variable: PanelVariable;
+  variable: PanelVariableSummary;
   pairs: RegressionPairs;
   result: RegressionResult;
   /** The fit with every flagged point removed, when that setting is on. */
@@ -83,7 +94,8 @@ export function computePanels(
       refit = refitWithout(pairs.x, pairs.y, flagged, options);
     }
     const buckets = result.ok ? quantileBuckets(pairs.x, pairs.y, 5, settings.confidenceLevel) : null;
-    return { variable, pairs, result, refit, buckets, qValue: null };
+    const { values, ...summary } = variable;
+    return { variable: { ...summary, barCount: values.length }, pairs, result, refit, buckets, qValue: null };
   });
 
   const tested = panels.filter((panel) => panel.result.ok);
@@ -120,4 +132,109 @@ export function sortPanels(panels: ReadonlyArray<PanelModel>, sort: PanelSort): 
   };
   if (sort === "catalog") return copy;
   return copy.sort((left, right) => score(right) - score(left));
+}
+
+// ─── Assembling the variables ────────────────────────────────────────────────
+
+/**
+ * Identifies a bar window. Aligned lake columns carry the key of the bars they
+ * were aligned to and are only ever paired with bars that have the same key —
+ * an array aligned to one window, indexed against another, would pair every
+ * value with the wrong bar and nothing would look wrong.
+ */
+export function barsKey(bars: ReadonlyArray<OhlcvData> | undefined): string {
+  if (!bars || bars.length === 0) return "empty";
+  return `${bars.length}:${bars[0]!.timestamp}:${bars[bars.length - 1]!.timestamp}`;
+}
+
+export interface AlignedColumn {
+  id: string;
+  /** One value per bar, in bar order. Null where the lake has nothing for that bar. */
+  values: Array<number | null>;
+  /** Bars that found a value. */
+  matchedBars: number;
+  emptyReason?: string;
+}
+
+export interface AlignedColumns {
+  barsKey: string;
+  columns: Map<string, AlignedColumn>;
+}
+
+export interface VariableFilter {
+  includeForwardLooking: boolean;
+  includePriceLevel: boolean;
+}
+
+export function selectLakeVariables(
+  variables: ReadonlyArray<RegressionVariable>,
+  filter: VariableFilter,
+): RegressionVariable[] {
+  return variables.filter(
+    (variable) =>
+      (filter.includeForwardLooking || !variable.forwardLooking) &&
+      (filter.includePriceLevel || !variable.priceLevel),
+  );
+}
+
+/** The bar-derived variables, then every selected lake column aligned to these bars. */
+export function assemblePanelVariables(
+  bars: ReadonlyArray<OhlcvData>,
+  lakeVariables: ReadonlyArray<RegressionVariable>,
+  columns: AlignedColumns | undefined,
+): PanelVariable[] {
+  if (bars.length === 0) return [];
+  const variables: PanelVariable[] = BAR_VARIABLES.map((variable) => ({
+    id: variable.id,
+    label: variable.label,
+    family: variable.family,
+    source: "bar",
+    detail: variable.definition,
+    forwardLooking: false,
+    priceLevel: false,
+    containsClose: variable.containsClose,
+    values: variable.compute(bars),
+    matchedBars: bars.length,
+  }));
+  if (!columns || columns.barsKey !== barsKey(bars)) return variables;
+  for (const variable of lakeVariables) {
+    const aligned = columns.columns.get(variable.id);
+    if (!aligned) continue;
+    variables.push({
+      id: variable.id,
+      label: variable.bucketingNote ? `${variable.label} (${variable.bucketingNote})` : variable.label,
+      family: variable.family,
+      source: "lake",
+      detail: `${variable.object}.${variable.column}`,
+      forwardLooking: variable.forwardLooking,
+      priceLevel: variable.priceLevel,
+      containsClose: false,
+      values: aligned.values,
+      matchedBars: aligned.matchedBars,
+      ...(aligned.emptyReason ? { emptyReason: aligned.emptyReason } : {}),
+    });
+  }
+  return variables;
+}
+
+/** Every typed-array buffer in the panels, so the worker can transfer rather than copy them. */
+export function panelBuffers(panels: ReadonlyArray<PanelModel>): ArrayBuffer[] {
+  const buffers = new Set<ArrayBuffer>();
+  const add = (array: { buffer: ArrayBufferLike }) => {
+    if (array.buffer instanceof ArrayBuffer) buffers.add(array.buffer);
+  };
+  for (const panel of panels) {
+    add(panel.pairs.x);
+    add(panel.pairs.y);
+    add(panel.pairs.barIndex);
+    for (const result of [panel.result, panel.refit]) {
+      if (!result || !result.ok) continue;
+      const fit = result.fit;
+      for (const array of [
+        fit.fitted, fit.residuals, fit.leverage, fit.studentizedInternal, fit.studentizedExternal,
+        fit.cookDistance, fit.verticalOutlier, fit.influential,
+      ]) add(array);
+    }
+  }
+  return [...buffers];
 }

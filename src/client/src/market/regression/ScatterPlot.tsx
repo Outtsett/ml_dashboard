@@ -13,7 +13,15 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 import type { RegressionFit, RegressionPairs } from "@shared/regression/types";
-import { REGRESSION_COLORS, formatValue, linearScale, niceTicks, paddedExtent } from "./scales";
+import {
+  REGRESSION_COLORS,
+  RESIZE_SETTLE_MILLISECONDS,
+  RESIZING_POINT_BUDGET,
+  formatValue,
+  linearScale,
+  niceTicks,
+  paddedExtent,
+} from "./scales";
 
 export function useMeasuredWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] {
   const ref = useRef<T | null>(null);
@@ -81,6 +89,38 @@ export function ScatterPlot({
   onSelect,
 }: ScatterPlotProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  // A grid holds dozens of panels; only those near the viewport paint. An
+  // off-screen panel draws when it scrolls in, and skips every redraw a
+  // resize would otherwise cost it.
+  const [onScreen, setOnScreen] = useState(false);
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+    // Observe against the container that actually scrolls: rootMargin only
+    // grows the ROOT's box, so against the window it would do nothing for a
+    // grid scrolling inside a panel.
+    let scroller: HTMLElement | null = element.parentElement;
+    while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
+    const observer = new IntersectionObserver((entries) => setOnScreen(entries.some((entry) => entry.isIntersecting)), {
+      root: scroller,
+      rootMargin: "300px 0px",
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  // While the width is changing (a panel being dragged), draw a light cloud
+  // so every frame stays cheap; the full budget follows once it settles.
+  const [resizing, setResizing] = useState(false);
+  const previousWidthRef = useRef(width);
+  useEffect(() => {
+    if (previousWidthRef.current === width) return;
+    previousWidthRef.current = width;
+    setResizing(true);
+    const timer = window.setTimeout(() => setResizing(false), RESIZE_SETTLE_MILLISECONDS);
+    return () => window.clearTimeout(timer);
+  }, [width]);
+  const pointBudget = resizing ? Math.min(maxBackgroundPoints, RESIZING_POINT_BUDGET) : maxBackgroundPoints;
   const clipId = `regression-clip-${useId().replace(/:/g, "")}`;
   const margin = compact
     ? { left: 40, right: 6, top: 6, bottom: 18 }
@@ -113,7 +153,7 @@ export function ScatterPlot({
   // ── Points (canvas) ──────────────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !onScreen) return;
     const ratio = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = Math.round(innerWidth * ratio);
     canvas.height = Math.round(innerHeight * ratio);
@@ -126,7 +166,7 @@ export function ScatterPlot({
     const flagged = (index: number) => fit.verticalOutlier[index] === 1 || fit.influential[index] === 1;
     let ordinary = 0;
     for (let index = 0; index < count; index += 1) if (!flagged(index)) ordinary += 1;
-    const stride = Math.max(1, Math.ceil(ordinary / maxBackgroundPoints));
+    const stride = Math.max(1, Math.ceil(ordinary / pointBudget));
 
     const radius = compact ? 1.4 : 1.8;
     context.fillStyle = REGRESSION_COLORS.point;
@@ -171,7 +211,7 @@ export function ScatterPlot({
       context.fill();
     }
     context.globalAlpha = 1;
-  }, [pairs, fit, xScale, yScale, innerWidth, innerHeight, compact, maxBackgroundPoints]);
+  }, [pairs, fit, xScale, yScale, innerWidth, innerHeight, compact, pointBudget, onScreen]);
 
   // ── Hover: nearest point in pixel space ─────────────────────────────────
   const nearestIndex = (event: MouseEvent<SVGRectElement>): number | null => {
@@ -217,7 +257,7 @@ export function ScatterPlot({
       : null;
 
   return (
-    <div className="relative" style={{ width, height }}>
+    <div ref={containerRef} className="relative" style={{ width, height }}>
       <canvas
         ref={canvasRef}
         className="absolute"
