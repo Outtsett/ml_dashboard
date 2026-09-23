@@ -33,9 +33,6 @@ interface ToolbarProps {
   onUpdateParams: (instanceId: string, params: Record<string, number>) => void;
   onToggleVisibility: (instanceId: string) => void;
   onClearAllIndicators: () => void;
-  // CDL Patterns
-  selectedPatterns: string[];
-  onPatternSelectionChange: (cols: string[]) => void;
   indicatorsLoading: boolean;
   // Overlays
   showSR: boolean;
@@ -65,7 +62,6 @@ export const MarketToolbar = memo(function MarketToolbar({
   timeframe, onTimeframeChange,
   activeIndicators, onAddIndicator, onRemoveIndicator, onUpdateParams,
   onToggleVisibility, onClearAllIndicators,
-  selectedPatterns, onPatternSelectionChange,
   indicatorsLoading,
   showSR, onToggleSR, showZigZag, onToggleZigZag, showStructure, onToggleStructure,
   isTrainingActive, activeTab: _activeTab, onTabChange: _onTabChange,
@@ -168,8 +164,6 @@ export const MarketToolbar = memo(function MarketToolbar({
         onUpdateParams={onUpdateParams}
         onToggleVisibility={onToggleVisibility}
         onClearAll={onClearAllIndicators}
-        selectedPatterns={selectedPatterns}
-        onPatternSelectionChange={onPatternSelectionChange}
         isLoading={indicatorsLoading}
       />
 

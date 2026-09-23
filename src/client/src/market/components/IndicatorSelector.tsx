@@ -18,12 +18,10 @@ import {
   CATEGORY_ORDER,
 } from "@/market/lib/indicator_registry";
 import type { ActiveIndicator } from "@/market/lib/useActiveIndicators";
-import { getPatternDisplayName } from "@/market/lib/candle_patterns";
 
 // Sub-components
 import { ActiveIndicatorList } from '@/market/components/ActiveIndicatorList';
 import { IndicatorSearch } from '@/market/components/IndicatorSearch';
-import { CandlePatternSelector } from '@/market/components/CandlePatternSelector';
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -40,14 +38,6 @@ interface IndicatorSelectorProps {
   onToggleVisibility: (instanceId: string) => void;
   /** Clear all indicators */
   onClearAll: () => void;
-  /** Selected CDL pattern columns */
-  selectedPatterns: string[];
-  /** Callback for CDL pattern selection changes */
-  onPatternSelectionChange: (columns: string[]) => void;
-  /** Firings currently drawn from the lake, for the TA-Lib group's readout. */
-  talibFiringCount?: number;
-  /** Why the lake could not answer, shown rather than swallowed. */
-  talibError?: string | null;
   isLoading?: boolean;
 }
 
@@ -60,10 +50,6 @@ export function IndicatorSelector({
   onUpdateParams,
   onToggleVisibility,
   onClearAll,
-  selectedPatterns,
-  onPatternSelectionChange,
-  talibFiringCount,
-  talibError,
 }: IndicatorSelectorProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -80,7 +66,7 @@ export function IndicatorSelector({
     }
   }, [open]);
 
-  const activeCount = activeIndicators.length + selectedPatterns.length;
+  const activeCount = activeIndicators.length;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -144,43 +130,9 @@ export function IndicatorSelector({
               onAddIndicator={onAddIndicator}
             />
 
-            {/* One list: the browser detectors and the lake's TA-Lib firings
-                deduplicated to a single row per pattern. */}
-            <CandlePatternSelector
-              selectedPatterns={selectedPatterns}
-              onSelectionChange={onPatternSelectionChange}
-              searchFilter={search}
-              firingCount={talibFiringCount}
-              error={talibError}
-            />
           </div>
         </ScrollArea>
 
-        {/* Footer: selected patterns summary */}
-        {selectedPatterns.length > 0 && !search && (
-          <div className="border-t border-white/5 px-2 py-1.5">
-            <div className="flex flex-wrap gap-1">
-              {selectedPatterns.slice(0, 6).map(col => (
-                <Badge
-                  key={col}
-                  variant="secondary"
-                  className="h-4 px-1.5 text-[9px] font-mono cursor-pointer hover:bg-destructive/20"
-                  onClick={() =>
-                    onPatternSelectionChange(selectedPatterns.filter(c => c !== col))
-                  }
-                >
-                  {getPatternDisplayName(col)}
-                  <X className="h-2.5 w-2.5 ml-0.5" />
-                </Badge>
-              ))}
-              {selectedPatterns.length > 6 && (
-                <Badge variant="outline" className="h-4 px-1.5 text-[9px]">
-                  +{selectedPatterns.length - 6} more
-                </Badge>
-              )}
-            </div>
-          </div>
-        )}
       </PopoverContent>
     </Popover>
   );

@@ -149,14 +149,9 @@ export default function MarketData() {
   } = useActiveIndicators(chartData);
 
   // â”€â”€ CDL Patterns (computed client-side from OHLCV data) â”€â”€
-  const {
-    selectedPatterns,
-    setSelectedPatterns,
-    patternOverlays,
-    talibFiringCount,
-    talibError,
-    isLoading: patternsLoading,
-  } = useIndicatorData(symbol, timeframe, isFutures, chartData);
+  // Candlestick patterns are label generators now, chosen one at a time from
+  // the label dropdown. This call only clears the retired selection.
+  useIndicatorData();
 
   // What the chart is showing, shared by the lake series and the label overlay.
   const [visibleRange, setVisibleRange] = useState<{ start: number; end: number } | null>(null);
@@ -170,16 +165,10 @@ export default function MarketData() {
 
   // â”€â”€ Merge indicator overlays + pattern overlays + lake series â”€â”€
   const allOverlays = useMemo(() => {
-    return [...indicatorOverlays, ...patternOverlays, ...lakeSeries.overlays];
-  }, [indicatorOverlays, patternOverlays, lakeSeries.overlays]);
+    return [...indicatorOverlays, ...lakeSeries.overlays];
+  }, [indicatorOverlays, lakeSeries.overlays]);
 
   const handleRemoveIndicators = useCallback((columns: string[]) => {
-    // For pattern columns (CDL_*), remove from pattern selection
-    const patternCols = columns.filter(c => c.startsWith('CDL_'));
-    if (patternCols.length > 0) {
-      const newPatterns = selectedPatterns.filter(c => !patternCols.includes(c));
-      setSelectedPatterns(newPatterns);
-    }
     // For indicator instance columns (instanceId::outputKey), remove the instance
     const instanceCols = columns.filter(c => c.includes('::'));
     const instanceIds = new Set(instanceCols.map(c => c.split('::')[0]!));
@@ -188,7 +177,7 @@ export default function MarketData() {
     }
     // Lake columns are not instances — closing their pane deselects the column.
     lakeSeries.removeByOverlayColumns(columns);
-  }, [selectedPatterns, setSelectedPatterns, removeIndicator, lakeSeries]);
+  }, [removeIndicator, lakeSeries]);
 
   // â”€â”€ Label overlay (toolbar dropdown â†’ /api/labels/preview over the loaded bars) â”€â”€
   const [selectedLabelGenerator, setSelectedLabelGenerator] = useState<string | null>(null);
@@ -390,11 +379,6 @@ export default function MarketData() {
         onToggleVisibility={toggleVisibility}
         onClearAllIndicators={clearAllIndicators}
         lakeSeries={lakeSeries}
-        selectedPatterns={selectedPatterns}
-        onPatternSelectionChange={setSelectedPatterns}
-        talibFiringCount={talibFiringCount}
-        talibError={talibError}
-        indicatorsLoading={patternsLoading}
         labelGenerators={labelGenerators}
         labelGeneratorsLoading={labelGeneratorsLoading}
         selectedLabelGenerator={selectedLabelGenerator}

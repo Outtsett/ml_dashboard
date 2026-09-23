@@ -9,6 +9,11 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { LabelMarker } from '@/market/components/types';
+import {
+  CANDLE_PATTERN_GENERATORS,
+  fetchCandlePatternMarkers,
+  isCandlePatternGenerator,
+} from '@/market/lib/candlePatternLabels';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -122,11 +127,28 @@ export function useLabelOverlay(
     staleTime: Infinity,
   });
 
+  // The 61 candlestick patterns join the server's generators in one list. They
+  // are appended locally rather than served, so the picker is fully populated
+  // even while `/api/labels/generators` is still in flight.
+  //
+  // The server's own `candle-pattern` generators are dropped on the way past.
+  // They are the retired path: five entries (`talib_candle_pattern` plus
+  // engulfing, harami, haramicross, hikkake) that SELECT from the
+  // `talib_candle_patterns` table, which only ever covered 1m/5m/15m over a
+  // three-month window. The 61 appended here compute the same library's output
+  // over whatever bars are on screen, so keeping both would list some patterns
+  // twice with the duplicate reading from a narrower source.
   const generators = useMemo(() => {
     const raw = generatorsQuery.data;
-    if (!raw) return [];
-    return Object.entries(raw).map(([id, g]) => ({ ...g, id: g.id ?? id }));
+    const serverSide = raw
+      ? Object.entries(raw)
+          .map(([id, g]) => ({ ...g, id: g.id ?? id }))
+          .filter(g => g.category !== 'candle-pattern')
+      : [];
+    return [...serverSide, ...CANDLE_PATTERN_GENERATORS];
   }, [generatorsQuery.data]);
+
+  const patternSelected = isCandlePatternGenerator(generatorType);
 
   const loadedRange = useMemo(() => rangeOf(bars), [bars]);
   // Pad the viewport by 20% each side so a small pan does not immediately fall
@@ -153,9 +175,25 @@ export function useLabelOverlay(
 
   const paramsReady = generatorType === null || generators.length > 0;
 
+  /**
+   * Candlestick patterns take the compute path, not the label-preview path.
+   *
+   * `/api/charts/candle-patterns` runs TA-Lib over the bars on screen and
+   * answers in ~220ms end to end. The generic `/api/labels/preview` route is a
+   * different pipeline with different performance characteristics, and routing
+   * patterns through it would inherit them for no benefit — a pattern needs no
+   * SQL, only OHLC.
+   */
+  const patternQuery = useQuery({
+    queryKey: ['candle-pattern-label', symbol, timeframeMinutes, generatorType, range?.start, range?.end],
+    enabled: patternSelected && Boolean(symbol) && range !== null,
+    queryFn: ({ signal }) =>
+      fetchCandlePatternMarkers(symbol, timeframeMinutes, generatorType!, range, signal),
+  });
+
   const previewQuery = useQuery<LabelPreviewResponse>({
     queryKey: ['/api/labels/preview', symbol, timeframeMinutes, generatorType, params, range?.start, range?.end],
-    enabled: Boolean(generatorType) && Boolean(symbol) && range !== null && paramsReady,
+    enabled: Boolean(generatorType) && !patternSelected && Boolean(symbol) && range !== null && paramsReady,
     queryFn: async () => {
       const res = await fetch('/api/labels/preview', {
         method: 'POST',
@@ -176,6 +214,7 @@ export function useLabelOverlay(
   });
 
   const labelMarkers = useMemo((): LabelMarker[] => {
+    if (patternSelected) return patternQuery.data?.markers ?? [];
     const rows = previewQuery.data?.preview;
     if (!rows) return [];
     return rows
@@ -186,7 +225,7 @@ export function useLabelOverlay(
         close: r.close,
         outcomeOffset: r.outcomeOffset,
       }));
-  }, [previewQuery.data]);
+  }, [patternSelected, patternQuery.data, previewQuery.data]);
 
   // A `success: false` body is a 200 carrying a generator-side failure, so it
   // has to be surfaced alongside transport errors rather than instead of them.
@@ -205,21 +244,48 @@ export function useLabelOverlay(
     return { start, end };
   }, [labelMarkers]);
 
+  /**
+   * Warn only when the LABEL SOURCE runs out before the chart does.
+   *
+   * That is a real condition for a stored label set, which covers whatever range
+   * it was generated over. It is meaningless for a computed pattern: every bar
+   * on screen was scored, so a stretch with no marker is the pattern not firing,
+   * not coverage running out. Reusing the warning here would fire on almost
+   * every pattern — `range` is padded 20% past the viewport, so it sits beyond
+   * the last firing nearly always — and would teach the user to ignore it.
+   */
   const chartExtendsPastLabels = Boolean(
-    coveredRange && range && range.end > coveredRange.end + timeframeMinutes * 60_000,
+    !patternSelected
+      && coveredRange && range && range.end > coveredRange.end + timeframeMinutes * 60_000,
   );
+
+  // A pattern fires in one direction per bar, so its "class balance" is the
+  // rarer sign over the commoner one. Reported on the same scale as a
+  // generator's so the legend reads identically for both.
+  const patternBalance = useMemo((): number | null => {
+    const counts = Object.values(patternQuery.data?.distribution ?? {});
+    if (counts.length < 2) return null;
+    const max = Math.max(...counts);
+    return max === 0 ? null : Math.min(...counts) / max;
+  }, [patternQuery.data]);
+
+  const activeQuery = patternSelected ? patternQuery : previewQuery;
 
   return {
     generators,
     generatorsLoading: generatorsQuery.isLoading,
     labelMarkers,
-    distribution: previewQuery.data?.distribution ?? {},
-    classBalanceRatio: previewQuery.data?.classBalanceRatio ?? null,
+    distribution: patternSelected
+      ? patternQuery.data?.distribution ?? {}
+      : previewQuery.data?.distribution ?? {},
+    classBalanceRatio: patternSelected
+      ? patternBalance
+      : previewQuery.data?.classBalanceRatio ?? null,
     coveredRange,
     chartExtendsPastLabels,
-    isLoading: previewQuery.isFetching,
-    error: previewQuery.error instanceof Error
-      ? previewQuery.error.message
-      : bodyError,
+    isLoading: activeQuery.isFetching,
+    error: activeQuery.error instanceof Error
+      ? activeQuery.error.message
+      : patternSelected ? null : bodyError,
   };
 }

@@ -39,14 +39,7 @@ interface ToolbarProps {
   onClearAllIndicators: () => void;
   /** Every column in the lake, offered as a chart series. */
   lakeSeries: LakeSeriesControls;
-  // CDL Patterns
-  selectedPatterns: string[];
-  onPatternSelectionChange: (cols: string[]) => void;
-  /** Firings drawn from the lake, shown beside the TA-Lib pattern group. */
-  talibFiringCount?: number;
-  /** Why the lake could not answer, surfaced rather than swallowed. */
-  talibError?: string | null;
-  indicatorsLoading: boolean;
+  indicatorsLoading?: boolean;
   // Label overlay
   labelGenerators: LabelGenerator[];
   labelGeneratorsLoading: boolean;
@@ -88,7 +81,6 @@ export const Toolbar = memo(function Toolbar({
   activeIndicators, onAddIndicator, onRemoveIndicator, onUpdateParams,
   onToggleVisibility, onClearAllIndicators,
   lakeSeries,
-  selectedPatterns, onPatternSelectionChange, talibFiringCount, talibError,
   indicatorsLoading,
   labelGenerators, labelGeneratorsLoading, selectedLabelGenerator, onSelectLabelGenerator,
   labelMarkerCount, labelDistribution, labelClassBalanceRatio,
@@ -194,10 +186,6 @@ export const Toolbar = memo(function Toolbar({
         onUpdateParams={onUpdateParams}
         onToggleVisibility={onToggleVisibility}
         onClearAll={onClearAllIndicators}
-        selectedPatterns={selectedPatterns}
-        onPatternSelectionChange={onPatternSelectionChange}
-        talibFiringCount={talibFiringCount}
-        talibError={talibError}
         isLoading={indicatorsLoading}
       />
 

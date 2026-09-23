@@ -135,27 +135,17 @@ function TradeLabBody() {
   } = useActiveIndicators(chartData);
 
   // ── CDL Patterns ───────────────────────────────────────────────────────
-  const {
-    selectedPatterns,
-    setSelectedPatterns,
-    patternOverlays,
-    isLoading: patternsLoading,
-  } = useIndicatorData(symbol, timeframe, isFutures, chartData);
+  useIndicatorData();
 
-  const allOverlays = useMemo(() => [...indicatorOverlays, ...patternOverlays], [indicatorOverlays, patternOverlays]);
+  const allOverlays = useMemo(() => [...indicatorOverlays], [indicatorOverlays]);
 
   const handleRemoveIndicators = useCallback((columns: string[]) => {
-    const patternCols = columns.filter(c => c.startsWith('CDL_'));
-    if (patternCols.length > 0) {
-      const newPatterns = selectedPatterns.filter(c => !patternCols.includes(c));
-      setSelectedPatterns(newPatterns);
-    }
     const instanceCols = columns.filter(c => c.includes('::'));
     const instanceIds = new Set(instanceCols.map(c => c.split('::')[0]!));
     for (const id of instanceIds) {
       removeIndicator(id);
     }
-  }, [selectedPatterns, setSelectedPatterns, removeIndicator]);
+  }, [removeIndicator]);
 
   // ── Sidebar label markers ──────────────────────────────────────────────
   const [sidebarLabelMarkers] = useState<LabelMarker[]>([]);
@@ -298,9 +288,7 @@ function TradeLabBody() {
         onUpdateParams={updateParams}
         onToggleVisibility={toggleVisibility}
         onClearAllIndicators={clearAllIndicators}
-        selectedPatterns={selectedPatterns}
-        onPatternSelectionChange={setSelectedPatterns}
-        indicatorsLoading={patternsLoading}
+        indicatorsLoading={false}
         showSR={overlayToggles.showSR}
         onToggleSR={handleToggleSR}
         showZigZag={overlayToggles.showZigZag}
