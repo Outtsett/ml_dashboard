@@ -361,7 +361,9 @@ class PatternLabelRenderer implements IPrimitivePaneRenderer {
       if (label.direction === 1) entry.bullish += 1;
       else entry.bearish += 1;
       // Best match first, so the hover list reads as "this, and also these".
-      if (label.isBestMatch) entry.texts.unshift(`${label.text}  (best match)`);
+      // The label already ends in a parenthetical for the pattern type, so a
+      // second one reads badly. A dash separates the two cleanly.
+      if (label.isBestMatch) entry.texts.unshift(`${label.text}  -  best match`);
       else entry.texts.push(label.text);
     }
 
