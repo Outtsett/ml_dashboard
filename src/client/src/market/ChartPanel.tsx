@@ -17,6 +17,12 @@ import type { LocalReplaySnapshot } from "@/market/lib/useLocalReplay";
 import type { RegimeLegendEntry } from "@/training/lib/useTrainingSync";
 
 interface ChartPanelProps {
+  /**
+   * Refetch the bars. Forwarded to the chart, which puts it on its right-click
+   * menu — the place people reach when the candles have not appeared.
+   */
+  onReloadBars?: () => void;
+  isReloadingBars?: boolean;
   // Chart data
   displayData: OhlcvData[];
   chartData: OhlcvData[];
@@ -81,6 +87,7 @@ export const ChartPanel = memo(function ChartPanel({
   labelMarkers, indicatorOverlays, onRemoveIndicators,
   supportResistanceLevels, zigZagPoints, swingZigZagPoints,
   tradeMarkers, predictionMarkers,
+  onReloadBars, isReloadingBars,
 }: ChartPanelProps) {
   const [bottomTab, setBottomTab] = useState("terminal");
 
@@ -136,6 +143,8 @@ export const ChartPanel = memo(function ChartPanel({
           {displayData.length > 0 ? (
             <div className="flex-1 min-h-0 flex-1 min-h-0">
               <IndicatorChartLayout
+                onReloadBars={onReloadBars}
+                isReloadingBars={isReloadingBars}
                 data={displayData}
                 symbol={symbol}
                 isFutures={isFutures}

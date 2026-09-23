@@ -1,4 +1,4 @@
-﻿import { useRef, useState, useMemo, useEffect, forwardRef, useImperativeHandle } from 'react';
+﻿import { useRef, useState, useMemo, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import type { LogicalRange, MouseEventParams, Time } from 'lightweight-charts';
 
 import { futuresTickInfo, forexPrecision, getBaseSymbol } from '@/market/components/chartConfig';
@@ -8,6 +8,7 @@ import { useChartMarkers } from '@/market/components/useChartMarkers';
 import { useChartPriceLines } from '@/market/components/useChartPriceLines';
 import { useChartOverlays } from '@/market/components/useChartOverlays';
 import { snapToCandle } from '@/market/components/useSeriesMarkers';
+import { RefreshCw, Maximize2 } from 'lucide-react';
 import type { TradingChartHandle, TradingChartProps, PriceInfo } from "@/market/components/types";
 
 // Re-export public types for backward compatibility
@@ -44,6 +45,8 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
   isReplayActive = false,
   regimeColorMap,
   trainTestSplitTime,
+  onReloadBars,
+  isReloadingBars = false,
 }, ref) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [priceInfo, setPriceInfo] = useState<PriceInfo | null>(null);
@@ -257,15 +260,92 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     return `${fmt(first)} - ${fmt(last)}`;
   }, [processedData.candles]);
 
+  // ── Right-click menu ───────────────────────────────────────────────────
+  //
+  // Owned here rather than delegated to Radix's ContextMenuTrigger. The trigger
+  // did not open on this chart: the `contextmenu` event reaches the wrapper
+  // with defaultPrevented false (verified in the page), but the trigger tracks
+  // a pointerdown/contextmenu pair and the canvas underneath does not produce
+  // the sequence it expects. Handling the event directly is deterministic and
+  // behaves identically for a real right-click.
+  const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null);
+
+  const handleContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!onReloadBars) return;
+    event.preventDefault();
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setMenuPoint({ x: event.clientX - bounds.left, y: event.clientY - bounds.top });
+  }, [onReloadBars]);
+
+  // Any click elsewhere, a scroll, or Escape dismisses it. Registered only
+  // while the menu is open so the chart keeps its own pointer handling
+  // untouched the rest of the time.
+  useEffect(() => {
+    if (!menuPoint) return;
+    const close = () => setMenuPoint(null);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+    };
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('wheel', close, { passive: true });
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('wheel', close);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [menuPoint]);
+
   // ── JSX ────────────────────────────────────────────────────────────────
 
+  // lightweight-charts paints to a canvas that swallows nothing, so a
+  // right-click on the chart surface lands on this wrapper and Radix opens the
+  // menu there. Without it the browser's own menu appears, which is what made
+  // the reload look missing: it was in the toolbar, not where the hand was.
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full" onContextMenu={handleContextMenu}>
       <div
         ref={chartContainerRef}
         className="w-full h-full"
-        data-testid="trading-chart"
+        data-testid="chart-context-target"
       />
+
+      {menuPoint && (
+        <div
+          className="absolute z-50 min-w-[11rem] rounded-md border border-white/10 bg-popover/95 backdrop-blur-sm p-1 shadow-lg"
+          style={{ left: menuPoint.x, top: menuPoint.y }}
+          // The dismiss listener is a window pointerdown, so a press inside the
+          // menu must not reach it or the menu would close before the click.
+          onPointerDown={event => event.stopPropagation()}
+          role="menu"
+          data-testid="chart-context-menu"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            disabled={isReloadingBars}
+            onClick={() => { setMenuPoint(null); onReloadBars?.(); }}
+            data-testid="menu-reload-bars"
+            className="flex w-full items-center rounded-sm px-2 py-1.5 text-xs text-foreground hover:bg-white/[0.06] disabled:opacity-50"
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 mr-2 ${isReloadingBars ? 'animate-spin' : ''}`}
+              aria-hidden="true"
+            />
+            {isReloadingBars ? 'Reloading bars' : 'Reload bars'}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => { setMenuPoint(null); chartRef.current?.timeScale().fitContent(); }}
+            data-testid="menu-fit-content"
+            className="flex w-full items-center rounded-sm px-2 py-1.5 text-xs text-foreground hover:bg-white/[0.06]"
+          >
+            <Maximize2 className="h-3.5 w-3.5 mr-2" aria-hidden="true" />
+            Fit bars to view
+          </button>
+        </div>
+      )}
 
       {/* Loading overlay */}
       {isLoadingMore && (

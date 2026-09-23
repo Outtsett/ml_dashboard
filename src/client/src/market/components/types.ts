@@ -31,6 +31,14 @@ export interface TradingChartHandle {
 }
 
 export interface TradingChartProps {
+  /**
+   * Refetch the bars. Present means the chart gets a right-click menu.
+   *
+   * Lives here rather than on a toolbar alone because a right-click on the
+   * chart is where people reach when the candles have not appeared.
+   */
+  onReloadBars?: () => void;
+  isReloadingBars?: boolean;
   data: OhlcvData[];
   symbol: string;
   isFutures: boolean;
