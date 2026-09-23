@@ -242,7 +242,7 @@ function VectorSpaceView({ run, basis, setBasis, colourBy, setColourBy, selected
 
   return (
     <LensFrame
-      title="2 / 3 — Vectorize and normalize"
+      title="1 / 2 — Vectorize and normalize"
       question="Where does each bar sit in its own feature space, and what else looks like it?"
       basis={space.data
         ? `${space.data.bars.toLocaleString()} bars x ${space.data.dimensions} dims`
@@ -394,7 +394,7 @@ function FeatureHeatmapView({ run, blocksEvent, names, active, onBlockChange, vi
 
   return (
     <LensFrame
-      title="2 / 3 — Vectorize and normalize"
+      title="1 / 2 — Vectorize and normalize"
       question="What did each bar become, and on what scale?"
       basis={blocksEvent ? `${names.length} blocks \u00b7 ${blocksEvent.count.toLocaleString()} bars` : undefined}
       actions={
@@ -445,7 +445,7 @@ export function EmbedStage({ events, epoch }: { events: TrainingStreamEvent[]; e
 
   return (
     <LensFrame
-      title="4 / 5 — Window into a tensor, then embed"
+      title="3 / 4 — Window into a tensor, then embed"
       question="How do many bars become one vector the model can attend over?"
       basis={started ? `(batch ${batch}, time ${window}, d_model 64) · summed block projections` : undefined}
       resizeKey="lens-train-embed" defaultHeight={280} fillBody
@@ -501,7 +501,7 @@ export function PositionStage({ run, events, epoch }: {
 
   return (
     <LensFrame
-      title="6 — Add position"
+      title="5 — Add position"
       question="How does the model know which bar came first?"
       basis={reading ? `${reading.module_type} · ${reading.output_shape.join(" x ")}` : undefined}
       unavailableReason={!reading ? "no positional-encoding capture in this run" : undefined}
@@ -535,7 +535,7 @@ export function AttentionStage({ events, epoch }: { events: TrainingStreamEvent[
 
   return (
     <LensFrame
-      title="7 / 8 — Self-attention and feed-forward"
+      title="6 / 7 — Self-attention and feed-forward"
       question="What did each encoder sub-layer actually emit?"
       basis={layerEvent ? `epoch ${layerEvent.epoch} · ${attention.length + feedForward.length} sub-layers` : undefined}
       unavailableReason={!layerEvent ? "no layer capture in this run" : undefined}
@@ -586,7 +586,7 @@ export function PredictStage({ events, epoch }: { events: TrainingStreamEvent[];
 
   return (
     <LensFrame
-      title="9 — Predict"
+      title="8 — Predict"
       question="What does the head output, and is it better than guessing?"
       basis={head.length > 0 ? `${head.length} head layers · 2 logits [down, up]` : undefined}
       resizeKey="lens-train-predict" defaultHeight={240} fillBody
@@ -643,7 +643,7 @@ export function LossGradientStage({ events, epoch }: { events: TrainingStreamEve
 
   return (
     <LensFrame
-      title="10 — Loss and gradient"
+      title="9 — Loss and gradient"
       question="Is it learning, and does the signal reach every layer?"
       basis={epochs.length > 0 ? `${epochs.length} epochs · ${gradients.length} modules taking gradient` : undefined}
       resizeKey="lens-train-loss" defaultHeight={300} fillBody
