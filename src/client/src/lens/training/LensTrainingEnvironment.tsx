@@ -22,7 +22,7 @@ import {
 } from "./api";
 import {
   AttentionStage, EmbedStage, LossGradientStage, PositionStage, PredictStage,
-  RawBarsStage, VectorizeStage,
+  VectorizeStage,
 } from "./stages";
 import {
   LAYOUTS, LayoutPicker, StageLayout, type LayoutId, type StagePanel,
@@ -253,20 +253,18 @@ export function LensTrainingEnvironment() {
           )}
 
           <StageLayout layout={layout} stages={([
-            { id: "bars", label: "1 · Raw bars", side: "input",
-              node: <RawBarsStage run={run} events={events} /> },
-            { id: "vectorize", label: "2/3 · Vectorize", side: "input",
+            { id: "vectorize", label: "1/2 · Vectorize", side: "input",
               node: <VectorizeStage run={run} events={events}
                                     block={block} onBlockChange={setBlock} /> },
-            { id: "embed", label: "4/5 · Embed", side: "input",
+            { id: "embed", label: "3/4 · Embed", side: "input",
               node: <EmbedStage events={events} epoch={shownEpoch} /> },
-            { id: "position", label: "6 · Position", side: "network",
+            { id: "position", label: "5 · Position", side: "network",
               node: <PositionStage run={run} events={events} epoch={shownEpoch} /> },
-            { id: "attention", label: "7/8 · Attention", side: "network",
+            { id: "attention", label: "6/7 · Attention", side: "network",
               node: <AttentionStage events={events} epoch={shownEpoch} /> },
-            { id: "predict", label: "9 · Predict", side: "network",
+            { id: "predict", label: "8 · Predict", side: "network",
               node: <PredictStage events={events} epoch={shownEpoch} /> },
-            { id: "loss", label: "10 · Loss & gradient", side: "network",
+            { id: "loss", label: "9 · Loss & gradient", side: "network",
               node: <LossGradientStage events={events} epoch={shownEpoch} /> },
           ] satisfies StagePanel[])} />
 

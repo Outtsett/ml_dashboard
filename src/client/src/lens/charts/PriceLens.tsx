@@ -12,6 +12,12 @@
 
 import { useEffect, useRef } from "react";
 import {
+  volumeSeriesOptions,
+  volumeScaleMargins,
+  VOLUME_UP_FILL,
+  VOLUME_DOWN_FILL,
+} from '@/market/components/chartConfig';
+import {
   createChart,
   CandlestickSeries,
   LineSeries,
@@ -98,6 +104,7 @@ export function PriceLens({ window: barWindow, trades, manifest, layers, cursorR
   const intervalMedianRef = useRef<ISeriesApi<"Line"> | null>(null);
   const probabilitySeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const regimeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markersPluginRef = useRef<any>(null);
   const baselinePriceLineRef = useRef<IPriceLine | null>(null);
@@ -120,6 +127,14 @@ export function PriceLens({ window: barWindow, trades, manifest, layers, cursorR
 
     const candleSeries = chart.addSeries(CandlestickSeries, candleSeriesOptions(decimals, minMove), 0);
     candleSeriesRef.current = candleSeries;
+
+    // Volume, constructed exactly as the market chart does it: its own overlay
+    // price scale (priceScaleId '') pinned to the bottom band, so it shares the
+    // pane without compressing the candles' scale. `LensBar.volume` already
+    // arrives from the bars endpoint, so this is client-side only.
+    const volumeSeries = chart.addSeries(HistogramSeries, volumeSeriesOptions, 0);
+    volumeSeries.priceScale().applyOptions({ scaleMargins: volumeScaleMargins });
+    volumeSeriesRef.current = volumeSeries;
 
     const intervalUpper = chart.addSeries(
       LineSeries,
@@ -257,6 +272,19 @@ export function PriceLens({ window: barWindow, trades, manifest, layers, cursorR
 
     candleSeriesRef.current?.setData(
       bars.map((bar) => ({ time: bar.timestampSeconds as Time, open: bar.open, high: bar.high, low: bar.low, close: bar.close })),
+    );
+
+    // A bar with null volume is skipped, not drawn as zero. The lens parquet
+    // carries volume as nullable, and a zero bar would read as "nothing traded"
+    // rather than "this model's source did not record it".
+    volumeSeriesRef.current?.setData(
+      bars
+        .filter((bar) => bar.volume !== null && Number.isFinite(bar.volume))
+        .map((bar) => ({
+          time: bar.timestampSeconds as Time,
+          value: bar.volume as number,
+          color: bar.close >= bar.open ? VOLUME_UP_FILL : VOLUME_DOWN_FILL,
+        })),
     );
 
     const interval = buildIntervalSeries(bars, manifest.horizonBars);
