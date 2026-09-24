@@ -21,6 +21,12 @@ export interface LabelMarker {
    * "up" label lands on the candle that actually rose.
    */
   outcomeOffset?: number;
+  /**
+   * Bare TA-Lib pattern name (e.g. `morningstar`) when this marker is a
+   * candlestick-pattern firing. Its presence is what makes the arrow hoverable:
+   * the hover card needs to know which pattern, not just which sign.
+   */
+  pattern?: string;
 }
 
 // ── Component API ──────────────────────────────────────────────────────────

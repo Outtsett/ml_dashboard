@@ -8,6 +8,9 @@ import { useChartMarkers } from '@/market/components/useChartMarkers';
 import { useChartPriceLines } from '@/market/components/useChartPriceLines';
 import { useChartOverlays } from '@/market/components/useChartOverlays';
 import { snapToCandle } from '@/market/components/useSeriesMarkers';
+import { usePatternHover } from '@/market/components/usePatternHover';
+import { PatternHoverCard } from '@/market/components/PatternHoverCard';
+import { talibPatternDisplayName } from '@/market/lib/talibPatternCatalog';
 import { RefreshCw, Maximize2 } from 'lucide-react';
 import type { TradingChartHandle, TradingChartProps, PriceInfo } from "@/market/components/types";
 
@@ -186,6 +189,35 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     labelMarkers, tradeMarkers, predictionMarkers,
     trainTestSplitTime,
   });
+
+  // Hovering a candlestick-pattern arrow opens a card comparing the textbook
+  // pattern with the candles it fired on, and shades those candles here.
+  const patternHover = usePatternHover({
+    chartRef, candleSeriesRef,
+    containerRef: chartContainerRef,
+    labelMarkers,
+    candles: processedData.candles,
+    timeframeSec: timeframe * 60,
+  });
+
+  // Counted by SIGN, not by value: patterns arrive as +/-1, +/-0.8 (engulfing,
+  // harami) and +/-2 (hikkake confirmation), and an equality test on 1 and -1
+  // dropped every one of the others from the legend.
+  const labelLegend = useMemo(() => {
+    let up = 0;
+    let down = 0;
+    let flat = 0;
+    let pattern: string | null = null;
+    for (const m of labelMarkers) {
+      if (m.label === null || m.label === undefined) continue;
+      if (m.pattern) pattern = m.pattern;
+      const value = Number(m.label);
+      if (value > 0) up++;
+      else if (value < 0) down++;
+      else flat++;
+    }
+    return { up, down, flat, patternName: pattern ? talibPatternDisplayName(pattern) : null };
+  }, [labelMarkers]);
 
   // ── Report the visible span so label previews follow the viewport ──────
   //
@@ -381,15 +413,32 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
         )}
       </div>
 
+      {/* The pattern's own candles, shaded while its arrow is hovered. */}
+      {patternHover?.band && (
+        <div
+          className="pointer-events-none absolute top-0 z-[5] border-x border-dashed border-white/40 bg-white/[0.07]"
+          style={{ left: patternHover.band.left, width: patternHover.band.width, height: patternHover.band.height }}
+          data-testid="pattern-hover-band"
+        />
+      )}
+      {patternHover && (
+        <PatternHoverCard info={patternHover.info} left={patternHover.card.left} top={patternHover.card.top} />
+      )}
+
       {/* Labels preview */}
       {labelMarkers.length > 0 && (
         <div className="absolute top-12 right-2 flex flex-col gap-0.5 text-[9px] font-mono bg-violet-500/10 backdrop-blur-md rounded-md px-2.5 py-2 border border-violet-500/20 shadow-md">
-          <span className="text-violet-400 font-semibold mb-1 text-[9px] tracking-wide">Labels</span>
+          <span className="text-violet-400 font-semibold mb-1 text-[9px] tracking-wide">
+            {labelLegend.patternName ?? 'Labels'}
+          </span>
           <div className="flex gap-2.5">
-            <span className="text-[hsl(var(--data-pos))]">&#9650; {labelMarkers.filter(m => m.label === 1).length}</span>
-            <span className="text-[hsl(var(--data-neg))]">&#9660; {labelMarkers.filter(m => m.label === -1).length}</span>
-            <span className="text-gray-400">&#9679; {labelMarkers.filter(m => m.label === 0).length}</span>
+            <span className="text-[hsl(var(--data-pos))]">&#9650; {labelLegend.up}</span>
+            <span className="text-[hsl(var(--data-neg))]">&#9660; {labelLegend.down}</span>
+            <span className="text-gray-400">&#9679; {labelLegend.flat}</span>
           </div>
+          {labelLegend.patternName && (
+            <span className="mt-1 text-[9px] text-muted-foreground">hover an arrow</span>
+          )}
         </div>
       )}
 

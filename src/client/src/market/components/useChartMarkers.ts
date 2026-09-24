@@ -11,6 +11,7 @@ import {
 } from './chartConfig';
 import { labelDomain, labelMarkerStyle } from './labelMarkerStyle';
 import type { LabelMarker } from "@/market/components/types";
+import { patternMarkerId } from '@/market/lib/patternHover';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -88,7 +89,11 @@ export function useChartMarkers({
         const outcomeTime = shiftByBars(alignedTime, m.outcomeOffset ?? 0, candleTimes);
         if (outcomeTime === null) return null;
         const style = labelMarkerStyle(label, domain);
-        return { time: outcomeTime as Time, text: '', ...style };
+        // A pattern arrow carries an id so lightweight-charts reports it as
+        // `hoveredObjectId` when the pointer is on it — that is what opens the
+        // pattern card. Other labels have nothing to open and stay anonymous.
+        const id = m.pattern ? patternMarkerId(outcomeTime) : undefined;
+        return { time: outcomeTime as Time, text: '', ...style, ...(id ? { id } : {}) };
       })
       .filter((m): m is NonNullable<typeof m> => m !== null);
 

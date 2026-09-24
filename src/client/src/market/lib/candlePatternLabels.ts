@@ -122,6 +122,7 @@ export async function fetchCandlePatternMarkers(
     timestamp: point.time * 1000,
     label: point.value,
     outcomeOffset: 0,
+    pattern: name,
   }));
 
   const distribution: Record<string, number> = {};

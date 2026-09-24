@@ -13,6 +13,8 @@ export interface ChartMarker {
    * needing a fifth shape the library does not have.
    */
   size?: number;
+  /** Reported back as `hoveredObjectId` when the pointer is on this marker. */
+  id?: string;
 }
 
 // Use `any` for the markers plugin ref — lightweight-charts' generic ISeriesMarkersPluginApi<T>
