@@ -235,7 +235,7 @@ export function LabelsStage() {
             catch class collapse before burning a training run.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => previewQuery.refetch()}
@@ -250,7 +250,7 @@ export function LabelsStage() {
             type="button"
             onClick={() => saveMutation.mutate()}
             disabled={!ready || !data?.success || saveMutation.isPending}
-            className="h-9 px-3 rounded-lg border border-primary/40 bg-primary/15 hover:bg-primary/25 text-xs flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="h-9 px-3 rounded-lg border border-primary/40 bg-primary/15 hover:bg-primary/25 text-xs flex items-center gap-2 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
             title="Write these labels to the lake as a label set; Stage 4 trains on them"
             data-testid="button-save-label-set"
           >
