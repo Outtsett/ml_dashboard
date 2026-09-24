@@ -87,20 +87,6 @@
       ]
     },
     {
-      "slug": "mosaicbyte",
-      "label": "Mosaic Byte",
-      "python": "E:/source/repos/Applications/mosaicbyte-docs/.venv/Scripts/python.exe",
-      "cwd": "E:/source/repos/Applications/mosaicbyte-docs",
-      "port": 17188,
-      "roots": [
-        {
-          "path": "E:/source/repos/Applications/mosaicbyte-docs/research",
-          "category": "Mosaic Byte research",
-          "repoLabel": "mosaicbyte-docs/research"
-        }
-      ]
-    },
-    {
       "slug": "ml-dashboard",
       "label": "ML Dashboard",
       "python": "E:/source/repos/datalake/.venv/Scripts/python.exe",
