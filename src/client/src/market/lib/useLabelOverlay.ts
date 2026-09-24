@@ -194,6 +194,11 @@ export function useLabelOverlay(
   const previewQuery = useQuery<LabelPreviewResponse>({
     queryKey: ['/api/labels/preview', symbol, timeframeMinutes, generatorType, params, range?.start, range?.end],
     enabled: Boolean(generatorType) && !patternSelected && Boolean(symbol) && range !== null && paramsReady,
+    // The label routes share one 20-requests-a-minute limiter with generation.
+    // A pan that re-keys this query on every frame spent that budget in
+    // seconds; the range is debounced upstream and a settled range is served
+    // from cache for half a minute.
+    staleTime: 30_000,
     queryFn: async () => {
       const res = await fetch('/api/labels/preview', {
         method: 'POST',

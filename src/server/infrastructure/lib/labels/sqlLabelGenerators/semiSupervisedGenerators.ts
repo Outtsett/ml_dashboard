@@ -29,8 +29,12 @@ export function generatePseudoConfidenceLabelsSQL(
   // Both values are defaulted so the generator is callable from its own
   // declared parameter set.
   const horizon = params.horizon ?? 5;
-  const confidenceThreshold = params.confidenceThreshold ?? 90;
-  const confDecimal = confidenceThreshold / 100;
+  // The taxonomy declares the threshold as a FRACTION (0.5-0.99, default 0.9).
+  // Dividing that by 100 turned the default into 0.009 and the confidence gate
+  // let almost everything through. A value above 1 is read as a percentage so
+  // an older caller still gets what it asked for.
+  const rawThreshold = Number(params.confidenceThreshold ?? 0.9);
+  const confDecimal = rawThreshold > 1 ? rawThreshold / 100 : rawThreshold;
   
   return `
 WITH base AS (
@@ -107,8 +111,10 @@ export function generateConsistencyPerturbationLabelsSQL(
   config: LabelGeneratorConfig
 ): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
-  // Support both param name variants from taxonomy
-  const consistencyWindow = params.consistencyWindow || params.numPerturbations || 20;
+  // `numPerturbations` (default 2) used to stand in for this window when it was
+  // absent, which produced a 3-bar SMA and called it consistency. The window is
+  // its own parameter now, declared in the taxonomy with its own default.
+  const consistencyWindow = Math.max(2, Number(params.consistencyWindow ?? 20));
   
   return `
 WITH base AS (

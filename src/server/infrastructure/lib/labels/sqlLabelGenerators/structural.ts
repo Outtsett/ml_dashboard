@@ -43,7 +43,11 @@ WITH base AS (
     high,
     low,
     MAX(high) OVER (${partitionClause(cfg)} ${orderClause(cfg)} ROWS BETWEEN ${N} PRECEDING AND 1 PRECEDING) as prev_max_high,
-    MIN(low) OVER (${partitionClause(cfg)} ${orderClause(cfg)} ROWS BETWEEN ${N} PRECEDING AND 1 PRECEDING) as prev_min_low
+    MIN(low) OVER (${partitionClause(cfg)} ${orderClause(cfg)} ROWS BETWEEN ${N} PRECEDING AND 1 PRECEDING) as prev_min_low,
+    -- A partial window at the start of the series is not the pattern this
+    -- label describes: the Python kernel that trains on it refuses those bars
+    -- (src/ml/shared/labels.py structural_labels), so the preview must too.
+    COUNT(*) OVER (${partitionClause(cfg)} ${orderClause(cfg)} ROWS BETWEEN ${N} PRECEDING AND 1 PRECEDING) as prior_bars
   FROM ${cfg.tableName}
   WHERE ${cfg.symbolColumn} = '${config.symbol}'
 ),
@@ -57,7 +61,7 @@ labeled AS (
     prev_max_high,
     prev_min_low,
     CASE
-      WHEN prev_max_high IS NULL OR prev_min_low IS NULL THEN NULL
+      WHEN prev_max_high IS NULL OR prev_min_low IS NULL OR prior_bars < ${N} THEN NULL
       WHEN high > prev_max_high AND low >= prev_min_low THEN 2
       WHEN high <= prev_max_high AND low > prev_min_low THEN 1
       WHEN high <= prev_max_high AND low < prev_min_low THEN -2

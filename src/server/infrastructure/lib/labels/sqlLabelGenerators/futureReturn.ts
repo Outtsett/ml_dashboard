@@ -15,8 +15,8 @@ export function generateFutureReturnLabelsSQL(
   const { horizon, returnType, normalize } = params;
 
   const returnCalc = returnType === 'log'
-    ? `LN(LEAD(close, ${horizon}) ${windowOver(cfg)} / close)`
-    : `(LEAD(close, ${horizon}) ${windowOver(cfg)} - close) / close`;
+    ? `LN(LEAD(close, ${horizon}) ${windowOver(cfg)} / NULLIF(close, 0))`
+    : `(LEAD(close, ${horizon}) ${windowOver(cfg)} - close) / NULLIF(close, 0)`;
 
   // `returnCalc` contains a window function, so it cannot appear in a WHERE
   // clause ("window function is not allowed in WHERE clause"). Both branches

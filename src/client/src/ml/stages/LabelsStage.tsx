@@ -15,6 +15,8 @@
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Tag, RefreshCw, AlertTriangle, Info } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useMLStudio, type LabelStrategy } from "../MLStudioContext";
 import { slug } from "../glossary/derived";
 
@@ -136,6 +138,46 @@ export function LabelsStage() {
 
   const data = previewQuery.data;
 
+  // Persist the previewed strategy as a label set: the rows land in the lake
+  // and Stage 4 trains on exactly them. Without this, what was previewed and
+  // what was trained were two computations that only happened to agree.
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/labels/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${state.labelStrategy}-${state.symbol}-${state.timeframe}-${new Date().toISOString().slice(0, 16)}`,
+          generatorType: state.labelStrategy,
+          symbol: state.symbol,
+          params: effectiveParams,
+          timeframeMinutes,
+          startTimestamp,
+          endTimestamp,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok || body?.success === false) {
+        throw new Error(body?.error ?? `Save failed: ${res.status}`);
+      }
+      return body as { labelSetId: number; parquetPath: string; sampleCount: number };
+    },
+    onSuccess: (saved) => {
+      dispatch({
+        type: "setLabelSet",
+        labelSet: {
+          id: saved.labelSetId,
+          parquetPath: saved.parquetPath,
+          sampleCount: saved.sampleCount,
+          strategy: state.labelStrategy,
+          timeframe: state.timeframe,
+        },
+      });
+      toast.success(`Label set #${saved.labelSetId} saved — ${saved.sampleCount.toLocaleString()} rows in the lake`);
+    },
+    onError: (err: Error) => toast.error(`Save failed: ${err.message}`),
+  });
+
   // Sync server preview into MLStudioContext so the Train-stage gate opens
   useEffect(() => {
     if (data?.success && data.distribution && typeof data.classBalanceRatio === "number") {
@@ -193,17 +235,40 @@ export function LabelsStage() {
             catch class collapse before burning a training run.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => previewQuery.refetch()}
-          disabled={!ready || previewQuery.isFetching}
-          className="h-9 px-3 rounded-lg border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] text-xs flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-          title="Re-run preview (bypasses 30s client cache)"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${previewQuery.isFetching ? "animate-spin" : ""}`} />
-          {previewQuery.isFetching ? "Previewing…" : "Refresh"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => previewQuery.refetch()}
+            disabled={!ready || previewQuery.isFetching}
+            className="h-9 px-3 rounded-lg border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] text-xs flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Re-run preview (bypasses 30s client cache)"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${previewQuery.isFetching ? "animate-spin" : ""}`} />
+            {previewQuery.isFetching ? "Previewing…" : "Refresh"}
+          </button>
+          <button
+            type="button"
+            onClick={() => saveMutation.mutate()}
+            disabled={!ready || !data?.success || saveMutation.isPending}
+            className="h-9 px-3 rounded-lg border border-primary/40 bg-primary/15 hover:bg-primary/25 text-xs flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Write these labels to the lake as a label set; Stage 4 trains on them"
+            data-testid="button-save-label-set"
+          >
+            <Tag className="h-3.5 w-3.5" />
+            {saveMutation.isPending ? "Saving…" : "Save label set"}
+          </button>
+        </div>
       </header>
+
+      {state.labelSet && (
+        <div className="rounded-xl border border-primary/25 bg-primary/5 px-4 py-2.5 text-xs flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="uppercase tracking-widest text-muted-foreground">Saved set</span>
+          <span className="font-mono text-foreground">#{state.labelSet.id}</span>
+          <span className="font-mono">{state.labelSet.strategy} · {state.labelSet.timeframe} · {state.labelSet.sampleCount.toLocaleString()} rows</span>
+          <span className="font-mono text-muted-foreground/70 truncate max-w-full">{state.labelSet.parquetPath}</span>
+          <span className="text-muted-foreground">Stage 4 trains on these rows.</span>
+        </div>
+      )}
 
       {!ready && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-300">

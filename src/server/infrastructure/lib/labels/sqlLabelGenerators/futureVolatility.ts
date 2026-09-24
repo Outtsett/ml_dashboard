@@ -24,9 +24,9 @@ export function generateFutureVolatilityLabelsSQL(
   const backwardVol = (() => {
     switch (method) {
       case 'parkinson':
-        return `SQRT(1.0 / (4.0 * LN(2.0)) * AVG(POWER(LN(high / low), 2)) ${rowsBack(span - 1, cfg)})`;
+        return `SQRT(1.0 / (4.0 * LN(2.0)) * AVG(POWER(LN(high / NULLIF(low, 0)), 2)) ${rowsBack(span - 1, cfg)})`;
       case 'garman_klass':
-        return `SQRT(AVG(0.5 * POWER(LN(high / low), 2) - (2 * LN(2) - 1) * POWER(LN(close / open), 2)) ${rowsBack(span - 1, cfg)})`;
+        return `SQRT(AVG(0.5 * POWER(LN(high / NULLIF(low, 0)), 2) - (2 * LN(2) - 1) * POWER(LN(close / NULLIF(open, 0)), 2)) ${rowsBack(span - 1, cfg)})`;
       default:
         return rollingStd('log_return', span - 1, cfg);
     }
@@ -41,7 +41,7 @@ WITH base AS (
     open,
     high,
     low,
-    LN(close / LAG(close, 1) ${windowOver(cfg)}) as log_return
+    LN(close / NULLIF(LAG(close, 1) ${windowOver(cfg)}, 0)) as log_return
   FROM ${cfg.tableName}
   WHERE ${cfg.symbolColumn} = '${config.symbol}'
 ),

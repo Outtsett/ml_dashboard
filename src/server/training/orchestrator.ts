@@ -107,6 +107,7 @@ export async function startTraining(request: TrainingRequest): Promise<{
     includeIndicators: request.includeIndicators ?? registry.includeIndicators ?? false,
     allFeatures: request.allFeatures ?? registry.allFeatures ?? false,
     indicatorGroups: request.indicatorGroups,
+    labelSetId: request.labelSetId,
   };
 
   // 4. Create session immediately so SSE clients can connect right away

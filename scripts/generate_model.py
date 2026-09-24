@@ -459,6 +459,17 @@ def _build_context(args: argparse.Namespace) -> dict:
     hyperparameters = json.loads(args.hyperparameters_json)
     label_params = json.loads(args.label_params_json)
     feature_categories = json.loads(args.feature_categories_json)
+
+    if isinstance(label_params, dict) and args.label_strategy:
+        # The UI sends the SQL generators' parameter names; the kernels the
+        # generated runner imports read different ones. Untranslated, the
+        # kernel silently used its own defaults (range_bucket horizon 16 -> 1,
+        # structural pivot 5 -> 20) or raised on a missing key.
+        repo_root = str(Path(__file__).resolve().parents[1])
+        if repo_root not in sys.path:
+            sys.path.insert(0, repo_root)
+        from src.ml.shared.label_sets import translate_label_params
+        label_params = translate_label_params(args.label_strategy, label_params)
     walk_forward = json.loads(args.walk_forward_json) if args.walk_forward_json else None
 
     if not isinstance(hyperparameters, dict):

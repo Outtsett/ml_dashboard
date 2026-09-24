@@ -87,6 +87,7 @@ const trainingRequestSchema = z.object({
     testMonths: z.number().int().min(1).max(60),
     stepMonths: z.number().int().min(1).max(120).optional(),
   }).optional(),
+  labelSetId: z.number().int().positive().optional(),
 }) satisfies z.ZodType<TrainingRequest>;
 
 const router = Router();

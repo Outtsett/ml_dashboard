@@ -213,6 +213,11 @@ export function GeneratedFileSaver() {
             symbol: state.symbol,
             timeframe: state.timeframe,
             hyperparameters: state.hyperparameters,
+            // The set saved in Stage 3, when one was saved for this timeframe.
+            labelSetId:
+              state.labelSet && state.labelSet.timeframe === state.timeframe
+                ? state.labelSet.id
+                : undefined,
             walkForward: state.walkForward
               ? {
                   trainMonths: state.walkForward.trainMonths,

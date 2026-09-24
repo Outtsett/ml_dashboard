@@ -31,12 +31,12 @@ labeled AS (
     symbol,
     close,
     future_close,
-    (future_close - close) / close as future_return,
+    (future_close - close) / NULLIF(close, 0) as future_return,
     CASE
       WHEN future_close IS NULL THEN NULL
       ${numClasses === 3 ? `
-      WHEN (future_close - close) / close > ${thresholdDecimal} THEN 1
-      WHEN (future_close - close) / close < -${thresholdDecimal} THEN -1
+      WHEN (future_close - close) / NULLIF(close, 0) > ${thresholdDecimal} THEN 1
+      WHEN (future_close - close) / NULLIF(close, 0) < -${thresholdDecimal} THEN -1
       ELSE 0
       ` : `
       WHEN future_close >= close THEN 1

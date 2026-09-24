@@ -235,6 +235,12 @@ export interface TrainingRequest {
   };
   /** Training optimization mode (defaults to 'manual') */
   optimizationMode?: 'manual' | 'hpo';
+  /**
+   * A persisted label set (generated_labels.id) to train on, instead of the
+   * runner computing its own labels. Resolved to its lake parquet path and
+   * passed to the runner as `--label-set-parquet`.
+   */
+  labelSetId?: number;
 }
 
 // ─── Standardized SSE Event Types ────────────────────────────────────────────
@@ -468,6 +474,7 @@ export interface ResolvedTrainingConfig {
   includeIndicators?: boolean;
   allFeatures?: boolean;
   indicatorGroups?: string;
+  labelSetId?: number;
 }
 
 // ─── Training Session (server-side state per active job) ─────────────────────

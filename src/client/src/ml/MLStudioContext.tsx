@@ -72,6 +72,14 @@ export interface LabelPreview {
   classBalanceRatio: number;
 }
 
+export interface SavedLabelSet {
+  id: number;
+  parquetPath: string;
+  sampleCount: number;
+  strategy: LabelStrategy;
+  timeframe: Timeframe;
+}
+
 export type LabelStrategy =
   | "triple_barrier"
   | "next_close_direction"
@@ -256,6 +264,8 @@ export interface MLStudioPipeline {
   labelStrategy: LabelStrategy;
   labelParams: Record<string, number | string | boolean>;
   labelPreview: LabelPreview | null;
+  /** The persisted set the previewed strategy was saved as; training uses it when present. */
+  labelSet: SavedLabelSet | null;
 
   // Stage 4 — Train
   modelType: string;
@@ -331,6 +341,7 @@ const DEFAULT_STATE: MLStudioPipeline = {
   labelStrategy: "next_close_direction",
   labelParams: {},
   labelPreview: null,
+  labelSet: null,
 
   modelType: "",
   hyperparameters: {},
@@ -376,6 +387,7 @@ export type MLStudioAction =
   | { type: "setFeaturePreview"; preview: FeaturePreview | null }
   | { type: "setLabelStrategy"; strategy: LabelStrategy; params?: Record<string, number | string | boolean> }
   | { type: "setLabelPreview"; preview: LabelPreview | null }
+  | { type: "setLabelSet"; labelSet: SavedLabelSet | null }
   | { type: "setModelType"; modelType: string }
   | { type: "setHyperparameters"; hyperparameters: Record<string, number | string | boolean> }
   | { type: "setWalkForward"; walkForward: WalkForwardConfig | null }
@@ -502,14 +514,20 @@ function reducer(state: MLStudioPipeline, action: MLStudioAction): MLStudioPipel
     case "setFeaturePreview":
       return { ...state, featurePreview: action.preview };
     case "setLabelStrategy":
+      // A saved set belongs to the strategy and params it was saved from;
+      // changing either makes it a different dataset, so it is dropped rather
+      // than carried into a training run it no longer describes.
       return {
         ...state,
         labelStrategy: action.strategy,
         labelParams: action.params ?? state.labelParams,
         labelPreview: null,
+        labelSet: null,
       };
     case "setLabelPreview":
       return { ...state, labelPreview: action.preview };
+    case "setLabelSet":
+      return { ...state, labelSet: action.labelSet };
     case "setModelType":
       return { ...state, modelType: action.modelType };
     case "setHyperparameters":

@@ -6,6 +6,19 @@ export interface MetaLabelParams {
   horizon: number;
   transactionCostBps: number;
   minProfitBps: number;
+  /**
+   * Where the primary signal comes from.
+   *
+   * `trailing_momentum` (default) — sign of the trailing `primaryLookback`-bar
+   * return when it clears `primaryThresholdBps`; a causal rule a model could
+   * actually have traded. `next_bar_oracle` — sign(close[t+1] - close[t]), a
+   * perfect one-bar-ahead signal. That is a leakage self-test, kept so the
+   * meta-labeller can be shown to reach ~100% on it, and named so it can never
+   * be mistaken for a strategy.
+   */
+  primarySource?: 'trailing_momentum' | 'next_bar_oracle';
+  primaryLookback?: number;
+  primaryThresholdBps?: number;
 }
 
 export function generateMetaLabelsSQL(

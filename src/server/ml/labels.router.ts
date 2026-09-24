@@ -21,7 +21,7 @@ async function getLabelService() {
 router.post("/labels/generate", mlRateLimiter, async (req: Request, res: Response) => {
   try {
     const labelService = await getLabelService();
-    const { name, generatorType, symbol, modelId, params, timeframeMinutes } = req.body;
+    const { name, generatorType, symbol, modelId, params, timeframeMinutes, startTimestamp, endTimestamp } = req.body;
 
     if (!name || !generatorType || !symbol) {
       return res.status(400).json({
@@ -36,6 +36,8 @@ router.post("/labels/generate", mlRateLimiter, async (req: Request, res: Respons
       modelId,
       params: params || {},
       timeframeMinutes: timeframeMinutes || 1,
+      startTimestamp: Number.isFinite(Number(startTimestamp)) ? Number(startTimestamp) : undefined,
+      endTimestamp: Number.isFinite(Number(endTimestamp)) ? Number(endTimestamp) : undefined,
     });
 
     if (!result.success) {
@@ -137,6 +139,40 @@ router.get("/labels/:id", async (req: Request<{ id: string }>, res: Response) =>
   } catch (error) {
     console.error("Error fetching label set:", error);
     res.status(500).json({ error: "Failed to fetch label set" });
+  }
+});
+
+/**
+ * GET /api/labels/:id/rows — the persisted rows of a label set, read back
+ * from the lake. Query: from / to (unix ms), limit (default 5000).
+ *
+ * This is what makes a saved set usable: the chart overlays it, a notebook
+ * queries the same parquet, and a training run receives its path.
+ */
+router.get("/labels/:id/rows", async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const labelService = await getLabelService();
+    const id = parseInt(req.params.id);
+    const labelSet = await labelService.getLabelSetById(id);
+    if (!labelSet) return res.status(404).json({ error: "Label set not found" });
+    if (!labelSet.parquetPath) {
+      return res.status(409).json({
+        error: `Label set ${id} has no persisted rows (status '${labelSet.status}'). ` +
+          "Sets generated before rows were persisted carry only their summary.",
+      });
+    }
+    const { readLabelSetRows } = await import('../infrastructure/lib/labels/labelSetStore');
+    const fromMs = Number(req.query.from);
+    const toMs = Number(req.query.to);
+    const limit = Number(req.query.limit);
+    const rows = await readLabelSetRows(labelSet.parquetPath, {
+      startMs: Number.isFinite(fromMs) ? fromMs : undefined,
+      endMs: Number.isFinite(toMs) ? toMs : undefined,
+      limit: Number.isFinite(limit) && limit > 0 ? limit : 5000,
+    });
+    res.json({ labelSetId: id, parquetPath: labelSet.parquetPath, count: rows.length, rows });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 

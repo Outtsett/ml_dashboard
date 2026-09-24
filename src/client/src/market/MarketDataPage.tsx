@@ -3,7 +3,7 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia, EmptyCont
 import { Button } from "@/shared/ui/button";
 import { TrendingUp, DollarSign, BarChart3, Clock, LineChart, RefreshCw } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useIndicatorData } from "@/market/lib/useIndicatorData";
 import { useLabelOverlay } from "@/market/lib/useLabelOverlay";
@@ -155,6 +155,15 @@ export default function MarketData() {
 
   // What the chart is showing, shared by the lake series and the label overlay.
   const [visibleRange, setVisibleRange] = useState<{ start: number; end: number } | null>(null);
+  // The chart reports a new visible range on every frame of a drag. Every
+  // consumer of this range issues a request keyed on it, so the value settles
+  // for 300ms before it moves — a pan becomes one request, not sixty.
+  const visibleRangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleVisibleRangeChange = useCallback((range: { start: number; end: number } | null) => {
+    if (visibleRangeTimer.current) clearTimeout(visibleRangeTimer.current);
+    visibleRangeTimer.current = setTimeout(() => setVisibleRange(range), 300);
+  }, []);
+  useEffect(() => () => { if (visibleRangeTimer.current) clearTimeout(visibleRangeTimer.current); }, []);
   // â”€â”€ Lake columns as chart series (fetched, not computed) â”€â”€
   const lakeSeries = useLakeSeries({
     symbol,
@@ -582,7 +591,7 @@ export default function MarketData() {
               isReplayActive={replay.active}
               onLoadMore={!replay.active && useInfiniteScroll ? handleLoadMore : undefined}
               onPrefetch={!replay.active && useInfiniteScroll ? triggerPrefetch : undefined}
-              onVisibleTimeRangeChange={setVisibleRange}
+              onVisibleTimeRangeChange={handleVisibleRangeChange}
               isLoadingMore={isLoadingMore}
               hasMoreLeft={!replay.active && hasMoreLeft}
               hasMoreRight={!replay.active && hasMoreRight}

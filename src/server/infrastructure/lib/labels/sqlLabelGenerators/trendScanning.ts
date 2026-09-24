@@ -30,8 +30,8 @@ export function generateTrendScanningLabelsSQL(
   //     which QuestDB cannot parse and reported only as "')' expected".
   //     `greatest(...)` over the t-stat columns replaces it.
   const horizonCalcs = horizons.map(h => `
-    (LEAD(close, ${h}) ${windowOver(cfg)} - close) / close / ${h} as slope_${h},
-    ABS((LEAD(close, ${h}) ${windowOver(cfg)} - close) / close) /
+    (LEAD(close, ${h}) ${windowOver(cfg)} - close) / NULLIF(close, 0) / ${h} as slope_${h},
+    ABS((LEAD(close, ${h}) ${windowOver(cfg)} - close) / NULLIF(close, 0)) /
       NULLIF(${rollingStd('return_1bar', h - 1, cfg)}, 0) as pseudo_tstat_${h}`
   ).join(',');
 

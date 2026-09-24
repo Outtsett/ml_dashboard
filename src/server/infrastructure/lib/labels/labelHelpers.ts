@@ -16,25 +16,42 @@ function toEpochMs(val: unknown): number {
   if (typeof val === 'number') return val;
   if (typeof val === 'bigint') return Number(val);
   if (val instanceof Date) {
-    // QuestDB stores UTC in a `timestamp` column, which carries no zone. The pg
-    // wire driver parses that wall clock as LOCAL time, so `.getTime()` is off
-    // by the host's offset — 15:59:55Z came back as 23:59:55Z on a UTC-8 host,
-    // putting every label marker eight hours away from its candle. Subtracting
-    // the offset re-reads the wall clock as UTC. On a UTC host the offset is 0
-    // and this is a no-op, so the correction is host-independent.
-    return val.getTime() - val.getTimezoneOffset() * 60_000;
+    // No offset arithmetic. The pg-wire driver used to parse QuestDB's
+    // zone-less wall clock as LOCAL time, and this subtracted the host offset
+    // to undo that. The serving layer is DuckDB with `SET TimeZone='UTC'` and
+    // hands back a correct UTC Date, so the subtraction had become the bug it
+    // was written to fix: every preview timestamp arrived seven hours early on
+    // this UTC-7 host (2024-06-01T17:00Z for the 2024-06-02T00:00Z daily bar),
+    // and the resolver read every pre-rolled table's coverage as ending seven
+    // hours before it does.
+    return val.getTime();
   }
   if (typeof val === 'string') return new Date(val).getTime();
   return Number(val);
 }
 
 /**
- * Execute label SQL against QuestDB and return results with numeric timestamps.
- * Uses PG wire protocol for standard SQL execution.
+ * How long a label query may run before the serving layer interrupts it.
+ *
+ * Express cuts the socket at 30s, so a query that outlives that answered
+ * nobody. Without a deadline of its own it kept running anyway — un-cancellable
+ * — and every later label request queued behind it. Measured: a preview that
+ * takes 2s on an idle server timed out at 60s while an earlier unbounded query
+ * was still holding the engine.
  */
-export async function queryLabels(sql: string): Promise<Array<Record<string, unknown>>> {
+export const LABEL_QUERY_TIMEOUT_MS = 25_000;
+
+/**
+ * Execute label SQL against the lake serving layer and return results with
+ * numeric timestamps. The deadline is passed through to DuckDB so a runaway
+ * query is interrupted, not merely abandoned.
+ */
+export async function queryLabels(
+  sql: string,
+  timeoutMs: number = LABEL_QUERY_TIMEOUT_MS,
+): Promise<Array<Record<string, unknown>>> {
   const { queryQuestDB } = await import('../../database/questdb');
-  const rows = await queryQuestDB(sql);
+  const rows = await queryQuestDB(sql, timeoutMs);
   return rows.map((row: Record<string, unknown>) => {
     const converted = { ...row };
     if (converted.timestamp !== undefined && converted.timestamp !== null) {
@@ -57,24 +74,41 @@ export function buildMetaLabelSQL(
   const minProfit = (metaParams.minProfitBps || 20) / 10000;
   const primaryCol = metaParams.primarySignalColumn || 'label';
   const metaHorizon = metaParams.horizon || 5;
+  const primarySource = metaParams.primarySource ?? 'trailing_momentum';
+  const primaryLookback = Math.max(1, Number(metaParams.primaryLookback ?? 20));
+  const primaryThreshold = Math.max(0, Number(metaParams.primaryThresholdBps ?? 10)) / 10000;
   const wo = `OVER (PARTITION BY symbol ORDER BY timestamp)`;
   // Inside meta_base two aliased relations both expose symbol/timestamp, so the
   // window there must qualify its columns — unqualified gives
   // "Ambiguous column [name=symbol]".
   const woQualified = `OVER (PARTITION BY o.symbol ORDER BY o.timestamp)`;
 
+  // The primary model. Meta-labelling asks "when this signal fires, is it worth
+  // taking?", so the signal has to be one that exists at bar t. The original
+  // primary here was sign(close[t+1] - close[t]) — a perfect one-bar oracle —
+  // which made every meta-label a statement about a signal nobody could have
+  // held. It survives only as an explicitly named leakage self-test.
+  const primaryExpr = primarySource === 'next_bar_oracle'
+    ? `CASE WHEN future_close IS NULL THEN 0 WHEN future_close >= close THEN 1 ELSE -1 END`
+    : `CASE
+      WHEN past_close IS NULL OR past_close = 0 THEN 0
+      WHEN (close - past_close) / past_close > ${primaryThreshold} THEN 1
+      WHEN (close - past_close) / past_close < -${primaryThreshold} THEN -1
+      ELSE 0
+    END`;
+
   return `
 WITH dir_source AS (
   SELECT timestamp, symbol, close,
-    LEAD(close, 1) ${wo} as future_close
+    LEAD(close, 1) ${wo} as future_close,
+    LAG(close, ${primaryLookback}) ${wo} as past_close
   FROM ${tableName}
   WHERE symbol = '${symbol}'
 ),
 primary_labels AS (
   SELECT timestamp, symbol, close,
-    CASE WHEN future_close >= close THEN 1 ELSE -1 END as ${primaryCol}
+    ${primaryExpr} as ${primaryCol}
   FROM dir_source
-  WHERE future_close IS NOT NULL
 ),
 meta_base AS (
   SELECT o.timestamp, o.symbol, o.close,

@@ -107,6 +107,11 @@ def _parse_args() -> argparse.Namespace:
     ap.add_argument("--date-start", default=None)
     ap.add_argument("--date-end", default=None)
     ap.add_argument(
+        "--label-set-parquet", default=None,
+        help="Persisted label set (s3://derived/recipe=dashboard_label_sets/...); "
+             "overrides generate_labels() with those rows aligned by bar timestamp.",
+    )
+    ap.add_argument(
         "--feature-categories", default={{ (feature_categories | join(",")) | python_repr }},
         help="Comma-separated list of feature categories.",
     )
@@ -343,8 +348,17 @@ def run_training(args: argparse.Namespace) -> dict:
     n_total = matrix.shape[0]
     emit_log(f"[{{ template_id }}] Loaded {n_total:,} bars x {matrix.shape[1]} features")
 
-    emit_log(f"[{{ template_id }}] Generating {{ label_strategy }} labels")
-    labels, valid = generate_labels(raw, args)
+    if getattr(args, "label_set_parquet", None):
+        from src.ml.shared.label_sets import load_label_set
+        emit_log(f"[{{ template_id }}] Loading persisted label set {args.label_set_parquet}")
+        labels, valid, set_diag = load_label_set(
+            args.label_set_parquet, timestamps,
+            binary={{ "True" if label_strategy in ("next_close_direction", "triple_barrier") else "False" }},
+        )
+        emit_log(f"[{{ template_id }}] Label set aligned: {set_diag}")
+    else:
+        emit_log(f"[{{ template_id }}] Generating {{ label_strategy }} labels")
+        labels, valid = generate_labels(raw, args)
 
     X, y, ts_kept = _filter_valid(matrix, labels, valid, timestamps)
     emit_log(f"[{{ template_id }}] After dropping non-finite rows: {X.shape[0]:,} samples")

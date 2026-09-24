@@ -78,8 +78,8 @@ extrema AS (
       ELSE NULL
     END as raw_label,
     CASE
-      WHEN close = window_min THEN (max_after - close) / close
-      WHEN close = window_max THEN (close - min_after) / close
+      WHEN close = window_min THEN (max_after - close) / NULLIF(close, 0)
+      WHEN close = window_max THEN (close - min_after) / NULLIF(close, 0)
       ELSE NULL
     END as move_size
   FROM shifted

@@ -33,7 +33,7 @@ export function generateTripleBarrierLabelsSQL(
     const idx = i + 1;
     return `
       WHEN future_high_${idx} >= upper_barrier AND future_low_${idx} <= lower_barrier THEN
-        CASE WHEN (future_high_${idx} - close) / close >= (close - future_low_${idx}) / close THEN 1 ELSE -1 END
+        CASE WHEN (future_high_${idx} - close) / NULLIF(close, 0) >= (close - future_low_${idx}) / NULLIF(close, 0) THEN 1 ELSE -1 END
       WHEN future_high_${idx} >= upper_barrier THEN 1
       WHEN future_low_${idx} <= lower_barrier THEN -1`;
   }).join('');
@@ -53,7 +53,7 @@ log_returns AS (
   SELECT
     ${cfg.timestampColumn} as timestamp,
     ${cfg.symbolColumn} as symbol,
-    LN(close / LAG(close, 1) ${windowOver(cfg)}) as log_return
+    LN(close / NULLIF(LAG(close, 1) ${windowOver(cfg)}, 0)) as log_return
   FROM ${cfg.tableName}
   WHERE ${cfg.symbolColumn} = '${config.symbol}'
 ),
@@ -83,7 +83,7 @@ WITH returns_calc AS (
     ${cfg.timestampColumn} as timestamp,
     ${cfg.symbolColumn} as symbol,
     open, high, low, close, volume,
-    LN(close / LAG(close, 1) ${windowOver(cfg)}) as log_return
+    LN(close / NULLIF(LAG(close, 1) ${windowOver(cfg)}, 0)) as log_return
   FROM ${cfg.tableName}
   WHERE ${cfg.symbolColumn} = '${config.symbol}'
 ),
@@ -122,7 +122,7 @@ labeled AS (
     END as outcome_offset,
     CASE
       WHEN future_close_${maxHoldingPeriod} IS NOT NULL
-      THEN (future_close_${maxHoldingPeriod} - close) / close
+      THEN (future_close_${maxHoldingPeriod} - close) / NULLIF(close, 0)
       ELSE NULL
     END as exit_return
   FROM with_barriers

@@ -21,7 +21,7 @@ WITH returns_calc AS (
     ${cfg.timestampColumn} as timestamp,
     ${cfg.symbolColumn} as symbol,
     close,
-    (close - LAG(close, 1) ${windowOver(cfg)}) / LAG(close, 1) ${windowOver(cfg)} as return_1bar,
+    (close - LAG(close, 1) ${windowOver(cfg)}) / NULLIF(LAG(close, 1) ${windowOver(cfg)}, 0) as return_1bar,
     LEAD(close, ${horizon}) ${windowOver(cfg)} as future_close
   FROM ${cfg.tableName}
   WHERE ${cfg.symbolColumn} = '${config.symbol}'
@@ -33,7 +33,7 @@ with_volatility AS (
     close,
     return_1bar,
     future_close,
-    (future_close - close) / close as future_return,
+    (future_close - close) / NULLIF(close, 0) as future_return,
     ${rollingStd('return_1bar', volatilityWindow - 1, cfg)} as rolling_vol
   FROM returns_calc
 ),

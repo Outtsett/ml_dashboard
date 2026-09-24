@@ -24,8 +24,8 @@ export const LABEL_GENERATORS = {
     description: 'Buy/Sell/Hold signals based on custom rules',
     category: 'classification',
     params: [
-      { id: 'entryThreshold', name: 'Entry Threshold', type: 'number', default: 0.5, min: 0, max: 2 },
-      { id: 'exitThreshold', name: 'Exit Threshold', type: 'number', default: 0.3, min: 0, max: 2 },
+      { id: 'entryThreshold', name: 'Entry Threshold (%)', type: 'number', default: 0.5, min: 0, max: 2 },
+      { id: 'exitThreshold', name: 'Exit Threshold (%)', type: 'number', default: 0.3, min: 0, max: 2 },
       { id: 'holdPeriod', name: 'Min Hold Period', type: 'number', default: 5, min: 1, max: 50 },
     ],
     generate: 'rule-based signal generation with entry/exit thresholds',
@@ -72,9 +72,8 @@ export const LABEL_GENERATORS = {
     category: 'sequence',
     params: [
       { id: 'horizons', name: 'Forecast Horizons', type: 'array', default: [1, 5, 10, 20] },
-      { id: 'target', name: 'Target', type: 'select', options: ['close', 'returns', 'volatility'], default: 'close' },
     ],
-    generate: '[target[t+h1], target[t+h2], ...] for each horizon',
+    generate: 'label = 1 if close[t + max(horizons)] > close[t] else 0; one binary target at the longest horizon',
   },
 
   // ============== ADVANCED SUPERVISED LABELS ==============
@@ -153,7 +152,6 @@ export const LABEL_GENERATORS = {
       { id: 'minHorizon', name: 'Min Horizon (bars)', type: 'number', default: 3, min: 1, max: 20 },
       { id: 'maxHorizon', name: 'Max Horizon (bars)', type: 'number', default: 20, min: 5, max: 100 },
       { id: 'tThreshold', name: 'T-Stat Threshold', type: 'number', default: 2.0, min: 1, max: 4, step: 0.1 },
-      { id: 'minSamples', name: 'Min Samples per Window', type: 'number', default: 5, min: 3, max: 20 },
     ],
     generate: `
       For each bar t:
@@ -172,12 +170,18 @@ export const LABEL_GENERATORS = {
     description: 'Secondary labels for bet sizing: did the primary signal profit?',
     category: 'classification',
     params: [
-      { id: 'primarySignalColumn', name: 'Primary Signal Column', type: 'string', default: 'primary_signal' },
+      { id: 'primarySource', name: 'Primary Signal', type: 'select', options: ['trailing_momentum', 'next_bar_oracle'], default: 'trailing_momentum' },
+      { id: 'primaryLookback', name: 'Primary Lookback (bars)', type: 'number', default: 20, min: 1, max: 200 },
+      { id: 'primaryThresholdBps', name: 'Primary Threshold (bps)', type: 'number', default: 10, min: 0, max: 200 },
       { id: 'horizon', name: 'Evaluation Horizon (bars)', type: 'number', default: 10, min: 1, max: 50 },
       { id: 'transactionCostBps', name: 'Transaction Cost (bps)', type: 'number', default: 5, min: 0, max: 50 },
       { id: 'minProfitBps', name: 'Min Profit Threshold (bps)', type: 'number', default: 10, min: 0, max: 100 },
     ],
     generate: `
+      Primary signal at bar t (trailing_momentum): +1 when the trailing primaryLookback-bar
+      return exceeds +primaryThresholdBps, -1 below -primaryThresholdBps, else 0 — a causal
+      rule that existed at t. next_bar_oracle is sign(close[t+1]-close[t]): a leakage
+      self-test, never a strategy.
       For each bar t where primary_signal != 0:
       1. Compute pnl = primary_signal * (close[t+h] - close[t]) / close[t]
       2. Subtract transaction costs: net_pnl = pnl - transactionCostBps/10000
@@ -252,9 +256,8 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: 'any' },
     ],
     generate: `
-      Reads talib_candle_patterns (symbol, timeframe, pattern, value), written by
-      Trading/quant/analytics/structure/to_questdb.py — TA-Lib is a C library and its
-      patterns cannot be expressed in SQL, so they are computed in Python and looked up here.
+      Computed by the TA-Lib C library over the bars in the requested window (worker in
+      market/candlePatternService.ts). Nothing is read from a table, so any timeframe works.
 
       Rows are keyed by the timeframe they were computed ON and matched to the chart's own
       timeframe: a hammer on 5m bars is not a hammer on 1m bars, so 1m patterns are never
@@ -282,7 +285,7 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: 'engulfing' },
     ],
     generate: `
-      Reads talib_candle_patterns WHERE pattern = 'engulfing' at the chart's own timeframe.
+      Computed by the TA-Lib C library (worker in market/candlePatternService.ts) over the bars in the requested window, at the chart's own timeframe — no table, any timeframe.
       Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
       engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
       +/-2. Magnitude drives marker size.
@@ -300,7 +303,7 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: 'harami' },
     ],
     generate: `
-      Reads talib_candle_patterns WHERE pattern = 'harami' at the chart's own timeframe.
+      Computed by the TA-Lib C library (worker in market/candlePatternService.ts) over the bars in the requested window, at the chart's own timeframe — no table, any timeframe.
       Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
       engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
       +/-2. Magnitude drives marker size.
@@ -318,7 +321,7 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: 'haramicross' },
     ],
     generate: `
-      Reads talib_candle_patterns WHERE pattern = 'haramicross' at the chart's own timeframe.
+      Computed by the TA-Lib C library (worker in market/candlePatternService.ts) over the bars in the requested window, at the chart's own timeframe — no table, any timeframe.
       Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
       engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
       +/-2. Magnitude drives marker size.
@@ -336,7 +339,7 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: 'hikkake' },
     ],
     generate: `
-      Reads talib_candle_patterns WHERE pattern = 'hikkake' at the chart's own timeframe.
+      Computed by the TA-Lib C library (worker in market/candlePatternService.ts) over the bars in the requested window, at the chart's own timeframe — no table, any timeframe.
       Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
       engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
       +/-2. Magnitude drives marker size.
@@ -354,7 +357,7 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: 'belthold' },
     ],
     generate: `
-      Reads talib_candle_patterns WHERE pattern = 'belthold' at the chart's own timeframe.
+      Computed by the TA-Lib C library (worker in market/candlePatternService.ts) over the bars in the requested window, at the chart's own timeframe — no table, any timeframe.
       Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
       engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
       +/-2. Magnitude drives marker size.
@@ -372,7 +375,7 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: 'marubozu' },
     ],
     generate: `
-      Reads talib_candle_patterns WHERE pattern = 'marubozu' at the chart's own timeframe.
+      Computed by the TA-Lib C library (worker in market/candlePatternService.ts) over the bars in the requested window, at the chart's own timeframe — no table, any timeframe.
       Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
       engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
       +/-2. Magnitude drives marker size.
@@ -390,7 +393,7 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: '3outside' },
     ],
     generate: `
-      Reads talib_candle_patterns WHERE pattern = '3outside' at the chart's own timeframe.
+      Computed by the TA-Lib C library (worker in market/candlePatternService.ts) over the bars in the requested window, at the chart's own timeframe — no table, any timeframe.
       Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
       engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
       +/-2. Magnitude drives marker size.
@@ -408,7 +411,7 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: '3inside' },
     ],
     generate: `
-      Reads talib_candle_patterns WHERE pattern = '3inside' at the chart's own timeframe.
+      Computed by the TA-Lib C library (worker in market/candlePatternService.ts) over the bars in the requested window, at the chart's own timeframe — no table, any timeframe.
       Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
       engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
       +/-2. Magnitude drives marker size.
@@ -426,7 +429,7 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: 'hammer' },
     ],
     generate: `
-      Reads talib_candle_patterns WHERE pattern = 'hammer' at the chart's own timeframe.
+      Computed by the TA-Lib C library (worker in market/candlePatternService.ts) over the bars in the requested window, at the chart's own timeframe — no table, any timeframe.
       Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
       engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
       +/-2. Magnitude drives marker size.
@@ -444,7 +447,7 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: 'invertedhammer' },
     ],
     generate: `
-      Reads talib_candle_patterns WHERE pattern = 'invertedhammer' at the chart's own timeframe.
+      Computed by the TA-Lib C library (worker in market/candlePatternService.ts) over the bars in the requested window, at the chart's own timeframe — no table, any timeframe.
       Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
       engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
       +/-2. Magnitude drives marker size.
@@ -462,7 +465,7 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: 'hangingman' },
     ],
     generate: `
-      Reads talib_candle_patterns WHERE pattern = 'hangingman' at the chart's own timeframe.
+      Computed by the TA-Lib C library (worker in market/candlePatternService.ts) over the bars in the requested window, at the chart's own timeframe — no table, any timeframe.
       Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
       engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
       +/-2. Magnitude drives marker size.
@@ -480,7 +483,7 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: 'shootingstar' },
     ],
     generate: `
-      Reads talib_candle_patterns WHERE pattern = 'shootingstar' at the chart's own timeframe.
+      Computed by the TA-Lib C library (worker in market/candlePatternService.ts) over the bars in the requested window, at the chart's own timeframe — no table, any timeframe.
       Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
       engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
       +/-2. Magnitude drives marker size.
@@ -498,7 +501,7 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: 'morningstar' },
     ],
     generate: `
-      Reads talib_candle_patterns WHERE pattern = 'morningstar' at the chart's own timeframe.
+      Computed by the TA-Lib C library (worker in market/candlePatternService.ts) over the bars in the requested window, at the chart's own timeframe — no table, any timeframe.
       Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
       engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
       +/-2. Magnitude drives marker size.
@@ -516,7 +519,7 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: 'eveningstar' },
     ],
     generate: `
-      Reads talib_candle_patterns WHERE pattern = 'eveningstar' at the chart's own timeframe.
+      Computed by the TA-Lib C library (worker in market/candlePatternService.ts) over the bars in the requested window, at the chart's own timeframe — no table, any timeframe.
       Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
       engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
       +/-2. Magnitude drives marker size.
@@ -534,7 +537,7 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: 'advanceblock' },
     ],
     generate: `
-      Reads talib_candle_patterns WHERE pattern = 'advanceblock' at the chart's own timeframe.
+      Computed by the TA-Lib C library (worker in market/candlePatternService.ts) over the bars in the requested window, at the chart's own timeframe — no table, any timeframe.
       Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
       engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
       +/-2. Magnitude drives marker size.
@@ -552,7 +555,7 @@ export const LABEL_GENERATORS = {
       { id: 'pattern', name: 'Pattern', type: 'string', default: 'darkcloudcover' },
     ],
     generate: `
-      Reads talib_candle_patterns WHERE pattern = 'darkcloudcover' at the chart's own timeframe.
+      Computed by the TA-Lib C library (worker in market/candlePatternService.ts) over the bars in the requested window, at the chart's own timeframe — no table, any timeframe.
       Label is the pattern's TA-Lib value scaled by 1/100. Most patterns emit +/-1 only;
       engulfing, harami and haramicross also emit +/-0.8, and hikkake and hikkakemod emit
       +/-2. Magnitude drives marker size.
@@ -632,17 +635,15 @@ export const LABEL_GENERATORS = {
     description: 'Generate pseudo-labels from teacher model, filtered by confidence',
     category: 'pseudo-labeling',
     params: [
-      { id: 'teacherPredColumn', name: 'Teacher Prediction Column', type: 'string', default: 'teacher_pred' },
-      { id: 'teacherConfColumn', name: 'Teacher Confidence Column', type: 'string', default: 'teacher_conf' },
-      { id: 'confidenceThreshold', name: 'Confidence Threshold', type: 'number', default: 0.9, min: 0.5, max: 0.99, step: 0.01 },
-      { id: 'classBalancing', name: 'Class Balancing', type: 'boolean', default: true },
+      { id: 'horizon', name: 'Horizon (bars)', type: 'number', default: 5, min: 1, max: 100 },
+      { id: 'confidenceThreshold', name: 'Confidence Threshold (fraction)', type: 'number', default: 0.9, min: 0.5, max: 0.99, step: 0.01 },
     ],
     generate: `
-      For each unlabeled sample:
-      1. Use teacher_pred as pseudo-label
-      2. Keep only if teacher_conf >= confidenceThreshold
-      3. If classBalancing: subsample majority class to match minority
-      Output: filtered pseudo-labels with confidence weights
+      Price-derived pseudo-label: sign of the forward return over horizon bars,
+      kept only where the move's strength (|return| relative to its trailing
+      volatility) clears confidenceThreshold. There is no teacher model in this
+      path — a teacher's predictions would have to be joined from a stored
+      prediction set, which this generator does not read.
     `,
   },
 
@@ -652,16 +653,13 @@ export const LABEL_GENERATORS = {
     description: 'Labels for consistency regularization under perturbations',
     category: 'consistency',
     params: [
-      { id: 'perturbationType', name: 'Perturbation Type', type: 'select', options: ['noise', 'dropout', 'mixup'], default: 'noise' },
-      { id: 'perturbationScale', name: 'Perturbation Scale', type: 'number', default: 0.1, min: 0, max: 0.5, step: 0.01 },
-      { id: 'numPerturbations', name: 'Perturbations per Sample', type: 'number', default: 2, min: 1, max: 5 },
+      { id: 'consistencyWindow', name: 'Consistency Window (bars)', type: 'number', default: 20, min: 2, max: 200 },
     ],
     generate: `
-      For each sample x:
-      1. Generate numPerturbations perturbed versions x'
-      2. Consistency target: model prediction on original x (or ground truth if available)
-      3. Training objective: minimize divergence between pred(x') and target
-      Output: (original_idx, perturbed_data, consistency_target)
+      Rule-based consistency target from the bar's position against its trailing
+      consistencyWindow-bar moving average and the next close. The perturbation
+      itself (noise / dropout / mixup) is applied at training time by the model
+      runner, not here — this generator only emits the target to be consistent with.
     `,
   },
 } as const;

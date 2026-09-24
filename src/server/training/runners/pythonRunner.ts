@@ -109,6 +109,27 @@ export class PythonRunner implements ITrainerRunner {
       args.push("--all-features");
     }
 
+    // A persisted label set: the run trains on the rows a person previewed and
+    // saved, not on a recomputation of them. Resolved here, not on the client,
+    // so the client never has to know where in the lake a set lives.
+    if (config.labelSetId) {
+      const { getLabelSetById } = await import("../../infrastructure/lib/labels/labelRepository");
+      const labelSet = await getLabelSetById(config.labelSetId);
+      if (!labelSet) throw new Error(`Label set ${config.labelSetId} does not exist`);
+      if (!labelSet.parquetPath) {
+        throw new Error(
+          `Label set ${config.labelSetId} ('${labelSet.name}') has no persisted rows — ` +
+          "it was generated before rows were written to the lake. Generate it again.",
+        );
+      }
+      if (labelSet.symbol !== config.symbol) {
+        throw new Error(
+          `Label set ${config.labelSetId} is for ${labelSet.symbol}, this run is ${config.symbol}`,
+        );
+      }
+      args.push("--label-set-parquet", labelSet.parquetPath);
+    }
+
     // Provenance identity, minted by the orchestrator BEFORE this spawn.
     // `protocol.py` reads these variables at import and stamps every stdout
     // event with them, which is what makes a raw log line self-identifying.

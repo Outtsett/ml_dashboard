@@ -108,7 +108,11 @@ async function listTables(): Promise<Set<string>> {
 // ─── Coverage probe ─────────────────────────────────────────────────────────
 
 function toMs(value: unknown): number {
-  if (value instanceof Date) return value.getTime() - value.getTimezoneOffset() * 60_000;
+  // A plain `.getTime()`: DuckDB answers in UTC. Subtracting the host offset
+  // (a pg-wire-era correction) shifted every pre-rolled table's coverage end
+  // seven hours early on this host, which is why `ohlcv_1d` always lost the
+  // freshness comparison to re-aggregating the sub-minute base.
+  if (value instanceof Date) return value.getTime();
   if (typeof value === 'number') return value;
   if (typeof value === 'bigint') return Number(value);
   return new Date(String(value)).getTime();
@@ -146,7 +150,11 @@ async function probeCoverage(table: string, predicate: string): Promise<Coverage
  * The result aliases the root back onto `symbol` so downstream generators,
  * which partition by and filter on `symbol`, need no changes.
  */
-async function buildStitchedFrom(root: string, table: string): Promise<string | null> {
+async function buildStitchedFrom(
+  root: string,
+  table: string,
+  window?: LabelSourceWindow,
+): Promise<string | null> {
   const escaped = root.replace(/'/g, "''");
 
   // Reuse the chart's cached front-month ranges rather than recomputing them.
@@ -154,8 +162,15 @@ async function buildStitchedFrom(root: string, table: string): Promise<string | 
   // the ES root (159M rows) computing it a second time here ran past a
   // four-minute client timeout. Sharing the cache also guarantees labels and
   // candles agree on where each roll happened.
+  //
+  // Bounded to the window when one is given. Unbounded, this UNIONed one
+  // sub-select per contract since inception — 28 for MNQ — and every request
+  // scanned all of them regardless of the dates it asked for, because the date
+  // filter is injected inside each branch, after the branches are chosen.
+  // Measured on MNQ daily: 4,793ms over 28 contracts, 739ms over the 4 that
+  // overlap a nine-month window.
   const { getFrontMonthRanges } = await import('../../database/questdb');
-  const ranges = await getFrontMonthRanges(root);
+  const ranges = await getFrontMonthRanges(root, window?.startMs, window?.endMs);
   if (ranges.length === 0) return null;
 
   const parts = ranges.map(r => {
@@ -177,12 +192,25 @@ async function buildStitchedFrom(root: string, table: string): Promise<string | 
 
 // ─── Resolution ─────────────────────────────────────────────────────────────
 
+/** Epoch-ms span the caller is going to label. Bounds the futures stitch. */
+export interface LabelSourceWindow {
+  startMs?: number;
+  endMs?: number;
+}
+
+/** Day-granular key for the window, so a pan inside one day reuses the cache. */
+function windowKey(window?: LabelSourceWindow): string {
+  const day = (ms?: number) => (Number.isFinite(ms) ? new Date(ms!).toISOString().slice(0, 10) : '');
+  return `${day(window?.startMs)}..${day(window?.endMs)}`;
+}
+
 export async function resolveLabelSource(
   symbol: string,
   timeframeMinutes: number,
+  window?: LabelSourceWindow,
 ): Promise<LabelSource> {
   const tf = Math.max(1, Math.floor(timeframeMinutes || 1));
-  const cacheKey = `${symbol}|${tf}`;
+  const cacheKey = `${symbol}|${tf}|${windowKey(window)}`;
   const cached = sourceCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.source;
 
@@ -245,10 +273,27 @@ export async function resolveLabelSource(
   }
 
   if (baseCoverage) {
-    const beatsRolled = !best || baseCoverage.end > best.coverageEnd;
+    // The base wins only when it reaches MORE THAN ONE BAR past the best
+    // pre-rolled table. Compared at millisecond precision it always won: a
+    // daily table's last bar is stamped 00:00 while the base's coverage end is
+    // 23:59:59.999 of the same day, so `ohlcv_1d` (96ms for a daily preview)
+    // lost to re-aggregating 96.7M sub-minute rows (4,793ms) on every request,
+    // for the same 2,074 days of coverage.
+    const oneBarMs = tf * 60_000;
+    // A futures root's base coverage comes from the front-month ranges, which
+    // are DAYS: its "end" is 23:59:59.999 of the last day, not the last bar.
+    // Compared against a pre-rolled table's real last bar (16:00 on the same
+    // day, say) the base looked fresher by seven hours it never had, and the
+    // hourly and 5-minute previews kept re-aggregating sub-minute rows.
+    // Truncating to the day compares the two at the precision the base is
+    // actually known to.
+    const baseEndForCompare = futuresRoot
+      ? Math.floor(baseCoverage.end / 86_400_000) * 86_400_000
+      : baseCoverage.end;
+    const beatsRolled = !best || baseEndForCompare > best.coverageEnd + oneBarMs;
     if (beatsRolled) {
       if (futuresRoot) {
-        const stitched = await buildStitchedFrom(symbol, BASE_TABLE);
+        const stitched = await buildStitchedFrom(symbol, BASE_TABLE, window);
         if (stitched) {
           best = {
             from: stitched,

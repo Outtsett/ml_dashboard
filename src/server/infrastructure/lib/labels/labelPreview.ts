@@ -16,6 +16,7 @@ import { resolveLabelSource } from './labelSource';
 import { generateLabelSQL } from './labelGenerator';
 import { previewCacheKey, previewCacheGet, previewCacheSet } from '../../cache/labels';
 import { labelOutcomeOffset, OUTCOME_OFFSET_COLUMN } from './labelOutcomeOffset';
+import { computeTalibLabelRows, isTalibGenerator, talibPatternForGenerator } from './talibLabelRows';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -68,11 +69,31 @@ export async function previewLabels(
     const timeframeMinutes = request.timeframeMinutes || 1;
     const limit = request.limit || 500;
 
+    // TA-Lib patterns are a calculation, not a query: the C library runs over
+    // the bars in the window and the rows come back already shaped like a
+    // generator's. No SQL, no table, any timeframe.
+    if (isTalibGenerator(request.generatorType)) {
+      const rows = await computeTalibLabelRows({
+        symbol: request.symbol,
+        timeframeMinutes,
+        pattern: talibPatternForGenerator(request.generatorType, request.params ?? {}),
+        startTimestamp: request.startTimestamp,
+        endTimestamp: request.endTimestamp,
+        limit: Math.max(limit, 500),
+      });
+      const result = summarize(request, rows.slice(-limit).map(r => ({ ...r, outcomeOffset: 0 })), rows);
+      previewCacheSet(cKey, result, request.symbol);
+      return result;
+    }
+
     // Resolve the best source for THIS instrument rather than assuming `ohlcv`
     // + `symbol = '<X>'`. For a futures root that swaps in the front-month
     // stitch, which is what the chart draws and what the old symbol filter
     // missed by three months.
-    const source = await resolveLabelSource(request.symbol, timeframeMinutes);
+    const source = await resolveLabelSource(request.symbol, timeframeMinutes, {
+      startMs: request.startTimestamp,
+      endMs: request.endTimestamp,
+    });
     const tableName = source.tableName;
 
     let labelSQL: string | null;
@@ -120,8 +141,11 @@ export async function previewLabels(
     }
     if (dateFilters.length > 0) {
       const filterClause = dateFilters.join(' AND ');
+      // Accepts an optional table alias (`WHERE o.symbol = ...`): meta_label
+      // qualifies its columns because two relations expose `symbol`, and the
+      // unaliased form silently left that scan unbounded by date.
       labelSQL = labelSQL.replace(
-        /(WHERE\s+symbol\s*=\s*'[^']*')/gi,
+        /(WHERE\s+(?:\w+\.)?symbol\s*=\s*'[^']*')/gi,
         `$1 AND ${filterClause}`,
       );
     }
@@ -168,22 +192,7 @@ export async function previewLabels(
       totalLabeledSamples += cnt;
     }
 
-    const counts = Object.values(distribution);
-    const classBalanceRatio = counts.length === 0
-      ? 0
-      : counts.length === 1
-        ? 1
-        : Math.min(...counts) / Math.max(...counts);
-
-    const result: LabelPreviewResponse = {
-      success: true,
-      preview: normalizedResults,
-      count: normalizedResults.length,
-      distribution,
-      totalLabeledSamples,
-      classBalanceRatio,
-      generatorType: request.generatorType,
-    };
+    const result = buildResponse(request.generatorType, normalizedResults, distribution, totalLabeledSamples);
 
     // Cache successful preview results
     previewCacheSet(cKey, result, request.symbol);
@@ -196,6 +205,46 @@ export async function previewLabels(
       error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
+}
+
+// ─── Response shaping ───────────────────────────────────────────────────────
+
+function buildResponse(
+  generatorType: string,
+  preview: Array<Record<string, unknown>>,
+  distribution: Record<string, number>,
+  totalLabeledSamples: number,
+): LabelPreviewResponse {
+  const counts = Object.values(distribution);
+  const classBalanceRatio = counts.length === 0
+    ? 0
+    : counts.length === 1
+      ? 1
+      : Math.min(...counts) / Math.max(...counts);
+  return {
+    success: true,
+    preview,
+    count: preview.length,
+    distribution,
+    totalLabeledSamples,
+    classBalanceRatio,
+    generatorType,
+  };
+}
+
+/** Distribution over EVERY computed row, preview over the capped tail. */
+function summarize(
+  request: LabelPreviewRequest,
+  preview: Array<Record<string, unknown>>,
+  allRows: Array<Record<string, unknown>>,
+): LabelPreviewResponse {
+  const distribution: Record<string, number> = {};
+  for (const row of allRows) {
+    if (row.label === null || row.label === undefined) continue;
+    const key = String(row.label);
+    distribution[key] = (distribution[key] ?? 0) + 1;
+  }
+  return buildResponse(request.generatorType, preview, distribution, allRows.length);
 }
 
 // ─── Outcome offset ─────────────────────────────────────────────────────────

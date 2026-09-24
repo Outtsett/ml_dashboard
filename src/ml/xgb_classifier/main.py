@@ -15,6 +15,9 @@ Emits the full standard JSON-line event stream:
   - progress
   - metric_declarations  (renderer schema for dashboard auto-render)
   - epoch_metric         (per N-round XGBoost eval-set log-loss + AUC)
+  - overlay              (per-bar direction calls on the VALIDATION span, so the
+                          market chart can show whether the model is calling
+                          bars correctly while the run is still alive)
   - done                 (final diagnostics)
 
 Outputs into ``data/models/<model_id>/``:
@@ -40,6 +43,7 @@ _PROJECT_ROOT = _HERE.parents[3]
 sys.path.insert(0, str(_PROJECT_ROOT))
 
 from src.ml.shared.features import load_features_with_cache
+from src.ml.shared.label_sets import load_label_set
 from src.ml.shared.protocol import (
     dumps_safe,
     emit,
@@ -47,6 +51,7 @@ from src.ml.shared.protocol import (
     emit_error,
     emit_log,
     emit_metric_declarations,
+    emit_prediction_markers,
     emit_progress,
 )
 from src.ml.xgb_classifier.eval import (
@@ -106,6 +111,25 @@ def _parse_args() -> argparse.Namespace:
     )
     ap.add_argument("--label-atr-window", type=int, default=20)
     ap.add_argument("--label-atr-multiple", type=float, default=1.0)
+    ap.add_argument(
+        "--label-set-parquet",
+        default=None,
+        help=(
+            "Lake object path of a persisted label set "
+            "(s3://derived/recipe=dashboard_label_sets/...). When given, the run "
+            "trains on those rows aligned by bar timestamp instead of computing "
+            "triple-barrier labels here; the --label-* barrier flags are ignored."
+        ),
+    )
+    ap.add_argument(
+        "--chart-overlay",
+        default="prediction_markers",
+        help=(
+            "overlayType this model's prediction overlay is emitted under. The "
+            "client dispatches on this string and it must equal the "
+            "chartOverlay this model declares in src/config/runners.json."
+        ),
+    )
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--train-frac", type=float, default=0.8)
     ap.add_argument(
@@ -190,7 +214,70 @@ def _emit_metric_declarations() -> None:
     )
 
 
-# ─── Training callback for streaming metrics ──────────────────────────────────
+# --- Live prediction-marker overlay ------------------------------------------
+
+# The chart draws one marker per bar, so two caps keep the wire and the chart
+# usable without changing anything the model says:
+#
+#   _STREAMING_MARKER_CAP -- emissions during training ride the SAME 10-round
+#     cadence as epoch_metric (chosen because one booster.predict over the
+#     validation matrix costs far less than a single boosting round, so the
+#     chart fills in live for free), but are thinned to an even stride. A
+#     40,000-bar validation span therefore sends 400 markers per emission
+#     rather than 40,000 markers fifty times over.
+#   _FINAL_MARKER_CAP -- the emission after early stopping is the one the user
+#     actually reads, so it is thinned far less.
+#
+# Thinning is an even stride with both endpoints kept, never a head/tail slice:
+# the overlay must span the whole validation window at every cadence step or it
+# would look like the model only predicted the start of it.
+_STREAMING_MARKER_CAP = 400
+_FINAL_MARKER_CAP = 2000
+
+
+def _even_stride_subset(n_rows: int, cap: int) -> np.ndarray:
+    """Indices of at most ``cap`` evenly spaced rows out of ``n_rows``."""
+    if n_rows <= cap:
+        return np.arange(n_rows, dtype=np.int64)
+    return np.unique(np.linspace(0, n_rows - 1, cap).round().astype(np.int64))
+
+
+def _emit_validation_prediction_markers(
+    probability_up: np.ndarray,
+    validation_bar_timestamps: np.ndarray,
+    marker_cap: int,
+    overlay_type: str,
+) -> None:
+    """Emit per-bar direction calls for the VALIDATION span only.
+
+    ``validation_bar_timestamps`` is ``timestamps[orig_idx[val_idx]]`` -- real
+    bar timestamps on the ORIGINAL bar grid in epoch seconds, so each marker
+    lands on the candle it belongs to rather than on a position in the filtered
+    feature matrix.
+
+    In-sample bars are structurally unreachable here: both call sites are
+    reached only through ``val_idx``, the second return of
+    ``time_split_indices`` (src/ml/xgb_classifier/labels.py:254-271), which is
+    ``arange(cut, n_valid)`` -- disjoint from train's ``arange(0, cut-embargo)``
+    -- and the probabilities come from ``dval`` / ``X_val``, never ``dtrain``.
+    """
+    keep = _even_stride_subset(int(probability_up.shape[0]), marker_cap)
+    probabilities = np.asarray(probability_up, dtype=np.float64)[keep]
+    direction = np.where(probabilities >= 0.5, 1, -1).astype(np.int64)
+    # Confidence is the probability of the direction ACTUALLY CALLED, so a
+    # confident down call (probability_up = 0.05) reads as 0.95 and drives full
+    # marker opacity instead of near-zero. Nothing is lost: direction plus this
+    # number reconstructs probability_up exactly.
+    confidence = np.where(direction > 0, probabilities, 1.0 - probabilities)
+    emit_prediction_markers(
+        validation_bar_timestamps[keep].tolist(),
+        direction.tolist(),
+        confidence.tolist(),
+        overlay_type=overlay_type,
+    )
+
+
+# --- Training callback for streaming metrics ---------------------------------
 
 
 class _StreamCallback:
@@ -204,7 +291,16 @@ class _StreamCallback:
         emit({"type": "epoch_metric", **evt})
 
 
-def _make_xgb_callback(total: int, every: int):
+def _make_xgb_callback(
+    total: int,
+    every: int,
+    *,
+    validation_matrix=None,
+    validation_bar_timestamps=None,
+    overlay_type: str = "prediction_markers",
+):
+    """Stream epoch_metric + progress, and -- when handed a validation matrix --
+    the live per-bar prediction overlay, every ``every`` rounds."""
     import xgboost as xgb
 
     class StreamingCallback(xgb.callback.TrainingCallback):
@@ -218,6 +314,20 @@ def _make_xgb_callback(total: int, every: int):
                         payload[f"{split_name}_{metric_name}"] = float(values[-1])
             emit({"type": "epoch_metric", **payload})
             emit_progress(epoch + 1, total, "training")
+            if validation_matrix is not None:
+                # Same cadence as the epoch_metric above, deliberately: the
+                # chart fills in while the run is alive, and scoring the
+                # validation matrix with the trees built so far costs a small
+                # fraction of the boosting round that just produced them.
+                probability_up = model.predict(
+                    validation_matrix, iteration_range=(0, epoch + 1)
+                ).astype(np.float64)
+                _emit_validation_prediction_markers(
+                    probability_up,
+                    validation_bar_timestamps,
+                    _STREAMING_MARKER_CAP,
+                    overlay_type,
+                )
             return False
 
     return StreamingCallback()
@@ -275,6 +385,7 @@ def _args_to_config(args: argparse.Namespace) -> dict:
         "device": args.device,
         "train_frac": float(args.train_frac),
         "pnl_threshold": float(args.pnl_threshold),
+        "chart_overlay": str(args.chart_overlay),
     }
 
 
@@ -344,7 +455,29 @@ def _train_one_fold_inner(
     atr_multiple = float(getattr(args, "label_atr_multiple", 1.0))
     floor_bp = float(args.label_threshold_bp)
 
-    if threshold_mode == "atr":
+    label_set_parquet = getattr(args, "label_set_parquet", None)
+    if label_set_parquet:
+        # The rows a person previewed and saved, not a recomputation of them.
+        emit_log(f"[xgb] Loading persisted label set {label_set_parquet}")
+        labels, valid, set_diag = load_label_set(label_set_parquet, timestamps, binary=True)
+        emit_log(
+            f"[xgb] Label set: {set_diag['label_set_rows']:,} rows, "
+            f"{set_diag['matched_bars']:,} matched this run's bars, "
+            f"{set_diag['unmatched_label_rows']:,} unmatched, "
+            f"{set_diag['flat_dropped']:,} flat dropped"
+        )
+        if set_diag["unmatched_label_rows"] > set_diag["matched_bars"]:
+            raise RuntimeError(
+                "More label rows failed to match a bar than matched one — the label set "
+                f"and this run disagree on timeframe or bar series ({set_diag})."
+            )
+        label_diag = {
+            "barrier_bp_median": float("nan"), "barrier_bp_min": float("nan"), "barrier_bp_max": float("nan"),
+            "dropped_barrier_warmup": 0, "dropped_horizon_overflow": 0,
+            "dropped_no_barrier_touched": 0, "dropped_both_barriers_same_bar": 0, "dropped_bad_close": 0,
+            "label_set": set_diag,
+        }
+    elif threshold_mode == "atr":
         emit_log(
             f"[xgb] Generating triple-barrier labels (H={args.label_horizon_bars}, "
             f"barrier={atr_multiple}x trailing ATR over {atr_window} bars, "
@@ -355,17 +488,18 @@ def _train_one_fold_inner(
             f"[xgb] Generating triple-barrier labels (H={args.label_horizon_bars}, "
             f"barrier=fixed {floor_bp}bp)"
         )
-    labels, valid, label_diag = make_labels(
-        raw["high"],
-        raw["low"],
-        raw["close"],
-        horizon_bars=args.label_horizon_bars,
-        threshold_bp=floor_bp,
-        threshold_mode=threshold_mode,
-        atr_window=atr_window,
-        atr_multiple=atr_multiple,
-        return_diagnostics=True,
-    )
+    if not label_set_parquet:
+        labels, valid, label_diag = make_labels(
+            raw["high"],
+            raw["low"],
+            raw["close"],
+            horizon_bars=args.label_horizon_bars,
+            threshold_bp=floor_bp,
+            threshold_mode=threshold_mode,
+            atr_window=atr_window,
+            atr_multiple=atr_multiple,
+            return_diagnostics=True,
+        )
     n_valid = int(valid.sum())
     emit_log(
         "[xgb] Barrier width in bp: "
@@ -379,7 +513,13 @@ def _train_one_fold_inner(
         f"both touched in one bar {label_diag['dropped_both_barriers_same_bar']:,}, "
         f"bad close {label_diag['dropped_bad_close']:,}"
     )
-    if n_valid < 1000:
+    if label_set_parquet and n_valid < 100:
+        raise RuntimeError(
+            f"Only {n_valid} of this run's {n_total} bars carry a label from the label set. "
+            "The set was generated over a narrower window or a different timeframe than "
+            f"this run loads ({label_diag['label_set']})."
+        )
+    if not label_set_parquet and n_valid < 1000:
         tied = label_diag["dropped_both_barriers_same_bar"]
         hint = (
             "the barrier is too NARROW for this timeframe — both sides are touched "
@@ -431,6 +571,13 @@ def _train_one_fold_inner(
     X_train, y_train = X[train_idx], y[train_idx]
     X_val, y_val = X[val_idx], y[val_idx]
     ts_val = ts_kept[val_idx]
+    # Positions of the validation rows back on the ORIGINAL bar grid, and the
+    # real bar timestamps at those positions (epoch seconds). Three consumers
+    # need them and all three must step in BARS, not in surviving rows: the
+    # live prediction-marker overlay, the PnL sim, and the realized-return
+    # column.
+    val_orig = orig_idx[val_idx]
+    validation_bar_timestamps = timestamps[val_orig]
 
     dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=names)
     dval = xgb.DMatrix(X_val, label=y_val, feature_names=names)
@@ -456,8 +603,29 @@ def _train_one_fold_inner(
         f"[xgb] xgb.train: rounds={args.n_estimators} early_stopping={args.early_stopping_rounds} "
         f"device={args.device}"
     )
+    # HPO trials (save_artifacts=False) run dozens of folds back to back; they
+    # must not repaint the market chart dozens of times, so the overlay is tied
+    # to the real single-fold runs.
+    emit_markers = bool(save_artifacts)
+    overlay_type = str(getattr(args, "chart_overlay", "prediction_markers") or "prediction_markers")
+    if emit_markers:
+        emit_log(
+            f"[xgb] Prediction overlay '{overlay_type}': {n_val:,} validation bars "
+            f"({validation_bar_timestamps[0]} -> {validation_bar_timestamps[-1]} epoch seconds), "
+            f"streamed every 10 rounds capped at {_STREAMING_MARKER_CAP} markers, "
+            f"final pass capped at {_FINAL_MARKER_CAP}"
+        )
+
     t0 = time.perf_counter()
-    callbacks_list = [_make_xgb_callback(int(args.n_estimators), every=10)]
+    callbacks_list = [
+        _make_xgb_callback(
+            int(args.n_estimators),
+            every=10,
+            validation_matrix=dval if emit_markers else None,
+            validation_bar_timestamps=validation_bar_timestamps,
+            overlay_type=overlay_type,
+        )
+    ]
     if xgb_callback_obj is not None:
         callbacks_list.append(xgb_callback_obj)
     booster = xgb.train(
@@ -480,6 +648,13 @@ def _train_one_fold_inner(
     # OOS predictions on val
     p_val = booster.predict(dval, iteration_range=(0, best_iter + 1)).astype(np.float64)
 
+    # Final overlay at the best iteration -- same validation bars, thinned far
+    # less than the streaming passes, and it supersedes them on the chart.
+    if emit_markers:
+        _emit_validation_prediction_markers(
+            p_val, validation_bar_timestamps, _FINAL_MARKER_CAP, overlay_type
+        )
+
     # Metrics
     auc = auc_score(y_val, p_val)
     ll = log_loss(y_val, p_val)
@@ -499,7 +674,6 @@ def _train_one_fold_inner(
     # which fails both the long and the short test and is therefore flat.
     horizon = int(args.label_horizon_bars)
     raw_close = np.asarray(raw["close"], dtype=np.float64)
-    val_orig = orig_idx[val_idx]
     span_start = int(val_orig[0])
     span_end = min(int(val_orig[-1]) + horizon + 1, raw_close.shape[0])
     close_span = raw_close[span_start:span_end]
