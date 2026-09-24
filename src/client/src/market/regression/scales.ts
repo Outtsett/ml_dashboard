@@ -3,7 +3,9 @@
  *
  * Okabe-Ito throughout, and no meaning carried by hue alone: a vertical
  * outlier is a diamond, an influential point is a ring, the confidence band
- * is a filled area, the prediction band is a dashed pair of lines.
+ * is a filled area, the prediction band is a dashed pair of lines, the local
+ * trend is a curve, and the density regions are nested outlines (the 95% one
+ * dashed).
  */
 
 export const REGRESSION_COLORS = {
@@ -17,6 +19,14 @@ export const REGRESSION_COLORS = {
   axis: "rgba(255, 255, 255, 0.38)",
   grid: "rgba(255, 255, 255, 0.07)",
   highlight: "#FFFFFF",
+  /** LOESS local trend: a neutral curve, so it never competes with the orange straight line. */
+  trend: "#F2F2F2",
+  trendBand: "rgba(242, 242, 242, 0.10)",
+  /** Highest-density regions, nested: each contour's fill stacks on the next. */
+  densityFill: "rgba(255, 255, 255, 0.06)",
+  densityLine: "rgba(255, 255, 255, 0.30)",
+  marginal: "rgba(86, 180, 233, 0.55)",
+  marginalActive: "rgba(86, 180, 233, 0.95)",
 } as const;
 
 /**

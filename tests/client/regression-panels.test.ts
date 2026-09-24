@@ -8,12 +8,20 @@ import { describe, expect, it } from "vitest";
 import type { OhlcvData } from "../../src/client/src/market/components/types";
 import {
   assemblePanelVariables,
+  barEncodings,
   barsKey,
   computePanels,
+  inflateTrend,
+  TREND_EVALUATION_POINTS,
   panelBuffers,
+  panelContext,
   selectLakeVariables,
   type AlignedColumns,
 } from "../../src/client/src/market/regression/panels";
+import { pointStyle } from "../../src/client/src/market/regression/encoding";
+import { trendShape } from "../../src/client/src/market/regression/ScatterPanel";
+import { buildPairs, fitSimpleRegression, localLinearTrend } from "../../src/shared/regression/index";
+import { createRandom } from "../../src/shared/lens/bootstrap";
 import {
   CHART_MINIMUM_PIXELS,
   SIDE_PANEL_MINIMUM_PIXELS,
@@ -143,4 +151,101 @@ describe("side panel width clamp", () => {
     expect(minimumSidePanelWidth(available)).toBe(SIDE_PANEL_MINIMUM_PIXELS);
     expect(available - maximumSidePanelWidth(available)).toBe(CHART_MINIMUM_PIXELS);
   });
+});
+
+describe("the scatter's context and encodings", () => {
+  const bars = makeBars(600);
+  const close = bars.map((bar) => bar.close);
+  const volume = bars.map((bar) => bar.volume);
+  const pairs = buildPairs(close, volume, { mode: "level", horizonBars: 1 });
+  const result = fitSimpleRegression(pairs.x, pairs.y, { confidenceLevel: 0.95 });
+  if (!result.ok) throw new Error(result.reason);
+  const fit = result.fit;
+
+  it("builds density, local trend and both marginals; groups only on request", () => {
+    const context = panelContext(pairs, fit, false);
+    expect(context.density).not.toBeNull();
+    expect(context.trend).not.toBeNull();
+    expect(context.marginalX?.total).toBe(pairs.x.length);
+    expect(context.marginalY?.total).toBe(pairs.y.length);
+    expect(context.clusters).toBeNull();
+    expect(context.autocorrelationInflation).toBeGreaterThanOrEqual(1);
+    const grouped = panelContext(pairs, fit, true);
+    expect(grouped.clusters?.labels.length).toBe(pairs.x.length);
+  });
+
+  it("widens the local band and slope errors by the autocorrelation factor, around the same curve", () => {
+    const trend = localLinearTrend(pairs.x, pairs.y)!;
+    const wide = inflateTrend(trend, 2);
+    expect(wide.fitted).toEqual(trend.fitted);
+    const index = 20;
+    expect((wide.upper[index] as number) - (wide.fitted[index] as number)).toBeCloseTo(2 * ((trend.upper[index] as number) - (trend.fitted[index] as number)), 9);
+    expect(wide.slopeStandardError[index]).toBeCloseTo(2 * (trend.slopeStandardError[index] as number), 12);
+    expect(inflateTrend(trend, 0.7)).toBe(trend);
+  });
+
+  it("ranks volatility and volume per bar, leaving volatility's warm-up missing", () => {
+    const encodings = barEncodings(bars);
+    expect(encodings.volume.length).toBe(bars.length);
+    expect(Number.isNaN(encodings.volatility[5] as number)).toBe(true);
+    expect(Number.isNaN(encodings.volatilityRank[5] as number)).toBe(true);
+    const finite = Array.from(encodings.volumeRank).filter(Number.isFinite);
+    // Tied volumes share a midrank, so the ends sit just inside 0 and 1.
+    expect(Math.min(...finite)).toBeGreaterThanOrEqual(0);
+    expect(Math.min(...finite)).toBeLessThan(0.01);
+    expect(Math.max(...finite)).toBeLessThanOrEqual(1);
+    expect(Math.max(...finite)).toBeGreaterThan(0.99);
+  });
+
+  it("colours by time in bar order, by residual around the line, by group from the labels", () => {
+    const encodings = barEncodings(bars);
+    const byTime = pointStyle({ colorBy: "time", sizeBy: "none", encodings }, pairs, fit, null);
+    expect(byTime.bucketOf(0)).toBe(0);
+    expect(byTime.bucketOf(pairs.x.length - 1)).toBe(byTime.bucketCount - 1);
+    const byResidual = pointStyle({ colorBy: "residual", sizeBy: "residual", encodings }, pairs, fit, null);
+    const middle = (byResidual.bucketCount - 1) / 2;
+    const above = Array.from(fit.studentizedExternal).findIndex((value) => value > 3);
+    if (above >= 0) expect(byResidual.bucketOf(above)).toBe(byResidual.bucketCount - 1);
+    const onLine = Array.from(fit.studentizedExternal).findIndex((value) => Math.abs(value) < 0.01);
+    if (onLine >= 0) expect(byResidual.bucketOf(onLine)).toBe(middle);
+    expect(byResidual.sizeOf(0)).toBeGreaterThan(0);
+    const clusters = panelContext(pairs, fit, true).clusters!;
+    const byGroup = pointStyle({ colorBy: "cluster", sizeBy: "none", encodings }, pairs, fit, clusters);
+    expect(byGroup.bucketCount).toBe(clusters.k);
+    expect(byGroup.bucketOf(7)).toBe(clusters.labels[7]);
+  });
+
+  it("calls a V-shaped relationship reversing and a fanning one uneven", () => {
+    const x = Array.from({ length: 800 }, (_, index) => (index / 800) * 10 - 5);
+    const unit = x.map((_, index) => (index % 2 === 0 ? 1 : -1));
+    const vShape = x.map((value, index) => Math.abs(value) + 0.05 * (unit[index] as number));
+    const flat = fitSimpleRegression(x, vShape, { confidenceLevel: 0.95 });
+    if (!flat.ok) throw new Error(flat.reason);
+    const shape = trendShape(localLinearTrend(x, vShape, { residuals: flat.fit.residuals }));
+    expect(shape?.reverses).toBe(true);
+    const fanning = x.map((value, index) => 0.3 * value + (unit[index] as number) * (0.1 + Math.abs(value + 5)));
+    const fanFit = fitSimpleRegression(x, fanning, { confidenceLevel: 0.95 });
+    if (!fanFit.ok) throw new Error(fanFit.reason);
+    const fan = trendShape(localLinearTrend(x, fanning, { residuals: fanFit.fit.residuals }));
+    expect(fan?.reverses).toBe(false);
+    expect(fan?.spreadRatio).toBeGreaterThan(2.5);
+  });
+});
+
+describe("the reverses badge on noise", () => {
+  it("fires on under 6% of panels where X and Y are independent", () => {
+    const random = createRandom(20260923);
+    const normal = () => Math.sqrt(-2 * Math.log(Math.max(1e-12, random()))) * Math.cos(2 * Math.PI * random());
+    const runs = 250;
+    let fired = 0;
+    for (let run = 0; run < runs; run += 1) {
+      const x = Float64Array.from({ length: 2000 }, normal);
+      const y = Float64Array.from({ length: 2000 }, normal);
+      const fit = fitSimpleRegression(x, y, { confidenceLevel: 0.95 });
+      if (!fit.ok) continue;
+      const trend = localLinearTrend(x, y, { residuals: fit.fit.residuals, parameterSamples: 32, evaluationPoints: TREND_EVALUATION_POINTS });
+      if (trendShape(trend)?.reverses) fired += 1;
+    }
+    expect(fired / runs).toBeLessThan(0.06);
+  }, 60_000);
 });

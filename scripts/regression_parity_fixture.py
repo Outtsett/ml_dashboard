@@ -18,6 +18,9 @@ from pathlib import Path
 import numpy as np
 import statsmodels.api as sm
 from scipy import stats
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+from statsmodels.nonparametric.smoothers_lowess import lowess
 from statsmodels.stats.multitest import multipletests
 from statsmodels.stats.outliers_influence import OLSInfluence
 from statsmodels.stats.stattools import durbin_watson
@@ -210,6 +213,95 @@ def build_cases(generator: np.random.Generator) -> list[dict]:
     return cases
 
 
+def lowess_cases(generator: np.random.Generator) -> list[dict]:
+    # LOWESS with no robustness pass, evaluated on an even grid - what the
+    # scatter's local-trend curve draws. Continuous x only: statsmodels sorts
+    # with an unstable argsort, so tied x at a window edge is order-dependent.
+    cases = []
+    # A run of tied x wider than the window: statsmodels returns NaN where
+    # every neighbour sits at x0 (radius 0); the TypeScript must too.
+    tied_x = np.concatenate([np.full(15, 5.0), np.linspace(0.0, 4.5, 5), np.linspace(5.5, 10.0, 5)])
+    tied_y = np.sin(tied_x) + np.linspace(-0.3, 0.3, tied_x.size)
+    tied_grid = np.linspace(0.0, 10.0, 41)
+    cases.append({
+        "name": "tied_run_wider_than_window",
+        "x": tied_x.tolist(),
+        "y": tied_y.tolist(),
+        "span": 8 / tied_x.size,
+        "grid": tied_grid.tolist(),
+        "fitted": [None if not np.isfinite(v) else float(v) for v in lowess(tied_y, tied_x, frac=8 / tied_x.size, it=0, delta=0.0, xvals=tied_grid)],
+    })
+    specs = [
+        ("sine_bend", 600, 0.3, lambda x: np.sin(x) * 2 + 0.2 * x, 0.5),
+        ("heteroskedastic", 900, 0.25, lambda x: 0.5 * x, None),
+        ("small_sample_wide_span", 40, 0.6, lambda x: x ** 2 / 4, 0.8),
+    ]
+    for name, n, frac, shape, noise in specs:
+        x = generator.uniform(-5, 5, n)
+        if noise is None:
+            y = shape(x) + generator.normal(0, 1, n) * (0.3 + 0.4 * np.abs(x))
+        else:
+            y = shape(x) + generator.normal(0, noise, n)
+        grid = np.linspace(x.min(), x.max(), 60)
+        fitted = lowess(y, x, frac=frac, it=0, delta=0.0, xvals=grid)
+        cases.append({
+            "name": name,
+            "x": x.tolist(),
+            "y": y.tolist(),
+            "span": frac,
+            "grid": grid.tolist(),
+            "fitted": [None if not np.isfinite(v) else float(v) for v in fitted],
+        })
+    return cases
+
+
+def kmeans_cases(generator: np.random.Generator) -> list[dict]:
+    # Lloyd's iterations from fixed starting centres, and the silhouette of the
+    # result - scikit-learn is the reference for both.
+    cases = []
+    blobs = np.concatenate([
+        generator.normal([0, 0], 0.6, (120, 2)),
+        generator.normal([4, 1], 0.8, (90, 2)),
+        generator.normal([1, 5], 0.5, (70, 2)),
+    ])
+    diffuse = generator.normal(0, 1, (250, 2))
+    for name, points, k in [("three_blobs", blobs, 3), ("diffuse_cloud", diffuse, 4)]:
+        init = points[[3, 50, 150, 200][:k]]
+        model = KMeans(n_clusters=k, init=init, n_init=1, algorithm="lloyd", tol=0.0, max_iter=300).fit(points)
+        cases.append({
+            "name": name,
+            "x": points[:, 0].tolist(),
+            "y": points[:, 1].tolist(),
+            "initialX": init[:, 0].tolist(),
+            "initialY": init[:, 1].tolist(),
+            "labels": model.labels_.tolist(),
+            "inertia": float(model.inertia_),
+            "centersX": model.cluster_centers_[:, 0].tolist(),
+            "centersY": model.cluster_centers_[:, 1].tolist(),
+            "silhouette": float(silhouette_score(points, model.labels_)),
+        })
+    return cases
+
+
+def histogram_cases(generator: np.random.Generator) -> list[dict]:
+    cases = []
+    for name, values in [
+        ("normal", generator.normal(3, 2, 777)),
+        ("heavy_tailed", stats.t.rvs(2, size=1500, random_state=generator)),
+    ]:
+        edges = np.histogram_bin_edges(values, bins="fd")
+        cases.append({"name": name, "values": values.tolist(), "binCount": int(edges.size - 1), "rule": "fd"})
+    # IQR 0: numpy's "fd" collapses to one bin; the TypeScript falls back to Sturges.
+    flag = np.where(np.arange(500) % 25 == 0, 1.0, 0.0)
+    cases.append({
+        "name": "mostly_zero_flag",
+        "values": flag.tolist(),
+        "binCount": int(np.histogram_bin_edges(flag, bins="sturges").size - 1),
+        "rule": "sturges",
+    })
+    return cases
+
+
 def student_table() -> dict:
     quantiles = []
     for degrees in [1, 2, 3, 4, 7, 10, 30, 100, 998, 4998, 19998]:
@@ -242,6 +334,9 @@ def main() -> None:
         "bandSamples": BAND_SAMPLES,
         "cases": cases,
         "student": student_table(),
+        "lowess": lowess_cases(generator),
+        "kMeans": kmeans_cases(generator),
+        "histograms": histogram_cases(generator),
         "benjaminiHochberg": {
             "pValues": p_values,
             "qValues": multipletests(p_values, method="fdr_bh")[1].tolist(),

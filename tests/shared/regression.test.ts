@@ -14,14 +14,25 @@ import { describe, expect, it } from "vitest";
 import {
   BASIS_POINTS,
   GAP_ALLOWANCE_MILLISECONDS,
+  MAXIMUM_MARGINAL_BINS,
+  MINIMUM_MARGINAL_BINS,
   benjaminiHochberg,
   buildPairs,
+  clusterPoints,
+  densityAt,
+  densityGrid,
+  densityRegionAt,
   fitSimpleRegression,
+  kMeans,
+  localLinearTrend,
+  marginalHistogram,
   midranks,
   quantileBuckets,
   refitWithout,
+  silhouetteScore,
   studentTQuantile,
   studentTUpperTail,
+  trendAt,
   type RegressionFit,
 } from "@shared/regression/index";
 
@@ -328,5 +339,223 @@ describe("midranks and Benjamini-Hochberg", () => {
 
   it("matches statsmodels multipletests(fdr_bh)", () => {
     closeArray(benjaminiHochberg(fixture.benjaminiHochberg.pValues), fixture.benjaminiHochberg.qValues);
+  });
+});
+
+// ── The scatter's context layers: local trend, density, marginals, groups ──
+
+interface ContextFixture {
+  lowess: Array<{ name: string; x: number[]; y: number[]; span: number; grid: number[]; fitted: Array<number | null> }>;
+  kMeans: Array<{
+    name: string; x: number[]; y: number[]; initialX: number[]; initialY: number[];
+    labels: number[]; inertia: number; centersX: number[]; centersY: number[]; silhouette: number;
+  }>;
+  histograms: Array<{ name: string; values: number[]; binCount: number; rule: "fd" | "sturges" }>;
+}
+const context = fixture as unknown as ContextFixture;
+
+describe("localLinearTrend parity with statsmodels lowess(it=0)", () => {
+  for (const testCase of context.lowess) {
+    it(testCase.name, () => {
+      const trend = localLinearTrend(testCase.x, testCase.y, { span: testCase.span, evaluationPoints: testCase.grid.length });
+      expect(trend).not.toBeNull();
+      closeArray(trend!.x, testCase.grid, 1e-12, 1e-12);
+      closeArray(trend!.fitted, testCase.fitted.map((value) => value ?? Number.NaN), 1e-9, 1e-9);
+    });
+  }
+
+  it("recovers a straight line exactly, slope included, with zero-width bands", () => {
+    const x = Array.from({ length: 200 }, (_, index) => Math.sin(index * 12.9898) * 50);
+    const y = x.map((value) => 4 - 0.75 * value);
+    const trend = localLinearTrend(x, y, { span: 0.3 })!;
+    for (let index = 0; index < trend.x.length; index += 1) {
+      close(trend.fitted[index] as number, 4 - 0.75 * (trend.x[index] as number), 1e-9, 1e-9);
+      close(trend.slope[index] as number, -0.75, 1e-9, 1e-9);
+    }
+    expect(trend.residualStandardError).toBeLessThan(1e-9);
+  });
+
+  it("reads its effective parameters between a straight line (2) and interpolation (n)", () => {
+    const testCase = context.lowess.find((candidate) => candidate.name === "sine_bend")!;
+    const trend = localLinearTrend(testCase.x, testCase.y, { span: testCase.span })!;
+    expect(trend.effectiveParameters).toBeGreaterThan(2);
+    expect(trend.effectiveParameters).toBeLessThan(testCase.x.length / 4);
+    expect(trend.neighbours).toBe(Math.floor(testCase.span * testCase.x.length + 1e-10));
+  });
+
+  it("gives the local slope at the cursor from the nearest grid point", () => {
+    const testCase = context.lowess.find((candidate) => candidate.name === "sine_bend")!;
+    const trend = localLinearTrend(testCase.x, testCase.y, { span: testCase.span })!;
+    const at = trendAt(trend, trend.x[10] as number)!;
+    expect(at.fitted).toBe(trend.fitted[10]);
+    expect(at.slopeStandardError).toBeGreaterThan(0);
+    expect(at.lower).toBeLessThan(at.fitted);
+    expect(at.upper).toBeGreaterThan(at.fitted);
+  });
+});
+
+describe("densityGrid", () => {
+  // Two groups of unequal spread: the binned-and-blurred grid must match the
+  // exact product-Gaussian kernel density evaluated cell by cell.
+  const x: number[] = [];
+  const y: number[] = [];
+  for (let index = 0; index < 1200; index += 1) {
+    const u = Math.sin(index * 78.233) * 43758.5453;
+    const v = Math.sin(index * 12.9898) * 24634.6345;
+    const a = (u - Math.floor(u)) * 2 - 1;
+    const b = (v - Math.floor(v)) * 2 - 1;
+    const second = index % 3 === 0;
+    x.push((second ? 6 : 0) + a * (second ? 0.8 : 2));
+    y.push((second ? 3 : 0) + b * (second ? 0.5 : 1.5));
+  }
+  const grid = densityGrid(x, y, { columns: 48, rows: 40 })!;
+
+  it("holds unit mass and Scott bandwidths", () => {
+    let total = 0;
+    for (const value of grid.values) total += value;
+    close(total, 1, 1e-12, 1e-12);
+    const deviation = (values: number[]) => {
+      const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+      return Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1));
+    };
+    close(grid.bandwidthX, Math.pow(1200, -1 / 6) * deviation(x), 1e-12);
+    close(grid.bandwidthY, Math.pow(1200, -1 / 6) * deviation(y), 1e-12);
+  });
+
+  it("matches the exact product-kernel density (correlation >= 0.99)", () => {
+    const exact: number[] = [];
+    const cellX = (grid.maximumX - grid.minimumX) / grid.columns;
+    const cellY = (grid.maximumY - grid.minimumY) / grid.rows;
+    for (let j = 0; j < grid.rows; j += 1) {
+      for (let i = 0; i < grid.columns; i += 1) {
+        const cx = grid.minimumX + (i + 0.5) * cellX;
+        const cy = grid.minimumY + (j + 0.5) * cellY;
+        let sum = 0;
+        for (let index = 0; index < x.length; index += 1) {
+          sum += Math.exp(-0.5 * (((x[index] as number) - cx) / grid.bandwidthX) ** 2 - 0.5 * (((y[index] as number) - cy) / grid.bandwidthY) ** 2);
+        }
+        exact.push(sum);
+      }
+    }
+    const binned = Array.from(grid.values);
+    const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+    const ma = mean(exact);
+    const mb = mean(binned);
+    let covariance = 0;
+    let va = 0;
+    let vb = 0;
+    for (let index = 0; index < exact.length; index += 1) {
+      covariance += ((exact[index] as number) - ma) * ((binned[index] as number) - mb);
+      va += ((exact[index] as number) - ma) ** 2;
+      vb += ((binned[index] as number) - mb) ** 2;
+    }
+    expect(covariance / Math.sqrt(va * vb)).toBeGreaterThanOrEqual(0.99);
+  });
+
+  it("nests its highest-density regions and places the data inside them", () => {
+    const [fifty, eighty, ninetyFive] = grid.levels;
+    expect(fifty!.threshold).toBeGreaterThan(eighty!.threshold);
+    expect(eighty!.threshold).toBeGreaterThan(ninetyFive!.threshold);
+    // Hyndman's density quantiles: each contour holds its share of the actual bars.
+    const inside = (level: number) => x.filter((value, index) => densityAt(grid, value, y[index] as number) >= level).length / x.length;
+    close(inside(fifty!.threshold), 0.5, 0.01);
+    close(inside(eighty!.threshold), 0.8, 0.01);
+    close(inside(ninetyFive!.threshold), 0.95, 0.01);
+    close(densityRegionAt(grid, x[0] as number, y[0] as number), 1 - (x.filter((value, index) => densityAt(grid, value, y[index] as number) < densityAt(grid, x[0] as number, y[0] as number)).length / x.length), 0.02, 0.02);
+    expect(densityRegionAt(grid, 0, 0)).toBeLessThan(densityRegionAt(grid, 6, -4));
+    expect(densityRegionAt(grid, 1e9, 1e9)).toBe(1);
+  });
+
+  it("declines a constant axis", () => {
+    expect(densityGrid([1, 1, 1, 1], [1, 2, 3, 4])).toBeNull();
+  });
+});
+
+describe("marginalHistogram matches numpy's bin count", () => {
+  for (const testCase of context.histograms) {
+    it(`${testCase.name} (numpy bins="${testCase.rule}")`, () => {
+      const histogram = marginalHistogram(testCase.values)!;
+      expect(histogram.counts.length).toBe(Math.min(MAXIMUM_MARGINAL_BINS, Math.max(MINIMUM_MARGINAL_BINS, testCase.binCount)));
+      expect(Array.from(histogram.counts).reduce((sum, value) => sum + value, 0)).toBe(testCase.values.length);
+      expect(histogram.rule).toBe(testCase.rule === "fd" ? "freedman_diaconis" : "sturges");
+    });
+  }
+
+  it("falls back to Sturges when the middle half is one value", () => {
+    const flag = Array.from({ length: 500 }, (_, index) => (index % 25 === 0 ? 1 : 0));
+    const histogram = marginalHistogram(flag)!;
+    expect(histogram.rule).toBe("sturges");
+    expect(histogram.counts[0]).toBe(480);
+    expect(histogram.counts[histogram.counts.length - 1]).toBe(20);
+  });
+});
+
+describe("k-means parity with scikit-learn (lloyd, tol=0)", () => {
+  for (const testCase of context.kMeans) {
+    it(testCase.name, () => {
+      const result = kMeans(testCase.x, testCase.y, testCase.initialX, testCase.initialY);
+      expect(Array.from(result.labels)).toEqual(testCase.labels);
+      close(result.inertia, testCase.inertia, 1e-9);
+      closeArray(result.centersX, testCase.centersX, 1e-9, 1e-12);
+      closeArray(result.centersY, testCase.centersY, 1e-9, 1e-12);
+      close(silhouetteScore(testCase.x, testCase.y, testCase.labels), testCase.silhouette, 1e-9);
+    });
+  }
+
+  it("finds the three planted groups and calls the structure strong or reasonable", () => {
+    const blobs = context.kMeans.find((testCase) => testCase.name === "three_blobs")!;
+    const summary = clusterPoints(blobs.x, blobs.y, { silhouetteSample: 280 })!;
+    expect(summary.k).toBe(3);
+    expect(["strong", "reasonable"]).toContain(summary.structure);
+    expect(summary.sizes.reduce((sum, value) => sum + value, 0)).toBe(blobs.x.length);
+  });
+
+  it("calls a single Gaussian cloud unstructured or weak", () => {
+    const cloud = context.kMeans.find((testCase) => testCase.name === "diffuse_cloud")!;
+    const summary = clusterPoints(cloud.x, cloud.y)!;
+    expect(["none", "weak"]).toContain(summary.structure);
+  });
+
+  it("is deterministic for the same data", () => {
+    const blobs = context.kMeans[0]!;
+    const first = clusterPoints(blobs.x, blobs.y)!;
+    const second = clusterPoints(blobs.x, blobs.y)!;
+    expect(Array.from(first.labels)).toEqual(Array.from(second.labels));
+  });
+});
+
+describe("local spread of the straight line's misses", () => {
+  it("rises with X when the noise does, and equals the overall spread on constant noise", () => {
+    const n = 2000;
+    const x = Array.from({ length: n }, (_, index) => (index / n) * 10);
+    const unit = x.map((_, index) => (index % 2 === 0 ? 1 : -1));
+    const growing = x.map((value, index) => (unit[index] as number) * (0.2 + value));
+    const trend = localLinearTrend(x, growing, { span: 0.2, residuals: growing })!;
+    const first = trend.residualSpread[5] as number;
+    const last = trend.residualSpread[trend.x.length - 6] as number;
+    expect(last).toBeGreaterThan(4 * first);
+    const flat = localLinearTrend(x, unit, { span: 0.2, residuals: unit })!;
+    for (const spread of flat.residualSpread) close(spread, 1, 1e-9);
+    close(flat.overallResidualSpread, 1, 1e-12);
+  });
+});
+
+describe("clusterPoints on a large window", () => {
+  it("fits centres on a subsample and assigns every bar, matching a full fit's grouping", () => {
+    const x: number[] = [];
+    const y: number[] = [];
+    for (let index = 0; index < 9000; index += 1) {
+      const u = Math.sin(index * 78.233) * 43758.5453;
+      const v = Math.sin(index * 12.9898) * 24634.6345;
+      const group = index % 3;
+      x.push([0, 5, 1][group]! + ((u - Math.floor(u)) - 0.5));
+      y.push([0, 1, 5][group]! + ((v - Math.floor(v)) - 0.5));
+    }
+    const summary = clusterPoints(x, y)!;
+    expect(summary.labels.length).toBe(9000);
+    expect(summary.k).toBe(3);
+    expect(summary.sizes.reduce((sum, size) => sum + size, 0)).toBe(9000);
+    // Every bar sits with the others planted beside it.
+    for (let index = 3; index < 9000; index += 1) expect(summary.labels[index]).toBe(summary.labels[index % 3]);
   });
 });

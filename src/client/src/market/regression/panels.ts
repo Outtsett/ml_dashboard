@@ -2,19 +2,37 @@
  * One regression per X variable — the model behind every panel.
  *
  * Pure: bars and aligned columns in, fitted panels out. It runs in a Web
- * Worker (panels.worker.ts): 49 fits over 20,000 bars measured 852 ms of
- * synchronous work, which on the main thread froze every control for that
- * long on each symbol, timeframe or setting change.
+ * Worker (panels.worker.ts): on the main thread it froze every control for
+ * the whole computation on each symbol, timeframe or setting change. Measured
+ * 2026-09-23 in Node 22 for 49 panels with every context layer:
+ * 247 ms at 5,000 bars and 1,285 ms at 20,000; colouring by group adds k-means
+ * (529 ms and 1,895 ms). The page keeps the previous panels on screen, marked
+ * updating, until the answer arrives.
+ *
+ * Beside each straight-line fit it builds the context the scatter draws: the
+ * density of the cloud and its 50/80/95% contours, the histogram along each
+ * axis, the local trend (LOESS) with its band, local slope and local spread
+ * of misses, and — when points are coloured by group — k-means groups.
  */
 
 import {
   benjaminiHochberg,
   buildPairs,
+  clusterPoints,
+  densityGrid,
   fitSimpleRegression,
+  localLinearTrend,
+  marginalHistogram,
+  midranks,
   quantileBuckets,
   refitWithout,
+  type ClusterSummary,
   type CookCutoffRule,
+  type DensityGrid,
+  type LocalTrend,
+  type MarginalHistogram,
   type QuantileBuckets,
+  type RegressionFit,
   type RegressionPairs,
   type RegressionResult,
   type ResponseMode,
@@ -51,7 +69,77 @@ export interface PanelSettings {
   confidenceLevel: number;
   cookCutoff: CookCutoffRule;
   refitWithoutFlagged: boolean;
+  /** Run k-means on every panel — only when the points are coloured by group. */
+  computeClusters?: boolean;
 }
+
+/** What the scatter draws around the straight line. */
+export interface PanelContext {
+  /** 2-D kernel density and its 50/80/95% highest-density contours; null under DENSITY_MINIMUM_BARS. */
+  density: DensityGrid | null;
+  /** LOESS local trend with band, local slope and local spread of the line's misses; null with too few distinct X. */
+  trend: LocalTrend | null;
+  marginalX: MarginalHistogram | null;
+  marginalY: MarginalHistogram | null;
+  clusters: ClusterSummary | null;
+  /**
+   * The panel's Newey-West ÷ ordinary slope error, floored at 1. The local
+   * trend's band and slope errors are multiplied by it: LOESS errors assume
+   * independent bars, and neighbouring bars are not independent.
+   */
+  autocorrelationInflation: number;
+}
+
+export const DENSITY_MINIMUM_BARS = 30;
+/** A local trend needs enough distinct X values to have a neighbourhood at all. */
+export const TREND_MINIMUM_DISTINCT_X = 8;
+/** Bars at which the smoother's self-weight is sampled to estimate its effective parameters. */
+const TREND_PARAMETER_SAMPLES = 32;
+/** Points the local trend is evaluated at — 48 across a thumbnail is under 10 px apart. */
+export const TREND_EVALUATION_POINTS = 48;
+
+function hasDistinctValues(values: ArrayLike<number>, wanted: number): boolean {
+  const seen = new Set<number>();
+  for (let index = 0; index < values.length && seen.size < wanted; index += 1) seen.add(values[index] as number);
+  return seen.size >= wanted;
+}
+
+/** Widen a local trend's band and slope errors by `factor` around the same curve. */
+export function inflateTrend(trend: LocalTrend, factor: number): LocalTrend {
+  if (!(factor > 1)) return trend;
+  return {
+    ...trend,
+    lower: trend.fitted.map((fitted, index) => fitted - factor * (fitted - (trend.lower[index] as number))),
+    upper: trend.fitted.map((fitted, index) => fitted + factor * ((trend.upper[index] as number) - fitted)),
+    slopeStandardError: trend.slopeStandardError.map((error) => error * factor),
+  };
+}
+
+export function panelContext(pairs: RegressionPairs, fit: RegressionFit, computeClusters: boolean): PanelContext {
+  const n = pairs.x.length;
+  const ratio = fit.slopeStandardErrorNeweyWest / fit.slopeStandardError;
+  const autocorrelationInflation = Number.isFinite(ratio) ? Math.max(1, ratio) : 1;
+  const trend = hasDistinctValues(pairs.x, TREND_MINIMUM_DISTINCT_X)
+    ? localLinearTrend(pairs.x, pairs.y, {
+        residuals: fit.residuals,
+        confidenceLevel: fit.confidenceLevel,
+        parameterSamples: TREND_PARAMETER_SAMPLES,
+        evaluationPoints: TREND_EVALUATION_POINTS,
+      })
+    : null;
+  return {
+    density: n >= DENSITY_MINIMUM_BARS ? densityGrid(pairs.x, pairs.y) : null,
+    trend: trend ? inflateTrend(trend, autocorrelationInflation) : null,
+    marginalX: marginalHistogram(pairs.x),
+    marginalY: marginalHistogram(pairs.y),
+    clusters: computeClusters ? clusterPoints(pairs.x, pairs.y) : null,
+    autocorrelationInflation,
+  };
+}
+
+const EMPTY_CONTEXT: PanelContext = {
+  density: null, trend: null, marginalX: null, marginalY: null, clusters: null, autocorrelationInflation: 1,
+};
 
 export interface PanelModel {
   variable: PanelVariableSummary;
@@ -62,6 +150,7 @@ export interface PanelModel {
   buckets: QuantileBuckets | null;
   /** Benjamini-Hochberg q-value of the Newey-West slope p-value, across the panels shown. */
   qValue: number | null;
+  context: PanelContext;
 }
 
 export interface BarClock {
@@ -94,8 +183,9 @@ export function computePanels(
       refit = refitWithout(pairs.x, pairs.y, flagged, options);
     }
     const buckets = result.ok ? quantileBuckets(pairs.x, pairs.y, 5, settings.confidenceLevel) : null;
+    const context = result.ok ? panelContext(pairs, result.fit, settings.computeClusters ?? false) : EMPTY_CONTEXT;
     const { values, ...summary } = variable;
-    return { variable: { ...summary, barCount: values.length }, pairs, result, refit, buckets, qValue: null };
+    return { variable: { ...summary, barCount: values.length }, pairs, result, refit, buckets, qValue: null, context };
   });
 
   const tested = panels.filter((panel) => panel.result.ok);
@@ -235,6 +325,64 @@ export function panelBuffers(panels: ReadonlyArray<PanelModel>): ArrayBuffer[] {
         fit.cookDistance, fit.verticalOutlier, fit.influential,
       ]) add(array);
     }
+    const { density, marginalX, marginalY, clusters } = panel.context;
+    if (density) {
+      add(density.values);
+      add(density.pointPercentiles);
+    }
+    if (marginalX) add(marginalX.counts);
+    if (marginalY) add(marginalY.counts);
+    if (clusters) add(clusters.labels);
   }
   return [...buffers];
+}
+
+// ─── Per-bar encodings ───────────────────────────────────────────────────────
+
+/**
+ * Values every panel can colour or size its points by. They belong to the
+ * BAR, not to a panel, so one legend holds for the whole page: a bar's
+ * volatility is the same in every scatter it appears in.
+ */
+export interface BarEncodings {
+  /** 20-bar realized volatility of one-bar log returns, basis points; NaN during warm-up. */
+  volatility: Float64Array;
+  volume: Float64Array;
+  /** Percentile rank among the loaded bars, 0 (lowest) to 1 (highest); NaN where the value is missing. */
+  volatilityRank: Float64Array;
+  volumeRank: Float64Array;
+}
+
+const VOLATILITY_VARIABLE_ID = "bar:realized_volatility_20_bars_basis_points";
+
+function percentileRanks(values: Float64Array): Float64Array {
+  const finite: number[] = [];
+  const positions: number[] = [];
+  values.forEach((value, index) => {
+    if (Number.isFinite(value)) {
+      finite.push(value);
+      positions.push(index);
+    }
+  });
+  const ranks = new Float64Array(values.length).fill(Number.NaN);
+  if (finite.length === 0) return ranks;
+  const midrank = midranks(finite);
+  const denominator = Math.max(1, finite.length - 1);
+  positions.forEach((position, index) => {
+    ranks[position] = ((midrank[index] as number) - 1) / denominator;
+  });
+  return ranks;
+}
+
+export function barEncodings(bars: ReadonlyArray<OhlcvData>): BarEncodings {
+  const volatilityVariable = BAR_VARIABLES.find((variable) => variable.id === VOLATILITY_VARIABLE_ID);
+  const volatility = Float64Array.from(volatilityVariable ? volatilityVariable.compute(bars) : [], (value) => value ?? Number.NaN);
+  const volume = Float64Array.from(bars, (bar) => (Number.isFinite(bar.volume) ? bar.volume : Number.NaN));
+  return { volatility, volume, volatilityRank: percentileRanks(volatility), volumeRank: percentileRanks(volume) };
+}
+
+export function encodingBuffers(encodings: BarEncodings): ArrayBuffer[] {
+  return [encodings.volatility, encodings.volume, encodings.volatilityRank, encodings.volumeRank]
+    .map((array) => array.buffer)
+    .filter((buffer): buffer is ArrayBuffer => buffer instanceof ArrayBuffer);
 }

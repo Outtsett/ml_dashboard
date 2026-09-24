@@ -1,7 +1,8 @@
 /**
  * One variable, opened up: the full scatter with every point hoverable, the
  * formula with its symbols defined, the statistics with what each one means,
- * the residuals through time and in distribution, the mean of Y across the
+ * the local trend's slope and spread across X, the groups in the cloud, the
+ * residuals through time and in distribution, the mean of Y across the
  * fifths of X, and the individual bars the fit calls outliers.
  */
 
@@ -15,6 +16,8 @@ import { predictorAxisLabel, responseAxisLabel } from "./panels";
 import { ScatterPlot, useMeasuredWidth } from "./ScatterPlot";
 import { Formula } from "./Formula";
 import { BucketMeans, EightNumberTable, ResidualHistogram, ResidualTimeline } from "./Diagnostics";
+import { GroupTable, LocalTrendCharts } from "./LocalDiagnostics";
+import { COLOR_BY_OPTIONS, type PointEncodingInput, type ScatterLayers } from "./encoding";
 import { DETAIL_POINT_BUDGET, REGRESSION_COLORS, formatProbability, formatTimestamp, formatValue, type StampClock } from "./scales";
 
 interface DetailViewProps {
@@ -25,6 +28,8 @@ interface DetailViewProps {
   settings: PanelSettings;
   showConfidence: boolean;
   showPrediction: boolean;
+  layers: ScatterLayers;
+  encoding: PointEncodingInput;
   onBack: () => void;
 }
 
@@ -38,8 +43,8 @@ function Section({ title, note, children }: { title: string; note?: string; chil
   );
 }
 
-export function DetailView({ panel, bars, clock, settings, showConfidence, showPrediction, onBack }: DetailViewProps) {
-  const { variable, pairs, result, refit, buckets, qValue } = panel;
+export function DetailView({ panel, bars, clock, settings, showConfidence, showPrediction, layers, encoding, onBack }: DetailViewProps) {
+  const { variable, pairs, result, refit, buckets, qValue, context } = panel;
   const [measureRef, width] = useMeasuredWidth<HTMLDivElement>();
   const rootRef = useRef<HTMLDivElement | null>(null);
   // Opened from a scrolled grid, the view would otherwise start mid-page.
@@ -155,7 +160,7 @@ export function DetailView({ panel, bars, clock, settings, showConfidence, showP
         </div>
       )}
 
-      <Section title="Scatter" note={`${yLabel} against ${xLabel}. Hover a point to read it; click to pin it.`}>
+      <Section title="Scatter" note={`${yLabel} against ${xLabel}. Hover anywhere for the local trend, slope and crowding at that spot and the nearest bar; click a point to pin it.`}>
         <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
           <span><span style={{ color: REGRESSION_COLORS.point }}>●</span> bar</span>
           <span><span style={{ color: REGRESSION_COLORS.verticalOutlier }}>◆</span> vertical outlier ({fit.verticalOutlierCount})</span>
@@ -164,6 +169,10 @@ export function DetailView({ panel, bars, clock, settings, showConfidence, showP
           {refitFit && <span><span style={{ color: REGRESSION_COLORS.refit }}>╍</span> refit without flagged</span>}
           {showConfidence && <span><span className="inline-block h-2 w-3 align-middle" style={{ background: REGRESSION_COLORS.confidenceBand }} /> {Math.round(fit.confidenceLevel * 100)}% confidence</span>}
           {showPrediction && <span><span style={{ color: REGRESSION_COLORS.predictionBand }}>┄</span> {Math.round(fit.confidenceLevel * 100)}% prediction</span>}
+          {layers.trend && context.trend && <span><span style={{ color: REGRESSION_COLORS.trend }}>∿</span> local trend (LOESS)</span>}
+          {layers.density && context.density && <span title="Nested highest-density regions: the densest 50%, 80% and 95% of bars (95% dashed).">◎ densest 50 / 80 / 95% of bars</span>}
+          {layers.marginals && context.marginalX && <span title="Histograms of X (top) and Y (right); the orange tick is the median, the white bar the middle half.">▁▃▅ distribution of each axis</span>}
+          {encoding.colorBy !== "none" && <span>colour: {COLOR_BY_OPTIONS.find((option) => option.value === encoding.colorBy)?.label}</span>}
           <label className="ml-auto flex cursor-pointer items-center gap-1">
             <input type="checkbox" checked={clip} onChange={(event) => setClip(event.target.checked)} className="accent-[#E69F00]" />
             axes 0.5th–99.5th percentile
@@ -187,6 +196,10 @@ export function DetailView({ panel, bars, clock, settings, showConfidence, showP
               probeX={probeX}
               onHover={setHovered}
               onSelect={(index) => setSelected((current) => (current === index ? null : index))}
+              context={context}
+              layers={layers}
+              encoding={encoding}
+              tooltip={{ variable, qValue, bars, clock, encodings: encoding.encodings }}
             />
           )}
         </div>
@@ -211,6 +224,24 @@ export function DetailView({ panel, bars, clock, settings, showConfidence, showP
       </Section>
 
       <Formula fit={fit} xLabel={xLabel} yLabel={yLabel} probeX={probeX} onProbeXChange={setProbeX} />
+
+      {context.trend && (
+        <Section
+          title="Local trend across X"
+          note="The straight line assumes one slope and one spread everywhere. Left: the slope of the local line at each X — where it leaves the panel slope the relationship bends, where it crosses zero it reverses. Right: how far bars typically miss the straight line at each X — where it rises above the whole-panel line the bands are too narrow (heteroskedasticity)."
+        >
+          <LocalTrendCharts trend={context.trend} fit={fit} inflation={context.autocorrelationInflation} xLabel={xLabel} />
+        </Section>
+      )}
+
+      {encoding.colorBy === "cluster" && context.clusters && (
+        <Section
+          title="Groups in the cloud"
+          note="k-means on X and Y, each standardized, for k = 2 to 5; the k with the highest silhouette is kept. The numbered circles on the scatter are the group centres. Silhouette below 0.25 means the cloud does not really split."
+        >
+          <GroupTable clusters={context.clusters} xLabel={xLabel} yLabel={yLabel} />
+        </Section>
+      )}
 
       <Section title="Statistics">
         <table className="w-full text-[11px]">

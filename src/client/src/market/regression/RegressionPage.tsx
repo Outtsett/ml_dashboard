@@ -7,7 +7,12 @@
  * holds rows for this symbol at this timeframe. Each panel carries its fitted
  * line, confidence and prediction bands, flagged outliers and the statistics
  * that say whether the line means anything (Newey-West p, a false-discovery
- * q-value across panels, Durbin-Watson's spurious-regression warning).
+ * q-value across panels, Durbin-Watson's spurious-regression warning) — and
+ * the context the line alone hides: where the bars crowd (density regions),
+ * how each axis is distributed (edge histograms), the relationship's real
+ * shape (local trend), and time, volatility, volume, residual or group as the
+ * points' colour and size. Hovering any panel explains the spot under the
+ * pointer.
  */
 
 import { useEffect, useState } from "react";
@@ -22,6 +27,8 @@ import { responseAxisLabel, selectLakeVariables, sortPanels, type PanelSettings,
 import { useRegressionPanels } from "./usePanels";
 import { ScatterPanel } from "./ScatterPanel";
 import { DetailView } from "./DetailView";
+import { EncodingLegend } from "./EncodingLegend";
+import { COLOR_BY_OPTIONS, SIZE_BY_OPTIONS, type ColorBy, type SizeBy } from "./encoding";
 import { formatTimestamp, stampClockFor } from "./scales";
 
 const BAR_COUNTS = [1000, 2500, 5000, 10000, 20000] as const;
@@ -40,6 +47,11 @@ interface StoredSettings {
   includeForwardLooking: boolean;
   includePriceLevel: boolean;
   sort: PanelSort;
+  showDensity: boolean;
+  showMarginals: boolean;
+  showTrend: boolean;
+  colorBy: ColorBy;
+  sizeBy: SizeBy;
 }
 
 const DEFAULTS: StoredSettings = {
@@ -54,6 +66,11 @@ const DEFAULTS: StoredSettings = {
   includeForwardLooking: false,
   includePriceLevel: false,
   sort: "catalog",
+  showDensity: true,
+  showMarginals: true,
+  showTrend: true,
+  colorBy: "time",
+  sizeBy: "none",
 };
 
 function loadSettings(): StoredSettings {
@@ -155,8 +172,9 @@ export default function RegressionPage() {
     refitWithoutFlagged: settings.refitWithoutFlagged,
     includeForwardLooking: settings.includeForwardLooking,
     includePriceLevel: settings.includePriceLevel,
+    computeClusters: settings.colorBy === "cluster",
   };
-  const { panels, bars: fittedBars, computing, error: fitError, milliseconds: fitMilliseconds } = useRegressionPanels({
+  const { panels, bars: fittedBars, encodings, computing, error: fitError, milliseconds: fitMilliseconds } = useRegressionPanels({
     bars,
     lakeVariables: variablesQuery.data?.variables,
     columns: columnsQuery.data,
@@ -164,6 +182,9 @@ export default function RegressionPage() {
     barMilliseconds: timeframeMinutes * 60_000,
   });
   const panelSettings: PanelSettings = fitSettings;
+  const layers = { density: settings.showDensity, marginals: settings.showMarginals, trend: settings.showTrend };
+  const encoding = { colorBy: settings.colorBy, sizeBy: settings.sizeBy, encodings };
+  const yLabel = responseAxisLabel(settings);
 
   const needle = filter.trim().toLowerCase();
   const visible = sortPanels(panels, settings.sort).filter(
@@ -237,6 +258,38 @@ export default function RegressionPage() {
             </label>
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">Context</span>
+            <Check checked={settings.showDensity} onChange={(value) => update("showDensity", value)} label="density regions" title="Shading and outlines around the densest 50%, 80% and 95% of bars (kernel density, Hyndman highest-density regions)." />
+            <Check checked={settings.showMarginals} onChange={(value) => update("showMarginals", value)} label="edge histograms" title="Distribution of X along the top and of Y along the right, Freedman-Diaconis bins, median ticked in orange." />
+            <Check checked={settings.showTrend} onChange={(value) => update("showTrend", value)} label="local trend" title="LOESS: a line fitted around every X from its nearest 30% of bars — the shape the relationship really has." />
+            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground" title={COLOR_BY_OPTIONS.find((option) => option.value === settings.colorBy)?.title}>
+              Colour by
+              <select
+                value={settings.colorBy}
+                onChange={(event) => update("colorBy", event.target.value as ColorBy)}
+                className="rounded border border-white/10 bg-neutral-900 px-1 py-0.5 text-[11px] text-foreground"
+                aria-label="Colour points by"
+              >
+                {COLOR_BY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground" title={SIZE_BY_OPTIONS.find((option) => option.value === settings.sizeBy)?.title}>
+              Size by
+              <select
+                value={settings.sizeBy}
+                onChange={(event) => update("sizeBy", event.target.value as SizeBy)}
+                className="rounded border border-white/10 bg-neutral-900 px-1 py-0.5 text-[11px] text-foreground"
+                aria-label="Size points by"
+              >
+                {SIZE_BY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <Check checked={settings.includeForwardLooking} onChange={(value) => update("includeForwardLooking", value)} label="forward-looking label columns" title="Lake columns computed from future bars. Shown with a leakage badge." />
             <Check checked={settings.includePriceLevel} onChange={(value) => update("includePriceLevel", value)} label="price-level columns" title="Lake columns whose values are prices. Against the close they are near-identities." />
             <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -283,6 +336,8 @@ export default function RegressionPage() {
           )}
         </div>
 
+        <EncodingLegend colorBy={settings.colorBy} sizeBy={settings.sizeBy} encodings={encodings} bars={fittedBars} clock={clock} />
+
         {barsQuery.isError && (
           <p className="rounded border border-[#D55E00]/30 bg-[#D55E00]/10 p-2 text-[11px] text-foreground">
             Bars for {symbol} could not be loaded: {(barsQuery.error as Error).message}
@@ -314,6 +369,8 @@ export default function RegressionPage() {
             settings={panelSettings}
             showConfidence={settings.showConfidence}
             showPrediction={settings.showPrediction}
+            layers={layers}
+            encoding={encoding}
             onBack={() => setOpenId(null)}
           />
         ) : (
@@ -324,6 +381,11 @@ export default function RegressionPage() {
                 panel={panel}
                 showConfidence={settings.showConfidence}
                 showPrediction={settings.showPrediction}
+                layers={layers}
+                encoding={encoding}
+                bars={fittedBars}
+                clock={clock}
+                yLabel={yLabel}
                 onOpen={setOpenId}
               />
             ))}

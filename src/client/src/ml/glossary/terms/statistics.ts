@@ -631,4 +631,59 @@ export const TERMS: Term[] = [
     why: "Those odds are the ones a constant-sigma model assumes. Measured on EURUSD, 4σ arrives roughly 100× more often and 6σ about a million times more often.",
     see: ["standard-deviation", "fat-tail", "chebyshev", "kurtosis"],
   },
+
+  // ── Reading a scatter beyond its straight line ─────────────────────────
+  {
+    id: "loess",
+    term: "LOESS (local trend)",
+    expansion: "LOcally Estimated Scatterplot Smoothing",
+    domain: "statistics",
+    aliases: ["lowess", "local regression", "local linear trend", "smoother"],
+    definition:
+      "A straight line fitted afresh around every X, using only the nearest bars and weighting the closest most. Joined up, the local lines trace **the shape the relationship actually has** — bending, flattening or reversing where one straight line would average it away.",
+    why: "The span (the share of bars each local fit uses) sets the trade: small follows noise, large turns back into the straight line. The Price Regression tab uses 30%, and reads the local slope at the cursor from it.",
+    see: ["r-squared", "heteroskedasticity", "confidence-interval"],
+  },
+  {
+    id: "kernel-density-estimate",
+    term: "kernel density estimate",
+    expansion: "KDE",
+    domain: "statistics",
+    aliases: ["kde", "density shading", "2d density", "bandwidth", "scott's rule"],
+    definition:
+      "A smooth map of where observations crowd together: every bar is replaced by a small bump and the bumps are summed. **The bump width (bandwidth) sets how much detail survives** — Scott's rule, n^(−1/6) × the axis's standard deviation in two dimensions, is the default.",
+    why: "A scatter of 20,000 dots saturates: a dense core and a sparse halo look equally solid. The density shows where the bulk of bars actually sit.",
+    see: ["highest-density-region", "marginal-distribution"],
+  },
+  {
+    id: "highest-density-region",
+    term: "highest density region",
+    expansion: "HDR",
+    domain: "statistics",
+    aliases: ["hdr", "density contour", "50% contour", "95% contour"],
+    definition:
+      "The smallest area holding a given share of the observations — the 50% region is where the densest half of bars sit. Drawn as nested contours of a kernel density estimate, with each level set so the contour **encloses exactly that share of the actual bars** (Hyndman 1996).",
+    why: "Unlike a mean ± 2σ box it follows the cloud's real shape: two separate clumps get two separate contours.",
+    see: ["kernel-density-estimate", "clustering"],
+  },
+  {
+    id: "marginal-distribution",
+    term: "marginal distribution",
+    domain: "statistics",
+    aliases: ["marginal histogram", "marginals", "freedman-diaconis", "fd bins"],
+    definition:
+      "The distribution of one variable on its own, ignoring the other — the histograms along a scatter's edges. Bins here follow the **Freedman-Diaconis rule**, width = 2 × interquartile range × n^(−1/3), which stays sensible when the tails are fat.",
+    why: "A cloud that looks like a relationship is sometimes two skewed marginals: most bars bunched at one end of X, a thin tail at the other.",
+    see: ["kernel-density-estimate", "skewness", "percentile"],
+  },
+  {
+    id: "heteroskedasticity",
+    term: "heteroskedasticity",
+    domain: "statistics",
+    aliases: ["heteroscedasticity", "changing spread", "non-constant variance", "fan shape"],
+    definition:
+      "When the scatter around a fitted line is **wider in one part of X than another** — the fan shape. A straight line's confidence and prediction bands assume one spread everywhere, so under heteroskedasticity they are too wide in the quiet region and too narrow in the busy one.",
+    why: "Price data is heteroskedastic almost by construction: moves are larger when volatility is high. The Price Regression tooltip reports the local spread of misses beside the whole-panel figure so the ratio shows it directly.",
+    see: ["loess", "standard-error", "garch"],
+  },
 ];

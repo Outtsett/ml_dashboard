@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { OhlcvData } from "@/market/components/types";
 import type { RegressionVariable } from "@shared/regression/types";
-import type { AlignedColumns, PanelModel, PanelSettings, VariableFilter } from "./panels";
+import type { AlignedColumns, BarEncodings, PanelModel, PanelSettings, VariableFilter } from "./panels";
 import type { PanelsRequest, PanelsResponse } from "./panels.worker";
 import PanelsWorker from "./panels.worker?worker";
 
@@ -31,6 +31,8 @@ export interface PanelsState {
    * in flight can never pair an old fit with new timestamps.
    */
   bars: OhlcvData[] | null;
+  /** Volatility and volume per bar of `bars`, for colouring and sizing points. */
+  encodings: BarEncodings | null;
   computing: boolean;
   error: string | null;
   /** Time the worker spent on the last answer. */
@@ -41,7 +43,7 @@ export function useRegressionPanels({ bars, lakeVariables, columns, settings, ba
   const workerRef = useRef<Worker | null>(null);
   const latestRef = useRef(0);
   const requestedBarsRef = useRef<OhlcvData[] | null>(null);
-  const [state, setState] = useState<PanelsState>({ panels: [], bars: null, computing: false, error: null, milliseconds: null });
+  const [state, setState] = useState<PanelsState>({ panels: [], bars: null, encodings: null, computing: false, error: null, milliseconds: null });
 
   useEffect(() => {
     const worker = new PanelsWorker();
@@ -54,6 +56,7 @@ export function useRegressionPanels({ bars, lakeVariables, columns, settings, ba
         setState({
           panels: response.panels,
           bars: requestedBarsRef.current,
+          encodings: response.encodings,
           computing: false,
           error: null,
           milliseconds: response.milliseconds,
@@ -80,7 +83,7 @@ export function useRegressionPanels({ bars, lakeVariables, columns, settings, ba
     if (!bars || bars.length === 0) {
       latestRef.current += 1;
       requestedBarsRef.current = null;
-      setState({ panels: [], bars: null, computing: false, error: null, milliseconds: null });
+      setState({ panels: [], bars: null, encodings: null, computing: false, error: null, milliseconds: null });
       return;
     }
     latestRef.current += 1;

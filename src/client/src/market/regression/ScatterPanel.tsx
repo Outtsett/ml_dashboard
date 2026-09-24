@@ -1,13 +1,18 @@
 /**
- * A grid card: one X variable against price, with the numbers that matter.
+ * A grid card: one X variable against price, with the numbers that matter,
+ * and badges for the structure the straight line alone would hide — a trend
+ * that reverses across X, a spread that fans out, groups in the cloud.
  */
 
 import type { KeyboardEvent } from "react";
 import { AlertTriangle, Clock } from "lucide-react";
+import type { LocalTrend } from "@shared/regression/index";
 import { SERIES_FAMILY_LABELS } from "@shared/series/types";
+import type { OhlcvData } from "@/market/components/types";
 import type { PanelModel } from "./panels";
+import type { PointEncodingInput, ScatterLayers } from "./encoding";
 import { ScatterPlot, useMeasuredWidth } from "./ScatterPlot";
-import { REGRESSION_COLORS, THUMBNAIL_POINT_BUDGET, formatProbability, formatValue } from "./scales";
+import { REGRESSION_COLORS, THUMBNAIL_POINT_BUDGET, formatProbability, formatValue, type StampClock } from "./scales";
 
 export const PANEL_PLOT_HEIGHT = 150;
 
@@ -15,7 +20,54 @@ interface ScatterPanelProps {
   panel: PanelModel;
   showConfidence: boolean;
   showPrediction: boolean;
+  layers: ScatterLayers;
+  encoding: PointEncodingInput;
+  /** The bars the panels were fitted on, for the tooltip's timestamps. */
+  bars: ReadonlyArray<OhlcvData> | null;
+  clock: StampClock;
+  yLabel: string;
   onOpen: (id: string) => void;
+}
+
+/**
+ * Local slopes this many standard errors from zero count as a real direction.
+ * The local trend is read at dozens of overlapping windows, so "rises
+ * somewhere and falls somewhere" is a many-comparisons test: on independent
+ * noise it fired on 17% of panels at 2 standard errors, and on 3.8% at 2.5
+ * (n = 2,000, 400 runs; 1.7% at n = 20,000). tests/client/regression-panels
+ * holds it under 6%.
+ */
+export const DIRECTION_STANDARD_ERRORS = 2.5;
+/** Local spread of misses this many times larger in one place than another reads as fan-shaped. */
+const FAN_RATIO = 2.5;
+/** Grid points at each end of the local trend left out: its window is lopsided there. */
+const TREND_EDGE_POINTS = 3;
+
+export interface TrendShape {
+  /** The local slope is significantly positive somewhere and significantly negative somewhere else. */
+  reverses: boolean;
+  /** Largest over smallest local spread of the straight line's misses. */
+  spreadRatio: number;
+}
+
+export function trendShape(trend: LocalTrend | null): TrendShape | null {
+  if (!trend) return null;
+  let rising = false;
+  let falling = false;
+  let smallest = Number.POSITIVE_INFINITY;
+  let largest = 0;
+  for (let index = TREND_EDGE_POINTS; index < trend.x.length - TREND_EDGE_POINTS; index += 1) {
+    const slope = trend.slope[index] as number;
+    const error = trend.slopeStandardError[index] as number;
+    if (slope > DIRECTION_STANDARD_ERRORS * error) rising = true;
+    if (slope < -DIRECTION_STANDARD_ERRORS * error) falling = true;
+    const spread = trend.residualSpread[index];
+    if (spread !== undefined && Number.isFinite(spread)) {
+      smallest = Math.min(smallest, spread);
+      largest = Math.max(largest, spread);
+    }
+  }
+  return { reverses: rising && falling, spreadRatio: smallest > 0 ? largest / smallest : Number.NaN };
 }
 
 function Stat({ label, value, title, emphasis = false }: { label: string; value: string; title: string; emphasis?: boolean }) {
@@ -27,9 +79,11 @@ function Stat({ label, value, title, emphasis = false }: { label: string; value:
   );
 }
 
-export function ScatterPanel({ panel, showConfidence, showPrediction, onOpen }: ScatterPanelProps) {
+export function ScatterPanel({ panel, showConfidence, showPrediction, layers, encoding, bars, clock, yLabel, onOpen }: ScatterPanelProps) {
   const [measureRef, width] = useMeasuredWidth<HTMLDivElement>();
-  const { variable, result, refit, qValue } = panel;
+  const { variable, result, refit, qValue, context } = panel;
+  const shape = trendShape(context.trend);
+  const clusters = encoding.colorBy === "cluster" ? context.clusters : null;
   const open = () => onOpen(variable.id);
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -70,6 +124,30 @@ export function ScatterPanel({ panel, showConfidence, showPrediction, onOpen }: 
               <Clock className="h-2.5 w-2.5" /> leakage
             </span>
           )}
+          {shape?.reverses && (
+            <span
+              className="inline-flex items-center rounded bg-[#E69F00]/12 px-1 py-px text-[9px] font-medium text-[#E69F00]"
+              title={`The local trend rises (slope more than ${DIRECTION_STANDARD_ERRORS} standard errors above 0) in one part of X and falls in another: one straight line averages two opposite relationships.`}
+            >
+              ⤻ reverses
+            </span>
+          )}
+          {shape && shape.spreadRatio > FAN_RATIO && (
+            <span
+              className="inline-flex items-center rounded bg-[#CC79A7]/15 px-1 py-px text-[9px] font-medium text-[#E5A9CC]"
+              title={`Bars miss the line ${formatValue(shape.spreadRatio, 2)}× farther in one part of X than another (heteroskedasticity): the straight line's bands are too narrow there and too wide elsewhere.`}
+            >
+              ◁ fan ×{formatValue(shape.spreadRatio, 2)}
+            </span>
+          )}
+          {clusters && (clusters.structure === "reasonable" || clusters.structure === "strong") && (
+            <span
+              className="inline-flex items-center rounded bg-[#009E73]/15 px-1 py-px text-[9px] font-medium text-[#5CCBA6]"
+              title={`k-means finds ${clusters.k} groups with silhouette ${formatValue(clusters.silhouette, 2)} (${clusters.structure}). Shown from 0.5 up: k-means splits even a single skewed cloud with a silhouette of 0.3-0.45, so weaker grouping is not flagged.`}
+            >
+              ⁘ {clusters.k} groups
+            </span>
+          )}
           {result.ok && result.fit.spuriousRegressionSuspected && (
             <span className="inline-flex items-center gap-0.5 rounded bg-[#F0E442]/10 px-1 py-px text-[9px] font-medium text-[#F0E442]" title="R² is larger than the Durbin-Watson statistic: the residuals trend, so both series may simply share a trend (Granger-Newbold spurious regression). Switch to Change or Forward return.">
               <AlertTriangle className="h-2.5 w-2.5" /> spurious?
@@ -90,6 +168,12 @@ export function ScatterPanel({ panel, showConfidence, showPrediction, onOpen }: 
             showPrediction={showPrediction}
             compact
             maxBackgroundPoints={THUMBNAIL_POINT_BUDGET}
+            context={context}
+            layers={layers}
+            encoding={encoding}
+            xLabel={variable.label}
+            yLabel={yLabel}
+            tooltip={{ variable, qValue, bars, clock, encodings: encoding.encodings }}
           />
         ) : (
           <div className="flex h-full items-center justify-center px-3 text-center text-[10px] text-muted-foreground/70">

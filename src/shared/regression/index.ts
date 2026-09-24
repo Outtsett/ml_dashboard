@@ -5,3 +5,7 @@ export * from "./fit";
 export * from "./pairs";
 export * from "./buckets";
 export * from "./adjust";
+export * from "./density";
+export * from "./smooth";
+export * from "./histogram";
+export * from "./cluster";

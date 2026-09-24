@@ -10,10 +10,13 @@ import type { OhlcvData } from "@/market/components/types";
 import type { RegressionVariable } from "@shared/regression/types";
 import {
   assemblePanelVariables,
+  barEncodings,
   computePanels,
+  encodingBuffers,
   panelBuffers,
   selectLakeVariables,
   type AlignedColumns,
+  type BarEncodings,
   type PanelModel,
   type PanelSettings,
   type VariableFilter,
@@ -29,7 +32,7 @@ export interface PanelsRequest {
 }
 
 export type PanelsResponse =
-  | { requestId: number; panels: PanelModel[]; milliseconds: number }
+  | { requestId: number; panels: PanelModel[]; encodings: BarEncodings; milliseconds: number }
   | { requestId: number; error: string };
 
 self.onmessage = (event: MessageEvent<PanelsRequest>) => {
@@ -43,8 +46,9 @@ self.onmessage = (event: MessageEvent<PanelsRequest>) => {
       settings,
       { timestampsMilliseconds: bars.map((bar) => bar.timestamp), barMilliseconds },
     );
-    const response: PanelsResponse = { requestId, panels, milliseconds: performance.now() - started };
-    (self as unknown as Worker).postMessage(response, panelBuffers(panels));
+    const encodings = barEncodings(bars);
+    const response: PanelsResponse = { requestId, panels, encodings, milliseconds: performance.now() - started };
+    (self as unknown as Worker).postMessage(response, [...panelBuffers(panels), ...encodingBuffers(encodings)]);
   } catch (error) {
     const response: PanelsResponse = { requestId, error: error instanceof Error ? error.message : String(error) };
     (self as unknown as Worker).postMessage(response);
