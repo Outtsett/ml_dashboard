@@ -60,9 +60,8 @@ Hyperparameters (runners.json key → flag, `bool` = presence flag):
 | Labels | `label_horizon_bars` → `--label-horizon-bars` | int | 6 |
 | | `label_threshold_ticks` → `--label-threshold-ticks` | float | 0 |
 | | `embargo_bars` → `--embargo-bars` | int | 0 |
-| Trading | `entry_probability` → `--entry-probability` | float | 0.55 |
-| | `long_only` → `--long-only` | bool | false |
-| | `holding_bars` → `--holding-bars` | int (0 = label horizon) | 0 |
+| Trading | `long_only` → `--long-only` | bool (every prediction is traded: long at P(up) ≥ 0.5, short below — flat below when on) | false |
+| | `holding_bars` → `--holding-bars` | int (0 = label horizon; only acts when long only — with shorts the position follows every prediction) | 0 |
 | | `stop_loss_ticks` → `--stop-loss-ticks` | float (0 = off) | 0 |
 | | `take_profit_ticks` → `--take-profit-ticks` | float (0 = off) | 0 |
 | | `contracts` → `--contracts` | int | 1 |

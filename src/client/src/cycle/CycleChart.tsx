@@ -138,8 +138,6 @@ class CycleChartController {
 
   private followWasOn = false;
   private lastSpanKey = "";
-  /** Entry threshold from the plan; the P(up) axis always keeps both entry lines in view. */
-  private entryProbability = 0.55;
   private lastSpanFollowAt = 0;
   private spanFollowTimer: ReturnType<typeof setTimeout> | null = null;
   /** Set when a throttled span follow is due; the next frame applies it. */
@@ -221,14 +219,13 @@ class CycleChartController {
         lastValueVisible: true,
         title: "P(up)",
         priceFormat: { type: "price", precision: 3, minMove: 0.001 },
-        // Scale to the probabilities actually drawn plus both entry lines. A
-        // fixed 0..1 axis flattened the line into a strip around 0.5, because
-        // these models rarely move P(up) more than a few points.
+        // Scale to the probabilities actually drawn plus the 0.5 line the
+        // model trades on. A fixed 0..1 axis flattened the line into a strip
+        // around 0.5, because these models rarely move P(up) more than a few points.
         autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
           const range = original()?.priceRange;
-          const entry = this.entryProbability;
-          const low = Math.min(range?.minValue ?? 0.5, 1 - entry);
-          const high = Math.max(range?.maxValue ?? 0.5, entry);
+          const low = Math.min(range?.minValue ?? 0.5, 0.5);
+          const high = Math.max(range?.maxValue ?? 0.5, 0.5);
           const pad = Math.max(0.01, (high - low) * 0.08);
           return { priceRange: { minValue: Math.max(0, low - pad), maxValue: Math.min(1, high + pad) } };
         },
@@ -262,7 +259,7 @@ class CycleChartController {
       createTextWatermark(panes[1], {
         horzAlign: "left",
         vertAlign: "top",
-        lines: [{ text: "P(up) — the model's probability the next move is up · dashed: entry thresholds", color: titleColor, fontSize: 11 }],
+        lines: [{ text: "P(up) — the model's probability the next move is up · dotted 0.50: the line it trades on, every bar", color: titleColor, fontSize: 11 }],
       });
     }
     if (panes[2]) {
@@ -454,38 +451,18 @@ class CycleChartController {
     const priceFormat = { type: "price", precision: tickDecimals(tick), minMove: tick } as const;
     this.candles.applyOptions({ priceFormat });
     this.forecast.applyOptions({ priceFormat });
-    const entry = plan.trading.entryProbability;
-    this.entryProbability = entry;
+    // The one line the trading rule uses: at or above it the model is long,
+    // below it short (flat when long only).
     this.priceLines.push(
-      this.probability.createPriceLine({
-        price: entry,
-        color: CYCLE_COLORS.up,
-        lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
-        axisLabelVisible: true,
-        title: `enter long ≥ ${entry.toFixed(2)}`,
-      }),
       this.probability.createPriceLine({
         price: 0.5,
         color: withAlpha(CYCLE_COLORS.neutral, 0.7),
         lineWidth: 1,
         lineStyle: LineStyle.Dotted,
         axisLabelVisible: false,
-        title: "even 0.50",
+        title: plan.trading.longOnly ? "0.50 · long above, flat below" : "0.50 · long above, short below",
       }),
     );
-    if (!plan.trading.longOnly) {
-      this.priceLines.push(
-        this.probability.createPriceLine({
-          price: 1 - entry,
-          color: CYCLE_COLORS.down,
-          lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: true,
-          title: `enter short ≤ ${(1 - entry).toFixed(2)}`,
-        }),
-      );
-    }
   }
 
   private applyFocus(state: CycleState): void {

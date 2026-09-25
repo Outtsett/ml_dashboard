@@ -932,15 +932,6 @@
           "label": "Embargo (bars)",
           "group": "Labels"
         },
-        "entry_probability": {
-          "type": "float",
-          "default": 0.55,
-          "min": 0.5,
-          "max": 0.95,
-          "step": 0.01,
-          "label": "Entry probability threshold",
-          "group": "Trading"
-        },
         "long_only": {
           "type": "bool",
           "default": false,
@@ -1084,7 +1075,6 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
-        "entry_probability": "--entry-probability",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
@@ -1210,15 +1200,6 @@
           "max": 200,
           "label": "Embargo (bars)",
           "group": "Labels"
-        },
-        "entry_probability": {
-          "type": "float",
-          "default": 0.55,
-          "min": 0.5,
-          "max": 0.95,
-          "step": 0.01,
-          "label": "Entry probability threshold",
-          "group": "Trading"
         },
         "long_only": {
           "type": "bool",
@@ -1379,7 +1360,6 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
-        "entry_probability": "--entry-probability",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
@@ -1507,15 +1487,6 @@
           "max": 200,
           "label": "Embargo (bars)",
           "group": "Labels"
-        },
-        "entry_probability": {
-          "type": "float",
-          "default": 0.55,
-          "min": 0.5,
-          "max": 0.95,
-          "step": 0.01,
-          "label": "Entry probability threshold",
-          "group": "Trading"
         },
         "long_only": {
           "type": "bool",
@@ -1711,7 +1682,6 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
-        "entry_probability": "--entry-probability",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
@@ -1843,15 +1813,6 @@
           "max": 200,
           "label": "Embargo (bars)",
           "group": "Labels"
-        },
-        "entry_probability": {
-          "type": "float",
-          "default": 0.55,
-          "min": 0.5,
-          "max": 0.95,
-          "step": 0.01,
-          "label": "Entry probability threshold",
-          "group": "Trading"
         },
         "long_only": {
           "type": "bool",
@@ -2046,7 +2007,6 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
-        "entry_probability": "--entry-probability",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
@@ -2178,15 +2138,6 @@
           "max": 200,
           "label": "Embargo (bars)",
           "group": "Labels"
-        },
-        "entry_probability": {
-          "type": "float",
-          "default": 0.55,
-          "min": 0.5,
-          "max": 0.95,
-          "step": 0.01,
-          "label": "Entry probability threshold",
-          "group": "Trading"
         },
         "long_only": {
           "type": "bool",
@@ -2381,7 +2332,6 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
-        "entry_probability": "--entry-probability",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
@@ -2513,15 +2463,6 @@
           "max": 200,
           "label": "Embargo (bars)",
           "group": "Labels"
-        },
-        "entry_probability": {
-          "type": "float",
-          "default": 0.55,
-          "min": 0.5,
-          "max": 0.95,
-          "step": 0.01,
-          "label": "Entry probability threshold",
-          "group": "Trading"
         },
         "long_only": {
           "type": "bool",
@@ -2724,7 +2665,6 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
-        "entry_probability": "--entry-probability",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
@@ -2857,15 +2797,6 @@
           "max": 200,
           "label": "Embargo (bars)",
           "group": "Labels"
-        },
-        "entry_probability": {
-          "type": "float",
-          "default": 0.55,
-          "min": 0.5,
-          "max": 0.95,
-          "step": 0.01,
-          "label": "Entry probability threshold",
-          "group": "Trading"
         },
         "long_only": {
           "type": "bool",
@@ -3076,7 +3007,6 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
-        "entry_probability": "--entry-probability",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
@@ -3210,15 +3140,6 @@
           "max": 200,
           "label": "Embargo (bars)",
           "group": "Labels"
-        },
-        "entry_probability": {
-          "type": "float",
-          "default": 0.55,
-          "min": 0.5,
-          "max": 0.95,
-          "step": 0.01,
-          "label": "Entry probability threshold",
-          "group": "Trading"
         },
         "long_only": {
           "type": "bool",
@@ -3429,7 +3350,6 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
-        "entry_probability": "--entry-probability",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",

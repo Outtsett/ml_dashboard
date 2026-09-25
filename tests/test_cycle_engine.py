@@ -357,7 +357,7 @@ def settings_for(directory, **overrides) -> CycleSettings:
         symbol="MNQ", timeframe="5m", model_id="cycle_engine_test", model_family="logistic_regression",
         model_parameters={"regularization_strength": 1.0, "max_iterations": 300}, artifact_directory=str(directory),
         train_days=21, validation_fraction=0.2, test_days=7, step_days=0, fold_limit=3, expanding_window=False,
-        label_horizon_bars=HORIZON, label_threshold_ticks=THRESHOLD_TICKS, embargo_bars=2, entry_probability=0.55,
+        label_horizon_bars=HORIZON, label_threshold_ticks=THRESHOLD_TICKS, embargo_bars=2,
         long_only=False, holding_bars=0, stop_loss_ticks=0.0, take_profit_ticks=0.0, contracts=CONTRACTS,
         tuning_trials=0, bars_per_second=0.0, start_paused=False, quiet_bars=False, log_every_batches=1,
         device="cpu", seed=42, land_in_lake=False,
@@ -654,7 +654,7 @@ EVENT_SCHEMAS = {
         "costModel": {"tickSize": lambda v: is_number(v) and v > 0, "tickValueUsd": lambda v: is_number(v) and v > 0,
                       "pointValueUsd": lambda v: is_number(v) and v > 0, "costPerSideUsd": non_negative,
                       "roundTripCostUsd": non_negative, "source": text},
-        "trading": {"entryProbability": is_number, "longOnly": boolean, "holdingBars": positive_int,
+        "trading": {"longOnly": boolean, "holdingBars": positive_int,
                     "stopLossTicks": non_negative, "takeProfitTicks": non_negative, "contracts": positive_int},
         "tuning": Nullable({"trialCount": positive_int, "objective": one_of(*OBJECTIVES),
                             "innerFoldCount": positive_int, "start": is_int, "end": is_int}),
@@ -959,10 +959,10 @@ def test_trades_fill_at_the_next_open_and_their_money_adds_up(full_run, market):
         assert trade["entryPrice"] == data.open[entry_row]                  # filled at the bar's open
         decision = probabilities[int(data.timestamps[entry_row - 1])]       # decided at the previous close
         assert trade["entryTimestamp"] > fold["testStart"]
-        if trade["side"] == "long":
-            assert decision >= 0.55
+        if trade["side"] == "long":                                         # every prediction is traded
+            assert decision >= 0.5
         else:
-            assert decision <= 0.45
+            assert decision < 0.5
         assert trade["probabilityUpAtEntry"] == pytest.approx(decision)
         assert trade["costUsd"] == pytest.approx(2 * per_side)
         side = 1 if trade["side"] == "long" else -1
@@ -977,7 +977,9 @@ def test_trades_fill_at_the_next_open_and_their_money_adds_up(full_run, market):
             assert trade["exitPrice"] == data.open[exit_row]
         assert trade["barsHeld"] == exit_row - entry_row + (1 if trade["exitReason"] == "fold_end" else 0)
     reasons = {trade["exitReason"] for trade in closed.values()}
-    assert {"holding_period", "opposite_signal", "fold_end"} <= reasons
+    # with shorts allowed the position follows every prediction, so a trade
+    # ends only when the prediction flips (or the fold ends) — never on time
+    assert reasons == {"opposite_signal", "fold_end"}
 
 
 def test_equity_the_scoreboard_and_the_trades_agree(full_run):

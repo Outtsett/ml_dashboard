@@ -122,7 +122,7 @@ function plan(overrides: Partial<CyclePlan> = {}): CyclePlan {
     purgeBars: 6,
     embargoBars: 0,
     costModel: { tickSize: 0.25, tickValueUsd: 0.5, pointValueUsd: 2, costPerSideUsd: 1.4, roundTripCostUsd: 2.8, source: "cost_model.json" },
-    trading: { entryProbability: 0.55, longOnly: false, holdingBars: 6, stopLossTicks: 0, takeProfitTicks: 0, contracts: 1 },
+    trading: { longOnly: false, holdingBars: 6, stopLossTicks: 0, takeProfitTicks: 0, contracts: 1 },
     tuning: null,
     folds: [foldPlan({ foldIndex: 0 }), foldPlan({ foldIndex: 1 })],
     barsPerSecond: 40,

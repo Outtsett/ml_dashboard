@@ -115,7 +115,6 @@ class CycleSettings:
     label_horizon_bars: int = 6
     label_threshold_ticks: float = 0.0
     embargo_bars: int = 0
-    entry_probability: float = 0.55
     long_only: bool = False
     holding_bars: int = 0
     stop_loss_ticks: float = 0.0
@@ -552,7 +551,6 @@ class CycleEngine:
                 "source": self.cost.source,
             },
             "trading": {
-                "entryProbability": float(s.entry_probability),
                 "longOnly": bool(s.long_only),
                 "holdingBars": int(s.resolved_holding_bars),
                 "stopLossTicks": float(s.stop_loss_ticks),
@@ -606,8 +604,8 @@ class CycleEngine:
             )
         self.log(
             f"[plan] {len(self.data):,} bars, {self.periods_per_year:,.0f} bars per year measured, label horizon {self.horizon} bars, "
-            f"purge {self.horizon}, embargo {s.embargo_bars}, holding {s.resolved_holding_bars} bars, entry at P(up) >= "
-            f"{s.entry_probability:g}{' (long only)' if s.long_only else ''}, cost {format_usd(self.cost.round_trip * s.contracts, False)} per round trip"
+            f"purge {self.horizon}, embargo {s.embargo_bars}, holding {s.resolved_holding_bars} bars, trades every prediction: "
+            f"long at P(up) >= 0.5, {'flat' if s.long_only else 'short'} below, cost {format_usd(self.cost.round_trip * s.contracts, False)} per round trip"
         )
         self.set_overall(LOADING_END)
         self.emit_cursor(force=True)
@@ -841,16 +839,12 @@ class CycleEngine:
                 elif not warned_non_finite:
                     warned_non_finite = True
                     self.log(f"{prefix}[test] the model returned a non-finite probability at {format_time(d.timestamps[i])}; such bars are not traded", "warn")
+            # every prediction is traded: long at P(up) >= 0.5, short below (flat
+            # below when long only — the simulator maps it)
             if probability is None:
                 direction, signal = 0, None
             else:
-                direction = 1 if probability >= 0.5 else -1
-                if probability >= s.entry_probability:
-                    signal = 1
-                elif probability <= 1.0 - s.entry_probability and not s.long_only:
-                    signal = -1
-                else:
-                    signal = 0
+                direction = signal = 1 if probability >= 0.5 else -1
             # the price model: its output times the causal scale at this bar, in points
             predicted_move: float | None = None
             scale = float(self.move_scale[i])

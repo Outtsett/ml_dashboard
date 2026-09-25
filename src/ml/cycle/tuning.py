@@ -63,14 +63,7 @@ def simulate_block(engine: CycleEngine, rows: np.ndarray, probability: dict[int,
     for j, i in enumerate(rows):
         i = int(i)
         p = probability.get(i)
-        if p is None:
-            signal = None
-        elif p >= s.entry_probability:
-            signal = 1
-        elif p <= 1.0 - s.entry_probability and not s.long_only:
-            signal = -1
-        else:
-            signal = 0
+        signal = None if p is None else (1 if p >= 0.5 else -1)
         last = j == rows.size - 1
         result = simulator.step(i, int(d.timestamps[i]), d.open[i], d.high[i], d.low[i], d.close[i], signal, p, decide=not last)
         nets[j] = result.net_usd

@@ -75,13 +75,6 @@ export function validateCycleForm(state: CycleFormState): CycleFormValidation {
     }
   }
 
-  if (state.hyperparameters.entry_probability !== undefined) {
-    const entryProbability = Number(state.hyperparameters.entry_probability);
-    if (!(entryProbability > 0.5 && entryProbability < 1)) {
-      errors.push(`Entry probability (${entryProbability}) must be strictly between 0.5 and 1.`);
-    }
-  }
-
   if (state.dateStart && state.dateEnd && !(state.dateEnd > state.dateStart)) {
     errors.push("Date end must be after date start.");
   }

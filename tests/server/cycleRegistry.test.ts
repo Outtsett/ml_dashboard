@@ -31,7 +31,6 @@ const CYCLE_WIDE_KEYS = [
   'label_horizon_bars',
   'label_threshold_ticks',
   'embargo_bars',
-  'entry_probability',
   'long_only',
   'holding_bars',
   'stop_loss_ticks',

@@ -79,7 +79,6 @@ CYCLE_FLAGS: tuple[tuple[str, type, object, str], ...] = (
     ("label_horizon_bars", int, 6, "bars ahead the direction label looks"),
     ("label_threshold_ticks", float, 0.0, "moves within this many ticks are unlabelled"),
     ("embargo_bars", int, 0, "bars dropped from the start of each test window"),
-    ("entry_probability", float, 0.55, "go long at P(up) >= this, short at <= 1 - this"),
     ("long_only", bool, False, "never go short"),
     ("holding_bars", int, 0, "bars to hold a position (0 = label horizon)"),
     ("stop_loss_ticks", float, 0.0, "stop loss in ticks from entry (0 = off)"),

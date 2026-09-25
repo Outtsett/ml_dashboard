@@ -21,9 +21,8 @@ export const CYCLE_PARAMETER_HELP: Record<string, string> = {
   embargo_bars: "Bars removed right after the training window, in addition to the purge, so a label whose horizon reaches into the test window can never leak into training.",
 
   // Trading
-  entry_probability: "How confident the model must be — P(up) or P(down) — before it opens a trade; higher means fewer, more selective trades.",
-  long_only: "On, the model only ever goes long or stays flat; off, it also takes short trades when it predicts down.",
-  holding_bars: "How many bars a trade stays open before it is closed on time, unless a stop, target or opposite signal closes it sooner; 0 uses the label horizon.",
+  long_only: "The model trades every prediction. Off, it is long whenever P(up) is 0.5 or more and short whenever it is below, flipping at the next open when the prediction flips; on, it is flat instead of short.",
+  holding_bars: "Long only: how many bars a long stays open after the model turns down before it closes on time (a stop or target can close it sooner); with shorts allowed the position follows every prediction, so this does not apply. 0 uses the label horizon.",
   stop_loss_ticks: "Closes a trade automatically once it has moved this many ticks against it; 0 turns the stop off.",
   take_profit_ticks: "Closes a trade automatically once it has moved this many ticks in its favor; 0 turns the target off.",
   contracts: "How many contracts each trade opens with.",

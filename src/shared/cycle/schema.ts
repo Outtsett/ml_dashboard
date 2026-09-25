@@ -97,8 +97,8 @@ export const cyclePlanSchema = cycleEnvelopeSchema.extend({
     roundTripCostUsd: z.number().nonnegative(),
     source: z.string(),
   }),
+  /** Every prediction is traded: long at P(up) >= 0.5, short below it (flat below it when `longOnly`). */
   trading: z.object({
-    entryProbability: z.number(),
     longOnly: z.boolean(),
     holdingBars: z.number().int().positive(),
     stopLossTicks: z.number().nonnegative(),

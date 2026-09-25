@@ -30,7 +30,7 @@ const XGBOOST_HYPERPARAMETERS: Record<string, HyperparameterDef> = {
   train_days: def({ type: "int", default: 60, min: 5, max: 365, step: 1, label: "Train days", group: "Walk-forward" }),
   test_days: def({ type: "int", default: 10, min: 1, max: 90, step: 1, label: "Test days", group: "Walk-forward" }),
   step_days: def({ type: "int", default: 0, min: 0, max: 90, step: 1, label: "Step days", group: "Walk-forward" }),
-  entry_probability: def({ type: "float", default: 0.55, min: 0.5, max: 1, step: 0.01, label: "Entry probability", group: "Trading" }),
+  long_only: def({ type: "bool", default: false, label: "Long only", group: "Trading" }),
   device: def({ type: "categorical", default: "auto", choices: ["auto", "cuda", "cpu"], label: "Device", group: "Runtime" }),
 };
 
@@ -50,7 +50,7 @@ const XGBOOST_ENTRY: CycleCatalogEntry = {
       { key: "test_days", def: XGBOOST_HYPERPARAMETERS.test_days! },
       { key: "step_days", def: XGBOOST_HYPERPARAMETERS.step_days! },
     ] },
-    { name: "Trading", parameters: [{ key: "entry_probability", def: XGBOOST_HYPERPARAMETERS.entry_probability! }] },
+    { name: "Trading", parameters: [{ key: "long_only", def: XGBOOST_HYPERPARAMETERS.long_only! }] },
     { name: "Runtime", parameters: [{ key: "device", def: XGBOOST_HYPERPARAMETERS.device! }] },
   ],
 };
@@ -87,7 +87,7 @@ describe("ConfigForm — family fields", () => {
         train_days: 60,
         test_days: 10,
         step_days: 0,
-        entry_probability: 0.55,
+        long_only: false,
         device: "auto",
       },
     };
@@ -109,7 +109,7 @@ describe("ConfigForm — family fields", () => {
     expect(screen.getByText("Train days")).toBeInTheDocument();
     expect(screen.getByText("Test days")).toBeInTheDocument();
     expect(screen.getByText("Step days")).toBeInTheDocument();
-    expect(screen.getByText("Entry probability")).toBeInTheDocument();
+    expect(screen.getByText("Long only")).toBeInTheDocument();
     expect(screen.getByText("Device")).toBeInTheDocument();
 
     // Read-only symbol from SymbolContext.
@@ -132,7 +132,6 @@ describe("validateCycleForm — step_days blocks Play", () => {
     hyperparameters: {
       test_days: 10,
       step_days: 0,
-      entry_probability: 0.55,
     },
   };
 
@@ -150,11 +149,6 @@ describe("validateCycleForm — step_days blocks Play", () => {
     const result = validateCycleForm(state);
     expect(result.valid).toBe(false);
     expect(result.errors.join(" ")).toMatch(/step days/i);
-  });
-
-  it("blocks Play when entry_probability is out of (0.5, 1)", () => {
-    const state = { ...base, hyperparameters: { ...base.hyperparameters, entry_probability: 0.5 } };
-    expect(validateCycleForm(state).valid).toBe(false);
   });
 
   it("blocks Play when the date range is inverted", () => {
