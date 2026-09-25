@@ -733,6 +733,8 @@ def emit_cycle_bars(
     position=None,
     equity_usd=None,
     resolved=None,
+    predicted_close=None,
+    forecast_timestamp=None,
 ) -> None:
     """Bars in strict timestamp order, each bar emitted exactly once per run.
 
@@ -743,6 +745,11 @@ def emit_cycle_bars(
 
     ``resolved`` is ``{"timestamps": [...], "actualDirection": [...],
     "correct": [...]}`` for labels that became known in this frame.
+
+    ``predicted_close`` / ``forecast_timestamp`` (processed bars, optional,
+    parallel): the price model's forecast made at each bar of the close
+    ``labelHorizonBars`` later, and the epoch seconds of that later bar (None
+    past the loaded data).
     """
     if role not in ("context", "processed"):
         raise ValueError(f"emit_cycle_bars: role must be context or processed, got {role!r}")
@@ -781,6 +788,13 @@ def emit_cycle_bars(
         payload["predictedDirection"] = [int(v) for v in predicted_direction]
         payload["position"] = [int(v) for v in position]
         payload["equityUsd"] = [float(v) for v in equity_usd]
+        for name, column in (("predictedClose", predicted_close), ("forecastTimestamp", forecast_timestamp)):
+            if column is not None and len(column) != count:
+                raise ValueError(f"emit_cycle_bars: {name} has {len(column)} values for {count} timestamps")
+        if predicted_close is not None:
+            payload["predictedClose"] = [_optional_number(v) for v in predicted_close]
+        if forecast_timestamp is not None:
+            payload["forecastTimestamp"] = [_optional_int(v) for v in forecast_timestamp]
     if resolved is not None:
         resolved_count = len(resolved["timestamps"])
         if len(resolved["actualDirection"]) != resolved_count or len(resolved["correct"]) != resolved_count:
@@ -808,6 +822,7 @@ def emit_cycle_cursor(
     batch=None,
     batch_count=None,
     step_unit=None,
+    model_role=None,
     trial=None,
     trial_count=None,
     phase_fraction: float = 0.0,
@@ -838,6 +853,7 @@ def emit_cycle_cursor(
             "batch": _optional_int(batch),
             "batchCount": _optional_int(batch_count),
             "stepUnit": step_unit,
+            "modelRole": model_role,
             "trial": _optional_int(trial),
             "trialCount": _optional_int(trial_count),
             "phaseFraction": min(1.0, max(0.0, float(phase_fraction))),
@@ -864,9 +880,11 @@ def emit_cycle_epoch(
     gradient_norm=None,
     is_best: bool = False,
     seconds_elapsed: float = 0.0,
+    model_role: str = "direction",
 ) -> None:
     """One training-step summary: an epoch, a chunk of boosting rounds, a
-    chunk of trees, or a solver pass (``step_unit`` says which)."""
+    chunk of trees, or a solver pass (``step_unit`` says which), for the
+    direction classifier or the price model (``model_role``)."""
     if step_unit not in CYCLE_STEP_UNITS:
         raise ValueError(f"emit_cycle_epoch: unknown step unit {step_unit!r}")
     _emit_cycle(
@@ -885,6 +903,7 @@ def emit_cycle_epoch(
             "gradientNorm": _optional_number(gradient_norm),
             "isBest": bool(is_best),
             "secondsElapsed": max(0.0, float(seconds_elapsed)),
+            "modelRole": model_role,
         },
     )
 

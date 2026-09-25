@@ -2,7 +2,10 @@
 
 Local files (full-word column names):
     config.json          the plan (the ``cycle_plan`` event) plus the parameters used
-    predictions.parquet  one row per processed test bar
+    predictions.parquet  one row per processed test bar, with the price model's forecast
+                         (predicted_move_points, predicted_close, forecast_timestamp) and,
+                         once its target bar was walked, forecast_error_points
+    fold_<k>/            the direction classifier; fold_<k>/price_model/ the price model
     trades.parquet       one row per trade
     epochs.parquet       one row per training step summary (folds and tuning trials)
     trials.parquet       one row per tuning trial
@@ -31,6 +34,7 @@ from typing import TYPE_CHECKING
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from cycle.metrics import PRICE_FORECAST_METRIC_NAMES
 from shared.protocol import dumps_safe
 
 if TYPE_CHECKING:
@@ -45,6 +49,10 @@ PREDICTION_COLUMNS = (
     ("low", pa.float64()), ("close", pa.float64()), ("volume", pa.float64()), ("probability_up", pa.float64()),
     ("predicted_direction", pa.int64()), ("position", pa.int64()), ("equity_usd", pa.float64()),
     ("actual_direction", pa.int64()), ("correct", pa.bool_()),
+    # the price model: its forecast made at this bar of the move to (and close at) the bar
+    # label_horizon_bars later, and — once that bar was walked — forecast minus actual move
+    ("predicted_move_points", pa.float64()), ("predicted_close", pa.float64()), ("forecast_timestamp", pa.int64()),
+    ("forecast_error_points", pa.float64()),
 )
 TRADE_COLUMNS = (
     ("trade_number", pa.int64()), ("fold_index", pa.int64()), ("side", pa.string()), ("contracts", pa.int64()),
@@ -54,7 +62,8 @@ TRADE_COLUMNS = (
     ("exit_reason", pa.string()),
 )
 EPOCH_COLUMNS = (
-    ("fold_index", pa.int64()), ("trial", pa.int64()), ("epoch", pa.int64()), ("epoch_count", pa.int64()),
+    ("fold_index", pa.int64()), ("trial", pa.int64()), ("model_role", pa.string()), ("epoch", pa.int64()),
+    ("epoch_count", pa.int64()),
     ("step_unit", pa.string()), ("train_loss", pa.float64()), ("validation_loss", pa.float64()),
     ("validation_accuracy", pa.float64()), ("validation_f1_score", pa.float64()), ("learning_rate", pa.float64()),
     ("gradient_norm", pa.float64()), ("is_best", pa.bool_()), ("seconds_elapsed", pa.float64()),
@@ -69,6 +78,8 @@ FOLD_COLUMNS = (
     ("train_bar_count", pa.int64()), ("validation_bar_count", pa.int64()), ("test_bar_count", pa.int64()),
     ("training_seconds", pa.float64()), ("testing_seconds", pa.float64()), ("stopped", pa.bool_()),
     ("metrics", pa.string()), ("model_path", pa.string()),
+    ("price_train_bar_count", pa.int64()), ("price_validation_bar_count", pa.int64()),
+    ("price_training_seconds", pa.float64()), ("price_model_path", pa.string()),
 )
 
 
@@ -96,6 +107,9 @@ def fold_rows(engine: CycleEngine) -> list[dict]:
             "test_bar_count": record["testBarCount"], "training_seconds": record.get("trainingSeconds"),
             "testing_seconds": record.get("testingSeconds"), "stopped": bool(record.get("stopped", False)),
             "metrics": dumps_safe(record.get("metrics")), "model_path": record.get("modelPath"),
+            "price_train_bar_count": record.get("priceTrainBarCount"),
+            "price_validation_bar_count": record.get("priceValidationBarCount"),
+            "price_training_seconds": record.get("priceTrainingSeconds"), "price_model_path": record.get("priceModelPath"),
         })
     return rows
 
@@ -126,7 +140,19 @@ def write_run(engine: CycleEngine) -> dict:
     folds_path = os.path.join(directory, "folds_table.parquet")
     pq.write_table(folds, folds_path, compression="zstd")
 
+    final_metrics = (engine.final_scoreboard or {}).get("metrics") or {}
+    price_forecast = {name: final_metrics.get(name) for name in PRICE_FORECAST_METRIC_NAMES}
+    price_model = {
+        "target": (f"(close[t+{engine.horizon}] - close[t]) divided by the sample standard deviation of the "
+                   f"{engine.horizon}-bar moves ending at bars t-{engine.volatility_window - 1}..t, floored at one tick"),
+        "horizonBars": int(engine.horizon),
+        "volatilityWindowBars": int(engine.volatility_window),
+        "parameters": "the direction classifier's (tuned when tuning is on); the price model itself is never tuned",
+        "baseline": "persistence: the no-change forecast, predicted close = this bar's close",
+        "finalMetrics": price_forecast,
+    }
     config = {"plan": engine.plan, "parametersUsed": engine.parameters, "tuning": engine.tuning_summary,
+              "priceModel": price_model,
               "settings": {key: value for key, value in vars(s).items() if key != "model_parameters"}}
     _write_json(os.path.join(directory, "config.json"), config)
     _write_json(os.path.join(directory, "folds.json"), engine.fold_records)
@@ -146,9 +172,11 @@ def write_run(engine: CycleEngine) -> dict:
         "testBarsPerSecond": (engine.test_bars / engine.test_seconds) if engine.test_seconds > 0 else None,
         "tradeCount": sum(1 for trade in engine.trades.values() if not trade.is_open),
         "finalMetrics": (engine.final_scoreboard or {}).get("metrics"),
+        "priceForecast": price_forecast,
         "folds": [
             {key: record.get(key) for key in ("foldIndex", "trainStart", "trainEnd", "testStart", "testEnd",
-                                              "trainingSeconds", "testingSeconds", "modelPath", "metrics")}
+                                              "trainingSeconds", "testingSeconds", "modelPath", "metrics",
+                                              "priceTrainingSeconds", "priceModelPath")}
             for record in engine.fold_records
         ],
         "tuning": engine.tuning_summary,

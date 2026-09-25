@@ -22,6 +22,7 @@ from sklearn import metrics as sk
 from cycle.metrics import (
     METRIC_NAMES,
     MINIMUM_CREDIBLE_TRADES,
+    PRICE_FORECAST_METRIC_NAMES,
     ScoreInputs,
     bars_per_year,
     buy_and_hold_usd,
@@ -29,6 +30,7 @@ from cycle.metrics import (
     classification_metrics,
     distribution,
     maximum_drawdown,
+    price_forecast_metrics,
     scoreboard,
     sharpe_ratio,
     sortino_ratio,
@@ -50,7 +52,11 @@ def schema_metric_names() -> list[str]:
 
 def test_metric_names_match_the_wire_schema_in_order():
     assert list(METRIC_NAMES) == schema_metric_names()
-    assert len(METRIC_NAMES) == 25
+    assert len(METRIC_NAMES) == 30
+    assert PRICE_FORECAST_METRIC_NAMES == (
+        "price_forecast_mean_absolute_error_points", "persistence_mean_absolute_error_points", "price_forecast_skill",
+        "price_forecast_root_mean_square_error_points", "price_forecast_direction_accuracy",
+    )
 
 
 @pytest.mark.parametrize("empty", [True, False])
@@ -228,6 +234,56 @@ def test_majority_class_baseline():
     # majority [1, 1, 0, 0] against actual [1, 0, 1, 1]: right on bar 0 only
     assert metrics["majority_class_accuracy"] == pytest.approx(0.25)
     assert metrics["accuracy"] == pytest.approx(0.5)
+
+
+# ─── the price forecast, by hand ───────────────────────────────────────────
+
+# predicted moves [2, -1, 0.5, 0, 3] against actual moves [1, -2, -1, 4, 0] points
+PREDICTED_MOVES = [2.0, -1.0, 0.5, 0.0, 3.0]
+ACTUAL_MOVES = [1.0, -2.0, -1.0, 4.0, 0.0]
+
+
+def test_price_forecast_metrics_by_hand():
+    values = price_forecast_metrics(PREDICTED_MOVES, ACTUAL_MOVES)
+    # errors 1, 1, 1.5, -4, 3 -> |e| sum 10.5 over 5 bars
+    assert values["price_forecast_mean_absolute_error_points"] == pytest.approx(2.1)
+    # persistence predicts no move: its error is the whole move, |1|+|-2|+|-1|+|4|+|0| = 8 over 5
+    assert values["persistence_mean_absolute_error_points"] == pytest.approx(1.6)
+    assert values["price_forecast_skill"] == pytest.approx(1 - 2.1 / 1.6)       # worse than persistence: negative
+    # squares 1 + 1 + 2.25 + 16 + 9 = 29.25 over 5
+    assert values["price_forecast_root_mean_square_error_points"] == pytest.approx(math.sqrt(29.25 / 5))
+    # the zero predicted move (bar 4) and the zero actual move (bar 5) are left out:
+    # signs (+,+) (-,-) (+,-) -> 2 of 3
+    assert values["price_forecast_direction_accuracy"] == pytest.approx(2 / 3)
+
+
+def test_price_forecast_metrics_are_none_when_undefined():
+    assert all(value is None for value in price_forecast_metrics([], []).values())
+    # every actual move zero: persistence is perfect, skill undefined, no signed pair
+    flat = price_forecast_metrics([1.0, -0.5], [0.0, 0.0])
+    assert flat["persistence_mean_absolute_error_points"] == 0.0
+    assert flat["price_forecast_skill"] is None and flat["price_forecast_direction_accuracy"] is None
+    assert flat["price_forecast_mean_absolute_error_points"] == pytest.approx(0.75)
+    # a perfect forecast has skill 1
+    assert price_forecast_metrics([1.0, -2.0], [1.0, -2.0])["price_forecast_skill"] == pytest.approx(1.0)
+    with pytest.raises(ValueError):
+        price_forecast_metrics([1.0], [1.0, 2.0])
+
+
+def test_the_scoreboard_carries_the_price_forecast_metrics():
+    inputs = ScoreInputs(forecast_predicted_move_points=list(PREDICTED_MOVES),
+                         forecast_actual_move_points=list(ACTUAL_MOVES))
+    metrics, _, notes = scoreboard(inputs, PERIODS)
+    assert list(metrics)[-5:] == list(PRICE_FORECAST_METRIC_NAMES)
+    assert metrics["price_forecast_mean_absolute_error_points"] == pytest.approx(2.1)
+    assert metrics["price_forecast_skill"] == pytest.approx(1 - 2.1 / 1.6)
+    assert not any("price forecast" in note for note in notes)
+    empty, _, empty_notes = scoreboard(ScoreInputs(), PERIODS)
+    assert all(empty[name] is None for name in PRICE_FORECAST_METRIC_NAMES)
+    assert any(note.startswith("no resolved price forecasts") for note in empty_notes)
+    _, _, flat_notes = scoreboard(ScoreInputs(forecast_predicted_move_points=[1.0],
+                                              forecast_actual_move_points=[0.0]), PERIODS)
+    assert any(note.startswith("price forecast skill undefined") for note in flat_notes)
 
 
 # ─── the trade distribution ────────────────────────────────────────────────

@@ -124,8 +124,24 @@ class TrainingReporter(Protocol):
     def log(self, message: str, level: str = "info") -> None: ...
 
 
+MODEL_TASKS = ("classification", "regression")
+
+
 class ModelAdapter(Protocol):
-    """One model family. Built by `models.build_adapter`."""
+    """One model family, as a direction classifier (``task="classification"``)
+    or as a price model (``task="regression"``). Built by
+    ``models.build_adapter(family, parameters, device, seed, task=...)``.
+
+    Regression adapters fit ``labels`` = the real-valued target the engine
+    passes — the forward move close[t+h] - close[t] divided by a causal trailing
+    volatility of h-bar moves, so roughly unit scale in every regime (NaN rows
+    are never in an index) — and return predictions in the SAME units from
+    ``predict_value``; the engine multiplies back to points. Outlier handling is
+    the adapter's: Huber loss (delta 1.0) for neural networks; tree and linear
+    models clip the training target at its TRAINING 1st/99th percentiles.
+    Their ``EpochReport``s carry mean absolute error (target units) as the
+    train / validation loss and the accuracy of the predicted SIGN as
+    ``validation_accuracy`` (``validation_f1_score`` None)."""
 
     family: str
     step_unit: str
@@ -147,6 +163,13 @@ class ModelAdapter(Protocol):
         Both are sorted, contain only rows with finite features and labels,
         and never overlap. Must call `reporter.checkpoint()` at least once per
         batch / round / chunk."""
+
+    task: str
+
+    def predict_value(self, features: np.ndarray, index: np.ndarray) -> np.ndarray:
+        """Regression adapters only: the predicted target (same units as the
+        fitted labels) for each row in `index` (float64), causal like
+        `predict_probability`."""
 
     def predict_probability(self, features: np.ndarray, index: np.ndarray) -> np.ndarray:
         """P(up) for each row in `index` (float64, in [0, 1]), using only

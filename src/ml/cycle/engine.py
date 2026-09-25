@@ -19,11 +19,23 @@ Invariants this module asserts (and ``tests/test_cycle_engine.py`` checks):
   hold only rows with valid feature history and (train/validation) a label.
 - A test bar's prediction uses feature rows <= that bar; its trade fills at
   the next bar's open; its label is resolved h bars later, inside the fold.
+- Each fold fits TWO models of the chosen family on the same purged spans: the
+  direction classifier (``labels``, tuned when tuning is on) and then a price
+  model (``adapter_factory(parameters, task="regression")``, the classifier's
+  parameters, never tuned) on ``cycle.labels.price_target``: the h-bar move
+  divided by its causal trailing volatility. Its index arrays hold rows with
+  feature history and a known forward move, including rows whose direction
+  label is NaN only because the move sat inside the threshold. At test bar i
+  the price model's output y is multiplied back by scale[i] (closes <= i):
+  predictedClose = close[i] + y * scale[i]; forecastTimestamp = the time of
+  bar i + h. A forecast is resolved when bar i + h of the same fold is walked,
+  and only then enters the price-forecast metrics.
 
 Overall progress (``cursor.overallFraction``), monotonic:
     loading 0 -> 0.05; tuning 0.05 -> 0.30 (only when tuning is on);
     the rest to 0.99 split over folds by their test-bar count; inside a fold
-    training takes the first 40 % (advanced by epoch / batch), the test walk
+    training takes the first 40 % (the direction classifier the first 60 % of
+    that, the price model the rest; advanced by epoch / batch), the test walk
     the remaining 60 % (advanced bar by bar); complete = 1.
 """
 
@@ -41,7 +53,7 @@ import numpy as np
 from cycle.adapter import MODEL_LABELS, BatchReport, EpochReport, ModelAdapter, StopRequested
 from cycle.control import ControlState
 from cycle.features import FeatureSet, history_valid
-from cycle.labels import actual_direction, make_labels
+from cycle.labels import actual_direction, make_labels, price_target
 from cycle.metrics import ScoreInputs, bars_per_year, buy_and_hold_usd, scoreboard
 from cycle.simulate import CostModel, Simulator, Trade
 from shared import protocol
@@ -60,8 +72,11 @@ LOADING_END = 0.05
 TUNING_END = 0.30
 FOLDS_END = 0.99
 TRAINING_SHARE = 0.4
+DIRECTION_TRAINING_SHARE = 0.6   # of TRAINING_SHARE; the price model takes the rest
 
-AdapterFactory = Callable[[dict], ModelAdapter]
+# adapter_factory(parameters) -> the direction classifier;
+# adapter_factory(parameters, task="regression") -> the price model
+AdapterFactory = Callable[..., ModelAdapter]
 
 
 def format_time(timestamp: int | float) -> str:
@@ -185,6 +200,9 @@ class FoldSpec:
     validation_index: np.ndarray
     test_index: np.ndarray       # every row of the test span (contiguous), predictable or not
     majority_up: int = 1
+    # the price model's rows: feature history and a known forward move (empty = no price model)
+    price_train_index: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.int64))
+    price_validation_index: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.int64))
 
     def plan(self, timestamps: np.ndarray) -> dict:
         def span(index: np.ndarray) -> tuple[int, int]:
@@ -216,7 +234,8 @@ def split_window(rows: np.ndarray, validation_fraction: float, purge: int) -> tu
     return rows[: max(0, split - purge)], rows[split:]
 
 
-def check_fold_invariants(spec: FoldSpec, labels: np.ndarray, valid: np.ndarray, horizon: int) -> None:
+def check_fold_invariants(spec: FoldSpec, labels: np.ndarray, valid: np.ndarray, horizon: int,
+                          price_targets: np.ndarray | None = None) -> None:
     for name, index in (("train", spec.train_index), ("validation", spec.validation_index)):
         assert index.size > 0, f"fold {spec.fold_index}: empty {name} index"
         assert np.all(np.diff(index) > 0), f"fold {spec.fold_index}: {name} index not increasing"
@@ -227,6 +246,15 @@ def check_fold_invariants(spec: FoldSpec, labels: np.ndarray, valid: np.ndarray,
     # a validation label resolves strictly before the test span starts.
     assert spec.train_index[-1] + horizon < spec.validation_index[0], f"fold {spec.fold_index}: train labels leak into validation"
     assert spec.validation_index[-1] + horizon < spec.test_index[0], f"fold {spec.fold_index}: validation labels leak into test"
+    if price_targets is None or spec.price_train_index.size == 0:
+        return
+    for name, index in (("price train", spec.price_train_index), ("price validation", spec.price_validation_index)):
+        assert index.size > 0 and np.all(np.diff(index) > 0), f"fold {spec.fold_index}: {name} index empty or not increasing"
+        assert np.all(valid[index]), f"fold {spec.fold_index}: {name} row without feature history"
+        assert np.all(np.isfinite(price_targets[index])), f"fold {spec.fold_index}: {name} row without a known forward move"
+    # a price target also resolves at t + h: the same purges hold
+    assert spec.price_train_index[-1] + horizon < spec.price_validation_index[0], f"fold {spec.fold_index}: price targets leak into validation"
+    assert spec.price_validation_index[-1] + horizon < spec.test_index[0], f"fold {spec.fold_index}: price targets leak into test"
 
 
 # ── the engine ─────────────────────────────────────────────────────────────
@@ -268,6 +296,10 @@ class CycleEngine:
         self.started = clock()
         self.labels = make_labels(data.close, settings.label_horizon_bars, settings.label_threshold_ticks, cost.tick_size)
         self.horizon = settings.label_horizon_bars
+        # the price model's target, and the causal scale that turns its output back into points
+        self.volatility_window = int(features.lookback)
+        self.price_targets, self.move_scale, self.forward_moves = price_target(
+            data.close, settings.label_horizon_bars, self.volatility_window, cost.tick_size)
         self.periods_per_year = bars_per_year(data.timestamps)
         self.parameters = dict(settings.model_parameters)
 
@@ -296,6 +328,7 @@ class CycleEngine:
         self.price_adjustment: dict | None = None
         self.final_scoreboard: dict | None = None
         self.global_step = 0
+        self.price_global_step = 0
         self.equity = 0.0
         self.simulator: Simulator | None = None
         self.last_processed_row: int | None = None
@@ -346,7 +379,7 @@ class CycleEngine:
         defaults = {
             "span_start": None, "span_end": None, "bar_timestamp": None, "bar_index": None, "bar_count": None,
             "epoch": None, "epoch_count": None, "batch": None, "batch_count": None, "step_unit": None,
-            "trial": None, "trial_count": None, "phase_fraction": 0.0,
+            "trial": None, "trial_count": None, "phase_fraction": 0.0, "model_role": None,
         }
         defaults.update(fields)
         self._cursor = {"phase": phase, **defaults}
@@ -410,6 +443,10 @@ class CycleEngine:
             train_rows, validation_rows = split_window(window, s.validation_fraction, self.horizon)
             train = train_rows[valid[train_rows] & np.isfinite(self.labels[train_rows])]
             validation = validation_rows[valid[validation_rows] & np.isfinite(self.labels[validation_rows])]
+            price_train = train_rows[valid[train_rows] & np.isfinite(self.price_targets[train_rows])]
+            price_validation = validation_rows[valid[validation_rows] & np.isfinite(self.price_targets[validation_rows])]
+            if price_train.size < MINIMUM_TRAIN_ROWS or price_validation.size < MINIMUM_VALIDATION_ROWS:
+                price_train = price_validation = np.empty(0, dtype=np.int64)
             when = f"{format_time(self.data.timestamps[fold.test_idx[0]])}..{format_time(self.data.timestamps[fold.test_idx[-1]])}"
             if train.size < MINIMUM_TRAIN_ROWS or validation.size < MINIMUM_VALIDATION_ROWS:
                 self.log(
@@ -421,6 +458,7 @@ class CycleEngine:
             specs.append(FoldSpec(
                 fold_index=len(specs), window_start=int(window[0]), window_end=int(window[-1]) + 1,
                 train_index=train, validation_index=validation, test_index=fold.test_idx,
+                price_train_index=price_train, price_validation_index=price_validation,
             ))
         if not specs:
             raise ValueError(
@@ -435,7 +473,7 @@ class CycleEngine:
             spec.fold_index = position
             labels = self.labels[spec.train_index]
             spec.majority_up = 1 if np.mean(labels) >= 0.5 else 0
-            check_fold_invariants(spec, self.labels, valid, self.horizon)
+            check_fold_invariants(spec, self.labels, valid, self.horizon, self.price_targets)
         return specs
 
     def _progress_geometry(self) -> None:
@@ -452,11 +490,17 @@ class CycleEngine:
             cursor += width
         self._fold_regions = regions
 
-    def fold_progress(self, fold_index: int, training_fraction: float | None = None, test_fraction: float | None = None) -> None:
+    def fold_progress(self, fold_index: int, training_fraction: float | None = None, test_fraction: float | None = None,
+                      model_role: str = "direction") -> None:
         low, high = self._fold_regions[fold_index]
         within = 0.0
         if training_fraction is not None:
-            within = TRAINING_SHARE * min(1.0, max(0.0, training_fraction))
+            fraction = min(1.0, max(0.0, training_fraction))
+            if model_role == "price":
+                fraction = DIRECTION_TRAINING_SHARE + (1 - DIRECTION_TRAINING_SHARE) * fraction
+            else:
+                fraction = DIRECTION_TRAINING_SHARE * fraction
+            within = TRAINING_SHARE * fraction
         if test_fraction is not None:
             within = TRAINING_SHARE + (1 - TRAINING_SHARE) * min(1.0, max(0.0, test_fraction))
         self.set_overall(low + (high - low) * within)
@@ -614,6 +658,7 @@ class CycleEngine:
         )
         self.set_phase(
             "training", fold_index=k, span_start=int(ts[spec.train_index[0]]), span_end=int(ts[spec.train_index[-1]]),
+            model_role="direction",
         )
         self.fold_progress(k, training_fraction=0.0)
         adapter = self.adapter_factory(dict(self.parameters))
@@ -623,13 +668,17 @@ class CycleEngine:
         training_seconds = self.clock() - training_started
         self.fold_progress(k, training_fraction=1.0)
         self.log(f"{prefix}[train] fitted in {training_seconds:.1f} s")
+        price_adapter, price_seconds = self._fit_price_model(spec)
 
         accumulator = FoldAccumulator(fold_index=k)
         self.accumulators.append(accumulator)
-        record = {**spec.plan(ts), "trainingSeconds": training_seconds, "majorityClassUp": spec.majority_up}
+        record = {**spec.plan(ts), "trainingSeconds": training_seconds, "majorityClassUp": spec.majority_up,
+                  "priceTrainBarCount": int(spec.price_train_index.size),
+                  "priceValidationBarCount": int(spec.price_validation_index.size),
+                  "priceTrainingSeconds": price_seconds}
         self.fold_records.append(record)
         testing_started = self.clock()
-        self._walk_test(spec, adapter, accumulator)
+        self._walk_test(spec, adapter, accumulator, price_adapter)
         testing_seconds = self.clock() - testing_started
         self.test_seconds += testing_seconds
         record["testingSeconds"] = testing_seconds
@@ -650,7 +699,9 @@ class CycleEngine:
         }
         protocol.emit_fold_complete(k, {**{key: value for key, value in metrics.items() if value is not None}, **spans})
         for name in ("net_profit_usd", "sharpe_ratio", "sortino_ratio", "maximum_drawdown_usd", "profit_factor",
-                     "win_rate", "trade_count", "accuracy", "f1_score", "roc_auc", "log_loss", "brier_score"):
+                     "win_rate", "trade_count", "accuracy", "f1_score", "roc_auc", "log_loss", "brier_score",
+                     "price_forecast_mean_absolute_error_points", "persistence_mean_absolute_error_points",
+                     "price_forecast_skill"):
             if metrics.get(name) is not None:
                 protocol.emit_metric(name, metrics[name], iteration=k, total=self.fold_count)
 
@@ -669,14 +720,91 @@ class CycleEngine:
         except Exception as error:  # noqa: BLE001 - a failed save must not lose the fold's results
             record["modelPath"] = None
             self.log(f"[save] fold {k + 1}/{self.fold_count} model could not be saved: {error}", "warn")
+        record["priceModelPath"] = None
+        if price_adapter is not None:
+            price_directory = os.path.join(directory, "price_model")
+            os.makedirs(price_directory, exist_ok=True)
+            try:
+                record["priceModelPath"] = price_adapter.save(price_directory)
+                self.log(f"[save] fold {k + 1}/{self.fold_count} price model -> {record['priceModelPath']}")
+            except Exception as error:  # noqa: BLE001 - a failed save must not lose the fold's results
+                self.log(f"[save] fold {k + 1}/{self.fold_count} price model could not be saved: {error}", "warn")
         self.log(
             f"{prefix}[test] fold done: net {format_usd(metrics['net_profit_usd'])}, Sharpe {_format_number(metrics['sharpe_ratio'], '.2f')}, "
             f"{int(metrics['trade_count'])} trades, accuracy {_format_number(metrics['accuracy'], '.3f')} on "
             f"{len(accumulator.inputs.scored_actual_up)} scored bars ({accumulator.bars_evaluated} walked in {testing_seconds:.1f} s)"
         )
+        if price_adapter is not None:
+            self.log(
+                f"{prefix}[test] price forecast: mean absolute error "
+                f"{_format_number(metrics['price_forecast_mean_absolute_error_points'], '.2f')} points against "
+                f"{_format_number(metrics['persistence_mean_absolute_error_points'], '.2f')} for the no-change forecast "
+                f"(skill {_format_number(metrics['price_forecast_skill'], '.3f')}), direction accuracy "
+                f"{_format_number(metrics['price_forecast_direction_accuracy'], '.3f')} on "
+                f"{len(accumulator.inputs.forecast_predicted_move_points)} resolved forecasts"
+            )
+
+    # ── the price model ────────────────────────────────────────────────────
+    def _fit_price_model(self, spec: FoldSpec) -> tuple[ModelAdapter | None, float | None]:
+        """Fit the fold's price model (same family, same parameters, task
+        "regression") on the purged spans. Returns (adapter, seconds), or
+        (None, None) when the fold has too few rows or the fit fails — the
+        direction cycle then runs without forecasts, and says so."""
+        s = self.settings
+        k = spec.fold_index
+        prefix = self.fold_prefix(k)
+        ts = self.data.timestamps
+        train, validation = spec.price_train_index, spec.price_validation_index
+        if train.size == 0:
+            self.log(
+                f"{prefix}[train] price model skipped: fewer than {MINIMUM_TRAIN_ROWS} training or "
+                f"{MINIMUM_VALIDATION_ROWS} validation rows with feature history and a known {self.horizon}-bar move; "
+                "this fold draws no price forecast", "warn",
+            )
+            self.fold_progress(k, training_fraction=1.0, model_role="price")
+            return None, None
+        label = MODEL_LABELS.get(s.model_family, s.model_family)
+        self.log(
+            f"{prefix}[train] price model: fitting {label} to the {self.horizon}-bar move divided by its trailing "
+            f"{self.volatility_window}-bar volatility on {train.size:,} bars "
+            f"{format_time(ts[train[0]])}..{format_time(ts[train[-1]])}, validating on {validation.size:,} bars "
+            f"{format_time(ts[validation[0]])}..{format_time(ts[validation[-1]])}"
+        )
+        self.set_phase("training", fold_index=k, span_start=int(ts[train[0]]), span_end=int(ts[train[-1]]),
+                       model_role="price")
+        self.fold_progress(k, training_fraction=0.0, model_role="price")
+        started = self.clock()
+        try:
+            adapter = self.adapter_factory(dict(self.parameters), task="regression")
+            reporter = EngineReporter(self, fold_index=k, train_index=train, validation_index=validation, model_role="price")
+            adapter.fit(self.features, self.price_targets, train, validation, ts, reporter)
+        except StopRequested:
+            raise
+        except Exception as error:  # noqa: BLE001 - the direction cycle must still run
+            self.log(f"{prefix}[train] price model could not be fitted ({type(error).__name__}: {error}); "
+                     "this fold draws no price forecast", "warn")
+            self.fold_progress(k, training_fraction=1.0, model_role="price")
+            return None, None
+        seconds = self.clock() - started
+        self.fold_progress(k, training_fraction=1.0, model_role="price")
+        self.log(f"{prefix}[train] price model fitted in {seconds:.1f} s")
+        return adapter, seconds
+
+    def _resolve_forecast(self, accumulator: FoldAccumulator, source_row: int, target_row: int,
+                          predicted_move: float | None) -> None:
+        """The forecast made at ``source_row`` meets its target bar, which the
+        walk has just processed."""
+        assert target_row == source_row + self.horizon, "a forecast resolves exactly horizon bars later"
+        if predicted_move is None:
+            return
+        actual = float(self.data.close[target_row]) - float(self.data.close[source_row])
+        accumulator.inputs.forecast_predicted_move_points.append(predicted_move)
+        accumulator.inputs.forecast_actual_move_points.append(actual)
+        self.prediction_rows[source_row]["forecast_error_points"] = predicted_move - actual
 
     # ── the test walk ──────────────────────────────────────────────────────
-    def _walk_test(self, spec: FoldSpec, adapter: ModelAdapter, accumulator: FoldAccumulator) -> None:
+    def _walk_test(self, spec: FoldSpec, adapter: ModelAdapter, accumulator: FoldAccumulator,
+                   price_adapter: ModelAdapter | None = None) -> None:
         s = self.settings
         d = self.data
         k = spec.fold_index
@@ -693,9 +821,12 @@ class CycleEngine:
         self._frame = None
         self._next_due = None
         last_board = last_bar_log = -math.inf
-        warned_non_finite = False
+        warned_non_finite = warned_price = False
         predicted_class_for_row: dict[int, int] = {}
         probability_for_row: dict[int, float | None] = {}
+        predicted_move_for_row: dict[int, float | None] = {}
+        price_valid = history_valid(self.features, int(price_adapter.minimum_history())) if price_adapter is not None else None
+        bar_count = len(d)
         walk_started = self.clock()
 
         for j in range(count):
@@ -720,6 +851,20 @@ class CycleEngine:
                     signal = -1
                 else:
                     signal = 0
+            # the price model: its output times the causal scale at this bar, in points
+            predicted_move: float | None = None
+            scale = float(self.move_scale[i])
+            if price_valid is not None and price_valid[i] and math.isfinite(scale):
+                output = float(price_adapter.predict_value(self.features, np.array([i], dtype=np.int64))[0])
+                if math.isfinite(output):
+                    predicted_move = output * scale
+                elif not warned_price:
+                    warned_price = True
+                    self.log(f"{prefix}[test] the price model returned a non-finite value at {format_time(d.timestamps[i])}; "
+                             "such bars draw no forecast", "warn")
+            predicted_close = None if predicted_move is None else float(d.close[i]) + predicted_move
+            forecast_timestamp = int(d.timestamps[i + self.horizon]) if i + self.horizon < bar_count else None
+            predicted_move_for_row[i] = predicted_move
             last = j == count - 1
             result = simulator.step(i, int(d.timestamps[i]), d.open[i], d.high[i], d.low[i], d.close[i], signal, probability, decide=not last)
             net = result.net_usd
@@ -743,11 +888,14 @@ class CycleEngine:
                 "close": float(d.close[i]), "volume": float(d.volume[i]),
                 "probability_up": probability, "predicted_direction": direction, "position": int(position),
                 "equity_usd": self.equity, "actual_direction": None, "correct": None,
+                "predicted_move_points": predicted_move, "predicted_close": predicted_close,
+                "forecast_timestamp": forecast_timestamp, "forecast_error_points": None,
             }
             frame = self._frame_for(k)
             for key, value in (("timestamps", int(d.timestamps[i])), ("open", d.open[i]), ("high", d.high[i]), ("low", d.low[i]),
                                ("close", d.close[i]), ("volume", d.volume[i]), ("probabilityUp", probability),
-                               ("predictedDirection", direction), ("position", position), ("equityUsd", self.equity)):
+                               ("predictedDirection", direction), ("position", position), ("equityUsd", self.equity),
+                               ("predictedClose", predicted_close), ("forecastTimestamp", forecast_timestamp)):
                 frame[key].append(value)
 
             # the label of the bar h back (same fold) is known now
@@ -767,6 +915,8 @@ class CycleEngine:
                     accumulator.inputs.scored_predicted_up.append(1 if predicted > 0 else 0)
                     accumulator.inputs.scored_probability_up.append(float(probability_for_row[resolved_row]))
                     accumulator.inputs.scored_majority_up.append(spec.majority_up)
+                # and so is the move the price model forecast there
+                self._resolve_forecast(accumulator, resolved_row, i, predicted_move_for_row.pop(resolved_row, None))
 
             now = self.clock()
             pace = self.control.bars_per_second
@@ -775,7 +925,8 @@ class CycleEngine:
                 line = (
                     f"{prefix}[test] {format_time(d.timestamps[i])} bar {j + 1}/{count} close={d.close[i]:.2f} "
                     f"p_up={_format_number(probability, '.3f')} signal={SIDE_WORDS[signal] if signal is not None else 'NONE'} "
-                    f"position={SIDE_WORDS[position]} equity={format_usd(self.equity)}"
+                    f"position={SIDE_WORDS[position]} equity={format_usd(self.equity)} "
+                    f"forecast={self._forecast_words(predicted_close, forecast_timestamp)}"
                 )
                 self._post_frame.append(lambda line=line: self.log(line))
             self._cursor.update(bar_timestamp=int(d.timestamps[i]), bar_index=j, bar_count=count, phase_fraction=(j + 1) / count)
@@ -794,6 +945,13 @@ class CycleEngine:
         if walked > 0:
             self.log(f"{prefix}[test] {count / walked:,.1f} bars/s over {count:,} bars", "debug")
 
+    @staticmethod
+    def _forecast_words(predicted_close: float | None, forecast_timestamp: int | None) -> str:
+        if predicted_close is None:
+            return "n/a"
+        when = datetime.fromtimestamp(forecast_timestamp, timezone.utc).strftime("%H:%M") if forecast_timestamp is not None else "beyond the data"
+        return f"{predicted_close:.2f}@{when}"
+
     def _fold_buy_and_hold(self, accumulator: FoldAccumulator) -> float | None:
         if accumulator.first_open is None or accumulator.last_close is None:
             return None
@@ -805,8 +963,8 @@ class CycleEngine:
             self._frame = {
                 "foldIndex": fold_index,
                 **{key: [] for key in ("timestamps", "open", "high", "low", "close", "volume", "probabilityUp",
-                                       "predictedDirection", "position", "equityUsd",
-                                       "resolvedTimestamps", "resolvedActual", "resolvedCorrect")},
+                                       "predictedDirection", "position", "equityUsd", "predictedClose",
+                                       "forecastTimestamp", "resolvedTimestamps", "resolvedActual", "resolvedCorrect")},
             }
         return self._frame
 
@@ -824,7 +982,8 @@ class CycleEngine:
                 "processed", frame["foldIndex"], frame["timestamps"], frame["open"], frame["high"], frame["low"],
                 frame["close"], frame["volume"], probability_up=frame["probabilityUp"],
                 predicted_direction=frame["predictedDirection"], position=frame["position"],
-                equity_usd=frame["equityUsd"], resolved=resolved,
+                equity_usd=frame["equityUsd"], resolved=resolved, predicted_close=frame["predictedClose"],
+                forecast_timestamp=frame["forecastTimestamp"],
             )
             self.emit_cursor(force=True)
         actions, self._post_frame = self._post_frame, []
@@ -890,6 +1049,8 @@ class CycleEngine:
             combined.scored_predicted_up.extend(inputs.scored_predicted_up)
             combined.scored_probability_up.extend(inputs.scored_probability_up)
             combined.scored_majority_up.extend(inputs.scored_majority_up)
+            combined.forecast_predicted_move_points.extend(inputs.forecast_predicted_move_points)
+            combined.forecast_actual_move_points.extend(inputs.forecast_actual_move_points)
             value = inputs.buy_and_hold_usd if inputs.buy_and_hold_usd is not None else (
                 self._fold_buy_and_hold(accumulator) if include_open_fold else None)
             if value is not None:
@@ -965,12 +1126,15 @@ class CycleEngine:
             "close": float(d.close[following]), "volume": float(d.volume[following]),
             "probability_up": None, "predicted_direction": 0, "position": 0,
             "equity_usd": self.equity, "actual_direction": None, "correct": None,
+            "predicted_move_points": None, "predicted_close": None, "forecast_timestamp": None,
+            "forecast_error_points": None,
         }
         frame = self._frame_for(k)
         for key, value in (("timestamps", int(d.timestamps[following])), ("open", d.open[following]),
                            ("high", d.high[following]), ("low", d.low[following]), ("close", d.close[following]),
                            ("volume", d.volume[following]), ("probabilityUp", None), ("predictedDirection", 0),
-                           ("position", 0), ("equityUsd", self.equity)):
+                           ("position", 0), ("equityUsd", self.equity), ("predictedClose", None),
+                           ("forecastTimestamp", None)):
             frame[key].append(value)
         self.log(f"[control] stopping: closed the open trade at the next bar's open, {format_time(d.timestamps[following])} "
                  f"(the fill rule every exit uses); equity {format_usd(self.equity)}")
@@ -1028,7 +1192,14 @@ class EngineReporter:
         log_prefix: str | None = None,
         progress: Callable[[float], None] | None = None,
         quiet: bool = False,
+        model_role: str = "direction",
     ) -> None:
+        if model_role not in ("direction", "price"):
+            raise ValueError(f"model role must be direction or price, got {model_role!r}")
+        self.model_role = model_role
+        self.price = model_role == "price"
+        # every line the price model's fit writes names it: "[fold 1/3][train] price model ..."
+        self.role_words = "price model " if self.price else ""
         self.engine = engine
         self.fold_index = fold_index
         self.train_index = train_index
@@ -1066,7 +1237,7 @@ class EngineReporter:
         if self.progress is not None:
             self.progress(fraction)
         elif self.fold_index is not None:
-            self.engine.fold_progress(self.fold_index, training_fraction=fraction)
+            self.engine.fold_progress(self.fold_index, training_fraction=fraction, model_role=self.model_role)
 
     def _phase(self) -> str:
         return "tuning" if self.tuning else "training"
@@ -1078,7 +1249,7 @@ class EngineReporter:
         fields = dict(
             fold_index=self.fold_index, span_start=(span or self.window)[0], span_end=(span or self.window)[1],
             epoch=self.epoch or None, epoch_count=self.epoch_count or None, batch=batch, batch_count=batch_count,
-            step_unit=self._unit(), trial=self.trial, trial_count=self.trial_count,
+            step_unit=self._unit(), trial=self.trial, trial_count=self.trial_count, model_role=self.model_role,
         )
         if phase != engine._cursor.get("phase"):
             engine.set_phase(phase, phase_fraction=fraction, **fields)
@@ -1123,7 +1294,8 @@ class EngineReporter:
             head = f"{words} {report.epoch}/{report.epoch_count} step {report.batch}/{report.batch_count}"
         block = f"block={format_time(span[0])}..{format_time(span[1])}"
         tail = " (every round sees the whole training window)" if whole and unit != "epoch" else ""
-        self.engine.log(f"{self.prefix}[train] {head} {' '.join(parts)} {block}{tail}", "debug" if self.tuning else "info")
+        self.engine.log(f"{self.prefix}[train] {self.role_words}{head} {' '.join(parts)} {block}{tail}",
+                        "debug" if self.tuning else "info")
 
     def validating(self, epoch: int, epoch_count: int) -> None:
         self.epoch, self.epoch_count = int(epoch), int(epoch_count)
@@ -1140,35 +1312,59 @@ class EngineReporter:
             step_unit=unit, train_loss=report.train_loss, validation_loss=report.validation_loss,
             validation_accuracy=report.validation_accuracy, validation_f1_score=report.validation_f1_score,
             learning_rate=report.learning_rate, gradient_norm=report.gradient_norm, is_best=report.is_best,
-            seconds_elapsed=seconds,
+            seconds_elapsed=seconds, model_role=self.model_role,
         )
         engine.epoch_records.append({
-            "fold_index": self.fold_index, "trial": self.trial, "epoch": int(report.epoch),
+            "fold_index": self.fold_index, "trial": self.trial, "model_role": self.model_role, "epoch": int(report.epoch),
             "epoch_count": int(report.epoch_count), "step_unit": unit, "train_loss": report.train_loss,
             "validation_loss": report.validation_loss, "validation_accuracy": report.validation_accuracy,
             "validation_f1_score": report.validation_f1_score, "learning_rate": report.learning_rate,
             "gradient_norm": report.gradient_norm, "is_best": bool(report.is_best), "seconds_elapsed": seconds,
         })
         loss = report.validation_loss
-        if loss is not None and math.isfinite(loss) and (self.best_loss is None or loss < self.best_loss):
+        # "best" is the epoch the adapter keeps. A neural price model keeps its
+        # weights by validation Huber loss but reports mean absolute error, so
+        # the lowest reported loss is not always the kept epoch: follow the
+        # adapter's is_best flag, and fall back to the lowest reported loss only
+        # for adapters that never set it.
+        if report.is_best:
+            self.saw_is_best = True
+            self.best_loss, self.best_epoch = loss, report.epoch
+        elif not getattr(self, "saw_is_best", False) and loss is not None and math.isfinite(loss) and (
+            self.best_loss is None or loss < self.best_loss
+        ):
             self.best_loss, self.best_epoch = loss, report.epoch
         level = "debug" if self.tuning else "info"
+        # the price model reports mean absolute error of the volatility-scaled move, and the accuracy of its sign
+        loss_name = "mae" if self.price else "logloss"
         if unit == "boosting_round":
             engine.log(
-                f"{self.prefix}[train] boosting round {report.epoch}/{report.epoch_count} "
-                f"train_logloss={_format_number(report.train_loss)} val_logloss={_format_number(report.validation_loss)} "
+                f"{self.prefix}[train] {self.role_words}boosting round {report.epoch}/{report.epoch_count} "
+                f"train_{loss_name}={_format_number(report.train_loss)} val_{loss_name}={_format_number(report.validation_loss)} "
                 "(every round sees the whole training window)", level,
             )
         best = f"best={_format_number(self.best_loss)}@{self.best_epoch}" if self.best_epoch is not None else "best=n/a"
         since = (report.epoch - self.best_epoch) if self.best_epoch is not None else 0
         patience = f" patience={since}/{self.patience}" if self.patience else ""
         word = {"epoch": "epoch", "boosting_round": "round", "tree_batch": "trees", "solver_pass": "pass"}[unit]
+        if self.price:
+            scores = (f"val_mae={_format_number(report.validation_loss)} (in trailing-volatility units) "
+                      f"val_sign_accuracy={_format_number(report.validation_accuracy, '.3f')}")
+        else:
+            scores = (f"val_loss={_format_number(report.validation_loss)} "
+                      f"val_accuracy={_format_number(report.validation_accuracy, '.3f')} "
+                      f"val_f1={_format_number(report.validation_f1_score, '.3f')}")
         engine.log(
-            f"{self.prefix}[validate] {word} {report.epoch}/{report.epoch_count} val_loss={_format_number(report.validation_loss)} "
-            f"val_accuracy={_format_number(report.validation_accuracy, '.3f')} val_f1={_format_number(report.validation_f1_score, '.3f')} "
+            f"{self.prefix}[validate] {self.role_words}{word} {report.epoch}/{report.epoch_count} {scores} "
             f"{best}{patience}{' (stopped early)' if report.stopped_early else ''}", level,
         )
-        if not self.tuning:
+        if not self.tuning and self.price:
+            engine.price_global_step += 1
+            for name, value in (("price_model_train_mean_absolute_error", report.train_loss),
+                                ("price_model_validation_mean_absolute_error", report.validation_loss)):
+                if value is not None and math.isfinite(value):
+                    protocol.emit_metric(name, value, iteration=engine.price_global_step)
+        elif not self.tuning:
             engine.global_step += 1
             if report.train_loss is not None and math.isfinite(report.train_loss):
                 protocol.emit_metric("train_loss", report.train_loss, iteration=engine.global_step)
@@ -1185,5 +1381,6 @@ class EngineReporter:
 
     def log(self, message: str, level: str = "info") -> None:
         if not message.startswith("["):
-            message = f"{self.prefix}{'' if self.tuning else '[train]'} {message}"
+            role = "" if "price model" in message else self.role_words     # the adapter may name itself
+            message = f"{self.prefix}{'' if self.tuning else '[train]'} {role}{message}"
         self.engine.log(message, level if level in ("debug", "info", "warn", "error") else "info")

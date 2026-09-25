@@ -165,6 +165,11 @@ export function PhaseStrip() {
               {cursor.batch !== null && cursor.batchCount !== null && ` · batch ${cursor.batch}/${cursor.batchCount}`}
             </span>
           )}
+          {(cursor.phase === "training" || cursor.phase === "validating") && cursor.modelRole === "price" && (
+            <span className="rounded border border-[#CC79A7]/50 px-1.5 py-0.5 font-mono text-[10px] text-[#CC79A7]" data-testid="phase-model-role">
+              price model
+            </span>
+          )}
           {cursor.phase === "tuning" && cursor.trial !== null && cursor.trialCount !== null && (
             <span className="flex items-center gap-1 font-mono">
               <SlidersHorizontal className="h-3 w-3" aria-hidden="true" />

@@ -1,6 +1,6 @@
 /**
  * CycleScoreboard — live metric tiles for the current run, grouped Trading /
- * Classification / Baselines, switchable between the running score, each
+ * Classification / Baselines / Price forecast, switchable between the running score, each
  * finished fold's score, and the final score.
  *
  * Tooltips use the native `title` attribute rather than a Radix popover: the
@@ -27,6 +27,10 @@ function formatMetric(kind: MetricFormatKind, value: number | null): string {
       return formatPercent(value);
     case "count":
       return formatCount(value);
+    case "points": {
+      const text = formatRatio(value, 2);
+      return value === null || !Number.isFinite(value) ? text : `${text} points`;
+    }
   }
 }
 
@@ -55,10 +59,22 @@ function Sparkline({ values }: { values: number[] }) {
   );
 }
 
+type ComparisonTone = "up" | "down" | "even";
+
 function comparisonLine(
   name: CycleMetricName,
   metrics: Record<string, number | null>,
-): { text: string; tone: "up" | "down" } | null {
+): { text: string; tone: ComparisonTone } | null {
+  if (name === "price_forecast_skill") {
+    // Skill is already relative to the no-change forecast: 1 − MAE ÷ no-change MAE.
+    const skill = metrics.price_forecast_skill;
+    if (skill == null || !Number.isFinite(skill)) return null;
+    const percent = Math.abs(skill * 100).toFixed(1);
+    if (percent === "0.0") return { text: "= no better than no-change", tone: "even" };
+    return skill > 0
+      ? { text: `▲ beats no-change by ${percent}%`, tone: "up" }
+      : { text: `▼ worse than no-change by ${percent}%`, tone: "down" };
+  }
   if (name === "accuracy") {
     const value = metrics.accuracy;
     const baseline = metrics.majority_class_accuracy;
@@ -125,7 +141,12 @@ function Tile({ name, scoreboard, history }: { name: CycleMetricName; scoreboard
       {comparison && (
         <span
           data-testid={`metric-comparison-${name}`}
-          className={cn("text-[10px] font-medium", comparison.tone === "up" ? "text-(--color-data-pos)" : "text-(--color-data-neg)")}
+          className={cn(
+            "text-[10px] font-medium",
+            comparison.tone === "up" && "text-(--color-data-pos)",
+            comparison.tone === "down" && "text-(--color-data-neg)",
+            comparison.tone === "even" && "text-muted-foreground",
+          )}
         >
           {comparison.text}
         </span>

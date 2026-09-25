@@ -6,6 +6,10 @@
  *
  *  - mapping store columns to series points (candles, prediction strip,
  *    probability line, equity line), one bar range at a time;
+ *  - the on-candle prediction glyph of each bar (side, colour, solid / hollow /
+ *    faint) and its triangle geometry;
+ *  - the price model's forecast line (points at the bar each forecast is for),
+ *    built incrementally with a target-time → source-bar map for the readout;
  *  - the "what must be drawn this frame" bookkeeping (append the new tail,
  *    or reset everything when the store was replaced);
  *  - the band list (training / validation / test spans, the active block the
@@ -195,6 +199,155 @@ export function mapBars(columns: CycleBarColumns, from: number, to: number): Map
   return { candles, strip, probability, equity };
 }
 
+// ─── On-candle prediction glyphs ────────────────────────────────────────────
+
+/** Below this bar spacing (pixels) glyphs are not drawn: too dense to read; the strip still shows. */
+export const GLYPH_MINIMUM_BAR_SPACING = 3;
+export const GLYPH_MINIMUM_SIZE = 4;
+export const GLYPH_MAXIMUM_SIZE = 10;
+/** Pixels between the candle's wick end and the glyph. */
+export const GLYPH_GAP = 3;
+/** Alpha of a glyph whose label is not known yet (or moved too little to score). */
+export const GLYPH_FAINT_ALPHA = 0.45;
+/**
+ * Floor of a solid (correct) glyph's alpha. Confidence lifts it toward 1. Kept
+ * well above the faint alpha: these models rarely move P(up) far from 0.5, so
+ * a floor near 0.45 would make a correct glyph look like an unresolved one.
+ */
+export const GLYPH_SOLID_MINIMUM_ALPHA = 0.75;
+
+/** How a glyph is filled: solid = the call was right, hollow = wrong, faint = not known yet. */
+export type GlyphFill = "solid" | "hollow" | "faint";
+
+export interface PredictionGlyph {
+  /** "below": an upward triangle under the low (predicts up); "above": a downward triangle over the high (predicts down). */
+  side: "below" | "above";
+  color: string;
+  fill: GlyphFill;
+  /** Alpha to draw with (outline of a hollow glyph is drawn at this alpha too). */
+  alpha: number;
+}
+
+/** Glyph size in pixels for a bar spacing, or null when bars are too dense to draw glyphs. */
+export function glyphSize(barSpacing: number): number | null {
+  if (!Number.isFinite(barSpacing) || barSpacing < GLYPH_MINIMUM_BAR_SPACING) return null;
+  return Math.max(GLYPH_MINIMUM_SIZE, Math.min(GLYPH_MAXIMUM_SIZE, barSpacing * 0.8));
+}
+
+/** The glyph for bar `index`: null for context bars and bars with no directional call. */
+export function predictionGlyphAt(columns: CycleBarColumns, index: number): PredictionGlyph | null {
+  if (columns.role[index] !== "processed") return null;
+  const direction = columns.predictedDirection[index];
+  if (direction !== 1 && direction !== -1) return null;
+  const correct = columns.correct[index];
+  let fill: GlyphFill;
+  let alpha: number;
+  if (correct === true) {
+    fill = "solid";
+    const confidence = predictionConfidence(columns.probabilityUp[index] ?? null);
+    alpha = GLYPH_SOLID_MINIMUM_ALPHA + (1 - GLYPH_SOLID_MINIMUM_ALPHA) * confidence;
+  } else if (correct === false) {
+    fill = "hollow";
+    alpha = 1;
+  } else {
+    // Not resolved yet, or resolved inside the threshold (not scored).
+    fill = "faint";
+    alpha = GLYPH_FAINT_ALPHA;
+  }
+  return {
+    side: direction === 1 ? "below" : "above",
+    color: direction === 1 ? CYCLE_COLORS.up : CYCLE_COLORS.down,
+    fill,
+    alpha,
+  };
+}
+
+export interface TrianglePoints {
+  /** The tip, pointing away from the candle's body toward the predicted move. */
+  apex: { x: number; y: number };
+  baseLeft: { x: number; y: number };
+  baseRight: { x: number; y: number };
+}
+
+/**
+ * Triangle for a glyph at bar centre `x`. `wickY` is the pixel y of the
+ * candle's low (side "below") or high (side "above"). An up triangle sits
+ * under the low with its apex toward the candle; a down triangle sits over
+ * the high with its apex toward the candle — both point the way the model
+ * expects price to go.
+ */
+export function glyphTriangle(side: "below" | "above", x: number, wickY: number, size: number, gap = GLYPH_GAP): TrianglePoints {
+  const half = size / 2;
+  const height = size * 0.9;
+  if (side === "below") {
+    const top = wickY + gap;
+    return { apex: { x, y: top }, baseLeft: { x: x - half, y: top + height }, baseRight: { x: x + half, y: top + height } };
+  }
+  const bottom = wickY - gap;
+  return { apex: { x, y: bottom }, baseLeft: { x: x - half, y: bottom - height }, baseRight: { x: x + half, y: bottom - height } };
+}
+
+// ─── Predicted-price (forecast) line ────────────────────────────────────────
+
+/**
+ * The forecast line's bookkeeping, built incrementally as bars append (never
+ * rescanned per hover or per frame).
+ *
+ * A point is plotted at the time of the bar it FORECASTS (`forecastTimestamp`),
+ * not the bar that made it, so the line leads price by `labelHorizonBars` and
+ * each point lands on the candle it predicts. `sourceByTime` maps that target
+ * time back to the index of the bar that made the forecast.
+ */
+export interface ForecastTrack {
+  /** Target times plotted so far, strictly increasing. */
+  times: number[];
+  /** Target time (epoch seconds) → index of the bar that made the forecast. */
+  sourceByTime: Map<number, number>;
+}
+
+export function emptyForecastTrack(): ForecastTrack {
+  return { times: [], sourceByTime: new Map() };
+}
+
+/**
+ * Add the forecasts made by bars `[from, to)` to `track` IN PLACE and return
+ * the new line points, in order. Skipped: context bars, a null forecast or
+ * target time, and a target time not after the last one plotted (the line
+ * series only accepts increasing times). Cost is proportional to `to − from`.
+ */
+export function appendForecast(track: ForecastTrack, columns: CycleBarColumns, from: number, to: number): ValuePoint[] {
+  const points: ValuePoint[] = [];
+  const end = Math.min(to, columns.timestamps.length);
+  let last = track.times.length > 0 ? track.times[track.times.length - 1]! : -Infinity;
+  for (let index = Math.max(0, from); index < end; index += 1) {
+    if (columns.role[index] !== "processed") continue;
+    const time = columns.forecastTimestamp[index];
+    const value = columns.predictedClose[index];
+    if (time === null || time === undefined || value === null || value === undefined || !Number.isFinite(value)) continue;
+    if (time <= last) continue;
+    last = time;
+    track.times.push(time);
+    track.sourceByTime.set(time, index);
+    points.push({ time: time as UTCTimestamp, value });
+  }
+  return points;
+}
+
+/**
+ * Logical index of the newest forecast point, or null when there is none.
+ *
+ * The time scale is the union of every series' times. The engine emits bars
+ * contiguously, so every forecast target at or before the newest candle is a
+ * candle time, and each target after it adds exactly one time point to the
+ * right of the candles. Candle `i` therefore keeps logical index `i`, and the
+ * forecast head sits `lead` points past the last candle.
+ */
+export function forecastHeadIndex(track: ForecastTrack, candleCount: number, lastCandleTimestamp: number | null): number | null {
+  if (track.times.length === 0 || candleCount === 0 || lastCandleTimestamp === null) return null;
+  const lead = track.times.length - upperBound(track.times, lastCandleTimestamp);
+  return candleCount - 1 + lead;
+}
+
 // ─── Incremental render bookkeeping ─────────────────────────────────────────
 
 /** What the chart has drawn so far. */
@@ -224,7 +377,7 @@ export type RenderPlan =
   | { kind: "reset"; count: number }
   /** series.update() for bars `[from, to)`. */
   | { kind: "append"; from: number; to: number }
-  /** Nothing new to append, but labels resolved on drawn bars: redraw the correctness row. */
+  /** Nothing new to append, but labels resolved on drawn bars: redraw the prediction glyphs. */
   | { kind: "refresh" };
 
 /**
@@ -501,6 +654,9 @@ export interface TradeMarkerSet {
   pendingTimestamp: number | null;
 }
 
+/** An invisible marker: it only reserves the slot a prediction glyph occupies. */
+export const GLYPH_SPACER_COLOR = "rgba(0, 0, 0, 0)";
+
 interface MarkerWithOrder {
   marker: SeriesMarker<Time>;
   order: number;
@@ -512,14 +668,36 @@ interface MarkerWithOrder {
  * with the net result as text, above the bar for a long and below for a short.
  * A marker whose bar has not been drawn yet (`lastDrawnTimestamp`) is held
  * back and reported as pending, so the chart can rebuild once the bar lands.
+ *
+ * With `columns`, a marker on the same side of its bar as that bar's
+ * prediction glyph (▲ below / ▼ above, drawn by the bands primitive) is pushed
+ * outward by an invisible spacer marker placed first: the markers plugin
+ * stacks same-side markers of one bar, so the spacer takes the slot next to
+ * the candle and the trade arrow lands beyond the glyph instead of on it.
  */
-export function buildTradeMarkers(trades: readonly CycleTrade[], lastDrawnTimestamp: number | null): TradeMarkerSet {
+export function buildTradeMarkers(
+  trades: readonly CycleTrade[],
+  lastDrawnTimestamp: number | null,
+  columns: CycleBarColumns | null = null,
+): TradeMarkerSet {
   const collected: MarkerWithOrder[] = [];
+  const spaced = new Set<string>();
   let pending: number | null = null;
   const consider = (time: number, marker: SeriesMarker<Time>, order: number) => {
     if (lastDrawnTimestamp === null || time > lastDrawnTimestamp) {
       pending = pending === null ? time : Math.min(pending, time);
       return;
+    }
+    if (columns && (marker.position === "belowBar" || marker.position === "aboveBar")) {
+      const key = `${marker.position}-${time}`;
+      if (!spaced.has(key)) {
+        const index = findBarIndex(columns.timestamps, time);
+        const glyph = index >= 0 ? predictionGlyphAt(columns, index) : null;
+        if (glyph && (glyph.side === "below") === (marker.position === "belowBar")) {
+          spaced.add(key);
+          collected.push({ marker: { id: `glyph-space-${key}`, time: time as UTCTimestamp, position: marker.position, shape: "circle", color: GLYPH_SPACER_COLOR, size: 1 }, order: -1 });
+        }
+      }
     }
     collected.push({ marker, order });
   };
@@ -580,10 +758,21 @@ export function followWidth(currentWidth: number | null): number {
   return Math.max(FOLLOW_MINIMUM_BARS, Math.min(FOLLOW_MAXIMUM_BARS, currentWidth));
 }
 
-/** Testing: the cursor bar near the right edge, `width` bars in view. */
-export function followTestRange(cursorIndex: number, width: number): LogicalSpan {
-  const to = cursorIndex + FOLLOW_RIGHT_PADDING_BARS;
-  return { from: to - width, to };
+/** Empty logical space kept right of the newest forecast point. */
+export const FOLLOW_FORECAST_PADDING_BARS = 2;
+/** Bars kept left of the cursor when a long forecast horizon pushes the right edge out. */
+const FOLLOW_CURSOR_LEFT_MARGIN_BARS = 10;
+
+/**
+ * Testing: the cursor bar near the right edge, `width` bars in view. With a
+ * forecast head (the logical index of the newest forecast point, which leads
+ * the cursor by the label horizon), the right edge moves out to keep that
+ * point in view too; the range widens rather than drop the cursor off the left.
+ */
+export function followTestRange(cursorIndex: number, width: number, forecastHead: number | null = null): LogicalSpan {
+  let to = cursorIndex + FOLLOW_RIGHT_PADDING_BARS;
+  if (forecastHead !== null && Number.isFinite(forecastHead)) to = Math.max(to, forecastHead + FOLLOW_FORECAST_PADDING_BARS);
+  return { from: Math.min(to - width, cursorIndex - FOLLOW_CURSOR_LEFT_MARGIN_BARS), to };
 }
 
 /** Training / validating / tuning: the whole active span plus 5% (at least 5 bars) each side. */
@@ -623,6 +812,32 @@ export interface BarReadout {
   /** ✓ / ✗ / – / … so the label reads without colour. */
   labelGlyph: string;
   actualDirectionWord: string | null;
+  /** The price model's forecast that TARGETS this bar (made `labelHorizonBars` earlier); null when none does. */
+  forecastForThisBar: TargetForecast | null;
+  /** The forecast this bar MADE, of the close `labelHorizonBars` later; null when it made none. */
+  forecastMadeHere: MadeForecast | null;
+}
+
+export interface TargetForecast {
+  /** When the forecast was made (the bar `labelHorizonBars` earlier). */
+  madeAtText: string;
+  predictedClose: number;
+  actualClose: number;
+  /** Forecast close − actual close, in price points (positive: the forecast was too high). */
+  errorPoints: number;
+}
+
+export interface MadeForecast {
+  predictedClose: number;
+  /** The bar the forecast is for. */
+  targetTimeText: string;
+}
+
+/** A forecast point past the newest candle: its bar has not arrived yet. */
+export interface ForecastOnlyReadout {
+  timeText: string;
+  madeAtText: string;
+  predictedClose: number;
 }
 
 /** "2025-11-04 09:35 UTC" — the chart's axis is UTC, so the readout says so. */
@@ -637,7 +852,53 @@ function directionWord(direction: 1 | 0 | -1 | null | undefined, up: string, dow
   return "none";
 }
 
-export function readoutAt(columns: CycleBarColumns, index: number): BarReadout | null {
+/** The forecast targeting bar `index`, looked up through the forecast track's map (no scan). */
+export function targetForecastAt(
+  columns: CycleBarColumns,
+  index: number,
+  sourceByTime: ReadonlyMap<number, number> | null,
+): TargetForecast | null {
+  if (!sourceByTime || index < 0 || index >= columns.timestamps.length) return null;
+  const source = sourceByTime.get(columns.timestamps[index]!);
+  if (source === undefined) return null;
+  const predictedClose = columns.predictedClose[source];
+  if (predictedClose === null || predictedClose === undefined) return null;
+  const actualClose = columns.close[index]!;
+  return {
+    madeAtText: formatBarTime(columns.timestamps[source]!),
+    predictedClose,
+    actualClose,
+    errorPoints: predictedClose - actualClose,
+  };
+}
+
+/** The forecast bar `index` made, or null when it made none. */
+export function madeForecastAt(columns: CycleBarColumns, index: number): MadeForecast | null {
+  if (index < 0 || index >= columns.timestamps.length || columns.role[index] !== "processed") return null;
+  const predictedClose = columns.predictedClose[index];
+  const target = columns.forecastTimestamp[index];
+  if (predictedClose === null || predictedClose === undefined || target === null || target === undefined) return null;
+  return { predictedClose, targetTimeText: formatBarTime(target) };
+}
+
+/** Readout for a forecast point whose bar has not been drawn yet (the part of the line ahead of the candles). */
+export function forecastOnlyReadout(
+  columns: CycleBarColumns,
+  time: number,
+  sourceByTime: ReadonlyMap<number, number> | null,
+): ForecastOnlyReadout | null {
+  const source = sourceByTime?.get(time);
+  if (source === undefined) return null;
+  const predictedClose = columns.predictedClose[source];
+  if (predictedClose === null || predictedClose === undefined) return null;
+  return { timeText: formatBarTime(time), madeAtText: formatBarTime(columns.timestamps[source]!), predictedClose };
+}
+
+export function readoutAt(
+  columns: CycleBarColumns,
+  index: number,
+  forecastSourceByTime: ReadonlyMap<number, number> | null = null,
+): BarReadout | null {
   if (index < 0 || index >= columns.timestamps.length) return null;
   const processed = columns.role[index] === "processed";
   const correct = columns.correct[index];
@@ -675,6 +936,8 @@ export function readoutAt(columns: CycleBarColumns, index: number): BarReadout |
     labelWord,
     labelGlyph,
     actualDirectionWord: actual === null || actual === undefined ? null : directionWord(actual, "up", "down", "flat"),
+    forecastForThisBar: targetForecastAt(columns, index, forecastSourceByTime),
+    forecastMadeHere: madeForecastAt(columns, index),
   };
 }
 

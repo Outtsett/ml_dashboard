@@ -18,6 +18,15 @@ The loop (`NeuralAdapter.fit`):
     stopping on validation log loss with `patience`; the best weights are
     kept in memory and restored at the end.
 
+As the price model (``task="regression"``) the same networks and the same
+loop fit the engine's volatility-scaled forward move with HuberLoss(delta=1.0)
+on the raw linear head (no sigmoid, no positive-class weight, no target
+clipping: Huber's bounded gradient is the outlier handling). Early stopping
+and the restored weights follow the validation HUBER loss; the reported train
+and validation losses are mean absolute error in target units (train measured
+on the training batches as they are fitted, in train mode) and
+``validation_accuracy`` is the accuracy of the predicted sign.
+
 Every network reads only the window it is given, and the sequence networks
 are causal inside the window as well: position k of `sequence_output` never
 depends on positions after k (causal left-padded convolutions, a causal
@@ -46,9 +55,14 @@ from .adapter import SEQUENCE_FAMILIES, BatchReport, EpochReport, check_index
 from .models import (
     _as_index,
     _base_metadata,
+    _check_task,
     _require_both_classes,
+    _require_varying_target,
     _training_summary,
+    _wrong_task_error,
     binary_scores,
+    huber_loss,
+    regression_scores,
     resolve_parameters,
     write_metadata,
 )
@@ -222,13 +236,19 @@ def _seed_everything(seed: int) -> None:
 
 # ─── adapter ───────────────────────────────────────────────────────────────
 
+_HUBER_DELTA = 1.0
+
+
 class NeuralAdapter:
     """ModelAdapter for the four PyTorch families (see module docstring)."""
 
     step_unit = "epoch"
 
-    def __init__(self, family: str, parameters: dict, device: str, seed: int) -> None:
+    def __init__(self, family: str, parameters: dict, device: str, seed: int,
+                 task: str = "classification") -> None:
+        _check_task(task)
         self.family = family
+        self.task = task
         self.parameters = resolve_parameters(family, parameters)
         self.device, device_note = resolve_device(device)
         self.seed = int(seed)
@@ -280,10 +300,18 @@ class NeuralAdapter:
             return torch.autocast(device_type="cpu", enabled=False)
         return torch.autocast(device_type="cuda", dtype=self._amp_dtype)
 
+    def _output(self, raw: torch.Tensor) -> torch.Tensor:
+        """The network's raw head output as this task's prediction: P(up) for
+        the direction model, the target itself for the price model."""
+        if self.task == "regression":
+            return raw
+        return torch.sigmoid(raw)
+
     # ── fit ──
 
     def fit(self, features, labels, train_index, validation_index, timestamps, reporter):
         reporter.step_unit = self.step_unit
+        regression = self.task == "regression"
         train_index = _as_index(train_index)
         validation_index = _as_index(validation_index)
         if train_index.size == 0:
@@ -293,7 +321,10 @@ class NeuralAdapter:
         self._check_history(train_index, "train_index")
         self._check_history(validation_index, "validation_index")
         train_labels = labels[train_index]
-        _require_both_classes(self.family, train_labels)
+        if regression:
+            _require_varying_target(self.family, train_labels.astype(np.float64))
+        else:
+            _require_both_classes(self.family, train_labels)
         for note in self.notes:
             reporter.log(note, "warn")
 
@@ -314,18 +345,22 @@ class NeuralAdapter:
 
         matrix = torch.from_numpy(np.ascontiguousarray(features, dtype=np.float32)).to(device)
         label_tensor = torch.from_numpy(
-            np.nan_to_num(np.asarray(labels, dtype=np.float32), nan=-1.0)
+            np.nan_to_num(np.asarray(labels, dtype=np.float32), nan=0.0 if regression else -1.0)
         ).to(device)
         train_rows = torch.from_numpy(train_index).to(device)
         validation_rows = torch.from_numpy(validation_index).to(device)
         validation_labels = labels[validation_index].astype(np.float64)
 
-        positives = float(np.sum(train_labels >= 0.5))
-        negatives = float(train_labels.size - positives)
-        positive_weight = negatives / positives
-        loss_function = nn.BCEWithLogitsLoss(
-            pos_weight=torch.tensor(positive_weight, dtype=torch.float32, device=device)
-        )
+        if regression:
+            positive_weight = None
+            loss_function = nn.HuberLoss(delta=_HUBER_DELTA)
+        else:
+            positives = float(np.sum(train_labels >= 0.5))
+            negatives = float(train_labels.size - positives)
+            positive_weight = negatives / positives
+            loss_function = nn.BCEWithLogitsLoss(
+                pos_weight=torch.tensor(positive_weight, dtype=torch.float32, device=device)
+            )
         optimizer = torch.optim.AdamW(
             network.parameters(), lr=p["learning_rate"], weight_decay=p["weight_decay"]
         )
@@ -348,16 +383,23 @@ class NeuralAdapter:
             + (" with gradient scaling" if scaler else "")
             if use_amp else "float32"
         )
+        objective = (
+            f"Huber loss (delta {_HUBER_DELTA:g}) on the price target, early stopping on "
+            "validation Huber loss, losses reported as mean absolute error"
+            if regression else f"positive class weight {positive_weight:.3f}"
+        )
         reporter.log(
             f"{self.family} on {self.device} ({precision}): {parameter_count:,} parameters, "
             f"sequence length {self.sequence_length}, {train_index.size} training rows in "
             f"{batch_count} contiguous blocks of up to {batch_size}, "
-            f"{validation_index.size} validation rows, positive class weight {positive_weight:.3f}"
+            f"{validation_index.size} validation rows, {objective}"
         )
+        selection_name = "Huber loss" if regression else "log loss"
 
         best_loss = math.inf
         best_epoch = 0
         best_state = None
+        best_reported_loss = None
         epochs_without_improvement = 0
         started = time.perf_counter()
         last_epoch = 0
@@ -392,7 +434,12 @@ class NeuralAdapter:
                     norm = torch.nn.utils.clip_grad_norm_(network.parameters(), 1.0)
                     optimizer.step()
                 scheduler.step()
-                loss_value = float(loss.item())
+                if regression:
+                    # Report mean absolute error (target units), the metric every
+                    # price model reports; Huber is what the optimiser minimised.
+                    loss_value = float((logits.detach().float() - targets).abs().mean().item())
+                else:
+                    loss_value = float(loss.item())
                 norm_value = float(norm.item())
                 if not math.isfinite(norm_value):
                     norm_value_reported = None
@@ -414,29 +461,39 @@ class NeuralAdapter:
                 ))
             train_loss = loss_sum / train_index.size
 
-            scores = {"log_loss": None, "accuracy": None, "f1_score": None}
+            scores = {"loss": None, "accuracy": None, "f1_score": None}
+            selection_loss = None
             if validation_index.size:
                 reporter.checkpoint()
                 reporter.validating(epoch, epoch_count)
-                probability = self._score_device(matrix, validation_rows)
-                scores = binary_scores(probability, validation_labels)
-            validation_loss = scores["log_loss"]
+                prediction = self._score_device(matrix, validation_rows)
+                if regression:
+                    regression_score = regression_scores(prediction, validation_labels)
+                    scores = {"loss": regression_score["mean_absolute_error"],
+                              "accuracy": regression_score["accuracy"], "f1_score": None}
+                    selection_loss = huber_loss(prediction, validation_labels, _HUBER_DELTA)
+                else:
+                    binary = binary_scores(prediction, validation_labels)
+                    scores = {"loss": binary["log_loss"], "accuracy": binary["accuracy"],
+                              "f1_score": binary["f1_score"]}
+                    selection_loss = binary["log_loss"]
             is_best = False
-            if validation_loss is not None and validation_loss < best_loss:
+            if selection_loss is not None and selection_loss < best_loss:
                 is_best = True
-                best_loss = validation_loss
+                best_loss = selection_loss
+                best_reported_loss = scores["loss"]
                 best_epoch = epoch
                 best_state = copy.deepcopy(network.state_dict())
                 epochs_without_improvement = 0
-            elif validation_loss is not None:
+            elif selection_loss is not None:
                 epochs_without_improvement += 1
             stop_now = (
-                validation_loss is not None and epochs_without_improvement >= p["patience"]
+                selection_loss is not None and epochs_without_improvement >= p["patience"]
             )
             reporter.epoch_finished(EpochReport(
                 epoch=epoch, epoch_count=epoch_count,
                 train_loss=train_loss if math.isfinite(train_loss) else None,
-                validation_loss=validation_loss,
+                validation_loss=scores["loss"],
                 validation_accuracy=scores["accuracy"],
                 validation_f1_score=scores["f1_score"],
                 learning_rate=optimizer.param_groups[0]["lr"],
@@ -447,46 +504,55 @@ class NeuralAdapter:
             if stop_now:
                 if epoch < epoch_count:
                     reporter.log(
-                        f"early stopping after epoch {epoch}: validation log loss has not "
-                        f"improved for {p['patience']} epochs (best {best_loss:.4f} at epoch "
+                        f"early stopping after epoch {epoch}: validation {selection_name} has "
+                        f"not improved for {p['patience']} epochs (best {best_loss:.4f} at epoch "
                         f"{best_epoch})"
                     )
                 break
 
         if best_state is not None:
             network.load_state_dict(best_state)
-            reporter.log(f"restored the weights of epoch {best_epoch} (lowest validation log loss)")
+            reporter.log(
+                f"restored the weights of epoch {best_epoch} (lowest validation {selection_name})"
+            )
         else:
             best_epoch = last_epoch
         network.eval()
         del matrix, label_tensor, train_rows, validation_rows
-        self.fit_summary = {
+        summary = {
             **_training_summary(train_index, validation_index, timestamps),
             "trained_epochs": last_epoch,
             "best_epoch": best_epoch,
-            "best_validation_loss": None if math.isinf(best_loss) else best_loss,
-            "positive_class_weight": positive_weight,
-            "parameter_count": parameter_count,
-            "fit_seconds": time.perf_counter() - started,
         }
+        if regression:
+            summary["loss_function"] = f"huber (delta {_HUBER_DELTA:g})"
+            summary["best_validation_huber_loss"] = None if math.isinf(best_loss) else best_loss
+            summary["best_validation_loss"] = best_reported_loss  # mean absolute error
+        else:
+            summary["best_validation_loss"] = None if math.isinf(best_loss) else best_loss
+            summary["positive_class_weight"] = positive_weight
+        summary["parameter_count"] = parameter_count
+        summary["fit_seconds"] = time.perf_counter() - started
+        self.fit_summary = summary
 
     def _score_device(self, matrix: torch.Tensor, rows: torch.Tensor) -> np.ndarray:
-        """P(up) for rows already on the device (validation during fit). Runs in
-        float32, like `predict_probability`, so both agree."""
+        """The task's prediction (P(up), or the predicted target) for rows
+        already on the device (validation during fit). Runs in float32, like
+        `predict_probability` / `predict_value`, so both agree."""
         self.network.eval()
         outputs = []
         with torch.inference_mode():
             for start in range(0, rows.shape[0], _PREDICTION_CHUNK_ROWS):
                 chunk = rows[start:start + _PREDICTION_CHUNK_ROWS]
-                outputs.append(torch.sigmoid(self.network(self._gather_device(matrix, chunk))))
+                outputs.append(self._output(self.network(self._gather_device(matrix, chunk))))
         self.network.train()
         return torch.cat(outputs).double().cpu().numpy()
 
     # ── predict ──
 
-    def predict_probability(self, features, index):
+    def _predict(self, features, index, method: str) -> np.ndarray:
         if self.network is None:
-            raise RuntimeError(f"{self.family}: predict_probability called before fit")
+            raise RuntimeError(f"{self.family}: {method} called before fit")
         index = _as_index(index)
         if index.size == 0:
             return np.empty(0, dtype=np.float64)
@@ -510,14 +576,23 @@ class NeuralAdapter:
                 else:
                     window = window[None]
                 tensor = torch.from_numpy(window).to(device, non_blocking=False)
-                outputs.append(torch.sigmoid(network(tensor)))
+                outputs.append(self._output(network(tensor)))
             else:
                 for start in range(0, index.size, _PREDICTION_CHUNK_ROWS):
                     chunk = index[start:start + _PREDICTION_CHUNK_ROWS]
                     tensor = torch.from_numpy(self._gather_host(features, chunk)).to(device)
-                    outputs.append(torch.sigmoid(network(tensor)))
-        probability = torch.cat(outputs).double().cpu().numpy()
-        return np.clip(probability, 0.0, 1.0)
+                    outputs.append(self._output(network(tensor)))
+        return torch.cat(outputs).double().cpu().numpy()
+
+    def predict_probability(self, features, index):
+        if self.task != "classification":
+            raise _wrong_task_error(self.family, self.task, "predict_probability")
+        return np.clip(self._predict(features, index, "predict_probability"), 0.0, 1.0)
+
+    def predict_value(self, features, index):
+        if self.task != "regression":
+            raise _wrong_task_error(self.family, self.task, "predict_value")
+        return self._predict(features, index, "predict_value")
 
     # ── save / load ──
 
@@ -531,6 +606,7 @@ class NeuralAdapter:
         state = {
             "state_dict": {k: v.detach().cpu() for k, v in self.network.state_dict().items()},
             "family": self.family,
+            "task": self.task,
             "parameters": dict(self.parameters),
             "feature_count": self.feature_count,
             "sequence_length": self.sequence_length,
@@ -548,7 +624,8 @@ class NeuralAdapter:
     @classmethod
     def load(cls, directory: str, device: str = "cpu") -> NeuralAdapter:
         state = torch.load(Path(directory) / "model.pt", map_location="cpu", weights_only=True)
-        adapter = cls(state["family"], state["parameters"], device, 0)
+        adapter = cls(state["family"], state["parameters"], device, 0,
+                      task=state.get("task", "classification"))
         adapter.feature_count = int(state["feature_count"])
         network = build_network(adapter.family, adapter.parameters, adapter.feature_count)
         network.load_state_dict(state["state_dict"])

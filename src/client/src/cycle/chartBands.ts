@@ -2,17 +2,19 @@ import type {
   IChartApi,
   IPrimitivePaneRenderer,
   IPrimitivePaneView,
+  ISeriesApi,
   ISeriesPrimitive,
   Logical,
   PrimitivePaneViewZOrder,
   SeriesAttachedParameter,
+  SeriesType,
   Time,
 } from "lightweight-charts";
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
 
 import { findBarIndex, type CycleBarColumns } from "@shared/cycle/schema";
 
-import { CYCLE_COLORS, spanToLogical, withAlpha, type BandLayout } from "./chartModel";
+import { CYCLE_COLORS, glyphSize, glyphTriangle, predictionGlyphAt, spanToLogical, withAlpha, type BandLayout } from "./chartModel";
 
 /**
  * Canvas layer of the Model Cycle chart, attached to the candlestick series.
@@ -22,15 +24,15 @@ import { CYCLE_COLORS, spanToLogical, withAlpha, type BandLayout } from "./chart
  *    walk orange, earlier folds' test walks very faint) and the ACTIVE block the
  *    model is fitting / validating / tuning right now (reddish-purple);
  *  - IN FRONT: each band's label pill along the top edge, the dashed test
- *    cursor ("model is here"), the label-correctness row just above the
- *    prediction strip, and the brief highlight a table row's "show on chart"
- *    asks for.
+ *    cursor ("model is here"), the prediction glyph on every visible test bar
+ *    (▲ under the low / ▼ over the high, solid / hollow / faint by label),
+ *    and the brief highlight a table row's "show on chart" asks for.
  *
- * Why correctness is drawn here and not as a series: a label resolves
- * `labelHorizonBars` AFTER its bar was drawn, and lightweight-charts' `update()`
- * only rewrites the LAST point cheaply (`historicalUpdate` re-processes the
- * series). The primitive instead reads `columns.correct` at draw time for the
- * visible bars only, so a resolved label costs nothing until it is on screen.
+ * Why the glyphs are drawn here and not as series markers: a glyph's fill
+ * changes when its label resolves `labelHorizonBars` AFTER the bar was drawn,
+ * and the markers plugin re-lays-out every marker on each `setMarkers`. The
+ * primitive instead reads `columns.correct` at draw time for the visible bars
+ * only, so a resolved label costs nothing until it is on screen.
  *
  * Geometry goes through LOGICAL indices (`logicalToCoordinate`), never
  * `timeToCoordinate`: a span edge that is off-screen still has a coordinate,
@@ -49,8 +51,6 @@ const SWATCH_SIZE = 7;
 const EDGE_MARGIN = 4;
 const PILL_BACKGROUND = "rgba(11, 15, 22, 0.86)";
 const PILL_TEXT = "#E8ECF1";
-const CORRECTNESS_ROW_HEIGHT = 8;
-const CORRECTNESS_GAP = 3;
 const FLASH_FILL = withAlpha(CYCLE_COLORS.yellow, 0.28);
 
 function roundedRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number): void {
@@ -93,7 +93,7 @@ class BandsRenderer implements IPrimitivePaneRenderer {
       context.save();
       if (this._layer === "behind") this._drawFills(context, chart, columns, width, height);
       else {
-        this._drawCorrectness(context, chart, columns, width, height);
+        this._drawGlyphs(context, chart, columns, width);
         this._drawFlash(context, chart, columns, height);
         this._drawCursor(context, chart, columns, width, height);
         this._drawLabels(context, chart, columns, width);
@@ -227,60 +227,50 @@ class BandsRenderer implements IPrimitivePaneRenderer {
   }
 
   /**
-   * One mark per resolved test bar, in a row just above the prediction strip:
-   * correct = sky square, wrong = vermillion ✗, not scored (inside threshold) =
-   * grey dot. Shape carries the meaning; colour only reinforces it. Visible
-   * bars only.
+   * The model's call ON each visible test bar: an orange ▲ just under the low
+   * (predicts up) or a blue ▼ just over the high (predicts down). Fill carries
+   * the resolved label — solid = right, hollow outline = wrong, faint = not
+   * known yet (or the move was inside the threshold, not scored) — so it reads
+   * without colour. Visible bars only; nothing when bars are too dense.
    */
-  private _drawCorrectness(context: CanvasRenderingContext2D, chart: IChartApi, columns: CycleBarColumns, width: number, height: number): void {
+  private _drawGlyphs(context: CanvasRenderingContext2D, chart: IChartApi, columns: CycleBarColumns, width: number): void {
+    const series = this._source.series;
+    if (!series) return;
     const timeScale = chart.timeScale();
+    const size = glyphSize(timeScale.options().barSpacing);
+    if (size === null) return;
     const range = timeScale.getVisibleLogicalRange();
     if (!range) return;
     const first = Math.max(0, Math.floor(range.from));
     const last = Math.min(this._source.renderedCount - 1, Math.ceil(range.to));
     if (last < first) return;
 
-    const stripTop = height * this._source.stripTopFraction;
-    const rowBottom = stripTop - CORRECTNESS_GAP;
-    const rowTop = rowBottom - CORRECTNESS_ROW_HEIGHT;
-    const middle = (rowTop + rowBottom) / 2;
-    const x0 = timeScale.logicalToCoordinate(first as Logical);
-    const x1 = timeScale.logicalToCoordinate((first + 1) as Logical);
-    const spacing = x0 !== null && x1 !== null ? Math.abs(x1 - x0) : 6;
-    const dense = spacing < 4;
-    const half = Math.max(1, Math.min(3, spacing * 0.35));
-
+    context.lineWidth = 1.5;
+    context.lineJoin = "round";
     for (let index = first; index <= last; index += 1) {
-      if (columns.role[index] !== "processed") continue;
-      const actual = columns.actualDirection[index];
-      if (actual === null || actual === undefined) continue;
+      const glyph = predictionGlyphAt(columns, index);
+      if (!glyph) continue;
       const x = timeScale.logicalToCoordinate(index as Logical);
-      if (x === null || x < -4 || x > width + 4) continue;
-      const correct = columns.correct[index];
-      if (correct === true) {
-        context.fillStyle = CYCLE_COLORS.sky;
-        if (dense) context.fillRect(x - 0.5, rowTop, 1, CORRECTNESS_ROW_HEIGHT);
-        else context.fillRect(x - half, middle - half, half * 2, half * 2);
-      } else if (correct === false) {
-        context.strokeStyle = CYCLE_COLORS.vermillion;
-        context.fillStyle = CYCLE_COLORS.vermillion;
-        if (dense) context.fillRect(x - 0.5, middle, 1, CORRECTNESS_ROW_HEIGHT / 2);
-        else {
-          context.lineWidth = 1.5;
-          context.beginPath();
-          context.moveTo(x - half, middle - half);
-          context.lineTo(x + half, middle + half);
-          context.moveTo(x + half, middle - half);
-          context.lineTo(x - half, middle + half);
-          context.stroke();
-        }
-      } else if (!dense) {
-        context.fillStyle = withAlpha(CYCLE_COLORS.neutral, 0.7);
-        context.beginPath();
-        context.arc(x, middle, 1.2, 0, Math.PI * 2);
+      if (x === null || x < -size || x > width + size) continue;
+      const wick = glyph.side === "below" ? columns.low[index]! : columns.high[index]!;
+      const y = series.priceToCoordinate(wick);
+      if (y === null) continue;
+      const triangle = glyphTriangle(glyph.side, x, y, size);
+      context.beginPath();
+      context.moveTo(triangle.apex.x, triangle.apex.y);
+      context.lineTo(triangle.baseLeft.x, triangle.baseLeft.y);
+      context.lineTo(triangle.baseRight.x, triangle.baseRight.y);
+      context.closePath();
+      context.globalAlpha = glyph.alpha;
+      if (glyph.fill === "hollow") {
+        context.strokeStyle = glyph.color;
+        context.stroke();
+      } else {
+        context.fillStyle = glyph.color;
         context.fill();
       }
     }
+    context.globalAlpha = 1;
   }
 
   private _drawFlash(context: CanvasRenderingContext2D, chart: IChartApi, columns: CycleBarColumns, height: number): void {
@@ -320,17 +310,17 @@ class BandsPaneView implements IPrimitivePaneView {
   }
 }
 
-/** Series primitive for the cycle chart's bands, cursor, correctness row and focus highlight. */
+/** Series primitive for the cycle chart's bands, cursor, prediction glyphs and focus highlight. */
 export class CycleBandsPrimitive implements ISeriesPrimitive<Time> {
   public layout: BandLayout = { bands: [], cursor: null };
   /** The store's bar columns, read at draw time (never copied). */
   public columns: CycleBarColumns | null = null;
   /** Bars the series hold: `[0, renderedCount)` of `columns`. */
   public renderedCount = 0;
-  /** Top of the prediction strip as a fraction of pane height (its price scale's top margin). */
-  public stripTopFraction = 0.92;
   public flashTimestamp: number | null = null;
   public chart: IChartApi | null = null;
+  /** The candlestick series this primitive is attached to: its price scale places the glyphs. */
+  public series: ISeriesApi<SeriesType> | null = null;
 
   private readonly _paneViews: readonly IPrimitivePaneView[];
   private _requestUpdate: (() => void) | null = null;
@@ -341,11 +331,13 @@ export class CycleBandsPrimitive implements ISeriesPrimitive<Time> {
 
   public attached(param: SeriesAttachedParameter<Time>): void {
     this.chart = param.chart;
+    this.series = param.series;
     this._requestUpdate = param.requestUpdate;
   }
 
   public detached(): void {
     this.chart = null;
+    this.series = null;
     this._requestUpdate = null;
   }
 

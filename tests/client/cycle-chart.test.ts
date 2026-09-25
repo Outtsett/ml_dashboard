@@ -1,8 +1,9 @@
 /**
  * Model Cycle chart — the pure half (`src/client/src/cycle/chartModel.ts`):
  * bar → series mapping, incremental render bookkeeping, fold/active bands,
- * trade markers, follow ranges, the crosshair readout, and a benchmark that
- * the per-chunk mapping cost does not grow with the bars already drawn.
+ * on-candle prediction glyphs, the price model's forecast line, trade markers,
+ * follow ranges, the crosshair readout, and a benchmark that the per-chunk
+ * mapping cost does not grow with the bars already drawn.
  */
 import { describe, expect, it } from "vitest";
 
@@ -18,6 +19,19 @@ import {
 import {
   activeSpanLabel,
   advanceRendered,
+  appendForecast,
+  emptyForecastTrack,
+  FOLLOW_FORECAST_PADDING_BARS,
+  forecastHeadIndex,
+  forecastOnlyReadout,
+  GLYPH_FAINT_ALPHA,
+  GLYPH_SOLID_MINIMUM_ALPHA,
+  GLYPH_SPACER_COLOR,
+  glyphSize,
+  glyphTriangle,
+  madeForecastAt,
+  predictionGlyphAt,
+  targetForecastAt,
   BAND_FILLS,
   buildBands,
   buildTradeMarkers,
@@ -422,6 +436,196 @@ describe("follow ranges and readout", () => {
     expect(tickDecimals(0.25)).toBe(2);
     expect(tickDecimals(1)).toBe(0);
     expect(tickDecimals(0.0001)).toBe(4);
+  });
+});
+
+describe("on-candle prediction glyphs", () => {
+  /** Bars 1..4 processed: up, down, no call, up — labels resolved right, wrong, (none), unresolved. */
+  function glyphColumns(): CycleBarColumns {
+    const columns = columnsWith(
+      barsEvent("context", 0, 1, 0),
+      barsEvent("processed", 1, 4, 0, {
+        probabilityUp: [0.9, 0.2, 0.5, 0.6],
+        predictedDirection: [1, -1, 0, 1],
+        position: [1, -1, 0, 1],
+        equityUsd: [0, 0, 0, 0],
+      }),
+    );
+    appendBars(columns, {
+      ...barsEvent("processed", 0, 0, 0),
+      resolved: { timestamps: [barTime(1), barTime(2), barTime(3)], actualDirection: [1, 1, 1], correct: [true, false, null] },
+    });
+    return columns;
+  }
+
+  it("puts an up call below the candle in orange and a down call above it in blue", () => {
+    const columns = glyphColumns();
+    expect(predictionGlyphAt(columns, 1)).toMatchObject({ side: "below", color: CYCLE_COLORS.up });
+    expect(predictionGlyphAt(columns, 2)).toMatchObject({ side: "above", color: CYCLE_COLORS.down });
+  });
+
+  it("draws nothing for context bars and bars with no directional call", () => {
+    const columns = glyphColumns();
+    expect(predictionGlyphAt(columns, 0)).toBeNull();
+    expect(predictionGlyphAt(columns, 3)).toBeNull();
+  });
+
+  it("fills by the resolved label: solid right, hollow wrong, faint not known yet", () => {
+    const columns = glyphColumns();
+    const right = predictionGlyphAt(columns, 1)!;
+    expect(right.fill).toBe("solid");
+    // Confidence |0.9 − 0.5| × 2 = 0.8 lifts the alpha above the solid floor.
+    expect(right.alpha).toBeCloseTo(GLYPH_SOLID_MINIMUM_ALPHA + (1 - GLYPH_SOLID_MINIMUM_ALPHA) * 0.8, 10);
+    expect(predictionGlyphAt(columns, 2)).toMatchObject({ fill: "hollow", alpha: 1 });
+    expect(predictionGlyphAt(columns, 4)).toMatchObject({ fill: "faint", alpha: GLYPH_FAINT_ALPHA });
+    // A correct low-confidence call stays clearly more opaque than an unknown one.
+    expect(GLYPH_SOLID_MINIMUM_ALPHA).toBeGreaterThan(GLYPH_FAINT_ALPHA + 0.2);
+  });
+
+  it("treats a move inside the threshold (resolved, not scored) as faint", () => {
+    const columns = glyphColumns();
+    appendBars(columns, { ...barsEvent("processed", 0, 0, 0), resolved: { timestamps: [barTime(4)], actualDirection: [0], correct: [null] } });
+    expect(predictionGlyphAt(columns, 4)).toMatchObject({ fill: "faint" });
+  });
+
+  it("scales with bar spacing between 4 and 10 pixels and hides below 3 pixels", () => {
+    expect(glyphSize(2.9)).toBeNull();
+    expect(glyphSize(0)).toBeNull();
+    expect(glyphSize(Number.NaN)).toBeNull();
+    expect(glyphSize(3)).toBe(4);
+    expect(glyphSize(8)).toBeCloseTo(6.4, 10);
+    expect(glyphSize(40)).toBe(10);
+  });
+
+  it("places the triangle a gap beyond the wick, apex toward the candle", () => {
+    const below = glyphTriangle("below", 100, 200, 10, 3);
+    expect(below.apex).toEqual({ x: 100, y: 203 });
+    expect(below.baseLeft).toEqual({ x: 95, y: 212 });
+    expect(below.baseRight).toEqual({ x: 105, y: 212 });
+    const above = glyphTriangle("above", 100, 50, 10, 3);
+    expect(above.apex).toEqual({ x: 100, y: 47 });
+    expect(above.baseLeft.y).toBe(38);
+    // No part of an up glyph above the low; no part of a down glyph below the high.
+    expect(Math.min(below.apex.y, below.baseLeft.y)).toBeGreaterThan(200);
+    expect(Math.max(above.apex.y, above.baseLeft.y)).toBeLessThan(50);
+  });
+});
+
+describe("forecast line", () => {
+  /** Processed bars 0..count−1, bar i forecasting bar i+horizon at close + (i+1)/4. */
+  function forecastColumns(count: number, horizon: number): CycleBarColumns {
+    const event = barsEvent("processed", 0, count, 0);
+    event.predictedClose = event.close.map((close, i) => close + (i + 1) / 4);
+    event.forecastTimestamp = event.timestamps.map((_, i) => barTime(i + horizon));
+    return columnsWith(event);
+  }
+
+  it("plots each forecast at the bar it is for, skipping nulls and context bars", () => {
+    const columns = columnsWith(barsEvent("context", 0, 2, 0));
+    const processed = barsEvent("processed", 2, 4, 0);
+    processed.predictedClose = [110, null, 112, 113];
+    processed.forecastTimestamp = [barTime(8), barTime(9), null, barTime(11)];
+    appendBars(columns, processed);
+    const track = emptyForecastTrack();
+    const points = appendForecast(track, columns, 0, columns.timestamps.length);
+    expect(points).toEqual([
+      { time: barTime(8), value: 110 },
+      { time: barTime(11), value: 113 },
+    ]);
+    expect(track.times).toEqual([barTime(8), barTime(11)]);
+    expect(track.sourceByTime.get(barTime(8))).toBe(2);
+    expect(track.sourceByTime.get(barTime(11))).toBe(5);
+  });
+
+  it("appends only the new bars' forecasts, in increasing time, and a reset starts over", () => {
+    const columns = forecastColumns(10, 3);
+    const track = emptyForecastTrack();
+    const first = appendForecast(track, columns, 0, 6);
+    expect(first.map((point) => point.time)).toEqual([3, 4, 5, 6, 7, 8].map(barTime));
+    const second = appendForecast(track, columns, 6, 10);
+    expect(second.map((point) => point.time)).toEqual([9, 10, 11, 12].map(barTime));
+    expect(track.times).toHaveLength(10);
+    // Re-appending bars already seen adds nothing: the line only accepts later times.
+    expect(appendForecast(track, columns, 4, 10)).toEqual([]);
+
+    const reset = emptyForecastTrack();
+    expect(appendForecast(reset, columns, 0, 10)).toHaveLength(10);
+    expect(reset.sourceByTime.size).toBe(10);
+  });
+
+  it("drops a target time that is not after the previous one", () => {
+    const columns = forecastColumns(3, 2);
+    columns.forecastTimestamp[1] = barTime(2); // equals bar 0's target
+    const points = appendForecast(emptyForecastTrack(), columns, 0, 3);
+    expect(points.map((point) => point.time)).toEqual([barTime(2), barTime(4)]);
+  });
+
+  it("puts the forecast head the horizon past the newest candle", () => {
+    const columns = forecastColumns(10, 3);
+    const track = emptyForecastTrack();
+    appendForecast(track, columns, 0, 10);
+    // Candles 0..9; forecasts reach bar 12 — three time points past the last candle.
+    expect(forecastHeadIndex(track, 10, barTime(9))).toBe(12);
+    expect(forecastHeadIndex(emptyForecastTrack(), 10, barTime(9))).toBeNull();
+    expect(forecastHeadIndex(track, 0, null)).toBeNull();
+  });
+
+  it("follow keeps both the cursor and the forecast head in view", () => {
+    const withHead = followTestRange(1000, 200, 1006);
+    expect(withHead.to).toBe(Math.max(1000 + 12, 1006 + FOLLOW_FORECAST_PADDING_BARS));
+    const farHead = followTestRange(1000, 150, 1300);
+    expect(farHead.to).toBe(1300 + FOLLOW_FORECAST_PADDING_BARS);
+    expect(farHead.from).toBeLessThan(1000);
+    expect(followTestRange(1000, 200, null)).toEqual(followTestRange(1000, 200));
+  });
+
+  it("reads out the forecast a bar made and the one that targets it, through the map", () => {
+    const columns = forecastColumns(10, 3);
+    const track = emptyForecastTrack();
+    appendForecast(track, columns, 0, 10);
+    // Bar 5 is targeted by bar 2's forecast: close[2] + 3/4.
+    const target = targetForecastAt(columns, 5, track.sourceByTime)!;
+    expect(target.predictedClose).toBe(columns.close[2]! + 0.75);
+    expect(target.actualClose).toBe(columns.close[5]);
+    expect(target.errorPoints).toBeCloseTo(columns.close[2]! + 0.75 - columns.close[5]!, 10);
+    expect(target.madeAtText).toBe(readoutAt(columns, 2)!.timeText);
+    expect(targetForecastAt(columns, 1, track.sourceByTime)).toBeNull(); // nothing forecast bar 1
+    expect(targetForecastAt(columns, 5, null)).toBeNull();
+
+    expect(madeForecastAt(columns, 5)).toEqual({ predictedClose: columns.close[5]! + 1.5, targetTimeText: readoutAt(columns, 8)!.timeText });
+
+    const readout = readoutAt(columns, 5, track.sourceByTime)!;
+    expect(readout.forecastForThisBar).toEqual(target);
+    expect(readout.forecastMadeHere?.predictedClose).toBe(columns.close[5]! + 1.5);
+    expect(readoutAt(columns, 5)!.forecastForThisBar).toBeNull();
+
+    // Past the newest candle: bar 9's forecast of bar 12.
+    expect(forecastOnlyReadout(columns, barTime(12), track.sourceByTime)).toMatchObject({ predictedClose: columns.close[9]! + 2.5 });
+    expect(forecastOnlyReadout(columns, barTime(13), track.sourceByTime)).toBeNull();
+  });
+});
+
+describe("trade markers beside prediction glyphs", () => {
+  it("reserves the glyph's slot with an invisible spacer so the trade arrow lands beyond it", () => {
+    const up = Array.from({ length: 20 }, () => 1 as const);
+    const columns = columnsWith(
+      barsEvent("processed", 0, 20, 0, {
+        probabilityUp: up.map(() => 0.8),
+        predictedDirection: up,
+        position: up,
+        equityUsd: up.map(() => 0),
+      }),
+    );
+    // Long entry below bar 5 (the same side as its ▲ glyph); long exit above bar 9 (no glyph above).
+    const trades = [trade({ tradeNumber: 1, entryTimestamp: barTime(5), status: "closed", exitTimestamp: barTime(9), netProfitUsd: 3 })];
+    const { markers } = buildTradeMarkers(trades, barTime(19), columns);
+    expect(markers.map((marker) => [marker.time, marker.position, marker.color])).toEqual([
+      [barTime(5), "belowBar", GLYPH_SPACER_COLOR],
+      [barTime(5), "belowBar", CYCLE_COLORS.up],
+      [barTime(9), "aboveBar", CYCLE_COLORS.up],
+    ]);
+    // Without columns the markers are unchanged.
+    expect(buildTradeMarkers(trades, barTime(19)).markers).toHaveLength(2);
   });
 });
 

@@ -2,7 +2,7 @@
 
 Exports the engine depends on:
 
-    build_adapter(family, parameters, device, seed) -> ModelAdapter
+    build_adapter(family, parameters, device, seed, task="classification") -> ModelAdapter
     default_parameters(family) -> dict
     suggest_parameters(trial, family, base_parameters) -> dict
     FAMILY_PARAMETER_KEYS: dict[str, tuple[str, ...]]
@@ -15,6 +15,7 @@ How each family maps onto the reporter (`adapter.TrainingReporter`):
 
     family               step_unit        epoch field means        batch reports
     logistic_regression  solver_pass      solver pass k of 10      one per pass (whole window)
+      (task=regression)  solver_pass      the one ridge solve      one (whole window)
     random_forest        tree_batch       tree chunk k of n        one per chunk (whole window)
     xgboost / lightgbm   boosting_round   boosting round r of R    one per round (whole window)
     neural families      epoch            epoch                    one per contiguous block
@@ -25,8 +26,22 @@ started/finished pair brackets ten rounds (their epoch numbers differ: 1 and
 10, 11 and 20, ...). Tree families report the whole training index as the
 span of every step because every round/chunk sees the whole window.
 
-Validation loss everywhere is the plain binary log loss of P(up) against the
-labels (no class weighting), so it is comparable across families.
+Classification (the direction model): validation loss everywhere is the
+plain binary log loss of P(up) against the labels (no class weighting), so it
+is comparable across families.
+
+Regression (the price model, ``task="regression"``): the labels are the
+engine's volatility-scaled forward move. The model families become Ridge
+regression (``logistic_regression``; alpha = 1 / regularization_strength),
+RandomForestRegressor, xgboost ``reg:squarederror`` and LightGBM ``regression``
+(L2), each fitted on the TRAINING target clipped at its own training 1st / 99th
+percentiles (validation and test rows are never clipped and never move the
+bounds). Train and validation loss are mean absolute error in target units
+(train against the clipped target the model was fitted on, validation against
+the raw target), ``validation_accuracy`` is the accuracy of the predicted sign
+on rows where prediction and target are both non-zero, ``validation_f1_score``
+is None. ``predict_value`` returns the prediction in target units and
+``predict_probability`` refuses.
 
 Design: `docs/plans/2026-09-25-model-cycle.md`.
 """
@@ -45,6 +60,7 @@ import numpy as np
 
 from .adapter import (
     MODEL_FAMILIES,
+    MODEL_TASKS,
     NEURAL_FAMILIES,
     BatchReport,
     EpochReport,
@@ -255,30 +271,41 @@ def suggest_parameters(trial, family: str, base_parameters: dict) -> dict:
     return resolve_parameters(family, {**base, **tuned})
 
 
-def build_adapter(family: str, parameters: dict | None, device: str, seed: int):
+def _check_task(task: str) -> None:
+    if task not in MODEL_TASKS:
+        raise ValueError(f"unknown task {task!r}; valid tasks: {', '.join(MODEL_TASKS)}")
+
+
+def build_adapter(family: str, parameters: dict | None, device: str, seed: int,
+                  task: str = "classification"):
     """Build one family's adapter. `device` is "cuda", "cpu" or "auto"
     (neural families resolve "auto" to CUDA when available; tree families use
-    the GPU only for xgboost and only when device == "cuda")."""
+    the GPU only for xgboost and only when device == "cuda"). `task` is
+    "classification" (direction model, `predict_probability`) or "regression"
+    (price model, `predict_value`)."""
     _check_family(family)
+    _check_task(task)
     resolved = resolve_parameters(family, parameters)
     if family in NEURAL_FAMILIES:
         from . import networks  # lazy: tree-only runs never import torch
 
-        return networks.NeuralAdapter(family, resolved, device, int(seed))
-    adapter_class = _TABULAR_ADAPTERS[family]
-    return adapter_class(resolved, device, int(seed))
+        return networks.NeuralAdapter(family, resolved, device, int(seed), task=task)
+    return _tabular_class(family, task)(resolved, device, int(seed), task=task)
 
 
 def load_adapter(directory: str, device: str = "cpu"):
-    """Rebuild a saved adapter from `directory` (what `save()` wrote)."""
+    """Rebuild a saved adapter from `directory` (what `save()` wrote). A
+    model.json without a `task` key predates the price model: classification."""
     metadata = json.loads((Path(directory) / "model.json").read_text(encoding="utf-8"))
     family = metadata["family"]
     _check_family(family)
+    task = metadata.get("task", "classification")
+    _check_task(task)
     if family in NEURAL_FAMILIES:
         from . import networks
 
         return networks.NeuralAdapter.load(directory, device)
-    return _TABULAR_ADAPTERS[family].load(directory, metadata)
+    return _tabular_class(family, task).load(directory, metadata)
 
 
 # ─── shared scoring ────────────────────────────────────────────────────────
@@ -304,6 +331,65 @@ def binary_scores(probability: np.ndarray, labels: np.ndarray) -> dict[str, floa
     denominator = 2 * true_positive + false_positive + false_negative
     f1_score = None if denominator == 0 else float(2 * true_positive / denominator)
     return {"log_loss": log_loss, "accuracy": accuracy, "f1_score": f1_score}
+
+
+def regression_scores(prediction: np.ndarray, target: np.ndarray) -> dict[str, float | None]:
+    """Mean absolute error (target units) and the accuracy of the predicted
+    SIGN on rows where prediction and target are both non-zero (None when
+    there are none). `f1_score` is always None: there is no positive class."""
+    prediction = np.asarray(prediction, dtype=np.float64)
+    target = np.asarray(target, dtype=np.float64)
+    if prediction.size == 0:
+        return {"mean_absolute_error": None, "accuracy": None, "f1_score": None}
+    mean_absolute_error = float(np.mean(np.abs(prediction - target)))
+    signed = (prediction != 0.0) & (target != 0.0)
+    accuracy = (
+        float(np.mean(np.sign(prediction[signed]) == np.sign(target[signed])))
+        if signed.any() else None
+    )
+    return {"mean_absolute_error": mean_absolute_error, "accuracy": accuracy, "f1_score": None}
+
+
+def huber_loss(prediction: np.ndarray, target: np.ndarray, delta: float = 1.0) -> float | None:
+    """Mean Huber loss, the same quantity as torch.nn.HuberLoss(delta)."""
+    difference = np.asarray(prediction, dtype=np.float64) - np.asarray(target, dtype=np.float64)
+    if difference.size == 0:
+        return None
+    magnitude = np.abs(difference)
+    loss = np.where(magnitude <= delta, 0.5 * difference ** 2, delta * (magnitude - 0.5 * delta))
+    return float(np.mean(loss))
+
+
+TARGET_CLIP_PERCENTILES = (1.0, 99.0)
+
+
+def clip_training_target(target: np.ndarray) -> tuple[np.ndarray, float, float]:
+    """Clip a TRAINING target at its own 1st / 99th percentiles. Returns the
+    clipped target (float64) and the bounds. Called on training rows only, so
+    no validation or test value can move the bounds."""
+    target = np.asarray(target, dtype=np.float64)
+    low, high = np.percentile(target, TARGET_CLIP_PERCENTILES)
+    return np.clip(target, low, high), float(low), float(high)
+
+
+def _wrong_task_error(family: str, task: str, method: str) -> TypeError:
+    if task == "regression":
+        return TypeError(
+            f"{family}: {method} is not available on a price model (task='regression'); "
+            "call predict_value"
+        )
+    return TypeError(
+        f"{family}: {method} is not available on a direction model (task='classification'); "
+        "call predict_probability"
+    )
+
+
+def _require_varying_target(family: str, target: np.ndarray) -> None:
+    if target.size < 2 or float(np.ptp(target)) == 0.0:
+        raise ValueError(
+            f"{family}: the training target is constant ({target.size} rows); a price model "
+            "needs targets that vary"
+        )
 
 
 def _require_both_classes(family: str, labels: np.ndarray) -> None:
@@ -340,6 +426,7 @@ def write_metadata(directory: Path, metadata: dict) -> Path:
 def _base_metadata(adapter, model_file: str, libraries: dict[str, str]) -> dict:
     metadata = {
         "family": adapter.family,
+        "task": adapter.task,
         "parameters": dict(adapter.parameters),
         "feature_count": adapter.feature_count,
         "minimum_history": adapter.minimum_history(),
@@ -374,12 +461,20 @@ class _TabularBase:
     family = ""
     step_unit = ""
 
-    def __init__(self, parameters: dict, device: str, seed: int) -> None:
+    def __init__(self, parameters: dict, device: str, seed: int,
+                 task: str = "classification") -> None:
+        _check_task(task)
         self.parameters = dict(parameters)
         self.device = "cuda" if device == "cuda" else "cpu"
         self.seed = int(seed)
+        self.task = task
         self.feature_count: int | None = None
         self.fit_summary: dict = {}
+        self.target_clip: tuple[float, float] | None = None
+
+    @property
+    def _loss_name(self) -> str:
+        return "mean absolute error" if self.task == "regression" else "log loss"
 
     def minimum_history(self) -> int:
         return 1
@@ -391,14 +486,53 @@ class _TabularBase:
             raise ValueError(f"{self.family}: the training index is empty")
         check_index(features, labels, train_index, "train_index")
         check_index(features, labels, validation_index, "validation_index")
-        _require_both_classes(self.family, labels[train_index])
+        if self.task == "regression":
+            _require_varying_target(self.family, labels[train_index])
+        else:
+            _require_both_classes(self.family, labels[train_index])
         self.feature_count = int(features.shape[1])
         reporter.step_unit = self.step_unit
         return train_index, validation_index
 
+    def _regression_target(self, labels: np.ndarray, train_index: np.ndarray) -> np.ndarray:
+        """The training target clipped at its training 1st / 99th percentiles;
+        records the bounds and how many rows they moved."""
+        raw = labels[train_index].astype(np.float64)
+        clipped, low, high = clip_training_target(raw)
+        self.target_clip = (low, high)
+        self._clip_summary = {
+            "target_clip_low": low,
+            "target_clip_high": high,
+            "clipped_train_row_count": int(np.sum(clipped != raw)),
+        }
+        return clipped
+
+    def _task_scores(self, prediction: np.ndarray, target: np.ndarray) -> dict:
+        """{"loss", "accuracy", "f1_score"} for this task: log loss / accuracy
+        at 0.5 / F1 for classification; mean absolute error / sign accuracy /
+        None for regression."""
+        if self.task == "regression":
+            scores = regression_scores(prediction, target)
+            return {"loss": scores["mean_absolute_error"], "accuracy": scores["accuracy"],
+                    "f1_score": None}
+        scores = binary_scores(prediction, target)
+        return {"loss": scores["log_loss"], "accuracy": scores["accuracy"],
+                "f1_score": scores["f1_score"]}
+
+    def _task_summary(self) -> dict:
+        return dict(self._clip_summary) if self.task == "regression" else {}
+
+    def _require_task(self, task: str, method: str) -> None:
+        if self.task != task:
+            raise _wrong_task_error(self.family, self.task, method)
+
+    def predict_value(self, features, index):  # overridden by families with a price model
+        raise _wrong_task_error(self.family, self.task, "predict_value")
+
     def _rows(self, features: np.ndarray, index) -> np.ndarray:
         if self.feature_count is None:
-            raise RuntimeError(f"{self.family}: predict_probability called before fit")
+            method = "predict_value" if self.task == "regression" else "predict_probability"
+            raise RuntimeError(f"{self.family}: {method} called before fit")
         index = _as_index(index)
         return np.ascontiguousarray(features[index], dtype=np.float32)
 
@@ -415,8 +549,12 @@ class LogisticRegressionAdapter(_TabularBase):
     step_unit = "solver_pass"
     pass_count = 10
 
-    def __init__(self, parameters: dict, device: str, seed: int) -> None:
-        super().__init__(parameters, device, seed)
+    def __init__(self, parameters: dict, device: str, seed: int,
+                 task: str = "classification") -> None:
+        if task != "classification":
+            raise ValueError("LogisticRegressionAdapter is the direction model; the price model "
+                             "is RidgeRegressionAdapter")
+        super().__init__(parameters, device, seed, task)
         self.mean: np.ndarray | None = None
         self.scale: np.ndarray | None = None
         self.coefficients: np.ndarray | None = None
@@ -557,24 +695,168 @@ class LogisticRegressionAdapter(_TabularBase):
         return adapter
 
 
+class RidgeRegressionAdapter(_TabularBase):
+    """The linear family's price model: sklearn Ridge (alpha = 1 /
+    regularization_strength) on features standardised with the training rows'
+    mean and deviation, fitted to the training target clipped at its training
+    1st / 99th percentiles. Ridge has a closed-form solution, so the fit is ONE
+    solver pass (reported as pass 1 of 1); `max_iterations` is unused."""
+
+    family = "logistic_regression"
+    step_unit = "solver_pass"
+
+    def __init__(self, parameters: dict, device: str, seed: int,
+                 task: str = "regression") -> None:
+        if task != "regression":
+            raise ValueError("RidgeRegressionAdapter is the price model; the direction model "
+                             "is LogisticRegressionAdapter")
+        super().__init__(parameters, device, seed, task)
+        self.mean: np.ndarray | None = None
+        self.scale: np.ndarray | None = None
+        self.coefficients: np.ndarray | None = None
+        self.intercept: float = 0.0
+
+    def fit(self, features, labels, train_index, validation_index, timestamps, reporter):
+        from sklearn.linear_model import Ridge
+
+        train_index, validation_index = self._prepare_fit(
+            features, labels, train_index, validation_index, reporter
+        )
+        target = self._regression_target(labels, train_index)
+        train_rows = features[train_index].astype(np.float64)
+        self.mean = train_rows.mean(axis=0)
+        deviation = train_rows.std(axis=0)
+        self.scale = np.where(deviation > 1e-12, deviation, 1.0)
+        train_matrix = (train_rows - self.mean) / self.scale
+        alpha = 1.0 / self.parameters["regularization_strength"]
+
+        reporter.checkpoint()
+        reporter.epoch_started(1, 1)
+        started = time.perf_counter()
+        model = Ridge(alpha=alpha)
+        model.fit(train_matrix, target)
+        elapsed = max(time.perf_counter() - started, 1e-9)
+        self.coefficients = np.asarray(model.coef_, dtype=np.float64).reshape(-1).copy()
+        self.intercept = float(np.asarray(model.intercept_).reshape(-1)[0])
+        train_loss = regression_scores(self._linear(train_matrix), target)["mean_absolute_error"]
+        span_start, span_end = _span(train_index)
+        reporter.batch(BatchReport(
+            epoch=1, epoch_count=1, batch=1, batch_count=1,
+            span_start_index=span_start, span_end_index=span_end,
+            train_loss=train_loss, samples_per_second=train_index.size / elapsed,
+        ))
+        scores = {"loss": None, "accuracy": None, "f1_score": None}
+        if validation_index.size:
+            reporter.validating(1, 1)
+            validation_matrix = (
+                (features[validation_index].astype(np.float64) - self.mean) / self.scale
+            )
+            scores = self._task_scores(self._linear(validation_matrix), labels[validation_index])
+        reporter.epoch_finished(EpochReport(
+            epoch=1, epoch_count=1,
+            train_loss=train_loss,
+            validation_loss=scores["loss"],
+            validation_accuracy=scores["accuracy"],
+            validation_f1_score=None,
+            is_best=True,
+        ))
+        self.fit_summary = {
+            **_training_summary(train_index, validation_index, timestamps),
+            **self._task_summary(),
+            "best_step": 1,
+            "best_validation_loss": scores["loss"],
+            "fit_seconds": time.perf_counter() - started,
+        }
+        low, high = self.target_clip
+        reporter.log(
+            f"ridge regression (alpha {alpha:.4g}): one closed-form solve on {train_index.size} "
+            f"rows; training target clipped to [{low:.3f}, {high:.3f}] "
+            f"({self._clip_summary['clipped_train_row_count']} rows moved)"
+        )
+
+    def _linear(self, matrix: np.ndarray) -> np.ndarray:
+        return matrix @ self.coefficients + self.intercept
+
+    def predict_value(self, features, index):
+        rows = self._rows(features, index).astype(np.float64)
+        if self.coefficients is None:
+            raise RuntimeError("logistic_regression: predict_value called before fit")
+        return self._linear((rows - self.mean) / self.scale)
+
+    def predict_probability(self, features, index):
+        raise _wrong_task_error(self.family, self.task, "predict_probability")
+
+    def save(self, directory: str) -> str:
+        import sklearn
+
+        folder = Path(directory)
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / "model.npz"
+        temporary = folder / "model.tmp.npz"
+        np.savez(
+            temporary, mean=self.mean, scale=self.scale, coefficients=self.coefficients,
+            intercept=np.array([self.intercept]),
+        )
+        os.replace(temporary, path)
+        write_metadata(folder, _base_metadata(self, path.name, {"scikit_learn": sklearn.__version__}))
+        return str(path)
+
+    @classmethod
+    def load(cls, directory: str, metadata: dict):
+        adapter = cls(metadata["parameters"], metadata.get("device", "cpu"), metadata["seed"])
+        stored = np.load(Path(directory) / metadata["model_file"])
+        adapter.mean = stored["mean"]
+        adapter.scale = stored["scale"]
+        adapter.coefficients = stored["coefficients"]
+        adapter.intercept = float(stored["intercept"][0])
+        adapter.feature_count = int(metadata["feature_count"])
+        _restore_clip(adapter, metadata)
+        return adapter
+
+
+def _restore_clip(adapter, metadata: dict) -> None:
+    if "target_clip_low" in metadata and "target_clip_high" in metadata:
+        adapter.target_clip = (float(metadata["target_clip_low"]),
+                               float(metadata["target_clip_high"]))
+
+
 # ─── random forest ─────────────────────────────────────────────────────────
 
 class RandomForestAdapter(_TabularBase):
     """sklearn RandomForestClassifier grown in warm-started chunks of trees
-    (balanced_subsample class weights, all cores). Every chunk refits on the
-    whole training window, so its span is the whole window."""
+    (balanced_subsample class weights, all cores); as the price model, a
+    RandomForestRegressor (squared-error splits) grown the same way on the
+    clipped training target. Every chunk refits on the whole training window,
+    so its span is the whole window."""
 
     family = "random_forest"
     step_unit = "tree_batch"
 
-    def __init__(self, parameters: dict, device: str, seed: int) -> None:
-        super().__init__(parameters, device, seed)
+    def __init__(self, parameters: dict, device: str, seed: int,
+                 task: str = "classification") -> None:
+        super().__init__(parameters, device, seed, task)
         self.model = None
         self._up_column = 1
 
-    def fit(self, features, labels, train_index, validation_index, timestamps, reporter):
+    def _new_forest(self):
+        common = {
+            "n_estimators": 0,
+            "max_depth": self.parameters["max_depth"],
+            "min_samples_leaf": self.parameters["min_samples_leaf"],
+            "max_features": self.parameters["max_features_fraction"],
+            "warm_start": True,
+            "n_jobs": -1,
+            "random_state": self.seed,
+        }
+        if self.task == "regression":
+            from sklearn.ensemble import RandomForestRegressor
+
+            return RandomForestRegressor(**common)
         from sklearn.ensemble import RandomForestClassifier
 
+        return RandomForestClassifier(class_weight="balanced_subsample", **common)
+
+    def fit(self, features, labels, train_index, validation_index, timestamps, reporter):
         train_index, validation_index = self._prepare_fit(
             features, labels, train_index, validation_index, reporter
         )
@@ -582,19 +864,13 @@ class RandomForestAdapter(_TabularBase):
         chunk = max(10, tree_count // 15)
         chunk_count = math.ceil(tree_count / chunk)
         train_matrix = np.ascontiguousarray(features[train_index], dtype=np.float32)
-        train_labels = labels[train_index].astype(np.int64)
+        if self.task == "regression":
+            train_target = self._regression_target(labels, train_index)
+        else:
+            train_target = labels[train_index].astype(np.int64)
         validation_matrix = np.ascontiguousarray(features[validation_index], dtype=np.float32)
         validation_labels = labels[validation_index]
-        self.model = RandomForestClassifier(
-            n_estimators=0,
-            max_depth=self.parameters["max_depth"],
-            min_samples_leaf=self.parameters["min_samples_leaf"],
-            max_features=self.parameters["max_features_fraction"],
-            class_weight="balanced_subsample",
-            warm_start=True,
-            n_jobs=-1,
-            random_state=self.seed,
-        )
+        self.model = self._new_forest()
         span_start, span_end = _span(train_index)
         best_loss = math.inf
         started = time.perf_counter()
@@ -607,9 +883,10 @@ class RandomForestAdapter(_TabularBase):
                 # Warns that balanced presets are "not recommended for warm_start if the
                 # fitted data differs" — every chunk here fits the same rows.
                 warnings.simplefilter("ignore", category=UserWarning)
-                self.model.fit(train_matrix, train_labels)
+                self.model.fit(train_matrix, train_target)
             elapsed = max(time.perf_counter() - chunk_started, 1e-9)
-            self._up_column = int(np.flatnonzero(self.model.classes_ == 1)[0])
+            if self.task == "classification":
+                self._up_column = int(np.flatnonzero(self.model.classes_ == 1)[0])
             added = self.model.n_estimators - (chunk_number - 1) * chunk
             reporter.batch(BatchReport(
                 epoch=chunk_number, epoch_count=chunk_count, batch=1, batch_count=1,
@@ -617,13 +894,13 @@ class RandomForestAdapter(_TabularBase):
                 train_loss=None,
                 samples_per_second=train_index.size * added / elapsed,
             ))
-            validation_scores = {"log_loss": None, "accuracy": None, "f1_score": None}
+            validation_scores = {"loss": None, "accuracy": None, "f1_score": None}
             if validation_index.size:
                 reporter.validating(chunk_number, chunk_count)
-                validation_scores = binary_scores(
-                    self._forest_probability(validation_matrix), validation_labels
+                validation_scores = self._task_scores(
+                    self._forest_output(validation_matrix), validation_labels
                 )
-            validation_loss = validation_scores["log_loss"]
+            validation_loss = validation_scores["loss"]
             is_best = validation_loss is not None and validation_loss < best_loss
             if is_best:
                 best_loss = validation_loss
@@ -637,10 +914,22 @@ class RandomForestAdapter(_TabularBase):
             ))
         self.fit_summary = {
             **_training_summary(train_index, validation_index, timestamps),
+            **self._task_summary(),
             "tree_count": len(self.model.estimators_),
             "best_validation_loss": None if math.isinf(best_loss) else best_loss,
             "fit_seconds": time.perf_counter() - started,
         }
+        if self.task == "regression":
+            low, high = self.target_clip
+            reporter.log(
+                f"random forest price model: training target clipped to [{low:.3f}, {high:.3f}] "
+                f"({self._clip_summary['clipped_train_row_count']} rows moved)"
+            )
+
+    def _forest_output(self, matrix: np.ndarray) -> np.ndarray:
+        if self.task == "regression":
+            return self._forest_value(matrix)
+        return self._forest_probability(matrix)
 
     def _forest_probability(self, matrix: np.ndarray) -> np.ndarray:
         # A few rows (the test walk) run the trees directly: joblib's dispatch
@@ -654,10 +943,27 @@ class RandomForestAdapter(_TabularBase):
             return total / len(self.model.estimators_)
         return self.model.predict_proba(matrix)[:, self._up_column].astype(np.float64)
 
+    def _forest_value(self, matrix: np.ndarray) -> np.ndarray:
+        # Same shortcut as `_forest_probability`: averaging each tree's leaf mean
+        # is exactly what RandomForestRegressor.predict does.
+        if matrix.shape[0] <= 64:
+            total = np.zeros(matrix.shape[0], dtype=np.float64)
+            for estimator in self.model.estimators_:
+                total += estimator.tree_.predict(matrix).reshape(matrix.shape[0], -1)[:, 0]
+            return total / len(self.model.estimators_)
+        return np.asarray(self.model.predict(matrix), dtype=np.float64).reshape(-1)
+
     def predict_probability(self, features, index):
+        self._require_task("classification", "predict_probability")
         if self.model is None:
             raise RuntimeError("random_forest: predict_probability called before fit")
         return np.clip(self._forest_probability(self._rows(features, index)), 0.0, 1.0)
+
+    def predict_value(self, features, index):
+        self._require_task("regression", "predict_value")
+        if self.model is None:
+            raise RuntimeError("random_forest: predict_value called before fit")
+        return self._forest_value(self._rows(features, index))
 
     def save(self, directory: str) -> str:
         import joblib
@@ -678,10 +984,13 @@ class RandomForestAdapter(_TabularBase):
 
         # joblib unpickles: only load a directory this cycle wrote itself
         # (data/models/<model_id>/), never a file from elsewhere.
-        adapter = cls(metadata["parameters"], metadata.get("device", "cpu"), metadata["seed"])
+        adapter = cls(metadata["parameters"], metadata.get("device", "cpu"), metadata["seed"],
+                      task=metadata.get("task", "classification"))
         adapter.model = joblib.load(Path(directory) / metadata["model_file"])
-        adapter._up_column = int(np.flatnonzero(adapter.model.classes_ == 1)[0])
+        if adapter.task == "classification":
+            adapter._up_column = int(np.flatnonzero(adapter.model.classes_ == 1)[0])
         adapter.feature_count = int(metadata["feature_count"])
+        _restore_clip(adapter, metadata)
         return adapter
 
 
@@ -692,17 +1001,21 @@ _BOOSTING_REPORT_EVERY = 10
 
 class _RoundReporter:
     """Turns one finished boosting round into checkpoint / batch / epoch
-    reports. `score_validation(round_number)` returns P(up) for the validation
-    rows using the first `round_number` rounds (only called every tenth round)."""
+    reports. `score_validation(round_number)` returns the validation rows'
+    prediction (P(up), or the predicted target for a price model) using the
+    first `round_number` rounds (only called every tenth round); `scorer`
+    turns it into {"accuracy", "f1_score", ...} (`binary_scores` or
+    `regression_scores`)."""
 
     def __init__(self, reporter, total_rounds, span, train_size, validation_labels,
-                 score_validation) -> None:
+                 score_validation, scorer=binary_scores) -> None:
         self.reporter = reporter
         self.total_rounds = total_rounds
         self.span = span
         self.train_size = train_size
         self.validation_labels = validation_labels
         self.score_validation = score_validation
+        self.scorer = scorer
         self.best_loss = math.inf
         self.best_round = 0
         self.last_round = 0
@@ -742,7 +1055,7 @@ class _RoundReporter:
         scores = {"accuracy": None, "f1_score": None}
         if self.validation_labels.size:
             self.reporter.validating(round_number, self.total_rounds)
-            scores = binary_scores(self.score_validation(round_number), self.validation_labels)
+            scores = self.scorer(self.score_validation(round_number), self.validation_labels)
         self.reporter.epoch_finished(EpochReport(
             epoch=round_number, epoch_count=self.total_rounds,
             train_loss=self.last_train_loss,
@@ -757,15 +1070,18 @@ class _RoundReporter:
 # ─── xgboost ───────────────────────────────────────────────────────────────
 
 class XGBoostAdapter(_TabularBase):
-    """xgboost.train (binary:logistic, hist). Trains on the GPU when
+    """xgboost.train (binary:logistic, hist; as the price model
+    reg:squarederror on the clipped training target with mean absolute error
+    as the evaluation and early-stopping metric). Trains on the GPU when
     device == "cuda"; prediction always runs on the CPU booster because a
     CUDA booster fed a NumPy row falls back to a slow DMatrix copy."""
 
     family = "xgboost"
     step_unit = "boosting_round"
 
-    def __init__(self, parameters: dict, device: str, seed: int) -> None:
-        super().__init__(parameters, device, seed)
+    def __init__(self, parameters: dict, device: str, seed: int,
+                 task: str = "classification") -> None:
+        super().__init__(parameters, device, seed, task)
         self.booster = None
         self.best_iteration = 0
 
@@ -775,10 +1091,12 @@ class XGBoostAdapter(_TabularBase):
         train_index, validation_index = self._prepare_fit(
             features, labels, train_index, validation_index, reporter
         )
+        regression = self.task == "regression"
+        metric = "mae" if regression else "logloss"
         p = self.parameters
         training_parameters = {
-            "objective": "binary:logistic",
-            "eval_metric": "logloss",
+            "objective": "reg:squarederror" if regression else "binary:logistic",
+            "eval_metric": metric,
             "tree_method": "hist",
             "device": self.device,
             "max_depth": p["max_depth"],
@@ -790,9 +1108,12 @@ class XGBoostAdapter(_TabularBase):
             "seed": self.seed,
             "verbosity": 0,
         }
+        train_target = (
+            self._regression_target(labels, train_index) if regression else labels[train_index]
+        )
         train_matrix = xgb.DMatrix(
             np.ascontiguousarray(features[train_index], dtype=np.float32),
-            label=labels[train_index],
+            label=train_target,
         )
         evaluations = [(train_matrix, "train")]
         validation_labels = labels[validation_index]
@@ -813,7 +1134,7 @@ class XGBoostAdapter(_TabularBase):
 
         rounds = _RoundReporter(
             reporter, total_rounds, _span(train_index), train_index.size, validation_labels,
-            score_validation,
+            score_validation, regression_scores if regression else binary_scores,
         )
 
         class ReportingCallback(xgb.callback.TrainingCallback):
@@ -823,8 +1144,8 @@ class XGBoostAdapter(_TabularBase):
                 return False
 
             def after_iteration(self, model, epoch, evals_log):
-                train_loss = _last(evals_log.get("train", {}).get("logloss"))
-                validation_loss = _last(evals_log.get("validation", {}).get("logloss"))
+                train_loss = _last(evals_log.get("train", {}).get(metric))
+                validation_loss = _last(evals_log.get("validation", {}).get(metric))
                 rounds.after_round(epoch + 1, train_loss, validation_loss)
                 return False
 
@@ -835,6 +1156,13 @@ class XGBoostAdapter(_TabularBase):
             f"{validation_index.size} validation rows, up to {total_rounds} rounds"
             + (f", early stopping after {early_stopping} flat rounds" if early_stopping else "")
         )
+        if regression:
+            low, high = self.target_clip
+            reporter.log(
+                f"xgboost price model: squared error on the training target clipped to "
+                f"[{low:.3f}, {high:.3f}] ({self._clip_summary['clipped_train_row_count']} rows "
+                "moved); early stopping on validation mean absolute error"
+            )
         self._callback_booster = None
         booster = xgb.train(
             training_parameters,
@@ -858,27 +1186,34 @@ class XGBoostAdapter(_TabularBase):
                 pass
         if stopped_early:
             reporter.log(
-                f"early stopping at round {trained_rounds}: best validation log loss "
+                f"early stopping at round {trained_rounds}: best validation {self._loss_name} "
                 f"{rounds.best_loss:.4f} at round {rounds.best_round}"
             )
         booster.set_param({"device": "cpu", "nthread": 1})
         self.booster = booster
         self.fit_summary = {
             **_training_summary(train_index, validation_index, timestamps),
+            **self._task_summary(),
             "trained_rounds": trained_rounds,
             "best_round": self.best_iteration + 1,
             "best_validation_loss": None if math.isinf(rounds.best_loss) else rounds.best_loss,
             "fit_seconds": time.perf_counter() - started,
         }
 
-    def predict_probability(self, features, index):
+    def _booster_output(self, features, index, method: str) -> np.ndarray:
         if self.booster is None:
-            raise RuntimeError("xgboost: predict_probability called before fit")
+            raise RuntimeError(f"xgboost: {method} called before fit")
         rows = self._rows(features, index)
-        probability = self.booster.inplace_predict(
-            rows, iteration_range=(0, self.best_iteration + 1)
-        )
-        return np.clip(np.asarray(probability, dtype=np.float64).reshape(-1), 0.0, 1.0)
+        output = self.booster.inplace_predict(rows, iteration_range=(0, self.best_iteration + 1))
+        return np.asarray(output, dtype=np.float64).reshape(-1)
+
+    def predict_probability(self, features, index):
+        self._require_task("classification", "predict_probability")
+        return np.clip(self._booster_output(features, index, "predict_probability"), 0.0, 1.0)
+
+    def predict_value(self, features, index):
+        self._require_task("regression", "predict_value")
+        return self._booster_output(features, index, "predict_value")
 
     def save(self, directory: str) -> str:
         import xgboost as xgb
@@ -898,11 +1233,13 @@ class XGBoostAdapter(_TabularBase):
     def load(cls, directory: str, metadata: dict):
         import xgboost as xgb
 
-        adapter = cls(metadata["parameters"], "cpu", metadata["seed"])
+        adapter = cls(metadata["parameters"], "cpu", metadata["seed"],
+                      task=metadata.get("task", "classification"))
         adapter.booster = xgb.Booster(model_file=str(Path(directory) / metadata["model_file"]))
         adapter.booster.set_param({"device": "cpu", "nthread": 1})
         adapter.best_iteration = int(metadata["best_iteration"])
         adapter.feature_count = int(metadata["feature_count"])
+        _restore_clip(adapter, metadata)
         return adapter
 
 
@@ -919,14 +1256,17 @@ def _last(values):
 # ─── lightgbm ──────────────────────────────────────────────────────────────
 
 class LightGBMAdapter(_TabularBase):
-    """lightgbm.train (binary objective, CPU) with bagging and feature
-    sub-sampling; early stopping on the validation log loss."""
+    """lightgbm.train (binary objective, CPU; as the price model the L2
+    `regression` objective on the clipped training target with l1 — mean
+    absolute error — as the evaluation and early-stopping metric) with bagging
+    and feature sub-sampling."""
 
     family = "lightgbm"
     step_unit = "boosting_round"
 
-    def __init__(self, parameters: dict, device: str, seed: int) -> None:
-        super().__init__(parameters, device, seed)
+    def __init__(self, parameters: dict, device: str, seed: int,
+                 task: str = "classification") -> None:
+        super().__init__(parameters, device, seed, task)
         self.device = "cpu"
         self.booster = None
         self.best_iteration = 0
@@ -937,10 +1277,11 @@ class LightGBMAdapter(_TabularBase):
         train_index, validation_index = self._prepare_fit(
             features, labels, train_index, validation_index, reporter
         )
+        regression = self.task == "regression"
         p = self.parameters
         training_parameters = {
-            "objective": "binary",
-            "metric": "binary_logloss",
+            "objective": "regression" if regression else "binary",
+            "metric": "l1" if regression else "binary_logloss",
             "num_leaves": p["leaf_count"],
             "learning_rate": p["learning_rate"],
             "bagging_fraction": p["subsample"],
@@ -953,12 +1294,15 @@ class LightGBMAdapter(_TabularBase):
             "force_col_wise": True,
             "verbosity": -1,
         }
+        train_target = (
+            self._regression_target(labels, train_index) if regression else labels[train_index]
+        )
         # Leave num_threads at LightGBM's default: with num_threads=8 on this 24-thread
         # machine, the every-tenth-round validation predict below made each following
         # update ~110x slower (145 ms/round vs 1.3 ms/round, 14k x 30 rows, measured).
         train_set = lgb.Dataset(
             np.ascontiguousarray(features[train_index], dtype=np.float32),
-            label=labels[train_index],
+            label=train_target,
             free_raw_data=False,
         )
         validation_sets = [train_set]
@@ -979,7 +1323,7 @@ class LightGBMAdapter(_TabularBase):
 
         rounds = _RoundReporter(
             reporter, total_rounds, _span(train_index), train_index.size, validation_labels,
-            score_validation,
+            score_validation, regression_scores if regression else binary_scores,
         )
 
         def before_round(environment) -> None:
@@ -1008,6 +1352,13 @@ class LightGBMAdapter(_TabularBase):
             f"validation rows, up to {total_rounds} rounds"
             + (f", early stopping after {early_stopping} flat rounds" if early_stopping else "")
         )
+        if regression:
+            low, high = self.target_clip
+            reporter.log(
+                f"lightgbm price model: squared error on the training target clipped to "
+                f"[{low:.3f}, {high:.3f}] ({self._clip_summary['clipped_train_row_count']} rows "
+                "moved); early stopping on validation mean absolute error"
+            )
         started = time.perf_counter()
         self._callback_booster = None
         booster = lgb.train(
@@ -1027,26 +1378,35 @@ class LightGBMAdapter(_TabularBase):
         self.best_iteration = int(best)
         if stopped_early:
             reporter.log(
-                f"early stopping at round {rounds.last_round}: best validation log loss "
+                f"early stopping at round {rounds.last_round}: best validation {self._loss_name} "
                 f"{rounds.best_loss:.4f} at round {self.best_iteration}"
             )
         self.booster = booster
         self.fit_summary = {
             **_training_summary(train_index, validation_index, timestamps),
+            **self._task_summary(),
             "trained_rounds": int(rounds.last_round),
             "best_round": self.best_iteration,
             "best_validation_loss": None if math.isinf(rounds.best_loss) else rounds.best_loss,
             "fit_seconds": time.perf_counter() - started,
         }
 
-    def predict_probability(self, features, index):
+    def _booster_output(self, features, index, method: str) -> np.ndarray:
         if self.booster is None:
-            raise RuntimeError("lightgbm: predict_probability called before fit")
+            raise RuntimeError(f"lightgbm: {method} called before fit")
         rows = self._rows(features, index)
-        probability = self.booster.predict(
+        output = self.booster.predict(
             rows, num_iteration=self.best_iteration, num_threads=1 if rows.shape[0] < 256 else 0
         )
-        return np.clip(np.asarray(probability, dtype=np.float64).reshape(-1), 0.0, 1.0)
+        return np.asarray(output, dtype=np.float64).reshape(-1)
+
+    def predict_probability(self, features, index):
+        self._require_task("classification", "predict_probability")
+        return np.clip(self._booster_output(features, index, "predict_probability"), 0.0, 1.0)
+
+    def predict_value(self, features, index):
+        self._require_task("regression", "predict_value")
+        return self._booster_output(features, index, "predict_value")
 
     def save(self, directory: str) -> str:
         import lightgbm as lgb
@@ -1066,10 +1426,12 @@ class LightGBMAdapter(_TabularBase):
     def load(cls, directory: str, metadata: dict):
         import lightgbm as lgb
 
-        adapter = cls(metadata["parameters"], "cpu", metadata["seed"])
+        adapter = cls(metadata["parameters"], "cpu", metadata["seed"],
+                      task=metadata.get("task", "classification"))
         adapter.booster = lgb.Booster(model_file=str(Path(directory) / metadata["model_file"]))
         adapter.best_iteration = int(metadata["best_iteration"])
         adapter.feature_count = int(metadata["feature_count"])
+        _restore_clip(adapter, metadata)
         return adapter
 
 
@@ -1087,13 +1449,31 @@ _TABULAR_ADAPTERS = {
     "lightgbm": LightGBMAdapter,
 }
 
+# The price model of each tabular family. Only the linear family changes class
+# (logistic regression has no regression form; Ridge is its linear analogue);
+# the tree families take `task="regression"` on the same class.
+_TABULAR_REGRESSORS = {
+    "logistic_regression": RidgeRegressionAdapter,
+    "random_forest": RandomForestAdapter,
+    "xgboost": XGBoostAdapter,
+    "lightgbm": LightGBMAdapter,
+}
+
+
+def _tabular_class(family: str, task: str):
+    return (_TABULAR_REGRESSORS if task == "regression" else _TABULAR_ADAPTERS)[family]
+
+
 __all__ = [
     "FAMILY_PARAMETER_KEYS",
     "TrainingReporter",
     "binary_scores",
     "build_adapter",
+    "clip_training_target",
     "default_parameters",
+    "huber_loss",
     "load_adapter",
+    "regression_scores",
     "resolve_parameters",
     "suggest_parameters",
 ]

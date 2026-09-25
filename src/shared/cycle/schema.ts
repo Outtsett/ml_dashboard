@@ -164,6 +164,14 @@ export const cycleBarsSchema = cycleEnvelopeSchema
     /** Cumulative marked-to-market net profit of the test walk through this bar, USD. */
     equityUsd: z.array(z.number()).optional(),
     /**
+     * The price model's forecast, made at this bar, of the close `labelHorizonBars`
+     * later: this bar's close plus the predicted move in points. Null when the
+     * bar could not be predicted. Same (roll-adjusted) price space as the bars.
+     */
+    predictedClose: z.array(nullableNumber).optional(),
+    /** Epoch seconds of the bar that forecast is for (this bar + labelHorizonBars); null past the loaded data. */
+    forecastTimestamp: z.array(epochSeconds.nullable()).optional(),
+    /**
      * Labels that became known during this frame: the bar `labelHorizonBars`
      * before each processed bar. `correct` is null when the move was inside the
      * threshold (the bar is not scored).
@@ -183,7 +191,7 @@ export const cycleBarsSchema = cycleEnvelopeSchema
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${key} has ${value[key].length} values for ${n} timestamps` });
       }
     }
-    for (const key of ["probabilityUp", "predictedDirection", "position", "equityUsd"] as const) {
+    for (const key of ["probabilityUp", "predictedDirection", "position", "equityUsd", "predictedClose", "forecastTimestamp"] as const) {
       const column = value[key];
       if (column && column.length !== n) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${key} has ${column.length} values for ${n} timestamps` });
@@ -211,6 +219,8 @@ export const cycleCursorSchema = cycleEnvelopeSchema.extend({
   batchCount: z.number().int().nonnegative().nullable(),
   /** What one training step is for this model. */
   stepUnit: z.enum(["epoch", "boosting_round", "tree_batch", "solver_pass"]).nullable(),
+  /** Which of the fold's two models is being fitted: the direction classifier or the price model. */
+  modelRole: z.enum(["direction", "price"]).nullable().optional(),
   trial: z.number().int().nonnegative().nullable(),
   trialCount: z.number().int().nonnegative().nullable(),
   phaseFraction: z.number().min(0).max(1),
@@ -229,6 +239,13 @@ export const cycleEpochSchema = cycleEnvelopeSchema.extend({
   epoch: z.number().int().nonnegative(),
   epochCount: z.number().int().nonnegative(),
   stepUnit: z.enum(["epoch", "boosting_round", "tree_batch", "solver_pass"]),
+  /**
+   * "direction": losses are log loss, accuracy / F1 of the predicted class.
+   * "price": losses are mean absolute error of the VOLATILITY-SCALED move (the
+   * forward move divided by the trailing volatility of h-bar moves — the target
+   * the price model is fitted on), accuracy is the sign of the predicted move.
+   */
+  modelRole: z.enum(["direction", "price"]).optional(),
   trainLoss: nullableNumber,
   validationLoss: nullableNumber,
   validationAccuracy: nullableNumber,
@@ -304,6 +321,11 @@ export const CYCLE_METRIC_NAMES = [
   "brier_score",
   "majority_class_accuracy",
   "buy_and_hold_net_profit_usd",
+  "price_forecast_mean_absolute_error_points",
+  "persistence_mean_absolute_error_points",
+  "price_forecast_skill",
+  "price_forecast_root_mean_square_error_points",
+  "price_forecast_direction_accuracy",
 ] as const;
 export type CycleMetricName = (typeof CYCLE_METRIC_NAMES)[number];
 
@@ -392,6 +414,8 @@ export interface CycleBarColumns {
   predictedDirection: (1 | 0 | -1 | null)[];
   position: (1 | 0 | -1 | null)[];
   equityUsd: (number | null)[];
+  predictedClose: (number | null)[];
+  forecastTimestamp: (number | null)[];
   actualDirection: (1 | 0 | -1 | null)[];
   correct: (boolean | null)[];
 }
@@ -449,6 +473,8 @@ export function emptyBarColumns(): CycleBarColumns {
     predictedDirection: [],
     position: [],
     equityUsd: [],
+    predictedClose: [],
+    forecastTimestamp: [],
     actualDirection: [],
     correct: [],
   };
@@ -484,6 +510,8 @@ export function appendBars(columns: CycleBarColumns, event: CycleBars): number {
     columns.predictedDirection.push(processed ? (event.predictedDirection?.[i] ?? null) : null);
     columns.position.push(processed ? (event.position?.[i] ?? null) : null);
     columns.equityUsd.push(processed ? (event.equityUsd?.[i] ?? null) : null);
+    columns.predictedClose.push(processed ? (event.predictedClose?.[i] ?? null) : null);
+    columns.forecastTimestamp.push(processed ? (event.forecastTimestamp?.[i] ?? null) : null);
     columns.actualDirection.push(null);
     columns.correct.push(null);
     appended += 1;

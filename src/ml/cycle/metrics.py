@@ -20,6 +20,17 @@ Baselines:
     majority_class_accuracy — each scored bar predicted as its fold's training
     majority class; buy_and_hold_net_profit_usd — per fold (last close - first
     open) * point value * contracts - one round trip, summed.
+Price forecast (resolved forecasts only: the price model predicted the move at
+bar t and bar t + h has been walked; e = predicted move - actual move, points):
+    price_forecast_mean_absolute_error_points   = mean |e|
+    price_forecast_root_mean_square_error_points = sqrt(mean e^2)
+    persistence_mean_absolute_error_points      = mean |actual move| — the
+        no-change forecast (predicted close = this close) on the same bars
+    price_forecast_skill = 1 - forecast MAE / persistence MAE (> 0 beats
+        persistence)                           None if persistence MAE is 0
+    price_forecast_direction_accuracy = share of sign(predicted move) ==
+        sign(actual move) over bars where neither is zero
+    All None when nothing has resolved.
 """
 
 from __future__ import annotations
@@ -55,7 +66,14 @@ METRIC_NAMES = (
     "brier_score",
     "majority_class_accuracy",
     "buy_and_hold_net_profit_usd",
+    "price_forecast_mean_absolute_error_points",
+    "persistence_mean_absolute_error_points",
+    "price_forecast_skill",
+    "price_forecast_root_mean_square_error_points",
+    "price_forecast_direction_accuracy",
 )
+
+PRICE_FORECAST_METRIC_NAMES = METRIC_NAMES[-5:]
 
 MINIMUM_CREDIBLE_TRADES = 30
 
@@ -250,6 +268,35 @@ def classification_metrics(actual_up: np.ndarray, predicted_up: np.ndarray, prob
     return {name: _finite(out[name]) for name in names}
 
 
+# ── price forecast ─────────────────────────────────────────────────────────
+
+
+def price_forecast_metrics(predicted_moves, actual_moves) -> dict:
+    """The five price-forecast metrics (see the module docstring) from parallel
+    arrays of predicted and actual moves in points."""
+    predicted = np.asarray(predicted_moves, dtype=np.float64)
+    actual = np.asarray(actual_moves, dtype=np.float64)
+    if predicted.shape != actual.shape:
+        raise ValueError(f"price forecast: {predicted.size} predicted moves for {actual.size} actual moves")
+    keep = np.isfinite(predicted) & np.isfinite(actual)
+    predicted, actual = predicted[keep], actual[keep]
+    if predicted.size == 0:
+        return {name: None for name in PRICE_FORECAST_METRIC_NAMES}
+    error = predicted - actual
+    mean_absolute_error = float(np.mean(np.abs(error)))
+    persistence = float(np.mean(np.abs(actual)))
+    signed = (predicted != 0) & (actual != 0)
+    return {
+        "price_forecast_mean_absolute_error_points": _finite(mean_absolute_error),
+        "persistence_mean_absolute_error_points": _finite(persistence),
+        "price_forecast_skill": _finite(1.0 - mean_absolute_error / persistence) if persistence > 0 else None,
+        "price_forecast_root_mean_square_error_points": _finite(math.sqrt(float(np.mean(error ** 2)))),
+        "price_forecast_direction_accuracy": (
+            _finite(np.mean(np.sign(predicted[signed]) == np.sign(actual[signed]))) if signed.any() else None
+        ),
+    }
+
+
 # ── scoreboard ─────────────────────────────────────────────────────────────
 
 
@@ -266,6 +313,9 @@ class ScoreInputs:
     scored_probability_up: list[float] = field(default_factory=list)
     scored_majority_up: list[int] = field(default_factory=list)
     buy_and_hold_usd: float | None = None
+    # resolved price forecasts, parallel, points
+    forecast_predicted_move_points: list[float] = field(default_factory=list)
+    forecast_actual_move_points: list[float] = field(default_factory=list)
 
 
 def scoreboard(inputs: ScoreInputs, periods_per_year: float) -> tuple[dict, dict, list[str]]:
@@ -294,12 +344,17 @@ def scoreboard(inputs: ScoreInputs, periods_per_year: float) -> tuple[dict, dict
     else:
         metrics["majority_class_accuracy"] = None
     metrics["buy_and_hold_net_profit_usd"] = _finite(inputs.buy_and_hold_usd)
+    metrics.update(price_forecast_metrics(inputs.forecast_predicted_move_points, inputs.forecast_actual_move_points))
     if r.size and metrics["sharpe_ratio"] is None:
         notes.append("Sharpe undefined: fewer than two bars or no variation in per-bar profit")
     if r.size and metrics["sortino_ratio"] is None:
         notes.append("Sortino undefined: no losing bar")
     if not inputs.scored_actual_up:
         notes.append("no scored bars yet: classification metrics are undefined")
+    if not inputs.forecast_predicted_move_points:
+        notes.append("no resolved price forecasts yet: price forecast metrics are undefined")
+    elif metrics["price_forecast_skill"] is None:
+        notes.append("price forecast skill undefined: every resolved move was zero")
     ordered = {name: metrics.get(name) for name in METRIC_NAMES}
     return ordered, distribution(np.asarray(inputs.trade_nets, dtype=np.float64)), notes
 

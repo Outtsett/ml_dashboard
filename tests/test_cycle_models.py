@@ -11,6 +11,13 @@ every family clears 0.70 in practice), probability shape/range/dtype,
 single-row == batched, causality (rows after t never change P(up) at t),
 checkpoint cadence, stop and pause through the reporter, save/load,
 Optuna search spaces.
+
+The price model (``task="regression"``, bottom of the file) is fitted on a
+second synthetic causal target with injected +-40 outliers and checked for:
+R^2 >= 0.55 on outlier-free validation and test rows (measured minimum 0.63),
+reported losses that are mean absolute error, sign accuracy, single-row ==
+batched, causality, stop, save/load with the task recorded, and a training
+target clip that uses the training rows' own percentiles only.
 """
 
 from __future__ import annotations
@@ -470,3 +477,285 @@ def test_sequence_model_refuses_rows_without_history(dataset):
     adapter, _, _ = fitted("lstm", "cpu", dataset)
     with pytest.raises(ValueError, match="history"):
         adapter.predict_probability(dataset.features, np.array([SEQUENCE_LENGTH - 2]))
+
+
+# ═══ regression: the price model (task="regression") ══════════════════════
+#
+# Target of bar t = a linear combination of bar t's features and LAGGED
+# features (t-1, t-3) plus noise, scaled to roughly unit deviation (the shape
+# of the engine's volatility-scaled forward move), with 0.6% of rows pushed
+# +-40 target units: the outliers the training-percentile clip and the Huber
+# loss exist for. Row-only models can explain ~68% of the clean variance,
+# sequence models ~90%. R^2 is measured on rows without an injected outlier.
+
+R_SQUARED_THRESHOLD = 0.55  # measured minimum 0.633 (random forest, test rows)
+REGRESSION_FAST_PARAMETERS = dict(FAST_PARAMETERS)
+
+
+class RegressionDataset:
+    def __init__(self, row_count: int = 5000, feature_count: int = 12, seed: int = 17) -> None:
+        generator = np.random.default_rng(seed)
+        features = generator.standard_normal((row_count, feature_count)).astype(np.float32)
+        signal = np.zeros(row_count)
+        signal[3:] = (
+            1.0 * features[3:, 0]
+            - 0.8 * features[3:, 1]
+            + 0.6 * features[2:-1, 2]   # bar t-1
+            + 0.4 * features[:-3, 3]    # bar t-3
+        )
+        clean = (signal + 0.5 * generator.standard_normal(row_count)) / 1.5
+        self.outlier = generator.random(row_count) < 0.006
+        outlier_sign = np.where(generator.random(row_count) < 0.5, -1.0, 1.0)
+        target = (clean + np.where(self.outlier, 40.0 * outlier_sign, 0.0)).astype(np.float32)
+        target[:3] = np.nan                    # lags not available
+        target[-6:] = np.nan                   # horizon past the data
+        features[:5] = np.nan                  # feature warmup
+        self.features = features
+        self.labels = target
+        self.timestamps = (1_700_000_000 + 300 * np.arange(row_count)).astype(np.int64)
+
+        scored = np.flatnonzero(np.isfinite(target))
+        first_usable = 5 + SEQUENCE_LENGTH - 1
+        scored = scored[scored >= first_usable]
+        self.train_index = scored[scored < 3000]
+        self.validation_index = scored[(scored >= 3010) & (scored < 3800)]
+        self.test_index = scored[scored >= 3810]
+
+
+def r_squared(prediction: np.ndarray, target: np.ndarray) -> float:
+    residual = np.sum((target - prediction) ** 2)
+    total = np.sum((target - target.mean()) ** 2)
+    return float(1.0 - residual / total)
+
+
+@pytest.fixture(scope="module")
+def regression_dataset() -> RegressionDataset:
+    return RegressionDataset()
+
+
+_FITTED_REGRESSION: dict[tuple[str, str], tuple[object, FakeReporter, float]] = {}
+
+
+def fitted_regression(family: str, device: str, data: RegressionDataset):
+    key = (family, device)
+    if key not in _FITTED_REGRESSION:
+        adapter = build_adapter(family, REGRESSION_FAST_PARAMETERS[family], device, seed=11,
+                                task="regression")
+        reporter = FakeReporter()
+        started = time.perf_counter()
+        adapter.fit(data.features, data.labels, data.train_index, data.validation_index,
+                    data.timestamps, reporter)
+        _FITTED_REGRESSION[key] = (adapter, reporter, time.perf_counter() - started)
+    return _FITTED_REGRESSION[key]
+
+
+@pytest.mark.parametrize(("family", "device"), FAMILY_DEVICES, ids=_identifier)
+def test_regression_fit_learns_and_reports(family, device, regression_dataset):
+    from cycle.models import regression_scores
+
+    data = regression_dataset
+    adapter, reporter, _ = fitted_regression(family, device, data)
+    assert adapter.task == "regression"
+    assert reporter.step_unit == adapter.step_unit
+    assert reporter.batches and reporter.epochs and reporter.validating_calls
+    assert reporter.checkpoints >= 1
+
+    for name, index in (("validation", data.validation_index), ("test", data.test_index)):
+        clean = index[~data.outlier[index]]
+        prediction = adapter.predict_value(data.features, clean)
+        assert prediction.dtype == np.float64 and prediction.shape == clean.shape
+        score = r_squared(prediction, data.labels[clean].astype(np.float64))
+        assert score >= R_SQUARED_THRESHOLD, f"{name} R^2 {score:.3f}"
+
+    # Every regression epoch reports mean absolute error and sign accuracy.
+    for report in reporter.epochs:
+        assert report.validation_loss is not None and report.validation_loss > 0
+        assert report.validation_accuracy is not None and 0.5 < report.validation_accuracy <= 1
+        assert report.validation_f1_score is None
+    assert any(report.is_best for report in reporter.epochs)
+    validation_prediction = adapter.predict_value(data.features, data.validation_index)
+    final = regression_scores(validation_prediction, data.labels[data.validation_index])
+    if family == "random_forest":  # keeps every tree: the last chunk is the final model
+        reported = reporter.epochs[-1].validation_loss
+    else:                          # the kept pass / round / epoch
+        reported = adapter.fit_summary["best_validation_loss"]
+    assert reported == pytest.approx(final["mean_absolute_error"], rel=1e-4, abs=1e-5)
+    assert final["accuracy"] >= 0.65, final
+
+    if family in NEURAL_FAMILIES:
+        assert adapter.fit_summary["loss_function"].startswith("huber")
+    else:
+        low, high = np.percentile(data.labels[data.train_index].astype(np.float64), [1, 99])
+        assert adapter.target_clip == pytest.approx((low, high))
+        assert adapter.fit_summary["clipped_train_row_count"] > 0
+    for report in reporter.batches:
+        assert report.train_loss is None or report.train_loss >= 0
+
+
+@pytest.mark.parametrize(("family", "device"), FAMILY_DEVICES, ids=_identifier)
+def test_regression_single_row_and_causality(family, device, regression_dataset):
+    data = regression_dataset
+    adapter, _, _ = fitted_regression(family, device, data)
+    index = data.test_index[:300]
+    batched = adapter.predict_value(data.features, index)
+    assert np.unique(np.round(batched, 4)).size > 50, "predictions are constant"
+    for position in (0, 7, 150, 299):
+        single = adapter.predict_value(data.features, index[position:position + 1])
+        assert single.shape == (1,) and single.dtype == np.float64
+        assert abs(single[0] - batched[position]) < 1e-5
+
+    generator = np.random.default_rng(3)
+    for row in (int(index[10]), int(index[200])):
+        perturbed = data.features.copy()
+        perturbed[row + 1:] = generator.normal(0, 25, perturbed[row + 1:].shape)
+        before = adapter.predict_value(data.features, np.array([row]))
+        after = adapter.predict_value(perturbed, np.array([row]))
+        assert after[0] == pytest.approx(before[0], abs=1e-6)
+        rows = np.array([row - 5, row - 1, row])
+        assert np.allclose(adapter.predict_value(perturbed, rows),
+                           adapter.predict_value(data.features, rows), atol=1e-5)
+        own_bar = data.features.copy()
+        own_bar[row] = generator.normal(0, 3, own_bar[row].shape)
+        changed = adapter.predict_value(own_bar, np.array([row]))
+        assert changed[0] != pytest.approx(before[0], abs=1e-9)
+
+
+@pytest.mark.parametrize(("family", "device"), FAMILY_DEVICES, ids=_identifier)
+def test_regression_save_load_round_trip(family, device, regression_dataset, tmp_path):
+    import json
+
+    data = regression_dataset
+    adapter, _, _ = fitted_regression(family, device, data)
+    adapter.save(str(tmp_path))
+    metadata = json.loads((tmp_path / "model.json").read_text(encoding="utf-8"))
+    assert metadata["task"] == "regression"
+    assert metadata["family"] == family
+    assert not list(tmp_path.glob("*.tmp*"))
+    reloaded = load_adapter(str(tmp_path), device="cpu")
+    assert reloaded.task == "regression"
+    index = data.test_index[:50]
+    assert np.allclose(adapter.predict_value(data.features, index),
+                       reloaded.predict_value(data.features, index), atol=1e-4)
+    if family not in NEURAL_FAMILIES:
+        assert reloaded.target_clip == pytest.approx(adapter.target_clip)
+
+
+def test_classification_model_json_records_its_task(dataset, tmp_path):
+    import json
+
+    adapter, _, _ = fitted("xgboost", "cpu", dataset)
+    adapter.save(str(tmp_path))
+    metadata = json.loads((tmp_path / "model.json").read_text(encoding="utf-8"))
+    assert metadata["task"] == "classification"
+    # a model.json from before the price model has no task: still a direction model
+    del metadata["task"]
+    (tmp_path / "model.json").write_text(json.dumps(metadata), encoding="utf-8")
+    assert load_adapter(str(tmp_path)).task == "classification"
+
+
+@pytest.mark.parametrize("family", MODEL_FAMILIES)
+def test_regression_stop_requested_propagates(family, regression_dataset):
+    data = regression_dataset
+    adapter = build_adapter(family, TINY_PARAMETERS[family], "cpu", seed=5, task="regression")
+    # Ridge is one closed-form solve with a single checkpoint in front of it.
+    stop_after = 1 if family == "logistic_regression" else 3
+    reporter = FakeReporter(stop_after=stop_after)
+    with pytest.raises(StopRequested):
+        adapter.fit(data.features, data.labels, data.train_index, data.validation_index,
+                    data.timestamps, reporter)
+    assert reporter.checkpoints == stop_after
+    assert len(reporter.batches) <= stop_after - 1
+
+
+_CLIP_PARAMETERS = {
+    "logistic_regression": {},
+    "random_forest": {"tree_count": 30, "max_depth": 6},
+    # early stopping off: the fitted model must not depend on validation at all
+    "xgboost": {"boosting_rounds": 60, "early_stopping_rounds": 0, "max_depth": 4,
+                "learning_rate": 0.1},
+    "lightgbm": {"boosting_rounds": 60, "early_stopping_rounds": 0, "leaf_count": 15,
+                 "learning_rate": 0.1},
+}
+
+
+@pytest.mark.parametrize("family", tuple(_CLIP_PARAMETERS))
+def test_regression_clip_uses_training_percentiles_only(family, regression_dataset):
+    data = regression_dataset
+
+    def fit(labels):
+        adapter = build_adapter(family, _CLIP_PARAMETERS[family], "cpu", seed=11,
+                                task="regression")
+        adapter.fit(data.features, labels, data.train_index, data.validation_index,
+                    data.timestamps, FakeReporter())
+        return adapter, adapter.predict_value(data.features, data.test_index)
+
+    reference, reference_prediction = fit(data.labels)
+    train_outliers = data.train_index[data.outlier[data.train_index]]
+    assert train_outliers.size >= 5
+
+    # 1. Training outliers 100x larger: they sit beyond the 1st / 99th
+    #    percentiles either way, so they clip to the same bounds and the fitted
+    #    model is unchanged; the clip is what tames them.
+    louder = data.labels.copy()
+    louder[train_outliers] *= 100.0
+    adapter, prediction = fit(louder)
+    assert adapter.target_clip == reference.target_clip
+    assert np.allclose(prediction, reference_prediction, atol=1e-9)
+
+    # 2. Huge values in VALIDATION rows move neither the bounds nor the model.
+    huge_validation = data.labels.copy()
+    huge_validation[data.validation_index[::7]] = 1e6
+    adapter, prediction = fit(huge_validation)
+    assert adapter.target_clip == reference.target_clip
+    assert np.allclose(prediction, reference_prediction, atol=1e-9)
+
+    # 3. The bounds are the training rows' own 1st / 99th percentiles, inside
+    #    the clean target's range (the +-40 outliers did not leak into them).
+    low, high = np.percentile(data.labels[data.train_index].astype(np.float64), [1, 99])
+    assert reference.target_clip == pytest.approx((low, high))
+    assert high - low < 10.0
+
+
+def test_each_task_refuses_the_other_tasks_prediction(dataset, regression_dataset):
+    for family in ("logistic_regression", "random_forest", "xgboost", "lightgbm",
+                   "multilayer_perceptron"):
+        classifier, _, _ = fitted(family, "cpu", dataset)
+        assert classifier.task == "classification"
+        with pytest.raises(TypeError, match="predict_probability"):
+            classifier.predict_value(dataset.features, dataset.test_index[:3])
+        regressor = build_adapter(family, TINY_PARAMETERS[family], "cpu", 0, task="regression")
+        with pytest.raises(TypeError, match="predict_value"):
+            regressor.predict_probability(regression_dataset.features,
+                                          regression_dataset.test_index[:3])
+        with pytest.raises(RuntimeError, match="before fit"):
+            regressor.predict_value(regression_dataset.features,
+                                    regression_dataset.test_index[:3])
+    with pytest.raises(ValueError, match="regression"):
+        build_adapter("xgboost", {}, "cpu", 0, task="forecast")
+
+
+def test_regression_refuses_a_constant_target(regression_dataset):
+    data = regression_dataset
+    labels = data.labels.copy()
+    labels[np.isfinite(labels)] = 0.25
+    for family in ("logistic_regression", "lightgbm", "multilayer_perceptron"):
+        adapter = build_adapter(family, TINY_PARAMETERS[family], "cpu", 0, task="regression")
+        with pytest.raises(ValueError, match="constant"):
+            adapter.fit(data.features, labels, data.train_index, data.validation_index,
+                        data.timestamps, FakeReporter())
+
+
+def test_regression_scores_huber_loss_and_clip():
+    from cycle.models import clip_training_target, huber_loss, regression_scores
+
+    scores = regression_scores(np.array([1.0, -2.0, 0.0, 3.0]), np.array([2.0, -1.0, 5.0, -1.0]))
+    assert scores["mean_absolute_error"] == pytest.approx((1 + 1 + 5 + 4) / 4)
+    assert scores["accuracy"] == pytest.approx(2 / 3)  # the zero prediction is excluded
+    assert scores["f1_score"] is None
+    prediction = torch.tensor([0.0, 0.5, 3.0, -4.0])
+    target = torch.tensor([0.2, -0.5, 0.0, 0.0])
+    expected = float(torch.nn.HuberLoss(delta=1.0)(prediction, target))
+    assert huber_loss(prediction.numpy(), target.numpy()) == pytest.approx(expected, rel=1e-6)
+    clipped, low, high = clip_training_target(np.arange(101, dtype=np.float64))
+    assert (low, high) == (1.0, 99.0)
+    assert clipped.min() == 1.0 and clipped.max() == 99.0

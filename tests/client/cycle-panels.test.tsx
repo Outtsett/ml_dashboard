@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CycleCurves } from "../../src/client/src/cycle/Curves";
 import { CycleFolds } from "../../src/client/src/cycle/Folds";
+import { PhaseStrip } from "../../src/client/src/cycle/PhaseStrip";
 import { categorizeLogLine, CycleTerminal } from "../../src/client/src/cycle/Terminal";
 import { CycleScoreboard } from "../../src/client/src/cycle/Scoreboard";
 import { CycleTrades } from "../../src/client/src/cycle/Trades";
@@ -303,6 +304,45 @@ describe("CycleScoreboard", () => {
     expect(comparison.textContent).toContain("6.0 points above always-predict-majority");
   });
 
+  it("shows a Price forecast group with the five forecast tiles, points to two decimals", () => {
+    act(() => {
+      apply(
+        "cycle_scoreboard",
+        scoreboard({
+          scope: "final",
+          metrics: {
+            price_forecast_mean_absolute_error_points: 4.1234,
+            persistence_mean_absolute_error_points: 4.5,
+            price_forecast_skill: 0.0837,
+            price_forecast_root_mean_square_error_points: 6.2,
+            price_forecast_direction_accuracy: 0.5312,
+          },
+        }),
+      );
+    });
+    render(<CycleScoreboard />);
+    expect(screen.getByText("Price forecast")).toBeInTheDocument();
+    expect(screen.getByTestId("metric-value-price_forecast_mean_absolute_error_points").textContent).toBe("4.12 points");
+    expect(screen.getByTestId("metric-value-persistence_mean_absolute_error_points").textContent).toBe("4.50 points");
+    expect(screen.getByTestId("metric-value-price_forecast_root_mean_square_error_points").textContent).toBe("6.20 points");
+    expect(screen.getByTestId("metric-value-price_forecast_skill").textContent).toBe("8.4%");
+    expect(screen.getByTestId("metric-value-price_forecast_direction_accuracy").textContent).toBe("53.1%");
+    const comparison = screen.getByTestId("metric-comparison-price_forecast_skill");
+    expect(comparison.textContent).toBe("▲ beats no-change by 8.4%");
+    expect(screen.getByTestId("metric-tile-persistence_mean_absolute_error_points").title).toContain("price will not move");
+  });
+
+  it("says in words and a glyph when the forecast is worse than no-change, and why a forecast tile is empty", () => {
+    act(() => {
+      apply("cycle_scoreboard", scoreboard({ scope: "final", metrics: { price_forecast_skill: -0.125 } }));
+    });
+    render(<CycleScoreboard />);
+    expect(screen.getByTestId("metric-comparison-price_forecast_skill").textContent).toBe("▼ worse than no-change by 12.5%");
+    const empty = screen.getByTestId("metric-tile-price_forecast_mean_absolute_error_points");
+    expect(within(empty).getByTestId("metric-value-price_forecast_mean_absolute_error_points").textContent).toBe("—");
+    expect(empty.title).toContain("no forecast has reached the bar it was for yet");
+  });
+
   it("switching scope changes every tile to that scoreboard's values", () => {
     render(<CycleScoreboard />);
     fireEvent.click(screen.getByTestId("scoreboard-scope-running"));
@@ -450,6 +490,31 @@ describe("CycleCurves", () => {
     expect(screen.getByTestId("curves-accuracy-chart")).toBeInTheDocument();
   });
 
+  it("toggles the loss curves between the direction model and the price model", () => {
+    act(() => {
+      apply("cycle_epoch", epoch({ epoch: 1, modelRole: "price", trainLoss: 4.2, validationLoss: 4.4 }));
+      apply("cycle_epoch", epoch({ epoch: 2, modelRole: "price", trainLoss: 4.0, validationLoss: 4.3 }));
+    });
+    render(<CycleCurves />);
+    // Epochs without a role are the direction model's; it is the default with no cursor.
+    expect(screen.getByTestId("curves-role-direction").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByTestId("curves-loss-chart").dataset.modelRole).toBe("direction");
+    expect(screen.getByTestId("curves-loss-chart").getAttribute("aria-label")).toContain("Log loss");
+
+    fireEvent.click(screen.getByTestId("curves-role-price"));
+    expect(screen.getByTestId("curves-role-price").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByTestId("curves-loss-chart").dataset.modelRole).toBe("price");
+    expect(screen.getByTestId("curves-loss-chart").getAttribute("aria-label")).toContain("Mean absolute error (typical moves)");
+    expect(screen.getByTestId("curves-accuracy-chart").getAttribute("aria-label")).toContain("Sign accuracy");
+  });
+
+  it("says so when the chosen model has no training steps in this fold", () => {
+    render(<CycleCurves />);
+    fireEvent.click(screen.getByTestId("curves-role-price"));
+    expect(screen.queryByTestId("curves-loss-chart")).not.toBeInTheDocument();
+    expect(screen.getByTestId("curves-empty").textContent).toContain("No price-model training steps");
+  });
+
   it("shows no tuning section until trials exist, then shows the scatter and table", () => {
     render(<CycleCurves />);
     expect(screen.queryByTestId("curves-tuning-scatter")).not.toBeInTheDocument();
@@ -462,5 +527,50 @@ describe("CycleCurves", () => {
 
     expect(screen.getByTestId("curves-tuning-scatter")).toBeInTheDocument();
     expect(screen.getAllByTestId("tuning-trial-row")).toHaveLength(3);
+  });
+});
+
+// ─── Phase strip ─────────────────────────────────────────────────────────────
+
+describe("PhaseStrip", () => {
+  function trainingCursor(modelRole: "direction" | "price" | undefined) {
+    return {
+      phase: "training",
+      foldIndex: 0,
+      foldCount: 2,
+      spanStart: null,
+      spanEnd: null,
+      barTimestamp: null,
+      barIndex: null,
+      barCount: null,
+      epoch: 3,
+      epochCount: 20,
+      batch: 12,
+      batchCount: 40,
+      stepUnit: "epoch",
+      ...(modelRole ? { modelRole } : {}),
+      trial: null,
+      trialCount: null,
+      phaseFraction: 0.1,
+      overallFraction: 0.2,
+      barsPerSecond: 40,
+      paused: false,
+      elapsedSeconds: 12,
+    };
+  }
+
+  it("names the price model beside the epoch progress while it is being fitted", () => {
+    apply("cycle_plan", plan());
+    apply("cycle_cursor", trainingCursor("price"));
+    render(<PhaseStrip />);
+    expect(screen.getByText(/epoch 3\/20/)).toBeInTheDocument();
+    expect(screen.getByTestId("phase-model-role").textContent).toBe("price model");
+  });
+
+  it("shows no model tag for the direction model or an older cursor without a role", () => {
+    apply("cycle_plan", plan());
+    apply("cycle_cursor", trainingCursor(undefined));
+    render(<PhaseStrip />);
+    expect(screen.queryByTestId("phase-model-role")).not.toBeInTheDocument();
   });
 });

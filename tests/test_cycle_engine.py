@@ -24,6 +24,7 @@ import json
 import math
 import re
 import shutil
+import statistics
 import subprocess
 import sys
 import threading
@@ -38,6 +39,7 @@ import pyarrow.parquet as pq
 import pytest
 
 from cycle import store
+from cycle.adapter import BatchReport, EpochReport, check_index
 from cycle.control import ControlState
 from cycle.engine import (
     CONTEXT_CHUNK,
@@ -54,8 +56,15 @@ from cycle.features import (
     normalization_settings,
     rolling_zscore,
 )
-from cycle.labels import actual_direction, label_known_index, make_labels
-from cycle.metrics import METRIC_NAMES
+from cycle.labels import (
+    actual_direction,
+    forward_move,
+    label_known_index,
+    make_labels,
+    move_scale,
+    price_target,
+)
+from cycle.metrics import METRIC_NAMES, PRICE_FORECAST_METRIC_NAMES
 from cycle.models import build_adapter, load_adapter, suggest_parameters
 from cycle.simulate import load_cost_model
 from shared import protocol
@@ -117,6 +126,57 @@ def test_a_label_depends_only_on_its_own_close_and_the_close_horizon_bars_later(
         flipped[t + HORIZON] = close[t] - (close[t + HORIZON] - close[t])   # mirror the move
         if np.isfinite(labels[t]):
             assert make_labels(flipped, HORIZON, 1.0, 0.25)[t] == 1.0 - labels[t]
+
+
+def test_the_price_target_by_hand():
+    close = np.array([100.0, 101.0, 100.0, 103.0, 103.0, 104.0, 102.0, 102.0])
+    horizon, window, tick = 2, 3, 0.25
+    move = forward_move(close, horizon)
+    # close[t + 2] - close[t]; the last two bars have no bar two ahead; a zero move is a real target
+    np.testing.assert_array_equal(move, [0.0, 2.0, 3.0, 1.0, -1.0, -2.0, np.nan, np.nan])
+    scale = move_scale(close, horizon, window, tick)
+    # backward moves close[k] - close[k - 2] exist from k = 2: [0, 2, 3, 1, -1, -2] at k = 2..7;
+    # the first full window of three is k = 2..4, so scale[4] is the first value
+    backward = {2: 0.0, 3: 2.0, 4: 3.0, 5: 1.0, 6: -1.0, 7: -2.0}
+    assert np.isnan(scale[:4]).all()
+    for t in range(4, 8):
+        expected = statistics.stdev([backward[k] for k in range(t - 2, t + 1)])
+        assert scale[t] == pytest.approx(max(expected, tick))
+    scaled, scale_again, move_again = price_target(close, horizon, window, tick)
+    assert scaled.dtype == np.float32
+    np.testing.assert_array_equal(scale_again, scale)
+    np.testing.assert_array_equal(move_again, move)
+    np.testing.assert_allclose(scaled[4:6], (move / scale)[4:6], rtol=1e-6)
+    assert np.isnan(scaled[:4]).all() and np.isnan(scaled[6:]).all()
+    # a flat market floors the scale at one tick instead of dividing by zero
+    flat = move_scale(np.full(20, 18_000.0), 1, 5, tick)
+    assert np.nanmin(flat) == tick and np.isnan(flat[:5]).all()
+    with pytest.raises(ValueError, match="horizon"):
+        forward_move(close, 0)
+    with pytest.raises(ValueError, match="window"):
+        move_scale(close, 1, 1, tick)
+
+
+@pytest.mark.parametrize("t", [300, 611, 900])
+def test_the_volatility_scale_is_causal_and_the_target_is_known_only_horizon_bars_later(t):
+    generator = np.random.default_rng(t)
+    close = np.round((18_000 + np.cumsum(generator.normal(0, 2, 1200))) * 4) / 4
+    scaled, scale, _ = price_target(close, HORIZON, 250, 0.25)
+    # every bar after t replaced: the scale up to t is bit-identical
+    perturbed = close.copy()
+    perturbed[t + 1:] = generator.normal(18_000, 300, close.size - t - 1)
+    again_scaled, again_scale, _ = price_target(perturbed, HORIZON, 250, 0.25)
+    assert np.array_equal(scale[: t + 1], again_scale[: t + 1], equal_nan=True)
+    assert not np.array_equal(scale[t + 1:], again_scale[t + 1:], equal_nan=True)
+    # the target at t needs close[t + h]: bars after t + h leave it alone, bar t + h changes it
+    later = close.copy()
+    later[t + HORIZON + 1:] += 500.0
+    assert price_target(later, HORIZON, 250, 0.25)[0][t] == scaled[t]
+    moved = close.copy()
+    moved[t + HORIZON] += 10.0
+    assert price_target(moved, HORIZON, 250, 0.25)[0][t] != scaled[t]
+    assert label_known_index(t, HORIZON) == t + HORIZON
+    assert np.isnan(scaled[-HORIZON:]).all()
 
 
 def test_actual_direction_agrees_with_the_labels():
@@ -369,16 +429,107 @@ class RecordingAdapter:
         return self.inner.save(directory)
 
 
+class FakeRegressor:
+    """An in-test price model implementing the regression side of the adapter
+    contract (``cycle/adapter.py``): ridge least squares on the training rows'
+    standardised features, one solver pass, epoch reports carrying mean absolute
+    error (target units) and the accuracy of the predicted sign. Every fit and
+    prediction is recorded next to what the process had emitted at that moment."""
+
+    family = "logistic_regression"
+    step_unit = "solver_pass"
+    task = "regression"
+
+    def __init__(self, recorder: Recorder | None = None, ridge: float = 1.0) -> None:
+        self.recorder = recorder
+        self.ridge = ridge
+        self.mean = self.scale = self.weights = None
+        self.intercept = 0.0
+        self.outputs: dict[int, float] = {}
+
+    def minimum_history(self) -> int:
+        return 1
+
+    def _matrix(self, features, index) -> np.ndarray:
+        return (features[np.asarray(index, dtype=np.int64)].astype(np.float64) - self.mean) / self.scale
+
+    def fit(self, features, labels, train_index, validation_index, timestamps, reporter):
+        check_index(features, labels, train_index, "train_index")
+        check_index(features, labels, validation_index, "validation_index")
+        if self.recorder is not None:
+            self.recorder.price_fits.append({
+                "train": np.array(train_index), "validation": np.array(validation_index), "labels": labels,
+                "phase": self.recorder.capture.phase, "last_bar": self.recorder.capture.last_bar,
+            })
+        reporter.step_unit = self.step_unit
+        reporter.checkpoint()
+        reporter.epoch_started(1, 1)
+        rows = features[train_index].astype(np.float64)
+        self.mean = rows.mean(axis=0)
+        deviation = rows.std(axis=0)
+        self.scale = np.where(deviation > 1e-12, deviation, 1.0)
+        matrix = (rows - self.mean) / self.scale
+        target = labels[train_index].astype(np.float64)
+        self.intercept = float(target.mean())
+        gram = matrix.T @ matrix + self.ridge * np.eye(matrix.shape[1])
+        self.weights = np.linalg.solve(gram, matrix.T @ (target - self.intercept))
+        train_error = float(np.mean(np.abs(matrix @ self.weights + self.intercept - target)))
+        reporter.batch(BatchReport(epoch=1, epoch_count=1, batch=1, batch_count=1, span_start_index=int(train_index[0]),
+                                   span_end_index=int(train_index[-1]), train_loss=train_error))
+        reporter.validating(1, 1)
+        predicted = self._matrix(features, validation_index) @ self.weights + self.intercept
+        actual = labels[validation_index].astype(np.float64)
+        signed = (predicted != 0) & (actual != 0)
+        reporter.epoch_finished(EpochReport(
+            epoch=1, epoch_count=1, train_loss=train_error, validation_loss=float(np.mean(np.abs(predicted - actual))),
+            validation_accuracy=float(np.mean(np.sign(predicted[signed]) == np.sign(actual[signed]))),
+            validation_f1_score=None, is_best=True,
+        ))
+        reporter.log("kept the ridge solution")
+
+    def predict_value(self, features, index):
+        if self.recorder is not None:
+            self.recorder.price_predictions.append((np.array(index), self.recorder.capture.last_bar,
+                                                    self.recorder.capture.phase))
+        values = self._matrix(features, index) @ self.weights + self.intercept
+        for row, value in zip(np.asarray(index).tolist(), values.tolist()):
+            self.outputs[int(row)] = value
+        return values
+
+    def predict_probability(self, features, index):
+        raise AssertionError("the engine asked the price model for a probability")
+
+    def save(self, directory: str) -> str:
+        path = Path(directory) / "price_model.npz"
+        np.savez(path, mean=self.mean, scale=self.scale, weights=self.weights, intercept=np.array([self.intercept]))
+        return str(path)
+
+
 class Recorder:
     def __init__(self, capture: Capture) -> None:
         self.capture = capture
         self.factory_parameters: list[dict] = []
         self.fits: list[dict] = []
         self.predictions: list[tuple[np.ndarray, int | None, str | None]] = []
+        self.price_fits: list[dict] = []
+        self.price_predictions: list[tuple[np.ndarray, int | None, str | None]] = []
+        self.price_models: list[FakeRegressor] = []
+        self.price_parameters: list[dict] = []
 
-    def factory(self, parameters: dict) -> RecordingAdapter:
+    def factory(self, parameters: dict, task: str = "classification"):
+        if task == "regression":
+            self.price_parameters.append(dict(parameters))
+            model = FakeRegressor(self)
+            self.price_models.append(model)
+            return model
+        assert task == "classification", task
         self.factory_parameters.append(dict(parameters))
         return RecordingAdapter(build_adapter("logistic_regression", parameters, "cpu", 42), self)
+
+    def price_output(self, row: int) -> float:
+        """What the price model fitted for ``row``'s fold returned at ``row``."""
+        (value,) = {model.outputs[row] for model in self.price_models if row in model.outputs}
+        return value
 
 
 @dataclass
@@ -524,10 +675,11 @@ EVENT_SCHEMAS = {
         "stepUnit": Nullable(one_of(*STEP_UNITS)), "trial": Nullable(non_negative_int),
         "trialCount": Nullable(non_negative_int), "phaseFraction": fraction, "overallFraction": fraction,
         "barsPerSecond": non_negative, "paused": boolean, "elapsedSeconds": non_negative,
+        "modelRole": Nullable(one_of("direction", "price")),
     },
     "cycle_epoch": {
         "foldIndex": Nullable(non_negative_int), "trial": Nullable(non_negative_int), "epoch": non_negative_int,
-        "epochCount": non_negative_int, "stepUnit": one_of(*STEP_UNITS),
+        "epochCount": non_negative_int, "stepUnit": one_of(*STEP_UNITS), "modelRole": one_of("direction", "price"),
         **{key: Nullable(is_number) for key in ("trainLoss", "validationLoss", "validationAccuracy",
                                                  "validationF1Score", "learningRate", "gradientNorm")},
         "isBest": boolean, "secondsElapsed": non_negative,
@@ -579,7 +731,8 @@ def check_cycle_event(event: dict) -> None:
         count = len(event["timestamps"])
         for key in ("open", "high", "low", "close", "volume"):
             assert len(event[key]) == count, f"cycle_bars.{key}: {len(event[key])} values for {count} bars"
-        prediction_columns = ("probabilityUp", "predictedDirection", "position", "equityUsd")
+        prediction_columns = ("probabilityUp", "predictedDirection", "position", "equityUsd", "predictedClose",
+                              "forecastTimestamp")
         if event["role"] == "processed":
             for key in prediction_columns:
                 assert key in event and len(event[key]) == count, f"processed cycle_bars.{key}"
@@ -587,6 +740,8 @@ def check_cycle_event(event: dict) -> None:
             check_value(event["predictedDirection"], ListOf(DIRECTION), "cycle_bars.predictedDirection")
             check_value(event["position"], ListOf(DIRECTION), "cycle_bars.position")
             check_value(event["equityUsd"], ListOf(is_number), "cycle_bars.equityUsd")
+            check_value(event["predictedClose"], ListOf(Nullable(is_number)), "cycle_bars.predictedClose")
+            check_value(event["forecastTimestamp"], ListOf(Nullable(is_int)), "cycle_bars.forecastTimestamp")
         else:
             assert not any(key in event for key in prediction_columns), "context bars carry prediction columns"
         if "resolved" in event:
@@ -601,9 +756,23 @@ def check_cycle_event(event: dict) -> None:
 # ═══ the full run ══════════════════════════════════════════════════════════
 
 
+def record_resolutions(engine: CycleEngine, capture: Capture) -> None:
+    """Record, for every forecast resolution, which bar the walk had processed
+    and which bar the chart had been shown at that moment."""
+    engine.resolutions = []
+    original = engine._resolve_forecast
+
+    def wrapped(accumulator, source_row, target_row, predicted_move):
+        engine.resolutions.append({"source": source_row, "target": target_row, "processed": engine.last_processed_row,
+                                   "shown": capture.last_bar, "predicted_move": predicted_move})
+        return original(accumulator, source_row, target_row, predicted_move)
+
+    engine._resolve_forecast = wrapped
+
+
 @pytest.fixture(scope="module")
 def full_run(market, tmp_path_factory) -> Run:
-    return run_engine(market, tmp_path_factory.mktemp("full_run"))
+    return run_engine(market, tmp_path_factory.mktemp("full_run"), before=record_resolutions)
 
 
 def rows_of(market: Market) -> dict[int, int]:
@@ -919,6 +1088,191 @@ def test_final_classification_metrics_match_scikit_learn_on_the_scored_bars(full
     assert metrics["majority_class_accuracy"] == pytest.approx(baseline)
 
 
+# ═══ the price model and its forecasts ═════════════════════════════════════
+
+
+def processed_forecasts(run: Run) -> list[tuple[int, int, float | None, int | None]]:
+    """(timestamp, fold, predictedClose, forecastTimestamp) for every processed bar on the wire."""
+    return [(t, event["foldIndex"], close, when) for event in run.capture.of("cycle_bars") if event["role"] == "processed"
+            for t, close, when in zip(event["timestamps"], event["predictedClose"], event["forecastTimestamp"])]
+
+
+def test_every_processed_bar_carries_a_forecast_of_the_close_horizon_bars_later(full_run, market):
+    rows = rows_of(market)
+    data = market.data
+    engine = full_run.engine
+    for event in full_run.capture.of("cycle_bars"):
+        if event["role"] == "processed":
+            count = len(event["timestamps"])
+            assert len(event["predictedClose"]) == len(event["forecastTimestamp"]) == count
+        else:
+            assert "predictedClose" not in event and "forecastTimestamp" not in event
+    bars = processed_forecasts(full_run)
+    assert len(bars) == sum(fold["testBarCount"] for fold in plan_of(full_run)["folds"])
+    for t, _, predicted_close, forecast_timestamp in bars:
+        row = rows[t]
+        # the forecast is for bar t + h: its timestamp, or nothing past the loaded data
+        assert forecast_timestamp == (int(data.timestamps[row + HORIZON]) if row + HORIZON < len(data) else None)
+        # every test row here has feature history and a trailing volatility, so every bar has a forecast
+        assert predicted_close is not None
+        # close + scale * the price model's output, the scale read from closes <= this bar
+        scale = engine.move_scale[row]
+        backward_moves = data.close[row - 249: row + 1] - data.close[row - 249 - HORIZON: row + 1 - HORIZON]
+        assert scale == pytest.approx(max(np.std(backward_moves, ddof=1), MNQ.tick_size), rel=1e-12)
+        assert predicted_close == pytest.approx(data.close[row] + scale * full_run.recorder.price_output(row), abs=1e-9)
+    # the price model predicts one bar at a time, from bars the chart already holds, never during training
+    walk = full_run.recorder.price_predictions
+    assert len(walk) == len(bars) and all(index.size == 1 and phase == "testing" for index, _, phase in walk)
+    for index, last_bar, _ in walk:
+        assert last_bar is not None and last_bar < data.timestamps[int(index[0])]
+
+
+def test_no_forecast_is_resolved_before_its_target_bar_is_walked(full_run, market):
+    plan = plan_of(full_run)
+    rows = rows_of(market)
+    resolutions = full_run.engine.resolutions
+    assert len(resolutions) == sum(fold["testBarCount"] - HORIZON for fold in plan["folds"])
+    for resolution in resolutions:
+        assert resolution["target"] == resolution["source"] + HORIZON
+        assert resolution["processed"] == resolution["target"], "resolved while a different bar was being walked"
+        # the chart had not yet been shown the target bar when its forecast was scored
+        assert resolution["shown"] < market.data.timestamps[resolution["target"]]
+    # and a forecast resolves inside its own fold's test span
+    spans = [(rows[fold["testStart"]], rows[fold["testEnd"]]) for fold in plan["folds"]]
+    for resolution in resolutions:
+        assert any(start <= resolution["source"] and resolution["target"] <= end for start, end in spans)
+
+
+def test_the_price_model_never_trains_on_a_target_that_resolves_in_a_later_span(full_run, market):
+    plan = plan_of(full_run)
+    rows = rows_of(market)
+    ts = market.data.timestamps
+    engine = full_run.engine
+    fits = full_run.recorder.price_fits
+    assert len(fits) == 3 and all(fit["phase"] in ("training", "validating") for fit in fits)
+    direction_fits = [fit for fit in full_run.recorder.fits if fit["phase"] == "training"]
+    for fold, fit, direction in zip(plan["folds"], fits, direction_fits):
+        train, validation = fit["train"], fit["validation"]
+        test_start = rows[fold["testStart"]]
+        # the target of row r is known at bar r + h
+        assert train.max() + HORIZON < validation.min()
+        assert validation.max() + HORIZON < test_start
+        assert fit["labels"] is engine.price_targets
+        assert np.isfinite(engine.price_targets[train]).all() and np.isfinite(engine.price_targets[validation]).all()
+        # the same spans as the direction classifier, plus the rows whose direction label is unscored
+        # only because the move sat inside the threshold
+        assert set(direction["train"]) <= set(train) and set(direction["validation"]) <= set(validation)
+        assert np.isnan(engine.labels[train]).any()
+        # fitted after the classifier, before any bar of the test span was shown
+        assert fit["last_bar"] == ts[test_start - 1]
+    # the price model gets the classifier's parameters (the factory's first call is the planning probe)
+    assert full_run.recorder.price_parameters == full_run.recorder.factory_parameters[1:]
+
+
+def test_the_forecast_scoreboard_rebuilds_from_the_bars_on_the_wire(full_run, market):
+    rows = rows_of(market)
+    close = market.data.close
+    plan = plan_of(full_run)
+    predicted, actual = [], []
+    per_fold: dict[int, tuple[list, list]] = {fold["foldIndex"]: ([], []) for fold in plan["folds"]}
+    last_row_of_fold = {fold["foldIndex"]: rows[fold["testEnd"]] for fold in plan["folds"]}
+    for t, fold, predicted_close, _ in processed_forecasts(full_run):
+        row = rows[t]
+        if row + HORIZON > last_row_of_fold[fold]:
+            continue                    # its target bar is outside the fold: never resolved
+        move = predicted_close - close[row]
+        predicted.append(move)
+        actual.append(close[row + HORIZON] - close[row])
+        per_fold[fold][0].append(move)
+        per_fold[fold][1].append(close[row + HORIZON] - close[row])
+    predicted, actual = np.array(predicted), np.array(actual)
+    error = predicted - actual
+    signed = (predicted != 0) & (actual != 0)
+    expected = {
+        "price_forecast_mean_absolute_error_points": np.mean(np.abs(error)),
+        "persistence_mean_absolute_error_points": np.mean(np.abs(actual)),
+        "price_forecast_skill": 1 - np.mean(np.abs(error)) / np.mean(np.abs(actual)),
+        "price_forecast_root_mean_square_error_points": math.sqrt(np.mean(error ** 2)),
+        "price_forecast_direction_accuracy": np.mean(np.sign(predicted[signed]) == np.sign(actual[signed])),
+    }
+    boards = full_run.capture.of("cycle_scoreboard")
+    (final,) = [b for b in boards if b["scope"] == "final"]
+    for name, value in expected.items():
+        assert final["metrics"][name] == pytest.approx(value, rel=1e-9), name
+        assert full_run.diagnostics["finalMetrics"][name] == pytest.approx(value, rel=1e-9)
+        assert full_run.diagnostics["priceForecast"][name] == pytest.approx(value, rel=1e-9)
+    # the planted drift is learnable: the price model beats the no-change forecast
+    assert final["metrics"]["price_forecast_skill"] > 0
+    assert final["metrics"]["price_forecast_direction_accuracy"] > 0.6
+    for board in [b for b in boards if b["scope"] == "fold"]:
+        moves, actual_moves = (np.array(v) for v in per_fold[board["foldIndex"]])
+        assert board["metrics"]["price_forecast_mean_absolute_error_points"] == pytest.approx(
+            np.mean(np.abs(moves - actual_moves)), rel=1e-9)
+    # a running scoreboard before the first forecast resolved has no forecast metrics, never zeros
+    first = next(b for b in boards if b["scope"] == "running")
+    if first["barsEvaluated"] <= HORIZON:
+        assert all(first["metrics"][name] is None for name in PRICE_FORECAST_METRIC_NAMES)
+    # the same numbers, row by row, in predictions.parquet
+    frame = pq.read_table(full_run.directory / "predictions.parquet").to_pydict()
+    errors = [e for e in frame["forecast_error_points"] if e is not None]
+    assert errors == pytest.approx(error.tolist(), abs=1e-9)
+    assert frame["predicted_close"] == pytest.approx([c for _, _, c, _ in processed_forecasts(full_run)])
+    assert frame["forecast_timestamp"] == [w for _, _, _, w in processed_forecasts(full_run)]
+    config = json.loads((full_run.directory / "config.json").read_text(encoding="utf-8"))
+    assert config["priceModel"]["volatilityWindowBars"] == 250 and config["priceModel"]["horizonBars"] == HORIZON
+    assert config["priceModel"]["finalMetrics"]["price_forecast_skill"] == pytest.approx(expected["price_forecast_skill"])
+
+
+def test_the_price_model_reports_its_training_under_its_own_role(full_run):
+    epochs = full_run.capture.of("cycle_epoch")
+    assert {e["modelRole"] for e in epochs} == {"direction", "price"}
+    assert [e["foldIndex"] for e in epochs if e["modelRole"] == "price"] == [0, 1, 2]
+    training = [c for c in full_run.capture.of("cycle_cursor") if c["phase"] in ("training", "validating")]
+    assert {c["modelRole"] for c in training} == {"direction", "price"}
+    assert all(c["modelRole"] is None for c in full_run.capture.of("cycle_cursor") if c["phase"] == "testing")
+    logs = full_run.capture.logs()
+    for k in (1, 2, 3):
+        prefix = f"[fold {k}/3]"
+        assert any(line.startswith(f"{prefix}[train] price model: fitting") for line in logs)
+        assert any(line.startswith(f"{prefix}[train] price model solver pass 1/1") for line in logs)
+        assert any(line.startswith(f"{prefix}[validate] price model pass 1/1 val_mae=") for line in logs)
+        assert f"{prefix}[train] price model kept the ridge solution" in logs
+        assert any(line.startswith(f"{prefix}[test] price forecast: mean absolute error") for line in logs)
+    # the order inside a fold: classifier, then price model, then the walk
+    first = [next(i for i, line in enumerate(logs) if line.startswith(text)) for text in (
+        "[fold 1/3][train] fitting", "[fold 1/3][train] price model: fitting", "[fold 1/3][test] walking")]
+    assert first == sorted(first)
+    bar_lines = [line for line in logs if re.match(r"\[fold \d/3\]\[test\] \d{4}-\d\d-\d\d \d\d:\d\d bar ", line)]
+    assert bar_lines and all(re.search(r" forecast=\d+\.\d\d@\d\d:\d\d$", line) for line in bar_lines)
+    epochs_table = pq.read_table(full_run.directory / "epochs.parquet").to_pydict()
+    assert set(epochs_table["model_role"]) == {"direction", "price"}
+    folds = pq.read_table(full_run.directory / "folds_table.parquet").to_pydict()
+    assert all(path and path.endswith("price_model.npz") for path in folds["price_model_path"])
+    assert all(count > 0 for count in folds["price_train_bar_count"])
+
+
+def test_a_price_model_that_fails_leaves_the_direction_cycle_running(market, tmp_path):
+    def factory(parameters, task="classification"):
+        if task == "regression":
+            raise NotImplementedError("no regression for this family")
+        return build_adapter("logistic_regression", parameters, "cpu", 42)
+
+    with capturing() as capture:
+        engine = CycleEngine(settings_for(tmp_path, fold_limit=1, quiet_bars=True), market.data, market.features, MNQ,
+                             factory)
+        engine.run()
+    warned = [line for line in capture.logs() if "price model could not be fitted (NotImplementedError" in line]
+    assert len(warned) == 1
+    processed = [e for e in capture.of("cycle_bars") if e["role"] == "processed"]
+    assert processed and all(c is None for e in processed for c in e["predictedClose"])
+    assert all(w is not None for e in processed for w in e["forecastTimestamp"])
+    (final,) = [b for b in capture.of("cycle_scoreboard") if b["scope"] == "final"]
+    assert all(final["metrics"][name] is None for name in PRICE_FORECAST_METRIC_NAMES)
+    assert final["metrics"]["accuracy"] is not None
+    assert any(note.startswith("no resolved price forecasts") for note in final["notes"])
+    assert capture.events[-1]["type"] == "done"
+
+
 def test_the_run_ends_with_fold_records_a_final_scoreboard_and_done(full_run):
     events = full_run.capture.events
     fold_complete = [event for event in events if event["type"] == "fold_complete"]
@@ -954,7 +1308,8 @@ def test_artifacts_are_written_with_full_word_columns(full_run, market):
     trades = pq.read_table(directory / "trades.parquet")
     assert predictions.column_names == [
         "timestamp", "fold_index", "open", "high", "low", "close", "volume", "probability_up", "predicted_direction",
-        "position", "equity_usd", "actual_direction", "correct",
+        "position", "equity_usd", "actual_direction", "correct", "predicted_move_points", "predicted_close",
+        "forecast_timestamp", "forecast_error_points",
     ]
     assert trades.column_names == [
         "trade_number", "fold_index", "side", "contracts", "entry_timestamp", "entry_price", "exit_timestamp",
@@ -1148,6 +1503,9 @@ def test_stop_closes_the_open_trade_at_the_next_bars_open(stopped_run, market):
     last_event = processed[-1]
     assert last_event["probabilityUp"][-1] is None and last_event["predictedDirection"][-1] == 0
     assert last_event["position"][-1] == 0
+    # the exit bar is a fill, not a prediction: no forecast either
+    assert last_event["predictedClose"][-1] is None and last_event["forecastTimestamp"][-1] is None
+    assert all(c is not None for c in last_event["predictedClose"][:-1])
     trades = stopped_run.capture.of("cycle_trade")
     stopped = [t for t in trades if t["status"] == "closed" and t["exitReason"] == "stopped"]
     assert len(stopped) == 1
@@ -1238,8 +1596,8 @@ def test_a_non_finite_prediction_is_not_traded_and_is_warned_once(market, tmp_pa
     with capturing() as capture:
         recorder = Recorder(capture)
         engine = CycleEngine(settings_for(tmp_path, fold_limit=1, quiet_bars=True), market.data, market.features, MNQ,
-                             lambda parameters: Gappy(build_adapter("logistic_regression", parameters, "cpu", 42),
-                                                      recorder))
+                             lambda parameters, task="classification": FakeRegressor() if task == "regression" else
+                             Gappy(build_adapter("logistic_regression", parameters, "cpu", 42), recorder))
         engine.run()
     rows = rows_of(market)
     bars = [(t, p, d) for e in capture.of("cycle_bars") if e["role"] == "processed"
@@ -1434,7 +1792,13 @@ def main_arguments(model_id: str) -> list[str]:
             "--label-horizon-bars", str(HORIZON), "--bars-per-second", "0", "--device", "cpu", "--quiet-bars"]
 
 
-def patch_main_inputs(monkeypatch, market: Market, directory: Path) -> list:
+class LandingCalls(list):
+    """The landing subprocess commands main.py ran, plus every task it asked models.build_adapter for."""
+
+    tasks: list[str]
+
+
+def patch_main_inputs(monkeypatch, market: Market, directory: Path) -> LandingCalls:
     import shared.data
 
     data = market.data
@@ -1447,7 +1811,7 @@ def patch_main_inputs(monkeypatch, market: Market, directory: Path) -> list:
     monkeypatch.setattr(shared.data, "load_ohlcv_arrays", load)
     monkeypatch.chdir(directory)
     monkeypatch.setattr(sys, "stdin", io.StringIO(""))
-    calls: list = []
+    calls = LandingCalls()
 
     def fake_run(command, **kwargs):
         calls.append(command)
@@ -1458,6 +1822,18 @@ def patch_main_inputs(monkeypatch, market: Market, directory: Path) -> list:
         return subprocess.CompletedProcess(command, 0, stdout=json.dumps(result) + "\n", stderr="")
 
     monkeypatch.setattr(store.subprocess, "run", fake_run)
+    # main.py's factory passes task= through to models.build_adapter; the price model is the in-test regressor
+    from cycle import models
+
+    real = models.build_adapter
+    tasks: list[str] = []
+
+    def build(family, parameters, device, seed, task="classification"):
+        tasks.append(task)
+        return FakeRegressor() if task == "regression" else real(family, parameters, device, seed)
+
+    monkeypatch.setattr(models, "build_adapter", build)
+    calls.tasks = tasks
     return calls
 
 
@@ -1473,6 +1849,10 @@ def test_a_run_id_with_a_plus_runs_and_lands_under_an_underscore_recipe(market, 
     assert Path(events[-1]["modelPath"]) == directory.resolve()
     assert (directory / "predictions.parquet").exists() and (directory / "diagnostics.json").exists()
     (command,) = calls
+    # one planning probe and one fold: classifier, then the price model
+    assert calls.tasks == ["classification", "classification", "regression"]
+    processed = [e for e in events if e["type"] == "cycle_bars" and e["role"] == "processed"]
+    assert processed and any(c is not None for e in processed for c in e["predictedClose"])
     job = json.loads(command[-1])
     assert job["recipe"] == "MNQ_5m_logistic_regression_walk_forward_cycle_20260925T103846"
     assert "+" not in job["recipe"] and job["dataset"] == "model_cycle_runs"

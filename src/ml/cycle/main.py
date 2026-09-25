@@ -14,7 +14,8 @@ selected family's keys reach its adapter). Unknown flags are logged at warn and
 ignored. Control arrives on stdin (``control.py``); events leave on stdout.
 
 Test hook: ``CYCLE_ADAPTER_FACTORY=<module>:<callable>`` replaces
-``models.build_adapter`` (same signature) — for runs without the real families.
+``models.build_adapter`` (same signature, including ``task=``) — for runs
+without the real families.
 """
 
 from __future__ import annotations
@@ -335,7 +336,9 @@ def run(args: argparse.Namespace, unknown: list[str]) -> int:
     )
     engine = CycleEngine(
         settings, data, feature_set, cost,
-        adapter_factory=lambda parameters: build_adapter(family, parameters, device, args.seed),
+        # task "classification" = the direction classifier, "regression" = the fold's price model
+        adapter_factory=lambda parameters, task="classification": build_adapter(family, parameters, device, args.seed,
+                                                                                task=task),
         control=control,
         suggest_parameters=(lambda trial, base: suggest(trial, family, base)) if suggest else None,
     )

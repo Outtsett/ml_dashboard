@@ -4,11 +4,13 @@
  * what format kind renders its value, and which direction is good.
  *
  * `formatKind` picks the `format.ts` function: "usd" -> `formatUsd`,
- * "ratio" -> `formatRatio`, "percent" -> `formatPercent`, "count" -> `formatCount`.
+ * "ratio" -> `formatRatio`, "percent" -> `formatPercent`, "count" -> `formatCount`,
+ * "points" -> `formatRatio` with two decimals and the word "points" (a price
+ * distance in the instrument's own price units, e.g. MNQ index points).
  */
 import { CYCLE_METRIC_NAMES, type CycleMetricName } from "@shared/cycle/schema";
 
-export type MetricFormatKind = "usd" | "ratio" | "percent" | "count";
+export type MetricFormatKind = "usd" | "ratio" | "percent" | "count" | "points";
 export type MetricDirection = "higher" | "lower" | "closer_to_zero";
 
 export interface MetricDefinition {
@@ -250,6 +252,55 @@ export const METRIC_DEFINITIONS: Record<CycleMetricName, MetricDefinition> = {
     formatKind: "usd",
     nullReason: "the test span has not produced any bars yet",
   },
+  price_forecast_mean_absolute_error_points: {
+    label: "Forecast mean absolute error",
+    definition:
+      "On average, how far the price model's forecast close landed from the close that actually happened, the label horizon later. Measured only on forecasts whose target bar has been walked.",
+    formula: "mean over resolved forecasts of |forecast move − actual move| (the same as |forecast close − actual close|)",
+    unit: "price points",
+    better: "lower",
+    formatKind: "points",
+    nullReason: "no forecast has reached the bar it was for yet",
+  },
+  persistence_mean_absolute_error_points: {
+    label: "No-change baseline error",
+    definition:
+      "The same error for the laziest possible forecast — \"price will not move\" (forecast close = this bar's close). It equals the average size of the actual move over the horizon, and it is the bar the price model must beat.",
+    formula: "mean over the same resolved forecasts of |actual close − this bar's close|",
+    unit: "price points",
+    better: "lower",
+    formatKind: "points",
+    nullReason: "no forecast has reached the bar it was for yet",
+  },
+  price_forecast_skill: {
+    label: "Forecast skill vs no-change",
+    definition:
+      "How much smaller the price model's error is than the no-change forecast's. Above zero the model beats doing nothing; zero is no better; below zero it is worse than assuming price stays put.",
+    formula: "1 − (forecast mean absolute error ÷ no-change mean absolute error)",
+    unit: "percent",
+    better: "higher",
+    formatKind: "percent",
+    nullReason: "no forecast has resolved yet, or every resolved move was zero so the no-change error is zero",
+  },
+  price_forecast_root_mean_square_error_points: {
+    label: "Forecast root mean square error",
+    definition:
+      "Like the mean absolute error, but each miss is squared before averaging, so a few large misses weigh far more than many small ones. Much larger than the mean absolute error means the misses are lumpy.",
+    formula: "√(mean over resolved forecasts of (forecast move − actual move)²)",
+    unit: "price points",
+    better: "lower",
+    formatKind: "points",
+    nullReason: "no forecast has reached the bar it was for yet",
+  },
+  price_forecast_direction_accuracy: {
+    label: "Forecast direction accuracy",
+    definition: "The share of resolved forecasts whose predicted move pointed the same way (up or down) as the move that happened.",
+    formula: "count where sign(forecast move) = sign(actual move) ÷ count of resolved forecasts where neither move is zero",
+    unit: "percent of resolved forecasts",
+    better: "higher",
+    formatKind: "percent",
+    nullReason: "no resolved forecast has both a nonzero predicted move and a nonzero actual move yet",
+  },
 };
 
 /** Metric groups, in display order, exactly as the panel build contract lists them. */
@@ -280,6 +331,16 @@ export const METRIC_GROUPS: { title: string; metrics: CycleMetricName[] }[] = [
   {
     title: "Baselines",
     metrics: ["majority_class_accuracy", "buy_and_hold_net_profit_usd"],
+  },
+  {
+    title: "Price forecast",
+    metrics: [
+      "price_forecast_mean_absolute_error_points",
+      "persistence_mean_absolute_error_points",
+      "price_forecast_skill",
+      "price_forecast_root_mean_square_error_points",
+      "price_forecast_direction_accuracy",
+    ],
   },
 ];
 

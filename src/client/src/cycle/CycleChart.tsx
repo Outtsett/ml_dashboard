@@ -3,9 +3,14 @@
  *
  * Drawn only from the bars the model process has emitted, in the order it read
  * them: context bars (the model has not been tested there) at 40% alpha,
- * processed test bars in full colour, a prediction strip under the candles,
- * P(up) and equity panes, trade markers, the fold spans and the block the model
- * is working on right now, and a dashed test cursor.
+ * processed test bars in full colour, the model's call ON each test bar (▲
+ * under the low = predicts up, ▼ over the high = predicts down; solid when it
+ * proved right, hollow when wrong, faint until known), the price model's
+ * forecast line (dashed reddish-purple, each point plotted on the bar it
+ * forecasts, so it runs `labelHorizonBars` ahead of the newest candle), a
+ * prediction strip under the candles, P(up) and equity panes, trade markers,
+ * the fold spans and the block the model is working on right now, and a dashed
+ * test cursor.
  *
  * Performance is the design constraint. The store's bars are mutable columns
  * (tens of thousands, arriving at up to 20 frames a second), so this component
@@ -13,7 +18,17 @@
  * React, coalesces every change into one requestAnimationFrame, and per frame
  * calls `series.update()` for the NEW bars only (`planRender` in chartModel.ts
  * decides append vs full reset). Labels that resolve on bars already drawn are
- * drawn by the bands primitive at draw time (see chartBands.ts for why).
+ * drawn by the bands primitive at draw time (see chartBands.ts for why). The
+ * forecast line appends the forecasts of the same new bars (`appendForecast`),
+ * which also grows the target-time → source-bar map the crosshair reads.
+ *
+ * The forecast line's points past the newest candle add time points to the
+ * shared time scale (it is the union of every series' times). Verified against
+ * lightweight-charts 5.1's data layer: a series' `update()` is only refused for
+ * a time before THAT series' own last point, and a candle later arriving at a
+ * time the forecast line already put on the scale takes the cheap in-place
+ * path (no time-scale rebuild). Because the engine emits bars contiguously,
+ * candle `i` keeps logical index `i` — the bands and glyphs rely on that.
  *
  * `CycleChart` takes no props and reads `useCycleStore`; `CycleChartArea` adds
  * the "Back to market chart" bar the Market page shows above it.
@@ -43,15 +58,20 @@ import type { CyclePlan, CycleTrade } from "@shared/cycle/schema";
 import { CycleBandsPrimitive } from "./chartBands";
 import {
   advanceRendered,
+  appendForecast,
   barIndexAtOrBefore,
   buildBands,
   buildTradeMarkers,
   centreRange,
   CYCLE_COLORS,
+  emptyForecastTrack,
   followSpanRange,
   followTestRange,
   followWidth,
+  forecastHeadIndex,
+  forecastOnlyReadout,
   formatSignedUsd,
+  GLYPH_FAINT_ALPHA,
   mapBars,
   phaseWord,
   planRender,
@@ -61,6 +81,8 @@ import {
   tickDecimals,
   withAlpha,
   type BarReadout,
+  type ForecastOnlyReadout,
+  type ForecastTrack,
   type LogicalSpan,
   type RenderedBars,
 } from "./chartModel";
@@ -77,7 +99,10 @@ const GESTURE_WINDOW_MILLISECONDS = 800;
 const FOCUS_FLASH_MILLISECONDS = 1500;
 
 interface HoverState {
-  readout: BarReadout;
+  /** The hovered candle; null when hovering the forecast line ahead of the newest candle. */
+  readout: BarReadout | null;
+  /** A forecast point whose bar has not arrived yet. */
+  forecastOnly: ForecastOnlyReadout | null;
   /** Crosshair x in chart pixels. */
   x: number;
   /** Place the readout to the left of the crosshair (it is on the right half). */
@@ -94,6 +119,7 @@ class CycleChartController {
   private readonly handlers: ControllerHandlers;
   private readonly chart: IChartApi;
   private readonly candles: ISeriesApi<"Candlestick">;
+  private readonly forecast: ISeriesApi<"Line">;
   private readonly strip: ISeriesApi<"Histogram">;
   private readonly probability: ISeriesApi<"Line">;
   private readonly equity: ISeriesApi<"Baseline">;
@@ -102,6 +128,7 @@ class CycleChartController {
   private readonly unsubscribe: () => void;
 
   private rendered: RenderedBars | null = null;
+  private forecastTrack: ForecastTrack = emptyForecastTrack();
   private frameHandle: number | null = null;
   private renderedPlan: CyclePlan | null = null;
   private renderedCursor: CycleState["cursor"] = null;
@@ -151,7 +178,25 @@ class CycleChartController {
       0,
     );
     this.candles.attachPrimitive(this.bands);
-    this.bands.stripTopFraction = STRIP_TOP_FRACTION;
+
+    // The price model's forecast: each point sits at the bar it forecasts.
+    this.forecast = this.chart.addSeries(
+      LineSeries,
+      {
+        color: CYCLE_COLORS.active,
+        lineWidth: 2,
+        lineStyle: LineStyle.Dashed,
+        priceLineVisible: false,
+        lastValueVisible: true,
+        title: "forecast",
+        crosshairMarkerVisible: true,
+        priceFormat: { type: "price", precision: 2, minMove: 0.25 },
+        // The candles set the price scale; a wild forecast runs off-screen
+        // instead of stretching the axis and flattening every candle.
+        autoscaleInfoProvider: () => null,
+      },
+      0,
+    );
 
     this.strip = this.chart.addSeries(
       HistogramSeries,
@@ -237,12 +282,16 @@ class CycleChartController {
         return;
       }
       const index = Math.round(param.logical);
-      const readout = index >= 0 && index < count ? readoutAt(useCycleStore.getState().bars, index) : null;
-      if (!readout) {
+      const columns = useCycleStore.getState().bars;
+      const sources = this.forecastTrack.sourceByTime;
+      const readout = index >= 0 && index < count ? readoutAt(columns, index, sources) : null;
+      // Past the newest candle the only thing there is the forecast line.
+      const forecastOnly = !readout && index >= count && typeof param.time === "number" ? forecastOnlyReadout(columns, param.time, sources) : null;
+      if (!readout && !forecastOnly) {
         this.handlers.onHover(null);
         return;
       }
-      this.handlers.onHover({ readout, x: param.point.x, placeLeft: param.point.x > this.container.clientWidth / 2 });
+      this.handlers.onHover({ readout, forecastOnly, x: param.point.x, placeLeft: param.point.x > this.container.clientWidth / 2 });
     });
 
     this.chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
@@ -345,6 +394,8 @@ class CycleChartController {
       this.strip.setData(mapped.strip);
       this.probability.setData(mapped.probability);
       this.equity.setData(mapped.equity);
+      this.forecastTrack = emptyForecastTrack();
+      this.forecast.setData(appendForecast(this.forecastTrack, columns, 0, plan.count));
       this.renderedTrades = null;
       this.lastSpanKey = "";
     } else if (plan.kind === "append") {
@@ -355,6 +406,9 @@ class CycleChartController {
         this.probability.update(mapped.probability[offset]!);
         this.equity.update(mapped.equity[offset]!);
       }
+      // After the candles: a forecast at or before the newest candle lands on
+      // a time already on the scale; a later one extends the scale to the right.
+      for (const point of appendForecast(this.forecastTrack, columns, plan.from, plan.to)) this.forecast.update(point);
     }
     this.rendered = advanceRendered(this.rendered, store, plan, timestamps);
     const barsChanged = plan.kind === "reset" || plan.kind === "append";
@@ -378,7 +432,7 @@ class CycleChartController {
       (this.pendingMarkerTimestamp !== null && lastTimestamp !== null && lastTimestamp >= this.pendingMarkerTimestamp)
     ) {
       this.renderedTrades = state.trades;
-      const set = buildTradeMarkers(state.trades, lastTimestamp);
+      const set = buildTradeMarkers(state.trades, lastTimestamp, columns);
       this.markers.setMarkers(set.markers);
       this.pendingMarkerTimestamp = set.pendingTimestamp;
     }
@@ -397,7 +451,9 @@ class CycleChartController {
     this.priceLines = [];
     if (!plan) return;
     const tick = plan.costModel.tickSize;
-    this.candles.applyOptions({ priceFormat: { type: "price", precision: tickDecimals(tick), minMove: tick } });
+    const priceFormat = { type: "price", precision: tickDecimals(tick), minMove: tick } as const;
+    this.candles.applyOptions({ priceFormat });
+    this.forecast.applyOptions({ priceFormat });
     const entry = plan.trading.entryProbability;
     this.entryProbability = entry;
     this.priceLines.push(
@@ -466,12 +522,14 @@ class CycleChartController {
     const cursor = state.cursor;
     const timestamps = state.bars.timestamps;
 
+    // The newest forecast point leads the cursor by the label horizon; keep it in view too.
+    const forecastHead = forecastHeadIndex(this.forecastTrack, count, this.rendered?.lastTimestamp ?? null);
     let target: LogicalSpan | null = null;
     if (!cursor || cursor.phase === "loading") {
-      target = followTestRange(count - 1, width);
+      target = followTestRange(count - 1, width, forecastHead);
     } else if (cursor.phase === "testing" && cursor.barTimestamp !== null) {
       const index = Math.min(count - 1, barIndexAtOrBefore(timestamps, cursor.barTimestamp));
-      if (index >= 0) target = followTestRange(index, width);
+      if (index >= 0) target = followTestRange(index, width, forecastHead);
     } else if (cursor.phase === "training" || cursor.phase === "validating" || cursor.phase === "tuning") {
       let start = cursor.spanStart;
       let end = cursor.spanEnd;
@@ -512,17 +570,64 @@ function formatPrice(value: number): string {
   return Number.isInteger(value) ? value.toFixed(2) : value.toFixed(Math.min(5, Math.max(2, String(value).split(".")[1]?.length ?? 2)));
 }
 
-function ReadoutBox({ hover }: { hover: HoverState }) {
+/** "+3.25" / "−1.50" (true minus sign), `decimals` places. */
+function formatSignedPoints(value: number, decimals: number): string {
+  return `${value < 0 ? "−" : "+"}${Math.abs(value).toFixed(decimals)}`;
+}
+
+function ForecastLines({ readout, decimals }: { readout: BarReadout; decimals: number }) {
+  const target = readout.forecastForThisBar;
+  const made = readout.forecastMadeHere;
+  if (!target && !made) return null;
+  return (
+    <div className="mt-1 space-y-0.5 border-t border-white/10 pt-1" data-testid="cycle-chart-readout-forecast">
+      {target && (
+        <div>
+          <span style={{ color: CYCLE_COLORS.active }}>┄ </span>
+          <span className="text-muted-foreground">forecast for this bar (made at {target.madeAtText}):</span> {target.predictedClose.toFixed(decimals)} · actual
+          close {target.actualClose.toFixed(decimals)} · error {formatSignedPoints(target.errorPoints, decimals)} points
+          <span className="text-muted-foreground"> ({target.errorPoints > 0 ? "forecast too high" : target.errorPoints < 0 ? "forecast too low" : "exact"})</span>
+        </div>
+      )}
+      {made && (
+        <div>
+          <span style={{ color: CYCLE_COLORS.active }}>┄ </span>
+          <span className="text-muted-foreground">this bar&apos;s forecast:</span> close {made.predictedClose.toFixed(decimals)} at {made.targetTimeText}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ForecastOnlyBox({ forecast, decimals }: { forecast: ForecastOnlyReadout; decimals: number }) {
+  return (
+    <>
+      <div className="text-foreground">{forecast.timeText}</div>
+      <div className="text-muted-foreground">ahead of the newest candle — this bar has not arrived yet</div>
+      <div className="mt-1">
+        <span style={{ color: CYCLE_COLORS.active }}>┄ </span>
+        <span className="text-muted-foreground">forecast for this bar (made at {forecast.madeAtText}):</span> {forecast.predictedClose.toFixed(decimals)}
+      </div>
+    </>
+  );
+}
+
+function ReadoutBox({ hover, decimals }: { hover: HoverState; decimals: number }) {
   const readout = hover.readout;
   const style = hover.placeLeft ? { right: `calc(100% - ${hover.x - 14}px)` } : { left: hover.x + 14 };
+  const className =
+    "pointer-events-none absolute top-24 z-20 min-w-[210px] max-w-[420px] rounded-md border border-white/15 bg-[rgba(11,15,22,0.92)] px-2.5 py-2 font-mono text-[11px] leading-[1.45] text-foreground/90 shadow-lg";
+  if (!readout) {
+    return hover.forecastOnly ? (
+      <div className={className} style={style} data-testid="cycle-chart-readout">
+        <ForecastOnlyBox forecast={hover.forecastOnly} decimals={decimals} />
+      </div>
+    ) : null;
+  }
   const labelTone =
     readout.labelWord === "correct" ? CYCLE_COLORS.sky : readout.labelWord === "wrong" ? CYCLE_COLORS.vermillion : undefined;
   return (
-    <div
-      className="pointer-events-none absolute top-24 z-20 min-w-[210px] rounded-md border border-white/15 bg-[rgba(11,15,22,0.92)] px-2.5 py-2 font-mono text-[11px] leading-[1.45] text-foreground/90 shadow-lg"
-      style={style}
-      data-testid="cycle-chart-readout"
-    >
+    <div className={className} style={style} data-testid="cycle-chart-readout">
       <div className="text-foreground">{readout.timeText}</div>
       <div className="text-muted-foreground">
         {readout.role === "processed" ? "test bar — the model predicted it" : "context bar — the model was not tested here"}
@@ -557,6 +662,7 @@ function ReadoutBox({ hover }: { hover: HoverState }) {
           </>
         )}
       </div>
+      <ForecastLines readout={readout} decimals={decimals} />
     </div>
   );
 }
@@ -574,16 +680,27 @@ function ChartKey() {
         {open ? "▾ Key" : "▸ Key"}
       </button>
       {open && (
-        <div className="mt-0.5 space-y-0.5">
+        <div className="mt-0.5 max-w-[340px] space-y-0.5" data-testid="cycle-chart-key">
+          <div className="text-muted-foreground">The model&apos;s call on each test bar:</div>
           <div>
-            <span style={{ color: CYCLE_COLORS.up }}>▲</span> long entry · <span style={{ color: CYCLE_COLORS.down }}>▼</span> short entry
+            <span style={{ color: CYCLE_COLORS.up }}>▲</span> below the candle = predicts up · <span style={{ color: CYCLE_COLORS.down }}>▼</span> above
+            the candle = predicts down
+          </div>
+          <div>
+            <span style={{ color: CYCLE_COLORS.up }}>▲</span> solid = proved right · <span style={{ color: CYCLE_COLORS.up }}>△</span> hollow = wrong ·{" "}
+            <span style={{ color: CYCLE_COLORS.up, opacity: GLYPH_FAINT_ALPHA }}>▲</span> faint = not known yet (or the move was too small to score)
+          </div>
+          <div>
+            <span style={{ color: CYCLE_COLORS.active }}>┄┄</span> forecast: the price model&apos;s predicted close, drawn on the bar it is for, so it
+            runs ahead of the newest candle. This line tracks the model&apos;s expected drift, not a price target — expect it to hug the close and
+            miss sharp moves.
+          </div>
+          <div>
+            <span style={{ color: CYCLE_COLORS.up }}>⇧</span> L&lt;n&gt; long entry · <span style={{ color: CYCLE_COLORS.down }}>⇩</span> S&lt;n&gt; short entry
+            (arrows with a trade number, beyond the call triangle)
           </div>
           <div>● exit (orange = profit, blue = loss, amount shown)</div>
           <div>strip: orange = predicts up, blue = predicts down, stronger = more confident</div>
-          <div>
-            <span style={{ color: CYCLE_COLORS.sky }}>■</span> label correct · <span style={{ color: CYCLE_COLORS.vermillion }}>✗</span> label wrong ·
-            <span className="text-muted-foreground"> • not scored</span>
-          </div>
           <div>faded candles: context, the model was not tested there</div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pt-0.5">
             <span className="flex items-center gap-1">
@@ -664,7 +781,7 @@ export function CycleChart() {
         </div>
       )}
 
-      {hover && <ReadoutBox hover={hover} />}
+      {hover && <ReadoutBox hover={hover} decimals={plan ? tickDecimals(plan.costModel.tickSize) : 2} />}
     </div>
   );
 }
