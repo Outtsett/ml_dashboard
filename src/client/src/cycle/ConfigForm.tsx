@@ -5,7 +5,7 @@
  * passes it down; this file owns the catalog read (`useCycleCatalog`), the
  * per-family localStorage memory, and validation.
  */
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
 
 import { cn } from "@/shared/utils/utils";
@@ -90,6 +90,9 @@ export function validateCycleForm(state: CycleFormState): CycleFormValidation {
 }
 
 // ─── Per-family memory ───────────────────────────────────────────────────────
+
+/** The family picked last, so a reload opens on it. */
+const LAST_FAMILY_KEY = "cycle-last-family-v1";
 
 function storageKey(familyKey: string): string {
   return `cycle-config-${familyKey}-v1`;
@@ -201,6 +204,11 @@ export function ConfigForm({ value, onChange, disabled = false }: ConfigFormProp
       for (const key of Object.keys(defaults)) {
         hyperparameters[key] = stored?.hyperparameters?.[key] ?? defaults[key]!;
       }
+      try {
+        window.localStorage.setItem(LAST_FAMILY_KEY, entry.key);
+      } catch {
+        // storage unavailable (private window, blocked site data): nothing to remember
+      }
       emit({
         familyKey: entry.key,
         timeframe: stored?.timeframe ?? value.timeframe,
@@ -211,6 +219,19 @@ export function ConfigForm({ value, onChange, disabled = false }: ConfigFormProp
     },
     [emit, value.timeframe, value.dateStart, value.dateEnd],
   );
+
+  // After a reload, come back to the family used last (once the catalog is in).
+  useEffect(() => {
+    if (value.familyKey || entries.length === 0) return;
+    let remembered: string | null = null;
+    try {
+      remembered = window.localStorage.getItem(LAST_FAMILY_KEY);
+    } catch {
+      remembered = null;
+    }
+    const entry = remembered ? entries.find((candidate) => candidate.key === remembered) : undefined;
+    if (entry) selectFamily(entry);
+  }, [entries, value.familyKey, selectFamily]);
 
   const setTimeframe = useCallback((timeframe: string) => emit({ ...value, timeframe }), [emit, value]);
   const setDateStart = useCallback((dateStart: string) => emit({ ...value, dateStart }), [emit, value]);

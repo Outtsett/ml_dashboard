@@ -110,9 +110,20 @@ class BandsRenderer implements IPrimitivePaneRenderer {
     const to = Math.min(logical.to, lastDrawn + 0.5);
     if (to <= logical.from) return null;
     const timeScale = chart.timeScale();
-    const x1 = timeScale.logicalToCoordinate(logical.from as Logical);
-    const x2 = timeScale.logicalToCoordinate(to as Logical);
-    if (x1 === null || x2 === null) return null;
+    // Convert the first and last BAR (integer logical indices) and widen by
+    // half a bar. lightweight-charts 5.1's logicalToCoordinate returns 0 for a
+    // fractional index such as `first - 0.5` (measured 2026-09-25: 23357.5 →
+    // 0 while 23500 → 280 px), which collapsed every band to zero width, so no
+    // band or band label was ever drawn.
+    const firstBar = Math.ceil(logical.from);
+    const lastBar = Math.floor(to);
+    if (lastBar < firstBar) return null;
+    const xFirst = timeScale.logicalToCoordinate(firstBar as Logical);
+    const xLast = timeScale.logicalToCoordinate(lastBar as Logical);
+    if (xFirst === null || xLast === null) return null;
+    const halfBar = timeScale.options().barSpacing / 2;
+    const x1 = xFirst - halfBar;
+    const x2 = xLast + halfBar;
     const left = Math.max(0, Math.min(x1, x2));
     const right = Math.min(width, Math.max(x1, x2));
     if (right <= 0 || left >= width || right - left < 0.5) return null;
@@ -278,11 +289,11 @@ class BandsRenderer implements IPrimitivePaneRenderer {
     const index = findBarIndex(columns.timestamps, time);
     if (index < 0 || index >= this._source.renderedCount) return;
     const timeScale = chart.timeScale();
-    const left = timeScale.logicalToCoordinate((index - 0.5) as Logical);
-    const right = timeScale.logicalToCoordinate((index + 0.5) as Logical);
-    if (left === null || right === null) return;
-    const widthPixels = Math.max(6, right - left);
-    const centre = (left + right) / 2;
+    // An integer index, widened by the bar spacing: a fractional logical index
+    // converts to 0 in lightweight-charts 5.1 (see `_pixelSpan`).
+    const centre = timeScale.logicalToCoordinate(index as Logical);
+    if (centre === null) return;
+    const widthPixels = Math.max(6, timeScale.options().barSpacing);
     context.fillStyle = FLASH_FILL;
     context.fillRect(centre - widthPixels / 2, 0, widthPixels, height);
     context.strokeStyle = CYCLE_COLORS.yellow;

@@ -342,13 +342,17 @@ export interface BandLayout {
   cursor: CursorMark | null;
 }
 
+// Measured against the chart's near-black background (2026-09-25): at 6% the
+// test tint differed from the background by a few RGB steps and read as no
+// band at all. These are the lowest values that show on that background
+// without washing out the candles drawn over them.
 export const BAND_FILLS: Record<BandKind, string> = {
-  training: withAlpha(CYCLE_COLORS.sky, 0.1),
-  validation: withAlpha(CYCLE_COLORS.yellow, 0.15),
-  test: withAlpha(CYCLE_COLORS.up, 0.06),
-  previous_test: withAlpha(CYCLE_COLORS.up, 0.025),
-  tuning: withAlpha(CYCLE_COLORS.active, 0.12),
-  active: withAlpha(CYCLE_COLORS.active, 0.25),
+  training: withAlpha(CYCLE_COLORS.sky, 0.16),
+  validation: withAlpha(CYCLE_COLORS.yellow, 0.2),
+  test: withAlpha(CYCLE_COLORS.up, 0.11),
+  previous_test: withAlpha(CYCLE_COLORS.up, 0.05),
+  tuning: withAlpha(CYCLE_COLORS.active, 0.18),
+  active: withAlpha(CYCLE_COLORS.active, 0.32),
 };
 
 export const BAND_EDGES: Record<BandKind, string> = {
