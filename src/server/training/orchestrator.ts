@@ -11,6 +11,7 @@ import type {
   TrainingSession,
   ResolvedTrainingConfig,
 } from "@shared/trainingTypes";
+import type { CycleControl } from "@shared/cycle/schema";
 import {
   getModelConfig,
   getTrainingConfig,
@@ -302,6 +303,18 @@ export function stopTraining(modelId: string): boolean {
   entry.runner.stop(entry.session.sessionId);
   setTimeout(() => activeSessions.delete(modelId), 10000);
   return true;
+}
+
+/**
+ * Send a Model Cycle control command (pause/resume/pace/stop) to a running
+ * session's process. Mirrors `stopTraining`'s lookup, but writes to stdin
+ * through `ITrainerRunner.sendControl` instead of killing the process.
+ */
+export function controlTraining(modelId: string, command: CycleControl): "delivered" | "no_session" | "not_supported" {
+  const entry = activeSessions.get(modelId);
+  if (!entry || entry.session.finished) return "no_session";
+  if (!entry.runner.sendControl) return "not_supported";
+  return entry.runner.sendControl(entry.session.sessionId, command) ? "delivered" : "no_session";
 }
 
 /** Get a training session by model ID */

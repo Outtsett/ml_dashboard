@@ -1,4 +1,188 @@
-/** Placeholder for the per-fold ledger — replaced by its owning build agent. Reads `useCycleStore`; takes no props. */
+/**
+ * CycleFolds — one row per planned fold (`plan.folds`), joined with that
+ * fold's finished scoreboard (`store.folds`, scope "fold") and, for the fold
+ * currently under test, the running scoreboard labelled "live".
+ */
+import { useMemo, type ReactNode } from "react";
+
+import { useCycleStore } from "@/cycle/store";
+import { formatCount, formatDate, formatPercent, formatRatio, formatUsd } from "@/cycle/format";
+import type { CycleFoldPlan, CyclePhase, CycleScoreboard } from "@shared/cycle/schema";
+import { cn } from "@/shared/utils/utils";
+
+type FoldStatus = "pending" | "tuning" | "training" | "validating" | "testing" | "done";
+
+const STATUS_COLOR: Record<FoldStatus, string> = {
+  pending: "#8A8F98",
+  tuning: "#CC79A7",
+  training: "#56B4E9",
+  validating: "#F0E442",
+  testing: "#0072B2",
+  done: "#009E73",
+};
+
+const STATUS_GLYPH: Record<FoldStatus, string> = {
+  pending: "○",
+  tuning: "◔",
+  training: "◑",
+  validating: "◑",
+  testing: "◕",
+  done: "●",
+};
+
+function statusForFold(foldIndex: number, hasFinished: boolean, cursorPhase: CyclePhase | null, cursorFoldIndex: number | null): FoldStatus {
+  if (hasFinished) return "done";
+  if (cursorFoldIndex === foldIndex && cursorPhase && ["tuning", "training", "validating", "testing"].includes(cursorPhase)) {
+    return cursorPhase as FoldStatus;
+  }
+  return "pending";
+}
+
+function StatusBadge({ status }: { status: FoldStatus }) {
+  return (
+    <span data-testid="fold-status" data-status={status} className="inline-flex items-center gap-1 font-medium" style={{ color: STATUS_COLOR[status] }}>
+      <span aria-hidden>{STATUS_GLYPH[status]}</span>
+      {status}
+    </span>
+  );
+}
+
+function Cell({ children, testId }: { children: ReactNode; testId?: string }) {
+  return (
+    <td data-testid={testId} className="whitespace-nowrap px-2 py-1.5 text-right font-mono text-[11px] tabular-nums">
+      {children}
+    </td>
+  );
+}
+
+const TRADING_METRIC_NAMES = ["accuracy", "f1_score", "roc_auc", "net_profit_usd", "sharpe_ratio", "maximum_drawdown_usd", "trade_count", "win_rate"] as const;
+
+function metricCells(board: CycleScoreboard | null, live: boolean, testIdPrefix: string) {
+  if (!board) {
+    return TRADING_METRIC_NAMES.map((name) => (
+      <Cell key={name} testId={`${testIdPrefix}-${name}`}>
+        —
+      </Cell>
+    ));
+  }
+  const m = board.metrics;
+  const values: Record<(typeof TRADING_METRIC_NAMES)[number], string> = {
+    accuracy: formatPercent(m.accuracy ?? null),
+    f1_score: formatPercent(m.f1_score ?? null),
+    roc_auc: formatRatio(m.roc_auc ?? null),
+    net_profit_usd: formatUsd(m.net_profit_usd ?? null),
+    sharpe_ratio: formatRatio(m.sharpe_ratio ?? null),
+    maximum_drawdown_usd: formatUsd(m.maximum_drawdown_usd ?? null),
+    trade_count: formatCount(m.trade_count ?? null),
+    win_rate: formatPercent(m.win_rate ?? null),
+  };
+  return TRADING_METRIC_NAMES.map((name) => (
+    <Cell key={name} testId={`${testIdPrefix}-${name}`}>
+      {values[name]}
+      {live && <span className="ml-1 text-[9px] text-muted-foreground">(live)</span>}
+    </Cell>
+  ));
+}
+
+function FoldRow({
+  plan,
+  status,
+  finished,
+  live,
+  onFocus,
+}: {
+  plan: CycleFoldPlan;
+  status: FoldStatus;
+  finished: CycleScoreboard | null;
+  live: CycleScoreboard | null;
+  onFocus: () => void;
+}) {
+  const showLive = !finished && live !== null;
+  return (
+    <tr data-testid="fold-row" data-fold-index={plan.foldIndex} onClick={onFocus} className="cursor-pointer border-b border-border/20 hover:bg-white/[0.04]">
+      <td className="px-2 py-1.5 text-[11px] font-medium">{plan.foldIndex + 1}</td>
+      <td className="px-2 py-1.5 text-[11px]">
+        <StatusBadge status={status} />
+      </td>
+      <td className="whitespace-nowrap px-2 py-1.5 text-[11px] text-muted-foreground">
+        {formatDate(plan.trainStart)} – {formatDate(plan.trainEnd)}
+      </td>
+      <td className="whitespace-nowrap px-2 py-1.5 text-[11px] text-muted-foreground">
+        {formatDate(plan.validationStart)} – {formatDate(plan.validationEnd)}
+      </td>
+      <td className="whitespace-nowrap px-2 py-1.5 text-[11px] text-muted-foreground">
+        {formatDate(plan.testStart)} – {formatDate(plan.testEnd)}
+      </td>
+      <Cell testId="fold-train-bars">{formatCount(plan.trainBarCount)}</Cell>
+      <Cell testId="fold-validation-bars">{formatCount(plan.validationBarCount)}</Cell>
+      <Cell testId="fold-test-bars">{formatCount(plan.testBarCount)}</Cell>
+      {metricCells(finished ?? live, showLive, `fold-${plan.foldIndex}`)}
+    </tr>
+  );
+}
+
+const HEADERS = ["Fold", "Status", "Train span", "Validation span", "Test span", "Train bars", "Validation bars", "Test bars", "Accuracy", "F1", "ROC AUC", "Net profit", "Sharpe", "Max drawdown", "Trades", "Win rate"];
+
 export function CycleFolds() {
-  return null;
+  const plan = useCycleStore((s) => s.plan);
+  const cursor = useCycleStore((s) => s.cursor);
+  const folds = useCycleStore((s) => s.folds);
+  const running = useCycleStore((s) => s.running);
+  const final = useCycleStore((s) => s.final);
+  const setFocusTimestamp = useCycleStore((s) => s.setFocusTimestamp);
+
+  const foldsByIndex = useMemo(() => {
+    const map = new Map<number, CycleScoreboard>();
+    for (const board of folds) if (board.foldIndex !== null) map.set(board.foldIndex, board);
+    return map;
+  }, [folds]);
+
+  if (!plan) {
+    return <div className="flex h-full items-center justify-center p-4 text-xs text-muted-foreground">No plan yet — the run has not loaded data.</div>;
+  }
+
+  return (
+    <div className="h-full min-h-0 overflow-auto p-2">
+      <table className="w-full border-collapse">
+        <thead className="sticky top-0 z-10 bg-card/95">
+          <tr className="border-b border-border/40">
+            {HEADERS.map((header) => (
+              <th key={header} className="whitespace-nowrap px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {plan.folds.map((foldPlan) => {
+            const finished = foldsByIndex.get(foldPlan.foldIndex) ?? null;
+            const status = statusForFold(foldPlan.foldIndex, finished !== null, cursor?.phase ?? null, cursor?.foldIndex ?? null);
+            const isCurrentTestingFold = !finished && status === "testing";
+            const live = isCurrentTestingFold ? running : null;
+            return (
+              <FoldRow
+                key={foldPlan.foldIndex}
+                plan={foldPlan}
+                status={status}
+                finished={finished}
+                live={live}
+                onFocus={() => setFocusTimestamp(foldPlan.testStart)}
+              />
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr data-testid="fold-totals-row" className={cn("border-t-2 border-border/60 font-semibold", !final && "text-muted-foreground")}>
+            <td className="px-2 py-1.5 text-[11px]" colSpan={5}>
+              Totals
+            </td>
+            <Cell testId="fold-totals-train-bars">{formatCount(plan.folds.reduce((sum, f) => sum + f.trainBarCount, 0))}</Cell>
+            <Cell testId="fold-totals-validation-bars">{formatCount(plan.folds.reduce((sum, f) => sum + f.validationBarCount, 0))}</Cell>
+            <Cell testId="fold-totals-test-bars">{formatCount(plan.folds.reduce((sum, f) => sum + f.testBarCount, 0))}</Cell>
+            {metricCells(final, false, "fold-totals")}
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
 }

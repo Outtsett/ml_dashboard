@@ -828,6 +828,2638 @@
         "targetMult": "--target-mult",
         "logInterval": "--log-interval"
       }
+    },
+    "logistic_regression+walk_forward_cycle": {
+      "displayName": "Logistic regression — model cycle",
+      "runner": "python",
+      "script": "src/ml/cycle/main.py",
+      "outputDir": "data/models",
+      "outputs": [
+        "config.json",
+        "predictions.parquet",
+        "trades.parquet",
+        "epochs.parquet",
+        "trials.parquet",
+        "folds.json",
+        "scoreboard.json",
+        "diagnostics.json"
+      ],
+      "featurePipeline": "default-35",
+      "chartOverlay": "prediction_markers",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "tags": [
+        "cycle",
+        "walk-forward",
+        "logistic_regression"
+      ],
+      "supportedObjectives": [
+        "sharpe_ratio",
+        "log_loss",
+        "f1_score"
+      ],
+      "includeIndicators": false,
+      "allFeatures": false,
+      "defaultHyperparameters": {
+        "train_days": {
+          "type": "int",
+          "default": 60,
+          "min": 5,
+          "max": 720,
+          "label": "Training window (days)",
+          "group": "Walk-forward"
+        },
+        "validation_fraction": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.05,
+          "max": 0.5,
+          "step": 0.05,
+          "label": "Validation fraction of the training window",
+          "group": "Walk-forward"
+        },
+        "test_days": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 180,
+          "label": "Test window (days)",
+          "group": "Walk-forward"
+        },
+        "step_days": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 180,
+          "label": "Step between folds, in days (0 = test window)",
+          "group": "Walk-forward"
+        },
+        "fold_limit": {
+          "type": "int",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "label": "Fold limit (0 = all folds)",
+          "group": "Walk-forward"
+        },
+        "expanding_window": {
+          "type": "bool",
+          "default": false,
+          "label": "Expanding training window",
+          "group": "Walk-forward"
+        },
+        "label_horizon_bars": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 200,
+          "label": "Label horizon (bars)",
+          "group": "Labels"
+        },
+        "label_threshold_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "label": "Label threshold (ticks)",
+          "group": "Labels"
+        },
+        "embargo_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Embargo (bars)",
+          "group": "Labels"
+        },
+        "entry_probability": {
+          "type": "float",
+          "default": 0.55,
+          "min": 0.5,
+          "max": 0.95,
+          "step": 0.01,
+          "label": "Entry probability threshold",
+          "group": "Trading"
+        },
+        "long_only": {
+          "type": "bool",
+          "default": false,
+          "label": "Long only",
+          "group": "Trading"
+        },
+        "holding_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "label": "Holding period, in bars (0 = label horizon)",
+          "group": "Trading"
+        },
+        "stop_loss_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Stop loss (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "take_profit_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Take profit (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "contracts": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 10,
+          "label": "Contracts per trade",
+          "group": "Trading"
+        },
+        "tuning_trials": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Tuning trials (0 = off)",
+          "group": "Tuning"
+        },
+        "tuning_objective": {
+          "type": "categorical",
+          "default": "sharpe_ratio",
+          "choices": [
+            "sharpe_ratio",
+            "log_loss",
+            "f1_score"
+          ],
+          "label": "Tuning objective",
+          "group": "Tuning"
+        },
+        "tuning_folds": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 10,
+          "label": "Tuning inner folds",
+          "group": "Tuning"
+        },
+        "bars_per_second": {
+          "type": "float",
+          "default": 40,
+          "min": 0,
+          "max": 2000,
+          "step": 1,
+          "label": "Bars per second (0 = as fast as possible)",
+          "group": "Replay"
+        },
+        "start_paused": {
+          "type": "bool",
+          "default": false,
+          "label": "Start paused",
+          "group": "Replay"
+        },
+        "quiet_bars": {
+          "type": "bool",
+          "default": false,
+          "label": "Suppress per-bar log lines",
+          "group": "Replay"
+        },
+        "log_every_batches": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 1000,
+          "label": "Log every N batches",
+          "group": "Replay"
+        },
+        "device": {
+          "type": "categorical",
+          "default": "auto",
+          "choices": [
+            "auto",
+            "cuda",
+            "cpu"
+          ],
+          "label": "Device",
+          "group": "Runtime"
+        },
+        "seed": {
+          "type": "int",
+          "default": 42,
+          "min": 0,
+          "max": 999999,
+          "label": "Random seed",
+          "group": "Runtime"
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1,
+          "min": 0.001,
+          "max": 100,
+          "logScale": true,
+          "label": "Regularization strength",
+          "group": "Model"
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 300,
+          "min": 50,
+          "max": 5000,
+          "label": "Max iterations",
+          "group": "Model"
+        }
+      },
+      "cliFlags": {
+        "train_days": "--train-days",
+        "validation_fraction": "--validation-fraction",
+        "test_days": "--test-days",
+        "step_days": "--step-days",
+        "fold_limit": "--fold-limit",
+        "expanding_window": "--expanding-window",
+        "label_horizon_bars": "--label-horizon-bars",
+        "label_threshold_ticks": "--label-threshold-ticks",
+        "embargo_bars": "--embargo-bars",
+        "entry_probability": "--entry-probability",
+        "long_only": "--long-only",
+        "holding_bars": "--holding-bars",
+        "stop_loss_ticks": "--stop-loss-ticks",
+        "take_profit_ticks": "--take-profit-ticks",
+        "contracts": "--contracts",
+        "tuning_trials": "--tuning-trials",
+        "tuning_objective": "--tuning-objective",
+        "tuning_folds": "--tuning-folds",
+        "bars_per_second": "--bars-per-second",
+        "start_paused": "--start-paused",
+        "quiet_bars": "--quiet-bars",
+        "log_every_batches": "--log-every-batches",
+        "device": "--device",
+        "seed": "--seed",
+        "regularization_strength": "--regularization-strength",
+        "max_iterations": "--max-iterations"
+      },
+      "scriptArgs": [
+        "--model-family",
+        "logistic_regression"
+      ],
+      "maxDurationSeconds": 43200
+    },
+    "random_forest+walk_forward_cycle": {
+      "displayName": "Random forest — model cycle",
+      "runner": "python",
+      "script": "src/ml/cycle/main.py",
+      "outputDir": "data/models",
+      "outputs": [
+        "config.json",
+        "predictions.parquet",
+        "trades.parquet",
+        "epochs.parquet",
+        "trials.parquet",
+        "folds.json",
+        "scoreboard.json",
+        "diagnostics.json"
+      ],
+      "featurePipeline": "default-35",
+      "chartOverlay": "prediction_markers",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "tags": [
+        "cycle",
+        "walk-forward",
+        "random_forest"
+      ],
+      "supportedObjectives": [
+        "sharpe_ratio",
+        "log_loss",
+        "f1_score"
+      ],
+      "includeIndicators": false,
+      "allFeatures": false,
+      "defaultHyperparameters": {
+        "train_days": {
+          "type": "int",
+          "default": 60,
+          "min": 5,
+          "max": 720,
+          "label": "Training window (days)",
+          "group": "Walk-forward"
+        },
+        "validation_fraction": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.05,
+          "max": 0.5,
+          "step": 0.05,
+          "label": "Validation fraction of the training window",
+          "group": "Walk-forward"
+        },
+        "test_days": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 180,
+          "label": "Test window (days)",
+          "group": "Walk-forward"
+        },
+        "step_days": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 180,
+          "label": "Step between folds, in days (0 = test window)",
+          "group": "Walk-forward"
+        },
+        "fold_limit": {
+          "type": "int",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "label": "Fold limit (0 = all folds)",
+          "group": "Walk-forward"
+        },
+        "expanding_window": {
+          "type": "bool",
+          "default": false,
+          "label": "Expanding training window",
+          "group": "Walk-forward"
+        },
+        "label_horizon_bars": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 200,
+          "label": "Label horizon (bars)",
+          "group": "Labels"
+        },
+        "label_threshold_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "label": "Label threshold (ticks)",
+          "group": "Labels"
+        },
+        "embargo_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Embargo (bars)",
+          "group": "Labels"
+        },
+        "entry_probability": {
+          "type": "float",
+          "default": 0.55,
+          "min": 0.5,
+          "max": 0.95,
+          "step": 0.01,
+          "label": "Entry probability threshold",
+          "group": "Trading"
+        },
+        "long_only": {
+          "type": "bool",
+          "default": false,
+          "label": "Long only",
+          "group": "Trading"
+        },
+        "holding_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "label": "Holding period, in bars (0 = label horizon)",
+          "group": "Trading"
+        },
+        "stop_loss_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Stop loss (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "take_profit_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Take profit (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "contracts": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 10,
+          "label": "Contracts per trade",
+          "group": "Trading"
+        },
+        "tuning_trials": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Tuning trials (0 = off)",
+          "group": "Tuning"
+        },
+        "tuning_objective": {
+          "type": "categorical",
+          "default": "sharpe_ratio",
+          "choices": [
+            "sharpe_ratio",
+            "log_loss",
+            "f1_score"
+          ],
+          "label": "Tuning objective",
+          "group": "Tuning"
+        },
+        "tuning_folds": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 10,
+          "label": "Tuning inner folds",
+          "group": "Tuning"
+        },
+        "bars_per_second": {
+          "type": "float",
+          "default": 40,
+          "min": 0,
+          "max": 2000,
+          "step": 1,
+          "label": "Bars per second (0 = as fast as possible)",
+          "group": "Replay"
+        },
+        "start_paused": {
+          "type": "bool",
+          "default": false,
+          "label": "Start paused",
+          "group": "Replay"
+        },
+        "quiet_bars": {
+          "type": "bool",
+          "default": false,
+          "label": "Suppress per-bar log lines",
+          "group": "Replay"
+        },
+        "log_every_batches": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 1000,
+          "label": "Log every N batches",
+          "group": "Replay"
+        },
+        "device": {
+          "type": "categorical",
+          "default": "auto",
+          "choices": [
+            "auto",
+            "cuda",
+            "cpu"
+          ],
+          "label": "Device",
+          "group": "Runtime"
+        },
+        "seed": {
+          "type": "int",
+          "default": 42,
+          "min": 0,
+          "max": 999999,
+          "label": "Random seed",
+          "group": "Runtime"
+        },
+        "tree_count": {
+          "type": "int",
+          "default": 300,
+          "min": 10,
+          "max": 2000,
+          "label": "Tree count",
+          "group": "Model"
+        },
+        "max_depth": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 32,
+          "label": "Max depth",
+          "group": "Model"
+        },
+        "min_samples_leaf": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Min samples per leaf",
+          "group": "Model"
+        },
+        "max_features_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.1,
+          "max": 1,
+          "step": 0.05,
+          "label": "Max features fraction",
+          "group": "Model"
+        }
+      },
+      "cliFlags": {
+        "train_days": "--train-days",
+        "validation_fraction": "--validation-fraction",
+        "test_days": "--test-days",
+        "step_days": "--step-days",
+        "fold_limit": "--fold-limit",
+        "expanding_window": "--expanding-window",
+        "label_horizon_bars": "--label-horizon-bars",
+        "label_threshold_ticks": "--label-threshold-ticks",
+        "embargo_bars": "--embargo-bars",
+        "entry_probability": "--entry-probability",
+        "long_only": "--long-only",
+        "holding_bars": "--holding-bars",
+        "stop_loss_ticks": "--stop-loss-ticks",
+        "take_profit_ticks": "--take-profit-ticks",
+        "contracts": "--contracts",
+        "tuning_trials": "--tuning-trials",
+        "tuning_objective": "--tuning-objective",
+        "tuning_folds": "--tuning-folds",
+        "bars_per_second": "--bars-per-second",
+        "start_paused": "--start-paused",
+        "quiet_bars": "--quiet-bars",
+        "log_every_batches": "--log-every-batches",
+        "device": "--device",
+        "seed": "--seed",
+        "tree_count": "--tree-count",
+        "max_depth": "--max-depth",
+        "min_samples_leaf": "--min-samples-leaf",
+        "max_features_fraction": "--max-features-fraction"
+      },
+      "scriptArgs": [
+        "--model-family",
+        "random_forest"
+      ],
+      "maxDurationSeconds": 43200
+    },
+    "xgboost+walk_forward_cycle": {
+      "displayName": "XGBoost — model cycle",
+      "runner": "python",
+      "script": "src/ml/cycle/main.py",
+      "outputDir": "data/models",
+      "outputs": [
+        "config.json",
+        "predictions.parquet",
+        "trades.parquet",
+        "epochs.parquet",
+        "trials.parquet",
+        "folds.json",
+        "scoreboard.json",
+        "diagnostics.json"
+      ],
+      "featurePipeline": "default-35",
+      "chartOverlay": "prediction_markers",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "tags": [
+        "cycle",
+        "walk-forward",
+        "xgboost"
+      ],
+      "supportedObjectives": [
+        "sharpe_ratio",
+        "log_loss",
+        "f1_score"
+      ],
+      "includeIndicators": false,
+      "allFeatures": false,
+      "defaultHyperparameters": {
+        "train_days": {
+          "type": "int",
+          "default": 60,
+          "min": 5,
+          "max": 720,
+          "label": "Training window (days)",
+          "group": "Walk-forward"
+        },
+        "validation_fraction": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.05,
+          "max": 0.5,
+          "step": 0.05,
+          "label": "Validation fraction of the training window",
+          "group": "Walk-forward"
+        },
+        "test_days": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 180,
+          "label": "Test window (days)",
+          "group": "Walk-forward"
+        },
+        "step_days": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 180,
+          "label": "Step between folds, in days (0 = test window)",
+          "group": "Walk-forward"
+        },
+        "fold_limit": {
+          "type": "int",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "label": "Fold limit (0 = all folds)",
+          "group": "Walk-forward"
+        },
+        "expanding_window": {
+          "type": "bool",
+          "default": false,
+          "label": "Expanding training window",
+          "group": "Walk-forward"
+        },
+        "label_horizon_bars": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 200,
+          "label": "Label horizon (bars)",
+          "group": "Labels"
+        },
+        "label_threshold_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "label": "Label threshold (ticks)",
+          "group": "Labels"
+        },
+        "embargo_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Embargo (bars)",
+          "group": "Labels"
+        },
+        "entry_probability": {
+          "type": "float",
+          "default": 0.55,
+          "min": 0.5,
+          "max": 0.95,
+          "step": 0.01,
+          "label": "Entry probability threshold",
+          "group": "Trading"
+        },
+        "long_only": {
+          "type": "bool",
+          "default": false,
+          "label": "Long only",
+          "group": "Trading"
+        },
+        "holding_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "label": "Holding period, in bars (0 = label horizon)",
+          "group": "Trading"
+        },
+        "stop_loss_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Stop loss (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "take_profit_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Take profit (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "contracts": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 10,
+          "label": "Contracts per trade",
+          "group": "Trading"
+        },
+        "tuning_trials": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Tuning trials (0 = off)",
+          "group": "Tuning"
+        },
+        "tuning_objective": {
+          "type": "categorical",
+          "default": "sharpe_ratio",
+          "choices": [
+            "sharpe_ratio",
+            "log_loss",
+            "f1_score"
+          ],
+          "label": "Tuning objective",
+          "group": "Tuning"
+        },
+        "tuning_folds": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 10,
+          "label": "Tuning inner folds",
+          "group": "Tuning"
+        },
+        "bars_per_second": {
+          "type": "float",
+          "default": 40,
+          "min": 0,
+          "max": 2000,
+          "step": 1,
+          "label": "Bars per second (0 = as fast as possible)",
+          "group": "Replay"
+        },
+        "start_paused": {
+          "type": "bool",
+          "default": false,
+          "label": "Start paused",
+          "group": "Replay"
+        },
+        "quiet_bars": {
+          "type": "bool",
+          "default": false,
+          "label": "Suppress per-bar log lines",
+          "group": "Replay"
+        },
+        "log_every_batches": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 1000,
+          "label": "Log every N batches",
+          "group": "Replay"
+        },
+        "device": {
+          "type": "categorical",
+          "default": "auto",
+          "choices": [
+            "auto",
+            "cuda",
+            "cpu"
+          ],
+          "label": "Device",
+          "group": "Runtime"
+        },
+        "seed": {
+          "type": "int",
+          "default": 42,
+          "min": 0,
+          "max": 999999,
+          "label": "Random seed",
+          "group": "Runtime"
+        },
+        "boosting_rounds": {
+          "type": "int",
+          "default": 400,
+          "min": 10,
+          "max": 5000,
+          "label": "Boosting rounds",
+          "group": "Model"
+        },
+        "max_depth": {
+          "type": "int",
+          "default": 6,
+          "min": 2,
+          "max": 16,
+          "label": "Max depth",
+          "group": "Model"
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.001,
+          "max": 0.5,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model"
+        },
+        "subsample": {
+          "type": "float",
+          "default": 0.8,
+          "min": 0.3,
+          "max": 1,
+          "step": 0.05,
+          "label": "Row subsample",
+          "group": "Model"
+        },
+        "column_subsample": {
+          "type": "float",
+          "default": 0.8,
+          "min": 0.3,
+          "max": 1,
+          "step": 0.05,
+          "label": "Column subsample",
+          "group": "Model"
+        },
+        "min_child_weight": {
+          "type": "float",
+          "default": 1,
+          "min": 0.1,
+          "max": 20,
+          "logScale": true,
+          "label": "Min child weight",
+          "group": "Model"
+        },
+        "l2_regularization": {
+          "type": "float",
+          "default": 1,
+          "min": 0,
+          "max": 20,
+          "label": "L2 regularization",
+          "group": "Model"
+        },
+        "early_stopping_rounds": {
+          "type": "int",
+          "default": 50,
+          "min": 5,
+          "max": 500,
+          "label": "Early stopping rounds",
+          "group": "Model"
+        }
+      },
+      "cliFlags": {
+        "train_days": "--train-days",
+        "validation_fraction": "--validation-fraction",
+        "test_days": "--test-days",
+        "step_days": "--step-days",
+        "fold_limit": "--fold-limit",
+        "expanding_window": "--expanding-window",
+        "label_horizon_bars": "--label-horizon-bars",
+        "label_threshold_ticks": "--label-threshold-ticks",
+        "embargo_bars": "--embargo-bars",
+        "entry_probability": "--entry-probability",
+        "long_only": "--long-only",
+        "holding_bars": "--holding-bars",
+        "stop_loss_ticks": "--stop-loss-ticks",
+        "take_profit_ticks": "--take-profit-ticks",
+        "contracts": "--contracts",
+        "tuning_trials": "--tuning-trials",
+        "tuning_objective": "--tuning-objective",
+        "tuning_folds": "--tuning-folds",
+        "bars_per_second": "--bars-per-second",
+        "start_paused": "--start-paused",
+        "quiet_bars": "--quiet-bars",
+        "log_every_batches": "--log-every-batches",
+        "device": "--device",
+        "seed": "--seed",
+        "boosting_rounds": "--boosting-rounds",
+        "max_depth": "--max-depth",
+        "learning_rate": "--learning-rate",
+        "subsample": "--subsample",
+        "column_subsample": "--column-subsample",
+        "min_child_weight": "--min-child-weight",
+        "l2_regularization": "--l2-regularization",
+        "early_stopping_rounds": "--early-stopping-rounds"
+      },
+      "scriptArgs": [
+        "--model-family",
+        "xgboost"
+      ],
+      "maxDurationSeconds": 43200
+    },
+    "lightgbm+walk_forward_cycle": {
+      "displayName": "LightGBM — model cycle",
+      "runner": "python",
+      "script": "src/ml/cycle/main.py",
+      "outputDir": "data/models",
+      "outputs": [
+        "config.json",
+        "predictions.parquet",
+        "trades.parquet",
+        "epochs.parquet",
+        "trials.parquet",
+        "folds.json",
+        "scoreboard.json",
+        "diagnostics.json"
+      ],
+      "featurePipeline": "default-35",
+      "chartOverlay": "prediction_markers",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "tags": [
+        "cycle",
+        "walk-forward",
+        "lightgbm"
+      ],
+      "supportedObjectives": [
+        "sharpe_ratio",
+        "log_loss",
+        "f1_score"
+      ],
+      "includeIndicators": false,
+      "allFeatures": false,
+      "defaultHyperparameters": {
+        "train_days": {
+          "type": "int",
+          "default": 60,
+          "min": 5,
+          "max": 720,
+          "label": "Training window (days)",
+          "group": "Walk-forward"
+        },
+        "validation_fraction": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.05,
+          "max": 0.5,
+          "step": 0.05,
+          "label": "Validation fraction of the training window",
+          "group": "Walk-forward"
+        },
+        "test_days": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 180,
+          "label": "Test window (days)",
+          "group": "Walk-forward"
+        },
+        "step_days": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 180,
+          "label": "Step between folds, in days (0 = test window)",
+          "group": "Walk-forward"
+        },
+        "fold_limit": {
+          "type": "int",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "label": "Fold limit (0 = all folds)",
+          "group": "Walk-forward"
+        },
+        "expanding_window": {
+          "type": "bool",
+          "default": false,
+          "label": "Expanding training window",
+          "group": "Walk-forward"
+        },
+        "label_horizon_bars": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 200,
+          "label": "Label horizon (bars)",
+          "group": "Labels"
+        },
+        "label_threshold_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "label": "Label threshold (ticks)",
+          "group": "Labels"
+        },
+        "embargo_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Embargo (bars)",
+          "group": "Labels"
+        },
+        "entry_probability": {
+          "type": "float",
+          "default": 0.55,
+          "min": 0.5,
+          "max": 0.95,
+          "step": 0.01,
+          "label": "Entry probability threshold",
+          "group": "Trading"
+        },
+        "long_only": {
+          "type": "bool",
+          "default": false,
+          "label": "Long only",
+          "group": "Trading"
+        },
+        "holding_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "label": "Holding period, in bars (0 = label horizon)",
+          "group": "Trading"
+        },
+        "stop_loss_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Stop loss (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "take_profit_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Take profit (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "contracts": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 10,
+          "label": "Contracts per trade",
+          "group": "Trading"
+        },
+        "tuning_trials": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Tuning trials (0 = off)",
+          "group": "Tuning"
+        },
+        "tuning_objective": {
+          "type": "categorical",
+          "default": "sharpe_ratio",
+          "choices": [
+            "sharpe_ratio",
+            "log_loss",
+            "f1_score"
+          ],
+          "label": "Tuning objective",
+          "group": "Tuning"
+        },
+        "tuning_folds": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 10,
+          "label": "Tuning inner folds",
+          "group": "Tuning"
+        },
+        "bars_per_second": {
+          "type": "float",
+          "default": 40,
+          "min": 0,
+          "max": 2000,
+          "step": 1,
+          "label": "Bars per second (0 = as fast as possible)",
+          "group": "Replay"
+        },
+        "start_paused": {
+          "type": "bool",
+          "default": false,
+          "label": "Start paused",
+          "group": "Replay"
+        },
+        "quiet_bars": {
+          "type": "bool",
+          "default": false,
+          "label": "Suppress per-bar log lines",
+          "group": "Replay"
+        },
+        "log_every_batches": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 1000,
+          "label": "Log every N batches",
+          "group": "Replay"
+        },
+        "device": {
+          "type": "categorical",
+          "default": "auto",
+          "choices": [
+            "auto",
+            "cuda",
+            "cpu"
+          ],
+          "label": "Device",
+          "group": "Runtime"
+        },
+        "seed": {
+          "type": "int",
+          "default": 42,
+          "min": 0,
+          "max": 999999,
+          "label": "Random seed",
+          "group": "Runtime"
+        },
+        "boosting_rounds": {
+          "type": "int",
+          "default": 400,
+          "min": 10,
+          "max": 5000,
+          "label": "Boosting rounds",
+          "group": "Model"
+        },
+        "leaf_count": {
+          "type": "int",
+          "default": 31,
+          "min": 4,
+          "max": 512,
+          "label": "Leaf count",
+          "group": "Model"
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.001,
+          "max": 0.5,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model"
+        },
+        "subsample": {
+          "type": "float",
+          "default": 0.8,
+          "min": 0.3,
+          "max": 1,
+          "step": 0.05,
+          "label": "Row subsample",
+          "group": "Model"
+        },
+        "column_subsample": {
+          "type": "float",
+          "default": 0.8,
+          "min": 0.3,
+          "max": 1,
+          "step": 0.05,
+          "label": "Column subsample",
+          "group": "Model"
+        },
+        "min_child_samples": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Min child samples",
+          "group": "Model"
+        },
+        "l2_regularization": {
+          "type": "float",
+          "default": 1,
+          "min": 0,
+          "max": 20,
+          "label": "L2 regularization",
+          "group": "Model"
+        },
+        "early_stopping_rounds": {
+          "type": "int",
+          "default": 50,
+          "min": 5,
+          "max": 500,
+          "label": "Early stopping rounds",
+          "group": "Model"
+        }
+      },
+      "cliFlags": {
+        "train_days": "--train-days",
+        "validation_fraction": "--validation-fraction",
+        "test_days": "--test-days",
+        "step_days": "--step-days",
+        "fold_limit": "--fold-limit",
+        "expanding_window": "--expanding-window",
+        "label_horizon_bars": "--label-horizon-bars",
+        "label_threshold_ticks": "--label-threshold-ticks",
+        "embargo_bars": "--embargo-bars",
+        "entry_probability": "--entry-probability",
+        "long_only": "--long-only",
+        "holding_bars": "--holding-bars",
+        "stop_loss_ticks": "--stop-loss-ticks",
+        "take_profit_ticks": "--take-profit-ticks",
+        "contracts": "--contracts",
+        "tuning_trials": "--tuning-trials",
+        "tuning_objective": "--tuning-objective",
+        "tuning_folds": "--tuning-folds",
+        "bars_per_second": "--bars-per-second",
+        "start_paused": "--start-paused",
+        "quiet_bars": "--quiet-bars",
+        "log_every_batches": "--log-every-batches",
+        "device": "--device",
+        "seed": "--seed",
+        "boosting_rounds": "--boosting-rounds",
+        "leaf_count": "--leaf-count",
+        "learning_rate": "--learning-rate",
+        "subsample": "--subsample",
+        "column_subsample": "--column-subsample",
+        "min_child_samples": "--min-child-samples",
+        "l2_regularization": "--l2-regularization",
+        "early_stopping_rounds": "--early-stopping-rounds"
+      },
+      "scriptArgs": [
+        "--model-family",
+        "lightgbm"
+      ],
+      "maxDurationSeconds": 43200
+    },
+    "multilayer_perceptron+walk_forward_cycle": {
+      "displayName": "Multilayer perceptron — model cycle",
+      "runner": "python",
+      "script": "src/ml/cycle/main.py",
+      "outputDir": "data/models",
+      "outputs": [
+        "config.json",
+        "predictions.parquet",
+        "trades.parquet",
+        "epochs.parquet",
+        "trials.parquet",
+        "folds.json",
+        "scoreboard.json",
+        "diagnostics.json"
+      ],
+      "featurePipeline": "default-35",
+      "chartOverlay": "prediction_markers",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "tags": [
+        "cycle",
+        "walk-forward",
+        "multilayer_perceptron"
+      ],
+      "supportedObjectives": [
+        "sharpe_ratio",
+        "log_loss",
+        "f1_score"
+      ],
+      "includeIndicators": false,
+      "allFeatures": false,
+      "defaultHyperparameters": {
+        "train_days": {
+          "type": "int",
+          "default": 60,
+          "min": 5,
+          "max": 720,
+          "label": "Training window (days)",
+          "group": "Walk-forward"
+        },
+        "validation_fraction": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.05,
+          "max": 0.5,
+          "step": 0.05,
+          "label": "Validation fraction of the training window",
+          "group": "Walk-forward"
+        },
+        "test_days": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 180,
+          "label": "Test window (days)",
+          "group": "Walk-forward"
+        },
+        "step_days": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 180,
+          "label": "Step between folds, in days (0 = test window)",
+          "group": "Walk-forward"
+        },
+        "fold_limit": {
+          "type": "int",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "label": "Fold limit (0 = all folds)",
+          "group": "Walk-forward"
+        },
+        "expanding_window": {
+          "type": "bool",
+          "default": false,
+          "label": "Expanding training window",
+          "group": "Walk-forward"
+        },
+        "label_horizon_bars": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 200,
+          "label": "Label horizon (bars)",
+          "group": "Labels"
+        },
+        "label_threshold_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "label": "Label threshold (ticks)",
+          "group": "Labels"
+        },
+        "embargo_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Embargo (bars)",
+          "group": "Labels"
+        },
+        "entry_probability": {
+          "type": "float",
+          "default": 0.55,
+          "min": 0.5,
+          "max": 0.95,
+          "step": 0.01,
+          "label": "Entry probability threshold",
+          "group": "Trading"
+        },
+        "long_only": {
+          "type": "bool",
+          "default": false,
+          "label": "Long only",
+          "group": "Trading"
+        },
+        "holding_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "label": "Holding period, in bars (0 = label horizon)",
+          "group": "Trading"
+        },
+        "stop_loss_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Stop loss (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "take_profit_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Take profit (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "contracts": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 10,
+          "label": "Contracts per trade",
+          "group": "Trading"
+        },
+        "tuning_trials": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Tuning trials (0 = off)",
+          "group": "Tuning"
+        },
+        "tuning_objective": {
+          "type": "categorical",
+          "default": "sharpe_ratio",
+          "choices": [
+            "sharpe_ratio",
+            "log_loss",
+            "f1_score"
+          ],
+          "label": "Tuning objective",
+          "group": "Tuning"
+        },
+        "tuning_folds": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 10,
+          "label": "Tuning inner folds",
+          "group": "Tuning"
+        },
+        "bars_per_second": {
+          "type": "float",
+          "default": 40,
+          "min": 0,
+          "max": 2000,
+          "step": 1,
+          "label": "Bars per second (0 = as fast as possible)",
+          "group": "Replay"
+        },
+        "start_paused": {
+          "type": "bool",
+          "default": false,
+          "label": "Start paused",
+          "group": "Replay"
+        },
+        "quiet_bars": {
+          "type": "bool",
+          "default": false,
+          "label": "Suppress per-bar log lines",
+          "group": "Replay"
+        },
+        "log_every_batches": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 1000,
+          "label": "Log every N batches",
+          "group": "Replay"
+        },
+        "device": {
+          "type": "categorical",
+          "default": "auto",
+          "choices": [
+            "auto",
+            "cuda",
+            "cpu"
+          ],
+          "label": "Device",
+          "group": "Runtime"
+        },
+        "seed": {
+          "type": "int",
+          "default": 42,
+          "min": 0,
+          "max": 999999,
+          "label": "Random seed",
+          "group": "Runtime"
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model"
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model"
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model"
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.00001,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model"
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model"
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model"
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model"
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model"
+        }
+      },
+      "cliFlags": {
+        "train_days": "--train-days",
+        "validation_fraction": "--validation-fraction",
+        "test_days": "--test-days",
+        "step_days": "--step-days",
+        "fold_limit": "--fold-limit",
+        "expanding_window": "--expanding-window",
+        "label_horizon_bars": "--label-horizon-bars",
+        "label_threshold_ticks": "--label-threshold-ticks",
+        "embargo_bars": "--embargo-bars",
+        "entry_probability": "--entry-probability",
+        "long_only": "--long-only",
+        "holding_bars": "--holding-bars",
+        "stop_loss_ticks": "--stop-loss-ticks",
+        "take_profit_ticks": "--take-profit-ticks",
+        "contracts": "--contracts",
+        "tuning_trials": "--tuning-trials",
+        "tuning_objective": "--tuning-objective",
+        "tuning_folds": "--tuning-folds",
+        "bars_per_second": "--bars-per-second",
+        "start_paused": "--start-paused",
+        "quiet_bars": "--quiet-bars",
+        "log_every_batches": "--log-every-batches",
+        "device": "--device",
+        "seed": "--seed",
+        "hidden_size": "--hidden-size",
+        "layer_count": "--layer-count",
+        "dropout": "--dropout",
+        "learning_rate": "--learning-rate",
+        "weight_decay": "--weight-decay",
+        "batch_size": "--batch-size",
+        "epochs": "--epochs",
+        "patience": "--patience"
+      },
+      "scriptArgs": [
+        "--model-family",
+        "multilayer_perceptron"
+      ],
+      "maxDurationSeconds": 43200
+    },
+    "lstm+walk_forward_cycle": {
+      "displayName": "LSTM — model cycle",
+      "runner": "python",
+      "script": "src/ml/cycle/main.py",
+      "outputDir": "data/models",
+      "outputs": [
+        "config.json",
+        "predictions.parquet",
+        "trades.parquet",
+        "epochs.parquet",
+        "trials.parquet",
+        "folds.json",
+        "scoreboard.json",
+        "diagnostics.json"
+      ],
+      "featurePipeline": "default-35",
+      "chartOverlay": "prediction_markers",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "tags": [
+        "cycle",
+        "walk-forward",
+        "lstm"
+      ],
+      "supportedObjectives": [
+        "sharpe_ratio",
+        "log_loss",
+        "f1_score"
+      ],
+      "includeIndicators": false,
+      "allFeatures": false,
+      "defaultHyperparameters": {
+        "train_days": {
+          "type": "int",
+          "default": 60,
+          "min": 5,
+          "max": 720,
+          "label": "Training window (days)",
+          "group": "Walk-forward"
+        },
+        "validation_fraction": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.05,
+          "max": 0.5,
+          "step": 0.05,
+          "label": "Validation fraction of the training window",
+          "group": "Walk-forward"
+        },
+        "test_days": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 180,
+          "label": "Test window (days)",
+          "group": "Walk-forward"
+        },
+        "step_days": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 180,
+          "label": "Step between folds, in days (0 = test window)",
+          "group": "Walk-forward"
+        },
+        "fold_limit": {
+          "type": "int",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "label": "Fold limit (0 = all folds)",
+          "group": "Walk-forward"
+        },
+        "expanding_window": {
+          "type": "bool",
+          "default": false,
+          "label": "Expanding training window",
+          "group": "Walk-forward"
+        },
+        "label_horizon_bars": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 200,
+          "label": "Label horizon (bars)",
+          "group": "Labels"
+        },
+        "label_threshold_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "label": "Label threshold (ticks)",
+          "group": "Labels"
+        },
+        "embargo_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Embargo (bars)",
+          "group": "Labels"
+        },
+        "entry_probability": {
+          "type": "float",
+          "default": 0.55,
+          "min": 0.5,
+          "max": 0.95,
+          "step": 0.01,
+          "label": "Entry probability threshold",
+          "group": "Trading"
+        },
+        "long_only": {
+          "type": "bool",
+          "default": false,
+          "label": "Long only",
+          "group": "Trading"
+        },
+        "holding_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "label": "Holding period, in bars (0 = label horizon)",
+          "group": "Trading"
+        },
+        "stop_loss_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Stop loss (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "take_profit_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Take profit (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "contracts": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 10,
+          "label": "Contracts per trade",
+          "group": "Trading"
+        },
+        "tuning_trials": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Tuning trials (0 = off)",
+          "group": "Tuning"
+        },
+        "tuning_objective": {
+          "type": "categorical",
+          "default": "sharpe_ratio",
+          "choices": [
+            "sharpe_ratio",
+            "log_loss",
+            "f1_score"
+          ],
+          "label": "Tuning objective",
+          "group": "Tuning"
+        },
+        "tuning_folds": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 10,
+          "label": "Tuning inner folds",
+          "group": "Tuning"
+        },
+        "bars_per_second": {
+          "type": "float",
+          "default": 40,
+          "min": 0,
+          "max": 2000,
+          "step": 1,
+          "label": "Bars per second (0 = as fast as possible)",
+          "group": "Replay"
+        },
+        "start_paused": {
+          "type": "bool",
+          "default": false,
+          "label": "Start paused",
+          "group": "Replay"
+        },
+        "quiet_bars": {
+          "type": "bool",
+          "default": false,
+          "label": "Suppress per-bar log lines",
+          "group": "Replay"
+        },
+        "log_every_batches": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 1000,
+          "label": "Log every N batches",
+          "group": "Replay"
+        },
+        "device": {
+          "type": "categorical",
+          "default": "auto",
+          "choices": [
+            "auto",
+            "cuda",
+            "cpu"
+          ],
+          "label": "Device",
+          "group": "Runtime"
+        },
+        "seed": {
+          "type": "int",
+          "default": 42,
+          "min": 0,
+          "max": 999999,
+          "label": "Random seed",
+          "group": "Runtime"
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Sequence length (bars)",
+          "group": "Model"
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model"
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model"
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model"
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.00001,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model"
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model"
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model"
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model"
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model"
+        }
+      },
+      "cliFlags": {
+        "train_days": "--train-days",
+        "validation_fraction": "--validation-fraction",
+        "test_days": "--test-days",
+        "step_days": "--step-days",
+        "fold_limit": "--fold-limit",
+        "expanding_window": "--expanding-window",
+        "label_horizon_bars": "--label-horizon-bars",
+        "label_threshold_ticks": "--label-threshold-ticks",
+        "embargo_bars": "--embargo-bars",
+        "entry_probability": "--entry-probability",
+        "long_only": "--long-only",
+        "holding_bars": "--holding-bars",
+        "stop_loss_ticks": "--stop-loss-ticks",
+        "take_profit_ticks": "--take-profit-ticks",
+        "contracts": "--contracts",
+        "tuning_trials": "--tuning-trials",
+        "tuning_objective": "--tuning-objective",
+        "tuning_folds": "--tuning-folds",
+        "bars_per_second": "--bars-per-second",
+        "start_paused": "--start-paused",
+        "quiet_bars": "--quiet-bars",
+        "log_every_batches": "--log-every-batches",
+        "device": "--device",
+        "seed": "--seed",
+        "sequence_length": "--sequence-length",
+        "hidden_size": "--hidden-size",
+        "layer_count": "--layer-count",
+        "dropout": "--dropout",
+        "learning_rate": "--learning-rate",
+        "weight_decay": "--weight-decay",
+        "batch_size": "--batch-size",
+        "epochs": "--epochs",
+        "patience": "--patience"
+      },
+      "scriptArgs": [
+        "--model-family",
+        "lstm"
+      ],
+      "maxDurationSeconds": 43200
+    },
+    "temporal_convolution_network+walk_forward_cycle": {
+      "displayName": "Temporal convolution network — model cycle",
+      "runner": "python",
+      "script": "src/ml/cycle/main.py",
+      "outputDir": "data/models",
+      "outputs": [
+        "config.json",
+        "predictions.parquet",
+        "trades.parquet",
+        "epochs.parquet",
+        "trials.parquet",
+        "folds.json",
+        "scoreboard.json",
+        "diagnostics.json"
+      ],
+      "featurePipeline": "default-35",
+      "chartOverlay": "prediction_markers",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "tags": [
+        "cycle",
+        "walk-forward",
+        "temporal_convolution_network"
+      ],
+      "supportedObjectives": [
+        "sharpe_ratio",
+        "log_loss",
+        "f1_score"
+      ],
+      "includeIndicators": false,
+      "allFeatures": false,
+      "defaultHyperparameters": {
+        "train_days": {
+          "type": "int",
+          "default": 60,
+          "min": 5,
+          "max": 720,
+          "label": "Training window (days)",
+          "group": "Walk-forward"
+        },
+        "validation_fraction": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.05,
+          "max": 0.5,
+          "step": 0.05,
+          "label": "Validation fraction of the training window",
+          "group": "Walk-forward"
+        },
+        "test_days": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 180,
+          "label": "Test window (days)",
+          "group": "Walk-forward"
+        },
+        "step_days": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 180,
+          "label": "Step between folds, in days (0 = test window)",
+          "group": "Walk-forward"
+        },
+        "fold_limit": {
+          "type": "int",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "label": "Fold limit (0 = all folds)",
+          "group": "Walk-forward"
+        },
+        "expanding_window": {
+          "type": "bool",
+          "default": false,
+          "label": "Expanding training window",
+          "group": "Walk-forward"
+        },
+        "label_horizon_bars": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 200,
+          "label": "Label horizon (bars)",
+          "group": "Labels"
+        },
+        "label_threshold_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "label": "Label threshold (ticks)",
+          "group": "Labels"
+        },
+        "embargo_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Embargo (bars)",
+          "group": "Labels"
+        },
+        "entry_probability": {
+          "type": "float",
+          "default": 0.55,
+          "min": 0.5,
+          "max": 0.95,
+          "step": 0.01,
+          "label": "Entry probability threshold",
+          "group": "Trading"
+        },
+        "long_only": {
+          "type": "bool",
+          "default": false,
+          "label": "Long only",
+          "group": "Trading"
+        },
+        "holding_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "label": "Holding period, in bars (0 = label horizon)",
+          "group": "Trading"
+        },
+        "stop_loss_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Stop loss (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "take_profit_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Take profit (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "contracts": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 10,
+          "label": "Contracts per trade",
+          "group": "Trading"
+        },
+        "tuning_trials": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Tuning trials (0 = off)",
+          "group": "Tuning"
+        },
+        "tuning_objective": {
+          "type": "categorical",
+          "default": "sharpe_ratio",
+          "choices": [
+            "sharpe_ratio",
+            "log_loss",
+            "f1_score"
+          ],
+          "label": "Tuning objective",
+          "group": "Tuning"
+        },
+        "tuning_folds": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 10,
+          "label": "Tuning inner folds",
+          "group": "Tuning"
+        },
+        "bars_per_second": {
+          "type": "float",
+          "default": 40,
+          "min": 0,
+          "max": 2000,
+          "step": 1,
+          "label": "Bars per second (0 = as fast as possible)",
+          "group": "Replay"
+        },
+        "start_paused": {
+          "type": "bool",
+          "default": false,
+          "label": "Start paused",
+          "group": "Replay"
+        },
+        "quiet_bars": {
+          "type": "bool",
+          "default": false,
+          "label": "Suppress per-bar log lines",
+          "group": "Replay"
+        },
+        "log_every_batches": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 1000,
+          "label": "Log every N batches",
+          "group": "Replay"
+        },
+        "device": {
+          "type": "categorical",
+          "default": "auto",
+          "choices": [
+            "auto",
+            "cuda",
+            "cpu"
+          ],
+          "label": "Device",
+          "group": "Runtime"
+        },
+        "seed": {
+          "type": "int",
+          "default": 42,
+          "min": 0,
+          "max": 999999,
+          "label": "Random seed",
+          "group": "Runtime"
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Sequence length (bars)",
+          "group": "Model"
+        },
+        "channel_count": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Channel count",
+          "group": "Model"
+        },
+        "kernel_size": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 15,
+          "label": "Kernel size",
+          "group": "Model"
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 10,
+          "label": "Layer count",
+          "group": "Model"
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model"
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0.00001,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model"
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model"
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model"
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model"
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model"
+        }
+      },
+      "cliFlags": {
+        "train_days": "--train-days",
+        "validation_fraction": "--validation-fraction",
+        "test_days": "--test-days",
+        "step_days": "--step-days",
+        "fold_limit": "--fold-limit",
+        "expanding_window": "--expanding-window",
+        "label_horizon_bars": "--label-horizon-bars",
+        "label_threshold_ticks": "--label-threshold-ticks",
+        "embargo_bars": "--embargo-bars",
+        "entry_probability": "--entry-probability",
+        "long_only": "--long-only",
+        "holding_bars": "--holding-bars",
+        "stop_loss_ticks": "--stop-loss-ticks",
+        "take_profit_ticks": "--take-profit-ticks",
+        "contracts": "--contracts",
+        "tuning_trials": "--tuning-trials",
+        "tuning_objective": "--tuning-objective",
+        "tuning_folds": "--tuning-folds",
+        "bars_per_second": "--bars-per-second",
+        "start_paused": "--start-paused",
+        "quiet_bars": "--quiet-bars",
+        "log_every_batches": "--log-every-batches",
+        "device": "--device",
+        "seed": "--seed",
+        "sequence_length": "--sequence-length",
+        "channel_count": "--channel-count",
+        "kernel_size": "--kernel-size",
+        "layer_count": "--layer-count",
+        "dropout": "--dropout",
+        "learning_rate": "--learning-rate",
+        "weight_decay": "--weight-decay",
+        "batch_size": "--batch-size",
+        "epochs": "--epochs",
+        "patience": "--patience"
+      },
+      "scriptArgs": [
+        "--model-family",
+        "temporal_convolution_network"
+      ],
+      "maxDurationSeconds": 43200
+    },
+    "transformer_encoder+walk_forward_cycle": {
+      "displayName": "Transformer encoder — model cycle",
+      "runner": "python",
+      "script": "src/ml/cycle/main.py",
+      "outputDir": "data/models",
+      "outputs": [
+        "config.json",
+        "predictions.parquet",
+        "trades.parquet",
+        "epochs.parquet",
+        "trials.parquet",
+        "folds.json",
+        "scoreboard.json",
+        "diagnostics.json"
+      ],
+      "featurePipeline": "default-35",
+      "chartOverlay": "prediction_markers",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "tags": [
+        "cycle",
+        "walk-forward",
+        "transformer_encoder"
+      ],
+      "supportedObjectives": [
+        "sharpe_ratio",
+        "log_loss",
+        "f1_score"
+      ],
+      "includeIndicators": false,
+      "allFeatures": false,
+      "defaultHyperparameters": {
+        "train_days": {
+          "type": "int",
+          "default": 60,
+          "min": 5,
+          "max": 720,
+          "label": "Training window (days)",
+          "group": "Walk-forward"
+        },
+        "validation_fraction": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.05,
+          "max": 0.5,
+          "step": 0.05,
+          "label": "Validation fraction of the training window",
+          "group": "Walk-forward"
+        },
+        "test_days": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 180,
+          "label": "Test window (days)",
+          "group": "Walk-forward"
+        },
+        "step_days": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 180,
+          "label": "Step between folds, in days (0 = test window)",
+          "group": "Walk-forward"
+        },
+        "fold_limit": {
+          "type": "int",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "label": "Fold limit (0 = all folds)",
+          "group": "Walk-forward"
+        },
+        "expanding_window": {
+          "type": "bool",
+          "default": false,
+          "label": "Expanding training window",
+          "group": "Walk-forward"
+        },
+        "label_horizon_bars": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 200,
+          "label": "Label horizon (bars)",
+          "group": "Labels"
+        },
+        "label_threshold_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "label": "Label threshold (ticks)",
+          "group": "Labels"
+        },
+        "embargo_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Embargo (bars)",
+          "group": "Labels"
+        },
+        "entry_probability": {
+          "type": "float",
+          "default": 0.55,
+          "min": 0.5,
+          "max": 0.95,
+          "step": 0.01,
+          "label": "Entry probability threshold",
+          "group": "Trading"
+        },
+        "long_only": {
+          "type": "bool",
+          "default": false,
+          "label": "Long only",
+          "group": "Trading"
+        },
+        "holding_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "label": "Holding period, in bars (0 = label horizon)",
+          "group": "Trading"
+        },
+        "stop_loss_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Stop loss (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "take_profit_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Take profit (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "contracts": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 10,
+          "label": "Contracts per trade",
+          "group": "Trading"
+        },
+        "tuning_trials": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Tuning trials (0 = off)",
+          "group": "Tuning"
+        },
+        "tuning_objective": {
+          "type": "categorical",
+          "default": "sharpe_ratio",
+          "choices": [
+            "sharpe_ratio",
+            "log_loss",
+            "f1_score"
+          ],
+          "label": "Tuning objective",
+          "group": "Tuning"
+        },
+        "tuning_folds": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 10,
+          "label": "Tuning inner folds",
+          "group": "Tuning"
+        },
+        "bars_per_second": {
+          "type": "float",
+          "default": 40,
+          "min": 0,
+          "max": 2000,
+          "step": 1,
+          "label": "Bars per second (0 = as fast as possible)",
+          "group": "Replay"
+        },
+        "start_paused": {
+          "type": "bool",
+          "default": false,
+          "label": "Start paused",
+          "group": "Replay"
+        },
+        "quiet_bars": {
+          "type": "bool",
+          "default": false,
+          "label": "Suppress per-bar log lines",
+          "group": "Replay"
+        },
+        "log_every_batches": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 1000,
+          "label": "Log every N batches",
+          "group": "Replay"
+        },
+        "device": {
+          "type": "categorical",
+          "default": "auto",
+          "choices": [
+            "auto",
+            "cuda",
+            "cpu"
+          ],
+          "label": "Device",
+          "group": "Runtime"
+        },
+        "seed": {
+          "type": "int",
+          "default": 42,
+          "min": 0,
+          "max": 999999,
+          "label": "Random seed",
+          "group": "Runtime"
+        },
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Sequence length (bars)",
+          "group": "Model"
+        },
+        "model_dimension": {
+          "type": "int",
+          "default": 32,
+          "min": 8,
+          "max": 512,
+          "label": "Model dimension",
+          "group": "Model"
+        },
+        "head_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Attention head count",
+          "group": "Model"
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model"
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model"
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0005,
+          "min": 0.00001,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model"
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model"
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model"
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model"
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model"
+        }
+      },
+      "cliFlags": {
+        "train_days": "--train-days",
+        "validation_fraction": "--validation-fraction",
+        "test_days": "--test-days",
+        "step_days": "--step-days",
+        "fold_limit": "--fold-limit",
+        "expanding_window": "--expanding-window",
+        "label_horizon_bars": "--label-horizon-bars",
+        "label_threshold_ticks": "--label-threshold-ticks",
+        "embargo_bars": "--embargo-bars",
+        "entry_probability": "--entry-probability",
+        "long_only": "--long-only",
+        "holding_bars": "--holding-bars",
+        "stop_loss_ticks": "--stop-loss-ticks",
+        "take_profit_ticks": "--take-profit-ticks",
+        "contracts": "--contracts",
+        "tuning_trials": "--tuning-trials",
+        "tuning_objective": "--tuning-objective",
+        "tuning_folds": "--tuning-folds",
+        "bars_per_second": "--bars-per-second",
+        "start_paused": "--start-paused",
+        "quiet_bars": "--quiet-bars",
+        "log_every_batches": "--log-every-batches",
+        "device": "--device",
+        "seed": "--seed",
+        "sequence_length": "--sequence-length",
+        "model_dimension": "--model-dimension",
+        "head_count": "--head-count",
+        "layer_count": "--layer-count",
+        "dropout": "--dropout",
+        "learning_rate": "--learning-rate",
+        "weight_decay": "--weight-decay",
+        "batch_size": "--batch-size",
+        "epochs": "--epochs",
+        "patience": "--patience"
+      },
+      "scriptArgs": [
+        "--model-family",
+        "transformer_encoder"
+      ],
+      "maxDurationSeconds": 43200
     }
   }
 }

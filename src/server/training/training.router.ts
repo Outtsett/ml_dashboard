@@ -10,6 +10,9 @@
  *   GET  /api/training/stream/:modelId  — SSE stream (standardized events, reconnectable)
  *   GET  /api/training/status           — List active training jobs
  *   POST /api/training/stop/:modelId    — Stop a training job
+ *   POST /api/training/control/:modelId — Model Cycle pause/resume/pace/stop (stdin)
+ *   GET  /api/training/cycle            — Recently tracked Model Cycle runs
+ *   GET  /api/training/cycle/:modelId   — Model Cycle snapshot (panel/chart rebuild)
  *
  * Model CRUD:
  *   GET    /api/training/models                    — List all trained models
@@ -31,6 +34,8 @@ import { getNestApp } from "../infrastructure/lib/nest-context";
 import { mlRateLimiter } from "../infrastructure/lib/rateLimiter";
 import { TrainingService } from "./training.service";
 import { RegistryService } from "./registry.service";
+import { ensureCycleAccumulator, getCycleSnapshot, listCycleRuns } from "./cycle";
+import { cycleControlSchema } from "@shared/cycle/schema";
 import type { TrainingRequest, TrainingEvent } from "@shared/trainingTypes";
 import { questdbHttpQuery } from "../infrastructure/database/questdb/httpQuery";
 import { validateSymbol } from "@shared/schema";
@@ -54,6 +59,11 @@ import { logInfo } from "../infrastructure/lib/log";
 // means persistence is live before the first `POST /training/start` can run,
 // and the call is idempotent.
 trainingStorage.ensureTrainingMetricRecorder();
+
+// Model Cycle accumulator — the second, independent subscriber to the same
+// domain event bus, folding `cycle_*` (and log/done/error) events into a
+// per-run `CycleSnapshot`. Same idempotent, attach-at-module-load pattern.
+ensureCycleAccumulator();
 
 // ─── Zod schema for request validation (DIP — route depends on schema, not manual field copying) ──
 
@@ -529,6 +539,16 @@ router.get("/training/stream/:modelId", (req: Request, res: Response) => {
     } catch { /* dead connection */ }
   };
 
+  // Comment-only heartbeat: keeps intermediate proxies/idle-timeout layers
+  // from dropping a quiet Model Cycle connection (a paced replay can sit
+  // between bars for seconds at a time). Comment lines are invisible to
+  // EventSource's `message`/named-event listeners.
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(": heartbeat\n\n");
+    } catch { /* dead connection */ }
+  }, 15_000);
+
   // Replay buffered events so reconnecting client catches up
   const fromIdx = parseInt(req.query.from as string) || 0;
   for (let i = fromIdx; i < session.events.length; i++) {
@@ -538,6 +558,7 @@ router.get("/training/stream/:modelId", (req: Request, res: Response) => {
 
   // If already finished, close stream
   if (session.finished) {
+    clearInterval(heartbeat);
     res.end();
     return;
   }
@@ -547,6 +568,7 @@ router.get("/training/stream/:modelId", (req: Request, res: Response) => {
     send(evt);
     if (evt.type === "done" || evt.type === "error") {
       session.listeners.delete(listener);
+      clearInterval(heartbeat);
       try { res.end(); } catch { /* already closed */ }
     }
   };
@@ -555,6 +577,7 @@ router.get("/training/stream/:modelId", (req: Request, res: Response) => {
   // On disconnect: remove listener but don't kill training
   req.on("close", () => {
     session.listeners.delete(listener);
+    clearInterval(heartbeat);
     logInfo(`[training] SSE client disconnected from ${modelId} (training continues, ${session.listeners.size} listeners remain)`);
   });
 });
@@ -578,6 +601,47 @@ router.post("/training/stop/:modelId", (req: Request, res: Response) => {
   } else {
     res.status(404).json({ error: `No active training for ${modelId}` });
   }
+});
+
+// ─── Model Cycle control (pause / resume / pace / stop, via stdin) ──────────
+//
+// The hard stop (`POST /training/stop/:modelId` above) stays as the
+// fallback — it kills the process tree. This is the graceful path: the
+// engine closes the open trade at the current bar, writes artifacts and
+// emits `done` before exiting on its own.
+
+router.post("/training/control/:modelId", (req: Request, res: Response) => {
+  const modelId = String(req.params.modelId);
+  const parseResult = cycleControlSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({ error: parseResult.error.issues.map((i) => i.message).join(", ") });
+  }
+
+  const training = getNestApp().get(TrainingService);
+  const outcome = training.control(modelId, parseResult.data);
+
+  if (outcome === "delivered") {
+    res.status(202).json({ delivered: true });
+  } else if (outcome === "no_session") {
+    res.status(404).json({ error: `No active training session for ${modelId}` });
+  } else {
+    res.status(409).json({ error: `${modelId}'s runner does not accept live control commands` });
+  }
+});
+
+// ─── Model Cycle runs (panel/chart rebuild source after a reload) ──────────
+
+router.get("/training/cycle", (_req: Request, res: Response) => {
+  res.json(listCycleRuns());
+});
+
+router.get("/training/cycle/:modelId", (req: Request, res: Response) => {
+  const modelId = String(req.params.modelId);
+  const snapshot = getCycleSnapshot(modelId);
+  if (!snapshot) {
+    return res.status(404).json({ error: `No Model Cycle run tracked for ${modelId}` });
+  }
+  res.json(snapshot);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -2,10 +2,12 @@ import { Injectable } from '@nestjs/common';
 import {
   startTraining,
   stopTraining,
+  controlTraining,
   getTrainingSession,
   listTrainingSessions,
 } from './orchestrator';
 import type { TrainingRequest, TrainingSession } from '@shared/trainingTypes';
+import type { CycleControl } from '@shared/cycle/schema';
 
 @Injectable()
 export class TrainingService {
@@ -18,6 +20,11 @@ export class TrainingService {
   /** Stop an active training job by model ID. */
   stop(modelId: string): boolean {
     return stopTraining(modelId);
+  }
+
+  /** Send a Model Cycle control command (pause/resume/pace/stop) to a running job's stdin. */
+  control(modelId: string, command: CycleControl): "delivered" | "no_session" | "not_supported" {
+    return controlTraining(modelId, command);
   }
 
   /** Get an active/recent training session. */

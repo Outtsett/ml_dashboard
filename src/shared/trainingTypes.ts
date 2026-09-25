@@ -93,6 +93,18 @@ export interface ModelRegistryEntry {
     group?: string;
     order?: number;
   }>;
+  /**
+   * Extra CLI args pushed onto the runner's argv right after the script path,
+   * before the standard `--symbol`/`--timeframe`/... flags (e.g. Model Cycle's
+   * `["--model-family", "xgboost"]`). Composed from `RunnerEntry.scriptArgs`.
+   */
+  scriptArgs?: string[];
+  /**
+   * Overrides `TrainingConfig.limits.maxTrainingDurationSec` for this runner —
+   * a paced bar-by-bar replay can legitimately run far longer than a normal
+   * training job. Composed from `RunnerEntry.maxDurationSeconds`.
+   */
+  maxDurationSeconds?: number;
 }
 
 export interface ModelRegistry {
@@ -176,6 +188,18 @@ export interface RunnerEntry {
   available?: boolean;
   /** Why this entry is unavailable, shown next to the disabled option. */
   unavailableReason?: string;
+  /**
+   * Extra CLI args pushed onto argv right after the script path, before the
+   * standard flags. `pythonRunner.ts` reads this directly off the composed
+   * `ModelRegistryEntry` (see there for the exact insertion point).
+   */
+  scriptArgs?: string[];
+  /**
+   * Replaces `TrainingConfig.limits.maxTrainingDurationSec` for runs of this
+   * runner. Model Cycle sets 43200 (12h) — a paced replay can legitimately
+   * run long.
+   */
+  maxDurationSeconds?: number;
 }
 
 export interface AlgorithmRegistry {

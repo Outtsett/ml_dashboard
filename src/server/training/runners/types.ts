@@ -1,5 +1,6 @@
 import type { ResolvedTrainingConfig, TrainingEvent, TrainingSession } from "@shared/trainingTypes";
 import type { DomainEvent } from "@shared/event-types";
+import type { CycleControl } from "@shared/cycle/schema";
 import { getEventBus } from "../../infrastructure/events";
 
 export interface ITrainerRunner {
@@ -7,6 +8,14 @@ export interface ITrainerRunner {
   stop(sessionId: string): void;
   isActive(sessionId: string): boolean;
   getSession(sessionId: string): TrainingSession | undefined;
+  /**
+   * Write one control command to the running process's stdin (Model Cycle's
+   * pause/resume/pace/stop protocol). Returns `false` when there is no live
+   * child or its stdin is not writable. Runners that cannot accept live
+   * control (e.g. none yet besides `PythonRunner`) simply omit this method —
+   * callers check for its presence before calling it.
+   */
+  sendControl?(sessionId: string, command: CycleControl): boolean;
 }
 
 export function createSession(

@@ -1,0 +1,472 @@
+"""Model Cycle model families (src/ml/cycle/models.py + networks.py).
+
+Every family is fitted on one synthetic causal dataset: the label of bar t is
+1 when a combination of bar t's features and LAGGED features (t-1, t-3) plus
+noise is above zero. Row-only models can reach ~0.8 accuracy from the bar-t
+part; sequence models can also use the lags.
+
+Checked per family (and per device for the neural families and xgboost):
+learning (validation and test accuracy >= 0.65 with the fixed seeds below —
+every family clears 0.70 in practice), probability shape/range/dtype,
+single-row == batched, causality (rows after t never change P(up) at t),
+checkpoint cadence, stop and pause through the reporter, save/load,
+Optuna search spaces.
+"""
+
+from __future__ import annotations
+
+import threading
+import time
+
+import numpy as np
+import optuna
+import pytest
+
+torch = pytest.importorskip("torch")
+
+from cycle.adapter import (  # noqa: E402
+    MODEL_FAMILIES,
+    NEURAL_FAMILIES,
+    SEQUENCE_FAMILIES,
+    BatchReport,
+    EpochReport,
+    StopRequested,
+)
+from cycle.models import (  # noqa: E402
+    FAMILY_PARAMETER_KEYS,
+    binary_scores,
+    build_adapter,
+    default_parameters,
+    load_adapter,
+    resolve_parameters,
+    suggest_parameters,
+)
+
+ACCURACY_THRESHOLD = 0.65
+CUDA = torch.cuda.is_available()
+SEQUENCE_LENGTH = 16
+
+# Small, fast settings per family (defaults otherwise).
+FAST_PARAMETERS = {
+    "logistic_regression": {},
+    "random_forest": {"tree_count": 60, "max_depth": 6},
+    "xgboost": {"boosting_rounds": 120, "early_stopping_rounds": 20, "max_depth": 4,
+                "learning_rate": 0.1},
+    "lightgbm": {"boosting_rounds": 120, "early_stopping_rounds": 20, "leaf_count": 15,
+                 "learning_rate": 0.1},
+    "multilayer_perceptron": {"hidden_size": 32, "epochs": 8, "batch_size": 128,
+                              "patience": 3, "learning_rate": 0.003},
+    "lstm": {"sequence_length": SEQUENCE_LENGTH, "hidden_size": 32, "epochs": 8,
+             "batch_size": 128, "patience": 3, "learning_rate": 0.003},
+    "temporal_convolution_network": {"sequence_length": SEQUENCE_LENGTH, "channel_count": 16,
+                                     "epochs": 8, "batch_size": 128, "patience": 3,
+                                     "learning_rate": 0.003},
+    "transformer_encoder": {"sequence_length": SEQUENCE_LENGTH, "model_dimension": 32,
+                            "head_count": 4, "layer_count": 1, "epochs": 8, "batch_size": 128,
+                            "patience": 3, "learning_rate": 0.001},
+}
+
+# Even smaller: for the stop / pause tests, which only need a few steps.
+TINY_PARAMETERS = {
+    family: {**values, **({"epochs": 2} if family in NEURAL_FAMILIES else {})}
+    for family, values in FAST_PARAMETERS.items()
+}
+TINY_PARAMETERS["random_forest"] = {"tree_count": 30, "max_depth": 4}
+# lbfgs converges inside the first 30-iteration pass on this data (the fit then
+# ends after one pass); 2 iterations per pass leaves passes to stop or pause.
+TINY_PARAMETERS["logistic_regression"] = {"max_iterations": 20}
+TINY_PARAMETERS["xgboost"] = {**FAST_PARAMETERS["xgboost"], "boosting_rounds": 30}
+TINY_PARAMETERS["lightgbm"] = {**FAST_PARAMETERS["lightgbm"], "boosting_rounds": 30}
+
+FAMILY_DEVICES = [(family, "cpu") for family in MODEL_FAMILIES] + (
+    [(family, "cuda") for family in (*NEURAL_FAMILIES, "xgboost")] if CUDA else []
+)
+
+
+# ─── synthetic causal data ─────────────────────────────────────────────────
+
+class Dataset:
+    def __init__(self, row_count: int = 5000, feature_count: int = 12, seed: int = 7) -> None:
+        generator = np.random.default_rng(seed)
+        features = generator.standard_normal((row_count, feature_count)).astype(np.float32)
+        signal = np.zeros(row_count)
+        signal[3:] = (
+            1.0 * features[3:, 0]
+            - 0.8 * features[3:, 1]
+            + 0.6 * features[2:-1, 2]   # bar t-1
+            + 0.4 * features[:-3, 3]    # bar t-3
+        )
+        labels = (signal + 0.5 * generator.standard_normal(row_count) > 0).astype(np.float32)
+        labels[:3] = np.nan                                   # lags not available
+        labels[-6:] = np.nan                                  # horizon past the data
+        labels[generator.random(row_count) < 0.03] = np.nan   # inside the threshold
+        features[:5] = np.nan                                 # feature warmup
+        self.features = features
+        self.labels = labels
+        self.timestamps = (1_700_000_000 + 300 * np.arange(row_count)).astype(np.int64)
+
+        scored = np.flatnonzero(np.isfinite(labels))
+        first_usable = 5 + SEQUENCE_LENGTH - 1
+        scored = scored[scored >= first_usable]
+        self.train_index = scored[scored < 3000]
+        self.validation_index = scored[(scored >= 3010) & (scored < 3800)]
+        self.test_index = scored[scored >= 3810]
+
+
+class FakeReporter:
+    """Records every call. `stop_after=k` raises StopRequested on the k-th
+    checkpoint; `pause_after=k` blocks the k-th checkpoint until `resume` is set."""
+
+    def __init__(self, stop_after: int | None = None, pause_after: int | None = None) -> None:
+        self.step_unit = None
+        self.batches: list[BatchReport] = []
+        self.epochs: list[EpochReport] = []
+        self.started: list[tuple[int, int]] = []
+        self.validating_calls: list[tuple[int, int]] = []
+        self.logs: list[tuple[str, str]] = []
+        self.checkpoints = 0
+        self.stop_after = stop_after
+        self.pause_after = pause_after
+        self.resume = threading.Event()
+        self.resume.set()
+        self.blocked = threading.Event()
+
+    def epoch_started(self, epoch, epoch_count):
+        self.started.append((epoch, epoch_count))
+
+    def batch(self, report):
+        assert isinstance(report, BatchReport)
+        self.batches.append(report)
+
+    def epoch_finished(self, report):
+        assert isinstance(report, EpochReport)
+        self.epochs.append(report)
+
+    def validating(self, epoch, epoch_count):
+        self.validating_calls.append((epoch, epoch_count))
+
+    def checkpoint(self):
+        self.checkpoints += 1
+        if self.stop_after is not None and self.checkpoints >= self.stop_after:
+            raise StopRequested()
+        if self.pause_after is not None and self.checkpoints == self.pause_after:
+            self.resume.clear()
+        if not self.resume.is_set():
+            self.blocked.set()
+            assert self.resume.wait(timeout=60), "never resumed"
+
+    def log(self, message, level="info"):
+        self.logs.append((message, level))
+
+
+@pytest.fixture(scope="module")
+def dataset() -> Dataset:
+    return Dataset()
+
+
+_FITTED: dict[tuple[str, str], tuple[object, FakeReporter, float]] = {}
+
+
+def fitted(family: str, device: str, data: Dataset):
+    key = (family, device)
+    if key not in _FITTED:
+        adapter = build_adapter(family, FAST_PARAMETERS[family], device, seed=11)
+        reporter = FakeReporter()
+        started = time.perf_counter()
+        adapter.fit(data.features, data.labels, data.train_index, data.validation_index,
+                    data.timestamps, reporter)
+        _FITTED[key] = (adapter, reporter, time.perf_counter() - started)
+    return _FITTED[key]
+
+
+def _identifier(value):
+    return value if isinstance(value, str) else None
+
+
+# ─── registry ──────────────────────────────────────────────────────────────
+
+def test_every_family_has_parameters_and_defaults():
+    assert set(FAMILY_PARAMETER_KEYS) == set(MODEL_FAMILIES)
+    for family in MODEL_FAMILIES:
+        defaults = default_parameters(family)
+        assert tuple(defaults) == FAMILY_PARAMETER_KEYS[family]
+        assert resolve_parameters(family, {"unrelated_key": 5}) == defaults
+    assert default_parameters("xgboost")["boosting_rounds"] == 400
+    assert default_parameters("transformer_encoder")["learning_rate"] == 0.0005
+
+
+def test_unknown_family_lists_the_valid_ones():
+    with pytest.raises(ValueError, match="random_forest"):
+        build_adapter("support_vector_machine", {}, "cpu", 0)
+    with pytest.raises(ValueError, match="lightgbm"):
+        default_parameters("nope")
+
+
+def test_invalid_parameters_are_refused():
+    with pytest.raises(ValueError, match="batch_size"):
+        build_adapter("multilayer_perceptron", {"batch_size": 0}, "cpu", 0)
+    with pytest.raises(ValueError, match="subsample"):
+        build_adapter("xgboost", {"subsample": 1.5}, "cpu", 0)
+    with pytest.raises(ValueError, match="whole number"):
+        build_adapter("random_forest", {"tree_count": 10.5}, "cpu", 0)
+
+
+def test_minimum_history():
+    assert build_adapter("xgboost", {}, "cpu", 0).minimum_history() == 1
+    assert build_adapter("multilayer_perceptron", {}, "cpu", 0).minimum_history() == 1
+    for family in SEQUENCE_FAMILIES:
+        adapter = build_adapter(family, {"sequence_length": 24}, "cpu", 0)
+        assert adapter.minimum_history() == 24
+
+
+def test_transformer_dimension_is_rounded_to_the_head_count():
+    adapter = build_adapter("transformer_encoder", {"model_dimension": 30, "head_count": 4},
+                            "cpu", 0)
+    assert adapter.parameters["model_dimension"] == 32
+    assert any("rounded up to 32" in note for note in adapter.notes)
+
+
+def test_tree_run_never_imports_torch():
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    source_root = Path(__file__).resolve().parents[1] / "src" / "ml"
+    script = (
+        "import sys, numpy as np\n"
+        "from cycle.models import build_adapter\n"
+        "class R:\n"
+        "    step_unit = None\n"
+        "    def __getattr__(self, name):\n"
+        "        return lambda *a, **k: None\n"
+        "g = np.random.default_rng(0)\n"
+        "x = g.standard_normal((400, 4)).astype(np.float32)\n"
+        "y = (x[:, 0] > 0).astype(np.float32)\n"
+        "for family in ('logistic_regression', 'random_forest', 'xgboost', 'lightgbm'):\n"
+        "    a = build_adapter(family, {'boosting_rounds': 5, 'tree_count': 10}, 'cpu', 0)\n"
+        "    a.fit(x, y, np.arange(300), np.arange(300, 400), np.arange(400), R())\n"
+        "    a.predict_probability(x, np.array([399]))\n"
+        "print('torch' in sys.modules)\n"
+    )
+    environment = {**os.environ, "PYTHONPATH": str(source_root)}
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True,
+                            env=environment, timeout=120)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip().splitlines()[-1] == "False"
+
+
+# ─── fitting ───────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize(("family", "device"), FAMILY_DEVICES, ids=_identifier)
+def test_fit_learns_and_reports(family, device, dataset):
+    adapter, reporter, _ = fitted(family, device, dataset)
+
+    assert reporter.step_unit == adapter.step_unit
+    assert reporter.step_unit in ("epoch", "boosting_round", "tree_batch", "solver_pass")
+    assert reporter.batches, "no batch reports"
+    assert reporter.epochs, "no epoch reports"
+    assert reporter.checkpoints >= len(reporter.batches) >= 1
+
+    validation = adapter.predict_probability(dataset.features, dataset.validation_index)
+    test = adapter.predict_probability(dataset.features, dataset.test_index)
+    validation_accuracy = binary_scores(validation, dataset.labels[dataset.validation_index])
+    test_accuracy = binary_scores(test, dataset.labels[dataset.test_index])
+    assert validation_accuracy["accuracy"] >= ACCURACY_THRESHOLD, validation_accuracy
+    assert test_accuracy["accuracy"] >= ACCURACY_THRESHOLD, test_accuracy
+
+    train_low, train_high = int(dataset.train_index[0]), int(dataset.train_index[-1])
+    position = {int(row): i for i, row in enumerate(dataset.train_index)}
+    for report in reporter.batches:
+        assert train_low <= report.span_start_index <= report.span_end_index <= train_high
+        assert report.epoch_count >= report.epoch >= 1
+        assert report.batch_count >= report.batch >= 1
+    if family in NEURAL_FAMILIES:
+        batch_size = FAST_PARAMETERS[family]["batch_size"]
+        for report in reporter.batches:
+            # a contiguous block of the sorted training index
+            span = position[report.span_end_index] - position[report.span_start_index] + 1
+            assert span == batch_size or report.span_end_index == train_high
+            assert report.gradient_norm is None or report.gradient_norm >= 0
+            assert report.learning_rate is not None and report.learning_rate > 0
+        first_epoch = [r for r in reporter.batches if r.epoch == 1]
+        assert len(first_epoch) == first_epoch[0].batch_count
+        starts = [r.span_start_index for r in first_epoch]
+        assert starts != sorted(starts), "block order was not shuffled"
+        assert sorted(starts) == sorted({r.span_start_index for r in first_epoch})
+    else:
+        for report in reporter.batches:  # trees see the whole window every step
+            assert (report.span_start_index, report.span_end_index) == (train_low, train_high)
+    best = [r for r in reporter.epochs if r.is_best]
+    assert best, "no epoch marked best"
+    assert all(r.validation_loss is not None for r in reporter.epochs)
+    assert reporter.validating_calls
+
+
+@pytest.mark.parametrize(("family", "device"), FAMILY_DEVICES, ids=_identifier)
+def test_probabilities_single_row_and_causality(family, device, dataset):
+    adapter, _, _ = fitted(family, device, dataset)
+    index = dataset.test_index[:300]
+    batched = adapter.predict_probability(dataset.features, index)
+    assert batched.dtype == np.float64
+    assert batched.shape == index.shape
+    assert np.all((batched >= 0.0) & (batched <= 1.0))
+    assert np.unique(np.round(batched, 3)).size > 10, "predictions are constant"
+
+    for position in (0, 7, 150, 299):
+        single = adapter.predict_probability(dataset.features, index[position:position + 1])
+        assert single.shape == (1,)
+        assert abs(single[0] - batched[position]) < 1e-5
+
+    generator = np.random.default_rng(3)
+    for row in (int(index[10]), int(index[200])):
+        perturbed = dataset.features.copy()
+        perturbed[row + 1:] = generator.normal(0, 25, perturbed[row + 1:].shape)
+        before = adapter.predict_probability(dataset.features, np.array([row]))
+        after = adapter.predict_probability(perturbed, np.array([row]))
+        assert after[0] == pytest.approx(before[0], abs=1e-6)
+        # the multi-row path reads the same rows only
+        rows = np.array([row - 5, row - 1, row])
+        assert np.allclose(adapter.predict_probability(perturbed, rows),
+                           adapter.predict_probability(dataset.features, rows), atol=1e-5)
+        # and the prediction DOES depend on its own bar
+        own_bar = dataset.features.copy()
+        own_bar[row] = generator.normal(0, 3, own_bar[row].shape)
+        changed = adapter.predict_probability(own_bar, np.array([row]))
+        assert changed[0] != pytest.approx(before[0], abs=1e-9)
+
+
+@pytest.mark.parametrize("family", SEQUENCE_FAMILIES)
+def test_sequence_networks_are_causal_inside_the_window(family):
+    from cycle.networks import build_network
+
+    parameters = resolve_parameters(family, FAST_PARAMETERS[family])
+    torch.manual_seed(0)
+    network = build_network(family, parameters, 6).eval()
+    window = torch.randn(3, SEQUENCE_LENGTH, 6)
+    with torch.inference_mode():
+        reference = network.sequence_output(window)
+        for position in (1, 5, SEQUENCE_LENGTH - 1):
+            changed = window.clone()
+            changed[:, position:] += torch.randn_like(changed[:, position:]) * 10
+            output = network.sequence_output(changed)
+            assert torch.allclose(output[:, :position], reference[:, :position], atol=1e-5)
+            assert not torch.allclose(output[:, position], reference[:, position], atol=1e-5)
+
+
+# ─── stop / pause ──────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("family", MODEL_FAMILIES)
+def test_stop_requested_propagates(family, dataset):
+    adapter = build_adapter(family, TINY_PARAMETERS[family], "cpu", seed=5)
+    reporter = FakeReporter(stop_after=3)
+    with pytest.raises(StopRequested):
+        adapter.fit(dataset.features, dataset.labels, dataset.train_index,
+                    dataset.validation_index, dataset.timestamps, reporter)
+    assert reporter.checkpoints == 3
+    assert len(reporter.batches) <= 2
+
+
+@pytest.mark.parametrize("family", MODEL_FAMILIES)
+def test_pause_blocks_fitting_until_resumed(family, dataset):
+    adapter = build_adapter(family, TINY_PARAMETERS[family], "cpu", seed=5)
+    reporter = FakeReporter(pause_after=2)
+    failure: list[BaseException] = []
+
+    def run():
+        try:
+            adapter.fit(dataset.features, dataset.labels, dataset.train_index,
+                        dataset.validation_index, dataset.timestamps, reporter)
+        except BaseException as error:  # surfaced in the main thread below
+            failure.append(error)
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    assert reporter.blocked.wait(timeout=60), "fit never reached the pause"
+    batches_at_pause = len(reporter.batches)
+    time.sleep(0.25)
+    assert len(reporter.batches) == batches_at_pause, "work continued while paused"
+    assert worker.is_alive()
+    reporter.resume.set()
+    worker.join(timeout=120)
+    assert not worker.is_alive()
+    assert not failure, failure
+    assert len(reporter.batches) > batches_at_pause
+
+
+# ─── save / load ───────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize(("family", "device"), FAMILY_DEVICES, ids=_identifier)
+def test_save_writes_a_loadable_model(family, device, dataset, tmp_path):
+    import json
+
+    adapter, _, _ = fitted(family, device, dataset)
+    path = adapter.save(str(tmp_path))
+    metadata = json.loads((tmp_path / "model.json").read_text(encoding="utf-8"))
+    assert metadata["family"] == family
+    assert metadata["feature_count"] == dataset.features.shape[1]
+    assert set(FAMILY_PARAMETER_KEYS[family]) <= set(metadata["parameters"])
+    assert (tmp_path / metadata["model_file"]).exists()
+    assert path.endswith(metadata["model_file"])
+    assert not list(tmp_path.glob("*.tmp*"))
+
+    if family in NEURAL_FAMILIES:
+        state = torch.load(path, map_location="cpu", weights_only=True)
+        assert set(state) >= {"state_dict", "family", "parameters", "feature_count",
+                              "sequence_length"}
+
+    reloaded = load_adapter(str(tmp_path), device="cpu")
+    index = dataset.test_index[:50]
+    original = adapter.predict_probability(dataset.features, index)
+    again = reloaded.predict_probability(dataset.features, index)
+    # CUDA-trained networks reloaded on the CPU differ by float rounding only
+    assert np.allclose(original, again, atol=1e-4)
+
+
+# ─── tuning search spaces ──────────────────────────────────────────────────
+
+@pytest.mark.parametrize("family", MODEL_FAMILIES)
+def test_suggest_parameters_returns_every_key(family):
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    study = optuna.create_study(direction="minimize",
+                                sampler=optuna.samplers.RandomSampler(seed=1))
+    base = default_parameters(family)
+    base_training_length = {
+        key: base[key] for key in ("epochs", "boosting_rounds", "tree_count", "max_iterations",
+                                   "patience", "early_stopping_rounds", "sequence_length")
+        if key in base
+    }
+    for _ in range(5):
+        trial = study.ask()
+        suggested = suggest_parameters(trial, family, base)
+        assert tuple(suggested) == FAMILY_PARAMETER_KEYS[family]
+        assert resolve_parameters(family, suggested) == suggested
+        for key, value in base_training_length.items():
+            assert suggested[key] == value
+        assert trial.params, "nothing was tuned"
+        assert set(trial.params) <= set(FAMILY_PARAMETER_KEYS[family])
+        for key, value in trial.params.items():
+            assert suggested[key] == value
+        if family == "transformer_encoder":
+            assert suggested["model_dimension"] % suggested["head_count"] == 0
+        study.tell(trial, 0.5)
+
+
+# ─── guards ────────────────────────────────────────────────────────────────
+
+def test_predict_before_fit_and_single_class_labels(dataset):
+    for family in ("logistic_regression", "xgboost", "multilayer_perceptron"):
+        adapter = build_adapter(family, TINY_PARAMETERS[family], "cpu", 0)
+        with pytest.raises(RuntimeError):
+            adapter.predict_probability(dataset.features, dataset.test_index[:3])
+        labels = dataset.labels.copy()
+        labels[np.isfinite(labels)] = 1.0
+        with pytest.raises(ValueError, match="only one class"):
+            adapter.fit(dataset.features, labels, dataset.train_index,
+                        dataset.validation_index, dataset.timestamps, FakeReporter())
+
+
+def test_sequence_model_refuses_rows_without_history(dataset):
+    adapter, _, _ = fitted("lstm", "cpu", dataset)
+    with pytest.raises(ValueError, match="history"):
+        adapter.predict_probability(dataset.features, np.array([SEQUENCE_LENGTH - 2]))

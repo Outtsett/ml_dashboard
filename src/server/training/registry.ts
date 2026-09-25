@@ -143,6 +143,8 @@ function composeEntry(
     // Train dropdown reads — kept reporting all six as runnable.
     available: runner.available ?? true,
     unavailableReason: runner.unavailableReason,
+    scriptArgs: runner.scriptArgs,
+    maxDurationSeconds: runner.maxDurationSeconds,
   };
 }
 

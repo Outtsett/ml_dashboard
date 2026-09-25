@@ -1,0 +1,352 @@
+"""Model Cycle entry point — one process that loads bars from the lake, optionally
+tunes, then per walk-forward fold trains, validates and walks the test bars one
+at a time, trading and scoring them while the dashboard chart follows.
+
+Spawned by ``pythonRunner.ts`` (cwd = the repository root):
+
+    python src/ml/cycle/main.py --model-family xgboost --symbol MNQ --timeframe 5m \\
+        --model-id <id> --json [--max-bars N] [--date-start ...] [--date-end ...] \\
+        [--train-days 60 --test-days 10 ... --boosting-rounds 400 ...]
+
+Every flag of ``docs/plans/2026-09-25-model-cycle.md`` is accepted: the
+cycle-wide groups and the Model-group flags of all eight families (only the
+selected family's keys reach its adapter). Unknown flags are logged at warn and
+ignored. Control arrives on stdin (``control.py``); events leave on stdout.
+
+Test hook: ``CYCLE_ADAPTER_FACTORY=<module>:<callable>`` replaces
+``models.build_adapter`` (same signature) — for runs without the real families.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+
+# Windows + torch cu130: import torch BEFORE numpy or CUDA initialisation can
+# deadlock. Only when the run can touch CUDA (a neural family, or a device that
+# is not forced to cpu) — the import costs a couple of seconds.
+_NEURAL = ("multilayer_perceptron", "lstm", "temporal_convolution_network", "transformer_encoder")
+
+
+def _argument_value(flag: str) -> str | None:
+    argv = sys.argv[1:]
+    for position, item in enumerate(argv):
+        if item == flag and position + 1 < len(argv):
+            return argv[position + 1]
+        if item.startswith(flag + "="):
+            return item.split("=", 1)[1]
+    return None
+
+
+try:
+    if _argument_value("--model-family") in _NEURAL or (_argument_value("--device") or "auto") != "cpu":
+        import torch  # noqa: F401
+except Exception:  # noqa: BLE001 - torch is optional for tabular families
+    pass
+
+import argparse  # noqa: E402
+import re  # noqa: E402
+import time  # noqa: E402
+import traceback  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+_ML_ROOT = Path(__file__).resolve().parents[1]
+if str(_ML_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ML_ROOT))
+# The repository root goes LAST: numba's on-disk cache for shared.features'
+# parallel kernels may have been written by a process that imported the module
+# as ``src.ml.shared.features`` (xgb_classifier does), and loading that cache
+# re-imports the module by that name. Without the root on the path the load
+# fails and the shared engine silently drops the rolling-window features.
+_PROJECT_ROOT = _ML_ROOT.parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(_PROJECT_ROOT))
+
+from cycle.adapter import MODEL_FAMILIES, MODEL_LABELS  # noqa: E402
+from shared import protocol  # noqa: E402
+
+# ── the plan's flag tables ─────────────────────────────────────────────────
+
+# (key, type, default, help)
+CYCLE_FLAGS: tuple[tuple[str, type, object, str], ...] = (
+    ("train_days", int, 60, "calendar days in each training window"),
+    ("validation_fraction", float, 0.2, "last fraction of the training window used for validation"),
+    ("test_days", int, 10, "calendar days in each test window"),
+    ("step_days", int, 0, "days between test windows (0 = test_days; must be >= test_days)"),
+    ("fold_limit", int, 3, "0 = all folds, else the most recent N"),
+    ("expanding_window", bool, False, "anchor every training window at the first bar"),
+    ("label_horizon_bars", int, 6, "bars ahead the direction label looks"),
+    ("label_threshold_ticks", float, 0.0, "moves within this many ticks are unlabelled"),
+    ("embargo_bars", int, 0, "bars dropped from the start of each test window"),
+    ("entry_probability", float, 0.55, "go long at P(up) >= this, short at <= 1 - this"),
+    ("long_only", bool, False, "never go short"),
+    ("holding_bars", int, 0, "bars to hold a position (0 = label horizon)"),
+    ("stop_loss_ticks", float, 0.0, "stop loss in ticks from entry (0 = off)"),
+    ("take_profit_ticks", float, 0.0, "take profit in ticks from entry (0 = off)"),
+    ("contracts", int, 1, "contracts per trade"),
+    ("tuning_trials", int, 0, "Optuna trials (0 = no tuning)"),
+    ("tuning_objective", str, "sharpe_ratio", "sharpe_ratio | log_loss | f1_score"),
+    ("tuning_folds", int, 2, "inner validation blocks per tuning trial"),
+    ("bars_per_second", float, 40.0, "test-walk replay speed (0 = as fast as possible)"),
+    ("start_paused", bool, False, "start paused"),
+    ("quiet_bars", bool, False, "suppress per-bar log lines"),
+    ("log_every_batches", int, 10, "log a training line every N batches"),
+    ("device", str, "auto", "auto | cuda | cpu"),
+    ("seed", int, 42, "random seed"),
+)
+
+FAMILY_DEFAULTS: dict[str, dict[str, object]] = {
+    "logistic_regression": {"regularization_strength": 1.0, "max_iterations": 300},
+    "random_forest": {"tree_count": 300, "max_depth": 8, "min_samples_leaf": 20, "max_features_fraction": 0.5},
+    "xgboost": {"boosting_rounds": 400, "max_depth": 6, "learning_rate": 0.05, "subsample": 0.8,
+                "column_subsample": 0.8, "min_child_weight": 1.0, "l2_regularization": 1.0, "early_stopping_rounds": 50},
+    "lightgbm": {"boosting_rounds": 400, "leaf_count": 31, "learning_rate": 0.05, "subsample": 0.8,
+                 "column_subsample": 0.8, "min_child_samples": 20, "l2_regularization": 1.0, "early_stopping_rounds": 50},
+    "multilayer_perceptron": {"hidden_size": 128, "layer_count": 2, "dropout": 0.2, "learning_rate": 0.001,
+                              "weight_decay": 0.0001, "batch_size": 256, "epochs": 20, "patience": 5},
+    "lstm": {"sequence_length": 32, "hidden_size": 64, "layer_count": 1, "dropout": 0.2, "learning_rate": 0.001,
+             "weight_decay": 0.0001, "batch_size": 256, "epochs": 20, "patience": 5},
+    "temporal_convolution_network": {"sequence_length": 32, "channel_count": 32, "kernel_size": 3, "layer_count": 3,
+                                     "dropout": 0.2, "learning_rate": 0.001, "weight_decay": 0.0001,
+                                     "batch_size": 256, "epochs": 20, "patience": 5},
+    "transformer_encoder": {"sequence_length": 32, "model_dimension": 32, "head_count": 4, "layer_count": 2,
+                            "dropout": 0.1, "learning_rate": 0.0005, "weight_decay": 0.0001, "batch_size": 256,
+                            "epochs": 20, "patience": 5},
+}
+
+IGNORED_FLAGS = ("feature_categories", "include_indicators", "indicator_groups", "all_features", "label_set_parquet")
+
+
+def _flag(key: str) -> str:
+    return "--" + key.replace("_", "-")
+
+
+def _model_flag_types() -> dict[str, type]:
+    types: dict[str, type] = {}
+    for defaults in FAMILY_DEFAULTS.values():
+        for key, value in defaults.items():
+            kind = float if isinstance(value, float) else int
+            types[key] = float if types.get(key) is float else kind
+    return types
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Model Cycle: tune, train, validate and walk test bars one at a time.")
+    parser.add_argument("--symbol", required=True)
+    parser.add_argument("--timeframe", required=True)
+    parser.add_argument("--model-id", required=True)
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument("--max-bars", type=int, default=0)
+    parser.add_argument("--date-start", default=None)
+    parser.add_argument("--date-end", default=None)
+    parser.add_argument("--model-family", required=True, choices=MODEL_FAMILIES)
+    cycle = parser.add_argument_group("cycle")
+    for key, kind, default, help_text in CYCLE_FLAGS:
+        if kind is bool:
+            cycle.add_argument(_flag(key), dest=key, action="store_true", default=default, help=help_text)
+        else:
+            cycle.add_argument(_flag(key), dest=key, type=kind, default=default, help=help_text)
+    model = parser.add_argument_group("model (defaults depend on the family)")
+    for key, kind in _model_flag_types().items():
+        model.add_argument(_flag(key), dest=f"model__{key}", type=kind, default=None)
+    ignored = parser.add_argument_group("accepted and ignored")
+    for key in IGNORED_FLAGS:
+        if key in ("include_indicators", "all_features"):
+            ignored.add_argument(_flag(key), dest=f"ignored__{key}", action="store_true", default=False)
+        else:
+            ignored.add_argument(_flag(key), dest=f"ignored__{key}", default=None)
+    return parser
+
+
+def model_parameters(args: argparse.Namespace, family: str) -> dict:
+    defaults = dict(FAMILY_DEFAULTS[family])
+    parameters = {}
+    for key, default in defaults.items():
+        value = getattr(args, f"model__{key}", None)
+        parameters[key] = default if value is None else value
+    return parameters
+
+
+def normalise_date(value: str | None) -> str | None:
+    """The loader accepts YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS; trim anything finer."""
+    if not value:
+        return None
+    text = value.strip().replace(" ", "T")
+    match = re.match(r"^(\d{4}-\d{2}-\d{2})(T\d{2}:\d{2}:\d{2})?", text)
+    if not match:
+        raise ValueError(f"unreadable date {value!r}; use YYYY-MM-DD")
+    return match.group(1) + (match.group(2) or "")
+
+
+def resolve_device(requested: str) -> tuple[str, str | None]:
+    requested = (requested or "auto").lower()
+    if requested not in ("auto", "cuda", "cpu"):
+        raise ValueError(f"device must be auto, cuda or cpu, got {requested!r}")
+    if requested == "cpu":
+        return "cpu", None
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            return "cuda", torch.cuda.get_device_name(0)
+    except Exception:  # noqa: BLE001
+        pass
+    if requested == "cuda":
+        raise RuntimeError("--device cuda was requested but CUDA is not available")
+    return "cpu", None
+
+
+def _factory_hook():
+    spec = os.environ.get("CYCLE_ADAPTER_FACTORY")
+    if not spec:
+        return None
+    import importlib
+
+    module_name, _, attribute = spec.partition(":")
+    return getattr(importlib.import_module(module_name), attribute)
+
+
+def run(args: argparse.Namespace, unknown: list[str]) -> int:
+    from cycle.control import ControlState, start_reader
+    from cycle.engine import CycleEngine, CycleSettings, clean_market_data
+    from cycle.features import build_features
+    from cycle.simulate import load_cost_model
+
+    started = time.monotonic()
+    family = args.model_family
+    if not re.match(r"^[A-Za-z0-9_.\-]+$", args.model_id):
+        raise ValueError(f"model id {args.model_id!r} is not a safe directory name")
+    protocol.emit_cycle_cursor("loading", fold_count=0)
+    protocol.emit_log(f"[data] Model Cycle: {MODEL_LABELS[family]} on {args.symbol} {args.timeframe}, run {args.model_id}")
+    if unknown:
+        protocol.emit_log(f"[data] ignoring unknown arguments: {' '.join(unknown)}", "warn")
+    for key in IGNORED_FLAGS:
+        value = getattr(args, f"ignored__{key}")
+        if value:
+            protocol.emit_log(f"[features] {_flag(key)} is accepted and ignored: the cycle builds its own causal features", "warn")
+    parameters = model_parameters(args, family)
+    other_family_flags = [
+        _flag(key) for key in _model_flag_types()
+        if key not in parameters and getattr(args, f"model__{key}") is not None
+    ]
+    if other_family_flags:
+        protocol.emit_log(f"[plan] ignoring flags that belong to other model families: {' '.join(other_family_flags)}", "warn")
+
+    device, device_name = resolve_device(args.device)
+    protocol.emit_log(f"[device] {device}" + (f" — {device_name}" if device_name else "") + f" (requested {args.device})")
+
+    control = ControlState(args.bars_per_second, args.start_paused)
+    start_reader(control, sys.stdin)
+
+    from shared.data import load_ohlcv_arrays
+
+    date_range = {}
+    start, end = normalise_date(args.date_start), normalise_date(args.date_end)
+    if start:
+        date_range["start"] = start
+    if end:
+        date_range["end"] = end
+    raw = load_ohlcv_arrays(args.symbol, args.timeframe, max_bars=int(args.max_bars or 0), date_range=date_range or None)
+    data, dropped = clean_market_data(raw)
+    if dropped:
+        protocol.emit_log(f"[data] dropped {dropped} bars with duplicate or out-of-order timestamps", "warn")
+    if len(data) < 2:
+        raise ValueError(f"only {len(data)} bars loaded for {args.symbol} {args.timeframe}")
+    protocol.emit_log(f"[data] {len(data):,} bars, strictly increasing timestamps (epoch seconds, UTC)")
+
+    feature_started = time.monotonic()
+    feature_set = build_features(data.as_dict())
+    protocol.emit_log(
+        f"[features] {len(feature_set.names)} causal features, rolling z-score window {feature_set.lookback} "
+        f"clipped to {feature_set.clip[0]:g}..{feature_set.clip[1]:g} ({time.monotonic() - feature_started:.1f} s)"
+    )
+    for name, reason in feature_set.dropped.items():
+        protocol.emit_log(f"[features] dropped {name}: {reason}", "warn" if "looks ahead" in reason else "info")
+    if not feature_set.names:
+        raise ValueError("no usable features remain")
+
+    cost = load_cost_model(args.symbol)
+    hook = _factory_hook()
+    if hook is not None:
+        build_adapter = hook
+        suggest = None
+        protocol.emit_log(f"[plan] adapter factory from CYCLE_ADAPTER_FACTORY={os.environ['CYCLE_ADAPTER_FACTORY']}", "warn")
+    else:
+        from cycle import models
+
+        build_adapter = models.build_adapter
+        suggest = models.suggest_parameters
+        try:
+            family_defaults = models.default_parameters(family)
+            if family_defaults != FAMILY_DEFAULTS[family]:
+                protocol.emit_log(f"[plan] models.default_parameters({family}) differs from the plan table: {family_defaults}", "warn")
+        except Exception:  # noqa: BLE001
+            pass
+
+    settings = CycleSettings(
+        symbol=args.symbol,
+        timeframe=args.timeframe,
+        model_id=args.model_id,
+        model_family=family,
+        model_parameters=parameters,
+        artifact_directory=os.path.abspath(os.path.join("data", "models", args.model_id)),
+        **{key: getattr(args, key) for key, *_ in CYCLE_FLAGS if key != "device"},
+        device=device,
+        device_name=device_name,
+    )
+    engine = CycleEngine(
+        settings, data, feature_set, cost,
+        adapter_factory=lambda parameters: build_adapter(family, parameters, device, args.seed),
+        control=control,
+        suggest_parameters=(lambda trial, base: suggest(trial, family, base)) if suggest else None,
+    )
+    engine.started = started
+    engine.run()
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args, unknown = parser.parse_known_args(argv)
+    try:
+        return run(args, unknown)
+    except Exception as error:  # noqa: BLE001 - every failure is reported as an event
+        try:
+            protocol.emit_cycle_cursor("failed", fold_count=0)
+        except Exception:  # noqa: BLE001
+            pass
+        protocol.emit_error(f"{type(error).__name__}: {error}", traceback.format_exc())
+        return 1
+
+
+def _leave(exit_code: int) -> None:
+    """Exit without unloading native libraries.
+
+    After several cuDNN LSTM models in one process (tuning trials + folds), the
+    CUDA/cuDNN DLL-detach routines fast-fail with 0xC0000409 as the process
+    exits — AFTER `done` was emitted and every artifact was closed — and the
+    runner then records a finished run as failed. Measured 2026-09-25: lstm
+    with --tuning-trials 2 on cuda, reproducible; `os._exit` alone still
+    crashes because it runs DLL_PROCESS_DETACH. `TerminateProcess` on the
+    current process does not. Everything the parent reads is flushed first;
+    the pipe keeps it after the process is gone.
+    """
+    sys.stdout.flush()
+    sys.stderr.flush()
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        # Without these, ctypes returns the pseudo-handle -1 as a 32-bit int,
+        # TerminateProcess receives an invalid 64-bit handle, fails silently,
+        # and the process falls through to the crashing teardown.
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        kernel32.TerminateProcess.argtypes = (wintypes.HANDLE, wintypes.UINT)
+        kernel32.TerminateProcess.restype = wintypes.BOOL
+        kernel32.TerminateProcess(kernel32.GetCurrentProcess(), exit_code)
+    os._exit(exit_code)
+
+
+if __name__ == "__main__":
+    _leave(main())

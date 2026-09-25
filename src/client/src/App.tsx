@@ -128,9 +128,9 @@ const MarimoFactory = () => import("@/marimo/MarimoPage");
 const Marimo = lazyRetry(MarimoFactory, "Marimo");
 registerComponentFactory("/marimo", MarimoFactory);
 
-const LiveExecutionFactory = () => import("@/ml/LiveExecutionPage");
-const LiveExecution = lazyRetry(LiveExecutionFactory, "LiveExecution");
-registerComponentFactory("/live-execution", LiveExecutionFactory);
+const CycleFactory = () => import("@/cycle/CyclePage");
+const Cycle = lazyRetry(CycleFactory, "Cycle");
+registerComponentFactory("/cycle", CycleFactory);
 
 const NotFound = lazyRetry(() => import("@/shared/layout/not-found"), "NotFound");
 
@@ -180,7 +180,7 @@ function Router() {
               <Route path="/hardware"><ErrorBoundary><Suspense fallback={<PageLoader />}><Hardware /></Suspense></ErrorBoundary></Route>
               <Route path="/lens"><ErrorBoundary><Suspense fallback={<PageLoader />}><Lens /></Suspense></ErrorBoundary></Route>
               <Route path="/marimo"><ErrorBoundary><Suspense fallback={<PageLoader />}><Marimo /></Suspense></ErrorBoundary></Route>
-              <Route path="/live-execution"><ErrorBoundary><Suspense fallback={<PageLoader />}><LiveExecution /></Suspense></ErrorBoundary></Route>
+              <Route path="/cycle"><ErrorBoundary><Suspense fallback={<PageLoader />}><Cycle /></Suspense></ErrorBoundary></Route>
               <Route path="/settings"><ErrorBoundary><Suspense fallback={<PageLoader />}><Settings /></Suspense></ErrorBoundary></Route>
               <Route path="/training"><ErrorBoundary><Suspense fallback={<PageLoader />}><Training /></Suspense></ErrorBoundary></Route>
 

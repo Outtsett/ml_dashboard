@@ -114,6 +114,117 @@
         "har",
         "interpretable"
       ]
+    },
+    "logistic_regression": {
+      "name": "Logistic Regression",
+      "family": "sklearn",
+      "category": "Supervised",
+      "subcategory": "Classification",
+      "supports": [
+        "classification"
+      ],
+      "gpuRequired": false,
+      "description": "L2-regularized linear classifier over the causal feature matrix. The interpretable, fast baseline every other Model Cycle family is measured against.",
+      "tags": [
+        "tabular",
+        "linear",
+        "interpretable",
+        "baseline"
+      ]
+    },
+    "random_forest": {
+      "name": "Random Forest",
+      "family": "sklearn",
+      "category": "Supervised",
+      "subcategory": "Classification",
+      "supports": [
+        "classification"
+      ],
+      "gpuRequired": false,
+      "description": "Bagged ensemble of causal-feature decision trees, scikit-learn's RandomForestClassifier. No boosting, no early stopping — depth and leaf size are the only regularizers.",
+      "tags": [
+        "tabular",
+        "ensemble",
+        "tree"
+      ]
+    },
+    "lightgbm": {
+      "name": "LightGBM",
+      "family": "lightgbm",
+      "category": "Supervised",
+      "subcategory": "Gradient Boosting",
+      "supports": [
+        "classification"
+      ],
+      "gpuRequired": false,
+      "description": "Leaf-wise (best-first) gradient boosted trees. Same shape as XGBoost's boosting-round stepping, with LightGBM's own leaf-count and min-child-samples regularizers.",
+      "tags": [
+        "tabular",
+        "gradient-boosting"
+      ]
+    },
+    "multilayer_perceptron": {
+      "name": "Multilayer Perceptron",
+      "family": "pytorch",
+      "category": "neural-network",
+      "subcategory": "Feedforward Networks",
+      "supports": [
+        "classification"
+      ],
+      "gpuRequired": false,
+      "description": "Fully-connected feedforward network over the causal feature vector at each bar — no sequence memory, epoch/batch stepping with early stopping on the validation loss.",
+      "tags": [
+        "neural-network",
+        "feedforward"
+      ]
+    },
+    "lstm": {
+      "name": "LSTM",
+      "family": "pytorch",
+      "category": "neural-network",
+      "subcategory": "Recurrent Networks",
+      "supports": [
+        "classification"
+      ],
+      "gpuRequired": false,
+      "description": "Single/multi-layer LSTM reading a trailing window of `sequence_length` bars of causal features per prediction. Runs on CPU or GPU.",
+      "tags": [
+        "neural-network",
+        "recurrent",
+        "sequence"
+      ]
+    },
+    "temporal_convolution_network": {
+      "name": "Temporal Convolution Network",
+      "family": "pytorch",
+      "category": "neural-network",
+      "subcategory": "Convolutional Networks",
+      "supports": [
+        "classification"
+      ],
+      "gpuRequired": false,
+      "description": "Dilated causal 1D convolutions over a trailing window of bars (Bai et al. 2018 TCN shape) — a sequence model with no recurrence, so every step is parallel.",
+      "tags": [
+        "neural-network",
+        "convolutional",
+        "sequence"
+      ]
+    },
+    "transformer_encoder": {
+      "name": "Transformer Encoder",
+      "family": "transformer",
+      "category": "neural-network",
+      "subcategory": "Time-Series Transformers",
+      "supports": [
+        "classification"
+      ],
+      "gpuRequired": false,
+      "description": "Self-attention encoder over a trailing window of bars, with a classification head on the final position's representation.",
+      "tags": [
+        "transformer",
+        "sequence",
+        "attention"
+      ]
     }
   }
 }

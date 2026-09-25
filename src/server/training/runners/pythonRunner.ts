@@ -10,6 +10,7 @@ import { spawn, ChildProcess } from "child_process";
 import path from "path";
 import fs from "fs";
 import type { ResolvedTrainingConfig, TrainingSession, TrainingDiagnostics } from "@shared/trainingTypes";
+import type { CycleControl } from "@shared/cycle/schema";
 import { createSession, emitSessionEvent } from "./types";
 import type { ITrainerRunner } from "./types";
 import { getTrainingConfig } from "../registry";
@@ -19,10 +20,51 @@ import * as provenance from "../provenance";
 
 const logger = new Logger("PythonRunner");
 
+/**
+ * Cap on retained `session.stdout` (used only for the `__JSON_OUTPUT__`
+ * diagnostics marker lookup on a clean exit, and as a fallback log tail on a
+ * non-zero exit). Model Cycle's `cycle_bars` lines run up to ~200 KB each at
+ * up to 20 Hz, so an unbounded buffer is unbounded memory over a 12-hour
+ * paced replay. 2 MB keeps many minutes of recent output — comfortably more
+ * than the marker or a diagnostic tail ever needs — without growing forever.
+ */
+export const STDOUT_RETENTION_BYTES = 2 * 1024 * 1024;
+
+/** Append `text` to `buffer`, then trim to the retained tail. Exported for tests. */
+export function appendCapped(buffer: string, text: string): string {
+  const next = buffer + text;
+  return next.length > STDOUT_RETENTION_BYTES ? next.slice(-STDOUT_RETENTION_BYTES) : next;
+}
+
+/**
+ * Line-buffer a stdout chunk against a carried-over partial line from the
+ * previous chunk. Node's `'data'` event does not respect line boundaries — a
+ * `cycle_bars` line carries up to ~2000 bars (~200 KB), easily spanning two
+ * or more chunks, and splitting on `text.split("\n")` alone (the pre-Model-
+ * Cycle behaviour) turned one long line into several garbage lines, each
+ * failing to parse as JSON.
+ *
+ * Pure and exported so the chunking behaviour is testable without spawning a
+ * real child process. `carry` is the previous call's trailing partial line
+ * (`""` on the first call); the returned `carry` feeds the next call, and is
+ * parsed as a final line on stream `'close'` in case the process exits
+ * mid-line.
+ */
+export function splitBufferedLines(carry: string, chunk: string): { lines: string[]; carry: string } {
+  const combined = carry + chunk;
+  const parts = combined.split("\n");
+  const nextCarry = parts.pop() ?? "";
+  const lines = parts.map((l) => l.trim()).filter((l) => l.length > 0);
+  return { lines, carry: nextCarry };
+}
+
 // ─── Python Runner ───────────────────────────────────────────────────────────
 
 export class PythonRunner implements ITrainerRunner {
-  private sessions = new Map<string, TrainingSession & { child: ChildProcess; stdout: string; stderr: string }>();
+  private sessions = new Map<
+    string,
+    TrainingSession & { child: ChildProcess; stdout: string; stderr: string; stdoutCarry: string }
+  >();
 
   async start(config: ResolvedTrainingConfig, existingSession?: TrainingSession): Promise<TrainingSession> {
     const trainingCfg = getTrainingConfig();
@@ -37,12 +79,20 @@ export class PythonRunner implements ITrainerRunner {
       ? config.registry.outputDir
       : path.join(process.cwd(), config.registry.outputDir);
 
-    const session = (existingSession ?? createSession(config.modelId, config)) as TrainingSession & { child: ChildProcess; stdout: string; stderr: string };
+    const session = (existingSession ?? createSession(config.modelId, config)) as TrainingSession & {
+      child: ChildProcess;
+      stdout: string;
+      stderr: string;
+      stdoutCarry: string;
+    };
     session.stdout = "";
     session.stderr = "";
+    session.stdoutCarry = "";
 
-    // Build CLI args from resolved hyperparameters
-    const args = [script, "--symbol", config.symbol, "--timeframe", config.timeframe, "--model-id", config.modelId, "--json"];
+    // Build CLI args from resolved hyperparameters. `scriptArgs` (e.g. Model
+    // Cycle's `["--model-family", "xgboost"]`) is pushed right after the
+    // script path, before the standard flags.
+    const args = [script, ...(config.registry.scriptArgs ?? []), "--symbol", config.symbol, "--timeframe", config.timeframe, "--model-id", config.modelId, "--json"];
 
     // Pass max bars limit (0 = all data → omit flag so Python uses everything)
     const maxBars = config.maxBars ?? trainingCfg.limits.maxBarsDefault ?? 100000;
@@ -146,6 +196,13 @@ export class PythonRunner implements ITrainerRunner {
     });
     session.child = child;
 
+    // A write to stdin after the child (or just its read end) has exited
+    // raises EPIPE asynchronously as a stream 'error', not synchronously from
+    // .write() — without this listener that is an uncaught exception.
+    child.stdin.on("error", (err) => {
+      logger.warn(`stdin error for session ${session.sessionId}: ${(err as Error).message}`);
+    });
+
     // Persist PID to SQLite for recovery/cleanup (DIP — storage abstraction)
     const dbSessId = (session as { dbSessionId?: number | null }).dbSessionId;
     if (dbSessId != null && child.pid) {
@@ -158,8 +215,10 @@ export class PythonRunner implements ITrainerRunner {
       );
     }
 
-    // Training timeout: SIGTERM then SIGKILL after grace period
-    const maxDurationSec = trainingCfg.limits.maxTrainingDurationSec ?? 7200;
+    // Training timeout: SIGTERM then SIGKILL after grace period. A runner
+    // entry's `maxDurationSeconds` (e.g. Model Cycle's 43200s — a paced
+    // bar-by-bar replay can legitimately run long) replaces the config default.
+    const maxDurationSec = config.registry.maxDurationSeconds ?? trainingCfg.limits.maxTrainingDurationSec ?? 7200;
     const timeoutHandle = setTimeout(() => {
       if (!session.finished) {
         logger.warn(`Session ${session.sessionId} exceeded ${maxDurationSec}s timeout, sending SIGTERM`);
@@ -179,10 +238,12 @@ export class PythonRunner implements ITrainerRunner {
 
     child.stdout.on("data", (chunk) => {
       const text = chunk.toString();
-      session.stdout += text;
-      const lines = text.split("\n").filter((l: string) => l.trim());
+      session.stdout = appendCapped(session.stdout, text);
+
+      const { lines, carry } = splitBufferedLines(session.stdoutCarry, text);
+      session.stdoutCarry = carry;
       for (const line of lines) {
-        parser.parseLine(session, line.trim(), parserCtx);
+        parser.parseLine(session, line, parserCtx);
       }
       // Liveness signal for the boot sweeper. Throttled inside `provenance` —
       // one SQLite UPDATE per stdout chunk would sit on the hot metric path.
@@ -208,6 +269,15 @@ export class PythonRunner implements ITrainerRunner {
 
     child.on("close", (code) => {
       clearTimeout(timeoutHandle);
+
+      // Flush a trailing partial line — the process can exit mid-line (no
+      // final "\n") and that line still carries a real event.
+      const remainder = session.stdoutCarry.trim();
+      session.stdoutCarry = "";
+      if (remainder) {
+        parser.parseLine(session, remainder, parserCtx);
+      }
+
       session.finished = true;
       session.exitCode = code;
 
@@ -299,20 +369,38 @@ export class PythonRunner implements ITrainerRunner {
   stop(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     if (session?.child && !session.finished) {
-      session.child.kill("SIGTERM");
-
-      // SIGKILL fallback if process doesn't exit within 30s
-      const killTimeout = setTimeout(() => {
+      // `child.kill()` on Windows is TerminateProcess on the direct child
+      // ONLY — a Python process that has spawned its own workers (or a
+      // dashboard-launched grandchild) survives orphaned. `taskkill /T`
+      // walks the whole process tree; `/F` force-kills without waiting on a
+      // graceful shutdown, so there is no SIGKILL-fallback timer to manage.
+      if (process.platform === "win32" && session.child.pid) {
         try {
-          if (session.child?.exitCode === null) {
-            session.child.kill("SIGKILL");
-            logger.warn(`Force-killed session ${sessionId} after SIGTERM timeout`);
-          }
-        } catch {
-          // Process may already be dead
+          const killer = spawn("taskkill", ["/PID", String(session.child.pid), "/T", "/F"], {
+            detached: true,
+            stdio: "ignore",
+          });
+          killer.unref();
+        } catch (err) {
+          logger.warn(`taskkill failed for session ${sessionId}: ${(err as Error).message}; falling back to SIGTERM`);
+          session.child.kill("SIGTERM");
         }
-      }, 30_000);
-      killTimeout.unref();
+      } else {
+        session.child.kill("SIGTERM");
+
+        // SIGKILL fallback if process doesn't exit within 30s
+        const killTimeout = setTimeout(() => {
+          try {
+            if (session.child?.exitCode === null) {
+              session.child.kill("SIGKILL");
+              logger.warn(`Force-killed session ${sessionId} after SIGTERM timeout`);
+            }
+          } catch {
+            // Process may already be dead
+          }
+        }, 30_000);
+        killTimeout.unref();
+      }
 
       emitSessionEvent(session, "error", { message: "Training stopped by user" });
       session.finished = true;
@@ -352,13 +440,38 @@ export class PythonRunner implements ITrainerRunner {
   }
 
   /**
+   * Write one Model Cycle control command to the running process's stdin, one
+   * JSON object per line (`{"command":"pause"}` etc. — `cycleControlSchema`).
+   * Returns `false` — never throws — when there is no live child or its
+   * stdin is not writable; an EPIPE on the write itself is caught here, and a
+   * write that races a just-exited process (EPIPE raised asynchronously as a
+   * stream 'error') is swallowed by the `stdin.on("error", ...)` listener
+   * attached at spawn time.
+   */
+  sendControl(sessionId: string, command: CycleControl): boolean {
+    const session = this.sessions.get(sessionId);
+    const stdin = session?.child?.stdin;
+    if (!session || session.finished || !stdin || stdin.destroyed || !stdin.writable) {
+      return false;
+    }
+    try {
+      stdin.write(`${JSON.stringify(command)}\n`);
+      return true;
+    } catch (err) {
+      logger.warn(`sendControl(${sessionId}, ${command.command}) failed: ${(err as Error).message}`);
+      return false;
+    }
+  }
+
+  /**
    * Terminate every live training child. Called on server shutdown: a detached
    * Python process outlives the Node parent on Windows, so without this a restart
    * left the previous run's process writing to the same checkpoint directory as
    * the new one, and nothing in the dashboard knew it existed.
    *
-   * Reuses stop(), so each session gets the same SIGTERM, the same 30s SIGKILL
-   * fallback and the same terminal-state bookkeeping as a stop from the UI.
+   * Reuses stop(), so each session gets the same kill path (taskkill tree-kill
+   * on Windows, SIGTERM then a 30s SIGKILL fallback elsewhere) and the same
+   * terminal-state bookkeeping as a stop from the UI.
    */
   stopAll(): number {
     const live = [...this.sessions.values()].filter((s) => !s.finished);

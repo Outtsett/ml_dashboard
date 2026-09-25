@@ -31,6 +31,7 @@
 
 import { z } from 'zod';
 import type { TrainingSession } from '@shared/trainingTypes';
+import { CYCLE_EVENT_SCHEMAS, isCycleEventType, type CycleEventType } from '@shared/cycle/schema';
 import { emitSessionEvent } from '../types';
 import type { IOutputParser, ParserContext } from './types';
 import { getRunContext } from '../../provenance';
@@ -284,7 +285,23 @@ export type ParsedLine =
       /** Human-readable Zod failure: `path: message; path: message`. */
       validationError: string;
     }
-  | { kind: 'log'; message: string };
+  | { kind: 'log'; message: string }
+  /**
+   * A Model Cycle `cycle_*` event (`@shared/cycle/schema` `CYCLE_EVENT_SCHEMAS`)
+   * that validated. `event` is the schema's parsed output — envelope fields it
+   * declares (`seq`, `run_id`, `ts`) survive; other raw envelope keys
+   * (`v`, `mono_ns`, `trial_idx`, ...) are stripped by the schema's default
+   * strip mode, same as every other event shape here.
+   */
+  | { kind: 'cycle_event'; eventType: CycleEventType; event: Record<string, unknown> }
+  /**
+   * A `cycle_*`-typed line whose payload failed its schema. Kept distinct
+   * from `unknown` because a `cycle_bars` line carries up to ~2000 bars
+   * (~200 KB) — the generic `unknown` path's raw-payload log dump would
+   * flood the terminal panel and the SQLite log table with it, so this path
+   * carries only the first Zod issue, capped.
+   */
+  | { kind: 'cycle_invalid'; eventType: CycleEventType; firstIssue: string };
 
 /** Compact, single-line rendering of a Zod failure for a log message. */
 function formatValidationError(error: z.ZodError): string {
@@ -296,6 +313,13 @@ function formatValidationError(error: z.ZodError): string {
     issues.push(`(+${error.issues.length - issues.length} more)`);
   }
   return issues.join('; ');
+}
+
+/** The first Zod issue only, as `path: message`, capped at 300 characters. */
+function formatFirstIssue(error: z.ZodError): string {
+  const issue = error.issues[0];
+  const message = issue ? `${issue.path.length ? issue.path.join('.') : '<root>'}: ${issue.message}` : 'unknown validation error';
+  return message.length > 300 ? `${message.slice(0, 297)}...` : message;
 }
 
 /**
@@ -320,6 +344,21 @@ export function parseGeneratedLine(line: string): ParsedLine {
   }
 
   const obj = parsed as Record<string, unknown> & { type?: string };
+
+  // Model Cycle events are dispatched on the wire contract in
+  // `@shared/cycle/schema` (the single source of truth shared with the
+  // Python emitters and the client store) rather than the generic union
+  // above — they carry thousands of bars per line and use their own,
+  // narrower envelope.
+  if (typeof obj.type === 'string' && isCycleEventType(obj.type)) {
+    const eventType = obj.type;
+    const cycleResult = CYCLE_EVENT_SCHEMAS[eventType].safeParse(obj);
+    if (cycleResult.success) {
+      return { kind: 'cycle_event', eventType, event: cycleResult.data as Record<string, unknown> };
+    }
+    return { kind: 'cycle_invalid', eventType, firstIssue: formatFirstIssue(cycleResult.error) };
+  }
+
   const result = GeneratedEventSchema.safeParse(obj);
   if (result.success) {
     return { kind: 'event', event: result.data as GeneratedEvent };
@@ -419,6 +458,32 @@ export class GeneratedParser implements IOutputParser {
         unknownType: result.raw.type ?? null,
         validationError: result.validationError,
         knownType: result.knownType,
+      });
+      return true;
+    }
+
+    if (result.kind === 'cycle_event') {
+      const payload: Record<string, unknown> = { ...result.event };
+      delete payload.type;
+      withSynthesizedEnvelope(payload, _ctx.modelId);
+      // `result.eventType` is one of the seven `cycle_*` literals, which are
+      // not part of `TrainingEventType` (owned outside this file) — the same
+      // cast the generic `event` branch below uses for its own `type`.
+      emitSessionEvent(session, result.eventType as Parameters<typeof emitSessionEvent>[1], payload);
+      return true;
+    }
+
+    if (result.kind === 'cycle_invalid') {
+      // A `cycle_bars` line failing validation is never dumped whole (it can
+      // carry ~2000 bars) — only the event type and the first Zod issue.
+      const headline = `Protocol drift: "${result.eventType}" cycle event failed validation — ${result.firstIssue}`;
+      warnOnce(session.sessionId, result.eventType, headline);
+      emitSessionEvent(session, 'log', {
+        level: 'warn',
+        message: headline,
+        unknownType: result.eventType,
+        validationError: result.firstIssue,
+        knownType: true,
       });
       return true;
     }

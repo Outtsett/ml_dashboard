@@ -8,9 +8,9 @@ test) gaps to prevent label-horizon leakage between train and test sets.
 Calendar-aware: month boundaries are honored via numpy.datetime64[M] arithmetic
 (handles uneven month lengths — Feb has 28/29 days, Jan/Mar have 31, etc.).
 
-Public API:
+Public API (``iter_day_folds`` is the calendar-day variant the Model Cycle uses):
 
-    from src.ml.shared.walk_forward import iter_folds, Fold
+    from src.ml.shared.walk_forward import iter_folds, iter_day_folds, Fold
 
     for fold in iter_folds(
         timestamps=ts,         # int64 epoch seconds, sorted ascending
@@ -190,4 +190,88 @@ def iter_folds(
         fold_idx += 1
 
 
-__all__ = ["Fold", "iter_folds"]
+def iter_day_folds(
+    timestamps: np.ndarray,
+    train_days: int,
+    test_days: int,
+    step_days: int,
+    purge_bars: int = 0,
+    embargo_bars: int = 0,
+    *,
+    expanding: bool = False,
+) -> Iterator[Fold]:
+    """Calendar-DAY walk-forward folds — the Model Cycle's iterator.
+
+    Same `Fold` dataclass and the same conventions as :func:`iter_folds`, with
+    windows measured in whole UTC calendar days instead of months:
+
+      - day boundaries are ``datetime64[D]`` of the epoch-second timestamps
+        (UTC midnight), windows are half-open ``[start, end)``;
+      - the first test window starts ``train_days`` after the first data day,
+        later ones advance by ``step_days``;
+      - a window is only yielded when its whole test span lies inside the data
+        (the last fold's test window ends on or before the last data day + 1);
+      - ``purge_bars`` trims the END of the training rows, ``embargo_bars``
+        trims the START of the test rows; a fold left empty by either is skipped;
+      - ``expanding=True`` anchors every training window at the first data day.
+
+    ``step_days`` smaller than ``test_days`` would test a bar twice and is an
+    error here, not a silent overlap.
+    """
+    if train_days < 1:
+        raise ValueError(f"train_days must be >= 1, got {train_days}")
+    if test_days < 1:
+        raise ValueError(f"test_days must be >= 1, got {test_days}")
+    if step_days < test_days:
+        raise ValueError(
+            f"step_days ({step_days}) must be >= test_days ({test_days}); "
+            "a smaller step would test the same bar in two folds"
+        )
+    if purge_bars < 0:
+        raise ValueError(f"purge_bars must be >= 0, got {purge_bars}")
+    if embargo_bars < 0:
+        raise ValueError(f"embargo_bars must be >= 0, got {embargo_bars}")
+
+    ts = _to_datetime64_s(timestamps)
+    n = ts.shape[0]
+    if n == 0:
+        return
+    if n > 1 and not (np.diff(ts) >= np.timedelta64(0, "s")).all():
+        raise ValueError("timestamps must be sorted ascending")
+
+    first_day = ts[0].astype("datetime64[D]")
+    last_day = ts[-1].astype("datetime64[D]")
+    total_days = int((last_day - first_day).astype("int64")) + 1
+    one_day = np.timedelta64(1, "D")
+
+    fold_idx = 0
+    for test_offset_days in range(train_days, total_days - test_days + 1, step_days):
+        test_start_d = first_day + test_offset_days * one_day
+        test_end_d = test_start_d + test_days * one_day
+        train_start_d = first_day if expanding else test_start_d - train_days * one_day
+
+        tr_lo = int(np.searchsorted(ts, train_start_d.astype("datetime64[s]"), side="left"))
+        tr_hi = int(np.searchsorted(ts, test_start_d.astype("datetime64[s]"), side="left"))
+        te_lo = tr_hi
+        te_hi = int(np.searchsorted(ts, test_end_d.astype("datetime64[s]"), side="left"))
+
+        tr_hi_purged = max(tr_lo, tr_hi - purge_bars)
+        te_lo_emb = min(te_hi, te_lo + embargo_bars)
+        if tr_hi_purged <= tr_lo or te_hi <= te_lo_emb:
+            continue
+
+        train_idx = np.arange(tr_lo, tr_hi_purged, dtype=np.int64)
+        test_idx = np.arange(te_lo_emb, te_hi, dtype=np.int64)
+        yield Fold(
+            idx=fold_idx,
+            train_start=ts[train_idx[0]],
+            train_end=ts[train_idx[-1]],
+            test_start=ts[test_idx[0]],
+            test_end=ts[test_idx[-1]],
+            train_idx=train_idx,
+            test_idx=test_idx,
+        )
+        fold_idx += 1
+
+
+__all__ = ["Fold", "iter_folds", "iter_day_folds"]

@@ -31,6 +31,8 @@ import IndicatorChartLayout from "@/market/components/IndicatorChartLayout";
 import { ReplayControls } from "@/market/components/ReplayControls";
 import { RegimeLegend } from "@/ml/components/RegimeLegend";
 import { TrainingSyncBanner } from "@/training/TrainingSyncBanner";
+import { useCycleStore } from "@/cycle/store";
+import { CycleChartArea } from "@/cycle/CycleChart";
 
 export default function MarketData() {
   const dashboard = useDashboard();
@@ -41,6 +43,8 @@ export default function MarketData() {
   // never changes and an effect that writes an overlay cannot re-trigger itself.
   const { setPredictionMarkers, setHighlightRange } = useChartOverlayContext();
   const { models } = useRegimeModels(training.isTraining);
+  // A Model Cycle run on screen replaces the market chart (which unmounts) until "Back to market chart".
+  const cycleChartShown = useCycleStore((state) => state.modelId !== null && state.showOnChart);
 
   // Use dashboard context state directly to avoid redundant local state sync
   const { symbol, assetType, timeframeMinutes: timeframe } = dashboard;
@@ -418,7 +422,9 @@ export default function MarketData() {
       {isTrainingActive && <TrainingStatusStrip />}
 
       {/* Analytics Strip */}
-      {!isFetching && chartData.length === 0 ? (
+      {cycleChartShown ? (
+        <CycleChartArea />
+      ) : !isFetching && chartData.length === 0 ? (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 min-h-0 flex items-center justify-center">
           <Empty>
             <EmptyHeader>
