@@ -130,13 +130,24 @@ def _next_seq() -> int:
     return seq
 
 
-def _envelope(event_type: str, payload: dict, kind: str = _DEFAULT_KIND) -> dict:
+def _envelope(
+    event_type: str,
+    payload: dict,
+    kind: str = _DEFAULT_KIND,
+    *,
+    nested_copy: bool = True,
+) -> dict:
     """Wrap a flat emitter payload in the common v1 envelope.
 
     Field order matters only for readability; `payload` is applied *after* the
     envelope defaults so an emitter that carries its own coordinate (e.g.
     `emit_fold_complete`'s `fold_idx`) wins over the module-level active one
     rather than being nulled by it.
+
+    ``nested_copy=False`` drops the transition-form ``data`` duplicate. The
+    `cycle_*` events use it: they carry thousands of bars per line, every
+    consumer of them reads the flat fields, and none of them goes through
+    `XgbClassifierParser`, which is what the duplicate exists for.
     """
     envelope = {
         "type": event_type,
@@ -155,7 +166,8 @@ def _envelope(event_type: str, payload: dict, kind: str = _DEFAULT_KIND) -> dict
     }
     envelope.update(payload)
     envelope["type"] = event_type  # payload may not override the discriminator
-    envelope["data"] = dict(payload)
+    if nested_copy:
+        envelope["data"] = dict(payload)
     return envelope
 
 
@@ -643,3 +655,329 @@ def emit_config(
 
 def emit_error(message: str, details: str = ""):
     emit(_envelope("error", {"message": message, "details": details}))
+
+
+# ─── Model Cycle events ─────────────────────────────────────────────────────
+#
+# The wire contract for `src/ml/cycle/main.py` — one process that loads bars,
+# tunes, trains, validates and walks test bars one at a time while the
+# dashboard chart follows it. Field names here are the zod schema in
+# `src/shared/cycle/schema.ts`, letter for letter; the design and the command
+# line are `docs/plans/2026-09-25-model-cycle.md`.
+#
+# Payload keys are camelCase; times are epoch SECONDS; an undefined number is
+# None (serialised as null), never 0. Each emitter validates only what would
+# make the event unreadable downstream (mismatched column lengths) and leaves
+# domain checks to the engine.
+
+CYCLE_PHASES = (
+    "loading",
+    "tuning",
+    "training",
+    "validating",
+    "testing",
+    "complete",
+    "stopped",
+    "failed",
+)
+CYCLE_STEP_UNITS = ("epoch", "boosting_round", "tree_batch", "solver_pass")
+
+
+def _optional_number(value):
+    """A finite float, or None for None / NaN / infinity / non-numeric."""
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _optional_int(value):
+    return None if value is None else int(value)
+
+
+def _emit_cycle(event_type: str, payload: dict) -> None:
+    emit(_envelope(event_type, payload, nested_copy=False))
+
+
+def emit_cycle_plan(plan: dict) -> None:
+    """The run's plan, once, after the data is loaded and before any fitting.
+
+    ``plan`` carries every `cyclePlanSchema` field: symbol, timeframe,
+    modelFamily, modelLabel, parameters, device, deviceName, dataStart,
+    dataEnd, barCount, barsPerYear, featureNames, labelHorizonBars,
+    labelThresholdTicks, purgeBars, embargoBars, costModel, trading, tuning,
+    folds, barsPerSecond, startPaused, artifactDirectory.
+    """
+    required = ("symbol", "timeframe", "modelFamily", "folds", "barsPerYear", "costModel", "trading")
+    missing = [key for key in required if key not in plan]
+    if missing:
+        raise ValueError(f"emit_cycle_plan: missing {missing}")
+    _emit_cycle("cycle_plan", dict(plan))
+
+
+def emit_cycle_bars(
+    role: str,
+    fold_index,
+    timestamps,
+    open_prices,
+    high_prices,
+    low_prices,
+    close_prices,
+    volumes,
+    *,
+    probability_up=None,
+    predicted_direction=None,
+    position=None,
+    equity_usd=None,
+    resolved=None,
+) -> None:
+    """Bars in strict timestamp order, each bar emitted exactly once per run.
+
+    ``role="context"`` — bars the model has not been tested on (training
+    history, the purge/embargo gap). ``role="processed"`` — test bars the model
+    has just predicted; the five prediction columns must then be given, one
+    value per bar.
+
+    ``resolved`` is ``{"timestamps": [...], "actualDirection": [...],
+    "correct": [...]}`` for labels that became known in this frame.
+    """
+    if role not in ("context", "processed"):
+        raise ValueError(f"emit_cycle_bars: role must be context or processed, got {role!r}")
+    count = len(timestamps)
+    columns = {
+        "open": open_prices,
+        "high": high_prices,
+        "low": low_prices,
+        "close": close_prices,
+        "volume": volumes,
+    }
+    for name, column in columns.items():
+        if len(column) != count:
+            raise ValueError(f"emit_cycle_bars: {name} has {len(column)} values for {count} timestamps")
+    payload: dict = {
+        "role": role,
+        "foldIndex": _optional_int(fold_index),
+        "timestamps": [int(t) for t in timestamps],
+        "open": [float(v) for v in open_prices],
+        "high": [float(v) for v in high_prices],
+        "low": [float(v) for v in low_prices],
+        "close": [float(v) for v in close_prices],
+        "volume": [float(v) for v in volumes],
+    }
+    if role == "processed":
+        prediction_columns = {
+            "probabilityUp": probability_up,
+            "predictedDirection": predicted_direction,
+            "position": position,
+            "equityUsd": equity_usd,
+        }
+        for name, column in prediction_columns.items():
+            if column is None or len(column) != count:
+                raise ValueError(f"emit_cycle_bars: processed bars need {name} with {count} values")
+        payload["probabilityUp"] = [_optional_number(v) for v in probability_up]
+        payload["predictedDirection"] = [int(v) for v in predicted_direction]
+        payload["position"] = [int(v) for v in position]
+        payload["equityUsd"] = [float(v) for v in equity_usd]
+    if resolved is not None:
+        resolved_count = len(resolved["timestamps"])
+        if len(resolved["actualDirection"]) != resolved_count or len(resolved["correct"]) != resolved_count:
+            raise ValueError("emit_cycle_bars: resolved columns must be parallel")
+        payload["resolved"] = {
+            "timestamps": [int(t) for t in resolved["timestamps"]],
+            "actualDirection": [int(v) for v in resolved["actualDirection"]],
+            "correct": [None if v is None else bool(v) for v in resolved["correct"]],
+        }
+    _emit_cycle("cycle_bars", payload)
+
+
+def emit_cycle_cursor(
+    phase: str,
+    *,
+    fold_index=None,
+    fold_count: int = 0,
+    span_start=None,
+    span_end=None,
+    bar_timestamp=None,
+    bar_index=None,
+    bar_count=None,
+    epoch=None,
+    epoch_count=None,
+    batch=None,
+    batch_count=None,
+    step_unit=None,
+    trial=None,
+    trial_count=None,
+    phase_fraction: float = 0.0,
+    overall_fraction: float = 0.0,
+    bars_per_second: float = 0.0,
+    paused: bool = False,
+    elapsed_seconds: float = 0.0,
+) -> None:
+    """Where the model is right now. The engine throttles this to about 20 Hz
+    and always emits it on a phase change."""
+    if phase not in CYCLE_PHASES:
+        raise ValueError(f"emit_cycle_cursor: unknown phase {phase!r}")
+    if step_unit is not None and step_unit not in CYCLE_STEP_UNITS:
+        raise ValueError(f"emit_cycle_cursor: unknown step unit {step_unit!r}")
+    _emit_cycle(
+        "cycle_cursor",
+        {
+            "phase": phase,
+            "foldIndex": _optional_int(fold_index),
+            "foldCount": int(fold_count),
+            "spanStart": _optional_int(span_start),
+            "spanEnd": _optional_int(span_end),
+            "barTimestamp": _optional_int(bar_timestamp),
+            "barIndex": _optional_int(bar_index),
+            "barCount": _optional_int(bar_count),
+            "epoch": _optional_int(epoch),
+            "epochCount": _optional_int(epoch_count),
+            "batch": _optional_int(batch),
+            "batchCount": _optional_int(batch_count),
+            "stepUnit": step_unit,
+            "trial": _optional_int(trial),
+            "trialCount": _optional_int(trial_count),
+            "phaseFraction": min(1.0, max(0.0, float(phase_fraction))),
+            "overallFraction": min(1.0, max(0.0, float(overall_fraction))),
+            "barsPerSecond": max(0.0, float(bars_per_second)),
+            "paused": bool(paused),
+            "elapsedSeconds": max(0.0, float(elapsed_seconds)),
+        },
+    )
+
+
+def emit_cycle_epoch(
+    *,
+    fold_index,
+    trial,
+    epoch: int,
+    epoch_count: int,
+    step_unit: str,
+    train_loss=None,
+    validation_loss=None,
+    validation_accuracy=None,
+    validation_f1_score=None,
+    learning_rate=None,
+    gradient_norm=None,
+    is_best: bool = False,
+    seconds_elapsed: float = 0.0,
+) -> None:
+    """One training-step summary: an epoch, a chunk of boosting rounds, a
+    chunk of trees, or a solver pass (``step_unit`` says which)."""
+    if step_unit not in CYCLE_STEP_UNITS:
+        raise ValueError(f"emit_cycle_epoch: unknown step unit {step_unit!r}")
+    _emit_cycle(
+        "cycle_epoch",
+        {
+            "foldIndex": _optional_int(fold_index),
+            "trial": _optional_int(trial),
+            "epoch": int(epoch),
+            "epochCount": int(epoch_count),
+            "stepUnit": step_unit,
+            "trainLoss": _optional_number(train_loss),
+            "validationLoss": _optional_number(validation_loss),
+            "validationAccuracy": _optional_number(validation_accuracy),
+            "validationF1Score": _optional_number(validation_f1_score),
+            "learningRate": _optional_number(learning_rate),
+            "gradientNorm": _optional_number(gradient_norm),
+            "isBest": bool(is_best),
+            "secondsElapsed": max(0.0, float(seconds_elapsed)),
+        },
+    )
+
+
+def emit_cycle_trial(
+    *,
+    trial: int,
+    trial_count: int,
+    state: str,
+    parameters: dict,
+    objective_name: str,
+    objective_value=None,
+    best_value=None,
+    best_trial=None,
+) -> None:
+    """An Optuna trial started (``running``), finished, was pruned or failed."""
+    if state not in ("running", "complete", "pruned", "failed"):
+        raise ValueError(f"emit_cycle_trial: unknown state {state!r}")
+    clean_parameters = {}
+    for key, value in parameters.items():
+        if isinstance(value, bool) or isinstance(value, str):
+            clean_parameters[str(key)] = value
+        else:
+            clean_parameters[str(key)] = float(value) if isinstance(value, float) else int(value)
+    _emit_cycle(
+        "cycle_trial",
+        {
+            "trial": int(trial),
+            "trialCount": int(trial_count),
+            "state": state,
+            "parameters": clean_parameters,
+            "objectiveName": objective_name,
+            "objectiveValue": _optional_number(objective_value),
+            "bestValue": _optional_number(best_value),
+            "bestTrial": _optional_int(best_trial),
+        },
+    )
+
+
+def emit_cycle_trade(trade: dict) -> None:
+    """A trade opened (``status="open"``) or closed (``status="closed"``).
+
+    ``trade`` carries every `cycleTradeSchema` field: tradeNumber, foldIndex,
+    side, status, contracts, entryTimestamp, entryPrice, exitTimestamp,
+    exitPrice, barsHeld, probabilityUpAtEntry, grossProfitUsd, costUsd,
+    netProfitUsd, exitReason.
+    """
+    payload = dict(trade)
+    for key in ("grossProfitUsd", "costUsd", "netProfitUsd", "exitPrice"):
+        payload[key] = _optional_number(payload.get(key))
+    _emit_cycle("cycle_trade", payload)
+
+
+def emit_cycle_scoreboard(
+    *,
+    scope: str,
+    fold_index,
+    bars_evaluated: int,
+    bars_scored: int,
+    metrics: dict,
+    trade_distribution: dict,
+    notes=(),
+) -> None:
+    """Running (during a test walk), per-fold, or final metrics. Every value in
+    ``metrics`` is a finite float or None."""
+    if scope not in ("running", "fold", "final"):
+        raise ValueError(f"emit_cycle_scoreboard: unknown scope {scope!r}")
+    distribution = {
+        "count": int(trade_distribution.get("count", 0)),
+        **{
+            key: _optional_number(trade_distribution.get(key))
+            for key in (
+                "mean",
+                "median",
+                "standardDeviation",
+                "skewness",
+                "kurtosis",
+                "percentile25",
+                "percentile75",
+                "minimum",
+                "maximum",
+            )
+        },
+    }
+    _emit_cycle(
+        "cycle_scoreboard",
+        {
+            "scope": scope,
+            "foldIndex": _optional_int(fold_index),
+            "barsEvaluated": int(bars_evaluated),
+            "barsScored": int(bars_scored),
+            "metrics": {str(name): _optional_number(value) for name, value in metrics.items()},
+            "tradeDistribution": distribution,
+            "notes": [str(note) for note in notes],
+        },
+    )
