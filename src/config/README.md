@@ -11,6 +11,7 @@ Centralized JSON configuration files that drive the application's behavior. Thes
 | `feature_extraction.json` | Per-indicator transform specs (13 categories, 8 transform types) | Python `feature_extract.py` (ML training pipeline) |
 | `training.json` | Infrastructure config: paths, resource limits, timeframe map | Server training orchestrator |
 | `cost_model.json` | Trading cost model: commissions + slippage per broker (AMP/CQG: $2.80 RT for MNQ) | Python trade simulator, backtest engine |
+| `contract_specifications.json` | Stock-index futures contract specifications (42 contracts: tick size in index points, tick value, contract multiplier, listing exchange, currency, contract months; CME / CBOT rows also carry Globex code, trading hours, last trading day, settlement). Built by `scripts/build_contract_specifications.py` from AMP Futures' page; reference `docs/contract-specifications.md` | `src/shared/instruments.ts` → `scripts/seed-instruments.ts` (SQLite `instruments`, `/api/instruments`) and the chart's tick table (`chartConfig.ts`); `notebooks/contract_specifications.py`; `tests/shared/instruments.test.ts` + `tests/test_contract_specifications.py` hold `cost_model.json` to it |
 | `visualizations.json` | Config-driven visualization component registry | Client visualization system |
 | `metric-descriptions.json` | Legacy metric annotations (superseded by `metricDeclarations` in `models.json`) | Deprecated, kept for reference |
 | `model-templates.json` | Model template definitions | Model creation UI |

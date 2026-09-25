@@ -2,16 +2,10 @@ import { ColorType, type Time } from 'lightweight-charts';
 
 // ── Symbol metadata ────────────────────────────────────────────────────────
 
-export const futuresTickInfo: Record<string, { tickSize: number; tickValue: number; decimals: number }> = {
-  ES: { tickSize: 0.25, tickValue: 12.50, decimals: 2 },
-  MES: { tickSize: 0.25, tickValue: 1.25, decimals: 2 },
-  NQ: { tickSize: 0.25, tickValue: 5.00, decimals: 2 },
-  MNQ: { tickSize: 0.25, tickValue: 0.50, decimals: 2 },
-  RTY: { tickSize: 0.10, tickValue: 5.00, decimals: 2 },
-  M2K: { tickSize: 0.10, tickValue: 0.50, decimals: 2 },
-  YM: { tickSize: 1.00, tickValue: 5.00, decimals: 0 },
-  MYM: { tickSize: 1.00, tickValue: 0.50, decimals: 0 },
-};
+// Tick size, tick value and price decimals per futures root, derived from
+// `src/config/contract_specifications.json` (AMP Futures, cross-checked against CME Group).
+// Kept exported from here so the chart modules keep their import.
+export { futuresTickInfo } from '@shared/instruments';
 
 export const forexPipInfo: Record<string, { pipLocation: number; pipValue: number; decimals: number }> = {
   EURUSD: { pipLocation: 4, pipValue: 0.0001, decimals: 5 },

@@ -36,6 +36,7 @@ docs/
 | `research/catalog_per_model_notes.md` | Per-spec evidence base — 300 verdicts (CORE/SUPPORTING/RESEARCH/BASELINE/REJECT) across 7 bucket tables |
 | `UNIVERSAL-TRAINING-ARCHITECTURE.md` | Universal training architecture overview |
 | `SIMULATOR-ARCHITECTURE.md` | Trade simulator design |
+| `contract-specifications.md` | Stock-index futures contract specifications (tick, exchange, contract size, months) from AMP Futures, cross-checked against CME Group; the data is `src/config/contract_specifications.json`, the interactive view `notebooks/contract_specifications.py` |
 | `UI_SPEC.md` | UI specification and layout |
 | `SOLID-FIX-PLAN.md` | SOLID principles refactoring plan |
 | `oanda-v20-api-reference.md` | Oanda forex API reference |

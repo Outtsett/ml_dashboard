@@ -59,7 +59,8 @@ tables; running one connects to a dead endpoint. They are queued for deletion.
 ### Seeding & Setup
 | Script | Language | Description |
 |---|---|---|
-| `seed-instruments.ts` | TypeScript | Upsert 25 instruments (8 futures + 17 forex) |
+| `seed-instruments.ts` | TypeScript | Upsert 24 instruments: the 8 futures roots the lake carries, read from `src/config/contract_specifications.json` through `src/shared/instruments.ts`, plus 16 forex pairs |
+| `build_contract_specifications.py` | Python | Build `src/config/contract_specifications.json` (42 stock-index futures: tick, exchange, contract size, months) from AMP Futures' contract-specifications page; `--html <saved page>` parses a copy, `--check` exits 1 if the file would change |
 | `seed-models.ts` | TypeScript | Seed ML model definitions |
 | `seed-broker-configs.cjs` | JavaScript | Seed broker configuration |
 | `setup_hypertable.sql` | SQL | TimescaleDB hypertable setup (legacy) |

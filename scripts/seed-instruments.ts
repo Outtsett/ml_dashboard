@@ -1,22 +1,15 @@
 /**
  * Seed the instruments table with known symbols and their metadata.
  * Run: npx tsx scripts/seed-instruments.ts
+ *
+ * Futures rows come from `src/config/contract_specifications.json` through
+ * `src/shared/instruments.ts` (the roots the lake carries); forex rows are listed here.
  */
-import { db } from '../server/db';
-import { instruments } from '../shared/schema';
+import { db, closeDatabases } from '../src/server/infrastructure/database/db';
+import { instruments, type InsertInstrument } from '../src/shared/schema';
+import { futuresInstrumentRows } from '../src/shared/instruments';
 
-const INSTRUMENTS = [
-  // CME Micro Futures
-  { symbol: 'MNQ', name: 'Micro E-mini Nasdaq-100', assetType: 'futures', exchange: 'CME', tickSize: 0.25, tickValue: 0.50, pointValue: 2, contractSize: 1, currency: 'USD', decimalPlaces: 2, contractMonths: '["H","M","U","Z"]' },
-  { symbol: 'MES', name: 'Micro E-mini S&P 500', assetType: 'futures', exchange: 'CME', tickSize: 0.25, tickValue: 1.25, pointValue: 5, contractSize: 1, currency: 'USD', decimalPlaces: 2, contractMonths: '["H","M","U","Z"]' },
-  { symbol: 'MYM', name: 'Micro E-mini Dow', assetType: 'futures', exchange: 'CBOT', tickSize: 1.0, tickValue: 0.50, pointValue: 0.50, contractSize: 1, currency: 'USD', decimalPlaces: 0, contractMonths: '["H","M","U","Z"]' },
-  { symbol: 'M2K', name: 'Micro E-mini Russell 2000', assetType: 'futures', exchange: 'CME', tickSize: 0.10, tickValue: 0.50, pointValue: 5, contractSize: 1, currency: 'USD', decimalPlaces: 1, contractMonths: '["H","M","U","Z"]' },
-  // E-mini Futures (parent contracts from Databento data)
-  { symbol: 'ES', name: 'E-mini S&P 500', assetType: 'futures', exchange: 'CME', tickSize: 0.25, tickValue: 12.50, pointValue: 50, contractSize: 1, currency: 'USD', decimalPlaces: 2, contractMonths: '["H","M","U","Z"]' },
-  { symbol: 'NQ', name: 'E-mini Nasdaq-100', assetType: 'futures', exchange: 'CME', tickSize: 0.25, tickValue: 5.00, pointValue: 20, contractSize: 1, currency: 'USD', decimalPlaces: 2, contractMonths: '["H","M","U","Z"]' },
-  { symbol: 'YM', name: 'E-mini Dow', assetType: 'futures', exchange: 'CBOT', tickSize: 1.0, tickValue: 5.00, pointValue: 5, contractSize: 1, currency: 'USD', decimalPlaces: 0, contractMonths: '["H","M","U","Z"]' },
-  { symbol: 'RTY', name: 'E-mini Russell 2000', assetType: 'futures', exchange: 'CME', tickSize: 0.10, tickValue: 5.00, pointValue: 50, contractSize: 1, currency: 'USD', decimalPlaces: 1, contractMonths: '["H","M","U","Z"]' },
-
+const FOREX_INSTRUMENTS: InsertInstrument[] = [
   // Major Forex Pairs
   { symbol: 'EURUSD', name: 'EUR/USD', assetType: 'forex', exchange: 'OANDA', tickSize: 0.00001, tickValue: 1, pointValue: 100000, contractSize: 100000, currency: 'USD', decimalPlaces: 5, pipSize: 0.0001 },
   { symbol: 'GBPUSD', name: 'GBP/USD', assetType: 'forex', exchange: 'OANDA', tickSize: 0.00001, tickValue: 1, pointValue: 100000, contractSize: 100000, currency: 'USD', decimalPlaces: 5, pipSize: 0.0001 },
@@ -40,12 +33,14 @@ const INSTRUMENTS = [
   { symbol: 'GBPAUD', name: 'GBP/AUD', assetType: 'forex', exchange: 'OANDA', tickSize: 0.00001, tickValue: 1, pointValue: 100000, contractSize: 100000, currency: 'AUD', decimalPlaces: 5, pipSize: 0.0001 },
 ];
 
+const INSTRUMENTS: InsertInstrument[] = [...futuresInstrumentRows(), ...FOREX_INSTRUMENTS];
+
 async function main() {
   console.log('[seed] Seeding instruments table...');
 
   for (const inst of INSTRUMENTS) {
     await db.insert(instruments)
-      .values(inst as any)
+      .values(inst)
       .onConflictDoUpdate({
         target: instruments.symbol,
         set: {
@@ -58,15 +53,21 @@ async function main() {
           contractSize: inst.contractSize,
           currency: inst.currency,
           decimalPlaces: inst.decimalPlaces,
-          pipSize: (inst as any).pipSize ?? null,
-          contractMonths: (inst as any).contractMonths ?? null,
+          pipSize: inst.pipSize ?? null,
+          contractMonths: inst.contractMonths ?? null,
+          tradingHours: inst.tradingHours ?? null,
         },
       });
-    console.log(`  ${inst.symbol} (${inst.assetType})${(inst as any).pipSize ? ` pip=${(inst as any).pipSize}` : ''}`);
+    const detail = inst.pipSize ? ` pip=${inst.pipSize}` : ` tick=${inst.tickSize}=${inst.currency} ${inst.tickValue} months=${inst.contractMonths}`;
+    console.log(`  ${inst.symbol} (${inst.assetType})${detail}`);
   }
 
   console.log(`[seed] Done. ${INSTRUMENTS.length} instruments seeded.`);
+  closeDatabases();
   process.exit(0);
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

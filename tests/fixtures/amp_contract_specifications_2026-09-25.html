@@ -1,0 +1,3120 @@
+<!doctype html><html lang="en"><head>
+    <meta charset="utf-8">
+    <title>Futures Contract Specifications | AMP Futures</title>
+    <link rel="shortcut icon" href="https://www.ampfutures.com/hubfs/amp-logo-plaid.png">
+    <meta name="description" content="AMP Futures provides a list of futures market contract specifications. Learn about the specifications of futures contracts by visiting our website today!">
+    
+    
+    
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <script src="/hs/hsstatic/jquery-libs/static-1.1/jquery/jquery-1.7.1.js"></script>
+<script>hsjQuery = window['jQuery'];</script>
+    <meta property="og:description" content="AMP Futures provides a list of futures market contract specifications. Learn about the specifications of futures contracts by visiting our website today!">
+    <meta property="og:title" content="Futures Contract Specifications | AMP Futures">
+    <meta name="twitter:description" content="AMP Futures provides a list of futures market contract specifications. Learn about the specifications of futures contracts by visiting our website today!">
+    <meta name="twitter:title" content="Futures Contract Specifications | AMP Futures">
+
+    
+
+    
+    <style>
+a.cta_button{-moz-box-sizing:content-box !important;-webkit-box-sizing:content-box !important;box-sizing:content-box !important;vertical-align:middle}.hs-breadcrumb-menu{list-style-type:none;margin:0px 0px 0px 0px;padding:0px 0px 0px 0px}.hs-breadcrumb-menu-item{float:left;padding:10px 0px 10px 10px}.hs-breadcrumb-menu-divider:before{content:'›';padding-left:10px}.hs-featured-image-link{border:0}.hs-featured-image{float:right;margin:0 0 20px 20px;max-width:50%}@media (max-width: 568px){.hs-featured-image{float:none;margin:0;width:100%;max-width:100%}}.hs-screen-reader-text{clip:rect(1px, 1px, 1px, 1px);height:1px;overflow:hidden;position:absolute !important;width:1px}
+</style>
+
+<link rel="stylesheet" href="https://www.ampfutures.com/hubfs/hub_generated/template_assets/1/45794237528/1775840305871/template_main.min.css">
+<link rel="stylesheet" href="https://www.ampfutures.com/hubfs/hub_generated/template_assets/1/45793570944/1775840312831/template_global-header.min.css">
+<link rel="stylesheet" href="https://www.ampfutures.com/hubfs/hub_generated/module_assets/1/45794237796/1741920490407/module_Global_Header.min.css">
+
+<style>
+  .hhs-header-mod {
+    background-color: rgba(255, 255, 255, 1);
+    padding: 10px 0; 
+  }
+  .hhs-header-mod.hhs-alt-nav .logo-sticky,
+  .logo-standard  {
+    max-width: 140px;
+    float: left;
+  }
+  .hhs-header-mod.hhs-alt-nav.sticky-menu.active .logo-sticky,
+  .logo-sticky  {
+    max-width: 150px;
+    float: left;
+  }
+  
+  .hhs-header-logo {
+    padding-top:  14px;
+  }
+  
+  .hhs-header-mod .hhs-nav {
+    height: 60px;
+    display: table;
+  }
+  .custom-menu-primary .hs-menu-wrapper > ul > li {
+    margin-left: 15px !important;
+  }
+  .hhs-header-menu .hs-menu-wrapper.hs-menu-flow-horizontal>ul li a,
+  .hhs-header-search a i{
+    color: rgba(68, 68, 68, 1) !important;
+  }
+  .hhs-lang-switch .globe_class:before{
+    color: rgba(68, 68, 68, 1) !important;
+  }
+  .hhs-header-menu .hs-menu-wrapper.hs-menu-flow-horizontal>ul li a:hover,
+  .hhs-header-search a i:hover,
+  .hhs-lang-switch .globe_class:hover{
+    color: rgba(53, 116, 227, 1) !important;
+  }
+  
+  .lang_list_class li,
+  .custom-menu-primary .hs-menu-wrapper > ul ul{
+     background: rgba(255, 255, 255, 1) !important;
+  }
+  .custom-menu-primary .hs-menu-wrapper > ul > li > ul:before{
+     color: rgba(255, 255, 255, 1) !important;
+  }
+  .hhs-lang-switch .lang_list_class:after {
+   border-bottom-color: rgba(255, 255, 255, 1) !important;
+  }
+  .hs-menu-wrapper.hs-menu-flow-horizontal > ul li.hs-item-has-children ul.hs-menu-children-wrapper li a,
+  .hhs-lang-switch .lang_list_class li a {
+    color: #444444 !important;
+    font-size: 12px !important;
+  }
+  .hhs-lang-switch .lang_list_class li a:hover,
+  .custom-menu-primary .hs-menu-wrapper > ul ul li a:hover {
+   background-color:  #0059ff;
+  }
+  
+  .hhs-header-mod.hhs-alt-nav .hhs-header-menu .hs-menu-wrapper > ul li.hs-item-has-children ul.hs-menu-children-wrapper li a:hover,
+  .hhs-lang-switch .lang_list_class li a:hover,
+  .custom-menu-primary .hs-menu-wrapper > ul li.hs-item-has-children ul.hs-menu-children-wrapper li a:hover {
+   color: #fff !important;
+  }
+  .custom-menu-primary .hs-menu-wrapper > ul li.hs-item-has-children ul.hs-menu-children-wrapper li.active a:hover {
+    color: #444444 !important;
+  }
+  
+  .hhs-search-modal button {
+   background-color:  rgba(255, 122, 89, 1) !important;
+  }
+  .hhs-search-modal button i {
+   color:  rgba(255, 255, 255, 1) !important;
+  }
+  
+  
+  /*** MOBILE HAMBURGER ***/
+  .hamburger-inner, .hamburger-inner::before, .hamburger-inner::after,
+  .hamburger.is-active .hamburger-inner,
+  .hamburger.is-active .hamburger-inner::before,
+  .hamburger.is-active .hamburger-inner::after {
+    background-color: rgba(68, 68, 68, 1); 
+  }
+  
+  /*** STICKY HEADER ***/
+  .hhs-header-mod.hhs-alt-nav.sticky-menu,
+  .hhs-header-mod.sticky-menu,
+  .hhs-header-mod.hhs-alt-nav{
+    background-color: rgba(255, 255, 255, 1);
+  }
+  .sticky-menu.active {
+    background-color: rgba(255, 255, 255, 1);
+  }
+  .hhs-header-mod.hhs-alt-nav .hhs-header-menu .hs-menu-wrapper.hs-menu-flow-horizontal>ul li a,
+  .hhs-header-mod.hhs-alt-nav .hhs-header-search a i,
+  .hhs-header-mod.hhs-alt-nav .hhs-lang-switch .globe_class:before,
+  .sticky-menu .hhs-header-menu .hs-menu-wrapper.hs-menu-flow-horizontal>ul li a,
+  .sticky-menu .hhs-header-search a i,
+  .sticky-menu .hhs-lang-switch .globe_class:before{
+    color: rgba(68, 68, 68, 1) !important;
+  }
+  .hhs-header-mod.hhs-alt-nav .hhs-header-menu .hs-menu-wrapper.hs-menu-flow-horizontal .hs-menu-depth-1:first-child:hover,
+  .hhs-header-mod.hhs-alt-nav .hhs-header-search a i:hover,
+  .hhs-header-mod.hhs-alt-nav .hhs-lang-switch .globe_class:before,
+  .sticky-menu .hhs-header-menu .hs-menu-wrapper.hs-menu-flow-horizontal .hs-menu-depth-1:first-child:hover,
+  .sticky-menu .hhs-header-menu .hs-menu-wrapper.hs-menu-flow-horizontal>ul li a:hover,
+  .sticky-menu .hhs-header-search a i:hover{
+    color: rgba(0, 89, 255, 1)  !important;
+  }
+  
+  .hhs-header-mod.hhs-alt-nav .hhs-header-menu .hs-menu-wrapper.hs-menu-flow-horizontal>ul li a,
+  .hhs-header-mod.hhs-alt-nav .hhs-header-search a i,
+  .hhs-header-mod.hhs-alt-nav .globe_class {
+    color: rgba(68, 68, 68, 1) !important;
+  }
+  
+  .hhs-header-mod.hhs-alt-nav .hhs-header-menu .hs-menu-wrapper.hs-menu-flow-horizontal>ul li a:hover,
+  .hhs-header-mod.hhs-alt-nav .hhs-header-search a i:hover,
+  .hhs-header-mod.hhs-alt-nav .globe_class:hover {
+    color: rgba(0, 89, 255, 1) !important;
+  }
+  
+  
+  .hhs-header-mod.hhs-alt-nav .hamburger-inner, .hhs-header-mod.hhs-alt-nav .hamburger-inner::before, .hhs-header-mod.hhs-alt-nav .hamburger-inner::after,
+  .hhs-header-mod.hhs-alt-nav .hamburger.is-active .hamburger-inner,
+  .hhs-header-mod.hhs-alt-nav .hamburger.is-active .hamburger-inner::before,
+  .hhs-header-mod.hhs-alt-nav .hamburger.is-active .hamburger-inner::after,
+  .sticky-menu .hamburger-inner, .sticky-menu .hamburger-inner::before, .sticky-menu .hamburger-inner::after,
+  .sticky-menu .hamburger.is-active .hamburger-inner,
+  .sticky-menu .hamburger.is-active .hamburger-inner::before,
+  .sticky-menu .hamburger.is-active .hamburger-inner::after {
+    background-color: rgba(0, 89, 255, 1); 
+  }
+  .hhs-header-mod.sticky-menu .hhs-nav {
+    height: 30px;
+  }
+  
+  
+  .hhs-hat-pull-down,
+  .hhs-header-hat {
+   background-color: #EEEEEE; 
+  }
+  .hhs-hat-pull-down i,
+  .hhs-hat-menu .hs-menu-wrapper.hs-menu-flow-horizontal>ul li a {
+   font-size: 10px !important;
+    
+      color: rgba(68, 68, 68, 1) !important;
+    
+  }
+  
+    .hhs-hat-menu .hs-menu-wrapper.hs-menu-flow-horizontal>ul li a:hover {
+     color: rgba(53, 116, 227, 1) !important;
+    }
+  
+  
+  .hhs-header-cta .cta-primary {
+    padding: 15px 15px !important;
+    font-size: 10px !important;
+    -webkit-box-shadow: none;
+    box-shadow: none;
+  }
+  
+  /*** MEGA MENU ***/
+  
+  .mega-menu {
+    background-color: rgba(255, 255, 255, 1);
+    top: 110px;
+  }
+  .sticky-menu.active .mega-menu  {
+    top: 70px;
+  }
+  .hhs-header-menu .hs-menu-wrapper.hs-menu-flow-horizontal>ul li .mega-menu a,
+  .hhs-alt-nav .hhs-header-menu .hs-menu-wrapper.hs-menu-flow-horizontal>ul li .mega-menu a,
+  .hhs-header-menu .mega-menu .mega-nav-con ul li ul.hs-menu-children-wrapper li a,
+  .hhs-alt-nav .hhs-header-menu .mega-menu .mega-nav-con ul li ul.hs-menu-children-wrapper li a{
+    color: #444444 !important;
+    font-size: 16px !important;
+    font-weight: normal;
+  }
+  .hhs-header-menu .mega-menu .mega-nav-con ul li ul.hs-menu-children-wrapper li a{
+    font-size: 0.95em !important;
+  }
+  .hhs-header-menu .hs-menu-wrapper.hs-menu-flow-horizontal>ul li .mega-menu a:hover,
+  .hhs-alt-nav .hhs-header-menu .hs-menu-wrapper.hs-menu-flow-horizontal>ul li .mega-menu a:hover,
+  .hhs-header-menu .mega-menu .mega-nav-con ul li ul.hs-menu-children-wrapper li a:hover,
+  .hhs-alt-nav .hhs-header-menu .mega-menu .mega-nav-con ul li ul.hs-menu-children-wrapper li a:hover{
+    color: #00a4bd !important;
+  }
+  .mega-menu span.hs_cos_wrapper_type_text {
+    text-transform: none !important;
+    font-weight: normal !important;
+    white-space: normal !important; 
+  }
+  .mega-menu .mega-text-con p, .mega-menu .mega-text-con li, .mega-menu .mega-text-con span {
+    color: #444444; 
+  }
+  .mega-menu .mega-text-con h1, .mega-menu .mega-text-con h2, .mega-menu .mega-text-con h3, .mega-menu .mega-text-con h4, .mega-menu .mega-text-con h5, .mega-menu .mega-text-con h6 {
+    color: #444444; 
+  }
+  
+  
+  
+   /** TABLET CSS **/
+  @media (max-width: 768px) {
+    .custom-menu-primary .hs-menu-wrapper > ul {
+       margin-top: 10px !important;
+    }
+    .custom-menu-primary .hs-menu-wrapper > ul,
+    .custom-menu-primary .hs-menu-wrapper > ul li.active a:hover{
+      background-color:  rgba(255, 255, 255, 1) !important;
+    }
+    .hhs-header-menu .hs-menu-wrapper.hs-menu-flow-horizontal>ul li a:hover,
+    .custom-menu-primary .hs-menu-wrapper > ul li.active a:hover,
+    .hhs-header-menu .hs-menu-wrapper.hs-menu-flow-horizontal>ul li a {
+      color:  #444444 !important;
+    }
+    .custom-menu-primary .hs-menu-wrapper > ul li{
+      
+        border-top: 1px solid rgba(0, 0, 0, .1) !important; 
+      
+    }
+    .custom-menu-primary .hs-menu-wrapper > ul ul li{
+      
+        background-color: rgba(0, 0, 0, .05);
+      
+    }
+  }
+  
+  /** MOBILE CSS **/
+  @media (max-width: 575px) {
+    .logo-standard, .logo-sticky {
+      max-width: 100px !important;
+    }
+    
+      .hhs-nav-opt-items .hhs-header-search {
+        right: 40px;
+      }
+      .hhs-nav-opt-items .hhs-lang-switch
+       {
+        right: 70px;
+      }
+    
+  }
+  
+</style>
+
+<link rel="stylesheet" href="https://www.ampfutures.com/hubfs/hub_generated/template_assets/1/45793656742/1775840305501/template_global-footer.min.css">
+<link rel="stylesheet" href="https://www.ampfutures.com/hubfs/hub_generated/module_assets/1/45784885512/1741920476266/module_Global_Footer.min.css">
+<style>
+  #hs_cos_wrapper_global_footer .hhs-footer-mod {
+    background-color: #f9fcfe;
+    padding-top: 50px;
+    padding-bottom: 50px;
+  }
+
+  /** NAVIGATION COLUMNS STYLE **/
+  .hhs-foot-base-nav .hs-menu-wrapper.hs-menu-flow-horizontal > ul li a,
+  .hhs-foot-nav-col .hs-menu-wrapper.hs-menu-flow-horizontal>ul li.hs-item-has-children ul.hs-menu-children-wrapper li a,
+  .hhs-foot-nav-col .hs-menu-wrapper.hs-menu-flow-horizontal > ul li a {
+    color: #000 !important;
+  }
+  .hhs-foot-base-nav .hs-menu-wrapper.hs-menu-flow-horizontal > ul li a:hover,
+  .hhs-foot-nav-col .hs-menu-wrapper.hs-menu-flow-horizontal>ul li.hs-item-has-children ul.hs-menu-children-wrapper li a:hover,
+  .hhs-foot-nav-col .hs-menu-wrapper.hs-menu-flow-horizontal > ul li a:hover {
+    color: #0059ff  !important;
+  }
+  .foot-nav-title,
+  .hhs-foot-rss h5,
+  .hhs-foot-nav-col h5 {
+    margin-bottom: 40px;
+    color: #000;
+  }
+
+  .hhs-foot-rss .hs_cos_wrapper_type_inline_rich_text p,
+  .hhs-foot-rss .hs_cos_wrapper_type_inline_rich_text l1,
+  .hhs-foot-rss .hs_cos_wrapper_type_inline_rich_text span,
+  .hhs-foot-rss .hs_cos_wrapper_type_inline_rich_text *,
+  .hhs-foot-rss *{
+    color: #000;
+  }
+  
+  .hhs-foot-base-nav .hs-menu-wrapper.hs-menu-flow-horizontal > ul li a {
+    font-size: 14px;
+  }
+
+  /** BLOG POST STYLE **/
+  .hhs-footer-mod .hhs-post-content a h6  {
+    color: #000;
+    font-size: 16px;
+    line-height: 20px;
+  }
+  .hhs-footer-mod .hhs-post-summary p  {
+    color: #000;
+    font-size: 14px;
+    line-height: 18px;
+  }
+  .hhs-foot-rss .hs-rss-title:hover {
+    color: #0059ff;
+  }
+   .hhs-footer-mod .hhs-post-feat-img {
+    min-height: 120px;
+  }
+  .hhs-foot-rss .hs-rss-item.hs-with-featured-image .hs-rss-item-text  {
+   margin-top: 120px;
+  }
+  .hhs-foot-break-line {
+    border-color:  #e0e0e0;
+  }
+  .hhs-foot-copyright {
+    color: #000;
+  }
+
+  /** SOCIAL ICONS **/#hs_cos_wrapper_global_footer .hhs-social-con i { color:  #000;}
+    #hs_cos_wrapper_global_footer .hhs-social-con i:hover {color:  #444444;}/** TABLET CSS **/
+  @media (max-width: 768px) {
+    #hs_cos_wrapper_global_footer .hhs-footer-mod {
+      padding-top: 25px;
+      padding-bottom: 25px;
+    }
+  }
+
+  /** BACK TO TOP **/
+  #return-to-top {
+   background: rgba(68, 68, 68, 0.7);
+  }
+  #return-to-top:hover {
+   background: rgba(68, 68, 68, 0.9);
+  }
+
+  /** MOBILE CSS **/
+  @media (max-width: 575px) {
+    #hs_cos_wrapper_global_footer .hhs-footer-mod {
+      padding-top: 25px;
+      padding-bottom: 25px;
+    }
+    .hhs-foot-nav-col {
+     border-color: #e0e0e0;
+    }
+  }
+</style>
+
+<style>
+
+  
+
+
+
+
+  
+</style>
+
+
+  <style>
+  #hs_cos_wrapper_widget_1625159333258 hr {
+  border:0 none;
+  border-bottom-width:8px;
+  border-bottom-style:solid;
+  border-bottom-color:rgba(255,255,255,1.0);
+  margin-left:auto;
+  margin-right:auto;
+  margin-top:10px;
+  margin-bottom:10px;
+  width:100%;
+}
+
+  </style>
+
+<link rel="stylesheet" href="https://www.ampfutures.com/hubfs/hub_generated/template_assets/1/45796788261/1775840307156/template_hero-banner.min.css">
+<link rel="stylesheet" href="https://www.ampfutures.com/hubfs/hub_generated/module_assets/1/45793153448/1741920477708/module_CLEAN_6-1_-_Hero_Banner.min.css">
+<style>
+  
+  /******************************* ROW STYLE *******************************/
+  
+  #hs_cos_wrapper_widget_1626300236179 .hhs-hero-mod {
+    padding-top: 50px;
+    padding-bottom:  50px;z-index: 1;background-repeat: no-repeat;
+        background-size: cover;
+        background-position: left center;}
+  
+  #hs_cos_wrapper_widget_1626300236179 .hhs-hero-mod .row {
+    margin-top:  60px;
+  }
+  
+  @media (max-width: 768px) {
+    #hs_cos_wrapper_widget_1626300236179 .hhs-hero-mod {
+      padding-top: 50px;
+      padding-bottom: 50px;
+    }
+  }
+  @media (max-width: 575px) {
+    #hs_cos_wrapper_widget_1626300236179 .hhs-hero-mod {
+      padding-top: 50px;
+      padding-bottom: 50px;
+    }
+  }
+  
+   /** VIDEO STYLE **//* FULLSCREEN BACKGROUND *//* HERO OVERLAY */#hs_cos_wrapper_widget_1626300236179 .hhs-hero-overlay {background-color: rgba(42, 140, 209, 1);}/* WAVE *//******************************* END *******************************/
+  
+  /******************************* COLUMN 1 *******************************/
+  
+  #hs_cos_wrapper_widget_1626300236179 .hhs-hero-mod .first-col .hhs-col-inner {
+    text-align:  left;}
+  
+  /* ROTATING HEADLINE *//* CONTENT ALIGNMENT */
+  
+  #hs_cos_wrapper_widget_1626300236179 .hhs-hero-mod .first-col {
+    text-align:  left;
+  }
+  @media (max-width: 575px) {
+    #hs_cos_wrapper_widget_1626300236179 .hhs-hero-mod .first-col {
+      text-align:  left;
+    }
+  }
+  
+  /* TEXT STYLE */
+  
+  #hs_cos_wrapper_widget_1626300236179 .first-col .hhs-rich-text h1, #hs_cos_wrapper_widget_1626300236179 .first-col .hhs-rich-text h2,#hs_cos_wrapper_widget_1626300236179 .first-col .hhs-rich-text h3, #hs_cos_wrapper_widget_1626300236179 .first-col .hhs-rich-text h4, #hs_cos_wrapper_widget_1626300236179 .first-col .hhs-rich-text h5, #hs_cos_wrapper_widget_1626300236179 .first-col .hhs-rich-text h6, #hs_cos_wrapper_widget_1626300236179 .first-col .hhs-rich-text p, #hs_cos_wrapper_widget_1626300236179 .first-col .hhs-rich-text span, #hs_cos_wrapper_widget_1626300236179 .first-col .hhs-rich-text label, #hs_cos_wrapper_widget_1626300236179 .first-col .hhs-rich-text li {
+    color: #ffffff;
+  }
+  
+  /* FORM STYLE */
+  
+  /* VERTICAL ALIGN *//******************************* END *******************************/
+  
+  /******************************* COLUMN 2 *******************************/
+  
+  #hs_cos_wrapper_widget_1626300236179 .hhs-hero-mod .second-col .hhs-col-inner {
+    text-align:  left;}
+  @media (max-width: 575px) {
+    #hs_cos_wrapper_widget_1626300236179 .hhs-hero-mod .second-col {
+      text-align:  left;
+    }
+  }
+  
+  /* TEXT STYLE */
+  
+  #hs_cos_wrapper_widget_1626300236179 .second-col .hhs-rich-text h1, #hs_cos_wrapper_widget_1626300236179 .second-col .hhs-rich-text h2,#hs_cos_wrapper_widget_1626300236179 .second-col .hhs-rich-text h3, #hs_cos_wrapper_widget_1626300236179 .second-col .hhs-rich-text h4, #hs_cos_wrapper_widget_1626300236179 .second-col .hhs-rich-text h5, #hs_cos_wrapper_widget_1626300236179 .second-col .hhs-rich-text h6, #hs_cos_wrapper_widget_1626300236179 .second-col .hhs-rich-text p, #hs_cos_wrapper_widget_1626300236179 .second-col .hhs-rich-text span, #hs_cos_wrapper_widget_1626300236179 .second-col .hhs-rich-text label, #hs_cos_wrapper_widget_1626300236179 .second-col .hhs-rich-text li {
+    color: #ffffff;
+  }
+  
+  /* FORM STYLE */#hs_cos_wrapper_widget_1626300236179 .second-col .hhs-form-con {margin-left: 0px;
+        margin-right: auto;}
+    #hs_cos_wrapper_widget_1626300236179 .second-col .hhs-form-con {
+     max-width:  100%;
+    }/* VERTICAL ALIGN */</style>
+<style>
+  @font-face {
+    font-family: "Work Sans";
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    src: url("/_hcms/googlefonts/Work_Sans/regular.woff2") format("woff2"), url("/_hcms/googlefonts/Work_Sans/regular.woff") format("woff");
+  }
+  @font-face {
+    font-family: "Work Sans";
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+    src: url("/_hcms/googlefonts/Work_Sans/700.woff2") format("woff2"), url("/_hcms/googlefonts/Work_Sans/700.woff") format("woff");
+  }
+</style>
+
+<!-- Editor Styles -->
+<style id="hs_editor_style" type="text/css">
+.dnd_area-row-0-force-full-width-section > .row-fluid {
+  max-width: none !important;
+}
+.dnd_area-row-1-force-full-width-section > .row-fluid {
+  max-width: none !important;
+}
+/* HubSpot Non-stacked Media Query Styles */
+@media (min-width:768px) {
+  .dnd_area-row-0-vertical-alignment > .row-fluid {
+    display: -ms-flexbox !important;
+    -ms-flex-direction: row;
+    display: flex !important;
+    flex-direction: row;
+  }
+  .dnd_area-module-1-vertical-alignment {
+    display: -ms-flexbox !important;
+    -ms-flex-direction: column !important;
+    -ms-flex-pack: center !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+  }
+  .dnd_area-module-1-vertical-alignment > div {
+    flex-shrink: 0 !important;
+  }
+}
+/* HubSpot Styles (default) */
+.dnd_area-row-0-padding {
+  padding-top: 0px !important;
+  padding-bottom: 0px !important;
+  padding-left: 0px !important;
+  padding-right: 0px !important;
+}
+.dnd_area-row-1-padding {
+  padding-top: 0px !important;
+  padding-bottom: 0px !important;
+  padding-left: 0px !important;
+  padding-right: 0px !important;
+}
+</style>
+    <script src="https://code.jquery.com/jquery-2.2.4.min.js"></script>
+
+    
+<!--  Added by GoogleAnalytics integration -->
+<script>
+var _hsp = window._hsp = window._hsp || [];
+_hsp.push(['addPrivacyConsentListener', function(consent) { if (consent.allowed || (consent.categories && consent.categories.analytics)) {
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create','UA-72654604-1','auto');
+  ga('send','pageview');
+}}]);
+</script>
+
+<!-- /Added by GoogleAnalytics integration -->
+
+    <link rel="canonical" href="https://www.ampfutures.com/trading-info/contract-specifications">
+
+<meta http-equiv="x-dns-prefetch-control" content="on">
+<link rel="dns-prefetch" href="https://content.mql5.com/">
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-T8F34MM');</script>
+<!-- End Google Tag Manager -->
+<meta property="og:url" content="https://www.ampfutures.com/trading-info/contract-specifications">
+<meta name="twitter:card" content="summary">
+<meta http-equiv="content-language" content="en">
+
+
+
+
+
+<style>
+  iframe {
+    width:800px;
+  }
+</style>
+    <link href="//fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&amp;display=swap" rel="stylesheet" type="text/css">
+  <meta name="generator" content="HubSpot"></head>
+  <body>
+<!--  Added by AdRoll integration -->
+<script type="text/javascript">
+  adroll_adv_id = "UREGNQ5VEFGEDJ2CE6FUXU";
+  adroll_pix_id = "RN7EX74LXBCSRJCMFW7VGJ";
+  var _hsp = window._hsp = window._hsp || [];
+  (function () {
+      var _onload = function(){
+          if (document.readyState && !/loaded|complete/.test(document.readyState)){setTimeout(_onload, 10);return}
+          if (!window.__adroll_loaded){__adroll_loaded=true;setTimeout(_onload, 50);return}
+          _hsp.push(['addPrivacyConsentListener', function(consent) { if (consent.allowed || (consent.categories && consent.categories.advertisement)) {
+            var scr = document.createElement("script");
+            var host = (("https:" == document.location.protocol) ? "https://s.adroll.com" : "http://a.adroll.com");
+            scr.setAttribute('async', 'true');
+            scr.type = "text/javascript";
+            scr.src = host + "/j/roundtrip.js";
+            ((document.getElementsByTagName('head') || [null])[0] ||
+                document.getElementsByTagName('script')[0].parentNode).appendChild(scr);
+          }}]);
+      };
+      if (window.addEventListener) {window.addEventListener('load', _onload, false);}
+      else {window.attachEvent('onload', _onload)}
+  }());
+</script>
+
+<!-- /Added by AdRoll integration -->
+
+    <div class="body-wrapper   hs-content-id-51746635793 hs-site-page page ">
+      <header class="header">
+        <div class="header__container">
+          <div id="hs_cos_wrapper_global_header" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_module" style="" data-hs-cos-general-type="widget" data-hs-cos-type="module">
+
+
+
+
+
+
+
+<div class="hhs-header-hat">
+ <div class="container-fluid">
+  <div class="row">
+     <div class="col-12">
+       <nav class="hhs-hat-menu" data-collapsed="true">
+         
+          <span id="hs_cos_wrapper_global_header_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_simple_menu" style="" data-hs-cos-general-type="widget" data-hs-cos-type="simple_menu"><div id="hs_menu_wrapper_global_header_" class="hs-menu-wrapper active-branch flyouts hs-menu-flow-horizontal" role="navigation" data-sitemap-name="" data-menu-id="" aria-label="Navigation Menu">
+ <ul role="menu">
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/news" role="menuitem" target="_self">Chat With Us</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Contact Us</a></li>
+ </ul>
+</div></span>
+         
+       </nav>
+       <a href="javascript:void(0);" onclick="toggleNav()" class="hhs-hat-pull-down hide-desktop show-mobile"><i class="fas fa-angle-double-down"></i><i class="fas fa-angle-double-up"></i></a>
+     </div>
+   </div>
+ </div>
+</div>
+
+<div id="hhs-main-nav" class="hhs-header-mod">
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-12 hhs-nav hhs-clearfix">
+        <a href="https://www.ampfutures.com?hsLang=en" style="display: inline-block;">
+          </a><div class="hhs-header-logo"><a href="https://www.ampfutures.com?hsLang=en" style="display: inline-block;">
+            <div class="logo-standard">
+              <a href="/?hsLang=en"><img src="https://www.ampfutures.com/hubfs/AMP-Logo-Horizontal-Color.svg" alt="AMP Futures | AMP Clearing" width="236" height="56"></a>
+            </div></a>
+            
+              <div class="logo-sticky">
+                <a href="/?hsLang=en"><img src="https://www.ampfutures.com/hubfs/AMP-Logo-Horizontal-Color.svg" alt="AMP Futures | AMP Clearing" width="236" height="56"></a>
+              </div>
+            
+          </div>
+        
+          <div class="hhs-nav-opt-items">
+          <div class="hhs-nav-opt-items-inner">
+            
+             
+            
+              <div class="hhs-header-cta cc2 ">
+                
+                
+                  
+                  
+                  
+                  
+                    
+                  
+                  <a href="https://www.ampclientportal.com/Identity/Account/Login" target="_blank" rel="noopener">
+Client Log In
+</a>
+                
+                
+                  <span id="hs_cos_wrapper_global_header_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_cta" style="" data-hs-cos-general-type="widget" data-hs-cos-type="cta"><!--HubSpot Call-to-Action Code --><span class="hs-cta-wrapper" id="hs-cta-wrapper-ce1c0aca-f46c-44c5-8d1b-05c20593cfc6"><span class="hs-cta-node hs-cta-ce1c0aca-f46c-44c5-8d1b-05c20593cfc6" id="hs-cta-ce1c0aca-f46c-44c5-8d1b-05c20593cfc6"><!--[if lte IE 8]><div id="hs-cta-ie-element"></div><![endif]--><a href="https://cta-redirect.hubspot.com/cta/redirect/1791975/ce1c0aca-f46c-44c5-8d1b-05c20593cfc6" target="_blank" rel="noopener"><img class="hs-cta-img" id="hs-cta-img-ce1c0aca-f46c-44c5-8d1b-05c20593cfc6" style="border-width:0px;" src="https://no-cache.hubspot.com/cta/default/1791975/ce1c0aca-f46c-44c5-8d1b-05c20593cfc6.png" alt="Sign Up"></a></span><script charset="utf-8" src="/hs/cta/cta/current.js"></script><script type="text/javascript"> hbspt.cta._relativeUrls=true;hbspt.cta.load(1791975, 'ce1c0aca-f46c-44c5-8d1b-05c20593cfc6', {"useNewLoader":"true","region":"na1"}); </script></span><!-- end HubSpot Call-to-Action Code --></span>
+                
+              </div>
+            
+
+            
+            
+            
+            
+            
+              <div class="hhs-header-search">
+                <a href="#tmpglobal_header" rel="modal:open"><i class="fas fa-search"></i></a>
+              </div>
+            
+            <div class="hhs-lang-switch">
+              <span id="hs_cos_wrapper_global_header_language_switcher" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_language_switcher" style="" data-hs-cos-general-type="widget" data-hs-cos-type="language_switcher"></span>
+            </div>
+           </div>  
+            <div class="hhs-header-menu custom-menu-primary">
+              
+              
+              
+              
+              
+              
+                <nav class="sc-site-header__menu sc-site-header__menu--46554144859 hs-menu-wrapper active-branch flyouts hs-menu-flow-horizontal" aria-label=" menu">
+                    
+                    <ul aria-role="menubar">
+                    
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-1    " aria-role="none">
+                    <a href="https://www.ampfutures.com/why-amp/commission-quote-match" aria-role="menuitem" target="">Ultra-Low Pricing</a>
+                    
+                  </li>
+                
+              
+                    
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-1    " aria-role="none">
+                    <a href="https://www.ampfutures.com/trading-platform" aria-role="menuitem" target="">Trading Platforms</a>
+                    
+                  </li>
+                
+              
+                    
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-1 hs-item-has-children   " aria-role="none" aria-haspopup="true">
+                    <a href="#" aria-role="menuitem" target="">AutoTrading</a>
+                    
+                    <ul class="hs-menu-children-wrapper" aria-role="menu">
+                      
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/metatrader/automated-trading/mql5market" aria-role="menuitem" target="">MetaTrader 5 Market</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/trading-platform/c2-collective2" aria-role="menuitem" target="">Collective2</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://ampfutures.isystems.com/" aria-role="menuitem" target="_blank">iSystems</a>
+                    
+                  </li>
+                
+              
+                      
+                    </ul>
+                    
+                  </li>
+                
+              
+                    
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-1 hs-item-has-children   " aria-role="none" aria-haspopup="true">
+                    <a href="#" aria-role="menuitem" target="">Trading Info</a>
+                    
+                    <ul class="hs-menu-children-wrapper" aria-role="menu">
+                      
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/trading-info/margins" aria-role="menuitem" target="">Margins</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/trading-info/trading-hours" aria-role="menuitem" target="">Trading Hours</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2  active sub-active active-branch" aria-role="none">
+                    <a href="https://www.ampfutures.com/trading-info/contract-specifications" aria-role="menuitem" target="">Contract Specifications</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2  active sub-active active-branch" aria-role="none">
+                    <a href="https://www.ampfutures.com/trading-info/contract-specifications" aria-role="menuitem" target="">Contract Expirations</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/trading-info/economic-calendar" aria-role="menuitem" target="">Economic Calendar</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/trading-info/holiday-hours" aria-role="menuitem" target="">Holiday Hours</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/trading-info/cqg-supported-indexes" aria-role="menuitem" target="">CQG Supported Indexes</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://mt5.ampfutures.com/" aria-role="menuitem" target="">Quotes and Charts</a>
+                    
+                  </li>
+                
+              
+                      
+                    </ul>
+                    
+                  </li>
+                
+              
+                    
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-1 hs-item-has-children   " aria-role="none" aria-haspopup="true">
+                    <a href="#" aria-role="menuitem" target=""> Client Info</a>
+                    
+                    <ul class="hs-menu-children-wrapper" aria-role="menu">
+                      
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampclientportal.com/Identity/Account/Login" aria-role="menuitem" target="_blank">Client Portal Login</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/client-portal/funding-instructions" aria-role="menuitem" target="">Funding Instructions</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/trading-info/funds-withdrawal" aria-role="menuitem" target="">Funds Withdrawal</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/trading-info/account-fees" aria-role="menuitem" target="">Account Fees</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/trading-info/exchange-data-fees" aria-role="menuitem" target="">Exchange Data Fees</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/existinguserpolicy" aria-role="menuitem" target="">Renew License</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/why-amp/web-trading-login" aria-role="menuitem" target="">Web Trading Login</a>
+                    
+                  </li>
+                
+              
+                      
+                    </ul>
+                    
+                  </li>
+                
+              
+                    
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-1 hs-item-has-children   " aria-role="none" aria-haspopup="true">
+                    <a href="#" aria-role="menuitem" target="">Support</a>
+                    
+                    <ul class="hs-menu-children-wrapper" aria-role="menu">
+                      
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://chat.ampfutures.com/" aria-role="menuitem" target="_blank">Chat with Us</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/tech-support" aria-role="menuitem" target="">Technical Support</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/remote" aria-role="menuitem" target="">Remote Desktop Support</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/contact-us" aria-role="menuitem" target="">Phone Support</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/contact-us" aria-role="menuitem" target="">Email Support</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://faq.ampfutures.com/hc/en-us" aria-role="menuitem" target="_blank">FAQs</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.youtube.com/c/ampfutures" aria-role="menuitem" target="_blank">Videos &amp; Guides</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://forum.ampfutures.com/AMPforum" aria-role="menuitem" target="_blank">Support Forum</a>
+                    
+                  </li>
+                
+              
+                      
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-2    " aria-role="none">
+                    <a href="https://www.ampfutures.com/contact-us" aria-role="menuitem" target="">Contact Us</a>
+                    
+                  </li>
+                
+              
+                      
+                    </ul>
+                    
+                  </li>
+                
+              
+                    
+                      
+                
+                  <li class="hs-menu-item hs-menu-depth-1    " aria-role="none">
+                    <a href="https://chat.ampfutures.com/" aria-role="menuitem" target="_blank">Chat with Us</a>
+                    
+                  </li>
+                
+              
+                    
+                    </ul>
+                </nav>
+                
+              
+            </div>
+          </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+
+  <div class="hhs-pop">
+    <div id="tmpglobal_header" class="hhs-pop hhs-modal  hhs-search-modal wow fadeInDown" style="display: none;">
+      <div class="hhs-col-12">
+        <div class="hs-search-field"> 
+          <div class="hs-search-field__bar"> 
+            <form action="/hs-search-results">
+              <input type="text" class="hs-search-field__input" name="term" autocomplete="off" placeholder="Search...">
+              <input type="hidden" name="type" value="SITE_PAGE">
+              <input type="hidden" name="type" value="LANDING_PAGE">
+              <input type="hidden" name="type" value="BLOG_POST">
+              <input type="hidden" name="type" value="LISTING_PAGE">
+              <button type="submit"><i class="fas fa-search"></i></button>
+            </form>
+          </div>
+      </div>
+      </div>
+    </div>
+  </div>
+
+
+
+
+
+
+  
+    
+    
+    
+      
+        
+        
+        
+        
+      
+      
+      
+      
+      
+    
+
+
+    <div class="mega-menu-1 mega-menu">
+      <div class="">
+        <div class="container">
+          <div class="row">
+            <div class="col-3">
+              <div class="mega-text-con">
+                <div id="hs_cos_wrapper_global_header_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_inline_rich_text" style="" data-hs-cos-general-type="widget" data-hs-cos-type="inline_rich_text" data-hs-cos-field="col_1.text"><h5>Column Headline</h5></div>
+              </div>
+              <div class="mega-nav-con">          
+                <span id="hs_cos_wrapper_global_header_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_simple_menu" style="" data-hs-cos-general-type="widget" data-hs-cos-type="simple_menu"><div id="hs_menu_wrapper_global_header_" class="hs-menu-wrapper active-branch flyouts hs-menu-flow-horizontal" role="navigation" data-sitemap-name="" data-menu-id="" aria-label="Navigation Menu">
+ <ul role="menu">
+  <li class="hs-menu-item hs-menu-depth-1 hs-item-has-children" role="none"><a href="javascript:void(0);" aria-haspopup="true" aria-expanded="false" role="menuitem" target="_self">Testing 1</a>
+   <ul role="menu" class="hs-menu-children-wrapper">
+    <li class="hs-menu-item hs-menu-depth-2" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Sub Nav 1</a></li>
+    <li class="hs-menu-item hs-menu-depth-2" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Sub Nav 2</a></li>
+   </ul></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Testing 2</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Testing 3</a></li>
+ </ul>
+</div></span>
+              </div>
+            </div>
+            <div class="col-3">
+              <div class="mega-text-con">
+                <div id="hs_cos_wrapper_global_header_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_inline_rich_text" style="" data-hs-cos-general-type="widget" data-hs-cos-type="inline_rich_text" data-hs-cos-field="col_2.text"><h5>Column Headline</h5></div>
+              </div>
+              <div class="mega-nav-con">          
+                <span id="hs_cos_wrapper_global_header_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_simple_menu" style="" data-hs-cos-general-type="widget" data-hs-cos-type="simple_menu"><div id="hs_menu_wrapper_global_header_" class="hs-menu-wrapper active-branch flyouts hs-menu-flow-horizontal" role="navigation" data-sitemap-name="" data-menu-id="" aria-label="Navigation Menu">
+ <ul role="menu">
+  <li class="hs-menu-item hs-menu-depth-1 hs-item-has-children" role="none"><a href="javascript:void(0);" aria-haspopup="true" aria-expanded="false" role="menuitem" target="_self">Testing 1</a>
+   <ul role="menu" class="hs-menu-children-wrapper">
+    <li class="hs-menu-item hs-menu-depth-2" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Sub Nav 1</a></li>
+    <li class="hs-menu-item hs-menu-depth-2" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Sub Nav 2</a></li>
+   </ul></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Testing 2</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Testing 3</a></li>
+ </ul>
+</div></span>
+              </div>
+            </div>
+            
+              <div class="col-3">
+                <div class="mega-text-con">
+                  <div id="hs_cos_wrapper_global_header_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_inline_rich_text" style="" data-hs-cos-general-type="widget" data-hs-cos-type="inline_rich_text" data-hs-cos-field="col_3.text"><h5>Column Headline</h5></div>
+                </div>
+                <div class="mega-nav-con">          
+                  <span id="hs_cos_wrapper_global_header_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_simple_menu" style="" data-hs-cos-general-type="widget" data-hs-cos-type="simple_menu"><div id="hs_menu_wrapper_global_header_" class="hs-menu-wrapper active-branch flyouts hs-menu-flow-horizontal" role="navigation" data-sitemap-name="" data-menu-id="" aria-label="Navigation Menu">
+ <ul role="menu">
+  <li class="hs-menu-item hs-menu-depth-1 hs-item-has-children" role="none"><a href="javascript:void(0);" aria-haspopup="true" aria-expanded="false" role="menuitem" target="_self">Testing 1</a>
+   <ul role="menu" class="hs-menu-children-wrapper">
+    <li class="hs-menu-item hs-menu-depth-2" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Sub Nav 1</a></li>
+    <li class="hs-menu-item hs-menu-depth-2" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Sub Nav 2</a></li>
+   </ul></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Testing 2</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Testing 3</a></li>
+ </ul>
+</div></span>
+                </div>
+              </div>
+            
+            
+              <div class="col-3">
+                <div class="mega-text-con">
+                  <div id="hs_cos_wrapper_global_header_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_inline_rich_text" style="" data-hs-cos-general-type="widget" data-hs-cos-type="inline_rich_text" data-hs-cos-field="col_4.text"><h5>Column Headline</h5></div>
+                </div>
+                <div class="mega-nav-con">          
+                  <span id="hs_cos_wrapper_global_header_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_simple_menu" style="" data-hs-cos-general-type="widget" data-hs-cos-type="simple_menu"><div id="hs_menu_wrapper_global_header_" class="hs-menu-wrapper active-branch flyouts hs-menu-flow-horizontal" role="navigation" data-sitemap-name="" data-menu-id="" aria-label="Navigation Menu">
+ <ul role="menu">
+  <li class="hs-menu-item hs-menu-depth-1 hs-item-has-children" role="none"><a href="javascript:void(0);" aria-haspopup="true" aria-expanded="false" role="menuitem" target="_self">Testing 1</a>
+   <ul role="menu" class="hs-menu-children-wrapper">
+    <li class="hs-menu-item hs-menu-depth-2" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Sub Nav 1</a></li>
+    <li class="hs-menu-item hs-menu-depth-2" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Sub Nav 2</a></li>
+   </ul></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Testing 2</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="javascript:void(0);" role="menuitem" target="_self">Testing 3</a></li>
+ </ul>
+</div></span>
+                </div>
+              </div>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+  
+
+</div>
+        </div>
+      </header>
+      <main id="main-content">
+        
+<main class="body-container-wrapper">
+    <div class="container-fluid body-container">
+<div class="row-fluid-wrapper">
+<div class="row-fluid">
+<div class="span12 widget-span widget-type-cell " style="" data-widget-type="cell" data-x="0" data-w="12">
+
+<div class="row-fluid-wrapper row-depth-1 row-number-1 dnd_area-row-0-vertical-alignment dnd_area-row-0-force-full-width-section dnd-section dnd_area-row-0-padding">
+<div class="row-fluid ">
+<div class="span12 widget-span widget-type-custom_widget dnd_area-module-1-vertical-alignment dnd-module" style="" data-widget-type="custom_widget" data-x="0" data-w="12">
+<div id="hs_cos_wrapper_dnd_area-module-1" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_module" style="" data-hs-cos-general-type="widget" data-hs-cos-type="module">
+  
+
+
+</div>
+
+</div><!--end widget-span -->
+</div><!--end row-->
+</div><!--end row-wrapper -->
+
+<div class="row-fluid-wrapper row-depth-1 row-number-2 dnd_area-row-1-padding dnd-section dnd_area-row-1-force-full-width-section">
+<div class="row-fluid ">
+</div><!--end row-->
+</div><!--end row-wrapper -->
+
+<div class="row-fluid-wrapper row-depth-1 row-number-3 dnd-section">
+<div class="row-fluid ">
+<div class="span12 widget-span widget-type-cell dnd-column" style="" data-widget-type="cell" data-x="0" data-w="12">
+
+<div class="row-fluid-wrapper row-depth-1 row-number-4 dnd-row">
+<div class="row-fluid ">
+<div class="span12 widget-span widget-type-custom_widget dnd-module" style="" data-widget-type="custom_widget" data-x="0" data-w="12">
+<div id="hs_cos_wrapper_widget_1625159333258" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_module" style="" data-hs-cos-general-type="widget" data-hs-cos-type="module">
+
+
+
+
+
+
+
+<hr></div>
+
+</div><!--end widget-span -->
+</div><!--end row-->
+</div><!--end row-wrapper -->
+
+</div><!--end widget-span -->
+</div><!--end row-->
+</div><!--end row-wrapper -->
+
+<div class="row-fluid-wrapper row-depth-1 row-number-5 dnd-section">
+<div class="row-fluid ">
+<div class="span12 widget-span widget-type-cell dnd-column" style="" data-widget-type="cell" data-x="0" data-w="12">
+
+<div class="row-fluid-wrapper row-depth-1 row-number-6 dnd-row">
+<div class="row-fluid ">
+<div class="span12 widget-span widget-type-custom_widget dnd-module" style="" data-widget-type="custom_widget" data-x="0" data-w="12">
+<div id="hs_cos_wrapper_widget_1626300236179" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_module" style="" data-hs-cos-general-type="widget" data-hs-cos-type="module"><div class="top-links">
+  <div id="hs_cos_wrapper_widget_1626300236179_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_inline_rich_text" style="" data-hs-cos-general-type="widget" data-hs-cos-type="inline_rich_text" data-hs-cos-field="top_links"></div>
+</div>
+
+
+
+
+
+
+
+
+
+
+<div id="" class="hhs-hero-mod show-mobile show-tablet show-desktop  " style="background-image: url('');">
+  
+  <div class="container" style="">
+    <div class="row">
+      
+        <div class="col-12 first-col">
+          <div class="hhs-col-inner">
+            <div class="hhs-col-inner-con">
+              
+              <div class="hhs-rich-text">
+                
+                <h1 style="text-align: center;">Futures Contract Specifications</h1>
+<div>&nbsp;</div>
+              </div>
+              
+              
+            </div>
+          </div>
+        </div>
+      
+    </div>
+  </div><span class="hhs-hero-overlay"></span>
+  
+  
+  
+</div>
+
+
+
+
+</div>
+
+</div><!--end widget-span -->
+</div><!--end row-->
+</div><!--end row-wrapper -->
+
+</div><!--end widget-span -->
+</div><!--end row-->
+</div><!--end row-wrapper -->
+
+<div class="row-fluid-wrapper row-depth-1 row-number-7 dnd-section">
+<div class="row-fluid ">
+<div class="span12 widget-span widget-type-cell dnd-column" style="" data-widget-type="cell" data-x="0" data-w="12">
+
+<div class="row-fluid-wrapper row-depth-1 row-number-8 dnd-row">
+<div class="row-fluid ">
+<div class="span12 widget-span widget-type-custom_widget dnd-module" style="" data-widget-type="custom_widget" data-x="0" data-w="12">
+<div id="hs_cos_wrapper_widget_1635186951417" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_module widget-type-rich_text" style="" data-hs-cos-general-type="widget" data-hs-cos-type="module"><span id="hs_cos_wrapper_widget_1635186951417_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_rich_text" style="" data-hs-cos-general-type="widget" data-hs-cos-type="rich_text"><div class="content_onecolumn">
+<table width="100%" style="background-color: #f4f4f4; border-collapse: collapse; table-layout: fixed; margin-left: auto; margin-right: auto; border: 0px none #99acc2; width: 100%; height: 8093px;" cellspacing="0">
+<tbody>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" width="225" height="29"><strong><strong style="background-color: #f4f4f4;">E-nano </strong>Futures</strong></td>
+<td style="padding: 0px; width: 79.6178%; height: 50px;" colspan="5">
+<p style="font-weight: bold;"><span style="color: #ff0201;">New CME E-Nano Futures - Currently Enabled for Live Trading on CQG and Teton only</span></p>
+</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%; height: 50px;" height="22"><strong>Name</strong></td>
+<td style="padding: 4px; width: 15.9236%; height: 50px;"><strong>Symbol</strong></td>
+<td style="padding: 4px; width: 15.9236%; height: 50px;" width="107"><strong>Exchange</strong></td>
+<td style="padding: 4px; width: 15.9236%; height: 50px;"><strong>Contract Size</strong></td>
+<td style="padding: 4px; width: 15.9236%; height: 50px;"><strong>Months</strong></td>
+<td style="padding: 4px; width: 15.9236%; height: 50px;"><strong>Tick / $ Value</strong></td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%;"><span style="background-color: #f4f4f4;">E-nano S&amp;P 500</span></td>
+<td style="padding: 4px; width: 15.9236%;"><span style="background-color: #f4f4f4;">NES</span></td>
+<td style="padding: 4px; width: 15.9236%;">CME</td>
+<td style="padding: 4px; width: 15.9236%;">$0.50 x S&amp;P Index</td>
+<td style="padding: 4px; width: 15.9236%;">H,M,U,Z</td>
+<td style="padding: 4px; width: 15.9236%;">0.50 / $0.25</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%;"><span style="background-color: #f4f4f4;">E-nano Nasdaq-100</span></td>
+<td style="padding: 4px; width: 15.9236%;"><span style="background-color: #f4f4f4;">NNQ</span></td>
+<td style="padding: 4px; width: 15.9236%;">CME</td>
+<td style="padding: 4px; width: 15.9236%;">$0.20&nbsp;x Nasdaq-100 Index</td>
+<td style="padding: 4px; width: 15.9236%;">H,M,U,Z</td>
+<td style="padding: 4px; width: 15.9236%;">0.50 / $0.10</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%;"><span style="background-color: #f4f4f4;">E-nano Dow</span></td>
+<td style="padding: 4px; width: 15.9236%;"><span style="background-color: #f4f4f4;">NDOW</span></td>
+<td style="padding: 4px; width: 15.9236%;">CBOT/CME</td>
+<td style="padding: 4px; width: 15.9236%;">$0.05&nbsp;x DJIA Index</td>
+<td style="padding: 4px; width: 15.9236%;">H,M,U,Z</td>
+<td style="padding: 4px; width: 15.9236%;">2.00 / $0.10</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%;"><span style="background-color: #f4f4f4;">E-nano Russell 2000</span></td>
+<td style="padding: 4px; width: 15.9236%;"><span style="background-color: #f4f4f4;">N2K</span></td>
+<td style="padding: 4px; width: 15.9236%;">CME</td>
+<td style="padding: 4px; width: 15.9236%;">$0.50&nbsp;x Russell 2000 Index</td>
+<td style="padding: 4px; width: 15.9236%;">H,M,U,Z</td>
+<td style="padding: 4px; width: 15.9236%;">0.20 / $0.10</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%;"><strong>Micro E-mini Futures</strong></td>
+<td style="padding: 4px; width: 15.9236%;"><strong>&nbsp;</strong></td>
+<td style="padding: 4px; width: 15.9236%;"><strong>&nbsp;</strong></td>
+<td style="padding: 4px; width: 15.9236%;"><strong>&nbsp;</strong></td>
+<td style="padding: 4px; width: 15.9236%;"><strong>&nbsp;</strong></td>
+<td style="padding: 4px; width: 15.9236%;"><strong>&nbsp;</strong></td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" height="22"><strong>Name</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Symbol</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" width="107"><strong>Exchange</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Contract Size</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Months</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Tick / $ Value</strong></td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Micro E-mini S&amp;P 500</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">MES</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">$5 x S&amp;P Index</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">0.25 / $1.25</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22">Micro E-mini Nasdaq-100</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">MNQ</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">$2 x Nasdaq-100 Index</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.25 / $0.50</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Micro E-mini Dow</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">MYM</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CBOT/CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">$0.50 x DJIA Index</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1.00 / $0.50</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22">Micro E-mini Russell 2000</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">M2K</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">$5 x Russell 2000 Index</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.10 / $0.50</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Micro-DAX</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">FDXS</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Eurex</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">€1 x Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1 /€1.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Micro-EURO STOXX 50</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">FSXE</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Eurex</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">€1 x Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.5 /€0.50</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" width="225" height="29"><strong>Stock Index</strong></td>
+<td style="padding: 0px; width: 79.6178%; height: 50px;" colspan="5">&nbsp;</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" height="22"><strong>Name</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Symbol</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Exchange</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Contract Size</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Months</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Tick / $ Value</strong></td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>E-mini S&amp;P 500</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">ES</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;"><span>CME</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">$50 x Index Value</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">H,M,U,Z</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">0.25 / $12.50</td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>E-mini Nasdaq-100</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">NQ</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;"><span>CME</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">$20 x Index Value</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">H,M,U,Z</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">0.25 / $5.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>E-mini Dow ($5)</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">YM</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">$5 x Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">1 / $5.00</td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>E-mini Russell 2000</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">RTY</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;"><span>CME</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">$50 x Index Value</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">H,M,U,Z</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">0.1 / $5.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">E-mini S&amp;P MidCap 400</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">EMD</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">$100 x Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.1 / $10.00</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%;"><span>Micro Nikkei (USD)</span></td>
+<td style="padding: 4px; width: 15.9236%;">MNK</td>
+<td style="padding: 4px; width: 15.9236%;">CME</td>
+<td style="padding: 4px; width: 15.9236%;">$0.50&nbsp;x Index Value</td>
+<td style="padding: 4px; width: 15.9236%;">H,M,U,Z</td>
+<td style="padding: 4px; width: 15.9236%;">5 / $2.50</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>NIKKEI 225/USD</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">NKD</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">$5 x Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">5 / $25.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>DAX</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">FDAX</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Eurex</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">€25 x Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1 / €25.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Mini-DAX</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">FDXM</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Eurex</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">€5 x Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1 /€5.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>EURO STOXX 50</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">FESX</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Eurex</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">€10 x Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1 / €10.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>STOXX Europe 600</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">FXXP</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Eurex</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">€50 x Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.1 /€5.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">EURO STOXX Banks</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">FESB</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Eurex</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">€50 x Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.05 /€2.50</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>VSTOXX</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">FVS</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Eurex</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">€100 x Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">see exch.</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.05 /€5</td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>CBOE Volatility Index (VIX)</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">VX</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">CFE/CBOE</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">$1000 x Index Value</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">see exch.</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">0.05 / $50.00</td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>Mini CBOE Volatility Index (Mini VIX)</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">VXM</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">CFE/CBOE</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">$100 x Index Value</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">see exch.</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">0.05 / $5.00</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22">FTSE 250 Index</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">Y</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9"><span>ICE Europe - Financials</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">€2 x Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.5 / £1</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22">FTSE 100 Index</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9"><span>ICE Europe - Financials</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">£10 x Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.5 / £5</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%;"><span>Nikkei 225 micro (Osaka)</span></td>
+<td style="padding: 4px; width: 15.9236%;">MC225</td>
+<td style="padding: 4px; width: 15.9236%;">Osaka - Japan (JPX)</td>
+<td style="padding: 4px; width: 15.9236%;">¥10 X Index Value</td>
+<td style="padding: 4px; width: 15.9236%;">H,M,U,Z</td>
+<td style="padding: 4px; width: 15.9236%;">¥5 / ¥50</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Nikkei 225 mini (Osaka)</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">MJNK</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Osaka - Japan (JPX)</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">¥100 X Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">¥5 / ¥500</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Nikkei 225 (Osaka)</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">JNK</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Osaka - Japan (JPX)</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">¥1000 X Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">¥10 / ¥10000</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22">TOPIX</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">JTPX</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">Osaka - Japan (JPX)</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">¥10000 X Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.5 / ¥5000</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Mini-TOPIX</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">JMT</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Osaka - Japan (JPX)</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">¥1000 X Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.25 / ¥250</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>JPX-Nikkei Index 400</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">J400</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Osaka - Japan (JPX)</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">¥100 X Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">5 / ¥500</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>SGX Nikkei 225 Index</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">NK</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">Singapore Exchange (SGX)</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">¥500 X Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">All</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">¥5 / ¥2500</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>SGX Mini Nikkei 225 Index</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">NS</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">Singapore Exchange (SGX)</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">¥100 x Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">see exch.</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">1 /¥100.00</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>SGX USD Nikkei 225 Index</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">NU</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">Singapore Exchange (SGX)</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">$5 x Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">5 / $25.00</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22">FTSE Taiwan Stock Index</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">TW</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">Singapore Exchange (SGX)</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">US$100 x SGX MSCI Taiwan Index</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.1 / $10.00</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>ASX SPI200 Index</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">AP</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9"><span>Australian Securities</span><span>&nbsp;Exchange (ASX)</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">$25 X Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">1 / A$25.00</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22">Hang Seng Index</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">HSI</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">Hong Kong (HKEX)</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">50HK$ per index point</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">see exch.</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">1 / HK$50</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>Mini-Hang Seng Index</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">MHI</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">Hong Kong (HKEX)</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">10HK$ per index point</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">see exch.</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">1 / HK$10</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22">Hang Seng China Ent. Index</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">HHI</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">Hong Kong (HKEX)</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">50HK$ per index point</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">see exch.</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">1 / HK$50</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>Mini-Hang-Seng China Ent. Index</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">MCH</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">Hong Kong (HKEX)</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">10HK$ per index point</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">see exch.</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">1 / HK$10</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" height="29"><strong>Currencies</strong></td>
+<td style="padding: 0px; width: 79.6178%; height: 50px;" colspan="5">&nbsp;</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" height="22"><strong>Name</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Symbol</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Exchange</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Contract Size</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Months</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Tick / $ Value</strong></td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Australian Dollar</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">6A</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">100K AUD</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291"><span>0.00005</span> / $5.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">British Pound</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">6B</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">62.5K £</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.0001 / $6.25</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Canadian Dollar</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">6C</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">100K $</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.00005 / $5.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Euro FX</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">6E</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">125K €</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.00005 / $6.25</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Japanese Yen</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">6J</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">12.5 mil ¥</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.0000005 / $6.25</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">New Zealand Dollar</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">6N</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">100K NZD</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291"><span>0.00005</span> / $5.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Swiss Franc</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">6S</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">125K CHF</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.0001 / $12.50</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">E-mini Euro FX</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">E7</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">62.5K €</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.0001 / $6.25</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">E-mini Japanese Yen</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">J7</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">6.25 mil ¥</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.000001 / $6.25</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Micro</span> AUD/USD</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">M6A</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">10K AUD</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.0001 / $1.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Micro</span> GBP/USD</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">M6B</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">6,250 £</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.0001 / $0.625</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Micro</span> CAD/USD</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">MCD</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">10,000 CAD</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.0001/ $1.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Micro</span> EUR/USD</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">M6E</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">12,500 €</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.0001 / $1.25</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%;"><span>Micro JPY/USD</span></td>
+<td style="padding: 4px; width: 15.9236%;">MJY</td>
+<td style="padding: 4px; width: 15.9236%;">CME</td>
+<td style="padding: 4px; width: 15.9236%;">1,250,000 ¥</td>
+<td style="padding: 4px; width: 15.9236%;">H,M,U,Z</td>
+<td style="padding: 4px; width: 15.9236%;">0.000001 / $1.25</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Micro</span> CHF/USD</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">MSF</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">12,500 CHF</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.0001 / $1.25</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Dollar Index</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">DX</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">ICE Futures U.S.</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">$1000 X Index Value</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.005 / $5.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" height="29"><strong>Energies</strong></td>
+<td style="padding: 0px; width: 79.6178%; height: 50px;" colspan="5">&nbsp;</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" height="22"><strong>Name</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Symbol</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Exchange</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Contract Size</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Months</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Tick / $ Value</strong></td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>Crude Oil</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">CL</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">NYMEX/CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">1,000 barrels</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">All</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.01 / $10.00</td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>E-mini Crude Light</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">QM</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">NYMEX/CME</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">500 barrels</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">All</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">0.025 / $12.50</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>Micro WTI Crude Oil</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">MCL</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">NYMEX/CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">100 barrels</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">All</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.01 / $1.00</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22">Natural Gas</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">NG</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">NYMEX/CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">10,000 mmBtu</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">All</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.001 / $10.00</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22">E-mini Natural Gas</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">QG</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">NYMEX/CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">2,500 mmBtu</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">All</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.005 / $12.50</td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;">
+<div>Micro Henry Hub Natural Gas</div>
+</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">
+<div>MNG</div>
+</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">
+<div>NYMEX/CME</div>
+</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">
+<div>1,000 MMBtu</div>
+</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">
+<div>All</div>
+</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">
+<div><span>0.001 / $1.00</span></div>
+</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>RBOB Gasoline</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">RB</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">NYMEX/CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">42K gal</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">All</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.0001 / $4.20</td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>Heating Oil</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">HO</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">NYMEX/CME</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">42K gal</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">All</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">0.0001 / $4.20</td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>ICE Brent Crude</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">B</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;"><span>ICE Europe - Commodities</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">42K gal</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">All</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">0.01 / $10.00</td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>ICE WTI Crude</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">T</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;"><span>ICE Europe - Commodities</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">42K gal</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">All</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">0.01 / $10.00</td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>ICE Gas Oil</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">G</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;"><span>ICE Europe - Commodities</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">100 tonnes</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">H,M,U,Z</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">0.25/$25.00 / $4.20</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" height="29"><strong>Metals</strong></td>
+<td style="padding: 0px; width: 79.6178%; height: 50px;" colspan="5">&nbsp;</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" height="22"><strong>Name</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Symbol</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Exchange</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Contract Size</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Months</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Tick / $ Value</strong></td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22">Gold</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">GC</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">COMEX/CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">100 oz</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">G,J,M,Q,V,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.1 / $10.00</td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>E-mini Gold</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">QO</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">COMEX/CME</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">50 oz</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">F,G,J,M,Q,V,Z</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">0.25 / $12.50</td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>Micro Gold</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">MGC</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">COMEX/CME</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">10 oz</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">G,J,M,Q,V,Z</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">0.10/$1.00</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%;">1-Ounce Gold</td>
+<td style="padding: 4px; width: 15.9236%;">1OZ</td>
+<td style="padding: 4px; width: 15.9236%;">COMEX/CME</td>
+<td style="padding: 4px; width: 15.9236%;">1 troy ounce</td>
+<td style="padding: 4px; width: 15.9236%;">G,J,M,Q,V,Z</td>
+<td style="padding: 4px; width: 15.9236%;">0.25/$0.25</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22">Copper</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">HG</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">COMEX/CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">25K lbs</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">All</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.0005 / $12.50</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>E-mini Copper</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">QC</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">COMEX/CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">12,500 lbs</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">All</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.002 / $25.00</td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;">
+<div>Micro Copper</div>
+</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">
+<div>MHG</div>
+</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">
+<div>COMEX/CME</div>
+</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">
+<div>2,500 lbs</div>
+</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">
+<div>All</div>
+</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">
+<div><span>0.0005 / $1.25</span></div>
+</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22">Silver</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">SI</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">COMEX/CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">5,000 oz</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">F,H,K,N,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.005 / $25.00</td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>E-mini Silver</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">QI</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">COMEX/CME</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">2,500 oz</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">F,G,H,K,N,U,Z</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">0.0125 / $31.25</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>E-micro Silver</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">SIL</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">COMEX/CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">1,000 oz</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">F,H,K,N,U,V,X,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.01 / $10.00</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%;">100-Ounce Silver</td>
+<td style="padding: 4px; width: 15.9236%;">SIC</td>
+<td style="padding: 4px; width: 15.9236%;">COMEX/CME</td>
+<td style="padding: 4px; width: 15.9236%;">100 oz</td>
+<td style="padding: 4px; width: 15.9236%;">H,K,N,U,Z</td>
+<td style="padding: 4px; width: 15.9236%;">0.01 / $1.00</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22">Platinum</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">PL</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">NYMEX/CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">50 oz</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">F,J,N,V</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.1 / $5.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" height="29"><strong>Financials</strong></td>
+<td style="padding: 0px; width: 79.6178%; height: 50px;" colspan="5">&nbsp;</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" height="22"><strong>Name</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Symbol</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Exchange</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Contract Size</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Months</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Tick / $ Value</strong></td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Ultra U.S. Treasury Bond</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">UB</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">$100K bond</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1/32 / $31.25</td>
+</tr>
+<tr style="height: 61px;">
+<td style="padding: 4px; width: 20.4732%; height: 61px;">
+<div>Micro Ultra U.S. Treasury Bond</div>
+</td>
+<td style="padding: 4px; width: 15.9236%; height: 61px;">
+<div>MWNA</div>
+</td>
+<td style="padding: 4px; width: 15.9236%; height: 61px;">
+<div><span>CBOT/CME</span></div>
+</td>
+<td style="padding: 4px; width: 15.9236%; height: 61px;">
+<div>$10K bond</div>
+</td>
+<td style="padding: 4px; width: 15.9236%; height: 61px;">
+<div>H,M,U,Z</div>
+</td>
+<td style="padding: 4px; width: 15.9236%; height: 61px;">
+<div><span>1/32 / $3.125</span></div>
+</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Ultra 10-Year U.S. Treasury Note</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">TN</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">$100K Note</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1/32 / $15.625</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%;">
+<div>Micro Ultra 10-Year U.S. Treasury Note</div>
+</td>
+<td style="padding: 4px; width: 15.9236%;">
+<div>MTN</div>
+</td>
+<td style="padding: 4px; width: 15.9236%;">
+<div><span>CBOT/CME</span></div>
+</td>
+<td style="padding: 4px; width: 15.9236%;">
+<div>$10K Note</div>
+</td>
+<td style="padding: 4px; width: 15.9236%;">
+<div>H,M,U,Z</div>
+</td>
+<td style="padding: 4px; width: 15.9236%;">
+<div><span>1/2 of 1/32 / $1.5625</span></div>
+</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>3-Year U.S. Treasury Note</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">Z3N</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">$300K note</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">1/128 / $15.625</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>U.S. Treasury Bond</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">ZB</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">$100K bond</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1/32 / $31.25</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Micro 30-Year Yield</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">30YY</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">$10.00 DV01</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1/10 of 1bp / $1.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>5-Year U.S. Treasury Note</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">ZF</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">$100K note</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1/128 / $7.8125</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Micro 5-Year Yield</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">5YY</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">$10.00 DV01</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1/10 of 1bp / $1.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>10-Year U.S. Treasury Note</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">ZN</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">$100K note</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1/64 / $15.625</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Micro 10-Year Yield</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">10YY</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">$10.00 DV01</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1/10 of 1bp / $1.00</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>30-Day Federal Funds</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">ZQ</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">$5 mil</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">All</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.005 / $20.835</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>2-Year U.S. Treasury Note</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">ZT</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">$200K note</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1/128 / $15.625</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Micro 2-Year Yield</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">2YY</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">$10.00 DV01</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1/10 of 1bp / $1.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Eurodollar</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">GE</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">$1 mil</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.01 / $25.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Long-Term Euro-BTP</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">FBTP</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Eurex</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">100K€</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.01 / €10.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Short-Term Euro-BTP</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">FBTS</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Eurex</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">100K€</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.01 / €10.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Euro-Bund</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">FGBL</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Eurex</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">100K €</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.01 / € 10.0</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Euro-Bobl</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">FGBM</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Eurex</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">100K €</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.01 / € 10.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Euro-Schatz</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">FGBS</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Eurex</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">100K €</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.005 / €5.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Euro-Buxl</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">FGBX</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Eurex</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">100K€</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.02 / €20.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Euro-OAT</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">FOAT</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Eurex</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">100K€</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.01 / €10.00</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>3-Month SONIA Index<br></span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9"><span>SO3</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9"><span>ICE Europe - Financials</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">£500,000</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.005 / £6.25</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22">Long Gilt</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">R</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9"><span>ICE Europe - Financials</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">£100K</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.01 / £10</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>10-Year Japanese Government Bond</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">JGB</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">Osaka - Japan (JPX)</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">¥100,000,000</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">¥0.01 / ¥10,000</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>SGX 10-Year Mini JGB</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">JB</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">Singapore Exchange (SGX)</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">¥10,000,000</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">¥0.01/ ¥100</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>ASX 90-Day Bank Bill</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">IR</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9"><span>Australian Securities</span><span>&nbsp;Exchange (ASX)</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">A$1,000,000</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.01 / $24.00</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>ASX 10-Year Aus Treasury Bond</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">XT</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9"><span>Australian Securities</span><span>&nbsp;Exchange (ASX)</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">A$100,000</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.005 / $47.00</td>
+</tr>
+<tr style="height: 78px;">
+<td style="padding: 0px; width: 20.4732%; height: 78px;" bgcolor="#f9f9f9" height="22"><span>ASX 3-Year Aus Interest Rate Swap</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9">YT</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9"><span>Australian Securities</span><span>&nbsp;Exchange (ASX)</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="269">A$100,000</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="288">H,M,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 78px;" bgcolor="#f9f9f9" width="291">0.01 / $30.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" height="29"><strong>Grains</strong></td>
+<td style="padding: 0px; width: 79.6178%; height: 50px;" colspan="5">&nbsp;</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" height="22"><strong>Name</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Symbol</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Exchange</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Contract Size</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Months</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Tick / $ Value</strong></td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Corn</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">ZC</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">5,000 bu</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,K,N,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1/4 / $12.50</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>Mini-Corn</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">XC</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;"><span>CBOT/CME</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">1,000 bu</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">H,K,N,U,Z</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">1/8 / $1.25</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%;"><span>Micro Corn</span></td>
+<td style="padding: 4px; width: 15.9236%;">MZC</td>
+<td style="padding: 4px; width: 15.9236%;"><span>CBOT/CME</span></td>
+<td style="padding: 4px; width: 15.9236%;">500 bushels</td>
+<td style="padding: 4px; width: 15.9236%;">H,K,N,U,Z</td>
+<td style="padding: 4px; width: 15.9236%;">0.0050 / $2.50</td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>Chicago SRW Wheat</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">ZW</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;"><span>CBOT/CME</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">5,000 bu</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">H,K,N,U,Z</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">1/4 / $12.50</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>Mini-sized Chicago SRW Wheat</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">XW</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;"><span>CBOT/CME</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">1,000 bu</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">H,K,N,U,Z</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">1/8 / $1.25</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%;">Micro Wheat</td>
+<td style="padding: 4px; width: 15.9236%;">MZW</td>
+<td style="padding: 4px; width: 15.9236%;"><span>CBOT/CME</span></td>
+<td style="padding: 4px; width: 15.9236%;">500 bushels</td>
+<td style="padding: 4px; width: 15.9236%;">H,K,N,U,Z</td>
+<td style="padding: 4px; width: 15.9236%;">0.0050 / $2.50</td>
+</tr>
+<tr style="height: 49px;">
+<td style="padding: 4px; width: 20.4732%; height: 49px;">Soybeans</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">ZS</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;"><span>CBOT/CME</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">5,000 bu</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">F,H,K,N,Q,U,X</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">1/4 / $12.50</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%; height: 49px;"><span>Mini Soybean</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">XK</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;"><span>CBOT/CME</span></td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">1,000 bu</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">F,H,K,N,Q,U,X</td>
+<td style="padding: 4px; width: 15.9236%; height: 49px;">1/8 / $1.25</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%;">Micro <span>Soybean</span></td>
+<td style="padding: 4px; width: 15.9236%;">MZS</td>
+<td style="padding: 4px; width: 15.9236%;"><span>CBOT/CME</span></td>
+<td style="padding: 4px; width: 15.9236%;">500 bushels</td>
+<td style="padding: 4px; width: 15.9236%;">&nbsp;F,H,K,N,Q,U,X</td>
+<td style="padding: 4px; width: 15.9236%;">0.0050 / $2.50</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Soybean Oil</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">ZL</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">60K lbs</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">F,H,K,N,Q,U,V,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1/100 / $6.00</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%;">Micro Soybean Oil</td>
+<td style="padding: 4px; width: 15.9236%;">MZL</td>
+<td style="padding: 4px; width: 15.9236%;"><span>CBOT/CME</span></td>
+<td style="padding: 4px; width: 15.9236%;">6,000 lbs</td>
+<td style="padding: 4px; width: 15.9236%;">F,H,K,N,Q,U,V,Z</td>
+<td style="padding: 4px; width: 15.9236%;">0.02 / $1.20</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Soybean Meal</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">ZM</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">100 tons</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">F,H,K,N,Q,U,V,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.10 / $10.00</td>
+</tr>
+<tr>
+<td style="padding: 4px; width: 20.4732%;">Micro Soybean Meal</td>
+<td style="padding: 4px; width: 15.9236%;">MZM</td>
+<td style="padding: 4px; width: 15.9236%;"><span>CBOT/CME</span></td>
+<td style="padding: 4px; width: 15.9236%;">10 short tons</td>
+<td style="padding: 4px; width: 15.9236%;">F,H,K,N,Q,U,V,Z</td>
+<td style="padding: 4px; width: 15.9236%;">0.2 / $2.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Oats</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">ZO</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">5,000 bu</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,K,N,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1/4 / $12.50</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Rough Rice</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">ZR</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9"><span>CBOT/CME</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">2,000 cwt</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">F,H,K,N,U,X</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.005 / $10.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" height="29"><strong>Softs</strong></td>
+<td style="padding: 0px; width: 79.6178%; height: 50px;" colspan="5">&nbsp;</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" height="22"><strong>Name</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Symbol</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Exchange</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Contract Size</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Months</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Tick / $ Value</strong></td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22"><span>Class III Milk</span></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">DC</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">200K lbs</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">All</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.01 / $20.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Lumber</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">LBS</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269"><span>27,500</span> board feet</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">F,H,K,N,U,X</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291"><span>0.50</span> / $<span>13.75</span></td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Cocoa</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CC</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">ICE Futures U.S.</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">10 tons</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,K,N,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">1 / $10.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Cotton</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CT</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">ICE Futures U.S.</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">50k lbs</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,K,N,V,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.0001 / $5.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Coffee</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">KC</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">ICE Futures U.S.</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">37.5k lbs</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,K,N,U,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.0005 / $18.75</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Orange Juice</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">OJ</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">ICE Futures U.S.</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">15k lbs</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,K,N,U,X</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.0005 / $7.50</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Sugar #11</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">SB</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">ICE Futures U.S.</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">112k lbs</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">H,K,N,V</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.0001 / $11.20</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" height="29"><strong>Meats</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" width="126">&nbsp;</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;">&nbsp;</td>
+<td style="padding: 0px; width: 47.7707%; height: 50px;" colspan="3">&nbsp;</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" height="22"><strong>Name</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Symbol</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Exchange</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Contract Size</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Months</strong></td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;"><strong>Tick / $ Value</strong></td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Feeder Cattle</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">GF</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">50K lbs</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">F,H,J,Q,U,V,X</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.00025 / $12.50</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Lean Hog</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">HE</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">40K lbs</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">G,J,K,M,N,Q,V,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.00025 / $10.00</td>
+</tr>
+<tr style="height: 50px;">
+<td style="padding: 0px; width: 20.4732%; height: 50px;" bgcolor="#f9f9f9" height="22">Live Cattle</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">LE</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9">CME</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="269">40K lbs</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="288">G,J,M,Q,V,Z</td>
+<td style="padding: 0px; width: 15.9236%; height: 50px;" bgcolor="#f9f9f9" width="291">0.00025 / $10.00</td>
+</tr>
+</tbody>
+</table>
+</div></span></div>
+
+</div><!--end widget-span -->
+</div><!--end row-->
+</div><!--end row-wrapper -->
+
+</div><!--end widget-span -->
+</div><!--end row-->
+</div><!--end row-wrapper -->
+
+</div><!--end widget-span -->
+</div>
+</div>
+</div>
+</main>
+
+      </main>
+      <footer class="footer">
+        <div class="footer__container">
+          <div id="hs_cos_wrapper_global_footer" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_module" style="" data-hs-cos-general-type="widget" data-hs-cos-type="module"><div class="hhs-footer-mod-top">
+  <div class="container">
+    <div class="platform-head">
+      <a href="https://www.ampfutures.com/trading-platform?hsLang=en">50+ Trading Platforms</a>
+    </div>
+    
+    <div class="row hhs-foot-nav-cols">
+      <div class="col-lg-21 col-lg-22">
+        <span id="hs_cos_wrapper_global_footer_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_simple_menu" style="" data-hs-cos-general-type="widget" data-hs-cos-type="simple_menu"><div id="hs_menu_wrapper_global_footer_" class="hs-menu-wrapper active-branch flyouts hs-menu-flow-horizontal" role="navigation" data-sitemap-name="" data-menu-id="" aria-label="Navigation Menu">
+ <ul role="menu">
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/agenatrader" role="menuitem" target="_self">AgenaTrader</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/atas" role="menuitem" target="_self">ATAS</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/barchart-trader" role="menuitem" target="_self">Barchart Trader</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/bluewater-trading-solutions-inside-edge-trader" role="menuitem" target="_self">BlueWater, Inside Edge</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/bookmap" role="menuitem" target="_self">Bookmap</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/c2-collective2" role="menuitem" target="_self">C2 (Collective 2)</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/cqg-desktop" role="menuitem" target="_self">CQG Desktop</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/cqg-integrated-client" role="menuitem" target="_self">CQG Integrated Client</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/cqg-mobile" role="menuitem" target="_self">CQG Mobile (iOS &amp; Android)</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/cqg-excel" role="menuitem" target="_self">CQG with Excel Spreadsheets</a></li>
+ </ul>
+</div></span>
+      </div>
+      <div class="col-lg-21">
+        <span id="hs_cos_wrapper_global_footer_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_simple_menu" style="" data-hs-cos-general-type="widget" data-hs-cos-type="simple_menu"><div id="hs_menu_wrapper_global_footer_" class="hs-menu-wrapper active-branch flyouts hs-menu-flow-horizontal" role="navigation" data-sitemap-name="" data-menu-id="" aria-label="Navigation Menu">
+ <ul role="menu">
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/cqg-qtrader" role="menuitem" target="_self">CQG QTrader</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/cqg-spreader" role="menuitem" target="_self">CQG Spreader</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/cqg-trader" role="menuitem" target="_self">CQG Trader</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/dtn-iqfeed" role="menuitem" target="_self">DTN IQFeed</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/dtn-prophetx" role="menuitem" target="_self">DTN ProphetX</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/esignal" role="menuitem" target="_self">eSignal</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/futuresource" role="menuitem" target="_self">FutureSource</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/futuresource-mobile" role="menuitem" target="_self">FutureSource - Mobile</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/futuresource-java-web" role="menuitem" target="_self">FutureSource Java - Web</a></li>
+ </ul>
+</div></span>
+      </div>
+      <div class="col-lg-21 col-lg-23">
+        <span id="hs_cos_wrapper_global_footer_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_simple_menu" style="" data-hs-cos-general-type="widget" data-hs-cos-type="simple_menu"><div id="hs_menu_wrapper_global_footer_" class="hs-menu-wrapper active-branch flyouts hs-menu-flow-horizontal" role="navigation" data-sitemap-name="" data-menu-id="" aria-label="Navigation Menu">
+ <ul role="menu">
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/hidden-force-flux" role="menuitem" target="_self">Hidden Force Flux</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/ibroker" role="menuitem" target="_self">iBroker</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/investor-rt" role="menuitem" target="_self">Investor/RT</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/jigsaw-trading" role="menuitem" target="_self">Jigsaw</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/keyboard-trader" role="menuitem" target="_self">Keyboard Trader</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/medved-trader" role="menuitem" target="_self">Medved Trader</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/metatrader" role="menuitem" target="_self">MetaTrader 5 (MT5)</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/motivewave" role="menuitem" target="_self">MotiveWave</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/multicharts-with-easy-language" role="menuitem" target="_self">Multicharts (with EasyLanguage)</a></li>
+ </ul>
+</div></span>
+      </div>
+      <div class="col-lg-21">
+       <span id="hs_cos_wrapper_global_footer_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_simple_menu" style="" data-hs-cos-general-type="widget" data-hs-cos-type="simple_menu"><div id="hs_menu_wrapper_global_footer_" class="hs-menu-wrapper active-branch flyouts hs-menu-flow-horizontal" role="navigation" data-sitemap-name="" data-menu-id="" aria-label="Navigation Menu">
+ <ul role="menu">
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/multicharts-ampmc-net-free" role="menuitem" target="_self">MultiCharts Special Edition (FREE)</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/overcharts" role="menuitem" target="_self">Overcharts</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/qcaid" role="menuitem" target="_self">Qcaid by Qubitia</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/ru/trading-platform/qscalp" role="menuitem" target="_self">Qscalp</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/qst-quick-screen-trading" role="menuitem" target="_self">QST Desktop &amp; Mobile</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/quantower-free" role="menuitem" target="_self">Quantower</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/rithmic-r-api" role="menuitem" target="_self">Rithmic - R | API+</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/rithmic-r-trader" role="menuitem" target="_self">Rithmic - R | Trader</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/rithmic-r-trader-pro" role="menuitem" target="_self">Rithmic - R | Trader Pro</a></li>
+ </ul>
+</div></span>
+      </div>
+      <div class="col-lg-21 col-lg-24">
+        <span id="hs_cos_wrapper_global_footer_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_simple_menu" style="" data-hs-cos-general-type="widget" data-hs-cos-type="simple_menu"><div id="hs_menu_wrapper_global_footer_" class="hs-menu-wrapper active-branch flyouts hs-menu-flow-horizontal" role="navigation" data-sitemap-name="" data-menu-id="" aria-label="Navigation Menu">
+ <ul role="menu">
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/scalptool-euspeed" role="menuitem" target="_self">ScalpTool - euSpeed</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/sierra-chart" role="menuitem" target="_self">Sierra Chart</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/smartquant" role="menuitem" target="_self">SmartQuant</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/stealth-trader-stealthpro" role="menuitem" target="_self">StealthTrader</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/trading-technologies-tt-platform" role="menuitem" target="_self">TT Platform</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/trading-technologies-adl-algo-design-lab" role="menuitem" target="_self">TT - ADL (Algo Design Lab)</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/trading-technologies-tt-api" role="menuitem" target="_self">TT API</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/trading-technologies-tt-fix-adapter" role="menuitem" target="_self">TT FIX Adapter</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/it/trading-platform/quantirica-algorithmic-trading-ticker-explorer" role="menuitem" target="_self">Ticker Explorer - Quantirica</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/ticker-quant" role="menuitem" target="_self">TickerQuant</a></li>
+ </ul>
+</div></span>
+      </div>
+      <div class="col-lg-2 col-lg-24">
+        <span id="hs_cos_wrapper_global_footer_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_simple_menu" style="" data-hs-cos-general-type="widget" data-hs-cos-type="simple_menu"><div id="hs_menu_wrapper_global_footer_" class="hs-menu-wrapper active-branch flyouts hs-menu-flow-horizontal" role="navigation" data-sitemap-name="" data-menu-id="" aria-label="Navigation Menu">
+ <ul role="menu">
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/tigertrade" role="menuitem" target="_self">Tiger.Trade</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/trade-navigator" role="menuitem" target="_self">Trade Navigator</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/tradingview" role="menuitem" target="_self">TradingView</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/tslab" role="menuitem" target="_self">TSLab</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/veritian" role="menuitem" target="_self">Veritian</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/volfix" role="menuitem" target="_self">VolFix</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/volumetrica-volsys" role="menuitem" target="_self">Volumetrica (VolSys)</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/volumetrica-volbook" role="menuitem" target="_self">Volumetrica (VolBook)</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/trading-platform/zlantrader" role="menuitem" target="_self">Zlantrader</a></li>
+ </ul>
+</div></span>
+      </div>
+  </div>
+</div>
+  </div>
+<div id="" class="hhs-footer-mod ">
+  <div class="container"><div class="row hhs-foot-nav-cols"><div class="col-lg-3 col-12 col-md-6">
+            <div class="hhs-foot-nav-col hhs-foot-rss nav-col-1"><h5 class="hide-mobile">Information</h5>
+                <button class="foot-nav-title col-head-1 hide-desktop hide-tablet show-mobile">Information</button><div class="hhs-col-content"><p><a href="/trading-platform?hsLang=en" rel="noopener">AMP Futures Platforms</a></p>
+<p><a href="/trading-platform?hsLang=en" rel="noopener">AMP Trading Platform</a></p>
+<p><a href="https://www.ampfutures.com/news?hsLang=en" rel="noopener" target="_blank">AMP News &amp; Announcements</a></p>
+<p><a href="/trading-info/margins?hsLang=en" rel="noopener">AMP Futures Margins</a></p>
+<p><a href="/why-amp/commission-quote-match?hsLang=en" rel="noopener">AMP Futures Commissions</a></p>
+<p><a href="https://www.ampclientportal.com/Identity/Account/Login" rel="noopener" target="_blank">AMP Futures Login</a></p>
+<p><a href="https://www.ampclientportal.com/Identity/Account/Login" rel="noopener" target="_blank">AMP Global Clearing</a></p>
+<p><a href="/trading-info/trading-hours?hsLang=en" rel="noopener">AMP Trading Hours</a></p>
+<p><a href="/cftc-rule-1-55-reporting?hsLang=en" rel="noopener">CFTC Rule 1.55 Reporting</a></p>
+<p><a href="https://www.ampclientportal.com/Identity/Account/Register" rel="noopener" target="_blank">Open an Account</a></p></div>
+            </div>
+          </div>
+          <div class="col-lg-3 col-12 col-md-6">
+            <div class="hhs-foot-nav-col hhs-foot-rss nav-col-2"><h5 class="hide-mobile">Services</h5>
+                <button class="foot-nav-title col-head-2 hide-desktop hide-tablet show-mobile">Services</button><div class="hhs-col-content"><p><a href="/services/online-trading?hsLang=en" rel="noopener">Self Directed Trading</a></p>
+<p><a href="/metatrader/automated-trading/mql5market?hsLang=en" rel="noopener">AutoTrading Strategies</a></p>
+<p><a href="/services/domestic-foreign-introducing-brokers?hsLang=en" rel="noopener">Introducing Brokers</a></p>
+<p><a href="/services/foreign-ibs?hsLang=en" rel="noopener">Foreign Introducing Broker - Referral Partner Program</a></p>
+<p><a href="/services/ira-traditional-roth?hsLang=en" rel="noopener">IRA (Traditional, ROTH)</a></p>
+<p><a href="/why-amp/cqg-data-quality?hsLang=en" rel="noopener">CQG Data</a></p>
+<p><a href="/why-amp/ampcqg-exchanges?hsLang=en" rel="noopener">AMP Exchanges</a></p>
+<p><a href="/why-amp/trading-technologies?hsLang=en" rel="noopener">TT - Trading Technologies</a></p>
+<p><a href="/why-amp/rithmic?hsLang=en" rel="noopener">Rithmic Data</a></p></div>
+            </div>
+          </div><div class="col-lg-3 col-12 col-md-6">
+            <div class="hhs-foot-nav-col hhs-foot-rss nav-col-3"><h5 class="hide-mobile">Education</h5>
+                <button class="foot-nav-title col-head-3 hide-desktop hide-tablet show-mobile">Education</button><div class="hhs-col-content"><p><a href="/education/order-types?hsLang=en" rel="noopener">Order Types</a></p>
+<p><a href="/education/history-of-futures?hsLang=en" rel="noopener">History of Futures</a></p>
+<p><a href="/education/futures-vs-stocks?hsLang=en" rel="noopener">Futures vs. Stocks</a></p>
+<p><a href="/education/what-is-emini?hsLang=en" rel="noopener">What is Emini?</a></p>
+<p><a href="/education/getting-started?hsLang=en" rel="noopener">Getting Started Trading</a></p>
+<p><a href="https://www.ampfutures.com/hubfs/AMP%20Futures%20(USA)%20-%20Website/NFA-%20Opportunity%20and%20Risk-%20An%20Educational%20Guide%20to%20Trading%20Futures%20and%20Options%20on%20Futures.pdf?hsLang=en" rel="noopener" target="_blank">NFA: Risks &amp; Opportunities</a></p>
+<p><a href="https://www.ampfutures.com/hubfs/AMP%20Futures%20(USA)%20-%20Website/NFA-%20Glossary%20of%20Commodity%20Futures%20Terms%2c%20introduction%20to%20futures%20Language.pdf?hsLang=en" rel="noopener" target="_blank">NFA: Glossary of Terms</a></p>
+<p><a href="https://www.youtube.com/c/ampfutures" rel="noopener" target="_blank">Video Library</a></p>
+<p><a href="https://forum.ampfutures.com/AMPforum" rel="noopener" target="_blank">Upcoming Webinars</a></p>
+<p><a href="https://forum.ampfutures.com/AMPforum" rel="noopener" target="_blank">Support Forum</a></p></div>
+            </div>
+          </div><div class="col-lg-3 col-12 col-md-6">
+            <div class="hhs-foot-nav-col hhs-foot-rss nav-col-4"><h5 class="hide-mobile">FREE Offers</h5>
+                <button class="foot-nav-title col-head-4 hide-desktop hide-tablet show-mobile">FREE Offers</button><div class="hhs-col-content"><p style="font-size: 14px;"><a href="/free-tools-offers?hsLang=en" rel="noopener">Free Trading Tools &amp; Offers</a></p>
+<p style="font-size: 14px;"><a href="/free-tools-offers/learn-to-trade-futures?hsLang=en" rel="noopener">Learn To Trade Futures</a></p>
+<p><a href="/free-tools-offers/futures-trading-resources?hsLang=en" rel="noopener">Futures Trading Resources</a></p>
+<p><a href="/free-tools-offers/support-resistance-levels?hsLang=en" rel="noopener">Support &amp; Resistance Levels</a></p>
+<p><a href="/free-tools-offers/sp500-futures-squawk-box?hsLang=en" rel="noopener">S&amp;P500 Futures Squawk Box</a></p>
+<p><a href="/free-tools-offers/trading-lessons?hsLang=en" rel="noopener">Trading Lessons</a></p>
+<p><a href="/free-tools-offers/pivot-point-calculator?hsLang=en" rel="noopener">Pivot Point Calculator</a></p>
+<p><a href="/free-tools-offers/futures-101-booklet?hsLang=en" rel="noopener">Futures 101 Booklet</a></p>
+<p><a href="/free-tools-offers/simulated-trading?hsLang=en" rel="noopener">Simulated Trading</a></p>
+<p><a href="/free-tools-offers/foreign-ib-starter-kit?hsLang=en" rel="noopener">Foreign IB Starter Kit</a></p></div>
+            </div>
+          </div></div><div class="w-100 hhs-foot-break-line"></div>
+    <div class="row hhs-foot-nav-base" style="margin-bottom: 25px;">
+      <div class="col-sm-12 order-1-mobile"><div class="hhs-social-con"><a href="https://www.facebook.com/AMPFutures" target="blank"><i class="fab fa-facebook-f"></i></a><a href="https://twitter.com/AMPFutures" target="blank"><i class="fab fa-twitter"></i></a><a href="https://www.linkedin.com/company/ampfutures/" target="blank"><i class="fab fa-linkedin-in"></i></a><a href="https://www.youtube.com/AMPFutures" target="blank"><i class="fab fa-youtube"></i></a></div></div>
+      <div class="col-sm-12 order-2-mobile"><div class="hhs-foot-logo">
+            
+              
+              
+              
+              
+              <a href="https://www.ampfutures.com?hsLang=en">
+                
+                  
+                  
+                   
+                  <img src="https://www.ampfutures.com/hubfs/AMP-Logo-Horizontal-Color.svg" alt="AMP Futures | AMP Global Clearing" width="140" height="33">
+                
+              </a>
+          </div><p class="hhs-foot-copyright"><br>AMP Global Clearing, LLC is a Clearing Member of CME, CBOT, COMEX, and NYMEX </p><p>AMP Futures is a U.S. regulated Futures Clearing Merchant (FCM). We are regulated by the CME Group as our Designated Self-Regulatory Organization (DSRO), the Commodity Futures Trading Commission (CFTC), and the National Futures Association (NFA) license no. 0412490. </p><p>Headquarters: 221 N. LaSalle Street, 25th Floor, Chicago, IL 60601 USA <a href="https://www.ampfutures.com/?hsLang=en">www.ampfutures.com</a><br><br>There is a risk of loss in trading futures, forex and options. Futures, forex and options trading are not appropriate for all investors. Please read our <a href="/risk-disclosure?hsLang=en">Risk Disclosure</a> and <a href="/privacy-statement?hsLang=en">Privacy Policy.</a></p>
+        <div class="hhs-foot-base-nav"><span id="hs_cos_wrapper_global_footer_" class="hs_cos_wrapper hs_cos_wrapper_widget hs_cos_wrapper_type_simple_menu" style="" data-hs-cos-general-type="widget" data-hs-cos-type="simple_menu"><div id="hs_menu_wrapper_global_footer_" class="hs-menu-wrapper active-branch flyouts hs-menu-flow-horizontal" role="navigation" data-sitemap-name="" data-menu-id="" aria-label="Navigation Menu">
+ <ul role="menu">
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/cftc-rule-1-55-reporting" role="menuitem" target="_self">CTFC Rule 1.55 Reporting</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/privacy-statement" role="menuitem" target="_self">Privacy</a></li>
+  <li class="hs-menu-item hs-menu-depth-1" role="none"><a href="https://www.ampfutures.com/risk-disclosure" role="menuitem" target="_self">Risk Disclosure</a></li>
+ </ul>
+</div></span></div>
+      </div>
+      
+    </div>
+  </div>
+</div>
+<a href="javascript:" id="return-to-top"><i class="fas fa-chevron-up"></i></a></div>
+        </div>
+      </footer>
+    </div>
+    
+<!-- HubSpot performance collection script -->
+<script defer src="/hs/hsstatic/content-cwv-embed/static-1.1293/embed.js"></script>
+<script src="https://www.ampfutures.com/hubfs/hub_generated/template_assets/1/45794237556/1781275728891/template_clean-6-1-theme.min.js"></script>
+<script src="https://www.ampfutures.com/hubfs/hub_generated/template_assets/1/45793735073/1775840308941/template_jquery-modal-min.min.js"></script>
+<script>
+var hsVars = hsVars || {}; hsVars['language'] = 'en';
+</script>
+
+<script src="/hs/hsstatic/cos-i18n/static-1.53/bundles/project.js"></script>
+<script src="https://www.ampfutures.com/hubfs/hub_generated/template_assets/1/45793567590/1775840317056/template_mega-menu.min.js"></script>
+ 
+<script defer>
+  
+    // THIS IS FOR THE STICKY HEADER
+    $(function() {
+        //caches a jQuery object containing the header element
+        var header = $(".hhs-header-mod");
+        $(window).scroll(function() {
+            var scroll = $(window).scrollTop();
+
+            if (scroll >= 100) {
+                header.addClass("sticky-menu");
+            } else {
+                header.removeClass('sticky-menu');
+            }
+        });
+    });
+    $(window).scroll(function(){
+
+      // Variables
+      var $body = $(".sticky-menu");
+      var windowScrollTop = $(window).scrollTop();
+      var scroll = $(window).scrollTop();
+
+      if (scroll >= 100) {
+        $body.addClass("active");
+      } else {
+        $body.removeClass('active');
+      }
+    });
+  
+ 
+  
+  function toggleNav() {
+    const element = document.querySelector("nav");
+    const elementHeight = element.scrollHeight;
+    var isCollapsed = element.getAttribute('data-collapsed') === 'true';
+    if (isCollapsed) {
+      element.style.height = elementHeight + "px";
+      element.setAttribute("data-collapsed", "false");
+    } else {
+      element.style.height = "0px";
+      element.setAttribute("data-collapsed", "true");
+    }
+    $('.hhs-hat-pull-down').toggleClass('is-open');
+    $('.hhs-hat-menu').toggleClass('is-open');
+  }
+  
+  
+  
+    jQuery(document).ready(function($) {
+      if (window.hsInEditor) {
+        return;
+      }
+      // show mega menu
+      megaMenu(768);
+    });
+  
+</script>
+
+
+  <script defer>
+  var hsSearch = function(_instance) {
+    var TYPEAHEAD_LIMIT			= 3;
+    var searchTerm      		= "",
+        searchForm 					=	_instance,
+        searchField 				= _instance.querySelector('.hs-search-field__input'),
+        searchResults 			= _instance.querySelector('.hs-search-field__suggestions'),
+        searchOptions				= function() {
+          var formParams = [];
+          var form = _instance.querySelector('form');
+          for ( var i = 0; i < form.querySelectorAll('input[type=hidden]').length; i++ ) {
+             var e = form.querySelectorAll('input[type=hidden]')[i];
+              if (e.name !== 'limit') {
+                formParams.push(encodeURIComponent(e.name) + "=" + encodeURIComponent(e.value));
+              }
+          }
+          var queryString = formParams.join("&");
+          return queryString;
+        };
+
+    var debounce = function(func, wait, immediate) {
+      var timeout;
+      return function() {
+        var context = this,
+            args = arguments;
+        var later = function() { 
+          timeout = null;
+          if ( !immediate ) {
+            func.apply(context, args);
+          }
+        };
+        var callNow = immediate && !timeout;
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait || 200);
+        if ( callNow ) { 
+          func.apply(context, args); 
+        }
+      };
+    },
+    emptySearchResults = function(){
+      searchResults.innerHTML = '';
+      searchField.focus();
+      searchForm.classList.remove('hs-search-field--open');
+    },
+    fillSearchResults = function(response){
+      var items = [];
+      items.push( "<li id='results-for'>Results for \"" + response.searchTerm + "\"</li>" );
+      response.results.forEach(function(val, index) {
+        items.push( "<li id='result" + index + "'><a href='" + val.url + "'>" + val.title + "</a></li>" );
+      });
+
+      emptySearchResults();
+      searchResults.innerHTML = items.join("");
+      searchForm.classList.add('hs-search-field--open');
+    },
+    getSearchResults = function() {
+        var request = new XMLHttpRequest();
+        var requestUrl = "/_hcms/search?&term="+encodeURIComponent(searchTerm)+"&limit="+encodeURIComponent(TYPEAHEAD_LIMIT)+"&autocomplete=true&analytics=true&" + searchOptions();
+
+        request.open('GET', requestUrl, true);
+        request.onload = function() {
+          if (request.status >= 200 && request.status < 400) {
+            var data = JSON.parse(request.responseText);
+            if (data.total > 0) {
+              fillSearchResults(data);
+              trapFocus();      
+            }
+            else {
+              emptySearchResults();
+            }
+          } else {
+            console.error('Server reached, error retrieving results.');
+          }
+        };
+        request.onerror = function() {
+          console.error('Could not reach the server.');
+        };
+        request.send();
+      },
+    trapFocus = function(){
+      var tabbable = [];
+      tabbable.push(searchField);
+      var tabbables = searchResults.getElementsByTagName('A');
+      for (var i = 0; i < tabbables.length; i++) {
+        tabbable.push(tabbables[i]);
+      }
+      var firstTabbable = tabbable[0],
+          lastTabbable  = tabbable[tabbable.length-1];
+      var tabResult = function(e){
+        if (e.target == lastTabbable && !e.shiftKey) {
+          e.preventDefault();
+          firstTabbable.focus();   		
+        }
+        else if (e.target == firstTabbable && e.shiftKey) {
+          e.preventDefault();
+          lastTabbable.focus();
+        } 
+      },
+      nextResult = function(e) {
+        e.preventDefault();
+        if (e.target == lastTabbable) {
+          firstTabbable.focus();
+        }
+        else {
+          tabbable.forEach(function(el){
+            if (el == e.target) {
+              tabbable[tabbable.indexOf(el) + 1].focus();
+            }
+          });
+        }
+      },
+      lastResult = function(e) {
+        e.preventDefault();
+        if (e.target == firstTabbable) {
+          lastTabbable.focus();
+        }
+        else {
+          tabbable.forEach(function(el){
+            if (el == e.target) {
+              tabbable[tabbable.indexOf(el) - 1].focus();
+            }
+          });
+        }
+      };
+      searchForm.addEventListener('keydown', function(e){
+        switch (e.which) {
+          case 9:
+            tabResult(e);
+            break;
+          case 27:
+            emptySearchResults();
+            break;
+          case 38:
+            lastResult(e);
+            break;
+          case 40:
+            nextResult(e);
+            break;
+        }
+      });      
+    },
+    isSearchTermPresent = debounce(function() {
+      searchTerm = searchField.value;
+      if(searchTerm.length > 2) {
+        getSearchResults();
+      }    
+      else if (searchTerm.length == 0)  {
+        emptySearchResults(); 
+      }
+    }, 250),
+    init = (function(){
+      searchField.addEventListener('input', function(e) {
+        if ((e.which != 9) && (e.which != 40) && (e.which != 38) && (e.which != 27) && (searchTerm != searchField.value)) {
+          isSearchTermPresent();
+        }
+      });
+    })();
+  }
+
+  if (document.attachEvent ? document.readyState === "complete" : document.readyState !== "loading"){
+    var searchResults = document.querySelectorAll('.hs-search-field');
+    Array.prototype.forEach.call(searchResults, function(el){
+      var hsSearchModule = hsSearch(el);
+    });
+  } else {
+    document.addEventListener('DOMContentLoaded', function() {
+      var searchResults = document.querySelectorAll('.hs-search-field');
+      Array.prototype.forEach.call(searchResults, function(el){
+        var hsSearchModule = hsSearch(el);
+      });
+    });
+  }
+  </script>
+  
+<script src="https://www.ampfutures.com/hubfs/hub_generated/module_assets/1/45784885512/1741920476266/module_Global_Footer.min.js"></script>
+<script defer>
+var txt = "";
+txt += "<p>Browser CodeName: " + navigator.appCodeName + "</p>";
+txt += "<p>Browser Name: " + navigator.appName + "</p>";
+txt += "<p>Browser Version: " + navigator.appVersion + "</p>";
+txt += "<p>Cookies Enabled: " + navigator.cookieEnabled + "</p>";
+txt += "<p>Browser Language: " + navigator.language + "</p>";
+txt += "<p>Browser Online: " + navigator.onLine + "</p>";
+txt += "<p>Platform: " + navigator.platform + "</p>";
+txt += "<p>User-agent header: " + navigator.userAgent + "</p>";
+
+</script>
+
+    <script>
+      var element = document.getElementById("hhs-main-nav");
+      element.classList.add("hhs-alt-nav");
+    </script>
+  
+
+<script defer>
+  
+</script>
+
+
+<!-- Start of HubSpot Analytics Code -->
+<script type="text/javascript">
+var _hsq = _hsq || [];
+_hsq.push(["setContentType", "standard-page"]);
+_hsq.push(["setCanonicalUrl", "https:\/\/www.ampfutures.com\/trading-info\/contract-specifications"]);
+_hsq.push(["setPageId", "51746635793"]);
+_hsq.push(["setContentMetadata", {
+    "contentPageId": 51746635793,
+    "legacyPageId": "51746635793",
+    "contentFolderId": null,
+    "contentGroupId": null,
+    "abTestId": null,
+    "languageVariantId": 51746635793,
+    "languageCode": "en",
+    
+    
+}]);
+</script>
+
+<script type="text/javascript" id="hs-script-loader" async defer src="/hs/scriptloader/1791975.js"></script>
+<!-- End of HubSpot Analytics Code -->
+
+
+<script type="text/javascript">
+var hsVars = {
+    render_id: "c7f22142-70d8-4065-82bb-b507e1c6a61a",
+    ticks: 1789506435453,
+    page_id: 51746635793,
+    
+    content_group_id: 0,
+    portal_id: 1791975,
+    app_hs_base_url: "https://app.hubspot.com",
+    cp_hs_base_url: "https://cp.hubspot.com",
+    language: "en",
+    analytics_page_type: "standard-page",
+    scp_content_type: "",
+    
+    analytics_page_id: "51746635793",
+    category_id: 1,
+    folder_id: 0,
+    is_hubspot_user: false
+}
+</script>
+
+
+<script defer src="/hs/hsstatic/HubspotToolsMenu/static-1.640/js/index.js"></script>
+
+<script type="text/javascript">
+  (function(a,e,f,g,b,c,d){a[b]||(a.FintezaCoreObject=b,a[b]=a[b]||function(){(a[b].q=a[b].q||[]).push(arguments)},a[b].l=1*new Date,c=e.createElement(f),d=e.getElementsByTagName(f)[0],c.async=!0,c.defer=!0,c.src=g,d&&d.parentNode&&d.parentNode.insertBefore(c,d))})
+  (window,document,"script","https://content.mql5.com/core.js","fz");
+  fz("register","website",{id:"vfuqvhomaeneqfkefkpehekhzyxmpfgkmk",trackHash:true,trackLinks:true,timeOnPage:true});
+</script>
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-T8F34MM" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+<script src="//fast.wistia.com/static/integrations-hubspot-v1.js" async></script>
+<script type="text/javascript">
+    adroll_adv_id = "UREGNQ5VEFGEDJ2CE6FUXU";
+    adroll_pix_id = "RN7EX74LXBCSRJCMFW7VGJ";
+    /* OPTIONAL: provide email to improve user identification */
+    /* adroll_email = "username@example.com"; */
+    (function () {
+        var _onload = function(){
+            if (document.readyState && !/loaded|complete/.test(document.readyState)){setTimeout(_onload, 10);return}
+            if (!window.__adroll_loaded){__adroll_loaded=true;setTimeout(_onload, 50);return}
+            var scr = document.createElement("script");
+            var host = (("https:" == document.location.protocol) ? "https://s.adroll.com" : "http://a.adroll.com");
+            scr.setAttribute('async', 'true');
+            scr.type = "text/javascript";
+            scr.src = host + "/j/roundtrip.js";
+            ((document.getElementsByTagName('head') || [null])[0] ||
+                document.getElementsByTagName('script')[0].parentNode).appendChild(scr);
+        };
+        if (window.addEventListener) {window.addEventListener('load', _onload, false);}
+        else {window.attachEvent('onload', _onload)}
+    }());
+</script>
+<script type="text/javascript">
+window.__lo_site_id = 76722;
+
+    (function() {
+		var wa = document.createElement('script'); wa.type = 'text/javascript'; wa.async = true;
+		wa.src = 'https://d10lpsik1i8c69.cloudfront.net/w.js';
+		var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(wa, s);
+	  })();
+	</script>
+    
+    
+
+
+  
+</body></html>
