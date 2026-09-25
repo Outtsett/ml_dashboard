@@ -82,6 +82,8 @@ export interface CycleState {
   /** UI preferences for the run on screen. */
   follow: boolean;
   showOnChart: boolean;
+  /** A bar a table row asked the chart to jump to (epoch seconds); the chart clears it after scrolling. */
+  focusTimestamp: number | null;
 
   begin: (modelId: string, modelType: string) => void;
   loadSnapshot: (snapshot: CycleSnapshot) => void;
@@ -90,6 +92,7 @@ export interface CycleState {
   reset: () => void;
   setFollow: (follow: boolean) => void;
   setShowOnChart: (show: boolean) => void;
+  setFocusTimestamp: (timestamp: number | null) => void;
 }
 
 type Setter = (partial: Partial<CycleState>) => void;
@@ -199,7 +202,17 @@ const CYCLE_TYPES: ReadonlySet<string> = new Set([
 
 function initialRunState(): Omit<
   CycleState,
-  "begin" | "loadSnapshot" | "applyEvent" | "fail" | "reset" | "setFollow" | "setShowOnChart" | "follow" | "showOnChart"
+  | "begin"
+  | "loadSnapshot"
+  | "applyEvent"
+  | "fail"
+  | "reset"
+  | "setFollow"
+  | "setShowOnChart"
+  | "setFocusTimestamp"
+  | "follow"
+  | "showOnChart"
+  | "focusTimestamp"
 > {
   return {
     modelId: null,
@@ -229,6 +242,7 @@ export const useCycleStore = create<CycleState>((set, get) => ({
   ...initialRunState(),
   follow: true,
   showOnChart: true,
+  focusTimestamp: null,
 
   begin: (modelId, modelType) => {
     const previousEpoch = get().barsEpoch;
@@ -334,6 +348,7 @@ export const useCycleStore = create<CycleState>((set, get) => ({
 
   setFollow: (follow) => set({ follow }),
   setShowOnChart: (showOnChart) => set({ showOnChart }),
+  setFocusTimestamp: (focusTimestamp) => set({ focusTimestamp, follow: focusTimestamp === null ? get().follow : false }),
 }));
 
 /** True while a run is starting or streaming. */
