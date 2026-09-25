@@ -1,0 +1,21 @@
+{
+  "description": "A model parameter may not reuse a cycle-wide parameter name.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "other_supervised.json",
+      "path": [
+        "models",
+        "naive_bayes",
+        "parameters",
+        "seed"
+      ],
+      "value": {
+        "type": "int",
+        "default": 1,
+        "label": "Seed",
+        "group": "Model"
+      }
+    }
+  ]
+}

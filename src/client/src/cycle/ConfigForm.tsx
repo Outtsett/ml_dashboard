@@ -113,7 +113,7 @@ function saveStoredState(state: CycleFormState): void {
 
 type FamilyKind = "Linear" | "Tree ensemble" | "Neural network" | "Sequence network";
 
-const FAMILY_KIND: Record<CycleModelFamily, FamilyKind> = {
+const FAMILY_KIND: Partial<Record<CycleModelFamily, FamilyKind>> = {
   logistic_regression: "Linear",
   random_forest: "Tree ensemble",
   xgboost: "Tree ensemble",
@@ -124,7 +124,7 @@ const FAMILY_KIND: Record<CycleModelFamily, FamilyKind> = {
   transformer_encoder: "Sequence network",
 };
 
-const FAMILY_DESCRIPTION: Record<CycleModelFamily, string> = {
+const FAMILY_DESCRIPTION: Partial<Record<CycleModelFamily, string>> = {
   logistic_regression: "A single weighted vote across your features — a scale that tips toward up or down.",
   random_forest: "Hundreds of simple yes/no trees vote together — a committee of rough guessers whose average is sharper than any one of them.",
   xgboost: "Trees built one after another, each one fixing the last one's mistakes.",
@@ -143,7 +143,7 @@ const KIND_BADGE_CLASS: Record<FamilyKind, string> = {
 };
 
 function FamilyCard({ entry, selected, disabled, onSelect }: { entry: CycleCatalogEntry; selected: boolean; disabled?: boolean; onSelect: () => void }) {
-  const kind = FAMILY_KIND[entry.family];
+  const kind = FAMILY_KIND[entry.family] ?? "Tree ensemble"; // replaced by ModelBrowser's registry kinds
   return (
     <button
       type="button"

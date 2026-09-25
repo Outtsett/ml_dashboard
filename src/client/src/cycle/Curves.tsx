@@ -36,6 +36,7 @@ const STEP_UNIT_LABEL: Record<NonNullable<CycleEpoch["stepUnit"]>, string> = {
   boosting_round: "Boosting round",
   tree_batch: "Tree batch",
   solver_pass: "Solver pass",
+  single_fit: "Fit",
 };
 
 const OBJECTIVE_LABEL: Record<CycleTrial["objectiveName"], string> = {

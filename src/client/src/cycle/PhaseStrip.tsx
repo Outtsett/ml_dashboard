@@ -15,6 +15,7 @@ const STEP_UNIT_LABEL: Record<NonNullable<CycleCursor["stepUnit"]>, string> = {
   boosting_round: "boosting round",
   tree_batch: "tree batch",
   solver_pass: "solver pass",
+  single_fit: "fit",
 };
 
 type StepKind = "load" | "tune" | "train" | "validate" | "test";

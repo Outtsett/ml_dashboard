@@ -1,0 +1,18 @@
+{
+  "description": "A model key may be defined in one file only.",
+  "operations": [
+    {
+      "op": "copy",
+      "fromFile": "boosting.json",
+      "fromPath": [
+        "models",
+        "xgboost"
+      ],
+      "toFile": "linear.json",
+      "toPath": [
+        "models",
+        "xgboost"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "description": "A log-scale search cannot start at or below zero.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "boosting.json",
+      "path": [
+        "models",
+        "catboost",
+        "parameters",
+        "learning_rate",
+        "search",
+        "low"
+      ],
+      "value": 0
+    }
+  ]
+}

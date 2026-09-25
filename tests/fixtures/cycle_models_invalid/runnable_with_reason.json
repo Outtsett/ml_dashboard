@@ -1,0 +1,15 @@
+{
+  "description": "A runnable model must not carry an unavailable reason.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "boosting.json",
+      "path": [
+        "models",
+        "xgboost",
+        "unavailableReason"
+      ],
+      "value": "no"
+    }
+  ]
+}

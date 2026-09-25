@@ -1,0 +1,17 @@
+{
+  "description": "A categorical default must be one of its choices.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "other_supervised.json",
+      "path": [
+        "models",
+        "support_vector_machine",
+        "parameters",
+        "kernel",
+        "default"
+      ],
+      "value": "cubic"
+    }
+  ]
+}

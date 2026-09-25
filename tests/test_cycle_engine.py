@@ -573,8 +573,9 @@ def schema_enum(anchor: str) -> tuple[str, ...]:
 
 
 PHASES = schema_enum("cyclePhaseSchema =")
-FAMILIES = schema_enum("cycleModelFamilySchema =")
-STEP_UNITS = schema_enum("stepUnit:")
+# The schema accepts any registry key; the registry says which keys exist.
+FAMILIES = __import__("cycle.catalog", fromlist=["model_keys"]).model_keys()
+STEP_UNITS = schema_enum("cycleStepUnitSchema =")
 EXIT_REASONS = schema_enum("exitReason:")
 OBJECTIVES = ("sharpe_ratio", "log_loss", "f1_score")
 

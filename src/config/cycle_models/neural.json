@@ -1,0 +1,1105 @@
+{
+  "models": {
+    "multilayer_perceptron": {
+      "catalogSpecId": "neural-network-architectures-feedforward-mlps-multilayer-perceptron-mlp",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Multilayer perceptron",
+      "category": "Neural network architectures",
+      "subcategory": "Feedforward and MLPs",
+      "kind": "Neural network",
+      "summary": "A stack of weighted layers that reshapes your features step by step into one probability.",
+      "implementationNote": null,
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "legacy",
+      "legacyFamily": "multilayer_perceptron",
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "legacy"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "legacy",
+      "stepUnit": "epoch",
+      "explainKind": "neural",
+      "sequence": false,
+      "network": "multilayer_perceptron",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 128,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model"
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model"
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model"
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model"
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model"
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model"
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model"
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model"
+        }
+      }
+    },
+    "feedforward_network": {
+      "catalogSpecId": "neural-network-architectures-feedforward-mlps-feedforward-neural-network-fnn",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Feedforward neural network",
+      "category": "Neural network architectures",
+      "subcategory": "Feedforward and MLPs",
+      "kind": "Neural network",
+      "summary": "The simplest neural network: one hidden layer between the features and the answer, information flowing one way.",
+      "implementationNote": "The PyTorch multilayer perceptron with one hidden layer and a tanh bend by default.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "neural",
+      "sequence": false,
+      "network": "multilayer_perceptron",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "How many hidden layers are stacked.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 2,
+            "log": false
+          }
+        },
+        "activation_function": {
+          "type": "categorical",
+          "default": "tanh",
+          "choices": [
+            "tanh",
+            "relu",
+            "gelu"
+          ],
+          "label": "Activation function",
+          "group": "Model",
+          "description": "The bend each hidden unit applies to its weighted sum.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "tanh",
+              "relu",
+              "gelu"
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training, so the network cannot lean on any one of them.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "recurrent_network": {
+      "catalogSpecId": "neural-network-architectures-recurrent-sequential-models-recurrent-neural-network-rnn",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Recurrent neural network",
+      "category": "Neural network architectures",
+      "subcategory": "Recurrent and sequential models",
+      "kind": "Sequence network",
+      "summary": "Reads the bars one at a time, carrying a running memory forward from bar to bar.",
+      "implementationNote": "An Elman recurrent network (tanh), the plainest memory cell.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "neural",
+      "sequence": true,
+      "network": "recurrent",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the network reads for one prediction."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "How many hidden layers are stacked.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 2,
+            "log": false
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training, so the network cannot lean on any one of them.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "gated_recurrent_unit": {
+      "catalogSpecId": "neural-network-architectures-recurrent-sequential-models-gated-recurrent-unit-gru",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Gated recurrent unit",
+      "category": "Neural network architectures",
+      "subcategory": "Recurrent and sequential models",
+      "kind": "Sequence network",
+      "summary": "A recurrent network with two gates that decide what to forget and what to write — a lighter cousin of the LSTM.",
+      "implementationNote": null,
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "neural",
+      "sequence": true,
+      "network": "gated_recurrent_unit",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the network reads for one prediction."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "How many hidden layers are stacked.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 2,
+            "log": false
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training, so the network cannot lean on any one of them.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "lstm": {
+      "catalogSpecId": "neural-network-architectures-recurrent-sequential-models-long-short-term-memory-lstm",
+      "alsoCatalogSpecIds": [],
+      "displayName": "LSTM",
+      "category": "Neural network architectures",
+      "subcategory": "Recurrent and sequential models",
+      "kind": "Sequence network",
+      "summary": "Reads the bars in order, keeping a running memory of what it has seen — built for patterns that unfold over time.",
+      "implementationNote": null,
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "legacy",
+      "legacyFamily": "lstm",
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "legacy"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "legacy",
+      "stepUnit": "epoch",
+      "explainKind": "neural",
+      "sequence": true,
+      "network": "lstm",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Sequence length (bars)",
+          "group": "Model"
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model"
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model"
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model"
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model"
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model"
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model"
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model"
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model"
+        }
+      }
+    },
+    "attention_recurrent_network": {
+      "catalogSpecId": "neural-network-architectures-recurrent-sequential-models-attention-based-rnn",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Attention-based recurrent network",
+      "category": "Neural network architectures",
+      "subcategory": "Recurrent and sequential models",
+      "kind": "Sequence network",
+      "summary": "A gated recurrent network that, instead of using only its last memory, looks back over every bar in the window and weighs which ones matter.",
+      "implementationNote": "A gated recurrent unit followed by additive attention pooling over the window; the attention weights are shown in Inside the model.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "neural",
+      "sequence": true,
+      "network": "attention_recurrent",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the network reads for one prediction."
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "How many hidden layers are stacked.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 2,
+            "log": false
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training, so the network cannot lean on any one of them.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "temporal_convolution_network": {
+      "catalogSpecId": "neural-network-architectures-convolutional-networks-convolutional-neural-network-cnn",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Temporal convolution network",
+      "category": "Neural network architectures",
+      "subcategory": "Convolutional networks",
+      "kind": "Sequence network",
+      "summary": "Slides a small window across the recent bars, like a pattern scanner looking for the same shape at different points.",
+      "implementationNote": "The catalog's convolutional neural network, built for bars: one-dimensional, causal (a bar never sees later bars) and dilated.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "legacy",
+      "legacyFamily": "temporal_convolution_network",
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "legacy"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "legacy",
+      "stepUnit": "epoch",
+      "explainKind": "neural",
+      "sequence": true,
+      "network": "temporal_convolution_network",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Sequence length (bars)",
+          "group": "Model"
+        },
+        "channel_count": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Channel count",
+          "group": "Model"
+        },
+        "kernel_size": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 15,
+          "label": "Kernel size",
+          "group": "Model"
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 10,
+          "label": "Layer count",
+          "group": "Model"
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model"
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model"
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model"
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model"
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model"
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model"
+        }
+      }
+    },
+    "transformer_encoder": {
+      "catalogSpecId": "neural-network-architectures-attention-based-architectures-transformer-encoder-decoder",
+      "alsoCatalogSpecIds": [
+        "neural-network-architectures-attention-based-architectures-self-attention-mechanism"
+      ],
+      "displayName": "Transformer encoder",
+      "category": "Neural network architectures",
+      "subcategory": "Attention-based architectures",
+      "kind": "Sequence network",
+      "summary": "Looks at every recent bar at once and learns which ones matter most — the network deciding its own attention span.",
+      "implementationNote": "The encoder half of the catalog's encoder-decoder transformer: the Cycle makes one call per bar, so there is nothing to decode. Its layers are stacks of the catalog's self-attention mechanism.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "legacy",
+      "legacyFamily": "transformer_encoder",
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "legacy"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "legacy",
+      "stepUnit": "epoch",
+      "explainKind": "neural",
+      "sequence": true,
+      "network": "transformer_encoder",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Sequence length (bars)",
+          "group": "Model"
+        },
+        "model_dimension": {
+          "type": "int",
+          "default": 32,
+          "min": 8,
+          "max": 512,
+          "label": "Model dimension",
+          "group": "Model"
+        },
+        "head_count": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 16,
+          "label": "Attention head count",
+          "group": "Model"
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model"
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.1,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model"
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.0005,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model"
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model"
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model"
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model"
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model"
+        }
+      }
+    }
+  }
+}

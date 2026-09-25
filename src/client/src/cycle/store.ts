@@ -84,6 +84,17 @@ export interface CycleState {
   showOnChart: boolean;
   /** A bar a table row asked the chart to jump to (epoch seconds); the chart clears it after scrolling. */
   focusTimestamp: number | null;
+  /**
+   * The bar the "Inside the model" view explains (epoch seconds). The chart's
+   * crosshair publishes it ("hover", throttled); a click pins it ("pinned", and
+   * hover stops moving it until unpinned); with nothing hovered or pinned the
+   * view follows the bar the model just read ("cursor"). The last hovered bar is
+   * kept when the pointer leaves the chart.
+   */
+  inspectTimestamp: number | null;
+  inspectSource: CycleInspectSource;
+  /** Which of the fold's two models the view explains. */
+  inspectRole: "direction" | "price";
 
   begin: (modelId: string, modelType: string) => void;
   loadSnapshot: (snapshot: CycleSnapshot) => void;
@@ -95,7 +106,14 @@ export interface CycleState {
   setFollow: (follow: boolean) => void;
   setShowOnChart: (show: boolean) => void;
   setFocusTimestamp: (timestamp: number | null) => void;
+  /** Hover or cursor update; ignored while a bar is pinned. */
+  setInspect: (timestamp: number | null, source: Exclude<CycleInspectSource, "pinned">) => void;
+  /** Pin a bar (or unpin with null, which returns the view to the cursor). */
+  pinInspect: (timestamp: number | null) => void;
+  setInspectRole: (role: "direction" | "price") => void;
 }
+
+export type CycleInspectSource = "hover" | "cursor" | "pinned";
 
 /**
  * The fields an event can change. A batch of events is reduced into one draft
@@ -308,9 +326,13 @@ function initialRunState(): Omit<
   | "setFollow"
   | "setShowOnChart"
   | "setFocusTimestamp"
+  | "setInspect"
+  | "pinInspect"
+  | "setInspectRole"
   | "follow"
   | "showOnChart"
   | "focusTimestamp"
+  | "inspectRole"
 > {
   return {
     modelId: null,
@@ -333,6 +355,8 @@ function initialRunState(): Omit<
     trials: [],
     logs: [],
     logsVersion: 0,
+    inspectTimestamp: null,
+    inspectSource: "cursor",
   };
 }
 
@@ -341,6 +365,7 @@ export const useCycleStore = create<CycleState>((set, get) => ({
   follow: true,
   showOnChart: true,
   focusTimestamp: null,
+  inspectRole: "direction",
 
   begin: (modelId, modelType) => {
     const previousEpoch = get().barsEpoch;
@@ -410,6 +435,16 @@ export const useCycleStore = create<CycleState>((set, get) => ({
   setFollow: (follow) => set({ follow }),
   setShowOnChart: (showOnChart) => set({ showOnChart }),
   setFocusTimestamp: (focusTimestamp) => set({ focusTimestamp, follow: focusTimestamp === null ? get().follow : false }),
+  setInspect: (timestamp, source) => {
+    const state = get();
+    if (state.inspectSource === "pinned") return;
+    if (source === "cursor" && state.inspectSource === "hover" && state.inspectTimestamp !== null) return; // keep the last hovered bar
+    if (timestamp === state.inspectTimestamp && source === state.inspectSource) return;
+    set({ inspectTimestamp: timestamp, inspectSource: source });
+  },
+  pinInspect: (timestamp) =>
+    set(timestamp === null ? { inspectSource: "cursor", inspectTimestamp: get().cursor?.barTimestamp ?? null } : { inspectTimestamp: timestamp, inspectSource: "pinned" }),
+  setInspectRole: (inspectRole) => set({ inspectRole }),
 }));
 
 /** True while a run is starting or streaming. */

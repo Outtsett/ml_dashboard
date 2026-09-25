@@ -680,7 +680,7 @@ CYCLE_PHASES = (
     "stopped",
     "failed",
 )
-CYCLE_STEP_UNITS = ("epoch", "boosting_round", "tree_batch", "solver_pass")
+CYCLE_STEP_UNITS = ("epoch", "boosting_round", "tree_batch", "solver_pass", "single_fit")
 
 
 def _optional_number(value):

@@ -551,6 +551,8 @@ export function activeSpanLabel(cursor: CycleCursor): string {
         return `Growing trees ${steps} — every tree sees the whole window`;
       case "solver_pass":
         return `Solver pass ${steps} — every pass sees the whole window`;
+      case "single_fit":
+        return "Fitting in one pass — the library fits the whole window at once";
       default: {
         const batch = cursor.batch !== null || cursor.batchCount !== null ? ` batch ${fraction(cursor.batch, cursor.batchCount)}` : "";
         return `Fitting this block — epoch ${steps}${batch}`;

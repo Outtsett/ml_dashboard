@@ -1,0 +1,15 @@
+{
+  "description": "A model that reads a window of bars needs a network.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "neural.json",
+      "path": [
+        "models",
+        "gated_recurrent_unit",
+        "network"
+      ],
+      "value": null
+    }
+  ]
+}

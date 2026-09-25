@@ -1,0 +1,15 @@
+{
+  "description": "A model that reads direction from its price forecast needs a price estimator.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "linear.json",
+      "path": [
+        "models",
+        "ridge_regression",
+        "price"
+      ],
+      "value": null
+    }
+  ]
+}

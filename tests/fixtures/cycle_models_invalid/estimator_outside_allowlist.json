@@ -1,0 +1,16 @@
+{
+  "description": "Estimator class paths must start with an allowed library prefix.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "other_supervised.json",
+      "path": [
+        "models",
+        "naive_bayes",
+        "direction",
+        "estimator"
+      ],
+      "value": "os.system"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "description": "A model key is lower snake case, 2 to 40 characters.",
+  "operations": [
+    {
+      "op": "copy",
+      "fromFile": "boosting.json",
+      "fromPath": [
+        "models",
+        "catboost"
+      ],
+      "toFile": "boosting.json",
+      "toPath": [
+        "models",
+        "CatBoost"
+      ]
+    },
+    {
+      "op": "delete",
+      "file": "boosting.json",
+      "path": [
+        "models",
+        "catboost"
+      ]
+    }
+  ]
+}

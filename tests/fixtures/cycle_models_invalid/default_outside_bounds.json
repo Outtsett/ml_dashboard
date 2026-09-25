@@ -1,0 +1,17 @@
+{
+  "description": "A default must sit inside its own bounds.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "trees_and_ensembles.json",
+      "path": [
+        "models",
+        "extra_trees",
+        "parameters",
+        "tree_count",
+        "default"
+      ],
+      "value": 5
+    }
+  ]
+}

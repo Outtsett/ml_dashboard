@@ -1,0 +1,17 @@
+{
+  "description": "An int parameter's default must be a whole number.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "boosting.json",
+      "path": [
+        "models",
+        "catboost",
+        "parameters",
+        "boosting_rounds",
+        "default"
+      ],
+      "value": 400.5
+    }
+  ]
+}

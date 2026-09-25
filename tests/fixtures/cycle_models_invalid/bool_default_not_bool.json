@@ -1,0 +1,15 @@
+{
+  "description": "A bool parameter's default must be true or false.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "_cycle.json",
+      "path": [
+        "cycleParameters",
+        "long_only",
+        "default"
+      ],
+      "value": 0
+    }
+  ]
+}

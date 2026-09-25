@@ -1,0 +1,17 @@
+{
+  "description": "One parameter name has one type across every model.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "boosting.json",
+      "path": [
+        "models",
+        "catboost",
+        "parameters",
+        "max_depth",
+        "type"
+      ],
+      "value": "float"
+    }
+  ]
+}

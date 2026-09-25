@@ -1,0 +1,666 @@
+{
+  "models": {
+    "logistic_regression": {
+      "catalogSpecId": "machine-learning-supervised-learning-linear-models-logistic-regression",
+      "alsoCatalogSpecIds": [
+        "statistical-models-generalized-linear-models-logistic-regression"
+      ],
+      "displayName": "Logistic regression",
+      "category": "Supervised learning",
+      "subcategory": "Linear models",
+      "kind": "Linear",
+      "summary": "A single weighted vote across your features — a scale that tips toward up or down.",
+      "implementationNote": null,
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "legacy",
+      "legacyFamily": "logistic_regression",
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "legacy"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "legacy",
+      "stepUnit": "solver_pass",
+      "explainKind": "linear",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "regularization_strength": {
+          "type": "float",
+          "default": 1,
+          "min": 0.001,
+          "max": 100,
+          "logScale": true,
+          "label": "Regularization strength",
+          "group": "Model"
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 300,
+          "min": 50,
+          "max": 5000,
+          "label": "Max iterations",
+          "group": "Model"
+        }
+      }
+    },
+    "stochastic_gradient_descent": {
+      "catalogSpecId": "machine-learning-supervised-learning-linear-models-stochastic-gradient-descent-sgd",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Stochastic gradient descent",
+      "category": "Supervised learning",
+      "subcategory": "Linear models",
+      "kind": "Linear",
+      "summary": "A logistic model trained a few bars at a time, nudging its weights after each small batch — the way neural networks learn.",
+      "implementationNote": "scikit-learn SGDClassifier with log loss (so it gives probabilities); the price model is SGDRegressor.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": "sklearn.linear_model.SGDClassifier",
+        "fixed": {
+          "loss": "log_loss"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": "sklearn.linear_model.SGDRegressor",
+        "fixed": {
+          "loss": "squared_error"
+        }
+      },
+      "preprocess": [
+        "standard_scaler"
+      ],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "linear",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "penalty_strength": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 100,
+          "logScale": true,
+          "label": "Penalty strength",
+          "group": "Model",
+          "description": "How hard the model is pushed toward small coefficients; larger is simpler.",
+          "argument": "alpha",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "penalty_type": {
+          "type": "categorical",
+          "default": "l2",
+          "choices": [
+            "l2",
+            "l1",
+            "elasticnet"
+          ],
+          "label": "Penalty type",
+          "group": "Model",
+          "description": "Which size penalty is used: squared weights (L2), absolute weights (L1, can switch features off) or a mix (elastic net).",
+          "argument": "penalty",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "l2",
+              "l1",
+              "elasticnet"
+            ]
+          }
+        },
+        "l1_penalty_share": {
+          "type": "float",
+          "default": 0.15,
+          "min": 0,
+          "max": 1,
+          "step": 0.05,
+          "label": "L1 share of the penalty",
+          "group": "Model",
+          "description": "With the elastic-net penalty: how much of it is L1 (absolute weights) rather than L2.",
+          "argument": "l1_ratio",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 1.0,
+            "log": false
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    },
+    "probit_regression": {
+      "catalogSpecId": "machine-learning-supervised-learning-linear-models-probit-regression",
+      "alsoCatalogSpecIds": [
+        "statistical-models-generalized-linear-models-probit-regression"
+      ],
+      "displayName": "Probit regression",
+      "category": "Supervised learning",
+      "subcategory": "Linear models",
+      "kind": "Linear",
+      "summary": "Like logistic regression, but the weighted vote becomes a probability through the normal bell curve instead of the logistic curve.",
+      "implementationNote": "statsmodels Probit. It has no regression form, so this model draws no forecast line.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "statsmodels",
+      "adapter": "statsmodels",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": "statsmodels.discrete.discrete_model.Probit",
+        "fixed": {},
+        "probability": "probit"
+      },
+      "price": null,
+      "preprocess": [
+        "standard_scaler"
+      ],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "linear",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "penalty_strength": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0,
+          "max": 100,
+          "logScale": true,
+          "label": "Penalty strength",
+          "group": "Model",
+          "description": "How hard the model is pushed toward small coefficients; larger is simpler.",
+          "argument": "alpha",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 1.0,
+            "log": true
+          }
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 200,
+          "min": 10,
+          "max": 5000,
+          "label": "Maximum iterations",
+          "group": "Model",
+          "description": "The most steps the solver takes to find the weights."
+        }
+      }
+    },
+    "ridge_regression": {
+      "catalogSpecId": "machine-learning-supervised-learning-linear-models-ridge-regression",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Ridge regression",
+      "category": "Supervised learning",
+      "subcategory": "Linear models",
+      "kind": "Linear",
+      "summary": "A straight-line fit of the coming move with an L2 penalty that keeps every weight small.",
+      "implementationNote": "Fitted on the price move; P(up) is read from its forecast through a logistic curve fitted on the validation bars.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "from_price",
+        "estimator": null,
+        "fixed": {},
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": "sklearn.linear_model.Ridge",
+        "fixed": {}
+      },
+      "preprocess": [
+        "standard_scaler"
+      ],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "linear",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "penalty_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0,
+          "max": 100,
+          "logScale": true,
+          "label": "Penalty strength",
+          "group": "Model",
+          "description": "How hard the model is pushed toward small coefficients; larger is simpler.",
+          "argument": "alpha",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 1000.0,
+            "log": true
+          }
+        }
+      }
+    },
+    "lasso_regression": {
+      "catalogSpecId": "machine-learning-supervised-learning-linear-models-lasso-regression",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Lasso regression",
+      "category": "Supervised learning",
+      "subcategory": "Linear models",
+      "kind": "Linear",
+      "summary": "A straight-line fit of the coming move with an L1 penalty that switches unhelpful features off entirely.",
+      "implementationNote": "Fitted on the price move; P(up) is read from its forecast through a logistic curve fitted on the validation bars.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "from_price",
+        "estimator": null,
+        "fixed": {},
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": "sklearn.linear_model.Lasso",
+        "fixed": {}
+      },
+      "preprocess": [
+        "standard_scaler"
+      ],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "linear",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "penalty_strength": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0,
+          "max": 100,
+          "logScale": true,
+          "label": "Penalty strength",
+          "group": "Model",
+          "description": "How hard the model is pushed toward small coefficients; larger is simpler.",
+          "argument": "alpha",
+          "search": {
+            "kind": "float",
+            "low": 1e-05,
+            "high": 0.1,
+            "log": true
+          }
+        }
+      }
+    },
+    "elastic_net_regression": {
+      "catalogSpecId": "machine-learning-supervised-learning-linear-models-elasticnet-regression",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Elastic net regression",
+      "category": "Supervised learning",
+      "subcategory": "Linear models",
+      "kind": "Linear",
+      "summary": "A straight-line fit of the coming move with a mix of the ridge and lasso penalties.",
+      "implementationNote": "Fitted on the price move; P(up) is read from its forecast through a logistic curve fitted on the validation bars.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "from_price",
+        "estimator": null,
+        "fixed": {},
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": "sklearn.linear_model.ElasticNet",
+        "fixed": {}
+      },
+      "preprocess": [
+        "standard_scaler"
+      ],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "linear",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "penalty_strength": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0,
+          "max": 100,
+          "logScale": true,
+          "label": "Penalty strength",
+          "group": "Model",
+          "description": "How hard the model is pushed toward small coefficients; larger is simpler.",
+          "argument": "alpha",
+          "search": {
+            "kind": "float",
+            "low": 1e-05,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "l1_penalty_share": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0,
+          "max": 1,
+          "step": 0.05,
+          "label": "L1 share of the penalty",
+          "group": "Model",
+          "description": "How much of the penalty is L1 (switches features off) rather than L2 (shrinks them).",
+          "argument": "l1_ratio",
+          "search": {
+            "kind": "float",
+            "low": 0.05,
+            "high": 0.95,
+            "log": false
+          }
+        }
+      }
+    },
+    "least_angle_regression": {
+      "catalogSpecId": "machine-learning-supervised-learning-linear-models-lars-least-angle-regression",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Least angle regression",
+      "category": "Supervised learning",
+      "subcategory": "Linear models",
+      "kind": "Linear",
+      "summary": "Builds a straight-line fit of the coming move one feature at a time, adding whichever feature best explains what is left.",
+      "implementationNote": "Fitted on the price move; P(up) is read from its forecast through a logistic curve fitted on the validation bars.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "from_price",
+        "estimator": null,
+        "fixed": {},
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": "sklearn.linear_model.Lars",
+        "fixed": {}
+      },
+      "preprocess": [
+        "standard_scaler"
+      ],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "linear",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "nonzero_coefficient_limit": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 200,
+          "label": "Feature limit",
+          "group": "Model",
+          "description": "The most features the fit may use (the rest keep a weight of zero).",
+          "argument": "n_nonzero_coefs",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 30,
+            "log": false
+          }
+        }
+      }
+    },
+    "bayesian_ridge_regression": {
+      "catalogSpecId": "machine-learning-supervised-learning-linear-models-bayesian-ridge-regression",
+      "alsoCatalogSpecIds": [
+        "statistical-models-bayesian-models-bayesian-linear-regression"
+      ],
+      "displayName": "Bayesian ridge regression",
+      "category": "Supervised learning",
+      "subcategory": "Linear models",
+      "kind": "Linear",
+      "summary": "A ridge fit whose penalty strength is learned from the data itself instead of being set by hand.",
+      "implementationNote": "Fitted on the price move; P(up) is read from its forecast through a logistic curve fitted on the validation bars.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "from_price",
+        "estimator": null,
+        "fixed": {},
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": "sklearn.linear_model.BayesianRidge",
+        "fixed": {}
+      },
+      "preprocess": [
+        "standard_scaler"
+      ],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "linear",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "max_iterations": {
+          "type": "int",
+          "default": 300,
+          "min": 10,
+          "max": 5000,
+          "label": "Maximum iterations",
+          "group": "Model",
+          "description": "The most rounds used to estimate the penalty and the noise.",
+          "argument": "max_iter"
+        }
+      }
+    },
+    "linear_regression": {
+      "catalogSpecId": "machine-learning-supervised-learning-linear-models-linear-regression",
+      "alsoCatalogSpecIds": [
+        "statistical-models-regression-techniques-linear-regression"
+      ],
+      "displayName": "Linear regression",
+      "category": "Supervised learning",
+      "subcategory": "Linear models",
+      "kind": "Linear",
+      "summary": "A plain straight-line fit of the coming move on your features, with no penalty.",
+      "implementationNote": "Fitted on the price move; P(up) is read from its forecast through a logistic curve fitted on the validation bars.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "from_price",
+        "estimator": null,
+        "fixed": {},
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": "sklearn.linear_model.LinearRegression",
+        "fixed": {}
+      },
+      "preprocess": [
+        "standard_scaler"
+      ],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "linear",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {}
+    },
+    "quantile_regression": {
+      "catalogSpecId": "machine-learning-supervised-learning-linear-models-quantile-regression",
+      "alsoCatalogSpecIds": [
+        "statistical-models-regression-techniques-quantile-regression"
+      ],
+      "displayName": "Quantile regression",
+      "category": "Supervised learning",
+      "subcategory": "Linear models",
+      "kind": "Linear",
+      "summary": "A straight-line fit of a chosen quantile of the coming move (0.5 = the median), so a few huge bars cannot drag it.",
+      "implementationNote": "Fitted on the price move; P(up) is read from its forecast through a logistic curve fitted on the validation bars.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "from_price",
+        "estimator": null,
+        "fixed": {},
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": "sklearn.linear_model.QuantileRegressor",
+        "fixed": {
+          "solver": "highs"
+        }
+      },
+      "preprocess": [
+        "standard_scaler"
+      ],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "linear",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "quantile": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 0.95,
+          "step": 0.05,
+          "label": "Quantile",
+          "group": "Model",
+          "description": "Which quantile of the coming move the line fits; 0.5 is the median.",
+          "argument": "quantile"
+        },
+        "penalty_strength": {
+          "type": "float",
+          "default": 0.0,
+          "min": 0,
+          "max": 100,
+          "logScale": true,
+          "label": "Penalty strength",
+          "group": "Model",
+          "description": "How hard the model is pushed toward small coefficients; larger is simpler.",
+          "argument": "alpha",
+          "search": {
+            "kind": "float",
+            "low": 1e-05,
+            "high": 0.1,
+            "log": true
+          }
+        }
+      }
+    },
+    "ordinal_regression": {
+      "catalogSpecId": "machine-learning-supervised-learning-linear-models-ordinal-regression",
+      "alsoCatalogSpecIds": [
+        "statistical-models-generalized-linear-models-ordinal-regression"
+      ],
+      "displayName": "Ordinal regression",
+      "category": "Supervised learning",
+      "subcategory": "Linear models",
+      "kind": "Linear",
+      "summary": "Predicts one of three or more ordered classes (down / flat / up).",
+      "implementationNote": null,
+      "runnable": false,
+      "unavailableReason": "Needs three or more ordered classes; the Cycle's label is up or down. With two classes it is the same model as logistic regression.",
+      "implementation": "statsmodels",
+      "adapter": "statsmodels",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "linear",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {}
+    }
+  }
+}

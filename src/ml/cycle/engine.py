@@ -1284,7 +1284,7 @@ class EngineReporter:
         if unit == "epoch":
             head = f"epoch {report.epoch}/{report.epoch_count} batch {report.batch}/{report.batch_count}"
         else:
-            words = {"boosting_round": "boosting round", "tree_batch": "trees", "solver_pass": "solver pass"}[unit]
+            words = {"boosting_round": "boosting round", "tree_batch": "trees", "solver_pass": "solver pass", "single_fit": "fit"}[unit]
             head = f"{words} {report.epoch}/{report.epoch_count} step {report.batch}/{report.batch_count}"
         block = f"block={format_time(span[0])}..{format_time(span[1])}"
         tail = " (every round sees the whole training window)" if whole and unit != "epoch" else ""
@@ -1340,7 +1340,7 @@ class EngineReporter:
         best = f"best={_format_number(self.best_loss)}@{self.best_epoch}" if self.best_epoch is not None else "best=n/a"
         since = (report.epoch - self.best_epoch) if self.best_epoch is not None else 0
         patience = f" patience={since}/{self.patience}" if self.patience else ""
-        word = {"epoch": "epoch", "boosting_round": "round", "tree_batch": "trees", "solver_pass": "pass"}[unit]
+        word = {"epoch": "epoch", "boosting_round": "round", "tree_batch": "trees", "solver_pass": "pass", "single_fit": "fit"}[unit]
         if self.price:
             scores = (f"val_mae={_format_number(report.validation_loss)} (in trailing-volatility units) "
                       f"val_sign_accuracy={_format_number(report.validation_accuracy, '.3f')}")

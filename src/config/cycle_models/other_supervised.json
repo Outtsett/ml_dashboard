@@ -1,0 +1,450 @@
+{
+  "models": {
+    "support_vector_machine": {
+      "catalogSpecId": "machine-learning-supervised-learning-margin-based-methods-support-vector-machine-svm",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Support vector machine",
+      "category": "Supervised learning",
+      "subcategory": "Margin-based methods",
+      "kind": "Margin",
+      "summary": "Finds the boundary that separates up bars from down bars with the widest possible margin; the bars on the edge (support vectors) decide everything.",
+      "implementationNote": "scikit-learn SVC. P(up) comes from a logistic curve fitted on the validation bars. Fitting time grows with the square of the bars, so it trains on the most recent training bars up to the limit set here.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": "sklearn.svm.SVC",
+        "fixed": {
+          "class_weight": "balanced"
+        },
+        "probability": "logistic_curve_on_validation"
+      },
+      "price": {
+        "estimator": "sklearn.svm.SVR",
+        "fixed": {}
+      },
+      "preprocess": [
+        "standard_scaler"
+      ],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "support_vectors",
+      "sequence": false,
+      "network": null,
+      "speed": "slow",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.001,
+          "max": 1000,
+          "logScale": true,
+          "label": "Regularization strength (C)",
+          "group": "Model",
+          "description": "How hard the boundary tries to get every training bar right; larger bends it more.",
+          "argument": "C",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 100.0,
+            "log": true
+          }
+        },
+        "kernel": {
+          "type": "categorical",
+          "default": "rbf",
+          "choices": [
+            "rbf",
+            "linear",
+            "poly",
+            "sigmoid"
+          ],
+          "label": "Kernel",
+          "group": "Model",
+          "description": "The shape of the boundary: a straight plane (linear) or a curved one (radial basis function, polynomial, sigmoid).",
+          "argument": "kernel",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "rbf",
+              "linear"
+            ]
+          }
+        },
+        "kernel_scale_rule": {
+          "type": "categorical",
+          "default": "scale",
+          "choices": [
+            "scale",
+            "auto"
+          ],
+          "label": "Kernel width rule",
+          "group": "Model",
+          "description": "How wide each support vector's influence is: 'scale' adapts to the spread of the features, 'auto' uses one over the feature count.",
+          "argument": "gamma"
+        },
+        "maximum_training_bars": {
+          "type": "int",
+          "default": 6000,
+          "min": 0,
+          "max": 100000,
+          "label": "Most recent training bars used",
+          "group": "Model",
+          "description": "The fit uses at most this many of the latest training bars (0 = all); fitting time grows with the square of this number."
+        }
+      }
+    },
+    "k_nearest_neighbors": {
+      "catalogSpecId": "machine-learning-supervised-learning-k-nearest-neighbors-k-nn",
+      "alsoCatalogSpecIds": [],
+      "displayName": "k-nearest neighbors",
+      "category": "Supervised learning",
+      "subcategory": "General",
+      "kind": "Nearest neighbors",
+      "summary": "Finds the k training bars whose features look most like this bar and lets them vote.",
+      "implementationNote": null,
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": "sklearn.neighbors.KNeighborsClassifier",
+        "fixed": {},
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": "sklearn.neighbors.KNeighborsRegressor",
+        "fixed": {}
+      },
+      "preprocess": [
+        "standard_scaler"
+      ],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "neighbors",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "neighbor_count": {
+          "type": "int",
+          "default": 50,
+          "min": 1,
+          "max": 2000,
+          "label": "Neighbor count (k)",
+          "group": "Model",
+          "description": "How many look-alike training bars vote.",
+          "argument": "n_neighbors",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 500,
+            "log": true
+          }
+        },
+        "neighbor_weighting": {
+          "type": "categorical",
+          "default": "distance",
+          "choices": [
+            "uniform",
+            "distance"
+          ],
+          "label": "Neighbor weighting",
+          "group": "Model",
+          "description": "Whether every neighbor's vote counts the same (uniform) or closer neighbors count more (distance).",
+          "argument": "weights",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "uniform",
+              "distance"
+            ]
+          }
+        }
+      }
+    },
+    "naive_bayes": {
+      "catalogSpecId": "machine-learning-supervised-learning-probabilistic-models-naive-bayes",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Naive Bayes",
+      "category": "Supervised learning",
+      "subcategory": "Probabilistic models",
+      "kind": "Probabilistic",
+      "summary": "Asks, feature by feature, how typical this value is of up bars versus down bars, and multiplies the evidence together as if the features were independent.",
+      "implementationNote": "Gaussian Naive Bayes. It has no regression form, so this model draws no forecast line.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": "sklearn.naive_bayes.GaussianNB",
+        "fixed": {},
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "naive_bayes",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "variance_smoothing": {
+          "type": "float",
+          "default": 1e-09,
+          "min": 1e-12,
+          "max": 1,
+          "logScale": true,
+          "label": "Variance smoothing",
+          "group": "Model",
+          "description": "A small amount added to every feature's spread so a feature with almost no spread cannot dominate.",
+          "argument": "var_smoothing",
+          "search": {
+            "kind": "float",
+            "low": 1e-11,
+            "high": 0.001,
+            "log": true
+          }
+        }
+      }
+    },
+    "calibrated_classifier": {
+      "catalogSpecId": "machine-learning-supervised-learning-calibration-meta-learners-calibrated-classifier",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Calibrated classifier",
+      "category": "Supervised learning",
+      "subcategory": "Calibration and meta-learners",
+      "kind": "Ensemble of models",
+      "summary": "Takes a base model's scores and re-maps them so that '60% up' really comes true about 60% of the time.",
+      "implementationNote": "The base model is fitted on the training bars; the calibration map is fitted on the validation bars only. It has no regression form, so this model draws no forecast line.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": "sklearn.calibration.CalibratedClassifierCV",
+        "fixed": {},
+        "probability": "predict_proba"
+      },
+      "price": null,
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "calibration",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "base_model": {
+          "type": "categorical",
+          "default": "gradient_boosting_machine",
+          "choices": [
+            "gradient_boosting_machine",
+            "random_forest",
+            "naive_bayes",
+            "logistic_regression"
+          ],
+          "label": "Base model",
+          "group": "Model",
+          "description": "The model whose scores are re-mapped."
+        },
+        "calibration_method": {
+          "type": "categorical",
+          "default": "sigmoid",
+          "choices": [
+            "sigmoid",
+            "isotonic"
+          ],
+          "label": "Calibration method",
+          "group": "Model",
+          "description": "A smooth S-curve (sigmoid, Platt scaling) or a free-form staircase (isotonic, needs more validation bars).",
+          "argument": "method",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "sigmoid",
+              "isotonic"
+            ]
+          }
+        }
+      }
+    },
+    "multilayer_perceptron_scikit_learn": {
+      "catalogSpecId": "machine-learning-supervised-learning-neural-models-multi-layer-perceptron-mlp",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Multilayer perceptron (scikit-learn)",
+      "category": "Supervised learning",
+      "subcategory": "Neural models",
+      "kind": "Neural network",
+      "summary": "Stacks of weighted sums with a bend after each, trained a batch at a time; this one is scikit-learn's version.",
+      "implementationNote": "scikit-learn MLPClassifier / MLPRegressor, trained with partial_fit one epoch at a time. The PyTorch multilayer perceptron is under Neural network architectures.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": "sklearn.neural_network.MLPClassifier",
+        "fixed": {},
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": "sklearn.neural_network.MLPRegressor",
+        "fixed": {}
+      },
+      "preprocess": [
+        "standard_scaler"
+      ],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "neural",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "How many hidden layers are stacked.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3,
+            "log": false
+          }
+        },
+        "activation_function": {
+          "type": "categorical",
+          "default": "relu",
+          "choices": [
+            "tanh",
+            "relu",
+            "logistic"
+          ],
+          "label": "Activation function",
+          "group": "Model",
+          "description": "The bend each hidden unit applies to its weighted sum.",
+          "argument": "activation",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "tanh",
+              "relu"
+            ]
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "argument": "learning_rate_init",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "argument": "alpha",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "argument": "batch_size",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    }
+  }
+}

@@ -29,17 +29,36 @@ export const cycleEnvelopeSchema = z.object({
   ts: z.string().optional(),
 });
 
-export const cycleModelFamilySchema = z.enum([
-  "logistic_regression",
-  "random_forest",
-  "xgboost",
-  "lightgbm",
-  "multilayer_perceptron",
-  "lstm",
-  "temporal_convolution_network",
-  "transformer_encoder",
-]);
+/**
+ * A model key from the Cycle's model registry (`src/config/cycle_models/`), e.g.
+ * "xgboost" or "extra_trees". The registry — not this schema — decides which keys
+ * exist; the server and the engine check membership. A fixed list here would make
+ * the server's parser drop every plan of a model added to the registry.
+ */
+export const cycleModelFamilySchema = z.string().regex(/^[a-z][a-z0-9_]{1,39}$/);
 export type CycleModelFamily = z.infer<typeof cycleModelFamilySchema>;
+
+/** How a model's "Inside the model" view explains one bar (`src/shared/cycle/explain.ts`). */
+export const cycleExplainKindSchema = z.enum([
+  "trees",
+  "oblivious_trees",
+  "linear",
+  "neighbors",
+  "naive_bayes",
+  "support_vectors",
+  "calibration",
+  "stacking",
+  "neural",
+]);
+export type CycleExplainKind = z.infer<typeof cycleExplainKindSchema>;
+
+/** "classifier": a direction model fitted on up/down labels. "from_price": the model is fitted on the price target and P(up) is read from its forecast move through a logistic curve fitted on the validation bars. */
+export const cycleDirectionModeSchema = z.enum(["classifier", "from_price"]);
+export type CycleDirectionMode = z.infer<typeof cycleDirectionModeSchema>;
+
+/** What one training step is: an epoch, a boosting round, a chunk of trees, a solver pass, or one uninterruptible fit. */
+export const cycleStepUnitSchema = z.enum(["epoch", "boosting_round", "tree_batch", "solver_pass", "single_fit"]);
+export type CycleStepUnit = z.infer<typeof cycleStepUnitSchema>;
 
 export const cyclePhaseSchema = z.enum([
   "loading",
@@ -76,6 +95,14 @@ export const cyclePlanSchema = cycleEnvelopeSchema.extend({
   timeframe: z.string(),
   modelFamily: cycleModelFamilySchema,
   modelLabel: z.string(),
+  /** The catalog spec this model implements (`/model-catalog?model=<id>`); null for a Cycle-only model. */
+  catalogSpecId: z.string().nullable().optional(),
+  /** The library that fits it: sklearn, xgboost, lightgbm, catboost, statsmodels or torch. */
+  implementation: z.string().optional(),
+  explainKind: cycleExplainKindSchema.optional(),
+  directionMode: cycleDirectionModeSchema.optional(),
+  /** False when the model has no regression form: no price model, no forecast line. */
+  hasPriceModel: z.boolean().optional(),
   parameters: z.record(z.union([z.number(), z.string(), z.boolean(), z.null()])),
   device: z.enum(["cuda", "cpu"]),
   deviceName: z.string().nullable(),
@@ -218,7 +245,7 @@ export const cycleCursorSchema = cycleEnvelopeSchema.extend({
   batch: z.number().int().nonnegative().nullable(),
   batchCount: z.number().int().nonnegative().nullable(),
   /** What one training step is for this model. */
-  stepUnit: z.enum(["epoch", "boosting_round", "tree_batch", "solver_pass"]).nullable(),
+  stepUnit: cycleStepUnitSchema.nullable(),
   /** Which of the fold's two models is being fitted: the direction classifier or the price model. */
   modelRole: z.enum(["direction", "price"]).nullable().optional(),
   trial: z.number().int().nonnegative().nullable(),
@@ -238,7 +265,7 @@ export const cycleEpochSchema = cycleEnvelopeSchema.extend({
   trial: z.number().int().nonnegative().nullable(),
   epoch: z.number().int().nonnegative(),
   epochCount: z.number().int().nonnegative(),
-  stepUnit: z.enum(["epoch", "boosting_round", "tree_batch", "solver_pass"]),
+  stepUnit: cycleStepUnitSchema,
   /**
    * "direction": losses are log loss, accuracy / F1 of the predicted class.
    * "price": losses are mean absolute error of the VOLATILITY-SCALED move (the

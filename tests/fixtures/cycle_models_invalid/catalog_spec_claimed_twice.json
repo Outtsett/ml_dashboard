@@ -1,0 +1,17 @@
+{
+  "description": "A catalog spec belongs to one model at most.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "linear.json",
+      "path": [
+        "models",
+        "ridge_regression",
+        "alsoCatalogSpecIds"
+      ],
+      "value": [
+        "machine-learning-supervised-learning-boosting-methods-xgboost"
+      ]
+    }
+  ]
+}

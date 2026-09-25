@@ -1,0 +1,443 @@
+{
+  "models": {
+    "xgboost": {
+      "catalogSpecId": "machine-learning-supervised-learning-boosting-methods-xgboost",
+      "alsoCatalogSpecIds": [],
+      "displayName": "XGBoost",
+      "category": "Supervised learning",
+      "subcategory": "Boosting methods",
+      "kind": "Tree ensemble",
+      "summary": "Trees built one after another, each fixing the last one's mistakes.",
+      "implementationNote": null,
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "xgboost",
+      "adapter": "legacy",
+      "legacyFamily": "xgboost",
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "legacy"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "legacy",
+      "stepUnit": "boosting_round",
+      "explainKind": "trees",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "boosting_rounds": {
+          "type": "int",
+          "default": 400,
+          "min": 10,
+          "max": 5000,
+          "label": "Boosting rounds",
+          "group": "Model"
+        },
+        "max_depth": {
+          "type": "int",
+          "default": 6,
+          "min": 2,
+          "max": 16,
+          "label": "Max depth",
+          "group": "Model"
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.001,
+          "max": 0.5,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model"
+        },
+        "subsample": {
+          "type": "float",
+          "default": 0.8,
+          "min": 0.3,
+          "max": 1,
+          "step": 0.05,
+          "label": "Row subsample",
+          "group": "Model"
+        },
+        "column_subsample": {
+          "type": "float",
+          "default": 0.8,
+          "min": 0.3,
+          "max": 1,
+          "step": 0.05,
+          "label": "Column subsample",
+          "group": "Model"
+        },
+        "min_child_weight": {
+          "type": "float",
+          "default": 1,
+          "min": 0.1,
+          "max": 20,
+          "logScale": true,
+          "label": "Min child weight",
+          "group": "Model"
+        },
+        "l2_regularization": {
+          "type": "float",
+          "default": 1,
+          "min": 0,
+          "max": 20,
+          "label": "L2 regularization",
+          "group": "Model"
+        },
+        "early_stopping_rounds": {
+          "type": "int",
+          "default": 50,
+          "min": 5,
+          "max": 500,
+          "label": "Early stopping rounds",
+          "group": "Model"
+        }
+      }
+    },
+    "lightgbm": {
+      "catalogSpecId": "machine-learning-supervised-learning-boosting-methods-lightgbm",
+      "alsoCatalogSpecIds": [],
+      "displayName": "LightGBM",
+      "category": "Supervised learning",
+      "subcategory": "Boosting methods",
+      "kind": "Tree ensemble",
+      "summary": "The same fix-the-mistakes idea as XGBoost, built leaf by leaf instead of level by level — faster on wide feature sets.",
+      "implementationNote": null,
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "lightgbm",
+      "adapter": "legacy",
+      "legacyFamily": "lightgbm",
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "legacy"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "legacy",
+      "stepUnit": "boosting_round",
+      "explainKind": "trees",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "boosting_rounds": {
+          "type": "int",
+          "default": 400,
+          "min": 10,
+          "max": 5000,
+          "label": "Boosting rounds",
+          "group": "Model"
+        },
+        "leaf_count": {
+          "type": "int",
+          "default": 31,
+          "min": 4,
+          "max": 512,
+          "label": "Leaf count",
+          "group": "Model"
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.001,
+          "max": 0.5,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model"
+        },
+        "subsample": {
+          "type": "float",
+          "default": 0.8,
+          "min": 0.3,
+          "max": 1,
+          "step": 0.05,
+          "label": "Row subsample",
+          "group": "Model"
+        },
+        "column_subsample": {
+          "type": "float",
+          "default": 0.8,
+          "min": 0.3,
+          "max": 1,
+          "step": 0.05,
+          "label": "Column subsample",
+          "group": "Model"
+        },
+        "min_child_samples": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Min child samples",
+          "group": "Model"
+        },
+        "l2_regularization": {
+          "type": "float",
+          "default": 1,
+          "min": 0,
+          "max": 20,
+          "label": "L2 regularization",
+          "group": "Model"
+        },
+        "early_stopping_rounds": {
+          "type": "int",
+          "default": 50,
+          "min": 5,
+          "max": 500,
+          "label": "Early stopping rounds",
+          "group": "Model"
+        }
+      }
+    },
+    "catboost": {
+      "catalogSpecId": "machine-learning-supervised-learning-boosting-methods-catboost",
+      "alsoCatalogSpecIds": [],
+      "displayName": "CatBoost",
+      "category": "Supervised learning",
+      "subcategory": "Boosting methods",
+      "kind": "Tree ensemble",
+      "summary": "Boosting with symmetric trees: every level of a tree asks the same question, so each tree is a small lookup table.",
+      "implementationNote": null,
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "catboost",
+      "adapter": "catboost",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": "catboost.CatBoostClassifier",
+        "fixed": {
+          "loss_function": "Logloss"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": "catboost.CatBoostRegressor",
+        "fixed": {
+          "loss_function": "RMSE"
+        }
+      },
+      "preprocess": [],
+      "progress": "per_round",
+      "stepUnit": "boosting_round",
+      "explainKind": "oblivious_trees",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "boosting_rounds": {
+          "type": "int",
+          "default": 400,
+          "min": 10,
+          "max": 5000,
+          "label": "Boosting rounds",
+          "group": "Model",
+          "description": "How many trees are added one after another, each correcting the ones before it.",
+          "argument": "iterations"
+        },
+        "max_depth": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 10,
+          "label": "Max depth",
+          "group": "Model",
+          "description": "How many levels each symmetric tree has; a tree has 2^depth leaves.",
+          "argument": "depth",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 8,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.001,
+          "max": 0.5,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How much each new tree is allowed to change the answer.",
+          "argument": "learning_rate",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 0.3,
+            "log": true
+          }
+        },
+        "l2_regularization": {
+          "type": "float",
+          "default": 3.0,
+          "min": 0,
+          "max": 30,
+          "label": "L2 regularization",
+          "group": "Model",
+          "description": "Shrinks leaf values toward zero so no single tree dominates.",
+          "argument": "l2_leaf_reg",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 30.0,
+            "log": true
+          }
+        },
+        "early_stopping_rounds": {
+          "type": "int",
+          "default": 50,
+          "min": 5,
+          "max": 500,
+          "label": "Early stopping rounds",
+          "group": "Model",
+          "description": "Stop adding trees after this many rounds without a better validation loss; the best round is kept.",
+          "argument": "early_stopping_rounds"
+        }
+      }
+    },
+    "gradient_boosting_machine": {
+      "catalogSpecId": "machine-learning-supervised-learning-boosting-methods-gradient-boosting-machine-gbm",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Gradient boosting machine",
+      "category": "Supervised learning",
+      "subcategory": "Boosting methods",
+      "kind": "Tree ensemble",
+      "summary": "The original boosting recipe: shallow trees added one at a time, each fitted to what the previous ones got wrong.",
+      "implementationNote": null,
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": "sklearn.ensemble.GradientBoostingClassifier",
+        "fixed": {},
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": "sklearn.ensemble.GradientBoostingRegressor",
+        "fixed": {
+          "loss": "squared_error"
+        }
+      },
+      "preprocess": [],
+      "progress": "warm_start_rounds",
+      "stepUnit": "boosting_round",
+      "explainKind": "trees",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "boosting_rounds": {
+          "type": "int",
+          "default": 300,
+          "min": 10,
+          "max": 5000,
+          "label": "Boosting rounds",
+          "group": "Model",
+          "description": "How many trees are added one after another, each correcting the ones before it.",
+          "argument": "n_estimators"
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.001,
+          "max": 0.5,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How much each new tree is allowed to change the answer.",
+          "argument": "learning_rate",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 0.3,
+            "log": true
+          }
+        },
+        "max_depth": {
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 40,
+          "label": "Max depth",
+          "group": "Model",
+          "description": "How many questions each tree may ask in a row.",
+          "argument": "max_depth",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 6,
+            "log": false
+          }
+        },
+        "subsample": {
+          "type": "float",
+          "default": 0.8,
+          "min": 0.3,
+          "max": 1,
+          "step": 0.05,
+          "label": "Row subsample",
+          "group": "Model",
+          "description": "The share of training bars each tree sees, drawn fresh per tree.",
+          "argument": "subsample",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 1.0,
+            "log": false
+          }
+        },
+        "min_samples_leaf": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 1000,
+          "label": "Minimum bars per leaf",
+          "group": "Model",
+          "description": "The fewest training bars a leaf may rest on.",
+          "argument": "min_samples_leaf",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 200,
+            "log": true
+          }
+        },
+        "early_stopping_rounds": {
+          "type": "int",
+          "default": 50,
+          "min": 5,
+          "max": 500,
+          "label": "Early stopping rounds",
+          "group": "Model",
+          "description": "Stop adding trees after this many rounds without a better validation loss; the best round is kept."
+        }
+      }
+    }
+  }
+}

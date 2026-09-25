@@ -1,0 +1,446 @@
+{
+  "models": {
+    "random_forest": {
+      "catalogSpecId": "machine-learning-supervised-learning-ensemble-methods-random-forest",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Random forest",
+      "category": "Supervised learning",
+      "subcategory": "Ensemble methods",
+      "kind": "Tree ensemble",
+      "summary": "Hundreds of trees, each grown on a different random slice of the data, voting together.",
+      "implementationNote": null,
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "legacy",
+      "legacyFamily": "random_forest",
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "legacy"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "legacy",
+      "stepUnit": "tree_batch",
+      "explainKind": "trees",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "tree_count": {
+          "type": "int",
+          "default": 300,
+          "min": 10,
+          "max": 2000,
+          "label": "Tree count",
+          "group": "Model"
+        },
+        "max_depth": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 32,
+          "label": "Max depth",
+          "group": "Model"
+        },
+        "min_samples_leaf": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Min samples per leaf",
+          "group": "Model"
+        },
+        "max_features_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.1,
+          "max": 1,
+          "step": 0.05,
+          "label": "Max features fraction",
+          "group": "Model"
+        }
+      }
+    },
+    "stacked_generalization": {
+      "catalogSpecId": "machine-learning-supervised-learning-ensemble-methods-stacked-generalization-model",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Stacked generalization",
+      "category": "Supervised learning",
+      "subcategory": "Ensemble methods",
+      "kind": "Ensemble of models",
+      "summary": "Three different models each make a call, and a small logistic model learns how much to trust each one.",
+      "implementationNote": "Base models: logistic regression, random forest and gradient boosting. The meta-learner is fitted on their out-of-fold answers from contiguous blocks inside the training window (no shuffling).",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": "sklearn.ensemble.StackingClassifier",
+        "fixed": {},
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": "sklearn.ensemble.StackingRegressor",
+        "fixed": {}
+      },
+      "preprocess": [
+        "standard_scaler"
+      ],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "stacking",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "stacking_folds": {
+          "type": "int",
+          "default": 5,
+          "min": 2,
+          "max": 10,
+          "label": "Stacking folds",
+          "group": "Model",
+          "description": "How many contiguous blocks the training window is cut into to produce the out-of-fold answers the meta-learner learns from.",
+          "argument": "cv"
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.001,
+          "max": 1000,
+          "logScale": true,
+          "label": "Meta-learner regularization strength",
+          "group": "Model",
+          "description": "The inverse penalty on the meta-learner's weights; larger lets it trust the base models more freely.",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 100.0,
+            "log": true
+          }
+        },
+        "tree_count": {
+          "type": "int",
+          "default": 200,
+          "min": 10,
+          "max": 2000,
+          "label": "Trees in each tree base model",
+          "group": "Model",
+          "description": "How many trees the forest and boosting base models grow."
+        },
+        "max_depth": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 40,
+          "label": "Max depth of the forest base model",
+          "group": "Model",
+          "description": "How many questions each forest tree may ask in a row.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              4,
+              6,
+              8
+            ]
+          }
+        }
+      }
+    },
+    "extra_trees": {
+      "catalogSpecId": "machine-learning-supervised-learning-tree-based-models-extra-trees-regressor",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Extra trees",
+      "category": "Supervised learning",
+      "subcategory": "Tree-based models",
+      "kind": "Tree ensemble",
+      "summary": "Like a random forest, but every split point is drawn at random too, which makes the trees even more different from each other.",
+      "implementationNote": "The catalog spec is the regressor; the Cycle also fits its classifier twin for the up/down call.",
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": "sklearn.ensemble.ExtraTreesClassifier",
+        "fixed": {
+          "class_weight": "balanced"
+        },
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": "sklearn.ensemble.ExtraTreesRegressor",
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "warm_start_trees",
+      "stepUnit": "tree_batch",
+      "explainKind": "trees",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "tree_count": {
+          "type": "int",
+          "default": 300,
+          "min": 10,
+          "max": 2000,
+          "label": "Tree count",
+          "group": "Model",
+          "description": "How many trees vote; more trees give a steadier average but take longer to grow.",
+          "argument": "n_estimators"
+        },
+        "max_depth": {
+          "type": "int",
+          "default": 8,
+          "min": 1,
+          "max": 40,
+          "label": "Max depth",
+          "group": "Model",
+          "description": "How many questions a tree may ask in a row before it must answer.",
+          "argument": "max_depth",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              4,
+              6,
+              8,
+              12,
+              16
+            ]
+          }
+        },
+        "min_samples_leaf": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 1000,
+          "label": "Minimum bars per leaf",
+          "group": "Model",
+          "description": "The fewest training bars a final answer (leaf) may rest on; larger is smoother.",
+          "argument": "min_samples_leaf",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 200,
+            "log": true
+          }
+        },
+        "max_features_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.05,
+          "max": 1,
+          "step": 0.05,
+          "label": "Share of features per split",
+          "group": "Model",
+          "description": "The share of features each split may choose from; lower makes the trees more different from each other.",
+          "argument": "max_features",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.9,
+            "log": false
+          }
+        }
+      }
+    },
+    "classification_and_regression_tree": {
+      "catalogSpecId": "machine-learning-supervised-learning-tree-based-models-classification-and-regression-trees-cart",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Classification and regression tree (CART)",
+      "category": "Supervised learning",
+      "subcategory": "Tree-based models",
+      "kind": "Single tree",
+      "summary": "One tree of yes/no questions about the features; the answer is the leaf a bar lands in.",
+      "implementationNote": null,
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": "sklearn.tree.DecisionTreeClassifier",
+        "fixed": {},
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": "sklearn.tree.DecisionTreeRegressor",
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "trees",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "max_depth": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 40,
+          "label": "Max depth",
+          "group": "Model",
+          "description": "How many questions the tree may ask in a row before it must answer.",
+          "argument": "max_depth",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 12,
+            "log": false
+          }
+        },
+        "min_samples_leaf": {
+          "type": "int",
+          "default": 50,
+          "min": 1,
+          "max": 5000,
+          "label": "Minimum bars per leaf",
+          "group": "Model",
+          "description": "The fewest training bars a final answer may rest on; larger is smoother.",
+          "argument": "min_samples_leaf",
+          "search": {
+            "kind": "int",
+            "low": 10,
+            "high": 500,
+            "log": true
+          }
+        },
+        "split_criterion": {
+          "type": "categorical",
+          "default": "gini",
+          "choices": [
+            "gini",
+            "entropy",
+            "log_loss"
+          ],
+          "label": "Split criterion",
+          "group": "Model",
+          "description": "How the tree scores a candidate question: Gini impurity or entropy (information gain). The price model always uses squared error.",
+          "argument": "criterion",
+          "roles": [
+            "direction"
+          ],
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "gini",
+              "entropy"
+            ]
+          }
+        }
+      }
+    },
+    "decision_tree_classifier": {
+      "catalogSpecId": "machine-learning-supervised-learning-tree-based-models-decision-tree-classifier",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Decision tree classifier",
+      "category": "Supervised learning",
+      "subcategory": "Tree-based models",
+      "kind": "Single tree",
+      "summary": "One tree grown by information gain (entropy): each question is the one that best separates up bars from down bars.",
+      "implementationNote": null,
+      "runnable": false,
+      "unavailableReason": "Being built for the Cycle.",
+      "implementation": "sklearn",
+      "adapter": "scikit_learn",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": "sklearn.tree.DecisionTreeClassifier",
+        "fixed": {},
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": "sklearn.tree.DecisionTreeRegressor",
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "single_fit",
+      "stepUnit": "single_fit",
+      "explainKind": "trees",
+      "sequence": false,
+      "network": null,
+      "speed": "fast",
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "max_depth": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 40,
+          "label": "Max depth",
+          "group": "Model",
+          "description": "How many questions the tree may ask in a row before it must answer.",
+          "argument": "max_depth",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 12,
+            "log": false
+          }
+        },
+        "min_samples_leaf": {
+          "type": "int",
+          "default": 50,
+          "min": 1,
+          "max": 5000,
+          "label": "Minimum bars per leaf",
+          "group": "Model",
+          "description": "The fewest training bars a final answer may rest on; larger is smoother.",
+          "argument": "min_samples_leaf",
+          "search": {
+            "kind": "int",
+            "low": 10,
+            "high": 500,
+            "log": true
+          }
+        },
+        "split_criterion": {
+          "type": "categorical",
+          "default": "entropy",
+          "choices": [
+            "gini",
+            "entropy",
+            "log_loss"
+          ],
+          "label": "Split criterion",
+          "group": "Model",
+          "description": "How the tree scores a candidate question: Gini impurity or entropy (information gain). The price model always uses squared error.",
+          "argument": "criterion",
+          "roles": [
+            "direction"
+          ],
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              "gini",
+              "entropy"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

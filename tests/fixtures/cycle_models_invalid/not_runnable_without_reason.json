@@ -1,0 +1,15 @@
+{
+  "description": "A model that is not runnable needs a reason.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "linear.json",
+      "path": [
+        "models",
+        "ordinal_regression",
+        "unavailableReason"
+      ],
+      "value": null
+    }
+  ]
+}

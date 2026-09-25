@@ -1,0 +1,15 @@
+{
+  "description": "An entry may not carry fields outside the contract.",
+  "operations": [
+    {
+      "op": "set",
+      "file": "boosting.json",
+      "path": [
+        "models",
+        "xgboost",
+        "colour"
+      ],
+      "value": "orange"
+    }
+  ]
+}
