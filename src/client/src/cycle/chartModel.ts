@@ -16,7 +16,12 @@
  *    model is working on, the test cursor) from the plan and the cursor;
  *  - trade markers from trade records;
  *  - the visible ranges follow mode asks for;
- *  - the crosshair readout for one bar.
+ *  - the crosshair readout for one bar (label move in points / ticks / USD,
+ *    the forecast and its error, the trade opened at the next bar, the roll
+ *    note);
+ *  - the forecast price text beside each glyph and the hover segment, as
+ *    pixel layout;
+ *  - the hover → store publish throttle and click-to-pin rule.
  *
  * The drawing side is `CycleChart.tsx` (series, rAF loop) and `chartBands.ts`
  * (the canvas primitive). Wire contract: `@shared/cycle/schema`.
@@ -36,7 +41,7 @@ export const CYCLE_COLORS = {
   sky: "#56B4E9",
   /** Validation span. */
   yellow: "#F0E442",
-  /** A label that resolved wrong. */
+  /** Not used for a wrong label: that is neutral grey plus ✗, so right/wrong never rests on a hue pair. */
   vermillion: "#D55E00",
   /** The block the model is working on right now. */
   active: "#CC79A7",
@@ -799,6 +804,8 @@ export function rangesDiffer(a: LogicalSpan | null, b: LogicalSpan): boolean {
 
 export interface BarReadout {
   index: number;
+  /** Epoch seconds of the bar. */
+  timestamp: number;
   timeText: string;
   role: "context" | "processed";
   open: number;
@@ -818,6 +825,14 @@ export interface BarReadout {
   forecastForThisBar: TargetForecast | null;
   /** The forecast this bar MADE, of the close `labelHorizonBars` later; null when it made none. */
   forecastMadeHere: MadeForecast | null;
+  /** The label's price move; null for context bars or without a plan. */
+  labelMove: LabelMoveReadout | null;
+  /** The trade entered at the next bar's open on this bar's call; null when none was. */
+  tradeAtNextOpen: TradeReadout | null;
+  /** Set when later contract rolls shifted this bar's prices; null when none did. */
+  rollAdjustment: RollAdjustmentReadout | null;
+  /** False when the model has no price model (so no forecast); null without a plan. */
+  hasPriceModel: boolean | null;
 }
 
 export interface TargetForecast {
@@ -833,6 +848,73 @@ export interface MadeForecast {
   predictedClose: number;
   /** The bar the forecast is for. */
   targetTimeText: string;
+  /** Forecast close − this bar's close, in price points: the move the price model expected. */
+  predictedMovePoints: number;
+  /** The close of the bar the forecast is for, once that bar is in the store; null until then. */
+  actualClose: number | null;
+  /** Forecast close − actual close, points (positive: too high); null until the bar is known. */
+  errorPoints: number | null;
+  /** The same error in ticks; null until known or without a tick size. */
+  errorTicks: number | null;
+}
+
+/**
+ * The move the direction label is scored on: this bar's close to the close
+ * `labelHorizonBars` later. It is the LABEL, not a trade's profit — the trade
+ * (entered at the next bar's open, with costs and exits) is `tradeAtNextOpen`.
+ */
+export type LabelMoveReadout =
+  | {
+      state: "resolved";
+      horizonBars: number;
+      startClose: number;
+      resolutionClose: number;
+      resolutionTimeText: string;
+      /** Resolution close − this close, price points. */
+      movePoints: number;
+      moveTicks: number;
+      /** The move in USD for ONE contract (points × point value). */
+      moveUsdPerContract: number;
+      /** Contracts the run trades (`plan.trading.contracts`). */
+      contracts: number;
+      /** `moveUsdPerContract × contracts`. */
+      moveUsdAllContracts: number;
+      /** A move inside ± this many ticks is not scored. */
+      thresholdTicks: number;
+    }
+  | {
+      state: "pending";
+      horizonBars: number;
+      /** When the label resolves (the bar the forecast is for); null when that time is not known yet. */
+      resolutionTimeText: string | null;
+      thresholdTicks: number;
+    };
+
+/** The trade the model opened at the NEXT bar's open, acting on this bar's call. */
+export interface TradeReadout {
+  tradeNumber: number;
+  side: "long" | "short";
+  contracts: number;
+  entryTimeText: string;
+  /** The entry fill (the next bar's open, in the chart's price space). */
+  fillPrice: number;
+  status: "open" | "closed";
+  /** Net of costs, all contracts; null while the trade is open. */
+  netProfitUsd: number | null;
+  exitTimeText: string | null;
+  exitPrice: number | null;
+}
+
+/** Why this bar's prices differ from what traded: later contract rolls shifted them (additive back-adjustment). */
+export interface RollAdjustmentReadout {
+  /** Points added to this bar's traded prices: the sum of the gaps of every roll after it. */
+  shiftPoints: number;
+  /** Rolls after this bar. */
+  rollCount: number;
+  /** The first roll after this bar. */
+  nextRollTimeText: string;
+  nextRollFromContract: string;
+  nextRollToContract: string;
 }
 
 /** A forecast point past the newest candle: its bar has not arrived yet. */
@@ -874,13 +956,136 @@ export function targetForecastAt(
   };
 }
 
-/** The forecast bar `index` made, or null when it made none. */
-export function madeForecastAt(columns: CycleBarColumns, index: number): MadeForecast | null {
+/**
+ * The forecast bar `index` made, or null when it made none. Once the bar it is
+ * for is in the store, the actual close and the error come with it.
+ */
+export function madeForecastAt(columns: CycleBarColumns, index: number, tickSize: number | null = null): MadeForecast | null {
   if (index < 0 || index >= columns.timestamps.length || columns.role[index] !== "processed") return null;
   const predictedClose = columns.predictedClose[index];
   const target = columns.forecastTimestamp[index];
   if (predictedClose === null || predictedClose === undefined || target === null || target === undefined) return null;
-  return { predictedClose, targetTimeText: formatBarTime(target) };
+  const targetIndex = findBarIndex(columns.timestamps, target);
+  const actualClose = targetIndex >= 0 ? columns.close[targetIndex]! : null;
+  const errorPoints = actualClose === null ? null : predictedClose - actualClose;
+  return {
+    predictedClose,
+    targetTimeText: formatBarTime(target),
+    predictedMovePoints: predictedClose - columns.close[index]!,
+    actualClose,
+    errorPoints,
+    errorTicks: errorPoints === null || tickSize === null || !(tickSize > 0) ? null : errorPoints / tickSize,
+  };
+}
+
+/**
+ * The label move of bar `index`: close[i] → close[i + h], h = `labelHorizonBars`.
+ *
+ * Resolved once the label is known (`actualDirection[i]` set). Bars arrive in
+ * time order without gaps and a label resolves in the frame that carries bar
+ * i + h, so close[i + h] is in the store whenever the label is; if it somehow
+ * is not, the move is reported as pending rather than guessed. Pending carries
+ * the resolution time from `forecastTimestamp[i]` (the bar i + h), or from the
+ * store when bar i + h is already there. Null for context bars.
+ */
+export function labelMoveAt(columns: CycleBarColumns, index: number, plan: CyclePlan): LabelMoveReadout | null {
+  if (index < 0 || index >= columns.timestamps.length || columns.role[index] !== "processed") return null;
+  const horizonBars = plan.labelHorizonBars;
+  const thresholdTicks = plan.labelThresholdTicks;
+  const resolutionIndex = index + horizonBars;
+  const known = columns.actualDirection[index] !== null && columns.actualDirection[index] !== undefined;
+  if (known && resolutionIndex < columns.timestamps.length) {
+    const startClose = columns.close[index]!;
+    const resolutionClose = columns.close[resolutionIndex]!;
+    const movePoints = resolutionClose - startClose;
+    const contracts = plan.trading.contracts;
+    const moveUsdPerContract = movePoints * plan.costModel.pointValueUsd;
+    return {
+      state: "resolved",
+      horizonBars,
+      startClose,
+      resolutionClose,
+      resolutionTimeText: formatBarTime(columns.timestamps[resolutionIndex]!),
+      movePoints,
+      moveTicks: movePoints / plan.costModel.tickSize,
+      moveUsdPerContract,
+      contracts,
+      moveUsdAllContracts: moveUsdPerContract * contracts,
+      thresholdTicks,
+    };
+  }
+  const forecastTime = columns.forecastTimestamp[index];
+  const resolutionTime =
+    forecastTime !== null && forecastTime !== undefined
+      ? forecastTime
+      : resolutionIndex < columns.timestamps.length
+        ? columns.timestamps[resolutionIndex]!
+        : null;
+  return { state: "pending", horizonBars, resolutionTimeText: resolutionTime === null ? null : formatBarTime(resolutionTime), thresholdTicks };
+}
+
+/**
+ * The trade whose entry is at `entryTimestamp`, or null. Trades are numbered in
+ * entry order and one bar opens at most one trade, so entry times increase with
+ * the trade number: a binary search, not a scan.
+ */
+export function tradeEnteredAt(trades: readonly CycleTrade[], entryTimestamp: number): CycleTrade | null {
+  let low = 0;
+  let high = trades.length - 1;
+  while (low <= high) {
+    const middle = (low + high) >>> 1;
+    const value = trades[middle]!.entryTimestamp;
+    if (value === entryTimestamp) return trades[middle]!;
+    if (value < entryTimestamp) low = middle + 1;
+    else high = middle - 1;
+  }
+  return null;
+}
+
+/** The trade entered at bar `index + 1`'s open (acting on bar `index`'s call), or null. */
+export function tradeAtNextOpen(columns: CycleBarColumns, index: number, trades: readonly CycleTrade[]): TradeReadout | null {
+  if (index < 0 || index + 1 >= columns.timestamps.length || columns.role[index] !== "processed") return null;
+  const trade = tradeEnteredAt(trades, columns.timestamps[index + 1]!);
+  if (!trade) return null;
+  return {
+    tradeNumber: trade.tradeNumber,
+    side: trade.side,
+    contracts: trade.contracts,
+    entryTimeText: formatBarTime(trade.entryTimestamp),
+    fillPrice: trade.entryPrice,
+    status: trade.status,
+    netProfitUsd: trade.status === "closed" ? trade.netProfitUsd : null,
+    exitTimeText: trade.exitTimestamp === null ? null : formatBarTime(trade.exitTimestamp),
+    exitPrice: trade.exitPrice,
+  };
+}
+
+/**
+ * The roll shift of a bar at `timestamp`: with additive back-adjustment every
+ * bar before a roll is moved by that roll's gap (`src/ml/cycle/rolls.py`), so
+ * a bar's shift is the sum of the gaps of the rolls after it. Null when no roll
+ * follows it (its prices are as traded) or the series is not adjusted.
+ */
+export function rollAdjustmentAt(plan: CyclePlan, timestamp: number): RollAdjustmentReadout | null {
+  const adjustment = plan.priceAdjustment;
+  if (!adjustment || adjustment.method === "none") return null;
+  let shiftPoints = 0;
+  let rollCount = 0;
+  let next: (typeof adjustment.rolls)[number] | null = null;
+  for (const roll of adjustment.rolls) {
+    if (roll.timestamp <= timestamp) continue;
+    shiftPoints += roll.gapPoints;
+    rollCount += 1;
+    if (next === null || roll.timestamp < next.timestamp) next = roll;
+  }
+  if (next === null) return null;
+  return {
+    shiftPoints,
+    rollCount,
+    nextRollTimeText: formatBarTime(next.timestamp),
+    nextRollFromContract: next.fromContract,
+    nextRollToContract: next.toContract,
+  };
 }
 
 /** Readout for a forecast point whose bar has not been drawn yet (the part of the line ahead of the candles). */
@@ -896,10 +1101,28 @@ export function forecastOnlyReadout(
   return { timeText: formatBarTime(time), madeAtText: formatBarTime(columns.timestamps[source]!), predictedClose };
 }
 
+/**
+ * Colour of the readout's label word: sky for "correct", neutral grey for
+ * "wrong" (the ✓ / ✗ glyph carries the meaning, so right and wrong never rest
+ * on a hue pair), none otherwise.
+ */
+export function readoutLabelTone(labelWord: string): string | undefined {
+  if (labelWord === "correct") return CYCLE_COLORS.sky;
+  if (labelWord === "wrong") return CYCLE_COLORS.neutral;
+  return undefined;
+}
+
+/**
+ * The crosshair readout for bar `index`. With the run's `plan` it adds the
+ * label move in points / ticks / USD, the forecast's error and the roll note;
+ * with `trades`, the trade entered at the next bar's open.
+ */
 export function readoutAt(
   columns: CycleBarColumns,
   index: number,
   forecastSourceByTime: ReadonlyMap<number, number> | null = null,
+  plan: CyclePlan | null = null,
+  trades: readonly CycleTrade[] | null = null,
 ): BarReadout | null {
   if (index < 0 || index >= columns.timestamps.length) return null;
   const processed = columns.role[index] === "processed";
@@ -925,6 +1148,7 @@ export function readoutAt(
   }
   return {
     index,
+    timestamp: columns.timestamps[index]!,
     timeText: formatBarTime(columns.timestamps[index]!),
     role: processed ? "processed" : "context",
     open: columns.open[index]!,
@@ -939,8 +1163,247 @@ export function readoutAt(
     labelGlyph,
     actualDirectionWord: actual === null || actual === undefined ? null : directionWord(actual, "up", "down", "flat"),
     forecastForThisBar: targetForecastAt(columns, index, forecastSourceByTime),
-    forecastMadeHere: madeForecastAt(columns, index),
+    forecastMadeHere: madeForecastAt(columns, index, plan ? plan.costModel.tickSize : null),
+    labelMove: plan ? labelMoveAt(columns, index, plan) : null,
+    tradeAtNextOpen: trades ? tradeAtNextOpen(columns, index, trades) : null,
+    rollAdjustment: plan ? rollAdjustmentAt(plan, columns.timestamps[index]!) : null,
+    hasPriceModel: plan ? plan.hasPriceModel !== false : null,
   };
+}
+
+// ─── Price text and hover geometry (drawn by chartBands.ts) ──────────────────
+
+/** Forecast price text is printed beside the glyphs only at this bar spacing (pixels) or wider. */
+export const PRICE_TEXT_MINIMUM_BAR_SPACING = 14;
+/** Pixels between a glyph and its price text. */
+export const PRICE_TEXT_GAP = 2;
+/** Price text rows tried beyond a glyph before the text is left out (so neighbours do not overprint). */
+export const PRICE_TEXT_MAXIMUM_ROWS = 2;
+/** Minimum clear pixels between two price texts. */
+export const PRICE_TEXT_CLEARANCE = 2;
+
+/** A price rounded to the nearest tick, printed with the tick's decimals ("21234.25" for 0.25). */
+export function formatTickPrice(value: number, tickSize: number): string {
+  if (!(tickSize > 0) || !Number.isFinite(value)) return value.toFixed(2);
+  const decimals = tickDecimals(tickSize);
+  return (Math.round(value / tickSize) * tickSize).toFixed(decimals);
+}
+
+export interface PixelBox {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+export function boxesOverlap(a: PixelBox, b: PixelBox, clearance = 0): boolean {
+  return (
+    a.left < b.left + b.width + clearance &&
+    b.left < a.left + a.width + clearance &&
+    a.top < b.top + b.height + clearance &&
+    b.top < a.top + a.height + clearance
+  );
+}
+
+/** The bounding box of a glyph's triangle (`glyphTriangle`). */
+export function glyphBox(side: "below" | "above", x: number, wickY: number, size: number, gap = GLYPH_GAP): PixelBox {
+  const triangle = glyphTriangle(side, x, wickY, size, gap);
+  const ys = [triangle.apex.y, triangle.baseLeft.y, triangle.baseRight.y];
+  const top = Math.min(...ys);
+  return { left: x - size / 2, top, width: size, height: Math.max(...ys) - top };
+}
+
+/**
+ * Where the price text of a glyph goes: centred on the bar, beyond the glyph —
+ * under a ▲ (which sits under the low), over a ▼ (which sits over the high) —
+ * so it never covers the glyph or the candle. `row` moves it one text height
+ * further out, for when the first row is taken by a neighbour's text.
+ */
+export function priceTextBox(
+  side: "below" | "above",
+  x: number,
+  wickY: number,
+  glyphSizePixels: number,
+  textWidth: number,
+  textHeight: number,
+  row = 0,
+): PixelBox {
+  const glyph = glyphBox(side, x, wickY, glyphSizePixels);
+  const offset = PRICE_TEXT_GAP + row * (textHeight + PRICE_TEXT_CLEARANCE);
+  const top = side === "below" ? glyph.top + glyph.height + offset : glyph.top - offset - textHeight;
+  return { left: x - textWidth / 2, top, width: textWidth, height: textHeight };
+}
+
+export interface PriceTextCandidate {
+  index: number;
+  side: "below" | "above";
+  x: number;
+  wickY: number;
+  text: string;
+  textWidth: number;
+}
+
+export interface PlacedPriceText {
+  index: number;
+  text: string;
+  box: PixelBox;
+}
+
+/**
+ * Lay out the forecast price texts of the visible glyphs, left to right: each
+ * takes the first of `PRICE_TEXT_MAXIMUM_ROWS` rows beyond its glyph that
+ * overlaps no glyph and no text already placed, or is left out (the hover
+ * readout still has it). At wide spacing every text fits in row 0.
+ */
+export function placePriceTexts(
+  candidates: readonly PriceTextCandidate[],
+  glyphSizePixels: number,
+  textHeight: number,
+): PlacedPriceText[] {
+  const sorted = [...candidates].sort((a, b) => a.x - b.x);
+  const glyphs = sorted.map((candidate) => glyphBox(candidate.side, candidate.x, candidate.wickY, glyphSizePixels));
+  const placed: PlacedPriceText[] = [];
+  for (const candidate of sorted) {
+    for (let row = 0; row < PRICE_TEXT_MAXIMUM_ROWS; row += 1) {
+      const box = priceTextBox(candidate.side, candidate.x, candidate.wickY, glyphSizePixels, candidate.textWidth, textHeight, row);
+      if (glyphs.some((glyph) => boxesOverlap(glyph, box))) continue;
+      if (placed.some((other) => boxesOverlap(other.box, box, PRICE_TEXT_CLEARANCE))) continue;
+      placed.push({ index: candidate.index, text: candidate.text, box });
+      break;
+    }
+  }
+  return placed;
+}
+
+/**
+ * Logical index of `time` on the chart's time scale: a drawn candle's own
+ * index, or — past the newest candle — the forecast line's point there (see
+ * `forecastHeadIndex`). Null when nothing is drawn at that time.
+ */
+export function logicalIndexOfTime(
+  timestamps: readonly number[],
+  renderedCount: number,
+  forecastTimes: readonly number[] | null,
+  time: number,
+): number | null {
+  if (renderedCount <= 0) return null;
+  const lastCandle = timestamps[renderedCount - 1]!;
+  if (time <= lastCandle) {
+    const index = findBarIndex(timestamps, time);
+    return index >= 0 && index < renderedCount ? index : null;
+  }
+  if (!forecastTimes) return null;
+  const position = findBarIndex(forecastTimes, time);
+  if (position < 0) return null;
+  return renderedCount - 1 + (position - upperBound(forecastTimes, lastCandle) + 1);
+}
+
+/** What the hover draws for one bar: the label move's segment and the forecast point. */
+export interface HoverPriceGeometry {
+  index: number;
+  startClose: number;
+  /** Bar i + h, once its label is known and the bar is drawn; null before. */
+  resolutionIndex: number | null;
+  resolutionClose: number | null;
+  /** 1 up, -1 down, 0 unchanged; null while unresolved. */
+  moveSign: 1 | -1 | 0 | null;
+  /** Logical index of the bar the forecast is for (may be ahead of the newest candle). */
+  forecastLogical: number | null;
+  forecastClose: number | null;
+}
+
+export function hoverPriceGeometry(
+  columns: CycleBarColumns,
+  index: number,
+  renderedCount: number,
+  labelHorizonBars: number,
+  forecastTimes: readonly number[] | null,
+): HoverPriceGeometry | null {
+  if (index < 0 || index >= renderedCount || index >= columns.timestamps.length || columns.role[index] !== "processed") return null;
+  const startClose = columns.close[index]!;
+  const known = columns.actualDirection[index] !== null && columns.actualDirection[index] !== undefined;
+  const resolution = index + labelHorizonBars;
+  const resolved = known && resolution < renderedCount;
+  const resolutionClose = resolved ? columns.close[resolution]! : null;
+  const forecastTime = columns.forecastTimestamp[index];
+  const forecastClose = columns.predictedClose[index];
+  const hasForecast = forecastTime !== null && forecastTime !== undefined && forecastClose !== null && forecastClose !== undefined;
+  return {
+    index,
+    startClose,
+    resolutionIndex: resolved ? resolution : null,
+    resolutionClose,
+    moveSign: resolutionClose === null ? null : resolutionClose > startClose ? 1 : resolutionClose < startClose ? -1 : 0,
+    forecastLogical: hasForecast ? logicalIndexOfTime(columns.timestamps, renderedCount, forecastTimes, forecastTime) : null,
+    forecastClose: hasForecast ? forecastClose : null,
+  };
+}
+
+// ─── Inspection (hover publish, click to pin) ───────────────────────────────
+
+/** The crosshair publishes the hovered bar to the store at most this often (10 per second). */
+export const INSPECT_PUBLISH_INTERVAL_MILLISECONDS = 100;
+
+/**
+ * Leading + trailing throttle: the first value goes out at once, later ones at
+ * most every `intervalMilliseconds`, and the newest value pushed during a wait
+ * goes out when it ends — so the last bar hovered is always the one published.
+ * Clock and timer are injectable for tests.
+ */
+export class TrailingThrottle<T> {
+  private lastAt = -Infinity;
+  private hasLast = false;
+  private last: T | undefined;
+  private pending: { value: T } | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+
+  public constructor(
+    private readonly intervalMilliseconds: number,
+    private readonly publish: (value: T) => void,
+    private readonly now: () => number = () => performance.now(),
+    private readonly setTimer: (callback: () => void, delay: number) => ReturnType<typeof setTimeout> = (callback, delay) => setTimeout(callback, delay),
+    private readonly clearTimer: (timer: ReturnType<typeof setTimeout>) => void = (timer) => clearTimeout(timer),
+  ) {}
+
+  public push(value: T): void {
+    if (this.timer !== null) {
+      this.pending = { value };
+      return;
+    }
+    if (this.hasLast && Object.is(this.last, value)) return;
+    const wait = this.lastAt + this.intervalMilliseconds - this.now();
+    if (wait <= 0) {
+      this.emit(value);
+      return;
+    }
+    this.pending = { value };
+    this.timer = this.setTimer(this.flush, wait);
+  }
+
+  public cancel(): void {
+    if (this.timer !== null) this.clearTimer(this.timer);
+    this.timer = null;
+    this.pending = null;
+  }
+
+  private readonly flush = () => {
+    this.timer = null;
+    const pending = this.pending;
+    this.pending = null;
+    if (pending && !(this.hasLast && Object.is(this.last, pending.value))) this.emit(pending.value);
+  };
+
+  private emit(value: T): void {
+    this.lastAt = this.now();
+    this.last = value;
+    this.hasLast = true;
+    this.publish(value);
+  }
+}
+
+/** What a click on bar `clicked` pins: that bar, or nothing (unpin) when it is already the pinned bar. */
+export function nextPinnedTimestamp(inspectSource: "hover" | "cursor" | "pinned", inspectTimestamp: number | null, clicked: number): number | null {
+  return inspectSource === "pinned" && inspectTimestamp === clicked ? null : clicked;
 }
 
 // ─── Legend words ───────────────────────────────────────────────────────────

@@ -1,14 +1,28 @@
 /**
- * The 8 `<family>+walk_forward_cycle` runner entries added to
- * `src/config/{algorithms,tasks,runners}.json` resolve through
- * `training/registry.ts` exactly like every other composite runner, carry
- * `scriptArgs`/`maxDurationSeconds` onto the composed `ModelRegistryEntry`,
- * and declare a `cliFlags` entry for every hyperparameter key (pythonRunner
- * warns — but still trains with the flag silently dropped — for any that don't).
+ * The Model Cycle's `<key>+walk_forward_cycle` runners, composed from the
+ * Cycle registry (`src/config/cycle_models/`) by `training/cycleRunners.ts`
+ * and merged by `training/registry.ts`, resolve exactly like every other
+ * composite runner, carry `scriptArgs`/`maxDurationSeconds` onto the composed
+ * `ModelRegistryEntry`, and declare a `cliFlags` entry for every
+ * hyperparameter key (pythonRunner warns — but still trains with the flag
+ * silently dropped — for any that don't).
+ *
+ * Also pinned here: a Cycle runner never "covers" a catalog spec in the
+ * catalog bridge, and the catalog lifecycle join counts Cycle sessions toward
+ * their spec without deep-linking ML Studio to a Cycle runner.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
-import { getModelConfig, listModels, reloadConfigs } from '../../src/server/training/registry';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
+
+// `lifecycle.ts` imports the SQLite handle at module scope; the pure join
+// under test never touches it.
+vi.mock('../../src/server/infrastructure/database/db', () => ({ db: {} }));
+
+import { getModelConfig, listModels, listRunners, reloadConfigs } from '../../src/server/training/registry';
+import { getCycleRegistry } from '../../src/server/training/cycleModels';
+import { getTrainableModels, refreshBridge } from '../../src/server/infrastructure/lib/catalogBridge';
+import { getCatalogModels } from '../../src/server/infrastructure/lib/modelImport/catalogService';
+import { buildCatalogLifecycle, type LifecycleRunner, type LifecycleTrainable } from '../../src/server/ml/lifecycle';
 
 const FAMILIES = [
   'logistic_regression',
@@ -160,5 +174,72 @@ describe('Model Cycle runners — registry composition', () => {
       expect(entry.gpuRequired, alg).toBe(false);
       expect(entry.family, alg).toBeTruthy();
     }
+  });
+});
+
+describe('Model Cycle runners — the whole registry', () => {
+  it('every registry model, not only the 8 legacy families, is a composed runner', () => {
+    const models = listModels();
+    for (const key of Object.keys(getCycleRegistry().models)) {
+      const entry = models[`${key}+walk_forward_cycle`];
+      expect(entry, key).toBeDefined();
+      expect(entry!.scriptArgs).toEqual(['--model-family', key]);
+      expect(entry!.maxDurationSeconds).toBe(43200);
+    }
+  });
+});
+
+// A spec whose only registry claim is a model the registry introduced (not a
+// legacy family), with written content in the catalog.
+function newRegistrySpecOnCatalog(): { key: string; specId: string } | null {
+  const specs = new Map(getCatalogModels({ includeEmpty: true }).models.map((spec) => [spec.id, spec]));
+  for (const [key, entry] of Object.entries(getCycleRegistry().models)) {
+    if (entry.adapter === 'legacy' || entry.catalogSpecId === null) continue;
+    if (specs.get(entry.catalogSpecId)?.hasContent) return { key, specId: entry.catalogSpecId };
+  }
+  return null;
+}
+
+describe('catalog bridge — a Cycle runner does not cover its spec', () => {
+  const target = newRegistrySpecOnCatalog();
+
+  it.skipIf(target === null)("the spec keeps its own trainable entry beside the Cycle runner", () => {
+    refreshBridge();
+    const trainable = getTrainableModels();
+    expect(trainable[`${target!.key}+walk_forward_cycle`]?.catalogId).toBe(target!.specId);
+    expect(trainable[target!.specId], target!.specId).toBeDefined();
+  });
+});
+
+describe('catalog lifecycle join — Cycle runners', () => {
+  const target = newRegistrySpecOnCatalog();
+
+  it.skipIf(target === null)('counts a Cycle session toward its spec, and never deep-links ML Studio to the Cycle runner', () => {
+    const runnerKey = `${target!.key}+walk_forward_cycle`;
+    const composed = listModels();
+    // Exactly how getCatalogLifecycle gathers its runners.
+    const runners: Record<string, LifecycleRunner> = {};
+    for (const [key, runner] of Object.entries(listRunners())) {
+      runners[key] = { catalogId: runner.catalogId ?? composed[key]?.catalogId, legacyId: runner.legacyId };
+    }
+    const trainable: Record<string, LifecycleTrainable> = {
+      [runnerKey]: { runnerSource: 'wired', catalogId: target!.specId },
+      [target!.specId]: { runnerSource: 'generate', templateId: 'sklearn_classifier' },
+    };
+    const { lifecycle } = buildCatalogLifecycle({
+      specs: [{ id: target!.specId, hasContent: true }],
+      trainable,
+      runners,
+      sessions: [{ modelType: runnerKey, status: 'completed', startedAtMilliseconds: 1_700_000_000_000, versionedModelId: null }],
+      versions: [],
+      deployments: [],
+      isLensReady: () => false,
+    });
+    const card = lifecycle[target!.specId]!;
+    expect(card.runnerKeys).toContain(runnerKey);
+    expect(card.completedSessionCount).toBe(1);
+    expect(card.stage).toBe('trained');
+    expect(card.trainableKey).toBe(target!.specId);
+    expect(card.runnerSource).toBe('generate');
   });
 });

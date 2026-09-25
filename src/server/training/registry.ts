@@ -15,6 +15,11 @@
  * Backwards compat: each runner row carries `legacyId` (e.g. "xgb_classifier")
  * so any client with a cached old modelType still resolves to the right runner.
  *
+ * The Model Cycle's `<key>+walk_forward_cycle` runners are not in runners.json:
+ * they are composed from the Cycle registry (`src/config/cycle_models/`, via
+ * `cycleModels.ts` + `cycleRunners.ts`) and merged into `listRunners()` and
+ * `listModels()` here, re-composed whenever a registry file changes.
+ *
  * JSON configs are cross-language (Python reads them too).
  */
 
@@ -32,6 +37,8 @@ import type {
   TaskRegistry,
   TrainingConfig,
 } from "@shared/trainingTypes";
+import { loadCycleRegistry, resetCycleRegistryCache } from "./cycleModels";
+import { composeCycleRunners } from "./cycleRunners";
 
 const CONFIG_DIR = path.join(process.cwd(), "src", "config");
 
@@ -44,6 +51,10 @@ let tasksConfig: TaskRegistry | null = null;
 let runnersConfig: RunnerRegistry | null = null;
 let modelsConfig: ModelRegistry | null = null;
 let legacyAliasMap: Record<string, string> = {};
+/** runners.json's runners plus the Cycle registry's, composed with the models. */
+let mergedRunners: Record<string, RunnerEntry> | null = null;
+/** The Cycle registry load the composed view was built from (file names + mtimes). */
+let cycleSignature: string | null = null;
 
 interface FeatureDefinition {
   name: string;
@@ -104,7 +115,7 @@ function fileChanged(filename: string): boolean {
  * supported-objectives, and chart-overlay defaults that the runner can
  * override.
  */
-function composeEntry(
+export function composeEntry(
   algorithmId: string,
   taskId: string,
   algorithm: AlgorithmEntry,
@@ -151,12 +162,13 @@ function composeEntry(
 function buildCompositeRegistry(): {
   models: Record<string, ModelRegistryEntry>;
   aliases: Record<string, string>;
+  runners: Record<string, RunnerEntry>;
 } {
   const models: Record<string, ModelRegistryEntry> = {};
   const aliases: Record<string, string> = {};
 
   if (!algorithmsConfig || !tasksConfig || !runnersConfig) {
-    return { models, aliases };
+    return { models, aliases, runners: {} };
   }
 
   for (const [compositeId, runner] of Object.entries(runnersConfig.runners)) {
@@ -198,7 +210,37 @@ function buildCompositeRegistry(): {
     }
   }
 
-  return { models, aliases };
+  const runners: Record<string, RunnerEntry> = { ...runnersConfig.runners };
+  const cycle = composeCycleRegistryRunners();
+  for (const [runnerKey, runner] of Object.entries(cycle.runners)) {
+    if (runnerKey in runnersConfig.runners) {
+      console.warn(`[registry] ${runnerKey} is in runners.json and in the Cycle registry; the registry's wins`);
+    }
+    runners[runnerKey] = runner;
+    models[runnerKey] = cycle.models[runnerKey]!;
+  }
+
+  return { models, aliases, runners };
+}
+
+/**
+ * The Cycle registry's runners and composed model entries. An invalid
+ * registry contributes none (and says why once per change), rather than
+ * taking every other runner down with it.
+ */
+function composeCycleRegistryRunners(): ReturnType<typeof composeCycleRunners> {
+  const load = loadCycleRegistry();
+  cycleSignature = load.signature;
+  if (!load.registry) {
+    console.warn(`[registry] Model Cycle registry not loaded: ${load.problems.join("; ")}`);
+    return { runners: {}, models: {} };
+  }
+  const task = tasksConfig?.tasks[load.registry.shared.task];
+  if (!task) {
+    console.warn(`[registry] Model Cycle registry names task ${load.registry.shared.task}, which tasks.json does not define`);
+    return { runners: {}, models: {} };
+  }
+  return composeCycleRunners(load.registry, algorithmsConfig?.algorithms ?? {}, task, composeEntry);
 }
 
 function ensureLoaded() {
@@ -219,6 +261,11 @@ function ensureLoaded() {
     featuresConfig = null;
     trainingConfig = null;
   }
+  // The Cycle registry folder is re-read whenever one of its files changes
+  // (loadCycleRegistry compares mtimes); re-compose when it did.
+  if (modelsConfig && cycleSignature !== null && loadCycleRegistry().signature !== cycleSignature) {
+    modelsConfig = null;
+  }
 
   // Try to load the new 3-file source of truth
   if (!algorithmsConfig) {
@@ -234,9 +281,10 @@ function ensureLoaded() {
   // If all three loaded, compose the runtime view from them
   if (algorithmsConfig && tasksConfig && runnersConfig) {
     if (!modelsConfig) {
-      const { models, aliases } = buildCompositeRegistry();
+      const { models, aliases, runners } = buildCompositeRegistry();
       modelsConfig = { version: 2, models };
       legacyAliasMap = aliases;
+      mergedRunners = runners;
     }
   } else {
     // Fallback to legacy models.json
@@ -246,6 +294,7 @@ function ensureLoaded() {
       );
       modelsConfig = { version: raw.version ?? 1, models: raw.models };
       legacyAliasMap = {};
+      mergedRunners = null;
     }
   }
 
@@ -294,10 +343,10 @@ export function listTasks(): Record<string, TaskEntry> {
   return tasksConfig?.tasks ?? {};
 }
 
-/** All wired runners keyed by `${algorithm}+${task}`. */
+/** All wired runners keyed by `${algorithm}+${task}`, the Model Cycle's included. */
 export function listRunners(): Record<string, RunnerEntry> {
   ensureLoaded();
-  return runnersConfig?.runners ?? {};
+  return mergedRunners ?? runnersConfig?.runners ?? {};
 }
 
 /** Resolve a legacy modelType key to its composite equivalent (or null). */
@@ -405,6 +454,9 @@ export function reloadConfigs() {
   featuresConfig = null;
   trainingConfig = null;
   legacyAliasMap = {};
+  mergedRunners = null;
+  cycleSignature = null;
+  resetCycleRegistryCache();
   ensureLoaded();
 }
 
@@ -424,7 +476,7 @@ export function getClientConfig() {
     models: modelsConfig!.models,
     algorithms: algorithmsConfig?.algorithms ?? {},
     tasks: tasksConfig?.tasks ?? {},
-    runners: runnersConfig?.runners ?? {},
+    runners: mergedRunners ?? runnersConfig?.runners ?? {},
     aliases: legacyAliasMap,
     features: featuresConfig!,
     timeframes: trainingConfig!.timeframes,

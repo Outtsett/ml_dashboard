@@ -45,6 +45,7 @@
   "features": [
     {
       "name": "return_1",
+      "displayName": "Log return over 1 bar",
       "category": "returns",
       "type": "log_return",
       "params": { "horizon": 1 },
@@ -53,6 +54,7 @@
     },
     {
       "name": "return_5",
+      "displayName": "Log return over 5 bars",
       "category": "returns",
       "type": "log_return",
       "params": { "horizon": 5 },
@@ -61,6 +63,7 @@
     },
     {
       "name": "return_10",
+      "displayName": "Log return over 10 bars",
       "category": "returns",
       "type": "log_return",
       "params": { "horizon": 10 },
@@ -69,6 +72,7 @@
     },
     {
       "name": "return_20",
+      "displayName": "Log return over 20 bars",
       "category": "returns",
       "type": "log_return",
       "params": { "horizon": 20 },
@@ -77,6 +81,7 @@
     },
     {
       "name": "volatility_10",
+      "displayName": "Realized volatility over 10 bars",
       "category": "volatility",
       "type": "realized_vol",
       "params": { "window": 10 },
@@ -85,6 +90,7 @@
     },
     {
       "name": "volatility_20",
+      "displayName": "Realized volatility over 20 bars",
       "category": "volatility",
       "type": "realized_vol",
       "params": { "window": 20 },
@@ -93,6 +99,7 @@
     },
     {
       "name": "volatility_50",
+      "displayName": "Realized volatility over 50 bars",
       "category": "volatility",
       "type": "realized_vol",
       "params": { "window": 50 },
@@ -101,6 +108,7 @@
     },
     {
       "name": "parkinson_vol_10",
+      "displayName": "Parkinson high-low volatility over 10 bars",
       "category": "parkinson",
       "type": "parkinson_vol",
       "params": { "window": 10 },
@@ -109,6 +117,7 @@
     },
     {
       "name": "parkinson_vol_20",
+      "displayName": "Parkinson high-low volatility over 20 bars",
       "category": "parkinson",
       "type": "parkinson_vol",
       "params": { "window": 20 },
@@ -117,6 +126,7 @@
     },
     {
       "name": "volume_ratio_10",
+      "displayName": "Volume relative to its 10-bar average",
       "category": "volume",
       "type": "volume_ratio",
       "params": { "window": 10 },
@@ -125,6 +135,7 @@
     },
     {
       "name": "volume_ratio_20",
+      "displayName": "Volume relative to its 20-bar average",
       "category": "volume",
       "type": "volume_ratio",
       "params": { "window": 20 },
@@ -133,6 +144,7 @@
     },
     {
       "name": "bar_range",
+      "displayName": "Bar range relative to the close",
       "category": "price_structure",
       "type": "bar_range",
       "params": {},
@@ -141,6 +153,7 @@
     },
     {
       "name": "body_magnitude",
+      "displayName": "Candle body share of the bar range",
       "category": "anatomy",
       "type": "body_ratio",
       "params": {},
@@ -149,6 +162,7 @@
     },
     {
       "name": "upper_wick_pct",
+      "displayName": "Upper wick share of the bar range",
       "category": "anatomy",
       "type": "upper_shadow",
       "params": {},
@@ -157,6 +171,7 @@
     },
     {
       "name": "lower_wick_pct",
+      "displayName": "Lower wick share of the bar range",
       "category": "anatomy",
       "type": "lower_shadow",
       "params": {},
@@ -165,6 +180,7 @@
     },
     {
       "name": "roc_5",
+      "displayName": "Rate of change over 5 bars",
       "category": "momentum",
       "type": "rate_of_change",
       "params": { "horizon": 5 },
@@ -173,6 +189,7 @@
     },
     {
       "name": "roc_10",
+      "displayName": "Rate of change over 10 bars",
       "category": "momentum",
       "type": "rate_of_change",
       "params": { "horizon": 10 },
@@ -181,6 +198,7 @@
     },
     {
       "name": "roc_20",
+      "displayName": "Rate of change over 20 bars",
       "category": "momentum",
       "type": "rate_of_change",
       "params": { "horizon": 20 },
@@ -189,6 +207,7 @@
     },
     {
       "name": "ma_dist_10",
+      "displayName": "Distance from the 10-bar simple moving average",
       "category": "ma_distance",
       "type": "ma_distance",
       "params": { "window": 10 },
@@ -197,6 +216,7 @@
     },
     {
       "name": "ma_dist_20",
+      "displayName": "Distance from the 20-bar simple moving average",
       "category": "ma_distance",
       "type": "ma_distance",
       "params": { "window": 20 },
@@ -205,6 +225,7 @@
     },
     {
       "name": "ma_dist_50",
+      "displayName": "Distance from the 50-bar simple moving average",
       "category": "ma_distance",
       "type": "ma_distance",
       "params": { "window": 50 },
@@ -213,6 +234,7 @@
     },
     {
       "name": "micro_direction",
+      "displayName": "Microstructure leg direction",
       "category": "microstructure",
       "type": "microstructure",
       "params": {},
@@ -221,6 +243,7 @@
     },
     {
       "name": "micro_pct",
+      "displayName": "Percent move since the last confirmed pivot",
       "category": "microstructure",
       "type": "microstructure",
       "params": {},
@@ -229,6 +252,7 @@
     },
     {
       "name": "micro_duration",
+      "displayName": "Bars since the last confirmed pivot",
       "category": "microstructure",
       "type": "microstructure",
       "params": {},
@@ -237,6 +261,7 @@
     },
     {
       "name": "micro_velocity",
+      "displayName": "Microstructure leg speed per bar",
       "category": "microstructure",
       "type": "microstructure",
       "params": {},
@@ -245,6 +270,7 @@
     },
     {
       "name": "prev_micro_pct",
+      "displayName": "Previous microstructure leg size in percent",
       "category": "microstructure",
       "type": "microstructure",
       "params": {},
@@ -253,6 +279,7 @@
     },
     {
       "name": "prev_micro_duration",
+      "displayName": "Previous microstructure leg duration in bars",
       "category": "microstructure",
       "type": "microstructure",
       "params": {},
@@ -261,6 +288,7 @@
     },
     {
       "name": "retracement_ratio",
+      "displayName": "Current leg size relative to the previous leg",
       "category": "microstructure",
       "type": "microstructure",
       "params": {},
@@ -269,6 +297,7 @@
     },
     {
       "name": "pivot_count_50",
+      "displayName": "Confirmed pivots in the last 50 bars",
       "category": "microstructure",
       "type": "microstructure",
       "params": {},
@@ -277,6 +306,7 @@
     },
     {
       "name": "book_imbalance_top",
+      "displayName": "Top-of-book depth imbalance",
       "category": "microstructure",
       "type": "book_imbalance",
       "params": { "depth": 1 },
@@ -285,6 +315,7 @@
     },
     {
       "name": "book_imbalance_5",
+      "displayName": "Five-level order book depth imbalance",
       "category": "microstructure",
       "type": "book_imbalance",
       "params": { "depth": 5 },
@@ -293,6 +324,7 @@
     },
     {
       "name": "absorption_score_10",
+      "displayName": "Absorption over 10 bars: high volume with a small range",
       "category": "microstructure",
       "type": "absorption_score",
       "params": { "window": 10 },
@@ -301,6 +333,7 @@
     },
     {
       "name": "closing_strength",
+      "displayName": "Close position within the bar range",
       "category": "microstructure",
       "type": "closing_strength",
       "params": {},
@@ -309,6 +342,7 @@
     },
     {
       "name": "vwap_stretch_100",
+      "displayName": "Distance from the 100-bar volume-weighted average price in standard deviations",
       "category": "mean_reversion",
       "type": "vwap_stretch",
       "params": { "window": 100 },
@@ -317,6 +351,7 @@
     },
     {
       "name": "vwap_dist_100",
+      "displayName": "Percent distance from the 100-bar volume-weighted average price",
       "category": "mean_reversion",
       "type": "vwap_distance",
       "params": { "window": 100 },

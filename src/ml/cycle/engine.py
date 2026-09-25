@@ -30,6 +30,19 @@ Invariants this module asserts (and ``tests/test_cycle_engine.py`` checks):
   predictedClose = close[i] + y * scale[i]; forecastTimestamp = the time of
   bar i + h. A forecast is resolved when bar i + h of the same fold is walked,
   and only then enters the price-forecast metrics.
+- The model's registry entry (``cycle.catalog``) decides two variants. A key
+  with ``price: null`` has no regression form: no price model is fitted, the
+  run says so once, and no forecast columns are filled. A key with
+  ``direction.mode == "from_price"`` has no classifier: the engine's direction
+  factory returns a ``cycle.derived.DerivedDirectionAdapter``, which fits the
+  price model on the price rows and then a logistic curve from its forecast to
+  P(up) on the VALIDATION rows; that inner price model is also the fold's
+  price model, fitted once. Tuning builds models through the same factory.
+
+Artifacts for "Inside the model" (``cycle.store``): ``explain/`` at plan time
+(the inputs every fold model reads and the manifest), ``fold_<k>/index.npz``
+before a fold fits, and each model saved right after its own fit — so a run
+stopped mid-walk still leaves every fitted model on disk.
 
 Overall progress (``cursor.overallFraction``), monotonic:
     loading 0 -> 0.05; tuning 0.05 -> 0.30 (only when tuning is on);
@@ -50,6 +63,7 @@ from typing import Any, Callable
 
 import numpy as np
 
+from cycle import catalog
 from cycle.adapter import MODEL_LABELS, BatchReport, EpochReport, ModelAdapter, StopRequested
 from cycle.control import ControlState
 from cycle.features import FeatureSet, history_valid
@@ -77,6 +91,15 @@ DIRECTION_TRAINING_SHARE = 0.6   # of TRAINING_SHARE; the price model takes the 
 # adapter_factory(parameters) -> the direction classifier;
 # adapter_factory(parameters, task="regression") -> the price model
 AdapterFactory = Callable[..., ModelAdapter]
+
+
+def registry_entry(key: str) -> dict | None:
+    """The model's registry entry, or None when the registry does not carry the
+    key (a ``CYCLE_ADAPTER_FACTORY`` test factory may run any name)."""
+    try:
+        return catalog.entry(key)
+    except (ValueError, OSError):   # an unknown key, or a registry that cannot be read (RegistryError is a ValueError)
+        return None
 
 
 def format_time(timestamp: int | float) -> str:
@@ -288,7 +311,18 @@ class CycleEngine:
         self.feature_set = features
         self.features = features.matrix
         self.cost = cost
-        self.adapter_factory = adapter_factory
+        # what the registry says about this model; a key it does not carry runs as a plain classifier
+        # with a price model, the way every model ran before the registry
+        entry = registry_entry(settings.model_family)
+        self.registry_entry = entry
+        self.direction_mode = entry["direction"]["mode"] if entry else "classifier"
+        self.has_price_model = (entry["price"] is not None) if entry else True
+        self.explain_kind = entry["explainKind"] if entry else None
+        self.display_name = entry["displayName"] if entry else MODEL_LABELS.get(settings.model_family, settings.model_family)
+        # the factory the caller passed builds the family's adapters; every model the engine and
+        # tuning build goes through build_adapter, which wraps it for a from_price key
+        self.model_factory = adapter_factory
+        self.adapter_factory: AdapterFactory = self.build_adapter
         self.suggest_parameters = suggest_parameters
         self.control = control or ControlState(settings.bars_per_second, settings.start_paused)
         self.clock = clock
@@ -339,6 +373,21 @@ class CycleEngine:
         self._post_frame: list[Callable[[], None]] = []
         self._last_flush = -math.inf     # when the last processed frame went out (<= 20 Hz above 20 bars/s)
         self._next_due: float | None = None
+
+    # ── models ─────────────────────────────────────────────────────────────
+    def build_adapter(self, parameters: dict, task: str = "classification") -> ModelAdapter:
+        """The direction model (``task="classification"``) or the price model
+        (``task="regression"``). For a from_price key the direction model is a
+        ``DerivedDirectionAdapter`` around a fresh price model, reading this
+        run's price target."""
+        if task == "regression":
+            return self.model_factory(parameters, task="regression")
+        if self.direction_mode == "from_price":
+            from cycle.derived import DerivedDirectionAdapter
+
+            return DerivedDirectionAdapter(self.model_factory(parameters, task="regression"),
+                                           price_target=self.price_targets, key=self.settings.model_family)
+        return self.model_factory(parameters)
 
     # ── logging / cursor ───────────────────────────────────────────────────
     def log(self, message: str, level: str = "info") -> None:
@@ -530,6 +579,7 @@ class CycleEngine:
             "timeframe": s.timeframe,
             "modelFamily": s.model_family,
             "modelLabel": MODEL_LABELS.get(s.model_family, s.model_family),
+            **self._registry_plan_fields(),
             "parameters": parameters,
             "device": "cuda" if s.device == "cuda" else "cpu",
             "deviceName": s.device_name,
@@ -564,6 +614,20 @@ class CycleEngine:
             "artifactDirectory": s.artifact_directory,
             # set by main.py when the series is a stitched futures root (cycle.rolls)
             "priceAdjustment": self.price_adjustment or {"method": "none", "rolls": []},
+        }
+
+    def _registry_plan_fields(self) -> dict:
+        """The plan's registry fields; a key the registry does not carry sends
+        only ``catalogSpecId: null`` (the others are optional on the wire)."""
+        entry = self.registry_entry
+        if entry is None:
+            return {"catalogSpecId": None}
+        return {
+            "catalogSpecId": entry["catalogSpecId"],
+            "implementation": entry["implementation"],
+            "explainKind": entry["explainKind"],
+            "directionMode": entry["direction"]["mode"],
+            "hasPriceModel": entry["price"] is not None,
         }
 
     # ── run ────────────────────────────────────────────────────────────────
@@ -607,6 +671,13 @@ class CycleEngine:
             f"purge {self.horizon}, embargo {s.embargo_bars}, holding {s.resolved_holding_bars} bars, trades every prediction: "
             f"long at P(up) >= 0.5, {'flat' if s.long_only else 'short'} below, cost {format_usd(self.cost.round_trip * s.contracts, False)} per round trip"
         )
+        label = MODEL_LABELS.get(s.model_family, s.model_family)
+        if not self.has_price_model:
+            self.log(f"[plan] {label} has no regression form: no price model is fitted and no forecast line is drawn this run")
+        elif self.direction_mode == "from_price":
+            self.log(f"[plan] {label} has no classifier form: each fold fits it to the price target once and reads P(up) "
+                     "from its forecast through a logistic curve fitted on that fold's validation bars")
+        self._write_explain_inputs(minimum)
         self.set_overall(LOADING_END)
         self.emit_cursor(force=True)
         if s.start_paused:
@@ -626,6 +697,7 @@ class CycleEngine:
                 if [spec.plan(self.data.timestamps)["testStart"] for spec in replanned] != [f["testStart"] for f in self.plan["folds"]]:
                     raise RuntimeError("tuning changed the fold layout; the plan already sent no longer holds")
                 self.folds = replanned
+                self._write_explain_inputs(minimum_after)
 
         self.simulator = Simulator(
             self.cost,
@@ -649,31 +721,54 @@ class CycleEngine:
         protocol.set_active_trial(None)
         self.emit_context_until(int(spec.test_index[0]), k)
         ts = self.data.timestamps
-        self.log(
-            f"{prefix}[train] fitting {MODEL_LABELS.get(s.model_family, s.model_family)} on {spec.train_index.size:,} bars "
-            f"{format_time(ts[spec.train_index[0]])}..{format_time(ts[spec.train_index[-1]])}, validating on "
-            f"{spec.validation_index.size:,} bars {format_time(ts[spec.validation_index[0]])}..{format_time(ts[spec.validation_index[-1]])}"
-        )
-        self.set_phase(
-            "training", fold_index=k, span_start=int(ts[spec.train_index[0]]), span_end=int(ts[spec.train_index[-1]]),
-            model_role="direction",
-        )
-        self.fold_progress(k, training_fraction=0.0)
-        adapter = self.adapter_factory(dict(self.parameters))
-        reporter = EngineReporter(self, fold_index=k, train_index=spec.train_index, validation_index=spec.validation_index)
-        training_started = self.clock()
-        adapter.fit(self.features, self.labels, spec.train_index, spec.validation_index, ts, reporter)
-        training_seconds = self.clock() - training_started
-        self.fold_progress(k, training_fraction=1.0)
-        self.log(f"{prefix}[train] fitted in {training_seconds:.1f} s")
-        price_adapter, price_seconds = self._fit_price_model(spec)
+        directory = os.path.join(s.artifact_directory, f"fold_{k}")
+        price_train, price_validation = self._price_rows(spec)
+        self._write_fold_index(spec, directory, price_train, price_validation)
+        if self.direction_mode == "from_price":
+            adapter, training_seconds = self._fit_direction_from_price(spec, price_train, price_validation)
+        else:
+            self.log(
+                f"{prefix}[train] fitting {MODEL_LABELS.get(s.model_family, s.model_family)} on {spec.train_index.size:,} bars "
+                f"{format_time(ts[spec.train_index[0]])}..{format_time(ts[spec.train_index[-1]])}, validating on "
+                f"{spec.validation_index.size:,} bars {format_time(ts[spec.validation_index[0]])}..{format_time(ts[spec.validation_index[-1]])}"
+            )
+            self.set_phase(
+                "training", fold_index=k, span_start=int(ts[spec.train_index[0]]), span_end=int(ts[spec.train_index[-1]]),
+                model_role="direction",
+            )
+            self.fold_progress(k, training_fraction=0.0)
+            adapter = self.adapter_factory(dict(self.parameters))
+            reporter = EngineReporter(self, fold_index=k, train_index=spec.train_index, validation_index=spec.validation_index)
+            training_started = self.clock()
+            adapter.fit(self.features, self.labels, spec.train_index, spec.validation_index, ts, reporter)
+            training_seconds = self.clock() - training_started
+            self.fold_progress(k, training_fraction=1.0)
+            self.log(f"{prefix}[train] fitted in {training_seconds:.1f} s")
+        # each model is saved right after its own fit, so a stop later in the fold keeps it
+        model_path = self._save_model(adapter, directory, k, "model")
+        price_model_path: str | None = None
+        if self.direction_mode == "from_price":
+            # the direction model's inner price model is the fold's price model (saved with it);
+            # its single fit is timed in trainingSeconds, so it is not counted twice here
+            price_adapter, price_seconds = adapter.price_adapter, None
+            price_model_path = getattr(adapter, "price_model_path", None) if model_path is not None else None
+        elif self.has_price_model:
+            price_adapter, price_seconds = self._fit_price_model(spec)
+            if price_adapter is not None:
+                price_model_path = self._save_model(price_adapter, os.path.join(directory, "price_model"), k, "price model")
+        else:
+            price_adapter, price_seconds = None, None
+            self.fold_progress(k, training_fraction=1.0, model_role="price")
 
         accumulator = FoldAccumulator(fold_index=k)
         self.accumulators.append(accumulator)
         record = {**spec.plan(ts), "trainingSeconds": training_seconds, "majorityClassUp": spec.majority_up,
-                  "priceTrainBarCount": int(spec.price_train_index.size),
-                  "priceValidationBarCount": int(spec.price_validation_index.size),
-                  "priceTrainingSeconds": price_seconds}
+                  # the rows the price model was actually fitted on (the direction rows when too few were planned)
+                  "priceTrainBarCount": int(price_train.size) if price_adapter is not None else 0,
+                  "priceValidationBarCount": int(price_validation.size) if price_adapter is not None else 0,
+                  "priceTrainingSeconds": price_seconds,
+                  # on disk from here on, so a stop during the walk still records them
+                  "modelPath": model_path, "priceModelPath": price_model_path}
         self.fold_records.append(record)
         testing_started = self.clock()
         self._walk_test(spec, adapter, accumulator, price_adapter)
@@ -710,23 +805,6 @@ class CycleEngine:
             [rec["predicted_direction"] for rec in records],
             [None if rec["probability_up"] is None else abs(rec["probability_up"] - 0.5) * 2 for rec in records],
         )
-        directory = os.path.join(s.artifact_directory, f"fold_{k}")
-        os.makedirs(directory, exist_ok=True)
-        try:
-            record["modelPath"] = adapter.save(directory)
-            self.log(f"[save] fold {k + 1}/{self.fold_count} model -> {record['modelPath']}")
-        except Exception as error:  # noqa: BLE001 - a failed save must not lose the fold's results
-            record["modelPath"] = None
-            self.log(f"[save] fold {k + 1}/{self.fold_count} model could not be saved: {error}", "warn")
-        record["priceModelPath"] = None
-        if price_adapter is not None:
-            price_directory = os.path.join(directory, "price_model")
-            os.makedirs(price_directory, exist_ok=True)
-            try:
-                record["priceModelPath"] = price_adapter.save(price_directory)
-                self.log(f"[save] fold {k + 1}/{self.fold_count} price model -> {record['priceModelPath']}")
-            except Exception as error:  # noqa: BLE001 - a failed save must not lose the fold's results
-                self.log(f"[save] fold {k + 1}/{self.fold_count} price model could not be saved: {error}", "warn")
         self.log(
             f"{prefix}[test] fold done: net {format_usd(metrics['net_profit_usd'])}, Sharpe {_format_number(metrics['sharpe_ratio'], '.2f')}, "
             f"{int(metrics['trade_count'])} trades, accuracy {_format_number(metrics['accuracy'], '.3f')} on "
@@ -741,6 +819,79 @@ class CycleEngine:
                 f"{_format_number(metrics['price_forecast_direction_accuracy'], '.3f')} on "
                 f"{len(accumulator.inputs.forecast_predicted_move_points)} resolved forecasts"
             )
+
+    # ── artifacts and the from_price fit ───────────────────────────────────
+    def _write_explain_inputs(self, sequence_length: int) -> None:
+        from cycle import store
+
+        try:
+            directory = store.write_explain_inputs(self, sequence_length)
+            self.log(f"[save] model inputs for Inside the model -> {directory}", "debug")
+        except Exception as error:  # noqa: BLE001 - the run must not fail over its explain files
+            self.log(f"[save] the model inputs for Inside the model could not be written: {error}", "warn")
+
+    def _write_fold_index(self, spec: FoldSpec, directory: str, price_train: np.ndarray, price_validation: np.ndarray) -> None:
+        from cycle import store
+
+        try:
+            store.write_fold_index(directory, train=spec.train_index, validation=spec.validation_index,
+                                   test=spec.test_index, price_train=price_train, price_validation=price_validation)
+        except Exception as error:  # noqa: BLE001 - the run must not fail over its explain files
+            self.log(f"[save] fold {spec.fold_index + 1}/{self.fold_count} row index could not be written: {error}", "warn")
+
+    def _save_model(self, adapter: ModelAdapter, directory: str, fold_index: int, words: str) -> str | None:
+        """Save one fitted model; a failed save is a warning, never a lost fold."""
+        try:
+            os.makedirs(directory, exist_ok=True)
+            path = adapter.save(directory)
+        except Exception as error:  # noqa: BLE001 - a failed save must not lose the fold's results
+            self.log(f"[save] fold {fold_index + 1}/{self.fold_count} {words} could not be saved: {error}", "warn")
+            return None
+        self.log(f"[save] fold {fold_index + 1}/{self.fold_count} {words} -> {path}")
+        return path
+
+    def _price_rows(self, spec: FoldSpec) -> tuple[np.ndarray, np.ndarray]:
+        """The rows the fold's price model fits on: the planned price rows; for
+        a from_price model whose fold had too few of them, the direction rows
+        whose price target is known (its one model must still be fitted);
+        none when the model has no price model."""
+        empty = np.empty(0, dtype=np.int64)
+        if not self.has_price_model:
+            return empty, empty
+        if self.direction_mode == "from_price" and spec.price_train_index.size == 0:
+            from cycle.derived import price_rows
+
+            return price_rows(spec.train_index, self.price_targets), price_rows(spec.validation_index, self.price_targets)
+        return spec.price_train_index, spec.price_validation_index
+
+    def _fit_direction_from_price(self, spec: FoldSpec, train: np.ndarray,
+                                  validation: np.ndarray) -> tuple[ModelAdapter, float]:
+        """The fold's one fit for a from_price model: the price model on the
+        price rows, then the logistic curve on the labelled validation rows."""
+        s = self.settings
+        k = spec.fold_index
+        prefix = self.fold_prefix(k)
+        ts = self.data.timestamps
+        if train.size == 0 or validation.size == 0:
+            raise ValueError(f"fold {k + 1}: no rows with a known {self.horizon}-bar move to fit {s.model_family} on")
+        self.log(
+            f"{prefix}[train] direction from price: fitting {MODEL_LABELS.get(s.model_family, s.model_family)} to the "
+            f"{self.horizon}-bar move divided by its trailing {self.volatility_window}-bar volatility on {train.size:,} bars "
+            f"{format_time(ts[train[0]])}..{format_time(ts[train[-1]])}, validating on {validation.size:,} bars "
+            f"{format_time(ts[validation[0]])}..{format_time(ts[validation[-1]])}; then a logistic curve from its forecast "
+            f"to P(up) on the {spec.validation_index.size:,} labelled validation bars"
+        )
+        self.set_phase("training", fold_index=k, span_start=int(ts[train[0]]), span_end=int(ts[train[-1]]), model_role="price")
+        self.fold_progress(k, training_fraction=0.0, model_role="price")
+        adapter = self.adapter_factory(dict(self.parameters))
+        reporter = EngineReporter(self, fold_index=k, train_index=train, validation_index=validation, model_role="price")
+        started = self.clock()
+        adapter.fit(self.features, self.labels, spec.train_index, spec.validation_index, ts, reporter,
+                    price_target=self.price_targets, price_train_index=train, price_validation_index=validation)
+        seconds = self.clock() - started
+        self.fold_progress(k, training_fraction=1.0, model_role="price")
+        self.log(f"{prefix}[train] fitted in {seconds:.1f} s; it is also this fold's price model")
+        return adapter, seconds
 
     # ── the price model ────────────────────────────────────────────────────
     def _fit_price_model(self, spec: FoldSpec) -> tuple[ModelAdapter | None, float | None]:

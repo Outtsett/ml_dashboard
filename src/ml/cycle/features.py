@@ -16,6 +16,11 @@ Pipeline, all trailing-window:
    standard deviation, clipped to ``normalization.clip`` (±5). A window with
    zero spread gives 0 (the value equals the window mean).
 
+``FeatureSet.raw`` keeps the kept columns as they were before step 4 (the
+same warmup NaNs), so "Inside the model" can show a bar's inputs in their own
+units beside the z-scores the model read. ``display_names`` gives each feature
+its full-word ``displayName`` from ``features.json``.
+
 ``history_valid(features, m)`` marks the rows a model needing ``m`` rows of
 history can predict: rows t-m+1..t all finite.
 """
@@ -42,6 +47,7 @@ class FeatureSet:
     dropped: dict[str, str] = field(default_factory=dict)   # name -> reason
     lookback: int = 250
     clip: tuple[float, float] = (-5.0, 5.0)
+    raw: np.ndarray | None = None            # float32 (n_bars, n_features): the kept columns before the z-score
 
 
 def load_feature_config() -> dict:
@@ -55,6 +61,15 @@ def normalization_settings(config: dict | None = None) -> tuple[int, tuple[float
     lookback = int(normalization.get("lookback", 250))
     clip = normalization.get("clip", [-5, 5])
     return lookback, (float(clip[0]), float(clip[1]))
+
+
+def display_names(names: list[str], config: dict | None = None) -> list[str]:
+    """Each feature's full-word ``displayName`` from ``features.json``; a name
+    the registry does not carry reads as its words ("planted_signal" ->
+    "planted signal")."""
+    config = config or load_feature_config()
+    known = {definition["name"]: definition.get("displayName") for definition in config["features"]}
+    return [known.get(name) or name.replace("_", " ") for name in names]
 
 
 def _warmups(config: dict) -> dict[str, int]:
@@ -162,9 +177,11 @@ def build_features(ohlcv: dict, *, check_causality: bool = True) -> FeatureSet:
 
     kept_names = [names[column] for column in keep]
     if not keep:
-        return FeatureSet(np.empty((raw.shape[0], 0), dtype=np.float32), [], dropped, lookback, clip)
+        empty = np.empty((raw.shape[0], 0), dtype=np.float32)
+        return FeatureSet(empty, [], dropped, lookback, clip, raw=empty.copy())
     normalized = rolling_zscore(raw[:, keep], lookback, clip)
-    return FeatureSet(normalized.astype(np.float32), kept_names, dropped, lookback, clip)
+    return FeatureSet(normalized.astype(np.float32), kept_names, dropped, lookback, clip,
+                      raw=raw[:, keep].astype(np.float32))
 
 
 def history_valid(features: np.ndarray, minimum_history: int) -> np.ndarray:

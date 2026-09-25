@@ -1878,3 +1878,293 @@ def test_an_unsafe_run_id_is_refused_before_anything_is_written(market, tmp_path
     (error,) = capture.of("error")
     assert "not a safe directory name" in error["message"]
     assert not (tmp_path / "data").exists() and calls == []
+
+
+# ═══ Inside-the-model artifacts, direction from price, no price model ══════════
+
+
+def fitted_price_models(recorder: Recorder) -> list[FakeRegressor]:
+    """The price models that were fitted, in fit order (the planning probe never is)."""
+    return [model for model in recorder.price_models if model.weights is not None]
+
+
+def test_the_raw_features_are_the_columns_the_z_score_was_taken_of(feature_set):
+    assert feature_set.raw is not None and feature_set.raw.shape == feature_set.matrix.shape
+    assert feature_set.raw.dtype == np.float32
+    again = rolling_zscore(feature_set.raw.astype(np.float64), feature_set.lookback, feature_set.clip)
+    np.testing.assert_allclose(again, feature_set.matrix, rtol=0, atol=2e-5, equal_nan=True)
+    # the raw columns are in their own units, not z-scores
+    assert np.nanmax(np.abs(feature_set.raw)) != pytest.approx(np.nanmax(np.abs(feature_set.matrix)))
+
+
+def test_every_feature_has_a_full_word_display_name():
+    from cycle.features import display_names, load_feature_config
+
+    config = load_feature_config()
+    names = [definition["name"] for definition in config["features"]]
+    shown = display_names(names, config)
+    assert all(definition.get("displayName") for definition in config["features"])
+    assert shown == [definition["displayName"] for definition in config["features"]]
+    assert len(set(shown)) == len(shown)
+    assert all("_" not in name and name[0].isupper() for name in shown)
+    assert display_names(["planted_signal"], config) == ["planted signal"]
+
+
+def test_the_explain_inputs_are_what_the_engine_read(full_run, market):
+    engine = full_run.engine
+    directory = full_run.directory / "explain"
+    loaded = {name: np.load(directory / f"{name}.npy", allow_pickle=False) for name in (
+        "features", "raw_features", "timestamps", "close", "move_scale", "labels", "price_target")}
+    np.testing.assert_array_equal(loaded["features"], engine.features)
+    assert loaded["features"].dtype == np.float32
+    # the planted test features carry no raw columns: written as missing, and the manifest says so
+    assert loaded["raw_features"].shape == engine.features.shape and np.isnan(loaded["raw_features"]).all()
+    np.testing.assert_array_equal(loaded["timestamps"], market.data.timestamps)
+    assert loaded["timestamps"].dtype == np.int64
+    np.testing.assert_array_equal(loaded["close"], market.data.close)
+    np.testing.assert_array_equal(loaded["move_scale"], engine.move_scale)
+    np.testing.assert_array_equal(loaded["labels"], engine.labels)
+    np.testing.assert_array_equal(loaded["price_target"], engine.price_targets)
+    assert loaded["labels"].dtype == np.float32 and loaded["price_target"].dtype == np.float32
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    plan = plan_of(full_run)
+    assert manifest["version"] == 1 and manifest["modelId"] == "cycle_engine_test"
+    assert manifest["modelKey"] == "logistic_regression" and manifest["displayName"] == "Logistic regression"
+    assert manifest["explainKind"] == "linear" and manifest["directionMode"] == "classifier"
+    assert manifest["hasPriceModel"] is True and manifest["rawFeaturesAvailable"] is False
+    assert manifest["featureNames"] == market.features.names
+    assert manifest["featureDisplayNames"] == [name.replace("_", " ") for name in market.features.names]
+    assert manifest["sequenceLength"] == 1 and manifest["labelHorizonBars"] == HORIZON
+    assert manifest["symbol"] == "MNQ" and manifest["timeframe"] == "5m"
+    assert manifest["folds"] == [{"foldIndex": f["foldIndex"], "testStart": f["testStart"], "testEnd": f["testEnd"]}
+                                 for f in plan["folds"]]
+
+
+def test_each_fold_writes_its_rows_and_saves_each_model_before_the_walk(full_run):
+    engine = full_run.engine
+    logs = full_run.capture.logs()
+    records = json.loads((full_run.directory / "folds.json").read_text(encoding="utf-8"))
+    for spec, record in zip(engine.folds, records):
+        k = spec.fold_index
+        with np.load(full_run.directory / f"fold_{k}" / "index.npz") as index:
+            assert set(index.files) == {"train", "validation", "test", "price_train", "price_validation"}
+            for name, rows in (("train", spec.train_index), ("validation", spec.validation_index), ("test", spec.test_index),
+                               ("price_train", spec.price_train_index), ("price_validation", spec.price_validation_index)):
+                assert index[name].dtype == np.int64
+                np.testing.assert_array_equal(index[name], rows)
+        assert (full_run.directory / f"fold_{k}" / "model.json").exists()
+        assert (full_run.directory / f"fold_{k}" / "price_model" / "price_model.npz").exists()
+        assert record["modelPath"] and Path(record["modelPath"]).exists()
+        assert record["priceModelPath"] and Path(record["priceModelPath"]).exists()
+        # direction fit, its save, the price fit, its save, then the walk
+        order = [next(i for i, line in enumerate(logs) if line.startswith(text)) for text in (
+            f"[fold {k + 1}/3][train] fitted in", f"[save] fold {k + 1}/3 model -> ",
+            f"[fold {k + 1}/3][train] price model fitted in", f"[save] fold {k + 1}/3 price model -> ",
+            f"[fold {k + 1}/3][test] walking")]
+        assert order == sorted(order)
+
+
+def test_the_plan_carries_the_registry_fields(full_run):
+    from cycle import catalog
+
+    entry = catalog.entry("logistic_regression")
+    plan = plan_of(full_run)
+    assert plan["catalogSpecId"] == entry["catalogSpecId"]
+    assert plan["implementation"] == "sklearn" and plan["explainKind"] == "linear"
+    assert plan["directionMode"] == "classifier" and plan["hasPriceModel"] is True
+
+
+def test_every_fitted_model_is_on_disk_after_a_stop_during_the_walk(stopped_run):
+    assert stopped_run.stopped_at is not None
+    records = json.loads((stopped_run.directory / "folds.json").read_text(encoding="utf-8"))
+    assert [record["foldIndex"] for record in records] == [0, 1]
+    assert records[1].get("stopped") is True
+    for record in records:
+        k = record["foldIndex"]
+        assert Path(record["modelPath"]).exists() and Path(record["priceModelPath"]).exists()
+        assert (stopped_run.directory / f"fold_{k}" / "index.npz").exists()
+    assert not (stopped_run.directory / "fold_2").exists(), "the fold after the stop was never started"
+    assert (stopped_run.directory / "explain" / "manifest.json").exists()
+
+
+class DerivedRecorder(Recorder):
+    """For a from_price key the engine asks the caller's factory only for price models."""
+
+    def factory(self, parameters: dict, task: str = "classification"):
+        assert task == "regression", "a from_price model never builds a classifier"
+        return super().factory(parameters, task)
+
+
+def run_from_price(market: Market, directory, *, tuned: bool = False, **overrides) -> Run:
+    with capturing() as capture:
+        recorder = DerivedRecorder(capture)
+        suggest = None
+        if tuned:
+            def suggest(trial, base):
+                return {**base, "alpha": trial.suggest_float("alpha", 0.1, 10.0, log=True)}
+        settings = settings_for(directory, model_family="ridge_regression", model_parameters={"alpha": 1.0}, **overrides)
+        engine = CycleEngine(settings, market.data, market.features, MNQ, recorder.factory, suggest_parameters=suggest)
+        started = time.monotonic()
+        diagnostics = engine.run()
+        return Run(engine, diagnostics, capture, recorder, Path(directory), time.monotonic() - started)
+
+
+@pytest.fixture(scope="module")
+def from_price_run(market, tmp_path_factory) -> Run:
+    return run_from_price(market, tmp_path_factory.mktemp("from_price_run"), quiet_bars=True)
+
+
+def test_a_from_price_model_fits_once_per_fold_and_trades(from_price_run, market):
+    run = from_price_run
+    engine = run.engine
+    assert engine.direction_mode == "from_price"
+    plan = plan_of(run)
+    assert plan["directionMode"] == "from_price" and plan["hasPriceModel"] is True and plan["explainKind"] == "linear"
+    assert run.capture.events[-1]["type"] == "done" and not run.capture.of("error")
+    # one fit per fold, on the fold's price rows and the price target: the price model and the direction model are one
+    assert len(run.recorder.price_fits) == engine.fold_count == 3
+    for fit, spec in zip(run.recorder.price_fits, engine.folds):
+        np.testing.assert_array_equal(fit["train"], spec.price_train_index)
+        np.testing.assert_array_equal(fit["validation"], spec.price_validation_index)
+        assert fit["labels"] is engine.price_targets
+    trades = [t for t in run.capture.of("cycle_trade") if t["status"] == "closed"]
+    assert len(trades) > 10
+    (final,) = [b for b in run.capture.of("cycle_scoreboard") if b["scope"] == "final"]
+    assert final["metrics"]["accuracy"] is not None and final["metrics"]["accuracy"] > 0.55   # the planted signal
+    assert final["metrics"]["price_forecast_mean_absolute_error_points"] is not None
+    epochs = run.capture.of("cycle_epoch")
+    assert {e["modelRole"] for e in epochs} == {"price"} and [e["foldIndex"] for e in epochs] == [0, 1, 2]
+    logs = run.capture.logs()
+    assert sum("has no classifier form" in line for line in logs) == 1
+    assert sum(line.startswith("[fold 1/3][train] direction from price: fitting") for line in logs) == 1
+    assert any(line.startswith("[fold 1/3][train] direction from the price model: P(up) = 1 / (1 + exp(-(")
+               for line in logs)
+
+
+def test_the_curve_is_fitted_on_the_validation_rows_only_and_is_what_the_walk_used(from_price_run, market):
+    from cycle.derived import apply_logistic_curve, fit_logistic_curve
+
+    run = from_price_run
+    engine = run.engine
+    models = fitted_price_models(run.recorder)
+    assert len(models) == 3
+    predictions = pq.read_table(run.directory / "predictions.parquet").to_pydict()
+    rows = rows_of(market)
+    # outside the walk each fold's price model is asked about exactly that fold's labelled validation rows, once
+    asked = [index for index, _, phase in run.recorder.price_predictions if phase != "testing"]
+    assert len(asked) == 3
+    for spec, model, rows_asked in zip(engine.folds, models, asked):
+        k = spec.fold_index
+        np.testing.assert_array_equal(rows_asked, spec.validation_index)
+        assert not np.intersect1d(rows_asked, spec.train_index).size
+        metadata = json.loads((run.directory / f"fold_{k}" / "model.json").read_text(encoding="utf-8"))
+        assert metadata["adapter"] == "derived" and metadata["key"] == "ridge_regression"
+        assert metadata["curveValidationBarCount"] == spec.validation_index.size
+        curve = (metadata["logisticCurve"]["slope"], metadata["logisticCurve"]["intercept"])
+        scores = np.array([model.outputs[int(row)] for row in spec.validation_index])
+        assert fit_logistic_curve(scores, engine.labels[spec.validation_index]) == pytest.approx(curve, rel=1e-9, abs=1e-12)
+        assert curve[0] > 0, "a forecast of a rise should mean a higher P(up)"
+        # the price model is saved inside the direction model's folder, and it is the fold's price model
+        assert (run.directory / f"fold_{k}" / "price_model" / "price_model.npz").exists()
+        # every test bar's P(up) is the curve applied to the price model's forecast at that bar
+        walked = [position for position, fold in enumerate(predictions["fold_index"]) if fold == k]
+        assert walked
+        for position in walked:
+            row = rows[predictions["timestamp"][position]]
+            expected = apply_logistic_curve(curve, np.array([model.outputs[row]]))[0]
+            assert predictions["probability_up"][position] == pytest.approx(expected, rel=1e-12)
+            assert predictions["predicted_close"][position] == pytest.approx(
+                market.data.close[row] + model.outputs[row] * engine.move_scale[row], rel=1e-12)
+    records = json.loads((run.directory / "folds.json").read_text(encoding="utf-8"))
+    for record in records:
+        assert record["modelPath"].endswith("model.json")
+        assert record["priceModelPath"].endswith("price_model.npz")
+        assert record["priceTrainingSeconds"] is None       # one fit, timed in trainingSeconds
+        assert record["priceTrainBarCount"] > 0 and record["priceValidationBarCount"] > 0
+
+
+def test_a_saved_from_price_model_reloads_and_predicts_the_same(from_price_run, market):
+    from cycle.derived import DerivedDirectionAdapter
+
+    def load_fake(directory, device):
+        saved = np.load(Path(directory) / "price_model.npz")
+        model = FakeRegressor()
+        model.mean, model.scale, model.weights = saved["mean"], saved["scale"], saved["weights"]
+        model.intercept = float(saved["intercept"][0])
+        return model
+
+    run = from_price_run
+    spec = run.engine.folds[0]
+    reloaded = DerivedDirectionAdapter.load(str(run.directory / "fold_0"), load_price_adapter=load_fake)
+    predictions = pq.read_table(run.directory / "predictions.parquet").to_pydict()
+    rows = rows_of(market)
+    walked = [(rows[t], p) for t, f, p in zip(predictions["timestamp"], predictions["fold_index"],
+                                              predictions["probability_up"]) if f == 0 and p is not None]
+    index = np.array([row for row, _ in walked], dtype=np.int64)
+    np.testing.assert_allclose(reloaded.predict_probability(market.features.matrix, index), [p for _, p in walked],
+                               rtol=1e-12)
+    assert reloaded.minimum_history() == 1 and spec.test_index[0] <= index.min()
+
+
+def test_tuning_a_from_price_model_goes_through_the_same_factory(market, tmp_path):
+    run = run_from_price(market, tmp_path, tuned=True, tuning_trials=3, tuning_objective="log_loss", tuning_folds=2,
+                         fold_limit=2, quiet_bars=True)
+    assert run.capture.events[-1]["type"] == "done" and not run.capture.of("error")
+    tuning_fits = [fit for fit in run.recorder.price_fits if fit["phase"] == "tuning"]
+    outer = [fit for fit in run.recorder.price_fits if fit["phase"] != "tuning"]
+    assert len(tuning_fits) == 3 * 2 and len(outer) == 2
+    first_test_row = int(run.engine.folds[0].test_index[0])
+    for fit in tuning_fits:
+        # the direction rows of the inner block whose price target is known
+        assert np.isfinite(run.engine.labels[fit["train"]]).all()
+        assert np.isfinite(run.engine.price_targets[fit["train"]]).all()
+        assert fit["validation"].max() + HORIZON < first_test_row
+    finished = [t for t in run.capture.of("cycle_trial") if t["state"] == "complete"]
+    assert finished and all(t["objectiveValue"] is not None and math.isfinite(t["objectiveValue"]) for t in finished)
+    assert "alpha" in run.engine.parameters
+
+
+@pytest.fixture(scope="module")
+def no_price_run(market, tmp_path_factory) -> Run:
+    return run_engine(market, tmp_path_factory.mktemp("no_price_run"), model_family="probit_regression", quiet_bars=True)
+
+
+def test_a_model_without_a_price_model_fits_none_and_draws_no_forecast(no_price_run):
+    run = no_price_run
+    assert run.capture.events[-1]["type"] == "done" and not run.capture.of("error")
+    assert run.recorder.price_fits == [] and run.recorder.price_models == []
+    plan = plan_of(run)
+    assert plan["hasPriceModel"] is False and plan["directionMode"] == "classifier"
+    processed = [e for e in run.capture.of("cycle_bars") if e["role"] == "processed"]
+    assert processed and all(c is None for e in processed for c in e["predictedClose"])
+    logs = run.capture.logs()
+    assert sum("has no regression form" in line for line in logs) == 1
+    assert not any("price model" in line for line in logs if "has no regression form" not in line)
+    warnings = [e for e in run.capture.events if e["type"] == "log" and e.get("level") == "warn"]
+    assert warnings == []
+    assert {e["modelRole"] for e in run.capture.of("cycle_epoch")} == {"direction"}
+    predictions = pq.read_table(run.directory / "predictions.parquet").to_pydict()
+    assert all(v is None for v in predictions["predicted_close"])
+    assert all(v is None for v in predictions["predicted_move_points"])
+    records = json.loads((run.directory / "folds.json").read_text(encoding="utf-8"))
+    assert all(record["priceModelPath"] is None and Path(record["modelPath"]).exists() for record in records)
+    assert not any((run.directory / f"fold_{k}" / "price_model").exists() for k in range(3))
+    with np.load(run.directory / "fold_0" / "index.npz") as index:
+        assert index["price_train"].size == 0 and index["price_validation"].size == 0 and index["train"].size > 0
+    config = json.loads((run.directory / "config.json").read_text(encoding="utf-8"))
+    assert config["priceModel"] is None
+    manifest = json.loads((run.directory / "explain" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["hasPriceModel"] is False and manifest["modelKey"] == "probit_regression"
+    (final,) = [b for b in run.capture.of("cycle_scoreboard") if b["scope"] == "final"]
+    assert all(final["metrics"][name] is None for name in PRICE_FORECAST_METRIC_NAMES)
+
+
+def test_a_key_the_registry_does_not_carry_runs_as_a_classifier_with_a_price_model(market, tmp_path):
+    run = run_engine(market, tmp_path, model_family="planted_family", fold_limit=1, quiet_bars=True)
+    assert run.capture.events[-1]["type"] == "done" and not run.capture.of("error")
+    plan = plan_of(run)
+    assert plan["catalogSpecId"] is None
+    assert not {"implementation", "explainKind", "directionMode", "hasPriceModel"} & set(plan)
+    assert len(run.recorder.price_fits) == 1
+    manifest = json.loads((tmp_path / "explain" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["explainKind"] is None and manifest["directionMode"] == "classifier" and manifest["hasPriceModel"]

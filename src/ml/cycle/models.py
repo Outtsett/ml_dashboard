@@ -4,9 +4,29 @@ Exports the engine depends on:
 
     build_adapter(family, parameters, device, seed, task="classification") -> ModelAdapter
     default_parameters(family) -> dict
+    resolve_parameters(family, parameters) -> dict
     suggest_parameters(trial, family, base_parameters) -> dict
     FAMILY_PARAMETER_KEYS: dict[str, tuple[str, ...]]
     load_adapter(directory, device="cpu") -> ModelAdapter   (reload a saved model)
+    ADAPTER_CLASSES / adapter_class(adapter)                 (the lazy dispatch table)
+
+A "family" is any key of the model registry (`src/config/cycle_models/`, read by
+`catalog.py`). The registry's `adapter` field decides who builds it:
+
+    legacy        the eight families that predate the registry, built here
+                  exactly as before (validation `_DEFAULTS` + the checks below,
+                  Optuna spaces in `suggest_parameters`), so their runs are
+                  bitwise the same
+    scikit_learn  cycle.sklearn_adapter:SklearnEstimatorAdapter
+    catboost      cycle.catboost_adapter:CatBoostAdapter
+    statsmodels   cycle.statsmodels_adapter:ProbitAdapter
+    neural        cycle.networks:NeuralAdapter
+
+Non-legacy adapters are imported only when such a key is built or loaded, and
+are constructed as ``Class(key, entry, parameters, device, seed, task=task)``
+with ``parameters`` resolved by ``catalog.resolve_parameters``. A key whose
+entry has ``price: null`` gets an ``adapter.NoPriceModel`` for
+``task="regression"``.
 
 Linear and tree adapters live here; the four PyTorch families live in
 `networks.py`, imported lazily so a tree-only run never imports torch.
@@ -48,6 +68,8 @@ Design: `docs/plans/2026-09-25-model-cycle.md`.
 
 from __future__ import annotations
 
+import importlib
+import inspect
 import json
 import math
 import os
@@ -58,12 +80,15 @@ from pathlib import Path
 
 import numpy as np
 
+from . import catalog
 from .adapter import (
     MODEL_FAMILIES,
+    MODEL_LABELS,
     MODEL_TASKS,
     NEURAL_FAMILIES,
     BatchReport,
     EpochReport,
+    NoPriceModel,
     TrainingReporter,
     check_index,
 )
@@ -148,8 +173,12 @@ _DEFAULTS: dict[str, dict[str, int | float]] = {
     },
 }
 
+# Every registry key's Model-group keys, in order: the legacy families from
+# `_DEFAULTS` (which the registry mirrors), every other model from its entry.
 FAMILY_PARAMETER_KEYS: dict[str, tuple[str, ...]] = {
-    family: tuple(values.keys()) for family, values in _DEFAULTS.items()
+    family: tuple(_DEFAULTS[family]) if family in _DEFAULTS
+    else tuple(catalog.entry(family)["parameters"])
+    for family in MODEL_FAMILIES
 }
 
 # Keys that must be at least 1 / strictly positive / inside (0, 1].
@@ -167,22 +196,33 @@ _NON_NEGATIVE_KEYS = {
 
 
 def _check_family(family: str) -> None:
-    if family not in _DEFAULTS:
+    if family not in MODEL_FAMILIES:
         raise ValueError(
             f"unknown model family {family!r}; valid families: {', '.join(MODEL_FAMILIES)}"
         )
 
 
+def _is_legacy(family: str) -> bool:
+    return family in _DEFAULTS
+
+
 def default_parameters(family: str) -> dict:
-    """The family's Model-group keys and defaults (a fresh copy)."""
+    """The family's Model-group keys and defaults (a fresh copy). Legacy
+    families from `_DEFAULTS`, every other model from the registry."""
     _check_family(family)
+    if not _is_legacy(family):
+        return catalog.defaults(family)
     return dict(_DEFAULTS[family])
 
 
 def resolve_parameters(family: str, parameters: dict | None) -> dict:
     """Take the family's keys from `parameters` (extra keys are ignored), fill
-    the rest from the defaults, coerce to the default's type and validate."""
+    the rest from the defaults, coerce to the default's type and validate.
+    Non-legacy models are resolved by `catalog.resolve_parameters` (declared
+    types, bounds and choices)."""
     _check_family(family)
+    if not _is_legacy(family):
+        return catalog.resolve_parameters(family, parameters)
     parameters = parameters or {}
     resolved: dict[str, int | float] = {}
     for key, default in _DEFAULTS[family].items():
@@ -219,7 +259,12 @@ def suggest_parameters(trial, family: str, base_parameters: dict) -> dict:
     with the tuned keys overridden. Training length (epochs, boosting rounds,
     tree count, solver iterations, patience, early-stopping rounds) and the
     sequence length stay at the user's value so trials stay affordable and the
-    engine's history requirement does not move between trials."""
+    engine's history requirement does not move between trials. Non-legacy
+    models are searched by `catalog.suggest_parameters` (the registry's
+    `search` spaces)."""
+    _check_family(family)
+    if not _is_legacy(family):
+        return catalog.suggest_parameters(trial, family, base_parameters)
     base = resolve_parameters(family, base_parameters)
     tuned: dict[str, int | float] = {}
     if family == "logistic_regression":
@@ -276,36 +321,121 @@ def _check_task(task: str) -> None:
         raise ValueError(f"unknown task {task!r}; valid tasks: {', '.join(MODEL_TASKS)}")
 
 
+# The non-legacy adapters, by the registry's `adapter` field. Strings, so a
+# model library (and the module that wraps it) is imported only when a key
+# that needs it is built or loaded.
+ADAPTER_CLASSES: dict[str, str] = {
+    "scikit_learn": "cycle.sklearn_adapter:SklearnEstimatorAdapter",
+    "catboost": "cycle.catboost_adapter:CatBoostAdapter",
+    "statsmodels": "cycle.statsmodels_adapter:ProbitAdapter",
+    "neural": "cycle.networks:NeuralAdapter",
+}
+
+_REGISTRY_CONSTRUCTOR = "(key, entry, parameters, device, seed, task)"
+
+
+def _module_name(name: str) -> str:
+    """`cycle.x` in the table, under whatever name this package was imported as."""
+    package = __package__ or "cycle"
+    return package + name[len("cycle"):] if name.startswith("cycle.") else name
+
+
+def adapter_class(adapter: str, key: str | None = None):
+    """Import and return the class the dispatch table names for `adapter`.
+    Raises NotImplementedError naming the model when its module or class does
+    not exist yet; any other import failure (a missing library inside the
+    module) propagates unchanged."""
+    if adapter not in ADAPTER_CLASSES:
+        raise ValueError(f"no adapter class for {adapter!r}; the table has: {', '.join(ADAPTER_CLASSES)}")
+    target = ADAPTER_CLASSES[adapter]
+    module_name, _, attribute = target.partition(":")
+    module_name = _module_name(module_name)
+    who = f"{MODEL_LABELS.get(key, key)} ({key})" if key else f"the {adapter!r} adapter"
+    try:
+        module = importlib.import_module(module_name)
+    except ModuleNotFoundError as error:
+        if error.name != module_name:
+            raise
+        raise NotImplementedError(f"{who} is built by {target}, which does not exist yet") from None
+    cls = getattr(module, attribute, None)
+    if cls is None:
+        raise NotImplementedError(f"{who} is built by {target}, which does not exist yet")
+    return cls
+
+
 def build_adapter(family: str, parameters: dict | None, device: str, seed: int,
                   task: str = "classification"):
-    """Build one family's adapter. `device` is "cuda", "cpu" or "auto"
+    """Build one registry model's adapter. `device` is "cuda", "cpu" or "auto"
     (neural families resolve "auto" to CUDA when available; tree families use
     the GPU only for xgboost and only when device == "cuda"). `task` is
     "classification" (direction model, `predict_probability`) or "regression"
-    (price model, `predict_value`)."""
+    (price model, `predict_value`).
+
+    Legacy families are built here exactly as before. Every other key goes
+    through `ADAPTER_CLASSES` with the registry constructor
+    ``(key, entry, parameters, device, seed, task=task)``; a class that does
+    not take it yet (``networks.NeuralAdapter`` before it learns registry keys)
+    fails with NotImplementedError before anything is constructed. A model
+    with no price model returns ``NoPriceModel`` for ``task="regression"``.
+    This does not refuse a key the registry marks not runnable: its package's
+    tests build it before flipping the flag; `main.py` refuses it for runs."""
     _check_family(family)
     _check_task(task)
-    resolved = resolve_parameters(family, parameters)
-    if family in NEURAL_FAMILIES:
-        from . import networks  # lazy: tree-only runs never import torch
+    if _is_legacy(family):
+        resolved = resolve_parameters(family, parameters)
+        if family in NEURAL_FAMILIES:
+            from . import networks  # lazy: tree-only runs never import torch
 
-        return networks.NeuralAdapter(family, resolved, device, int(seed), task=task)
-    return _tabular_class(family, task)(resolved, device, int(seed), task=task)
+            return networks.NeuralAdapter(family, resolved, device, int(seed), task=task)
+        return _tabular_class(family, task)(resolved, device, int(seed), task=task)
+    entry = catalog.entry(family)
+    if task == "regression" and entry["price"] is None:
+        return NoPriceModel(family)
+    resolved = catalog.resolve_parameters(family, parameters)
+    cls = adapter_class(entry["adapter"], family)
+    try:
+        inspect.signature(cls).bind(family, entry, resolved, device, int(seed), task=task)
+    except TypeError:
+        raise NotImplementedError(
+            f"{MODEL_LABELS[family]} ({family}): {ADAPTER_CLASSES[entry['adapter']]} does not take "
+            f"the registry constructor {_REGISTRY_CONSTRUCTOR} yet"
+        ) from None
+    return cls(family, entry, resolved, device, int(seed), task=task)
 
 
 def load_adapter(directory: str, device: str = "cpu"):
     """Rebuild a saved adapter from `directory` (what `save()` wrote). A
-    model.json without a `task` key predates the price model: classification."""
+    model.json without a `task` key predates the price model: classification.
+    One without an `adapter` key predates the registry: a legacy family, named
+    by `family`. Otherwise `adapter` picks the class from `ADAPTER_CLASSES`,
+    whose ``load(directory, ...)`` receives ``metadata=`` and / or ``device=``
+    when its signature names them."""
     metadata = json.loads((Path(directory) / "model.json").read_text(encoding="utf-8"))
-    family = metadata["family"]
-    _check_family(family)
+    kind = metadata.get("adapter", "legacy")
     task = metadata.get("task", "classification")
     _check_task(task)
-    if family in NEURAL_FAMILIES:
-        from . import networks
+    if kind == "legacy":
+        family = metadata.get("family") or metadata["key"]
+        _check_family(family)
+        if family in NEURAL_FAMILIES:
+            from . import networks
 
-        return networks.NeuralAdapter.load(directory, device)
-    return _tabular_class(family, task).load(directory, metadata)
+            return networks.NeuralAdapter.load(directory, device)
+        return _tabular_class(family, task).load(directory, metadata)
+    if kind == "derived":
+        # A direction-from-price model: its price model lives in a subfolder and
+        # reloads through this same function.
+        from .derived import DerivedDirectionAdapter
+
+        return DerivedDirectionAdapter.load(directory, device, load_price_adapter=load_adapter)
+    cls = adapter_class(kind, metadata.get("key") or metadata.get("family"))
+    accepted = inspect.signature(cls.load).parameters
+    arguments = {}
+    if "metadata" in accepted:
+        arguments["metadata"] = metadata
+    if "device" in accepted:
+        arguments["device"] = device
+    return cls.load(directory, **arguments)
 
 
 # ─── shared scoring ────────────────────────────────────────────────────────
@@ -424,7 +554,11 @@ def write_metadata(directory: Path, metadata: dict) -> Path:
 
 
 def _base_metadata(adapter, model_file: str, libraries: dict[str, str]) -> dict:
+    key = getattr(adapter, "key", adapter.family)
     metadata = {
+        "key": key,
+        # which `load_adapter` path rebuilds it; the registry is the authority
+        "adapter": catalog.entry(key)["adapter"] if key in MODEL_FAMILIES else "legacy",
         "family": adapter.family,
         "task": adapter.task,
         "parameters": dict(adapter.parameters),
@@ -1465,7 +1599,9 @@ def _tabular_class(family: str, task: str):
 
 
 __all__ = [
+    "ADAPTER_CLASSES",
     "FAMILY_PARAMETER_KEYS",
+    "adapter_class",
     "TrainingReporter",
     "binary_scores",
     "build_adapter",

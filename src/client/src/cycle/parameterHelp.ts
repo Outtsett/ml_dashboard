@@ -1,9 +1,11 @@
 /**
  * One plain sentence per hyperparameter key, for the info tooltip beside each
- * control in `ConfigForm`. Covers every key in the plan's CLI-flag tables
- * (`docs/plans/2026-09-25-model-cycle.md`); a key shared by several model
- * families (`layer_count`, `dropout`, `max_depth`, …) means the same thing in
- * each, so it gets one entry here rather than one per family.
+ * control in `ConfigForm`. The runner's own `description` (written in the
+ * model registry, `src/config/cycle_models/`) wins; this table is the fallback
+ * for a parameter the registry leaves undescribed. Covers every key in the
+ * plan's CLI-flag tables (`docs/plans/2026-09-25-model-cycle.md`); a key shared
+ * by several models (`layer_count`, `dropout`, `max_depth`, …) means the same
+ * thing in each, so it gets one entry here rather than one per model.
  */
 
 export const CYCLE_PARAMETER_HELP: Record<string, string> = {
@@ -76,7 +78,8 @@ export const CYCLE_PARAMETER_HELP: Record<string, string> = {
   head_count: "How many parallel attention heads the transformer uses, each free to focus on a different pattern in the bar sequence.",
 };
 
-/** The tooltip sentence for a key, falling back to the catalog's own `description` when this file has no entry. */
-export function parameterHelpFor(key: string, fallback?: string): string | undefined {
-  return CYCLE_PARAMETER_HELP[key] ?? fallback;
+/** The tooltip sentence for a key: the runner's `description` when it has one, else this file's entry. */
+export function parameterHelpFor(key: string, description?: string): string | undefined {
+  const own = description?.trim();
+  return own ? own : CYCLE_PARAMETER_HELP[key];
 }

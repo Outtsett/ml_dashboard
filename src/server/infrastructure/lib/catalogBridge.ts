@@ -20,6 +20,7 @@ import fs from 'fs';
 import path from 'path';
 import { getCatalogModels, getModelById } from './modelImport';
 import { listModels } from '../../training/registry';
+import { CYCLE_RUNNER_SUFFIX } from '@shared/cycle/models';
 import type {
   ModelRegistryEntry,
   HyperparameterDef,
@@ -515,9 +516,11 @@ function rebuildCache(): BridgeCache {
 
   // ── Step 2: Convert catalog specs that aren't already in the registry ────
   for (const spec of catalogResult.models) {
-    // Skip specs already covered by a hand-configured entry
-    const alreadyCovered = Object.values(merged).some(
-      entry => entry.catalogId === spec.id,
+    // Skip specs already covered by a hand-configured entry. A Model Cycle
+    // runner (`<key>+walk_forward_cycle`) names its spec too, but it runs only
+    // inside the Cycle, so it never stands in for the spec's own trainer.
+    const alreadyCovered = Object.entries(merged).some(
+      ([key, entry]) => !key.endsWith(CYCLE_RUNNER_SUFFIX) && entry.catalogId === spec.id,
     );
     if (alreadyCovered) continue;
 
@@ -888,9 +891,10 @@ export function getModelTrainingConfig(catalogId: string): TrainableModel | null
     };
   }
 
-  // Second check: find by catalogId field in any entry
+  // Second check: find by catalogId field in any entry (never a Model Cycle
+  // runner — see Step 2 of rebuildCache)
   for (const [key, entry] of Object.entries(mergedModels)) {
-    if (entry.catalogId === catalogId) {
+    if (!key.endsWith(CYCLE_RUNNER_SUFFIX) && entry.catalogId === catalogId) {
       const templateId = resolveTemplateId(entry);
       return {
         ...entry,

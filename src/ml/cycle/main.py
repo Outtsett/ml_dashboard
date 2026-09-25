@@ -8,10 +8,16 @@ Spawned by ``pythonRunner.ts`` (cwd = the repository root):
         --model-id <id> --json [--max-bars N] [--date-start ...] [--date-end ...] \\
         [--train-days 60 --test-days 10 ... --boosting-rounds 400 ...]
 
-Every flag of ``docs/plans/2026-09-25-model-cycle.md`` is accepted: the
-cycle-wide groups and the Model-group flags of all eight families (only the
-selected family's keys reach its adapter). Unknown flags are logged at warn and
-ignored. Control arrives on stdin (``control.py``); events leave on stdout.
+``--model-family`` takes any key of the model registry
+(``src/config/cycle_models/``, read by ``catalog.py``); a key the registry marks
+not runnable fails with its ``unavailableReason``. Every flag of
+``docs/plans/2026-09-25-model-cycle.md`` is accepted: the cycle-wide groups and
+one flag per model parameter name in the registry, typed as the registry
+declares it (only the selected model's keys reach its adapter; flags of other
+models are logged at warn). Legacy families resolve their parameters through
+``models.resolve_parameters`` exactly as before, every other model through
+``catalog.resolve_parameters``. Unknown flags are logged at warn and ignored.
+Control arrives on stdin (``control.py``); events leave on stdout.
 
 Test hook: ``CYCLE_ADAPTER_FACTORY=<module>:<callable>`` replaces
 ``models.build_adapter`` (same signature, including ``task=``) — for runs
@@ -22,11 +28,15 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
-# Windows + torch cu130: import torch BEFORE numpy or CUDA initialisation can
-# deadlock. Only when the run can touch CUDA (a neural family, or a device that
-# is not forced to cpu) — the import costs a couple of seconds.
-_NEURAL = ("multilayer_perceptron", "lstm", "temporal_convolution_network", "transformer_encoder")
+_ML_ROOT = Path(__file__).resolve().parents[1]
+if str(_ML_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ML_ROOT))
+
+# The registry reader imports only the standard library, so it can run before
+# numpy: it decides whether torch has to be imported first.
+from cycle import catalog  # noqa: E402
 
 
 def _argument_value(flag: str) -> str | None:
@@ -39,8 +49,21 @@ def _argument_value(flag: str) -> str | None:
     return None
 
 
+def torch_goes_first(model_key: str | None, device: str | None) -> bool:
+    """Windows + torch cu130: import torch BEFORE numpy or CUDA initialisation
+    can deadlock. True when the run can touch CUDA: the model is built on torch
+    (the registry's ``implementation``), or the device is not forced to cpu.
+    The import costs a couple of seconds, so a tabular model on cpu skips it."""
+    try:
+        if catalog.uses_torch(model_key):
+            return True
+    except Exception:  # noqa: BLE001 - a broken registry is reported by run(); decide on the device alone
+        pass
+    return (device or "auto") != "cpu"
+
+
 try:
-    if _argument_value("--model-family") in _NEURAL or (_argument_value("--device") or "auto") != "cpu":
+    if torch_goes_first(_argument_value("--model-family"), _argument_value("--device")):
         import torch  # noqa: F401
 except Exception:  # noqa: BLE001 - torch is optional for tabular families
     pass
@@ -49,11 +72,7 @@ import argparse  # noqa: E402
 import re  # noqa: E402
 import time  # noqa: E402
 import traceback  # noqa: E402
-from pathlib import Path  # noqa: E402
 
-_ML_ROOT = Path(__file__).resolve().parents[1]
-if str(_ML_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ML_ROOT))
 # The repository root goes LAST: numba's on-disk cache for shared.features'
 # parallel kernels may have been written by a process that imported the module
 # as ``src.ml.shared.features`` (xgb_classifier does), and loading that cache
@@ -95,25 +114,6 @@ CYCLE_FLAGS: tuple[tuple[str, type, object, str], ...] = (
     ("seed", int, 42, "random seed"),
 )
 
-FAMILY_DEFAULTS: dict[str, dict[str, object]] = {
-    "logistic_regression": {"regularization_strength": 1.0, "max_iterations": 300},
-    "random_forest": {"tree_count": 300, "max_depth": 8, "min_samples_leaf": 20, "max_features_fraction": 0.5},
-    "xgboost": {"boosting_rounds": 400, "max_depth": 6, "learning_rate": 0.05, "subsample": 0.8,
-                "column_subsample": 0.8, "min_child_weight": 1.0, "l2_regularization": 1.0, "early_stopping_rounds": 50},
-    "lightgbm": {"boosting_rounds": 400, "leaf_count": 31, "learning_rate": 0.05, "subsample": 0.8,
-                 "column_subsample": 0.8, "min_child_samples": 20, "l2_regularization": 1.0, "early_stopping_rounds": 50},
-    "multilayer_perceptron": {"hidden_size": 128, "layer_count": 2, "dropout": 0.2, "learning_rate": 0.001,
-                              "weight_decay": 0.0001, "batch_size": 256, "epochs": 20, "patience": 5},
-    "lstm": {"sequence_length": 32, "hidden_size": 64, "layer_count": 1, "dropout": 0.2, "learning_rate": 0.001,
-             "weight_decay": 0.0001, "batch_size": 256, "epochs": 20, "patience": 5},
-    "temporal_convolution_network": {"sequence_length": 32, "channel_count": 32, "kernel_size": 3, "layer_count": 3,
-                                     "dropout": 0.2, "learning_rate": 0.001, "weight_decay": 0.0001,
-                                     "batch_size": 256, "epochs": 20, "patience": 5},
-    "transformer_encoder": {"sequence_length": 32, "model_dimension": 32, "head_count": 4, "layer_count": 2,
-                            "dropout": 0.1, "learning_rate": 0.0005, "weight_decay": 0.0001, "batch_size": 256,
-                            "epochs": 20, "patience": 5},
-}
-
 IGNORED_FLAGS = ("feature_categories", "include_indicators", "indicator_groups", "all_features", "label_set_parquet")
 
 
@@ -121,13 +121,16 @@ def _flag(key: str) -> str:
     return "--" + key.replace("_", "-")
 
 
-def _model_flag_types() -> dict[str, type]:
-    types: dict[str, type] = {}
-    for defaults in FAMILY_DEFAULTS.values():
-        for key, value in defaults.items():
-            kind = float if isinstance(value, float) else int
-            types[key] = float if types.get(key) is float else kind
-    return types
+# How a registry parameter type becomes an argparse flag. A bool is
+# `--name` / `--no-name` (BooleanOptionalAction); a categorical value arrives as
+# text and `catalog.coerce` matches it to its choice (numeric choices included).
+_FLAG_TYPES: dict[str, type] = {"int": int, "float": float, "categorical": str}
+
+
+def model_flag_types() -> dict[str, str]:
+    """Every model parameter name in the registry and its one declared type:
+    one flag each, shared by every model that has the parameter."""
+    return catalog.parameter_types()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -139,16 +142,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-bars", type=int, default=0)
     parser.add_argument("--date-start", default=None)
     parser.add_argument("--date-end", default=None)
-    parser.add_argument("--model-family", required=True, choices=MODEL_FAMILIES)
+    parser.add_argument("--model-family", required=True, choices=MODEL_FAMILIES,
+                        help="a model registry key (src/config/cycle_models/)")
     cycle = parser.add_argument_group("cycle")
     for key, kind, default, help_text in CYCLE_FLAGS:
         if kind is bool:
             cycle.add_argument(_flag(key), dest=key, action="store_true", default=default, help=help_text)
         else:
             cycle.add_argument(_flag(key), dest=key, type=kind, default=default, help=help_text)
-    model = parser.add_argument_group("model (defaults depend on the family)")
-    for key, kind in _model_flag_types().items():
-        model.add_argument(_flag(key), dest=f"model__{key}", type=kind, default=None)
+    model = parser.add_argument_group("model (defaults and bounds come from the model's registry entry)")
+    for key, kind in model_flag_types().items():
+        if kind == "bool":
+            model.add_argument(_flag(key), dest=f"model__{key}", action=argparse.BooleanOptionalAction, default=None)
+        else:
+            model.add_argument(_flag(key), dest=f"model__{key}", type=_FLAG_TYPES[kind], default=None)
     ignored = parser.add_argument_group("accepted and ignored")
     for key in IGNORED_FLAGS:
         if key in ("include_indicators", "all_features"):
@@ -158,13 +165,37 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def require_runnable(key: str) -> dict:
+    """The key's registry entry, or ValueError with its unavailableReason."""
+    entry = catalog.entry(key)
+    if not entry["runnable"]:
+        raise ValueError(f"{entry['displayName']} ({key}) cannot run in the Model Cycle yet: {entry['unavailableReason']}")
+    return entry
+
+
 def model_parameters(args: argparse.Namespace, family: str) -> dict:
-    defaults = dict(FAMILY_DEFAULTS[family])
-    parameters = {}
-    for key, default in defaults.items():
-        value = getattr(args, f"model__{key}", None)
-        parameters[key] = default if value is None else value
-    return parameters
+    """The model's resolved parameters: the flags given for its own parameter
+    names, the rest from its defaults. Legacy families through
+    `models.resolve_parameters` (unchanged rules), every other model through
+    `catalog.resolve_parameters` (the registry's types, bounds and choices)."""
+    given = {
+        key: getattr(args, f"model__{key}")
+        for key in model_flag_types() if getattr(args, f"model__{key}", None) is not None
+    }
+    if catalog.is_legacy(family):
+        from cycle import models
+
+        return models.resolve_parameters(family, given)
+    return catalog.resolve_parameters(family, given)
+
+
+def flags_for_other_models(args: argparse.Namespace, family: str) -> list[str]:
+    """Model flags that were given but are not parameters of `family`."""
+    own = catalog.entry(family)["parameters"]
+    return [
+        _flag(key) for key in model_flag_types()
+        if key not in own and getattr(args, f"model__{key}", None) is not None
+    ]
 
 
 def normalise_date(value: str | None) -> str | None:
@@ -247,6 +278,7 @@ def run(args: argparse.Namespace, unknown: list[str]) -> int:
 
     started = time.monotonic()
     family = args.model_family
+    require_runnable(family)
     # `+` is allowed: the server names runs after the runner key, e.g.
     # MNQ_5m_xgboost+walk_forward_cycle_20260925T103846, and looks for
     # diagnostics.json under exactly that directory name.
@@ -263,12 +295,9 @@ def run(args: argparse.Namespace, unknown: list[str]) -> int:
         if value:
             protocol.emit_log(f"[features] {_flag(key)} is accepted and ignored: the cycle builds its own causal features", "warn")
     parameters = model_parameters(args, family)
-    other_family_flags = [
-        _flag(key) for key in _model_flag_types()
-        if key not in parameters and getattr(args, f"model__{key}") is not None
-    ]
+    other_family_flags = flags_for_other_models(args, family)
     if other_family_flags:
-        protocol.emit_log(f"[plan] ignoring flags that belong to other model families: {' '.join(other_family_flags)}", "warn")
+        protocol.emit_log(f"[plan] ignoring flags that belong to other models: {' '.join(other_family_flags)}", "warn")
 
     device, device_name = resolve_device(args.device)
     protocol.emit_log(f"[device] {device}" + (f" — {device_name}" if device_name else "") + f" (requested {args.device})")
@@ -315,12 +344,6 @@ def run(args: argparse.Namespace, unknown: list[str]) -> int:
 
         build_adapter = models.build_adapter
         suggest = models.suggest_parameters
-        try:
-            family_defaults = models.default_parameters(family)
-            if family_defaults != FAMILY_DEFAULTS[family]:
-                protocol.emit_log(f"[plan] models.default_parameters({family}) differs from the plan table: {family_defaults}", "warn")
-        except Exception:  # noqa: BLE001
-            pass
 
     settings = CycleSettings(
         symbol=args.symbol,

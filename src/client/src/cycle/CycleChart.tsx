@@ -30,6 +30,11 @@
  * path (no time-scale rebuild). Because the engine emits bars contiguously,
  * candle `i` keeps logical index `i` — the bands and glyphs rely on that.
  *
+ * The crosshair publishes the hovered bar to the store for "Inside the model"
+ * (`setInspect(timestamp, "hover")`, at most 10 times a second, through a
+ * timer rather than requestAnimationFrame so it still works in a hidden tab);
+ * a click pins a bar (`pinInspect`), a click on the pinned bar unpins it.
+ *
  * `CycleChart` takes no props and reads `useCycleStore`; `CycleChartArea` adds
  * the "Back to market chart" bar the Market page shows above it.
  */
@@ -46,6 +51,7 @@ import {
   type AutoscaleInfo,
   type IChartApi,
   type IPriceLine,
+  type MouseEventParams,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
   type Logical,
@@ -72,13 +78,17 @@ import {
   forecastOnlyReadout,
   formatSignedUsd,
   GLYPH_FAINT_ALPHA,
+  INSPECT_PUBLISH_INTERVAL_MILLISECONDS,
   mapBars,
+  nextPinnedTimestamp,
   phaseWord,
   planRender,
   rangesDiffer,
   readoutAt,
+  readoutLabelTone,
   spanToLogical,
   tickDecimals,
+  TrailingThrottle,
   withAlpha,
   type BarReadout,
   type ForecastOnlyReadout,
@@ -126,6 +136,10 @@ class CycleChartController {
   private readonly markers: ISeriesMarkersPluginApi<Time>;
   private readonly bands = new CycleBandsPrimitive();
   private readonly unsubscribe: () => void;
+  /** Hovered bar → `setInspect(timestamp, "hover")`, at most 10 times a second. */
+  private readonly inspectPublisher = new TrailingThrottle<number>(INSPECT_PUBLISH_INTERVAL_MILLISECONDS, (timestamp) =>
+    useCycleStore.getState().setInspect(timestamp, "hover"),
+  );
 
   private rendered: RenderedBars | null = null;
   private forecastTrack: ForecastTrack = emptyForecastTrack();
@@ -275,13 +289,19 @@ class CycleChartController {
     this.chart.subscribeCrosshairMove((param) => {
       const count = this.rendered?.count ?? 0;
       if (!param.point || param.logical === undefined || param.logical === null || count === 0) {
+        // The store keeps the last hovered bar when the pointer leaves the chart.
+        this.bands.setHover(null);
         this.handlers.onHover(null);
         return;
       }
       const index = Math.round(param.logical);
-      const columns = useCycleStore.getState().bars;
+      const state = useCycleStore.getState();
+      const columns = state.bars;
       const sources = this.forecastTrack.sourceByTime;
-      const readout = index >= 0 && index < count ? readoutAt(columns, index, sources) : null;
+      const onCandle = index >= 0 && index < count;
+      const readout = onCandle ? readoutAt(columns, index, sources, state.plan, state.trades) : null;
+      this.bands.setHover(onCandle ? index : null);
+      if (onCandle) this.inspectPublisher.push(columns.timestamps[index]!);
       // Past the newest candle the only thing there is the forecast line.
       const forecastOnly = !readout && index >= count && typeof param.time === "number" ? forecastOnlyReadout(columns, param.time, sources) : null;
       if (!readout && !forecastOnly) {
@@ -290,6 +310,8 @@ class CycleChartController {
       }
       this.handlers.onHover({ readout, forecastOnly, x: param.point.x, placeLeft: param.point.x > this.container.clientWidth / 2 });
     });
+
+    this.chart.subscribeClick(this.onChartClick);
 
     this.chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
       if (this.programmatic) return;
@@ -316,13 +338,20 @@ class CycleChartController {
       ) {
         this.schedule();
       }
+      if (state.inspectSource !== previous.inspectSource || state.inspectTimestamp !== previous.inspectTimestamp) {
+        this.bands.setPinned(state.inspectSource === "pinned" ? state.inspectTimestamp : null);
+      }
     });
+    const initial = useCycleStore.getState();
+    this.bands.setPinned(initial.inspectSource === "pinned" ? initial.inspectTimestamp : null);
     this.schedule();
   }
 
   public dispose(): void {
     this.disposed = true;
     this.unsubscribe();
+    this.inspectPublisher.cancel();
+    this.chart.unsubscribeClick(this.onChartClick);
     if (this.frameHandle !== null) cancelAnimationFrame(this.frameHandle);
     if (this.flashTimer !== null) clearTimeout(this.flashTimer);
     if (this.spanFollowTimer !== null) clearTimeout(this.spanFollowTimer);
@@ -332,6 +361,18 @@ class CycleChartController {
     window.removeEventListener("pointerup", this.onPointerUp, { capture: true });
     this.chart.remove();
   }
+
+  /** A click on a candle pins it for "Inside the model"; a click on the pinned candle unpins it. */
+  private readonly onChartClick = (param: MouseEventParams<Time>) => {
+    const count = this.rendered?.count ?? 0;
+    if (param.logical === undefined || param.logical === null || count === 0) return;
+    const index = Math.round(param.logical);
+    if (index < 0 || index >= count) return;
+    const state = useCycleStore.getState();
+    const timestamp = state.bars.timestamps[index];
+    if (timestamp === undefined) return;
+    state.pinInspect(nextPinnedTimestamp(state.inspectSource, state.inspectTimestamp, timestamp));
+  };
 
   // ── User gestures (what separates a user pan/zoom from our own scrolling) ──
 
@@ -393,6 +434,7 @@ class CycleChartController {
       this.equity.setData(mapped.equity);
       this.forecastTrack = emptyForecastTrack();
       this.forecast.setData(appendForecast(this.forecastTrack, columns, 0, plan.count));
+      this.bands.setForecastTimes(this.forecastTrack.times);
       this.renderedTrades = null;
       this.lastSpanKey = "";
     } else if (plan.kind === "append") {
@@ -446,6 +488,7 @@ class CycleChartController {
   private applyPlan(plan: CyclePlan | null): void {
     for (const line of this.priceLines) this.probability.removePriceLine(line);
     this.priceLines = [];
+    this.bands.setPlan(plan);
     if (!plan) return;
     const tick = plan.costModel.tickSize;
     const priceFormat = { type: "price", precision: tickDecimals(tick), minMove: tick } as const;
@@ -552,26 +595,127 @@ function formatSignedPoints(value: number, decimals: number): string {
   return `${value < 0 ? "−" : "+"}${Math.abs(value).toFixed(decimals)}`;
 }
 
+/** "+13 ticks" / "−6.5 ticks": whole ticks print without decimals. */
+function formatSignedTicks(value: number): string {
+  const rounded = Math.round(value * 100) / 100;
+  const magnitude = Number.isInteger(rounded) ? Math.abs(rounded).toFixed(0) : String(Math.abs(rounded));
+  return `${rounded < 0 ? "−" : "+"}${magnitude} ticks`;
+}
+
+function contractsWord(count: number): string {
+  return count === 1 ? "1 contract" : `${count} contracts`;
+}
+
+function errorWord(errorPoints: number): string {
+  return errorPoints > 0 ? "forecast too high" : errorPoints < 0 ? "forecast too low" : "exact";
+}
+
+/**
+ * The label move: this close → the close `labelHorizonBars` later, in points,
+ * ticks and USD. It is what the label is scored on, not what a trade made —
+ * the trade line carries that.
+ */
+function LabelMoveLines({ readout, decimals }: { readout: BarReadout; decimals: number }) {
+  const move = readout.labelMove;
+  if (!move) return null;
+  if (move.state === "pending") {
+    return (
+      <div className="mt-1 border-t border-white/10 pt-1" data-testid="cycle-chart-readout-label-move">
+        <span className="text-muted-foreground">label move ({move.horizonBars} bars ahead):</span> …{" "}
+        {move.resolutionTimeText ? `resolves at ${move.resolutionTimeText}` : `resolves ${move.horizonBars} bars later`}
+      </div>
+    );
+  }
+  const tone = move.movePoints > 0 ? CYCLE_COLORS.up : move.movePoints < 0 ? CYCLE_COLORS.down : undefined;
+  return (
+    <div className="mt-1 space-y-0.5 border-t border-white/10 pt-1" data-testid="cycle-chart-readout-label-move">
+      <div>
+        <span className="text-muted-foreground">label move ({move.horizonBars} bars ahead):</span> close {move.startClose.toFixed(decimals)} →{" "}
+        {move.resolutionClose.toFixed(decimals)} at {move.resolutionTimeText}
+      </div>
+      <div style={tone ? { color: tone } : undefined}>
+        {move.movePoints > 0 ? "▲ " : move.movePoints < 0 ? "▼ " : ""}
+        {formatSignedPoints(move.movePoints, decimals)} points · {formatSignedTicks(move.moveTicks)} · {formatSignedUsd(move.moveUsdPerContract)} per contract
+        {move.contracts > 1 ? ` · ${formatSignedUsd(move.moveUsdAllContracts)} for ${contractsWord(move.contracts)}` : ""}
+      </div>
+      <div className="text-muted-foreground">
+        the move the label is scored on, not a trade result
+        {move.thresholdTicks > 0 ? ` · a move inside ±${move.thresholdTicks} ticks is not scored` : ""}
+      </div>
+    </div>
+  );
+}
+
 function ForecastLines({ readout, decimals }: { readout: BarReadout; decimals: number }) {
   const target = readout.forecastForThisBar;
   const made = readout.forecastMadeHere;
+  if (readout.role === "processed" && readout.hasPriceModel === false) {
+    return (
+      <div className="mt-1 border-t border-white/10 pt-1 text-muted-foreground" data-testid="cycle-chart-readout-forecast">
+        no price model — this model has no regression form, so it makes no price forecast
+      </div>
+    );
+  }
   if (!target && !made) return null;
   return (
     <div className="mt-1 space-y-0.5 border-t border-white/10 pt-1" data-testid="cycle-chart-readout-forecast">
+      {made && (
+        <div>
+          <span style={{ color: CYCLE_COLORS.active }}>◆ </span>
+          <span className="text-muted-foreground">this bar&apos;s forecast:</span> close {made.predictedClose.toFixed(decimals)} at {made.targetTimeText} (
+          {formatSignedPoints(made.predictedMovePoints, decimals)} points from this close)
+          {made.errorPoints !== null && made.actualClose !== null ? (
+            <div className="pl-3">
+              actual {made.actualClose.toFixed(decimals)} · error {formatSignedPoints(made.errorPoints, decimals)} points
+              {made.errorTicks !== null ? ` (${formatSignedTicks(made.errorTicks)})` : ""}
+              <span className="text-muted-foreground"> — {errorWord(made.errorPoints)}</span>
+            </div>
+          ) : (
+            <div className="pl-3 text-muted-foreground">error known when that bar arrives</div>
+          )}
+        </div>
+      )}
       {target && (
         <div>
           <span style={{ color: CYCLE_COLORS.active }}>┄ </span>
           <span className="text-muted-foreground">forecast for this bar (made at {target.madeAtText}):</span> {target.predictedClose.toFixed(decimals)} · actual
           close {target.actualClose.toFixed(decimals)} · error {formatSignedPoints(target.errorPoints, decimals)} points
-          <span className="text-muted-foreground"> ({target.errorPoints > 0 ? "forecast too high" : target.errorPoints < 0 ? "forecast too low" : "exact"})</span>
+          <span className="text-muted-foreground"> ({errorWord(target.errorPoints)})</span>
         </div>
       )}
-      {made && (
-        <div>
-          <span style={{ color: CYCLE_COLORS.active }}>┄ </span>
-          <span className="text-muted-foreground">this bar&apos;s forecast:</span> close {made.predictedClose.toFixed(decimals)} at {made.targetTimeText}
-        </div>
+    </div>
+  );
+}
+
+/** The trade opened at the next bar's open on this bar's call: its own line, so the label move is not read as profit. */
+function TradeLine({ readout, decimals }: { readout: BarReadout; decimals: number }) {
+  const trade = readout.tradeAtNextOpen;
+  if (!trade) return null;
+  const long = trade.side === "long";
+  const netTone = trade.netProfitUsd === null ? undefined : trade.netProfitUsd >= 0 ? CYCLE_COLORS.up : CYCLE_COLORS.down;
+  return (
+    <div className="mt-1 border-t border-white/10 pt-1" data-testid="cycle-chart-readout-trade">
+      <span style={{ color: long ? CYCLE_COLORS.up : CYCLE_COLORS.down }}>{long ? "⇧ " : "⇩ "}</span>
+      <span className="text-muted-foreground">{`trade ${long ? "L" : "S"}${trade.tradeNumber}:`}</span>{" "}
+      {`${trade.side} ${contractsWord(trade.contracts)}, filled ${trade.fillPrice.toFixed(decimals)} at the next bar's open (${trade.entryTimeText}) · `}
+      {trade.netProfitUsd === null ? (
+        <span className="text-muted-foreground">still open</span>
+      ) : (
+        <span style={netTone ? { color: netTone } : undefined}>
+          {`net ${formatSignedUsd(trade.netProfitUsd)} after costs${trade.exitTimeText ? `, exited ${trade.exitTimeText}` : ""}`}
+        </span>
       )}
+    </div>
+  );
+}
+
+function RollLine({ readout, decimals }: { readout: BarReadout; decimals: number }) {
+  const roll = readout.rollAdjustment;
+  if (!roll) return null;
+  const rolls = roll.rollCount === 1 ? "the roll" : `${roll.rollCount} rolls`;
+  return (
+    <div className="mt-1 border-t border-white/10 pt-1 text-muted-foreground" data-testid="cycle-chart-readout-roll">
+      {`roll-adjusted price: ${formatSignedPoints(roll.shiftPoints, decimals)} points added for ${rolls} after this bar (next: ${roll.nextRollFromContract} → ${roll.nextRollToContract} at ${roll.nextRollTimeText}); the traded price was this less that`}
     </div>
   );
 }
@@ -589,11 +733,11 @@ function ForecastOnlyBox({ forecast, decimals }: { forecast: ForecastOnlyReadout
   );
 }
 
-function ReadoutBox({ hover, decimals }: { hover: HoverState; decimals: number }) {
+function ReadoutBox({ hover, decimals, pinnedTimestamp }: { hover: HoverState; decimals: number; pinnedTimestamp: number | null }) {
   const readout = hover.readout;
   const style = hover.placeLeft ? { right: `calc(100% - ${hover.x - 14}px)` } : { left: hover.x + 14 };
   const className =
-    "pointer-events-none absolute top-24 z-20 min-w-[210px] max-w-[420px] rounded-md border border-white/15 bg-[rgba(11,15,22,0.92)] px-2.5 py-2 font-mono text-[11px] leading-[1.45] text-foreground/90 shadow-lg";
+    "pointer-events-none absolute top-24 z-20 min-w-[210px] max-w-[440px] rounded-md border border-white/15 bg-[rgba(11,15,22,0.92)] px-2.5 py-2 font-mono text-[11px] leading-[1.45] text-foreground/90 shadow-lg";
   if (!readout) {
     return hover.forecastOnly ? (
       <div className={className} style={style} data-testid="cycle-chart-readout">
@@ -601,8 +745,8 @@ function ReadoutBox({ hover, decimals }: { hover: HoverState; decimals: number }
       </div>
     ) : null;
   }
-  const labelTone =
-    readout.labelWord === "correct" ? CYCLE_COLORS.sky : readout.labelWord === "wrong" ? CYCLE_COLORS.vermillion : undefined;
+  const labelTone = readoutLabelTone(readout.labelWord);
+  const pinned = pinnedTimestamp !== null && pinnedTimestamp === readout.timestamp;
   return (
     <div className={className} style={style} data-testid="cycle-chart-readout">
       <div className="text-foreground">{readout.timeText}</div>
@@ -632,14 +776,20 @@ function ReadoutBox({ hover, decimals }: { hover: HoverState; decimals: number }
             <span className="text-muted-foreground">equity</span>
             <span>{readout.equityUsd === null ? "none" : formatSignedUsd(readout.equityUsd)}</span>
             <span className="text-muted-foreground">label</span>
-            <span style={labelTone ? { color: labelTone } : undefined}>
+            <span style={labelTone ? { color: labelTone } : undefined} data-testid="cycle-chart-readout-label">
               {readout.labelGlyph} {readout.labelWord}
               {readout.actualDirectionWord ? ` (moved ${readout.actualDirectionWord})` : ""}
             </span>
           </>
         )}
       </div>
+      <LabelMoveLines readout={readout} decimals={decimals} />
       <ForecastLines readout={readout} decimals={decimals} />
+      <TradeLine readout={readout} decimals={decimals} />
+      <RollLine readout={readout} decimals={decimals} />
+      <div className="mt-1 border-t border-white/10 pt-1 text-muted-foreground" data-testid="cycle-chart-readout-pin">
+        {pinned ? "pinned for Inside the model — click the bar again to unpin" : "click to pin this bar for Inside the model"}
+      </div>
     </div>
   );
 }
@@ -677,6 +827,11 @@ function ChartKey() {
             (arrows with a trade number, beyond the call triangle)
           </div>
           <div>● exit (orange = profit, blue = loss, amount shown)</div>
+          <div>zoomed in (bars 14 px apart or wider): the forecast price is printed beyond each ▲ / ▼</div>
+          <div>
+            hover a test bar: a line from its close to the close one label horizon later (the move its label is scored on) and{" "}
+            <span style={{ color: CYCLE_COLORS.active }}>◆</span> its forecast · click a bar to pin it for Inside the model, click it again to unpin
+          </div>
           <div>strip: orange = predicts up, blue = predicts down, stronger = more confident</div>
           <div>faded candles: context, the model was not tested there</div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pt-0.5">
@@ -712,6 +867,7 @@ export function CycleChart() {
   const setFollow = useCycleStore((state) => state.setFollow);
   const barCount = useCycleStore((state) => state.barCount);
   const modelType = useCycleStore((state) => state.modelType);
+  const pinnedTimestamp = useCycleStore((state) => (state.inspectSource === "pinned" ? state.inspectTimestamp : null));
 
   useEffect(() => {
     const container = containerRef.current;
@@ -758,7 +914,7 @@ export function CycleChart() {
         </div>
       )}
 
-      {hover && <ReadoutBox hover={hover} decimals={plan ? tickDecimals(plan.costModel.tickSize) : 2} />}
+      {hover && <ReadoutBox hover={hover} decimals={plan ? tickDecimals(plan.costModel.tickSize) : 2} pinnedTimestamp={pinnedTimestamp} />}
     </div>
   );
 }

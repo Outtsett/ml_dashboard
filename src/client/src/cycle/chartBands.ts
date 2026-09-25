@@ -12,9 +12,22 @@ import type {
 } from "lightweight-charts";
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
 
-import { findBarIndex, type CycleBarColumns } from "@shared/cycle/schema";
+import { findBarIndex, type CycleBarColumns, type CyclePlan } from "@shared/cycle/schema";
 
-import { CYCLE_COLORS, glyphSize, glyphTriangle, predictionGlyphAt, spanToLogical, withAlpha, type BandLayout } from "./chartModel";
+import {
+  CYCLE_COLORS,
+  formatTickPrice,
+  glyphSize,
+  glyphTriangle,
+  hoverPriceGeometry,
+  placePriceTexts,
+  predictionGlyphAt,
+  PRICE_TEXT_MINIMUM_BAR_SPACING,
+  spanToLogical,
+  withAlpha,
+  type BandLayout,
+  type PriceTextCandidate,
+} from "./chartModel";
 
 /**
  * Canvas layer of the Model Cycle chart, attached to the candlestick series.
@@ -26,7 +39,10 @@ import { CYCLE_COLORS, glyphSize, glyphTriangle, predictionGlyphAt, spanToLogica
  *  - IN FRONT: each band's label pill along the top edge, the dashed test
  *    cursor ("model is here"), the prediction glyph on every visible test bar
  *    (▲ under the low / ▼ over the high, solid / hollow / faint by label),
- *    and the brief highlight a table row's "show on chart" asks for.
+ *    the forecast price beside each glyph once bars are 14 px apart or wider,
+ *    the hovered bar's label move (a segment from its close to the close
+ *    `labelHorizonBars` later) and forecast point, the bar pinned for "Inside
+ *    the model", and the brief highlight a table row's "show on chart" asks for.
  *
  * Why the glyphs are drawn here and not as series markers: a glyph's fill
  * changes when its label resolves `labelHorizonBars` AFTER the bar was drawn,
@@ -52,6 +68,11 @@ const EDGE_MARGIN = 4;
 const PILL_BACKGROUND = "rgba(11, 15, 22, 0.86)";
 const PILL_TEXT = "#E8ECF1";
 const FLASH_FILL = withAlpha(CYCLE_COLORS.yellow, 0.28);
+const PRICE_TEXT_FONT = `10px ${FONT_FAMILY}`;
+const PRICE_TEXT_HEIGHT = 12;
+const PRICE_TEXT_BACKGROUND = "rgba(11, 15, 22, 0.72)";
+const HOVER_START_RING = "#E8ECF1";
+const FORECAST_MARKER_SIZE = 4.5;
 
 function roundedRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number): void {
   const r = Math.min(radius, width / 2, height / 2);
@@ -93,7 +114,9 @@ class BandsRenderer implements IPrimitivePaneRenderer {
       context.save();
       if (this._layer === "behind") this._drawFills(context, chart, columns, width, height);
       else {
+        this._drawPinned(context, chart, columns, height);
         this._drawGlyphs(context, chart, columns, width);
+        this._drawHover(context, chart, columns);
         this._drawFlash(context, chart, columns, height);
         this._drawCursor(context, chart, columns, width, height);
         this._drawLabels(context, chart, columns, width);
@@ -245,6 +268,11 @@ class BandsRenderer implements IPrimitivePaneRenderer {
     const last = Math.min(this._source.renderedCount - 1, Math.ceil(range.to));
     if (last < first) return;
 
+    const tickSize = this._source.plan?.costModel.tickSize ?? null;
+    const withText = tickSize !== null && timeScale.options().barSpacing >= PRICE_TEXT_MINIMUM_BAR_SPACING;
+    const texts: PriceTextCandidate[] = [];
+    if (withText) context.font = PRICE_TEXT_FONT;
+
     context.lineWidth = 1.5;
     context.lineJoin = "round";
     for (let index = first; index <= last; index += 1) {
@@ -255,6 +283,13 @@ class BandsRenderer implements IPrimitivePaneRenderer {
       const wick = glyph.side === "below" ? columns.low[index]! : columns.high[index]!;
       const y = series.priceToCoordinate(wick);
       if (y === null) continue;
+      if (withText) {
+        const forecast = columns.predictedClose[index];
+        if (forecast !== null && forecast !== undefined && Number.isFinite(forecast)) {
+          const text = formatTickPrice(forecast, tickSize);
+          texts.push({ index, side: glyph.side, x, wickY: y, text, textWidth: context.measureText(text).width + 4 });
+        }
+      }
       const triangle = glyphTriangle(glyph.side, x, y, size);
       context.beginPath();
       context.moveTo(triangle.apex.x, triangle.apex.y);
@@ -271,6 +306,123 @@ class BandsRenderer implements IPrimitivePaneRenderer {
       }
     }
     context.globalAlpha = 1;
+    if (texts.length > 0) this._drawPriceTexts(context, columns, texts, size);
+  }
+
+  /**
+   * The forecast price (tick precision) beyond each glyph: under a ▲, over a
+   * ▼, in the glyph's own colour on a dark pill. Texts that would overprint a
+   * neighbour move one row out, then are left out (`placePriceTexts`).
+   */
+  private _drawPriceTexts(context: CanvasRenderingContext2D, columns: CycleBarColumns, texts: PriceTextCandidate[], size: number): void {
+    context.font = PRICE_TEXT_FONT;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    for (const placed of placePriceTexts(texts, size, PRICE_TEXT_HEIGHT)) {
+      const { box } = placed;
+      context.fillStyle = PRICE_TEXT_BACKGROUND;
+      roundedRect(context, box.left, box.top, box.width, box.height, 2);
+      context.fill();
+      const direction = columns.predictedDirection[placed.index];
+      context.fillStyle = direction === 1 ? CYCLE_COLORS.up : direction === -1 ? CYCLE_COLORS.down : CYCLE_COLORS.neutral;
+      context.fillText(placed.text, box.left + box.width / 2, box.top + box.height / 2 + 0.5);
+    }
+    context.textAlign = "left";
+  }
+
+  /**
+   * The hovered bar (or, with nothing hovered, the pinned one): a thin segment
+   * from its close to the close `labelHorizonBars` later — the move its label
+   * is scored on, orange up / blue down — and a reddish-purple diamond at the
+   * price model's forecast for that bar, which may sit ahead of the newest
+   * candle. Only the diamond while the label is unresolved.
+   */
+  private _drawHover(context: CanvasRenderingContext2D, chart: IChartApi, columns: CycleBarColumns): void {
+    const series = this._source.series;
+    const plan = this._source.plan;
+    if (!series || !plan) return;
+    let index = this._source.hoverIndex;
+    if (index === null && this._source.pinnedTimestamp !== null) {
+      const pinned = findBarIndex(columns.timestamps, this._source.pinnedTimestamp);
+      index = pinned >= 0 ? pinned : null;
+    }
+    if (index === null) return;
+    const geometry = hoverPriceGeometry(columns, index, this._source.renderedCount, plan.labelHorizonBars, this._source.forecastTimes);
+    if (!geometry) return;
+    const timeScale = chart.timeScale();
+    // Whole logical indices only (lightweight-charts 5.1 returns 0 for a fractional one).
+    const xStart = timeScale.logicalToCoordinate(geometry.index as Logical);
+    const yStart = series.priceToCoordinate(geometry.startClose);
+    if (xStart === null || yStart === null) return;
+
+    if (geometry.forecastLogical !== null && geometry.forecastClose !== null) {
+      const xForecast = timeScale.logicalToCoordinate(geometry.forecastLogical as Logical);
+      const yForecast = series.priceToCoordinate(geometry.forecastClose);
+      if (xForecast !== null && yForecast !== null) {
+        // A faint dotted guide from the close, so the diamond reads as this bar's forecast.
+        context.strokeStyle = withAlpha(CYCLE_COLORS.active, 0.55);
+        context.lineWidth = 1;
+        context.setLineDash([2, 3]);
+        context.beginPath();
+        context.moveTo(xStart, yStart);
+        context.lineTo(xForecast, yForecast);
+        context.stroke();
+        context.setLineDash([]);
+        const s = FORECAST_MARKER_SIZE;
+        context.beginPath();
+        context.moveTo(xForecast, yForecast - s);
+        context.lineTo(xForecast + s, yForecast);
+        context.lineTo(xForecast, yForecast + s);
+        context.lineTo(xForecast - s, yForecast);
+        context.closePath();
+        context.fillStyle = CYCLE_COLORS.active;
+        context.fill();
+        context.strokeStyle = HOVER_START_RING;
+        context.lineWidth = 1;
+        context.stroke();
+      }
+    }
+
+    if (geometry.resolutionIndex !== null && geometry.resolutionClose !== null) {
+      const xEnd = timeScale.logicalToCoordinate(geometry.resolutionIndex as Logical);
+      const yEnd = series.priceToCoordinate(geometry.resolutionClose);
+      if (xEnd !== null && yEnd !== null) {
+        const color = geometry.moveSign === 1 ? CYCLE_COLORS.up : geometry.moveSign === -1 ? CYCLE_COLORS.down : CYCLE_COLORS.neutral;
+        context.strokeStyle = color;
+        context.lineWidth = 1.5;
+        context.beginPath();
+        context.moveTo(xStart, yStart);
+        context.lineTo(xEnd, yEnd);
+        context.stroke();
+        context.fillStyle = color;
+        context.beginPath();
+        context.arc(xEnd, yEnd, 3, 0, Math.PI * 2);
+        context.fill();
+      }
+    }
+
+    context.strokeStyle = HOVER_START_RING;
+    context.lineWidth = 1.25;
+    context.beginPath();
+    context.arc(xStart, yStart, 3, 0, Math.PI * 2);
+    context.stroke();
+  }
+
+  /** The bar pinned for "Inside the model": a dashed sky outline over its column. */
+  private _drawPinned(context: CanvasRenderingContext2D, chart: IChartApi, columns: CycleBarColumns, height: number): void {
+    const time = this._source.pinnedTimestamp;
+    if (time === null) return;
+    const index = findBarIndex(columns.timestamps, time);
+    if (index < 0 || index >= this._source.renderedCount) return;
+    const timeScale = chart.timeScale();
+    const centre = timeScale.logicalToCoordinate(index as Logical);
+    if (centre === null) return;
+    const widthPixels = Math.max(6, timeScale.options().barSpacing);
+    context.strokeStyle = withAlpha(CYCLE_COLORS.sky, 0.8);
+    context.lineWidth = 1;
+    context.setLineDash([3, 3]);
+    context.strokeRect(centre - widthPixels / 2 + 0.5, 0.5, widthPixels - 1, height - 1);
+    context.setLineDash([]);
   }
 
   private _drawFlash(context: CanvasRenderingContext2D, chart: IChartApi, columns: CycleBarColumns, height: number): void {
@@ -321,6 +473,14 @@ export class CycleBandsPrimitive implements ISeriesPrimitive<Time> {
   public chart: IChartApi | null = null;
   /** The candlestick series this primitive is attached to: its price scale places the glyphs. */
   public series: ISeriesApi<SeriesType> | null = null;
+  /** The run's plan: tick size for the price text, label horizon for the hover segment. */
+  public plan: CyclePlan | null = null;
+  /** The forecast line's plotted target times (the chart's forecast track, read at draw time). */
+  public forecastTimes: readonly number[] | null = null;
+  /** The bar under the crosshair, or null. */
+  public hoverIndex: number | null = null;
+  /** The bar pinned for "Inside the model" (epoch seconds), or null. */
+  public pinnedTimestamp: number | null = null;
 
   private readonly _paneViews: readonly IPrimitivePaneView[];
   private _requestUpdate: (() => void) | null = null;
@@ -349,6 +509,29 @@ export class CycleBandsPrimitive implements ISeriesPrimitive<Time> {
   public setBars(columns: CycleBarColumns, renderedCount: number): void {
     this.columns = columns;
     this.renderedCount = renderedCount;
+    this._requestUpdate?.();
+  }
+
+  public setPlan(plan: CyclePlan | null): void {
+    this.plan = plan;
+    this._requestUpdate?.();
+  }
+
+  /** The forecast track's times array; it grows in place, so one call per track is enough. */
+  public setForecastTimes(times: readonly number[] | null): void {
+    this.forecastTimes = times;
+    this._requestUpdate?.();
+  }
+
+  public setHover(index: number | null): void {
+    if (index === this.hoverIndex) return;
+    this.hoverIndex = index;
+    this._requestUpdate?.();
+  }
+
+  public setPinned(timestamp: number | null): void {
+    if (timestamp === this.pinnedTimestamp) return;
+    this.pinnedTimestamp = timestamp;
     this._requestUpdate?.();
   }
 

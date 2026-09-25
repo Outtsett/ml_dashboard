@@ -51,6 +51,25 @@ import {
   tickDecimals,
   withAlpha,
   type RenderedBars,
+  boxesOverlap,
+  formatBarTime,
+  formatTickPrice,
+  glyphBox,
+  hoverPriceGeometry,
+  INSPECT_PUBLISH_INTERVAL_MILLISECONDS,
+  labelMoveAt,
+  logicalIndexOfTime,
+  nextPinnedTimestamp,
+  placePriceTexts,
+  PRICE_TEXT_MAXIMUM_ROWS,
+  PRICE_TEXT_MINIMUM_BAR_SPACING,
+  priceTextBox,
+  readoutLabelTone,
+  rollAdjustmentAt,
+  tradeAtNextOpen,
+  tradeEnteredAt,
+  TrailingThrottle,
+  type PriceTextCandidate,
 } from "@/cycle/chartModel";
 
 const FIVE_MINUTES = 300;
@@ -592,7 +611,18 @@ describe("forecast line", () => {
     expect(targetForecastAt(columns, 1, track.sourceByTime)).toBeNull(); // nothing forecast bar 1
     expect(targetForecastAt(columns, 5, null)).toBeNull();
 
-    expect(madeForecastAt(columns, 5)).toEqual({ predictedClose: columns.close[5]! + 1.5, targetTimeText: readoutAt(columns, 8)!.timeText });
+    // Bar 5 forecasts bar 8, which is in the store: the error is known.
+    expect(madeForecastAt(columns, 5, 0.25)).toEqual({
+      predictedClose: columns.close[5]! + 1.5,
+      targetTimeText: readoutAt(columns, 8)!.timeText,
+      predictedMovePoints: 1.5,
+      actualClose: columns.close[8],
+      errorPoints: columns.close[5]! + 1.5 - columns.close[8]!,
+      errorTicks: (columns.close[5]! + 1.5 - columns.close[8]!) / 0.25,
+    });
+    // Bar 8 forecasts bar 11, not in the store yet: no error, and no ticks without a tick size.
+    expect(madeForecastAt(columns, 8)).toMatchObject({ actualClose: null, errorPoints: null, errorTicks: null });
+    expect(madeForecastAt(columns, 2)!.errorTicks).toBeNull();
 
     const readout = readoutAt(columns, 5, track.sourceByTime)!;
     expect(readout.forecastForThisBar).toEqual(target);
@@ -626,6 +656,351 @@ describe("trade markers beside prediction glyphs", () => {
     ]);
     // Without columns the markers are unchanged.
     expect(buildTradeMarkers(trades, barTime(19)).markers).toHaveLength(2);
+  });
+});
+
+// ─── WP10: price on the labels ──────────────────────────────────────────────
+
+/** Processed bars 0..count−1; bar i forecasts bar i+horizon at close + 1 (target times set). */
+function priceColumns(count: number, horizon: number): CycleBarColumns {
+  const event = barsEvent("processed", 0, count, 0);
+  event.predictedClose = event.close.map((close) => close + 1);
+  event.forecastTimestamp = event.timestamps.map((_, i) => barTime(i + horizon));
+  return columnsWith(event);
+}
+
+/** Resolve the labels of bars `indices` (as the engine does when bar i+h arrives). */
+function resolve(columns: CycleBarColumns, indices: number[]): void {
+  appendBars(columns, {
+    ...barsEvent("processed", 0, 0, 0),
+    resolved: { timestamps: indices.map(barTime), actualDirection: indices.map(() => 1 as const), correct: indices.map(() => true) },
+  });
+}
+
+const PLAN_H3: CyclePlan = { ...PLAN, labelHorizonBars: 3, labelThresholdTicks: 2 };
+
+describe("label move in points, ticks and USD", () => {
+  it("measures close[i] → close[i + h] once the label is known", () => {
+    const columns = priceColumns(10, 3);
+    resolve(columns, [2]);
+    const move = labelMoveAt(columns, 2, PLAN_H3)!;
+    expect(move.state).toBe("resolved");
+    if (move.state !== "resolved") return;
+    const points = columns.close[5]! - columns.close[2]!;
+    expect(move.startClose).toBe(columns.close[2]);
+    expect(move.resolutionClose).toBe(columns.close[5]);
+    expect(move.resolutionTimeText).toBe(formatBarTime(barTime(5)));
+    expect(move.movePoints).toBe(points);
+    expect(move.moveTicks).toBe(points / 0.25);
+    // MNQ: $2 per point, one contract.
+    expect(move.moveUsdPerContract).toBe(points * 2);
+    expect(move.contracts).toBe(1);
+    expect(move.moveUsdAllContracts).toBe(points * 2);
+    expect(move.horizonBars).toBe(3);
+    expect(move.thresholdTicks).toBe(2);
+  });
+
+  it("states per contract and multiplies by the contract count", () => {
+    const columns = priceColumns(10, 3);
+    resolve(columns, [1]);
+    const plan: CyclePlan = { ...PLAN_H3, trading: { ...PLAN_H3.trading, contracts: 3 } };
+    const move = labelMoveAt(columns, 1, plan)!;
+    if (move.state !== "resolved") throw new Error("expected resolved");
+    expect(move.contracts).toBe(3);
+    expect(move.moveUsdAllContracts).toBeCloseTo(move.moveUsdPerContract * 3, 10);
+  });
+
+  it("says when an unresolved label resolves: the forecast target time, else the store, else unknown", () => {
+    const columns = priceColumns(10, 3);
+    // Bar 8 is unresolved; its forecast is for bar 11 (not in the store yet).
+    expect(labelMoveAt(columns, 8, PLAN_H3)).toEqual({
+      state: "pending",
+      horizonBars: 3,
+      resolutionTimeText: formatBarTime(barTime(11)),
+      thresholdTicks: 2,
+    });
+    // No forecast time (no price model): bar 4 + 3 = bar 7 is in the store.
+    columns.forecastTimestamp[4] = null;
+    expect(labelMoveAt(columns, 4, PLAN_H3)).toMatchObject({ state: "pending", resolutionTimeText: formatBarTime(barTime(7)) });
+    // No forecast time and bar i + h not here yet: the time is not known.
+    columns.forecastTimestamp[9] = null;
+    expect(labelMoveAt(columns, 9, PLAN_H3)).toMatchObject({ state: "pending", resolutionTimeText: null });
+  });
+
+  it("is absent for context bars and without a plan", () => {
+    const columns = columnsWith(barsEvent("context", 0, 3, 0), barsEvent("processed", 3, 5, 0));
+    expect(labelMoveAt(columns, 1, PLAN_H3)).toBeNull();
+    expect(readoutAt(columns, 4)!.labelMove).toBeNull();
+    expect(readoutAt(columns, 4, null, PLAN_H3)!.labelMove).toMatchObject({ state: "pending" });
+  });
+
+  it("colours a wrong label neutral grey (✗ carries it), never vermillion", () => {
+    expect(readoutLabelTone("wrong")).toBe(CYCLE_COLORS.neutral);
+    expect(readoutLabelTone("wrong")).not.toBe(CYCLE_COLORS.vermillion);
+    expect(readoutLabelTone("correct")).toBe(CYCLE_COLORS.sky);
+    expect(readoutLabelTone("not resolved yet")).toBeUndefined();
+  });
+
+  it("reports whether the model has a price model", () => {
+    const columns = priceColumns(5, 3);
+    expect(readoutAt(columns, 1)!.hasPriceModel).toBeNull();
+    expect(readoutAt(columns, 1, null, PLAN_H3)!.hasPriceModel).toBe(true);
+    expect(readoutAt(columns, 1, null, { ...PLAN_H3, hasPriceModel: false })!.hasPriceModel).toBe(false);
+  });
+});
+
+describe("the trade entered at the next bar's open", () => {
+  it("links bar i to the trade entered at bar i + 1, kept apart from the label move", () => {
+    const columns = priceColumns(10, 3);
+    const trades = [
+      trade({ tradeNumber: 1, side: "long", entryTimestamp: barTime(3), entryPrice: 101.25, status: "closed", exitTimestamp: barTime(6), exitPrice: 103, netProfitUsd: 0.7 }),
+      trade({ tradeNumber: 2, side: "short", entryTimestamp: barTime(6), entryPrice: 102.5, contracts: 2 }),
+    ];
+    expect(tradeAtNextOpen(columns, 2, trades)).toEqual({
+      tradeNumber: 1,
+      side: "long",
+      contracts: 1,
+      entryTimeText: formatBarTime(barTime(3)),
+      fillPrice: 101.25,
+      status: "closed",
+      netProfitUsd: 0.7,
+      exitTimeText: formatBarTime(barTime(6)),
+      exitPrice: 103,
+    });
+    // An open trade has no net yet.
+    expect(tradeAtNextOpen(columns, 5, trades)).toMatchObject({ tradeNumber: 2, side: "short", contracts: 2, status: "open", netProfitUsd: null });
+    // No trade opened at bar 4's open; the last bar has no next bar.
+    expect(tradeAtNextOpen(columns, 3, trades)).toBeNull();
+    expect(tradeAtNextOpen(columns, 9, trades)).toBeNull();
+    const readout = readoutAt(columns, 2, null, PLAN_H3, trades)!;
+    expect(readout.tradeAtNextOpen?.tradeNumber).toBe(1);
+    expect(readoutAt(columns, 2, null, PLAN_H3)!.tradeAtNextOpen).toBeNull();
+  });
+
+  it("finds a trade by entry time with a binary search over thousands", () => {
+    const trades = Array.from({ length: 5000 }, (_, i) => trade({ tradeNumber: i + 1, entryTimestamp: barTime(i * 2) }));
+    expect(tradeEnteredAt(trades, barTime(4000))?.tradeNumber).toBe(2001);
+    expect(tradeEnteredAt(trades, barTime(4001))).toBeNull();
+    expect(tradeEnteredAt([], barTime(0))).toBeNull();
+  });
+});
+
+describe("roll-adjusted price note", () => {
+  const rolled: CyclePlan = {
+    ...PLAN_H3,
+    priceAdjustment: {
+      method: "panama_additive",
+      rolls: [
+        { timestamp: barTime(4), fromContract: "MNQU5", toContract: "MNQZ5", gapPoints: 241.75, exact: true },
+        { timestamp: barTime(8), fromContract: "MNQZ5", toContract: "MNQH6", gapPoints: 256.75, exact: true },
+      ],
+    },
+  };
+
+  it("adds the gaps of every roll after the bar and names the next one", () => {
+    expect(rollAdjustmentAt(rolled, barTime(2))).toEqual({
+      shiftPoints: 241.75 + 256.75,
+      rollCount: 2,
+      nextRollTimeText: formatBarTime(barTime(4)),
+      nextRollFromContract: "MNQU5",
+      nextRollToContract: "MNQZ5",
+    });
+    // The roll bar itself is the new contract, as traded relative to later rolls only.
+    expect(rollAdjustmentAt(rolled, barTime(4))).toMatchObject({ shiftPoints: 256.75, rollCount: 1, nextRollFromContract: "MNQZ5" });
+    expect(rollAdjustmentAt(rolled, barTime(8))).toBeNull();
+  });
+
+  it("is absent without an adjustment", () => {
+    expect(rollAdjustmentAt(PLAN_H3, barTime(2))).toBeNull();
+    expect(rollAdjustmentAt({ ...rolled, priceAdjustment: { method: "none", rolls: [] } }, barTime(2))).toBeNull();
+    const columns = priceColumns(10, 3);
+    expect(readoutAt(columns, 2, null, rolled)!.rollAdjustment).toMatchObject({ rollCount: 2 });
+  });
+});
+
+describe("forecast price text beside the glyphs", () => {
+  it("prints the forecast at tick precision", () => {
+    expect(formatTickPrice(21234.37, 0.25)).toBe("21234.25");
+    expect(formatTickPrice(21234.38, 0.25)).toBe("21234.50");
+    expect(formatTickPrice(1.234567, 0.0001)).toBe("1.2346");
+    expect(formatTickPrice(4501.2, 1)).toBe("4501");
+    expect(PRICE_TEXT_MINIMUM_BAR_SPACING).toBe(14);
+  });
+
+  it("puts the text under a ▲ and over a ▼, clear of the glyph, each row further out", () => {
+    const size = 10;
+    const below = priceTextBox("below", 100, 200, size, 40, 12);
+    const belowGlyph = glyphBox("below", 100, 200, size);
+    expect(below.top).toBeGreaterThan(belowGlyph.top + belowGlyph.height);
+    expect(below.left + below.width / 2).toBe(100);
+    expect(boxesOverlap(below, belowGlyph)).toBe(false);
+
+    const above = priceTextBox("above", 100, 50, size, 40, 12);
+    const aboveGlyph = glyphBox("above", 100, 50, size);
+    expect(above.top + above.height).toBeLessThan(aboveGlyph.top);
+    expect(boxesOverlap(above, aboveGlyph)).toBe(false);
+
+    expect(priceTextBox("below", 100, 200, size, 40, 12, 1).top).toBeGreaterThan(below.top + below.height);
+    expect(priceTextBox("above", 100, 50, size, 40, 12, 1).top + 12).toBeLessThan(above.top);
+  });
+
+  function candidates(spacing: number, count: number): PriceTextCandidate[] {
+    return Array.from({ length: count }, (_, i) => ({
+      index: i,
+      side: i % 3 === 0 ? ("above" as const) : ("below" as const),
+      x: 20 + i * spacing,
+      wickY: i % 3 === 0 ? 100 : 160 + (i % 2) * 4,
+      text: "21234.25",
+      textWidth: 48,
+    }));
+  }
+
+  it("places every text in the first row when bars are wide apart", () => {
+    const placed = placePriceTexts(candidates(60, 12), 10, 12);
+    expect(placed).toHaveLength(12);
+    for (const text of placed) {
+      const candidate = candidates(60, 12)[text.index]!;
+      expect(text.box).toEqual(priceTextBox(candidate.side, candidate.x, candidate.wickY, 10, 48, 12, 0));
+    }
+  });
+
+  it("at 14 px never overprints a neighbour or any glyph: staggers a row out, then leaves text out", () => {
+    const all = candidates(PRICE_TEXT_MINIMUM_BAR_SPACING, 40);
+    const placed = placePriceTexts(all, 10, 12);
+    expect(placed.length).toBeGreaterThan(0);
+    expect(placed.length).toBeLessThan(all.length);
+    const glyphs = all.map((candidate) => glyphBox(candidate.side, candidate.x, candidate.wickY, 10));
+    for (let a = 0; a < placed.length; a += 1) {
+      for (const glyph of glyphs) expect(boxesOverlap(placed[a]!.box, glyph)).toBe(false);
+      for (let b = a + 1; b < placed.length; b += 1) expect(boxesOverlap(placed[a]!.box, placed[b]!.box)).toBe(false);
+    }
+    // At most PRICE_TEXT_MAXIMUM_ROWS rows out from each glyph.
+    for (const text of placed) {
+      const candidate = all[text.index]!;
+      const rows = Array.from({ length: PRICE_TEXT_MAXIMUM_ROWS }, (_, row) => priceTextBox(candidate.side, candidate.x, candidate.wickY, 10, 48, 12, row));
+      expect(rows).toContainEqual(text.box);
+    }
+  });
+});
+
+describe("hover segment and forecast point", () => {
+  it("maps a time to its logical index: a candle's own, or the forecast point past the newest candle", () => {
+    const columns = priceColumns(10, 3);
+    const track = emptyForecastTrack();
+    appendForecast(track, columns, 0, 10);
+    expect(logicalIndexOfTime(columns.timestamps, 10, track.times, barTime(4))).toBe(4);
+    // Forecast targets reach bar 12: logical indices 10, 11, 12 past the last candle (9).
+    expect(logicalIndexOfTime(columns.timestamps, 10, track.times, barTime(12))).toBe(12);
+    expect(logicalIndexOfTime(columns.timestamps, 10, track.times, barTime(12))).toBe(forecastHeadIndex(track, 10, barTime(9)));
+    expect(logicalIndexOfTime(columns.timestamps, 10, track.times, barTime(13))).toBeNull();
+    expect(logicalIndexOfTime(columns.timestamps, 10, null, barTime(11))).toBeNull();
+    // Only drawn candles count: with 6 drawn, bar 8 is not on the scale as a candle.
+    expect(logicalIndexOfTime(columns.timestamps, 6, [], barTime(8))).toBeNull();
+    expect(logicalIndexOfTime(columns.timestamps, 0, track.times, barTime(1))).toBeNull();
+  });
+
+  it("draws the label move from close[i] to close[i + h] once resolved, and the forecast point", () => {
+    const columns = priceColumns(10, 3);
+    resolve(columns, [2]);
+    const track = emptyForecastTrack();
+    appendForecast(track, columns, 0, 10);
+    const geometry = hoverPriceGeometry(columns, 2, 10, 3, track.times)!;
+    expect(geometry).toEqual({
+      index: 2,
+      startClose: columns.close[2],
+      resolutionIndex: 5,
+      resolutionClose: columns.close[5],
+      moveSign: Math.sign(columns.close[5]! - columns.close[2]!),
+      forecastLogical: 5,
+      forecastClose: columns.close[2]! + 1,
+    });
+  });
+
+  it("draws only the forecast point while the label is unresolved, even ahead of the candles", () => {
+    const columns = priceColumns(10, 3);
+    const track = emptyForecastTrack();
+    appendForecast(track, columns, 0, 10);
+    const geometry = hoverPriceGeometry(columns, 8, 10, 3, track.times)!;
+    expect(geometry.resolutionIndex).toBeNull();
+    expect(geometry.moveSign).toBeNull();
+    expect(geometry.forecastLogical).toBe(11);
+    // Resolved but bar i + h not drawn yet: no segment.
+    resolve(columns, [4]);
+    expect(hoverPriceGeometry(columns, 4, 6, 3, track.times)!.resolutionIndex).toBeNull();
+    // Context bars and undrawn bars draw nothing.
+    const mixed = columnsWith(barsEvent("context", 0, 3, 0), barsEvent("processed", 3, 3, 0));
+    expect(hoverPriceGeometry(mixed, 1, 6, 3, null)).toBeNull();
+    expect(hoverPriceGeometry(mixed, 5, 5, 3, null)).toBeNull();
+  });
+});
+
+describe("inspection: hover publish and click to pin", () => {
+  /** A manual clock and timer queue. */
+  function fakeScheduler() {
+    let now = 0;
+    let nextId = 1;
+    const timers = new Map<number, { at: number; callback: () => void }>();
+    return {
+      now: () => now,
+      setTimer: (callback: () => void, delay: number) => {
+        const id = nextId++;
+        timers.set(id, { at: now + delay, callback });
+        return id as unknown as ReturnType<typeof setTimeout>;
+      },
+      clearTimer: (timer: ReturnType<typeof setTimeout>) => {
+        timers.delete(timer as unknown as number);
+      },
+      advanceTo(time: number) {
+        for (;;) {
+          const due = [...timers.entries()].filter(([, timer]) => timer.at <= time).sort((a, b) => a[1].at - b[1].at)[0];
+          if (!due) break;
+          timers.delete(due[0]);
+          now = due[1].at;
+          due[1].callback();
+        }
+        now = time;
+      },
+    };
+  }
+
+  it("publishes at most every 100 ms, and the last bar hovered always goes out", () => {
+    const clock = fakeScheduler();
+    const published: { at: number; value: number }[] = [];
+    const throttle = new TrailingThrottle<number>(INSPECT_PUBLISH_INTERVAL_MILLISECONDS, (value) => published.push({ at: clock.now(), value }), clock.now, clock.setTimer, clock.clearTimer);
+    // A pointer sweeping a new bar every 4 ms for one second.
+    for (let t = 0; t < 1000; t += 4) {
+      clock.advanceTo(t);
+      throttle.push(barTime(t / 4));
+    }
+    clock.advanceTo(2000);
+    expect(published[0]).toEqual({ at: 0, value: barTime(0) });
+    for (let i = 1; i < published.length; i += 1) expect(published[i]!.at - published[i - 1]!.at).toBeGreaterThanOrEqual(INSPECT_PUBLISH_INTERVAL_MILLISECONDS);
+    // Within the first second: no more than 10 publishes.
+    expect(published.filter((entry) => entry.at < 1000).length).toBeLessThanOrEqual(10);
+    expect(published[published.length - 1]!.value).toBe(barTime(996 / 4));
+  });
+
+  it("does not republish the same bar and cancels a pending publish", () => {
+    const clock = fakeScheduler();
+    const published: number[] = [];
+    const throttle = new TrailingThrottle<number>(100, (value) => published.push(value), clock.now, clock.setTimer, clock.clearTimer);
+    throttle.push(1);
+    clock.advanceTo(500);
+    throttle.push(1);
+    expect(published).toEqual([1]);
+    clock.advanceTo(550);
+    throttle.push(2);
+    throttle.push(3); // inside the interval after 2
+    throttle.cancel();
+    clock.advanceTo(1000);
+    expect(published).toEqual([1, 2]);
+  });
+
+  it("pins the clicked bar, and unpins when the pinned bar is clicked again", () => {
+    expect(nextPinnedTimestamp("hover", barTime(3), barTime(5))).toBe(barTime(5));
+    expect(nextPinnedTimestamp("cursor", null, barTime(5))).toBe(barTime(5));
+    expect(nextPinnedTimestamp("pinned", barTime(5), barTime(5))).toBeNull();
+    expect(nextPinnedTimestamp("pinned", barTime(5), barTime(7))).toBe(barTime(7));
   });
 });
 

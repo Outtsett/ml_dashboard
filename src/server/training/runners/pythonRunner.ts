@@ -9,8 +9,9 @@ import { Logger } from "@nestjs/common";
 import { spawn, ChildProcess } from "child_process";
 import path from "path";
 import fs from "fs";
-import type { ResolvedTrainingConfig, TrainingSession, TrainingDiagnostics } from "@shared/trainingTypes";
+import type { HyperparameterDef, ResolvedTrainingConfig, TrainingSession, TrainingDiagnostics } from "@shared/trainingTypes";
 import type { CycleControl } from "@shared/cycle/schema";
+import { CYCLE_RUNNER_SUFFIX } from "@shared/cycle/models";
 import { createSession, emitSessionEvent } from "./types";
 import type { ITrainerRunner } from "./types";
 import { getTrainingConfig } from "../registry";
@@ -56,6 +57,40 @@ export function splitBufferedLines(carry: string, chunk: string): { lines: strin
   const nextCarry = parts.pop() ?? "";
   const lines = parts.map((l) => l.trim()).filter((l) => l.length > 0);
   return { lines, carry: nextCarry };
+}
+
+/**
+ * The CLI arguments for a run's hyperparameters, in their given order.
+ *
+ * A bool is a presence flag: true passes `--flag`, false passes nothing — so a
+ * bool whose default is true could never be switched off. For a Model Cycle
+ * runner (`<key>+walk_forward_cycle`), whose `main.py` declares every model
+ * bool with `argparse.BooleanOptionalAction`, a default-true bool set to false
+ * passes `--no-flag`. Other runners keep the presence rule: their scripts do
+ * not accept `--no-…` (the TFT's `--loss-surface` is a `store_false` flag), and
+ * argparse would reject the run. Unmapped keys are skipped (the caller warns).
+ */
+export function hyperparameterArgs(
+  hyperparameters: Record<string, unknown>,
+  defaults: Record<string, HyperparameterDef>,
+  flags: Record<string, string>,
+  modelType: string,
+): string[] {
+  const optionalBooleans = modelType.endsWith(CYCLE_RUNNER_SUFFIX);
+  const args: string[] = [];
+  for (const [key, val] of Object.entries(hyperparameters)) {
+    const flag = flags[key];
+    if (!flag) continue;
+
+    const def = defaults[key];
+    if (def?.type === 'bool') {
+      if (val) args.push(flag);
+      else if (optionalBooleans && def.default === true) args.push(`--no-${flag.replace(/^--/, "")}`);
+    } else {
+      args.push(flag, String(val));
+    }
+  }
+  return args;
 }
 
 // ─── Python Runner ───────────────────────────────────────────────────────────
@@ -132,17 +167,7 @@ export class PythonRunner implements ITrainerRunner {
       emitSessionEvent(session, "log", { message: msg, level: "warning" });
     }
 
-    for (const [key, val] of Object.entries(config.hyperparameters)) {
-      const flag = hypMap[key];
-      if (!flag) continue;
-
-      const def = config.registry.defaultHyperparameters[key];
-      if (def?.type === 'bool') {
-        if (val) args.push(flag);
-      } else {
-        args.push(flag, String(val));
-      }
-    }
+    args.push(...hyperparameterArgs(config.hyperparameters, config.registry.defaultHyperparameters, hypMap, config.modelType));
 
     if (config.featureCategories?.length) {
       args.push("--feature-categories", config.featureCategories.join(","));

@@ -33,30 +33,24 @@ from typing import Protocol
 
 import numpy as np
 
-MODEL_FAMILIES = (
-    "logistic_regression",
-    "random_forest",
-    "xgboost",
-    "lightgbm",
-    "multilayer_perceptron",
-    "lstm",
-    "temporal_convolution_network",
-    "transformer_encoder",
-)
+from . import catalog as _catalog
 
-SEQUENCE_FAMILIES = ("lstm", "temporal_convolution_network", "transformer_encoder")
-NEURAL_FAMILIES = ("multilayer_perceptron",) + SEQUENCE_FAMILIES
+# Every name below is read from the model registry (`src/config/cycle_models/`,
+# loaded by `catalog.py`); the names predate it and are kept so importers still
+# work. A "family" here is a registry key.
+_MODELS = _catalog.registry()["models"]
 
-MODEL_LABELS = {
-    "logistic_regression": "Logistic regression",
-    "random_forest": "Random forest",
-    "xgboost": "XGBoost",
-    "lightgbm": "LightGBM",
-    "multilayer_perceptron": "Multilayer perceptron",
-    "lstm": "LSTM",
-    "temporal_convolution_network": "Temporal convolution network",
-    "transformer_encoder": "Transformer encoder",
-}
+MODEL_FAMILIES = tuple(_MODELS)
+
+# The eight families that predate the registry (`adapter == "legacy"`): their
+# validation, search spaces and adapters live in `models.py` / `networks.py`.
+LEGACY_FAMILIES = tuple(key for key, entry in _MODELS.items() if entry["adapter"] == "legacy")
+
+# Models that read a window of bars (`sequence`) and models built on torch.
+SEQUENCE_FAMILIES = tuple(key for key, entry in _MODELS.items() if entry["sequence"])
+NEURAL_FAMILIES = tuple(key for key, entry in _MODELS.items() if entry["implementation"] == "torch")
+
+MODEL_LABELS = {key: entry["displayName"] for key, entry in _MODELS.items()}
 
 
 class StopRequested(Exception):
@@ -178,6 +172,49 @@ class ModelAdapter(Protocol):
 
     def save(self, directory: str) -> str:
         """Write the fitted model into `directory`; return the file path."""
+
+
+class NoPriceModel:
+    """The price-model slot of a model whose registry entry has ``price: null``
+    (Probit, Naive Bayes, the calibrated classifier, ...): no library, nothing
+    to fit, no forecast line. ``models.build_adapter(key, ..., task="regression")``
+    returns one for such a key, so the engine can take it from the same factory
+    as every other price model and check ``available`` (False) instead of
+    special-casing the key.
+
+    ``fit`` does nothing, ``save`` writes nothing (the fold then has no
+    ``price_model/`` directory: "none" in the explainer's readiness), and the
+    two predict methods raise with a sentence naming the model."""
+
+    available = False
+    task = "regression"
+    step_unit = "single_fit"
+
+    def __init__(self, key: str) -> None:
+        self.key = key
+        self.family = key
+        self.parameters: dict = {}
+        self.best_iteration = None
+
+    def _reason(self) -> str:
+        label = MODEL_LABELS.get(self.key, self.key)
+        return (f"{label} ({self.key}) has no price model: its registry entry's price is null, "
+                "so the run makes no price forecast")
+
+    def minimum_history(self) -> int:
+        return 1
+
+    def fit(self, features, labels, train_index, validation_index, timestamps, reporter) -> None:
+        return None
+
+    def predict_value(self, features, index):
+        raise RuntimeError(self._reason())
+
+    def predict_probability(self, features, index):
+        raise RuntimeError(self._reason() + "; P(up) comes from its direction model")
+
+    def save(self, directory: str) -> str:
+        return ""
 
 
 def check_index(features: np.ndarray, labels: np.ndarray, index: np.ndarray, name: str) -> None:

@@ -22,8 +22,11 @@ target clip that uses the training rows' own percentiles only.
 
 from __future__ import annotations
 
+import ast
+import json
 import threading
 import time
+from pathlib import Path
 
 import numpy as np
 import optuna
@@ -31,15 +34,19 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
+from cycle import catalog  # noqa: E402
 from cycle.adapter import (  # noqa: E402
-    MODEL_FAMILIES,
-    NEURAL_FAMILIES,
-    SEQUENCE_FAMILIES,
+    LEGACY_FAMILIES,
     BatchReport,
     EpochReport,
+    NoPriceModel,
     StopRequested,
 )
+from cycle.adapter import MODEL_FAMILIES as REGISTRY_KEYS  # noqa: E402
+from cycle.adapter import NEURAL_FAMILIES as REGISTRY_NEURAL_KEYS  # noqa: E402
+from cycle.adapter import SEQUENCE_FAMILIES as REGISTRY_SEQUENCE_KEYS  # noqa: E402
 from cycle.models import (  # noqa: E402
+    ADAPTER_CLASSES,
     FAMILY_PARAMETER_KEYS,
     binary_scores,
     build_adapter,
@@ -48,6 +55,12 @@ from cycle.models import (  # noqa: E402
     resolve_parameters,
     suggest_parameters,
 )
+
+# The fitting tests cover the eight families that predate the registry; every
+# other registry model is fitted by the tests of the package that builds it.
+MODEL_FAMILIES = LEGACY_FAMILIES
+NEURAL_FAMILIES = tuple(family for family in REGISTRY_NEURAL_KEYS if family in LEGACY_FAMILIES)
+SEQUENCE_FAMILIES = tuple(family for family in REGISTRY_SEQUENCE_KEYS if family in LEGACY_FAMILIES)
 
 ACCURACY_THRESHOLD = 0.65
 CUDA = torch.cuda.is_available()
@@ -193,8 +206,8 @@ def _identifier(value):
 # ─── registry ──────────────────────────────────────────────────────────────
 
 def test_every_family_has_parameters_and_defaults():
-    assert set(FAMILY_PARAMETER_KEYS) == set(MODEL_FAMILIES)
-    for family in MODEL_FAMILIES:
+    assert set(FAMILY_PARAMETER_KEYS) == set(REGISTRY_KEYS)
+    for family in REGISTRY_KEYS:
         defaults = default_parameters(family)
         assert tuple(defaults) == FAMILY_PARAMETER_KEYS[family]
         assert resolve_parameters(family, {"unrelated_key": 5}) == defaults
@@ -204,7 +217,7 @@ def test_every_family_has_parameters_and_defaults():
 
 def test_unknown_family_lists_the_valid_ones():
     with pytest.raises(ValueError, match="random_forest"):
-        build_adapter("support_vector_machine", {}, "cpu", 0)
+        build_adapter("no_such_model", {}, "cpu", 0)
     with pytest.raises(ValueError, match="lightgbm"):
         default_parameters("nope")
 
@@ -759,3 +772,260 @@ def test_regression_scores_huber_loss_and_clip():
     clipped, low, high = clip_training_target(np.arange(101, dtype=np.float64))
     assert (low, high) == (1.0, 99.0)
     assert clipped.min() == 1.0 and clipped.max() == 99.0
+
+
+# ─── the registry dispatch (models.build_adapter / load_adapter) ───────────
+
+LEGACY_RULES = json.loads(
+    (Path(__file__).resolve().parent / "fixtures" / "cycle_legacy_parameter_rules.json").read_text(encoding="utf-8")
+)
+
+
+class RecordingTrial:
+    """A stand-in Optuna trial that records every suggestion and answers
+    deterministically (the recorder the legacy fixture was made with)."""
+
+    def __init__(self) -> None:
+        self.calls: list[list] = []
+
+    def suggest_float(self, name, low, high, log=False):
+        self.calls.append(["float", name, low, high, log])
+        return high if log else low
+
+    def suggest_int(self, name, low, high, log=False):
+        self.calls.append(["int", name, low, high, log])
+        return high
+
+    def suggest_categorical(self, name, choices):
+        self.calls.append(["categorical", name, list(choices)])
+        return choices[-1]
+
+
+def test_legacy_families_are_the_registry_legacy_keys():
+    assert set(LEGACY_FAMILIES) == set(LEGACY_RULES["families"])
+    assert set(LEGACY_FAMILIES) == {key for key in REGISTRY_KEYS if catalog.is_legacy(key)}
+
+
+@pytest.mark.parametrize("family", sorted(LEGACY_RULES["families"]))
+def test_legacy_defaults_validation_and_search_are_unchanged(family):
+    """Against `fixtures/cycle_legacy_parameter_rules.json`, recorded from
+    models.py before the registry existed."""
+    rules = LEGACY_RULES["families"][family]
+    defaults = default_parameters(family)
+    assert defaults == rules["defaults"]
+    assert {key: type(value).__name__ for key, value in defaults.items()} == rules["defaultTypes"]
+    for probe, expected in rules["validation"].items():
+        key, _, text = probe.partition("=")
+        value = ast.literal_eval(text)
+        if "error" in expected:
+            with pytest.raises(Exception) as refused:
+                resolve_parameters(family, {key: value})
+            assert f"{type(refused.value).__name__}: {refused.value}" == expected["error"], probe
+        else:
+            resolved = resolve_parameters(family, {key: value})[key]
+            assert resolved == expected["value"] and type(resolved).__name__ == expected["type"], probe
+    trial = RecordingTrial()
+    assert suggest_parameters(trial, family, defaults) == rules["optunaResult"]
+    assert trial.calls == rules["optunaCalls"]
+
+
+def test_the_dispatch_table_names_one_class_per_non_legacy_adapter():
+    assert ADAPTER_CLASSES == {
+        "scikit_learn": "cycle.sklearn_adapter:SklearnEstimatorAdapter",
+        "catboost": "cycle.catboost_adapter:CatBoostAdapter",
+        "statsmodels": "cycle.statsmodels_adapter:ProbitAdapter",
+        "neural": "cycle.networks:NeuralAdapter",
+    }
+    adapters = {catalog.entry(key)["adapter"] for key in REGISTRY_KEYS}
+    assert adapters - {"legacy"} <= set(ADAPTER_CLASSES)
+
+
+def test_building_a_legacy_family_imports_no_new_adapter_module():
+    import os
+    import subprocess
+    import sys
+
+    source_root = Path(__file__).resolve().parents[1] / "src" / "ml"
+    script = (
+        "import sys\n"
+        "from cycle.models import build_adapter\n"
+        "for family in ('logistic_regression', 'random_forest', 'xgboost', 'lightgbm'):\n"
+        "    build_adapter(family, {}, 'cpu', 0)\n"
+        "    build_adapter(family, {}, 'cpu', 0, task='regression')\n"
+        "watched = ('cycle.sklearn_adapter', 'cycle.catboost_adapter', 'cycle.statsmodels_adapter',\n"
+        "           'cycle.networks', 'catboost', 'statsmodels', 'torch')\n"
+        "print(sorted(name for name in watched if name in sys.modules))\n"
+    )
+    environment = {**os.environ, "PYTHONPATH": str(source_root)}
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True,
+                            env=environment, timeout=120)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip().splitlines()[-1] == "[]"
+
+
+def non_legacy_key(adapter: str, *, price: bool | None = None) -> str:
+    for key in REGISTRY_KEYS:
+        entry = catalog.entry(key)
+        if entry["adapter"] == adapter and (price is None or (entry["price"] is not None) == price):
+            return key
+    pytest.skip(f"the registry has no {adapter} model with price={price}")
+
+
+class RegistryAdapter:
+    """A class with the registry constructor, recording what it was given."""
+
+    def __init__(self, key, entry, parameters, device, seed, task="classification"):
+        self.received = (key, entry, parameters, device, seed, task)
+
+    @classmethod
+    def load(cls, directory, metadata):
+        return ("loaded", directory, metadata)
+
+
+class DeviceLoadingAdapter(RegistryAdapter):
+    @classmethod
+    def load(cls, directory, device="cpu"):
+        return ("loaded", directory, device)
+
+
+class FamilyAdapter:
+    """The legacy constructor (family, parameters, device, seed, task)."""
+
+    def __init__(self, family, parameters, device, seed, task="classification"):
+        raise AssertionError("must not be constructed")
+
+
+@pytest.fixture
+def fake_adapters(monkeypatch):
+    import sys
+    import types
+
+    module = types.ModuleType("fake_cycle_adapters")
+    module.RegistryAdapter = RegistryAdapter
+    module.DeviceLoadingAdapter = DeviceLoadingAdapter
+    module.FamilyAdapter = FamilyAdapter
+    monkeypatch.setitem(sys.modules, "fake_cycle_adapters", module)
+
+    def point(adapter: str, attribute: str) -> None:
+        monkeypatch.setitem(ADAPTER_CLASSES, adapter, f"fake_cycle_adapters:{attribute}")
+
+    return point
+
+
+def test_a_non_legacy_key_is_built_with_the_registry_constructor(fake_adapters):
+    key = non_legacy_key("scikit_learn", price=True)
+    fake_adapters("scikit_learn", "RegistryAdapter")
+    for task in ("classification", "regression"):
+        adapter = build_adapter(key, {}, "cpu", 7.0, task=task)
+        assert isinstance(adapter, RegistryAdapter)
+        received_key, entry, parameters, device, seed, received_task = adapter.received
+        assert (received_key, device, seed, received_task) == (key, "cpu", 7, task)
+        assert type(seed) is int
+        assert entry is catalog.entry(key)
+        assert parameters == catalog.defaults(key) == default_parameters(key)
+        assert tuple(parameters) == FAMILY_PARAMETER_KEYS[key]
+
+
+def test_a_non_legacy_key_resolves_through_the_registry(fake_adapters):
+    key = non_legacy_key("scikit_learn", price=True)
+    fake_adapters("scikit_learn", "RegistryAdapter")
+    bounded = [(n, s) for n, s in catalog.entry(key)["parameters"].items()
+               if s["type"] in ("int", "float") and "max" in s]
+    for name, spec in bounded:
+        with pytest.raises(ValueError, match=name):
+            build_adapter(key, {name: spec["max"] + 1}, "cpu", 0)
+    assert resolve_parameters(key, {"unrelated": 1}) == catalog.resolve_parameters(key, {})
+
+
+def test_a_missing_adapter_module_fails_naming_the_model(monkeypatch):
+    key = non_legacy_key("scikit_learn", price=True)
+    monkeypatch.setitem(ADAPTER_CLASSES, "scikit_learn", "cycle.no_such_adapter_module:Missing")
+    with pytest.raises(NotImplementedError, match="does not exist yet") as refused:
+        build_adapter(key, {}, "cpu", 0)
+    assert catalog.display_name(key) in str(refused.value) and key in str(refused.value)
+    monkeypatch.setitem(ADAPTER_CLASSES, "scikit_learn", "cycle.adapter:NoSuchClass")
+    with pytest.raises(NotImplementedError, match="does not exist yet"):
+        build_adapter(key, {}, "cpu", 0)
+
+
+def test_a_class_without_the_registry_constructor_fails_before_construction(fake_adapters):
+    key = non_legacy_key("neural")
+    fake_adapters("neural", "FamilyAdapter")
+    with pytest.raises(NotImplementedError, match="registry constructor"):
+        build_adapter(key, {}, "cpu", 0)
+
+
+def test_new_neural_keys_follow_what_networks_accepts():
+    import inspect
+
+    from cycle import networks
+
+    key = non_legacy_key("neural")
+    entry = catalog.entry(key)
+    try:
+        inspect.signature(networks.NeuralAdapter).bind(key, entry, catalog.defaults(key), "cpu", 0,
+                                                       task="classification")
+    except TypeError:
+        with pytest.raises(NotImplementedError, match="registry constructor"):
+            build_adapter(key, {}, "cpu", 0)
+    else:
+        assert build_adapter(key, {}, "cpu", 0).minimum_history() >= 1
+    # the legacy neural families keep the family constructor
+    assert build_adapter("lstm", {"sequence_length": 12}, "cpu", 0).minimum_history() == 12
+
+
+def test_a_model_without_a_price_model_gets_no_price_model(monkeypatch, tmp_path):
+    key = next((k for k in REGISTRY_KEYS if not catalog.is_legacy(k) and not catalog.has_price_model(k)), None)
+    if key is None:
+        pytest.skip("every registry model has a price model")
+    # the price slot never imports the model's adapter module
+    monkeypatch.setitem(ADAPTER_CLASSES, catalog.entry(key)["adapter"], "cycle.no_such_adapter_module:Missing")
+    adapter = build_adapter(key, {}, "cpu", 0, task="regression")
+    assert isinstance(adapter, NoPriceModel)
+    assert adapter.available is False and adapter.task == "regression" and adapter.key == key
+    assert adapter.minimum_history() == 1
+    assert adapter.fit(None, None, None, None, None, FakeReporter()) is None
+    with pytest.raises(RuntimeError, match="has no price model") as refused:
+        adapter.predict_value(np.zeros((2, 3), dtype=np.float32), np.array([1]))
+    assert key in str(refused.value)
+    with pytest.raises(RuntimeError, match="has no price model"):
+        adapter.predict_probability(np.zeros((2, 3), dtype=np.float32), np.array([1]))
+    assert adapter.save(str(tmp_path)) == "" and list(tmp_path.iterdir()) == []
+
+
+def test_non_legacy_search_is_the_registry_search():
+    key = next((k for k in REGISTRY_KEYS
+                if not catalog.is_legacy(k) and any("search" in s for s in catalog.entry(k)["parameters"].values())),
+               None)
+    if key is None:
+        pytest.skip("no registry model declares a search space")
+    through_models, through_catalog = RecordingTrial(), RecordingTrial()
+    tuned = suggest_parameters(through_models, key, default_parameters(key))
+    assert tuned == catalog.suggest_parameters(through_catalog, key, catalog.defaults(key))
+    assert through_models.calls == through_catalog.calls and through_models.calls
+
+
+def test_load_adapter_reads_the_adapter_and_key(tmp_path, fake_adapters):
+    key = non_legacy_key("scikit_learn", price=True)
+    fake_adapters("scikit_learn", "RegistryAdapter")
+    metadata = {"adapter": "scikit_learn", "key": key, "task": "classification"}
+    (tmp_path / "model.json").write_text(json.dumps(metadata), encoding="utf-8")
+    assert load_adapter(str(tmp_path), device="cuda") == ("loaded", str(tmp_path), metadata)
+    fake_adapters("scikit_learn", "DeviceLoadingAdapter")
+    assert load_adapter(str(tmp_path), device="cuda") == ("loaded", str(tmp_path), "cuda")
+
+
+def test_saved_legacy_models_name_their_key_and_old_files_still_load(tmp_path, dataset):
+    adapter = build_adapter("logistic_regression", TINY_PARAMETERS["logistic_regression"], "cpu", 0)
+    adapter.fit(dataset.features, dataset.labels, dataset.train_index, dataset.validation_index,
+                dataset.timestamps, FakeReporter())
+    adapter.save(str(tmp_path))
+    path = tmp_path / "model.json"
+    metadata = json.loads(path.read_text(encoding="utf-8"))
+    assert (metadata["key"], metadata["adapter"], metadata["family"]) == (
+        "logistic_regression", "legacy", "logistic_regression")
+    expected = adapter.predict_probability(dataset.features, dataset.test_index[:20])
+    del metadata["key"], metadata["adapter"]            # a file written before the registry
+    path.write_text(json.dumps(metadata), encoding="utf-8")
+    reloaded = load_adapter(str(tmp_path))
+    assert np.array_equal(reloaded.predict_probability(dataset.features, dataset.test_index[:20]), expected)

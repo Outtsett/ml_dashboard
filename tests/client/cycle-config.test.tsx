@@ -1,13 +1,16 @@
 // @vitest-environment jsdom
 /**
- * `src/client/src/cycle/ConfigForm.tsx` — renders a family's grouped
- * hyperparameter fields from a fixture catalog, and `validateCycleForm`
- * blocks Play when `step_days` is below `test_days` (and is not 0).
+ * `src/client/src/cycle/ConfigForm.tsx` — renders a model's grouped
+ * hyperparameter fields from a fixture runner catalog, picks models through
+ * the `ModelBrowser` (registry cards from a fixture), remembers the last model,
+ * puts the runner's own parameter description ahead of `parameterHelp.ts`,
+ * and `validateCycleForm` blocks Play when `step_days` is below `test_days`
+ * (and is not 0).
  */
 import "./setup";
 import { useState } from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 
 import {
   ConfigForm,
@@ -16,6 +19,8 @@ import {
   type CycleFormState,
 } from "../../src/client/src/cycle/ConfigForm";
 import type { CycleCatalogEntry } from "../../src/client/src/cycle/useCycleCatalog";
+import { CYCLE_PARAMETER_HELP, parameterHelpFor } from "../../src/client/src/cycle/parameterHelp";
+import type { CycleModelsResponse } from "../../src/shared/cycle/models";
 import type { HyperparameterDef } from "../../src/shared/trainingTypes";
 
 // ─── Fixture catalog ─────────────────────────────────────────────────────────
@@ -55,12 +60,55 @@ const XGBOOST_ENTRY: CycleCatalogEntry = {
   ],
 };
 
-vi.mock("../../src/client/src/cycle/useCycleCatalog", () => ({
+const MODELS_RESPONSE: CycleModelsResponse = {
+  categories: [
+    {
+      id: "supervised",
+      label: "Supervised learning",
+      runnableCount: 1,
+      subcategories: [
+        {
+          id: "boosting-methods",
+          label: "Boosting methods",
+          models: [
+            {
+              key: "xgboost",
+              runnerKey: "xgboost+walk_forward_cycle",
+              displayName: "XGBoost",
+              catalogSpecId: "machine-learning-supervised-learning-boosting-methods-xgboost",
+              specAvailable: true,
+              kind: "Tree ensemble",
+              summary: "Trees built one after another.",
+              implementationNote: null,
+              runnable: true,
+              unavailableReason: null,
+              implementation: "xgboost",
+              explainKind: "trees",
+              directionMode: "classifier",
+              hasPriceModel: true,
+              sequence: false,
+              speed: "fast",
+              estimatedTrainingTime: "2-30 min (paced replay)",
+            },
+          ],
+        },
+      ],
+    },
+  ],
+  runnableCount: 1,
+  totalCount: 1,
+  catalogAvailable: true,
+};
+
+// The runner read and the registry read are both replaced; the pure helpers the browser uses stay real.
+vi.mock("../../src/client/src/cycle/useCycleCatalog", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/client/src/cycle/useCycleCatalog")>()),
   useCycleCatalog: () => ({
     entries: [XGBOOST_ENTRY],
     byFamily: new Map([["xgboost", XGBOOST_ENTRY]]),
     isLoading: false,
   }),
+  useCycleModels: () => ({ data: MODELS_RESPONSE, isLoading: false, isError: false, error: null }),
 }));
 
 vi.mock("../../src/client/src/shared/contexts/SymbolContext", () => ({
@@ -76,7 +124,7 @@ beforeEach(() => {
   window.localStorage.clear();
 });
 
-describe("ConfigForm — family fields", () => {
+describe("ConfigForm — model fields", () => {
   it("renders the selected family's grouped fields from the fixture catalog", () => {
     const initial: CycleFormState = {
       ...createInitialCycleFormState(),
@@ -93,12 +141,14 @@ describe("ConfigForm — family fields", () => {
     };
     render(<Harness initial={initial} />);
 
-    // Family card is present and selected.
-    expect(screen.getByText("XGBoost")).toBeInTheDocument();
-    expect(screen.getByText("Tree ensemble")).toBeInTheDocument();
+    // The model's card is present, selected, and carries the registry's kind badge.
+    const card = within(screen.getByTestId("cycle-model-card-xgboost"));
+    expect(card.getByText("XGBoost")).toBeInTheDocument();
+    expect(card.getByText("Tree ensemble")).toBeInTheDocument();
+    expect(card.getByRole("button", { pressed: true })).toBeInTheDocument();
 
     // Group labels from the fixture's group order.
-    expect(screen.getByText("Model")).toBeInTheDocument();
+    expect(screen.getAllByText("Model")).toHaveLength(2); // the browser's heading and the parameter group
     expect(screen.getByText("Walk-forward")).toBeInTheDocument();
     expect(screen.getByText("Trading")).toBeInTheDocument();
     expect(screen.getByText("Runtime")).toBeInTheDocument();
@@ -116,12 +166,44 @@ describe("ConfigForm — family fields", () => {
     expect(screen.getByText("MNQ")).toBeInTheDocument();
   });
 
-  it("picking a family fills defaults and switching back restores the remembered values", () => {
+  it("picking a model fills its defaults and remembers it as the last model", () => {
     const initial = createInitialCycleFormState();
     render(<Harness initial={initial} />);
+    expect(screen.queryByText("Boosting rounds")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText("XGBoost"));
     expect(screen.getByText("Boosting rounds")).toBeInTheDocument();
+    expect(window.localStorage.getItem("cycle-last-family-v1")).toBe("xgboost+walk_forward_cycle");
+    const stored = JSON.parse(window.localStorage.getItem("cycle-config-xgboost+walk_forward_cycle-v1") ?? "{}");
+    expect(stored.hyperparameters.boosting_rounds).toBe(400);
+  });
+
+  it("a reload opens on the last model with its remembered values", () => {
+    window.localStorage.setItem("cycle-last-family-v1", "xgboost+walk_forward_cycle");
+    window.localStorage.setItem(
+      "cycle-config-xgboost+walk_forward_cycle-v1",
+      JSON.stringify({ familyKey: "xgboost+walk_forward_cycle", timeframe: "15m", hyperparameters: { boosting_rounds: 250 } }),
+    );
+    const onChange = vi.fn();
+    render(<ConfigForm value={createInitialCycleFormState()} onChange={onChange} />);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0]![0] as CycleFormState;
+    expect(next.familyKey).toBe("xgboost+walk_forward_cycle");
+    expect(next.timeframe).toBe("15m");
+    expect(next.hyperparameters.boosting_rounds).toBe(250);
+    expect(next.hyperparameters.learning_rate).toBe(0.05); // not remembered: the default
+  });
+});
+
+describe("parameterHelpFor — the runner's description first", () => {
+  it("uses the runner's description when it has one", () => {
+    expect(parameterHelpFor("learning_rate", "The registry's own sentence.")).toBe("The registry's own sentence.");
+  });
+
+  it("falls back to parameterHelp.ts when the description is missing or blank", () => {
+    expect(parameterHelpFor("learning_rate")).toBe(CYCLE_PARAMETER_HELP.learning_rate);
+    expect(parameterHelpFor("learning_rate", "   ")).toBe(CYCLE_PARAMETER_HELP.learning_rate);
+    expect(parameterHelpFor("not_a_known_key")).toBeUndefined();
   });
 });
 
@@ -156,7 +238,7 @@ describe("validateCycleForm — step_days blocks Play", () => {
     expect(validateCycleForm(state).valid).toBe(false);
   });
 
-  it("blocks Play when no family is selected", () => {
+  it("blocks Play when no model is selected", () => {
     expect(validateCycleForm(createInitialCycleFormState()).valid).toBe(false);
   });
 });

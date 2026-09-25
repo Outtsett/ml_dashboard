@@ -30,6 +30,7 @@ declare module 'express-serve-static-core' {
 import { attachMetricsWebSocket } from './infrastructure/core/ws';
 import { registerMarimoProxies } from './marimo/proxy';
 import { stopAllGroups as stopAllMarimoGroups } from './marimo/servers';
+import { stopCycleExplainer } from './training/cycleExplainer';
 
 // Re-export for backward compat
 export { log } from './infrastructure/lib/log';
@@ -432,6 +433,8 @@ async function bootstrap() {
     shutdownHardwareNode();
     shutdownAllPtySessions();
     await stopAllMarimoGroups();
+    // The Model Cycle's warm explainer is a Python child: stop it so it is not orphaned.
+    await stopCycleExplainer();
 
     // A training child is a detached Python process: on Windows it outlives this
     // one, so a restart otherwise leaves the previous run writing checkpoints

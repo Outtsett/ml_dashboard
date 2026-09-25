@@ -5,7 +5,13 @@ Local files (full-word column names):
     predictions.parquet  one row per processed test bar, with the price model's forecast
                          (predicted_move_points, predicted_close, forecast_timestamp) and,
                          once its target bar was walked, forecast_error_points
-    fold_<k>/            the direction classifier; fold_<k>/price_model/ the price model
+    fold_<k>/            the direction model and fold_<k>/price_model/ the price model, each
+                         saved right after its own fit; fold_<k>/index.npz, written before
+                         fitting, holds the rows each was fitted on
+    explain/             written at plan time for "Inside the model"
+                         (``write_explain_inputs``): manifest.json and the arrays the
+                         models read — features.npy, raw_features.npy, timestamps.npy,
+                         close.npy, move_scale.npy, labels.npy, price_target.npy
     trades.parquet       one row per trade
     epochs.parquet       one row per training step summary (folds and tuning trials)
     trials.parquet       one row per tuning trial
@@ -31,6 +37,7 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -41,6 +48,8 @@ if TYPE_CHECKING:
     from cycle.engine import CycleEngine
 
 DATASET = "model_cycle_runs"
+EXPLAIN_DIRECTORY = "explain"
+EXPLAIN_MANIFEST_VERSION = 1
 LAKE_TABLES = ("predictions", "trades", "folds")
 DEFAULT_LAKE_PYTHON = "E:/source/repos/datalake/.venv/Scripts/python.exe"
 
@@ -119,6 +128,84 @@ def _write_json(path: str, value) -> None:
         handle.write(dumps_safe(value, indent=2))
 
 
+def _save_array(path: str, values: np.ndarray) -> None:
+    # np.save appends ".npy" to a name without it, so write through a handle
+    temporary = path + ".tmp"
+    with open(temporary, "wb") as handle:
+        np.save(handle, values, allow_pickle=False)
+    os.replace(temporary, path)
+
+
+def explain_manifest(engine: CycleEngine, sequence_length: int) -> dict:
+    """``explain/manifest.json``: what the explainer and the server need to find
+    and label a run's inputs and fold models (``src/shared/cycle/explain.ts``)."""
+    from cycle.features import display_names
+
+    s = engine.settings
+    names = list(engine.feature_set.names)
+    plan = engine.plan or {}
+    return {
+        "version": EXPLAIN_MANIFEST_VERSION,
+        "modelId": s.model_id,
+        "modelKey": s.model_family,
+        "displayName": engine.display_name,
+        "explainKind": engine.explain_kind,
+        "directionMode": engine.direction_mode,
+        "hasPriceModel": bool(engine.has_price_model),
+        "featureNames": names,
+        "featureDisplayNames": display_names(names),
+        "rawFeaturesAvailable": engine.feature_set.raw is not None,
+        "sequenceLength": max(1, int(sequence_length)),
+        "labelHorizonBars": int(engine.horizon),
+        "volatilityWindowBars": int(engine.volatility_window),
+        "symbol": s.symbol,
+        "timeframe": s.timeframe,
+        "barCount": len(engine.data),
+        "folds": [{"foldIndex": fold["foldIndex"], "testStart": fold["testStart"], "testEnd": fold["testEnd"]}
+                  for fold in plan.get("folds", [])],
+    }
+
+
+def write_explain_inputs(engine: CycleEngine, sequence_length: int) -> str:
+    """Write ``explain/`` at plan time: the arrays every fold model reads, one
+    row per loaded bar, and the manifest last (a manifest means the arrays are
+    complete). Returns the folder."""
+    directory = os.path.join(engine.settings.artifact_directory, EXPLAIN_DIRECTORY)
+    os.makedirs(directory, exist_ok=True)
+    features = np.asarray(engine.features, dtype=np.float32)
+    raw = engine.feature_set.raw
+    # a feature set built without its raw columns (a test's planted features) writes NaN, and the manifest says so
+    raw = np.full(features.shape, np.nan, dtype=np.float32) if raw is None else np.asarray(raw, dtype=np.float32)
+    arrays = {
+        "features": features,
+        "raw_features": raw,
+        "timestamps": np.asarray(engine.data.timestamps, dtype=np.int64),
+        "close": np.asarray(engine.data.close, dtype=np.float64),
+        "move_scale": np.asarray(engine.move_scale, dtype=np.float64),
+        "labels": np.asarray(engine.labels, dtype=np.float32),
+        "price_target": np.asarray(engine.price_targets, dtype=np.float32),
+    }
+    for name, values in arrays.items():
+        _save_array(os.path.join(directory, f"{name}.npy"), values)
+    _write_json(os.path.join(directory, "manifest.json"), explain_manifest(engine, sequence_length))
+    return directory
+
+
+def write_fold_index(directory: str, *, train: np.ndarray, validation: np.ndarray, test: np.ndarray,
+                     price_train: np.ndarray, price_validation: np.ndarray) -> str:
+    """``fold_<k>/index.npz``: the rows each model of the fold is fitted on,
+    and the fold's test span, as int64 row numbers into the explain arrays."""
+    os.makedirs(directory, exist_ok=True)
+    path = os.path.join(directory, "index.npz")
+    temporary = path + ".tmp"
+    with open(temporary, "wb") as handle:
+        np.savez(handle, **{name: np.asarray(rows, dtype=np.int64) for name, rows in (
+            ("train", train), ("validation", validation), ("test", test),
+            ("price_train", price_train), ("price_validation", price_validation))})
+    os.replace(temporary, path)
+    return path
+
+
 def write_run(engine: CycleEngine) -> dict:
     """Write every artifact, land the three tables, return the done-diagnostics."""
     s = engine.settings
@@ -142,15 +229,20 @@ def write_run(engine: CycleEngine) -> dict:
 
     final_metrics = (engine.final_scoreboard or {}).get("metrics") or {}
     price_forecast = {name: final_metrics.get(name) for name in PRICE_FORECAST_METRIC_NAMES}
-    price_model = {
-        "target": (f"(close[t+{engine.horizon}] - close[t]) divided by the sample standard deviation of the "
-                   f"{engine.horizon}-bar moves ending at bars t-{engine.volatility_window - 1}..t, floored at one tick"),
-        "horizonBars": int(engine.horizon),
-        "volatilityWindowBars": int(engine.volatility_window),
-        "parameters": "the direction classifier's (tuned when tuning is on); the price model itself is never tuned",
-        "baseline": "persistence: the no-change forecast, predicted close = this bar's close",
-        "finalMetrics": price_forecast,
-    }
+    price_model = None
+    if engine.has_price_model:
+        from_price = engine.direction_mode == "from_price"
+        price_model = {
+            "target": (f"(close[t+{engine.horizon}] - close[t]) divided by the sample standard deviation of the "
+                       f"{engine.horizon}-bar moves ending at bars t-{engine.volatility_window - 1}..t, floored at one tick"),
+            "horizonBars": int(engine.horizon),
+            "volatilityWindowBars": int(engine.volatility_window),
+            "parameters": ("the model's own (tuned when tuning is on): the price model IS the direction model, which reads "
+                           "P(up) from its forecast through a logistic curve fitted on the validation bars" if from_price else
+                           "the direction classifier's (tuned when tuning is on); the price model itself is never tuned"),
+            "baseline": "persistence: the no-change forecast, predicted close = this bar's close",
+            "finalMetrics": price_forecast,
+        }
     config = {"plan": engine.plan, "parametersUsed": engine.parameters, "tuning": engine.tuning_summary,
               "priceModel": price_model,
               "settings": {key: value for key, value in vars(s).items() if key != "model_parameters"}}

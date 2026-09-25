@@ -1,0 +1,2254 @@
+{
+ "source": "src/ml/cycle/models.py at 251c9e3 (before the registry): legacy defaults, validation outcomes and Optuna calls",
+ "recorder": "suggest_float returns high when log else low; suggest_int returns high; suggest_categorical returns the last choice",
+ "probes": [
+  0,
+  -1,
+  0.5,
+  1,
+  1.5,
+  2.5,
+  "7",
+  null
+ ],
+ "families": {
+  "logistic_regression": {
+   "defaults": {
+    "regularization_strength": 1.0,
+    "max_iterations": 300
+   },
+   "defaultTypes": {
+    "regularization_strength": "float",
+    "max_iterations": "int"
+   },
+   "validation": {
+    "regularization_strength=0": {
+     "error": "ValueError: logistic_regression: regularization_strength must be greater than 0, got 0.0"
+    },
+    "regularization_strength=-1": {
+     "error": "ValueError: logistic_regression: regularization_strength must be greater than 0, got -1.0"
+    },
+    "regularization_strength=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "regularization_strength=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "regularization_strength=1.5": {
+     "value": 1.5,
+     "type": "float"
+    },
+    "regularization_strength=2.5": {
+     "value": 2.5,
+     "type": "float"
+    },
+    "regularization_strength='7'": {
+     "value": 7.0,
+     "type": "float"
+    },
+    "regularization_strength=None": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "max_iterations=0": {
+     "error": "ValueError: logistic_regression: max_iterations must be at least 1, got 0"
+    },
+    "max_iterations=-1": {
+     "error": "ValueError: logistic_regression: max_iterations must be at least 1, got -1"
+    },
+    "max_iterations=0.5": {
+     "error": "ValueError: logistic_regression: max_iterations must be a whole number, got 0.5"
+    },
+    "max_iterations=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "max_iterations=1.5": {
+     "error": "ValueError: logistic_regression: max_iterations must be a whole number, got 1.5"
+    },
+    "max_iterations=2.5": {
+     "error": "ValueError: logistic_regression: max_iterations must be a whole number, got 2.5"
+    },
+    "max_iterations='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "max_iterations=None": {
+     "value": 300,
+     "type": "int"
+    }
+   },
+   "optunaCalls": [
+    [
+     "float",
+     "regularization_strength",
+     0.001,
+     100.0,
+     true
+    ]
+   ],
+   "optunaResult": {
+    "regularization_strength": 100.0,
+    "max_iterations": 300
+   }
+  },
+  "random_forest": {
+   "defaults": {
+    "tree_count": 300,
+    "max_depth": 8,
+    "min_samples_leaf": 20,
+    "max_features_fraction": 0.5
+   },
+   "defaultTypes": {
+    "tree_count": "int",
+    "max_depth": "int",
+    "min_samples_leaf": "int",
+    "max_features_fraction": "float"
+   },
+   "validation": {
+    "tree_count=0": {
+     "error": "ValueError: random_forest: tree_count must be at least 1, got 0"
+    },
+    "tree_count=-1": {
+     "error": "ValueError: random_forest: tree_count must be at least 1, got -1"
+    },
+    "tree_count=0.5": {
+     "error": "ValueError: random_forest: tree_count must be a whole number, got 0.5"
+    },
+    "tree_count=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "tree_count=1.5": {
+     "error": "ValueError: random_forest: tree_count must be a whole number, got 1.5"
+    },
+    "tree_count=2.5": {
+     "error": "ValueError: random_forest: tree_count must be a whole number, got 2.5"
+    },
+    "tree_count='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "tree_count=None": {
+     "value": 300,
+     "type": "int"
+    },
+    "max_depth=0": {
+     "error": "ValueError: random_forest: max_depth must be at least 1, got 0"
+    },
+    "max_depth=-1": {
+     "error": "ValueError: random_forest: max_depth must be at least 1, got -1"
+    },
+    "max_depth=0.5": {
+     "error": "ValueError: random_forest: max_depth must be a whole number, got 0.5"
+    },
+    "max_depth=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "max_depth=1.5": {
+     "error": "ValueError: random_forest: max_depth must be a whole number, got 1.5"
+    },
+    "max_depth=2.5": {
+     "error": "ValueError: random_forest: max_depth must be a whole number, got 2.5"
+    },
+    "max_depth='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "max_depth=None": {
+     "value": 8,
+     "type": "int"
+    },
+    "min_samples_leaf=0": {
+     "error": "ValueError: random_forest: min_samples_leaf must be at least 1, got 0"
+    },
+    "min_samples_leaf=-1": {
+     "error": "ValueError: random_forest: min_samples_leaf must be at least 1, got -1"
+    },
+    "min_samples_leaf=0.5": {
+     "error": "ValueError: random_forest: min_samples_leaf must be a whole number, got 0.5"
+    },
+    "min_samples_leaf=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "min_samples_leaf=1.5": {
+     "error": "ValueError: random_forest: min_samples_leaf must be a whole number, got 1.5"
+    },
+    "min_samples_leaf=2.5": {
+     "error": "ValueError: random_forest: min_samples_leaf must be a whole number, got 2.5"
+    },
+    "min_samples_leaf='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "min_samples_leaf=None": {
+     "value": 20,
+     "type": "int"
+    },
+    "max_features_fraction=0": {
+     "error": "ValueError: random_forest: max_features_fraction must be in (0, 1], got 0.0"
+    },
+    "max_features_fraction=-1": {
+     "error": "ValueError: random_forest: max_features_fraction must be in (0, 1], got -1.0"
+    },
+    "max_features_fraction=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "max_features_fraction=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "max_features_fraction=1.5": {
+     "error": "ValueError: random_forest: max_features_fraction must be in (0, 1], got 1.5"
+    },
+    "max_features_fraction=2.5": {
+     "error": "ValueError: random_forest: max_features_fraction must be in (0, 1], got 2.5"
+    },
+    "max_features_fraction='7'": {
+     "error": "ValueError: random_forest: max_features_fraction must be in (0, 1], got 7.0"
+    },
+    "max_features_fraction=None": {
+     "value": 0.5,
+     "type": "float"
+    }
+   },
+   "optunaCalls": [
+    [
+     "categorical",
+     "max_depth",
+     [
+      4,
+      6,
+      8,
+      12,
+      16
+     ]
+    ],
+    [
+     "int",
+     "min_samples_leaf",
+     5,
+     200,
+     true
+    ],
+    [
+     "float",
+     "max_features_fraction",
+     0.1,
+     0.9,
+     false
+    ]
+   ],
+   "optunaResult": {
+    "tree_count": 300,
+    "max_depth": 16,
+    "min_samples_leaf": 200,
+    "max_features_fraction": 0.1
+   }
+  },
+  "xgboost": {
+   "defaults": {
+    "boosting_rounds": 400,
+    "max_depth": 6,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "column_subsample": 0.8,
+    "min_child_weight": 1.0,
+    "l2_regularization": 1.0,
+    "early_stopping_rounds": 50
+   },
+   "defaultTypes": {
+    "boosting_rounds": "int",
+    "max_depth": "int",
+    "learning_rate": "float",
+    "subsample": "float",
+    "column_subsample": "float",
+    "min_child_weight": "float",
+    "l2_regularization": "float",
+    "early_stopping_rounds": "int"
+   },
+   "validation": {
+    "boosting_rounds=0": {
+     "error": "ValueError: xgboost: boosting_rounds must be at least 1, got 0"
+    },
+    "boosting_rounds=-1": {
+     "error": "ValueError: xgboost: boosting_rounds must be at least 1, got -1"
+    },
+    "boosting_rounds=0.5": {
+     "error": "ValueError: xgboost: boosting_rounds must be a whole number, got 0.5"
+    },
+    "boosting_rounds=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "boosting_rounds=1.5": {
+     "error": "ValueError: xgboost: boosting_rounds must be a whole number, got 1.5"
+    },
+    "boosting_rounds=2.5": {
+     "error": "ValueError: xgboost: boosting_rounds must be a whole number, got 2.5"
+    },
+    "boosting_rounds='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "boosting_rounds=None": {
+     "value": 400,
+     "type": "int"
+    },
+    "max_depth=0": {
+     "error": "ValueError: xgboost: max_depth must be at least 1, got 0"
+    },
+    "max_depth=-1": {
+     "error": "ValueError: xgboost: max_depth must be at least 1, got -1"
+    },
+    "max_depth=0.5": {
+     "error": "ValueError: xgboost: max_depth must be a whole number, got 0.5"
+    },
+    "max_depth=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "max_depth=1.5": {
+     "error": "ValueError: xgboost: max_depth must be a whole number, got 1.5"
+    },
+    "max_depth=2.5": {
+     "error": "ValueError: xgboost: max_depth must be a whole number, got 2.5"
+    },
+    "max_depth='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "max_depth=None": {
+     "value": 6,
+     "type": "int"
+    },
+    "learning_rate=0": {
+     "error": "ValueError: xgboost: learning_rate must be greater than 0, got 0.0"
+    },
+    "learning_rate=-1": {
+     "error": "ValueError: xgboost: learning_rate must be greater than 0, got -1.0"
+    },
+    "learning_rate=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "learning_rate=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "learning_rate=1.5": {
+     "value": 1.5,
+     "type": "float"
+    },
+    "learning_rate=2.5": {
+     "value": 2.5,
+     "type": "float"
+    },
+    "learning_rate='7'": {
+     "value": 7.0,
+     "type": "float"
+    },
+    "learning_rate=None": {
+     "value": 0.05,
+     "type": "float"
+    },
+    "subsample=0": {
+     "error": "ValueError: xgboost: subsample must be in (0, 1], got 0.0"
+    },
+    "subsample=-1": {
+     "error": "ValueError: xgboost: subsample must be in (0, 1], got -1.0"
+    },
+    "subsample=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "subsample=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "subsample=1.5": {
+     "error": "ValueError: xgboost: subsample must be in (0, 1], got 1.5"
+    },
+    "subsample=2.5": {
+     "error": "ValueError: xgboost: subsample must be in (0, 1], got 2.5"
+    },
+    "subsample='7'": {
+     "error": "ValueError: xgboost: subsample must be in (0, 1], got 7.0"
+    },
+    "subsample=None": {
+     "value": 0.8,
+     "type": "float"
+    },
+    "column_subsample=0": {
+     "error": "ValueError: xgboost: column_subsample must be in (0, 1], got 0.0"
+    },
+    "column_subsample=-1": {
+     "error": "ValueError: xgboost: column_subsample must be in (0, 1], got -1.0"
+    },
+    "column_subsample=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "column_subsample=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "column_subsample=1.5": {
+     "error": "ValueError: xgboost: column_subsample must be in (0, 1], got 1.5"
+    },
+    "column_subsample=2.5": {
+     "error": "ValueError: xgboost: column_subsample must be in (0, 1], got 2.5"
+    },
+    "column_subsample='7'": {
+     "error": "ValueError: xgboost: column_subsample must be in (0, 1], got 7.0"
+    },
+    "column_subsample=None": {
+     "value": 0.8,
+     "type": "float"
+    },
+    "min_child_weight=0": {
+     "value": 0.0,
+     "type": "float"
+    },
+    "min_child_weight=-1": {
+     "error": "ValueError: xgboost: min_child_weight must not be negative, got -1.0"
+    },
+    "min_child_weight=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "min_child_weight=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "min_child_weight=1.5": {
+     "value": 1.5,
+     "type": "float"
+    },
+    "min_child_weight=2.5": {
+     "value": 2.5,
+     "type": "float"
+    },
+    "min_child_weight='7'": {
+     "value": 7.0,
+     "type": "float"
+    },
+    "min_child_weight=None": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "l2_regularization=0": {
+     "value": 0.0,
+     "type": "float"
+    },
+    "l2_regularization=-1": {
+     "error": "ValueError: xgboost: l2_regularization must not be negative, got -1.0"
+    },
+    "l2_regularization=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "l2_regularization=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "l2_regularization=1.5": {
+     "value": 1.5,
+     "type": "float"
+    },
+    "l2_regularization=2.5": {
+     "value": 2.5,
+     "type": "float"
+    },
+    "l2_regularization='7'": {
+     "value": 7.0,
+     "type": "float"
+    },
+    "l2_regularization=None": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "early_stopping_rounds=0": {
+     "value": 0,
+     "type": "int"
+    },
+    "early_stopping_rounds=-1": {
+     "error": "ValueError: xgboost: early_stopping_rounds must not be negative, got -1"
+    },
+    "early_stopping_rounds=0.5": {
+     "error": "ValueError: xgboost: early_stopping_rounds must be a whole number, got 0.5"
+    },
+    "early_stopping_rounds=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "early_stopping_rounds=1.5": {
+     "error": "ValueError: xgboost: early_stopping_rounds must be a whole number, got 1.5"
+    },
+    "early_stopping_rounds=2.5": {
+     "error": "ValueError: xgboost: early_stopping_rounds must be a whole number, got 2.5"
+    },
+    "early_stopping_rounds='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "early_stopping_rounds=None": {
+     "value": 50,
+     "type": "int"
+    }
+   },
+   "optunaCalls": [
+    [
+     "int",
+     "max_depth",
+     2,
+     10,
+     false
+    ],
+    [
+     "float",
+     "learning_rate",
+     0.01,
+     0.3,
+     true
+    ],
+    [
+     "float",
+     "subsample",
+     0.5,
+     1.0,
+     false
+    ],
+    [
+     "float",
+     "column_subsample",
+     0.3,
+     1.0,
+     false
+    ],
+    [
+     "float",
+     "min_child_weight",
+     0.5,
+     50.0,
+     true
+    ],
+    [
+     "float",
+     "l2_regularization",
+     0.001,
+     30.0,
+     true
+    ]
+   ],
+   "optunaResult": {
+    "boosting_rounds": 400,
+    "max_depth": 10,
+    "learning_rate": 0.3,
+    "subsample": 0.5,
+    "column_subsample": 0.3,
+    "min_child_weight": 50.0,
+    "l2_regularization": 30.0,
+    "early_stopping_rounds": 50
+   }
+  },
+  "lightgbm": {
+   "defaults": {
+    "boosting_rounds": 400,
+    "leaf_count": 31,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "column_subsample": 0.8,
+    "min_child_samples": 20,
+    "l2_regularization": 1.0,
+    "early_stopping_rounds": 50
+   },
+   "defaultTypes": {
+    "boosting_rounds": "int",
+    "leaf_count": "int",
+    "learning_rate": "float",
+    "subsample": "float",
+    "column_subsample": "float",
+    "min_child_samples": "int",
+    "l2_regularization": "float",
+    "early_stopping_rounds": "int"
+   },
+   "validation": {
+    "boosting_rounds=0": {
+     "error": "ValueError: lightgbm: boosting_rounds must be at least 1, got 0"
+    },
+    "boosting_rounds=-1": {
+     "error": "ValueError: lightgbm: boosting_rounds must be at least 1, got -1"
+    },
+    "boosting_rounds=0.5": {
+     "error": "ValueError: lightgbm: boosting_rounds must be a whole number, got 0.5"
+    },
+    "boosting_rounds=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "boosting_rounds=1.5": {
+     "error": "ValueError: lightgbm: boosting_rounds must be a whole number, got 1.5"
+    },
+    "boosting_rounds=2.5": {
+     "error": "ValueError: lightgbm: boosting_rounds must be a whole number, got 2.5"
+    },
+    "boosting_rounds='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "boosting_rounds=None": {
+     "value": 400,
+     "type": "int"
+    },
+    "leaf_count=0": {
+     "error": "ValueError: lightgbm: leaf_count must be at least 1, got 0"
+    },
+    "leaf_count=-1": {
+     "error": "ValueError: lightgbm: leaf_count must be at least 1, got -1"
+    },
+    "leaf_count=0.5": {
+     "error": "ValueError: lightgbm: leaf_count must be a whole number, got 0.5"
+    },
+    "leaf_count=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "leaf_count=1.5": {
+     "error": "ValueError: lightgbm: leaf_count must be a whole number, got 1.5"
+    },
+    "leaf_count=2.5": {
+     "error": "ValueError: lightgbm: leaf_count must be a whole number, got 2.5"
+    },
+    "leaf_count='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "leaf_count=None": {
+     "value": 31,
+     "type": "int"
+    },
+    "learning_rate=0": {
+     "error": "ValueError: lightgbm: learning_rate must be greater than 0, got 0.0"
+    },
+    "learning_rate=-1": {
+     "error": "ValueError: lightgbm: learning_rate must be greater than 0, got -1.0"
+    },
+    "learning_rate=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "learning_rate=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "learning_rate=1.5": {
+     "value": 1.5,
+     "type": "float"
+    },
+    "learning_rate=2.5": {
+     "value": 2.5,
+     "type": "float"
+    },
+    "learning_rate='7'": {
+     "value": 7.0,
+     "type": "float"
+    },
+    "learning_rate=None": {
+     "value": 0.05,
+     "type": "float"
+    },
+    "subsample=0": {
+     "error": "ValueError: lightgbm: subsample must be in (0, 1], got 0.0"
+    },
+    "subsample=-1": {
+     "error": "ValueError: lightgbm: subsample must be in (0, 1], got -1.0"
+    },
+    "subsample=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "subsample=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "subsample=1.5": {
+     "error": "ValueError: lightgbm: subsample must be in (0, 1], got 1.5"
+    },
+    "subsample=2.5": {
+     "error": "ValueError: lightgbm: subsample must be in (0, 1], got 2.5"
+    },
+    "subsample='7'": {
+     "error": "ValueError: lightgbm: subsample must be in (0, 1], got 7.0"
+    },
+    "subsample=None": {
+     "value": 0.8,
+     "type": "float"
+    },
+    "column_subsample=0": {
+     "error": "ValueError: lightgbm: column_subsample must be in (0, 1], got 0.0"
+    },
+    "column_subsample=-1": {
+     "error": "ValueError: lightgbm: column_subsample must be in (0, 1], got -1.0"
+    },
+    "column_subsample=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "column_subsample=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "column_subsample=1.5": {
+     "error": "ValueError: lightgbm: column_subsample must be in (0, 1], got 1.5"
+    },
+    "column_subsample=2.5": {
+     "error": "ValueError: lightgbm: column_subsample must be in (0, 1], got 2.5"
+    },
+    "column_subsample='7'": {
+     "error": "ValueError: lightgbm: column_subsample must be in (0, 1], got 7.0"
+    },
+    "column_subsample=None": {
+     "value": 0.8,
+     "type": "float"
+    },
+    "min_child_samples=0": {
+     "error": "ValueError: lightgbm: min_child_samples must be at least 1, got 0"
+    },
+    "min_child_samples=-1": {
+     "error": "ValueError: lightgbm: min_child_samples must be at least 1, got -1"
+    },
+    "min_child_samples=0.5": {
+     "error": "ValueError: lightgbm: min_child_samples must be a whole number, got 0.5"
+    },
+    "min_child_samples=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "min_child_samples=1.5": {
+     "error": "ValueError: lightgbm: min_child_samples must be a whole number, got 1.5"
+    },
+    "min_child_samples=2.5": {
+     "error": "ValueError: lightgbm: min_child_samples must be a whole number, got 2.5"
+    },
+    "min_child_samples='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "min_child_samples=None": {
+     "value": 20,
+     "type": "int"
+    },
+    "l2_regularization=0": {
+     "value": 0.0,
+     "type": "float"
+    },
+    "l2_regularization=-1": {
+     "error": "ValueError: lightgbm: l2_regularization must not be negative, got -1.0"
+    },
+    "l2_regularization=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "l2_regularization=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "l2_regularization=1.5": {
+     "value": 1.5,
+     "type": "float"
+    },
+    "l2_regularization=2.5": {
+     "value": 2.5,
+     "type": "float"
+    },
+    "l2_regularization='7'": {
+     "value": 7.0,
+     "type": "float"
+    },
+    "l2_regularization=None": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "early_stopping_rounds=0": {
+     "value": 0,
+     "type": "int"
+    },
+    "early_stopping_rounds=-1": {
+     "error": "ValueError: lightgbm: early_stopping_rounds must not be negative, got -1"
+    },
+    "early_stopping_rounds=0.5": {
+     "error": "ValueError: lightgbm: early_stopping_rounds must be a whole number, got 0.5"
+    },
+    "early_stopping_rounds=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "early_stopping_rounds=1.5": {
+     "error": "ValueError: lightgbm: early_stopping_rounds must be a whole number, got 1.5"
+    },
+    "early_stopping_rounds=2.5": {
+     "error": "ValueError: lightgbm: early_stopping_rounds must be a whole number, got 2.5"
+    },
+    "early_stopping_rounds='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "early_stopping_rounds=None": {
+     "value": 50,
+     "type": "int"
+    }
+   },
+   "optunaCalls": [
+    [
+     "categorical",
+     "leaf_count",
+     [
+      7,
+      15,
+      31,
+      63,
+      127
+     ]
+    ],
+    [
+     "float",
+     "learning_rate",
+     0.01,
+     0.3,
+     true
+    ],
+    [
+     "float",
+     "subsample",
+     0.5,
+     1.0,
+     false
+    ],
+    [
+     "float",
+     "column_subsample",
+     0.3,
+     1.0,
+     false
+    ],
+    [
+     "int",
+     "min_child_samples",
+     5,
+     300,
+     true
+    ],
+    [
+     "float",
+     "l2_regularization",
+     0.001,
+     30.0,
+     true
+    ]
+   ],
+   "optunaResult": {
+    "boosting_rounds": 400,
+    "leaf_count": 127,
+    "learning_rate": 0.3,
+    "subsample": 0.5,
+    "column_subsample": 0.3,
+    "min_child_samples": 300,
+    "l2_regularization": 30.0,
+    "early_stopping_rounds": 50
+   }
+  },
+  "multilayer_perceptron": {
+   "defaults": {
+    "hidden_size": 128,
+    "layer_count": 2,
+    "dropout": 0.2,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 256,
+    "epochs": 20,
+    "patience": 5
+   },
+   "defaultTypes": {
+    "hidden_size": "int",
+    "layer_count": "int",
+    "dropout": "float",
+    "learning_rate": "float",
+    "weight_decay": "float",
+    "batch_size": "int",
+    "epochs": "int",
+    "patience": "int"
+   },
+   "validation": {
+    "hidden_size=0": {
+     "error": "ValueError: multilayer_perceptron: hidden_size must be at least 1, got 0"
+    },
+    "hidden_size=-1": {
+     "error": "ValueError: multilayer_perceptron: hidden_size must be at least 1, got -1"
+    },
+    "hidden_size=0.5": {
+     "error": "ValueError: multilayer_perceptron: hidden_size must be a whole number, got 0.5"
+    },
+    "hidden_size=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "hidden_size=1.5": {
+     "error": "ValueError: multilayer_perceptron: hidden_size must be a whole number, got 1.5"
+    },
+    "hidden_size=2.5": {
+     "error": "ValueError: multilayer_perceptron: hidden_size must be a whole number, got 2.5"
+    },
+    "hidden_size='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "hidden_size=None": {
+     "value": 128,
+     "type": "int"
+    },
+    "layer_count=0": {
+     "error": "ValueError: multilayer_perceptron: layer_count must be at least 1, got 0"
+    },
+    "layer_count=-1": {
+     "error": "ValueError: multilayer_perceptron: layer_count must be at least 1, got -1"
+    },
+    "layer_count=0.5": {
+     "error": "ValueError: multilayer_perceptron: layer_count must be a whole number, got 0.5"
+    },
+    "layer_count=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "layer_count=1.5": {
+     "error": "ValueError: multilayer_perceptron: layer_count must be a whole number, got 1.5"
+    },
+    "layer_count=2.5": {
+     "error": "ValueError: multilayer_perceptron: layer_count must be a whole number, got 2.5"
+    },
+    "layer_count='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "layer_count=None": {
+     "value": 2,
+     "type": "int"
+    },
+    "dropout=0": {
+     "value": 0.0,
+     "type": "float"
+    },
+    "dropout=-1": {
+     "error": "ValueError: multilayer_perceptron: dropout must not be negative, got -1.0"
+    },
+    "dropout=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "dropout=1": {
+     "error": "ValueError: multilayer_perceptron: dropout must be below 1, got 1.0"
+    },
+    "dropout=1.5": {
+     "error": "ValueError: multilayer_perceptron: dropout must be below 1, got 1.5"
+    },
+    "dropout=2.5": {
+     "error": "ValueError: multilayer_perceptron: dropout must be below 1, got 2.5"
+    },
+    "dropout='7'": {
+     "error": "ValueError: multilayer_perceptron: dropout must be below 1, got 7.0"
+    },
+    "dropout=None": {
+     "value": 0.2,
+     "type": "float"
+    },
+    "learning_rate=0": {
+     "error": "ValueError: multilayer_perceptron: learning_rate must be greater than 0, got 0.0"
+    },
+    "learning_rate=-1": {
+     "error": "ValueError: multilayer_perceptron: learning_rate must be greater than 0, got -1.0"
+    },
+    "learning_rate=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "learning_rate=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "learning_rate=1.5": {
+     "value": 1.5,
+     "type": "float"
+    },
+    "learning_rate=2.5": {
+     "value": 2.5,
+     "type": "float"
+    },
+    "learning_rate='7'": {
+     "value": 7.0,
+     "type": "float"
+    },
+    "learning_rate=None": {
+     "value": 0.001,
+     "type": "float"
+    },
+    "weight_decay=0": {
+     "value": 0.0,
+     "type": "float"
+    },
+    "weight_decay=-1": {
+     "error": "ValueError: multilayer_perceptron: weight_decay must not be negative, got -1.0"
+    },
+    "weight_decay=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "weight_decay=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "weight_decay=1.5": {
+     "value": 1.5,
+     "type": "float"
+    },
+    "weight_decay=2.5": {
+     "value": 2.5,
+     "type": "float"
+    },
+    "weight_decay='7'": {
+     "value": 7.0,
+     "type": "float"
+    },
+    "weight_decay=None": {
+     "value": 0.0001,
+     "type": "float"
+    },
+    "batch_size=0": {
+     "error": "ValueError: multilayer_perceptron: batch_size must be at least 1, got 0"
+    },
+    "batch_size=-1": {
+     "error": "ValueError: multilayer_perceptron: batch_size must be at least 1, got -1"
+    },
+    "batch_size=0.5": {
+     "error": "ValueError: multilayer_perceptron: batch_size must be a whole number, got 0.5"
+    },
+    "batch_size=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "batch_size=1.5": {
+     "error": "ValueError: multilayer_perceptron: batch_size must be a whole number, got 1.5"
+    },
+    "batch_size=2.5": {
+     "error": "ValueError: multilayer_perceptron: batch_size must be a whole number, got 2.5"
+    },
+    "batch_size='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "batch_size=None": {
+     "value": 256,
+     "type": "int"
+    },
+    "epochs=0": {
+     "error": "ValueError: multilayer_perceptron: epochs must be at least 1, got 0"
+    },
+    "epochs=-1": {
+     "error": "ValueError: multilayer_perceptron: epochs must be at least 1, got -1"
+    },
+    "epochs=0.5": {
+     "error": "ValueError: multilayer_perceptron: epochs must be a whole number, got 0.5"
+    },
+    "epochs=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "epochs=1.5": {
+     "error": "ValueError: multilayer_perceptron: epochs must be a whole number, got 1.5"
+    },
+    "epochs=2.5": {
+     "error": "ValueError: multilayer_perceptron: epochs must be a whole number, got 2.5"
+    },
+    "epochs='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "epochs=None": {
+     "value": 20,
+     "type": "int"
+    },
+    "patience=0": {
+     "error": "ValueError: multilayer_perceptron: patience must be at least 1, got 0"
+    },
+    "patience=-1": {
+     "error": "ValueError: multilayer_perceptron: patience must be at least 1, got -1"
+    },
+    "patience=0.5": {
+     "error": "ValueError: multilayer_perceptron: patience must be a whole number, got 0.5"
+    },
+    "patience=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "patience=1.5": {
+     "error": "ValueError: multilayer_perceptron: patience must be a whole number, got 1.5"
+    },
+    "patience=2.5": {
+     "error": "ValueError: multilayer_perceptron: patience must be a whole number, got 2.5"
+    },
+    "patience='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "patience=None": {
+     "value": 5,
+     "type": "int"
+    }
+   },
+   "optunaCalls": [
+    [
+     "float",
+     "dropout",
+     0.0,
+     0.5,
+     false
+    ],
+    [
+     "float",
+     "learning_rate",
+     0.0001,
+     0.003,
+     true
+    ],
+    [
+     "float",
+     "weight_decay",
+     1e-06,
+     0.01,
+     true
+    ],
+    [
+     "categorical",
+     "batch_size",
+     [
+      128,
+      256,
+      512
+     ]
+    ],
+    [
+     "categorical",
+     "hidden_size",
+     [
+      64,
+      128,
+      256
+     ]
+    ],
+    [
+     "int",
+     "layer_count",
+     1,
+     3,
+     false
+    ]
+   ],
+   "optunaResult": {
+    "hidden_size": 256,
+    "layer_count": 3,
+    "dropout": 0.0,
+    "learning_rate": 0.003,
+    "weight_decay": 0.01,
+    "batch_size": 512,
+    "epochs": 20,
+    "patience": 5
+   }
+  },
+  "lstm": {
+   "defaults": {
+    "sequence_length": 32,
+    "hidden_size": 64,
+    "layer_count": 1,
+    "dropout": 0.2,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 256,
+    "epochs": 20,
+    "patience": 5
+   },
+   "defaultTypes": {
+    "sequence_length": "int",
+    "hidden_size": "int",
+    "layer_count": "int",
+    "dropout": "float",
+    "learning_rate": "float",
+    "weight_decay": "float",
+    "batch_size": "int",
+    "epochs": "int",
+    "patience": "int"
+   },
+   "validation": {
+    "sequence_length=0": {
+     "error": "ValueError: lstm: sequence_length must be at least 1, got 0"
+    },
+    "sequence_length=-1": {
+     "error": "ValueError: lstm: sequence_length must be at least 1, got -1"
+    },
+    "sequence_length=0.5": {
+     "error": "ValueError: lstm: sequence_length must be a whole number, got 0.5"
+    },
+    "sequence_length=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "sequence_length=1.5": {
+     "error": "ValueError: lstm: sequence_length must be a whole number, got 1.5"
+    },
+    "sequence_length=2.5": {
+     "error": "ValueError: lstm: sequence_length must be a whole number, got 2.5"
+    },
+    "sequence_length='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "sequence_length=None": {
+     "value": 32,
+     "type": "int"
+    },
+    "hidden_size=0": {
+     "error": "ValueError: lstm: hidden_size must be at least 1, got 0"
+    },
+    "hidden_size=-1": {
+     "error": "ValueError: lstm: hidden_size must be at least 1, got -1"
+    },
+    "hidden_size=0.5": {
+     "error": "ValueError: lstm: hidden_size must be a whole number, got 0.5"
+    },
+    "hidden_size=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "hidden_size=1.5": {
+     "error": "ValueError: lstm: hidden_size must be a whole number, got 1.5"
+    },
+    "hidden_size=2.5": {
+     "error": "ValueError: lstm: hidden_size must be a whole number, got 2.5"
+    },
+    "hidden_size='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "hidden_size=None": {
+     "value": 64,
+     "type": "int"
+    },
+    "layer_count=0": {
+     "error": "ValueError: lstm: layer_count must be at least 1, got 0"
+    },
+    "layer_count=-1": {
+     "error": "ValueError: lstm: layer_count must be at least 1, got -1"
+    },
+    "layer_count=0.5": {
+     "error": "ValueError: lstm: layer_count must be a whole number, got 0.5"
+    },
+    "layer_count=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "layer_count=1.5": {
+     "error": "ValueError: lstm: layer_count must be a whole number, got 1.5"
+    },
+    "layer_count=2.5": {
+     "error": "ValueError: lstm: layer_count must be a whole number, got 2.5"
+    },
+    "layer_count='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "layer_count=None": {
+     "value": 1,
+     "type": "int"
+    },
+    "dropout=0": {
+     "value": 0.0,
+     "type": "float"
+    },
+    "dropout=-1": {
+     "error": "ValueError: lstm: dropout must not be negative, got -1.0"
+    },
+    "dropout=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "dropout=1": {
+     "error": "ValueError: lstm: dropout must be below 1, got 1.0"
+    },
+    "dropout=1.5": {
+     "error": "ValueError: lstm: dropout must be below 1, got 1.5"
+    },
+    "dropout=2.5": {
+     "error": "ValueError: lstm: dropout must be below 1, got 2.5"
+    },
+    "dropout='7'": {
+     "error": "ValueError: lstm: dropout must be below 1, got 7.0"
+    },
+    "dropout=None": {
+     "value": 0.2,
+     "type": "float"
+    },
+    "learning_rate=0": {
+     "error": "ValueError: lstm: learning_rate must be greater than 0, got 0.0"
+    },
+    "learning_rate=-1": {
+     "error": "ValueError: lstm: learning_rate must be greater than 0, got -1.0"
+    },
+    "learning_rate=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "learning_rate=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "learning_rate=1.5": {
+     "value": 1.5,
+     "type": "float"
+    },
+    "learning_rate=2.5": {
+     "value": 2.5,
+     "type": "float"
+    },
+    "learning_rate='7'": {
+     "value": 7.0,
+     "type": "float"
+    },
+    "learning_rate=None": {
+     "value": 0.001,
+     "type": "float"
+    },
+    "weight_decay=0": {
+     "value": 0.0,
+     "type": "float"
+    },
+    "weight_decay=-1": {
+     "error": "ValueError: lstm: weight_decay must not be negative, got -1.0"
+    },
+    "weight_decay=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "weight_decay=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "weight_decay=1.5": {
+     "value": 1.5,
+     "type": "float"
+    },
+    "weight_decay=2.5": {
+     "value": 2.5,
+     "type": "float"
+    },
+    "weight_decay='7'": {
+     "value": 7.0,
+     "type": "float"
+    },
+    "weight_decay=None": {
+     "value": 0.0001,
+     "type": "float"
+    },
+    "batch_size=0": {
+     "error": "ValueError: lstm: batch_size must be at least 1, got 0"
+    },
+    "batch_size=-1": {
+     "error": "ValueError: lstm: batch_size must be at least 1, got -1"
+    },
+    "batch_size=0.5": {
+     "error": "ValueError: lstm: batch_size must be a whole number, got 0.5"
+    },
+    "batch_size=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "batch_size=1.5": {
+     "error": "ValueError: lstm: batch_size must be a whole number, got 1.5"
+    },
+    "batch_size=2.5": {
+     "error": "ValueError: lstm: batch_size must be a whole number, got 2.5"
+    },
+    "batch_size='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "batch_size=None": {
+     "value": 256,
+     "type": "int"
+    },
+    "epochs=0": {
+     "error": "ValueError: lstm: epochs must be at least 1, got 0"
+    },
+    "epochs=-1": {
+     "error": "ValueError: lstm: epochs must be at least 1, got -1"
+    },
+    "epochs=0.5": {
+     "error": "ValueError: lstm: epochs must be a whole number, got 0.5"
+    },
+    "epochs=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "epochs=1.5": {
+     "error": "ValueError: lstm: epochs must be a whole number, got 1.5"
+    },
+    "epochs=2.5": {
+     "error": "ValueError: lstm: epochs must be a whole number, got 2.5"
+    },
+    "epochs='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "epochs=None": {
+     "value": 20,
+     "type": "int"
+    },
+    "patience=0": {
+     "error": "ValueError: lstm: patience must be at least 1, got 0"
+    },
+    "patience=-1": {
+     "error": "ValueError: lstm: patience must be at least 1, got -1"
+    },
+    "patience=0.5": {
+     "error": "ValueError: lstm: patience must be a whole number, got 0.5"
+    },
+    "patience=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "patience=1.5": {
+     "error": "ValueError: lstm: patience must be a whole number, got 1.5"
+    },
+    "patience=2.5": {
+     "error": "ValueError: lstm: patience must be a whole number, got 2.5"
+    },
+    "patience='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "patience=None": {
+     "value": 5,
+     "type": "int"
+    }
+   },
+   "optunaCalls": [
+    [
+     "float",
+     "dropout",
+     0.0,
+     0.5,
+     false
+    ],
+    [
+     "float",
+     "learning_rate",
+     0.0001,
+     0.003,
+     true
+    ],
+    [
+     "float",
+     "weight_decay",
+     1e-06,
+     0.01,
+     true
+    ],
+    [
+     "categorical",
+     "batch_size",
+     [
+      128,
+      256,
+      512
+     ]
+    ],
+    [
+     "categorical",
+     "hidden_size",
+     [
+      32,
+      64,
+      128
+     ]
+    ],
+    [
+     "int",
+     "layer_count",
+     1,
+     2,
+     false
+    ]
+   ],
+   "optunaResult": {
+    "sequence_length": 32,
+    "hidden_size": 128,
+    "layer_count": 2,
+    "dropout": 0.0,
+    "learning_rate": 0.003,
+    "weight_decay": 0.01,
+    "batch_size": 512,
+    "epochs": 20,
+    "patience": 5
+   }
+  },
+  "temporal_convolution_network": {
+   "defaults": {
+    "sequence_length": 32,
+    "channel_count": 32,
+    "kernel_size": 3,
+    "layer_count": 3,
+    "dropout": 0.2,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 256,
+    "epochs": 20,
+    "patience": 5
+   },
+   "defaultTypes": {
+    "sequence_length": "int",
+    "channel_count": "int",
+    "kernel_size": "int",
+    "layer_count": "int",
+    "dropout": "float",
+    "learning_rate": "float",
+    "weight_decay": "float",
+    "batch_size": "int",
+    "epochs": "int",
+    "patience": "int"
+   },
+   "validation": {
+    "sequence_length=0": {
+     "error": "ValueError: temporal_convolution_network: sequence_length must be at least 1, got 0"
+    },
+    "sequence_length=-1": {
+     "error": "ValueError: temporal_convolution_network: sequence_length must be at least 1, got -1"
+    },
+    "sequence_length=0.5": {
+     "error": "ValueError: temporal_convolution_network: sequence_length must be a whole number, got 0.5"
+    },
+    "sequence_length=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "sequence_length=1.5": {
+     "error": "ValueError: temporal_convolution_network: sequence_length must be a whole number, got 1.5"
+    },
+    "sequence_length=2.5": {
+     "error": "ValueError: temporal_convolution_network: sequence_length must be a whole number, got 2.5"
+    },
+    "sequence_length='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "sequence_length=None": {
+     "value": 32,
+     "type": "int"
+    },
+    "channel_count=0": {
+     "error": "ValueError: temporal_convolution_network: channel_count must be at least 1, got 0"
+    },
+    "channel_count=-1": {
+     "error": "ValueError: temporal_convolution_network: channel_count must be at least 1, got -1"
+    },
+    "channel_count=0.5": {
+     "error": "ValueError: temporal_convolution_network: channel_count must be a whole number, got 0.5"
+    },
+    "channel_count=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "channel_count=1.5": {
+     "error": "ValueError: temporal_convolution_network: channel_count must be a whole number, got 1.5"
+    },
+    "channel_count=2.5": {
+     "error": "ValueError: temporal_convolution_network: channel_count must be a whole number, got 2.5"
+    },
+    "channel_count='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "channel_count=None": {
+     "value": 32,
+     "type": "int"
+    },
+    "kernel_size=0": {
+     "error": "ValueError: temporal_convolution_network: kernel_size must be at least 1, got 0"
+    },
+    "kernel_size=-1": {
+     "error": "ValueError: temporal_convolution_network: kernel_size must be at least 1, got -1"
+    },
+    "kernel_size=0.5": {
+     "error": "ValueError: temporal_convolution_network: kernel_size must be a whole number, got 0.5"
+    },
+    "kernel_size=1": {
+     "error": "ValueError: temporal_convolution_network: kernel_size must be at least 2"
+    },
+    "kernel_size=1.5": {
+     "error": "ValueError: temporal_convolution_network: kernel_size must be a whole number, got 1.5"
+    },
+    "kernel_size=2.5": {
+     "error": "ValueError: temporal_convolution_network: kernel_size must be a whole number, got 2.5"
+    },
+    "kernel_size='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "kernel_size=None": {
+     "value": 3,
+     "type": "int"
+    },
+    "layer_count=0": {
+     "error": "ValueError: temporal_convolution_network: layer_count must be at least 1, got 0"
+    },
+    "layer_count=-1": {
+     "error": "ValueError: temporal_convolution_network: layer_count must be at least 1, got -1"
+    },
+    "layer_count=0.5": {
+     "error": "ValueError: temporal_convolution_network: layer_count must be a whole number, got 0.5"
+    },
+    "layer_count=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "layer_count=1.5": {
+     "error": "ValueError: temporal_convolution_network: layer_count must be a whole number, got 1.5"
+    },
+    "layer_count=2.5": {
+     "error": "ValueError: temporal_convolution_network: layer_count must be a whole number, got 2.5"
+    },
+    "layer_count='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "layer_count=None": {
+     "value": 3,
+     "type": "int"
+    },
+    "dropout=0": {
+     "value": 0.0,
+     "type": "float"
+    },
+    "dropout=-1": {
+     "error": "ValueError: temporal_convolution_network: dropout must not be negative, got -1.0"
+    },
+    "dropout=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "dropout=1": {
+     "error": "ValueError: temporal_convolution_network: dropout must be below 1, got 1.0"
+    },
+    "dropout=1.5": {
+     "error": "ValueError: temporal_convolution_network: dropout must be below 1, got 1.5"
+    },
+    "dropout=2.5": {
+     "error": "ValueError: temporal_convolution_network: dropout must be below 1, got 2.5"
+    },
+    "dropout='7'": {
+     "error": "ValueError: temporal_convolution_network: dropout must be below 1, got 7.0"
+    },
+    "dropout=None": {
+     "value": 0.2,
+     "type": "float"
+    },
+    "learning_rate=0": {
+     "error": "ValueError: temporal_convolution_network: learning_rate must be greater than 0, got 0.0"
+    },
+    "learning_rate=-1": {
+     "error": "ValueError: temporal_convolution_network: learning_rate must be greater than 0, got -1.0"
+    },
+    "learning_rate=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "learning_rate=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "learning_rate=1.5": {
+     "value": 1.5,
+     "type": "float"
+    },
+    "learning_rate=2.5": {
+     "value": 2.5,
+     "type": "float"
+    },
+    "learning_rate='7'": {
+     "value": 7.0,
+     "type": "float"
+    },
+    "learning_rate=None": {
+     "value": 0.001,
+     "type": "float"
+    },
+    "weight_decay=0": {
+     "value": 0.0,
+     "type": "float"
+    },
+    "weight_decay=-1": {
+     "error": "ValueError: temporal_convolution_network: weight_decay must not be negative, got -1.0"
+    },
+    "weight_decay=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "weight_decay=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "weight_decay=1.5": {
+     "value": 1.5,
+     "type": "float"
+    },
+    "weight_decay=2.5": {
+     "value": 2.5,
+     "type": "float"
+    },
+    "weight_decay='7'": {
+     "value": 7.0,
+     "type": "float"
+    },
+    "weight_decay=None": {
+     "value": 0.0001,
+     "type": "float"
+    },
+    "batch_size=0": {
+     "error": "ValueError: temporal_convolution_network: batch_size must be at least 1, got 0"
+    },
+    "batch_size=-1": {
+     "error": "ValueError: temporal_convolution_network: batch_size must be at least 1, got -1"
+    },
+    "batch_size=0.5": {
+     "error": "ValueError: temporal_convolution_network: batch_size must be a whole number, got 0.5"
+    },
+    "batch_size=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "batch_size=1.5": {
+     "error": "ValueError: temporal_convolution_network: batch_size must be a whole number, got 1.5"
+    },
+    "batch_size=2.5": {
+     "error": "ValueError: temporal_convolution_network: batch_size must be a whole number, got 2.5"
+    },
+    "batch_size='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "batch_size=None": {
+     "value": 256,
+     "type": "int"
+    },
+    "epochs=0": {
+     "error": "ValueError: temporal_convolution_network: epochs must be at least 1, got 0"
+    },
+    "epochs=-1": {
+     "error": "ValueError: temporal_convolution_network: epochs must be at least 1, got -1"
+    },
+    "epochs=0.5": {
+     "error": "ValueError: temporal_convolution_network: epochs must be a whole number, got 0.5"
+    },
+    "epochs=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "epochs=1.5": {
+     "error": "ValueError: temporal_convolution_network: epochs must be a whole number, got 1.5"
+    },
+    "epochs=2.5": {
+     "error": "ValueError: temporal_convolution_network: epochs must be a whole number, got 2.5"
+    },
+    "epochs='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "epochs=None": {
+     "value": 20,
+     "type": "int"
+    },
+    "patience=0": {
+     "error": "ValueError: temporal_convolution_network: patience must be at least 1, got 0"
+    },
+    "patience=-1": {
+     "error": "ValueError: temporal_convolution_network: patience must be at least 1, got -1"
+    },
+    "patience=0.5": {
+     "error": "ValueError: temporal_convolution_network: patience must be a whole number, got 0.5"
+    },
+    "patience=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "patience=1.5": {
+     "error": "ValueError: temporal_convolution_network: patience must be a whole number, got 1.5"
+    },
+    "patience=2.5": {
+     "error": "ValueError: temporal_convolution_network: patience must be a whole number, got 2.5"
+    },
+    "patience='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "patience=None": {
+     "value": 5,
+     "type": "int"
+    }
+   },
+   "optunaCalls": [
+    [
+     "float",
+     "dropout",
+     0.0,
+     0.5,
+     false
+    ],
+    [
+     "float",
+     "learning_rate",
+     0.0001,
+     0.003,
+     true
+    ],
+    [
+     "float",
+     "weight_decay",
+     1e-06,
+     0.01,
+     true
+    ],
+    [
+     "categorical",
+     "batch_size",
+     [
+      128,
+      256,
+      512
+     ]
+    ],
+    [
+     "categorical",
+     "channel_count",
+     [
+      16,
+      32,
+      64
+     ]
+    ],
+    [
+     "categorical",
+     "kernel_size",
+     [
+      2,
+      3,
+      5
+     ]
+    ],
+    [
+     "int",
+     "layer_count",
+     2,
+     5,
+     false
+    ]
+   ],
+   "optunaResult": {
+    "sequence_length": 32,
+    "channel_count": 64,
+    "kernel_size": 5,
+    "layer_count": 5,
+    "dropout": 0.0,
+    "learning_rate": 0.003,
+    "weight_decay": 0.01,
+    "batch_size": 512,
+    "epochs": 20,
+    "patience": 5
+   }
+  },
+  "transformer_encoder": {
+   "defaults": {
+    "sequence_length": 32,
+    "model_dimension": 32,
+    "head_count": 4,
+    "layer_count": 2,
+    "dropout": 0.1,
+    "learning_rate": 0.0005,
+    "weight_decay": 0.0001,
+    "batch_size": 256,
+    "epochs": 20,
+    "patience": 5
+   },
+   "defaultTypes": {
+    "sequence_length": "int",
+    "model_dimension": "int",
+    "head_count": "int",
+    "layer_count": "int",
+    "dropout": "float",
+    "learning_rate": "float",
+    "weight_decay": "float",
+    "batch_size": "int",
+    "epochs": "int",
+    "patience": "int"
+   },
+   "validation": {
+    "sequence_length=0": {
+     "error": "ValueError: transformer_encoder: sequence_length must be at least 1, got 0"
+    },
+    "sequence_length=-1": {
+     "error": "ValueError: transformer_encoder: sequence_length must be at least 1, got -1"
+    },
+    "sequence_length=0.5": {
+     "error": "ValueError: transformer_encoder: sequence_length must be a whole number, got 0.5"
+    },
+    "sequence_length=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "sequence_length=1.5": {
+     "error": "ValueError: transformer_encoder: sequence_length must be a whole number, got 1.5"
+    },
+    "sequence_length=2.5": {
+     "error": "ValueError: transformer_encoder: sequence_length must be a whole number, got 2.5"
+    },
+    "sequence_length='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "sequence_length=None": {
+     "value": 32,
+     "type": "int"
+    },
+    "model_dimension=0": {
+     "error": "ValueError: transformer_encoder: model_dimension must be at least 1, got 0"
+    },
+    "model_dimension=-1": {
+     "error": "ValueError: transformer_encoder: model_dimension must be at least 1, got -1"
+    },
+    "model_dimension=0.5": {
+     "error": "ValueError: transformer_encoder: model_dimension must be a whole number, got 0.5"
+    },
+    "model_dimension=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "model_dimension=1.5": {
+     "error": "ValueError: transformer_encoder: model_dimension must be a whole number, got 1.5"
+    },
+    "model_dimension=2.5": {
+     "error": "ValueError: transformer_encoder: model_dimension must be a whole number, got 2.5"
+    },
+    "model_dimension='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "model_dimension=None": {
+     "value": 32,
+     "type": "int"
+    },
+    "head_count=0": {
+     "error": "ValueError: transformer_encoder: head_count must be at least 1, got 0"
+    },
+    "head_count=-1": {
+     "error": "ValueError: transformer_encoder: head_count must be at least 1, got -1"
+    },
+    "head_count=0.5": {
+     "error": "ValueError: transformer_encoder: head_count must be a whole number, got 0.5"
+    },
+    "head_count=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "head_count=1.5": {
+     "error": "ValueError: transformer_encoder: head_count must be a whole number, got 1.5"
+    },
+    "head_count=2.5": {
+     "error": "ValueError: transformer_encoder: head_count must be a whole number, got 2.5"
+    },
+    "head_count='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "head_count=None": {
+     "value": 4,
+     "type": "int"
+    },
+    "layer_count=0": {
+     "error": "ValueError: transformer_encoder: layer_count must be at least 1, got 0"
+    },
+    "layer_count=-1": {
+     "error": "ValueError: transformer_encoder: layer_count must be at least 1, got -1"
+    },
+    "layer_count=0.5": {
+     "error": "ValueError: transformer_encoder: layer_count must be a whole number, got 0.5"
+    },
+    "layer_count=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "layer_count=1.5": {
+     "error": "ValueError: transformer_encoder: layer_count must be a whole number, got 1.5"
+    },
+    "layer_count=2.5": {
+     "error": "ValueError: transformer_encoder: layer_count must be a whole number, got 2.5"
+    },
+    "layer_count='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "layer_count=None": {
+     "value": 2,
+     "type": "int"
+    },
+    "dropout=0": {
+     "value": 0.0,
+     "type": "float"
+    },
+    "dropout=-1": {
+     "error": "ValueError: transformer_encoder: dropout must not be negative, got -1.0"
+    },
+    "dropout=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "dropout=1": {
+     "error": "ValueError: transformer_encoder: dropout must be below 1, got 1.0"
+    },
+    "dropout=1.5": {
+     "error": "ValueError: transformer_encoder: dropout must be below 1, got 1.5"
+    },
+    "dropout=2.5": {
+     "error": "ValueError: transformer_encoder: dropout must be below 1, got 2.5"
+    },
+    "dropout='7'": {
+     "error": "ValueError: transformer_encoder: dropout must be below 1, got 7.0"
+    },
+    "dropout=None": {
+     "value": 0.1,
+     "type": "float"
+    },
+    "learning_rate=0": {
+     "error": "ValueError: transformer_encoder: learning_rate must be greater than 0, got 0.0"
+    },
+    "learning_rate=-1": {
+     "error": "ValueError: transformer_encoder: learning_rate must be greater than 0, got -1.0"
+    },
+    "learning_rate=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "learning_rate=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "learning_rate=1.5": {
+     "value": 1.5,
+     "type": "float"
+    },
+    "learning_rate=2.5": {
+     "value": 2.5,
+     "type": "float"
+    },
+    "learning_rate='7'": {
+     "value": 7.0,
+     "type": "float"
+    },
+    "learning_rate=None": {
+     "value": 0.0005,
+     "type": "float"
+    },
+    "weight_decay=0": {
+     "value": 0.0,
+     "type": "float"
+    },
+    "weight_decay=-1": {
+     "error": "ValueError: transformer_encoder: weight_decay must not be negative, got -1.0"
+    },
+    "weight_decay=0.5": {
+     "value": 0.5,
+     "type": "float"
+    },
+    "weight_decay=1": {
+     "value": 1.0,
+     "type": "float"
+    },
+    "weight_decay=1.5": {
+     "value": 1.5,
+     "type": "float"
+    },
+    "weight_decay=2.5": {
+     "value": 2.5,
+     "type": "float"
+    },
+    "weight_decay='7'": {
+     "value": 7.0,
+     "type": "float"
+    },
+    "weight_decay=None": {
+     "value": 0.0001,
+     "type": "float"
+    },
+    "batch_size=0": {
+     "error": "ValueError: transformer_encoder: batch_size must be at least 1, got 0"
+    },
+    "batch_size=-1": {
+     "error": "ValueError: transformer_encoder: batch_size must be at least 1, got -1"
+    },
+    "batch_size=0.5": {
+     "error": "ValueError: transformer_encoder: batch_size must be a whole number, got 0.5"
+    },
+    "batch_size=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "batch_size=1.5": {
+     "error": "ValueError: transformer_encoder: batch_size must be a whole number, got 1.5"
+    },
+    "batch_size=2.5": {
+     "error": "ValueError: transformer_encoder: batch_size must be a whole number, got 2.5"
+    },
+    "batch_size='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "batch_size=None": {
+     "value": 256,
+     "type": "int"
+    },
+    "epochs=0": {
+     "error": "ValueError: transformer_encoder: epochs must be at least 1, got 0"
+    },
+    "epochs=-1": {
+     "error": "ValueError: transformer_encoder: epochs must be at least 1, got -1"
+    },
+    "epochs=0.5": {
+     "error": "ValueError: transformer_encoder: epochs must be a whole number, got 0.5"
+    },
+    "epochs=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "epochs=1.5": {
+     "error": "ValueError: transformer_encoder: epochs must be a whole number, got 1.5"
+    },
+    "epochs=2.5": {
+     "error": "ValueError: transformer_encoder: epochs must be a whole number, got 2.5"
+    },
+    "epochs='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "epochs=None": {
+     "value": 20,
+     "type": "int"
+    },
+    "patience=0": {
+     "error": "ValueError: transformer_encoder: patience must be at least 1, got 0"
+    },
+    "patience=-1": {
+     "error": "ValueError: transformer_encoder: patience must be at least 1, got -1"
+    },
+    "patience=0.5": {
+     "error": "ValueError: transformer_encoder: patience must be a whole number, got 0.5"
+    },
+    "patience=1": {
+     "value": 1,
+     "type": "int"
+    },
+    "patience=1.5": {
+     "error": "ValueError: transformer_encoder: patience must be a whole number, got 1.5"
+    },
+    "patience=2.5": {
+     "error": "ValueError: transformer_encoder: patience must be a whole number, got 2.5"
+    },
+    "patience='7'": {
+     "value": 7,
+     "type": "int"
+    },
+    "patience=None": {
+     "value": 5,
+     "type": "int"
+    }
+   },
+   "optunaCalls": [
+    [
+     "float",
+     "dropout",
+     0.0,
+     0.3,
+     false
+    ],
+    [
+     "float",
+     "learning_rate",
+     0.0001,
+     0.003,
+     true
+    ],
+    [
+     "float",
+     "weight_decay",
+     1e-06,
+     0.01,
+     true
+    ],
+    [
+     "categorical",
+     "batch_size",
+     [
+      128,
+      256,
+      512
+     ]
+    ],
+    [
+     "categorical",
+     "model_dimension",
+     [
+      32,
+      64,
+      128
+     ]
+    ],
+    [
+     "categorical",
+     "head_count",
+     [
+      2,
+      4,
+      8
+     ]
+    ],
+    [
+     "int",
+     "layer_count",
+     1,
+     3,
+     false
+    ]
+   ],
+   "optunaResult": {
+    "sequence_length": 32,
+    "model_dimension": 128,
+    "head_count": 8,
+    "layer_count": 3,
+    "dropout": 0.0,
+    "learning_rate": 0.003,
+    "weight_decay": 0.01,
+    "batch_size": 512,
+    "epochs": 20,
+    "patience": 5
+   }
+  }
+ }
+}

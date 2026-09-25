@@ -1,16 +1,16 @@
 /**
- * Model Cycle setup form: pick a family, its hyperparameters, the data
- * window and the walk-forward/label/trading/tuning/replay/runtime settings
- * that back it. Fully controlled — `CyclePage` owns the `CycleFormState` and
- * passes it down; this file owns the catalog read (`useCycleCatalog`), the
- * per-family localStorage memory, and validation.
+ * Model Cycle setup form: pick a model in the `ModelBrowser`, its
+ * hyperparameters, the data window and the walk-forward/label/trading/tuning/
+ * replay/runtime settings that back it. Fully controlled — `CyclePage` owns
+ * the `CycleFormState` and passes it down; this file owns the runner read
+ * (`useCycleCatalog`: parameters, defaults, bounds), the per-model
+ * localStorage memory, and validation. The browser's cards (kind, summary,
+ * speed, why a model cannot run) come from the model registry.
  */
 import { useCallback, useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
 
-import { cn } from "@/shared/utils/utils";
 import { Card, CardContent } from "@/shared/ui/card";
-import { Badge } from "@/shared/ui/badge";
 import { Label } from "@/shared/ui/label";
 import { Input } from "@/shared/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
@@ -18,15 +18,15 @@ import HyperparameterForm from "@/training/HyperparameterForm";
 import { useSymbolContext } from "@/shared/contexts/SymbolContext";
 import { minutesToLabel } from "@/market/lib/timeframes";
 import type { HyperparameterDef } from "@shared/trainingTypes";
-import type { CycleModelFamily } from "@shared/cycle/schema";
 
 import { parameterHelpFor } from "@/cycle/parameterHelp";
+import { ModelBrowser } from "@/cycle/ModelBrowser";
 import { useCycleCatalog, type CycleCatalogEntry } from "@/cycle/useCycleCatalog";
 
 // ─── Form state (owned here, held by CyclePage) ─────────────────────────────
 
 export interface CycleFormState {
-  /** Runner key, `"<family>+walk_forward_cycle"`; null until a family is picked. */
+  /** Runner key, `"<model key>+walk_forward_cycle"`; null until a model is picked. */
   familyKey: string | null;
   timeframe: string;
   /** ISO date, `YYYY-MM-DD`. */
@@ -65,7 +65,7 @@ export interface CycleFormValidation {
 
 export function validateCycleForm(state: CycleFormState): CycleFormValidation {
   const errors: string[] = [];
-  if (!state.familyKey) errors.push("Choose a model family.");
+  if (!state.familyKey) errors.push("Choose a model.");
 
   if (state.hyperparameters.step_days !== undefined) {
     const stepDays = Number(state.hyperparameters.step_days);
@@ -82,9 +82,9 @@ export function validateCycleForm(state: CycleFormState): CycleFormValidation {
   return { valid: errors.length === 0, errors };
 }
 
-// ─── Per-family memory ───────────────────────────────────────────────────────
+// ─── Per-model memory ────────────────────────────────────────────────────────
 
-/** The family picked last, so a reload opens on it. */
+/** The model picked last (its runner key), so a reload opens on it. */
 const LAST_FAMILY_KEY = "cycle-last-family-v1";
 
 function storageKey(familyKey: string): string {
@@ -107,64 +107,6 @@ function saveStoredState(state: CycleFormState): void {
   } catch {
     // Best effort — the form still works for this session.
   }
-}
-
-// ─── Family picker ───────────────────────────────────────────────────────────
-
-type FamilyKind = "Linear" | "Tree ensemble" | "Neural network" | "Sequence network";
-
-const FAMILY_KIND: Partial<Record<CycleModelFamily, FamilyKind>> = {
-  logistic_regression: "Linear",
-  random_forest: "Tree ensemble",
-  xgboost: "Tree ensemble",
-  lightgbm: "Tree ensemble",
-  multilayer_perceptron: "Neural network",
-  lstm: "Sequence network",
-  temporal_convolution_network: "Sequence network",
-  transformer_encoder: "Sequence network",
-};
-
-const FAMILY_DESCRIPTION: Partial<Record<CycleModelFamily, string>> = {
-  logistic_regression: "A single weighted vote across your features — a scale that tips toward up or down.",
-  random_forest: "Hundreds of simple yes/no trees vote together — a committee of rough guessers whose average is sharper than any one of them.",
-  xgboost: "Trees built one after another, each one fixing the last one's mistakes.",
-  lightgbm: "The same fix-the-mistakes idea as XGBoost, built leaf by leaf instead of level by level — faster on wide feature sets.",
-  multilayer_perceptron: "A stack of weighted layers that reshapes your features step by step into one probability.",
-  lstm: "Reads the bars in order, keeping a running memory of what it has seen — built for patterns that unfold over time.",
-  temporal_convolution_network: "Slides a small window across the recent bars, like a pattern scanner looking for the same shape at different points.",
-  transformer_encoder: "Looks at every recent bar at once and learns which ones matter most — the network deciding its own attention span.",
-};
-
-const KIND_BADGE_CLASS: Record<FamilyKind, string> = {
-  Linear: "border-[#0072B2]/40 text-[#56B4E9] bg-[#0072B2]/10",
-  "Tree ensemble": "border-[#009E73]/40 text-[#009E73] bg-[#009E73]/10",
-  "Neural network": "border-[#E69F00]/40 text-[#E69F00] bg-[#E69F00]/10",
-  "Sequence network": "border-[#CC79A7]/40 text-[#CC79A7] bg-[#CC79A7]/10",
-};
-
-function FamilyCard({ entry, selected, disabled, onSelect }: { entry: CycleCatalogEntry; selected: boolean; disabled?: boolean; onSelect: () => void }) {
-  const kind = FAMILY_KIND[entry.family] ?? "Tree ensemble"; // replaced by ModelBrowser's registry kinds
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      disabled={disabled}
-      aria-pressed={selected}
-      className={cn(
-        "text-left rounded-lg border p-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0072B2]",
-        selected ? "border-[#E69F00] bg-[#E69F00]/10" : "border-white/10 bg-white/[0.02] hover:border-white/25",
-        disabled && "opacity-50 cursor-not-allowed",
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-semibold text-neutral-100">{entry.label}</span>
-        <Badge variant="outline" className={cn("shrink-0 text-[10px]", KIND_BADGE_CLASS[kind])}>
-          {kind}
-        </Badge>
-      </div>
-      <p className="mt-1 text-[11px] leading-snug text-neutral-400">{FAMILY_DESCRIPTION[entry.family] ?? entry.description ?? ""}</p>
-    </button>
-  );
 }
 
 // ─── Main form ───────────────────────────────────────────────────────────────
@@ -213,7 +155,7 @@ export function ConfigForm({ value, onChange, disabled = false }: ConfigFormProp
     [emit, value.timeframe, value.dateStart, value.dateEnd],
   );
 
-  // After a reload, come back to the family used last (once the catalog is in).
+  // After a reload, come back to the model used last (once the runners are in).
   useEffect(() => {
     if (value.familyKey || entries.length === 0) return;
     let remembered: string | null = null;
@@ -256,23 +198,16 @@ export function ConfigForm({ value, onChange, disabled = false }: ConfigFormProp
 
   return (
     <div className="space-y-4">
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-[10px] uppercase tracking-widest text-neutral-500">Model family</span>
-          {isLoading && <span className="text-[10px] text-neutral-500">Loading catalog…</span>}
-        </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {entries.map((entry) => (
-            <FamilyCard
-              key={entry.key}
-              entry={entry}
-              selected={entry.key === value.familyKey}
-              disabled={disabled}
-              onSelect={() => selectFamily(entry)}
-            />
-          ))}
-        </div>
-      </div>
+      <ModelBrowser
+        selectedRunnerKey={value.familyKey}
+        onSelect={(runnerKey) => {
+          const entry = entries.find((candidate) => candidate.key === runnerKey);
+          if (entry) selectFamily(entry);
+        }}
+        runnerEntries={entries}
+        runnersLoading={isLoading}
+        disabled={disabled}
+      />
 
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -333,7 +268,7 @@ export function ConfigForm({ value, onChange, disabled = false }: ConfigFormProp
           </CardContent>
         </Card>
       ) : (
-        <p className="text-xs text-neutral-500">Pick a model family to configure its hyperparameters.</p>
+        <p className="text-xs text-neutral-500">Pick a model to configure its parameters.</p>
       )}
 
       {!validation.valid && value.familyKey && (

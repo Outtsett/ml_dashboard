@@ -34,6 +34,7 @@ import type {
   LifecycleStage,
 } from '@shared/catalogLifecycle';
 import { modelVersions, deployments } from '@shared/schema';
+import { CYCLE_RUNNER_SUFFIX } from '@shared/cycle/models';
 import { db } from '../infrastructure/database/db';
 import { listSessions } from '../infrastructure/storage/trainingStorage';
 import { getCatalogModels } from '../infrastructure/lib/modelImport';
@@ -132,9 +133,13 @@ export function buildCatalogLifecycle(inputs: LifecycleInputs): CatalogLifecycle
 
   // A wired entry is keyed by its runner key and names its spec in `catalogId`;
   // a catalog-derived entry is keyed by the spec id itself. Wired wins the
-  // deep-link target: it is the tested runner, the other is a template.
+  // deep-link target: it is the tested runner, the other is a template. A
+  // Model Cycle runner (`<key>+walk_forward_cycle`) is never the target: it
+  // runs from `/cycle`, not ML Studio, where the deep link goes. Its sessions
+  // still count toward the spec through `runnerKeysBySpec`.
   const wiredKeyBySpec = new Map<string, string>();
   for (const [key, entry] of Object.entries(trainable)) {
+    if (key.endsWith(CYCLE_RUNNER_SUFFIX)) continue;
     if (entry.runnerSource === 'wired' && entry.catalogId && !wiredKeyBySpec.has(entry.catalogId)) {
       wiredKeyBySpec.set(entry.catalogId, key);
     }

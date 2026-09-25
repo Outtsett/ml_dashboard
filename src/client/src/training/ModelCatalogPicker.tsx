@@ -27,6 +27,7 @@ import {
 import { ScrollArea } from "@/shared/ui/scroll-area";
 import { useCatalogTaxonomy, useTrainableCatalog } from "@/ml/lib/useModelCatalog";
 import type { TrainableModel, RunnerSource } from "@shared/trainableModelTypes";
+import { CYCLE_RUNNER_SUFFIX } from "@shared/cycle/models";
 import type { ModelRegistryEntry } from "@shared/trainingTypes";
 
 // ─── Props ───────────────────────────────────────────────────────────
@@ -260,9 +261,13 @@ function ModelCatalogPicker({
   const isLoading = trainableLoading;
 
   // ─── Materialize entries ───────────────────────────────────────
+  // Model Cycle runners (`<key>+walk_forward_cycle`) run only from the Cycle's
+  // own model browser (`/cycle`), so they are not offered here.
   const allEntries = useMemo<PickerEntry[]>(() => {
     if (!trainableData) return [];
-    return Object.entries(trainableData).map(([id, entry]) => ({ id, entry }));
+    return Object.entries(trainableData)
+      .filter(([id]) => !id.endsWith(CYCLE_RUNNER_SUFFIX))
+      .map(([id, entry]) => ({ id, entry }));
   }, [trainableData]);
 
   // ─── Category options from taxonomy ────────────────────────────

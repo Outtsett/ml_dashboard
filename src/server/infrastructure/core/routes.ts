@@ -33,6 +33,8 @@ import lensVectorsRouter from "../../lens/vectors.router";
 
 // Training Domain
 import trainingRouter from "../../training/training.router";
+import cycleModelsRouter from "../../training/cycleModels.router";
+import { createCycleExplainRouter } from "../../training/cycleExplain.router";
 import codegenRouter from "../../training/codegen.router";
 import curriculumRouter from "../../training/curriculum.router";
 import hpoRouter from "../../training/hpo.router";
@@ -75,6 +77,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Mount domain-specific routers (Ordered to preserve precedence)
   app.use("/api", uploadRouter);
   app.use("/api", instrumentsRouter);
+  app.use("/api", cycleModelsRouter);           // Model Cycle model browser: /training/cycle-models
+  app.use("/api", createCycleExplainRouter());  // Inside the model: /training/cycle/:modelId/explain… — before trainingRouter's /training/cycle/:modelId
   app.use("/api", trainingRouter);  // before mlRouter — static routes must match before ml's /training/:id
   app.use("/api", codegenRouter);   // before mlRouter
   app.use("/api", evalRouter);
