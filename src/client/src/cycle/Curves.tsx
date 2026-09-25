@@ -58,8 +58,8 @@ function LossCurves({ epochs }: { epochs: CycleEpoch[] }) {
             <YAxis tick={{ fontSize: 10 }} label={{ value: "Loss", angle: -90, position: "insideLeft", fontSize: 10 }} />
             <Tooltip formatter={(value) => formatRatio(typeof value === "number" ? value : null)} labelFormatter={(step) => `${STEP_UNIT_LABEL[stepUnit]} ${step}`} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
-            <Line type="monotone" dataKey="trainLoss" name="Train loss" stroke="#56B4E9" strokeWidth={2} dot={false} connectNulls />
-            <Line type="monotone" dataKey="validationLoss" name="Validation loss" stroke="#E69F00" strokeWidth={2} strokeDasharray="5 3" dot={false} connectNulls />
+            <Line type="monotone" isAnimationActive={false} dataKey="trainLoss" name="Train loss" stroke="#56B4E9" strokeWidth={2} dot={false} connectNulls />
+            <Line type="monotone" isAnimationActive={false} dataKey="validationLoss" name="Validation loss" stroke="#E69F00" strokeWidth={2} strokeDasharray="5 3" dot={false} connectNulls />
             {bestEpoch !== null && (
               <ReferenceLine x={bestEpoch} stroke="#CC79A7" strokeWidth={1.5} label={{ value: `Best (${bestEpoch})`, fontSize: 10, fill: "#CC79A7", position: "top" }} />
             )}
@@ -74,8 +74,8 @@ function LossCurves({ epochs }: { epochs: CycleEpoch[] }) {
             <YAxis tick={{ fontSize: 10 }} domain={[0, 1]} label={{ value: "Score", angle: -90, position: "insideLeft", fontSize: 10 }} />
             <Tooltip formatter={(value) => formatRatio(typeof value === "number" ? value : null)} labelFormatter={(step) => `${STEP_UNIT_LABEL[stepUnit]} ${step}`} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
-            <Line type="monotone" dataKey="validationAccuracy" name="Validation accuracy" stroke="#009E73" strokeWidth={2} dot={false} connectNulls />
-            <Line type="monotone" dataKey="validationF1Score" name="Validation F1" stroke="#CC79A7" strokeWidth={2} dot={false} connectNulls />
+            <Line type="monotone" isAnimationActive={false} dataKey="validationAccuracy" name="Validation accuracy" stroke="#009E73" strokeWidth={2} dot={false} connectNulls />
+            <Line type="monotone" isAnimationActive={false} dataKey="validationF1Score" name="Validation F1" stroke="#CC79A7" strokeWidth={2} dot={false} connectNulls />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -104,11 +104,11 @@ function TuningScatter({ trials }: { trials: CycleTrial[] }) {
           <YAxis type="number" dataKey="objective" name={OBJECTIVE_LABEL[objectiveName]} tick={{ fontSize: 10 }} label={{ value: `Objective value (${OBJECTIVE_LABEL[objectiveName]})`, angle: -90, position: "insideLeft", fontSize: 10 }} />
           <ZAxis range={[40, 40]} />
           <Tooltip formatter={(value) => formatRatio(typeof value === "number" ? value : null)} />
-          <Scatter data={complete.map(toPoint)} name="Complete" fill="#56B4E9" />
-          <Scatter data={running.map(toPoint)} name="Running" fill="#8A8F98" />
-          <Scatter data={pruned.map(toPoint)} name="Pruned" fill="none" stroke="#8A8F98" strokeWidth={1.5} />
-          <Scatter data={failed.map(toPoint)} name="Failed" fill="#D55E00" />
-          <Scatter data={best.map(toPoint)} name="Best" fill="#CC79A7" shape="star" />
+          <Scatter isAnimationActive={false} data={complete.map(toPoint)} name="Complete" fill="#56B4E9" />
+          <Scatter isAnimationActive={false} data={running.map(toPoint)} name="Running" fill="#8A8F98" />
+          <Scatter isAnimationActive={false} data={pruned.map(toPoint)} name="Pruned" fill="none" stroke="#8A8F98" strokeWidth={1.5} />
+          <Scatter isAnimationActive={false} data={failed.map(toPoint)} name="Failed" fill="#D55E00" />
+          <Scatter isAnimationActive={false} data={best.map(toPoint)} name="Best" fill="#CC79A7" shape="star" />
           <Legend wrapperStyle={{ fontSize: 10 }} />
         </ScatterChart>
       </ResponsiveContainer>

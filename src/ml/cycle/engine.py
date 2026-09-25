@@ -304,6 +304,7 @@ class CycleEngine:
         self.tuning_summary: dict | None = None
         self._frame: dict | None = None
         self._post_frame: list[Callable[[], None]] = []
+        self._last_flush = -math.inf     # when the last processed frame went out (<= 20 Hz above 20 bars/s)
         self._next_due: float | None = None
 
     # ── logging / cursor ───────────────────────────────────────────────────
@@ -688,7 +689,7 @@ class CycleEngine:
         self.log(f"{prefix}[test] walking {count:,} bars one at a time {format_time(span_start)}..{format_time(span_end)}")
         self._frame = None
         self._next_due = None
-        last_frame = last_board = last_bar_log = -math.inf
+        last_board = last_bar_log = -math.inf
         warned_non_finite = False
         predicted_class_for_row: dict[int, int] = {}
         probability_for_row: dict[int, float | None] = {}
@@ -776,8 +777,7 @@ class CycleEngine:
                 self._post_frame.append(lambda line=line: self.log(line))
             self._cursor.update(bar_timestamp=int(d.timestamps[i]), bar_index=j, bar_count=count, phase_fraction=(j + 1) / count)
             self.fold_progress(k, test_fraction=(j + 1) / count)
-            if last or (0 < pace <= 20) or now - last_frame >= FRAME_INTERVAL_SECONDS:
-                last_frame = now
+            if last or (0 < pace <= 20) or now - self._last_flush >= FRAME_INTERVAL_SECONDS:
                 self._flush_frame()
             if not last and now - last_board >= SCOREBOARD_INTERVAL_SECONDS:
                 last_board = now
@@ -810,6 +810,7 @@ class CycleEngine:
     def _flush_frame(self) -> None:
         frame, self._frame = self._frame, None
         if frame and frame["timestamps"]:
+            self._last_flush = self.clock()
             self._record_emitted(frame["timestamps"])
             self.next_unemitted = max(self.next_unemitted, self._row_after(frame["timestamps"][-1]))
             resolved = None
@@ -844,8 +845,11 @@ class CycleEngine:
                 self._next_due = max(self._next_due, now - 1.0 / pace) + 1.0 / pace
                 return
             changes = self.control.changes
-            if self._frame is not None:
-                self._flush_frame()     # show what exists before sleeping
+            # Show what exists before a sleep long enough to see, and never hold a
+            # frame past its interval — but not a frame per bar: above 20 bars/s
+            # every sleep is shorter than a frame and frames stay <= 20 Hz.
+            if self._frame is not None and (wait >= FRAME_INTERVAL_SECONDS or now - self._last_flush >= FRAME_INTERVAL_SECONDS):
+                self._flush_frame()
             self.control.sleep(wait)
             if self.control.changes != changes:
                 self._next_due = None
@@ -917,10 +921,64 @@ class CycleEngine:
         }
 
     # ── stop ───────────────────────────────────────────────────────────────
-    def _handle_stop(self) -> None:
-        self.log("[control] stopping: closing any open trade at the last processed bar's close")
+    def _exit_at_next_open(self) -> bool:
+        """Close an open trade on a stop the way every other exit fills: at the
+        NEXT bar's open, walking that bar as a processed bar with no prediction.
+
+        Closing at the last walked bar's close instead left the chart wrong: the
+        pacer (and a pause) had already sent that bar, so its equity and
+        position on the wire omitted the exit fill that the trade, the
+        scoreboard and predictions.parquet all include. Emitting one more bar
+        keeps "each bar exactly once" and makes all four agree.
+
+        Returns False when there is no next bar in the fold's test span to fill
+        on (the caller then falls back to the last close).
+        """
         simulator = self.simulator
-        if simulator is not None and self.last_processed_row is not None:
+        row = self.last_processed_row
+        if simulator is None or row is None or simulator.position == 0 or not self.accumulators:
+            return False
+        accumulator = self.accumulators[-1]
+        k = accumulator.fold_index
+        spec = self.folds[k] if k < len(self.folds) else None
+        following = row + 1
+        # test_index is the fold's contiguous test span
+        if spec is None or spec.test_index.size == 0 or not (int(spec.test_index[0]) <= following <= int(spec.test_index[-1])):
+            return False
+        d = self.data
+        simulator.pending_target = 0
+        simulator.pending_reason = "stopped"
+        result = simulator.step(following, int(d.timestamps[following]), d.open[following], d.high[following],
+                                d.low[following], d.close[following], None, None, decide=False)
+        self.equity += result.net_usd
+        self.last_processed_row = following
+        accumulator.bars_evaluated += 1
+        accumulator.inputs.bar_net_usd.append(result.net_usd)
+        accumulator.inputs.bar_exposed.append(result.exposed)
+        accumulator.last_close = float(d.close[following])
+        self.prediction_rows[following] = {
+            "timestamp": int(d.timestamps[following]), "fold_index": k,
+            "open": float(d.open[following]), "high": float(d.high[following]), "low": float(d.low[following]),
+            "close": float(d.close[following]), "volume": float(d.volume[following]),
+            "probability_up": None, "predicted_direction": 0, "position": 0,
+            "equity_usd": self.equity, "actual_direction": None, "correct": None,
+        }
+        frame = self._frame_for(k)
+        for key, value in (("timestamps", int(d.timestamps[following])), ("open", d.open[following]),
+                           ("high", d.high[following]), ("low", d.low[following]), ("close", d.close[following]),
+                           ("volume", d.volume[following]), ("probabilityUp", None), ("predictedDirection", 0),
+                           ("position", 0), ("equityUsd", self.equity)):
+            frame[key].append(value)
+        self.log(f"[control] stopping: closed the open trade at the next bar's open, {format_time(d.timestamps[following])} "
+                 f"(the fill rule every exit uses); equity {format_usd(self.equity)}")
+        return True
+
+    def _handle_stop(self) -> None:
+        simulator = self.simulator
+        if self._exit_at_next_open():
+            pass
+        elif simulator is not None and self.last_processed_row is not None:
+            self.log("[control] stopping: closing any open trade at the last processed bar's close")
             row = self.last_processed_row
             adjustment = simulator.flatten(row, int(self.data.timestamps[row]), float(self.data.close[row]), "stopped")
             if adjustment and self.accumulators:
