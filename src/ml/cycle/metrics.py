@@ -67,15 +67,30 @@ def _finite(value) -> float | None:
     return value if math.isfinite(value) else None
 
 
+# A gap longer than this is a data outage, not a weekend or a holiday.
+OUTAGE_DAYS = 4.0
+
+
 def bars_per_year(timestamps: np.ndarray) -> float:
-    """Bars per calendar year measured on the loaded data."""
+    """Bars per calendar year measured on the loaded data, over the time the
+    data actually covers.
+
+    Weekends and holidays stay in the span — they are part of the calendar the
+    annualisation is for — but an outage longer than ``OUTAGE_DAYS`` is taken
+    out. Counting it (bars / first-to-last span) shrank the factor whenever a
+    window crossed a hole: MNQ 5m over 2025-10-01..2026-03-07 measured 44,317
+    against 71,722 on the dense part, which cut every Sharpe and Sortino by
+    ×0.79 and Calmar by ×0.62.
+    """
     timestamps = np.asarray(timestamps, dtype=np.int64)
     if timestamps.size < 2:
         raise ValueError("need at least two bars to measure bars per year")
-    span_days = (int(timestamps[-1]) - int(timestamps[0])) / 86400.0
-    if span_days <= 0:
+    gaps = np.diff(timestamps)
+    outage_seconds = int(gaps[gaps > OUTAGE_DAYS * 86400].sum())
+    covered_days = (int(timestamps[-1]) - int(timestamps[0]) - outage_seconds) / 86400.0
+    if covered_days <= 0:
         raise ValueError("the loaded bars span no time")
-    return float(timestamps.size / (span_days / 365.25))
+    return float(timestamps.size / (covered_days / 365.25))
 
 
 # ── trading ────────────────────────────────────────────────────────────────

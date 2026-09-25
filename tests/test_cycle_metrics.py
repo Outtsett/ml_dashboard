@@ -270,3 +270,25 @@ def test_constant_trades_have_no_skewness():
     summary = distribution(np.array([2.0, 2.0, 2.0, 2.0, 2.0]))
     assert summary["standardDeviation"] == 0.0
     assert summary["skewness"] is None and summary["kurtosis"] is None
+
+
+def test_bars_per_year_ignores_a_data_outage_but_keeps_weekends():
+    """A multi-week hole is not calendar time the market traded in; a weekend is."""
+    five_minutes = 300
+    day = 86_400
+    # weekday 23-hour sessions, 5-minute bars, Monday 2025-09-29 onwards
+    start = 1_759_104_000
+    stamps = []
+    for d in range(0, 91):
+        if (d % 7) in (5, 6):  # Saturday, Sunday
+            continue
+        base = start + d * day
+        stamps.extend(range(base, base + 23 * 3600, five_minutes))
+    dense = np.array(stamps, dtype=np.int64)
+    # the same, plus one week after a nine-week outage
+    later = start + (91 + 63) * day
+    tail = [later + d * day + k for d in range(5) for k in range(0, 23 * 3600, five_minutes)]
+    holed = np.concatenate([dense, np.array(tail, dtype=np.int64)])
+    # the tail week has no weekend, so it is a little denser; the old first-to-last
+    # span measured about 45k here, 40% low
+    assert bars_per_year(holed) == pytest.approx(bars_per_year(dense), rel=0.05)

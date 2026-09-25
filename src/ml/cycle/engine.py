@@ -293,6 +293,7 @@ class CycleEngine:
         self.prediction_rows: dict[int, dict] = {}     # row -> record (insertion ordered)
         self.trades: dict[int, Trade] = {}
         self.stopped = False
+        self.price_adjustment: dict | None = None
         self.final_scoreboard: dict | None = None
         self.global_step = 0
         self.equity = 0.0
@@ -519,6 +520,8 @@ class CycleEngine:
             "barsPerSecond": float(s.bars_per_second),
             "startPaused": bool(s.start_paused),
             "artifactDirectory": s.artifact_directory,
+            # set by main.py when the series is a stitched futures root (cycle.rolls)
+            "priceAdjustment": self.price_adjustment or {"method": "none", "rolls": []},
         }
 
     # ── run ────────────────────────────────────────────────────────────────

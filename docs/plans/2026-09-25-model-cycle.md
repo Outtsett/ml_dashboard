@@ -115,8 +115,10 @@ Standard events also emitted: `log` (every terminal line), `progress`, `metric` 
 
 One JSON object per line: `{"command":"pause"}`, `{"command":"resume"}`,
 `{"command":"pace","barsPerSecond":N}` (0 = as fast as possible), `{"command":"stop"}` (graceful:
-closes the open trade at the current bar, emits the final scoreboard, writes artifacts, emits
-`done`). Server: `POST /api/training/control/:modelId`. The hard stop (`/training/stop`) stays as
+an open trade exits at the NEXT bar's open — the fill rule every exit uses — and that bar is
+walked once as a processed bar with no prediction; then the final scoreboard, artifacts, `done`).
+The engine polls the stdin pipe with `PeekNamedPipe` on Windows: a thread parked in a blocking
+read froze the main thread until the first control line arrived. Server: `POST /api/training/control/:modelId`. The hard stop (`/training/stop`) stays as
 the fallback and kills the process tree on Windows.
 
 ### Server additions

@@ -206,6 +206,39 @@ def _factory_hook():
     return getattr(importlib.import_module(module_name), attribute)
 
 
+def adjust_for_rolls(symbol: str, timeframe: str, data):
+    """Back-adjust a stitched futures root at its contract rolls (see
+    `cycle.rolls`). Returns the (possibly adjusted) data and the rolls found."""
+    from cycle.engine import MarketData, format_time
+    from cycle.rolls import back_adjust, contract_rows_from_lake, find_rolls
+    from shared.data import _serving
+
+    try:
+        rows = contract_rows_from_lake(_serving(), symbol, timeframe, int(data.timestamps[0]), int(data.timestamps[-1]))
+    except Exception as error:  # noqa: BLE001 - a missing contract table must not stop the run, but must be said
+        protocol.emit_log(f"[data] could not read {symbol}'s contracts to find rolls ({error}); prices are NOT roll-adjusted", "warn")
+        return data, []
+    if not rows:
+        return data, []  # not a stitched futures root (a single contract, forex, or no pre-aggregated view)
+    rolls = find_rolls(data.timestamps, data.open, data.close, rows)
+    if not rolls:
+        protocol.emit_log("[data] no contract roll inside the window: prices are as traded")
+        return data, []
+    open_prices, high, low, close, _ = back_adjust(data.open, data.high, data.low, data.close, rolls)
+    for roll in rolls:
+        how = "both contracts' closes on the same bar" if roll.exact else "new open minus old close (no common bar)"
+        protocol.emit_log(
+            f"[data] roll {roll.from_contract} -> {roll.to_contract} at {format_time(roll.timestamp)}: "
+            f"splice step {roll.gap_points:+.2f} points ({how})"
+        )
+    protocol.emit_log(
+        f"[data] prices back-adjusted additively at {len(rolls)} roll(s) so a roll is not a price move; "
+        f"{rolls[-1].to_contract} bars are as traded, earlier bars are shifted by the steps above"
+    )
+    adjusted = MarketData(timestamps=data.timestamps, open=open_prices, high=high, low=low, close=close, volume=data.volume)
+    return adjusted, rolls
+
+
 def run(args: argparse.Namespace, unknown: list[str]) -> int:
     from cycle.control import ControlState, start_reader
     from cycle.engine import CycleEngine, CycleSettings, clean_market_data
@@ -258,6 +291,7 @@ def run(args: argparse.Namespace, unknown: list[str]) -> int:
     if len(data) < 2:
         raise ValueError(f"only {len(data)} bars loaded for {args.symbol} {args.timeframe}")
     protocol.emit_log(f"[data] {len(data):,} bars, strictly increasing timestamps (epoch seconds, UTC)")
+    data, rolls = adjust_for_rolls(args.symbol, args.timeframe, data)
 
     feature_started = time.monotonic()
     feature_set = build_features(data.as_dict())
@@ -306,6 +340,10 @@ def run(args: argparse.Namespace, unknown: list[str]) -> int:
         suggest_parameters=(lambda trial, base: suggest(trial, family, base)) if suggest else None,
     )
     engine.started = started
+    engine.price_adjustment = {
+        "method": "panama_additive" if rolls else "none",
+        "rolls": [roll.as_plan() for roll in rolls],
+    }
     engine.run()
     return 0
 

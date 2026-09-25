@@ -41,7 +41,12 @@ function buildSteps(foldCount: number, tuning: boolean): Step[] {
  * marks every step done; a stopped or failed one only the steps it finished —
  * it used to tick every fold, including the ones it never reached.
  */
-function stepStatus(step: Step, cursor: CycleCursor | null, completedFolds: number): "done" | "active" | "pending" {
+function stepStatus(
+  step: Step,
+  cursor: CycleCursor | null,
+  completedFolds: number,
+  planLoaded: boolean,
+): "done" | "active" | "pending" {
   if (!cursor) return "pending";
   const phaseOrder: StepKind[] = ["load", "tune", "train", "validate", "test"];
   const phaseKind: StepKind =
@@ -59,7 +64,9 @@ function stepStatus(step: Step, cursor: CycleCursor | null, completedFolds: numb
 
   if (cursor.phase === "complete") return "done";
   if (cursor.phase === "stopped" || cursor.phase === "failed") {
-    if (step.kind === "load" || step.kind === "tune") return "done";
+    // Loading finished once a plan exists; tuning once any fold began.
+    if (step.kind === "load") return planLoaded ? "done" : "pending";
+    if (step.kind === "tune") return completedFolds > 0 || cursor.foldIndex !== null ? "done" : "pending";
     return step.foldIndex !== null && step.foldIndex < completedFolds ? "done" : "pending";
   }
 
@@ -117,7 +124,7 @@ export function PhaseStrip() {
     <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
       <div className="flex flex-wrap items-center gap-1 text-xs">
         {steps.map((step, index) => {
-          const status = stepStatus(step, cursor, completedFolds);
+          const status = stepStatus(step, cursor, completedFolds, plan !== null);
           const isNewFold = step.kind === "train" && steps[index - 1]?.kind !== "tune" && steps[index - 1]?.kind !== "load";
           return (
             <Fragment key={`${step.kind}-${step.foldIndex ?? "x"}-${index}`}>

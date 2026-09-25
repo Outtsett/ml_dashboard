@@ -216,7 +216,10 @@ def _fetch_front_month_rows(
                sum(volume) AS volume
         FROM ohlcv
         WHERE root = '{root}' AND asset_class = 'futures'
-          AND symbol != '{root}'{time_filter}
+          AND symbol != '{root}'
+          -- calendar spreads (MNQZ5-MNQH6) are not a front month and can
+          -- print negative prices; the chart's stitcher excludes them too
+          AND symbol NOT LIKE '%-%'{time_filter}
         GROUP BY 1, 2
         ORDER BY timestamp
     """).fetchall()

@@ -118,6 +118,26 @@ export const cyclePlanSchema = cycleEnvelopeSchema.extend({
   barsPerSecond: z.number().nonnegative(),
   startPaused: z.boolean(),
   artifactDirectory: z.string(),
+  /**
+   * A stitched futures root is raw prices spliced at each contract roll; the
+   * engine shifts every bar before a roll by that roll's step (additive /
+   * Panama) so the splice is not booked as a price move. The newest contract's
+   * prices are as traded. `none` for a single contract or a non-futures series.
+   */
+  priceAdjustment: z
+    .object({
+      method: z.enum(["none", "panama_additive"]),
+      rolls: z.array(
+        z.object({
+          timestamp: epochSeconds,
+          fromContract: z.string(),
+          toContract: z.string(),
+          gapPoints: z.number(),
+          exact: z.boolean(),
+        }),
+      ),
+    })
+    .optional(),
 });
 export type CyclePlan = z.infer<typeof cyclePlanSchema>;
 
