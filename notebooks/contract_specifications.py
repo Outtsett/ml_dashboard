@@ -179,7 +179,8 @@ def _(EXCHANGE_GROUP_COLORS, alt, filtered_specifications, mo):
             alt.Tooltip("tick_value_per_contract:Q", title="tick value per contract"),
         ],
     )
-    _tick_value = _base.mark_bar().encode(
+    # Points, not bars: a bar on a log axis starts at zero, which the axis cannot show, so it vanishes.
+    _tick_value = _base.mark_point(filled=True, size=90, shape="circle").encode(
         x=alt.X("tick_value_per_contract:Q", title="one tick, in the contract's own currency (log scale)", scale=alt.Scale(type="log")),
     ).properties(width=420, height=24 * max(filtered_specifications.height, 1), title="What one tick is worth")
     _multiplier = _base.mark_point(filled=True, size=90, shape="diamond").encode(
@@ -190,7 +191,7 @@ def _(EXCHANGE_GROUP_COLORS, alt, filtered_specifications, mo):
             mo.md(
                 "Two views of the same rows. Left: the money one **tick** moves. Right: the money one whole **index point** "
                 "moves (the multiplier). A contract with a fine tick and a big multiplier (ES: 0.25 points, $50 per point) "
-                "sits far right but only mid-left. Bars are in each contract's own currency, so compare within a colour."
+                "sits far right but only mid-left. Circles (tick) and diamonds (point) are in each contract's own currency, so compare within a colour."
             ),
             mo.ui.altair_chart(_tick_value | _multiplier),
         ]
@@ -403,7 +404,12 @@ def _(
         .encode(
             x=alt.X("day:T", title=f"{_year}", scale=alt.Scale(domain=[str(date(_year, 1, 1)), str(date(_year, 12, 31))])),
             y=alt.value(40),
-            color=alt.Color("front_contract:N", title="front contract (most volume that day)", scale=alt.Scale(scheme="category10")),
+            color=alt.Color(
+                "front_contract:N",
+                title="front contract (most volume that day)",
+                # Okabe-Ito, never the red/green of the default categorical scheme.
+                scale=alt.Scale(range=[OKABE_ITO[name] for name in ("blue", "orange", "sky", "vermillion", "bluish_green", "reddish_purple", "yellow", "black")]),
+            ),
             tooltip=[alt.Tooltip("day:T", title="day"), alt.Tooltip("front_contract:N", title="front contract")],
         )
     )
