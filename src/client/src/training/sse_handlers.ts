@@ -9,6 +9,11 @@ import type { TrainingSSECallbacks } from "@/training/lib/useTrainingSSE";
 import type { ModelStatePayload, OverlayPayload } from "@shared/trainingTypes";
 import type { TrainingBarContext } from "@/shared/contexts/dashboardTypes";
 import { applyDelta, DELTA_MARKER } from "@shared/delta";
+import {
+  dispatchOverlayEvent,
+  reportOverlayDispatchResult,
+  resetOverlayDispatchReporting,
+} from "@/training/lib/overlayDispatch";
 
 export interface TrainingStateSetters {
   setDataRange: (v: { start: string; end: string } | null) => void;
@@ -42,6 +47,9 @@ let lastFullModelState: Record<string, unknown> | null = null;
 export function buildSSECallbacks(s: TrainingStateSetters): TrainingSSECallbacks {
   // Reset delta state on new session
   lastFullModelState = null;
+  // A new run gets its overlay warnings again — one per type, not swallowed
+  // for the life of the tab.
+  resetOverlayDispatchReporting();
 
   return {
     onStarted(d) {
@@ -77,11 +85,20 @@ export function buildSSECallbacks(s: TrainingStateSetters): TrainingSSECallbacks
       }
     },
     onOverlay(d) {
+      // The raw event stays in state for every overlay type — chart consumers
+      // read it and run `dispatchOverlayEvent` themselves for the normalised
+      // shape. No overlay type is branched on here.
       s.setOverlayType(d.overlayType);
       s.setOverlayData(d);
-      if (d.overlayType === "regime_zones" && Array.isArray(d.timestamps) && Array.isArray(d.assignments)) {
-        s.setLiveRegimeTimestamps(d.timestamps.map((t: unknown) => typeof t === 'string' ? Number(t) : t as number));
-        s.setLiveRegimeAssignments(d.assignments);
+
+      const result = dispatchOverlayEvent(d);
+      // Names the type once per session when nothing will be drawn, so
+      // "my model declared X and nothing rendered" is answerable.
+      reportOverlayDispatchResult(result);
+
+      if (result.outcome === "regime_zones") {
+        s.setLiveRegimeTimestamps(result.timestampsSeconds);
+        s.setLiveRegimeAssignments(result.regimeAssignments);
       }
     },
     onLog(d) {

@@ -293,8 +293,57 @@ def _to_epoch_sec(t) -> int:
 
 
 def emit_overlay(
-    timestamps, assignments, regime_colors, regime_labels, transition_matrix=None, n_regimes=None
+    timestamps,
+    assignments,
+    regime_colors,
+    regime_labels,
+    transition_matrix=None,
+    n_regimes=None,
+    *,
+    overlay_type: str = "regime_zones",
 ):
+    """Emit a chart-overlay event carrying a per-bar categorical assignment.
+
+    ``overlayType`` is the dispatch key — it is the ONLY field the client
+    branches on to decide how to paint the overlay, so it must match the
+    ``chartOverlay`` string the model declares for itself in
+    `src/config/runners.json` (also `models.json` / `tasks.json` /
+    `model-templates.json`, merged onto ``ModelRegistryEntry`` at
+    `src/server/training/registry.ts:122`). Values in use across those configs
+    today: ``regime_bands``, ``prediction_markers``, ``prediction_heatband``,
+    ``prediction_line``, ``reward_curve``, ``credible_bands``. A model whose
+    declaration and emitted ``overlayType`` disagree paints nothing — the client
+    has no fallback branch, by design, so a mismatch is visible rather than
+    silently rendered as the wrong thing.
+
+    The server side is already generic: ``OverlayEventSchema``
+    (`src/server/training/runners/parsers/generated.ts:150-156`) accepts any
+    ``overlayType`` string, with ``timestamps`` / ``assignments`` optional
+    number arrays and a free-form ``payload``.
+
+    Parameters
+    ----------
+    timestamps : sequence
+        Per-bar timestamps; coerced to epoch SECONDS by :func:`_to_epoch_sec`,
+        which is the ``time`` key lightweight-charts indexes on.
+    assignments : sequence of int
+        Per-bar category index, parallel to ``timestamps``.
+    regime_colors : sequence of str
+        Hex colour per category. Use the Okabe-Ito palette (orange ``#E69F00``
+        for up/positive, blue ``#0072B2`` for down/negative) and never a
+        red/green pair — colour must not be the only carrier of meaning.
+    regime_labels : sequence of str
+        Human-readable label per category, in full words.
+    transition_matrix : array-like or None
+        Optional K×K transition matrix; emitted inside ``payload`` when given.
+    n_regimes : int or None
+        Category count; defaults to ``len(regime_colors)`` when a transition
+        matrix is supplied.
+    overlay_type : str, keyword-only
+        The dispatch key described above. Defaults to ``"regime_zones"`` so the
+        existing regime caller (`src/ml/ghmm_smoke/main.py:850`, which passes
+        keyword arguments only) is unchanged.
+    """
     payload = {
         "colors": regime_colors,
         "labels": regime_labels,
@@ -310,9 +359,156 @@ def emit_overlay(
         _envelope(
             "overlay",
             {
-                "overlayType": "regime_zones",
+                "overlayType": str(overlay_type),
                 "timestamps": [_to_epoch_sec(t) for t in timestamps],
                 "assignments": [int(a) for a in assignments],
+                "payload": payload,
+            },
+        )
+    )
+
+
+# Okabe-Ito, deuteranopia-safe. Orange is up/positive, blue is down/negative —
+# never a red/green pair — and every direction also carries a distinct shape so
+# the marker is readable with colour ignored entirely.
+_DIRECTION_LEGEND = {
+    "1": {
+        "label": "predicted up",
+        "color": "#E69F00",  # Okabe-Ito orange
+        "shape": "arrowUp",
+        "position": "belowBar",
+    },
+    "0": {
+        "label": "predicted flat",
+        "color": "#000000",
+        "shape": "circle",
+        "position": "inBar",
+    },
+    "-1": {
+        "label": "predicted down",
+        "color": "#0072B2",  # Okabe-Ito blue
+        "shape": "arrowDown",
+        "position": "aboveBar",
+    },
+}
+
+
+def emit_prediction_markers(
+    timestamps,
+    directions,
+    confidences=None,
+    *,
+    overlay_type: str = "prediction_markers",
+):
+    """Emit per-bar direction predictions to be drawn on the price chart.
+
+    This is the live "is the model predicting correctly?" channel: one marker
+    per bar, on the same candle series the bar belongs to, streamed while
+    training runs.
+
+    ``overlayType`` is what the client dispatches on — it is the ONLY field the
+    client branches on — and it must match the ``chartOverlay`` string this
+    model declares in `src/config/runners.json` (merged onto
+    ``ModelRegistryEntry`` at `src/server/training/registry.ts:122`, default
+    ``"prediction_markers"``). A classifier declaring ``prediction_markers``
+    calls this with the default; a model declaring something else passes its own
+    string rather than having a branch added here.
+
+    Wire shape (validates against ``OverlayEventSchema``,
+    `src/server/training/runners/parsers/generated.ts:150-156`)::
+
+        {"type": "overlay",
+         "overlayType": "prediction_markers",
+         "timestamps":  [1726790400, 1726876800, ...],   # epoch SECONDS
+         "assignments": [1, -1, 0, ...],                 # direction per bar
+         "payload": {"confidences": [0.82, 0.61, null, ...],
+                     "direction_legend": {...},
+                     "bar_count": 3}}
+
+    Three parallel arrays, no per-bar objects: that is the compact form, because
+    thousands of bars flow through this event. A per-bar ``{"timestamp": ...,
+    "direction": ..., "confidence": ...}`` list costs roughly four times the
+    bytes for the same information. ``directions`` rides in the generic
+    top-level ``assignments`` field (rather than being repeated inside
+    ``payload``) so it is never carried twice.
+
+    Parameters
+    ----------
+    timestamps : sequence
+        Bar timestamps, one per prediction. Coerced to epoch SECONDS by
+        :func:`_to_epoch_sec` — the same key the chart's candles are indexed on,
+        so a marker lands on its own bar. Datetimes, epoch seconds and epoch
+        milliseconds are all accepted.
+    directions : sequence of int
+        Predicted direction per bar: ``1`` up, ``0`` flat/no-position, ``-1``
+        down. Anything outside that set is clamped into it (``> 0`` → ``1``,
+        ``< 0`` → ``-1``), so a raw sign, a +1/-1 label vector, or a
+        {0,1,2}-style class index that the caller has already re-centred all
+        work. A value that is not a number at all becomes ``0``.
+    confidences : sequence of float or None
+        Optional predicted probability / confidence in ``[0, 1]``, one per bar,
+        used by the client to set marker opacity. Values are clamped to
+        ``[0, 1]`` and rounded to 3 decimals (≈0.1% resolution — finer than
+        anything visible as opacity, and it halves the wire size). A
+        non-finite or non-numeric entry becomes ``null``, which means "no
+        confidence for this bar", never ``0.0``, which would mean "certain it
+        is wrong". Pass ``None`` to omit the array entirely.
+    overlay_type : str, keyword-only
+        The dispatch key described above.
+
+    Raises
+    ------
+    ValueError
+        If ``confidences`` is given and its length differs from ``timestamps``.
+        Silently truncating would mis-pair every marker after the first gap.
+    """
+    epoch_seconds = [_to_epoch_sec(t) for t in timestamps]
+
+    direction_values = []
+    for d in directions:
+        try:
+            value = int(round(float(d)))
+        except (TypeError, ValueError):
+            value = 0
+        direction_values.append(1 if value > 0 else (-1 if value < 0 else 0))
+
+    if len(direction_values) != len(epoch_seconds):
+        raise ValueError(
+            f"emit_prediction_markers: {len(epoch_seconds)} timestamps but "
+            f"{len(direction_values)} directions — they must be parallel."
+        )
+
+    payload: dict = {
+        "direction_legend": _DIRECTION_LEGEND,
+        "bar_count": len(epoch_seconds),
+    }
+
+    if confidences is not None:
+        confidence_values = []
+        for c in confidences:
+            try:
+                value = float(c)
+            except (TypeError, ValueError):
+                confidence_values.append(None)
+                continue
+            if not math.isfinite(value):
+                confidence_values.append(None)
+                continue
+            confidence_values.append(round(min(1.0, max(0.0, value)), 3))
+        if len(confidence_values) != len(epoch_seconds):
+            raise ValueError(
+                f"emit_prediction_markers: {len(epoch_seconds)} timestamps but "
+                f"{len(confidence_values)} confidences — they must be parallel."
+            )
+        payload["confidences"] = confidence_values
+
+    emit(
+        _envelope(
+            "overlay",
+            {
+                "overlayType": str(overlay_type),
+                "timestamps": epoch_seconds,
+                "assignments": direction_values,
                 "payload": payload,
             },
         )
