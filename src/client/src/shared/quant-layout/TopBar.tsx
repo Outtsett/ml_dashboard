@@ -1,11 +1,13 @@
+import { useState } from "react";
 import * as Toolbar from "@radix-ui/react-toolbar";
 
 import { useWebSocketMetrics } from "@/hooks/useWebSocketMetrics";
-import { Activity, Cpu, PanelRight, Server } from "lucide-react";
+import { Activity, Cpu, PanelRight, Server, Play } from "lucide-react";
 import * as Progress from "@radix-ui/react-progress";
 import { trendTone, trendToneClass, trendGlyph, trendLabel } from "@/shared/theme/dataColors";
 import { useSymbolContext } from "@/shared/contexts/SymbolContext";
 import { minutesToLabel } from "@/market/lib/timeframes";
+import { QuickTrainDrawer } from "./QuickTrainDrawer";
 
 export interface TopBarProps {
   sidePanelOpen: boolean;
@@ -13,6 +15,7 @@ export interface TopBarProps {
 }
 
 export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
+  const [trainDrawerOpen, setTrainDrawerOpen] = useState(false);
   const { metrics, isConnected } = useWebSocketMetrics();
   // The dashboard-wide selection. The timeframe here was the literal "1m" and
   // the symbol fell back to a literal "MNQ", so the bar kept announcing a pair
@@ -103,6 +106,16 @@ export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
             open permanently. They are a drawer now, and this opens it. */}
         <button
           type="button"
+          onClick={() => setTrainDrawerOpen(true)}
+          title="Quick Train Model"
+          className="flex items-center gap-1.5 rounded border border-amber-600/50 bg-amber-500/10 text-amber-500 px-2 py-1 transition-colors hover:border-amber-500 hover:bg-amber-500/20 hover:text-amber-400"
+        >
+          <Play className="h-4 w-4" />
+          <span className="font-bold">Train</span>
+        </button>
+
+        <button
+          type="button"
           onClick={onToggleSidePanel}
           aria-expanded={sidePanelOpen}
           aria-controls="side-panel"
@@ -117,6 +130,7 @@ export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
           <PanelRight className="h-4 w-4" />
           <span>Metrics</span>
         </button>
+        <QuickTrainDrawer open={trainDrawerOpen} onOpenChange={setTrainDrawerOpen} />
       </div>
     </Toolbar.Root>
   );

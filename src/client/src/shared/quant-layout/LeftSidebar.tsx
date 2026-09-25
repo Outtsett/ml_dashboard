@@ -36,6 +36,7 @@ import {
 const NAV_ITEMS = [
   { label: "Market", href: "/", icon: BarChart3 },
   { label: "Regression", href: "/regression", icon: ScatterChart },
+  { label: "Live Execution", href: "/live-execution", icon: ActivitySquare },
   { label: "ML Studio", href: "/ml-studio", icon: BrainCircuit },
   { label: "Catalog", href: "/model-catalog", icon: Library },
   { label: "Data", href: "/databases", icon: Database },
