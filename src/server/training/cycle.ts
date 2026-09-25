@@ -168,6 +168,10 @@ function applyCycleTypedEvent(run: CycleRunState, type: string, data: Record<str
 }
 
 function finishRun(run: CycleRunState, status: CycleRunStatus, error: string | null, finishedAt: number): void {
+  // The first terminal state wins. A user stop kills the process, and the
+  // runner then reports the kill's non-zero exit as a second, generic
+  // "Training failed (exit code …)" error, which must not relabel the stop.
+  if (run.status !== "running") return;
   run.status = status;
   run.error = error;
   run.finishedAt = finishedAt;

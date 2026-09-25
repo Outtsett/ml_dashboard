@@ -88,6 +88,8 @@ export interface CycleState {
   begin: (modelId: string, modelType: string) => void;
   loadSnapshot: (snapshot: CycleSnapshot) => void;
   applyEvent: (type: string, data: unknown) => void;
+  /** Apply a batch of events with one state update (what the stream uses). */
+  applyEvents: (events: ReadonlyArray<{ type: string; data: unknown }>) => void;
   fail: (message: string) => void;
   reset: () => void;
   setFollow: (follow: boolean) => void;
@@ -95,13 +97,61 @@ export interface CycleState {
   setFocusTimestamp: (timestamp: number | null) => void;
 }
 
-type Setter = (partial: Partial<CycleState>) => void;
+/**
+ * The fields an event can change. A batch of events is reduced into one draft
+ * and committed with a single `set()`, so React sees one update per batch
+ * instead of one per event. `bars` and `logs` are the same mutable arrays as
+ * in the store (appended in place); everything else is replaced immutably.
+ */
+type Draft = Pick<
+  CycleState,
+  | "status"
+  | "error"
+  | "lastSequence"
+  | "plan"
+  | "cursor"
+  | "bars"
+  | "barsVersion"
+  | "barCount"
+  | "trades"
+  | "running"
+  | "folds"
+  | "final"
+  | "history"
+  | "epochs"
+  | "trials"
+  | "logs"
+  | "logsVersion"
+>;
 
-function pushLog(state: CycleState, line: CycleLogLine): void {
-  state.logs.push(line);
-  if (state.logs.length > CYCLE_LOG_CAPACITY) {
-    state.logs.splice(0, state.logs.length - CYCLE_LOG_CAPACITY);
+function draftOf(state: CycleState): Draft {
+  return {
+    status: state.status,
+    error: state.error,
+    lastSequence: state.lastSequence,
+    plan: state.plan,
+    cursor: state.cursor,
+    bars: state.bars,
+    barsVersion: state.barsVersion,
+    barCount: state.barCount,
+    trades: state.trades,
+    running: state.running,
+    folds: state.folds,
+    final: state.final,
+    history: state.history,
+    epochs: state.epochs,
+    trials: state.trials,
+    logs: state.logs,
+    logsVersion: state.logsVersion,
+  };
+}
+
+function pushLog(draft: Draft, line: CycleLogLine): void {
+  draft.logs.push(line);
+  if (draft.logs.length > CYCLE_LOG_CAPACITY) {
+    draft.logs.splice(0, draft.logs.length - CYCLE_LOG_CAPACITY);
   }
+  draft.logsVersion += 1;
 }
 
 function normaliseLevel(level: unknown): CycleLogLine["level"] {
@@ -142,48 +192,43 @@ function upsertFold(folds: CycleScoreboard[], board: CycleScoreboard): CycleScor
   return next;
 }
 
-function applyCycleEvent<T extends CycleEventType>(
-  state: CycleState,
-  set: Setter,
-  type: T,
-  payload: CycleEventPayloads[T],
-): void {
+function reduceCycleEvent<T extends CycleEventType>(draft: Draft, type: T, payload: CycleEventPayloads[T]): void {
   switch (type) {
     case "cycle_plan":
-      set({ plan: payload as CyclePlan });
+      draft.plan = payload as CyclePlan;
       return;
     case "cycle_bars": {
-      const appended = appendBars(state.bars, payload as CycleBars);
+      const appended = appendBars(draft.bars, payload as CycleBars);
       const resolvedAny = (payload as CycleBars).resolved !== undefined;
       if (appended > 0 || resolvedAny) {
-        set({ barsVersion: state.barsVersion + 1, barCount: state.bars.timestamps.length });
+        draft.barsVersion += 1;
+        draft.barCount = draft.bars.timestamps.length;
       }
       return;
     }
     case "cycle_cursor":
-      set({ cursor: payload as CycleCursor });
+      draft.cursor = payload as CycleCursor;
       return;
     case "cycle_epoch":
-      set({ epochs: [...state.epochs, payload as CycleEpoch] });
+      draft.epochs = [...draft.epochs, payload as CycleEpoch];
       return;
     case "cycle_trial":
-      set({ trials: upsertTrial(state.trials, payload as CycleTrial) });
+      draft.trials = upsertTrial(draft.trials, payload as CycleTrial);
       return;
     case "cycle_trade":
-      set({ trades: upsertTrade(state.trades, payload as CycleTrade) });
+      draft.trades = upsertTrade(draft.trades, payload as CycleTrade);
       return;
     case "cycle_scoreboard": {
       const board = payload as CycleScoreboard;
       if (board.scope === "running") {
-        const history =
-          state.history.length >= CYCLE_HISTORY_CAPACITY
-            ? [...state.history.slice(1), { barsEvaluated: board.barsEvaluated, metrics: board.metrics }]
-            : [...state.history, { barsEvaluated: board.barsEvaluated, metrics: board.metrics }];
-        set({ running: board, history });
+        const sample = { barsEvaluated: board.barsEvaluated, metrics: board.metrics };
+        draft.history =
+          draft.history.length >= CYCLE_HISTORY_CAPACITY ? [...draft.history.slice(1), sample] : [...draft.history, sample];
+        draft.running = board;
       } else if (board.scope === "fold") {
-        set({ folds: upsertFold(state.folds, board) });
+        draft.folds = upsertFold(draft.folds, board);
       } else {
-        set({ final: board });
+        draft.final = board;
       }
       return;
     }
@@ -200,11 +245,64 @@ const CYCLE_TYPES: ReadonlySet<string> = new Set([
   "cycle_scoreboard",
 ]);
 
+/** Fold one event into a draft. Events at or below the draft's sequence are ignored. */
+function reduceEvent(draft: Draft, type: string, data: unknown): void {
+  const seq = sequenceOf(data);
+  if (seq !== null) {
+    if (seq <= draft.lastSequence) return;
+    draft.lastSequence = seq;
+  }
+
+  if (CYCLE_TYPES.has(type)) {
+    if (draft.status === "starting") draft.status = "running";
+    reduceCycleEvent(draft, type as CycleEventType, data as CycleEventPayloads[CycleEventType]);
+    return;
+  }
+
+  const record = (data ?? {}) as Record<string, unknown>;
+  switch (type) {
+    case "started":
+      if (draft.status === "starting" || draft.status === "idle") draft.status = "running";
+      return;
+    case "log": {
+      const message = typeof record.message === "string" ? record.message : "";
+      if (!message) return;
+      pushLog(draft, { seq, level: normaliseLevel(record.level), message, receivedAt: Date.now() });
+      return;
+    }
+    case "error": {
+      const message = typeof record.message === "string" ? record.message : "Run failed";
+      // The first terminal state wins: after a user stop the killed process's
+      // non-zero exit arrives as a second, generic error.
+      if (draft.status === "stopped" || draft.status === "complete" || draft.status === "failed") {
+        pushLog(draft, { seq, level: "warn", message, receivedAt: Date.now() });
+        return;
+      }
+      const stoppedByUser = message === "Training stopped by user";
+      pushLog(draft, { seq, level: "error", message, receivedAt: Date.now() });
+      const details = typeof record.details === "string" && record.details ? record.details : null;
+      if (details) pushLog(draft, { seq, level: "error", message: details, receivedAt: Date.now() });
+      draft.status = stoppedByUser ? "stopped" : "failed";
+      draft.error = stoppedByUser ? null : message;
+      return;
+    }
+    case "done": {
+      const diagnostics = (record.diagnostics ?? {}) as Record<string, unknown>;
+      if (draft.status === "failed" || draft.status === "stopped" || draft.status === "complete") return;
+      draft.status = diagnostics.stopped === true ? "stopped" : "complete";
+      return;
+    }
+    default:
+      return;
+  }
+}
+
 function initialRunState(): Omit<
   CycleState,
   | "begin"
   | "loadSnapshot"
   | "applyEvent"
+  | "applyEvents"
   | "fail"
   | "reset"
   | "setFollow"
@@ -287,58 +385,21 @@ export const useCycleStore = create<CycleState>((set, get) => ({
     });
   },
 
-  applyEvent: (type, data) => {
-    const state = get();
-    const seq = sequenceOf(data);
-    if (seq !== null) {
-      if (seq <= state.lastSequence) return;
-      set({ lastSequence: seq });
-    }
+  applyEvent: (type, data) => get().applyEvents([{ type, data }]),
 
-    if (CYCLE_TYPES.has(type)) {
-      if (state.status === "starting") set({ status: "running" });
-      applyCycleEvent(get(), set, type as CycleEventType, data as CycleEventPayloads[CycleEventType]);
-      return;
-    }
-
-    const record = (data ?? {}) as Record<string, unknown>;
-    switch (type) {
-      case "started":
-        if (state.status === "starting" || state.status === "idle") set({ status: "running" });
-        return;
-      case "log": {
-        const message = typeof record.message === "string" ? record.message : "";
-        if (!message) return;
-        pushLog(get(), { seq, level: normaliseLevel(record.level), message, receivedAt: Date.now() });
-        set({ logsVersion: get().logsVersion + 1 });
-        return;
-      }
-      case "error": {
-        const message = typeof record.message === "string" ? record.message : "Run failed";
-        const stoppedByUser = message === "Training stopped by user";
-        pushLog(get(), { seq, level: "error", message, receivedAt: Date.now() });
-        const details = typeof record.details === "string" && record.details ? record.details : null;
-        if (details) pushLog(get(), { seq, level: "error", message: details, receivedAt: Date.now() });
-        set({
-          status: stoppedByUser ? "stopped" : "failed",
-          error: stoppedByUser ? null : message,
-          logsVersion: get().logsVersion + 1,
-        });
-        return;
-      }
-      case "done": {
-        const diagnostics = (record.diagnostics ?? {}) as Record<string, unknown>;
-        set({ status: diagnostics.stopped === true ? "stopped" : "complete" });
-        return;
-      }
-      default:
-        return;
-    }
+  applyEvents: (events) => {
+    if (events.length === 0) return;
+    const draft = draftOf(get());
+    for (const { type, data } of events) reduceEvent(draft, type, data);
+    set(draft);
   },
 
   fail: (message) => {
-    pushLog(get(), { seq: null, level: "error", message, receivedAt: Date.now() });
-    set({ status: "failed", error: message, logsVersion: get().logsVersion + 1 });
+    const draft = draftOf(get());
+    pushLog(draft, { seq: null, level: "error", message, receivedAt: Date.now() });
+    draft.status = "failed";
+    draft.error = message;
+    set(draft);
   },
 
   reset: () => {

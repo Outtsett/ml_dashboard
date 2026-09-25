@@ -214,9 +214,14 @@ def run(args: argparse.Namespace, unknown: list[str]) -> int:
 
     started = time.monotonic()
     family = args.model_family
-    if not re.match(r"^[A-Za-z0-9_.\-]+$", args.model_id):
+    # `+` is allowed: the server names runs after the runner key, e.g.
+    # MNQ_5m_xgboost+walk_forward_cycle_20260925T103846, and looks for
+    # diagnostics.json under exactly that directory name.
+    if not re.match(r"^[A-Za-z0-9_.+\-]+$", args.model_id) or ".." in args.model_id:
         raise ValueError(f"model id {args.model_id!r} is not a safe directory name")
-    protocol.emit_cycle_cursor("loading", fold_count=0)
+    protocol.emit_cycle_cursor(
+        "loading", fold_count=0, bars_per_second=args.bars_per_second, paused=bool(args.start_paused)
+    )
     protocol.emit_log(f"[data] Model Cycle: {MODEL_LABELS[family]} on {args.symbol} {args.timeframe}, run {args.model_id}")
     if unknown:
         protocol.emit_log(f"[data] ignoring unknown arguments: {' '.join(unknown)}", "warn")
@@ -312,7 +317,7 @@ def main(argv: list[str] | None = None) -> int:
         return run(args, unknown)
     except Exception as error:  # noqa: BLE001 - every failure is reported as an event
         try:
-            protocol.emit_cycle_cursor("failed", fold_count=0)
+            protocol.emit_cycle_cursor("failed", fold_count=0, bars_per_second=getattr(args, "bars_per_second", 0.0))
         except Exception:  # noqa: BLE001
             pass
         protocol.emit_error(f"{type(error).__name__}: {error}", traceback.format_exc())

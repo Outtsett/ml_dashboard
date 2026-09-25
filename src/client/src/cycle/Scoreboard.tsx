@@ -73,7 +73,9 @@ function comparisonLine(
     if (value == null || baseline == null) return null;
     const diff = value - baseline;
     const tone = diff >= 0 ? "up" : "down";
-    return { text: `${tone === "up" ? "▲" : "▼"} ${formatUsd(Math.abs(diff))} ${tone === "up" ? "above" : "below"} buy-and-hold`, tone };
+    // A distance, so no sign: "▼ $2,962.40 below", never "▼ +$2,962.40 below".
+    const distance = formatUsd(Math.abs(diff)).replace(/^\+/, "");
+    return { text: `${tone === "up" ? "▲" : "▼"} ${distance} ${tone === "up" ? "above" : "below"} buy-and-hold`, tone };
   }
   return null;
 }
@@ -82,9 +84,14 @@ function Tile({ name, scoreboard, history }: { name: CycleMetricName; scoreboard
   const definition = METRIC_DEFINITIONS[name];
   const value = scoreboard ? (scoreboard.metrics[name] ?? null) : null;
   const isNull = value === null || value === undefined;
-  const formatted = formatMetric(definition.formatKind, value ?? null);
   const isMoney = definition.formatKind === "usd";
-  const sign = isMoney && !isNull ? (value! > 0 ? "up" : value! < 0 ? "down" : null) : null;
+  // Only profit-like money (higher is better) carries a sign and the profit /
+  // loss colours. A drawdown or a cost is a size: shown unsigned and neutral,
+  // never as an orange "+$3,641.80" that reads like a gain.
+  const isProfitLike = isMoney && definition.better === "higher";
+  const rawFormatted = formatMetric(definition.formatKind, value ?? null);
+  const formatted = isMoney && !isProfitLike ? rawFormatted.replace(/^\+/, "") : rawFormatted;
+  const sign = isProfitLike && !isNull ? (value! > 0 ? "up" : value! < 0 ? "down" : null) : null;
   const comparison = scoreboard ? comparisonLine(name, scoreboard.metrics) : null;
   const betterText =
     definition.better === "higher" ? "Higher is better." : definition.better === "lower" ? "Lower is better." : "Closer to zero is better.";
@@ -133,7 +140,11 @@ export function CycleScoreboard() {
   const folds = useCycleStore((s) => s.folds);
   const history = useCycleStore((s) => s.history);
 
-  const [scope, setScope] = useState<ScopeId>(() => (final ? "final" : "running"));
+  // Follows the data (Final once it exists, Running before) until the user
+  // picks a scope. Deciding once at mount stuck on Running after a reload,
+  // because the snapshot with the final scoreboard arrives after the mount.
+  const [chosenScope, setScope] = useState<ScopeId | null>(null);
+  const scope: ScopeId = chosenScope ?? (final ? "final" : "running");
 
   const selected: CycleScoreboardPayload | null = useMemo(() => {
     if (scope === "running") return running;
@@ -158,7 +169,7 @@ export function CycleScoreboard() {
   }, [history]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto p-2">
+    <div className="flex flex-col gap-3 p-2">
       <div className="flex flex-wrap items-center gap-1.5">
         <button
           type="button"
@@ -166,7 +177,7 @@ export function CycleScoreboard() {
           onClick={() => setScope("running")}
           className={cn(
             "rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-            scope === "running" ? "border-primary bg-primary/15 text-primary-foreground" : "border-border/50 text-muted-foreground",
+            scope === "running" ? "border-primary bg-primary/15 text-foreground" : "border-border/50 text-muted-foreground",
           )}
         >
           Running
@@ -181,7 +192,7 @@ export function CycleScoreboard() {
               onClick={() => setScope(`fold-${fold.foldIndex}`)}
               className={cn(
                 "rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-                scope === `fold-${fold.foldIndex}` ? "border-primary bg-primary/15 text-primary-foreground" : "border-border/50 text-muted-foreground",
+                scope === `fold-${fold.foldIndex}` ? "border-primary bg-primary/15 text-foreground" : "border-border/50 text-muted-foreground",
               )}
             >
               Fold {fold.foldIndex + 1}
@@ -193,7 +204,7 @@ export function CycleScoreboard() {
           onClick={() => setScope("final")}
           className={cn(
             "rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-            scope === "final" ? "border-primary bg-primary/15 text-primary-foreground" : "border-border/50 text-muted-foreground",
+            scope === "final" ? "border-primary bg-primary/15 text-foreground" : "border-border/50 text-muted-foreground",
           )}
         >
           Final

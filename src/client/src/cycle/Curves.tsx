@@ -92,7 +92,8 @@ function TuningScatter({ trials }: { trials: CycleTrial[] }) {
   const failed = trials.filter((t) => t.state === "failed");
   const running = trials.filter((t) => t.state === "running");
 
-  const toPoint = (t: CycleTrial) => ({ trial: t.trial, objective: t.objectiveValue });
+  // Optuna numbers trials from 0; the terminal and the stepper say "trial 1/N".
+  const toPoint = (t: CycleTrial) => ({ trial: t.trial + 1, objective: t.objectiveValue });
 
   return (
     <div className="h-56 w-full" data-testid="curves-tuning-scatter">
@@ -141,7 +142,7 @@ function TuningTable({ trials }: { trials: CycleTrial[] }) {
         <tbody>
           {sorted.map((trial) => (
             <tr key={trial.trial} data-testid="tuning-trial-row" className="border-b border-border/20">
-              <td className="px-2 py-1 font-mono tabular-nums">{trial.trial}</td>
+              <td className="px-2 py-1 font-mono tabular-nums">{trial.trial + 1}</td>
               <td className="px-2 py-1 capitalize">{trial.state}</td>
               <td className="px-2 py-1 text-right font-mono tabular-nums">{formatRatio(trial.objectiveValue)}</td>
               {parameterKeys.map((key) => (
@@ -189,7 +190,7 @@ export function CycleCurves() {
                   onClick={() => setSelectedFold(index)}
                   className={cn(
                     "rounded-full border px-2 py-0.5 text-[10px] font-medium",
-                    activeFold === index ? "border-primary bg-primary/15 text-primary-foreground" : "border-border/50 text-muted-foreground",
+                    activeFold === index ? "border-primary bg-primary/15 text-foreground" : "border-border/50 text-muted-foreground",
                   )}
                 >
                   Fold {index + 1}

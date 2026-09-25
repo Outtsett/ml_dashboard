@@ -27,18 +27,31 @@ const EXIT_REASON_WORDS: Record<NonNullable<CycleTrade["exitReason"]>, string> =
   stopped: "run stopped",
 };
 
-const DISTRIBUTION_ROWS: { key: keyof CycleDistribution; label: string; isCount?: boolean }[] = [
-  { key: "count", label: "Count", isCount: true },
-  { key: "mean", label: "Mean" },
-  { key: "median", label: "Median" },
-  { key: "standardDeviation", label: "Standard deviation" },
-  { key: "skewness", label: "Skewness" },
-  { key: "kurtosis", label: "Kurtosis" },
-  { key: "percentile25", label: "25th percentile" },
-  { key: "percentile75", label: "75th percentile" },
-  { key: "minimum", label: "Minimum" },
-  { key: "maximum", label: "Maximum" },
+/**
+ * The eight numbers plus the count. Each row names its unit: skewness and
+ * kurtosis are unitless shape numbers (they were printed as dollars), and a
+ * standard deviation is a size, so it carries no sign.
+ */
+type DistributionUnit = "count" | "usd" | "usd_magnitude" | "unitless";
+const DISTRIBUTION_ROWS: { key: keyof CycleDistribution; label: string; unit: DistributionUnit }[] = [
+  { key: "count", label: "Count", unit: "count" },
+  { key: "mean", label: "Mean", unit: "usd" },
+  { key: "median", label: "Median", unit: "usd" },
+  { key: "standardDeviation", label: "Standard deviation", unit: "usd_magnitude" },
+  { key: "skewness", label: "Skewness", unit: "unitless" },
+  { key: "kurtosis", label: "Excess kurtosis", unit: "unitless" },
+  { key: "percentile25", label: "25th percentile", unit: "usd" },
+  { key: "percentile75", label: "75th percentile", unit: "usd" },
+  { key: "minimum", label: "Minimum", unit: "usd" },
+  { key: "maximum", label: "Maximum", unit: "usd" },
 ];
+
+function formatDistributionValue(value: number, unit: DistributionUnit): string {
+  if (unit === "count") return formatCount(value);
+  if (unit === "usd_magnitude") return formatUsdMagnitude(value);
+  if (unit === "unitless") return value.toFixed(2);
+  return formatUsd(value);
+}
 
 /** Freedman–Diaconis bin count for `values`, clamped to [5, 60]. */
 function freedmanDiaconisBinCount(values: number[]): number {
@@ -128,7 +141,7 @@ function DistributionPanel({ distribution }: { distribution: CycleDistribution }
     <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
       {DISTRIBUTION_ROWS.map((row) => {
         const value = distribution[row.key];
-        const text = value === null ? "—" : row.isCount ? formatCount(value) : formatUsd(value);
+        const text = value === null ? "—" : formatDistributionValue(value, row.unit);
         return (
           <div key={row.key} className="flex items-center justify-between gap-2" data-testid={`trade-distribution-${row.key}`}>
             <dt className="text-muted-foreground">{row.label}</dt>
@@ -169,7 +182,7 @@ function TradeRow({ index, style, trades, onRowClick }: { index: number; style: 
       onClick={() => onRowClick(trade)}
       className="flex cursor-pointer items-center gap-2 border-b border-border/20 px-2 font-mono text-[11px] tabular-nums hover:bg-white/[0.04]"
     >
-      <span className="w-10 shrink-0 text-muted-foreground">#{trade.tradeNumber}</span>
+      <span className="w-14 shrink-0 text-muted-foreground">#{trade.tradeNumber}</span>
       <span className="w-12 shrink-0 text-muted-foreground">Fold {trade.foldIndex + 1}</span>
       <span className="w-16 shrink-0">
         <SideBadge side={trade.side} />
@@ -195,6 +208,29 @@ function TradeRow({ index, style, trades, onRowClick }: { index: number; style: 
 }
 
 const TABLE_ROW_HEIGHT = 24;
+/** Sum of the fixed column widths below plus room for the exit reason. */
+const TABLE_MINIMUM_WIDTH = 1000;
+
+/** Column titles, same widths as `TradeRow`. */
+function TradeHeader() {
+  return (
+    <div className="flex shrink-0 items-center gap-2 border-b border-border/40 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <span className="w-14 shrink-0">Number</span>
+      <span className="w-12 shrink-0">Fold</span>
+      <span className="w-16 shrink-0">Side</span>
+      <span className="w-32 shrink-0">Entry time</span>
+      <span className="w-16 shrink-0 text-right">Entry price</span>
+      <span className="w-32 shrink-0">Exit time</span>
+      <span className="w-16 shrink-0 text-right">Exit price</span>
+      <span className="w-10 shrink-0 text-right">Bars</span>
+      <span className="w-14 shrink-0 text-right">P(up)</span>
+      <span className="w-20 shrink-0 text-right">Gross</span>
+      <span className="w-16 shrink-0 text-right">Cost</span>
+      <span className="w-20 shrink-0 text-right">Net</span>
+      <span className="min-w-0 flex-1">Exit reason</span>
+    </div>
+  );
+}
 
 export function CycleTrades() {
   const trades = useCycleStore((s) => s.trades);
@@ -203,7 +239,9 @@ export function CycleTrades() {
   const folds = useCycleStore((s) => s.folds);
   const setFocusTimestamp = useCycleStore((s) => s.setFocusTimestamp);
 
-  const [scope, setScope] = useState<ScopeId>(() => (final ? "final" : "running"));
+  // Follows the data until the user picks a scope (see Scoreboard).
+  const [chosenScope, setScope] = useState<ScopeId | null>(null);
+  const scope: ScopeId = chosenScope ?? (final ? "final" : "running");
   const [sideFilter, setSideFilter] = useState<SideFilter>("all");
   const [binCount, setBinCount] = useState<number | null>(null);
 
@@ -245,7 +283,7 @@ export function CycleTrades() {
             onClick={() => setScope(id)}
             className={cn(
               "rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-              scope === id ? "border-primary bg-primary/15 text-primary-foreground" : "border-border/50 text-muted-foreground",
+              scope === id ? "border-primary bg-primary/15 text-foreground" : "border-border/50 text-muted-foreground",
             )}
           >
             {id === "running" ? "Running" : "Final"}
@@ -261,7 +299,7 @@ export function CycleTrades() {
               onClick={() => setScope(`fold-${fold.foldIndex}`)}
               className={cn(
                 "rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-                scope === `fold-${fold.foldIndex}` ? "border-primary bg-primary/15 text-primary-foreground" : "border-border/50 text-muted-foreground",
+                scope === `fold-${fold.foldIndex}` ? "border-primary bg-primary/15 text-foreground" : "border-border/50 text-muted-foreground",
               )}
             >
               Fold {fold.foldIndex + 1}
@@ -269,7 +307,8 @@ export function CycleTrades() {
           ))}
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="@container">
+      <div className="flex flex-col gap-2 @xl:flex-row">
         <div className="flex flex-1 flex-col gap-1.5">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Closed-trade net profit</span>
@@ -292,7 +331,7 @@ export function CycleTrades() {
           </div>
           <Histogram values={profitValues} binCount={effectiveBinCount} />
         </div>
-        <div className="shrink-0 sm:w-56">
+        <div className="shrink-0 @xl:w-56">
           <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Eight-number summary</span>
           {scoreboard ? (
             <DistributionPanel distribution={scoreboard.tradeDistribution} />
@@ -300,6 +339,7 @@ export function CycleTrades() {
             <div className="text-[11px] text-muted-foreground">No scoreboard yet for this scope.</div>
           )}
         </div>
+      </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-1.5">
@@ -314,7 +354,7 @@ export function CycleTrades() {
                 onClick={() => setSideFilter(id)}
                 className={cn(
                   "rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize",
-                  sideFilter === id ? "border-primary bg-primary/15 text-primary-foreground" : "border-border/50 text-muted-foreground",
+                  sideFilter === id ? "border-primary bg-primary/15 text-foreground" : "border-border/50 text-muted-foreground",
                 )}
               >
                 {id}
@@ -323,20 +363,27 @@ export function CycleTrades() {
           </div>
         </div>
         <div className="text-[10px] text-muted-foreground">Times as stored in the lake (futures bars are Pacific wall-clock time).</div>
-        <div className="min-h-0 flex-1">
-          {filteredTrades.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">No trades match this filter yet.</div>
-          ) : (
-            <List<RowProps>
-              rowCount={filteredTrades.length}
-              rowHeight={TABLE_ROW_HEIGHT}
-              rowComponent={TradeRow}
-              rowProps={{ trades: filteredTrades, onRowClick: (trade) => setFocusTimestamp(trade.entryTimestamp) }}
-              overscanCount={20}
-              defaultHeight={280}
-              style={{ height: "100%" }}
-            />
-          )}
+        {/* Horizontal scroll lives on this wrapper so the header and the
+            virtual rows move together; the rows scroll vertically inside. */}
+        <div className="min-h-0 flex-1 overflow-x-auto">
+          <div className="flex h-full flex-col" style={{ minWidth: TABLE_MINIMUM_WIDTH }}>
+            <TradeHeader />
+            <div className="min-h-0 flex-1">
+              {filteredTrades.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-xs text-muted-foreground">No trades match this filter yet.</div>
+              ) : (
+                <List<RowProps>
+                  rowCount={filteredTrades.length}
+                  rowHeight={TABLE_ROW_HEIGHT}
+                  rowComponent={TradeRow}
+                  rowProps={{ trades: filteredTrades, onRowClick: (trade) => setFocusTimestamp(trade.entryTimestamp) }}
+                  overscanCount={20}
+                  defaultHeight={280}
+                  style={{ height: "100%" }}
+                />
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

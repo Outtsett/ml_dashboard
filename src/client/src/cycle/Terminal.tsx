@@ -8,7 +8,7 @@
  * chip. `[trade #12] ENTER LONG ...` / `EXIT ...` lines additionally tint
  * the side word.
  */
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, type UIEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { List, type ListImperativeAPI } from "react-window";
 
 import { useCycleStore } from "@/cycle/store";
@@ -63,6 +63,23 @@ const ROW_HEIGHT = 22;
 
 interface TerminalLine extends CycleLogLine {
   category: LogCategory;
+}
+
+/**
+ * Each stored line is categorised once. The store appends to one mutable
+ * array, so the same line objects come back on every render; re-running the
+ * prefix regexes over all of them per update was the terminal's cost that grew
+ * with run length (20,000 lines at up to 10 updates a second).
+ */
+const TERMINAL_LINES = new WeakMap<CycleLogLine, TerminalLine>();
+
+function toTerminalLine(line: CycleLogLine): TerminalLine {
+  let terminalLine = TERMINAL_LINES.get(line);
+  if (!terminalLine) {
+    terminalLine = { ...line, category: categorizeLogLine(line.message) };
+    TERMINAL_LINES.set(line, terminalLine);
+  }
+  return terminalLine;
 }
 
 /** Split `text` on every case-insensitive occurrence of `query`, keeping the matched pieces marked. */
@@ -177,7 +194,7 @@ export function CycleTerminal() {
 
   const categorized = useMemo<TerminalLine[]>(() => {
     void logsVersion; // re-derive whenever the mutable `logs` array changes
-    return logs.map((line) => ({ ...line, category: categorizeLogLine(line.message) }));
+    return logs.map(toTerminalLine);
   }, [logs, logsVersion]);
 
   const filtered = useMemo(() => {
@@ -211,13 +228,17 @@ export function CycleTerminal() {
     }
   }, [filtered.length, stuckToBottom]);
 
-  const handleRowsRendered = useCallback(
-    (visible: { startIndex: number; stopIndex: number }) => {
-      const nowAtBottom = filtered.length === 0 || visible.stopIndex >= filtered.length - 1;
-      setAtBottom((prev) => (prev === nowAtBottom ? prev : nowAtBottom));
-    },
-    [filtered.length],
-  );
+  // "At the bottom" comes from the scroll position the user leaves the list
+  // at, not from which rows rendered: on the first render (a snapshot or a
+  // batch of lines) the rendered rows are the top of the list before the
+  // effect below has scrolled it, which read as "the user scrolled away" and
+  // left the terminal parked on the oldest line.
+  const handleScrollCapture = useCallback((event: UIEvent<HTMLDivElement>) => {
+    const element = event.target as HTMLElement;
+    const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+    const nowAtBottom = distanceFromBottom <= ROW_HEIGHT * 2;
+    setAtBottom((prev) => (prev === nowAtBottom ? prev : nowAtBottom));
+  }, []);
 
   const jumpToBottom = useCallback(() => {
     setPaused(false);
@@ -247,7 +268,7 @@ export function CycleTerminal() {
             className={cn(
               "rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
               activeFilter === chip.id
-                ? "border-primary bg-primary/15 text-primary-foreground"
+                ? "border-primary bg-primary/15 text-foreground"
                 : "border-border/50 text-muted-foreground hover:text-foreground",
             )}
           >
@@ -284,14 +305,14 @@ export function CycleTerminal() {
           onClick={() => setPaused((value) => !value)}
           className={cn(
             "shrink-0 rounded border px-2 py-1 text-[10px] font-medium",
-            paused ? "border-primary bg-primary/15 text-primary-foreground" : "border-border/50 text-muted-foreground hover:text-foreground",
+            paused ? "border-primary bg-primary/15 text-foreground" : "border-border/50 text-muted-foreground hover:text-foreground",
           )}
         >
           {paused ? "Scroll paused" : "Pause scroll"}
         </button>
       </div>
 
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1" onScrollCapture={handleScrollCapture}>
         {filtered.length === 0 ? (
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">No lines match the current filter.</div>
         ) : (
@@ -301,7 +322,6 @@ export function CycleTerminal() {
             rowHeight={ROW_HEIGHT}
             rowComponent={TerminalRow}
             rowProps={{ lines: filtered, query }}
-            onRowsRendered={handleRowsRendered}
             overscanCount={30}
             defaultHeight={384}
             style={{ height: "100%" }}

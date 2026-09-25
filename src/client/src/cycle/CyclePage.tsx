@@ -81,7 +81,7 @@ export default function CyclePage() {
   const symbolTimeframe = plan ? `${plan.symbol} · ${plan.timeframe}` : `${symbol} · ${timeframeMinutes}m`;
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
+    <div className="flex h-full flex-col gap-3 overflow-y-auto p-4 *:shrink-0">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold tracking-tight text-neutral-100">Model cycle</h1>
@@ -127,17 +127,21 @@ export default function CyclePage() {
 
       <CycleScoreboard />
 
-      <Tabs defaultValue="terminal" className="flex flex-1 flex-col">
+      <Tabs defaultValue="terminal" className="flex flex-col">
         <TabsList>
           <TabsTrigger value="terminal">Terminal</TabsTrigger>
           <TabsTrigger value="trades">Trades</TabsTrigger>
           <TabsTrigger value="folds">Folds</TabsTrigger>
           <TabsTrigger value="curves">Curves</TabsTrigger>
         </TabsList>
-        <TabsContent value="terminal" className="flex-1">
+        {/* A definite height, not flex-1: the side panel scrolls, so flex-1
+            resolves to "as tall as the content" and the virtual lists inside
+            rendered every row (5,000 terminal rows, 110,000 px — measured
+            2026-09-25 — re-rendered on every update, freezing the tab). */}
+        <TabsContent value="terminal" className="h-[min(62vh,560px)] min-h-0">
           <CycleTerminal />
         </TabsContent>
-        <TabsContent value="trades" className="flex-1">
+        <TabsContent value="trades" className="h-[min(72vh,680px)] min-h-0">
           <CycleTrades />
         </TabsContent>
         <TabsContent value="folds" className="flex-1">

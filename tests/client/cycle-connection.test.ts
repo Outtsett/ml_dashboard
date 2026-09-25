@@ -13,7 +13,7 @@ import "./setup";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useCycleStore } from "../../src/client/src/cycle/store";
-import { CYCLE_STREAM_EVENT_TYPES } from "../../src/client/src/cycle/connection";
+import { CYCLE_STREAM_EVENT_TYPES, flushPendingEvents } from "../../src/client/src/cycle/connection";
 import { emptyBarColumns } from "../../src/shared/cycle/schema";
 
 // ─── Fake EventSource ────────────────────────────────────────────────────────
@@ -154,6 +154,9 @@ describe("startCycle", () => {
       volume: [10, 12],
     });
 
+    // Stream events are batched; nothing reaches the store until the flush.
+    expect(useCycleStore.getState().barCount).toBe(0);
+    flushPendingEvents();
     expect(useCycleStore.getState().barCount).toBe(2);
     expect(useCycleStore.getState().bars.timestamps).toEqual([1_700_000_000, 1_700_000_060]);
     expect(useCycleStore.getState().status).toBe("running");

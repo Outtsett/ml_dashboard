@@ -63,7 +63,9 @@ function stepStatus(step: Step, cursor: CycleCursor | null): "done" | "active" |
 
   // Per-fold steps: compare fold index first, then phase within the same fold.
   if (step.foldIndex === null) return "pending";
-  if (cursor.foldIndex === null || step.foldIndex < cursor.foldIndex) return "done";
+  // No fold yet means loading or tuning, which come before every fold.
+  if (cursor.foldIndex === null) return "pending";
+  if (step.foldIndex < cursor.foldIndex) return "done";
   if (step.foldIndex > cursor.foldIndex) return "pending";
   if (phaseKind === "load" || phaseKind === "tune") return "pending"; // still loading/tuning, hasn't reached this fold's steps
   const foldPhaseOrder: StepKind[] = ["train", "validate", "test"];
@@ -84,11 +86,14 @@ function formatElapsed(seconds: number): string {
 }
 
 function formatBarTime(epochSeconds: number): string {
+  // UTC, like the chart axis and the trades table: the lake stores futures
+  // bars as Pacific wall-clock labelled UTC, so this is the stored clock.
   return new Date(epochSeconds * 1000).toLocaleString(undefined, {
     month: "short",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "UTC",
   });
 }
 
@@ -147,7 +152,7 @@ export function PhaseStrip() {
           {cursor.phase === "tuning" && cursor.trial !== null && cursor.trialCount !== null && (
             <span className="flex items-center gap-1 font-mono">
               <SlidersHorizontal className="h-3 w-3" aria-hidden="true" />
-              trial {cursor.trial}/{cursor.trialCount}
+              trial {cursor.trial + 1}/{cursor.trialCount}
             </span>
           )}
           {cursor.phase === "testing" && cursor.barIndex !== null && cursor.barCount !== null && (

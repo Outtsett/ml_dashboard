@@ -90,6 +90,42 @@ function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Stream events are applied to the store in batches, not one by one. A paced
+ * run emits ~80-100 events a second (bars, cursor, a log line per bar); one
+ * store update each re-rendered the terminal, tiles and phase strip that often
+ * and froze the tab (measured 2026-09-25: 14,291 events in 3 minutes). A
+ * timer, not requestAnimationFrame: rAF stops in a hidden tab and the queue
+ * would grow without bound.
+ */
+export const EVENT_FLUSH_MILLISECONDS = 100;
+let pendingEvents: Array<{ type: string; data: unknown }> = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Apply every queued stream event now, in arrival order. */
+export function flushPendingEvents(): void {
+  if (flushTimer !== null) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  if (pendingEvents.length === 0) return;
+  const batch = pendingEvents;
+  pendingEvents = [];
+  useCycleStore.getState().applyEvents(batch);
+}
+
+/** Discard queued events of a stream that is being replaced. */
+function dropPendingEvents(): void {
+  if (flushTimer !== null) clearTimeout(flushTimer);
+  flushTimer = null;
+  pendingEvents = [];
+}
+
+function queueEvent(type: string, data: unknown): void {
+  pendingEvents.push({ type, data });
+  if (flushTimer === null) flushTimer = setTimeout(flushPendingEvents, EVENT_FLUSH_MILLISECONDS);
+}
+
 /** Open (or reopen) the SSE stream for a model id and wire every named event to the store. */
 function openSource(modelId: string, generation: number): void {
   closeActiveSource();
@@ -108,8 +144,9 @@ function openSource(modelId: string, generation: number): void {
           return;
         }
       }
-      useCycleStore.getState().applyEvent(type, payload);
+      queueEvent(type, payload);
       if (type === "done" || type === "error") {
+        flushPendingEvents();
         clearReconnectTimer();
         closeActiveSource();
       }
@@ -156,6 +193,7 @@ async function reconnectNow(modelId: string, generation: number): Promise<void> 
 /** Attach to a run's stream — fresh start or reload. Tears down any prior connection first. */
 export function attach(modelId: string): void {
   connectionGeneration += 1;
+  dropPendingEvents();
   clearReconnectTimer();
   reconnectAttempt = 0;
   openSource(modelId, connectionGeneration);
@@ -164,6 +202,7 @@ export function attach(modelId: string): void {
 /** Stop listening without changing run status (route navigation away from `/cycle`). */
 export function detach(): void {
   connectionGeneration += 1; // invalidates any in-flight reconnect
+  dropPendingEvents();
   clearReconnectTimer();
   closeActiveSource();
 }

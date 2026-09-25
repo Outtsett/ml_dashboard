@@ -28,6 +28,7 @@ import {
   HistogramSeries,
   LineSeries,
   LineStyle,
+  type AutoscaleInfo,
   type IChartApi,
   type IPriceLine,
   type ISeriesApi,
@@ -110,6 +111,8 @@ class CycleChartController {
 
   private followWasOn = false;
   private lastSpanKey = "";
+  /** Entry threshold from the plan; the P(up) axis always keeps both entry lines in view. */
+  private entryProbability = 0.55;
   private lastSpanFollowAt = 0;
   private spanFollowTimer: ReturnType<typeof setTimeout> | null = null;
   /** Set when a throttled span follow is due; the next frame applies it. */
@@ -173,7 +176,17 @@ class CycleChartController {
         lastValueVisible: true,
         title: "P(up)",
         priceFormat: { type: "price", precision: 3, minMove: 0.001 },
-        autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 1 } }),
+        // Scale to the probabilities actually drawn plus both entry lines. A
+        // fixed 0..1 axis flattened the line into a strip around 0.5, because
+        // these models rarely move P(up) more than a few points.
+        autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
+          const range = original()?.priceRange;
+          const entry = this.entryProbability;
+          const low = Math.min(range?.minValue ?? 0.5, 1 - entry);
+          const high = Math.max(range?.maxValue ?? 0.5, entry);
+          const pad = Math.max(0.01, (high - low) * 0.08);
+          return { priceRange: { minValue: Math.max(0, low - pad), maxValue: Math.min(1, high + pad) } };
+        },
       },
       1,
     );
@@ -386,6 +399,7 @@ class CycleChartController {
     const tick = plan.costModel.tickSize;
     this.candles.applyOptions({ priceFormat: { type: "price", precision: tickDecimals(tick), minMove: tick } });
     const entry = plan.trading.entryProbability;
+    this.entryProbability = entry;
     this.priceLines.push(
       this.probability.createPriceLine({
         price: entry,
@@ -552,7 +566,8 @@ function Swatch({ color, border }: { color: string; border?: string }) {
 }
 
 function ChartKey() {
-  const [open, setOpen] = useState(true);
+  // Closed by default: open, it covers the newest candles at the top of the pane.
+  const [open, setOpen] = useState(false);
   return (
     <div className="pointer-events-auto rounded-md border border-white/10 bg-[rgba(11,15,22,0.82)] px-2 py-1 text-[10px] leading-[1.5] text-foreground/80">
       <button type="button" className="font-mono text-[10px] text-muted-foreground hover:text-foreground" onClick={() => setOpen(!open)}>

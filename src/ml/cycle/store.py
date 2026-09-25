@@ -197,7 +197,9 @@ print(json.dumps(out))
 
 def land_tables(engine: CycleEngine, tables: dict[str, str]) -> dict | None:
     s = engine.settings
-    job = {"dataset": DATASET, "recipe": s.model_id, "tables": tables,
+    # Run ids carry the runner key ("xgboost+walk_forward_cycle"); some S3
+    # clients read "+" in a key as a space, so the lake recipe spells it "_".
+    job = {"dataset": DATASET, "recipe": s.model_id.replace("+", "_"), "tables": tables,
            "source": f"model cycle run {s.model_id} ({s.model_family}, {s.symbol} {s.timeframe})"}
     try:
         interpreter = sys.executable

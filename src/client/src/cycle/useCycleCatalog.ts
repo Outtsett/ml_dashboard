@@ -58,7 +58,9 @@ export function useCycleCatalog() {
       const familyRaw = key.slice(0, key.length - CYCLE_RUNNER_SUFFIX.length);
       const parsedFamily = cycleModelFamilySchema.safeParse(familyRaw);
       if (!parsedFamily.success) continue;
-      result.push(groupEntry(key, parsedFamily.data, model.name, model.description, model.defaultHyperparameters));
+      // Runner display names end in " — model cycle"; every card here is one.
+      const label = model.name.replace(/\s+—\s+model cycle$/i, "");
+      result.push(groupEntry(key, parsedFamily.data, label, model.description, model.defaultHyperparameters));
     }
     result.sort((a, b) => a.family.localeCompare(b.family));
     return result;
