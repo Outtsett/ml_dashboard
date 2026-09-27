@@ -42,7 +42,7 @@ def _():
 
     def frame(sql: str, parameters=None) -> pl.DataFrame:
         try:
-            return pl.from_arrow(con.execute(sql, parameters or []).fetch_arrow_table())
+            return pl.from_arrow((lambda cursor: (cursor.to_arrow_table() if hasattr(cursor, "to_arrow_table") else cursor.fetch_arrow_table()))(con.execute(sql, parameters or [])))
         except Exception as error:  # noqa: BLE001 - a missing view reads as an empty frame, with the reason kept
             return pl.DataFrame({"error": [str(error)[:300]]})
 
@@ -51,12 +51,12 @@ def _():
         n = clean.len()
         if n == 0:
             return {"count": 0}
-        out = {
+        _out = {
             "count": n, "mean": clean.mean(), "median": clean.median(), "standard_deviation": clean.std() if n > 1 else float("nan"),
             "skewness": clean.skew() if n > 2 else float("nan"), "kurtosis": clean.kurtosis() if n > 3 else float("nan"),
             "percentile_25": clean.quantile(0.25), "percentile_75": clean.quantile(0.75), "minimum": clean.min(), "maximum": clean.max(),
         }
-        return {k: (float(v) if v is not None else float("nan")) if k != "count" else v for k, v in out.items()}
+        return {k: (float(v) if v is not None else float("nan")) if k != "count" else v for k, v in _out.items()}
     return OKABE, alt, con, eight_numbers, frame, json, math, pl, view_exists
 
 
@@ -110,10 +110,10 @@ def _(OKABE, alt, mo, runs):
             .properties(height=320, title="Every recorded run: net profit against Sharpe")
             .interactive()
         )
-        out = mo.ui.altair_chart(scatter)
+        _out = mo.ui.altair_chart(scatter)
     else:
-        out = mo.md("_The run scatter needs the `runs` table._")
-    out
+        _out = mo.md("_The run scatter needs the `runs` table._")
+    _out
     return
 
 
@@ -227,15 +227,15 @@ def _(OKABE, alt, bins, mo, numeric_summary, pl, trades):
             y=alt.Y("count():Q", title="Trades"),
             color=alt.Color("side:N", scale=alt.Scale(domain=["long", "short"], range=[OKABE["orange"], OKABE["blue"]])),
         ).properties(height=200, title="Closed trades by net profit (orange long, blue short)")
-        out = mo.vstack([
+        _out = mo.vstack([
             mo.md(f"## Trades — {trades.height:,}"),
             mo.ui.altair_chart(histogram),
             mo.ui.table(numeric_summary(trades).to_pandas(), selection=None, page_size=15),
             mo.ui.table(trades_pd, selection=None, page_size=10),
         ])
     else:
-        out = mo.md("## Trades — none landed")
-    out
+        _out = mo.md("## Trades — none landed")
+    _out
     return
 
 
@@ -247,11 +247,11 @@ def _(json, mo, pl, folds):
             shown = folds.with_columns(pl.col("parameters").map_elements(lambda s: ", ".join(f"{k}={v}" for k, v in (json.loads(s) or {}).items()) if s else "", return_dtype=pl.String).alias("parameters_used"))
         keep = [c for c in ("fold_index", "status", "train_bar_count", "validation_bar_count", "test_bar_count", "training_seconds", "testing_seconds",
                             "tuning_objective", "tuning_trial_count", "tuning_best_trial", "tuning_best_value", "parameters_used", "metrics") if c in shown.columns]
-        out = mo.vstack([mo.md(f"## Folds — {folds.height}, each with the hyperparameters its models were fitted with"),
+        _out = mo.vstack([mo.md(f"## Folds — {folds.height}, each with the hyperparameters its models were fitted with"),
                          mo.ui.table(shown.select(keep).to_pandas(), selection=None, page_size=10)])
     else:
-        out = mo.md("## Folds — none landed")
-    out
+        _out = mo.md("## Folds — none landed")
+    _out
     return
 
 
@@ -265,10 +265,10 @@ def _(OKABE, alt, mo, trials):
             column=alt.Column("fold_index:N", title="Fold") if "fold_index" in trials_pd.columns else alt.Undefined,
             tooltip=list(trials_pd.columns),
         ).properties(height=200, title="Optuna trials per fold: a search score, optimistic by construction")
-        out = mo.vstack([mo.md(f"## Tuning trials — {trials.height}"), mo.ui.altair_chart(chart), mo.ui.table(trials_pd, selection=None, page_size=10)])
+        _out = mo.vstack([mo.md(f"## Tuning trials — {trials.height}"), mo.ui.altair_chart(chart), mo.ui.table(trials_pd, selection=None, page_size=10)])
     else:
-        out = mo.md("## Tuning trials — none landed (the run was not tuned, or predates the record)")
-    out
+        _out = mo.md("## Tuning trials — none landed (the run was not tuned, or predates the record)")
+    _out
     return
 
 
@@ -295,10 +295,10 @@ def _(OKABE, alt, mo, epochs, metrics):
 @app.cell
 def _(bars_summary, mo):
     if bars_summary is not None and bars_summary.height and "error" not in bars_summary.columns:
-        out = mo.vstack([mo.md("## Bars the model read"), mo.ui.table(bars_summary.to_pandas(), selection=None)])
+        _out = mo.vstack([mo.md("## Bars the model read"), mo.ui.table(bars_summary.to_pandas(), selection=None)])
     else:
-        out = mo.md("## Bars the model read — not landed for this run (recorded since 2026-09-27)")
-    out
+        _out = mo.md("## Bars the model read — not landed for this run (recorded since 2026-09-27)")
+    _out
     return
 
 

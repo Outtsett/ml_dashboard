@@ -138,7 +138,7 @@ def main() -> int:
     print(f"findings: {findings.height} rows | coverage: {coverage.height} specs "
           f"({coverage.filter(pl.col('status') == 'runnable').height} runnable) | record: {record.height} tables")
     if args.dry_run:
-        print(coverage.group_by("status").len().sort("status"))
+        print(coverage.group_by("status").len().sort("status").to_dicts())   # ASCII: the console is cp1252
         return 0
     source = "Model Cycle audit 2026-09-26 (scripts/land_model_cycle_audit.py)"
     for name, frame in (("findings", findings), ("coverage", coverage), ("record", record)):
