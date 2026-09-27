@@ -1,0 +1,48 @@
+{
+  "modelId": "cycle_explain_xgboost",
+  "timestamp": 1774880400,
+  "foldIndex": 0,
+  "role": "price",
+  "explainKind": "trees",
+  "link": "identity",
+  "inputs": {
+    "values": [
+      -0.6287551522254944,
+      -0.8769609928131104,
+      -0.3251388967037201,
+      1.0651865005493164
+    ],
+    "scaled": false,
+    "raw": [
+      8.7424898147583,
+      8.246078491210938,
+      9.349721908569336,
+      12.130373001098633
+    ],
+    "trainingPercentile": [
+      0.23755458515283842,
+      0.15283842794759825,
+      0.38777292576419214,
+      0.8602620087336245
+    ],
+    "window": null
+  },
+  "output": {
+    "raw": -0.4975675046443939,
+    "probabilityUp": null,
+    "targetUnits": -0.4975675046443939,
+    "scale": 5.819923283696476,
+    "movePoints": -2.895804705490663,
+    "close": 18433.0,
+    "predictedClose": 18430.10419529451
+  },
+  "engineReload": -0.4975675046443939,
+  "streamed": -0.4975675046443939,
+  "trees": null,
+  "contributions": null,
+  "neighbors": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

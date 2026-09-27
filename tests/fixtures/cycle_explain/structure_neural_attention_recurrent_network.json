@@ -1,0 +1,38 @@
+{
+  "modelId": "cycle_explain_neural_attention_recurrent_network",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "neural",
+  "link": "logistic",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": {
+    "network": "attention_recurrent",
+    "layers": [
+      {
+        "name": "Gated recurrent unit layer 1",
+        "kind": "gated_recurrent_unit",
+        "outputShape": [
+          12,
+          12
+        ]
+      },
+      {
+        "name": "Attention pooling",
+        "kind": "attention_pooling",
+        "outputShape": [
+          12
+        ]
+      }
+    ],
+    "sequenceLength": 12,
+    "hasAttention": true
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "modelId": "cycle_explain_stacking",
+  "foldIndex": 0,
+  "role": "price",
+  "explainKind": "stacking",
+  "link": "identity",
+  "baseValue": -0.012334697716705145,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": {
+    "baseModels": [
+      {
+        "name": "ridge regression",
+        "kind": "Ridge"
+      },
+      {
+        "name": "random forest",
+        "kind": "Random forest regressor"
+      },
+      {
+        "name": "gradient boosting",
+        "kind": "Gradient boosting regressor"
+      }
+    ],
+    "metaIntercept": -0.012334697716705145,
+    "metaCoefficients": [
+      0.6714308271439242,
+      0.30348758394624276,
+      0.0849381669175659
+    ]
+  },
+  "neural": null
+}

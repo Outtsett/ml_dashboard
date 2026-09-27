@@ -1,0 +1,39 @@
+{
+  "modelId": "cycle_explain_neural_lstm",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "neural",
+  "link": "logistic",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": {
+    "network": "lstm",
+    "layers": [
+      {
+        "name": "Long short-term memory layer 1",
+        "kind": "lstm",
+        "outputShape": [
+          12,
+          12
+        ]
+      },
+      {
+        "name": "Long short-term memory layer 2",
+        "kind": "lstm",
+        "outputShape": [
+          12,
+          12
+        ]
+      }
+    ],
+    "sequenceLength": 12,
+    "hasAttention": false
+  }
+}

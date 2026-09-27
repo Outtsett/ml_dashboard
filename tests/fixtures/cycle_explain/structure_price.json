@@ -1,0 +1,17 @@
+{
+  "modelId": "cycle_explain_xgboost",
+  "foldIndex": 0,
+  "role": "price",
+  "explainKind": "trees",
+  "link": "identity",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

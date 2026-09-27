@@ -1,0 +1,68 @@
+{
+  "modelId": "cycle_explain_stacking",
+  "timestamp": 1774880400,
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "stacking",
+  "link": "logistic",
+  "inputs": {
+    "values": [
+      -0.7307456064653592,
+      -0.9869296584987877,
+      -0.28804947064949865,
+      1.0821461223113336
+    ],
+    "scaled": true,
+    "raw": [
+      8.7424898147583,
+      8.246078491210938,
+      9.349721908569336,
+      12.130373001098633
+    ],
+    "trainingPercentile": [
+      0.23857404021937842,
+      0.15173674588665448,
+      0.3829981718464351,
+      0.8628884826325411
+    ],
+    "window": null
+  },
+  "output": {
+    "raw": -1.4843412216639575,
+    "probabilityUp": 0.1847725986815129,
+    "targetUnits": null,
+    "scale": null,
+    "movePoints": null,
+    "close": 18433.0,
+    "predictedClose": null
+  },
+  "engineReload": 0.1847725986815129,
+  "streamed": 0.1847725986815129,
+  "trees": null,
+  "contributions": null,
+  "neighbors": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": {
+    "baseOutputs": [
+      {
+        "name": "logistic regression",
+        "value": 0.254242813917922
+      },
+      {
+        "name": "random forest",
+        "value": 0.13943058533426977
+      },
+      {
+        "name": "gradient boosting",
+        "value": 0.2552230076721239
+      }
+    ],
+    "metaContributions": [
+      0.8305070023929877,
+      0.3111173568739024,
+      -0.03686247475311568
+    ]
+  },
+  "neural": null
+}

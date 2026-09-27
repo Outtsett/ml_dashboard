@@ -1,0 +1,22 @@
+{
+  "modelId": "cycle_explain_support_vectors",
+  "foldIndex": 0,
+  "role": "price",
+  "explainKind": "support_vectors",
+  "link": "identity",
+  "baseValue": 0.37273283702650095,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": {
+    "supportVectorCount": 595,
+    "kernel": "radial basis function",
+    "gamma": 0.24999999999999978,
+    "trainingBarCount": 700
+  },
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

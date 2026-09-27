@@ -1,0 +1,6 @@
+{
+  "id": "r6",
+  "ok": false,
+  "error": "This run has no fold 10 (it planned 2).",
+  "details": "fold index 9; planned indexes [0, 1]"
+}

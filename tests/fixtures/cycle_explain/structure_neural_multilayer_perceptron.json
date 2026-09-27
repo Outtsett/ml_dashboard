@@ -1,0 +1,37 @@
+{
+  "modelId": "cycle_explain_neural_multilayer_perceptron",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "neural",
+  "link": "logistic",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": {
+    "network": "multilayer_perceptron",
+    "layers": [
+      {
+        "name": "Hidden layer 1 (Gaussian error linear unit)",
+        "kind": "dense",
+        "outputShape": [
+          16
+        ]
+      },
+      {
+        "name": "Hidden layer 2 (Gaussian error linear unit)",
+        "kind": "dense",
+        "outputShape": [
+          16
+        ]
+      }
+    ],
+    "sequenceLength": 1,
+    "hasAttention": false
+  }
+}

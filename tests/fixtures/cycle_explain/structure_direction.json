@@ -1,0 +1,17 @@
+{
+  "modelId": "cycle_explain_logistic_regression",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "linear",
+  "link": "logistic",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

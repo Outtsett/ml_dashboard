@@ -1,0 +1,55 @@
+{
+  "modelId": "cycle_explain_trees_catboost",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "oblivious_trees",
+  "link": "logistic",
+  "baseValue": 0.0,
+  "logisticCurve": null,
+  "trees": {
+    "treeCount": 80,
+    "usedTreeCount": 80,
+    "aggregation": "sum",
+    "learningRate": 0.05000000075,
+    "maxDepth": 4,
+    "depthHistogram": [
+      0,
+      0,
+      0,
+      0,
+      80
+    ],
+    "leafCount": 1280,
+    "featureUsage": [
+      {
+        "featureIndex": 0,
+        "splitCount": 144,
+        "totalGain": null
+      },
+      {
+        "featureIndex": 1,
+        "splitCount": 74,
+        "totalGain": null
+      },
+      {
+        "featureIndex": 2,
+        "splitCount": 52,
+        "totalGain": null
+      },
+      {
+        "featureIndex": 3,
+        "splitCount": 50,
+        "totalGain": null
+      }
+    ],
+    "oblivious": true,
+    "splitRule": "greater_than"
+  },
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

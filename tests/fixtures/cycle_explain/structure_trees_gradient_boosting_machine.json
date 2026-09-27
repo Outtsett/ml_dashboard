@@ -1,0 +1,54 @@
+{
+  "modelId": "cycle_explain_trees_gradient_boosting_machine",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "trees",
+  "link": "logistic",
+  "baseValue": 0.29461728296402334,
+  "logisticCurve": null,
+  "trees": {
+    "treeCount": 57,
+    "usedTreeCount": 57,
+    "aggregation": "sum",
+    "learningRate": 0.05,
+    "maxDepth": 3,
+    "depthHistogram": [
+      0,
+      0,
+      0,
+      57
+    ],
+    "leafCount": 420,
+    "featureUsage": [
+      {
+        "featureIndex": 0,
+        "splitCount": 194,
+        "totalGain": 1.3373194138170663
+      },
+      {
+        "featureIndex": 1,
+        "splitCount": 70,
+        "totalGain": 0.053449299741737136
+      },
+      {
+        "featureIndex": 2,
+        "splitCount": 53,
+        "totalGain": 0.04169161492172433
+      },
+      {
+        "featureIndex": 3,
+        "splitCount": 46,
+        "totalGain": 0.03746252459945553
+      }
+    ],
+    "oblivious": false,
+    "splitRule": "less_or_equal"
+  },
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

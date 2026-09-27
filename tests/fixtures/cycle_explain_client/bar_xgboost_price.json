@@ -1,0 +1,83 @@
+{
+  "modelId": "cycle_xgboost_fixture",
+  "timestamp": 1760000600,
+  "foldIndex": 0,
+  "role": "price",
+  "explainKind": "trees",
+  "link": "identity",
+  "inputs": {
+    "values": [
+      0.8,
+      -0.3,
+      1.2,
+      -0.5
+    ],
+    "scaled": false,
+    "raw": [
+      58.4,
+      -0.0012,
+      1840.0,
+      0.93
+    ],
+    "trainingPercentile": [
+      0.79,
+      0.31,
+      0.88,
+      0.22
+    ],
+    "window": null
+  },
+  "output": {
+    "raw": 0.39999999999999997,
+    "probabilityUp": null,
+    "targetUnits": 0.39999999999999997,
+    "scale": 12.5,
+    "movePoints": 5.0,
+    "close": 21012.25,
+    "predictedClose": 21017.25
+  },
+  "engineReload": 0.39999999999999997,
+  "streamed": 0.39999999999999997,
+  "trees": {
+    "baseValue": 0.1,
+    "leafValues": [
+      0.25,
+      0.05
+    ],
+    "runningTotal": [
+      0.35,
+      0.39999999999999997
+    ],
+    "leafNode": [
+      2,
+      1
+    ],
+    "pathOffsets": [
+      0,
+      1,
+      2
+    ],
+    "pathNode": [
+      0,
+      0
+    ],
+    "pathFeature": [
+      0,
+      2
+    ],
+    "pathThreshold": [
+      0.5,
+      1.5
+    ],
+    "pathWentLeft": [
+      false,
+      true
+    ]
+  },
+  "contributions": null,
+  "neighbors": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

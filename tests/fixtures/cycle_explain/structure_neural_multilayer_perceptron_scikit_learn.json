@@ -1,0 +1,37 @@
+{
+  "modelId": "cycle_explain_neural_multilayer_perceptron_scikit_learn",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "neural",
+  "link": "logistic",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": {
+    "network": "scikit_learn_multilayer_perceptron",
+    "layers": [
+      {
+        "name": "Hidden layer 1 (rectified linear unit)",
+        "kind": "dense",
+        "outputShape": [
+          16
+        ]
+      },
+      {
+        "name": "Hidden layer 2 (rectified linear unit)",
+        "kind": "dense",
+        "outputShape": [
+          16
+        ]
+      }
+    ],
+    "sequenceLength": 1,
+    "hasAttention": false
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "modelId": "cycle_explain_neural_temporal_convolution_network",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "neural",
+  "link": "logistic",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": {
+    "network": "temporal_convolution_network",
+    "layers": [
+      {
+        "name": "Causal convolution block 1 (dilation 1)",
+        "kind": "convolution",
+        "outputShape": [
+          12,
+          8
+        ]
+      },
+      {
+        "name": "Causal convolution block 2 (dilation 2)",
+        "kind": "convolution",
+        "outputShape": [
+          12,
+          8
+        ]
+      }
+    ],
+    "sequenceLength": 12,
+    "hasAttention": false
+  }
+}

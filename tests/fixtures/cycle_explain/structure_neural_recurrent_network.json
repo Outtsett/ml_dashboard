@@ -1,0 +1,39 @@
+{
+  "modelId": "cycle_explain_neural_recurrent_network",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "neural",
+  "link": "logistic",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": {
+    "network": "recurrent",
+    "layers": [
+      {
+        "name": "Recurrent layer 1",
+        "kind": "recurrent",
+        "outputShape": [
+          12,
+          12
+        ]
+      },
+      {
+        "name": "Recurrent layer 2",
+        "kind": "recurrent",
+        "outputShape": [
+          12,
+          12
+        ]
+      }
+    ],
+    "sequenceLength": 12,
+    "hasAttention": false
+  }
+}

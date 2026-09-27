@@ -1,0 +1,55 @@
+{
+  "modelId": "cycle_explain_trees_classification_and_regression_tree",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "trees",
+  "link": "mean_probability",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": {
+    "treeCount": 1,
+    "usedTreeCount": 1,
+    "aggregation": "mean",
+    "learningRate": null,
+    "maxDepth": 4,
+    "depthHistogram": [
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    "leafCount": 13,
+    "featureUsage": [
+      {
+        "featureIndex": 0,
+        "splitCount": 6,
+        "totalGain": 0.24314859878053152
+      },
+      {
+        "featureIndex": 1,
+        "splitCount": 3,
+        "totalGain": 0.003897815489890718
+      },
+      {
+        "featureIndex": 2,
+        "splitCount": 1,
+        "totalGain": 0.0017032051751225926
+      },
+      {
+        "featureIndex": 3,
+        "splitCount": 2,
+        "totalGain": 0.0035539640502209144
+      }
+    ],
+    "oblivious": false,
+    "splitRule": "less_or_equal"
+  },
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

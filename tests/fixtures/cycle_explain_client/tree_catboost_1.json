@@ -1,0 +1,33 @@
+{
+  "modelId": "cycle_catboost_fixture",
+  "foldIndex": 0,
+  "role": "direction",
+  "treeIndex": 1,
+  "splitRule": "greater_than",
+  "nodes": {
+    "left": [],
+    "right": [],
+    "feature": [],
+    "threshold": [],
+    "missingGoesLeft": [],
+    "value": [],
+    "cover": [],
+    "depth": []
+  },
+  "obliviousLevels": [
+    {
+      "feature": 2,
+      "threshold": 1.0
+    },
+    {
+      "feature": 3,
+      "threshold": -1.0
+    }
+  ],
+  "obliviousLeafValues": [
+    0.01,
+    -0.02,
+    0.03,
+    0.05
+  ]
+}

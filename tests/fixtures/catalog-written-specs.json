@@ -882,5 +882,951 @@
    "subcategory": "specialized-and-modular-networks",
    "path": "Neural Network Architectures/Specialized & Modular Networks/Spiking Neural Network (SNN).md"
   }
+ ],
+ "supervised-classical": [
+  {
+   "id": "machine-learning-supervised-learning-k-nearest-neighbors-k-nn",
+   "name": "K-Nearest Neighbors (k-NN)",
+   "subcategory": "general",
+   "path": "Machine Learning/Supervised Learning/K-Nearest Neighbors (k-NN).md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-neural-models-multi-layer-perceptron-mlp",
+   "name": "Multi-Layer Perceptron (MLP)",
+   "subcategory": "neural-models",
+   "path": "Machine Learning/Supervised Learning/Neural Models/Multi-Layer Perceptron (MLP).md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-probabilistic-models-naive-bayes",
+   "name": "Naive Bayes",
+   "subcategory": "probabilistic-models",
+   "path": "Machine Learning/Supervised Learning/Probabilistic Models/Naive Bayes.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-tree-based-models-classification-and-regression-trees-cart",
+   "name": "Classification And Regression Trees (CART)",
+   "subcategory": "tree-based-models",
+   "path": "Machine Learning/Supervised Learning/Tree-Based Models/Classification And Regression Trees (CART).md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-tree-based-models-decision-tree-classifier",
+   "name": "Decision Tree Classifier",
+   "subcategory": "tree-based-models",
+   "path": "Machine Learning/Supervised Learning/Tree-Based Models/Decision Tree Classifier.md"
+  },
+  {
+   "id": "machine-learning-supervised-learning-tree-based-models-extra-trees-regressor",
+   "name": "Extra Trees Regressor",
+   "subcategory": "tree-based-models",
+   "path": "Machine Learning/Supervised Learning/Tree-Based Models/Extra Trees Regressor.md"
+  }
+ ],
+ "optimization": [
+  {
+   "id": "optimization-based-models-classical-optimization-integer-linear-programming-ilp",
+   "name": "Integer Linear Programming (ILP)",
+   "subcategory": "classical-optimization",
+   "path": "Optimization-Based Models/Classical Optimization/Integer Linear Programming (ILP).md"
+  },
+  {
+   "id": "optimization-based-models-classical-optimization-interior-point-methods",
+   "name": "Interior-Point Methods",
+   "subcategory": "classical-optimization",
+   "path": "Optimization-Based Models/Classical Optimization/Interior-Point Methods.md"
+  },
+  {
+   "id": "optimization-based-models-classical-optimization-linear-programming-lp",
+   "name": "Linear Programming (LP)",
+   "subcategory": "classical-optimization",
+   "path": "Optimization-Based Models/Classical Optimization/Linear Programming (LP).md"
+  },
+  {
+   "id": "optimization-based-models-classical-optimization-mixed-integer-programming-mip",
+   "name": "Mixed-Integer Programming (MIP)",
+   "subcategory": "classical-optimization",
+   "path": "Optimization-Based Models/Classical Optimization/Mixed-Integer Programming (MIP).md"
+  },
+  {
+   "id": "optimization-based-models-classical-optimization-quadratic-programming-qp",
+   "name": "Quadratic Programming (QP)",
+   "subcategory": "classical-optimization",
+   "path": "Optimization-Based Models/Classical Optimization/Quadratic Programming (QP).md"
+  },
+  {
+   "id": "optimization-based-models-convex-non-convex-methods-convex-optimization",
+   "name": "Convex Optimization",
+   "subcategory": "convex-and-non-convex-methods",
+   "path": "Optimization-Based Models/Convex & Non-Convex Methods/Convex Optimization.md"
+  },
+  {
+   "id": "optimization-based-models-convex-non-convex-methods-non-convex-optimization",
+   "name": "Non-Convex Optimization",
+   "subcategory": "convex-and-non-convex-methods",
+   "path": "Optimization-Based Models/Convex & Non-Convex Methods/Non-Convex Optimization.md"
+  },
+  {
+   "id": "optimization-based-models-decomposition-relaxation-augmented-lagrangian-method",
+   "name": "Augmented Lagrangian Method",
+   "subcategory": "decomposition-and-relaxation",
+   "path": "Optimization-Based Models/Decomposition & Relaxation/Augmented Lagrangian Method.md"
+  },
+  {
+   "id": "optimization-based-models-decomposition-relaxation-dual-decomposition",
+   "name": "Dual Decomposition",
+   "subcategory": "decomposition-and-relaxation",
+   "path": "Optimization-Based Models/Decomposition & Relaxation/Dual Decomposition.md"
+  },
+  {
+   "id": "optimization-based-models-decomposition-relaxation-lagrangian-relaxation",
+   "name": "Lagrangian Relaxation",
+   "subcategory": "decomposition-and-relaxation",
+   "path": "Optimization-Based Models/Decomposition & Relaxation/Lagrangian Relaxation.md"
+  },
+  {
+   "id": "optimization-based-models-evolutionary-strategies-differential-evolution-de",
+   "name": "Differential Evolution (DE)",
+   "subcategory": "evolutionary-strategies",
+   "path": "Optimization-Based Models/Evolutionary Strategies/Differential Evolution (DE).md"
+  },
+  {
+   "id": "optimization-based-models-evolutionary-strategies-evolution-strategies-es",
+   "name": "Evolution Strategies (ES)",
+   "subcategory": "evolutionary-strategies",
+   "path": "Optimization-Based Models/Evolutionary Strategies/Evolution Strategies (ES).md"
+  },
+  {
+   "id": "optimization-based-models-evolutionary-strategies-genetic-algorithm-ga",
+   "name": "Genetic Algorithm (GA)",
+   "subcategory": "evolutionary-strategies",
+   "path": "Optimization-Based Models/Evolutionary Strategies/Genetic Algorithm (GA).md"
+  },
+  {
+   "id": "optimization-based-models-gradient-based-optimization-gradient-descent",
+   "name": "Gradient Descent",
+   "subcategory": "gradient-based-optimization",
+   "path": "Optimization-Based Models/Gradient-Based Optimization/Gradient Descent.md"
+  },
+  {
+   "id": "optimization-based-models-gradient-based-optimization-stochastic-gradient-descent-sgd",
+   "name": "Stochastic Gradient Descent (SGD)",
+   "subcategory": "gradient-based-optimization",
+   "path": "Optimization-Based Models/Gradient-Based Optimization/Stochastic Gradient Descent (SGD).md"
+  },
+  {
+   "id": "optimization-based-models-metaheuristic-algorithms-ant-colony-optimization-aco",
+   "name": "Ant Colony Optimization (ACO)",
+   "subcategory": "metaheuristic-algorithms",
+   "path": "Optimization-Based Models/Metaheuristic Algorithms/Ant Colony Optimization (ACO).md"
+  },
+  {
+   "id": "optimization-based-models-metaheuristic-algorithms-bayesian-optimization",
+   "name": "Bayesian Optimization",
+   "subcategory": "metaheuristic-algorithms",
+   "path": "Optimization-Based Models/Metaheuristic Algorithms/Bayesian Optimization.md"
+  },
+  {
+   "id": "optimization-based-models-metaheuristic-algorithms-branch-and-bound",
+   "name": "Branch and Bound",
+   "subcategory": "metaheuristic-algorithms",
+   "path": "Optimization-Based Models/Metaheuristic Algorithms/Branch and Bound.md"
+  },
+  {
+   "id": "optimization-based-models-metaheuristic-algorithms-greedy-algorithms",
+   "name": "Greedy Algorithms",
+   "subcategory": "metaheuristic-algorithms",
+   "path": "Optimization-Based Models/Metaheuristic Algorithms/Greedy Algorithms.md"
+  },
+  {
+   "id": "optimization-based-models-metaheuristic-algorithms-particle-swarm-optimization-pso",
+   "name": "Particle Swarm Optimization (PSO)",
+   "subcategory": "metaheuristic-algorithms",
+   "path": "Optimization-Based Models/Metaheuristic Algorithms/Particle Swarm Optimization (PSO).md"
+  },
+  {
+   "id": "optimization-based-models-metaheuristic-algorithms-simulated-annealing",
+   "name": "Simulated Annealing",
+   "subcategory": "metaheuristic-algorithms",
+   "path": "Optimization-Based Models/Metaheuristic Algorithms/Simulated Annealing.md"
+  },
+  {
+   "id": "optimization-based-models-reinforcement-guided-methods-dynamic-programming-dp",
+   "name": "Dynamic Programming (DP)",
+   "subcategory": "reinforcement-guided-methods",
+   "path": "Optimization-Based Models/Reinforcement-Guided Methods/Dynamic Programming (DP).md"
+  },
+  {
+   "id": "optimization-based-models-reinforcement-guided-methods-reinforcement-learning-with-mpc",
+   "name": "Reinforcement Learning with MPC",
+   "subcategory": "reinforcement-guided-methods",
+   "path": "Optimization-Based Models/Reinforcement-Guided Methods/Reinforcement Learning with MPC.md"
+  },
+  {
+   "id": "optimization-based-models-submodular-discrete-optimization-submodular-optimization",
+   "name": "Submodular Optimization",
+   "subcategory": "submodular-and-discrete-optimization",
+   "path": "Optimization-Based Models/Submodular & Discrete Optimization/Submodular Optimization.md"
+  }
+ ],
+ "probabilistic-symbolic": [
+  {
+   "id": "probabilistic-symbolic-models-generative-processes-mixtures-dirichlet-process",
+   "name": "Dirichlet Process",
+   "subcategory": "generative-processes-and-mixtures",
+   "path": "Probabilistic & Symbolic Models/Generative Processes & Mixtures/Dirichlet Process.md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-generative-processes-mixtures-mixture-model-e-g-gmm-dpm",
+   "name": "Mixture Model (e.g., GMM, DPM)",
+   "subcategory": "generative-processes-and-mixtures",
+   "path": "Probabilistic & Symbolic Models/Generative Processes & Mixtures/Mixture Model (e.g., GMM, DPM).md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-graphical-structured-models-bayesian-network-bn",
+   "name": "Bayesian Network (BN)",
+   "subcategory": "graphical-and-structured-models",
+   "path": "Probabilistic & Symbolic Models/Graphical & Structured Models/Bayesian Network (BN).md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-graphical-structured-models-neuro-symbolic-reasoning-model",
+   "name": "Neuro-Symbolic Reasoning Model",
+   "subcategory": "graphical-and-structured-models",
+   "path": "Probabilistic & Symbolic Models/Graphical & Structured Models/Neuro-Symbolic Reasoning Model.md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-graphical-structured-models-probabilistic-graphical-model-pgm",
+   "name": "Probabilistic Graphical Model (PGM)",
+   "subcategory": "graphical-and-structured-models",
+   "path": "Probabilistic & Symbolic Models/Graphical & Structured Models/Probabilistic Graphical Model (PGM).md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-probabilistic-inference-models-bayesian-linear-regression",
+   "name": "Bayesian Linear Regression",
+   "subcategory": "probabilistic-inference-models",
+   "path": "Probabilistic & Symbolic Models/Probabilistic Inference Models/Bayesian Linear Regression.md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-probabilistic-inference-models-gaussian-process-gp",
+   "name": "Gaussian Process (GP)",
+   "subcategory": "probabilistic-inference-models",
+   "path": "Probabilistic & Symbolic Models/Probabilistic Inference Models/Gaussian Process (GP).md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-probabilistic-inference-models-hidden-markov-model-hmm",
+   "name": "Hidden Markov Model (HMM)",
+   "subcategory": "probabilistic-inference-models",
+   "path": "Probabilistic & Symbolic Models/Probabilistic Inference Models/Hidden Markov Model (HMM).md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-probabilistic-inference-models-markov-chain",
+   "name": "Markov Chain",
+   "subcategory": "probabilistic-inference-models",
+   "path": "Probabilistic & Symbolic Models/Probabilistic Inference Models/Markov Chain.md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-probabilistic-inference-models-markov-decision-process-mdp",
+   "name": "Markov Decision Process (MDP)",
+   "subcategory": "probabilistic-inference-models",
+   "path": "Probabilistic & Symbolic Models/Probabilistic Inference Models/Markov Decision Process (MDP).md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-probabilistic-programming-logic-probabilistic-logic-network-pln",
+   "name": "Probabilistic Logic Network (PLN)",
+   "subcategory": "probabilistic-programming-and-logic",
+   "path": "Probabilistic & Symbolic Models/Probabilistic Programming & Logic/Probabilistic Logic Network (PLN).md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-probabilistic-programming-logic-probabilistic-programming-stan-pymc3",
+   "name": "Probabilistic Programming (Stan, PyMC3)",
+   "subcategory": "probabilistic-programming-and-logic",
+   "path": "Probabilistic & Symbolic Models/Probabilistic Programming & Logic/Probabilistic Programming (Stan, PyMC3).md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-probabilistic-programming-logic-probabilistic-soft-logic-psl",
+   "name": "Probabilistic Soft Logic (PSL)",
+   "subcategory": "probabilistic-programming-and-logic",
+   "path": "Probabilistic & Symbolic Models/Probabilistic Programming & Logic/Probabilistic Soft Logic (PSL).md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-symbolic-reasoning-systems-constraint-satisfaction-problem-csp",
+   "name": "Constraint Satisfaction Problem (CSP)",
+   "subcategory": "symbolic-reasoning-systems",
+   "path": "Probabilistic & Symbolic Models/Symbolic Reasoning Systems/Constraint Satisfaction Problem (CSP).md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-symbolic-reasoning-systems-expert-system",
+   "name": "Expert System",
+   "subcategory": "symbolic-reasoning-systems",
+   "path": "Probabilistic & Symbolic Models/Symbolic Reasoning Systems/Expert System.md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-symbolic-reasoning-systems-first-order-logic-fol-inference",
+   "name": "First-Order Logic (FOL) Inference",
+   "subcategory": "symbolic-reasoning-systems",
+   "path": "Probabilistic & Symbolic Models/Symbolic Reasoning Systems/First-Order Logic (FOL) Inference.md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-symbolic-reasoning-systems-fuzzy-logic-model",
+   "name": "Fuzzy Logic Model",
+   "subcategory": "symbolic-reasoning-systems",
+   "path": "Probabilistic & Symbolic Models/Symbolic Reasoning Systems/Fuzzy Logic Model.md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-symbolic-reasoning-systems-logic-programming-e-g-prolog",
+   "name": "Logic Programming (e.g., Prolog)",
+   "subcategory": "symbolic-reasoning-systems",
+   "path": "Probabilistic & Symbolic Models/Symbolic Reasoning Systems/Logic Programming (e.g., Prolog).md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-symbolic-reasoning-systems-rule-based-system",
+   "name": "Rule-Based System",
+   "subcategory": "symbolic-reasoning-systems",
+   "path": "Probabilistic & Symbolic Models/Symbolic Reasoning Systems/Rule-Based System.md"
+  },
+  {
+   "id": "probabilistic-symbolic-models-symbolic-reasoning-systems-symbolic-regression",
+   "name": "Symbolic Regression",
+   "subcategory": "symbolic-reasoning-systems",
+   "path": "Probabilistic & Symbolic Models/Symbolic Reasoning Systems/Symbolic Regression.md"
+  }
+ ],
+ "reinforcement-learning-hierarchical-meta": [
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-hierarchical-control-architectures-feudal-reinforcement-learning",
+   "name": "Feudal Reinforcement Learning",
+   "subcategory": "hierarchical-control-architectures",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Hierarchical Control Architectures/Feudal Reinforcement Learning.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-hierarchical-control-architectures-hi-map-hierarchical-imitation-of-mixed-agent-policies",
+   "name": "HI-MAP (Hierarchical Imitation of Mixed Agent Policies)",
+   "subcategory": "hierarchical-control-architectures",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Hierarchical Control Architectures/HI-MAP (Hierarchical Imitation of Mixed Agent Policies).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-hierarchical-control-architectures-hierarchical-dqn-h-dqn",
+   "name": "Hierarchical DQN (h-DQN)",
+   "subcategory": "hierarchical-control-architectures",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Hierarchical Control Architectures/Hierarchical DQN (h-DQN).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-hierarchical-control-architectures-multi-level-policy-learning",
+   "name": "Multi-Level Policy Learning",
+   "subcategory": "hierarchical-control-architectures",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Hierarchical Control Architectures/Multi-Level Policy Learning.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-hierarchical-control-architectures-option-critic-architecture",
+   "name": "Option-Critic Architecture",
+   "subcategory": "hierarchical-control-architectures",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Hierarchical Control Architectures/Option-Critic Architecture.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-latent-skill-embedding-transfer-composable-skill-transfer-framework",
+   "name": "Composable Skill Transfer Framework",
+   "subcategory": "latent-skill-embedding-and-transfer",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Latent Skill Embedding & Transfer/Composable Skill Transfer Framework.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-latent-skill-embedding-transfer-hierarchical-latent-variable-model",
+   "name": "Hierarchical Latent Variable Model",
+   "subcategory": "latent-skill-embedding-and-transfer",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Latent Skill Embedding & Transfer/Hierarchical Latent Variable Model.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-latent-skill-embedding-transfer-skill-chaining",
+   "name": "Skill Chaining",
+   "subcategory": "latent-skill-embedding-and-transfer",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Latent Skill Embedding & Transfer/Skill Chaining.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-latent-skill-embedding-transfer-successor-features-for-transfer",
+   "name": "Successor Features for Transfer",
+   "subcategory": "latent-skill-embedding-and-transfer",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Latent Skill Embedding & Transfer/Successor Features for Transfer.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-learning-to-learn-with-gradient-descent",
+   "name": "Learning to Learn with Gradient Descent",
+   "subcategory": "meta-learning-algorithms",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Meta-Learning Algorithms/Learning to Learn with Gradient Descent.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-meta-policy-gradient",
+   "name": "Meta Policy Gradient",
+   "subcategory": "meta-learning-algorithms",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Meta-Learning Algorithms/Meta Policy Gradient.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-model-agnostic-meta-learning-maml",
+   "name": "Model-Agnostic Meta-Learning (MAML)",
+   "subcategory": "meta-learning-algorithms",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Meta-Learning Algorithms/Model-Agnostic Meta-Learning (MAML).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-pearl-probabilistic-embeddings-for-actor-critic-rl",
+   "name": "PEARL (Probabilistic Embeddings for Actor-Critic RL)",
+   "subcategory": "meta-learning-algorithms",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Meta-Learning Algorithms/PEARL (Probabilistic Embeddings for Actor-Critic RL).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-reptile-meta-rl",
+   "name": "Reptile Meta-RL",
+   "subcategory": "meta-learning-algorithms",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Meta-Learning Algorithms/Reptile Meta-RL.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-rl-2-reinforcement-learning-squared",
+   "name": "RL^2 (Reinforcement Learning Squared)",
+   "subcategory": "meta-learning-algorithms",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Meta-Learning Algorithms/RL^2 (Reinforcement Learning Squared).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-meta-learning-algorithms-task-aware-meta-rl",
+   "name": "Task-Aware Meta-RL",
+   "subcategory": "meta-learning-algorithms",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Meta-Learning Algorithms/Task-Aware Meta-RL.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-modularity-subgoal-discovery-hypernetworks-for-rl",
+   "name": "HyperNetworks for RL",
+   "subcategory": "modularity-and-subgoal-discovery",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Modularity & Subgoal Discovery/HyperNetworks for RL.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-modularity-subgoal-discovery-meta-controller-with-subgoal-discovery",
+   "name": "Meta-Controller with Subgoal Discovery",
+   "subcategory": "modularity-and-subgoal-discovery",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Modularity & Subgoal Discovery/Meta-Controller with Subgoal Discovery.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-modularity-subgoal-discovery-modular-meta-rl-agent",
+   "name": "Modular Meta-RL Agent",
+   "subcategory": "modularity-and-subgoal-discovery",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Modularity & Subgoal Discovery/Modular Meta-RL Agent.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-meta-rl-hierarchical-rl-modularity-subgoal-discovery-multitask-rl-with-shared-latent-variables",
+   "name": "Multitask RL with Shared Latent Variables",
+   "subcategory": "modularity-and-subgoal-discovery",
+   "path": "Reinforcement Learning (RL)/Meta-RL & Hierarchical RL/Modularity & Subgoal Discovery/Multitask RL with Shared Latent Variables.md"
+  }
+ ],
+ "reinforcement-learning-model-based": [
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-classical-mpc-approaches-adaptive-local-models-alm",
+   "name": "Adaptive Local Models (ALM)",
+   "subcategory": "classical-and-mpc-approaches",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Classical & MPC Approaches/Adaptive Local Models (ALM).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-dreamer-v1-v3",
+   "name": "Dreamer (V1-V3)",
+   "subcategory": "model-based-rl",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Dreamer (V1-V3).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-hybrid-imagination-based-agents-hybrid-model-free-model-based-agent",
+   "name": "Hybrid Model-Free & Model-Based Agent",
+   "subcategory": "hybrid-and-imagination-based-agents",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Hybrid & Imagination-Based Agents/Hybrid Model-Free & Model-Based Agent.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-hybrid-imagination-based-agents-imagination-augmented-agents-i2a",
+   "name": "Imagination-Augmented Agents (I2A)",
+   "subcategory": "hybrid-and-imagination-based-agents",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Hybrid & Imagination-Based Agents/Imagination-Augmented Agents (I2A).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-hybrid-imagination-based-agents-world-models-ha-and-schmidhuber",
+   "name": "World Models (Ha and Schmidhuber)",
+   "subcategory": "hybrid-and-imagination-based-agents",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Hybrid & Imagination-Based Agents/World Models (Ha and Schmidhuber).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-latent-dynamics-representation-models-deepmdp",
+   "name": "DeepMDP",
+   "subcategory": "latent-dynamics-and-representation-models",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Latent Dynamics & Representation Models/DeepMDP.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-latent-dynamics-representation-models-latent-dynamics-model-rssm",
+   "name": "Latent Dynamics Model (RSSM)",
+   "subcategory": "latent-dynamics-and-representation-models",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Latent Dynamics & Representation Models/Latent Dynamics Model (RSSM).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-latent-dynamics-representation-models-state-space-abstraction-model",
+   "name": "State-Space Abstraction Model",
+   "subcategory": "latent-dynamics-and-representation-models",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Latent Dynamics & Representation Models/State-Space Abstraction Model.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-latent-dynamics-representation-models-temporal-predictive-coding-agent",
+   "name": "Temporal Predictive Coding Agent",
+   "subcategory": "latent-dynamics-and-representation-models",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Latent Dynamics & Representation Models/Temporal Predictive Coding Agent.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-latent-dynamics-representation-models-variational-world-model",
+   "name": "Variational World Model",
+   "subcategory": "latent-dynamics-and-representation-models",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Latent Dynamics & Representation Models/Variational World Model.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-latent-imagination-policy-network",
+   "name": "Latent Imagination Policy Network",
+   "subcategory": "model-based-rl",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Latent Imagination Policy Network.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-planning-based-agents-dyna-q",
+   "name": "Dyna-Q",
+   "subcategory": "planning-based-agents",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Planning-Based Agents/Dyna-Q.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-planning-based-agents-model-predictive-control-mpc",
+   "name": "Model Predictive Control (MPC)",
+   "subcategory": "planning-based-agents",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Planning-Based Agents/Model Predictive Control (MPC).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-planning-based-agents-muzero",
+   "name": "MuZero",
+   "subcategory": "planning-based-agents",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Planning-Based Agents/MuZero.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-planning-based-agents-planet-planning-network",
+   "name": "PlaNet (Planning Network)",
+   "subcategory": "planning-based-agents",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Planning-Based Agents/PlaNet (Planning Network).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-planning-based-agents-simple-simulated-policy-learning",
+   "name": "SimPLe (Simulated Policy Learning)",
+   "subcategory": "planning-based-agents",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Planning-Based Agents/SimPLe (Simulated Policy Learning).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-probabilistic-uncertainty-based-models-probabilistic-ensembles-with-trajectory-sampling-pets",
+   "name": "Probabilistic Ensembles with Trajectory Sampling (PETS)",
+   "subcategory": "probabilistic-and-uncertainty-based-models",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Probabilistic & Uncertainty-Based Models/Probabilistic Ensembles with Trajectory Sampling (PETS).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-transformers-sequence-models-action-conditioned-dynamics-transformer",
+   "name": "Action-Conditioned Dynamics Transformer",
+   "subcategory": "transformers-and-sequence-models",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Transformers & Sequence Models/Action-Conditioned Dynamics Transformer.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-transformers-sequence-models-latent-planning-with-transformers",
+   "name": "Latent Planning with Transformers",
+   "subcategory": "transformers-and-sequence-models",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Transformers & Sequence Models/Latent Planning with Transformers.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-based-rl-transformers-sequence-models-neural-ode-based-dynamics-learner",
+   "name": "Neural ODE-based Dynamics Learner",
+   "subcategory": "transformers-and-sequence-models",
+   "path": "Reinforcement Learning (RL)/Model-Based RL/Transformers & Sequence Models/Neural ODE-based Dynamics Learner.md"
+  }
+ ],
+ "reinforcement-learning-policy-value": [
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-actor-critic-methods-actor-critic",
+   "name": "Actor-Critic",
+   "subcategory": "actor-critic-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Actor-Critic Methods/Actor-Critic.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-actor-critic-methods-advantage-actor-critic-a2c",
+   "name": "Advantage Actor-Critic (A2C)",
+   "subcategory": "actor-critic-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Actor-Critic Methods/Advantage Actor-Critic (A2C).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-actor-critic-methods-asynchronous-advantage-actor-critic-a3c",
+   "name": "Asynchronous Advantage Actor-Critic (A3C)",
+   "subcategory": "actor-critic-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Actor-Critic Methods/Asynchronous Advantage Actor-Critic (A3C).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-actor-critic-methods-q-prop",
+   "name": "Q-Prop",
+   "subcategory": "actor-critic-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Actor-Critic Methods/Q-Prop.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-actor-critic-methods-soft-actor-critic-sac",
+   "name": "Soft Actor-Critic (SAC)",
+   "subcategory": "actor-critic-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Actor-Critic Methods/Soft Actor-Critic (SAC).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-deterministic-policy-gradient-methods-deep-deterministic-policy-gradient-ddpg",
+   "name": "Deep Deterministic Policy Gradient (DDPG)",
+   "subcategory": "deterministic-policy-gradient-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Deterministic Policy Gradient Methods/Deep Deterministic Policy Gradient (DDPG).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-deterministic-policy-gradient-methods-normalized-advantage-function-naf",
+   "name": "Normalized Advantage Function (NAF)",
+   "subcategory": "deterministic-policy-gradient-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Deterministic Policy Gradient Methods/Normalized Advantage Function (NAF).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-deterministic-policy-gradient-methods-twin-delayed-deep-deterministic-policy-gradient-td3",
+   "name": "Twin Delayed Deep Deterministic Policy Gradient (TD3)",
+   "subcategory": "deterministic-policy-gradient-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Deterministic Policy Gradient Methods/Twin Delayed Deep Deterministic Policy Gradient (TD3).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-distributional-exploration-enhancements-noisy-dqn",
+   "name": "Noisy DQN",
+   "subcategory": "distributional-and-exploration-enhancements",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Distributional & Exploration Enhancements/Noisy DQN.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-distributional-exploration-enhancements-rainbow-dqn",
+   "name": "Rainbow DQN",
+   "subcategory": "distributional-and-exploration-enhancements",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Distributional & Exploration Enhancements/Rainbow DQN.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-evolutionary-methods-cross-entropy-method-cem",
+   "name": "Cross-Entropy Method (CEM)",
+   "subcategory": "evolutionary-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Evolutionary Methods/Cross-Entropy Method (CEM).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-policy-gradient-methods-proximal-policy-optimization-ppo",
+   "name": "Proximal Policy Optimization (PPO)",
+   "subcategory": "policy-gradient-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Policy Gradient Methods/Proximal Policy Optimization (PPO).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-policy-gradient-methods-reinforce",
+   "name": "REINFORCE",
+   "subcategory": "policy-gradient-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Policy Gradient Methods/REINFORCE.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-policy-gradient-methods-trust-region-policy-optimization-trpo",
+   "name": "Trust Region Policy Optimization (TRPO)",
+   "subcategory": "policy-gradient-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Policy Gradient Methods/Trust Region Policy Optimization (TRPO).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-policy-gradient-methods-vanilla-policy-gradient",
+   "name": "Vanilla Policy Gradient",
+   "subcategory": "policy-gradient-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Policy Gradient Methods/Vanilla Policy Gradient.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-value-based-methods-deep-q-network-dqn",
+   "name": "Deep Q-Network (DQN)",
+   "subcategory": "value-based-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Value-Based Methods/Deep Q-Network (DQN).md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-value-based-methods-double-dqn",
+   "name": "Double DQN",
+   "subcategory": "value-based-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Value-Based Methods/Double DQN.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-value-based-methods-dueling-dqn",
+   "name": "Dueling DQN",
+   "subcategory": "value-based-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Value-Based Methods/Dueling DQN.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-value-based-methods-q-learning",
+   "name": "Q-Learning",
+   "subcategory": "value-based-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Value-Based Methods/Q-Learning.md"
+  },
+  {
+   "id": "reinforcement-learning-rl-model-free-rl-value-based-methods-sarsa-state-action-reward-state-action",
+   "name": "SARSA (State-Action-Reward-State-Action)",
+   "subcategory": "value-based-methods",
+   "path": "Reinforcement Learning (RL)/Model-Free RL/Value-Based Methods/SARSA (State-Action-Reward-State-Action).md"
+  }
+ ],
+ "simulation-decision": [
+  {
+   "id": "simulation-decision-models-agent-based-multi-agent-systems-agent-based-modeling",
+   "name": "Agent-Based Modeling",
+   "subcategory": "agent-based-and-multi-agent-systems",
+   "path": "Simulation & Decision Models/Agent-Based & Multi-Agent Systems/Agent-Based Modeling.md"
+  },
+  {
+   "id": "simulation-decision-models-agent-based-multi-agent-systems-multi-agent-simulation",
+   "name": "Multi-Agent Simulation",
+   "subcategory": "agent-based-and-multi-agent-systems",
+   "path": "Simulation & Decision Models/Agent-Based & Multi-Agent Systems/Multi-Agent Simulation.md"
+  },
+  {
+   "id": "simulation-decision-models-evolutionary-decision-models",
+   "name": "Evolutionary Decision Models",
+   "subcategory": "general",
+   "path": "Simulation & Decision Models/Evolutionary Decision Models.md"
+  },
+  {
+   "id": "simulation-decision-models-fuzzy-soft-logic-models-fuzzy-decision-models",
+   "name": "Fuzzy Decision Models",
+   "subcategory": "fuzzy-and-soft-logic-models",
+   "path": "Simulation & Decision Models/Fuzzy & Soft Logic Models/Fuzzy Decision Models.md"
+  },
+  {
+   "id": "simulation-decision-models-game-theory-strategic-reasoning-game-theoretic-models-nash-zero-sum",
+   "name": "Game Theoretic Models (Nash, Zero-Sum)",
+   "subcategory": "game-theory-and-strategic-reasoning",
+   "path": "Simulation & Decision Models/Game Theory & Strategic Reasoning/Game Theoretic Models (Nash, Zero-Sum).md"
+  },
+  {
+   "id": "simulation-decision-models-probabilistic-inference-sampling-markov-chain-monte-carlo-mcmc",
+   "name": "Markov Chain Monte Carlo (MCMC)",
+   "subcategory": "probabilistic-inference-and-sampling",
+   "path": "Simulation & Decision Models/Probabilistic Inference & Sampling/Markov Chain Monte Carlo (MCMC).md"
+  },
+  {
+   "id": "simulation-decision-models-probabilistic-inference-sampling-monte-carlo-simulation",
+   "name": "Monte Carlo Simulation",
+   "subcategory": "probabilistic-inference-and-sampling",
+   "path": "Simulation & Decision Models/Probabilistic Inference & Sampling/Monte Carlo Simulation.md"
+  },
+  {
+   "id": "simulation-decision-models-robust-multi-criteria-decision-frameworks-multi-criteria-decision-analysis-mcda",
+   "name": "Multi-Criteria Decision Analysis (MCDA)",
+   "subcategory": "robust-and-multi-criteria-decision-frameworks",
+   "path": "Simulation & Decision Models/Robust & Multi-Criteria Decision Frameworks/Multi-Criteria Decision Analysis (MCDA).md"
+  },
+  {
+   "id": "simulation-decision-models-robust-multi-criteria-decision-frameworks-robust-decision-making-rdm",
+   "name": "Robust Decision Making (RDM)",
+   "subcategory": "robust-and-multi-criteria-decision-frameworks",
+   "path": "Simulation & Decision Models/Robust & Multi-Criteria Decision Frameworks/Robust Decision Making (RDM).md"
+  },
+  {
+   "id": "simulation-decision-models-robust-multi-criteria-decision-frameworks-scenario-analysis",
+   "name": "Scenario Analysis",
+   "subcategory": "robust-and-multi-criteria-decision-frameworks",
+   "path": "Simulation & Decision Models/Robust & Multi-Criteria Decision Frameworks/Scenario Analysis.md"
+  },
+  {
+   "id": "simulation-decision-models-simulation-techniques-discrete-event-simulation-des",
+   "name": "Discrete Event Simulation (DES)",
+   "subcategory": "simulation-techniques",
+   "path": "Simulation & Decision Models/Simulation Techniques/Discrete Event Simulation (DES).md"
+  },
+  {
+   "id": "simulation-decision-models-simulation-techniques-event-driven-simulation",
+   "name": "Event-Driven Simulation",
+   "subcategory": "simulation-techniques",
+   "path": "Simulation & Decision Models/Simulation Techniques/Event-Driven Simulation.md"
+  },
+  {
+   "id": "simulation-decision-models-simulation-techniques-stochastic-differential-equations-sde",
+   "name": "Stochastic Differential Equations (SDE)",
+   "subcategory": "simulation-techniques",
+   "path": "Simulation & Decision Models/Simulation Techniques/Stochastic Differential Equations (SDE).md"
+  },
+  {
+   "id": "simulation-decision-models-simulation-techniques-system-dynamics-modeling",
+   "name": "System Dynamics Modeling",
+   "subcategory": "simulation-techniques",
+   "path": "Simulation & Decision Models/Simulation Techniques/System Dynamics Modeling.md"
+  },
+  {
+   "id": "simulation-decision-models-tree-graph-based-decision-models-bayesian-decision-networks",
+   "name": "Bayesian Decision Networks",
+   "subcategory": "tree-and-graph-based-decision-models",
+   "path": "Simulation & Decision Models/Tree & Graph-Based Decision Models/Bayesian Decision Networks.md"
+  },
+  {
+   "id": "simulation-decision-models-tree-graph-based-decision-models-decision-trees",
+   "name": "Decision Trees",
+   "subcategory": "tree-and-graph-based-decision-models",
+   "path": "Simulation & Decision Models/Tree & Graph-Based Decision Models/Decision Trees.md"
+  },
+  {
+   "id": "simulation-decision-models-tree-graph-based-decision-models-dynamic-decision-networks",
+   "name": "Dynamic Decision Networks",
+   "subcategory": "tree-and-graph-based-decision-models",
+   "path": "Simulation & Decision Models/Tree & Graph-Based Decision Models/Dynamic Decision Networks.md"
+  },
+  {
+   "id": "simulation-decision-models-tree-graph-based-decision-models-influence-diagrams",
+   "name": "Influence Diagrams",
+   "subcategory": "tree-and-graph-based-decision-models",
+   "path": "Simulation & Decision Models/Tree & Graph-Based Decision Models/Influence Diagrams.md"
+  },
+  {
+   "id": "simulation-decision-models-tree-graph-based-decision-models-monte-carlo-tree-search-mcts",
+   "name": "Monte Carlo Tree Search (MCTS)",
+   "subcategory": "tree-and-graph-based-decision-models",
+   "path": "Simulation & Decision Models/Tree & Graph-Based Decision Models/Monte Carlo Tree Search (MCTS).md"
+  },
+  {
+   "id": "simulation-decision-models-utility-value-based-decision-making-utility-theory-models",
+   "name": "Utility Theory Models",
+   "subcategory": "utility-and-value-based-decision-making",
+   "path": "Simulation & Decision Models/Utility & Value-Based Decision Making/Utility Theory Models.md"
+  }
+ ],
+ "statistical": [
+  {
+   "id": "statistical-models-bayesian-models-bayesian-hierarchical-model",
+   "name": "Bayesian Hierarchical Model",
+   "subcategory": "bayesian-models",
+   "path": "Statistical Models/Bayesian Models/Bayesian Hierarchical Model.md"
+  },
+  {
+   "id": "statistical-models-bayesian-models-bayesian-linear-regression",
+   "name": "Bayesian Linear Regression",
+   "subcategory": "bayesian-models",
+   "path": "Statistical Models/Bayesian Models/Bayesian Linear Regression.md"
+  },
+  {
+   "id": "statistical-models-forecasting-additive-models-prophet-forecasting-model",
+   "name": "Prophet Forecasting Model",
+   "subcategory": "forecasting-and-additive-models",
+   "path": "Statistical Models/Forecasting & Additive Models/Prophet Forecasting Model.md"
+  },
+  {
+   "id": "statistical-models-generalized-linear-models-gamma-regression",
+   "name": "Gamma Regression",
+   "subcategory": "generalized-linear-models",
+   "path": "Statistical Models/Generalized Linear Models/Gamma Regression.md"
+  },
+  {
+   "id": "statistical-models-generalized-linear-models-generalized-linear-model-glm",
+   "name": "Generalized Linear Model (GLM)",
+   "subcategory": "generalized-linear-models",
+   "path": "Statistical Models/Generalized Linear Models/Generalized Linear Model (GLM).md"
+  },
+  {
+   "id": "statistical-models-generalized-linear-models-logistic-regression",
+   "name": "Logistic Regression",
+   "subcategory": "generalized-linear-models",
+   "path": "Statistical Models/Generalized Linear Models/Logistic Regression.md"
+  },
+  {
+   "id": "statistical-models-generalized-linear-models-multinomial-logistic-regression",
+   "name": "Multinomial Logistic Regression",
+   "subcategory": "generalized-linear-models",
+   "path": "Statistical Models/Generalized Linear Models/Multinomial Logistic Regression.md"
+  },
+  {
+   "id": "statistical-models-generalized-linear-models-ordinal-regression",
+   "name": "Ordinal Regression",
+   "subcategory": "generalized-linear-models",
+   "path": "Statistical Models/Generalized Linear Models/Ordinal Regression.md"
+  },
+  {
+   "id": "statistical-models-generalized-linear-models-poisson-regression",
+   "name": "Poisson Regression",
+   "subcategory": "generalized-linear-models",
+   "path": "Statistical Models/Generalized Linear Models/Poisson Regression.md"
+  },
+  {
+   "id": "statistical-models-generalized-linear-models-probit-regression",
+   "name": "Probit Regression",
+   "subcategory": "generalized-linear-models",
+   "path": "Statistical Models/Generalized Linear Models/Probit Regression.md"
+  },
+  {
+   "id": "statistical-models-generalized-linear-models-tweedie-regression",
+   "name": "Tweedie Regression",
+   "subcategory": "generalized-linear-models",
+   "path": "Statistical Models/Generalized Linear Models/Tweedie Regression.md"
+  },
+  {
+   "id": "statistical-models-generalized-linear-models-zero-inflated-poisson-model",
+   "name": "Zero-Inflated Poisson Model",
+   "subcategory": "generalized-linear-models",
+   "path": "Statistical Models/Generalized Linear Models/Zero-Inflated Poisson Model.md"
+  },
+  {
+   "id": "statistical-models-probabilistic-mixture-models-mixture-of-exponentials",
+   "name": "Mixture of Exponentials",
+   "subcategory": "probabilistic-mixture-models",
+   "path": "Statistical Models/Probabilistic Mixture Models/Mixture of Exponentials.md"
+  },
+  {
+   "id": "statistical-models-regression-techniques-linear-regression",
+   "name": "Linear Regression",
+   "subcategory": "regression-techniques",
+   "path": "Statistical Models/Regression Techniques/Linear Regression.md"
+  },
+  {
+   "id": "statistical-models-regression-techniques-multivariate-regression",
+   "name": "Multivariate Regression",
+   "subcategory": "regression-techniques",
+   "path": "Statistical Models/Regression Techniques/Multivariate Regression.md"
+  },
+  {
+   "id": "statistical-models-regression-techniques-partial-least-squares-regression-plsr",
+   "name": "Partial Least Squares Regression (PLSR)",
+   "subcategory": "regression-techniques",
+   "path": "Statistical Models/Regression Techniques/Partial Least Squares Regression (PLSR).md"
+  },
+  {
+   "id": "statistical-models-regression-techniques-quantile-regression",
+   "name": "Quantile Regression",
+   "subcategory": "regression-techniques",
+   "path": "Statistical Models/Regression Techniques/Quantile Regression.md"
+  },
+  {
+   "id": "statistical-models-regression-techniques-robust-regression",
+   "name": "Robust Regression",
+   "subcategory": "regression-techniques",
+   "path": "Statistical Models/Regression Techniques/Robust Regression.md"
+  },
+  {
+   "id": "statistical-models-survival-analysis-accelerated-failure-time-model-aft",
+   "name": "Accelerated Failure Time Model (AFT)",
+   "subcategory": "survival-analysis",
+   "path": "Statistical Models/Survival Analysis/Accelerated Failure Time Model (AFT).md"
+  },
+  {
+   "id": "statistical-models-survival-analysis-survival-models-cox-proportional-hazards",
+   "name": "Survival Models - Cox Proportional Hazards",
+   "subcategory": "survival-analysis",
+   "path": "Statistical Models/Survival Analysis/Survival Models - Cox Proportional Hazards.md"
+  },
+  {
+   "id": "statistical-models-survival-analysis-survival-models-kaplan-meier-estimator",
+   "name": "Survival Models - Kaplan-Meier Estimator",
+   "subcategory": "survival-analysis",
+   "path": "Statistical Models/Survival Analysis/Survival Models - Kaplan-Meier Estimator.md"
+  },
+  {
+   "id": "statistical-models-time-series-models-time-series-arima",
+   "name": "Time Series - ARIMA",
+   "subcategory": "time-series-models",
+   "path": "Statistical Models/Time Series Models/Time Series - ARIMA.md"
+  },
+  {
+   "id": "statistical-models-time-series-models-time-series-garch",
+   "name": "Time Series - GARCH",
+   "subcategory": "time-series-models",
+   "path": "Statistical Models/Time Series Models/Time Series - GARCH.md"
+  },
+  {
+   "id": "statistical-models-time-series-models-time-series-sarima",
+   "name": "Time Series - SARIMA",
+   "subcategory": "time-series-models",
+   "path": "Statistical Models/Time Series Models/Time Series - SARIMA.md"
+  },
+  {
+   "id": "statistical-models-time-series-models-time-series-seasonal-decomposition",
+   "name": "Time Series - Seasonal Decomposition",
+   "subcategory": "time-series-models",
+   "path": "Statistical Models/Time Series Models/Time Series - Seasonal Decomposition.md"
+  }
  ]
 }

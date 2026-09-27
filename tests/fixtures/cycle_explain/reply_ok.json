@@ -1,0 +1,9 @@
+{
+  "id": "r4",
+  "ok": true,
+  "result": {
+    "released": "data/models/run",
+    "models": 0,
+    "inputs": false
+  }
+}

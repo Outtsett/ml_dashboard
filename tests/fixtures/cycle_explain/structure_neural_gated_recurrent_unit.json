@@ -1,0 +1,31 @@
+{
+  "modelId": "cycle_explain_neural_gated_recurrent_unit",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "neural",
+  "link": "logistic",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": {
+    "network": "gated_recurrent_unit",
+    "layers": [
+      {
+        "name": "Gated recurrent unit layer 1",
+        "kind": "gated_recurrent_unit",
+        "outputShape": [
+          12,
+          12
+        ]
+      }
+    ],
+    "sequenceLength": 12,
+    "hasAttention": false
+  }
+}

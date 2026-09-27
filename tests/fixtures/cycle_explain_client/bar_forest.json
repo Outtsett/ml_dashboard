@@ -1,0 +1,99 @@
+{
+  "modelId": "cycle_forest_fixture",
+  "timestamp": 1760000600,
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "trees",
+  "link": "mean_probability",
+  "inputs": {
+    "values": [
+      0.8,
+      -0.3,
+      1.2,
+      -0.5
+    ],
+    "scaled": false,
+    "raw": [
+      58.4,
+      -0.0012,
+      1840.0,
+      0.93
+    ],
+    "trainingPercentile": [
+      0.79,
+      0.31,
+      0.88,
+      0.22
+    ],
+    "window": null
+  },
+  "output": {
+    "raw": 0.6,
+    "probabilityUp": 0.6,
+    "targetUnits": null,
+    "scale": null,
+    "movePoints": null,
+    "close": 21012.25,
+    "predictedClose": null
+  },
+  "engineReload": 0.6,
+  "streamed": 0.6,
+  "trees": {
+    "baseValue": 0,
+    "leafValues": [
+      0.6,
+      0.4,
+      0.8
+    ],
+    "runningTotal": [
+      0.6,
+      0.5,
+      0.6
+    ],
+    "leafNode": [
+      3,
+      1,
+      4
+    ],
+    "pathOffsets": [
+      0,
+      2,
+      3,
+      5
+    ],
+    "pathNode": [
+      0,
+      1,
+      0,
+      0,
+      2
+    ],
+    "pathFeature": [
+      0,
+      1,
+      3,
+      0,
+      1
+    ],
+    "pathThreshold": [
+      0.9,
+      -0.1,
+      -0.2,
+      0.5,
+      0.0
+    ],
+    "pathWentLeft": [
+      true,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "contributions": null,
+  "neighbors": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

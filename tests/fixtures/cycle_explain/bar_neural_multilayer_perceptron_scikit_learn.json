@@ -1,0 +1,103 @@
+{
+  "modelId": "cycle_explain_neural_multilayer_perceptron_scikit_learn",
+  "timestamp": 1775149200,
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "neural",
+  "link": "logistic",
+  "inputs": {
+    "values": [
+      -0.8926750450453672,
+      0.09467650154329524,
+      -1.3069377137667277,
+      0.2960986399268499
+    ],
+    "scaled": true,
+    "raw": [
+      8.805962562561035,
+      10.592809677124023,
+      7.255773544311523,
+      10.753447532653809
+    ],
+    "trainingPercentile": [
+      0.20055325034578148,
+      0.5394190871369294,
+      0.09820193637621023,
+      0.6307053941908713
+    ],
+    "window": null
+  },
+  "output": {
+    "raw": -0.3920131890246257,
+    "probabilityUp": 0.40323276051503637,
+    "targetUnits": null,
+    "scale": null,
+    "movePoints": null,
+    "close": 18532.75,
+    "predictedClose": null
+  },
+  "engineReload": 0.40323276051503637,
+  "streamed": 0.40323276051503637,
+  "trees": null,
+  "contributions": null,
+  "neighbors": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": {
+    "layers": [
+      {
+        "name": "Hidden layer 1 (rectified linear unit)",
+        "kind": "dense",
+        "shape": [
+          16
+        ],
+        "values": [
+          0.527877462724855,
+          0.0,
+          0.0,
+          0.0,
+          0.3347880072114166,
+          1.5144802727536033,
+          0.4732175715230341,
+          0.0,
+          0.0,
+          0.057342437958177006,
+          1.1798321026316083,
+          0.0,
+          0.3031123480547174,
+          0.0,
+          0.5143231647263653,
+          0.0
+        ]
+      },
+      {
+        "name": "Hidden layer 2 (rectified linear unit)",
+        "kind": "dense",
+        "shape": [
+          16
+        ],
+        "values": [
+          0.9783468790051164,
+          0.970399206852206,
+          0.7194171283764409,
+          0.0,
+          0.0,
+          0.5342100719360554,
+          0.0,
+          0.036320321417273684,
+          0.0,
+          0.8155578607551965,
+          0.37428332832873773,
+          0.0,
+          0.44024526698214894,
+          0.0,
+          0.0,
+          0.10659767753441152
+        ]
+      }
+    ],
+    "attention": [],
+    "logit": -0.3920131890246257
+  }
+}

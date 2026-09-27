@@ -1,0 +1,57 @@
+{
+  "modelId": "cycle_explain_trees_lightgbm",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "trees",
+  "link": "logistic",
+  "baseValue": 0.0,
+  "logisticCurve": null,
+  "trees": {
+    "treeCount": 59,
+    "usedTreeCount": 59,
+    "aggregation": "sum",
+    "learningRate": 0.05,
+    "maxDepth": 6,
+    "depthHistogram": [
+      0,
+      0,
+      0,
+      3,
+      31,
+      18,
+      7
+    ],
+    "leafCount": 413,
+    "featureUsage": [
+      {
+        "featureIndex": 0,
+        "splitCount": 151,
+        "totalGain": 4686.3948476314545
+      },
+      {
+        "featureIndex": 1,
+        "splitCount": 102,
+        "totalGain": 974.471266746521
+      },
+      {
+        "featureIndex": 2,
+        "splitCount": 55,
+        "totalGain": 202.9893697500229
+      },
+      {
+        "featureIndex": 3,
+        "splitCount": 46,
+        "totalGain": 166.98285961151123
+      }
+    ],
+    "oblivious": false,
+    "splitRule": "less_or_equal"
+  },
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

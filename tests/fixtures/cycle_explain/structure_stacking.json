@@ -1,0 +1,38 @@
+{
+  "modelId": "cycle_explain_stacking",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "stacking",
+  "link": "logistic",
+  "baseValue": -2.589103106177732,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": {
+    "baseModels": [
+      {
+        "name": "logistic regression",
+        "kind": "Logistic regression"
+      },
+      {
+        "name": "random forest",
+        "kind": "Random forest classifier"
+      },
+      {
+        "name": "gradient boosting",
+        "kind": "Gradient boosting classifier"
+      }
+    ],
+    "metaIntercept": -2.589103106177732,
+    "metaCoefficients": [
+      3.26658987758491,
+      2.23134225627779,
+      -0.1444324126156824
+    ]
+  },
+  "neural": null
+}

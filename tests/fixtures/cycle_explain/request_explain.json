@@ -1,0 +1,8 @@
+{
+  "id": "r3",
+  "op": "explain",
+  "runDirectory": "data/models/run",
+  "fold": 0,
+  "role": "price",
+  "timestamp": 1772000000
+}

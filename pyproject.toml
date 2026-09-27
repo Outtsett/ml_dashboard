@@ -11,7 +11,6 @@ dependencies = [
     "pyarrow>=23",
     "scipy>=1.16,<2",
     "duckdb>=1.4",
-
     # ── ML / training ───────────────────────────────────────────────
     "torch==2.11.0",            # sm_120-aware build via [tool.uv.sources] -> pytorch-cu130 index
     "scikit-learn>=1.6,<2",
@@ -24,18 +23,18 @@ dependencies = [
     "hmmlearn>=0.3",
     "gymnasium>=1.0",
     "joblib>=1.4",
-
+    "catboost>=1.2.10",         # Model Cycle: cycle/catboost_adapter.py
+    "statsmodels>=0.15.0",      # Model Cycle: cycle/statsmodels_adapter.py (Probit)
     # ── Validation / config ─────────────────────────────────────────
     "pydantic>=2.10,<3",
     "jinja2>=3.1",
-
     # ── Data sources / DB ───────────────────────────────────────────
     "databento>=0.70",
     "psycopg2-binary>=2.9.11",
-
     # ── System / GPU instrumentation ───────────────────────────────
     "psutil>=6",
     "nvidia-ml-py>=12",         # provides `pynvml` import; replaces deprecated pynvml package
+    "universal-pathlib>=0.3.10",
 ]
 
 [project.optional-dependencies]

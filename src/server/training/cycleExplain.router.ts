@@ -292,8 +292,9 @@ async function checkFoldModel(
   }
   const status = role === "price" ? planned.price : planned.direction;
   if (status === "none") return { status: 404, body: { error: "This model has no price model, so there is nothing to explain for the price role." } };
-  if (status === "training") return { status: 409, body: { error: `Fold ${fold}'s ${role} model is still training; it can be explained once it is saved.` } };
-  if (status === "missing") return { status: 404, body: { error: `Fold ${fold}'s ${role} model was never saved; the run ended before it was fitted.` } };
+  // Folds are numbered from 1 in everything the user reads.
+  if (status === "training") return { status: 409, body: { error: `Fold ${fold + 1}'s ${role} model is still training; it can be explained once it is saved.` } };
+  if (status === "missing") return { status: 404, body: { error: `Fold ${fold + 1}'s ${role} model was never saved; the run ended before it was fitted.` } };
   return null;
 }
 

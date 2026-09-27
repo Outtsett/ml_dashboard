@@ -1,0 +1,228 @@
+{
+ "manifest": {
+  "modelId": "cycle_multilayer_perceptron_fixture",
+  "available": true,
+  "reason": null,
+  "modelKey": "multilayer_perceptron",
+  "displayName": "Multilayer perceptron",
+  "explainKind": "neural",
+  "directionMode": "classifier",
+  "hasPriceModel": true,
+  "featureNames": [
+   "log_return_1",
+   "log_return_5",
+   "realized_volatility_20",
+   "volume_zscore_20",
+   "range_to_atr",
+   "close_location_value",
+   "rsi_14",
+   "distance_to_ema_50"
+  ],
+  "featureDisplayNames": [
+   "Log return over 1 bar",
+   "Log return over 5 bars",
+   "Realized volatility over 20 bars",
+   "Volume z-score over 20 bars",
+   "Bar range to average true range",
+   "Close location in the bar",
+   "Relative strength index over 14 bars",
+   "Distance to the 50-bar exponential moving average"
+  ],
+  "sequenceLength": 1,
+  "labelHorizonBars": 6,
+  "folds": [
+   {
+    "foldIndex": 0,
+    "testStart": 1759850100,
+    "testEnd": 1760150100,
+    "direction": "ready",
+    "price": "ready"
+   }
+  ]
+ },
+ "structure": {
+  "modelId": "cycle_multilayer_perceptron_fixture",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "neural",
+  "link": "logistic",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": {
+   "network": "multilayer_perceptron",
+   "layers": [
+    {
+     "name": "hidden_1",
+     "kind": "dense",
+     "outputShape": [
+      24
+     ]
+    },
+    {
+     "name": "hidden_2",
+     "kind": "dense",
+     "outputShape": [
+      24
+     ]
+    },
+    {
+     "name": "head",
+     "kind": "head",
+     "outputShape": [
+      1
+     ]
+    }
+   ],
+   "sequenceLength": 1,
+   "hasAttention": false
+  }
+ },
+ "bar": {
+  "modelId": "cycle_multilayer_perceptron_fixture",
+  "timestamp": 1760000100,
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "neural",
+  "link": "logistic",
+  "inputs": {
+   "values": [
+    0.5952169299125671,
+    0.2402316927909851,
+    0.0555095300078392,
+    0.5591855645179749,
+    -0.40671536326408386,
+    -0.1495172083377838,
+    -1.370491623878479,
+    0.3435155153274536
+   ],
+   "scaled": false,
+   "raw": [
+    1.111868780851364,
+    0.5083938777446747,
+    0.19436620101332663,
+    1.0506154596805573,
+    -0.5914161175489425,
+    -0.15417925417423248,
+    -2.229835760593414,
+    0.683976376056671
+   ],
+   "trainingPercentile": [
+    0.6488042324781418,
+    0.5600579231977463,
+    0.5138773825019598,
+    0.6397963911294937,
+    0.39832115918397903,
+    0.46262069791555405,
+    0.15737709403038025,
+    0.5858788788318634
+   ],
+   "window": null
+  },
+  "output": {
+   "raw": -0.24829280376434326,
+   "probabilityUp": 0.4382437427994626,
+   "targetUnits": null,
+   "scale": null,
+   "movePoints": null,
+   "close": 21450.25,
+   "predictedClose": null
+  },
+  "engineReload": 0.4382437427994626,
+  "streamed": 0.4382437427994626,
+  "trees": null,
+  "contributions": null,
+  "neighbors": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": {
+   "layers": [
+    {
+     "name": "hidden_1",
+     "kind": "dense",
+     "shape": [
+      24
+     ],
+     "values": [
+      0.1732102632522583,
+      0.19279904663562775,
+      -0.1331278383731842,
+      0.470038503408432,
+      -0.16238415241241455,
+      0.07566265761852264,
+      0.03109016641974449,
+      0.7145471572875977,
+      0.3303071856498718,
+      -0.06806367635726929,
+      -0.1476401835680008,
+      -0.0202984306961298,
+      0.08399803936481476,
+      0.3295513987541199,
+      -0.14201326668262482,
+      0.07781673222780228,
+      0.3027540445327759,
+      -0.16947728395462036,
+      0.07829117774963379,
+      -0.10777895897626877,
+      0.8423027396202087,
+      -0.037902750074863434,
+      -0.16242527961730957,
+      -0.13800881803035736
+     ]
+    },
+    {
+     "name": "hidden_2",
+     "kind": "dense",
+     "shape": [
+      24
+     ],
+     "values": [
+      -0.11370596289634705,
+      -0.04898819699883461,
+      0.07510775327682495,
+      -0.013189632445573807,
+      -0.099879190325737,
+      -0.023313527926802635,
+      -0.011853725649416447,
+      -0.11980242282152176,
+      -0.03822151944041252,
+      0.08317908644676208,
+      0.1912759691476822,
+      -0.06041034311056137,
+      0.11913226544857025,
+      0.24321529269218445,
+      -0.011671141721308231,
+      0.10073608160018921,
+      0.11854204535484314,
+      -0.08978274464607239,
+      -0.09214702993631363,
+      -0.07301227748394012,
+      -0.06610115617513657,
+      0.015796812251210213,
+      -0.04316874220967293,
+      -0.07956898212432861
+     ]
+    },
+    {
+     "name": "head",
+     "kind": "head",
+     "shape": [
+      1
+     ],
+     "values": [
+      -0.24829280376434326
+     ]
+    }
+   ],
+   "attention": [],
+   "logit": -0.24829280376434326
+  }
+ }
+}

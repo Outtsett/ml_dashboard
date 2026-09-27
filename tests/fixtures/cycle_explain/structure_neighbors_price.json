@@ -1,0 +1,21 @@
+{
+  "modelId": "cycle_explain_neighbors",
+  "foldIndex": 0,
+  "role": "price",
+  "explainKind": "neighbors",
+  "link": "identity",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": {
+    "neighborCount": 50,
+    "weighting": "distance",
+    "trainingBarCount": 1145
+  },
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

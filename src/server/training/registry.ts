@@ -53,6 +53,7 @@ let modelsConfig: ModelRegistry | null = null;
 let legacyAliasMap: Record<string, string> = {};
 /** runners.json's runners plus the Cycle registry's, composed with the models. */
 let mergedRunners: Record<string, RunnerEntry> | null = null;
+let mergedAlgorithms: Record<string, AlgorithmEntry> | null = null;
 /** The Cycle registry load the composed view was built from (file names + mtimes). */
 let cycleSignature: string | null = null;
 
@@ -219,6 +220,12 @@ function buildCompositeRegistry(): {
     runners[runnerKey] = runner;
     models[runnerKey] = cycle.models[runnerKey]!;
   }
+  // A registry model that is not a legacy family has no algorithms.json entry;
+  // its composed algorithm joins the map so its runner key resolves everywhere.
+  mergedAlgorithms = { ...algorithmsConfig.algorithms };
+  for (const [key, algorithm] of Object.entries(cycle.algorithms)) {
+    if (!(key in mergedAlgorithms)) mergedAlgorithms[key] = algorithm;
+  }
 
   return { models, aliases, runners };
 }
@@ -233,12 +240,12 @@ function composeCycleRegistryRunners(): ReturnType<typeof composeCycleRunners> {
   cycleSignature = load.signature;
   if (!load.registry) {
     console.warn(`[registry] Model Cycle registry not loaded: ${load.problems.join("; ")}`);
-    return { runners: {}, models: {} };
+    return { runners: {}, models: {}, algorithms: {} };
   }
   const task = tasksConfig?.tasks[load.registry.shared.task];
   if (!task) {
     console.warn(`[registry] Model Cycle registry names task ${load.registry.shared.task}, which tasks.json does not define`);
-    return { runners: {}, models: {} };
+    return { runners: {}, models: {}, algorithms: {} };
   }
   return composeCycleRunners(load.registry, algorithmsConfig?.algorithms ?? {}, task, composeEntry);
 }
@@ -295,6 +302,7 @@ function ensureLoaded() {
       modelsConfig = { version: raw.version ?? 1, models: raw.models };
       legacyAliasMap = {};
       mergedRunners = null;
+      mergedAlgorithms = null;
     }
   }
 
@@ -331,10 +339,10 @@ export function listModels(): Record<string, ModelRegistryEntry> {
   return modelsConfig!.models;
 }
 
-/** All algorithms (architecture metadata, no runner wiring). */
+/** All algorithms (architecture metadata, no runner wiring), the Model Cycle's composed ones included. */
 export function listAlgorithms(): Record<string, AlgorithmEntry> {
   ensureLoaded();
-  return algorithmsConfig?.algorithms ?? {};
+  return mergedAlgorithms ?? algorithmsConfig?.algorithms ?? {};
 }
 
 /** All tasks (head + label strategy compatibility). */
@@ -455,6 +463,7 @@ export function reloadConfigs() {
   trainingConfig = null;
   legacyAliasMap = {};
   mergedRunners = null;
+      mergedAlgorithms = null;
   cycleSignature = null;
   resetCycleRegistryCache();
   ensureLoaded();
@@ -474,7 +483,7 @@ export function getClientConfig() {
   ensureLoaded();
   return {
     models: modelsConfig!.models,
-    algorithms: algorithmsConfig?.algorithms ?? {},
+    algorithms: mergedAlgorithms ?? algorithmsConfig?.algorithms ?? {},
     tasks: tasksConfig?.tasks ?? {},
     runners: mergedRunners ?? runnersConfig?.runners ?? {},
     aliases: legacyAliasMap,

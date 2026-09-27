@@ -35,6 +35,14 @@ export type ComposeEntry = (
 export interface CycleRunnerSet {
   runners: Record<string, RunnerEntry>;
   models: Record<string, ModelRegistryEntry>;
+  /**
+   * The algorithm each registry key was composed with, keyed by registry key:
+   * the frozen `algorithms.json` entry for a legacy family, otherwise the one
+   * derived from the registry. The training registry merges these into its
+   * algorithm map so every `<key>+walk_forward_cycle` runner names an algorithm
+   * the rest of the dashboard can look up.
+   */
+  algorithms: Record<string, AlgorithmEntry>;
 }
 
 export function cycleRunnerKey(key: string): string {
@@ -139,11 +147,14 @@ export function composeCycleRunners(
 ): CycleRunnerSet {
   const runners: Record<string, RunnerEntry> = {};
   const models: Record<string, ModelRegistryEntry> = {};
+  const composedAlgorithms: Record<string, AlgorithmEntry> = {};
   for (const [key, entry] of Object.entries(registry.models)) {
     const runnerKey = cycleRunnerKey(key);
     const runner = composeCycleRunner(key, entry, registry.shared);
+    const algorithm = cycleAlgorithm(key, entry, algorithms);
     runners[runnerKey] = runner;
-    models[runnerKey] = withoutUndefined(compose(key, registry.shared.task, cycleAlgorithm(key, entry, algorithms), task, runner));
+    composedAlgorithms[key] = algorithm;
+    models[runnerKey] = withoutUndefined(compose(key, registry.shared.task, algorithm, task, runner));
   }
-  return { runners, models };
+  return { runners, models, algorithms: composedAlgorithms };
 }

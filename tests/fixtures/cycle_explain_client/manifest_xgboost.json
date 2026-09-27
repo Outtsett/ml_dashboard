@@ -1,0 +1,40 @@
+{
+  "modelId": "cycle_xgboost_fixture",
+  "available": true,
+  "reason": null,
+  "modelKey": "xgboost",
+  "displayName": "XGBoost",
+  "explainKind": "trees",
+  "directionMode": "classifier",
+  "hasPriceModel": true,
+  "featureNames": [
+    "relative_strength_index_14",
+    "log_return_1",
+    "volume_zscore_20",
+    "average_true_range_ratio_14"
+  ],
+  "featureDisplayNames": [
+    "Relative strength index 14",
+    "Log return over 1 bar",
+    "Volume z-score over 20 bars",
+    "Average true range ratio 14"
+  ],
+  "sequenceLength": 1,
+  "labelHorizonBars": 6,
+  "folds": [
+    {
+      "foldIndex": 0,
+      "testStart": 1760000000,
+      "testEnd": 1760003000,
+      "direction": "ready",
+      "price": "ready"
+    },
+    {
+      "foldIndex": 1,
+      "testStart": 1760003300,
+      "testEnd": 1760006300,
+      "direction": "training",
+      "price": "training"
+    }
+  ]
+}

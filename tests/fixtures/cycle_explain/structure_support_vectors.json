@@ -1,0 +1,25 @@
+{
+  "modelId": "cycle_explain_support_vectors",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "support_vectors",
+  "link": "logistic_curve",
+  "baseValue": 0.1755836849777245,
+  "logisticCurve": {
+    "slope": 1.3994425804838733,
+    "intercept": 0.29415490848264614
+  },
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": {
+    "supportVectorCount": 362,
+    "kernel": "radial basis function",
+    "gamma": 0.24999999999999983,
+    "trainingBarCount": 700
+  },
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

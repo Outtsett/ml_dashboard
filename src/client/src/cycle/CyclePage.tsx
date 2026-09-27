@@ -5,7 +5,7 @@
  *
  * Owns the setup form's state and the connection lifecycle; the run's data
  * lives in `useCycleStore`, fed by `connection.ts`. The chart, terminal,
- * scoreboard, trades, folds and curves panels are other builders' files —
+ * scoreboard, trades, folds, curves and inside-the-model panels are other builders' files —
  * imported here as-is, each reading the store directly with zero props.
  */
 import { useEffect, useState } from "react";
@@ -38,6 +38,7 @@ import { CycleTerminal } from "@/cycle/Terminal";
 import { CycleTrades } from "@/cycle/Trades";
 import { CycleFolds } from "@/cycle/Folds";
 import { CycleCurves } from "@/cycle/Curves";
+import { InsidePanel } from "@/cycle/inside/InsidePanel";
 
 const STATUS_META: Record<CycleClientStatus, { label: string; icon: typeof Circle; className: string }> = {
   idle: { label: "Idle", icon: Circle, className: "border-white/15 text-neutral-400" },
@@ -133,6 +134,7 @@ export default function CyclePage() {
           <TabsTrigger value="trades">Trades</TabsTrigger>
           <TabsTrigger value="folds">Folds</TabsTrigger>
           <TabsTrigger value="curves">Curves</TabsTrigger>
+          <TabsTrigger value="inside">Inside the model</TabsTrigger>
         </TabsList>
         {/* A definite height, not flex-1: the side panel scrolls, so flex-1
             resolves to "as tall as the content" and the virtual lists inside
@@ -149,6 +151,9 @@ export default function CyclePage() {
         </TabsContent>
         <TabsContent value="curves" className="flex-1">
           <CycleCurves />
+        </TabsContent>
+        <TabsContent value="inside" className="flex-1">
+          <InsidePanel />
         </TabsContent>
       </Tabs>
 

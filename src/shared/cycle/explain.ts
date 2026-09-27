@@ -52,8 +52,8 @@ export const cycleExplainLinkSchema = z.enum([
   "mean_probability", // random forest / extra trees / single tree: P(up) = mean of per-tree P(up)
   "probit", // P(up) = Φ(raw)
   "logistic_curve", // P(up) = 1 / (1 + e^-(slope·raw + intercept)), fitted on the validation bars (SVM, from_price models)
-  "posterior", // naive Bayes: P(up) = softmax of the per-class log posteriors
-  "vote", // k-nearest neighbors: (weighted) share of neighbors that went up
+  "posterior", // naive Bayes: raw = log posterior odds (up minus down); P(up) = 1 / (1 + e^-raw)
+  "vote", // k-nearest neighbors: raw = the weighted share of the model's k neighbors that went up (= P(up)); price: the weighted mean target
   "calibration_map", // calibrated classifier: the base model's score through the fitted calibration map
 ]);
 export type CycleExplainLink = z.infer<typeof cycleExplainLinkSchema>;
@@ -199,7 +199,12 @@ export const cycleExplainTreeSchema = z.object({
     cover: z.array(nullableNumber),
     depth: z.array(z.number().int().nonnegative()),
   }),
-  /** CatBoost: the levels (one question each) and the 2^depth leaf values, instead of `nodes` being meaningful as a binary tree. */
+  /**
+   * CatBoost: the levels (one question each, in the model's own split order) and the 2^depth leaf values,
+   * instead of `nodes` being meaningful as a binary tree. A bar's leaf = Σ_d bit_d · 2^d, where bit_d is 1 when
+   * its value at obliviousLevels[d].feature is above that level's threshold (the border). In the bar's
+   * `trees` block for such a tree, pathWentLeft[d] is that bit (true = above the border) and leafNode is the leaf.
+   */
   obliviousLevels: z.array(z.object({ feature: z.number().int().nonnegative(), threshold: z.number() })).nullable(),
   obliviousLeafValues: z.array(z.number()).nullable(),
 });
@@ -243,6 +248,7 @@ export const cycleExplainBarSchema = z.object({
   streamed: nullableNumber,
   trees: z
     .object({
+      /** Forests ("mean" aggregation) have no base: 0. */
       baseValue: z.number(),
       /** Per used tree: the value of the leaf this bar reached (forests: that tree's P(up) or mean target). */
       leafValues: z.array(z.number()),
@@ -258,7 +264,10 @@ export const cycleExplainBarSchema = z.object({
       pathWentLeft: z.array(z.boolean()),
     })
     .nullable(),
-  /** Linear and naive Bayes: per-input contributions to `output.raw` (Σ contributions + base = raw). */
+  /**
+   * Linear and naive Bayes: per-input contributions to `output.raw` (Σ contributions + base = raw).
+   * Naive Bayes: base = logPriors[up] − logPriors[down]; each value = ln N(x | up) − ln N(x | down) on `inputs.values`.
+   */
   contributions: z.object({ values: z.array(z.number()), base: z.number() }).nullable(),
   neighbors: z
     .object({
@@ -276,12 +285,13 @@ export const cycleExplainBarSchema = z.object({
       dualCoefficients: z.array(z.number()),
       kernelValues: z.array(z.number()),
       contributions: z.array(z.number()),
-      /** Σ over ALL support vectors + intercept = decisionValue; the list above is the top of it. */
+      /** Σ over the support vectors NOT listed above, so Σ contributions + otherContribution + intercept = decisionValue. */
       otherContribution: z.number(),
       intercept: z.number(),
       decisionValue: z.number(),
     })
     .nullable(),
+  /** baseScore is in the units the calibration map takes: the base model's decision_function value when it has one (gradient boosting, logistic regression), otherwise its predict_proba P(up) (random forest, naive Bayes). */
   calibration: z.object({ baseScore: z.number(), probabilityUp: z.number() }).nullable(),
   stacking: z.object({ baseOutputs: z.array(z.object({ name: z.string(), value: z.number() })), metaContributions: z.array(z.number()) }).nullable(),
   neural: z

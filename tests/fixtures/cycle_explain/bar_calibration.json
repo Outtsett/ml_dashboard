@@ -1,0 +1,51 @@
+{
+  "modelId": "cycle_explain_calibration",
+  "timestamp": 1774880400,
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "calibration",
+  "link": "calibration_map",
+  "inputs": {
+    "values": [
+      -0.6287551522254944,
+      -0.8769609928131104,
+      -0.3251388967037201,
+      1.0651865005493164
+    ],
+    "scaled": false,
+    "raw": [
+      8.7424898147583,
+      8.246078491210938,
+      9.349721908569336,
+      12.130373001098633
+    ],
+    "trainingPercentile": [
+      0.23857404021937842,
+      0.15173674588665448,
+      0.3829981718464351,
+      0.8628884826325411
+    ],
+    "window": null
+  },
+  "output": {
+    "raw": -1.5712229903358361,
+    "probabilityUp": 0.2153104692754075,
+    "targetUnits": null,
+    "scale": null,
+    "movePoints": null,
+    "close": 18433.0,
+    "predictedClose": null
+  },
+  "engineReload": 0.2153104692754075,
+  "streamed": 0.2153104692754075,
+  "trees": null,
+  "contributions": null,
+  "neighbors": null,
+  "supportVectors": null,
+  "calibration": {
+    "baseScore": -1.5712229903358361,
+    "probabilityUp": 0.2153104692754075
+  },
+  "stacking": null,
+  "neural": null
+}

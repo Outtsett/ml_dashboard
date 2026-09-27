@@ -1,0 +1,42 @@
+{
+  "modelId": "cycle_xgboost_fixture",
+  "foldIndex": 0,
+  "role": "price",
+  "explainKind": "trees",
+  "link": "identity",
+  "baseValue": 0.1,
+  "logisticCurve": null,
+  "trees": {
+    "treeCount": 2,
+    "usedTreeCount": 2,
+    "aggregation": "sum",
+    "learningRate": 0.1,
+    "maxDepth": 1,
+    "depthHistogram": [
+      0,
+      2
+    ],
+    "leafCount": 4,
+    "featureUsage": [
+      {
+        "featureIndex": 0,
+        "splitCount": 1,
+        "totalGain": 2.0
+      },
+      {
+        "featureIndex": 2,
+        "splitCount": 1,
+        "totalGain": 1.0
+      }
+    ],
+    "oblivious": false,
+    "splitRule": "less_than"
+  },
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

@@ -23,7 +23,7 @@ import { CATEGORY_LABELS } from './types';
 // ALGO_MODELS_ROOT if the corpus moves again.
 const DEFAULT_ROOT = path.resolve(
   process.env.ALGO_MODELS_ROOT ??
-    'E:/source/repos/Trading/_architecture/educational/algo_models',
+    'E:/source/repos/ml_dashboard/Trading/_architecture/educational/algo_models',
 );
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 

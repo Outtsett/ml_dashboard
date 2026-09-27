@@ -1,0 +1,54 @@
+{
+  "modelId": "cycle_explain_trees_xgboost",
+  "foldIndex": 0,
+  "role": "price",
+  "explainKind": "trees",
+  "link": "identity",
+  "baseValue": 0.14126125,
+  "logisticCurve": null,
+  "trees": {
+    "treeCount": 25,
+    "usedTreeCount": 17,
+    "aggregation": "sum",
+    "learningRate": 0.300000012,
+    "maxDepth": 3,
+    "depthHistogram": [
+      0,
+      0,
+      0,
+      17
+    ],
+    "leafCount": 127,
+    "featureUsage": [
+      {
+        "featureIndex": 0,
+        "splitCount": 50,
+        "totalGain": 627.4652106100003
+      },
+      {
+        "featureIndex": 1,
+        "splitCount": 21,
+        "totalGain": 515.0529644
+      },
+      {
+        "featureIndex": 2,
+        "splitCount": 14,
+        "totalGain": 21.838669100000004
+      },
+      {
+        "featureIndex": 3,
+        "splitCount": 25,
+        "totalGain": 43.57401401
+      }
+    ],
+    "oblivious": false,
+    "splitRule": "less_than"
+  },
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

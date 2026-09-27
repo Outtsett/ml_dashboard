@@ -1,0 +1,48 @@
+{
+  "modelId": "cycle_forest_fixture",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "trees",
+  "link": "mean_probability",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": {
+    "treeCount": 3,
+    "usedTreeCount": 3,
+    "aggregation": "mean",
+    "learningRate": null,
+    "maxDepth": 2,
+    "depthHistogram": [
+      0,
+      0,
+      3
+    ],
+    "leafCount": 12,
+    "featureUsage": [
+      {
+        "featureIndex": 0,
+        "splitCount": 2,
+        "totalGain": 0.4
+      },
+      {
+        "featureIndex": 1,
+        "splitCount": 2,
+        "totalGain": 0.3
+      },
+      {
+        "featureIndex": 3,
+        "splitCount": 1,
+        "totalGain": 0.1
+      }
+    ],
+    "oblivious": false,
+    "splitRule": "less_or_equal"
+  },
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

@@ -1,0 +1,53 @@
+{
+  "modelId": "cycle_catboost_fixture",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "oblivious_trees",
+  "link": "logistic",
+  "baseValue": 0,
+  "logisticCurve": null,
+  "trees": {
+    "treeCount": 2,
+    "usedTreeCount": 2,
+    "aggregation": "sum",
+    "learningRate": 0.05,
+    "maxDepth": 2,
+    "depthHistogram": [
+      0,
+      0,
+      2
+    ],
+    "leafCount": 8,
+    "featureUsage": [
+      {
+        "featureIndex": 0,
+        "splitCount": 1,
+        "totalGain": null
+      },
+      {
+        "featureIndex": 1,
+        "splitCount": 1,
+        "totalGain": null
+      },
+      {
+        "featureIndex": 2,
+        "splitCount": 1,
+        "totalGain": null
+      },
+      {
+        "featureIndex": 3,
+        "splitCount": 1,
+        "totalGain": null
+      }
+    ],
+    "oblivious": true,
+    "splitRule": "greater_than"
+  },
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

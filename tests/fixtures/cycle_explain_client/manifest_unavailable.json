@@ -1,0 +1,15 @@
+{
+  "modelId": "cycle_old_fixture",
+  "available": false,
+  "reason": "This run was made before Inside the model existed, so its inputs were never saved.",
+  "modelKey": null,
+  "displayName": null,
+  "explainKind": null,
+  "directionMode": null,
+  "hasPriceModel": false,
+  "featureNames": [],
+  "featureDisplayNames": [],
+  "sequenceLength": 1,
+  "labelHorizonBars": 6,
+  "folds": []
+}

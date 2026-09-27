@@ -1,0 +1,130 @@
+{
+ "manifest": {
+  "modelId": "fixture_logistic_regression",
+  "available": true,
+  "reason": null,
+  "modelKey": "logistic_regression",
+  "displayName": "Logistic regression",
+  "explainKind": "linear",
+  "directionMode": "classifier",
+  "hasPriceModel": true,
+  "featureNames": [
+   "log_return_1",
+   "log_return_5",
+   "log_return_10",
+   "realized_volatility_10",
+   "realized_volatility_20",
+   "parkinson_volatility_10"
+  ],
+  "featureDisplayNames": [
+   "Log return over 1 bar",
+   "Log return over 5 bars",
+   "Log return over 10 bars",
+   "Realized volatility over 10 bars",
+   "Realized volatility over 20 bars",
+   "Parkinson high-low volatility over 10 bars"
+  ],
+  "sequenceLength": 1,
+  "labelHorizonBars": 6,
+  "folds": [
+   {
+    "foldIndex": 0,
+    "testStart": 1759913700,
+    "testEnd": 1760086500,
+    "direction": "ready",
+    "price": "ready"
+   }
+  ]
+ },
+ "structure": {
+  "modelId": "fixture_logistic_regression",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "linear",
+  "link": "logistic",
+  "baseValue": -0.0412,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": {
+   "intercept": -0.0412,
+   "coefficients": [
+    0.024057,
+    0.536086,
+    -0.196883,
+    -0.24819,
+    0.195937,
+    0.142755
+   ]
+  },
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+ },
+ "bar": {
+  "modelId": "fixture_logistic_regression",
+  "timestamp": 1760000100,
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "linear",
+  "link": "logistic",
+  "inputs": {
+   "values": [
+    0.00123,
+    0.298746,
+    -0.274138,
+    -0.890592,
+    -0.454671,
+    -0.991647
+   ],
+   "scaled": false,
+   "raw": [
+    1.23e-06,
+    0.000298746,
+    -0.000274138,
+    -0.0008905920000000001,
+    -0.000454671,
+    -0.000991647
+   ],
+   "trainingPercentile": [
+    0.500490698881164,
+    0.6174330720216974,
+    0.39198928610760164,
+    0.1865740462880267,
+    0.3246729735853574,
+    0.160684876759414
+   ],
+   "window": null
+  },
+  "output": {
+   "raw": 0.16334283938800004,
+   "probabilityUp": 0.5407451570418786,
+   "targetUnits": null,
+   "scale": null,
+   "movePoints": null,
+   "close": 25012.25,
+   "predictedClose": null
+  },
+  "engineReload": 0.5407451570418786,
+  "streamed": 0.5407451570418786,
+  "trees": null,
+  "contributions": {
+   "values": [
+    2.9590109999999997e-05,
+    0.160153548156,
+    0.053973111854,
+    0.22103602848,
+    -0.089086871727,
+    -0.14156256748499998
+   ],
+   "base": -0.0412
+  },
+  "neighbors": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+ }
+}

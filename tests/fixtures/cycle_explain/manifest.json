@@ -1,0 +1,40 @@
+{
+  "modelId": "cycle_explain_logistic_regression",
+  "available": true,
+  "reason": null,
+  "modelKey": "logistic_regression",
+  "displayName": "Logistic regression",
+  "explainKind": "linear",
+  "directionMode": "classifier",
+  "hasPriceModel": true,
+  "featureNames": [
+    "planted_signal",
+    "planted_signal_previous_bar",
+    "noise_first",
+    "noise_second"
+  ],
+  "featureDisplayNames": [
+    "planted signal",
+    "planted signal previous bar",
+    "noise first",
+    "noise second"
+  ],
+  "sequenceLength": 1,
+  "labelHorizonBars": 4,
+  "folds": [
+    {
+      "foldIndex": 0,
+      "testStart": 1774878000,
+      "testEnd": 1775251500,
+      "direction": "ready",
+      "price": "ready"
+    },
+    {
+      "foldIndex": 1,
+      "testStart": 1775482800,
+      "testEnd": 1775856300,
+      "direction": "ready",
+      "price": "ready"
+    }
+  ]
+}

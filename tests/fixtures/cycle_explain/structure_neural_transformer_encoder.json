@@ -1,0 +1,55 @@
+{
+  "modelId": "cycle_explain_neural_transformer_encoder",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "neural",
+  "link": "logistic",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": {
+    "network": "transformer_encoder",
+    "layers": [
+      {
+        "name": "Input projection with positions",
+        "kind": "projection",
+        "outputShape": [
+          12,
+          16
+        ]
+      },
+      {
+        "name": "Encoder layer 1",
+        "kind": "transformer_encoder_layer",
+        "outputShape": [
+          12,
+          16
+        ]
+      },
+      {
+        "name": "Encoder layer 2",
+        "kind": "transformer_encoder_layer",
+        "outputShape": [
+          12,
+          16
+        ]
+      },
+      {
+        "name": "Final layer normalisation",
+        "kind": "layer_norm",
+        "outputShape": [
+          12,
+          16
+        ]
+      }
+    ],
+    "sequenceLength": 12,
+    "hasAttention": true
+  }
+}

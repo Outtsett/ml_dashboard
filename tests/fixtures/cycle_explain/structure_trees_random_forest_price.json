@@ -1,0 +1,55 @@
+{
+  "modelId": "cycle_explain_trees_random_forest",
+  "foldIndex": 0,
+  "role": "price",
+  "explainKind": "trees",
+  "link": "identity",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": {
+    "treeCount": 24,
+    "usedTreeCount": 24,
+    "aggregation": "mean",
+    "learningRate": null,
+    "maxDepth": 4,
+    "depthHistogram": [
+      0,
+      0,
+      0,
+      0,
+      24
+    ],
+    "leafCount": 335,
+    "featureUsage": [
+      {
+        "featureIndex": 0,
+        "splitCount": 126,
+        "totalGain": 8.910046730533212
+      },
+      {
+        "featureIndex": 1,
+        "splitCount": 70,
+        "totalGain": 5.096830054752401
+      },
+      {
+        "featureIndex": 2,
+        "splitCount": 48,
+        "totalGain": 0.17427608829018176
+      },
+      {
+        "featureIndex": 3,
+        "splitCount": 67,
+        "totalGain": 0.21411126265610503
+      }
+    ],
+    "oblivious": false,
+    "splitRule": "less_or_equal"
+  },
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": null
+}

@@ -1,0 +1,68 @@
+{
+  "modelId": "cycle_explain_stacking",
+  "timestamp": 1774880400,
+  "foldIndex": 0,
+  "role": "price",
+  "explainKind": "stacking",
+  "link": "identity",
+  "inputs": {
+    "values": [
+      -0.7316508976633596,
+      -0.9799320632872597,
+      -0.27761934356876006,
+      1.0716403024137893
+    ],
+    "scaled": true,
+    "raw": [
+      8.7424898147583,
+      8.246078491210938,
+      9.349721908569336,
+      12.130373001098633
+    ],
+    "trainingPercentile": [
+      0.23755458515283842,
+      0.15283842794759825,
+      0.38777292576419214,
+      0.8602620087336245
+    ],
+    "window": null
+  },
+  "output": {
+    "raw": -0.48362956646364774,
+    "probabilityUp": null,
+    "targetUnits": -0.48362956646364774,
+    "scale": 5.819923283696476,
+    "movePoints": -2.814686974545816,
+    "close": 18433.0,
+    "predictedClose": 18430.185313025453
+  },
+  "engineReload": -0.48362956646364774,
+  "streamed": -0.48362956646364774,
+  "trees": null,
+  "contributions": null,
+  "neighbors": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": {
+    "baseOutputs": [
+      {
+        "name": "ridge regression",
+        "value": -0.37027668435419836
+      },
+      {
+        "name": "random forest",
+        "value": -0.6319636499505908
+      },
+      {
+        "name": "gradient boosting",
+        "value": -0.36363590308601224
+      }
+    ],
+    "metaContributions": [
+      -0.24861518044804914,
+      -0.19179312126535392,
+      -0.030886567033539522
+    ]
+  },
+  "neural": null
+}
