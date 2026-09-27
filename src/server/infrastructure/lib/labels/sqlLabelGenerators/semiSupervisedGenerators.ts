@@ -10,7 +10,7 @@ import { DEFAULT_CONFIG, windowOver, rowsBetween, rollingStd } from './helpers';
 // ============================================================================
 
 export interface PseudoConfidenceParams {
-  horizon?: number;
+  horizonBars?: number;
   confidenceThreshold?: number;
   teacherPredColumn?: string;
   teacherConfColumn?: string;
@@ -22,23 +22,17 @@ export function generatePseudoConfidenceLabelsSQL(
   config: LabelGeneratorConfig
 ): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
-  // The taxonomy for this generator declares teacherPredColumn /
-  // teacherConfColumn / confidenceThreshold / classBalancing — it never sends
-  // `horizon`, so the template interpolated `undefined` straight into
-  // `LEAD(close, undefined)` and QuestDB answered "Invalid column: undefined".
-  // Both values are defaulted so the generator is callable from its own
-  // declared parameter set.
-  const horizon = params.horizon ?? 5;
+  const horizon = Math.max(1, Math.floor(Number(params.horizonBars ?? 5)));
   // The taxonomy declares the threshold as a FRACTION (0.5-0.99, default 0.9).
   // Dividing that by 100 turned the default into 0.009 and the confidence gate
   // let almost everything through. A value above 1 is read as a percentage so
   // an older caller still gets what it asked for.
   const rawThreshold = Number(params.confidenceThreshold ?? 0.9);
   const confDecimal = rawThreshold > 1 ? rawThreshold / 100 : rawThreshold;
-  
+
   return `
 WITH base AS (
-  SELECT 
+  SELECT
     ${cfg.timestampColumn} as timestamp,
     ${cfg.symbolColumn} as symbol,
     close,
@@ -52,20 +46,21 @@ with_returns AS (
     timestamp,
     symbol,
     close,
-    (future_close - close) / NULLIF(close, 0) as future_return,
+    (future_close - close) / NULLIF(close, 0) as future_return_fraction,
     local_vol / NULLIF(close, 0) as normalized_vol
   FROM base
   WHERE future_close IS NOT NULL
+    AND local_vol IS NOT NULL
 ),
 with_confidence AS (
   SELECT
     timestamp,
     symbol,
     close,
-    future_return,
+    future_return_fraction,
     normalized_vol,
-    ABS(future_return) / NULLIF(normalized_vol + 0.001, 0) as signal_strength,
-    CASE WHEN future_return > 0 THEN 1 ELSE -1 END as direction
+    ABS(future_return_fraction) / NULLIF(normalized_vol + 0.001, 0) as signal_strength,
+    CASE WHEN future_return_fraction > 0 THEN 1 ELSE -1 END as direction
   FROM with_returns
 ),
 labeled AS (
@@ -73,24 +68,26 @@ labeled AS (
     timestamp,
     symbol,
     close,
-    future_return,
+    future_return_fraction,
     signal_strength,
     direction,
-    CASE 
+    CASE
       WHEN signal_strength > ${confDecimal * 3} THEN direction
       ELSE NULL  -- Low confidence, unlabeled
     END as label,
     LEAST(1.0, signal_strength / 3.0) as confidence
   FROM with_confidence
 )
-SELECT 
+SELECT
   timestamp,
   symbol,
   close,
-  future_return,
   label,
+  ${horizon} as resolution_bars,
+  future_return_fraction,
   confidence
 FROM labeled
+WHERE label IS NOT NULL
 ORDER BY timestamp`;
 }
 
@@ -99,10 +96,10 @@ ORDER BY timestamp`;
 // ============================================================================
 
 export interface ConsistencyPerturbationParams {
-  perturbationType: 'noise' | 'dropout' | 'mixup';
+  perturbationType?: 'noise' | 'dropout' | 'mixup';
   perturbationStrength?: number;
   perturbationScale?: number;
-  consistencyWindow?: number;
+  consistencyWindowBars?: number;
   numPerturbations?: number;
 }
 
@@ -114,11 +111,11 @@ export function generateConsistencyPerturbationLabelsSQL(
   // `numPerturbations` (default 2) used to stand in for this window when it was
   // absent, which produced a 3-bar SMA and called it consistency. The window is
   // its own parameter now, declared in the taxonomy with its own default.
-  const consistencyWindow = Math.max(2, Number(params.consistencyWindow ?? 20));
-  
+  const consistencyWindow = Math.max(2, Math.floor(Number(params.consistencyWindowBars ?? 20)));
+
   return `
 WITH base AS (
-  SELECT 
+  SELECT
     ${cfg.timestampColumn} as timestamp,
     ${cfg.symbolColumn} as symbol,
     open, high, low, close, volume,
@@ -137,7 +134,7 @@ with_features AS (
     next_close,
     sma_${consistencyWindow},
     (close - sma_${consistencyWindow}) / NULLIF(sma_${consistencyWindow}, 0) as deviation,
-    (next_close - close) / NULLIF(close, 0) as future_return
+    (next_close - close) / NULLIF(close, 0) as future_return_fraction
   FROM base
   WHERE next_close IS NOT NULL
 ),
@@ -148,9 +145,9 @@ labeled AS (
     close,
     row_idx,
     deviation,
-    future_return,
-    CASE 
-      WHEN future_return > 0 THEN 1
+    future_return_fraction,
+    CASE
+      WHEN future_return_fraction > 0 THEN 1
       ELSE -1
     END as label,
     CASE
@@ -160,12 +157,13 @@ labeled AS (
     END as consistency_weight
   FROM with_features
 )
-SELECT 
+SELECT
   timestamp,
   symbol,
   close,
-  future_return,
   label,
+  1 as resolution_bars,
+  future_return_fraction,
   consistency_weight
 FROM labeled
 ORDER BY timestamp`;

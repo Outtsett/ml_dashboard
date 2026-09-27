@@ -43,6 +43,13 @@
       "when": 1785196800000,
       "tag": "0005_run_provenance",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790380800000,
+      "tag": "0006_generated_labels_lifecycle",
+      "breakpoints": true
     }
   ]
 }

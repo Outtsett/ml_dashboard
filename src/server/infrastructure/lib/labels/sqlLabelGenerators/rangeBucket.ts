@@ -17,7 +17,7 @@
  * buckets. Center bucket = 10 (delta ∈ [-1, +1)). Headline metric for
  * downstream training: within-K-pt accuracy.
  *
- * Output: { timestamp, symbol, close, future_close, delta_pts, label }
+ * Output: { timestamp, symbol, close, label, resolution_bars, future_close, delta_points }
  * where label ∈ {0, 1, ..., nBuckets - 1}.
  */
 
@@ -25,9 +25,9 @@ import type { LabelGeneratorConfig } from './helpers';
 import { DEFAULT_CONFIG, windowOver } from './helpers';
 
 export interface RangeBucketParams {
-  horizon?: number;
-  nBuckets?: number;
-  bucketWidthPts?: number;
+  horizonBars?: number;
+  bucketCount?: number;
+  bucketWidthPoints?: number;
 }
 
 export function generateRangeBucketLabelsSQL(
@@ -35,9 +35,9 @@ export function generateRangeBucketLabelsSQL(
   config: LabelGeneratorConfig,
 ): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
-  const horizon = Math.max(1, params.horizon ?? 16);
-  const nBuckets = Math.max(2, params.nBuckets ?? 21);
-  const bucketWidthPts = Math.max(0.0001, params.bucketWidthPts ?? 2);
+  const horizon = Math.max(1, Math.floor(Number(params.horizonBars ?? 16)));
+  const nBuckets = Math.max(2, Math.floor(Number(params.bucketCount ?? 21)));
+  const bucketWidthPts = Math.max(0.0001, Number(params.bucketWidthPoints ?? 2));
   // Symmetric coverage: nBuckets * bucketWidthPts total, centered on zero.
   const halfRange = (nBuckets * bucketWidthPts) / 2;
   const maxIdx = nBuckets - 1;
@@ -58,7 +58,7 @@ labeled AS (
     symbol,
     close,
     future_close,
-    future_close - close as delta_pts,
+    future_close - close as delta_points,
     CASE
       WHEN future_close IS NULL THEN NULL
       ELSE CAST(
@@ -77,9 +77,10 @@ SELECT
   timestamp,
   symbol,
   close,
+  label,
+  ${horizon} as resolution_bars,
   future_close,
-  delta_pts,
-  label
+  delta_points
 FROM labeled
 WHERE label IS NOT NULL
 ORDER BY timestamp`;

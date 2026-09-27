@@ -19,8 +19,8 @@
         train_months={{ walk_forward.train_months | python_repr }},
         test_months={{ walk_forward.test_months | python_repr }},
         step_months={{ walk_forward.get("step_months", walk_forward.test_months) | python_repr }},
-        purge_bars={{ walk_forward.get("purge_bars", 0) | python_repr }},
-        embargo_bars={{ walk_forward.get("embargo_bars", 0) | python_repr }},
+        purge_bars=max({{ walk_forward.get("purge_bars", 0) | python_repr }}, label_purge_bars),
+        embargo_bars=max({{ walk_forward.get("embargo_bars", 0) | python_repr }}, label_purge_bars),
         expanding={{ walk_forward.get("expanding", False) | python_repr }},
     )
     fold_count = 0

@@ -5,7 +5,7 @@
  * numClasses=2. Cheapest possible label target — high autocorrelation, watch
  * for leakage when paired with engineered momentum features.
  *
- * Output: { timestamp, symbol, close, future_return, label } where
+ * Output: { timestamp, symbol, close, label, resolution_bars, future_return_fraction } where
  * label ∈ {-1 (down or flat), 1 (up)}.
  */
 
@@ -13,16 +13,16 @@ import type { LabelGeneratorConfig } from './helpers';
 import { generateDirectionLabelsSQL } from './direction';
 
 export interface NextCloseDirectionParams {
-  horizon?: number;
+  horizonBars?: number;
 }
 
 export function generateNextCloseDirectionLabelsSQL(
   params: NextCloseDirectionParams,
   config: LabelGeneratorConfig,
 ): string {
-  const horizon = Math.max(1, params.horizon ?? 1);
+  const horizon = Math.max(1, Math.floor(Number(params.horizonBars ?? 1)));
   return generateDirectionLabelsSQL(
-    { horizon, threshold: 0, numClasses: 2 },
+    { horizonBars: horizon, thresholdPercent: 0, classCount: 2 },
     config,
   );
 }

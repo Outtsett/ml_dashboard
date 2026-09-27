@@ -1,10 +1,22 @@
+/**
+ * Market regime — a rule-based state of the bar itself (no forward horizon).
+ *
+ * Two causal quantities: the trailing volatility of 1-bar log returns and the
+ * trailing trend. "High volatility" means above the TRAILING median of that
+ * volatility over `regimeLookbackBars` bars before this one; the previous
+ * version ranked each bar against the WHOLE queried range (`PERCENT_RANK()`
+ * with no frame), so extending the query's end date relabelled its start.
+ * The 3-regime trend cutoff is in volatility units, not a fixed 1%.
+ */
 import type { LabelGeneratorConfig } from './helpers';
-import { DEFAULT_CONFIG, windowOver, rollingStd } from './helpers';
+import { DEFAULT_CONFIG, windowOver, rollingStd, trailingMedian } from './helpers';
 
 export interface MarketRegimeParams {
-  volatilityWindow: number;
-  trendWindow: number;
-  numRegimes: number;
+  volatilityWindowBars?: number;
+  trendWindowBars?: number;
+  regimeLookbackBars?: number;
+  trendThresholdVolatilityMultiple?: number;
+  regimeCount?: number;
 }
 
 export function generateMarketRegimeLabelsSQL(
@@ -12,22 +24,46 @@ export function generateMarketRegimeLabelsSQL(
   config: LabelGeneratorConfig
 ): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
-  const { volatilityWindow, trendWindow, numRegimes } = params;
+  const volatilityWindow = Math.max(2, Math.floor(Number(params.volatilityWindowBars ?? 20)));
+  const trendWindow = Math.max(1, Math.floor(Number(params.trendWindowBars ?? 50)));
+  const lookback = Math.max(volatilityWindow, Math.floor(Number(params.regimeLookbackBars ?? 500)));
+  const trendMultiple = Math.max(0, Number(params.trendThresholdVolatilityMultiple ?? 1.0));
+  const regimeCount = Number(params.regimeCount ?? 4);
 
-  // Rule-based regime detection (simplified HMM-like)
-  // Regimes: 0=low-vol-down, 1=low-vol-up, 2=high-vol-down, 3=high-vol-up
-  // `STDDEV_POP(LN(close / LAG(...) OVER (...))) OVER (...)` nests a window
-  // function inside an aggregate's argument, which QuestDB rejects with
-  // "non-window function called in window context". log_return is materialised
-  // in its own CTE first so the rolling deviation reads a plain column.
+  const labelCase = regimeCount === 4 ? `
+      WHEN NOT volatility_above_trailing_median AND trend_fraction < 0 THEN 0
+      WHEN NOT volatility_above_trailing_median AND trend_fraction >= 0 THEN 1
+      WHEN volatility_above_trailing_median AND trend_fraction < 0 THEN 2
+      ELSE 3`
+    : regimeCount === 3 ? `
+      WHEN trend_fraction > trend_threshold_fraction THEN 2
+      WHEN trend_fraction < -trend_threshold_fraction THEN 0
+      ELSE 1`
+    : `
+      WHEN trend_fraction >= 0 THEN 1
+      ELSE 0`;
+
+  const nameCase = regimeCount === 4 ? `
+    WHEN 0 THEN 'low_volatility_down'
+    WHEN 1 THEN 'low_volatility_up'
+    WHEN 2 THEN 'high_volatility_down'
+    ELSE 'high_volatility_up'`
+    : regimeCount === 3 ? `
+    WHEN 0 THEN 'downtrend'
+    WHEN 1 THEN 'sideways'
+    ELSE 'uptrend'`
+    : `
+    WHEN 0 THEN 'bearish'
+    ELSE 'bullish'`;
+
   return `
 WITH returns AS (
   SELECT
     ${cfg.timestampColumn} as timestamp,
     ${cfg.symbolColumn} as symbol,
     close,
-    LN(close / LAG(close, 1) ${windowOver(cfg)}) as log_return,
-    LAG(close, ${trendWindow}) ${windowOver(cfg)} as close_lag_trend
+    LN(close / NULLIF(LAG(close, 1) ${windowOver(cfg)}, 0)) as log_return,
+    LAG(close, ${trendWindow}) ${windowOver(cfg)} as close_trend_window_ago
   FROM ${cfg.tableName}
   WHERE ${cfg.symbolColumn} = '${config.symbol}'
 ),
@@ -36,66 +72,44 @@ metrics AS (
     timestamp,
     symbol,
     close,
-    ${rollingStd('log_return', volatilityWindow - 1, cfg)} as rolling_vol,
-    (close - close_lag_trend) / NULLIF(close_lag_trend, 0) as trend_pct
+    ${rollingStd('log_return', volatilityWindow - 1, cfg)} as trailing_return_volatility_fraction,
+    (close - close_trend_window_ago) / NULLIF(close_trend_window_ago, 0) as trend_fraction
   FROM returns
 ),
-with_percentiles AS (
+with_median AS (
   SELECT
     *,
-    PERCENT_RANK() OVER (ORDER BY rolling_vol) as vol_pctile,
-    PERCENT_RANK() OVER (ORDER BY trend_pct) as trend_pctile
+    ${trailingMedian('trailing_return_volatility_fraction', lookback, cfg)} as volatility_trailing_median_fraction,
+    ${trendMultiple} * trailing_return_volatility_fraction * SQRT(${trendWindow}) as trend_threshold_fraction
   FROM metrics
-  WHERE rolling_vol IS NOT NULL AND trend_pct IS NOT NULL
 ),
 labeled AS (
   SELECT
     timestamp,
     symbol,
     close,
-    rolling_vol,
-    trend_pct,
-    vol_pctile,
-    trend_pctile,
-    CASE
-      ${numRegimes === 4 ? `
-      WHEN vol_pctile < 0.5 AND trend_pct < 0 THEN 0  -- Low vol, down
-      WHEN vol_pctile < 0.5 AND trend_pct >= 0 THEN 1 -- Low vol, up
-      WHEN vol_pctile >= 0.5 AND trend_pct < 0 THEN 2 -- High vol, down
-      ELSE 3  -- High vol, up
-      ` : numRegimes === 3 ? `
-      WHEN trend_pct > 0.01 THEN 2  -- Uptrend
-      WHEN trend_pct < -0.01 THEN 0 -- Downtrend
-      ELSE 1 -- Sideways
-      ` : `
-      WHEN trend_pct >= 0 THEN 1
-      ELSE 0
-      `}
+    trailing_return_volatility_fraction,
+    trend_fraction,
+    volatility_trailing_median_fraction,
+    trailing_return_volatility_fraction > volatility_trailing_median_fraction as volatility_above_trailing_median,
+    CASE${labelCase}
     END as label
-  FROM with_percentiles
+  FROM with_median
+  WHERE trailing_return_volatility_fraction IS NOT NULL
+    AND trend_fraction IS NOT NULL
+    AND volatility_trailing_median_fraction IS NOT NULL
 )
 SELECT
   timestamp,
   symbol,
   close,
   label,
-  rolling_vol,
-  trend_pct,
-  CASE label
-    ${numRegimes === 4 ? `
-    WHEN 0 THEN 'low_vol_down'
-    WHEN 1 THEN 'low_vol_up'
-    WHEN 2 THEN 'high_vol_down'
-    ELSE 'high_vol_up'
-    ` : numRegimes === 3 ? `
-    WHEN 0 THEN 'downtrend'
-    WHEN 1 THEN 'sideways'
-    ELSE 'uptrend'
-    ` : `
-    WHEN 0 THEN 'bearish'
-    ELSE 'bullish'
-    `}
-  END as regime_name
+  0 as resolution_bars,
+  CASE label${nameCase}
+  END as regime_name,
+  trailing_return_volatility_fraction,
+  trend_fraction,
+  volatility_trailing_median_fraction
 FROM labeled
 ORDER BY timestamp`;
 }

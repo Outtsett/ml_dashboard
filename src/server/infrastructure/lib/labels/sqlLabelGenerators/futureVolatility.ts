@@ -2,8 +2,8 @@ import type { LabelGeneratorConfig } from './helpers';
 import { DEFAULT_CONFIG, windowOver, rowsBack, rollingStd, shiftForward } from './helpers';
 
 export interface FutureVolatilityParams {
-  horizon: number;
-  method: 'std' | 'parkinson' | 'garman_klass';
+  horizonBars?: number;
+  method?: 'std' | 'parkinson' | 'garman_klass';
 }
 
 export function generateFutureVolatilityLabelsSQL(
@@ -11,8 +11,8 @@ export function generateFutureVolatilityLabelsSQL(
   config: LabelGeneratorConfig
 ): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
-  const { horizon, method } = params;
-  const span = Math.max(1, horizon);
+  const method = params.method ?? 'std';
+  const span = Math.max(1, Math.floor(Number(params.horizonBars ?? 20)));
 
   // Two things QuestDB refuses that this generator used to do:
   //   1. a window function inside an aggregate's argument
@@ -45,7 +45,7 @@ WITH base AS (
   FROM ${cfg.tableName}
   WHERE ${cfg.symbolColumn} = '${config.symbol}'
 ),
-trailing AS (
+trailing_window AS (
   SELECT
     timestamp,
     symbol,
@@ -60,13 +60,15 @@ shifted AS (
     symbol,
     close,
     ${shiftForward('trailing_volatility', span - 1, cfg)} as future_volatility
-  FROM trailing
+  FROM trailing_window
 )
 SELECT
   timestamp,
   symbol,
   close,
-  future_volatility as label
+  future_volatility as label,
+  ${span - 1} as resolution_bars,
+  future_volatility as future_volatility_fraction
 FROM shifted
 WHERE future_volatility IS NOT NULL
   AND future_volatility > 0

@@ -40,6 +40,8 @@ export function createTrainingSession(data: {
   featureCategories?: string[];
   walkForwardGroupId?: string;
   windowIndex?: number;
+  /** The persisted label set the run trains on — the set's `consumed` rung. */
+  labelSetId?: number;
 }) {
   return db.insert(trainingSessions).values({
     modelName: data.modelName,
@@ -53,6 +55,7 @@ export function createTrainingSession(data: {
     featureCategories: data.featureCategories ? JSON.stringify(data.featureCategories) : null,
     walkForwardGroupId: data.walkForwardGroupId ?? null,
     windowIndex: data.windowIndex ?? null,
+    labelSetId: data.labelSetId ?? null,
     status: "running",
   }).returning().get();
 }

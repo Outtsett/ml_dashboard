@@ -12,9 +12,9 @@ export const LABEL_GENERATORS = {
     description: 'Binary/ternary labels based on price movement',
     category: 'classification',
     params: [
-      { id: 'horizon', name: 'Horizon (bars)', type: 'number', default: 1, min: 1, max: 100 },
-      { id: 'threshold', name: 'Threshold (%)', type: 'number', default: 0, min: 0, max: 5, step: 0.1 },
-      { id: 'numClasses', name: 'Classes', type: 'select', options: [2, 3], default: 2 },
+      { id: 'horizonBars', name: 'Horizon (bars)', type: 'number', default: 1, min: 1, max: 100 },
+      { id: 'thresholdPercent', name: 'Threshold (%, of price)', type: 'number', default: 0, min: 0, max: 5, step: 0.1 },
+      { id: 'classCount', name: 'Classes', type: 'select', options: [2, 3], default: 2 },
     ],
     generate: 'if future_return > threshold: 1 (up), elif future_return < -threshold: -1 (down), else: 0 (neutral)',
   },
@@ -24,23 +24,36 @@ export const LABEL_GENERATORS = {
     description: 'Buy/Sell/Hold signals based on custom rules',
     category: 'classification',
     params: [
-      { id: 'entryThreshold', name: 'Entry Threshold (%)', type: 'number', default: 0.5, min: 0, max: 2 },
-      { id: 'exitThreshold', name: 'Exit Threshold (%)', type: 'number', default: 0.3, min: 0, max: 2 },
-      { id: 'holdPeriod', name: 'Min Hold Period', type: 'number', default: 5, min: 1, max: 50 },
+      { id: 'entryThresholdPercent', name: 'Entry Threshold (%)', type: 'number', default: 0.5, min: 0, max: 2 },
+      { id: 'exitThresholdPercent', name: 'Exit Threshold (%)', type: 'number', default: 0.3, min: 0, max: 2 },
+      { id: 'holdPeriodBars', name: 'Min Hold Period', type: 'number', default: 5, min: 1, max: 50 },
     ],
     generate: 'rule-based signal generation with entry/exit thresholds',
   },
   regime: {
     id: 'regime',
     name: 'Market Regime',
-    description: 'Labels based on volatility and trend state',
+    description: 'Labels based on volatility and trend state (describes the bar itself; no forward horizon)',
     category: 'classification',
     params: [
-      { id: 'volatilityWindow', name: 'Volatility Window', type: 'number', default: 20, min: 5, max: 100 },
-      { id: 'trendWindow', name: 'Trend Window', type: 'number', default: 50, min: 10, max: 200 },
-      { id: 'numRegimes', name: 'Number of Regimes', type: 'number', default: 4, min: 2, max: 8 },
+      { id: 'volatilityWindowBars', name: 'Volatility window (bars)', type: 'number', default: 20, min: 5, max: 500 },
+      { id: 'trendWindowBars', name: 'Trend window (bars)', type: 'number', default: 50, min: 10, max: 1000 },
+      { id: 'regimeLookbackBars', name: 'Volatility median lookback (bars)', type: 'number', default: 500, min: 50, max: 20000 },
+      { id: 'trendThresholdVolatilityMultiple', name: 'Trend threshold (volatility multiples, 3 regimes)', type: 'number', default: 1.0, min: 0, max: 5, step: 0.1 },
+      { id: 'regimeCount', name: 'Number of Regimes', type: 'select', options: [2, 3, 4], default: 4 },
     ],
-    generate: 'HMM or rule-based regime detection combining volatility and trend',
+    generate: `
+      Rule-based regime at bar t from two CAUSAL quantities:
+      - trailing_return_volatility_fraction: standard deviation of 1-bar log returns over volatilityWindowBars
+      - trend_fraction: close[t] / close[t - trendWindowBars] - 1
+      4 regimes: volatility above / below its TRAILING median over regimeLookbackBars × trend sign
+        0 low-vol down, 1 low-vol up, 2 high-vol down, 3 high-vol up
+      3 regimes: 2 uptrend / 0 downtrend when |trend_fraction| > trendThresholdVolatilityMultiple ×
+        trailing_return_volatility_fraction × sqrt(trendWindowBars), else 1 sideways
+      2 regimes: 1 bullish (trend ≥ 0) / 0 bearish
+      Rows are NULL until every window is full. Columns: regime_name, trailing_return_volatility_fraction,
+      trend_fraction, volatility_trailing_median_fraction.
+    `,
   },
   future_return: {
     id: 'future_return',
@@ -48,11 +61,19 @@ export const LABEL_GENERATORS = {
     description: 'Continuous label for return prediction',
     category: 'regression',
     params: [
-      { id: 'horizon', name: 'Horizon (bars)', type: 'number', default: 1, min: 1, max: 100 },
+      { id: 'horizonBars', name: 'Horizon (bars)', type: 'number', default: 1, min: 1, max: 500 },
       { id: 'returnType', name: 'Return Type', type: 'select', options: ['simple', 'log'], default: 'simple' },
-      { id: 'normalize', name: 'Normalize', type: 'boolean', default: false },
+      { id: 'normalize', name: 'Normalize (trailing z-score)', type: 'boolean', default: false },
+      { id: 'normalizationWindowBars', name: 'Normalization window (bars)', type: 'number', default: 250, min: 20, max: 5000 },
     ],
-    generate: '(price[t+h] - price[t]) / price[t] for simple, log(price[t+h]/price[t]) for log',
+    generate: `
+      (price[t+h] - price[t]) / price[t] for simple, log(price[t+h] / price[t]) for log.
+      normalize = true divides the centred return by the TRAILING mean and standard deviation of the
+      same return over normalizationWindowBars bars ending at t (NULL until the window is full),
+      never by a whole-series statistic.
+      Columns: future_return_fraction, and when normalised trailing_return_mean_fraction,
+      trailing_return_standard_deviation_fraction.
+    `,
   },
   future_volatility: {
     id: 'future_volatility',
@@ -60,7 +81,7 @@ export const LABEL_GENERATORS = {
     description: 'Realized volatility over future window',
     category: 'regression',
     params: [
-      { id: 'horizon', name: 'Horizon (bars)', type: 'number', default: 20, min: 5, max: 100 },
+      { id: 'horizonBars', name: 'Horizon (bars)', type: 'number', default: 20, min: 5, max: 100 },
       { id: 'method', name: 'Method', type: 'select', options: ['std', 'parkinson', 'garman_klass'], default: 'std' },
     ],
     generate: 'std(returns[t:t+h]) or Parkinson/Garman-Klass estimator',
@@ -84,20 +105,32 @@ export const LABEL_GENERATORS = {
     description: 'Industry-standard labeling: take-profit, stop-loss, and time barriers (Marcos López de Prado)',
     category: 'classification',
     params: [
-      { id: 'takeProfitPct', name: 'Take Profit (%)', type: 'number', default: 1.0, min: 0.1, max: 10, step: 0.1 },
-      { id: 'stopLossPct', name: 'Stop Loss (%)', type: 'number', default: 0.5, min: 0.1, max: 10, step: 0.1 },
-      { id: 'maxHoldingPeriod', name: 'Max Holding (bars)', type: 'number', default: 20, min: 1, max: 100 },
-      { id: 'minReturn', name: 'Min Return Filter (%)', type: 'number', default: 0.1, min: 0, max: 5, step: 0.05 },
-      { id: 'volatilityAdjust', name: 'Volatility Adjust', type: 'boolean', default: true },
-      { id: 'volatilityWindow', name: 'Vol Window (bars)', type: 'number', default: 20, min: 5, max: 100 },
+      { id: 'barrierUnits', name: 'Barrier units', type: 'select', options: ['volatility', 'percent'], default: 'volatility' },
+      { id: 'upperBarrierMultiple', name: 'Upper barrier (volatility multiples)', type: 'number', default: 2.0, min: 0.25, max: 10, step: 0.25 },
+      { id: 'lowerBarrierMultiple', name: 'Lower barrier (volatility multiples)', type: 'number', default: 1.5, min: 0.25, max: 10, step: 0.25 },
+      { id: 'volatilityMeasure', name: 'Volatility measure', type: 'select', options: ['average_true_range', 'return_standard_deviation'], default: 'average_true_range' },
+      { id: 'volatilityWindowBars', name: 'Volatility window (bars)', type: 'number', default: 20, min: 5, max: 500 },
+      { id: 'takeProfitPercent', name: 'Take profit (%, percent units only)', type: 'number', default: 1.0, min: 0.05, max: 10, step: 0.05 },
+      { id: 'stopLossPercent', name: 'Stop loss (%, percent units only)', type: 'number', default: 0.5, min: 0.05, max: 10, step: 0.05 },
+      { id: 'holdingPeriodBars', name: 'Holding period (bars)', type: 'number', default: 20, min: 1, max: 200 },
+      { id: 'minimumReturnPercent', name: 'Minimum |return| to be usable (%)', type: 'number', default: 0, min: 0, max: 5, step: 0.05 },
+      { id: 'sameBarTouchConvention', name: 'Both barriers in one bar', type: 'select', options: ['flag_ambiguous', 'stop_first'], default: 'flag_ambiguous' },
     ],
     generate: `
-      For each bar t:
-      1. Compute barriers: upper = close[t] * (1 + takeProfitPct/100), lower = close[t] * (1 - stopLossPct/100)
-      2. If volatilityAdjust: scale barriers by rolling volatility ratio
-      3. Look forward up to maxHoldingPeriod bars
-      4. Label = 1 (hit upper first), -1 (hit lower first), 0 (timeout/neutral)
-      5. Filter: discard labels where |return| < minReturn
+      For each bar t, with a CAUSAL volatility scale v[t] (average true range or the standard
+      deviation of 1-bar returns over volatilityWindowBars, NULL until the window is full):
+      1. barrierUnits = volatility: upper = close + upperBarrierMultiple * v, lower = close - lowerBarrierMultiple * v
+         barrierUnits = percent:    upper = close * (1 + takeProfitPercent/100), lower = close * (1 - stopLossPercent/100)
+      2. Walk forward up to holdingPeriodBars bars. The first bar whose high reaches upper or whose
+         low reaches lower resolves the label: +1 upper, -1 lower. A bar that opens beyond a barrier
+         fills at its open (gap_through_barrier_points records the gap).
+      3. Both barriers inside one bar: sameBarTouchConvention = flag_ambiguous keeps the row with
+         usable = false (the order is unknowable from OHLC); stop_first books the stop.
+      4. Nothing reached: the vertical barrier resolves at holdingPeriodBars with the sign of the
+         close-to-close move (0 when flat); barrier_touched = vertical.
+      5. |realized return| below minimumReturnPercent marks the row usable = false, never drops it.
+      Columns: upper_barrier_price, lower_barrier_price, barrier_touched, realized_price,
+      gap_through_barrier_points, same_bar_both_touched, volatility_scale_points.
     `,
   },
 
@@ -107,10 +140,10 @@ export const LABEL_GENERATORS = {
     description: 'Labels at local extrema only, filtering noise between inflection points',
     category: 'classification',
     params: [
-      { id: 'lookbackPeriod', name: 'Lookback (bars)', type: 'number', default: 10, min: 3, max: 50 },
-      { id: 'lookforwardPeriod', name: 'Lookforward (bars)', type: 'number', default: 10, min: 3, max: 50 },
+      { id: 'lookbackBars', name: 'Lookback (bars)', type: 'number', default: 10, min: 3, max: 50 },
+      { id: 'lookforwardBars', name: 'Lookforward (bars)', type: 'number', default: 10, min: 3, max: 50 },
       { id: 'confirmationBars', name: 'Confirmation Bars', type: 'number', default: 2, min: 1, max: 10 },
-      { id: 'minMovePct', name: 'Min Move (%)', type: 'number', default: 0.3, min: 0, max: 5, step: 0.1 },
+      { id: 'minimumMovePercent', name: 'Minimum move (%, of price)', type: 'number', default: 0.3, min: 0, max: 5, step: 0.1 },
     ],
     generate: `
       For each bar t:
@@ -128,10 +161,10 @@ export const LABEL_GENERATORS = {
     description: 'Labels only significant moves relative to current volatility regime',
     category: 'classification',
     params: [
-      { id: 'horizon', name: 'Horizon (bars)', type: 'number', default: 5, min: 1, max: 50 },
-      { id: 'volatilityWindow', name: 'Vol Window (bars)', type: 'number', default: 20, min: 5, max: 100 },
-      { id: 'threshold', name: 'Vol Multiple (σ)', type: 'number', default: 1.5, min: 0.5, max: 3, step: 0.1 },
-      { id: 'numClasses', name: 'Classes', type: 'select', options: [2, 3], default: 3 },
+      { id: 'horizonBars', name: 'Horizon (bars)', type: 'number', default: 5, min: 1, max: 50 },
+      { id: 'volatilityWindowBars', name: 'Vol Window (bars)', type: 'number', default: 20, min: 5, max: 100 },
+      { id: 'volatilityMultiple', name: 'Volatility multiple (σ of 1-bar returns)', type: 'number', default: 1.5, min: 0.5, max: 3, step: 0.1 },
+      { id: 'classCount', name: 'Classes', type: 'select', options: [2, 3], default: 3 },
     ],
     generate: `
       For each bar t:
@@ -146,21 +179,29 @@ export const LABEL_GENERATORS = {
   trend_scanning: {
     id: 'trend_scanning',
     name: 'Trend-Scanning',
-    description: 'Dynamically finds optimal prediction horizon per sample using t-statistics',
+    description: 'Per bar, the forward horizon whose least-squares trend is strongest; the sign of that trend is the label (López de Prado ch. 5)',
     category: 'classification',
     params: [
-      { id: 'minHorizon', name: 'Min Horizon (bars)', type: 'number', default: 3, min: 1, max: 20 },
-      { id: 'maxHorizon', name: 'Max Horizon (bars)', type: 'number', default: 20, min: 5, max: 100 },
-      { id: 'tThreshold', name: 'T-Stat Threshold', type: 'number', default: 2.0, min: 1, max: 4, step: 0.1 },
+      { id: 'minimumHorizonBars', name: 'Minimum horizon (bars)', type: 'number', default: 3, min: 2, max: 50 },
+      { id: 'maximumHorizonBars', name: 'Maximum horizon (bars)', type: 'number', default: 20, min: 3, max: 500 },
+      { id: 'horizonStepBars', name: 'Horizon step (bars)', type: 'number', default: 1, min: 1, max: 50 },
+      { id: 'tStatisticThreshold', name: 't-statistic threshold (0 = sign only)', type: 'number', default: 2.0, min: 0, max: 6, step: 0.1 },
+      { id: 'correctForHorizonCount', name: 'Šidák-adjust the threshold for the horizons tested', type: 'boolean', default: true },
+      { id: 'useLogPrice', name: 'Regress log price', type: 'boolean', default: true },
     ],
     generate: `
-      For each bar t:
-      1. Test horizons h in [minHorizon, maxHorizon]
-      2. For each h: regress returns on time, compute t-statistic of slope
-      3. Select h* with highest |t-stat|
-      4. If |t-stat| >= tThreshold: label = sign(slope)
-      5. Else: label = 0 (no significant trend)
-      Also outputs: optimal_horizon, t_statistic as auxiliary columns
+      For each bar t and each horizon h in [minimumHorizonBars, maximumHorizonBars] step horizonStepBars:
+      1. Ordinary least squares of (log) close on bar index over the h + 1 closes t .. t + h.
+      2. t = slope / standard error of the slope (n - 2 degrees of freedom); needs the full window.
+      3. Select the horizon with the largest |t| (the AFML rule). label = sign(slope) there.
+      4. With tStatisticThreshold > 0: label = 0 when |t| is below the threshold. Because the largest of
+         m correlated t-statistics is compared, correctForHorizonCount raises the threshold to the Šidák
+         level for m tests (a 2.0 single-test level becomes ~3.0 over 18 horizons).
+      Columns: horizon_bars (the winning horizon, also the bars to resolution), t_statistic,
+      t_statistic_scaled (t / sqrt(n), the level-free statistic the TrendState calibration uses),
+      trend_slope_per_bar, horizons_tested_count, t_statistic_threshold_applied.
+      Caveat: a raw t of price on time grows like sqrt(n) under a random walk, so the raw statistic
+      favours long horizons; read t_statistic_scaled when comparing horizons.
     `,
   },
 
@@ -171,11 +212,11 @@ export const LABEL_GENERATORS = {
     category: 'classification',
     params: [
       { id: 'primarySource', name: 'Primary Signal', type: 'select', options: ['trailing_momentum', 'next_bar_oracle'], default: 'trailing_momentum' },
-      { id: 'primaryLookback', name: 'Primary Lookback (bars)', type: 'number', default: 20, min: 1, max: 200 },
-      { id: 'primaryThresholdBps', name: 'Primary Threshold (bps)', type: 'number', default: 10, min: 0, max: 200 },
-      { id: 'horizon', name: 'Evaluation Horizon (bars)', type: 'number', default: 10, min: 1, max: 50 },
-      { id: 'transactionCostBps', name: 'Transaction Cost (bps)', type: 'number', default: 5, min: 0, max: 50 },
-      { id: 'minProfitBps', name: 'Min Profit Threshold (bps)', type: 'number', default: 10, min: 0, max: 100 },
+      { id: 'primaryLookbackBars', name: 'Primary Lookback (bars)', type: 'number', default: 20, min: 1, max: 200 },
+      { id: 'primaryThresholdBasisPoints', name: 'Primary threshold (basis points)', type: 'number', default: 10, min: 0, max: 200 },
+      { id: 'horizonBars', name: 'Evaluation Horizon (bars)', type: 'number', default: 10, min: 1, max: 50 },
+      { id: 'transactionCostBasisPoints', name: 'Transaction cost (basis points)', type: 'number', default: 5, min: 0, max: 50 },
+      { id: 'minimumProfitBasisPoints', name: 'Minimum profit (basis points)', type: 'number', default: 10, min: 0, max: 100 },
     ],
     generate: `
       Primary signal at bar t (trailing_momentum): +1 when the trailing primaryLookback-bar
@@ -198,7 +239,7 @@ export const LABEL_GENERATORS = {
     description: 'Binary up/down on the next bar close — cheapest target, watch for autocorrelation leakage',
     category: 'classification',
     params: [
-      { id: 'horizon', name: 'Horizon (bars)', type: 'number', default: 1, min: 1, max: 100 },
+      { id: 'horizonBars', name: 'Horizon (bars)', type: 'number', default: 1, min: 1, max: 100 },
     ],
     generate: `
       For each bar t:
@@ -214,9 +255,9 @@ export const LABEL_GENERATORS = {
     description: 'Quantize next-N-bar close-to-close delta into K symmetric buckets. Headline metric: within-K-pt accuracy.',
     category: 'classification',
     params: [
-      { id: 'horizon', name: 'Horizon (bars)', type: 'number', default: 16, min: 1, max: 200 },
-      { id: 'nBuckets', name: 'Number of Buckets (K)', type: 'number', default: 21, min: 3, max: 101 },
-      { id: 'bucketWidthPts', name: 'Bucket Width (pts)', type: 'number', default: 2, min: 0.25, max: 50, step: 0.25 },
+      { id: 'horizonBars', name: 'Horizon (bars)', type: 'number', default: 16, min: 1, max: 200 },
+      { id: 'bucketCount', name: 'Number of Buckets (K)', type: 'number', default: 21, min: 3, max: 101 },
+      { id: 'bucketWidthPoints', name: 'Bucket width (price points)', type: 'number', default: 2, min: 0.25, max: 50, step: 0.25 },
     ],
     generate: `
       For each bar t:
@@ -233,7 +274,7 @@ export const LABEL_GENERATORS = {
     description: 'Bar-level swing classification from rolling-window high/low — useful for swing models',
     category: 'classification',
     params: [
-      { id: 'pivotLookback', name: 'Pivot Lookback (bars)', type: 'number', default: 5, min: 2, max: 50 },
+      { id: 'pivotLookbackBars', name: 'Pivot Lookback (bars)', type: 'number', default: 5, min: 2, max: 50 },
     ],
     generate: `
       For each bar t with prev_max_high and prev_min_low computed over [t-N, t-1]:
@@ -571,9 +612,9 @@ export const LABEL_GENERATORS = {
     description: 'Generate positive/negative pairs based on temporal proximity',
     category: 'contrastive',
     params: [
-      { id: 'windowSize', name: 'Window Size (bars)', type: 'number', default: 60, min: 10, max: 500 },
-      { id: 'positiveRadius', name: 'Positive Radius (bars)', type: 'number', default: 5, min: 1, max: 30 },
-      { id: 'negativeMinGap', name: 'Negative Min Gap (bars)', type: 'number', default: 20, min: 5, max: 100 },
+      { id: 'windowBars', name: 'Window Size (bars)', type: 'number', default: 60, min: 10, max: 500 },
+      { id: 'positiveRadiusBars', name: 'Positive Radius (bars)', type: 'number', default: 5, min: 1, max: 30 },
+      { id: 'negativeMinimumGapBars', name: 'Negative Min Gap (bars)', type: 'number', default: 20, min: 5, max: 100 },
       { id: 'samplesPerAnchor', name: 'Samples per Anchor', type: 'number', default: 4, min: 1, max: 16 },
     ],
     generate: `
@@ -591,7 +632,7 @@ export const LABEL_GENERATORS = {
     description: 'Positive pairs from augmented views of same window',
     category: 'contrastive',
     params: [
-      { id: 'windowSize', name: 'Window Size (bars)', type: 'number', default: 60, min: 10, max: 500 },
+      { id: 'windowBars', name: 'Window Size (bars)', type: 'number', default: 60, min: 10, max: 500 },
       { id: 'jitterScale', name: 'Jitter Scale (σ)', type: 'number', default: 0.01, min: 0, max: 0.1, step: 0.001 },
       { id: 'scalingRange', name: 'Scaling Range', type: 'array', default: [0.9, 1.1] },
       { id: 'cropRatio', name: 'Random Crop Ratio', type: 'number', default: 0.8, min: 0.5, max: 1.0, step: 0.05 },
@@ -612,8 +653,8 @@ export const LABEL_GENERATORS = {
     description: 'Mine pairs using hypothesis testing on returns correlation across windows',
     category: 'contrastive',
     params: [
-      { id: 'windowSize', name: 'Window Size (bars)', type: 'number', default: 60, min: 10, max: 500 },
-      { id: 'numRollingWindows', name: 'Rolling Windows', type: 'number', default: 20, min: 5, max: 50 },
+      { id: 'windowBars', name: 'Window Size (bars)', type: 'number', default: 60, min: 10, max: 500 },
+      { id: 'rollingWindowCount', name: 'Rolling Windows', type: 'number', default: 20, min: 5, max: 50 },
       { id: 'alphaLevel', name: 'Alpha Level', type: 'number', default: 0.05, min: 0.01, max: 0.2, step: 0.01 },
       { id: 'correlationThreshold', name: 'Correlation Threshold', type: 'number', default: 0.7, min: 0.3, max: 0.95, step: 0.05 },
     ],
@@ -635,7 +676,7 @@ export const LABEL_GENERATORS = {
     description: 'Generate pseudo-labels from teacher model, filtered by confidence',
     category: 'pseudo-labeling',
     params: [
-      { id: 'horizon', name: 'Horizon (bars)', type: 'number', default: 5, min: 1, max: 100 },
+      { id: 'horizonBars', name: 'Horizon (bars)', type: 'number', default: 5, min: 1, max: 100 },
       { id: 'confidenceThreshold', name: 'Confidence Threshold (fraction)', type: 'number', default: 0.9, min: 0.5, max: 0.99, step: 0.01 },
     ],
     generate: `
@@ -653,7 +694,7 @@ export const LABEL_GENERATORS = {
     description: 'Labels for consistency regularization under perturbations',
     category: 'consistency',
     params: [
-      { id: 'consistencyWindow', name: 'Consistency Window (bars)', type: 'number', default: 20, min: 2, max: 200 },
+      { id: 'consistencyWindowBars', name: 'Consistency Window (bars)', type: 'number', default: 20, min: 2, max: 200 },
     ],
     generate: `
       Rule-based consistency target from the bar's position against its trailing

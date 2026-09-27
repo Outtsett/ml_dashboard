@@ -54,6 +54,8 @@ export interface TalibLabelRow extends Record<string, unknown> {
   close: number;
   /** Pattern value scaled by 1/100: ±1 for most, ±0.8 engulfing/harami, ±2 hikkake. `any` → sign of the sum. */
   label: number;
+  /** A pattern describes the bar it fired on: 0 bars to resolution. */
+  resolution_bars: 0;
   pattern: string;
 }
 
@@ -105,6 +107,7 @@ export async function computeTalibLabelRows(request: TalibLabelRowsRequest): Pro
       symbol,
       close: closeByTime.get(point.time) ?? NaN,
       label: point.value,
+      resolution_bars: 0,
       pattern,
     }));
   }
@@ -123,6 +126,7 @@ export async function computeTalibLabelRows(request: TalibLabelRowsRequest): Pro
       symbol,
       close: closeByTime.get(time) ?? NaN,
       label: sum > 0 ? 1 : sum < 0 ? -1 : 0,
+      resolution_bars: 0,
       pattern: 'any',
     }));
 }

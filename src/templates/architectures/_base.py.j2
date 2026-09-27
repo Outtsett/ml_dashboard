@@ -108,8 +108,12 @@ def _parse_args() -> argparse.Namespace:
     ap.add_argument("--date-end", default=None)
     ap.add_argument(
         "--label-set-parquet", default=None,
-        help="Persisted label set (s3://derived/recipe=dashboard_label_sets/...); "
+        help="Persisted label set (s3://derived/labels/recipe=<recipe>/table=labels/part-0.parquet); "
              "overrides generate_labels() with those rows aligned by bar timestamp.",
+    )
+    ap.add_argument(
+        "--label-purge-bars", type=int, default=None,
+        help="The label set's longest horizon in bars; the walk-forward purge is never below it.",
     )
     ap.add_argument(
         "--feature-categories", default={{ (feature_categories | join(",")) | python_repr }},
@@ -355,10 +359,20 @@ def run_training(args: argparse.Namespace) -> dict:
             args.label_set_parquet, timestamps,
             binary={{ "True" if label_strategy in ("next_close_direction", "triple_barrier") else "False" }},
         )
-        emit_log(f"[{{ template_id }}] Label set aligned: {set_diag}")
+        label_purge_bars = max(int(set_diag.get("purge_bars", 0)), int(getattr(args, "label_purge_bars", None) or 0))
+        emit_log(f"[{{ template_id }}] Label set aligned: " + str({k: v for k, v in set_diag.items() if not hasattr(v, "shape")}))
     else:
         emit_log(f"[{{ template_id }}] Generating {{ label_strategy }} labels")
         labels, valid = generate_labels(raw, args)
+        {% if label_strategy == "none" %}
+        label_purge_bars = 0
+        {% else %}
+        from src.ml.shared.labels import label_horizon_bars as _label_horizon_bars
+        label_purge_bars = _label_horizon_bars({{ label_strategy | python_repr }}, _LABEL_PARAMS)
+        {% endif %}
+    # The purge a split may use is never below the label horizon: a training
+    # label that resolves inside the test window is a look at the test set.
+    emit_log(f"[{{ template_id }}] Label horizon {label_purge_bars} bars: walk-forward purge is at least that")
 
     X, y, ts_kept = _filter_valid(matrix, labels, valid, timestamps)
     emit_log(f"[{{ template_id }}] After dropping non-finite rows: {X.shape[0]:,} samples")

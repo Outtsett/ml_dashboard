@@ -21,6 +21,9 @@ export {
   checkQuestDBHealth,
   fetchIcebergTable,
   listIcebergTables,
+  refreshDerivedViews,
+  derivedViews,
+  servedRecipes,
 } from "./connection";
 
 export type { OHLCVRow, ValidatedOHLCVRow } from "./connection";

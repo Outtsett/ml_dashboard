@@ -2,9 +2,9 @@ import type { LabelGeneratorConfig } from './helpers';
 import { DEFAULT_CONFIG, windowOver } from './helpers';
 
 export interface DirectionParams {
-  horizon: number;
-  threshold: number;
-  numClasses: 2 | 3;
+  horizonBars?: number;
+  thresholdPercent?: number;
+  classCount?: 2 | 3;
 }
 
 export function generateDirectionLabelsSQL(
@@ -12,8 +12,9 @@ export function generateDirectionLabelsSQL(
   config: LabelGeneratorConfig
 ): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
-  const { horizon, threshold, numClasses } = params;
-  const thresholdDecimal = threshold / 100;
+  const horizon = Math.max(1, Math.floor(Number(params.horizonBars ?? 1)));
+  const thresholdDecimal = Number(params.thresholdPercent ?? 0) / 100;
+  const numClasses = Number(params.classCount ?? 2);
 
   return `
 WITH base AS (
@@ -31,7 +32,7 @@ labeled AS (
     symbol,
     close,
     future_close,
-    (future_close - close) / NULLIF(close, 0) as future_return,
+    (future_close - close) / NULLIF(close, 0) as future_return_fraction,
     CASE
       WHEN future_close IS NULL THEN NULL
       ${numClasses === 3 ? `
@@ -49,8 +50,9 @@ SELECT
   timestamp,
   symbol,
   close,
-  future_return,
-  label
+  label,
+  ${horizon} as resolution_bars,
+  future_return_fraction
 FROM labeled
 WHERE label IS NOT NULL
 ORDER BY timestamp`;

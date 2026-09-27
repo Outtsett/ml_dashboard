@@ -46,7 +46,7 @@
  *   magnitude driving marker size — a ±2 hikkake draws a larger arrow than a ±1
  *   one, with no extra plumbing.
  *
- * Output: { timestamp, symbol, close, label }.
+ * Output: { timestamp, symbol, close, label, resolution_bars (0: the pattern describes the bar) }.
  */
 
 import type { LabelGeneratorConfig } from './helpers';
@@ -137,7 +137,8 @@ SELECT
   f.timestamp as timestamp,
   f.symbol as symbol,
   b.close as close,
-  f.label as label
+  f.label as label,
+  0 as resolution_bars
 FROM fired f
 JOIN bars b ON f.timestamp = b.timestamp
 ORDER BY f.timestamp

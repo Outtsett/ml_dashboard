@@ -25,15 +25,16 @@
 
 /** Param name holding the forward horizon, per generator. */
 const HORIZON_PARAM: Record<string, string> = {
-  direction: 'horizon',
-  next_close_direction: 'horizon',
-  future_return: 'horizon',
-  future_volatility: 'horizon',
-  range_bucket: 'horizon',
-  meta_label: 'horizon',
-  volatility_adaptive: 'horizon',
-  signal: 'holdPeriod',
-  npmm: 'lookforwardPeriod',
+  direction: 'horizonBars',
+  next_close_direction: 'horizonBars',
+  future_return: 'horizonBars',
+  future_volatility: 'horizonBars',
+  range_bucket: 'horizonBars',
+  meta_label: 'horizonBars',
+  volatility_adaptive: 'horizonBars',
+  pseudo_confidence: 'horizonBars',
+  signal: 'holdPeriodBars',
+  npmm: 'lookforwardBars',
 };
 
 /**
@@ -47,12 +48,20 @@ const DESCRIBES_CURRENT_BAR = new Set([
   'contrastive_temporal',
   'contrastive_augmentation',
   'contrastive_statistical',
-  'pseudo_confidence',
-  'consistency_perturbation',
 ]);
 
-/** Column a generator emits when the offset varies row by row. */
-export const OUTCOME_OFFSET_COLUMN = 'outcome_offset';
+/** Generators whose horizon is fixed by construction rather than by a parameter. */
+const FIXED_HORIZON: Record<string, number> = {
+  consistency_perturbation: 1,
+};
+
+/**
+ * Column every generator emits since the 2026-09-26 contract: bars from the
+ * event bar to the bar the label resolves on. `outcome_offset` was the name
+ * before; sets landed under it are read through {@link LEGACY_OUTCOME_OFFSET_COLUMN}.
+ */
+export const OUTCOME_OFFSET_COLUMN = 'resolution_bars';
+export const LEGACY_OUTCOME_OFFSET_COLUMN = 'outcome_offset';
 
 /**
  * Fixed bar offset for `generatorType`, or null when it varies per row (the
@@ -63,11 +72,12 @@ export function labelOutcomeOffset(
   params: Record<string, unknown>,
 ): number | null {
   if (DESCRIBES_CURRENT_BAR.has(generatorType)) return 0;
+  if (generatorType in FIXED_HORIZON) return FIXED_HORIZON[generatorType]!;
 
   // multi_step labels the furthest horizon it was asked for; the SQL builds
   // its lead columns off exactly that value.
   if (generatorType === 'multi_step') {
-    const steps = params.steps ?? params.horizons;
+    const steps = params.horizons ?? params.steps;
     if (Array.isArray(steps) && steps.length > 0) {
       const max = Math.max(...steps.map(Number).filter(Number.isFinite));
       return Number.isFinite(max) ? max : null;

@@ -132,6 +132,52 @@ function cacheKey(payload: GeneratorPayload): string {
   return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
 }
 
+// ─── Purge from the label horizon ───────────────────────────────────────────
+
+/**
+ * Bars after the event bar at which a strategy's label is known — the
+ * smallest purge a walk-forward split may use. Mirrors
+ * `src/ml/shared/labels.py::label_horizon_bars`; accepts the taxonomy's
+ * current names and the legacy ones.
+ */
+export function labelHorizonBars(strategy: LabelStrategy, params: Record<string, unknown>): number {
+  const n = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = Number(params[key]);
+      if (Number.isFinite(value) && value > 0) return Math.floor(value);
+    }
+    return null;
+  };
+  switch (strategy) {
+    case 'structural':
+    case 'none':
+      return 0;
+    case 'triple_barrier':
+      return n('holdingPeriodBars', 'maxHoldingPeriod', 'horizon_bars') ?? 1;
+    case 'next_close_direction':
+    case 'range_bucket':
+      return n('horizonBars', 'horizon', 'horizon_bars') ?? 1;
+    default:
+      return 0;
+  }
+}
+
+/**
+ * A walk-forward block whose purge is at least the label horizon. The Model
+ * Cycle derives its purge from the horizon and asserts it on every fold; the
+ * codegen path took `purgeBars` as a free number (default 0), so a 20-bar
+ * label with a 5-bar purge let training labels resolve inside the test window.
+ */
+export function withPurgeCoveringHorizon(payload: GeneratorPayload): { payload: GeneratorPayload; warning: string | null } {
+  if (!payload.walkForward) return { payload, warning: null };
+  const horizon = labelHorizonBars(payload.labelStrategy, payload.labelParams);
+  if (payload.walkForward.purgeBars >= horizon) return { payload, warning: null };
+  return {
+    payload: { ...payload, walkForward: { ...payload.walkForward, purgeBars: horizon } },
+    warning: `purgeBars raised from ${payload.walkForward.purgeBars} to ${horizon}: the ${payload.labelStrategy} label resolves ${horizon} bars after its event bar, and a smaller purge lets training labels resolve inside the test window.`,
+  };
+}
+
 // ─── Python interpreter resolution ──────────────────────────────────────────
 
 /**

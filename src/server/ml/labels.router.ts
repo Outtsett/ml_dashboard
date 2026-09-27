@@ -17,11 +17,25 @@ async function getLabelService() {
   return labelServiceModule.labelService;
 }
 
-// Generate labels for a symbol
+function numberOrUndefined(value: unknown): number | undefined {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * POST /api/labels/generate — request a label set.
+ *
+ * Answers 202 with the ledger row while the job runs (generate → validate →
+ * land → catalog); poll `GET /labels/:id` or `GET /labels/lifecycle` for the
+ * stage. The same recipe (generator, symbol, timeframe, parameters, window)
+ * answers 200 with the existing set; `force: true` regenerates it in place.
+ * `?wait=1` runs the job inline (scripts, tests) — Express's 30 s API timeout
+ * still applies, so it suits short windows only.
+ */
 router.post("/labels/generate", mlRateLimiter, async (req: Request, res: Response) => {
   try {
     const labelService = await getLabelService();
-    const { name, generatorType, symbol, modelId, params, timeframeMinutes, startTimestamp, endTimestamp } = req.body;
+    const { name, generatorType, symbol, modelId, params, timeframeMinutes, startTimestamp, endTimestamp, force } = req.body;
 
     if (!name || !generatorType || !symbol) {
       return res.status(400).json({
@@ -29,6 +43,7 @@ router.post("/labels/generate", mlRateLimiter, async (req: Request, res: Respons
       });
     }
 
+    const wait = req.query.wait === '1' || req.query.wait === 'true';
     const result = await labelService.generateLabels({
       name,
       generatorType,
@@ -36,15 +51,16 @@ router.post("/labels/generate", mlRateLimiter, async (req: Request, res: Respons
       modelId,
       params: params || {},
       timeframeMinutes: timeframeMinutes || 1,
-      startTimestamp: Number.isFinite(Number(startTimestamp)) ? Number(startTimestamp) : undefined,
-      endTimestamp: Number.isFinite(Number(endTimestamp)) ? Number(endTimestamp) : undefined,
-    });
+      startTimestamp: numberOrUndefined(startTimestamp),
+      endTimestamp: numberOrUndefined(endTimestamp),
+      force: Boolean(force),
+    }, { wait });
 
     if (!result.success) {
-      return res.status(500).json({ error: result.error });
+      return res.status(500).json({ error: result.error, labelSetId: result.labelSetId });
     }
-
-    res.status(201).json(result);
+    if (result.existing) return res.status(200).json(result);
+    res.status(result.accepted ? 202 : 201).json(result);
   } catch (error) {
     console.error("Error generating labels:", error);
     res.status(500).json({ error: "Failed to generate labels" });
@@ -89,6 +105,7 @@ router.get("/labels", async (req: Request, res: Response) => {
       generatorType: getString(req.query.generatorType as string) || undefined,
       modelId: req.query.modelId ? parseInt(getString(req.query.modelId as string)) : undefined,
       status: getString(req.query.status as string) || undefined,
+      stage: getString(req.query.stage as string) || undefined,
       limit: req.query.limit ? parseInt(getString(req.query.limit as string)) : 50,
     });
     res.json(labelSets);
@@ -124,6 +141,48 @@ router.get("/labels/generators", async (_req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/labels/lifecycle — where every label set stands (contract in
+ * `src/shared/labels/contract.ts`). `?probe=0` skips the source-coverage probe
+ * that detects staleness.
+ */
+router.get("/labels/lifecycle", async (req: Request, res: Response) => {
+  try {
+    const { getLabelLifecycle } = await import('../infrastructure/lib/labels/labelLifecycle');
+    res.json(await getLabelLifecycle({ probeSources: req.query.probe !== '0' }));
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/** The canonical suite: its entries and the state of the last run. */
+router.get("/labels/suite", async (_req: Request, res: Response) => {
+  try {
+    const { LABEL_SUITE, suiteState } = await import('../infrastructure/lib/labels/labelSuite');
+    res.json({ entries: LABEL_SUITE, state: suiteState() });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/** Start the suite in the background (idempotent through recipes). Body: { force?, symbol?, timeframeMinutes?, generatorType? }. */
+router.post("/labels/suite", mlRateLimiter, async (req: Request, res: Response) => {
+  try {
+    const { runLabelSuite, suiteState } = await import('../infrastructure/lib/labels/labelSuite');
+    if (suiteState().running) return res.status(409).json({ error: 'The label suite is already running', state: suiteState() });
+    const { force, symbol, timeframeMinutes, generatorType } = req.body ?? {};
+    const only = (entry: { symbol: string; timeframeMinutes: number; generatorType: string }) =>
+      (!symbol || entry.symbol === String(symbol).toUpperCase()) &&
+      (!timeframeMinutes || entry.timeframeMinutes === Number(timeframeMinutes)) &&
+      (!generatorType || entry.generatorType === generatorType);
+    const run = runLabelSuite({ force: Boolean(force), only });
+    run.catch((error) => console.error('[labels] suite failed:', error));
+    res.status(202).json({ accepted: true, state: suiteState() });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // Get specific label set
 router.get("/labels/:id", async (req: Request<{ id: string }>, res: Response) => {
   try {
@@ -144,7 +203,8 @@ router.get("/labels/:id", async (req: Request<{ id: string }>, res: Response) =>
 
 /**
  * GET /api/labels/:id/rows — the persisted rows of a label set, read back
- * from the lake. Query: from / to (unix ms), limit (default 5000).
+ * from the lake. Query: from / to (unix ms), limit (default 5000),
+ * usable (default 1: only rows the contract marks usable).
  *
  * This is what makes a saved set usable: the chart overlays it, a notebook
  * queries the same parquet, and a training run receives its path.
@@ -157,8 +217,7 @@ router.get("/labels/:id/rows", async (req: Request<{ id: string }>, res: Respons
     if (!labelSet) return res.status(404).json({ error: "Label set not found" });
     if (!labelSet.parquetPath) {
       return res.status(409).json({
-        error: `Label set ${id} has no persisted rows (status '${labelSet.status}'). ` +
-          "Sets generated before rows were persisted carry only their summary.",
+        error: `Label set ${id} has no persisted rows (status '${labelSet.status}', stage '${labelSet.stage}').`,
       });
     }
     const { readLabelSetRows } = await import('../infrastructure/lib/labels/labelSetStore');
@@ -169,6 +228,7 @@ router.get("/labels/:id/rows", async (req: Request<{ id: string }>, res: Respons
       startMs: Number.isFinite(fromMs) ? fromMs : undefined,
       endMs: Number.isFinite(toMs) ? toMs : undefined,
       limit: Number.isFinite(limit) && limit > 0 ? limit : 5000,
+      usableOnly: req.query.usable !== '0',
     });
     res.json({ labelSetId: id, parquetPath: labelSet.parquetPath, count: rows.length, rows });
   } catch (error) {
@@ -192,13 +252,59 @@ router.get("/labels/:id/pairs", async (req: Request<{ id: string }>, res: Respon
   }
 });
 
-// Delete label set
-router.delete("/labels/:id", async (req: Request<{ id: string }>, res: Response) => {
+/** Regenerate a set in place (same recipe, new rows), e.g. after the source bars moved. */
+router.post("/labels/:id/regenerate", mlRateLimiter, async (req: Request<{ id: string }>, res: Response) => {
   try {
     const labelService = await getLabelService();
     const id = parseInt(req.params.id);
-    await labelService.deleteLabelSet(id);
-    res.json({ success: true });
+    const labelSet = await labelService.getLabelSetById(id);
+    if (!labelSet) return res.status(404).json({ error: "Label set not found" });
+    const config = JSON.parse(labelSet.config) as Record<string, unknown>;
+    const { timeframeMinutes, startTimestamp, endTimestamp, ...params } = config;
+    const result = await labelService.generateLabels({
+      name: labelSet.name,
+      generatorType: labelSet.generatorType,
+      symbol: labelSet.symbol,
+      params,
+      timeframeMinutes: Number(timeframeMinutes ?? labelSet.timeframeMinutes ?? 1),
+      startTimestamp: numberOrUndefined(startTimestamp),
+      endTimestamp: numberOrUndefined(endTimestamp),
+      force: true,
+    });
+    res.status(result.success ? 202 : 500).json(result);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/** Retire a set: it stays in the ledger and the lake, marked retired. */
+router.post("/labels/:id/retire", async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const { retireLabelSet } = await import('../infrastructure/lib/labels/labelRepository');
+    const id = parseInt(req.params.id);
+    await retireLabelSet(id, typeof req.body?.reason === 'string' ? req.body.reason : undefined);
+    res.json({ success: true, labelSetId: id, stage: 'retired' });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * DELETE /api/labels/:id — retires the set. `?purge=1` also removes the ledger
+ * row; the lake object is never deleted from here (deleting data is a person's
+ * decision, made in the lake, not a dashboard button).
+ */
+router.delete("/labels/:id", async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const labelService = await getLabelService();
+    const { retireLabelSet } = await import('../infrastructure/lib/labels/labelRepository');
+    const id = parseInt(req.params.id);
+    if (req.query.purge === '1') {
+      await labelService.deleteLabelSet(id);
+      return res.json({ success: true, purged: true });
+    }
+    await retireLabelSet(id, 'retired from the dashboard');
+    res.json({ success: true, stage: 'retired' });
   } catch (error) {
     console.error("Error deleting label set:", error);
     res.status(500).json({ error: "Failed to delete label set" });

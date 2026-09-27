@@ -127,6 +127,7 @@ export async function startTraining(request: TrainingRequest): Promise<{
       learningRate: 0, // Not applicable for HMM models
       hyperparameters: hyperparameters as Record<string, unknown>,
       featureCategories: resolved.featureCategories,
+      labelSetId: request.labelSetId,
     });
     session.dbSessionId = dbSession.id;
   } catch (err) {

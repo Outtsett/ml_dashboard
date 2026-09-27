@@ -1,18 +1,23 @@
 /**
- * Label Generator — creates and persists label sets from SQL generators.
+ * Label Generator — runs a label set through its lifecycle.
  *
- * Handles both standard supervised labels and contrastive pair generation.
+ * Think of it as: the foreman. A request comes in; the foreman works out its
+ * part number (the recipe), checks whether that crate already exists, and if
+ * not opens a ledger row and runs the job — generate the rows, enrich them to
+ * the contract, validate, land, catalog — stamping the ledger at every rung.
+ *
+ * `generateLabels` answers immediately by default (the job continues in the
+ * background and the ledger row reports progress); `wait: true` runs the job
+ * inline for callers that need the result in the same call (tests, scripts).
+ *
+ * Contrastive generators produce index pairs, not per-bar labels; they keep
+ * writing `contrastive_pairs` in SQLite and never enter the lake.
  */
 
 import { db } from '../../database/db';
-import { generatedLabels, contrastivePairs } from '@shared/schema';
-import { eq } from 'drizzle-orm';
-import {
-  LABEL_SQL_GENERATORS,
-  wrapWithSampleBy,
-  type LabelGeneratorType,
-  type LabelGeneratorConfig,
-} from './sqlLabelGenerators';
+import { contrastivePairs } from '@shared/schema';
+import { type LabelEncoding } from '@shared/labels/contract';
+import { LABEL_SQL_GENERATORS, boundByWindow, wrapWithSampleBy, type LabelGeneratorConfig, type LabelGeneratorType } from './sqlLabelGenerators';
 import {
   CONTRASTIVE_SQL_GENERATORS,
   type ContrastiveGeneratorType,
@@ -25,15 +30,23 @@ import {
 } from './contrastivePairs';
 import { queryLabels, buildMetaLabelSQL } from './labelHelpers';
 import type { MetaLabelParams } from './sqlLabelGenerators';
-import { resolveLabelSource } from './labelSource';
+import { resolveLabelSource, type LabelSource } from './labelSource';
 import { computeTalibLabelRows, isTalibGenerator, talibPatternForGenerator } from './talibLabelRows';
-import { persistLabelSet } from './labelSetStore';
+import { landLabelSet } from './labelSetStore';
+import { labelRecipe, normalizeLabelParams } from './labelRecipe';
+import {
+  getLabelSetById,
+  getLabelSetByRecipe,
+  insertLabelSet,
+  updateLabelSet,
+  type GeneratedLabelRow,
+} from './labelRepository';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface LabelGenerationRequest {
   name: string;
-  generatorType: LabelGeneratorType | ContrastiveGeneratorType;
+  generatorType: LabelGeneratorType | ContrastiveGeneratorType | string;
   symbol: string;
   modelId?: number;
   params: Record<string, unknown>;
@@ -41,15 +54,25 @@ export interface LabelGenerationRequest {
   /** Epoch ms. Omitted = the instrument's whole history in the chosen source. */
   startTimestamp?: number;
   endTimestamp?: number;
+  /** Regenerate even when the recipe already has a set. */
+  force?: boolean;
 }
 
 export interface LabelGenerationResult {
   success: boolean;
   labelSetId?: number;
-  /** Where the rows landed in the lake, e.g. `s3://derived/recipe=dashboard_label_sets/...`. */
+  recipe?: string;
+  /** The ledger's furthest rung at the moment of answering. */
+  stage?: string;
+  /** True when an existing set answered the request instead of a new job. */
+  existing?: boolean;
+  /** True when the job was started and is running in the background. */
+  accepted?: boolean;
+  /** Where the rows landed in the lake, e.g. `s3://derived/labels/recipe=.../table=labels/part-0.parquet`. */
   parquetPath?: string;
   sampleCount?: number;
   labelDistribution?: Record<string, number>;
+  validationPassed?: boolean | null;
   preview?: Array<Record<string, unknown>>;
   error?: string;
   generationTimeMs?: number;
@@ -57,168 +80,134 @@ export interface LabelGenerationResult {
 
 // ─── Generation ─────────────────────────────────────────────────────────────
 
+const runningJobs = new Map<number, Promise<LabelGenerationResult>>();
+
+/** The job for a set, when one is running in this process. */
+export function labelJobFor(labelSetId: number): Promise<LabelGenerationResult> | undefined {
+  return runningJobs.get(labelSetId);
+}
+
+function summaryOf(row: GeneratedLabelRow, extra: Partial<LabelGenerationResult> = {}): LabelGenerationResult {
+  let distribution: Record<string, number> | undefined;
+  try {
+    distribution = row.labelDistribution ? (JSON.parse(row.labelDistribution) as Record<string, number>) : undefined;
+  } catch {
+    distribution = undefined;
+  }
+  let validationPassed: boolean | null = null;
+  try {
+    validationPassed = row.validation ? Boolean((JSON.parse(row.validation) as { passed?: boolean }).passed) : null;
+  } catch {
+    validationPassed = null;
+  }
+  return {
+    success: row.status !== 'failed',
+    labelSetId: row.id,
+    recipe: row.recipe ?? undefined,
+    stage: row.stage,
+    parquetPath: row.parquetPath ?? undefined,
+    sampleCount: row.sampleCount,
+    labelDistribution: distribution,
+    validationPassed,
+    error: row.errorMessage ?? undefined,
+    generationTimeMs: row.generationTimeMs ?? undefined,
+    ...extra,
+  };
+}
+
 export async function generateLabels(
-  request: LabelGenerationRequest
+  request: LabelGenerationRequest,
+  options: { wait?: boolean } = {},
 ): Promise<LabelGenerationResult> {
   const startTime = Date.now();
-
   try {
-    const [labelRecord] = await db.insert(generatedLabels).values({
+    const timeframeMinutes = Math.max(1, Math.floor(request.timeframeMinutes || 1));
+    const params = normalizeLabelParams(request.generatorType, request.params);
+    const window = {
+      startMs: Number.isFinite(request.startTimestamp) ? request.startTimestamp : undefined,
+      endMs: Number.isFinite(request.endTimestamp) ? request.endTimestamp : undefined,
+    };
+    const identity = labelRecipe({
+      generatorType: request.generatorType,
+      symbol: request.symbol,
+      timeframeMinutes,
+      params,
+      windowStartTimestamp: window.startMs ?? null,
+      windowEndTimestamp: window.endMs ?? null,
+    });
+
+    // Idempotency: the same recipe is the same set. A finished or running set
+    // answers the request; a failed one is retried in place.
+    const existing = await getLabelSetByRecipe(identity.recipe);
+    if (existing && !request.force && existing.status !== 'failed') {
+      const job = runningJobs.get(existing.id);
+      if (job && options.wait) return job;
+      return summaryOf(existing, { existing: true, accepted: Boolean(job) });
+    }
+
+    const values = {
       name: request.name,
       generatorType: request.generatorType,
       category: getCategoryForGenerator(request.generatorType),
-      symbol: request.symbol,
+      symbol: request.symbol.toUpperCase(),
       modelId: request.modelId || null,
       // The timeframe and window are part of what this set IS — a 1m label
       // set and a 1d one from the same params are different datasets — so they
       // ride in the config rather than being defaulted away on the way in.
       config: JSON.stringify({
-        ...request.params,
-        timeframeMinutes: request.timeframeMinutes || 1,
-        startTimestamp: request.startTimestamp ?? null,
-        endTimestamp: request.endTimestamp ?? null,
-      }),
-      status: 'generating',
-    }).returning();
-
-    const labelSetId = labelRecord!.id;
-
-    try {
-      if (isContrastiveGenerator(request.generatorType)) {
-        return await generateContrastiveLabels(labelSetId, request, startTime);
-      }
-
-      const timeframeMinutes = request.timeframeMinutes || 1;
-      const window = { startMs: request.startTimestamp, endMs: request.endTimestamp };
-
-      let results: Array<Record<string, unknown>>;
-      let labelSQL: string | null = null;
-
-      if (isTalibGenerator(request.generatorType)) {
-        // A calculation, not a query — the TA-Lib worker scores the bars.
-        results = await computeTalibLabelRows({
-          symbol: request.symbol,
-          timeframeMinutes,
-          pattern: talibPatternForGenerator(request.generatorType, request.params ?? {}),
-          startTimestamp: request.startTimestamp,
-          endTimestamp: request.endTimestamp,
-          limit: 2_000_000,
-        });
-      } else {
-        // The SAME source resolution the preview uses. This path used to fall
-        // back to `ohlcv WHERE symbol = 'MNQ'`, so what was previewed (the
-        // front-month stitch) and what was saved (the pre-stitched continuous
-        // series) were different bar series for the same request.
-        const source = await resolveLabelSource(request.symbol, timeframeMinutes, window);
-        const cfg = {
-          symbol: request.symbol, tableName: source.tableName, timeframeMinutes,
-          sourceFrom: source.from, sourcePredicate: source.predicate,
-        };
-        if (request.generatorType === 'meta_label') {
-          const rawSQL = buildMetaLabelSQL(
-            request.params as unknown as MetaLabelParams,
-            request.symbol,
-            source.tableName,
-          );
-          labelSQL = wrapWithSampleBy(rawSQL, cfg);
-        } else {
-          labelSQL = generateLabelSQL(request.generatorType as LabelGeneratorType, request.params, cfg);
-        }
-        if (!labelSQL) {
-          throw new Error(`Unknown generator type: ${request.generatorType}`);
-        }
-        labelSQL = boundByWindow(labelSQL, window);
-        // A whole-history set is a bigger query than a preview; the deadline is
-        // wider but still a deadline, so a runaway set fails the row rather
-        // than holding the engine for everyone else.
-        results = await queryLabels(labelSQL, 120_000);
-      }
-
-      if (!results || results.length === 0) {
-        await db.update(generatedLabels)
-          .set({
-            status: 'completed',
-            sampleCount: 0,
-            generationTimeMs: Date.now() - startTime,
-            updatedAt: new Date(),
-          })
-          .where(eq(generatedLabels.id, labelSetId));
-
-        return {
-          success: true,
-          labelSetId,
-          sampleCount: 0,
-          labelDistribution: {},
-          preview: [],
-          generationTimeMs: Date.now() - startTime,
-        };
-      }
-
-      const labelDistribution = calculateLabelDistribution(results);
-
-      const timestamps = results
-        .map((r: Record<string, unknown>) => r.timestamp)
-        .filter((t: unknown): t is number => typeof t === 'number');
-      const dataStartTimestamp = timestamps.length > 0 ? Math.min(...timestamps) : null;
-      const dataEndTimestamp = timestamps.length > 0 ? Math.max(...timestamps) : null;
-
-      // The rows themselves. Until now only these summary columns survived:
-      // the full result was sliced to 100 rows for the HTTP response and
-      // dropped, so a "generated" label set could not be read back by anything
-      // — not the chart, not a notebook, not a training run.
-      const { parquetPath, rowCount } = await persistLabelSet({
-        labelSetId,
-        generatorType: request.generatorType,
-        symbol: request.symbol,
+        ...params,
         timeframeMinutes,
-        params: request.params ?? {},
-        window,
-        sql: labelSQL,
-        rows: labelSQL ? undefined : results,
-        distribution: labelDistribution,
-        dataStartTimestamp,
-        dataEndTimestamp,
-      });
+        startTimestamp: window.startMs ?? null,
+        endTimestamp: window.endMs ?? null,
+      }),
+      recipe: identity.recipe,
+      parametersHash: identity.parametersHash,
+      timeframeMinutes,
+      stage: 'specified' as const,
+      status: 'generating',
+      sampleCount: 0,
+      labelDistribution: null,
+      positiveCount: null,
+      negativeCount: null,
+      neutralCount: null,
+      parquetPath: null,
+      validation: null,
+      validatedAt: null,
+      landedAt: null,
+      retiredAt: null,
+      staleDetectedAt: null,
+      staleReason: null,
+      errorMessage: null,
+      generationTimeMs: null,
+    };
 
-      await db.update(generatedLabels)
-        .set({
-          status: 'completed',
-          sampleCount: rowCount,
-          labelDistribution: JSON.stringify(labelDistribution),
-          positiveCount: labelDistribution['1'] || 0,
-          negativeCount: labelDistribution['-1'] || 0,
-          neutralCount: labelDistribution['0'] || 0,
-          dataStartTimestamp,
-          dataEndTimestamp,
-          parquetPath,
-          generationTimeMs: Date.now() - startTime,
-          updatedAt: new Date(),
-        })
-        .where(eq(generatedLabels.id, labelSetId));
-
-      return {
-        success: true,
-        labelSetId,
-        parquetPath,
-        sampleCount: rowCount,
-        labelDistribution,
-        preview: results.slice(0, 100),
-        generationTimeMs: Date.now() - startTime,
-      };
-
-    } catch (error) {
-      await db.update(generatedLabels)
-        .set({
-          status: 'failed',
-          errorMessage: error instanceof Error ? error.message : 'Unknown error',
-          generationTimeMs: Date.now() - startTime,
-          updatedAt: new Date(),
-        })
-        .where(eq(generatedLabels.id, labelSetId));
-
-      throw error;
+    let labelSetId: number;
+    if (existing) {
+      await updateLabelSet(existing.id, values);
+      labelSetId = existing.id;
+    } else {
+      labelSetId = (await insertLabelSet(values)).id;
     }
 
+    const job = runLabelJob(labelSetId, {
+      request: { ...request, params, timeframeMinutes },
+      window,
+      startTime,
+    }).finally(() => runningJobs.delete(labelSetId));
+    runningJobs.set(labelSetId, job);
+    // A rejected job is reported through the ledger row; the caller that did
+    // not wait must not see an unhandled rejection.
+    job.catch(() => undefined);
+
+    if (options.wait) return job;
+    return {
+      success: true,
+      labelSetId,
+      recipe: identity.recipe,
+      stage: 'specified',
+      accepted: true,
+      generationTimeMs: Date.now() - startTime,
+    };
   } catch (error) {
     return {
       success: false,
@@ -228,65 +217,196 @@ export async function generateLabels(
   }
 }
 
+// ─── The job ────────────────────────────────────────────────────────────────
+
+interface JobContext {
+  request: LabelGenerationRequest & { params: Record<string, unknown>; timeframeMinutes: number };
+  window: { startMs?: number; endMs?: number };
+  startTime: number;
+}
+
+async function runLabelJob(labelSetId: number, context: JobContext): Promise<LabelGenerationResult> {
+  const { request, window, startTime } = context;
+  try {
+    if (isContrastiveGenerator(request.generatorType)) {
+      return await generateContrastiveLabels(labelSetId, request, window, startTime);
+    }
+
+    const row = await getLabelSetById(labelSetId);
+    if (!row) throw new Error(`Label set ${labelSetId} vanished`);
+
+    // The SAME source resolution the preview uses, so what was previewed (the
+    // front-month stitch) and what is saved are one bar series.
+    const source = await resolveLabelSource(request.symbol, request.timeframeMinutes, window);
+    const config: LabelGeneratorConfig = {
+      symbol: request.symbol, tableName: source.tableName, timeframeMinutes: request.timeframeMinutes,
+      sourceFrom: source.from, sourcePredicate: source.predicate,
+    };
+
+    let labelSQL: string | null = null;
+    let rows: Array<Record<string, unknown>> | undefined;
+    let skipTruncationGate = false;
+    if (isTalibGenerator(request.generatorType)) {
+      // A calculation, not a query — the TA-Lib worker scores the bars.
+      rows = await computeTalibLabelRows({
+        symbol: request.symbol,
+        timeframeMinutes: request.timeframeMinutes,
+        pattern: talibPatternForGenerator(request.generatorType, request.params),
+        startTimestamp: window.startMs,
+        endTimestamp: window.endMs,
+        limit: 2_000_000,
+      });
+      skipTruncationGate = true;
+    } else {
+      labelSQL = generateLabelSQL(request.generatorType as LabelGeneratorType, request.params, config);
+      if (!labelSQL) throw new Error(`Unknown generator type: ${request.generatorType}`);
+      labelSQL = boundByWindow(labelSQL, window);
+    }
+
+    const landed = await landLabelSet({
+      labelSetId,
+      recipe: row.recipe!,
+      parametersHash: row.parametersHash!,
+      generatorType: request.generatorType,
+      labelEncoding: labelEncodingFor(request.generatorType),
+      symbol: request.symbol.toUpperCase(),
+      timeframeMinutes: request.timeframeMinutes,
+      params: request.params,
+      window,
+      sql: labelSQL,
+      rows,
+      source,
+      config,
+      skipTruncationGate,
+    });
+
+    const now = new Date();
+    const stage = landed.landed ? 'cataloged' : landed.stagedRowCount > 0 ? 'generated' : 'specified';
+    await updateLabelSet(labelSetId, {
+      status: 'completed',
+      stage,
+      sampleCount: landed.rowCount,
+      labelDistribution: JSON.stringify(landed.labelDistribution),
+      positiveCount: landed.labelDistribution['1'] || 0,
+      negativeCount: landed.labelDistribution['-1'] || 0,
+      neutralCount: landed.labelDistribution['0'] || 0,
+      dataStartTimestamp: landed.dataStartTimestamp,
+      dataEndTimestamp: landed.dataEndTimestamp,
+      parquetPath: landed.parquetPath,
+      validation: JSON.stringify(landed.validation),
+      validatedAt: now,
+      sourceFingerprint: JSON.stringify(landed.sourceFingerprint),
+      maxHorizonBars: landed.maxHorizonBars,
+      purgeBars: landed.purgeBars,
+      embargoBars: landed.embargoBars,
+      landedAt: landed.landed ? now : null,
+      generationTimeMs: Date.now() - startTime,
+      errorMessage: landed.landed ? null : failingGates(landed.validation),
+    });
+
+    return {
+      success: true,
+      labelSetId,
+      recipe: row.recipe ?? undefined,
+      stage,
+      parquetPath: landed.parquetPath,
+      sampleCount: landed.rowCount,
+      labelDistribution: landed.labelDistribution,
+      validationPassed: landed.validation.passed,
+      generationTimeMs: Date.now() - startTime,
+      error: landed.landed ? undefined : failingGates(landed.validation) ?? undefined,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    await updateLabelSet(labelSetId, {
+      status: 'failed',
+      errorMessage: message,
+      generationTimeMs: Date.now() - startTime,
+    });
+    return { success: false, labelSetId, error: message, generationTimeMs: Date.now() - startTime };
+  }
+}
+
+function failingGates(validation: { passed: boolean; gates: Record<string, { passed: boolean; detail: string }> }): string | null {
+  if (validation.passed) return null;
+  const failed = Object.entries(validation.gates).filter(([, gate]) => !gate.passed);
+  return `validation failed: ${failed.map(([name, gate]) => `${name} (${gate.detail})`).join('; ')}`;
+}
+
 // ─── Contrastive Generation ─────────────────────────────────────────────────
 
 async function generateContrastiveLabels(
   labelSetId: number,
-  request: LabelGenerationRequest,
-  startTime: number
+  request: LabelGenerationRequest & { params: Record<string, unknown>; timeframeMinutes: number },
+  window: { startMs?: number; endMs?: number },
+  startTime: number,
 ): Promise<LabelGenerationResult> {
-  const config: ContrastivePairConfig = {
-    symbol: request.symbol,
-    windowSize: (request.params.windowSize as number) || 60,
+  const windowBars = Number(request.params.windowBars ?? request.params.windowSize ?? 60);
+  const config: ContrastivePairConfig = { symbol: request.symbol, windowSize: windowBars };
+
+  // Pairs are counted in BARS at the requested timeframe: the SQL is routed
+  // through the same sampled-bars CTE as every label generator. It used to
+  // read the sub-minute `ohlcv` table directly, so a "60-bar window" was ~3
+  // minutes of ticks.
+  const source: LabelSource = await resolveLabelSource(request.symbol, request.timeframeMinutes, window);
+  const cfg: LabelGeneratorConfig = {
+    symbol: request.symbol, tableName: source.tableName, timeframeMinutes: request.timeframeMinutes,
+    sourceFrom: source.from, sourcePredicate: source.predicate,
   };
+  const throughBars = (sql: string) => boundByWindow(wrapWithSampleBy(sql.replace(/FROM ohlcv\b/g, `FROM ${source.tableName}`), cfg), window);
 
   let sql: string;
   const genType = request.generatorType as string;
   if (genType === 'contrastive_temporal') {
+    const p = request.params;
     sql = CONTRASTIVE_SQL_GENERATORS.temporal(
-      request.params as unknown as TemporalPairParams,
-      config
+      {
+        positiveRadius: Number(p.positiveRadiusBars ?? p.positiveRadius ?? 5),
+        negativeMinGap: Number(p.negativeMinimumGapBars ?? p.negativeMinGap ?? 20),
+        samplesPerAnchor: Number(p.samplesPerAnchor ?? 4),
+      } as TemporalPairParams,
+      config,
     );
   } else if (genType === 'contrastive_statistical') {
+    const p = request.params;
     sql = CONTRASTIVE_SQL_GENERATORS.statistical(
-      request.params as unknown as StatisticalPairParams,
+      {
+        numRollingWindows: Number(p.rollingWindowCount ?? p.numRollingWindows ?? 20),
+        alphaLevel: Number(p.alphaLevel ?? 0.05),
+        correlationThreshold: Number(p.correlationThreshold ?? 0.7),
+      } as StatisticalPairParams,
       config,
-      false
+      false,
     );
   } else if (genType === 'contrastive_augmentation') {
     // Augmentation-based contrastive learning uses in-memory data augmentation,
-    // not SQL pair generation. Fetch OHLCV windows, apply augmentations in JS.
-    const windowSize = (request.params.windowSize as number) || 60;
-    const fetchSQL = `
+    // not SQL pair generation. Fetch bar windows, apply augmentations in JS.
+    const fetchSQL = throughBars(`
       SELECT close
       FROM ohlcv
       WHERE symbol = '${request.symbol}'
       ORDER BY timestamp
-      LIMIT ${windowSize * 200}
-    `;
+      LIMIT ${windowBars * 200}
+    `);
     const rawRows = await queryLabels(fetchSQL);
     const closes = rawRows.map(r => Number(r.close)).filter(v => !isNaN(v));
 
-    // Build sliding windows
     const windows: ContrastiveWindow[] = [];
-    for (let i = 0; i <= closes.length - windowSize; i += Math.max(1, Math.floor(windowSize / 2))) {
-      windows.push({ startIdx: i, endIdx: i + windowSize - 1, data: closes.slice(i, i + windowSize) });
+    for (let i = 0; i <= closes.length - windowBars; i += Math.max(1, Math.floor(windowBars / 2))) {
+      windows.push({ startIdx: i, endIdx: i + windowBars - 1, data: closes.slice(i, i + windowBars) });
     }
 
     if (windows.length < 2) {
-      await db.update(generatedLabels)
-        .set({ status: 'completed', sampleCount: 0, generationTimeMs: Date.now() - startTime, updatedAt: new Date() })
-        .where(eq(generatedLabels.id, labelSetId));
+      await updateLabelSet(labelSetId, { status: 'completed', stage: 'generated', sampleCount: 0, generationTimeMs: Date.now() - startTime });
       return { success: true, labelSetId, sampleCount: 0, preview: [], generationTimeMs: Date.now() - startTime };
     }
 
     const augResult = generateAugmentationPairs(windows, {
-      jitterScale: (request.params.jitterScale as number) || 0.01,
+      jitterScale: Number(request.params.jitterScale ?? 0.01),
       scalingRange: (request.params.scalingRange as [number, number]) || [0.8, 1.2],
-      cropRatio: (request.params.cropRatio as number) || 0.8,
-    }, (request.params.samplesPerAnchor as number) || 4);
+      cropRatio: Number(request.params.cropRatio ?? 0.8),
+    }, Number(request.params.samplesPerAnchor ?? 4));
 
-    // Store as contrastive pairs (anchorIdx=window start, negativeIdx=negative window start)
     if (augResult.pairs.length > 0) {
       const batchSize = 500;
       for (let i = 0; i < augResult.pairs.length; i += batchSize) {
@@ -303,19 +423,18 @@ async function generateContrastiveLabels(
       }
     }
 
-    await db.update(generatedLabels)
-      .set({
-        status: 'completed',
-        sampleCount: augResult.pairs.length,
-        labelDistribution: JSON.stringify(augResult.stats),
-        generationTimeMs: Date.now() - startTime,
-        updatedAt: new Date(),
-      })
-      .where(eq(generatedLabels.id, labelSetId));
+    await updateLabelSet(labelSetId, {
+      status: 'completed',
+      stage: 'generated',
+      sampleCount: augResult.pairs.length,
+      labelDistribution: JSON.stringify(augResult.stats),
+      generationTimeMs: Date.now() - startTime,
+    });
 
     return {
       success: true,
       labelSetId,
+      stage: 'generated',
       sampleCount: augResult.pairs.length,
       labelDistribution: augResult.stats as unknown as Record<string, number>,
       preview: augResult.pairs.slice(0, 100).map(p => ({
@@ -329,25 +448,11 @@ async function generateContrastiveLabels(
     throw new Error(`Unknown contrastive generator: ${genType}`);
   }
 
-  const results = await queryLabels(sql);
+  const results = await queryLabels(throughBars(sql), 300_000);
 
   if (!results || results.length === 0) {
-    await db.update(generatedLabels)
-      .set({
-        status: 'completed',
-        sampleCount: 0,
-        generationTimeMs: Date.now() - startTime,
-        updatedAt: new Date(),
-      })
-      .where(eq(generatedLabels.id, labelSetId));
-
-    return {
-      success: true,
-      labelSetId,
-      sampleCount: 0,
-      preview: [],
-      generationTimeMs: Date.now() - startTime,
-    };
+    await updateLabelSet(labelSetId, { status: 'completed', stage: 'generated', sampleCount: 0, generationTimeMs: Date.now() - startTime });
+    return { success: true, labelSetId, stage: 'generated', sampleCount: 0, preview: [], generationTimeMs: Date.now() - startTime };
   }
 
   const pairResult = generateContrastivePairsFromSQL(results as Array<{
@@ -373,19 +478,18 @@ async function generateContrastiveLabels(
     }
   }
 
-  await db.update(generatedLabels)
-    .set({
-      status: 'completed',
-      sampleCount: pairResult.pairs.length,
-      labelDistribution: JSON.stringify(pairResult.stats),
-      generationTimeMs: Date.now() - startTime,
-      updatedAt: new Date(),
-    })
-    .where(eq(generatedLabels.id, labelSetId));
+  await updateLabelSet(labelSetId, {
+    status: 'completed',
+    stage: 'generated',
+    sampleCount: pairResult.pairs.length,
+    labelDistribution: JSON.stringify(pairResult.stats),
+    generationTimeMs: Date.now() - startTime,
+  });
 
   return {
     success: true,
     labelSetId,
+    stage: 'generated',
     sampleCount: pairResult.pairs.length,
     labelDistribution: pairResult.stats as unknown as Record<string, number>,
     preview: pairResult.pairs.slice(0, 100) as unknown as Array<Record<string, unknown>>,
@@ -400,15 +504,15 @@ export function generateLabelSQL(
   params: Record<string, unknown>,
   config: LabelGeneratorConfig
 ): string | null {
-  // Special case: meta_label needs a primary labels CTE reference
+  // meta_label builds its own primary signal (a causal trailing-momentum rule,
+  // or the named next-bar oracle used only as a leakage self-test) as a CTE, so
+  // it is rendered by `buildMetaLabelSQL` rather than the registry entry, which
+  // expects a caller-supplied `primary_labels` relation.
   if (generatorType === 'meta_label') {
-    const rawSQL = LABEL_SQL_GENERATORS.meta_label(
-      {
-        ...(params as unknown as MetaLabelParams),
-        primarySignalColumn: (params as unknown as MetaLabelParams).primarySignalColumn || 'label',
-      },
-      config,
-      (params as { primaryLabelsTable?: string }).primaryLabelsTable || 'primary_labels'
+    const rawSQL = buildMetaLabelSQL(
+      params as unknown as MetaLabelParams,
+      config.symbol,
+      config.tableName || 'ohlcv',
     );
     return wrapWithSampleBy(rawSQL, config);
   }
@@ -421,19 +525,21 @@ export function generateLabelSQL(
   return wrapWithSampleBy(rawSQL, config);
 }
 
-/**
- * Push the window into every instrument predicate of the generated SQL.
- *
- * Identical to what the preview does, and for the same reason: the window
- * functions (LEAD/LAG/MAX OVER) block predicate pushdown, so an outer WHERE
- * would label all of history first and filter second.
- */
-function boundByWindow(sql: string, window: { startMs?: number; endMs?: number }): string {
-  const filters: string[] = [];
-  if (Number.isFinite(window.startMs)) filters.push(`timestamp >= '${new Date(window.startMs!).toISOString()}'`);
-  if (Number.isFinite(window.endMs)) filters.push(`timestamp <= '${new Date(window.endMs!).toISOString()}'`);
-  if (filters.length === 0) return sql;
-  return sql.replace(/(WHERE\s+(?:\w+\.)?symbol\s*=\s*'[^']*')/gi, `$1 AND ${filters.join(' AND ')}`);
+/** How a generator encodes `label`; recorded per set in the manifest. */
+export function labelEncodingFor(generatorType: string): LabelEncoding {
+  switch (generatorType) {
+    case 'future_return':
+    case 'future_volatility':
+      return 'continuous';
+    case 'meta_label':
+    case 'multi_step':
+      return 'binary_meta';
+    case 'regime':
+    case 'range_bucket':
+      return 'class_id';
+    default:
+      return 'signed_direction';
+  }
 }
 
 // ─── Generator Category Map (OCP: add new generator = add entry here) ────────
@@ -458,26 +564,10 @@ const GENERATOR_CATEGORIES: Record<string, string> = {
   next_close_direction: 'classification',
   range_bucket: 'classification',
   structural: 'classification',
-  talib_candle_pattern: 'candle-pattern',
-  talib_engulfing: 'candle-pattern',
-  talib_harami: 'candle-pattern',
-  talib_haramicross: 'candle-pattern',
-  talib_hikkake: 'candle-pattern',
-  talib_belthold: 'candle-pattern',
-  talib_marubozu: 'candle-pattern',
-  talib_3outside: 'candle-pattern',
-  talib_3inside: 'candle-pattern',
-  talib_hammer: 'candle-pattern',
-  talib_invertedhammer: 'candle-pattern',
-  talib_hangingman: 'candle-pattern',
-  talib_shootingstar: 'candle-pattern',
-  talib_morningstar: 'candle-pattern',
-  talib_eveningstar: 'candle-pattern',
-  talib_advanceblock: 'candle-pattern',
-  talib_darkcloudcover: 'candle-pattern',
 };
 
 export function getCategoryForGenerator(generatorType: string): string {
+  if (generatorType.startsWith('talib_')) return 'candle-pattern';
   return GENERATOR_CATEGORIES[generatorType] ?? 'classification';
 }
 

@@ -39,6 +39,9 @@ import crypto from "node:crypto";
 import type pg from "pg";
 import { z } from "zod";
 import { logInfo } from "../../lib/log";
+import { defineDerivedViews, derivedViews, servedRecipes } from "./derivedDatasets";
+
+export { derivedViews, servedRecipes };
 
 // ─── Lake configuration (mirrors datalake/src/lake/catalog.py) ───────────────
 
@@ -312,6 +315,17 @@ async function buildInstance(): Promise<DuckDBInstance> {
       );
     }
 
+    // Every manifested derived dataset (`derived/<dataset>/recipe=…/`) becomes a
+    // `derived_<dataset>` view — labels, calibration records, landed studies —
+    // so a landing is queryable from the SQL console the moment it is manifested.
+    // Best-effort for the same reason as `bars`.
+    try {
+      const defined = await defineDerivedViews(con);
+      servingViewNames = [...servingViewNames, ...defined.map((view) => view.viewName)].sort();
+    } catch (error) {
+      console.warn("[lake] derived-dataset views not defined:", (error as Error).message);
+    }
+
     logInfo(
       `[lake] DuckDB serving layer ready in ${(performance.now() - started).toFixed(0)}ms ` +
         `(${servingViewNames.length} views over s3://${SERVING_SNAPSHOT}/)`,
@@ -320,6 +334,25 @@ async function buildInstance(): Promise<DuckDBInstance> {
     con.closeSync();
   }
   return created;
+}
+
+/**
+ * Re-read the manifests and redefine the derived-dataset views on the live
+ * instance. Called after a landing so `derived_<dataset>` serves the new recipe
+ * without a restart; views live in the instance catalog, so every later
+ * connection sees the new definitions.
+ */
+export async function refreshDerivedViews(): Promise<string[]> {
+  const con = await (await getInstance()).connect();
+  try {
+    await con.run("SET TimeZone='UTC'");
+    const defined = await defineDerivedViews(con);
+    const snapshotNames = servingViewNames.filter((name) => !name.startsWith("derived_"));
+    servingViewNames = [...snapshotNames, ...defined.map((view) => view.viewName)].sort();
+    return defined.map((view) => view.viewName);
+  } finally {
+    con.closeSync();
+  }
 }
 
 /**

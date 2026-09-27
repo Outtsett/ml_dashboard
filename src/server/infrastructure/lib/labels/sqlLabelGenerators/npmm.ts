@@ -2,10 +2,10 @@ import type { LabelGeneratorConfig } from './helpers';
 import { DEFAULT_CONFIG, windowOver, rowsBack, shiftForward } from './helpers';
 
 export interface NPMMParams {
-  lookbackPeriod: number;
-  lookforwardPeriod: number;
-  confirmationBars: number;
-  minMovePct: number;
+  lookbackBars?: number;
+  lookforwardBars?: number;
+  confirmationBars?: number;
+  minimumMovePercent?: number;
 }
 
 export function generateNPMMLabelsSQL(
@@ -13,8 +13,10 @@ export function generateNPMMLabelsSQL(
   config: LabelGeneratorConfig
 ): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
-  const { lookbackPeriod, lookforwardPeriod, confirmationBars, minMovePct } = params;
-  const minMoveDecimal = minMovePct / 100;
+  const lookbackPeriod = Math.max(1, Math.floor(Number(params.lookbackBars ?? 10)));
+  const lookforwardPeriod = Math.max(1, Math.floor(Number(params.lookforwardBars ?? 10)));
+  const confirmationBars = Math.max(1, Math.floor(Number(params.confirmationBars ?? 2)));
+  const minMoveDecimal = Number(params.minimumMovePercent ?? 0.3) / 100;
 
   // Every window here originally ended in `N FOLLOWING`, which QuestDB rejects
   // ("frame end supports _number_ PRECEDING and CURRENT ROW only"). Each one is
@@ -36,7 +38,7 @@ WITH base AS (
   FROM ${cfg.tableName}
   WHERE ${cfg.symbolColumn} = '${config.symbol}'
 ),
-trailing AS (
+trailing_extremes AS (
   SELECT
     timestamp,
     symbol,
@@ -60,7 +62,7 @@ shifted AS (
     ${shiftForward('trail_centred_max', lookforwardPeriod, cfg)} as window_max,
     ${shiftForward('trail_fwd_min', lookforwardPeriod, cfg)} as min_after,
     ${shiftForward('trail_fwd_max', lookforwardPeriod, cfg)} as max_after
-  FROM trailing
+  FROM trailing_extremes
 ),
 extrema AS (
   SELECT
@@ -81,7 +83,7 @@ extrema AS (
       WHEN close = window_min THEN (max_after - close) / NULLIF(close, 0)
       WHEN close = window_max THEN (close - min_after) / NULLIF(close, 0)
       ELSE NULL
-    END as move_size
+    END as move_size_fraction
   FROM shifted
 )
 SELECT
@@ -89,9 +91,10 @@ SELECT
   symbol,
   close,
   raw_label as label,
-  move_size
+  ${lookforwardPeriod} as resolution_bars,
+  move_size_fraction
 FROM extrema
 WHERE raw_label IS NOT NULL
-  AND move_size >= ${minMoveDecimal}
+  AND move_size_fraction >= ${minMoveDecimal}
 ORDER BY timestamp`;
 }

@@ -201,7 +201,73 @@ const AGENT_RUNS: RebuildableTable = {
   ],
 };
 
-const TABLES: RebuildableTable[] = [MODEL_VERSIONS, DEPLOYMENTS, PROMOTION_GATES, AGENT_RUNS];
+/**
+ * generated_labels — the label-set lifecycle stage (2026-09-26). `stage` is a
+ * plain TEXT column to Drizzle; the CHECK below is what keeps a typo out of the
+ * ladder. The `columns` list must be the full current list: the rebuild copies
+ * exactly these and silently drops anything left out.
+ */
+const GENERATED_LABELS: RebuildableTable = {
+  name: "generated_labels",
+  createSql: `
+    CREATE TABLE IF NOT EXISTS generated_labels (
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      model_id             INTEGER REFERENCES ml_models(id) ON DELETE SET NULL,
+      name                 TEXT NOT NULL,
+      generator_type       TEXT NOT NULL,
+      category             TEXT NOT NULL,
+      symbol               TEXT NOT NULL,
+      config               TEXT NOT NULL,
+      sample_count         INTEGER NOT NULL DEFAULT 0,
+      positive_count       INTEGER,
+      negative_count       INTEGER,
+      neutral_count        INTEGER,
+      label_distribution   TEXT,
+      data_start_timestamp INTEGER,
+      data_end_timestamp   INTEGER,
+      parquet_path         TEXT,
+      status               TEXT NOT NULL DEFAULT 'pending',
+      error_message        TEXT,
+      generation_time_ms   INTEGER,
+      recipe               TEXT,
+      parameters_hash      TEXT,
+      timeframe_minutes    INTEGER NOT NULL DEFAULT 1,
+      stage                TEXT NOT NULL DEFAULT 'specified'
+                             CHECK (stage IN ('specified','generated','validated','landed','cataloged','consumed','stale','retired')),
+      validation           TEXT,
+      validated_at         INTEGER,
+      source_fingerprint   TEXT,
+      max_horizon_bars     INTEGER,
+      purge_bars           INTEGER,
+      embargo_bars         INTEGER,
+      landed_at            INTEGER,
+      retired_at           INTEGER,
+      stale_detected_at    INTEGER,
+      stale_reason         TEXT,
+      created_at           INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+      updated_at           INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+    )`,
+  columns: [
+    "id", "model_id", "name", "generator_type", "category", "symbol", "config", "sample_count",
+    "positive_count", "negative_count", "neutral_count", "label_distribution",
+    "data_start_timestamp", "data_end_timestamp", "parquet_path", "status", "error_message",
+    "generation_time_ms", "recipe", "parameters_hash", "timeframe_minutes", "stage", "validation",
+    "validated_at", "source_fingerprint", "max_horizon_bars", "purge_bars", "embargo_bars",
+    "landed_at", "retired_at", "stale_detected_at", "stale_reason", "created_at", "updated_at",
+  ],
+  auxSql: [
+    // A rebuild's DROP TABLE takes every index with it, so the ones schema.ts
+    // declares are re-created here or they vanish the first time this runs.
+    `CREATE INDEX IF NOT EXISTS generated_labels_model_id_idx ON generated_labels(model_id)`,
+    `CREATE INDEX IF NOT EXISTS generated_labels_generator_type_idx ON generated_labels(generator_type)`,
+    `CREATE INDEX IF NOT EXISTS generated_labels_symbol_idx ON generated_labels(symbol)`,
+    `CREATE INDEX IF NOT EXISTS generated_labels_status_idx ON generated_labels(status)`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS generated_labels_recipe_idx ON generated_labels(recipe)`,
+    `CREATE INDEX IF NOT EXISTS generated_labels_stage_idx ON generated_labels(stage)`,
+  ],
+};
+
+const TABLES: RebuildableTable[] = [MODEL_VERSIONS, DEPLOYMENTS, PROMOTION_GATES, AGENT_RUNS, GENERATED_LABELS];
 
 /** Reads the exact DDL SQLite stored for a table (undefined if the table doesn't exist). */
 function getTableSql(sqlite: Database.Database, tableName: string): string | undefined {

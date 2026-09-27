@@ -2,18 +2,18 @@
  * Label Preview — generates label previews without persisting to database.
  *
  * Used by the chart overlay to show labels on the trading chart.
- * Queries QuestDB directly with CTE-based label generation.
+ * Runs the generator SQL through the serving DuckDB over the lake.
  *
  * Caching: Preview results are cached for 15 minutes (max 50 entries).
  * Same symbol + generatorType + params + timeframe = same result.
  */
 
 import type { LabelGeneratorType } from './sqlLabelGenerators';
-import { wrapWithSampleBy } from './sqlLabelGenerators';
-import type { MetaLabelParams } from './sqlLabelGenerators';
-import { queryLabels, buildMetaLabelSQL } from './labelHelpers';
+import { boundByWindow } from './sqlLabelGenerators';
+import { queryLabels } from './labelHelpers';
 import { resolveLabelSource } from './labelSource';
 import { generateLabelSQL } from './labelGenerator';
+import { normalizeLabelParams } from './labelRecipe';
 import { previewCacheKey, previewCacheGet, previewCacheSet } from '../../cache/labels';
 import { labelOutcomeOffset, OUTCOME_OFFSET_COLUMN } from './labelOutcomeOffset';
 import { computeTalibLabelRows, isTalibGenerator, talibPatternForGenerator } from './talibLabelRows';
@@ -96,59 +96,26 @@ export async function previewLabels(
     });
     const tableName = source.tableName;
 
-    let labelSQL: string | null;
-
-    // For meta_label, build combined SQL with direction labels as CTE
-    if (request.generatorType === 'meta_label') {
-      const rawSQL = buildMetaLabelSQL(
-        request.params as unknown as MetaLabelParams,
-        request.symbol,
-        tableName,
-      );
-      labelSQL = wrapWithSampleBy(rawSQL, {
+    // Legacy parameter names (`horizon`, `takeProfitPct`, ...) are translated and
+    // every declared default filled, so the SQL never sees `undefined`.
+    const params = normalizeLabelParams(request.generatorType, request.params);
+    let labelSQL = generateLabelSQL(
+      request.generatorType,
+      params,
+      {
         symbol: request.symbol, tableName, timeframeMinutes,
         sourceFrom: source.from, sourcePredicate: source.predicate,
-      });
-    } else {
-      labelSQL = generateLabelSQL(
-        request.generatorType,
-        request.params,
-        {
-          symbol: request.symbol, tableName, timeframeMinutes,
-          sourceFrom: source.from, sourcePredicate: source.predicate,
-        }
-      );
-    }
+      }
+    );
 
     if (!labelSQL) {
       return { success: false, error: `Unknown generator type: ${request.generatorType}` };
     }
 
-    // Inject [startTimestamp, endTimestamp] (ms epoch) INTO every
-    // `WHERE symbol = '...'` clause inside labelSQL. SQL semantics block
-    // predicate pushdown across window functions (LEAD/LAG/MAX OVER), so
-    // outer-query filtering would force the CTE to compute labels over the
-    // entire 96.7M-row base ohlcv table, then filter — orders of magnitude
-    // slower than partition skipping. Regex replacement is OK here because
-    // all 13 generators use the canonical `WHERE ${symbolColumn} = '...'`
-    // pattern from helpers.ts.
-    const dateFilters: string[] = [];
-    if (typeof request.startTimestamp === 'number' && Number.isFinite(request.startTimestamp)) {
-      dateFilters.push(`timestamp >= '${new Date(request.startTimestamp).toISOString()}'`);
-    }
-    if (typeof request.endTimestamp === 'number' && Number.isFinite(request.endTimestamp)) {
-      dateFilters.push(`timestamp <= '${new Date(request.endTimestamp).toISOString()}'`);
-    }
-    if (dateFilters.length > 0) {
-      const filterClause = dateFilters.join(' AND ');
-      // Accepts an optional table alias (`WHERE o.symbol = ...`): meta_label
-      // qualifies its columns because two relations expose `symbol`, and the
-      // unaliased form silently left that scan unbounded by date.
-      labelSQL = labelSQL.replace(
-        /(WHERE\s+(?:\w+\.)?symbol\s*=\s*'[^']*')/gi,
-        `$1 AND ${filterClause}`,
-      );
-    }
+    // The window goes INTO every instrument predicate: the window functions
+    // block predicate pushdown, so an outer filter would label all of history
+    // first. See `boundByWindow`.
+    labelSQL = boundByWindow(labelSQL, { startMs: request.startTimestamp, endMs: request.endTimestamp });
 
     const limitedSQL = `
       WITH label_data AS (${labelSQL})
@@ -179,7 +146,7 @@ export async function previewLabels(
 
     const normalizedResults = attachOutcomeOffset(
       request.generatorType,
-      request.params ?? {},
+      params,
       normalizeLabelsForPreview(request.generatorType, sortedResults),
     );
 

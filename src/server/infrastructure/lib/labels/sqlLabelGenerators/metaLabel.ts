@@ -2,10 +2,10 @@ import type { LabelGeneratorConfig } from './helpers';
 import { DEFAULT_CONFIG } from './helpers';
 
 export interface MetaLabelParams {
-  primarySignalColumn: string;
-  horizon: number;
-  transactionCostBps: number;
-  minProfitBps: number;
+  primarySignalColumn?: string;
+  horizonBars?: number;
+  transactionCostBasisPoints?: number;
+  minimumProfitBasisPoints?: number;
   /**
    * Where the primary signal comes from.
    *
@@ -17,8 +17,8 @@ export interface MetaLabelParams {
    * be mistaken for a strategy.
    */
   primarySource?: 'trailing_momentum' | 'next_bar_oracle';
-  primaryLookback?: number;
-  primaryThresholdBps?: number;
+  primaryLookbackBars?: number;
+  primaryThresholdBasisPoints?: number;
 }
 
 export function generateMetaLabelsSQL(
@@ -27,9 +27,10 @@ export function generateMetaLabelsSQL(
   primaryLabelsTable: string = 'primary_labels'
 ): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
-  const { primarySignalColumn, horizon, transactionCostBps, minProfitBps } = params;
-  const txCost = transactionCostBps / 10000;
-  const minProfit = minProfitBps / 10000;
+  const primarySignalColumn = params.primarySignalColumn || 'label';
+  const horizon = Math.max(1, Math.floor(Number(params.horizonBars ?? 10)));
+  const txCost = Number(params.transactionCostBasisPoints ?? 5) / 10000;
+  const minProfit = Number(params.minimumProfitBasisPoints ?? 10) / 10000;
 
   return `
 WITH base AS (
@@ -59,7 +60,7 @@ with_pnl AS (
     CASE
       WHEN primary_signal = 0 OR future_close IS NULL THEN NULL
       ELSE primary_signal * (future_close - close) / close - ${txCost}
-    END as net_pnl
+    END as net_profit_fraction
   FROM base
   WHERE primary_signal != 0
 ),
@@ -69,14 +70,15 @@ labeled AS (
     symbol,
     close,
     primary_signal,
-    net_pnl,
+    net_profit_fraction,
     CASE
-      WHEN net_pnl >= ${minProfit} THEN 1
+      WHEN net_profit_fraction >= ${minProfit} THEN 1
       ELSE 0
     END as label
   FROM with_pnl
-  WHERE net_pnl IS NOT NULL
+  WHERE net_profit_fraction IS NOT NULL
 )
-SELECT * FROM labeled
+SELECT timestamp, symbol, close, label, ${horizon} as resolution_bars, primary_signal, net_profit_fraction
+FROM labeled
 ORDER BY timestamp`;
 }

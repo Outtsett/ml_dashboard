@@ -8,8 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   labelSetObjectPath,
-  labelSetManifestPath,
-  LABEL_SET_RECIPE,
+  LABEL_MANIFEST_PATH,
 } from '../../src/server/infrastructure/lib/labels/labelSetStore';
 import {
   isTalibGenerator,
@@ -18,16 +17,22 @@ import {
 } from '../../src/server/infrastructure/lib/labels/talibLabelRows';
 
 describe('label set object paths', () => {
-  it('lands under the derived recipe in the hive layout the lake uses', () => {
-    expect(labelSetObjectPath('next_close_direction', 7)).toBe(
-      `s3://derived/recipe=${LABEL_SET_RECIPE}/table=next_close_direction/label_set_id=7/labels.parquet`,
+  it('lands under derived/<dataset>/recipe=<recipe>/table=labels/, the lake.layout convention', () => {
+    expect(labelSetObjectPath('next_close_direction_MNQ_5m_0123456789ab')).toBe(
+      's3://derived/labels/recipe=next_close_direction_MNQ_5m_0123456789ab/table=labels/part-0.parquet',
     );
-    expect(labelSetManifestPath(7)).toBe(`s3://meta/ingest_manifests/${LABEL_SET_RECIPE}/7.json`);
+    expect(LABEL_MANIFEST_PATH).toBe('s3://meta/ingest_manifests/labels.jsonl');
   });
 
-  it('refuses a generator id that is not a safe path segment', () => {
-    expect(() => labelSetObjectPath('../etc', 1)).toThrow(/not a safe object-path segment/);
-    expect(() => labelSetObjectPath("x'y", 1)).toThrow();
+  it('keeps a rejected set beside the glob, never inside it', () => {
+    expect(labelSetObjectPath('direction_MNQ_1m_deadbeef0123', true)).toBe(
+      's3://derived/labels/_rejected/recipe=direction_MNQ_1m_deadbeef0123/table=labels/part-0.parquet',
+    );
+  });
+
+  it('refuses a recipe that is not a safe path segment', () => {
+    expect(() => labelSetObjectPath('../etc')).toThrow(/not a safe object-path segment/);
+    expect(() => labelSetObjectPath("x'y")).toThrow();
   });
 });
 

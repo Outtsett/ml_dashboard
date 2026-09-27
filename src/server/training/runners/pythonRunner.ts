@@ -203,6 +203,11 @@ export class PythonRunner implements ITrainerRunner {
         );
       }
       args.push("--label-set-parquet", labelSet.parquetPath);
+      // The set's longest horizon is the smallest purge a split may use; the
+      // template takes the larger of this and the configured purge.
+      if (labelSet.purgeBars !== null && labelSet.purgeBars !== undefined) {
+        args.push("--label-purge-bars", String(labelSet.purgeBars));
+      }
     }
 
     // Provenance identity, minted by the orchestrator BEFORE this spawn.

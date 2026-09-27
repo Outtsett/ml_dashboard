@@ -70,13 +70,13 @@ export function buildMetaLabelSQL(
   symbol: string,
   tableName: string = 'ohlcv',
 ): string {
-  const txCost = (metaParams.transactionCostBps || 10) / 10000;
-  const minProfit = (metaParams.minProfitBps || 20) / 10000;
+  const txCost = Number(metaParams.transactionCostBasisPoints ?? 5) / 10000;
+  const minProfit = Number(metaParams.minimumProfitBasisPoints ?? 10) / 10000;
   const primaryCol = metaParams.primarySignalColumn || 'label';
-  const metaHorizon = metaParams.horizon || 5;
+  const metaHorizon = Math.max(1, Math.floor(Number(metaParams.horizonBars ?? 10)));
   const primarySource = metaParams.primarySource ?? 'trailing_momentum';
-  const primaryLookback = Math.max(1, Number(metaParams.primaryLookback ?? 20));
-  const primaryThreshold = Math.max(0, Number(metaParams.primaryThresholdBps ?? 10)) / 10000;
+  const primaryLookback = Math.max(1, Math.floor(Number(metaParams.primaryLookbackBars ?? 20)));
+  const primaryThreshold = Math.max(0, Number(metaParams.primaryThresholdBasisPoints ?? 10)) / 10000;
   const wo = `OVER (PARTITION BY symbol ORDER BY timestamp)`;
   // Inside meta_base two aliased relations both expose symbol/timestamp, so the
   // window there must qualify its columns — unqualified gives
@@ -123,17 +123,18 @@ with_pnl AS (
     CASE
       WHEN primary_signal = 0 OR future_close IS NULL THEN NULL
       ELSE primary_signal * (future_close - close) / close - ${txCost}
-    END as net_pnl
+    END as net_profit_fraction
   FROM meta_base
   WHERE primary_signal != 0
 ),
 meta_labeled AS (
-  SELECT timestamp, symbol, close, primary_signal, net_pnl,
-    CASE WHEN net_pnl >= ${minProfit} THEN 1 ELSE 0 END as label
+  SELECT timestamp, symbol, close, primary_signal, net_profit_fraction,
+    CASE WHEN net_profit_fraction >= ${minProfit} THEN 1 ELSE 0 END as label
   FROM with_pnl
-  WHERE net_pnl IS NOT NULL
+  WHERE net_profit_fraction IS NOT NULL
 )
-SELECT * FROM meta_labeled
+SELECT timestamp, symbol, close, label, ${metaHorizon} as resolution_bars, primary_signal, net_profit_fraction
+FROM meta_labeled
 ORDER BY timestamp`;
 }
 

@@ -23,6 +23,7 @@ import { mlRateLimiter } from '../infrastructure/lib/rateLimiter';
 import {
   generatePreview,
   saveAndRegister,
+  withPurgeCoveringHorizon,
   CodeGeneratorError,
   type GeneratorPayload,
   type SavePayload,
@@ -117,11 +118,13 @@ router.post('/training/generate-code', mlRateLimiter, async (req: Request, res: 
   // The Zod schema returns a value compatible with GeneratorPayload but
   // typed without the brand; cast through the structurally-equivalent
   // interface so the generator sees the right shape.
-  const payload: GeneratorPayload = parsed.data;
+  // The purge is never below the label horizon (see `withPurgeCoveringHorizon`).
+  const clamped = withPurgeCoveringHorizon(parsed.data);
+  const payload: GeneratorPayload = clamped.payload;
 
   try {
     const result = await generatePreview(payload);
-    res.json(result);
+    res.json(clamped.warning ? { ...result, warnings: [...(result.warnings ?? []), clamped.warning] } : result);
   } catch (err) {
     if (err instanceof CodeGeneratorError) {
       return res.status(500).json({
@@ -143,11 +146,12 @@ router.post('/training/save-generated', mlRateLimiter, async (req: Request, res:
     return res.status(400).json(formatZodErrors(parsed.error));
   }
 
-  const payload: SavePayload = parsed.data;
+  const clamped = withPurgeCoveringHorizon(parsed.data);
+  const payload: SavePayload = { ...parsed.data, walkForward: clamped.payload.walkForward };
 
   try {
     const result = await saveAndRegister(payload);
-    res.status(201).json(result);
+    res.status(201).json(clamped.warning ? { ...result, warnings: [...(result.warnings ?? []), clamped.warning] } : result);
   } catch (err) {
     if (err instanceof CodeGeneratorError) {
       return res.status(500).json({

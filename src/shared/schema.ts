@@ -94,12 +94,15 @@ export const trainingSessions = sqliteTable("training_sessions", {
   elapsedSec: real("elapsed_sec"),
   resourcePeakMemoryMb: real("resource_peak_memory_mb"),
   resourceAvgCpuPct: real("resource_avg_cpu_pct"),
+  /** The persisted label set the run trained on (lineage; the set's `consumed` stage). */
+  labelSetId: integer("label_set_id").references((): AnySQLiteColumn => generatedLabels.id, { onDelete: 'set null' }),
 }, (table) => ({
   modelTypeIdx: index("ts_model_type_idx").on(table.modelType),
   symbolIdx: index("ts_symbol_idx").on(table.symbol),
   statusIdx: index("ts_status_idx").on(table.status),
   versionedModelIdIdx: index("ts_versioned_model_id_idx").on(table.versionedModelId),
   walkForwardGroupIdx: index("ts_wf_group_idx").on(table.walkForwardGroupId),
+  labelSetIdIdx: index("ts_label_set_id_idx").on(table.labelSetId),
 }));
 
 export const insertTrainingSessionSchema = createInsertSchema(trainingSessions).omit({ id: true, startedAt: true, updatedAt: true });
@@ -468,6 +471,24 @@ export const generatedLabels = sqliteTable("generated_labels", {
   status: text("status").notNull().default("pending"),
   errorMessage: text("error_message"),
   generationTimeMs: integer("generation_time_ms"),
+  // ── Lifecycle (2026-09-26; contract in src/shared/labels/contract.ts) ──
+  /** `<generator>_<SYMBOL>_<timeframe>_<hash12>`; unique, so the same request finds its set. */
+  recipe: text("recipe"),
+  /** SHA-256 of the canonical identity (generator, symbol, timeframe, parameters, window, contract version). */
+  parametersHash: text("parameters_hash"),
+  timeframeMinutes: integer("timeframe_minutes").notNull().default(1),
+  /** The furthest rung reached; CHECK retrofitted by enforce-sqlite-invariants.ts. */
+  stage: text("stage").notNull().default("specified"),
+  validation: text("validation"), // JSON LabelValidationReport
+  validatedAt: integer("validated_at", { mode: "timestamp_ms" }),
+  sourceFingerprint: text("source_fingerprint"), // JSON LabelSourceFingerprint
+  maxHorizonBars: integer("max_horizon_bars"),
+  purgeBars: integer("purge_bars"),
+  embargoBars: integer("embargo_bars"),
+  landedAt: integer("landed_at", { mode: "timestamp_ms" }),
+  retiredAt: integer("retired_at", { mode: "timestamp_ms" }),
+  staleDetectedAt: integer("stale_detected_at", { mode: "timestamp_ms" }),
+  staleReason: text("stale_reason"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
 }, (table) => ({
@@ -475,6 +496,9 @@ export const generatedLabels = sqliteTable("generated_labels", {
   generatorTypeIdx: index("generated_labels_generator_type_idx").on(table.generatorType),
   symbolIdx: index("generated_labels_symbol_idx").on(table.symbol),
   statusIdx: index("generated_labels_status_idx").on(table.status),
+  // SQLite treats every NULL as distinct, so rows written before recipes existed coexist.
+  recipeIdx: uniqueIndex("generated_labels_recipe_idx").on(table.recipe),
+  stageIdx: index("generated_labels_stage_idx").on(table.stage),
 }));
 
 export const insertGeneratedLabelsSchema = createInsertSchema(generatedLabels).omit({

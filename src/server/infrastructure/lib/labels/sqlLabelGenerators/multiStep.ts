@@ -2,10 +2,10 @@ import type { LabelGeneratorConfig } from './helpers';
 import { DEFAULT_CONFIG, windowOver } from './helpers';
 
 export interface MultiStepParams {
-  steps: number;
-  horizons?: number[];
+  steps?: number;
+  horizons?: number[] | number;
   target?: string;
-  aggregation: 'mean' | 'sum' | 'last';
+  aggregation?: 'mean' | 'sum' | 'last';
 }
 
 export function generateMultiStepLabelsSQL(
@@ -14,7 +14,12 @@ export function generateMultiStepLabelsSQL(
 ): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   // Support both direct 'steps' param and taxonomy 'horizons' array
-  const steps = params.steps || (params.horizons ? Math.max(...(Array.isArray(params.horizons) ? params.horizons : [1])) : 5);
+  const declared = Array.isArray(params.horizons) ? params.horizons.map(Number).filter(Number.isFinite) : [];
+  const steps = Math.max(1, Math.floor(
+    Number(params.steps) > 0 ? Number(params.steps)
+      : declared.length > 0 ? Math.max(...declared)
+      : Number(params.horizons) > 0 ? Number(params.horizons) : 5,
+  ));
   const aggregation = params.aggregation || 'last';
 
   const futureColumns = Array.from({ length: steps }, (_, i) =>
@@ -47,7 +52,7 @@ labeled AS (
     symbol,
     close,
     future_close_${steps} as final_close,
-    (${aggregatedValue} - close) / NULLIF(close, 0) as target_return,
+    (${aggregatedValue} - close) / NULLIF(close, 0) as target_return_fraction,
     CASE
       WHEN future_close_${steps} IS NULL THEN NULL
       WHEN ${aggregatedValue} > close THEN 1
@@ -59,8 +64,9 @@ SELECT
   timestamp,
   symbol,
   close,
-  target_return,
-  label
+  label,
+  ${steps} as resolution_bars,
+  target_return_fraction
 FROM labeled
 WHERE label IS NOT NULL
 ORDER BY timestamp`;
