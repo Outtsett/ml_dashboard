@@ -146,18 +146,35 @@ def _(mo, pl, rows):
 
 
 @app.cell
-def _(NUMERIC_COLUMNS, OKABE, alt, bins, log_scale, mo, rows):
+def _(NUMERIC_COLUMNS, OKABE, alt, bins, log_scale, mo, pl, rows):
     # Every column gets its own graphic: a histogram per column, in one grid.
+    # Binned HERE (polars), never in the browser: a 1m set is 2.3 million rows
+    # and shipping them to vega froze the tab.
     charts = []
     for column in NUMERIC_COLUMNS:
-        data = rows.select(column).drop_nulls().to_pandas()
-        if data.empty:
+        s = rows.get_column(column).cast(pl.Float64).drop_nulls().drop_nans()
+        if s.len() == 0:
             continue
-        y = alt.Y("count()", title="rows", scale=alt.Scale(type="symlog") if log_scale.value else alt.Undefined)
+        lo, hi = float(s.min()), float(s.max())
+        if hi <= lo:
+            edges = [lo, lo + 1.0]
+        else:
+            width = (hi - lo) / bins.value
+            edges = [lo + i * width for i in range(bins.value + 1)]
+        counts = s.hist(bins=edges, include_breakpoint=True)
+        # polars names the breakpoint column and the count column; take them positionally.
+        breakpoint_col, count_col = counts.columns[0], counts.columns[-1]
+        binned = counts.select(
+            pl.col(breakpoint_col).alias("upper"),
+            (pl.col(breakpoint_col) - (edges[1] - edges[0])).alias("lower"),
+            pl.col(count_col).alias("rows"),
+        ).filter(pl.col("rows") > 0)
+        y = alt.Y("rows:Q", title="rows", scale=alt.Scale(type="symlog") if log_scale.value else alt.Undefined)
         charts.append(
-            alt.Chart(data, title=column.replace("_", " "))
+            alt.Chart(binned.to_pandas(), title=column.replace("_", " "))
             .mark_bar(color=OKABE["blue"])
-            .encode(x=alt.X(f"{column}:Q", bin=alt.Bin(maxbins=bins.value), title=column.replace("_", " ")), y=y, tooltip=[alt.Tooltip(f"{column}:Q", bin=True), "count()"])
+            .encode(x=alt.X("lower:Q", title=column.replace("_", " ")), x2="upper:Q", y=y,
+                    tooltip=[alt.Tooltip("lower:Q", format=".4g"), alt.Tooltip("upper:Q", format=".4g"), "rows:Q"])
             .properties(width=260, height=150)
         )
     grid = alt.concat(*charts, columns=3).resolve_scale(x="independent", y="independent")

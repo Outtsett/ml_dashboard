@@ -1,6 +1,6 @@
 # Labels — audit, land, and a lifecycle for every label set
 
-Date: 2026-09-26. Branch: `feat/candle-structure-frame`. Ask: "Audit all label generation. Label the data. And let's improve the labeling infrastructure and life cycles."
+Date: 2026-09-26. Branch: `feat/realtime-dashboard-redesign`. Ask: "Audit all label generation. Label the data. And let's improve the labeling infrastructure and life cycles."
 
 ## What the user gets
 
