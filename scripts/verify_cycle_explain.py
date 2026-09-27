@@ -114,6 +114,9 @@ def verify_run(run_directory: str | Path, *, bars: int = 50, seed: int = 0, expl
     plan_device = artifacts.read_run_settings(run).get("device")
     summary["planDevice"] = plan_device
     arrays = explainer.run_arrays(str(run))
+    # the engine asks the price model for no forecast at a bar whose horizon crosses a session gap:
+    # such a bar has nothing streamed to hold the reload against, so it is not sampled for the price role
+    streamed = artifacts.load_streamed(run, arrays.timestamps)
     for fold in manifest["folds"]:
         k = fold["foldIndex"]
         for role in ("direction", "price"):
@@ -130,7 +133,10 @@ def verify_run(run_directory: str | Path, *, bars: int = 50, seed: int = 0, expl
             samples.append(("structure", f"fold {k} {role}", structure))
             context = explainer.context(str(run), k, role)
             test_rows = artifacts.load_fold_index(run, k)["test"]
-            candidates = [int(row) for row in test_rows if context.valid(int(row))]
+            candidates = [int(row) for row in test_rows if context.valid(int(row))
+                          and (role != "price" or streamed is None or streamed.predicted_move_points.get(int(row)) is not None)]
+            record["barsWithoutForecast"] = sum(
+                1 for row in test_rows if context.valid(int(row)) and int(row) not in set(candidates)) if role == "price" else 0
             chosen = sorted(generator.choice(candidates, size=min(bars, len(candidates)), replace=False).tolist()) \
                 if candidates else []
             for row in chosen:

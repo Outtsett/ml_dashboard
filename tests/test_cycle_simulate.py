@@ -78,8 +78,9 @@ def test_contract_codes_map_to_their_root():
 def test_an_unknown_symbol_raises_instead_of_trading_without_costs(tmp_path):
     with pytest.raises(ValueError, match="no entry"):
         load_cost_model("ZZZ")
-    with pytest.raises(ValueError, match="no entry"):
-        load_cost_model("ESZ5")  # ES has no entry in the file
+    # every lake root is priced (2026-09-27): a contract code resolves to its root's entry
+    es = load_cost_model("ESZ5")
+    assert es.symbol_key == "ES" and es.tick_size == 0.25 and es.tick_value == 12.5 and es.cost_per_side == 14.42
     table = tmp_path / "costs.json"
     table.write_text(json.dumps({"ES": {"tick_size": 0.25, "tick_value": 12.5, "point_value": 50.0,
                                         "total_per_side": 2.5}}), encoding="utf-8")

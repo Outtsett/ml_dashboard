@@ -17,13 +17,21 @@ export type TrainerRunner = 'python';
 
 export interface HyperparameterDef {
   /** Default value for this hyperparameter */
-  default: number | boolean;
+  default: number | boolean | string;
   min?: number;
   max?: number;
   step?: number;
   label: string;
   /** Parameter data type */
-  type: 'int' | 'float' | 'categorical' | 'bool';
+  type: 'int' | 'float' | 'categorical' | 'bool' | 'string';
+  /**
+   * The Model Cycle's Optuna space for this parameter (`search` in
+   * `src/config/cycle_models/`): present exactly when the tuner searches it.
+   * `kind` int/float carry low/high (log = sampled on a log scale); categorical carries choices.
+   */
+  search?:
+    | { kind: 'int' | 'float'; low: number; high: number; log?: boolean }
+    | { kind: 'categorical'; choices: (string | number | boolean)[] };
   /** Whether to sample in log space during HPO */
   logScale?: boolean;
   /** Valid choices for categorical parameters */

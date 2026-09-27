@@ -94,7 +94,7 @@ describe('cycle accumulator — folding the real fixture into a snapshot', () =>
     expect(snapshot.scoreboards.running).not.toBeNull();
     expect(snapshot.scoreboards.folds.length).toBe(1);
     expect(snapshot.scoreboards.final).not.toBeNull();
-    expect(snapshot.lastSequence).toBe(9); // the fixture's highest seq
+    expect(snapshot.lastSequence).toBe(10); // the fixture's highest seq (cycle_parameters)
   });
 
   it('listCycleRuns reflects the tracked run, symbol/timeframe/family from the plan', () => {

@@ -625,8 +625,8 @@ export function buildBands(plan: CyclePlan | null, cursor: CycleCursor | null, l
     let start = cursor.spanStart;
     let end = cursor.spanEnd;
     if ((start === null || end === null) && cursor.phase === "tuning" && plan.tuning) {
-      start = plan.tuning.start;
-      end = plan.tuning.end;
+      start = plan.tuning.start ?? null;
+      end = plan.tuning.end ?? null;
     }
     if (start !== null && end !== null && end >= start) {
       bands.push(make("active", start, end, activeSpanLabel(cursor), cursor.foldIndex));

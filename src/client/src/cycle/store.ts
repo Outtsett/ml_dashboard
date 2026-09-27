@@ -36,6 +36,7 @@ import {
   type CycleSnapshot,
   type CycleTrade,
   type CycleTrial,
+  type CycleParameters,
 } from "@shared/cycle/schema";
 
 /** Terminal lines kept in memory. Older lines drop off the top. */
@@ -74,6 +75,8 @@ export interface CycleState {
   history: ScoreboardSample[];
   epochs: CycleEpoch[];
   trials: CycleTrial[];
+  /** Per fold: the hyperparameters its models were fitted with, in fold order. */
+  parameters: CycleParameters[];
 
   /** Mutable ring of terminal lines + a version counter, like `bars`. */
   logs: CycleLogLine[];
@@ -138,6 +141,7 @@ type Draft = Pick<
   | "history"
   | "epochs"
   | "trials"
+  | "parameters"
   | "logs"
   | "logsVersion"
 >;
@@ -159,6 +163,7 @@ function draftOf(state: CycleState): Draft {
     history: state.history,
     epochs: state.epochs,
     trials: state.trials,
+    parameters: state.parameters,
     logs: state.logs,
     logsVersion: state.logsVersion,
   };
@@ -196,10 +201,19 @@ function upsertTrade(trades: CycleTrade[], trade: CycleTrade): CycleTrade[] {
 }
 
 function upsertTrial(trials: CycleTrial[], trial: CycleTrial): CycleTrial[] {
-  const index = trials.findIndex((existing) => existing.trial === trial.trial);
+  // trial numbers restart in every fold: the identity is (fold, trial)
+  const index = trials.findIndex((existing) => (existing.foldIndex ?? null) === (trial.foldIndex ?? null) && existing.trial === trial.trial);
   if (index < 0) return [...trials, trial];
   const next = trials.slice();
   next[index] = trial;
+  return next;
+}
+
+function upsertParameters(list: CycleParameters[], parameters: CycleParameters): CycleParameters[] {
+  const index = list.findIndex((existing) => (existing.foldIndex ?? null) === (parameters.foldIndex ?? null));
+  if (index < 0) return [...list, parameters].sort((a, b) => (a.foldIndex ?? -1) - (b.foldIndex ?? -1));
+  const next = list.slice();
+  next[index] = parameters;
   return next;
 }
 
@@ -233,6 +247,9 @@ function reduceCycleEvent<T extends CycleEventType>(draft: Draft, type: T, paylo
     case "cycle_trial":
       draft.trials = upsertTrial(draft.trials, payload as CycleTrial);
       return;
+    case "cycle_parameters":
+      draft.parameters = upsertParameters(draft.parameters, payload as CycleParameters);
+      return;
     case "cycle_trade":
       draft.trades = upsertTrade(draft.trades, payload as CycleTrade);
       return;
@@ -259,6 +276,7 @@ const CYCLE_TYPES: ReadonlySet<string> = new Set([
   "cycle_cursor",
   "cycle_epoch",
   "cycle_trial",
+  "cycle_parameters",
   "cycle_trade",
   "cycle_scoreboard",
 ]);
@@ -353,6 +371,7 @@ function initialRunState(): Omit<
     history: [],
     epochs: [],
     trials: [],
+    parameters: [],
     logs: [],
     logsVersion: 0,
     inspectTimestamp: null,
@@ -405,6 +424,7 @@ export const useCycleStore = create<CycleState>((set, get) => ({
       history,
       epochs: snapshot.epochs,
       trials: snapshot.trials,
+      parameters: snapshot.parameters ?? [],
       logs: snapshot.logs.slice(-CYCLE_LOG_CAPACITY),
       logsVersion: 1,
     });

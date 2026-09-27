@@ -1,563 +1,7 @@
 {
-  "note": "The 8 Model Cycle runners as they were before the registry (2026-09-25): the hand-written runners.json blocks and the composed /api/training/config model entries. cycleRunners.ts must reproduce both for these keys.",
   "runners": {
-    "logistic_regression+walk_forward_cycle": {
-      "displayName": "Logistic regression — model cycle",
-      "runner": "python",
-      "script": "src/ml/cycle/main.py",
-      "outputDir": "data/models",
-      "outputs": [
-        "config.json",
-        "predictions.parquet",
-        "trades.parquet",
-        "epochs.parquet",
-        "trials.parquet",
-        "folds.json",
-        "scoreboard.json",
-        "diagnostics.json"
-      ],
-      "featurePipeline": "default-35",
-      "chartOverlay": "prediction_markers",
-      "estimatedTrainingTime": "2-30 min (paced replay)",
-      "tags": [
-        "cycle",
-        "walk-forward",
-        "logistic_regression"
-      ],
-      "supportedObjectives": [
-        "sharpe_ratio",
-        "log_loss",
-        "f1_score"
-      ],
-      "includeIndicators": false,
-      "allFeatures": false,
-      "defaultHyperparameters": {
-        "train_days": {
-          "type": "int",
-          "default": 60,
-          "min": 5,
-          "max": 720,
-          "label": "Training window (days)",
-          "group": "Walk-forward"
-        },
-        "validation_fraction": {
-          "type": "float",
-          "default": 0.2,
-          "min": 0.05,
-          "max": 0.5,
-          "step": 0.05,
-          "label": "Validation fraction of the training window",
-          "group": "Walk-forward"
-        },
-        "test_days": {
-          "type": "int",
-          "default": 10,
-          "min": 1,
-          "max": 180,
-          "label": "Test window (days)",
-          "group": "Walk-forward"
-        },
-        "step_days": {
-          "type": "int",
-          "default": 0,
-          "min": 0,
-          "max": 180,
-          "label": "Step between folds, in days (0 = test window)",
-          "group": "Walk-forward"
-        },
-        "fold_limit": {
-          "type": "int",
-          "default": 3,
-          "min": 0,
-          "max": 50,
-          "label": "Fold limit (0 = all folds)",
-          "group": "Walk-forward"
-        },
-        "expanding_window": {
-          "type": "bool",
-          "default": false,
-          "label": "Expanding training window",
-          "group": "Walk-forward"
-        },
-        "label_horizon_bars": {
-          "type": "int",
-          "default": 6,
-          "min": 1,
-          "max": 200,
-          "label": "Label horizon (bars)",
-          "group": "Labels"
-        },
-        "label_threshold_ticks": {
-          "type": "float",
-          "default": 0,
-          "min": 0,
-          "max": 100,
-          "step": 0.5,
-          "label": "Label threshold (ticks)",
-          "group": "Labels"
-        },
-        "embargo_bars": {
-          "type": "int",
-          "default": 0,
-          "min": 0,
-          "max": 200,
-          "label": "Embargo (bars)",
-          "group": "Labels"
-        },
-        "long_only": {
-          "type": "bool",
-          "default": false,
-          "label": "Long only",
-          "group": "Trading"
-        },
-        "holding_bars": {
-          "type": "int",
-          "default": 0,
-          "min": 0,
-          "max": 500,
-          "label": "Holding period, in bars (0 = label horizon)",
-          "group": "Trading"
-        },
-        "stop_loss_ticks": {
-          "type": "float",
-          "default": 0,
-          "min": 0,
-          "max": 500,
-          "step": 0.5,
-          "label": "Stop loss (ticks, 0 = off)",
-          "group": "Trading"
-        },
-        "take_profit_ticks": {
-          "type": "float",
-          "default": 0,
-          "min": 0,
-          "max": 500,
-          "step": 0.5,
-          "label": "Take profit (ticks, 0 = off)",
-          "group": "Trading"
-        },
-        "contracts": {
-          "type": "int",
-          "default": 1,
-          "min": 1,
-          "max": 10,
-          "label": "Contracts per trade",
-          "group": "Trading"
-        },
-        "tuning_trials": {
-          "type": "int",
-          "default": 0,
-          "min": 0,
-          "max": 200,
-          "label": "Tuning trials (0 = off)",
-          "group": "Tuning"
-        },
-        "tuning_objective": {
-          "type": "categorical",
-          "default": "sharpe_ratio",
-          "choices": [
-            "sharpe_ratio",
-            "log_loss",
-            "f1_score"
-          ],
-          "label": "Tuning objective",
-          "group": "Tuning"
-        },
-        "tuning_folds": {
-          "type": "int",
-          "default": 2,
-          "min": 1,
-          "max": 10,
-          "label": "Tuning inner folds",
-          "group": "Tuning"
-        },
-        "bars_per_second": {
-          "type": "float",
-          "default": 40,
-          "min": 0,
-          "max": 2000,
-          "step": 1,
-          "label": "Bars per second (0 = as fast as possible)",
-          "group": "Replay"
-        },
-        "start_paused": {
-          "type": "bool",
-          "default": false,
-          "label": "Start paused",
-          "group": "Replay"
-        },
-        "quiet_bars": {
-          "type": "bool",
-          "default": false,
-          "label": "Suppress per-bar log lines",
-          "group": "Replay"
-        },
-        "log_every_batches": {
-          "type": "int",
-          "default": 10,
-          "min": 1,
-          "max": 1000,
-          "label": "Log every N batches",
-          "group": "Replay"
-        },
-        "device": {
-          "type": "categorical",
-          "default": "auto",
-          "choices": [
-            "auto",
-            "cuda",
-            "cpu"
-          ],
-          "label": "Device",
-          "group": "Runtime"
-        },
-        "seed": {
-          "type": "int",
-          "default": 42,
-          "min": 0,
-          "max": 999999,
-          "label": "Random seed",
-          "group": "Runtime"
-        },
-        "regularization_strength": {
-          "type": "float",
-          "default": 1,
-          "min": 0.001,
-          "max": 100,
-          "logScale": true,
-          "label": "Regularization strength",
-          "group": "Model"
-        },
-        "max_iterations": {
-          "type": "int",
-          "default": 300,
-          "min": 50,
-          "max": 5000,
-          "label": "Max iterations",
-          "group": "Model"
-        }
-      },
-      "cliFlags": {
-        "train_days": "--train-days",
-        "validation_fraction": "--validation-fraction",
-        "test_days": "--test-days",
-        "step_days": "--step-days",
-        "fold_limit": "--fold-limit",
-        "expanding_window": "--expanding-window",
-        "label_horizon_bars": "--label-horizon-bars",
-        "label_threshold_ticks": "--label-threshold-ticks",
-        "embargo_bars": "--embargo-bars",
-        "long_only": "--long-only",
-        "holding_bars": "--holding-bars",
-        "stop_loss_ticks": "--stop-loss-ticks",
-        "take_profit_ticks": "--take-profit-ticks",
-        "contracts": "--contracts",
-        "tuning_trials": "--tuning-trials",
-        "tuning_objective": "--tuning-objective",
-        "tuning_folds": "--tuning-folds",
-        "bars_per_second": "--bars-per-second",
-        "start_paused": "--start-paused",
-        "quiet_bars": "--quiet-bars",
-        "log_every_batches": "--log-every-batches",
-        "device": "--device",
-        "seed": "--seed",
-        "regularization_strength": "--regularization-strength",
-        "max_iterations": "--max-iterations"
-      },
-      "scriptArgs": [
-        "--model-family",
-        "logistic_regression"
-      ],
-      "maxDurationSeconds": 43200
-    },
-    "random_forest+walk_forward_cycle": {
-      "displayName": "Random forest — model cycle",
-      "runner": "python",
-      "script": "src/ml/cycle/main.py",
-      "outputDir": "data/models",
-      "outputs": [
-        "config.json",
-        "predictions.parquet",
-        "trades.parquet",
-        "epochs.parquet",
-        "trials.parquet",
-        "folds.json",
-        "scoreboard.json",
-        "diagnostics.json"
-      ],
-      "featurePipeline": "default-35",
-      "chartOverlay": "prediction_markers",
-      "estimatedTrainingTime": "2-30 min (paced replay)",
-      "tags": [
-        "cycle",
-        "walk-forward",
-        "random_forest"
-      ],
-      "supportedObjectives": [
-        "sharpe_ratio",
-        "log_loss",
-        "f1_score"
-      ],
-      "includeIndicators": false,
-      "allFeatures": false,
-      "defaultHyperparameters": {
-        "train_days": {
-          "type": "int",
-          "default": 60,
-          "min": 5,
-          "max": 720,
-          "label": "Training window (days)",
-          "group": "Walk-forward"
-        },
-        "validation_fraction": {
-          "type": "float",
-          "default": 0.2,
-          "min": 0.05,
-          "max": 0.5,
-          "step": 0.05,
-          "label": "Validation fraction of the training window",
-          "group": "Walk-forward"
-        },
-        "test_days": {
-          "type": "int",
-          "default": 10,
-          "min": 1,
-          "max": 180,
-          "label": "Test window (days)",
-          "group": "Walk-forward"
-        },
-        "step_days": {
-          "type": "int",
-          "default": 0,
-          "min": 0,
-          "max": 180,
-          "label": "Step between folds, in days (0 = test window)",
-          "group": "Walk-forward"
-        },
-        "fold_limit": {
-          "type": "int",
-          "default": 3,
-          "min": 0,
-          "max": 50,
-          "label": "Fold limit (0 = all folds)",
-          "group": "Walk-forward"
-        },
-        "expanding_window": {
-          "type": "bool",
-          "default": false,
-          "label": "Expanding training window",
-          "group": "Walk-forward"
-        },
-        "label_horizon_bars": {
-          "type": "int",
-          "default": 6,
-          "min": 1,
-          "max": 200,
-          "label": "Label horizon (bars)",
-          "group": "Labels"
-        },
-        "label_threshold_ticks": {
-          "type": "float",
-          "default": 0,
-          "min": 0,
-          "max": 100,
-          "step": 0.5,
-          "label": "Label threshold (ticks)",
-          "group": "Labels"
-        },
-        "embargo_bars": {
-          "type": "int",
-          "default": 0,
-          "min": 0,
-          "max": 200,
-          "label": "Embargo (bars)",
-          "group": "Labels"
-        },
-        "long_only": {
-          "type": "bool",
-          "default": false,
-          "label": "Long only",
-          "group": "Trading"
-        },
-        "holding_bars": {
-          "type": "int",
-          "default": 0,
-          "min": 0,
-          "max": 500,
-          "label": "Holding period, in bars (0 = label horizon)",
-          "group": "Trading"
-        },
-        "stop_loss_ticks": {
-          "type": "float",
-          "default": 0,
-          "min": 0,
-          "max": 500,
-          "step": 0.5,
-          "label": "Stop loss (ticks, 0 = off)",
-          "group": "Trading"
-        },
-        "take_profit_ticks": {
-          "type": "float",
-          "default": 0,
-          "min": 0,
-          "max": 500,
-          "step": 0.5,
-          "label": "Take profit (ticks, 0 = off)",
-          "group": "Trading"
-        },
-        "contracts": {
-          "type": "int",
-          "default": 1,
-          "min": 1,
-          "max": 10,
-          "label": "Contracts per trade",
-          "group": "Trading"
-        },
-        "tuning_trials": {
-          "type": "int",
-          "default": 0,
-          "min": 0,
-          "max": 200,
-          "label": "Tuning trials (0 = off)",
-          "group": "Tuning"
-        },
-        "tuning_objective": {
-          "type": "categorical",
-          "default": "sharpe_ratio",
-          "choices": [
-            "sharpe_ratio",
-            "log_loss",
-            "f1_score"
-          ],
-          "label": "Tuning objective",
-          "group": "Tuning"
-        },
-        "tuning_folds": {
-          "type": "int",
-          "default": 2,
-          "min": 1,
-          "max": 10,
-          "label": "Tuning inner folds",
-          "group": "Tuning"
-        },
-        "bars_per_second": {
-          "type": "float",
-          "default": 40,
-          "min": 0,
-          "max": 2000,
-          "step": 1,
-          "label": "Bars per second (0 = as fast as possible)",
-          "group": "Replay"
-        },
-        "start_paused": {
-          "type": "bool",
-          "default": false,
-          "label": "Start paused",
-          "group": "Replay"
-        },
-        "quiet_bars": {
-          "type": "bool",
-          "default": false,
-          "label": "Suppress per-bar log lines",
-          "group": "Replay"
-        },
-        "log_every_batches": {
-          "type": "int",
-          "default": 10,
-          "min": 1,
-          "max": 1000,
-          "label": "Log every N batches",
-          "group": "Replay"
-        },
-        "device": {
-          "type": "categorical",
-          "default": "auto",
-          "choices": [
-            "auto",
-            "cuda",
-            "cpu"
-          ],
-          "label": "Device",
-          "group": "Runtime"
-        },
-        "seed": {
-          "type": "int",
-          "default": 42,
-          "min": 0,
-          "max": 999999,
-          "label": "Random seed",
-          "group": "Runtime"
-        },
-        "tree_count": {
-          "type": "int",
-          "default": 300,
-          "min": 10,
-          "max": 2000,
-          "label": "Tree count",
-          "group": "Model"
-        },
-        "max_depth": {
-          "type": "int",
-          "default": 8,
-          "min": 2,
-          "max": 32,
-          "label": "Max depth",
-          "group": "Model"
-        },
-        "min_samples_leaf": {
-          "type": "int",
-          "default": 20,
-          "min": 1,
-          "max": 500,
-          "label": "Min samples per leaf",
-          "group": "Model"
-        },
-        "max_features_fraction": {
-          "type": "float",
-          "default": 0.5,
-          "min": 0.1,
-          "max": 1,
-          "step": 0.05,
-          "label": "Max features fraction",
-          "group": "Model"
-        }
-      },
-      "cliFlags": {
-        "train_days": "--train-days",
-        "validation_fraction": "--validation-fraction",
-        "test_days": "--test-days",
-        "step_days": "--step-days",
-        "fold_limit": "--fold-limit",
-        "expanding_window": "--expanding-window",
-        "label_horizon_bars": "--label-horizon-bars",
-        "label_threshold_ticks": "--label-threshold-ticks",
-        "embargo_bars": "--embargo-bars",
-        "long_only": "--long-only",
-        "holding_bars": "--holding-bars",
-        "stop_loss_ticks": "--stop-loss-ticks",
-        "take_profit_ticks": "--take-profit-ticks",
-        "contracts": "--contracts",
-        "tuning_trials": "--tuning-trials",
-        "tuning_objective": "--tuning-objective",
-        "tuning_folds": "--tuning-folds",
-        "bars_per_second": "--bars-per-second",
-        "start_paused": "--start-paused",
-        "quiet_bars": "--quiet-bars",
-        "log_every_batches": "--log-every-batches",
-        "device": "--device",
-        "seed": "--seed",
-        "tree_count": "--tree-count",
-        "max_depth": "--max-depth",
-        "min_samples_leaf": "--min-samples-leaf",
-        "max_features_fraction": "--max-features-fraction"
-      },
-      "scriptArgs": [
-        "--model-family",
-        "random_forest"
-      ],
-      "maxDurationSeconds": 43200
-    },
     "xgboost+walk_forward_cycle": {
+      "catalogId": "machine-learning-supervised-learning-boosting-methods-xgboost",
       "displayName": "XGBoost — model cycle",
       "runner": "python",
       "script": "src/ml/cycle/main.py",
@@ -574,12 +18,6 @@
       ],
       "featurePipeline": "default-35",
       "chartOverlay": "prediction_markers",
-      "estimatedTrainingTime": "2-30 min (paced replay)",
-      "tags": [
-        "cycle",
-        "walk-forward",
-        "xgboost"
-      ],
       "supportedObjectives": [
         "sharpe_ratio",
         "log_loss",
@@ -587,6 +25,13 @@
       ],
       "includeIndicators": false,
       "allFeatures": false,
+      "maxDurationSeconds": 43200,
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "tags": [
+        "cycle",
+        "walk-forward",
+        "xgboost"
+      ],
       "defaultHyperparameters": {
         "train_days": {
           "type": "int",
@@ -660,6 +105,15 @@
           "label": "Embargo (bars)",
           "group": "Labels"
         },
+        "label_gap_multiple": {
+          "type": "float",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "step": 0.5,
+          "label": "Session gap rule (× typical bar interval, 0 = off)",
+          "group": "Labels"
+        },
         "long_only": {
           "type": "bool",
           "default": false,
@@ -700,12 +154,30 @@
           "label": "Contracts per trade",
           "group": "Trading"
         },
-        "tuning_trials": {
+        "tuning_mode": {
+          "type": "categorical",
+          "default": "tuned",
+          "choices": [
+            "tuned",
+            "reviewed_defaults"
+          ],
+          "label": "Hyperparameters",
+          "group": "Tuning"
+        },
+        "tuning_budget_trials": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Trial budget per fold",
+          "group": "Tuning"
+        },
+        "tuning_budget_seconds": {
           "type": "int",
           "default": 0,
           "min": 0,
-          "max": 200,
-          "label": "Tuning trials (0 = off)",
+          "max": 7200,
+          "label": "Time budget per fold, seconds (0 = trials only)",
           "group": "Tuning"
         },
         "tuning_objective": {
@@ -724,7 +196,13 @@
           "default": 2,
           "min": 1,
           "max": 10,
-          "label": "Tuning inner folds",
+          "label": "Inner validation blocks",
+          "group": "Tuning"
+        },
+        "tuning_pinned_parameters": {
+          "type": "string",
+          "default": "",
+          "label": "Pinned parameters",
           "group": "Tuning"
         },
         "bars_per_second": {
@@ -789,7 +267,12 @@
           "min": 2,
           "max": 16,
           "label": "Max depth",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 10
+          }
         },
         "learning_rate": {
           "type": "float",
@@ -798,7 +281,13 @@
           "max": 0.5,
           "logScale": true,
           "label": "Learning rate",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 0.3,
+            "log": true
+          }
         },
         "subsample": {
           "type": "float",
@@ -807,7 +296,12 @@
           "max": 1,
           "step": 0.05,
           "label": "Row subsample",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 1
+          }
         },
         "column_subsample": {
           "type": "float",
@@ -816,7 +310,12 @@
           "max": 1,
           "step": 0.05,
           "label": "Column subsample",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 1
+          }
         },
         "min_child_weight": {
           "type": "float",
@@ -825,7 +324,13 @@
           "max": 20,
           "logScale": true,
           "label": "Min child weight",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 50,
+            "log": true
+          }
         },
         "l2_regularization": {
           "type": "float",
@@ -833,7 +338,13 @@
           "min": 0,
           "max": 20,
           "label": "L2 regularization",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 30,
+            "log": true
+          }
         },
         "early_stopping_rounds": {
           "type": "int",
@@ -854,14 +365,18 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
+        "label_gap_multiple": "--label-gap-multiple",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
         "take_profit_ticks": "--take-profit-ticks",
         "contracts": "--contracts",
-        "tuning_trials": "--tuning-trials",
+        "tuning_mode": "--tuning-mode",
+        "tuning_budget_trials": "--tuning-budget-trials",
+        "tuning_budget_seconds": "--tuning-budget-seconds",
         "tuning_objective": "--tuning-objective",
         "tuning_folds": "--tuning-folds",
+        "tuning_pinned_parameters": "--tuning-pinned-parameters",
         "bars_per_second": "--bars-per-second",
         "start_paused": "--start-paused",
         "quiet_bars": "--quiet-bars",
@@ -880,10 +395,10 @@
       "scriptArgs": [
         "--model-family",
         "xgboost"
-      ],
-      "maxDurationSeconds": 43200
+      ]
     },
     "lightgbm+walk_forward_cycle": {
+      "catalogId": "machine-learning-supervised-learning-boosting-methods-lightgbm",
       "displayName": "LightGBM — model cycle",
       "runner": "python",
       "script": "src/ml/cycle/main.py",
@@ -900,12 +415,6 @@
       ],
       "featurePipeline": "default-35",
       "chartOverlay": "prediction_markers",
-      "estimatedTrainingTime": "2-30 min (paced replay)",
-      "tags": [
-        "cycle",
-        "walk-forward",
-        "lightgbm"
-      ],
       "supportedObjectives": [
         "sharpe_ratio",
         "log_loss",
@@ -913,6 +422,13 @@
       ],
       "includeIndicators": false,
       "allFeatures": false,
+      "maxDurationSeconds": 43200,
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "tags": [
+        "cycle",
+        "walk-forward",
+        "lightgbm"
+      ],
       "defaultHyperparameters": {
         "train_days": {
           "type": "int",
@@ -986,6 +502,15 @@
           "label": "Embargo (bars)",
           "group": "Labels"
         },
+        "label_gap_multiple": {
+          "type": "float",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "step": 0.5,
+          "label": "Session gap rule (× typical bar interval, 0 = off)",
+          "group": "Labels"
+        },
         "long_only": {
           "type": "bool",
           "default": false,
@@ -1026,12 +551,30 @@
           "label": "Contracts per trade",
           "group": "Trading"
         },
-        "tuning_trials": {
+        "tuning_mode": {
+          "type": "categorical",
+          "default": "tuned",
+          "choices": [
+            "tuned",
+            "reviewed_defaults"
+          ],
+          "label": "Hyperparameters",
+          "group": "Tuning"
+        },
+        "tuning_budget_trials": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Trial budget per fold",
+          "group": "Tuning"
+        },
+        "tuning_budget_seconds": {
           "type": "int",
           "default": 0,
           "min": 0,
-          "max": 200,
-          "label": "Tuning trials (0 = off)",
+          "max": 7200,
+          "label": "Time budget per fold, seconds (0 = trials only)",
           "group": "Tuning"
         },
         "tuning_objective": {
@@ -1050,7 +593,13 @@
           "default": 2,
           "min": 1,
           "max": 10,
-          "label": "Tuning inner folds",
+          "label": "Inner validation blocks",
+          "group": "Tuning"
+        },
+        "tuning_pinned_parameters": {
+          "type": "string",
+          "default": "",
+          "label": "Pinned parameters",
           "group": "Tuning"
         },
         "bars_per_second": {
@@ -1115,7 +664,17 @@
           "min": 4,
           "max": 512,
           "label": "Leaf count",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              7,
+              15,
+              31,
+              63,
+              127
+            ]
+          }
         },
         "learning_rate": {
           "type": "float",
@@ -1124,7 +683,13 @@
           "max": 0.5,
           "logScale": true,
           "label": "Learning rate",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 0.3,
+            "log": true
+          }
         },
         "subsample": {
           "type": "float",
@@ -1133,7 +698,12 @@
           "max": 1,
           "step": 0.05,
           "label": "Row subsample",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 1
+          }
         },
         "column_subsample": {
           "type": "float",
@@ -1142,7 +712,12 @@
           "max": 1,
           "step": 0.05,
           "label": "Column subsample",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 1
+          }
         },
         "min_child_samples": {
           "type": "int",
@@ -1150,7 +725,13 @@
           "min": 1,
           "max": 500,
           "label": "Min child samples",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 300,
+            "log": true
+          }
         },
         "l2_regularization": {
           "type": "float",
@@ -1158,7 +739,13 @@
           "min": 0,
           "max": 20,
           "label": "L2 regularization",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 30,
+            "log": true
+          }
         },
         "early_stopping_rounds": {
           "type": "int",
@@ -1179,14 +766,18 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
+        "label_gap_multiple": "--label-gap-multiple",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
         "take_profit_ticks": "--take-profit-ticks",
         "contracts": "--contracts",
-        "tuning_trials": "--tuning-trials",
+        "tuning_mode": "--tuning-mode",
+        "tuning_budget_trials": "--tuning-budget-trials",
+        "tuning_budget_seconds": "--tuning-budget-seconds",
         "tuning_objective": "--tuning-objective",
         "tuning_folds": "--tuning-folds",
+        "tuning_pinned_parameters": "--tuning-pinned-parameters",
         "bars_per_second": "--bars-per-second",
         "start_paused": "--start-paused",
         "quiet_bars": "--quiet-bars",
@@ -1205,11 +796,11 @@
       "scriptArgs": [
         "--model-family",
         "lightgbm"
-      ],
-      "maxDurationSeconds": 43200
+      ]
     },
-    "multilayer_perceptron+walk_forward_cycle": {
-      "displayName": "Multilayer perceptron — model cycle",
+    "logistic_regression+walk_forward_cycle": {
+      "catalogId": "machine-learning-supervised-learning-linear-models-logistic-regression",
+      "displayName": "Logistic regression — model cycle",
       "runner": "python",
       "script": "src/ml/cycle/main.py",
       "outputDir": "data/models",
@@ -1225,12 +816,6 @@
       ],
       "featurePipeline": "default-35",
       "chartOverlay": "prediction_markers",
-      "estimatedTrainingTime": "10-90 min (paced replay)",
-      "tags": [
-        "cycle",
-        "walk-forward",
-        "multilayer_perceptron"
-      ],
       "supportedObjectives": [
         "sharpe_ratio",
         "log_loss",
@@ -1238,6 +823,13 @@
       ],
       "includeIndicators": false,
       "allFeatures": false,
+      "maxDurationSeconds": 43200,
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "tags": [
+        "cycle",
+        "walk-forward",
+        "logistic_regression"
+      ],
       "defaultHyperparameters": {
         "train_days": {
           "type": "int",
@@ -1311,6 +903,15 @@
           "label": "Embargo (bars)",
           "group": "Labels"
         },
+        "label_gap_multiple": {
+          "type": "float",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "step": 0.5,
+          "label": "Session gap rule (× typical bar interval, 0 = off)",
+          "group": "Labels"
+        },
         "long_only": {
           "type": "bool",
           "default": false,
@@ -1351,12 +952,30 @@
           "label": "Contracts per trade",
           "group": "Trading"
         },
-        "tuning_trials": {
+        "tuning_mode": {
+          "type": "categorical",
+          "default": "tuned",
+          "choices": [
+            "tuned",
+            "reviewed_defaults"
+          ],
+          "label": "Hyperparameters",
+          "group": "Tuning"
+        },
+        "tuning_budget_trials": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Trial budget per fold",
+          "group": "Tuning"
+        },
+        "tuning_budget_seconds": {
           "type": "int",
           "default": 0,
           "min": 0,
-          "max": 200,
-          "label": "Tuning trials (0 = off)",
+          "max": 7200,
+          "label": "Time budget per fold, seconds (0 = trials only)",
           "group": "Tuning"
         },
         "tuning_objective": {
@@ -1375,7 +994,326 @@
           "default": 2,
           "min": 1,
           "max": 10,
-          "label": "Tuning inner folds",
+          "label": "Inner validation blocks",
+          "group": "Tuning"
+        },
+        "tuning_pinned_parameters": {
+          "type": "string",
+          "default": "",
+          "label": "Pinned parameters",
+          "group": "Tuning"
+        },
+        "bars_per_second": {
+          "type": "float",
+          "default": 40,
+          "min": 0,
+          "max": 2000,
+          "step": 1,
+          "label": "Bars per second (0 = as fast as possible)",
+          "group": "Replay"
+        },
+        "start_paused": {
+          "type": "bool",
+          "default": false,
+          "label": "Start paused",
+          "group": "Replay"
+        },
+        "quiet_bars": {
+          "type": "bool",
+          "default": false,
+          "label": "Suppress per-bar log lines",
+          "group": "Replay"
+        },
+        "log_every_batches": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 1000,
+          "label": "Log every N batches",
+          "group": "Replay"
+        },
+        "device": {
+          "type": "categorical",
+          "default": "auto",
+          "choices": [
+            "auto",
+            "cuda",
+            "cpu"
+          ],
+          "label": "Device",
+          "group": "Runtime"
+        },
+        "seed": {
+          "type": "int",
+          "default": 42,
+          "min": 0,
+          "max": 999999,
+          "label": "Random seed",
+          "group": "Runtime"
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1,
+          "min": 0.001,
+          "max": 100,
+          "logScale": true,
+          "label": "Regularization strength",
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 100,
+            "log": true
+          }
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 300,
+          "min": 50,
+          "max": 5000,
+          "label": "Max iterations",
+          "group": "Model"
+        }
+      },
+      "cliFlags": {
+        "train_days": "--train-days",
+        "validation_fraction": "--validation-fraction",
+        "test_days": "--test-days",
+        "step_days": "--step-days",
+        "fold_limit": "--fold-limit",
+        "expanding_window": "--expanding-window",
+        "label_horizon_bars": "--label-horizon-bars",
+        "label_threshold_ticks": "--label-threshold-ticks",
+        "embargo_bars": "--embargo-bars",
+        "label_gap_multiple": "--label-gap-multiple",
+        "long_only": "--long-only",
+        "holding_bars": "--holding-bars",
+        "stop_loss_ticks": "--stop-loss-ticks",
+        "take_profit_ticks": "--take-profit-ticks",
+        "contracts": "--contracts",
+        "tuning_mode": "--tuning-mode",
+        "tuning_budget_trials": "--tuning-budget-trials",
+        "tuning_budget_seconds": "--tuning-budget-seconds",
+        "tuning_objective": "--tuning-objective",
+        "tuning_folds": "--tuning-folds",
+        "tuning_pinned_parameters": "--tuning-pinned-parameters",
+        "bars_per_second": "--bars-per-second",
+        "start_paused": "--start-paused",
+        "quiet_bars": "--quiet-bars",
+        "log_every_batches": "--log-every-batches",
+        "device": "--device",
+        "seed": "--seed",
+        "regularization_strength": "--regularization-strength",
+        "max_iterations": "--max-iterations"
+      },
+      "scriptArgs": [
+        "--model-family",
+        "logistic_regression"
+      ]
+    },
+    "multilayer_perceptron+walk_forward_cycle": {
+      "catalogId": "neural-network-architectures-feedforward-mlps-multilayer-perceptron-mlp",
+      "displayName": "Multilayer perceptron — model cycle",
+      "runner": "python",
+      "script": "src/ml/cycle/main.py",
+      "outputDir": "data/models",
+      "outputs": [
+        "config.json",
+        "predictions.parquet",
+        "trades.parquet",
+        "epochs.parquet",
+        "trials.parquet",
+        "folds.json",
+        "scoreboard.json",
+        "diagnostics.json"
+      ],
+      "featurePipeline": "default-35",
+      "chartOverlay": "prediction_markers",
+      "supportedObjectives": [
+        "sharpe_ratio",
+        "log_loss",
+        "f1_score"
+      ],
+      "includeIndicators": false,
+      "allFeatures": false,
+      "maxDurationSeconds": 43200,
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "tags": [
+        "cycle",
+        "walk-forward",
+        "multilayer_perceptron"
+      ],
+      "defaultHyperparameters": {
+        "train_days": {
+          "type": "int",
+          "default": 60,
+          "min": 5,
+          "max": 720,
+          "label": "Training window (days)",
+          "group": "Walk-forward"
+        },
+        "validation_fraction": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.05,
+          "max": 0.5,
+          "step": 0.05,
+          "label": "Validation fraction of the training window",
+          "group": "Walk-forward"
+        },
+        "test_days": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 180,
+          "label": "Test window (days)",
+          "group": "Walk-forward"
+        },
+        "step_days": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 180,
+          "label": "Step between folds, in days (0 = test window)",
+          "group": "Walk-forward"
+        },
+        "fold_limit": {
+          "type": "int",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "label": "Fold limit (0 = all folds)",
+          "group": "Walk-forward"
+        },
+        "expanding_window": {
+          "type": "bool",
+          "default": false,
+          "label": "Expanding training window",
+          "group": "Walk-forward"
+        },
+        "label_horizon_bars": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 200,
+          "label": "Label horizon (bars)",
+          "group": "Labels"
+        },
+        "label_threshold_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "label": "Label threshold (ticks)",
+          "group": "Labels"
+        },
+        "embargo_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Embargo (bars)",
+          "group": "Labels"
+        },
+        "label_gap_multiple": {
+          "type": "float",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "step": 0.5,
+          "label": "Session gap rule (× typical bar interval, 0 = off)",
+          "group": "Labels"
+        },
+        "long_only": {
+          "type": "bool",
+          "default": false,
+          "label": "Long only",
+          "group": "Trading"
+        },
+        "holding_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "label": "Holding period, in bars (0 = label horizon)",
+          "group": "Trading"
+        },
+        "stop_loss_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Stop loss (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "take_profit_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Take profit (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "contracts": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 10,
+          "label": "Contracts per trade",
+          "group": "Trading"
+        },
+        "tuning_mode": {
+          "type": "categorical",
+          "default": "tuned",
+          "choices": [
+            "tuned",
+            "reviewed_defaults"
+          ],
+          "label": "Hyperparameters",
+          "group": "Tuning"
+        },
+        "tuning_budget_trials": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Trial budget per fold",
+          "group": "Tuning"
+        },
+        "tuning_budget_seconds": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 7200,
+          "label": "Time budget per fold, seconds (0 = trials only)",
+          "group": "Tuning"
+        },
+        "tuning_objective": {
+          "type": "categorical",
+          "default": "sharpe_ratio",
+          "choices": [
+            "sharpe_ratio",
+            "log_loss",
+            "f1_score"
+          ],
+          "label": "Tuning objective",
+          "group": "Tuning"
+        },
+        "tuning_folds": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 10,
+          "label": "Inner validation blocks",
+          "group": "Tuning"
+        },
+        "tuning_pinned_parameters": {
+          "type": "string",
+          "default": "",
+          "label": "Pinned parameters",
           "group": "Tuning"
         },
         "bars_per_second": {
@@ -1432,7 +1370,15 @@
           "min": 8,
           "max": 1024,
           "label": "Hidden size",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
         },
         "layer_count": {
           "type": "int",
@@ -1440,7 +1386,12 @@
           "min": 1,
           "max": 8,
           "label": "Layer count",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3
+          }
         },
         "dropout": {
           "type": "float",
@@ -1449,16 +1400,27 @@
           "max": 0.8,
           "step": 0.05,
           "label": "Dropout",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0,
+            "high": 0.5
+          }
         },
         "learning_rate": {
           "type": "float",
           "default": 0.001,
-          "min": 1e-05,
+          "min": 0.00001,
           "max": 0.1,
           "logScale": true,
           "label": "Learning rate",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
         },
         "weight_decay": {
           "type": "float",
@@ -1467,7 +1429,13 @@
           "max": 0.1,
           "logScale": true,
           "label": "Weight decay",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.000001,
+            "high": 0.01,
+            "log": true
+          }
         },
         "batch_size": {
           "type": "int",
@@ -1475,7 +1443,15 @@
           "min": 8,
           "max": 4096,
           "label": "Batch size",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
         },
         "epochs": {
           "type": "int",
@@ -1504,14 +1480,18 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
+        "label_gap_multiple": "--label-gap-multiple",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
         "take_profit_ticks": "--take-profit-ticks",
         "contracts": "--contracts",
-        "tuning_trials": "--tuning-trials",
+        "tuning_mode": "--tuning-mode",
+        "tuning_budget_trials": "--tuning-budget-trials",
+        "tuning_budget_seconds": "--tuning-budget-seconds",
         "tuning_objective": "--tuning-objective",
         "tuning_folds": "--tuning-folds",
+        "tuning_pinned_parameters": "--tuning-pinned-parameters",
         "bars_per_second": "--bars-per-second",
         "start_paused": "--start-paused",
         "quiet_bars": "--quiet-bars",
@@ -1530,10 +1510,10 @@
       "scriptArgs": [
         "--model-family",
         "multilayer_perceptron"
-      ],
-      "maxDurationSeconds": 43200
+      ]
     },
     "lstm+walk_forward_cycle": {
+      "catalogId": "neural-network-architectures-recurrent-sequential-models-long-short-term-memory-lstm",
       "displayName": "LSTM — model cycle",
       "runner": "python",
       "script": "src/ml/cycle/main.py",
@@ -1550,12 +1530,6 @@
       ],
       "featurePipeline": "default-35",
       "chartOverlay": "prediction_markers",
-      "estimatedTrainingTime": "10-90 min (paced replay)",
-      "tags": [
-        "cycle",
-        "walk-forward",
-        "lstm"
-      ],
       "supportedObjectives": [
         "sharpe_ratio",
         "log_loss",
@@ -1563,6 +1537,13 @@
       ],
       "includeIndicators": false,
       "allFeatures": false,
+      "maxDurationSeconds": 43200,
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "tags": [
+        "cycle",
+        "walk-forward",
+        "lstm"
+      ],
       "defaultHyperparameters": {
         "train_days": {
           "type": "int",
@@ -1636,6 +1617,15 @@
           "label": "Embargo (bars)",
           "group": "Labels"
         },
+        "label_gap_multiple": {
+          "type": "float",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "step": 0.5,
+          "label": "Session gap rule (× typical bar interval, 0 = off)",
+          "group": "Labels"
+        },
         "long_only": {
           "type": "bool",
           "default": false,
@@ -1676,12 +1666,30 @@
           "label": "Contracts per trade",
           "group": "Trading"
         },
-        "tuning_trials": {
+        "tuning_mode": {
+          "type": "categorical",
+          "default": "tuned",
+          "choices": [
+            "tuned",
+            "reviewed_defaults"
+          ],
+          "label": "Hyperparameters",
+          "group": "Tuning"
+        },
+        "tuning_budget_trials": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Trial budget per fold",
+          "group": "Tuning"
+        },
+        "tuning_budget_seconds": {
           "type": "int",
           "default": 0,
           "min": 0,
-          "max": 200,
-          "label": "Tuning trials (0 = off)",
+          "max": 7200,
+          "label": "Time budget per fold, seconds (0 = trials only)",
           "group": "Tuning"
         },
         "tuning_objective": {
@@ -1700,7 +1708,13 @@
           "default": 2,
           "min": 1,
           "max": 10,
-          "label": "Tuning inner folds",
+          "label": "Inner validation blocks",
+          "group": "Tuning"
+        },
+        "tuning_pinned_parameters": {
+          "type": "string",
+          "default": "",
+          "label": "Pinned parameters",
           "group": "Tuning"
         },
         "bars_per_second": {
@@ -1765,7 +1779,15 @@
           "min": 8,
           "max": 1024,
           "label": "Hidden size",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
         },
         "layer_count": {
           "type": "int",
@@ -1773,7 +1795,12 @@
           "min": 1,
           "max": 8,
           "label": "Layer count",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 2
+          }
         },
         "dropout": {
           "type": "float",
@@ -1782,16 +1809,27 @@
           "max": 0.8,
           "step": 0.05,
           "label": "Dropout",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0,
+            "high": 0.5
+          }
         },
         "learning_rate": {
           "type": "float",
           "default": 0.001,
-          "min": 1e-05,
+          "min": 0.00001,
           "max": 0.1,
           "logScale": true,
           "label": "Learning rate",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
         },
         "weight_decay": {
           "type": "float",
@@ -1800,7 +1838,13 @@
           "max": 0.1,
           "logScale": true,
           "label": "Weight decay",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.000001,
+            "high": 0.01,
+            "log": true
+          }
         },
         "batch_size": {
           "type": "int",
@@ -1808,7 +1852,15 @@
           "min": 8,
           "max": 4096,
           "label": "Batch size",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
         },
         "epochs": {
           "type": "int",
@@ -1837,14 +1889,18 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
+        "label_gap_multiple": "--label-gap-multiple",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
         "take_profit_ticks": "--take-profit-ticks",
         "contracts": "--contracts",
-        "tuning_trials": "--tuning-trials",
+        "tuning_mode": "--tuning-mode",
+        "tuning_budget_trials": "--tuning-budget-trials",
+        "tuning_budget_seconds": "--tuning-budget-seconds",
         "tuning_objective": "--tuning-objective",
         "tuning_folds": "--tuning-folds",
+        "tuning_pinned_parameters": "--tuning-pinned-parameters",
         "bars_per_second": "--bars-per-second",
         "start_paused": "--start-paused",
         "quiet_bars": "--quiet-bars",
@@ -1864,10 +1920,10 @@
       "scriptArgs": [
         "--model-family",
         "lstm"
-      ],
-      "maxDurationSeconds": 43200
+      ]
     },
     "temporal_convolution_network+walk_forward_cycle": {
+      "catalogId": "neural-network-architectures-convolutional-networks-convolutional-neural-network-cnn",
       "displayName": "Temporal convolution network — model cycle",
       "runner": "python",
       "script": "src/ml/cycle/main.py",
@@ -1884,12 +1940,6 @@
       ],
       "featurePipeline": "default-35",
       "chartOverlay": "prediction_markers",
-      "estimatedTrainingTime": "10-90 min (paced replay)",
-      "tags": [
-        "cycle",
-        "walk-forward",
-        "temporal_convolution_network"
-      ],
       "supportedObjectives": [
         "sharpe_ratio",
         "log_loss",
@@ -1897,6 +1947,13 @@
       ],
       "includeIndicators": false,
       "allFeatures": false,
+      "maxDurationSeconds": 43200,
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "tags": [
+        "cycle",
+        "walk-forward",
+        "temporal_convolution_network"
+      ],
       "defaultHyperparameters": {
         "train_days": {
           "type": "int",
@@ -1970,6 +2027,15 @@
           "label": "Embargo (bars)",
           "group": "Labels"
         },
+        "label_gap_multiple": {
+          "type": "float",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "step": 0.5,
+          "label": "Session gap rule (× typical bar interval, 0 = off)",
+          "group": "Labels"
+        },
         "long_only": {
           "type": "bool",
           "default": false,
@@ -2010,12 +2076,30 @@
           "label": "Contracts per trade",
           "group": "Trading"
         },
-        "tuning_trials": {
+        "tuning_mode": {
+          "type": "categorical",
+          "default": "tuned",
+          "choices": [
+            "tuned",
+            "reviewed_defaults"
+          ],
+          "label": "Hyperparameters",
+          "group": "Tuning"
+        },
+        "tuning_budget_trials": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Trial budget per fold",
+          "group": "Tuning"
+        },
+        "tuning_budget_seconds": {
           "type": "int",
           "default": 0,
           "min": 0,
-          "max": 200,
-          "label": "Tuning trials (0 = off)",
+          "max": 7200,
+          "label": "Time budget per fold, seconds (0 = trials only)",
           "group": "Tuning"
         },
         "tuning_objective": {
@@ -2034,7 +2118,13 @@
           "default": 2,
           "min": 1,
           "max": 10,
-          "label": "Tuning inner folds",
+          "label": "Inner validation blocks",
+          "group": "Tuning"
+        },
+        "tuning_pinned_parameters": {
+          "type": "string",
+          "default": "",
+          "label": "Pinned parameters",
           "group": "Tuning"
         },
         "bars_per_second": {
@@ -2099,7 +2189,15 @@
           "min": 4,
           "max": 512,
           "label": "Channel count",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
         },
         "kernel_size": {
           "type": "int",
@@ -2107,7 +2205,15 @@
           "min": 2,
           "max": 15,
           "label": "Kernel size",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              3,
+              5
+            ]
+          }
         },
         "layer_count": {
           "type": "int",
@@ -2115,7 +2221,12 @@
           "min": 1,
           "max": 10,
           "label": "Layer count",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 5
+          }
         },
         "dropout": {
           "type": "float",
@@ -2124,16 +2235,27 @@
           "max": 0.8,
           "step": 0.05,
           "label": "Dropout",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0,
+            "high": 0.5
+          }
         },
         "learning_rate": {
           "type": "float",
           "default": 0.001,
-          "min": 1e-05,
+          "min": 0.00001,
           "max": 0.1,
           "logScale": true,
           "label": "Learning rate",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
         },
         "weight_decay": {
           "type": "float",
@@ -2142,7 +2264,13 @@
           "max": 0.1,
           "logScale": true,
           "label": "Weight decay",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.000001,
+            "high": 0.01,
+            "log": true
+          }
         },
         "batch_size": {
           "type": "int",
@@ -2150,7 +2278,15 @@
           "min": 8,
           "max": 4096,
           "label": "Batch size",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
         },
         "epochs": {
           "type": "int",
@@ -2179,14 +2315,18 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
+        "label_gap_multiple": "--label-gap-multiple",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
         "take_profit_ticks": "--take-profit-ticks",
         "contracts": "--contracts",
-        "tuning_trials": "--tuning-trials",
+        "tuning_mode": "--tuning-mode",
+        "tuning_budget_trials": "--tuning-budget-trials",
+        "tuning_budget_seconds": "--tuning-budget-seconds",
         "tuning_objective": "--tuning-objective",
         "tuning_folds": "--tuning-folds",
+        "tuning_pinned_parameters": "--tuning-pinned-parameters",
         "bars_per_second": "--bars-per-second",
         "start_paused": "--start-paused",
         "quiet_bars": "--quiet-bars",
@@ -2207,10 +2347,10 @@
       "scriptArgs": [
         "--model-family",
         "temporal_convolution_network"
-      ],
-      "maxDurationSeconds": 43200
+      ]
     },
     "transformer_encoder+walk_forward_cycle": {
+      "catalogId": "neural-network-architectures-attention-based-architectures-transformer-encoder-decoder",
       "displayName": "Transformer encoder — model cycle",
       "runner": "python",
       "script": "src/ml/cycle/main.py",
@@ -2227,12 +2367,6 @@
       ],
       "featurePipeline": "default-35",
       "chartOverlay": "prediction_markers",
-      "estimatedTrainingTime": "10-90 min (paced replay)",
-      "tags": [
-        "cycle",
-        "walk-forward",
-        "transformer_encoder"
-      ],
       "supportedObjectives": [
         "sharpe_ratio",
         "log_loss",
@@ -2240,6 +2374,13 @@
       ],
       "includeIndicators": false,
       "allFeatures": false,
+      "maxDurationSeconds": 43200,
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "tags": [
+        "cycle",
+        "walk-forward",
+        "transformer_encoder"
+      ],
       "defaultHyperparameters": {
         "train_days": {
           "type": "int",
@@ -2313,6 +2454,15 @@
           "label": "Embargo (bars)",
           "group": "Labels"
         },
+        "label_gap_multiple": {
+          "type": "float",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "step": 0.5,
+          "label": "Session gap rule (× typical bar interval, 0 = off)",
+          "group": "Labels"
+        },
         "long_only": {
           "type": "bool",
           "default": false,
@@ -2353,12 +2503,30 @@
           "label": "Contracts per trade",
           "group": "Trading"
         },
-        "tuning_trials": {
+        "tuning_mode": {
+          "type": "categorical",
+          "default": "tuned",
+          "choices": [
+            "tuned",
+            "reviewed_defaults"
+          ],
+          "label": "Hyperparameters",
+          "group": "Tuning"
+        },
+        "tuning_budget_trials": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Trial budget per fold",
+          "group": "Tuning"
+        },
+        "tuning_budget_seconds": {
           "type": "int",
           "default": 0,
           "min": 0,
-          "max": 200,
-          "label": "Tuning trials (0 = off)",
+          "max": 7200,
+          "label": "Time budget per fold, seconds (0 = trials only)",
           "group": "Tuning"
         },
         "tuning_objective": {
@@ -2377,7 +2545,13 @@
           "default": 2,
           "min": 1,
           "max": 10,
-          "label": "Tuning inner folds",
+          "label": "Inner validation blocks",
+          "group": "Tuning"
+        },
+        "tuning_pinned_parameters": {
+          "type": "string",
+          "default": "",
+          "label": "Pinned parameters",
           "group": "Tuning"
         },
         "bars_per_second": {
@@ -2442,7 +2616,15 @@
           "min": 8,
           "max": 512,
           "label": "Model dimension",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
         },
         "head_count": {
           "type": "int",
@@ -2450,7 +2632,15 @@
           "min": 1,
           "max": 16,
           "label": "Attention head count",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              4,
+              8
+            ]
+          }
         },
         "layer_count": {
           "type": "int",
@@ -2458,7 +2648,12 @@
           "min": 1,
           "max": 8,
           "label": "Layer count",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3
+          }
         },
         "dropout": {
           "type": "float",
@@ -2467,16 +2662,27 @@
           "max": 0.8,
           "step": 0.05,
           "label": "Dropout",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0,
+            "high": 0.3
+          }
         },
         "learning_rate": {
           "type": "float",
           "default": 0.0005,
-          "min": 1e-05,
+          "min": 0.00001,
           "max": 0.1,
           "logScale": true,
           "label": "Learning rate",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
         },
         "weight_decay": {
           "type": "float",
@@ -2485,7 +2691,13 @@
           "max": 0.1,
           "logScale": true,
           "label": "Weight decay",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.000001,
+            "high": 0.01,
+            "log": true
+          }
         },
         "batch_size": {
           "type": "int",
@@ -2493,7 +2705,15 @@
           "min": 8,
           "max": 4096,
           "label": "Batch size",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
         },
         "epochs": {
           "type": "int",
@@ -2522,14 +2742,18 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
+        "label_gap_multiple": "--label-gap-multiple",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
         "take_profit_ticks": "--take-profit-ticks",
         "contracts": "--contracts",
-        "tuning_trials": "--tuning-trials",
+        "tuning_mode": "--tuning-mode",
+        "tuning_budget_trials": "--tuning-budget-trials",
+        "tuning_budget_seconds": "--tuning-budget-seconds",
         "tuning_objective": "--tuning-objective",
         "tuning_folds": "--tuning-folds",
+        "tuning_pinned_parameters": "--tuning-pinned-parameters",
         "bars_per_second": "--bars-per-second",
         "start_paused": "--start-paused",
         "quiet_bars": "--quiet-bars",
@@ -2550,18 +2774,14 @@
       "scriptArgs": [
         "--model-family",
         "transformer_encoder"
-      ],
-      "maxDurationSeconds": 43200
-    }
-  },
-  "models": {
-    "logistic_regression+walk_forward_cycle": {
-      "name": "Logistic regression — model cycle",
-      "category": "Supervised",
-      "subcategory": "Classification",
+      ]
+    },
+    "random_forest+walk_forward_cycle": {
+      "catalogId": "machine-learning-supervised-learning-ensemble-methods-random-forest",
+      "displayName": "Random forest — model cycle",
       "runner": "python",
       "script": "src/ml/cycle/main.py",
-      "featurePipeline": "default-35",
+      "outputDir": "data/models",
       "outputs": [
         "config.json",
         "predictions.parquet",
@@ -2572,288 +2792,22 @@
         "scoreboard.json",
         "diagnostics.json"
       ],
+      "featurePipeline": "default-35",
       "chartOverlay": "prediction_markers",
-      "outputDir": "data/models",
-      "defaultHyperparameters": {
-        "train_days": {
-          "type": "int",
-          "default": 60,
-          "min": 5,
-          "max": 720,
-          "label": "Training window (days)",
-          "group": "Walk-forward"
-        },
-        "validation_fraction": {
-          "type": "float",
-          "default": 0.2,
-          "min": 0.05,
-          "max": 0.5,
-          "step": 0.05,
-          "label": "Validation fraction of the training window",
-          "group": "Walk-forward"
-        },
-        "test_days": {
-          "type": "int",
-          "default": 10,
-          "min": 1,
-          "max": 180,
-          "label": "Test window (days)",
-          "group": "Walk-forward"
-        },
-        "step_days": {
-          "type": "int",
-          "default": 0,
-          "min": 0,
-          "max": 180,
-          "label": "Step between folds, in days (0 = test window)",
-          "group": "Walk-forward"
-        },
-        "fold_limit": {
-          "type": "int",
-          "default": 3,
-          "min": 0,
-          "max": 50,
-          "label": "Fold limit (0 = all folds)",
-          "group": "Walk-forward"
-        },
-        "expanding_window": {
-          "type": "bool",
-          "default": false,
-          "label": "Expanding training window",
-          "group": "Walk-forward"
-        },
-        "label_horizon_bars": {
-          "type": "int",
-          "default": 6,
-          "min": 1,
-          "max": 200,
-          "label": "Label horizon (bars)",
-          "group": "Labels"
-        },
-        "label_threshold_ticks": {
-          "type": "float",
-          "default": 0,
-          "min": 0,
-          "max": 100,
-          "step": 0.5,
-          "label": "Label threshold (ticks)",
-          "group": "Labels"
-        },
-        "embargo_bars": {
-          "type": "int",
-          "default": 0,
-          "min": 0,
-          "max": 200,
-          "label": "Embargo (bars)",
-          "group": "Labels"
-        },
-        "long_only": {
-          "type": "bool",
-          "default": false,
-          "label": "Long only",
-          "group": "Trading"
-        },
-        "holding_bars": {
-          "type": "int",
-          "default": 0,
-          "min": 0,
-          "max": 500,
-          "label": "Holding period, in bars (0 = label horizon)",
-          "group": "Trading"
-        },
-        "stop_loss_ticks": {
-          "type": "float",
-          "default": 0,
-          "min": 0,
-          "max": 500,
-          "step": 0.5,
-          "label": "Stop loss (ticks, 0 = off)",
-          "group": "Trading"
-        },
-        "take_profit_ticks": {
-          "type": "float",
-          "default": 0,
-          "min": 0,
-          "max": 500,
-          "step": 0.5,
-          "label": "Take profit (ticks, 0 = off)",
-          "group": "Trading"
-        },
-        "contracts": {
-          "type": "int",
-          "default": 1,
-          "min": 1,
-          "max": 10,
-          "label": "Contracts per trade",
-          "group": "Trading"
-        },
-        "tuning_trials": {
-          "type": "int",
-          "default": 0,
-          "min": 0,
-          "max": 200,
-          "label": "Tuning trials (0 = off)",
-          "group": "Tuning"
-        },
-        "tuning_objective": {
-          "type": "categorical",
-          "default": "sharpe_ratio",
-          "choices": [
-            "sharpe_ratio",
-            "log_loss",
-            "f1_score"
-          ],
-          "label": "Tuning objective",
-          "group": "Tuning"
-        },
-        "tuning_folds": {
-          "type": "int",
-          "default": 2,
-          "min": 1,
-          "max": 10,
-          "label": "Tuning inner folds",
-          "group": "Tuning"
-        },
-        "bars_per_second": {
-          "type": "float",
-          "default": 40,
-          "min": 0,
-          "max": 2000,
-          "step": 1,
-          "label": "Bars per second (0 = as fast as possible)",
-          "group": "Replay"
-        },
-        "start_paused": {
-          "type": "bool",
-          "default": false,
-          "label": "Start paused",
-          "group": "Replay"
-        },
-        "quiet_bars": {
-          "type": "bool",
-          "default": false,
-          "label": "Suppress per-bar log lines",
-          "group": "Replay"
-        },
-        "log_every_batches": {
-          "type": "int",
-          "default": 10,
-          "min": 1,
-          "max": 1000,
-          "label": "Log every N batches",
-          "group": "Replay"
-        },
-        "device": {
-          "type": "categorical",
-          "default": "auto",
-          "choices": [
-            "auto",
-            "cuda",
-            "cpu"
-          ],
-          "label": "Device",
-          "group": "Runtime"
-        },
-        "seed": {
-          "type": "int",
-          "default": 42,
-          "min": 0,
-          "max": 999999,
-          "label": "Random seed",
-          "group": "Runtime"
-        },
-        "regularization_strength": {
-          "type": "float",
-          "default": 1,
-          "min": 0.001,
-          "max": 100,
-          "logScale": true,
-          "label": "Regularization strength",
-          "group": "Model"
-        },
-        "max_iterations": {
-          "type": "int",
-          "default": 300,
-          "min": 50,
-          "max": 5000,
-          "label": "Max iterations",
-          "group": "Model"
-        }
-      },
-      "featureCategories": null,
-      "includeIndicators": false,
-      "allFeatures": false,
-      "cliFlags": {
-        "train_days": "--train-days",
-        "validation_fraction": "--validation-fraction",
-        "test_days": "--test-days",
-        "step_days": "--step-days",
-        "fold_limit": "--fold-limit",
-        "expanding_window": "--expanding-window",
-        "label_horizon_bars": "--label-horizon-bars",
-        "label_threshold_ticks": "--label-threshold-ticks",
-        "embargo_bars": "--embargo-bars",
-        "long_only": "--long-only",
-        "holding_bars": "--holding-bars",
-        "stop_loss_ticks": "--stop-loss-ticks",
-        "take_profit_ticks": "--take-profit-ticks",
-        "contracts": "--contracts",
-        "tuning_trials": "--tuning-trials",
-        "tuning_objective": "--tuning-objective",
-        "tuning_folds": "--tuning-folds",
-        "bars_per_second": "--bars-per-second",
-        "start_paused": "--start-paused",
-        "quiet_bars": "--quiet-bars",
-        "log_every_batches": "--log-every-batches",
-        "device": "--device",
-        "seed": "--seed",
-        "regularization_strength": "--regularization-strength",
-        "max_iterations": "--max-iterations"
-      },
-      "description": "Logistic regression — model cycle — L2-regularized linear classifier over the causal feature matrix. The interpretable, fast baseline every other Model Cycle family is measured against.",
-      "tags": [
-        "tabular",
-        "linear",
-        "interpretable",
-        "baseline",
-        "cycle",
-        "walk-forward",
-        "logistic_regression"
-      ],
-      "family": "sklearn",
-      "gpuRequired": false,
-      "estimatedTrainingTime": "2-30 min (paced replay)",
       "supportedObjectives": [
         "sharpe_ratio",
         "log_loss",
         "f1_score"
       ],
-      "available": true,
-      "scriptArgs": [
-        "--model-family",
-        "logistic_regression"
+      "includeIndicators": false,
+      "allFeatures": false,
+      "maxDurationSeconds": 43200,
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "tags": [
+        "cycle",
+        "walk-forward",
+        "random_forest"
       ],
-      "maxDurationSeconds": 43200
-    },
-    "random_forest+walk_forward_cycle": {
-      "name": "Random forest — model cycle",
-      "category": "Supervised",
-      "subcategory": "Classification",
-      "runner": "python",
-      "script": "src/ml/cycle/main.py",
-      "featurePipeline": "default-35",
-      "outputs": [
-        "config.json",
-        "predictions.parquet",
-        "trades.parquet",
-        "epochs.parquet",
-        "trials.parquet",
-        "folds.json",
-        "scoreboard.json",
-        "diagnostics.json"
-      ],
-      "chartOverlay": "prediction_markers",
-      "outputDir": "data/models",
       "defaultHyperparameters": {
         "train_days": {
           "type": "int",
@@ -2927,6 +2881,15 @@
           "label": "Embargo (bars)",
           "group": "Labels"
         },
+        "label_gap_multiple": {
+          "type": "float",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "step": 0.5,
+          "label": "Session gap rule (× typical bar interval, 0 = off)",
+          "group": "Labels"
+        },
         "long_only": {
           "type": "bool",
           "default": false,
@@ -2967,12 +2930,30 @@
           "label": "Contracts per trade",
           "group": "Trading"
         },
-        "tuning_trials": {
+        "tuning_mode": {
+          "type": "categorical",
+          "default": "tuned",
+          "choices": [
+            "tuned",
+            "reviewed_defaults"
+          ],
+          "label": "Hyperparameters",
+          "group": "Tuning"
+        },
+        "tuning_budget_trials": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Trial budget per fold",
+          "group": "Tuning"
+        },
+        "tuning_budget_seconds": {
           "type": "int",
           "default": 0,
           "min": 0,
-          "max": 200,
-          "label": "Tuning trials (0 = off)",
+          "max": 7200,
+          "label": "Time budget per fold, seconds (0 = trials only)",
           "group": "Tuning"
         },
         "tuning_objective": {
@@ -2991,7 +2972,13 @@
           "default": 2,
           "min": 1,
           "max": 10,
-          "label": "Tuning inner folds",
+          "label": "Inner validation blocks",
+          "group": "Tuning"
+        },
+        "tuning_pinned_parameters": {
+          "type": "string",
+          "default": "",
+          "label": "Pinned parameters",
           "group": "Tuning"
         },
         "bars_per_second": {
@@ -3056,7 +3043,17 @@
           "min": 2,
           "max": 32,
           "label": "Max depth",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              4,
+              6,
+              8,
+              12,
+              16
+            ]
+          }
         },
         "min_samples_leaf": {
           "type": "int",
@@ -3064,7 +3061,13 @@
           "min": 1,
           "max": 500,
           "label": "Min samples per leaf",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 200,
+            "log": true
+          }
         },
         "max_features_fraction": {
           "type": "float",
@@ -3073,12 +3076,14 @@
           "max": 1,
           "step": 0.05,
           "label": "Max features fraction",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.9
+          }
         }
       },
-      "featureCategories": null,
-      "includeIndicators": false,
-      "allFeatures": false,
       "cliFlags": {
         "train_days": "--train-days",
         "validation_fraction": "--validation-fraction",
@@ -3089,14 +3094,18 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
+        "label_gap_multiple": "--label-gap-multiple",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
         "take_profit_ticks": "--take-profit-ticks",
         "contracts": "--contracts",
-        "tuning_trials": "--tuning-trials",
+        "tuning_mode": "--tuning-mode",
+        "tuning_budget_trials": "--tuning-budget-trials",
+        "tuning_budget_seconds": "--tuning-budget-seconds",
         "tuning_objective": "--tuning-objective",
         "tuning_folds": "--tuning-folds",
+        "tuning_pinned_parameters": "--tuning-pinned-parameters",
         "bars_per_second": "--bars-per-second",
         "start_paused": "--start-paused",
         "quiet_bars": "--quiet-bars",
@@ -3108,30 +3117,13 @@
         "min_samples_leaf": "--min-samples-leaf",
         "max_features_fraction": "--max-features-fraction"
       },
-      "description": "Random forest — model cycle — Bagged ensemble of causal-feature decision trees, scikit-learn's RandomForestClassifier. No boosting, no early stopping — depth and leaf size are the only regularizers.",
-      "tags": [
-        "tabular",
-        "ensemble",
-        "tree",
-        "cycle",
-        "walk-forward",
-        "random_forest"
-      ],
-      "family": "sklearn",
-      "gpuRequired": false,
-      "estimatedTrainingTime": "2-30 min (paced replay)",
-      "supportedObjectives": [
-        "sharpe_ratio",
-        "log_loss",
-        "f1_score"
-      ],
-      "available": true,
       "scriptArgs": [
         "--model-family",
         "random_forest"
-      ],
-      "maxDurationSeconds": 43200
-    },
+      ]
+    }
+  },
+  "models": {
     "xgboost+walk_forward_cycle": {
       "name": "XGBoost — model cycle",
       "category": "Supervised",
@@ -3224,6 +3216,15 @@
           "label": "Embargo (bars)",
           "group": "Labels"
         },
+        "label_gap_multiple": {
+          "type": "float",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "step": 0.5,
+          "label": "Session gap rule (× typical bar interval, 0 = off)",
+          "group": "Labels"
+        },
         "long_only": {
           "type": "bool",
           "default": false,
@@ -3264,12 +3265,30 @@
           "label": "Contracts per trade",
           "group": "Trading"
         },
-        "tuning_trials": {
+        "tuning_mode": {
+          "type": "categorical",
+          "default": "tuned",
+          "choices": [
+            "tuned",
+            "reviewed_defaults"
+          ],
+          "label": "Hyperparameters",
+          "group": "Tuning"
+        },
+        "tuning_budget_trials": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Trial budget per fold",
+          "group": "Tuning"
+        },
+        "tuning_budget_seconds": {
           "type": "int",
           "default": 0,
           "min": 0,
-          "max": 200,
-          "label": "Tuning trials (0 = off)",
+          "max": 7200,
+          "label": "Time budget per fold, seconds (0 = trials only)",
           "group": "Tuning"
         },
         "tuning_objective": {
@@ -3288,7 +3307,13 @@
           "default": 2,
           "min": 1,
           "max": 10,
-          "label": "Tuning inner folds",
+          "label": "Inner validation blocks",
+          "group": "Tuning"
+        },
+        "tuning_pinned_parameters": {
+          "type": "string",
+          "default": "",
+          "label": "Pinned parameters",
           "group": "Tuning"
         },
         "bars_per_second": {
@@ -3353,7 +3378,12 @@
           "min": 2,
           "max": 16,
           "label": "Max depth",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 10
+          }
         },
         "learning_rate": {
           "type": "float",
@@ -3362,7 +3392,13 @@
           "max": 0.5,
           "logScale": true,
           "label": "Learning rate",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 0.3,
+            "log": true
+          }
         },
         "subsample": {
           "type": "float",
@@ -3371,7 +3407,12 @@
           "max": 1,
           "step": 0.05,
           "label": "Row subsample",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 1
+          }
         },
         "column_subsample": {
           "type": "float",
@@ -3380,7 +3421,12 @@
           "max": 1,
           "step": 0.05,
           "label": "Column subsample",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 1
+          }
         },
         "min_child_weight": {
           "type": "float",
@@ -3389,7 +3435,13 @@
           "max": 20,
           "logScale": true,
           "label": "Min child weight",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 50,
+            "log": true
+          }
         },
         "l2_regularization": {
           "type": "float",
@@ -3397,7 +3449,13 @@
           "min": 0,
           "max": 20,
           "label": "L2 regularization",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 30,
+            "log": true
+          }
         },
         "early_stopping_rounds": {
           "type": "int",
@@ -3421,14 +3479,18 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
+        "label_gap_multiple": "--label-gap-multiple",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
         "take_profit_ticks": "--take-profit-ticks",
         "contracts": "--contracts",
-        "tuning_trials": "--tuning-trials",
+        "tuning_mode": "--tuning-mode",
+        "tuning_budget_trials": "--tuning-budget-trials",
+        "tuning_budget_seconds": "--tuning-budget-seconds",
         "tuning_objective": "--tuning-objective",
         "tuning_folds": "--tuning-folds",
+        "tuning_pinned_parameters": "--tuning-pinned-parameters",
         "bars_per_second": "--bars-per-second",
         "start_paused": "--start-paused",
         "quiet_bars": "--quiet-bars",
@@ -3561,6 +3623,15 @@
           "label": "Embargo (bars)",
           "group": "Labels"
         },
+        "label_gap_multiple": {
+          "type": "float",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "step": 0.5,
+          "label": "Session gap rule (× typical bar interval, 0 = off)",
+          "group": "Labels"
+        },
         "long_only": {
           "type": "bool",
           "default": false,
@@ -3601,12 +3672,30 @@
           "label": "Contracts per trade",
           "group": "Trading"
         },
-        "tuning_trials": {
+        "tuning_mode": {
+          "type": "categorical",
+          "default": "tuned",
+          "choices": [
+            "tuned",
+            "reviewed_defaults"
+          ],
+          "label": "Hyperparameters",
+          "group": "Tuning"
+        },
+        "tuning_budget_trials": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Trial budget per fold",
+          "group": "Tuning"
+        },
+        "tuning_budget_seconds": {
           "type": "int",
           "default": 0,
           "min": 0,
-          "max": 200,
-          "label": "Tuning trials (0 = off)",
+          "max": 7200,
+          "label": "Time budget per fold, seconds (0 = trials only)",
           "group": "Tuning"
         },
         "tuning_objective": {
@@ -3625,7 +3714,13 @@
           "default": 2,
           "min": 1,
           "max": 10,
-          "label": "Tuning inner folds",
+          "label": "Inner validation blocks",
+          "group": "Tuning"
+        },
+        "tuning_pinned_parameters": {
+          "type": "string",
+          "default": "",
+          "label": "Pinned parameters",
           "group": "Tuning"
         },
         "bars_per_second": {
@@ -3690,7 +3785,17 @@
           "min": 4,
           "max": 512,
           "label": "Leaf count",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              7,
+              15,
+              31,
+              63,
+              127
+            ]
+          }
         },
         "learning_rate": {
           "type": "float",
@@ -3699,7 +3804,13 @@
           "max": 0.5,
           "logScale": true,
           "label": "Learning rate",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 0.3,
+            "log": true
+          }
         },
         "subsample": {
           "type": "float",
@@ -3708,7 +3819,12 @@
           "max": 1,
           "step": 0.05,
           "label": "Row subsample",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 1
+          }
         },
         "column_subsample": {
           "type": "float",
@@ -3717,7 +3833,12 @@
           "max": 1,
           "step": 0.05,
           "label": "Column subsample",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 1
+          }
         },
         "min_child_samples": {
           "type": "int",
@@ -3725,7 +3846,13 @@
           "min": 1,
           "max": 500,
           "label": "Min child samples",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 300,
+            "log": true
+          }
         },
         "l2_regularization": {
           "type": "float",
@@ -3733,7 +3860,13 @@
           "min": 0,
           "max": 20,
           "label": "L2 regularization",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 30,
+            "log": true
+          }
         },
         "early_stopping_rounds": {
           "type": "int",
@@ -3757,14 +3890,18 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
+        "label_gap_multiple": "--label-gap-multiple",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
         "take_profit_ticks": "--take-profit-ticks",
         "contracts": "--contracts",
-        "tuning_trials": "--tuning-trials",
+        "tuning_mode": "--tuning-mode",
+        "tuning_budget_trials": "--tuning-budget-trials",
+        "tuning_budget_seconds": "--tuning-budget-seconds",
         "tuning_objective": "--tuning-objective",
         "tuning_folds": "--tuning-folds",
+        "tuning_pinned_parameters": "--tuning-pinned-parameters",
         "bars_per_second": "--bars-per-second",
         "start_paused": "--start-paused",
         "quiet_bars": "--quiet-bars",
@@ -3780,6 +3917,7 @@
         "l2_regularization": "--l2-regularization",
         "early_stopping_rounds": "--early-stopping-rounds"
       },
+      "catalogId": "machine-learning-supervised-learning-boosting-methods-lightgbm",
       "description": "LightGBM — model cycle — Leaf-wise (best-first) gradient boosted trees. Same shape as XGBoost's boosting-round stepping, with LightGBM's own leaf-count and min-child-samples regularizers.",
       "tags": [
         "tabular",
@@ -3800,6 +3938,330 @@
       "scriptArgs": [
         "--model-family",
         "lightgbm"
+      ],
+      "maxDurationSeconds": 43200
+    },
+    "logistic_regression+walk_forward_cycle": {
+      "name": "Logistic regression — model cycle",
+      "category": "Supervised",
+      "subcategory": "Classification",
+      "runner": "python",
+      "script": "src/ml/cycle/main.py",
+      "featurePipeline": "default-35",
+      "outputs": [
+        "config.json",
+        "predictions.parquet",
+        "trades.parquet",
+        "epochs.parquet",
+        "trials.parquet",
+        "folds.json",
+        "scoreboard.json",
+        "diagnostics.json"
+      ],
+      "chartOverlay": "prediction_markers",
+      "outputDir": "data/models",
+      "defaultHyperparameters": {
+        "train_days": {
+          "type": "int",
+          "default": 60,
+          "min": 5,
+          "max": 720,
+          "label": "Training window (days)",
+          "group": "Walk-forward"
+        },
+        "validation_fraction": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.05,
+          "max": 0.5,
+          "step": 0.05,
+          "label": "Validation fraction of the training window",
+          "group": "Walk-forward"
+        },
+        "test_days": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 180,
+          "label": "Test window (days)",
+          "group": "Walk-forward"
+        },
+        "step_days": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 180,
+          "label": "Step between folds, in days (0 = test window)",
+          "group": "Walk-forward"
+        },
+        "fold_limit": {
+          "type": "int",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "label": "Fold limit (0 = all folds)",
+          "group": "Walk-forward"
+        },
+        "expanding_window": {
+          "type": "bool",
+          "default": false,
+          "label": "Expanding training window",
+          "group": "Walk-forward"
+        },
+        "label_horizon_bars": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 200,
+          "label": "Label horizon (bars)",
+          "group": "Labels"
+        },
+        "label_threshold_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "label": "Label threshold (ticks)",
+          "group": "Labels"
+        },
+        "embargo_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Embargo (bars)",
+          "group": "Labels"
+        },
+        "label_gap_multiple": {
+          "type": "float",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "step": 0.5,
+          "label": "Session gap rule (× typical bar interval, 0 = off)",
+          "group": "Labels"
+        },
+        "long_only": {
+          "type": "bool",
+          "default": false,
+          "label": "Long only",
+          "group": "Trading"
+        },
+        "holding_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "label": "Holding period, in bars (0 = label horizon)",
+          "group": "Trading"
+        },
+        "stop_loss_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Stop loss (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "take_profit_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Take profit (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "contracts": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 10,
+          "label": "Contracts per trade",
+          "group": "Trading"
+        },
+        "tuning_mode": {
+          "type": "categorical",
+          "default": "tuned",
+          "choices": [
+            "tuned",
+            "reviewed_defaults"
+          ],
+          "label": "Hyperparameters",
+          "group": "Tuning"
+        },
+        "tuning_budget_trials": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Trial budget per fold",
+          "group": "Tuning"
+        },
+        "tuning_budget_seconds": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 7200,
+          "label": "Time budget per fold, seconds (0 = trials only)",
+          "group": "Tuning"
+        },
+        "tuning_objective": {
+          "type": "categorical",
+          "default": "sharpe_ratio",
+          "choices": [
+            "sharpe_ratio",
+            "log_loss",
+            "f1_score"
+          ],
+          "label": "Tuning objective",
+          "group": "Tuning"
+        },
+        "tuning_folds": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 10,
+          "label": "Inner validation blocks",
+          "group": "Tuning"
+        },
+        "tuning_pinned_parameters": {
+          "type": "string",
+          "default": "",
+          "label": "Pinned parameters",
+          "group": "Tuning"
+        },
+        "bars_per_second": {
+          "type": "float",
+          "default": 40,
+          "min": 0,
+          "max": 2000,
+          "step": 1,
+          "label": "Bars per second (0 = as fast as possible)",
+          "group": "Replay"
+        },
+        "start_paused": {
+          "type": "bool",
+          "default": false,
+          "label": "Start paused",
+          "group": "Replay"
+        },
+        "quiet_bars": {
+          "type": "bool",
+          "default": false,
+          "label": "Suppress per-bar log lines",
+          "group": "Replay"
+        },
+        "log_every_batches": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 1000,
+          "label": "Log every N batches",
+          "group": "Replay"
+        },
+        "device": {
+          "type": "categorical",
+          "default": "auto",
+          "choices": [
+            "auto",
+            "cuda",
+            "cpu"
+          ],
+          "label": "Device",
+          "group": "Runtime"
+        },
+        "seed": {
+          "type": "int",
+          "default": 42,
+          "min": 0,
+          "max": 999999,
+          "label": "Random seed",
+          "group": "Runtime"
+        },
+        "regularization_strength": {
+          "type": "float",
+          "default": 1,
+          "min": 0.001,
+          "max": 100,
+          "logScale": true,
+          "label": "Regularization strength",
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 100,
+            "log": true
+          }
+        },
+        "max_iterations": {
+          "type": "int",
+          "default": 300,
+          "min": 50,
+          "max": 5000,
+          "label": "Max iterations",
+          "group": "Model"
+        }
+      },
+      "featureCategories": null,
+      "includeIndicators": false,
+      "allFeatures": false,
+      "cliFlags": {
+        "train_days": "--train-days",
+        "validation_fraction": "--validation-fraction",
+        "test_days": "--test-days",
+        "step_days": "--step-days",
+        "fold_limit": "--fold-limit",
+        "expanding_window": "--expanding-window",
+        "label_horizon_bars": "--label-horizon-bars",
+        "label_threshold_ticks": "--label-threshold-ticks",
+        "embargo_bars": "--embargo-bars",
+        "label_gap_multiple": "--label-gap-multiple",
+        "long_only": "--long-only",
+        "holding_bars": "--holding-bars",
+        "stop_loss_ticks": "--stop-loss-ticks",
+        "take_profit_ticks": "--take-profit-ticks",
+        "contracts": "--contracts",
+        "tuning_mode": "--tuning-mode",
+        "tuning_budget_trials": "--tuning-budget-trials",
+        "tuning_budget_seconds": "--tuning-budget-seconds",
+        "tuning_objective": "--tuning-objective",
+        "tuning_folds": "--tuning-folds",
+        "tuning_pinned_parameters": "--tuning-pinned-parameters",
+        "bars_per_second": "--bars-per-second",
+        "start_paused": "--start-paused",
+        "quiet_bars": "--quiet-bars",
+        "log_every_batches": "--log-every-batches",
+        "device": "--device",
+        "seed": "--seed",
+        "regularization_strength": "--regularization-strength",
+        "max_iterations": "--max-iterations"
+      },
+      "catalogId": "machine-learning-supervised-learning-linear-models-logistic-regression",
+      "description": "Logistic regression — model cycle — L2-regularized linear classifier over the causal feature matrix. The interpretable, fast baseline every other Model Cycle family is measured against.",
+      "tags": [
+        "tabular",
+        "linear",
+        "interpretable",
+        "baseline",
+        "cycle",
+        "walk-forward",
+        "logistic_regression"
+      ],
+      "family": "sklearn",
+      "gpuRequired": false,
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "supportedObjectives": [
+        "sharpe_ratio",
+        "log_loss",
+        "f1_score"
+      ],
+      "available": true,
+      "scriptArgs": [
+        "--model-family",
+        "logistic_regression"
       ],
       "maxDurationSeconds": 43200
     },
@@ -3895,6 +4357,15 @@
           "label": "Embargo (bars)",
           "group": "Labels"
         },
+        "label_gap_multiple": {
+          "type": "float",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "step": 0.5,
+          "label": "Session gap rule (× typical bar interval, 0 = off)",
+          "group": "Labels"
+        },
         "long_only": {
           "type": "bool",
           "default": false,
@@ -3935,12 +4406,30 @@
           "label": "Contracts per trade",
           "group": "Trading"
         },
-        "tuning_trials": {
+        "tuning_mode": {
+          "type": "categorical",
+          "default": "tuned",
+          "choices": [
+            "tuned",
+            "reviewed_defaults"
+          ],
+          "label": "Hyperparameters",
+          "group": "Tuning"
+        },
+        "tuning_budget_trials": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Trial budget per fold",
+          "group": "Tuning"
+        },
+        "tuning_budget_seconds": {
           "type": "int",
           "default": 0,
           "min": 0,
-          "max": 200,
-          "label": "Tuning trials (0 = off)",
+          "max": 7200,
+          "label": "Time budget per fold, seconds (0 = trials only)",
           "group": "Tuning"
         },
         "tuning_objective": {
@@ -3959,7 +4448,13 @@
           "default": 2,
           "min": 1,
           "max": 10,
-          "label": "Tuning inner folds",
+          "label": "Inner validation blocks",
+          "group": "Tuning"
+        },
+        "tuning_pinned_parameters": {
+          "type": "string",
+          "default": "",
+          "label": "Pinned parameters",
           "group": "Tuning"
         },
         "bars_per_second": {
@@ -4016,7 +4511,15 @@
           "min": 8,
           "max": 1024,
           "label": "Hidden size",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              64,
+              128,
+              256
+            ]
+          }
         },
         "layer_count": {
           "type": "int",
@@ -4024,7 +4527,12 @@
           "min": 1,
           "max": 8,
           "label": "Layer count",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3
+          }
         },
         "dropout": {
           "type": "float",
@@ -4033,16 +4541,27 @@
           "max": 0.8,
           "step": 0.05,
           "label": "Dropout",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0,
+            "high": 0.5
+          }
         },
         "learning_rate": {
           "type": "float",
           "default": 0.001,
-          "min": 1e-05,
+          "min": 0.00001,
           "max": 0.1,
           "logScale": true,
           "label": "Learning rate",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
         },
         "weight_decay": {
           "type": "float",
@@ -4051,7 +4570,13 @@
           "max": 0.1,
           "logScale": true,
           "label": "Weight decay",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.000001,
+            "high": 0.01,
+            "log": true
+          }
         },
         "batch_size": {
           "type": "int",
@@ -4059,7 +4584,15 @@
           "min": 8,
           "max": 4096,
           "label": "Batch size",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
         },
         "epochs": {
           "type": "int",
@@ -4091,14 +4624,18 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
+        "label_gap_multiple": "--label-gap-multiple",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
         "take_profit_ticks": "--take-profit-ticks",
         "contracts": "--contracts",
-        "tuning_trials": "--tuning-trials",
+        "tuning_mode": "--tuning-mode",
+        "tuning_budget_trials": "--tuning-budget-trials",
+        "tuning_budget_seconds": "--tuning-budget-seconds",
         "tuning_objective": "--tuning-objective",
         "tuning_folds": "--tuning-folds",
+        "tuning_pinned_parameters": "--tuning-pinned-parameters",
         "bars_per_second": "--bars-per-second",
         "start_paused": "--start-paused",
         "quiet_bars": "--quiet-bars",
@@ -4114,6 +4651,7 @@
         "epochs": "--epochs",
         "patience": "--patience"
       },
+      "catalogId": "neural-network-architectures-feedforward-mlps-multilayer-perceptron-mlp",
       "description": "Multilayer perceptron — model cycle — Fully-connected feedforward network over the causal feature vector at each bar — no sequence memory, epoch/batch stepping with early stopping on the validation loss.",
       "tags": [
         "neural-network",
@@ -4229,6 +4767,15 @@
           "label": "Embargo (bars)",
           "group": "Labels"
         },
+        "label_gap_multiple": {
+          "type": "float",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "step": 0.5,
+          "label": "Session gap rule (× typical bar interval, 0 = off)",
+          "group": "Labels"
+        },
         "long_only": {
           "type": "bool",
           "default": false,
@@ -4269,12 +4816,30 @@
           "label": "Contracts per trade",
           "group": "Trading"
         },
-        "tuning_trials": {
+        "tuning_mode": {
+          "type": "categorical",
+          "default": "tuned",
+          "choices": [
+            "tuned",
+            "reviewed_defaults"
+          ],
+          "label": "Hyperparameters",
+          "group": "Tuning"
+        },
+        "tuning_budget_trials": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Trial budget per fold",
+          "group": "Tuning"
+        },
+        "tuning_budget_seconds": {
           "type": "int",
           "default": 0,
           "min": 0,
-          "max": 200,
-          "label": "Tuning trials (0 = off)",
+          "max": 7200,
+          "label": "Time budget per fold, seconds (0 = trials only)",
           "group": "Tuning"
         },
         "tuning_objective": {
@@ -4293,7 +4858,13 @@
           "default": 2,
           "min": 1,
           "max": 10,
-          "label": "Tuning inner folds",
+          "label": "Inner validation blocks",
+          "group": "Tuning"
+        },
+        "tuning_pinned_parameters": {
+          "type": "string",
+          "default": "",
+          "label": "Pinned parameters",
           "group": "Tuning"
         },
         "bars_per_second": {
@@ -4358,7 +4929,15 @@
           "min": 8,
           "max": 1024,
           "label": "Hidden size",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
         },
         "layer_count": {
           "type": "int",
@@ -4366,7 +4945,12 @@
           "min": 1,
           "max": 8,
           "label": "Layer count",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 2
+          }
         },
         "dropout": {
           "type": "float",
@@ -4375,16 +4959,27 @@
           "max": 0.8,
           "step": 0.05,
           "label": "Dropout",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0,
+            "high": 0.5
+          }
         },
         "learning_rate": {
           "type": "float",
           "default": 0.001,
-          "min": 1e-05,
+          "min": 0.00001,
           "max": 0.1,
           "logScale": true,
           "label": "Learning rate",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
         },
         "weight_decay": {
           "type": "float",
@@ -4393,7 +4988,13 @@
           "max": 0.1,
           "logScale": true,
           "label": "Weight decay",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.000001,
+            "high": 0.01,
+            "log": true
+          }
         },
         "batch_size": {
           "type": "int",
@@ -4401,7 +5002,15 @@
           "min": 8,
           "max": 4096,
           "label": "Batch size",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
         },
         "epochs": {
           "type": "int",
@@ -4433,14 +5042,18 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
+        "label_gap_multiple": "--label-gap-multiple",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
         "take_profit_ticks": "--take-profit-ticks",
         "contracts": "--contracts",
-        "tuning_trials": "--tuning-trials",
+        "tuning_mode": "--tuning-mode",
+        "tuning_budget_trials": "--tuning-budget-trials",
+        "tuning_budget_seconds": "--tuning-budget-seconds",
         "tuning_objective": "--tuning-objective",
         "tuning_folds": "--tuning-folds",
+        "tuning_pinned_parameters": "--tuning-pinned-parameters",
         "bars_per_second": "--bars-per-second",
         "start_paused": "--start-paused",
         "quiet_bars": "--quiet-bars",
@@ -4457,6 +5070,7 @@
         "epochs": "--epochs",
         "patience": "--patience"
       },
+      "catalogId": "neural-network-architectures-recurrent-sequential-models-long-short-term-memory-lstm",
       "description": "LSTM — model cycle — Single/multi-layer LSTM reading a trailing window of `sequence_length` bars of causal features per prediction. Runs on CPU or GPU.",
       "tags": [
         "neural-network",
@@ -4573,6 +5187,15 @@
           "label": "Embargo (bars)",
           "group": "Labels"
         },
+        "label_gap_multiple": {
+          "type": "float",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "step": 0.5,
+          "label": "Session gap rule (× typical bar interval, 0 = off)",
+          "group": "Labels"
+        },
         "long_only": {
           "type": "bool",
           "default": false,
@@ -4613,12 +5236,30 @@
           "label": "Contracts per trade",
           "group": "Trading"
         },
-        "tuning_trials": {
+        "tuning_mode": {
+          "type": "categorical",
+          "default": "tuned",
+          "choices": [
+            "tuned",
+            "reviewed_defaults"
+          ],
+          "label": "Hyperparameters",
+          "group": "Tuning"
+        },
+        "tuning_budget_trials": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Trial budget per fold",
+          "group": "Tuning"
+        },
+        "tuning_budget_seconds": {
           "type": "int",
           "default": 0,
           "min": 0,
-          "max": 200,
-          "label": "Tuning trials (0 = off)",
+          "max": 7200,
+          "label": "Time budget per fold, seconds (0 = trials only)",
           "group": "Tuning"
         },
         "tuning_objective": {
@@ -4637,7 +5278,13 @@
           "default": 2,
           "min": 1,
           "max": 10,
-          "label": "Tuning inner folds",
+          "label": "Inner validation blocks",
+          "group": "Tuning"
+        },
+        "tuning_pinned_parameters": {
+          "type": "string",
+          "default": "",
+          "label": "Pinned parameters",
           "group": "Tuning"
         },
         "bars_per_second": {
@@ -4702,7 +5349,15 @@
           "min": 4,
           "max": 512,
           "label": "Channel count",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
         },
         "kernel_size": {
           "type": "int",
@@ -4710,7 +5365,15 @@
           "min": 2,
           "max": 15,
           "label": "Kernel size",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              3,
+              5
+            ]
+          }
         },
         "layer_count": {
           "type": "int",
@@ -4718,7 +5381,12 @@
           "min": 1,
           "max": 10,
           "label": "Layer count",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 5
+          }
         },
         "dropout": {
           "type": "float",
@@ -4727,16 +5395,27 @@
           "max": 0.8,
           "step": 0.05,
           "label": "Dropout",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0,
+            "high": 0.5
+          }
         },
         "learning_rate": {
           "type": "float",
           "default": 0.001,
-          "min": 1e-05,
+          "min": 0.00001,
           "max": 0.1,
           "logScale": true,
           "label": "Learning rate",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
         },
         "weight_decay": {
           "type": "float",
@@ -4745,7 +5424,13 @@
           "max": 0.1,
           "logScale": true,
           "label": "Weight decay",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.000001,
+            "high": 0.01,
+            "log": true
+          }
         },
         "batch_size": {
           "type": "int",
@@ -4753,7 +5438,15 @@
           "min": 8,
           "max": 4096,
           "label": "Batch size",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
         },
         "epochs": {
           "type": "int",
@@ -4785,14 +5478,18 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
+        "label_gap_multiple": "--label-gap-multiple",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
         "take_profit_ticks": "--take-profit-ticks",
         "contracts": "--contracts",
-        "tuning_trials": "--tuning-trials",
+        "tuning_mode": "--tuning-mode",
+        "tuning_budget_trials": "--tuning-budget-trials",
+        "tuning_budget_seconds": "--tuning-budget-seconds",
         "tuning_objective": "--tuning-objective",
         "tuning_folds": "--tuning-folds",
+        "tuning_pinned_parameters": "--tuning-pinned-parameters",
         "bars_per_second": "--bars-per-second",
         "start_paused": "--start-paused",
         "quiet_bars": "--quiet-bars",
@@ -4810,6 +5507,7 @@
         "epochs": "--epochs",
         "patience": "--patience"
       },
+      "catalogId": "neural-network-architectures-convolutional-networks-convolutional-neural-network-cnn",
       "description": "Temporal convolution network — model cycle — Dilated causal 1D convolutions over a trailing window of bars (Bai et al. 2018 TCN shape) — a sequence model with no recurrence, so every step is parallel.",
       "tags": [
         "neural-network",
@@ -4926,6 +5624,15 @@
           "label": "Embargo (bars)",
           "group": "Labels"
         },
+        "label_gap_multiple": {
+          "type": "float",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "step": 0.5,
+          "label": "Session gap rule (× typical bar interval, 0 = off)",
+          "group": "Labels"
+        },
         "long_only": {
           "type": "bool",
           "default": false,
@@ -4966,12 +5673,30 @@
           "label": "Contracts per trade",
           "group": "Trading"
         },
-        "tuning_trials": {
+        "tuning_mode": {
+          "type": "categorical",
+          "default": "tuned",
+          "choices": [
+            "tuned",
+            "reviewed_defaults"
+          ],
+          "label": "Hyperparameters",
+          "group": "Tuning"
+        },
+        "tuning_budget_trials": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Trial budget per fold",
+          "group": "Tuning"
+        },
+        "tuning_budget_seconds": {
           "type": "int",
           "default": 0,
           "min": 0,
-          "max": 200,
-          "label": "Tuning trials (0 = off)",
+          "max": 7200,
+          "label": "Time budget per fold, seconds (0 = trials only)",
           "group": "Tuning"
         },
         "tuning_objective": {
@@ -4990,7 +5715,13 @@
           "default": 2,
           "min": 1,
           "max": 10,
-          "label": "Tuning inner folds",
+          "label": "Inner validation blocks",
+          "group": "Tuning"
+        },
+        "tuning_pinned_parameters": {
+          "type": "string",
+          "default": "",
+          "label": "Pinned parameters",
           "group": "Tuning"
         },
         "bars_per_second": {
@@ -5055,7 +5786,15 @@
           "min": 8,
           "max": 512,
           "label": "Model dimension",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
         },
         "head_count": {
           "type": "int",
@@ -5063,7 +5802,15 @@
           "min": 1,
           "max": 16,
           "label": "Attention head count",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              4,
+              8
+            ]
+          }
         },
         "layer_count": {
           "type": "int",
@@ -5071,7 +5818,12 @@
           "min": 1,
           "max": 8,
           "label": "Layer count",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3
+          }
         },
         "dropout": {
           "type": "float",
@@ -5080,16 +5832,27 @@
           "max": 0.8,
           "step": 0.05,
           "label": "Dropout",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0,
+            "high": 0.3
+          }
         },
         "learning_rate": {
           "type": "float",
           "default": 0.0005,
-          "min": 1e-05,
+          "min": 0.00001,
           "max": 0.1,
           "logScale": true,
           "label": "Learning rate",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
         },
         "weight_decay": {
           "type": "float",
@@ -5098,7 +5861,13 @@
           "max": 0.1,
           "logScale": true,
           "label": "Weight decay",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.000001,
+            "high": 0.01,
+            "log": true
+          }
         },
         "batch_size": {
           "type": "int",
@@ -5106,7 +5875,15 @@
           "min": 8,
           "max": 4096,
           "label": "Batch size",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
         },
         "epochs": {
           "type": "int",
@@ -5138,14 +5915,18 @@
         "label_horizon_bars": "--label-horizon-bars",
         "label_threshold_ticks": "--label-threshold-ticks",
         "embargo_bars": "--embargo-bars",
+        "label_gap_multiple": "--label-gap-multiple",
         "long_only": "--long-only",
         "holding_bars": "--holding-bars",
         "stop_loss_ticks": "--stop-loss-ticks",
         "take_profit_ticks": "--take-profit-ticks",
         "contracts": "--contracts",
-        "tuning_trials": "--tuning-trials",
+        "tuning_mode": "--tuning-mode",
+        "tuning_budget_trials": "--tuning-budget-trials",
+        "tuning_budget_seconds": "--tuning-budget-seconds",
         "tuning_objective": "--tuning-objective",
         "tuning_folds": "--tuning-folds",
+        "tuning_pinned_parameters": "--tuning-pinned-parameters",
         "bars_per_second": "--bars-per-second",
         "start_paused": "--start-paused",
         "quiet_bars": "--quiet-bars",
@@ -5163,6 +5944,7 @@
         "epochs": "--epochs",
         "patience": "--patience"
       },
+      "catalogId": "neural-network-architectures-attention-based-architectures-transformer-encoder-decoder",
       "description": "Transformer encoder — model cycle — Self-attention encoder over a trailing window of bars, with a classification head on the final position's representation.",
       "tags": [
         "transformer",
@@ -5184,6 +5966,362 @@
       "scriptArgs": [
         "--model-family",
         "transformer_encoder"
+      ],
+      "maxDurationSeconds": 43200
+    },
+    "random_forest+walk_forward_cycle": {
+      "name": "Random forest — model cycle",
+      "category": "Supervised",
+      "subcategory": "Classification",
+      "runner": "python",
+      "script": "src/ml/cycle/main.py",
+      "featurePipeline": "default-35",
+      "outputs": [
+        "config.json",
+        "predictions.parquet",
+        "trades.parquet",
+        "epochs.parquet",
+        "trials.parquet",
+        "folds.json",
+        "scoreboard.json",
+        "diagnostics.json"
+      ],
+      "chartOverlay": "prediction_markers",
+      "outputDir": "data/models",
+      "defaultHyperparameters": {
+        "train_days": {
+          "type": "int",
+          "default": 60,
+          "min": 5,
+          "max": 720,
+          "label": "Training window (days)",
+          "group": "Walk-forward"
+        },
+        "validation_fraction": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.05,
+          "max": 0.5,
+          "step": 0.05,
+          "label": "Validation fraction of the training window",
+          "group": "Walk-forward"
+        },
+        "test_days": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 180,
+          "label": "Test window (days)",
+          "group": "Walk-forward"
+        },
+        "step_days": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 180,
+          "label": "Step between folds, in days (0 = test window)",
+          "group": "Walk-forward"
+        },
+        "fold_limit": {
+          "type": "int",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "label": "Fold limit (0 = all folds)",
+          "group": "Walk-forward"
+        },
+        "expanding_window": {
+          "type": "bool",
+          "default": false,
+          "label": "Expanding training window",
+          "group": "Walk-forward"
+        },
+        "label_horizon_bars": {
+          "type": "int",
+          "default": 6,
+          "min": 1,
+          "max": 200,
+          "label": "Label horizon (bars)",
+          "group": "Labels"
+        },
+        "label_threshold_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "label": "Label threshold (ticks)",
+          "group": "Labels"
+        },
+        "embargo_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 200,
+          "label": "Embargo (bars)",
+          "group": "Labels"
+        },
+        "label_gap_multiple": {
+          "type": "float",
+          "default": 3,
+          "min": 0,
+          "max": 50,
+          "step": 0.5,
+          "label": "Session gap rule (× typical bar interval, 0 = off)",
+          "group": "Labels"
+        },
+        "long_only": {
+          "type": "bool",
+          "default": false,
+          "label": "Long only",
+          "group": "Trading"
+        },
+        "holding_bars": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "label": "Holding period, in bars (0 = label horizon)",
+          "group": "Trading"
+        },
+        "stop_loss_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Stop loss (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "take_profit_ticks": {
+          "type": "float",
+          "default": 0,
+          "min": 0,
+          "max": 500,
+          "step": 0.5,
+          "label": "Take profit (ticks, 0 = off)",
+          "group": "Trading"
+        },
+        "contracts": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 10,
+          "label": "Contracts per trade",
+          "group": "Trading"
+        },
+        "tuning_mode": {
+          "type": "categorical",
+          "default": "tuned",
+          "choices": [
+            "tuned",
+            "reviewed_defaults"
+          ],
+          "label": "Hyperparameters",
+          "group": "Tuning"
+        },
+        "tuning_budget_trials": {
+          "type": "int",
+          "default": 20,
+          "min": 0,
+          "max": 500,
+          "label": "Trial budget per fold",
+          "group": "Tuning"
+        },
+        "tuning_budget_seconds": {
+          "type": "int",
+          "default": 0,
+          "min": 0,
+          "max": 7200,
+          "label": "Time budget per fold, seconds (0 = trials only)",
+          "group": "Tuning"
+        },
+        "tuning_objective": {
+          "type": "categorical",
+          "default": "sharpe_ratio",
+          "choices": [
+            "sharpe_ratio",
+            "log_loss",
+            "f1_score"
+          ],
+          "label": "Tuning objective",
+          "group": "Tuning"
+        },
+        "tuning_folds": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 10,
+          "label": "Inner validation blocks",
+          "group": "Tuning"
+        },
+        "tuning_pinned_parameters": {
+          "type": "string",
+          "default": "",
+          "label": "Pinned parameters",
+          "group": "Tuning"
+        },
+        "bars_per_second": {
+          "type": "float",
+          "default": 40,
+          "min": 0,
+          "max": 2000,
+          "step": 1,
+          "label": "Bars per second (0 = as fast as possible)",
+          "group": "Replay"
+        },
+        "start_paused": {
+          "type": "bool",
+          "default": false,
+          "label": "Start paused",
+          "group": "Replay"
+        },
+        "quiet_bars": {
+          "type": "bool",
+          "default": false,
+          "label": "Suppress per-bar log lines",
+          "group": "Replay"
+        },
+        "log_every_batches": {
+          "type": "int",
+          "default": 10,
+          "min": 1,
+          "max": 1000,
+          "label": "Log every N batches",
+          "group": "Replay"
+        },
+        "device": {
+          "type": "categorical",
+          "default": "auto",
+          "choices": [
+            "auto",
+            "cuda",
+            "cpu"
+          ],
+          "label": "Device",
+          "group": "Runtime"
+        },
+        "seed": {
+          "type": "int",
+          "default": 42,
+          "min": 0,
+          "max": 999999,
+          "label": "Random seed",
+          "group": "Runtime"
+        },
+        "tree_count": {
+          "type": "int",
+          "default": 300,
+          "min": 10,
+          "max": 2000,
+          "label": "Tree count",
+          "group": "Model"
+        },
+        "max_depth": {
+          "type": "int",
+          "default": 8,
+          "min": 2,
+          "max": 32,
+          "label": "Max depth",
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              4,
+              6,
+              8,
+              12,
+              16
+            ]
+          }
+        },
+        "min_samples_leaf": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Min samples per leaf",
+          "group": "Model",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 200,
+            "log": true
+          }
+        },
+        "max_features_fraction": {
+          "type": "float",
+          "default": 0.5,
+          "min": 0.1,
+          "max": 1,
+          "step": 0.05,
+          "label": "Max features fraction",
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.9
+          }
+        }
+      },
+      "featureCategories": null,
+      "includeIndicators": false,
+      "allFeatures": false,
+      "cliFlags": {
+        "train_days": "--train-days",
+        "validation_fraction": "--validation-fraction",
+        "test_days": "--test-days",
+        "step_days": "--step-days",
+        "fold_limit": "--fold-limit",
+        "expanding_window": "--expanding-window",
+        "label_horizon_bars": "--label-horizon-bars",
+        "label_threshold_ticks": "--label-threshold-ticks",
+        "embargo_bars": "--embargo-bars",
+        "label_gap_multiple": "--label-gap-multiple",
+        "long_only": "--long-only",
+        "holding_bars": "--holding-bars",
+        "stop_loss_ticks": "--stop-loss-ticks",
+        "take_profit_ticks": "--take-profit-ticks",
+        "contracts": "--contracts",
+        "tuning_mode": "--tuning-mode",
+        "tuning_budget_trials": "--tuning-budget-trials",
+        "tuning_budget_seconds": "--tuning-budget-seconds",
+        "tuning_objective": "--tuning-objective",
+        "tuning_folds": "--tuning-folds",
+        "tuning_pinned_parameters": "--tuning-pinned-parameters",
+        "bars_per_second": "--bars-per-second",
+        "start_paused": "--start-paused",
+        "quiet_bars": "--quiet-bars",
+        "log_every_batches": "--log-every-batches",
+        "device": "--device",
+        "seed": "--seed",
+        "tree_count": "--tree-count",
+        "max_depth": "--max-depth",
+        "min_samples_leaf": "--min-samples-leaf",
+        "max_features_fraction": "--max-features-fraction"
+      },
+      "catalogId": "machine-learning-supervised-learning-ensemble-methods-random-forest",
+      "description": "Random forest — model cycle — Bagged ensemble of causal-feature decision trees, scikit-learn's RandomForestClassifier. No boosting, no early stopping — depth and leaf size are the only regularizers.",
+      "tags": [
+        "tabular",
+        "ensemble",
+        "tree",
+        "cycle",
+        "walk-forward",
+        "random_forest"
+      ],
+      "family": "sklearn",
+      "gpuRequired": false,
+      "estimatedTrainingTime": "2-30 min (paced replay)",
+      "supportedObjectives": [
+        "sharpe_ratio",
+        "log_loss",
+        "f1_score"
+      ],
+      "available": true,
+      "scriptArgs": [
+        "--model-family",
+        "random_forest"
       ],
       "maxDurationSeconds": 43200
     }

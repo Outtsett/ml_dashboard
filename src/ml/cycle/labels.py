@@ -32,8 +32,43 @@ from __future__ import annotations
 import numpy as np
 
 
-def make_labels(close: np.ndarray, horizon: int, threshold_ticks: float, tick_size: float) -> np.ndarray:
-    """float32 labels, one per bar (see the module docstring)."""
+def median_bar_interval(timestamps: np.ndarray) -> float:
+    """The typical spacing of the bars in seconds (the median gap), or NaN."""
+    timestamps = np.asarray(timestamps, dtype=np.int64)
+    if timestamps.shape[0] < 2:
+        return float("nan")
+    return float(np.median(np.diff(timestamps)))
+
+
+def horizon_crosses_gap(timestamps: np.ndarray, horizon: int, gap_multiple: float) -> np.ndarray:
+    """True at bar t when the ``horizon`` bars after it span a gap longer than
+    ``gap_multiple`` typical bar intervals: a session break, a weekend, an
+    outage. A 6-bar move that straddles a weekend is not a 30-minute move, so
+    such a bar gets no label, no price target and no forecast. ``gap_multiple
+    <= 0`` turns the rule off. The last ``horizon`` bars are False (they have
+    no horizon at all; the label functions already leave them NaN)."""
+    timestamps = np.asarray(timestamps, dtype=np.int64)
+    n = timestamps.shape[0]
+    crosses = np.zeros(n, dtype=bool)
+    if gap_multiple <= 0 or n <= horizon or horizon < 1:
+        return crosses
+    typical = median_bar_interval(timestamps)
+    if not np.isfinite(typical) or typical <= 0:
+        return crosses
+    limit = gap_multiple * typical
+    gaps = np.diff(timestamps).astype(np.float64)           # gaps[t] = ts[t+1] - ts[t]
+    wide = gaps > limit
+    # bar t crosses a gap when any of gaps[t .. t+horizon-1] is wide
+    counts = np.concatenate([[0], np.cumsum(wide)])         # counts[k] = wide gaps before index k
+    head = counts[horizon:n] - counts[0:n - horizon]        # for t in 0..n-horizon-1
+    crosses[: n - horizon] = head > 0
+    return crosses
+
+
+def make_labels(close: np.ndarray, horizon: int, threshold_ticks: float, tick_size: float,
+                crosses_gap: np.ndarray | None = None) -> np.ndarray:
+    """float32 labels, one per bar (see the module docstring). Bars whose
+    horizon crosses a session gap (``crosses_gap``) are NaN, unlabelled."""
     if horizon < 1:
         raise ValueError(f"label horizon must be >= 1 bar, got {horizon}")
     if threshold_ticks < 0:
@@ -48,6 +83,8 @@ def make_labels(close: np.ndarray, horizon: int, threshold_ticks: float, tick_si
     head = labels[: n - horizon]
     head[move > threshold] = 1.0
     head[move < -threshold] = 0.0
+    if crosses_gap is not None:
+        labels[np.asarray(crosses_gap, dtype=bool)] = np.nan
     return labels
 
 
@@ -96,10 +133,16 @@ def move_scale(close: np.ndarray, horizon: int, window: int, tick_size: float) -
     return scale.astype(np.float64)
 
 
-def price_target(close: np.ndarray, horizon: int, window: int, tick_size: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def price_target(close: np.ndarray, horizon: int, window: int, tick_size: float,
+                 crosses_gap: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """(scaled_target float32, scale float64, forward_move float64) — see the
-    module docstring. ``scaled_target`` is NaN wherever either part is."""
+    module docstring. ``scaled_target`` is NaN wherever either part is, and at
+    every bar whose horizon crosses a session gap (``crosses_gap``); the scale
+    (a trailing statistic) is untouched by the gap rule."""
     move = forward_move(close, horizon)
+    if crosses_gap is not None:
+        move = move.copy()
+        move[np.asarray(crosses_gap, dtype=bool)] = np.nan
     scale = move_scale(close, horizon, window, tick_size)
     with np.errstate(invalid="ignore", divide="ignore"):
         scaled = move / scale

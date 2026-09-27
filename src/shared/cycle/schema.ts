@@ -49,6 +49,8 @@ export const cycleExplainKindSchema = z.enum([
   "calibration",
   "stacking",
   "neural",
+  /** A runnable model with no Inside view yet: the panel says so. */
+  "opaque",
 ]);
 export type CycleExplainKind = z.infer<typeof cycleExplainKindSchema>;
 
@@ -114,6 +116,10 @@ export const cyclePlanSchema = cycleEnvelopeSchema.extend({
   featureNames: z.array(z.string()),
   labelHorizonBars: z.number().int().positive(),
   labelThresholdTicks: z.number().nonnegative(),
+  /** Session-gap rule: a bar whose horizon crosses a gap over this many typical bar intervals has no label, target or forecast (0 = off). */
+  labelGapMultiple: z.number().nonnegative().optional(),
+  /** Bars the gap rule left unlabelled. */
+  gapCrossingBarCount: z.number().int().nonnegative().optional(),
   purgeBars: z.number().int().nonnegative(),
   embargoBars: z.number().int().nonnegative(),
   costModel: z.object({
@@ -132,13 +138,24 @@ export const cyclePlanSchema = cycleEnvelopeSchema.extend({
     takeProfitTicks: z.number().nonnegative(),
     contracts: z.number().int().positive(),
   }),
+  /**
+   * Hyperparameter search, when on. Since 2026-09-26 it runs inside EVERY fold
+   * on that fold's own training window (`perFold`), with a budget in trials
+   * and/or seconds; `pinned` names are held at the run's own value. Null when
+   * the run uses its base parameters unsearched. `start`/`end` are the
+   * single-window form older runs recorded.
+   */
   tuning: z
     .object({
-      trialCount: z.number().int().positive(),
+      mode: z.enum(["tuned", "reviewed_defaults"]).optional(),
+      trialCount: z.number().int().nonnegative(),
+      budgetSeconds: z.number().int().nonnegative().optional(),
       objective: z.enum(["sharpe_ratio", "log_loss", "f1_score"]),
       innerFoldCount: z.number().int().positive(),
-      start: epochSeconds,
-      end: epochSeconds,
+      perFold: z.boolean().optional(),
+      pinned: z.array(z.string()).optional(),
+      start: epochSeconds.optional(),
+      end: epochSeconds.optional(),
     })
     .nullable(),
   folds: z.array(cycleFoldPlanSchema).min(1),
@@ -186,8 +203,10 @@ export const cycleBarsSchema = cycleEnvelopeSchema
     // Present (same length as timestamps) only when role === "processed".
     probabilityUp: z.array(nullableNumber).optional(),
     predictedDirection: z.array(directionSchema).optional(),
-    /** Position held through this bar after acting on its prediction: 1 long, -1 short, 0 flat. */
+    /** The position wanted at the NEXT open after acting on this bar's prediction: 1 long, -1 short, 0 flat. */
     position: z.array(directionSchema).optional(),
+    /** The position carried THROUGH this bar (what its price move was marked against). */
+    positionHeld: z.array(directionSchema).optional(),
     /** Cumulative marked-to-market net profit of the test walk through this bar, USD. */
     equityUsd: z.array(z.number()).optional(),
     /**
@@ -218,7 +237,7 @@ export const cycleBarsSchema = cycleEnvelopeSchema
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${key} has ${value[key].length} values for ${n} timestamps` });
       }
     }
-    for (const key of ["probabilityUp", "predictedDirection", "position", "equityUsd", "predictedClose", "forecastTimestamp"] as const) {
+    for (const key of ["probabilityUp", "predictedDirection", "position", "positionHeld", "equityUsd", "predictedClose", "forecastTimestamp"] as const) {
       const column = value[key];
       if (column && column.length !== n) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${key} has ${column.length} values for ${n} timestamps` });
@@ -295,8 +314,31 @@ export const cycleTrialSchema = cycleEnvelopeSchema.extend({
   objectiveValue: nullableNumber,
   bestValue: nullableNumber,
   bestTrial: z.number().int().nonnegative().nullable(),
+  /** The fold whose training window the trial was scored on (tuning runs inside every fold). */
+  foldIndex: z.number().int().nonnegative().nullable().optional(),
 });
 export type CycleTrial = z.infer<typeof cycleTrialSchema>;
+
+// ─── cycle_parameters ───────────────────────────────────────────────────────
+
+/**
+ * The hyperparameters a fold's models were fitted with, once per fold, after
+ * its search (or its decision not to search). The plan's `parameters` are the
+ * run's BASE values; this is what the fold used.
+ */
+export const cycleParametersSchema = cycleEnvelopeSchema.extend({
+  foldIndex: z.number().int().nonnegative().nullable(),
+  parameters: z.record(z.union([z.number(), z.string(), z.boolean(), z.null()])),
+  /** tuned: the fold's best trial over the base values; manual: values typed for the run; reviewed_defaults: the registry's. */
+  source: z.enum(["tuned", "manual", "reviewed_defaults"]),
+  objectiveName: z.enum(["sharpe_ratio", "log_loss", "f1_score"]).nullable(),
+  bestTrial: z.number().int().nonnegative().nullable(),
+  /** The search score on the fold's inner validation blocks: optimistic by construction, never a test result. */
+  bestValue: nullableNumber,
+  trialCount: z.number().int().nonnegative().nullable(),
+  pinned: z.array(z.string()),
+});
+export type CycleParameters = z.infer<typeof cycleParametersSchema>;
 
 // ─── cycle_trade ────────────────────────────────────────────────────────────
 
@@ -392,6 +434,7 @@ export const CYCLE_EVENT_SCHEMAS = {
   cycle_cursor: cycleCursorSchema,
   cycle_epoch: cycleEpochSchema,
   cycle_trial: cycleTrialSchema,
+  cycle_parameters: cycleParametersSchema,
   cycle_trade: cycleTradeSchema,
   cycle_scoreboard: cycleScoreboardSchema,
 } as const;
@@ -405,6 +448,7 @@ export interface CycleEventPayloads {
   cycle_cursor: CycleCursor;
   cycle_epoch: CycleEpoch;
   cycle_trial: CycleTrial;
+  cycle_parameters: CycleParameters;
   cycle_trade: CycleTrade;
   cycle_scoreboard: CycleScoreboard;
 }
@@ -439,7 +483,10 @@ export interface CycleBarColumns {
   foldIndex: (number | null)[];
   probabilityUp: (number | null)[];
   predictedDirection: (1 | 0 | -1 | null)[];
+  /** Wanted at the next open. */
   position: (1 | 0 | -1 | null)[];
+  /** Carried through the bar. */
+  positionHeld: (1 | 0 | -1 | null)[];
   equityUsd: (number | null)[];
   predictedClose: (number | null)[];
   forecastTimestamp: (number | null)[];
@@ -470,6 +517,8 @@ export interface CycleSnapshot {
   scoreboards: { running: CycleScoreboard | null; folds: CycleScoreboard[]; final: CycleScoreboard | null };
   epochs: CycleEpoch[];
   trials: CycleTrial[];
+  /** One per fold that has chosen its hyperparameters, in fold order. */
+  parameters: CycleParameters[];
   logs: CycleLogLine[];
 }
 
@@ -499,6 +548,7 @@ export function emptyBarColumns(): CycleBarColumns {
     probabilityUp: [],
     predictedDirection: [],
     position: [],
+    positionHeld: [],
     equityUsd: [],
     predictedClose: [],
     forecastTimestamp: [],
@@ -536,6 +586,7 @@ export function appendBars(columns: CycleBarColumns, event: CycleBars): number {
     columns.probabilityUp.push(processed ? (event.probabilityUp?.[i] ?? null) : null);
     columns.predictedDirection.push(processed ? (event.predictedDirection?.[i] ?? null) : null);
     columns.position.push(processed ? (event.position?.[i] ?? null) : null);
+    columns.positionHeld.push(processed ? (event.positionHeld?.[i] ?? null) : null);
     columns.equityUsd.push(processed ? (event.equityUsd?.[i] ?? null) : null);
     columns.predictedClose.push(processed ? (event.predictedClose?.[i] ?? null) : null);
     columns.forecastTimestamp.push(processed ? (event.forecastTimestamp?.[i] ?? null) : null);

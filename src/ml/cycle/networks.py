@@ -104,7 +104,7 @@ _PREDICTION_CHUNK_ROWS = 4096
 # ─── networks ──────────────────────────────────────────────────────────────
 
 # Every network kind a registry entry's `network` may name.
-NETWORK_KINDS = (
+BUILTIN_NETWORK_KINDS = (
     "multilayer_perceptron",
     "lstm",
     "temporal_convolution_network",
@@ -113,10 +113,57 @@ NETWORK_KINDS = (
     "gated_recurrent_unit",
     "attention_recurrent",
 )
-# Kinds that read a window of `sequence_length` bars (every kind but the perceptron).
-SEQUENCE_NETWORKS = frozenset(NETWORK_KINDS) - {"multilayer_perceptron"}
+
+# Network kinds that live in their own module (``cycle.networks_extra.<kind>``),
+# one per catalog spec the Cycle grew to cover. A module exports:
+#     SEQUENCE: bool                       reads a window of `sequence_length` bars
+#     ATTENTION: bool                      its trace carries attention weights
+#     build(parameters, feature_count) -> torch.nn.Module
+#     trace(network, window) -> dict       the shape ``trace_network`` returns (layers, attention, logit)
+#     describe(network) -> list[dict]      optional: the layers without values
+# A module that is not importable is left out of NETWORK_KINDS (with a warning), so a
+# half-built kind never takes the seven built-in ones down with it.
+NETWORK_EXTENSION_MODULES: dict[str, str] = {
+    "mixture_of_experts": "cycle.networks_extra.mixture_of_experts",
+    "recurrent_convolution_hybrid": "cycle.networks_extra.recurrent_convolution_hybrid",
+    "hypernetwork": "cycle.networks_extra.hypernetwork",
+    "neural_turing_machine": "cycle.networks_extra.neural_turing_machine",
+    "dual_pathway": "cycle.networks_extra.dual_pathway",
+}
+
+
+def _load_extensions() -> dict[str, object]:
+    import importlib
+    import warnings
+
+    loaded: dict[str, object] = {}
+    for kind, module_name in NETWORK_EXTENSION_MODULES.items():
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError as error:
+            warnings.warn(f"network kind {kind!r} is not available: {error}", stacklevel=2)
+            continue
+        for attribute in ("SEQUENCE", "ATTENTION", "build", "trace"):
+            if not hasattr(module, attribute):
+                warnings.warn(f"network kind {kind!r} ({module_name}) lacks {attribute}; left out", stacklevel=2)
+                break
+        else:
+            loaded[kind] = module
+    return loaded
+
+
+NETWORK_EXTENSIONS: dict[str, object] = _load_extensions()
+NETWORK_KINDS = BUILTIN_NETWORK_KINDS + tuple(NETWORK_EXTENSIONS)
+# Kinds that read a window of `sequence_length` bars (every built-in kind but the perceptron).
+SEQUENCE_NETWORKS = frozenset(
+    (set(BUILTIN_NETWORK_KINDS) - {"multilayer_perceptron"})
+    | {kind for kind, module in NETWORK_EXTENSIONS.items() if getattr(module, "SEQUENCE", False)}
+)
 # Kinds whose trace carries attention weights.
-ATTENTION_NETWORKS = frozenset({"transformer_encoder", "attention_recurrent"})
+ATTENTION_NETWORKS = frozenset(
+    {"transformer_encoder", "attention_recurrent"}
+    | {kind for kind, module in NETWORK_EXTENSIONS.items() if getattr(module, "ATTENTION", False)}
+)
 # The four families that predate the registry, by the network each builds. A
 # model.pt saved before the registry names only its family; this maps it.
 LEGACY_NETWORKS = {
@@ -355,6 +402,9 @@ def build_network(kind: str, parameters: dict, feature_count: int) -> nn.Module:
             feature_count, p["sequence_length"], p["model_dimension"], p["head_count"],
             p["layer_count"], p["dropout"],
         )
+    extension = NETWORK_EXTENSIONS.get(kind)
+    if extension is not None:
+        return extension.build(dict(p), int(feature_count))  # type: ignore[attr-defined]
     raise ValueError(f"not a network kind: {kind!r}; the kinds are: {', '.join(NETWORK_KINDS)}")
 
 
@@ -444,6 +494,9 @@ def trace_network(network: nn.Module, kind: str, window: torch.Tensor) -> dict:
     the last layer itself when it has no time axis) is exactly the head's input."""
     if network.training:
         raise RuntimeError("trace needs the network in eval mode")
+    extension = NETWORK_EXTENSIONS.get(kind)
+    if extension is not None:
+        return extension.trace(network, window)  # type: ignore[attr-defined]
     captured: dict[str, list] = {}
     handles = []
 

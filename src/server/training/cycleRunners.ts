@@ -59,9 +59,10 @@ export function cycleFlag(name: string): string {
 }
 
 function runnerParameter(spec: CycleParameter, keepDescription: boolean): HyperparameterDef {
-  const { argument: _argument, roles: _roles, search: _search, description, ...rest } = spec;
-  // The registry allows string defaults (categorical); HyperparameterDef's
-  // `default` type predates categorical parameters, as runners.json's did.
+  const { argument: _argument, roles: _roles, description, ...rest } = spec;
+  // `search` travels with the parameter: the form shows which values the
+  // tuner searches (and lets one be pinned). `argument` and `roles` are the
+  // estimator's business, not the form's.
   const parameter = rest as unknown as HyperparameterDef;
   return keepDescription && description !== undefined ? { ...parameter, description } : parameter;
 }

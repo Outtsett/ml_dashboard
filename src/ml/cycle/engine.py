@@ -67,9 +67,9 @@ from cycle import catalog
 from cycle.adapter import MODEL_LABELS, BatchReport, EpochReport, ModelAdapter, StopRequested
 from cycle.control import ControlState
 from cycle.features import FeatureSet, history_valid
-from cycle.labels import actual_direction, make_labels, price_target
+from cycle.labels import actual_direction, horizon_crosses_gap, make_labels, price_target
 from cycle.metrics import ScoreInputs, bars_per_year, buy_and_hold_usd, scoreboard
-from cycle.simulate import CostModel, Simulator, Trade
+from cycle.simulate import CostModel, Simulator, Trade, round_to_tick
 from shared import protocol
 from shared.walk_forward import iter_day_folds
 
@@ -83,9 +83,9 @@ MINIMUM_TRAIN_ROWS = 50
 MINIMUM_VALIDATION_ROWS = 10
 
 LOADING_END = 0.05
-TUNING_END = 0.30
 FOLDS_END = 0.99
 TRAINING_SHARE = 0.4
+TUNING_SHARE_OF_FOLD = 0.35     # of a fold's progress span, when the fold tunes first
 DIRECTION_TRAINING_SHARE = 0.6   # of TRAINING_SHARE; the price model takes the rest
 
 # adapter_factory(parameters) -> the direction classifier;
@@ -143,9 +143,15 @@ class CycleSettings:
     stop_loss_ticks: float = 0.0
     take_profit_ticks: float = 0.0
     contracts: int = 1
-    tuning_trials: int = 0
+    tuning_trials: int = 0                 # legacy explicit trial count; > 0 overrides the budget
     tuning_objective: str = "sharpe_ratio"
     tuning_folds: int = 2
+    tuning_mode: str = "tuned"             # tuned | reviewed_defaults
+    tuning_budget_trials: int = 20
+    tuning_budget_seconds: int = 0
+    tuning_pinned_parameters: str = ""     # comma-separated names held out of the search
+    label_gap_multiple: float = 3.0        # 0 = no session-gap rule
+    given_parameters: tuple = ()           # model parameter names the run was started with (not defaults)
     bars_per_second: float = 40.0
     start_paused: bool = False
     quiet_bars: bool = False
@@ -158,6 +164,25 @@ class CycleSettings:
     @property
     def resolved_holding_bars(self) -> int:
         return self.holding_bars if self.holding_bars > 0 else self.label_horizon_bars
+
+    @property
+    def pinned_parameters(self) -> tuple[str, ...]:
+        return tuple(name.strip() for name in str(self.tuning_pinned_parameters or "").split(",") if name.strip())
+
+    @property
+    def resolved_tuning_trials(self) -> int:
+        """Trials per fold: the legacy explicit `tuning_trials` wins; otherwise the budget when tuned."""
+        if self.tuning_trials > 0:
+            return int(self.tuning_trials)
+        if self.tuning_mode == "tuned":
+            return max(0, int(self.tuning_budget_trials))
+        return 0
+
+    @property
+    def tuning_enabled(self) -> bool:
+        if self.tuning_trials > 0:
+            return True
+        return self.tuning_mode == "tuned" and (self.tuning_budget_trials > 0 or self.tuning_budget_seconds > 0)
 
     @property
     def resolved_step_days(self) -> int:
@@ -327,14 +352,18 @@ class CycleEngine:
         self.control = control or ControlState(settings.bars_per_second, settings.start_paused)
         self.clock = clock
         self.started = clock()
-        self.labels = make_labels(data.close, settings.label_horizon_bars, settings.label_threshold_ticks, cost.tick_size)
         self.horizon = settings.label_horizon_bars
+        # a bar whose horizon spans a session gap (break, weekend, outage) gets no label, target or forecast
+        self.crosses_gap = horizon_crosses_gap(data.timestamps, self.horizon, float(settings.label_gap_multiple))
+        self.labels = make_labels(data.close, self.horizon, settings.label_threshold_ticks, cost.tick_size, self.crosses_gap)
         # the price model's target, and the causal scale that turns its output back into points
         self.volatility_window = int(features.lookback)
         self.price_targets, self.move_scale, self.forward_moves = price_target(
-            data.close, settings.label_horizon_bars, self.volatility_window, cost.tick_size)
+            data.close, self.horizon, self.volatility_window, cost.tick_size, self.crosses_gap)
         self.periods_per_year = bars_per_year(data.timestamps)
-        self.parameters = dict(settings.model_parameters)
+        self.parameters = dict(settings.model_parameters)      # the run's base values (the plan's `parameters`)
+        self.active_parameters = dict(self.parameters)          # what the fold being run fits with
+        self.minimum_history = 0
 
         # emission bookkeeping
         self.next_unemitted = 0
@@ -348,7 +377,7 @@ class CycleEngine:
         self.fold_count = 0
         # progress geometry
         self._fold_regions: list[tuple[float, float]] = []
-        self._tuning_region: tuple[float, float] | None = None
+        self._tuning_share = 0.0
         # records
         self.folds: list[FoldSpec] = []
         self.fold_records: list[dict] = []
@@ -357,6 +386,14 @@ class CycleEngine:
         self.trial_records: list[dict] = []
         self.prediction_rows: dict[int, dict] = {}     # row -> record (insertion ordered)
         self.trades: dict[int, Trade] = {}
+        self.fold_parameters: dict[int, dict] = {}       # fold -> the parameters its models were fitted with
+        self.tuning_summaries: dict[int, dict] = {}      # fold -> its tuning summary (tuned folds only)
+        self.metric_records: list[dict] = []             # every `metric` event, with its fold and trial
+        self.bar_chunks: list[dict] = []                 # every bar emitted, context and processed, in order
+        self.landed_tables: set[str] = set()             # lake tables whose manifest line this run wrote
+        self.run_status = "running"                      # running | complete | stopped | failed
+        self.failed = False
+        self.failure: str | None = None
         self.stopped = False
         self.price_adjustment: dict | None = None
         self.final_scoreboard: dict | None = None
@@ -392,6 +429,25 @@ class CycleEngine:
     # ── logging / cursor ───────────────────────────────────────────────────
     def log(self, message: str, level: str = "info") -> None:
         protocol.emit_log(message, level)
+
+    def emit_metric(self, name: str, value, iteration: int, total: int = 0) -> None:
+        """A `metric` event, recorded for the run's `metrics` table with its fold and trial."""
+        coordinates = protocol.get_active_coordinates()
+        self.metric_records.append({
+            "metric_name": str(name), "metric_value": float(value), "iteration": int(iteration), "total": int(total),
+            "fold_index": coordinates["fold_idx"], "trial": coordinates["trial_idx"], "seconds_elapsed": self.elapsed(),
+        })
+        protocol.emit_metric(name, value, iteration=iteration, total=total)
+
+    def _record_bars(self, role: str, fold_index: int | None, timestamps, open_prices, high_prices, low_prices,
+                     close_prices, volumes) -> None:
+        """One chunk of the `bars` table: the bars just emitted, as the model saw them."""
+        self.bar_chunks.append({
+            "role": role, "fold_index": fold_index,
+            "timestamp": np.asarray(timestamps, dtype=np.int64), "open": np.asarray(open_prices, dtype=np.float64),
+            "high": np.asarray(high_prices, dtype=np.float64), "low": np.asarray(low_prices, dtype=np.float64),
+            "close": np.asarray(close_prices, dtype=np.float64), "volume": np.asarray(volumes, dtype=np.float64),
+        })
 
     def fold_prefix(self, fold_index: int | None) -> str:
         if fold_index is None:
@@ -471,6 +527,7 @@ class CycleEngine:
             protocol.emit_cycle_bars(
                 "context", fold_index, timestamps, d.open[rows], d.high[rows], d.low[rows], d.close[rows], d.volume[rows],
             )
+            self._record_bars("context", fold_index, timestamps, d.open[rows], d.high[rows], d.low[rows], d.close[rows], d.volume[rows])
             self.next_unemitted = end
 
     # ── plan ───────────────────────────────────────────────────────────────
@@ -526,9 +583,7 @@ class CycleEngine:
 
     def _progress_geometry(self) -> None:
         start = LOADING_END
-        if self.settings.tuning_trials > 0:
-            self._tuning_region = (LOADING_END, TUNING_END)
-            start = TUNING_END
+        self._tuning_share = TUNING_SHARE_OF_FOLD if self.settings.tuning_enabled else 0.0
         total = sum(spec.test_index.size for spec in self.folds) or 1
         regions = []
         cursor = start
@@ -551,24 +606,28 @@ class CycleEngine:
             within = TRAINING_SHARE * fraction
         if test_fraction is not None:
             within = TRAINING_SHARE + (1 - TRAINING_SHARE) * min(1.0, max(0.0, test_fraction))
+        within = self._tuning_share + (1 - self._tuning_share) * within
         self.set_overall(low + (high - low) * within)
 
-    def tuning_progress(self, fraction: float) -> None:
-        if self._tuning_region:
-            low, high = self._tuning_region
-            self.set_overall(low + (high - low) * min(1.0, max(0.0, fraction)))
+    def tuning_progress(self, fold_index: int, fraction: float) -> None:
+        """Progress through a fold's tuning: the first `_tuning_share` of the fold's span."""
+        if self._tuning_share > 0 and fold_index < len(self._fold_regions):
+            low, high = self._fold_regions[fold_index]
+            self.set_overall(low + (high - low) * self._tuning_share * min(1.0, max(0.0, fraction)))
 
     def build_plan(self) -> dict:
         s = self.settings
         tuning = None
-        if s.tuning_trials > 0:
-            first = self.folds[0]
+        if s.tuning_enabled:
+            # per fold: each fold searches on its own training window (the fold plan carries the span)
             tuning = {
-                "trialCount": int(s.tuning_trials),
+                "mode": "tuned",          # on: an explicit legacy trial count counts as tuned
+                "trialCount": int(s.resolved_tuning_trials),
+                "budgetSeconds": int(s.tuning_budget_seconds),
                 "objective": s.tuning_objective,
                 "innerFoldCount": int(s.tuning_folds),
-                "start": int(self.data.timestamps[first.window_start]),
-                "end": int(self.data.timestamps[first.window_end - 1]),
+                "perFold": True,
+                "pinned": list(s.pinned_parameters),
             }
         parameters = {
             key: (value if isinstance(value, (bool, str)) or value is None else float(value) if isinstance(value, float) else int(value))
@@ -590,6 +649,8 @@ class CycleEngine:
             "featureNames": list(self.feature_set.names),
             "labelHorizonBars": int(self.horizon),
             "labelThresholdTicks": float(s.label_threshold_ticks),
+            "labelGapMultiple": float(s.label_gap_multiple),
+            "gapCrossingBarCount": int(self.crosses_gap.sum()),
             "purgeBars": int(self.horizon),
             "embargoBars": int(s.embargo_bars),
             "costModel": {
@@ -636,17 +697,38 @@ class CycleEngine:
         and emits ``done`` on completion and on a user stop."""
         from cycle import store
 
+        failure: BaseException | None = None
         try:
             self._run()
             self.set_overall(1.0)
             self.set_phase("complete", phase_fraction=1.0)
+            self.run_status = "complete"
         except StopRequested:
             self.stopped = True
+            self.run_status = "stopped"
             self._handle_stop()
             self.set_phase("stopped", phase_fraction=1.0)
+        except BaseException as error:  # noqa: BLE001 - the record of what ran is written, then the failure is re-raised
+            failure = error
+            self.failed = True
+            self.run_status = "failed"
+            self.failure = f"{type(error).__name__}: {error}"
+            self.log(f"[run] failed: {self.failure}; writing the record of what ran", "error")
+            try:
+                self._handle_failure()
+            except Exception as inner:  # noqa: BLE001
+                self.log(f"[run] could not close the failed fold cleanly: {type(inner).__name__}: {inner}", "warn")
         protocol.set_active_fold(None)
         protocol.set_active_trial(None)
-        diagnostics = store.write_run(self)
+        try:
+            diagnostics = store.write_run(self, final=True)
+        except Exception as error:  # noqa: BLE001
+            if failure is None:
+                raise
+            self.log(f"[save] the run record could not be written after the failure: {type(error).__name__}: {error}", "error")
+            raise failure from error
+        if failure is not None:
+            raise failure
         protocol.emit_done(model_path=self.settings.artifact_directory, diagnostics=diagnostics)
         return diagnostics
 
@@ -655,6 +737,7 @@ class CycleEngine:
         self.set_phase("loading")
         probe = self.adapter_factory(dict(self.parameters))
         minimum = int(probe.minimum_history())
+        self.minimum_history = minimum
         self.folds = self.plan_folds(minimum)
         self.fold_count = len(self.folds)
         self._progress_geometry()
@@ -671,6 +754,20 @@ class CycleEngine:
             f"purge {self.horizon}, embargo {s.embargo_bars}, holding {s.resolved_holding_bars} bars, trades every prediction: "
             f"long at P(up) >= 0.5, {'flat' if s.long_only else 'short'} below, cost {format_usd(self.cost.round_trip * s.contracts, False)} per round trip"
         )
+        gap_bars = int(self.crosses_gap.sum())
+        if s.label_gap_multiple > 0:
+            self.log(
+                f"[plan] session-gap rule: a bar whose {self.horizon}-bar horizon crosses a gap over {s.label_gap_multiple:g}× the typical "
+                f"bar interval has no label, target or forecast — {gap_bars:,} of {len(self.data):,} bars"
+            )
+        if s.tuning_enabled:
+            budget = (f"{s.resolved_tuning_trials} trials" if s.tuning_budget_seconds <= 0
+                      else f"{s.resolved_tuning_trials} trials or {s.tuning_budget_seconds} s")
+            self.log(f"[plan] hyperparameters: tuned inside every fold on its own training window, {budget} per fold, "
+                     f"objective {s.tuning_objective}" + (f", pinned {', '.join(s.pinned_parameters)}" if s.pinned_parameters else ""))
+        else:
+            self.log(f"[plan] hyperparameters: {'the values given for the run' if s.given_parameters else 'the reviewed defaults'}, no search")
+        self.price_forecasts_on_grid = True
         label = MODEL_LABELS.get(s.model_family, s.model_family)
         if not self.has_price_model:
             self.log(f"[plan] {label} has no regression form: no price model is fitted and no forecast line is drawn this run")
@@ -683,21 +780,6 @@ class CycleEngine:
         if s.start_paused:
             self.log("[control] starting paused — press resume to begin")
         self.checkpoint()
-
-        if s.tuning_trials > 0:
-            from cycle.tuning import run_tuning
-
-            self.emit_context_until(int(self.folds[0].test_index[0]), 0)
-            best = run_tuning(self, self.folds[0])
-            self.parameters = best
-            minimum_after = int(self.adapter_factory(dict(self.parameters)).minimum_history())
-            if minimum_after != minimum:
-                self.log(f"[tune] the tuned model needs {minimum_after} bars of history (was {minimum}); re-planning the folds' index sets")
-                replanned = self.plan_folds(minimum_after)
-                if [spec.plan(self.data.timestamps)["testStart"] for spec in replanned] != [f["testStart"] for f in self.plan["folds"]]:
-                    raise RuntimeError("tuning changed the fold layout; the plan already sent no longer holds")
-                self.folds = replanned
-                self._write_explain_inputs(minimum_after)
 
         self.simulator = Simulator(
             self.cost,
@@ -721,6 +803,8 @@ class CycleEngine:
         protocol.set_active_trial(None)
         self.emit_context_until(int(spec.test_index[0]), k)
         ts = self.data.timestamps
+        parameters, tuning_summary = self._choose_parameters(spec)
+        self.active_parameters = dict(parameters)
         directory = os.path.join(s.artifact_directory, f"fold_{k}")
         price_train, price_validation = self._price_rows(spec)
         self._write_fold_index(spec, directory, price_train, price_validation)
@@ -737,7 +821,7 @@ class CycleEngine:
                 model_role="direction",
             )
             self.fold_progress(k, training_fraction=0.0)
-            adapter = self.adapter_factory(dict(self.parameters))
+            adapter = self.adapter_factory(dict(self.active_parameters))
             reporter = EngineReporter(self, fold_index=k, train_index=spec.train_index, validation_index=spec.validation_index)
             training_started = self.clock()
             adapter.fit(self.features, self.labels, spec.train_index, spec.validation_index, ts, reporter)
@@ -768,7 +852,9 @@ class CycleEngine:
                   "priceValidationBarCount": int(price_validation.size) if price_adapter is not None else 0,
                   "priceTrainingSeconds": price_seconds,
                   # on disk from here on, so a stop during the walk still records them
-                  "modelPath": model_path, "priceModelPath": price_model_path}
+                  "modelPath": model_path, "priceModelPath": price_model_path,
+                  # what this fold's models were fitted with, and how it was chosen
+                  "parameters": dict(parameters), "tuning": tuning_summary, "status": "running"}
         self.fold_records.append(record)
         testing_started = self.clock()
         self._walk_test(spec, adapter, accumulator, price_adapter)
@@ -790,13 +876,14 @@ class CycleEngine:
             "validation_start": format_time(record["validationStart"]), "validation_end": format_time(record["validationEnd"]),
             "test_start": format_time(record["testStart"]), "test_end": format_time(record["testEnd"]),
         }
+        record["status"] = "complete"
         protocol.emit_fold_complete(k, {**{key: value for key, value in metrics.items() if value is not None}, **spans})
         for name in ("net_profit_usd", "sharpe_ratio", "sortino_ratio", "maximum_drawdown_usd", "profit_factor",
                      "win_rate", "trade_count", "accuracy", "f1_score", "roc_auc", "log_loss", "brier_score",
                      "price_forecast_mean_absolute_error_points", "persistence_mean_absolute_error_points",
                      "price_forecast_skill"):
             if metrics.get(name) is not None:
-                protocol.emit_metric(name, metrics[name], iteration=k, total=self.fold_count)
+                self.emit_metric(name, metrics[name], iteration=k, total=self.fold_count)
 
         test_rows = spec.test_index
         records = [self.prediction_rows[int(row)] for row in test_rows]
@@ -819,6 +906,75 @@ class CycleEngine:
                 f"{_format_number(metrics['price_forecast_direction_accuracy'], '.3f')} on "
                 f"{len(accumulator.inputs.forecast_predicted_move_points)} resolved forecasts"
             )
+
+        self._land_fold(k)
+
+    def _land_fold(self, fold_index: int) -> None:
+        """Write and land the record so far: a crash or a kill later loses at most the fold in progress."""
+        from cycle import store
+
+        try:
+            store.write_run(self, final=False)
+        except Exception as error:  # noqa: BLE001 - landing never fails the run
+            self.log(f"{self.fold_prefix(fold_index)}[save] could not write the fold's record: {type(error).__name__}: {error}", "warn")
+
+    def _choose_parameters(self, spec: FoldSpec) -> tuple[dict, dict | None]:
+        """The parameters this fold's models are fitted with: the fold's own
+        Optuna search over the run's base values when tuning is on and the model
+        has a search space; the base values otherwise. Emits `cycle_parameters`."""
+        s = self.settings
+        k = spec.fold_index
+        prefix = self.fold_prefix(k)
+        base = dict(self.parameters)
+        pinned = s.pinned_parameters
+        searchable = self._searchable_parameters()
+        summary: dict | None = None
+        if s.tuning_enabled and self.suggest_parameters is None:
+            self.log(f"{prefix}[tune] no search space is wired for {self.display_name}; this fold uses the run's parameters", "warn")
+        if s.tuning_enabled and searchable is not None and not searchable:
+            self.log(f"{prefix}[tune] {self.display_name} has no searchable parameter; this fold uses the run's parameters", "warn")
+        if s.tuning_enabled and self.suggest_parameters is not None and (searchable is None or searchable):
+            from cycle.tuning import run_tuning
+
+            parameters, summary = run_tuning(
+                self, spec, trial_budget=s.resolved_tuning_trials, seconds_budget=float(s.tuning_budget_seconds), pinned=pinned,
+            )
+            source = "tuned"
+            minimum_after = int(self.adapter_factory(dict(parameters)).minimum_history())
+            if minimum_after != self.minimum_history:
+                raise RuntimeError(
+                    f"fold {k + 1}: the tuned model needs {minimum_after} bars of history (the plan was made for "
+                    f"{self.minimum_history}); a searched parameter changes the history requirement — pin it"
+                )
+        else:
+            parameters = base
+            source = "manual" if s.given_parameters else "reviewed_defaults"
+        protocol.emit_cycle_parameters(
+            fold_index=k, parameters=parameters, source=source,
+            objective_name=(s.tuning_objective if summary else None),
+            best_trial=(summary or {}).get("bestTrial"), best_value=(summary or {}).get("bestValue"),
+            trial_count=(summary or {}).get("trialCount"), pinned=pinned,
+        )
+        self.fold_parameters[k] = dict(parameters)
+        if summary is not None:
+            self.tuning_summaries[k] = summary
+        return parameters, summary
+
+    def _searchable_parameters(self) -> tuple[str, ...] | None:
+        """The names the registry searches for this model; None when the key is not in the registry."""
+        if self.registry_entry is None:
+            return None
+        return tuple(name for name, spec in self.registry_entry["parameters"].items() if spec.get("search"))
+
+    def _handle_failure(self) -> None:
+        """Close the record of a run that raised: flush the frame on the wire,
+        mark the fold in progress failed, and score what did finish."""
+        self._flush_frame()
+        if self.fold_records and self.fold_records[-1].get("status") == "running":
+            self.fold_records[-1]["status"] = "failed"
+            self.fold_records[-1]["error"] = self.failure
+        if any(record.get("status") == "complete" for record in self.fold_records):
+            self._emit_final_scoreboard()
 
     # ── artifacts and the from_price fit ───────────────────────────────────
     def _write_explain_inputs(self, sequence_length: int) -> None:
@@ -883,7 +1039,7 @@ class CycleEngine:
         )
         self.set_phase("training", fold_index=k, span_start=int(ts[train[0]]), span_end=int(ts[train[-1]]), model_role="price")
         self.fold_progress(k, training_fraction=0.0, model_role="price")
-        adapter = self.adapter_factory(dict(self.parameters))
+        adapter = self.adapter_factory(dict(self.active_parameters))
         reporter = EngineReporter(self, fold_index=k, train_index=train, validation_index=validation, model_role="price")
         started = self.clock()
         adapter.fit(self.features, self.labels, spec.train_index, spec.validation_index, ts, reporter,
@@ -924,7 +1080,7 @@ class CycleEngine:
         self.fold_progress(k, training_fraction=0.0, model_role="price")
         started = self.clock()
         try:
-            adapter = self.adapter_factory(dict(self.parameters), task="regression")
+            adapter = self.adapter_factory(dict(self.active_parameters), task="regression")
             reporter = EngineReporter(self, fold_index=k, train_index=train, validation_index=validation, model_role="price")
             adapter.fit(self.features, self.price_targets, train, validation, ts, reporter)
         except StopRequested:
@@ -999,7 +1155,8 @@ class CycleEngine:
             # the price model: its output times the causal scale at this bar, in points
             predicted_move: float | None = None
             scale = float(self.move_scale[i])
-            if price_valid is not None and price_valid[i] and math.isfinite(scale):
+            crosses_gap = bool(self.crosses_gap[i])
+            if price_valid is not None and price_valid[i] and math.isfinite(scale) and not crosses_gap:
                 output = float(price_adapter.predict_value(self.features, np.array([i], dtype=np.int64))[0])
                 if math.isfinite(output):
                     predicted_move = output * scale
@@ -1007,8 +1164,14 @@ class CycleEngine:
                     warned_price = True
                     self.log(f"{prefix}[test] the price model returned a non-finite value at {format_time(d.timestamps[i])}; "
                              "such bars draw no forecast", "warn")
-            predicted_close = None if predicted_move is None else float(d.close[i]) + predicted_move
-            forecast_timestamp = int(d.timestamps[i + self.horizon]) if i + self.horizon < bar_count else None
+            predicted_close = None
+            predicted_move_raw = predicted_move          # the model's own number: output x scale, unrounded
+            if predicted_move is not None:
+                # the forecast is a price the market can print: the nearest tick, and the move follows it,
+                # so the chart, the metrics and the record carry one number
+                predicted_close = round_to_tick(float(d.close[i]) + predicted_move, self.cost.tick_size)
+                predicted_move = predicted_close - float(d.close[i])
+            forecast_timestamp = None if crosses_gap or i + self.horizon >= bar_count else int(d.timestamps[i + self.horizon])
             predicted_move_for_row[i] = predicted_move
             last = j == count - 1
             result = simulator.step(i, int(d.timestamps[i]), d.open[i], d.high[i], d.low[i], d.close[i], signal, probability, decide=not last)
@@ -1031,22 +1194,28 @@ class CycleEngine:
                 "timestamp": int(d.timestamps[i]), "fold_index": k,
                 "open": float(d.open[i]), "high": float(d.high[i]), "low": float(d.low[i]),
                 "close": float(d.close[i]), "volume": float(d.volume[i]),
-                "probability_up": probability, "predicted_direction": direction, "position": int(position),
+                "probability_up": probability, "predicted_direction": direction,
+                # `target_position` is the position wanted at the next open; `position_held` was carried through this bar
+                "target_position": int(position), "position_held": int(result.held),
+                "bar_net_profit_usd": float(net), "exposed": bool(result.exposed), "crosses_gap": crosses_gap,
                 "equity_usd": self.equity, "actual_direction": None, "correct": None,
-                "predicted_move_points": predicted_move, "predicted_close": predicted_close,
+                "predicted_move_points": predicted_move, "predicted_move_raw_points": predicted_move_raw,
+                "predicted_close": predicted_close,
                 "forecast_timestamp": forecast_timestamp, "forecast_error_points": None,
             }
             frame = self._frame_for(k)
             for key, value in (("timestamps", int(d.timestamps[i])), ("open", d.open[i]), ("high", d.high[i]), ("low", d.low[i]),
                                ("close", d.close[i]), ("volume", d.volume[i]), ("probabilityUp", probability),
-                               ("predictedDirection", direction), ("position", position), ("equityUsd", self.equity),
-                               ("predictedClose", predicted_close), ("forecastTimestamp", forecast_timestamp)):
+                               ("predictedDirection", direction), ("position", position), ("positionHeld", int(result.held)),
+                               ("equityUsd", self.equity), ("predictedClose", predicted_close), ("forecastTimestamp", forecast_timestamp)):
                 frame[key].append(value)
 
             # the label of the bar h back (same fold) is known now
             if j >= self.horizon:
                 resolved_row = int(rows[j - self.horizon])
-                actual = actual_direction(d.close, resolved_row, self.horizon, s.label_threshold_ticks, self.cost.tick_size)
+                # a bar whose horizon crossed a session gap is not scored (actual 0 = unscored)
+                actual = 0 if self.crosses_gap[resolved_row] else actual_direction(
+                    d.close, resolved_row, self.horizon, s.label_threshold_ticks, self.cost.tick_size)
                 predicted = predicted_class_for_row[resolved_row]
                 correct = None if actual == 0 or predicted == 0 else predicted == actual
                 frame["resolvedTimestamps"].append(int(d.timestamps[resolved_row]))
@@ -1108,7 +1277,7 @@ class CycleEngine:
             self._frame = {
                 "foldIndex": fold_index,
                 **{key: [] for key in ("timestamps", "open", "high", "low", "close", "volume", "probabilityUp",
-                                       "predictedDirection", "position", "equityUsd", "predictedClose",
+                                       "predictedDirection", "position", "positionHeld", "equityUsd", "predictedClose",
                                        "forecastTimestamp", "resolvedTimestamps", "resolvedActual", "resolvedCorrect")},
             }
         return self._frame
@@ -1128,8 +1297,10 @@ class CycleEngine:
                 frame["close"], frame["volume"], probability_up=frame["probabilityUp"],
                 predicted_direction=frame["predictedDirection"], position=frame["position"],
                 equity_usd=frame["equityUsd"], resolved=resolved, predicted_close=frame["predictedClose"],
-                forecast_timestamp=frame["forecastTimestamp"],
+                forecast_timestamp=frame["forecastTimestamp"], position_held=frame["positionHeld"],
             )
+            self._record_bars("processed", frame["foldIndex"], frame["timestamps"], frame["open"], frame["high"],
+                              frame["low"], frame["close"], frame["volume"])
             self.emit_cursor(force=True)
         actions, self._post_frame = self._post_frame, []
         for action in actions:
@@ -1269,17 +1440,19 @@ class CycleEngine:
             "timestamp": int(d.timestamps[following]), "fold_index": k,
             "open": float(d.open[following]), "high": float(d.high[following]), "low": float(d.low[following]),
             "close": float(d.close[following]), "volume": float(d.volume[following]),
-            "probability_up": None, "predicted_direction": 0, "position": 0,
+            "probability_up": None, "predicted_direction": 0, "target_position": 0, "position_held": int(result.held),
+            "bar_net_profit_usd": float(result.net_usd), "exposed": bool(result.exposed),
+            "crosses_gap": bool(self.crosses_gap[following]),
             "equity_usd": self.equity, "actual_direction": None, "correct": None,
-            "predicted_move_points": None, "predicted_close": None, "forecast_timestamp": None,
-            "forecast_error_points": None,
+            "predicted_move_points": None, "predicted_move_raw_points": None, "predicted_close": None,
+            "forecast_timestamp": None, "forecast_error_points": None,
         }
         frame = self._frame_for(k)
         for key, value in (("timestamps", int(d.timestamps[following])), ("open", d.open[following]),
                            ("high", d.high[following]), ("low", d.low[following]), ("close", d.close[following]),
                            ("volume", d.volume[following]), ("probabilityUp", None), ("predictedDirection", 0),
-                           ("position", 0), ("equityUsd", self.equity), ("predictedClose", None),
-                           ("forecastTimestamp", None)):
+                           ("position", 0), ("positionHeld", int(result.held)), ("equityUsd", self.equity),
+                           ("predictedClose", None), ("forecastTimestamp", None)):
             frame[key].append(value)
         self.log(f"[control] stopping: closed the open trade at the next bar's open, {format_time(d.timestamps[following])} "
                  f"(the fill rule every exit uses); equity {format_usd(self.equity)}")
@@ -1300,6 +1473,8 @@ class CycleEngine:
                 if record is not None:
                     record["equity_usd"] = self.equity
                     record["position"] = 0
+                if record is not None:
+                    record["target_position"] = 0
                 if self._frame is not None and self._frame["timestamps"] and self._frame["timestamps"][-1] == int(self.data.timestamps[row]):
                     self._frame["equityUsd"][-1] = self.equity
                     self._frame["position"][-1] = 0
@@ -1508,13 +1683,13 @@ class EngineReporter:
             for name, value in (("price_model_train_mean_absolute_error", report.train_loss),
                                 ("price_model_validation_mean_absolute_error", report.validation_loss)):
                 if value is not None and math.isfinite(value):
-                    protocol.emit_metric(name, value, iteration=engine.price_global_step)
+                    engine.emit_metric(name, value, iteration=engine.price_global_step)
         elif not self.tuning:
             engine.global_step += 1
             if report.train_loss is not None and math.isfinite(report.train_loss):
-                protocol.emit_metric("train_loss", report.train_loss, iteration=engine.global_step)
+                engine.emit_metric("train_loss", report.train_loss, iteration=engine.global_step)
             if report.validation_loss is not None and math.isfinite(report.validation_loss):
-                protocol.emit_metric("validation_loss", report.validation_loss, iteration=engine.global_step)
+                engine.emit_metric("validation_loss", report.validation_loss, iteration=engine.global_step)
         fraction = self._fraction() if report.epoch < report.epoch_count else 1.0
         if report.epoch >= report.epoch_count or report.stopped_early:
             fraction = 1.0

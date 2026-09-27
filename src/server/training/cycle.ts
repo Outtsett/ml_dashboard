@@ -31,9 +31,11 @@ import {
   type CycleSnapshot,
   type CycleTrade,
   type CycleTrial,
+  type CycleParameters,
   isCycleEventType,
 } from "@shared/cycle/schema";
 import { getEventBus } from "../infrastructure/events";
+import { refreshDerivedViews } from "../infrastructure/database/questdb";
 
 /** How many `cycle_*` runs' state is kept in memory at once. */
 const MAX_TRACKED_RUNS = 5;
@@ -60,9 +62,15 @@ interface CycleRunState {
   foldScoreboards: Map<number, CycleScoreboard>;
   finalScoreboard: CycleScoreboard | null;
   epochs: CycleEpoch[];
-  /** Latest state per trial number — a trial reports running, then complete. */
-  trials: Map<number, CycleTrial>;
+  /** Latest state per (fold, trial number) — a trial reports running, then complete; numbering restarts every fold. */
+  trials: Map<string, CycleTrial>;
+  /** Per fold: the hyperparameters its models were fitted with (`cycle_parameters`). */
+  parameters: Map<number, CycleParameters>;
   logs: CycleLogLine[];
+}
+
+function trialKey(trial: CycleTrial): string {
+  return `${trial.foldIndex ?? -1}:${trial.trial}`;
 }
 
 function newRunState(modelId: string, modelType: string, startedAt: number): CycleRunState {
@@ -83,6 +91,7 @@ function newRunState(modelId: string, modelType: string, startedAt: number): Cyc
     finalScoreboard: null,
     epochs: [],
     trials: new Map(),
+    parameters: new Map(),
     logs: [],
   };
 }
@@ -143,7 +152,12 @@ function applyCycleTypedEvent(run: CycleRunState, type: string, data: Record<str
       return;
     case "cycle_trial": {
       const trial = data as unknown as CycleTrial;
-      run.trials.set(trial.trial, trial);
+      run.trials.set(trialKey(trial), trial);
+      return;
+    }
+    case "cycle_parameters": {
+      const parameters = data as unknown as CycleParameters;
+      run.parameters.set(parameters.foldIndex ?? -1, parameters);
       return;
     }
     case "cycle_trade": {
@@ -175,6 +189,11 @@ function finishRun(run: CycleRunState, status: CycleRunStatus, error: string | n
   run.status = status;
   run.error = error;
   run.finishedAt = finishedAt;
+  // the process landed its record tables while it ran; the serving views for
+  // any table landed for the first time exist once the manifests are re-read
+  void refreshDerivedViews().catch((refreshError) => {
+    console.warn(`[cycle] derived views not refreshed after ${run.modelId}: ${String(refreshError)}`);
+  });
 }
 
 /**
@@ -285,7 +304,8 @@ function toSnapshot(run: CycleRunState): CycleSnapshot {
     trades: [...run.trades.values()].sort((a, b) => a.tradeNumber - b.tradeNumber),
     scoreboards: toScoreboards(run),
     epochs: run.epochs,
-    trials: [...run.trials.values()].sort((a, b) => a.trial - b.trial),
+    trials: [...run.trials.values()].sort((a, b) => (a.foldIndex ?? -1) - (b.foldIndex ?? -1) || a.trial - b.trial),
+    parameters: [...run.parameters.values()].sort((a, b) => (a.foldIndex ?? -1) - (b.foldIndex ?? -1)),
     logs: run.logs,
   };
 }

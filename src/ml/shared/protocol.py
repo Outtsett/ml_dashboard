@@ -735,6 +735,7 @@ def emit_cycle_bars(
     resolved=None,
     predicted_close=None,
     forecast_timestamp=None,
+    position_held=None,
 ) -> None:
     """Bars in strict timestamp order, each bar emitted exactly once per run.
 
@@ -788,13 +789,17 @@ def emit_cycle_bars(
         payload["predictedDirection"] = [int(v) for v in predicted_direction]
         payload["position"] = [int(v) for v in position]
         payload["equityUsd"] = [float(v) for v in equity_usd]
-        for name, column in (("predictedClose", predicted_close), ("forecastTimestamp", forecast_timestamp)):
+        for name, column in (("predictedClose", predicted_close), ("forecastTimestamp", forecast_timestamp),
+                             ("positionHeld", position_held)):
             if column is not None and len(column) != count:
                 raise ValueError(f"emit_cycle_bars: {name} has {len(column)} values for {count} timestamps")
         if predicted_close is not None:
             payload["predictedClose"] = [_optional_number(v) for v in predicted_close]
         if forecast_timestamp is not None:
             payload["forecastTimestamp"] = [_optional_int(v) for v in forecast_timestamp]
+        if position_held is not None:
+            # the position carried THROUGH the bar; `position` is the target for the next open
+            payload["positionHeld"] = [int(v) for v in position_held]
     if resolved is not None:
         resolved_count = len(resolved["timestamps"])
         if len(resolved["actualDirection"]) != resolved_count or len(resolved["correct"]) != resolved_count:
@@ -918,8 +923,11 @@ def emit_cycle_trial(
     objective_value=None,
     best_value=None,
     best_trial=None,
+    fold_index=None,
 ) -> None:
-    """An Optuna trial started (``running``), finished, was pruned or failed."""
+    """An Optuna trial started (``running``), finished, was pruned or failed.
+    ``fold_index`` is the walk-forward fold whose training window the trial
+    was scored on (tuning runs inside every fold)."""
     if state not in ("running", "complete", "pruned", "failed"):
         raise ValueError(f"emit_cycle_trial: unknown state {state!r}")
     clean_parameters = {}
@@ -939,6 +947,48 @@ def emit_cycle_trial(
             "objectiveValue": _optional_number(objective_value),
             "bestValue": _optional_number(best_value),
             "bestTrial": _optional_int(best_trial),
+            "foldIndex": _optional_int(fold_index),
+        },
+    )
+
+
+def emit_cycle_parameters(
+    *,
+    fold_index,
+    parameters: dict,
+    source: str,
+    objective_name=None,
+    best_trial=None,
+    best_value=None,
+    trial_count=None,
+    pinned=(),
+) -> None:
+    """The hyperparameters a fold's models are fitted with, once per fold,
+    after the fold's tuning (or its decision not to tune). ``source`` is
+    ``tuned`` (the fold's best Optuna trial over the base values), ``manual``
+    (values typed for the run, no tuning) or ``reviewed_defaults`` (the
+    registry's defaults). ``pinned`` names the parameters held out of the
+    search. The plan's ``parameters`` are the BASE values; this event carries
+    what each fold actually used."""
+    if source not in ("tuned", "manual", "reviewed_defaults"):
+        raise ValueError(f"emit_cycle_parameters: unknown source {source!r}")
+    clean: dict = {}
+    for key, value in parameters.items():
+        if value is None or isinstance(value, (bool, str)):
+            clean[str(key)] = value
+        else:
+            clean[str(key)] = float(value) if isinstance(value, float) else int(value)
+    _emit_cycle(
+        "cycle_parameters",
+        {
+            "foldIndex": _optional_int(fold_index),
+            "parameters": clean,
+            "source": source,
+            "objectiveName": objective_name,
+            "bestTrial": _optional_int(best_trial),
+            "bestValue": _optional_number(best_value),
+            "trialCount": _optional_int(trial_count),
+            "pinned": [str(name) for name in pinned],
         },
     )
 

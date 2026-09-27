@@ -1,10 +1,21 @@
 """Artifacts of a Model Cycle run: ``data/models/<model_id>/`` and the lake.
 
+Written at the end of EVERY fold and again at the end of the run (complete,
+stopped or failed), so a crash or a kill later loses at most the fold in
+progress. Each write replaces the previous one (the record is idempotent by
+run); the lake manifest line for a table is appended once per run.
+
 Local files (full-word column names):
-    config.json          the plan (the ``cycle_plan`` event) plus the parameters used
+    config.json          the plan (the ``cycle_plan`` event), the run's base parameters, the
+                         parameters every fold used, the tuning summaries, the status
+    runs_table.parquet   one row: the run (see RUN_COLUMNS)
+    bars.parquet         every bar the model read, each once: timestamp, fold, role
+                         (context | processed), roll-adjusted OHLCV and the roll adjustment
     predictions.parquet  one row per processed test bar, with the price model's forecast
-                         (predicted_move_points, predicted_close, forecast_timestamp) and,
-                         once its target bar was walked, forecast_error_points
+                         (predicted_move_points, predicted_close on the tick grid,
+                         forecast_timestamp) and, once its target bar was walked,
+                         forecast_error_points; target_position (wanted at the next open) and
+                         position_held (carried through the bar); the bar's net USD and exposure
     fold_<k>/            the direction model and fold_<k>/price_model/ the price model, each
                          saved right after its own fit; fold_<k>/index.npz, written before
                          fitting, holds the rows each was fitted on
@@ -14,19 +25,21 @@ Local files (full-word column names):
                          close.npy, move_scale.npy, labels.npy, price_target.npy
     trades.parquet       one row per trade
     epochs.parquet       one row per training step summary (folds and tuning trials)
-    trials.parquet       one row per tuning trial
-    folds.json           fold plans, timings, metrics, model paths
+    trials.parquet       one row per tuning trial, with its fold
+    metrics.parquet      one row per emitted metric, with its fold and trial
+    folds.json           fold plans, timings, metrics, model paths, parameters used, tuning
+    folds_table.parquet  the same, one row per fold
     scoreboard.json      the final scoreboard
-    diagnostics.json     final metrics, folds, device, elapsed seconds, stopped flag
+    diagnostics.json     final metrics, folds, device, elapsed seconds, status
 
 Lake (the layout of ``scripts/land_regression_tab_performance.py``):
-    s3://derived/model_cycle_runs/recipe=<model_id>/table=<predictions|trades|folds>/part-0.parquet
-plus one manifest line per table in ``meta/ingest_manifests/model_cycle_runs.jsonl``.
-The ``lake.layout`` writer needs ``upath``, which the dashboard's venv does not
-carry, so when the in-process import fails the landing runs in the datalake
-interpreter (``CYCLE_LAKE_PYTHON``, default
-``E:/source/repos/datalake/.venv/Scripts/python.exe``) — the interpreter that
-script's own docstring names. A landing failure is a warning, never a failed run.
+    s3://derived/model_cycle_runs/recipe=<model_id>/table=<runs|bars|predictions|trades|folds|epochs|trials|metrics>/part-0.parquet
+plus one manifest line per table per run in ``meta/ingest_manifests/model_cycle_runs.jsonl``,
+which is what defines the dashboard's ``derived_model_cycle_runs_<table>`` views.
+The landing runs in-process through ``lake.layout`` (pyarrow, zstd); when that
+import fails it runs in the datalake interpreter (``CYCLE_LAKE_PYTHON``, default
+``E:/source/repos/datalake/.venv/Scripts/python.exe``). A landing failure is a
+warning, never a failed run.
 """
 
 from __future__ import annotations
@@ -34,13 +47,13 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 from typing import TYPE_CHECKING
 
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from cycle.metrics import METRIC_NAMES as CYCLE_METRIC_NAMES
 from cycle.metrics import PRICE_FORECAST_METRIC_NAMES
 from shared.protocol import dumps_safe
 
@@ -50,17 +63,24 @@ if TYPE_CHECKING:
 DATASET = "model_cycle_runs"
 EXPLAIN_DIRECTORY = "explain"
 EXPLAIN_MANIFEST_VERSION = 1
-LAKE_TABLES = ("predictions", "trades", "folds")
+LAKE_TABLES = ("runs", "bars", "predictions", "trades", "folds", "epochs", "trials", "metrics")
 DEFAULT_LAKE_PYTHON = "E:/source/repos/datalake/.venv/Scripts/python.exe"
 
 PREDICTION_COLUMNS = (
     ("timestamp", pa.int64()), ("fold_index", pa.int64()), ("open", pa.float64()), ("high", pa.float64()),
     ("low", pa.float64()), ("close", pa.float64()), ("volume", pa.float64()), ("probability_up", pa.float64()),
-    ("predicted_direction", pa.int64()), ("position", pa.int64()), ("equity_usd", pa.float64()),
+    ("predicted_direction", pa.int64()),
+    # target_position: wanted at the next open after acting on this bar; position_held: carried through this bar
+    ("target_position", pa.int64()), ("position_held", pa.int64()),
+    ("bar_net_profit_usd", pa.float64()), ("exposed", pa.bool_()), ("crosses_gap", pa.bool_()),
+    ("equity_usd", pa.float64()),
     ("actual_direction", pa.int64()), ("correct", pa.bool_()),
     # the price model: its forecast made at this bar of the move to (and close at) the bar
     # label_horizon_bars later, and — once that bar was walked — forecast minus actual move
-    ("predicted_move_points", pa.float64()), ("predicted_close", pa.float64()), ("forecast_timestamp", pa.int64()),
+    ("predicted_move_points", pa.float64()),
+    # the model's own output x scale before the tick rounding (the explainer's parity gate reads it)
+    ("predicted_move_raw_points", pa.float64()),
+    ("predicted_close", pa.float64()), ("forecast_timestamp", pa.int64()),
     ("forecast_error_points", pa.float64()),
 )
 TRADE_COLUMNS = (
@@ -78,7 +98,7 @@ EPOCH_COLUMNS = (
     ("gradient_norm", pa.float64()), ("is_best", pa.bool_()), ("seconds_elapsed", pa.float64()),
 )
 TRIAL_COLUMNS = (
-    ("trial", pa.int64()), ("state", pa.string()), ("objective_name", pa.string()), ("objective_value", pa.float64()),
+    ("fold_index", pa.int64()), ("trial", pa.int64()), ("state", pa.string()), ("objective_name", pa.string()), ("objective_value", pa.float64()),
     ("block_values", pa.string()), ("parameters", pa.string()), ("best_value", pa.float64()), ("best_trial", pa.int64()),
 )
 FOLD_COLUMNS = (
@@ -89,6 +109,43 @@ FOLD_COLUMNS = (
     ("metrics", pa.string()), ("model_path", pa.string()),
     ("price_train_bar_count", pa.int64()), ("price_validation_bar_count", pa.int64()),
     ("price_training_seconds", pa.float64()), ("price_model_path", pa.string()),
+    ("status", pa.string()), ("error", pa.string()), ("parameters", pa.string()),
+    ("tuning_objective", pa.string()), ("tuning_trial_count", pa.int64()),
+    ("tuning_best_trial", pa.int64()), ("tuning_best_value", pa.float64()),
+)
+BAR_COLUMNS = (
+    ("timestamp", pa.int64()), ("fold_index", pa.int64()), ("role", pa.string()),
+    ("open", pa.float64()), ("high", pa.float64()), ("low", pa.float64()), ("close", pa.float64()),
+    ("volume", pa.float64()),
+    # points added to the raw price by the roll back-adjustment (0 after the last roll)
+    ("roll_adjustment_points", pa.float64()),
+)
+METRIC_COLUMNS = (
+    ("metric_name", pa.string()), ("metric_value", pa.float64()), ("iteration", pa.int64()), ("total", pa.int64()),
+    ("fold_index", pa.int64()), ("trial", pa.int64()), ("seconds_elapsed", pa.float64()),
+)
+RUN_SCALAR_COLUMNS = (
+    ("model_id", pa.string()), ("recipe", pa.string()), ("status", pa.string()), ("error", pa.string()),
+    ("symbol", pa.string()), ("timeframe", pa.string()), ("model_key", pa.string()), ("model_label", pa.string()),
+    ("catalog_spec_id", pa.string()), ("implementation", pa.string()), ("direction_mode", pa.string()),
+    ("has_price_model", pa.bool_()), ("device", pa.string()), ("device_name", pa.string()),
+    ("started_at_timestamp", pa.int64()), ("finished_at_timestamp", pa.int64()), ("elapsed_seconds", pa.float64()),
+    ("data_start_timestamp", pa.int64()), ("data_end_timestamp", pa.int64()), ("bar_count", pa.int64()),
+    ("bars_per_year", pa.float64()), ("feature_count", pa.int64()), ("feature_names", pa.string()),
+    ("label_horizon_bars", pa.int64()), ("label_threshold_ticks", pa.float64()), ("label_gap_multiple", pa.float64()),
+    ("gap_crossing_bar_count", pa.int64()), ("purge_bars", pa.int64()), ("embargo_bars", pa.int64()),
+    ("train_days", pa.int64()), ("validation_fraction", pa.float64()), ("test_days", pa.int64()),
+    ("step_days", pa.int64()), ("fold_limit", pa.int64()), ("expanding_window", pa.bool_()),
+    ("fold_count", pa.int64()), ("folds_completed", pa.int64()),
+    ("tick_size", pa.float64()), ("tick_value_usd", pa.float64()), ("point_value_usd", pa.float64()),
+    ("cost_per_side_usd", pa.float64()), ("round_trip_cost_usd", pa.float64()), ("cost_model_source", pa.string()),
+    ("long_only", pa.bool_()), ("holding_bars", pa.int64()), ("stop_loss_ticks", pa.float64()),
+    ("take_profit_ticks", pa.float64()), ("contracts", pa.int64()),
+    ("tuning_mode", pa.string()), ("tuning_enabled", pa.bool_()), ("tuning_trials_per_fold", pa.int64()),
+    ("tuning_budget_seconds", pa.int64()), ("tuning_objective", pa.string()), ("tuning_inner_blocks", pa.int64()),
+    ("tuning_pinned_parameters", pa.string()), ("price_adjustment_method", pa.string()), ("roll_count", pa.int64()),
+    ("seed", pa.int64()), ("base_parameters", pa.string()), ("plan", pa.string()), ("stopped", pa.bool_()),
+    ("closed_trade_count", pa.int64()), ("bars_processed", pa.int64()), ("final_metrics", pa.string()),
 )
 
 
@@ -116,6 +173,12 @@ def fold_rows(engine: CycleEngine) -> list[dict]:
             "test_bar_count": record["testBarCount"], "training_seconds": record.get("trainingSeconds"),
             "testing_seconds": record.get("testingSeconds"), "stopped": bool(record.get("stopped", False)),
             "metrics": dumps_safe(record.get("metrics")), "model_path": record.get("modelPath"),
+            "status": record.get("status"), "error": record.get("error"),
+            "parameters": dumps_safe(record.get("parameters")) if record.get("parameters") is not None else None,
+            "tuning_objective": (record.get("tuning") or {}).get("objective"),
+            "tuning_trial_count": (record.get("tuning") or {}).get("trialCount"),
+            "tuning_best_trial": (record.get("tuning") or {}).get("bestTrial"),
+            "tuning_best_value": (record.get("tuning") or {}).get("bestValue"),
             "price_train_bar_count": record.get("priceTrainBarCount"),
             "price_validation_bar_count": record.get("priceValidationBarCount"),
             "price_training_seconds": record.get("priceTrainingSeconds"), "price_model_path": record.get("priceModelPath"),
@@ -206,26 +269,130 @@ def write_fold_index(directory: str, *, train: np.ndarray, validation: np.ndarra
     return path
 
 
-def write_run(engine: CycleEngine) -> dict:
-    """Write every artifact, land the three tables, return the done-diagnostics."""
+def lake_recipe(model_id: str) -> str:
+    """Run ids carry the runner key ("xgboost+walk_forward_cycle"); some S3
+    clients read "+" in a key as a space, so the lake recipe spells it "_"."""
+    return model_id.replace("+", "_")
+
+
+def roll_adjustment_points(engine: CycleEngine, timestamps: np.ndarray) -> np.ndarray:
+    """Points the back-adjustment added to each bar's raw price: the sum of the
+    steps of every roll AFTER the bar (bars past the last roll are as traded)."""
+    rolls = (engine.price_adjustment or {}).get("rolls") or []
+    out = np.zeros(timestamps.shape[0], dtype=np.float64)
+    for roll in rolls:
+        out[timestamps < int(roll["timestamp"])] += float(roll["gapPoints"])
+    return out
+
+
+def bars_table(engine: CycleEngine) -> pa.Table:
+    """Every bar emitted so far, in order, as the model saw it."""
+    chunks = engine.bar_chunks
+    if not chunks:
+        return table_from_rows([], BAR_COLUMNS)
+    timestamps = np.concatenate([chunk["timestamp"] for chunk in chunks])
+    fold_index = np.concatenate([np.full(chunk["timestamp"].shape[0], -1 if chunk["fold_index"] is None else int(chunk["fold_index"]), dtype=np.int64) for chunk in chunks])
+    role = np.concatenate([np.full(chunk["timestamp"].shape[0], chunk["role"], dtype=object) for chunk in chunks])
+    columns = {
+        "timestamp": pa.array(timestamps, type=pa.int64()),
+        "fold_index": pa.array(np.where(fold_index < 0, None, fold_index).tolist(), type=pa.int64()),
+        "role": pa.array(role.tolist(), type=pa.string()),
+    }
+    for name in ("open", "high", "low", "close", "volume"):
+        columns[name] = pa.array(np.concatenate([chunk[name] for chunk in chunks]), type=pa.float64())
+    columns["roll_adjustment_points"] = pa.array(roll_adjustment_points(engine, timestamps), type=pa.float64())
+    return pa.table(columns, schema=pa.schema([pa.field(name, kind) for name, kind in BAR_COLUMNS]))
+
+
+def run_row(engine: CycleEngine, status: str) -> dict:
+    """The one row of the `runs` table (the 30 scoreboard metrics are added as columns)."""
     s = engine.settings
+    plan = engine.plan or {}
+    cost = plan.get("costModel") or {}
+    final_metrics = (engine.final_scoreboard or {}).get("metrics") or {}
+    entry = engine.registry_entry or {}
+    adjustment = engine.price_adjustment or {"method": "none", "rolls": []}
+    row = {
+        "model_id": s.model_id, "recipe": lake_recipe(s.model_id), "status": status, "error": engine.failure,
+        "symbol": s.symbol, "timeframe": s.timeframe, "model_key": s.model_family,
+        "model_label": plan.get("modelLabel") or engine.display_name,
+        "catalog_spec_id": entry.get("catalogSpecId"), "implementation": entry.get("implementation"),
+        "direction_mode": engine.direction_mode, "has_price_model": bool(engine.has_price_model),
+        "device": s.device, "device_name": s.device_name,
+        "started_at_timestamp": int(getattr(engine, "started_wall_clock", 0) or 0) or None,
+        "finished_at_timestamp": int(_now_epoch()) if status != "running" else None,
+        "elapsed_seconds": float(engine.elapsed()),
+        "data_start_timestamp": int(engine.data.timestamps[0]), "data_end_timestamp": int(engine.data.timestamps[-1]),
+        "bar_count": len(engine.data), "bars_per_year": float(engine.periods_per_year),
+        "feature_count": len(engine.feature_set.names), "feature_names": dumps_safe(list(engine.feature_set.names)),
+        "label_horizon_bars": int(engine.horizon), "label_threshold_ticks": float(s.label_threshold_ticks),
+        "label_gap_multiple": float(s.label_gap_multiple), "gap_crossing_bar_count": int(engine.crosses_gap.sum()),
+        "purge_bars": int(engine.horizon), "embargo_bars": int(s.embargo_bars),
+        "train_days": int(s.train_days), "validation_fraction": float(s.validation_fraction), "test_days": int(s.test_days),
+        "step_days": int(s.resolved_step_days), "fold_limit": int(s.fold_limit), "expanding_window": bool(s.expanding_window),
+        "fold_count": int(engine.fold_count),
+        "folds_completed": sum(1 for record in engine.fold_records if record.get("status") == "complete"),
+        "tick_size": float(engine.cost.tick_size), "tick_value_usd": float(engine.cost.tick_value),
+        "point_value_usd": float(engine.cost.point_value),
+        "cost_per_side_usd": float(cost.get("costPerSideUsd", engine.cost.cost_per_side * s.contracts)),
+        "round_trip_cost_usd": float(cost.get("roundTripCostUsd", engine.cost.round_trip * s.contracts)),
+        "cost_model_source": engine.cost.source,
+        "long_only": bool(s.long_only), "holding_bars": int(s.resolved_holding_bars),
+        "stop_loss_ticks": float(s.stop_loss_ticks), "take_profit_ticks": float(s.take_profit_ticks), "contracts": int(s.contracts),
+        "tuning_mode": s.tuning_mode, "tuning_enabled": bool(s.tuning_enabled),
+        "tuning_trials_per_fold": int(s.resolved_tuning_trials), "tuning_budget_seconds": int(s.tuning_budget_seconds),
+        "tuning_objective": s.tuning_objective, "tuning_inner_blocks": int(s.tuning_folds),
+        "tuning_pinned_parameters": ",".join(s.pinned_parameters),
+        "price_adjustment_method": adjustment.get("method"), "roll_count": len(adjustment.get("rolls") or []),
+        "seed": int(s.seed), "base_parameters": dumps_safe(engine.parameters), "plan": dumps_safe(plan) if plan else None,
+        "stopped": bool(engine.stopped),
+        "closed_trade_count": sum(1 for trade in engine.trades.values() if not trade.is_open),
+        "bars_processed": len(engine.prediction_rows), "final_metrics": dumps_safe(final_metrics) if final_metrics else None,
+    }
+    for name in CYCLE_METRIC_NAMES:
+        value = final_metrics.get(name)
+        row[name] = None if value is None else float(value)
+    return row
+
+
+def run_columns():
+    return RUN_SCALAR_COLUMNS + tuple((name, pa.float64()) for name in CYCLE_METRIC_NAMES)
+
+
+def _now_epoch() -> float:
+    import time
+
+    return time.time()
+
+
+def write_run(engine: CycleEngine, final: bool = True) -> dict:
+    """Write every artifact and land every table; returns the done-diagnostics.
+    ``final=False`` is the fold-boundary write (status ``running``)."""
+    s = engine.settings
+    status = engine.run_status if final else "running"
     directory = s.artifact_directory
     os.makedirs(directory, exist_ok=True)
     predictions = table_from_rows(list(engine.prediction_rows.values()), PREDICTION_COLUMNS)
     trades = table_from_rows([trade.to_row() for trade in sorted(engine.trades.values(), key=lambda t: t.number)], TRADE_COLUMNS)
     epochs = table_from_rows(engine.epoch_records, EPOCH_COLUMNS)
     trials = table_from_rows(engine.trial_records, TRIAL_COLUMNS)
+    metrics = table_from_rows(engine.metric_records, METRIC_COLUMNS)
     folds = table_from_rows(fold_rows(engine), FOLD_COLUMNS)
+    bars = bars_table(engine)
+    runs = table_from_rows([run_row(engine, status)], run_columns())
     paths = {
+        "runs": os.path.join(directory, "runs_table.parquet"),
+        "bars": os.path.join(directory, "bars.parquet"),
         "predictions": os.path.join(directory, "predictions.parquet"),
         "trades": os.path.join(directory, "trades.parquet"),
         "epochs": os.path.join(directory, "epochs.parquet"),
         "trials": os.path.join(directory, "trials.parquet"),
+        "metrics": os.path.join(directory, "metrics.parquet"),
+        "folds": os.path.join(directory, "folds_table.parquet"),
     }
-    for name, table in (("predictions", predictions), ("trades", trades), ("epochs", epochs), ("trials", trials)):
+    for name, table in (("runs", runs), ("bars", bars), ("predictions", predictions), ("trades", trades),
+                        ("epochs", epochs), ("trials", trials), ("metrics", metrics), ("folds", folds)):
         pq.write_table(table, paths[name], compression="zstd")
-    folds_path = os.path.join(directory, "folds_table.parquet")
-    pq.write_table(folds, folds_path, compression="zstd")
 
     final_metrics = (engine.final_scoreboard or {}).get("metrics") or {}
     price_forecast = {name: final_metrics.get(name) for name in PRICE_FORECAST_METRIC_NAMES}
@@ -243,7 +410,15 @@ def write_run(engine: CycleEngine) -> dict:
             "baseline": "persistence: the no-change forecast, predicted close = this bar's close",
             "finalMetrics": price_forecast,
         }
-    config = {"plan": engine.plan, "parametersUsed": engine.parameters, "tuning": engine.tuning_summary,
+    config = {"plan": engine.plan, "status": status, "error": engine.failure,
+              "baseParameters": engine.parameters,
+              "parametersByFold": {str(k): v for k, v in engine.fold_parameters.items()},
+              "tuning": {
+                  "mode": s.tuning_mode, "enabled": bool(s.tuning_enabled), "trialsPerFold": int(s.resolved_tuning_trials),
+                  "budgetSeconds": int(s.tuning_budget_seconds), "objective": s.tuning_objective,
+                  "innerBlockCount": int(s.tuning_folds), "pinned": list(s.pinned_parameters),
+                  "perFold": {str(k): v for k, v in engine.tuning_summaries.items()},
+              },
               "priceModel": price_model,
               "settings": {key: value for key, value in vars(s).items() if key != "model_parameters"}}
     _write_json(os.path.join(directory, "config.json"), config)
@@ -256,6 +431,8 @@ def write_run(engine: CycleEngine) -> dict:
         "device": s.device,
         "deviceName": s.device_name,
         "elapsedSeconds": engine.elapsed(),
+        "status": status,
+        "error": engine.failure,
         "stopped": engine.stopped,
         "barCount": len(engine.data),
         "barsEmitted": len(engine.emitted_timestamps),
@@ -271,74 +448,93 @@ def write_run(engine: CycleEngine) -> dict:
                                               "priceTrainingSeconds", "priceModelPath")}
             for record in engine.fold_records
         ],
-        "tuning": engine.tuning_summary,
-        "parametersUsed": engine.parameters,
+        "tuning": config["tuning"],
+        "baseParameters": engine.parameters,
+        "parametersByFold": config["parametersByFold"],
         "artifactDirectory": directory,
         "lake": None,
     }
     if s.land_in_lake:
-        diagnostics["lake"] = land_tables(
-            engine, {"predictions": paths["predictions"], "trades": paths["trades"], "folds": folds_path},
-        )
+        diagnostics["lake"] = land_tables(engine, {name: paths[name] for name in LAKE_TABLES})
     _write_json(os.path.join(directory, "diagnostics.json"), diagnostics)
-    engine.log(f"[save] artifacts written to {directory}")
+    engine.log(f"[save] {'artifacts' if final else 'the record so far'} written to {directory}", "info" if final else "debug")
     return diagnostics
+
+
+def _land_job(job: dict) -> dict:
+    """Write each table to the lake and append a manifest line for the tables
+    named in ``job["manifest_for"]``. Needs ``lake.layout`` (the datalake package
+    with ``upath``); the subprocess path runs this same function in the
+    datalake interpreter when the dashboard's does not have it."""
+    from datetime import datetime, timezone
+
+    from lake.layout import INGEST_MANIFESTS, arrow_fs, arrow_key, derived_root
+    from lake.writer import COMPRESSION, COMPRESSION_LEVEL
+
+    out: dict = {}
+    for name, path in job["tables"].items():
+        table = pq.read_table(path)
+        root = derived_root(job["dataset"], job["recipe"]) / f"table={name}"
+        key = arrow_key(root / "part-0.parquet")
+        with arrow_fs().open_output_stream(key) as sink:
+            pq.write_table(table, sink, compression=COMPRESSION, compression_level=COMPRESSION_LEVEL)
+        size = arrow_fs().get_file_info(key).size
+        manifest = "already written"
+        if name in job["manifest_for"]:
+            entry = {"written_at": datetime.now(timezone.utc).isoformat(), "dataset": job["dataset"], "table": name,
+                     "zone": "derived", "recipe": job["recipe"], "source": job["source"], "rows": table.num_rows,
+                     "duplicates_removed": 0, "file_count": 1, "bytes": size, "ts_min": None, "ts_max": None}
+            try:
+                with (INGEST_MANIFESTS / f"{job['dataset']}.jsonl").open("a", encoding="utf-8") as handle:
+                    handle.write(json.dumps(entry) + "\n")
+                manifest = "written"
+            except Exception as error:  # noqa: BLE001
+                manifest = f"not written: {error}"
+        out[name] = {"uri": "s3://" + key, "rows": table.num_rows, "bytes": size, "manifest": manifest}
+    return out
 
 
 # Runs in the datalake interpreter: argv[1] is a JSON job.
 _LANDING_SCRIPT = r"""
 import json, sys
-from datetime import datetime, timezone
-import pyarrow.parquet as pq
-from lake.layout import INGEST_MANIFESTS, arrow_fs, arrow_key, derived_root
-from lake.writer import COMPRESSION, COMPRESSION_LEVEL
-job = json.loads(sys.argv[1])
-out = {}
-for name, path in job["tables"].items():
-    table = pq.read_table(path)
-    root = derived_root(job["dataset"], job["recipe"]) / f"table={name}"
-    key = arrow_key(root / "part-0.parquet")
-    with arrow_fs().open_output_stream(key) as sink:
-        pq.write_table(table, sink, compression=COMPRESSION, compression_level=COMPRESSION_LEVEL)
-    size = arrow_fs().get_file_info(key).size
-    entry = {"written_at": datetime.now(timezone.utc).isoformat(), "dataset": job["dataset"], "table": name,
-             "zone": "derived", "recipe": job["recipe"], "source": job["source"], "rows": table.num_rows,
-             "duplicates_removed": 0, "file_count": 1, "bytes": size, "ts_min": None, "ts_max": None}
-    manifest = "written"
-    try:
-        with (INGEST_MANIFESTS / f"{job['dataset']}.jsonl").open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(entry) + "\n")
-    except Exception as error:
-        manifest = f"not written: {error}"
-    out[name] = {"uri": "s3://" + key, "rows": table.num_rows, "bytes": size, "manifest": manifest}
-print(json.dumps(out))
-"""
+sys.path.insert(0, %r)
+from cycle.store import _land_job
+print(json.dumps(_land_job(json.loads(sys.argv[1]))))
+""" % os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def land_tables(engine: CycleEngine, tables: dict[str, str]) -> dict | None:
+    """Land ``tables`` (name -> local parquet path) under this run's recipe.
+    The manifest line for a table is written the first time this run lands it;
+    later landings of the same table replace the object only."""
     s = engine.settings
-    # Run ids carry the runner key ("xgboost+walk_forward_cycle"); some S3
-    # clients read "+" in a key as a space, so the lake recipe spells it "_".
-    job = {"dataset": DATASET, "recipe": s.model_id.replace("+", "_"), "tables": tables,
+    job = {"dataset": DATASET, "recipe": lake_recipe(s.model_id), "tables": tables,
+           "manifest_for": [name for name in tables if name not in engine.landed_tables],
            "source": f"model cycle run {s.model_id} ({s.model_family}, {s.symbol} {s.timeframe})"}
     try:
-        interpreter = sys.executable
         try:
             import lake.layout  # noqa: F401
             import lake.writer  # noqa: F401
+            in_process = True
         except ImportError:
+            in_process = False
+        if in_process:
+            result = _land_job(job)
+        else:
             interpreter = os.environ.get("CYCLE_LAKE_PYTHON", DEFAULT_LAKE_PYTHON)
-        completed = subprocess.run(
-            [interpreter, "-c", _LANDING_SCRIPT, json.dumps(job)],
-            capture_output=True, text=True, timeout=180, stdin=subprocess.DEVNULL,
-        )
-        if completed.returncode != 0:
-            tail = (completed.stderr or completed.stdout).strip().splitlines()[-1:] or ["no output"]
-            raise RuntimeError(f"landing exited {completed.returncode}: {tail[0]}")
-        result = json.loads(completed.stdout.strip().splitlines()[-1])
+            completed = subprocess.run(
+                [interpreter, "-c", _LANDING_SCRIPT, json.dumps(job)],
+                capture_output=True, text=True, timeout=600, stdin=subprocess.DEVNULL,
+            )
+            if completed.returncode != 0:
+                tail = (completed.stderr or completed.stdout).strip().splitlines()[-1:] or ["no output"]
+                raise RuntimeError(f"landing exited {completed.returncode}: {tail[0]}")
+            result = json.loads(completed.stdout.strip().splitlines()[-1])
         for name, info in result.items():
-            engine.log(f"[save] landed {name}: {info['rows']:,} rows -> {info['uri']} (manifest {info['manifest']})")
+            if info["manifest"] == "written":
+                engine.landed_tables.add(name)
+            engine.log(f"[save] landed {name}: {info['rows']:,} rows -> {info['uri']} (manifest {info['manifest']})", "debug")
         return result
     except Exception as error:  # noqa: BLE001 - landing never fails the run
-        engine.log(f"[save] could not land the run in the lake: {error}", "warn")
+        engine.log(f"[save] could not land the run in the lake: {type(error).__name__}: {error}", "warn")
         return None

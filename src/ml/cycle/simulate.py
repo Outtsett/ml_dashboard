@@ -22,8 +22,10 @@ Rules (``docs/plans/2026-09-25-model-cycle.md``):
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 from typing import Callable
 
@@ -43,6 +45,50 @@ class CostModel:
     @property
     def round_trip(self) -> float:
         return 2.0 * self.cost_per_side
+
+
+def tick_decimals(tick_size: float) -> int:
+    """Decimal places a price on this tick grid needs (0.25 -> 2, 0.1 -> 1, 1.0 -> 0)."""
+    exponent = Decimal(str(tick_size)).normalize().as_tuple().exponent
+    return max(0, -int(exponent)) if isinstance(exponent, int) else 0
+
+
+def round_to_tick(price: float, tick_size: float) -> float:
+    """The quotable price nearest to ``price``: a whole number of ticks.
+
+    A tie (exactly half a tick) rounds away from zero, the way a printed quote
+    would, never to even. The result is rounded to the grid's own decimals so
+    ``2000.1`` on a 0.1 grid is ``2000.1`` and not ``2000.1000000000001``.
+    """
+    if tick_size <= 0:
+        raise ValueError(f"tick size must be > 0, got {tick_size}")
+    if not math.isfinite(price):
+        raise ValueError(f"cannot put a non-finite price on the tick grid: {price!r}")
+    ticks = price / tick_size
+    whole = math.floor(abs(ticks) + 0.5)
+    signed = whole if ticks >= 0 else -whole
+    return round(signed * tick_size, tick_decimals(tick_size))
+
+
+def level_on_tick(price: float, tick_size: float, direction: int) -> float:
+    """``price`` moved onto the grid in ``direction`` (+1 up, -1 down) unless it
+    already sits on it: the adverse rounding a stop or target level takes, so a
+    level is never a price the market cannot print."""
+    if direction not in (1, -1):
+        raise ValueError(f"direction must be +1 or -1, got {direction}")
+    ticks = price / tick_size
+    nearest = round(ticks)
+    if abs(ticks - nearest) < 1e-9:
+        whole = nearest
+    else:
+        whole = math.ceil(ticks) if direction > 0 else math.floor(ticks)
+    return round(whole * tick_size, tick_decimals(tick_size))
+
+
+def is_on_tick(price: float, tick_size: float, tolerance: float = 1e-9) -> bool:
+    """True when ``price`` is a whole number of ticks (within ``tolerance`` ticks)."""
+    ticks = price / tick_size
+    return abs(ticks - round(ticks)) <= tolerance
 
 
 def root_symbol(symbol: str, known: set[str] | None = None) -> str:
@@ -315,8 +361,14 @@ class Simulator:
         assert trade is not None
         tick = self.cost.tick_size
         side = trade.side
-        stop = trade.entry_price - side * self.stop_loss_ticks * tick if self.stop_loss_ticks > 0 else None
-        take = trade.entry_price + side * self.take_profit_ticks * tick if self.take_profit_ticks > 0 else None
+        # Levels sit on the tick grid, rounded the adverse way: a long's stop
+        # down and its target up, a short's the mirror. A 2.5-tick stop on a
+        # 0.25 grid is 0.75 points away, never 0.625 (a price no book prints).
+        stop = take = None
+        if self.stop_loss_ticks > 0:
+            stop = level_on_tick(trade.entry_price - side * self.stop_loss_ticks * tick, tick, -side)
+        if self.take_profit_ticks > 0:
+            take = level_on_tick(trade.entry_price + side * self.take_profit_ticks * tick, tick, side)
         if side > 0:
             if stop is not None and open_price <= stop:
                 return open_price, "stop_loss"

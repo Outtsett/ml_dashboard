@@ -43,7 +43,13 @@
           "max": 100,
           "logScale": true,
           "label": "Regularization strength",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 100.0,
+            "log": true
+          }
         },
         "max_iterations": {
           "type": "int",

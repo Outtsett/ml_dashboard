@@ -254,65 +254,21 @@ def resolve_parameters(family: str, parameters: dict | None) -> dict:
     return resolved
 
 
-def suggest_parameters(trial, family: str, base_parameters: dict) -> dict:
-    """Optuna search space per family. Returns `base_parameters` (resolved)
-    with the tuned keys overridden. Training length (epochs, boosting rounds,
-    tree count, solver iterations, patience, early-stopping rounds) and the
-    sequence length stay at the user's value so trials stay affordable and the
-    engine's history requirement does not move between trials. Non-legacy
-    models are searched by `catalog.suggest_parameters` (the registry's
-    `search` spaces)."""
+def suggest_parameters(trial, family: str, base_parameters: dict, pinned=()) -> dict:
+    """Optuna search space per model, read from the registry's `search` blocks
+    (`src/config/cycle_models/`): every searchable parameter not in ``pinned``
+    is suggested under its own name over `base_parameters` (resolved).
+    Training length (epochs, boosting rounds, tree count, solver iterations,
+    patience, early-stopping rounds) and the sequence length carry no search
+    space, so trials stay affordable and the engine's history requirement does
+    not move between trials. A legacy family's values are validated by this
+    module's `resolve_parameters` (its rules predate the registry); every other
+    model by `catalog.resolve_parameters`."""
     _check_family(family)
     if not _is_legacy(family):
-        return catalog.suggest_parameters(trial, family, base_parameters)
+        return catalog.suggest_parameters(trial, family, base_parameters, pinned=pinned)
     base = resolve_parameters(family, base_parameters)
-    tuned: dict[str, int | float] = {}
-    if family == "logistic_regression":
-        tuned["regularization_strength"] = trial.suggest_float(
-            "regularization_strength", 1e-3, 1e2, log=True
-        )
-    elif family == "random_forest":
-        tuned["max_depth"] = trial.suggest_categorical("max_depth", [4, 6, 8, 12, 16])
-        tuned["min_samples_leaf"] = trial.suggest_int("min_samples_leaf", 5, 200, log=True)
-        tuned["max_features_fraction"] = trial.suggest_float("max_features_fraction", 0.1, 0.9)
-    elif family == "xgboost":
-        tuned["max_depth"] = trial.suggest_int("max_depth", 2, 10)
-        tuned["learning_rate"] = trial.suggest_float("learning_rate", 0.01, 0.3, log=True)
-        tuned["subsample"] = trial.suggest_float("subsample", 0.5, 1.0)
-        tuned["column_subsample"] = trial.suggest_float("column_subsample", 0.3, 1.0)
-        tuned["min_child_weight"] = trial.suggest_float("min_child_weight", 0.5, 50.0, log=True)
-        tuned["l2_regularization"] = trial.suggest_float("l2_regularization", 1e-3, 30.0, log=True)
-    elif family == "lightgbm":
-        tuned["leaf_count"] = trial.suggest_categorical("leaf_count", [7, 15, 31, 63, 127])
-        tuned["learning_rate"] = trial.suggest_float("learning_rate", 0.01, 0.3, log=True)
-        tuned["subsample"] = trial.suggest_float("subsample", 0.5, 1.0)
-        tuned["column_subsample"] = trial.suggest_float("column_subsample", 0.3, 1.0)
-        tuned["min_child_samples"] = trial.suggest_int("min_child_samples", 5, 300, log=True)
-        tuned["l2_regularization"] = trial.suggest_float("l2_regularization", 1e-3, 30.0, log=True)
-    elif family in NEURAL_FAMILIES:
-        # Attention layers overfit with heavy dropout: a narrower range there.
-        dropout_ceiling = 0.3 if family == "transformer_encoder" else 0.5
-        tuned["dropout"] = trial.suggest_float("dropout", 0.0, dropout_ceiling)
-        tuned["learning_rate"] = trial.suggest_float("learning_rate", 1e-4, 3e-3, log=True)
-        tuned["weight_decay"] = trial.suggest_float("weight_decay", 1e-6, 1e-2, log=True)
-        tuned["batch_size"] = trial.suggest_categorical("batch_size", [128, 256, 512])
-        if family == "multilayer_perceptron":
-            tuned["hidden_size"] = trial.suggest_categorical("hidden_size", [64, 128, 256])
-            tuned["layer_count"] = trial.suggest_int("layer_count", 1, 3)
-        elif family == "lstm":
-            tuned["hidden_size"] = trial.suggest_categorical("hidden_size", [32, 64, 128])
-            tuned["layer_count"] = trial.suggest_int("layer_count", 1, 2)
-        elif family == "temporal_convolution_network":
-            tuned["channel_count"] = trial.suggest_categorical("channel_count", [16, 32, 64])
-            tuned["kernel_size"] = trial.suggest_categorical("kernel_size", [2, 3, 5])
-            tuned["layer_count"] = trial.suggest_int("layer_count", 2, 5)
-        elif family == "transformer_encoder":
-            # Every dimension choice is divisible by every head choice.
-            tuned["model_dimension"] = trial.suggest_categorical("model_dimension", [32, 64, 128])
-            tuned["head_count"] = trial.suggest_categorical("head_count", [2, 4, 8])
-            tuned["layer_count"] = trial.suggest_int("layer_count", 1, 3)
-    else:
-        _check_family(family)
+    tuned = catalog.suggested_values(trial, family, pinned)
     return resolve_parameters(family, {**base, **tuned})
 
 
@@ -329,6 +285,10 @@ ADAPTER_CLASSES: dict[str, str] = {
     "catboost": "cycle.catboost_adapter:CatBoostAdapter",
     "statsmodels": "cycle.statsmodels_adapter:ProbitAdapter",
     "neural": "cycle.networks:NeuralAdapter",
+    # one module per catalog spec the Cycle grew to cover (2026-09-27)
+    "tree_boosted_neural_embedding": "cycle.adapters_extra.tree_boosted_neural_embedding:TreeBoostedNeuralEmbeddingAdapter",
+    "attention_weighted_forecast_stack": "cycle.adapters_extra.attention_weighted_forecast_stack:AttentionWeightedForecastStackAdapter",
+    "bayesian_neural_hybrid": "cycle.adapters_extra.bayesian_neural_hybrid:BayesianNeuralHybridAdapter",
 }
 
 _REGISTRY_CONSTRUCTOR = "(key, entry, parameters, device, seed, task)"

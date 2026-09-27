@@ -190,6 +190,19 @@ async function reconnectNow(modelId: string, generation: number): Promise<void> 
   }
 }
 
+/**
+ * Open a run by id: the server's snapshot (live accumulator or the lake
+ * archive) replaces the store, and a still-running run is reattached to its
+ * stream. A finished run stays idle-shaped, as `attachLatest` leaves it.
+ */
+export async function openRun(modelId: string): Promise<void> {
+  detach();
+  const response = await apiRequest("GET", `/api/training/cycle/${encodeURIComponent(modelId)}`);
+  const snapshot = (await response.json()) as CycleSnapshot;
+  useCycleStore.getState().loadSnapshot(snapshot);
+  if (isCycleActive(snapshot.status)) attach(snapshot.modelId);
+}
+
 /** Attach to a run's stream — fresh start or reload. Tears down any prior connection first. */
 export function attach(modelId: string): void {
   connectionGeneration += 1;

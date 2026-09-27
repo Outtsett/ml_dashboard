@@ -66,7 +66,18 @@ export const KIND_VIEWS: Record<CycleExplainKind, ComponentType<InsideKindViewPr
   calibration: CalibrationView,
   stacking: StackingView,
   neural: NeuralView,
+  opaque: OpaqueView,
 };
+
+/** A model the explainer cannot open yet: say so, name the model, never guess a picture. */
+function OpaqueView({ manifest }: InsideKindViewProps) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-1 p-6 text-center text-xs text-muted-foreground" data-testid="inside-opaque">
+      <p>No Inside view exists yet for this model ({manifest.modelKey ?? manifest.modelId}).</p>
+      <p>Its predictions, trades, folds and curves are on the other tabs; its record is in the lake like every run's.</p>
+    </div>
+  );
+}
 
 const SOURCE_LABELS: Record<CycleInspectSource, string> = {
   cursor: "Following the model",

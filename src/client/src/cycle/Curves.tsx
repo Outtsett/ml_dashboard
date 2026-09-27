@@ -202,8 +202,9 @@ export function CycleCurves() {
   const foldIndexes = useMemo(() => {
     const set = new Set<number>();
     for (const e of trainingEpochs) if (e.foldIndex !== null) set.add(e.foldIndex);
+    for (const t of trials) if (t.foldIndex !== null && t.foldIndex !== undefined) set.add(t.foldIndex);
     return Array.from(set).sort((a, b) => a - b);
-  }, [trainingEpochs]);
+  }, [trainingEpochs, trials]);
 
   const [selectedFold, setSelectedFold] = useState<number | null>(null);
   // Follows the model being fitted until the user picks one.
@@ -214,6 +215,12 @@ export function CycleCurves() {
   const foldEpochs = useMemo(
     () => trainingEpochs.filter((e) => e.foldIndex === activeFold && epochRole(e) === role),
     [trainingEpochs, activeFold, role],
+  );
+  // Tuning runs inside every fold: the pane shows the selected fold's search.
+  // A trial with no fold (a run recorded before 2026-09-26) belongs to every fold.
+  const foldTrials = useMemo(
+    () => trials.filter((t) => t.foldIndex === null || t.foldIndex === undefined || t.foldIndex === activeFold),
+    [trials, activeFold],
   );
 
   return (
@@ -268,11 +275,18 @@ export function CycleCurves() {
         )}
       </div>
 
-      {trials.length > 0 && (
+      {foldTrials.length > 0 && (
         <div className="flex flex-col gap-1.5">
-          <h3 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Hyperparameter tuning</h3>
-          <TuningScatter trials={trials} />
-          <TuningTable trials={trials} />
+          <h3 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Hyperparameter tuning{activeFold !== null ? ` — fold ${activeFold + 1}` : ""}
+          </h3>
+          <p className="text-[10px] text-muted-foreground" data-testid="tuning-caption">
+            Search scores are measured on the fold's inner validation blocks, before its test walk: the best of{" "}
+            {foldTrials.filter((t) => t.state !== "running").length} trials is optimistic by construction. The fold's
+            scoreboard is the held-out result.
+          </p>
+          <TuningScatter trials={foldTrials} />
+          <TuningTable trials={foldTrials} />
         </div>
       )}
     </div>

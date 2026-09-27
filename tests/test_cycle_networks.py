@@ -595,7 +595,7 @@ def test_a_new_key_runs_one_engine_fold_on_the_cpu(key, tmp_path, monkeypatch):
         train_days=14, validation_fraction=0.2, test_days=3, step_days=0, fold_limit=1, expanding_window=False,
         label_horizon_bars=4, label_threshold_ticks=1.0, embargo_bars=2,
         long_only=False, holding_bars=0, stop_loss_ticks=0.0, take_profit_ticks=0.0, contracts=1,
-        tuning_trials=0, bars_per_second=0.0, start_paused=False, quiet_bars=True, log_every_batches=1,
+        tuning_trials=0, tuning_mode="reviewed_defaults", bars_per_second=0.0, start_paused=False, quiet_bars=True, log_every_batches=1,
         device="cpu", seed=42, land_in_lake=False,
     )
     factory = lambda parameters, task="classification": build_adapter(key, parameters, "cpu", 42, task=task)  # noqa: E731

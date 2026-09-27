@@ -48,7 +48,12 @@
           "min": 2,
           "max": 16,
           "label": "Max depth",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "int",
+            "low": 2,
+            "high": 10
+          }
         },
         "learning_rate": {
           "type": "float",
@@ -57,7 +62,13 @@
           "max": 0.5,
           "logScale": true,
           "label": "Learning rate",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 0.3,
+            "log": true
+          }
         },
         "subsample": {
           "type": "float",
@@ -66,7 +77,12 @@
           "max": 1,
           "step": 0.05,
           "label": "Row subsample",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 1.0
+          }
         },
         "column_subsample": {
           "type": "float",
@@ -75,7 +91,12 @@
           "max": 1,
           "step": 0.05,
           "label": "Column subsample",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 1.0
+          }
         },
         "min_child_weight": {
           "type": "float",
@@ -84,7 +105,13 @@
           "max": 20,
           "logScale": true,
           "label": "Min child weight",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 50.0,
+            "log": true
+          }
         },
         "l2_regularization": {
           "type": "float",
@@ -92,7 +119,13 @@
           "min": 0,
           "max": 20,
           "label": "L2 regularization",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 30.0,
+            "log": true
+          }
         },
         "early_stopping_rounds": {
           "type": "int",
@@ -152,7 +185,17 @@
           "min": 4,
           "max": 512,
           "label": "Leaf count",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              7,
+              15,
+              31,
+              63,
+              127
+            ]
+          }
         },
         "learning_rate": {
           "type": "float",
@@ -161,7 +204,13 @@
           "max": 0.5,
           "logScale": true,
           "label": "Learning rate",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.01,
+            "high": 0.3,
+            "log": true
+          }
         },
         "subsample": {
           "type": "float",
@@ -170,7 +219,12 @@
           "max": 1,
           "step": 0.05,
           "label": "Row subsample",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 1.0
+          }
         },
         "column_subsample": {
           "type": "float",
@@ -179,7 +233,12 @@
           "max": 1,
           "step": 0.05,
           "label": "Column subsample",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.3,
+            "high": 1.0
+          }
         },
         "min_child_samples": {
           "type": "int",
@@ -187,7 +246,13 @@
           "min": 1,
           "max": 500,
           "label": "Min child samples",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 300,
+            "log": true
+          }
         },
         "l2_regularization": {
           "type": "float",
@@ -195,7 +260,13 @@
           "min": 0,
           "max": 20,
           "label": "L2 regularization",
-          "group": "Model"
+          "group": "Model",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 30.0,
+            "log": true
+          }
         },
         "early_stopping_rounds": {
           "type": "int",

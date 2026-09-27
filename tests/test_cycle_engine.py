@@ -57,6 +57,7 @@ from cycle.features import (
     rolling_zscore,
 )
 from cycle.labels import (
+    horizon_crosses_gap,
     actual_direction,
     forward_move,
     label_known_index,
@@ -66,7 +67,7 @@ from cycle.labels import (
 )
 from cycle.metrics import METRIC_NAMES, PRICE_FORECAST_METRIC_NAMES
 from cycle.models import build_adapter, load_adapter, suggest_parameters
-from cycle.simulate import load_cost_model
+from cycle.simulate import is_on_tick, load_cost_model, round_to_tick
 from shared import protocol
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -359,7 +360,7 @@ def settings_for(directory, **overrides) -> CycleSettings:
         train_days=21, validation_fraction=0.2, test_days=7, step_days=0, fold_limit=3, expanding_window=False,
         label_horizon_bars=HORIZON, label_threshold_ticks=THRESHOLD_TICKS, embargo_bars=2,
         long_only=False, holding_bars=0, stop_loss_ticks=0.0, take_profit_ticks=0.0, contracts=CONTRACTS,
-        tuning_trials=0, bars_per_second=0.0, start_paused=False, quiet_bars=False, log_every_batches=1,
+        tuning_trials=0, tuning_mode="reviewed_defaults", bars_per_second=0.0, start_paused=False, quiet_bars=False, log_every_batches=1,
         device="cpu", seed=42, land_in_lake=False,
     )
     values.update(overrides)
@@ -650,15 +651,17 @@ EVENT_SCHEMAS = {
         "parameters": record_of(lambda v: v is None or isinstance(v, (int, float, str, bool))),
         "device": one_of("cuda", "cpu"), "deviceName": Nullable(text), "dataStart": is_int, "dataEnd": is_int,
         "barCount": non_negative_int, "barsPerYear": lambda v: is_number(v) and v > 0, "featureNames": ListOf(text),
-        "labelHorizonBars": positive_int, "labelThresholdTicks": non_negative, "purgeBars": non_negative_int,
+        "labelHorizonBars": positive_int, "labelThresholdTicks": non_negative, "labelGapMultiple": non_negative,
+        "gapCrossingBarCount": non_negative_int, "purgeBars": non_negative_int,
         "embargoBars": non_negative_int,
         "costModel": {"tickSize": lambda v: is_number(v) and v > 0, "tickValueUsd": lambda v: is_number(v) and v > 0,
                       "pointValueUsd": lambda v: is_number(v) and v > 0, "costPerSideUsd": non_negative,
                       "roundTripCostUsd": non_negative, "source": text},
         "trading": {"longOnly": boolean, "holdingBars": positive_int,
                     "stopLossTicks": non_negative, "takeProfitTicks": non_negative, "contracts": positive_int},
-        "tuning": Nullable({"trialCount": positive_int, "objective": one_of(*OBJECTIVES),
-                            "innerFoldCount": positive_int, "start": is_int, "end": is_int}),
+        "tuning": Nullable({"mode": one_of("tuned", "reviewed_defaults"), "trialCount": non_negative_int,
+                            "budgetSeconds": non_negative_int, "objective": one_of(*OBJECTIVES),
+                            "innerFoldCount": positive_int, "perFold": boolean, "pinned": ListOf(text)}),
         "folds": ListOf(FOLD_PLAN, minimum=1), "barsPerSecond": non_negative, "startPaused": boolean,
         "artifactDirectory": text,
     },
@@ -689,6 +692,14 @@ EVENT_SCHEMAS = {
         "trial": non_negative_int, "trialCount": positive_int, "state": one_of("running", "complete", "pruned", "failed"),
         "parameters": record_of(lambda v: isinstance(v, (int, float, str, bool))), "objectiveName": one_of(*OBJECTIVES),
         "objectiveValue": Nullable(is_number), "bestValue": Nullable(is_number), "bestTrial": Nullable(non_negative_int),
+        "foldIndex": Nullable(non_negative_int),
+    },
+    "cycle_parameters": {
+        "foldIndex": Nullable(non_negative_int),
+        "parameters": record_of(lambda v: v is None or isinstance(v, (int, float, str, bool))),
+        "source": one_of("tuned", "manual", "reviewed_defaults"), "objectiveName": Nullable(one_of(*OBJECTIVES)),
+        "bestTrial": Nullable(non_negative_int), "bestValue": Nullable(is_number), "trialCount": Nullable(non_negative_int),
+        "pinned": ListOf(text),
     },
     "cycle_trade": {
         "tradeNumber": positive_int, "foldIndex": non_negative_int, "side": one_of("long", "short"),
@@ -732,14 +743,15 @@ def check_cycle_event(event: dict) -> None:
         count = len(event["timestamps"])
         for key in ("open", "high", "low", "close", "volume"):
             assert len(event[key]) == count, f"cycle_bars.{key}: {len(event[key])} values for {count} bars"
-        prediction_columns = ("probabilityUp", "predictedDirection", "position", "equityUsd", "predictedClose",
-                              "forecastTimestamp")
+        prediction_columns = ("probabilityUp", "predictedDirection", "position", "positionHeld", "equityUsd",
+                              "predictedClose", "forecastTimestamp")
         if event["role"] == "processed":
             for key in prediction_columns:
                 assert key in event and len(event[key]) == count, f"processed cycle_bars.{key}"
             check_value(event["probabilityUp"], ListOf(Nullable(fraction)), "cycle_bars.probabilityUp")
             check_value(event["predictedDirection"], ListOf(DIRECTION), "cycle_bars.predictedDirection")
             check_value(event["position"], ListOf(DIRECTION), "cycle_bars.position")
+            check_value(event["positionHeld"], ListOf(DIRECTION), "cycle_bars.positionHeld")
             check_value(event["equityUsd"], ListOf(is_number), "cycle_bars.equityUsd")
             check_value(event["predictedClose"], ListOf(Nullable(is_number)), "cycle_bars.predictedClose")
             check_value(event["forecastTimestamp"], ListOf(Nullable(is_int)), "cycle_bars.forecastTimestamp")
@@ -807,7 +819,7 @@ def test_run_takes_the_plan_it_announced(full_run, market):
 def test_every_cycle_event_matches_the_wire_schema(full_run):
     cycle_events = [event for event in full_run.capture.events if event["type"].startswith("cycle_")]
     kinds = {event["type"] for event in cycle_events}
-    assert kinds == {"cycle_plan", "cycle_bars", "cycle_cursor", "cycle_epoch", "cycle_trade", "cycle_scoreboard"}
+    assert kinds == {"cycle_plan", "cycle_bars", "cycle_cursor", "cycle_epoch", "cycle_parameters", "cycle_trade", "cycle_scoreboard"}
     for event in cycle_events:
         check_cycle_event(event)
     sequence = [event["seq"] for event in full_run.capture.events]
@@ -904,7 +916,10 @@ def test_no_training_or_validation_label_resolves_inside_a_later_span(full_run, 
 
 def test_resolved_labels_match_the_labels_module_and_resolve_horizon_bars_later(full_run, market):
     rows = rows_of(market)
-    labels = make_labels(market.data.close, HORIZON, THRESHOLD_TICKS, MNQ.tick_size)
+    # the engine's labels: the session-gap rule (default 3x the typical bar interval) leaves a bar whose
+    # horizon crosses the weekend unlabelled, so its resolution is 0 (unscored)
+    crosses_gap = horizon_crosses_gap(market.data.timestamps, HORIZON, 3.0)
+    labels = make_labels(market.data.close, HORIZON, THRESHOLD_TICKS, MNQ.tick_size, crosses_gap)
     predicted: dict[int, int] = {}
     per_fold: dict[int, int] = {}
     fold_of: dict[int, int] = {}
@@ -1112,20 +1127,30 @@ def test_every_processed_bar_carries_a_forecast_of_the_close_horizon_bars_later(
             assert "predictedClose" not in event and "forecastTimestamp" not in event
     bars = processed_forecasts(full_run)
     assert len(bars) == sum(fold["testBarCount"] for fold in plan_of(full_run)["folds"])
+    crosses = horizon_crosses_gap(data.timestamps, HORIZON, 3.0)
+    forecast_bars = 0
     for t, _, predicted_close, forecast_timestamp in bars:
         row = rows[t]
+        if crosses[row]:
+            # the horizon crosses a session gap (the weekend): no forecast is asked for, none is drawn
+            assert predicted_close is None and forecast_timestamp is None
+            continue
+        forecast_bars += 1
         # the forecast is for bar t + h: its timestamp, or nothing past the loaded data
         assert forecast_timestamp == (int(data.timestamps[row + HORIZON]) if row + HORIZON < len(data) else None)
-        # every test row here has feature history and a trailing volatility, so every bar has a forecast
+        # every other test row has feature history and a trailing volatility, so it has a forecast
         assert predicted_close is not None
-        # close + scale * the price model's output, the scale read from closes <= this bar
+        # close + scale * the price model's output, the scale read from closes <= this bar, then the nearest tick
         scale = engine.move_scale[row]
         backward_moves = data.close[row - 249: row + 1] - data.close[row - 249 - HORIZON: row + 1 - HORIZON]
         assert scale == pytest.approx(max(np.std(backward_moves, ddof=1), MNQ.tick_size), rel=1e-12)
-        assert predicted_close == pytest.approx(data.close[row] + scale * full_run.recorder.price_output(row), abs=1e-9)
+        raw = data.close[row] + scale * full_run.recorder.price_output(row)
+        assert predicted_close == pytest.approx(round_to_tick(raw, MNQ.tick_size), abs=1e-9)
+        assert abs(predicted_close - raw) <= MNQ.tick_size / 2 + 1e-9 and is_on_tick(predicted_close, MNQ.tick_size)
+    assert 0 < forecast_bars < len(bars)
     # the price model predicts one bar at a time, from bars the chart already holds, never during training
     walk = full_run.recorder.price_predictions
-    assert len(walk) == len(bars) and all(index.size == 1 and phase == "testing" for index, _, phase in walk)
+    assert len(walk) == forecast_bars and all(index.size == 1 and phase == "testing" for index, _, phase in walk)
     for index, last_bar, _ in walk:
         assert last_bar is not None and last_bar < data.timestamps[int(index[0])]
 
@@ -1181,6 +1206,8 @@ def test_the_forecast_scoreboard_rebuilds_from_the_bars_on_the_wire(full_run, ma
     last_row_of_fold = {fold["foldIndex"]: rows[fold["testEnd"]] for fold in plan["folds"]}
     for t, fold, predicted_close, _ in processed_forecasts(full_run):
         row = rows[t]
+        if predicted_close is None:
+            continue                    # no forecast was asked for: the horizon crosses a session gap
         if row + HORIZON > last_row_of_fold[fold]:
             continue                    # its target bar is outside the fold: never resolved
         move = predicted_close - close[row]
@@ -1268,7 +1295,12 @@ def test_a_price_model_that_fails_leaves_the_direction_cycle_running(market, tmp
     assert len(warned) == 1
     processed = [e for e in capture.of("cycle_bars") if e["role"] == "processed"]
     assert processed and all(c is None for e in processed for c in e["predictedClose"])
-    assert all(w is not None for e in processed for w in e["forecastTimestamp"])
+    crosses = horizon_crosses_gap(market.data.timestamps, HORIZON, 3.0)
+    rows = rows_of(market)
+    for e in processed:
+        for t, w in zip(e["timestamps"], e["forecastTimestamp"]):
+            assert (w is None) == bool(crosses[rows[t]]), "the forecast bar is known unless the horizon crosses a gap"
+    assert any(w is not None for e in processed for w in e["forecastTimestamp"])
     (final,) = [b for b in capture.of("cycle_scoreboard") if b["scope"] == "final"]
     assert all(final["metrics"][name] is None for name in PRICE_FORECAST_METRIC_NAMES)
     assert final["metrics"]["accuracy"] is not None
@@ -1311,9 +1343,36 @@ def test_artifacts_are_written_with_full_word_columns(full_run, market):
     trades = pq.read_table(directory / "trades.parquet")
     assert predictions.column_names == [
         "timestamp", "fold_index", "open", "high", "low", "close", "volume", "probability_up", "predicted_direction",
-        "position", "equity_usd", "actual_direction", "correct", "predicted_move_points", "predicted_close",
+        "target_position", "position_held", "bar_net_profit_usd", "exposed", "crosses_gap", "equity_usd",
+        "actual_direction", "correct", "predicted_move_points", "predicted_move_raw_points", "predicted_close",
         "forecast_timestamp", "forecast_error_points",
     ]
+    # every forecast is a price the market can print, and the move follows it
+    frame_forecast = predictions.to_pydict()
+    for close, predicted_close, move in zip(frame_forecast["close"], frame_forecast["predicted_close"], frame_forecast["predicted_move_points"]):
+        if predicted_close is None:
+            assert move is None
+            continue
+        assert is_on_tick(predicted_close, MNQ.tick_size), predicted_close
+        assert move == pytest.approx(predicted_close - close, abs=1e-9)
+    # the position carried through a bar is the target set on the previous bar
+    held, target = frame_forecast["position_held"], frame_forecast["target_position"]
+    for position in range(1, len(held)):
+        if frame_forecast["fold_index"][position] == frame_forecast["fold_index"][position - 1]:
+            assert held[position] == target[position - 1]
+    # the bar's own net USD sums to the equity curve
+    equity = 0.0
+    for net, total in zip(frame_forecast["bar_net_profit_usd"], frame_forecast["equity_usd"]):
+        equity += net
+        assert total == pytest.approx(equity, abs=1e-6)
+    runs_table = pq.read_table(directory / "runs_table.parquet").to_pydict()
+    assert runs_table["status"] == ["complete"] and runs_table["folds_completed"] == [3] and runs_table["tuning_enabled"] == [False]
+    bars_table = pq.read_table(directory / "bars.parquet")
+    assert bars_table.num_rows == len(full_run.engine.emitted_timestamps)
+    assert bars_table.to_pydict()["timestamp"] == full_run.engine.emitted_timestamps
+    metrics_table = pq.read_table(directory / "metrics.parquet").to_pydict()
+    assert set(metrics_table["metric_name"]) >= {"net_profit_usd", "sharpe_ratio", "accuracy"}
+    assert set(metrics_table["fold_index"]) == {0, 1, 2}
     assert trades.column_names == [
         "trade_number", "fold_index", "side", "contracts", "entry_timestamp", "entry_price", "exit_timestamp",
         "exit_price", "bars_held", "probability_up_at_entry", "gross_profit_usd", "cost_usd", "net_profit_usd",
@@ -1321,7 +1380,7 @@ def test_artifacts_are_written_with_full_word_columns(full_run, market):
     ]
     abbreviations = {"ts", "tf", "idx", "prob", "pnl", "qty", "px", "vol", "pct", "num", "cnt", "val", "ret", "ms",
                      "avg", "std", "acc", "lr", "tp", "sl", "dir", "pos", "eq"}
-    for name in ("epochs", "trials", "folds_table"):
+    for name in ("epochs", "trials", "folds_table", "bars", "metrics", "runs_table"):
         table = pq.read_table(directory / f"{name}.parquet")
         for column in table.column_names:
             assert not set(column.split("_")) & abbreviations, f"{name}.{column}"
@@ -1384,7 +1443,7 @@ def test_every_cycle_event_passes_the_zod_schemas(full_run, tuned_run, stopped_r
     result = run_zod(events, tmp_path)
     assert result["failures"] == []
     assert set(result["counts"]) == {"cycle_plan", "cycle_bars", "cycle_cursor", "cycle_epoch", "cycle_trial",
-                                     "cycle_trade", "cycle_scoreboard"}
+                                     "cycle_parameters", "cycle_trade", "cycle_scoreboard"}
 
 
 # ═══ tuning ════════════════════════════════════════════════════════════════
@@ -1396,67 +1455,104 @@ def tuned_run(market, tmp_path_factory) -> Run:
                       tuning_objective="sharpe_ratio", tuning_folds=2, fold_limit=2, quiet_bars=True)
 
 
-def test_tuning_runs_every_trial_and_reports_each(tuned_run):
+def fold_of_last_bar(plan: dict, last_bar: int) -> int:
+    """The fold whose test span begins right after ``last_bar`` (the bar on the
+    chart when a fit or a prediction ran): tuning for fold k runs after the
+    context up to k's test span was emitted."""
+    return next(fold["foldIndex"] for fold in plan["folds"] if fold["testStart"] > last_bar)
+
+
+def test_tuning_runs_every_trial_and_reports_each_inside_every_fold(tuned_run):
+    """Tuning runs inside EVERY fold: three trials per fold, each reported running then finished,
+    with the fold's own best trial on every event."""
     trials = tuned_run.capture.of("cycle_trial")
-    for number in range(3):
-        states = [t["state"] for t in trials if t["trial"] == number]
-        assert states[0] == "running" and len(states) == 2
-        assert states[1] in ("complete", "pruned"), states
+    assert {t["foldIndex"] for t in trials} == {0, 1}
+    for fold in (0, 1):
+        for number in range(3):
+            states = [t["state"] for t in trials if t["trial"] == number and t["foldIndex"] == fold]
+            assert states[0] == "running" and len(states) == 2
+            assert states[1] in ("complete", "pruned"), states
     assert all(t["trialCount"] == 3 and t["objectiveName"] == "sharpe_ratio" for t in trials)
     finished = [t for t in trials if t["state"] == "complete"]
     assert finished and all(t["objectiveValue"] is not None for t in finished)
     assert all(set(t["parameters"]) == {"regularization_strength"} for t in trials)
-    best = max(finished, key=lambda t: t["objectiveValue"])
-    assert trials[-1]["bestTrial"] == best["trial"]
-    assert trials[-1]["bestValue"] == pytest.approx(best["objectiveValue"])
+    for fold in (0, 1):
+        fold_trials = [t for t in trials if t["foldIndex"] == fold]
+        best = max((t for t in fold_trials if t["state"] == "complete"), key=lambda t: t["objectiveValue"])
+        assert fold_trials[-1]["bestTrial"] == best["trial"]
+        assert fold_trials[-1]["bestValue"] == pytest.approx(best["objectiveValue"])
     cursors = [c for c in tuned_run.capture.of("cycle_cursor") if c["phase"] == "tuning"]
-    assert cursors and all(c["trialCount"] == 3 for c in cursors)
-    assert len(tuned_run.engine.trial_records) == 3
+    assert cursors and all(c["trialCount"] == 3 for c in cursors) and {c["foldIndex"] for c in cursors} == {0, 1}
+    assert len(tuned_run.engine.trial_records) == 6
+    assert sorted({record["fold_index"] for record in tuned_run.engine.trial_records}) == [0, 1]
 
 
-def test_the_best_trial_parameters_reach_every_outer_fold(tuned_run):
+def test_each_fold_is_fitted_with_its_own_best_trial(tuned_run):
+    """Each fold's models are fitted with the best trial of ITS OWN search (announced by
+    `cycle_parameters`); the run's base parameters never change."""
     trials = tuned_run.capture.of("cycle_trial")
-    best_trial = trials[-1]["bestTrial"]
-    (best_running,) = [t for t in trials if t["trial"] == best_trial and t["state"] == "running"]
-    best_strength = best_running["parameters"]["regularization_strength"]
-    summary = tuned_run.engine.tuning_summary
-    assert summary["bestTrial"] == best_trial
-    assert tuned_run.engine.parameters["regularization_strength"] == pytest.approx(best_strength)
+    announced = tuned_run.capture.of("cycle_parameters")
+    assert [e["foldIndex"] for e in announced] == [0, 1]
+    assert tuned_run.engine.parameters["regularization_strength"] == 1.0            # the base is untouched
+    plan = plan_of(tuned_run)
     outer = [fit for fit in tuned_run.recorder.fits if fit["phase"] == "training"]
     assert len(outer) == 2
-    for fit in outer:
+    for fold, event, fit in zip((0, 1), announced, outer):
+        fold_trials = [t for t in trials if t["foldIndex"] == fold]
+        best_trial = fold_trials[-1]["bestTrial"]
+        (best_running,) = [t for t in fold_trials if t["trial"] == best_trial and t["state"] == "running"]
+        best_strength = best_running["parameters"]["regularization_strength"]
+        assert event["source"] == "tuned" and event["bestTrial"] == best_trial and event["trialCount"] == 3
+        assert event["objectiveName"] == "sharpe_ratio" and event["pinned"] == []
+        assert event["parameters"]["regularization_strength"] == pytest.approx(best_strength)
+        assert tuned_run.engine.fold_parameters[fold]["regularization_strength"] == pytest.approx(best_strength)
+        assert tuned_run.engine.tuning_summaries[fold]["bestTrial"] == best_trial
         assert fit["parameters"]["regularization_strength"] == pytest.approx(best_strength)
+        assert fold_of_last_bar(plan, fit["last_bar"]) == fold
     tuning_fits = [fit for fit in tuned_run.recorder.fits if fit["phase"] == "tuning"]
-    assert len(tuning_fits) == 3 * 2                                  # three trials, two inner blocks each
+    assert len(tuning_fits) == 2 * 3 * 2                              # two folds, three trials, two inner blocks each
     assert {round(fit["parameters"]["regularization_strength"], 12) for fit in tuning_fits} == {
         round(t["parameters"]["regularization_strength"], 12) for t in trials if t["state"] == "running"}
     config = json.loads((tuned_run.directory / "config.json").read_text(encoding="utf-8"))
-    assert config["parametersUsed"]["regularization_strength"] == pytest.approx(best_strength)
-    assert tuned_run.diagnostics["tuning"]["bestTrial"] == best_trial
-    trials_table = pq.read_table(tuned_run.directory / "trials.parquet")
-    assert trials_table.num_rows == 3
+    assert config["baseParameters"]["regularization_strength"] == 1.0
+    for fold, event in zip((0, 1), announced):
+        assert config["parametersByFold"][str(fold)]["regularization_strength"] == pytest.approx(
+            event["parameters"]["regularization_strength"])
+        assert config["tuning"]["perFold"][str(fold)]["bestTrial"] == event["bestTrial"]
+    assert tuned_run.diagnostics["tuning"]["perFold"]["0"]["bestTrial"] == announced[0]["bestTrial"]
+    trials_table = pq.read_table(tuned_run.directory / "trials.parquet").to_pydict()
+    assert len(trials_table["trial"]) == 6 and sorted(set(trials_table["fold_index"])) == [0, 1]
+    folds_table = pq.read_table(tuned_run.directory / "folds_table.parquet").to_pydict()
+    assert folds_table["tuning_best_trial"] == [announced[0]["bestTrial"], announced[1]["bestTrial"]]
+    assert folds_table["status"] == ["complete", "complete"]
 
 
-def test_tuning_sees_only_bars_before_the_first_test_span(tuned_run, market):
+def test_tuning_sees_only_bars_before_its_own_fold_test_span(tuned_run, market):
+    """A fold's search fits and scores only bars before that fold's test span, and finishes
+    (parameters announced) before the fold's first test bar is processed."""
     plan = plan_of(tuned_run)
     rows = rows_of(market)
-    first_test = plan["folds"][0]["testStart"]
-    first_test_row = rows[first_test]
-    assert plan["tuning"]["end"] < first_test and plan["tuning"]["start"] <= plan["folds"][0]["trainStart"]
+    assert plan["tuning"]["perFold"] is True and plan["tuning"]["mode"] == "tuned"
     assert plan["tuning"]["trialCount"] == 3 and plan["tuning"]["innerFoldCount"] == 2
-    for fit in tuned_run.recorder.fits:
-        if fit["phase"] != "tuning":
-            continue
+    test_row = {fold["foldIndex"]: rows[fold["testStart"]] for fold in plan["folds"]}
+    tuning_fits = [fit for fit in tuned_run.recorder.fits if fit["phase"] == "tuning"]
+    assert {fold_of_last_bar(plan, fit["last_bar"]) for fit in tuning_fits} == {0, 1}
+    for fit in tuning_fits:
+        fold = fold_of_last_bar(plan, fit["last_bar"])
         assert fit["train"].max() + HORIZON < fit["validation"].min()
-        assert fit["validation"].max() + HORIZON < first_test_row
-        assert fit["last_bar"] == market.data.timestamps[first_test_row - 1]
-    tuning_predictions = [index for index, _, phase in tuned_run.recorder.predictions if phase == "tuning"]
+        assert fit["validation"].max() + HORIZON < test_row[fold]
+        assert fit["last_bar"] == market.data.timestamps[test_row[fold] - 1]
+    tuning_predictions = [(index, last_bar) for index, last_bar, phase in tuned_run.recorder.predictions if phase == "tuning"]
     assert tuning_predictions
-    assert max(int(index.max()) for index in tuning_predictions) < first_test_row
+    for index, last_bar in tuning_predictions:
+        assert int(index.max()) < test_row[fold_of_last_bar(plan, last_bar)]
     events = tuned_run.capture.events
-    first_processed = next(i for i, e in enumerate(events) if e["type"] == "cycle_bars" and e["role"] == "processed")
-    last_trial = max(i for i, e in enumerate(events) if e["type"] == "cycle_trial")
-    assert last_trial < first_processed
+    for fold in (0, 1):
+        first_processed = next(i for i, e in enumerate(events)
+                               if e["type"] == "cycle_bars" and e["role"] == "processed" and e["foldIndex"] == fold)
+        last_trial = max(i for i, e in enumerate(events) if e["type"] == "cycle_trial" and e["foldIndex"] == fold)
+        announced = next(i for i, e in enumerate(events) if e["type"] == "cycle_parameters" and e["foldIndex"] == fold)
+        assert last_trial < announced < first_processed
 
 
 # ═══ stop and pause ════════════════════════════════════════════════════════
@@ -1792,7 +1888,8 @@ def load_main(monkeypatch):
 def main_arguments(model_id: str) -> list[str]:
     return ["--symbol", "MNQ", "--timeframe", "5m", "--model-id", model_id, "--json",
             "--model-family", "logistic_regression", "--train-days", "21", "--test-days", "7", "--fold-limit", "1",
-            "--label-horizon-bars", str(HORIZON), "--bars-per-second", "0", "--device", "cpu", "--quiet-bars"]
+            "--label-horizon-bars", str(HORIZON), "--bars-per-second", "0", "--device", "cpu", "--quiet-bars",
+            "--tuning-mode", "reviewed_defaults"]
 
 
 class LandingCalls(list):
@@ -1825,6 +1922,16 @@ def patch_main_inputs(monkeypatch, market: Market, directory: Path) -> LandingCa
         return subprocess.CompletedProcess(command, 0, stdout=json.dumps(result) + "\n", stderr="")
 
     monkeypatch.setattr(store.subprocess, "run", fake_run)
+
+    def fake_land(job):
+        # the in-process landing (lake.layout importable): captured the way the subprocess one is
+        calls.append(["in-process", json.dumps(job)])
+        return {name: {"uri": f"s3://derived/{job['dataset']}/recipe={job['recipe']}/table={name}/part-0.parquet",
+                       "rows": pq.read_table(path).num_rows, "bytes": 1,
+                       "manifest": "written" if name in job["manifest_for"] else "already written"}
+                for name, path in job["tables"].items()}
+
+    monkeypatch.setattr(store, "_land_job", fake_land)
     # main.py's factory passes task= through to models.build_adapter; the price model is the in-test regressor
     from cycle import models
 
@@ -1851,7 +1958,9 @@ def test_a_run_id_with_a_plus_runs_and_lands_under_an_underscore_recipe(market, 
     directory = tmp_path / "data" / "models" / model_id                # the directory keeps the "+"
     assert Path(events[-1]["modelPath"]) == directory.resolve()
     assert (directory / "predictions.parquet").exists() and (directory / "diagnostics.json").exists()
-    (command,) = calls
+    # the record is landed at the end of the fold and again at the end of the run
+    assert len(calls) == 2
+    command = calls[-1]
     # one planning probe and one fold: classifier, then the price model
     assert calls.tasks == ["classification", "classification", "regression"]
     processed = [e for e in events if e["type"] == "cycle_bars" and e["role"] == "processed"]
@@ -1859,10 +1968,12 @@ def test_a_run_id_with_a_plus_runs_and_lands_under_an_underscore_recipe(market, 
     job = json.loads(command[-1])
     assert job["recipe"] == "MNQ_5m_logistic_regression_walk_forward_cycle_20260925T103846"
     assert "+" not in job["recipe"] and job["dataset"] == "model_cycle_runs"
-    assert set(job["tables"]) == {"predictions", "trades", "folds"}
+    assert set(job["tables"]) == set(store.LAKE_TABLES)
+    assert job["manifest_for"] == []                                     # the fold-end landing wrote every manifest line
+    assert set(json.loads(calls[0][-1])["manifest_for"]) == set(store.LAKE_TABLES)
     assert model_id in job["source"]
     lake = events[-1]["diagnostics"]["lake"]
-    assert set(lake) == {"predictions", "trades", "folds"}
+    assert set(lake) == set(store.LAKE_TABLES)
     assert all("recipe=MNQ_5m_logistic_regression_walk_forward_cycle_20260925T103846/" in v["uri"] for v in lake.values())
     assert lake["predictions"]["rows"] == events[-1]["diagnostics"]["barsProcessed"]
     for line in capture.logs():
@@ -2073,8 +2184,11 @@ def test_the_curve_is_fitted_on_the_validation_rows_only_and_is_what_the_walk_us
             row = rows[predictions["timestamp"][position]]
             expected = apply_logistic_curve(curve, np.array([model.outputs[row]]))[0]
             assert predictions["probability_up"][position] == pytest.approx(expected, rel=1e-12)
-            assert predictions["predicted_close"][position] == pytest.approx(
-                market.data.close[row] + model.outputs[row] * engine.move_scale[row], rel=1e-12)
+            if predictions["crosses_gap"][position]:
+                assert predictions["predicted_close"][position] is None
+            else:
+                assert predictions["predicted_close"][position] == pytest.approx(round_to_tick(
+                    market.data.close[row] + model.outputs[row] * engine.move_scale[row], MNQ.tick_size), rel=1e-12)
     records = json.loads((run.directory / "folds.json").read_text(encoding="utf-8"))
     for record in records:
         assert record["modelPath"].endswith("model.json")
@@ -2112,7 +2226,7 @@ def test_tuning_a_from_price_model_goes_through_the_same_factory(market, tmp_pat
     assert run.capture.events[-1]["type"] == "done" and not run.capture.of("error")
     tuning_fits = [fit for fit in run.recorder.price_fits if fit["phase"] == "tuning"]
     outer = [fit for fit in run.recorder.price_fits if fit["phase"] != "tuning"]
-    assert len(tuning_fits) == 3 * 2 and len(outer) == 2
+    assert len(tuning_fits) == 2 * 3 * 2 and len(outer) == 2      # two folds, each searched: 3 trials x 2 blocks
     first_test_row = int(run.engine.folds[0].test_index[0])
     for fit in tuning_fits:
         # the direction rows of the inner block whose price target is known

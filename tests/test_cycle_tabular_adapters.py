@@ -630,7 +630,7 @@ def test_an_engine_run_completes(key, market, tmp_path, monkeypatch):
         symbol="MNQ", timeframe="5m", model_id=f"tabular_{key}", model_family=key,
         model_parameters=catalog.resolve_parameters(key, parameters), artifact_directory=str(tmp_path),
         train_days=14, validation_fraction=0.2, test_days=3, fold_limit=2, label_horizon_bars=4,
-        label_threshold_ticks=1.0, embargo_bars=2, contracts=1, tuning_trials=trials, tuning_folds=2,
+        label_threshold_ticks=1.0, embargo_bars=2, contracts=1, tuning_trials=trials, tuning_folds=2, tuning_mode=("tuned" if trials else "reviewed_defaults"),
         bars_per_second=0.0, quiet_bars=True, log_every_batches=1000, device="cpu", seed=42, land_in_lake=False,
     )
     engine = CycleEngine(

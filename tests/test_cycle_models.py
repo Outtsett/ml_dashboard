@@ -835,6 +835,10 @@ def test_the_dispatch_table_names_one_class_per_non_legacy_adapter():
         "catboost": "cycle.catboost_adapter:CatBoostAdapter",
         "statsmodels": "cycle.statsmodels_adapter:ProbitAdapter",
         "neural": "cycle.networks:NeuralAdapter",
+        # one module per catalog spec the Cycle grew to cover (2026-09-27)
+        "tree_boosted_neural_embedding": "cycle.adapters_extra.tree_boosted_neural_embedding:TreeBoostedNeuralEmbeddingAdapter",
+        "attention_weighted_forecast_stack": "cycle.adapters_extra.attention_weighted_forecast_stack:AttentionWeightedForecastStackAdapter",
+        "bayesian_neural_hybrid": "cycle.adapters_extra.bayesian_neural_hybrid:BayesianNeuralHybridAdapter",
     }
     adapters = {catalog.entry(key)["adapter"] for key in REGISTRY_KEYS}
     assert adapters - {"legacy"} <= set(ADAPTER_CLASSES)

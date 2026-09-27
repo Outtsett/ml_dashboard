@@ -7,7 +7,7 @@ import { useMemo, type ReactNode } from "react";
 
 import { useCycleStore } from "@/cycle/store";
 import { formatCount, formatDate, formatPercent, formatRatio, formatUsd } from "@/cycle/format";
-import type { CycleFoldPlan, CyclePhase, CycleScoreboard } from "@shared/cycle/schema";
+import type { CycleFoldPlan, CycleParameters, CyclePhase, CycleScoreboard } from "@shared/cycle/schema";
 import { cn } from "@/shared/utils/utils";
 
 type FoldStatus = "pending" | "tuning" | "training" | "validating" | "testing" | "done";
@@ -89,12 +89,14 @@ function FoldRow({
   status,
   finished,
   live,
+  parameters,
   onFocus,
 }: {
   plan: CycleFoldPlan;
   status: FoldStatus;
   finished: CycleScoreboard | null;
   live: CycleScoreboard | null;
+  parameters: CycleParameters | null;
   onFocus: () => void;
 }) {
   const showLive = !finished && live !== null;
@@ -116,17 +118,45 @@ function FoldRow({
       <Cell testId="fold-train-bars">{formatCount(plan.trainBarCount)}</Cell>
       <Cell testId="fold-validation-bars">{formatCount(plan.validationBarCount)}</Cell>
       <Cell testId="fold-test-bars">{formatCount(plan.testBarCount)}</Cell>
+      <td className="px-2 py-1.5 text-[11px]" data-testid={`fold-${plan.foldIndex}-parameters`}>
+        <ParametersChip parameters={parameters} />
+      </td>
       {metricCells(finished ?? live, showLive, `fold-${plan.foldIndex}`)}
     </tr>
   );
 }
 
-const HEADERS = ["Fold", "Status", "Train span", "Validation span", "Test span", "Train bars", "Validation bars", "Test bars", "Accuracy", "F1", "ROC AUC", "Net profit", "Sharpe", "Max drawdown", "Trades", "Win rate"];
+const HEADERS = ["Fold", "Status", "Train span", "Validation span", "Test span", "Train bars", "Validation bars", "Test bars", "Parameters", "Accuracy", "F1", "ROC AUC", "Net profit", "Sharpe", "Max drawdown", "Trades", "Win rate"];
+
+/** How the fold's hyperparameters were chosen; the values are the tooltip. */
+function ParametersChip({ parameters }: { parameters: CycleParameters | null }) {
+  if (!parameters) return <span className="text-muted-foreground">—</span>;
+  const values = Object.entries(parameters.parameters).map(([key, value]) => `${key} = ${String(value)}`).join("\n");
+  const text =
+    parameters.source === "tuned"
+      ? `tuned · trial ${(parameters.bestTrial ?? 0) + 1} of ${parameters.trialCount ?? "?"}`
+      : parameters.source === "manual"
+        ? "typed for the run"
+        : "reviewed defaults";
+  return (
+    <span
+      title={values}
+      className={cn(
+        "inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px]",
+        parameters.source === "tuned" ? "border-[#CC79A7]/50 bg-[#CC79A7]/10 text-foreground" : "border-border/50 text-muted-foreground",
+      )}
+    >
+      {text}
+      {parameters.pinned.length > 0 ? ` · ${parameters.pinned.length} pinned` : ""}
+    </span>
+  );
+}
 
 export function CycleFolds() {
   const plan = useCycleStore((s) => s.plan);
   const cursor = useCycleStore((s) => s.cursor);
   const folds = useCycleStore((s) => s.folds);
+  const parameters = useCycleStore((s) => s.parameters);
   const running = useCycleStore((s) => s.running);
   const final = useCycleStore((s) => s.final);
   const setFocusTimestamp = useCycleStore((s) => s.setFocusTimestamp);
@@ -136,6 +166,11 @@ export function CycleFolds() {
     for (const board of folds) if (board.foldIndex !== null) map.set(board.foldIndex, board);
     return map;
   }, [folds]);
+  const parametersByIndex = useMemo(() => {
+    const map = new Map<number, CycleParameters>();
+    for (const chosen of parameters) if (chosen.foldIndex !== null) map.set(chosen.foldIndex, chosen);
+    return map;
+  }, [parameters]);
 
   if (!plan) {
     return <div className="flex h-full items-center justify-center p-4 text-xs text-muted-foreground">No plan yet — the run has not loaded data.</div>;
@@ -166,6 +201,7 @@ export function CycleFolds() {
                 status={status}
                 finished={finished}
                 live={live}
+                parameters={parametersByIndex.get(foldPlan.foldIndex) ?? null}
                 onFocus={() => setFocusTimestamp(foldPlan.testStart)}
               />
             );
@@ -179,6 +215,7 @@ export function CycleFolds() {
             <Cell testId="fold-totals-train-bars">{formatCount(plan.folds.reduce((sum, f) => sum + f.trainBarCount, 0))}</Cell>
             <Cell testId="fold-totals-validation-bars">{formatCount(plan.folds.reduce((sum, f) => sum + f.validationBarCount, 0))}</Cell>
             <Cell testId="fold-totals-test-bars">{formatCount(plan.folds.reduce((sum, f) => sum + f.testBarCount, 0))}</Cell>
+            <td className="px-2 py-1.5 text-[11px]" />
             {metricCells(final, false, "fold-totals")}
           </tr>
         </tfoot>

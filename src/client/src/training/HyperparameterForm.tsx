@@ -292,6 +292,21 @@ const ParamRow = React.memo<ParamRowProps>(function ParamRow({
     );
   }
 
+  if (type === "string") {
+    return (
+      <div className="py-1">
+        {label}
+        <Input
+          aria-label={def.label}
+          className="h-7 font-mono text-[11px]"
+          value={String(value ?? "")}
+          disabled={disabled}
+          onChange={(event) => onChange(paramKey, event.target.value)}
+        />
+      </div>
+    );
+  }
+
   if (type === "categorical") {
     return (
       <div className="py-1">

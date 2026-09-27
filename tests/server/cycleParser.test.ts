@@ -79,7 +79,7 @@ describe('cycle_* events — parseGeneratedLine', () => {
     }
   });
 
-  it('every fixture event type is one of the seven declared cycle_* types', () => {
+  it('every fixture event type is one of the declared cycle_* types, and every type is exercised', () => {
     const lines = fs.readFileSync(FIXTURE_PATH, 'utf8').trim().split('\n');
     const seen = new Set(lines.map((l) => (JSON.parse(l) as { type: string }).type));
     for (const type of seen) {

@@ -33,7 +33,7 @@ export const cycleSearchSpaceSchema = z.discriminatedUnion("kind", [
  */
 export const cycleParameterSchema = z
   .object({
-    type: z.enum(["int", "float", "bool", "categorical"]),
+    type: z.enum(["int", "float", "bool", "categorical", "string"]),
     default: z.union([z.number(), z.string(), z.boolean()]),
     min: finite.optional(),
     max: finite.optional(),
@@ -50,6 +50,7 @@ export const cycleParameterSchema = z
   .strict()
   .superRefine((spec, context) => {
     if (spec.type === "bool" && typeof spec.default !== "boolean") context.addIssue({ code: "custom", message: "a bool parameter's default must be true or false" });
+    if (spec.type === "string" && typeof spec.default !== "string") context.addIssue({ code: "custom", message: "a string parameter's default must be text" });
     if (spec.type === "categorical" && !(spec.choices ?? []).includes(spec.default)) context.addIssue({ code: "custom", message: "default is not one of its choices" });
     if (spec.type === "int" || spec.type === "float") {
       if (typeof spec.default !== "number" || !Number.isFinite(spec.default)) {
@@ -91,7 +92,10 @@ export const cycleModelEntrySchema = z
     runnable: z.boolean(),
     unavailableReason: z.string().nullable(),
     implementation: z.enum(["sklearn", "xgboost", "lightgbm", "catboost", "statsmodels", "torch"]),
-    adapter: z.enum(["legacy", "scikit_learn", "catboost", "statsmodels", "neural"]),
+    adapter: z.enum([
+      "legacy", "scikit_learn", "catboost", "statsmodels", "neural",
+      "tree_boosted_neural_embedding", "attention_weighted_forecast_stack", "bayesian_neural_hybrid",
+    ]),
     legacyFamily: cycleModelFamilySchema.nullable(),
     direction: estimatorBlockSchema.extend({
       mode: cycleDirectionModeSchema,
@@ -105,7 +109,10 @@ export const cycleModelEntrySchema = z
     explainKind: cycleExplainKindSchema,
     sequence: z.boolean(),
     network: z
-      .enum(["multilayer_perceptron", "lstm", "temporal_convolution_network", "transformer_encoder", "recurrent", "gated_recurrent_unit", "attention_recurrent"])
+      .enum([
+        "multilayer_perceptron", "lstm", "temporal_convolution_network", "transformer_encoder", "recurrent", "gated_recurrent_unit", "attention_recurrent",
+        "mixture_of_experts", "recurrent_convolution_hybrid", "hypernetwork", "neural_turing_machine", "dual_pathway",
+      ])
       .nullable(),
     speed: z.enum(["fast", "medium", "slow"]),
     estimatedTrainingTime: z.string().min(1),

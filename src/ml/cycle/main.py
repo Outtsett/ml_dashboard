@@ -98,14 +98,19 @@ CYCLE_FLAGS: tuple[tuple[str, type, object, str], ...] = (
     ("label_horizon_bars", int, 6, "bars ahead the direction label looks"),
     ("label_threshold_ticks", float, 0.0, "moves within this many ticks are unlabelled"),
     ("embargo_bars", int, 0, "bars dropped from the start of each test window"),
+    ("label_gap_multiple", float, 3.0, "a bar whose horizon crosses a gap over this many typical bar intervals gets no label (0 = off)"),
     ("long_only", bool, False, "never go short"),
     ("holding_bars", int, 0, "bars to hold a position (0 = label horizon)"),
     ("stop_loss_ticks", float, 0.0, "stop loss in ticks from entry (0 = off)"),
     ("take_profit_ticks", float, 0.0, "take profit in ticks from entry (0 = off)"),
     ("contracts", int, 1, "contracts per trade"),
-    ("tuning_trials", int, 0, "Optuna trials (0 = no tuning)"),
+    ("tuning_mode", str, "tuned", "tuned (Optuna inside every fold) | reviewed_defaults"),
+    ("tuning_budget_trials", int, 20, "Optuna trials per fold"),
+    ("tuning_budget_seconds", int, 0, "time budget per fold in seconds (0 = trials only)"),
     ("tuning_objective", str, "sharpe_ratio", "sharpe_ratio | log_loss | f1_score"),
     ("tuning_folds", int, 2, "inner validation blocks per tuning trial"),
+    ("tuning_pinned_parameters", str, "", "comma-separated parameter names held out of the search"),
+    ("tuning_trials", int, 0, "legacy: an explicit trial count per fold (overrides the budget)"),
     ("bars_per_second", float, 40.0, "test-walk replay speed (0 = as fast as possible)"),
     ("start_paused", bool, False, "start paused"),
     ("quiet_bars", bool, False, "suppress per-bar log lines"),
@@ -124,7 +129,7 @@ def _flag(key: str) -> str:
 # How a registry parameter type becomes an argparse flag. A bool is
 # `--name` / `--no-name` (BooleanOptionalAction); a categorical value arrives as
 # text and `catalog.coerce` matches it to its choice (numeric choices included).
-_FLAG_TYPES: dict[str, type] = {"int": int, "float": float, "categorical": str}
+_FLAG_TYPES: dict[str, type] = {"int": int, "float": float, "categorical": str, "string": str}
 
 
 def model_flag_types() -> dict[str, str]:
@@ -246,9 +251,11 @@ def adjust_for_rolls(symbol: str, timeframe: str, data):
 
     try:
         rows = contract_rows_from_lake(_serving(), symbol, timeframe, int(data.timestamps[0]), int(data.timestamps[-1]))
-    except Exception as error:  # noqa: BLE001 - a missing contract table must not stop the run, but must be said
-        protocol.emit_log(f"[data] could not read {symbol}'s contracts to find rolls ({error}); prices are NOT roll-adjusted", "warn")
-        return data, []
+    except Exception as error:  # noqa: BLE001 - a stitched root traded across an unfound roll books the splice as a move
+        raise RuntimeError(
+            f"could not read {symbol}'s contracts to find its rolls ({type(error).__name__}: {error}); a stitched futures "
+            "root is not run unadjusted, because a contract roll would be booked as a price move"
+        ) from error
     if not rows:
         return data, []  # not a stitched futures root (a single contract, forex, or no pre-aggregated view)
     rolls = find_rolls(data.timestamps, data.open, data.close, rows)
@@ -295,6 +302,9 @@ def run(args: argparse.Namespace, unknown: list[str]) -> int:
         if value:
             protocol.emit_log(f"[features] {_flag(key)} is accepted and ignored: the cycle builds its own causal features", "warn")
     parameters = model_parameters(args, family)
+    given_parameters = tuple(
+        key for key in catalog.entry(family)["parameters"] if getattr(args, f"model__{key}", None) is not None
+    )
     other_family_flags = flags_for_other_models(args, family)
     if other_family_flags:
         protocol.emit_log(f"[plan] ignoring flags that belong to other models: {' '.join(other_family_flags)}", "warn")
@@ -355,6 +365,7 @@ def run(args: argparse.Namespace, unknown: list[str]) -> int:
         **{key: getattr(args, key) for key, *_ in CYCLE_FLAGS if key != "device"},
         device=device,
         device_name=device_name,
+        given_parameters=given_parameters,
     )
     engine = CycleEngine(
         settings, data, feature_set, cost,
@@ -362,7 +373,7 @@ def run(args: argparse.Namespace, unknown: list[str]) -> int:
         adapter_factory=lambda parameters, task="classification": build_adapter(family, parameters, device, args.seed,
                                                                                 task=task),
         control=control,
-        suggest_parameters=(lambda trial, base: suggest(trial, family, base)) if suggest else None,
+        suggest_parameters=(lambda trial, base, pinned=(): suggest(trial, family, base, pinned)) if suggest else None,
     )
     engine.started = started
     engine.price_adjustment = {

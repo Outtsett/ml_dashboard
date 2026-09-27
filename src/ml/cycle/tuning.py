@@ -1,7 +1,15 @@
 """Optuna tuning for the Model Cycle.
 
-Runs only on the FIRST kept fold's training window, which precedes every outer
-test span, so tuning never sees a bar the test walk will be scored on.
+Runs INSIDE EVERY FOLD, on that fold's own training window (train + validation
+span), which precedes the fold's test span, so tuning never sees a bar the
+test walk will be scored on, and a regime change between folds is met with a
+search on that fold's own bars rather than fold 0's choice reused everywhere.
+
+Budget: ``tuning_budget_trials`` trials per fold, and/or
+``tuning_budget_seconds`` of wall clock per fold (whichever comes first; a
+trial already running finishes). ``pinned`` names are held out of the search
+at the run's own value. A model with no searchable parameter is not tuned
+(the engine says so and uses the reviewed defaults).
 
 Inside that window: an expanding inner walk-forward with ``tuning_folds``
 validation blocks. The window's rows are cut into ``tuning_folds + 1`` equal
@@ -38,6 +46,8 @@ if TYPE_CHECKING:
     from cycle.engine import CycleEngine, FoldSpec
 
 DIRECTIONS = {"sharpe_ratio": "maximize", "log_loss": "minimize", "f1_score": "maximize"}
+# with a time budget and no trial budget, the loop is bounded by this many trials
+TRIALS_WHEN_ONLY_SECONDS = 10_000
 
 
 def inner_blocks(window_start: int, window_end: int, block_count: int, purge: int) -> list[tuple[np.ndarray, np.ndarray]]:
@@ -93,12 +103,17 @@ def _block_objective(engine: CycleEngine, objective: str, adapter, scored_rows: 
     return 0.0 if value is None else float(value)
 
 
-def run_tuning(engine: CycleEngine, spec: FoldSpec) -> dict:
-    """Tune on ``spec``'s training window; returns the model parameters to use
-    for every outer fold (the best trial's suggestions over the user's)."""
+def run_tuning(engine: CycleEngine, spec: FoldSpec, *, trial_budget: int, seconds_budget: float = 0.0,
+               pinned=()) -> tuple[dict, dict]:
+    """Tune on ``spec``'s training window. Returns ``(parameters, summary)``:
+    the model parameters the fold's models are fitted with (the best trial's
+    suggestions over the run's base values; the base values when no trial
+    completed) and the summary recorded for the fold."""
     import optuna
 
     s = engine.settings
+    k = spec.fold_index
+    fold_prefix = engine.fold_prefix(k)
     if engine.suggest_parameters is None:
         raise RuntimeError("tuning needs suggest_parameters from the model family")
     objective = s.tuning_objective
@@ -107,32 +122,43 @@ def run_tuning(engine: CycleEngine, spec: FoldSpec) -> dict:
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     study = optuna.create_study(
         direction=DIRECTIONS[objective],
-        sampler=optuna.samplers.TPESampler(seed=s.seed),
+        sampler=optuna.samplers.TPESampler(seed=s.seed + k),
         pruner=optuna.pruners.MedianPruner(n_startup_trials=3),
     )
     base = dict(engine.parameters)
-    trial_count = int(s.tuning_trials)
+    pinned = tuple(pinned or ())
+    trial_count = int(trial_budget) if trial_budget > 0 else TRIALS_WHEN_ONLY_SECONDS
+    deadline = engine.clock() + float(seconds_budget) if seconds_budget and seconds_budget > 0 else None
     block_count = max(1, int(s.tuning_folds))
     blocks = inner_blocks(spec.window_start, spec.window_end, block_count, engine.horizon)
     ts = engine.data.timestamps
+    budget_words = f"{trial_count} trials" if deadline is None else (
+        f"up to {trial_count} trials or {float(seconds_budget):g} s" if trial_budget > 0 else f"{float(seconds_budget):g} s")
     engine.log(
-        f"[tune] {trial_count} trials, objective {objective} ({DIRECTIONS[objective]}, median of {block_count} inner blocks) "
-        f"on the first fold's training window {engine_time(ts[spec.window_start])}..{engine_time(ts[spec.window_end - 1])}"
+        f"{fold_prefix}[tune] {budget_words}, objective {objective} ({DIRECTIONS[objective]}, median of {block_count} inner blocks) "
+        f"on this fold's training window {engine_time(ts[spec.window_start])}..{engine_time(ts[spec.window_end - 1])}"
+        + (f"; pinned: {', '.join(pinned)}" if pinned else "")
     )
-    engine.set_phase("tuning", trial=0, trial_count=trial_count,
+    engine.set_phase("tuning", fold_index=k, trial=0, trial_count=trial_count,
                      span_start=int(ts[spec.window_start]), span_end=int(ts[spec.window_end - 1]))
     merged_by_trial: dict[int, dict] = {}
+    trials_run = 0
+    stopped_by_clock = False
 
     for number in range(trial_count):
+        if deadline is not None and engine.clock() >= deadline:
+            stopped_by_clock = True
+            engine.log(f"{fold_prefix}[tune] time budget reached after {trials_run} trials")
+            break
         trial = study.ask()
         protocol.set_active_trial(trial.number)
-        parameters = engine.suggest_parameters(trial, base)
+        parameters = _suggest(engine, trial, base, pinned)
         merged_by_trial[trial.number] = parameters
-        prefix = f"[tune trial {trial.number + 1}/{trial_count}]"
+        prefix = f"{fold_prefix}[tune trial {trial.number + 1}/{trial_count}]"
         best_value, best_trial = _best(study)
         protocol.emit_cycle_trial(
             trial=trial.number, trial_count=trial_count, state="running", parameters=trial.params,
-            objective_name=objective, best_value=best_value, best_trial=best_trial,
+            objective_name=objective, best_value=best_value, best_trial=best_trial, fold_index=k,
         )
         engine.log(f"{prefix} start {json.dumps(trial.params, default=str)}")
         values: list[float] = []
@@ -151,15 +177,15 @@ def run_tuning(engine: CycleEngine, spec: FoldSpec) -> dict:
 
                 def progress(fraction: float, number=number, b=b) -> None:
                     overall = (number + (b + fraction) / len(blocks)) / trial_count
-                    engine.tuning_progress(overall)
+                    engine.tuning_progress(k, overall)
 
                 from cycle.engine import EngineReporter
 
                 reporter = EngineReporter(
-                    engine, fold_index=None, train_index=fit_index, validation_index=early_index,
+                    engine, fold_index=k, train_index=fit_index, validation_index=early_index,
                     trial=trial.number, trial_count=trial_count, log_prefix=prefix, progress=progress,
                 )
-                engine.emit_cursor(force=True, span_start=int(ts[train_rows[0]]), span_end=int(ts[train_rows[-1]]),
+                engine.emit_cursor(force=True, fold_index=k, span_start=int(ts[train_rows[0]]), span_end=int(ts[train_rows[-1]]),
                                    trial=trial.number, trial_count=trial_count,
                                    phase_fraction=(number + b / len(blocks)) / trial_count)
                 adapter.fit(engine.features, engine.labels, fit_index, early_index, ts, reporter)
@@ -181,7 +207,7 @@ def run_tuning(engine: CycleEngine, spec: FoldSpec) -> dict:
             study.tell(trial, state=optuna.trial.TrialState.FAIL)
             protocol.emit_cycle_trial(
                 trial=trial.number, trial_count=trial_count, state="failed", parameters=trial.params,
-                objective_name=objective, best_value=_best(study)[0], best_trial=_best(study)[1],
+                objective_name=objective, best_value=_best(study)[0], best_trial=_best(study)[1], fold_index=k,
             )
             raise
         except Exception as error:  # noqa: BLE001 - one bad trial must not end the run
@@ -191,30 +217,59 @@ def run_tuning(engine: CycleEngine, spec: FoldSpec) -> dict:
         best_value, best_trial = _best(study)
         protocol.emit_cycle_trial(
             trial=trial.number, trial_count=trial_count, state=state, parameters=trial.params,
-            objective_name=objective, objective_value=value, best_value=best_value, best_trial=best_trial,
+            objective_name=objective, objective_value=value, best_value=best_value, best_trial=best_trial, fold_index=k,
         )
         engine.trial_records.append({
+            "fold_index": k,
             "trial": trial.number, "state": state, "objective_name": objective, "objective_value": value,
             "block_values": json.dumps(values), "parameters": json.dumps(trial.params, default=str),
             "best_value": best_value, "best_trial": best_trial,
         })
+        trials_run += 1
         engine.log(
             f"{prefix} {state}" + (f" {objective}={value:.4f}" if value is not None else "")
             + (f" best={best_value:.4f} (trial {best_trial + 1})" if best_value is not None and best_trial is not None else "")
         )
-        engine.tuning_progress((number + 1) / trial_count)
+        engine.tuning_progress(k, (number + 1) / trial_count)
     protocol.set_active_trial(None)
+    engine.tuning_progress(k, 1.0)
 
     best_value, best_trial = _best(study)
+    summary = {
+        "foldIndex": k, "objective": objective, "trialCount": trials_run, "trialBudget": trial_count,
+        "secondsBudget": float(seconds_budget or 0.0), "stoppedByClock": stopped_by_clock, "pinned": list(pinned),
+        "innerBlockCount": block_count,
+    }
     if best_trial is None:
-        engine.log("[tune] no trial completed; keeping the parameters you chose", "warn")
-        engine.tuning_summary = {"bestTrial": None, "bestValue": None, "parameters": base}
-        return base
+        engine.log(f"{fold_prefix}[tune] no trial completed; this fold uses the run's own parameters", "warn")
+        summary.update(bestTrial=None, bestValue=None, parameters=base, suggested={})
+        return base, summary
     best = merged_by_trial[best_trial]
-    engine.tuning_summary = {"bestTrial": best_trial, "bestValue": best_value, "parameters": best,
-                             "suggested": study.best_trial.params}
-    engine.log(f"[tune] best trial {best_trial + 1}: {objective}={best_value:.4f}; every fold uses {json.dumps(best, default=str)}")
-    return best
+    summary.update(bestTrial=best_trial, bestValue=best_value, parameters=best, suggested=study.best_trial.params)
+    engine.log(
+        f"{fold_prefix}[tune] best trial {best_trial + 1} of {trials_run}: {objective}={best_value:.4f} on the inner "
+        f"validation blocks (a search score, optimistic by construction); this fold uses {json.dumps(best, default=str)}"
+    )
+    return best, summary
+
+
+def _suggest(engine: CycleEngine, trial, base: dict, pinned: tuple) -> dict:
+    """Call the engine's suggest function. It takes (trial, base) or (trial, base, pinned);
+    pins are refused, not dropped, when it cannot take them."""
+    import inspect
+
+    function = engine.suggest_parameters
+    assert function is not None
+    try:
+        parameters = inspect.signature(function).parameters
+        takes_pins = len(parameters) >= 3 or any(p.kind == p.VAR_POSITIONAL for p in parameters.values())
+    except (TypeError, ValueError):
+        takes_pins = True
+    if takes_pins:
+        return function(trial, base, pinned)
+    if pinned:
+        raise RuntimeError(f"pinned parameters {list(pinned)} were given, but this run's suggest function takes no pins")
+    return function(trial, base)
 
 
 def _best(study) -> tuple[float | None, int | None]:

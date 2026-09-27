@@ -394,6 +394,12 @@ def generic_raw(context: ExplainContext, row: int, output: float) -> float:
     return output
 
 
+def _round_to_tick(price: float, tick_size: float) -> float:
+    from cycle.simulate import round_to_tick
+
+    return round_to_tick(price, tick_size)
+
+
 def streamed_value(context: ExplainContext, streamed: artifacts.StreamedPredictions | None, row: int) -> float | None:
     """What the engine streamed for this bar with THIS fold's model, in the
     units of ``engineReload``; None when the run is live or another fold tested the bar."""
@@ -421,8 +427,14 @@ def bar_reply(context: ExplainContext, timestamp: int, streamed: artifacts.Strea
     if context.role == "price":
         scale = finite_or_none(context.move_scale[row])
         move = None if scale is None else reload * scale
+        # the chart's forecast is the nearest tick to close + move (the engine rounds the same way)
+        tick = artifacts.load_tick_size(context.run_directory)
+        predicted_close = None
+        if move is not None:
+            predicted_close = close + move if tick is None else _round_to_tick(close + move, tick)
         output = {"raw": reload, "probabilityUp": None, "targetUnits": reload, "scale": scale, "movePoints": move,
-                  "close": close, "predictedClose": None if move is None else close + move}
+                  "movePointsOnTick": None if predicted_close is None else predicted_close - close,
+                  "close": close, "predictedClose": predicted_close}
     else:
         output = {"raw": generic_raw(context, row, reload), "probabilityUp": reload, "targetUnits": None, "scale": None,
                   "movePoints": None, "close": close, "predictedClose": None}

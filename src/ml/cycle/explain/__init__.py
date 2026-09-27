@@ -137,6 +137,7 @@ KIND_MODULES: dict[str, str] = {
     "calibration": "cycle.explain.composite",
     "stacking": "cycle.explain.composite",
     "neural": "cycle.explain.neural",
+    "opaque": "cycle.explain.opaque",      # a runnable model with no view yet: nothing added, nothing guessed
 }
 
 

@@ -30,6 +30,7 @@ import { attachLatest } from "@/cycle/connection";
 import { ConfigForm, createInitialCycleFormState, type CycleFormState } from "@/cycle/ConfigForm";
 import { Controls } from "@/cycle/Controls";
 import { PhaseStrip } from "@/cycle/PhaseStrip";
+import { RunPicker } from "@/cycle/RunPicker";
 import { useCycleStore, type CycleClientStatus } from "@/cycle/store";
 import { useCycleCatalog } from "@/cycle/useCycleCatalog";
 
@@ -90,7 +91,10 @@ export default function CyclePage() {
             {familyLabel} · <span className="font-mono">{symbolTimeframe}</span>
           </p>
         </div>
-        <StatusChip status={status} />
+        <div className="flex items-center gap-3">
+          <RunPicker disabled={running} />
+          <StatusChip status={status} />
+        </div>
       </div>
 
       <PhaseStrip />

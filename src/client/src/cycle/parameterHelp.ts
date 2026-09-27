@@ -21,6 +21,7 @@ export const CYCLE_PARAMETER_HELP: Record<string, string> = {
   label_horizon_bars: "How many bars ahead the model is trained to predict the direction of — its label is 'did price rise by the time this many bars pass'.",
   label_threshold_ticks: "A move smaller than this many ticks over the label horizon counts as flat and is dropped from training and scoring, rather than forced into up or down.",
   embargo_bars: "Bars removed right after the training window, in addition to the purge, so a label whose horizon reaches into the test window can never leak into training.",
+  label_gap_multiple: "The session-gap rule: a bar whose label horizon crosses a gap longer than this many typical bar intervals (a session break, a weekend, an outage) gets no label, no price target and no forecast, because a 6-bar move across a weekend is not a 30-minute move. 0 turns the rule off.",
 
   // Trading
   long_only: "The model trades every prediction. Off, it is long whenever P(up) is 0.5 or more and short whenever it is below, flipping at the next open when the prediction flips; on, it is flat instead of short.",
@@ -30,9 +31,13 @@ export const CYCLE_PARAMETER_HELP: Record<string, string> = {
   contracts: "How many contracts each trade opens with.",
 
   // Tuning
-  tuning_trials: "How many Optuna trials to run searching this family's hyperparameters before training the real folds; 0 turns tuning off and uses the values set here directly.",
-  tuning_objective: "What Optuna scores each trial by: risk-adjusted return (Sharpe ratio), prediction error (log loss), or classification balance (F1 score).",
-  tuning_folds: "How many inner walk-forward folds, carved out of the first fold's training window, each Optuna trial is scored across.",
+  tuning_mode: "How the model's hyperparameters are chosen. 'tuned': Optuna searches every parameter with a search space inside each fold, on that fold's own training window, and the fold is fitted with the best trial. 'reviewed_defaults': the registry's defaults (or the values typed here), no search.",
+  tuning_budget_trials: "How many Optuna trials each fold may run. With a time budget as well, whichever runs out first stops the search; 0 leaves it to the time budget alone.",
+  tuning_budget_seconds: "A wall-clock budget per fold: the search stops after this many seconds even if trials remain (the trial in progress finishes). 0 means trials only.",
+  tuning_objective: "What Optuna scores each trial by: risk-adjusted return after costs (Sharpe ratio, the default), prediction error (log loss), or classification balance (F1 score).",
+  tuning_folds: "How many inner walk-forward blocks, carved out of the fold's own training window, each Optuna trial is scored across (the trial's value is their median).",
+  tuning_pinned_parameters: "Parameter names, comma separated, held out of the search at the value set here — the way to fix one knob by hand while the rest are searched.",
+  tuning_trials: "Legacy: an explicit trial count per fold that overrides the budget; leave 0.",
 
   // Replay
   bars_per_second: "How fast the test walk plays back once it starts; 0 runs it as fast as the machine can go.",

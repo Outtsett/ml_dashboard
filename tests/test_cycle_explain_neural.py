@@ -151,7 +151,7 @@ def make_run(root: Path, key: str, parameters: dict, market, *, train_days: int 
         artifact_directory=str(directory), train_days=train_days, validation_fraction=0.2, test_days=test_days,
         step_days=0, fold_limit=1, expanding_window=False, label_horizon_bars=HORIZON, label_threshold_ticks=1.0,
         embargo_bars=2, long_only=False, holding_bars=0, stop_loss_ticks=0.0, take_profit_ticks=0.0, contracts=1,
-        tuning_trials=0, bars_per_second=0.0, start_paused=False, quiet_bars=True, log_every_batches=100,
+        tuning_trials=0, tuning_mode="reviewed_defaults", bars_per_second=0.0, start_paused=False, quiet_bars=True, log_every_batches=100,
         device="cpu", seed=42, land_in_lake=False,
     )
     engine = CycleEngine(settings, data, features, MNQ,

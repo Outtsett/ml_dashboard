@@ -158,8 +158,17 @@ def test_optuna_search_reads_the_registry():
     suggested = catalog.suggest_parameters(trial, "k_nearest_neighbors", {})
     assert ("int", "neighbor_count", 5, 500, True) in trial.calls
     assert suggested["neighbor_count"] == 5
-    with pytest.raises(ValueError, match="legacy"):
-        catalog.suggest_parameters(_RecordingTrial(), "xgboost", {})
+    # a legacy family is searched from the registry too (its ranges moved into
+    # the JSON on 2026-09-26) and validated by models.resolve_parameters
+    legacy = _RecordingTrial()
+    tuned = catalog.suggest_parameters(legacy, "xgboost", {})
+    assert ("int", "max_depth", 2, 10, False) in legacy.calls and tuned["max_depth"] == 2
+    assert ("float", "learning_rate", 0.01, 0.3, True) in legacy.calls
+    assert tuned["boosting_rounds"] == 400  # not searched: training length stays the run's value
+    # pins keep the run's own value out of the search
+    pinned = _RecordingTrial()
+    held = catalog.suggest_parameters(pinned, "xgboost", {"max_depth": 7}, pinned=("max_depth",))
+    assert held["max_depth"] == 7 and all(call[1] != "max_depth" for call in pinned.calls)
 
 
 def test_unavailable_reasons_cover_the_catalog():

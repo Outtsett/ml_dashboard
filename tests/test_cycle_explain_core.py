@@ -112,7 +112,7 @@ def make_run(root: Path, key: str, parameters: dict, market) -> Made:
         symbol="MNQ", timeframe="5m", model_id=model_id, model_family=key, model_parameters=parameters,
         artifact_directory=str(directory), train_days=21, validation_fraction=0.2, test_days=7, step_days=0,
         fold_limit=2, expanding_window=False, label_horizon_bars=HORIZON, label_threshold_ticks=1.0, embargo_bars=2,
-        long_only=False, holding_bars=0, stop_loss_ticks=0.0, take_profit_ticks=0.0, contracts=1, tuning_trials=0,
+        long_only=False, holding_bars=0, stop_loss_ticks=0.0, take_profit_ticks=0.0, contracts=1, tuning_trials=0, tuning_mode="reviewed_defaults",
         bars_per_second=0.0, start_paused=False, quiet_bars=True, log_every_batches=100, device="cpu", seed=42,
         land_in_lake=False,
     )
@@ -257,8 +257,13 @@ def test_g1_the_reloaded_model_reproduces_every_streamed_prediction(runs, key, r
             assert record["fold_index"] == fold
             if role == "direction":
                 assert bar["streamed"] == record["probability_up"]
+            elif record["predicted_move_raw_points"] is None:
+                # the horizon crosses a session gap: no forecast was asked for, nothing to hold the reload against
+                assert bar["streamed"] is None and record["predicted_close"] is None
+                continue
             else:
-                assert bar["streamed"] == pytest.approx(record["predicted_move_points"] / made.engine.move_scale[row],
+                # the streamed number is the model's own (unrounded) move; the chart's forecast is its nearest tick
+                assert bar["streamed"] == pytest.approx(record["predicted_move_raw_points"] / made.engine.move_scale[row],
                                                         abs=1e-15)
             gate = common.gate_g1(context, bar, "cpu")
             assert gate["tolerance"] == 1e-12
@@ -321,8 +326,11 @@ def test_the_price_bar_turns_target_units_into_points_and_a_predicted_close(runs
     assert output["raw"] == output["targetUnits"] == bar["engineReload"]
     assert output["scale"] == made.engine.move_scale[row]
     assert output["movePoints"] == pytest.approx(output["targetUnits"] * output["scale"], abs=1e-12)
-    assert output["movePoints"] == pytest.approx(record_by_time[timestamp]["predicted_move_points"], abs=1e-9)
+    # the model's own number is the unrounded move; the forecast the chart drew is the nearest tick
+    assert output["movePoints"] == pytest.approx(record_by_time[timestamp]["predicted_move_raw_points"], abs=1e-9)
+    assert output["movePointsOnTick"] == pytest.approx(record_by_time[timestamp]["predicted_move_points"], abs=1e-9)
     assert output["predictedClose"] == pytest.approx(record_by_time[timestamp]["predicted_close"], abs=1e-9)
+    assert abs(output["predictedClose"] / 0.25 - round(output["predictedClose"] / 0.25)) < 1e-9
 
 
 def test_the_price_role_percentiles_rank_among_the_price_training_rows(runs):

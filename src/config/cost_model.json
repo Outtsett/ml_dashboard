@@ -1,18 +1,138 @@
 {
   "MNQ": {
     "tick_size": 0.25,
-    "tick_value": 0.50,
-    "point_value": 2.00,
+    "tick_value": 0.5,
+    "point_value": 2.0,
     "fees_per_side": {
       "exchange_cme": 0.35,
-      "nfa": 0.02,
+      "nfa": 0.01,
       "clearing": 0.13,
-      "cqg_transfer": 0.10,
-      "commission_amp": 0.30
+      "cqg_transfer": 0.1,
+      "commission_amp": 0.3
     },
     "slippage_ticks_per_side": 1,
-    "total_per_side": 1.40,
-    "total_round_trip": 2.80,
-    "total_round_trip_points": 1.40
+    "total_per_side": 1.39,
+    "total_round_trip": 2.78,
+    "total_round_trip_points": 1.39,
+    "source": "Micro E-mini Nasdaq-100. Exchange fee CME micro non-member $0.35 (IBKR CME pass-through page); NFA $0.01; clearing, CQG and commission from the AMP account (2026-09-25)."
+  },
+  "MES": {
+    "tick_size": 0.25,
+    "tick_value": 1.25,
+    "point_value": 5.0,
+    "fees_per_side": {
+      "exchange_cme": 0.35,
+      "nfa": 0.01,
+      "clearing": 0.13,
+      "cqg_transfer": 0.1,
+      "commission_amp": 0.3
+    },
+    "slippage_ticks_per_side": 1,
+    "total_per_side": 2.14,
+    "total_round_trip": 4.28,
+    "total_round_trip_points": 0.856,
+    "source": "Micro E-mini S&P 500. Exchange fee CME micro non-member $0.35; NFA $0.01; clearing, CQG and commission assumed equal to the MNQ account figures."
+  },
+  "MYM": {
+    "tick_size": 1.0,
+    "tick_value": 0.5,
+    "point_value": 0.5,
+    "fees_per_side": {
+      "exchange_cme": 0.35,
+      "nfa": 0.01,
+      "clearing": 0.13,
+      "cqg_transfer": 0.1,
+      "commission_amp": 0.3
+    },
+    "slippage_ticks_per_side": 1,
+    "total_per_side": 1.39,
+    "total_round_trip": 2.78,
+    "total_round_trip_points": 5.56,
+    "source": "Micro E-mini Dow (CBOT). Exchange fee CBOT micro non-member $0.35 (IBKR CBOT pass-through page); NFA $0.01; clearing, CQG and commission assumed equal to the MNQ account figures."
+  },
+  "M2K": {
+    "tick_size": 0.1,
+    "tick_value": 0.5,
+    "point_value": 5.0,
+    "fees_per_side": {
+      "exchange_cme": 0.35,
+      "nfa": 0.01,
+      "clearing": 0.13,
+      "cqg_transfer": 0.1,
+      "commission_amp": 0.3
+    },
+    "slippage_ticks_per_side": 1,
+    "total_per_side": 1.39,
+    "total_round_trip": 2.78,
+    "total_round_trip_points": 0.556,
+    "source": "Micro E-mini Russell 2000. Exchange fee CME micro non-member $0.35; NFA $0.01; clearing, CQG and commission assumed equal to the MNQ account figures."
+  },
+  "ES": {
+    "tick_size": 0.25,
+    "tick_value": 12.5,
+    "point_value": 50.0,
+    "fees_per_side": {
+      "exchange_cme": 1.38,
+      "nfa": 0.01,
+      "clearing": 0.13,
+      "cqg_transfer": 0.1,
+      "commission_amp": 0.3
+    },
+    "slippage_ticks_per_side": 1,
+    "total_per_side": 14.42,
+    "total_round_trip": 28.84,
+    "total_round_trip_points": 0.5768,
+    "source": "E-mini S&P 500. Exchange fee CME E-mini equity non-member $1.38 (IBKR CME pass-through page); NFA $0.01; clearing, CQG and commission assumed equal to the MNQ account figures (an E-mini commission may differ on the AMP statement)."
+  },
+  "NQ": {
+    "tick_size": 0.25,
+    "tick_value": 5.0,
+    "point_value": 20.0,
+    "fees_per_side": {
+      "exchange_cme": 1.38,
+      "nfa": 0.01,
+      "clearing": 0.13,
+      "cqg_transfer": 0.1,
+      "commission_amp": 0.3
+    },
+    "slippage_ticks_per_side": 1,
+    "total_per_side": 6.92,
+    "total_round_trip": 13.84,
+    "total_round_trip_points": 0.692,
+    "source": "E-mini Nasdaq-100. Exchange fee CME E-mini equity non-member $1.38; NFA $0.01; clearing, CQG and commission assumed equal to the MNQ account figures."
+  },
+  "YM": {
+    "tick_size": 1.0,
+    "tick_value": 5.0,
+    "point_value": 5.0,
+    "fees_per_side": {
+      "exchange_cme": 1.38,
+      "nfa": 0.01,
+      "clearing": 0.13,
+      "cqg_transfer": 0.1,
+      "commission_amp": 0.3
+    },
+    "slippage_ticks_per_side": 1,
+    "total_per_side": 6.92,
+    "total_round_trip": 13.84,
+    "total_round_trip_points": 2.768,
+    "source": "E-mini Dow (CBOT). Exchange fee CBOT E-mini non-member $1.38 (IBKR CBOT pass-through page); NFA $0.01; clearing, CQG and commission assumed equal to the MNQ account figures."
+  },
+  "RTY": {
+    "tick_size": 0.1,
+    "tick_value": 5.0,
+    "point_value": 50.0,
+    "fees_per_side": {
+      "exchange_cme": 1.38,
+      "nfa": 0.01,
+      "clearing": 0.13,
+      "cqg_transfer": 0.1,
+      "commission_amp": 0.3
+    },
+    "slippage_ticks_per_side": 1,
+    "total_per_side": 6.92,
+    "total_round_trip": 13.84,
+    "total_round_trip_points": 0.2768,
+    "source": "E-mini Russell 2000. Exchange fee CME E-mini equity non-member $1.38; NFA $0.01; clearing, CQG and commission assumed equal to the MNQ account figures."
   }
 }

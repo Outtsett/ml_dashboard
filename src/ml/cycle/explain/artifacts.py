@@ -262,6 +262,21 @@ class StreamedPredictions:
     predicted_move_points: dict[int, float | None]
 
 
+
+def load_tick_size(run_directory: str | os.PathLike) -> float | None:
+    """The instrument's tick size from ``config.json`` (``plan.costModel.tickSize``), or None
+    before the run ended: the forecast the chart draws sits on this grid."""
+    path = Path(run_directory) / "config.json"
+    if not path.is_file():
+        return None
+    try:
+        with open(path, encoding="utf-8") as handle:
+            document = json.load(handle)
+        value = ((document.get("plan") or {}).get("costModel") or {}).get("tickSize")
+        return float(value) if value else None
+    except (OSError, ValueError, TypeError):
+        return None
+
 def load_streamed(run_directory: str | os.PathLike, timestamps: np.ndarray) -> StreamedPredictions | None:
     """What the engine streamed per test bar; None while the run is live (the
     file is written when it ends). ``probability_up`` is P(up) exactly as
@@ -274,11 +289,16 @@ def load_streamed(run_directory: str | os.PathLike, timestamps: np.ndarray) -> S
 
     signature = _mtime(path)
     with open(path, "rb") as handle:
-        table = pq.read_table(handle, columns=["timestamp", "fold_index", "probability_up", "predicted_move_points"])
+        schema_names = pq.read_schema(handle).names
+        # the model's own number is the unrounded move (since 2026-09-26 the streamed forecast sits on
+        # the tick grid; a record from before carries only the rounded-free `predicted_move_points`)
+        move_column = "predicted_move_raw_points" if "predicted_move_raw_points" in schema_names else "predicted_move_points"
+        handle.seek(0)
+        table = pq.read_table(handle, columns=["timestamp", "fold_index", "probability_up", move_column])
     stamps = table.column("timestamp").to_pylist()
     folds = table.column("fold_index").to_pylist()
     probabilities = table.column("probability_up").to_pylist()
-    moves = table.column("predicted_move_points").to_pylist()
+    moves = table.column(move_column).to_pylist()
     del table
     rows = np.searchsorted(timestamps, np.asarray(stamps, dtype=np.int64))
     fold_by_row: dict[int, int] = {}

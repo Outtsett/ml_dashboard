@@ -35,6 +35,7 @@ import { mlRateLimiter } from "../infrastructure/lib/rateLimiter";
 import { TrainingService } from "./training.service";
 import { RegistryService } from "./registry.service";
 import { ensureCycleAccumulator, getCycleSnapshot, listCycleRuns } from "./cycle";
+import { listArchivedCycleRuns, loadArchivedCycleSnapshot } from "./cycleArchive";
 import { cycleControlSchema } from "@shared/cycle/schema";
 import type { TrainingRequest, TrainingEvent } from "@shared/trainingTypes";
 import { questdbHttpQuery } from "../infrastructure/database/questdb/httpQuery";
@@ -631,17 +632,30 @@ router.post("/training/control/:modelId", (req: Request, res: Response) => {
 
 // ─── Model Cycle runs (panel/chart rebuild source after a reload) ──────────
 
-router.get("/training/cycle", (_req: Request, res: Response) => {
-  res.json(listCycleRuns());
+router.get("/training/cycle", async (_req: Request, res: Response) => {
+  // the live accumulator's runs first, then every run the lake holds (deduped by id), newest first
+  const live = listCycleRuns();
+  const seen = new Set(live.map((run) => run.modelId));
+  let archived: Awaited<ReturnType<typeof listArchivedCycleRuns>> = [];
+  try {
+    archived = await listArchivedCycleRuns(200);
+  } catch (error) {
+    console.warn(`[cycle] archived runs unavailable: ${String(error)}`);
+  }
+  res.json([...live, ...archived.filter((run) => !seen.has(run.modelId))].sort((a, b) => b.startedAt - a.startedAt));
 });
 
-router.get("/training/cycle/:modelId", (req: Request, res: Response) => {
+router.get("/training/cycle/:modelId", async (req: Request, res: Response) => {
   const modelId = String(req.params.modelId);
   const snapshot = getCycleSnapshot(modelId);
-  if (!snapshot) {
-    return res.status(404).json({ error: `No Model Cycle run tracked for ${modelId}` });
+  if (snapshot) return res.json(snapshot);
+  try {
+    const archived = await loadArchivedCycleSnapshot(modelId);
+    if (archived) return res.json(archived);
+  } catch (error) {
+    console.warn(`[cycle] could not rebuild ${modelId} from the lake: ${String(error)}`);
   }
-  res.json(snapshot);
+  return res.status(404).json({ error: `No Model Cycle run tracked or archived for ${modelId}` });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

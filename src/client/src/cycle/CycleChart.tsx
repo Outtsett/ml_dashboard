@@ -554,8 +554,8 @@ class CycleChartController {
       let start = cursor.spanStart;
       let end = cursor.spanEnd;
       if ((start === null || end === null) && cursor.phase === "tuning" && state.plan?.tuning) {
-        start = state.plan.tuning.start;
-        end = state.plan.tuning.end;
+        start = state.plan.tuning.start ?? null;
+        end = state.plan.tuning.end ?? null;
       }
       if (start === null || end === null) return;
       const key = `${start}:${end}`;

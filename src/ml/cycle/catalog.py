@@ -40,16 +40,21 @@ REGISTRY_DIRECTORY = Path(__file__).resolve().parents[2] / "config" / "cycle_mod
 SHARED_FILE = "_cycle.json"
 
 KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_]{1,39}$")
-PARAMETER_TYPES = ("int", "float", "bool", "categorical")
+PARAMETER_TYPES = ("int", "float", "bool", "categorical", "string")
 IMPLEMENTATIONS = ("sklearn", "xgboost", "lightgbm", "catboost", "statsmodels", "torch")
-ADAPTERS = ("legacy", "scikit_learn", "catboost", "statsmodels", "neural")
+ADAPTERS = ("legacy", "scikit_learn", "catboost", "statsmodels", "neural",
+            # adapters in their own modules (models.ADAPTER_CLASSES), one per catalog spec
+            "tree_boosted_neural_embedding", "attention_weighted_forecast_stack", "bayesian_neural_hybrid")
 DIRECTION_MODES = ("classifier", "from_price")
 PROBABILITY_SOURCES = ("legacy", "predict_proba", "logistic_curve_on_validation", "network", "probit")
 PROGRESS_KINDS = ("legacy", "warm_start_trees", "warm_start_rounds", "per_round", "per_epoch", "single_fit")
 STEP_UNITS = ("epoch", "boosting_round", "tree_batch", "solver_pass", "single_fit")
-EXPLAIN_KINDS = ("trees", "oblivious_trees", "linear", "neighbors", "naive_bayes", "support_vectors", "calibration", "stacking", "neural")
+# "opaque": a runnable model with no Inside view yet (the panel says so instead of guessing)
+EXPLAIN_KINDS = ("trees", "oblivious_trees", "linear", "neighbors", "naive_bayes", "support_vectors", "calibration", "stacking", "neural", "opaque")
 NETWORKS = ("multilayer_perceptron", "lstm", "temporal_convolution_network", "transformer_encoder",
-            "recurrent", "gated_recurrent_unit", "attention_recurrent")
+            "recurrent", "gated_recurrent_unit", "attention_recurrent",
+            # kinds in their own modules (networks.NETWORK_EXTENSION_MODULES)
+            "mixture_of_experts", "recurrent_convolution_hybrid", "hypernetwork", "neural_turing_machine", "dual_pathway")
 SPEEDS = ("fast", "medium", "slow")
 PREPROCESS_STEPS = ("standard_scaler",)
 ROLES = ("direction", "price")
@@ -167,6 +172,12 @@ def _validate_parameter(where: str, name: str, spec: Any, *, model_parameter: bo
     if kind == "bool":
         if not isinstance(default, bool):
             _fail(where, "a bool parameter's default must be true or false")
+    elif kind == "string":
+        if not isinstance(default, str):
+            _fail(where, "a string parameter's default must be text")
+        for bound in ("min", "max", "step", "choices", "search"):
+            if bound in spec:
+                _fail(where, f"a string parameter has no {bound}")
     elif kind == "categorical":
         choices = spec.get("choices")
         if not isinstance(choices, list) or not choices:
@@ -363,6 +374,12 @@ def coerce(name: str, spec: dict, value: Any, key: str = "") -> Any:
     and choices. Raises ValueError with a sentence naming the model and parameter."""
     kind = spec["type"]
     label = f"{key}: {name}" if key else name
+    if kind == "string":
+        if value is None:
+            return ""
+        if isinstance(value, (bool, int, float)) and not isinstance(value, str):
+            raise ValueError(f"{label} must be text, got {value!r}")
+        return str(value)
     if kind == "bool":
         if isinstance(value, bool):
             return value
@@ -427,25 +444,47 @@ def estimator_arguments(key: str, parameters: dict, role: str, reg: dict | None 
     return arguments
 
 
-def suggest_parameters(trial, key: str, base_parameters: dict, reg: dict | None = None) -> dict:
-    """Optuna search from the registry's `search` spaces: every parameter with a
-    `search` is suggested under its own name, the rest keep the resolved base
-    value. Legacy models are searched by `models.suggest_parameters`."""
+def searchable_parameters(key: str, reg: dict | None = None) -> tuple[str, ...]:
+    """The names of the model's parameters that carry a `search` space, in registry order."""
+    return tuple(name for name, spec in entry(key, reg)["parameters"].items() if spec.get("search"))
+
+
+def has_search_space(key: str, reg: dict | None = None) -> bool:
+    return bool(searchable_parameters(key, reg))
+
+
+def suggested_values(trial, key: str, pinned=(), reg: dict | None = None) -> dict:
+    """One Optuna suggestion per searchable parameter of ``key`` (registry
+    order), skipping ``pinned`` names, which keep the run's own value."""
     model = entry(key, reg)
-    if model["adapter"] == "legacy":
-        raise ValueError(f"{key} is a legacy model; its search space is models.suggest_parameters")
-    resolved = resolve_parameters(key, base_parameters, reg)
+    held = set(pinned or ())
+    values: dict = {}
     for name, spec in model["parameters"].items():
         search = spec.get("search")
-        if not search:
+        if not search or name in held:
             continue
         if search["kind"] == "categorical":
-            value = trial.suggest_categorical(name, list(search["choices"]))
+            values[name] = trial.suggest_categorical(name, list(search["choices"]))
         elif search["kind"] == "int":
-            value = trial.suggest_int(name, int(search["low"]), int(search["high"]), log=bool(search.get("log")))
+            values[name] = trial.suggest_int(name, int(search["low"]), int(search["high"]), log=bool(search.get("log")))
         else:
-            value = trial.suggest_float(name, float(search["low"]), float(search["high"]), log=bool(search.get("log")))
-        resolved[name] = value
+            values[name] = trial.suggest_float(name, float(search["low"]), float(search["high"]), log=bool(search.get("log")))
+    return values
+
+
+def suggest_parameters(trial, key: str, base_parameters: dict, reg: dict | None = None, pinned=()) -> dict:
+    """Optuna search from the registry's `search` spaces: every parameter with a
+    `search` (and not in ``pinned``) is suggested under its own name, the rest
+    keep the resolved base value. A legacy family's values are resolved by
+    `models.resolve_parameters`, whose rules predate the registry."""
+    model = entry(key, reg)
+    suggested = suggested_values(trial, key, pinned, reg)
+    if model["adapter"] == "legacy":
+        from cycle import models  # noqa: PLC0415 - models imports this module
+
+        return models.resolve_parameters(key, {**models.resolve_parameters(key, base_parameters), **suggested})
+    resolved = resolve_parameters(key, base_parameters, reg)
+    resolved.update(suggested)
     return resolve_parameters(key, resolved, reg)
 
 

@@ -128,3 +128,22 @@ npx tsx scripts/seed-instruments.ts                               # push the lak
 ```
 
 The CME fields are the `CME_GROUP_VERIFIED` block in the builder; a scripted fetch cannot refresh them (403), so re-read the pages in a browser and edit the block. After a rebuild, save the downloaded page over the test fixture and re-run `pytest tests/test_contract_specifications.py` so the fixture and the file stay one reproduction apart.
+
+## Cost model (`src/config/cost_model.json`)
+
+One entry per lake root (MNQ, MES, MYM, M2K, ES, NQ, YM, RTY), read by `src/ml/cycle/simulate.py`
+for every Model Cycle run. Fields: `tick_size` (index points), `tick_value` (USD per tick per
+contract), `point_value` (USD per point per contract), `fees_per_side` (`exchange_cme`: the CME/CBOT
+non-member customer rate; `nfa`: the NFA assessment; `clearing`; `cqg_transfer`; `commission_amp`: the
+account's negotiated AMP commission), `slippage_ticks_per_side`, `total_per_side` = fees + slippage ×
+tick value, `total_round_trip` = 2 × per side, `total_round_trip_points` = round trip / point value,
+`source`.
+
+Verified 2026-09-27. Exchange fees from Interactive Brokers' pass-through CME and CBOT fee pages
+(https://www.interactivebrokers.com/en/accounts/fees/CME.php and .../CBOT.php — the rate CME charges
+IBKR, passed through; CME's own fee pages block automated reads): E-mini equity index (ES, NQ, RTY,
+YM) $1.38 per side, Micro E-mini (MES, MNQ, MYM, M2K) $0.35. NFA assessment from
+https://www.nfa.futures.org/faqs/members/nfa-assessment-fees.html: $0.01 per side from 2026-07-01
+for every contract size, $0.02 from 2027-07-01 (the file carried $0.02 until this date). Clearing,
+CQG and the AMP commission are the MNQ account figures of 2026-09-25 applied to every root: an
+assumption until the AMP statement for each root says otherwise.

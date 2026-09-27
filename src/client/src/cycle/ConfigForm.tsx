@@ -15,6 +15,7 @@ import { Label } from "@/shared/ui/label";
 import { Input } from "@/shared/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import HyperparameterForm from "@/training/HyperparameterForm";
+import { Tunables, isTuned, parsePinned, searchableParameters, TUNING_BUDGET_TRIALS_KEY } from "@/cycle/Tunables";
 import { useSymbolContext } from "@/shared/contexts/SymbolContext";
 import { minutesToLabel } from "@/market/lib/timeframes";
 import type { HyperparameterDef } from "@shared/trainingTypes";
@@ -195,6 +196,17 @@ export function ConfigForm({ value, onChange, disabled = false }: ConfigFormProp
       }
     }
   }
+  // Tuned: a searchable dial is the search's to set unless pinned, so it leaves
+  // the typed list and shows in the tunables panel with its range and pin.
+  const tuned = isTuned(value.hyperparameters);
+  const searched = tuned ? searchableParameters(orderedHyperparameters) : [];
+  const pinnedNames = new Set(parsePinned(value.hyperparameters.tuning_pinned_parameters));
+  const typedHyperparameters: Record<string, HyperparameterDef> = {};
+  for (const [key, def] of Object.entries(orderedHyperparameters)) {
+    if (searched.includes(key) && !pinnedNames.has(key)) continue;
+    typedHyperparameters[key] = def;
+  }
+  const trialBudget = Number(value.hyperparameters[TUNING_BUDGET_TRIALS_KEY] ?? 0);
 
   return (
     <div className="space-y-4">
@@ -258,8 +270,23 @@ export function ConfigForm({ value, onChange, disabled = false }: ConfigFormProp
       {selectedEntry ? (
         <Card className="border-white/10 bg-white/[0.02]">
           <CardContent className="pt-4">
+            <div className="mb-3 rounded-md border border-white/10 bg-white/[0.02] px-3 py-2" data-testid="hyperparameter-mode">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Hyperparameters</span>
+                <span className="text-[11px] text-neutral-300" data-testid="hyperparameter-mode-summary">
+                  {tuned
+                    ? `tuned by Optuna inside every fold${trialBudget > 0 ? `, ${trialBudget} trials per fold` : ""}`
+                    : "reviewed defaults, or the values typed below"}
+                </span>
+              </div>
+              {tuned && (
+                <div className="mt-2">
+                  <Tunables hyperparameters={orderedHyperparameters} values={value.hyperparameters} onChange={setHyperparameter} disabled={disabled} />
+                </div>
+              )}
+            </div>
             <HyperparameterForm
-              hyperparameters={orderedHyperparameters}
+              hyperparameters={typedHyperparameters}
               values={value.hyperparameters}
               onChange={setHyperparameter}
               onReset={resetHyperparameters}

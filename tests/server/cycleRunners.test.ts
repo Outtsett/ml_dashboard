@@ -206,7 +206,7 @@ describe('cycleRunners.ts — registry to runners', () => {
     expect(Object.keys(runnersJson.runners).filter((key) => key.endsWith(CYCLE_RUNNER_SUFFIX))).toEqual([]);
   });
 
-  it('a new model: scriptArgs, catalogId, one flag per parameter, registry-only fields stripped, description kept', () => {
+  it('a new model: scriptArgs, catalogId, one flag per parameter, estimator-only fields stripped, search and description kept', () => {
     const newKeys = Object.entries(registry.models).filter(([, entry]) => entry.adapter !== 'legacy');
     expect(newKeys.length).toBeGreaterThan(0);
     const runners = listRunners();
@@ -223,7 +223,10 @@ describe('cycleRunners.ts — registry to runners', () => {
         const parameter = runner.defaultHyperparameters[name] as unknown as Record<string, unknown>;
         expect(parameter).not.toHaveProperty('argument');
         expect(parameter).not.toHaveProperty('roles');
-        expect(parameter).not.toHaveProperty('search');
+        // the Optuna space travels with the parameter so the form can show it and pin it
+        const spec = (registry.shared.cycleParameters as Record<string, { search?: unknown }>)[name] ?? entry.parameters[name];
+        if (spec?.search) expect(parameter.search).toEqual(spec.search);
+        else expect(parameter).not.toHaveProperty('search');
       }
       for (const [name, spec] of Object.entries(entry.parameters)) {
         expect(runner.defaultHyperparameters[name]!.description).toBe(spec.description);
