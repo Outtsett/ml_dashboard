@@ -54,6 +54,7 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -68,13 +69,20 @@ import jinja2
 
 TEMPLATE_VERSION = "0.1.0"  # Bumped when any architecture template changes shape.
 
+# Strategies the trainer can compute itself (src/ml/shared/labels.py); every
+# other generator id (src/shared/mlTaxonomy.ts LABEL_GENERATORS) trains from a
+# landed label set and is accepted as long as it is a plain identifier.
 VALID_LABEL_STRATEGIES = {
     "triple_barrier",
     "next_close_direction",
     "range_bucket",
     "structural",
     "none",
+    "direction", "signal", "regime", "future_return", "future_volatility", "multi_step",
+    "npmm", "volatility_adaptive", "trend_scanning", "meta_label",
+    "pseudo_confidence", "consistency_perturbation",
 }
+_LABEL_STRATEGY_PATTERN = re.compile(r"^[a-z0-9_]+$")
 
 # Family → template-id resolution. Backend-lead's pickTemplate() owns the full
 # rule table in W2; this module-level fallback exists so the W1 dry-run gate
@@ -165,6 +173,20 @@ LABEL_TO_TASK: dict[str, str] = {
     "structural": "direction_classifier",
     "range_bucket": "range_classifier",
     "none": "custom",
+    # Landed-set generators: signed and binary labels train the direction head;
+    # a continuous or many-class label has no matching head yet and stays custom.
+    "direction": "direction_classifier",
+    "signal": "direction_classifier",
+    "volatility_adaptive": "direction_classifier",
+    "trend_scanning": "direction_classifier",
+    "npmm": "direction_classifier",
+    "meta_label": "direction_classifier",
+    "multi_step": "direction_classifier",
+    "pseudo_confidence": "direction_classifier",
+    "consistency_perturbation": "direction_classifier",
+    "regime": "custom",
+    "future_return": "custom",
+    "future_volatility": "custom",
 }
 
 # Strategies the trainer can compute itself (src/ml/shared/labels.py). Any other
@@ -326,7 +348,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument(
         "--label-strategy",
         default=None,
-        choices=sorted(VALID_LABEL_STRATEGIES) + [None],
+        type=str,
         help="Which labeling function the generated model invokes.",
     )
     ap.add_argument(
@@ -418,6 +440,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             missing.append("--hyperparameters-json")
         if not args.label_strategy:
             missing.append("--label-strategy")
+        elif not _LABEL_STRATEGY_PATTERN.match(args.label_strategy):
+            raise SystemExit(f"--label-strategy must be a generator id ([a-z0-9_]), got {args.label_strategy!r}")
         if not args.label_params_json:
             missing.append("--label-params-json")
         if not args.feature_pipeline:

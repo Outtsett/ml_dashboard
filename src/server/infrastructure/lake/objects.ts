@@ -91,15 +91,34 @@ export async function putObjectText(objectPath: string, text: string, contentTyp
 
 /**
  * Append one JSON line to a `.jsonl` manifest. Object storage has no append,
- * so this is read-modify-write; two writers landing in the same second could
- * drop each other's line, which is why every landing also has its SQLite row
- * and the lifecycle never trusts the manifest alone.
+ * so this is read-modify-write. Appends are serialised inside this process,
+ * and each one reads the object back after writing: a line dropped by a writer
+ * in ANOTHER process (the suite runner beside the dev server) is re-appended,
+ * so the race degrades to one retry, not to a lost landing. The SQLite row is
+ * still written first, so a set is never known only through the manifest.
  */
 export async function appendJsonLine(objectPath: string, line: Record<string, unknown>): Promise<void> {
-  const existing = (await getObjectText(objectPath)) ?? '';
-  const body = existing.length === 0 || existing.endsWith('\n') ? existing : `${existing}\n`;
-  await putObjectText(objectPath, `${body}${JSON.stringify(line)}\n`, 'application/x-ndjson');
+  const text = JSON.stringify(line);
+  const previous = appendChain.get(objectPath) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(async () => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const existing = (await getObjectText(objectPath)) ?? '';
+      const body = existing.length === 0 || existing.endsWith('\n') ? existing : `${existing}\n`;
+      await putObjectText(objectPath, `${body}${text}\n`, 'application/x-ndjson');
+      const written = (await getObjectText(objectPath)) ?? '';
+      if (written.split('\n').includes(text)) return;
+    }
+    throw new Error(`appendJsonLine: ${objectPath} lost the line three times running`);
+  });
+  appendChain.set(objectPath, next);
+  try {
+    await next;
+  } finally {
+    if (appendChain.get(objectPath) === next) appendChain.delete(objectPath);
+  }
 }
+
+const appendChain = new Map<string, Promise<void>>();
 
 /** Every parsed line of a `.jsonl` manifest; an absent object is an empty list. */
 export async function readJsonLines<T = Record<string, unknown>>(objectPath: string): Promise<T[]> {

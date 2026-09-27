@@ -231,6 +231,14 @@ router.get("/labels/:id/rows", async (req: Request<{ id: string }>, res: Respons
         error: `Label set ${id} has no persisted rows (status '${labelSet.status}', stage '${labelSet.stage}').`,
       });
     }
+    // A set that failed a gate sits under `derived/labels/_rejected/` for
+    // inspection only; its rows are served solely when asked for by name.
+    if (!labelSet.landedAt && req.query.rejected !== '1') {
+      return res.status(409).json({
+        error: `Label set ${id} did not land: ${labelSet.errorMessage ?? 'validation failed'}. Add ?rejected=1 to inspect its rows anyway.`,
+        rejected: true,
+      });
+    }
     const { readLabelSetRows } = await import('../infrastructure/lib/labels/labelSetStore');
     const fromMs = Number(req.query.from);
     const toMs = Number(req.query.to);

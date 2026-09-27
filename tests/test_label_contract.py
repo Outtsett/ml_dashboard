@@ -324,6 +324,22 @@ def test_triple_barrier_warmup_never_collapses_onto_the_entry(parity_fixture):
     assert (rows["lower_barrier_price"] < rows["close"]).all()
 
 
+def test_average_true_range_warmup_is_the_full_window_plus_one(parity_fixture):
+    """The first bar has no previous close, so its true range is unknown. DuckDB's
+    GREATEST skips NULL arguments, which once made that bar's range `high - low`
+    and let the 20-bar ATR fill one bar early. The first event bar is the
+    (window + 1)-th bar, and every emitted volatility scale is positive."""
+    bars, rendered, con = parity_fixture
+    entry = rendered["triple_barrier__average_true_range"]
+    window = int(entry["params"]["volatilityWindowBars"])
+    rows = con.execute(
+        f"SELECT CAST(epoch_ms(timestamp) AS BIGINT) AS t, volatility_scale_points FROM ({entry['sql']}) ORDER BY timestamp"
+    ).fetchdf()
+    assert int(rows["t"].iloc[0]) == int(bars["t"][window]), (int(rows["t"].iloc[0]), int(bars["t"][window - 1]), int(bars["t"][window]))
+    assert rows["volatility_scale_points"].notna().all()
+    assert (rows["volatility_scale_points"] > 0).all()
+
+
 def test_volatility_generators_report_null_not_zero_in_warmup(parity_fixture):
     bars, rendered, con = parity_fixture
     for generator, column in (("volatility_adaptive", "trailing_return_volatility_fraction"),

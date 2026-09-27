@@ -1,16 +1,20 @@
 {# ---------------------------------------------------------------------- #}
 {# _single_fold.py.j2 — included by _walk_forward.py.j2 when              #}
-{# walk_forward is None.  80/20 time split, no embargo unless overridden. #}
+{# walk_forward is None.  80/20 time split, purged by the label horizon.    #}
 {# Mirrors xgb_classifier/main.py:341-345 time_split_indices behavior.    #}
 {# ---------------------------------------------------------------------- #}
     from src.ml.shared.protocol import emit_fold_complete
 
     n_kept = X.shape[0]
     split = max(1, int(n_kept * 0.8))
-    train_idx = np.arange(0, split, dtype=np.int64)
+    # The last `label_purge_bars` training rows resolve inside the test window;
+    # they are purged, the same rule the walk-forward folds apply.
+    train_end = max(1, split - int(label_purge_bars))
+    train_idx = np.arange(0, train_end, dtype=np.int64)
     test_idx = np.arange(split, n_kept, dtype=np.int64)
     emit_log(
-        f"[single-fold] train={train_idx.size:,} test={test_idx.size:,} (80/20 time split)"
+        f"[single-fold] train={train_idx.size:,} test={test_idx.size:,} "
+        f"(80/20 time split, {int(label_purge_bars)} bars purged at the boundary)"
     )
 
     X_train, y_train = X[train_idx], y[train_idx]

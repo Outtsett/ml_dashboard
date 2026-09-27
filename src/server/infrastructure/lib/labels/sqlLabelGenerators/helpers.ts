@@ -130,9 +130,15 @@ export function shiftForward(expr: string, n: number, config: LabelGeneratorConf
   return `LEAD(${expr}, ${n}) ${windowOver(config)}`;
 }
 
-/** Wilder true range for a row that carries `previous_close`. */
+/**
+ * Wilder true range for a row that carries `previous_close`.
+ *
+ * DuckDB's GREATEST skips NULL arguments instead of propagating them, so the
+ * first bar of a partition (no previous close) would come out as `high - low`
+ * and be COUNTED by the trailing guard one bar early. It is unknown, so NULL.
+ */
 export function trueRangeExpression(): string {
-  return 'GREATEST(high - low, ABS(high - previous_close), ABS(low - previous_close))';
+  return 'CASE WHEN previous_close IS NULL THEN NULL ELSE GREATEST(high - low, ABS(high - previous_close), ABS(low - previous_close)) END';
 }
 
 // ─── Statistical thresholds ─────────────────────────────────────────────────

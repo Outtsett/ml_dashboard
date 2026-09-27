@@ -84,15 +84,23 @@ the lake's glob.
 
 `specified → generated → validated → landed → cataloged → consumed`, with `stale` and `retired` beside the ladder.
 Derived from artifacts (`buildLabelLifecycle`): the ledger row, the validation report, the parquet + manifest, the
-recipe's presence in `derived_labels`, `training_sessions.label_set_id`, and the source bars' coverage against the
-fingerprint recorded at generation (`stale`). `GET /api/labels/lifecycle`; the `/labels` page and ML Studio's
-Labels stage draw it.
+recipe's presence in `labels.jsonl` or in `derived_labels` (a landing from another process is cataloged the moment
+its manifest line exists), `training_sessions.label_set_id`, and the source bars' coverage against the fingerprint
+recorded at generation (`stale`). `GET /api/labels/lifecycle`; the `/labels` page and ML Studio's Labels stage
+draw it. `generated_labels.stage` is only the furthest rung the generation job reached; the live stage is always
+the derived one. A set that failed a gate keeps its rows under `derived/labels/_rejected/` for inspection, and
+`GET /api/labels/:id/rows` answers 409 for it unless `?rejected=1` is passed.
 
 ## Purge and embargo
 
 `purge_bars = embargo_bars = max(resolution_bars)` of the set. The runner passes `--label-purge-bars`; the trainer
-template uses `max(configured, label horizon)` for both, and the codegen routes clamp a requested purge below the
-horizon (with a warning in the response). The Model Cycle already derived its purge from the horizon and asserts it.
+template uses `max(configured, label horizon)` for both walk-forward folds and the plain 80/20 split (the last
+`purge_bars` training rows before the boundary are dropped), and the codegen routes clamp a requested purge below
+the horizon (with a warning in the response) for the four kernel strategies. For a landed-set generator the codegen
+cannot know the horizon, so it warns that the set's `purge_bars` is the floor instead of clamping to zero.
+`generate_model.py` accepts any generator id (`[a-z0-9_]+`) and maps signed / binary encodings to the direction
+head, continuous and many-class ones to `custom`. The Model Cycle already derived its purge from the horizon and
+asserts it.
 
 ## The suite
 
@@ -126,3 +134,25 @@ its catalog when done.
 any repository; `mnq_zigzag_1m` carries 580 timestamps that are not in `mnq_ohlcv_1m`; the serving snapshot
 `derived/recipe=questdb_full_2026-09-09` has no manifest. All six use abbreviated columns
 (`docs/column-naming-migration.md`). Deleting or re-stamping any of them is a person's decision.
+
+## Adversarial review (2026-09-26)
+
+A 48-agent review of the shipped work (`wf_1a7dcfbd-3e6`: independent finders per dimension, three refuters per
+finding) confirmed nine findings and refuted twelve. Every confirmed one is fixed and gated:
+
+| Finding | Fix | Gate |
+| --- | --- | --- |
+| DuckDB `GREATEST` skips NULL, so the first bar's true range was `high - low` and the ATR filled one bar early | `trueRangeExpression()` is NULL when there is no previous close | `test_average_true_range_warmup_is_the_full_window_plus_one` |
+| Triple-barrier sets landed `realized_return_points` / `realized_return_fraction` twice (generator + enrichment) | the enrichment pass drops any staged column it recomputes | the six sets regenerated; `derived_labels` has one of each |
+| `GET /api/labels/:id/rows` served a set that failed its gates | 409 with the failure unless `?rejected=1` | route |
+| `cataloged` needed this process's `derived_labels` view, so a landing from the suite runner read as `landed` | manifest membership counts, cached 30 s | `labelLifecycle.ts` |
+| `appendJsonLine` was read-modify-write with no guard | in-process chain per object plus read-back and re-append, three attempts | `lake/objects.ts` |
+| `generate_model.py` rejected every non-kernel label strategy | any `[a-z0-9_]+` id; `LABEL_TO_TASK` covers all seventeen | `tests/codeGenerator.test.ts` |
+| `labelHorizonBars` returned 0 for non-kernel strategies, so the purge clamp was silently skipped | returns `null`; the route warns that the set supplies the purge | `tests/codeGenerator.test.ts` |
+| The single-fold template computed the purge and never applied it | `train_end = split - label_purge_bars` | template |
+| `generated_labels.stage` and the derived stage could disagree | the column is documented as the job's furthest rung; the lifecycle is the authority | schema comment |
+
+Refuted (kept as is): the recipe hash's parameter normalisation, the Šidák threshold direction, `sample_uniqueness_weight`
+on overlapping horizons, the whole-day truncation cut, `hive_partitioning = false` on reads, the `boundByWindow`
+alias, the histogram binning for continuous labels, the contrastive `wrapWithSampleBy` path, the meta-label
+routing, the `retired` precedence over `stale`, the manifest-driven view planning, and the `usable_reason` vocabulary.

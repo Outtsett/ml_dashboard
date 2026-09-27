@@ -477,7 +477,11 @@ export const generatedLabels = sqliteTable("generated_labels", {
   /** SHA-256 of the canonical identity (generator, symbol, timeframe, parameters, window, contract version). */
   parametersHash: text("parameters_hash"),
   timeframeMinutes: integer("timeframe_minutes").notNull().default(1),
-  /** The furthest rung reached; CHECK retrofitted by enforce-sqlite-invariants.ts. */
+  /**
+   * The furthest rung the generation JOB reached (specified, generated, cataloged);
+   * the live stage — consumed, stale, retired, cataloged from another process —
+   * is derived by `labelLifecycle.ts`. CHECK retrofitted by enforce-sqlite-invariants.ts.
+   */
   stage: text("stage").notNull().default("specified"),
   validation: text("validation"), // JSON LabelValidationReport
   validatedAt: integer("validated_at", { mode: "timestamp_ms" }),

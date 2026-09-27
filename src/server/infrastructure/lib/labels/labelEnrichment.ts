@@ -21,7 +21,7 @@
  * All three are prefix sums over the bar ordinal, so the pass is linear in the
  * bar count whatever the horizons are.
  */
-import { LABEL_VOLATILITY_WINDOW_BARS } from '@shared/labels/contract';
+import { LABEL_ENRICHMENT_COLUMNS, LABEL_VOLATILITY_WINDOW_BARS } from '@shared/labels/contract';
 import type { LabelGeneratorConfig } from './sqlLabelGenerators/helpers';
 import { BAR_INDEX_COLUMN, sampledBarsCte } from './sqlLabelGenerators/helpers';
 
@@ -55,7 +55,16 @@ export function buildEnrichmentSql(input: EnrichmentInput): string {
     ? 'COALESCE(e.realized_price, e.resolution_close)'
     : 'e.resolution_close';
   const reasonHint = has('usable_reason_hint') ? 'e.usable_reason_hint' : 'NULL::VARCHAR';
-  const exclude = ['event_bar_index', 'resolution_bar_index', ...(has('usable_reason_hint') ? ['usable_reason_hint'] : [])];
+  // Columns the pass computes itself: a generator that already emits one (the
+  // triple barrier's realised return) would otherwise land it twice under one
+  // name. `realized_price` is kept until `valued`, which reads it.
+  const recomputed = LABEL_ENRICHMENT_COLUMNS.filter((column) => column !== 'resolution_bars' && column !== 'realized_price');
+  const exclude = [
+    'event_bar_index',
+    'resolution_bar_index',
+    ...(has('usable_reason_hint') ? ['usable_reason_hint'] : []),
+    ...recomputed.filter((column) => has(column)),
+  ];
 
   return `
 WITH ${sampledBarsCte(config)},

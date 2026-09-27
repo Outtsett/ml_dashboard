@@ -58,5 +58,22 @@ for (const generator of Object.keys(LABEL_SQL_GENERATORS)) {
   if (!sql) throw new Error(`generator ${generator} rendered nothing`);
   rendered[generator] = { sql, params };
 }
+// Variants of a generator under a second parameterisation, keyed
+// `<generator>__<variant>`; the tests split on the double underscore.
+const VARIANTS: Record<string, { generator: string; params: Record<string, unknown> }> = {
+  triple_barrier__average_true_range: {
+    generator: 'triple_barrier',
+    params: {
+      barrierUnits: 'volatility', volatilityMeasure: 'average_true_range', volatilityWindowBars: 20,
+      upperBarrierMultiple: 2.0, lowerBarrierMultiple: 1.5, holdingPeriodBars: 20, minimumReturnPercent: 0,
+    },
+  },
+};
+for (const [key, variant] of Object.entries(VARIANTS)) {
+  const params = normalizeLabelParams(variant.generator, variant.params);
+  const sql = generateLabelSQL(variant.generator as never, params, cfg);
+  if (!sql) throw new Error(`variant ${key} rendered nothing`);
+  rendered[key] = { sql, params };
+}
 fs.writeFileSync(out, JSON.stringify(rendered, null, 1));
 console.log(`wrote ${Object.keys(rendered).length} generators to ${out}`);

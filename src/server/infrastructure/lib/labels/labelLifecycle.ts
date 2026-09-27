@@ -21,7 +21,9 @@ import {
   type LabelValidationReport,
 } from '@shared/labels/contract';
 import { servedRecipes } from '../../database/questdb';
+import { readJsonLines } from '../../lake/objects';
 import { getLabelSets, sessionCountsByLabelSet } from './labelRepository';
+import { LABEL_MANIFEST_PATH } from './labelSetStore';
 import { resolveLabelSource } from './labelSource';
 
 // ─── Inputs (narrow on purpose — ISP) ───────────────────────────────────────
@@ -55,6 +57,8 @@ export interface LabelLifecycleInputs {
   sessionCountBySet: Map<number, number>;
   /** Recipes the serving DuckDB currently exposes through `derived_labels`. */
   servedRecipes: Set<string>;
+  /** Recipes with a line in `meta/ingest_manifests/labels.jsonl` — the registry every process reads. */
+  manifestedRecipes: Set<string>;
   /** Current source coverage end per `${symbol}|${timeframeMinutes}`, epoch ms; absent when unprobed. */
   sourceCoverageEnd: Map<string, number>;
 }
@@ -87,7 +91,11 @@ export function buildLabelLifecycle(inputs: LabelLifecycleInputs): LabelLifecycl
     const generated = row.sampleCount > 0 && row.status === 'completed';
     const validated = validation?.passed === true;
     const landed = validated && Boolean(row.parquetPath) && millis(row.landedAt) !== null;
-    const cataloged = landed && row.recipe !== null && inputs.servedRecipes.has(row.recipe);
+    // Cataloged when the recipe is in the manifest (the registry) or already
+    // served by this process; a landing from another process is cataloged the
+    // moment its manifest line exists, not only after this process refreshes.
+    const cataloged = landed && row.recipe !== null &&
+      (inputs.servedRecipes.has(row.recipe) || inputs.manifestedRecipes.has(row.recipe));
     const consumed = sessions > 0;
 
     let staleReason: string | null = row.staleReason;
@@ -185,6 +193,22 @@ export async function getLabelLifecycle(options: { probeSources?: boolean } = {}
     sets,
     sessionCountBySet: await sessionCountsByLabelSet(),
     servedRecipes: new Set(servedRecipes(LABEL_SERVING_VIEW)),
+    manifestedRecipes: await manifestedLabelRecipes(),
     sourceCoverageEnd,
   });
+}
+
+let manifestCache: { at: number; recipes: Set<string> } | null = null;
+
+/** Recipes listed in the labels manifest, cached for 30 s. */
+async function manifestedLabelRecipes(): Promise<Set<string>> {
+  if (manifestCache && Date.now() - manifestCache.at < 30_000) return manifestCache.recipes;
+  try {
+    const lines = await readJsonLines<{ recipe?: unknown }>(LABEL_MANIFEST_PATH);
+    const recipes = new Set(lines.map((line) => line.recipe).filter((r): r is string => typeof r === 'string'));
+    manifestCache = { at: Date.now(), recipes };
+    return recipes;
+  } catch {
+    return manifestCache?.recipes ?? new Set();
+  }
 }

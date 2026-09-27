@@ -146,7 +146,7 @@ function cacheKey(payload: GeneratorPayload): string {
  * `src/ml/shared/labels.py::label_horizon_bars`; accepts the taxonomy's
  * current names and the legacy ones.
  */
-export function labelHorizonBars(strategy: LabelStrategy, params: Record<string, unknown>): number {
+export function labelHorizonBars(strategy: LabelStrategy, params: Record<string, unknown>): number | null {
   const n = (...keys: string[]) => {
     for (const key of keys) {
       const value = Number(params[key]);
@@ -164,7 +164,9 @@ export function labelHorizonBars(strategy: LabelStrategy, params: Record<string,
     case 'range_bucket':
       return n('horizonBars', 'horizon', 'horizon_bars') ?? 1;
     default:
-      return 0;
+      // A landed-set generator: its horizon is the set's `purge_bars`, which the
+      // runner passes as --label-purge-bars and the template applies. Unknown here.
+      return null;
   }
 }
 
@@ -177,6 +179,12 @@ export function labelHorizonBars(strategy: LabelStrategy, params: Record<string,
 export function withPurgeCoveringHorizon(payload: GeneratorPayload): { payload: GeneratorPayload; warning: string | null } {
   if (!payload.walkForward) return { payload, warning: null };
   const horizon = labelHorizonBars(payload.labelStrategy, payload.labelParams);
+  if (horizon === null) {
+    return {
+      payload,
+      warning: `purgeBars was not checked against the ${payload.labelStrategy} horizon: that generator trains from a landed label set, whose purge_bars the runner passes and the trainer applies as a floor.`,
+    };
+  }
   if (payload.walkForward.purgeBars >= horizon) return { payload, warning: null };
   return {
     payload: { ...payload, walkForward: { ...payload.walkForward, purgeBars: horizon } },
