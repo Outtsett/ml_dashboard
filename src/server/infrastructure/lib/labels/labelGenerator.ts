@@ -136,13 +136,18 @@ export async function generateLabels(
       windowEndTimestamp: window.endMs ?? null,
     });
 
-    // Idempotency: the same recipe is the same set. A finished or running set
-    // answers the request; a failed one is retried in place.
+    // Idempotency: the same recipe is the same set. A landed or running set
+    // answers the request; one that failed, or that never landed (a gate
+    // failed), is retried in place.
     const existing = await getLabelSetByRecipe(identity.recipe);
-    if (existing && !request.force && existing.status !== 'failed') {
+    if (existing && !request.force) {
       const job = runningJobs.get(existing.id);
-      if (job && options.wait) return job;
-      return summaryOf(existing, { existing: true, accepted: Boolean(job) });
+      const landed = Boolean(existing.parquetPath) && existing.landedAt !== null && existing.status === 'completed';
+      const contrastiveDone = isContrastiveGenerator(existing.generatorType) && existing.status === 'completed';
+      if (job || landed || contrastiveDone) {
+        if (job && options.wait) return job;
+        return summaryOf(existing, { existing: true, accepted: Boolean(job) });
+      }
     }
 
     const values = {

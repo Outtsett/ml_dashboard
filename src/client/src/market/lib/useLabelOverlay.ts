@@ -6,8 +6,9 @@
  * this is the read-only `/api/labels/preview` path, not label generation.
  */
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import type { LabelLifecycleResponse } from '@shared/labels/contract';
 import type { LabelMarker } from '@/market/components/types';
 import {
   CANDLE_PATTERN_GENERATORS,
@@ -46,6 +47,33 @@ interface LabelPreviewResponse {
   totalLabeledSamples?: number;
   classBalanceRatio?: number;
   error?: string;
+}
+
+/** Rows of a landed set (`GET /api/labels/:id/rows`), already in the label contract. */
+interface LabelSetRowsResponse {
+  labelSetId: number;
+  parquetPath: string;
+  count: number;
+  rows: Array<{
+    timestamp: number;
+    close?: number;
+    label: number | null;
+    resolution_bars?: number;
+    outcome_offset?: number;
+    usable?: boolean;
+  }>;
+}
+
+/** Generator ids of the form `set:<labelSetId>` draw a LANDED set rather than a preview. */
+export const LANDED_SET_PREFIX = 'set:';
+export const LANDED_SET_CATEGORY = 'landed set';
+/** Custom event the Labels page raises to draw a set on the chart. */
+export const LABEL_OVERLAY_SELECT_EVENT = 'label-overlay:select';
+
+export function landedSetIdOf(generatorType: string | null): number | null {
+  if (!generatorType || !generatorType.startsWith(LANDED_SET_PREFIX)) return null;
+  const id = Number(generatorType.slice(LANDED_SET_PREFIX.length));
+  return Number.isFinite(id) && id > 0 ? id : null;
 }
 
 export interface LabelOverlayResult {
@@ -127,6 +155,18 @@ export function useLabelOverlay(
     staleTime: Infinity,
   });
 
+  // Landed sets for this symbol and timeframe join the picker as their own
+  // group: a set is the rows a person validated and landed, not a preview.
+  const lifecycleQuery = useQuery<LabelLifecycleResponse>({
+    queryKey: ['/api/labels/lifecycle', 'overlay'],
+    queryFn: async () => {
+      const res = await fetch('/api/labels/lifecycle?probe=0');
+      if (!res.ok) throw new Error(`Failed to load label sets (${res.status})`);
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+
   // The 61 candlestick patterns join the server's generators in one list. They
   // are appended locally rather than served, so the picker is fully populated
   // even while `/api/labels/generators` is still in flight.
@@ -145,8 +185,20 @@ export function useLabelOverlay(
           .map(([id, g]) => ({ ...g, id: g.id ?? id }))
           .filter(g => g.category !== 'candle-pattern')
       : [];
-    return [...serverSide, ...CANDLE_PATTERN_GENERATORS];
-  }, [generatorsQuery.data]);
+    const landed: LabelGenerator[] = Object.values(lifecycleQuery.data?.lifecycle ?? {})
+      .filter(l => l.symbol === symbol && l.timeframeMinutes === timeframeMinutes && l.reached.includes('landed') && l.stage !== 'retired')
+      .sort((a, b) => b.labelSetId - a.labelSetId)
+      .map(l => ({
+        id: `${LANDED_SET_PREFIX}${l.labelSetId}`,
+        name: `#${l.labelSetId} ${l.generatorType} (${l.recipe?.slice(-12) ?? 'landed'})`,
+        description: `${l.rowCount.toLocaleString()} landed rows · ${l.stage}${l.staleReason ? ' · stale' : ''}`,
+        category: LANDED_SET_CATEGORY,
+        params: [],
+      }));
+    return [...serverSide, ...CANDLE_PATTERN_GENERATORS, ...landed];
+  }, [generatorsQuery.data, lifecycleQuery.data, symbol, timeframeMinutes]);
+
+  const landedSetId = landedSetIdOf(generatorType);
 
   const patternSelected = isCandlePatternGenerator(generatorType);
 
@@ -191,9 +243,22 @@ export function useLabelOverlay(
       fetchCandlePatternMarkers(symbol, timeframeMinutes, generatorType!, range, signal),
   });
 
+  /** A landed set: its contract rows for the span on screen, no recomputation. */
+  const landedQuery = useQuery<LabelSetRowsResponse>({
+    queryKey: ['/api/labels/rows', landedSetId, range?.start, range?.end],
+    enabled: landedSetId !== null && range !== null,
+    staleTime: 60_000,
+    queryFn: async ({ signal }) => {
+      const query = new URLSearchParams({ from: String(Math.floor(range!.start)), to: String(Math.ceil(range!.end)), limit: String(PREVIEW_LIMIT) });
+      const res = await fetch(`/api/labels/${landedSetId}/rows?${query}`, { signal });
+      if (!res.ok) throw new Error(`Label set rows failed (${res.status})`);
+      return res.json();
+    },
+  });
+
   const previewQuery = useQuery<LabelPreviewResponse>({
     queryKey: ['/api/labels/preview', symbol, timeframeMinutes, generatorType, params, range?.start, range?.end],
-    enabled: Boolean(generatorType) && !patternSelected && Boolean(symbol) && range !== null && paramsReady,
+    enabled: Boolean(generatorType) && !patternSelected && landedSetId === null && Boolean(symbol) && range !== null && paramsReady,
     // The label routes share one 20-requests-a-minute limiter with generation.
     // A pan that re-keys this query on every frame spent that budget in
     // seconds; the range is debounced upstream and a settled range is served
@@ -220,6 +285,16 @@ export function useLabelOverlay(
 
   const labelMarkers = useMemo((): LabelMarker[] => {
     if (patternSelected) return patternQuery.data?.markers ?? [];
+    if (landedSetId !== null) {
+      return (landedQuery.data?.rows ?? [])
+        .filter(r => r.label !== null && r.label !== undefined)
+        .map(r => ({
+          timestamp: toMs(r.timestamp),
+          label: r.label,
+          close: r.close,
+          outcomeOffset: r.resolution_bars ?? r.outcome_offset ?? 0,
+        }));
+    }
     const rows = previewQuery.data?.preview;
     if (!rows) return [];
     return rows
@@ -230,7 +305,17 @@ export function useLabelOverlay(
         close: r.close,
         outcomeOffset: r.outcomeOffset,
       }));
-  }, [patternSelected, patternQuery.data, previewQuery.data]);
+  }, [patternSelected, patternQuery.data, previewQuery.data, landedSetId, landedQuery.data]);
+
+  /** Distribution of a landed set over the rows on screen. */
+  const landedDistribution = useMemo((): Record<string, number> => {
+    const out: Record<string, number> = {};
+    for (const r of landedQuery.data?.rows ?? []) {
+      if (r.label === null || r.label === undefined) continue;
+      out[String(r.label)] = (out[String(r.label)] ?? 0) + 1;
+    }
+    return out;
+  }, [landedQuery.data]);
 
   // A `success: false` body is a 200 carrying a generator-side failure, so it
   // has to be surfaced alongside transport errors rather than instead of them.
@@ -274,7 +359,13 @@ export function useLabelOverlay(
     return max === 0 ? null : Math.min(...counts) / max;
   }, [patternQuery.data]);
 
-  const activeQuery = patternSelected ? patternQuery : previewQuery;
+  const activeQuery = patternSelected ? patternQuery : landedSetId !== null ? landedQuery : previewQuery;
+  const landedBalance = useMemo((): number | null => {
+    const counts = Object.values(landedDistribution);
+    if (counts.length < 2) return null;
+    const max = Math.max(...counts);
+    return max === 0 ? null : Math.min(...counts) / max;
+  }, [landedDistribution]);
 
   return {
     generators,
@@ -282,15 +373,32 @@ export function useLabelOverlay(
     labelMarkers,
     distribution: patternSelected
       ? patternQuery.data?.distribution ?? {}
-      : previewQuery.data?.distribution ?? {},
+      : landedSetId !== null ? landedDistribution : previewQuery.data?.distribution ?? {},
     classBalanceRatio: patternSelected
       ? patternBalance
-      : previewQuery.data?.classBalanceRatio ?? null,
+      : landedSetId !== null ? landedBalance : previewQuery.data?.classBalanceRatio ?? null,
     coveredRange,
     chartExtendsPastLabels,
     isLoading: activeQuery.isFetching,
     error: activeQuery.error instanceof Error
       ? activeQuery.error.message
-      : patternSelected ? null : bodyError,
+      : patternSelected || landedSetId !== null ? null : bodyError,
   };
+}
+
+/**
+ * Let another page (the Labels catalog) choose the overlay: it raises
+ * `label-overlay:select` with `{ generatorType }` and the Market page's state
+ * follows. A hook rather than shared state because the chart's selection is
+ * the Market page's own, and nobody else needs to read it.
+ */
+export function useLabelOverlaySelectionEvents(onSelect: (generatorType: string | null) => void): void {
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ generatorType?: string | null }>).detail;
+      if (detail && 'generatorType' in detail) onSelect(detail.generatorType ?? null);
+    };
+    window.addEventListener(LABEL_OVERLAY_SELECT_EVENT, handler);
+    return () => window.removeEventListener(LABEL_OVERLAY_SELECT_EVENT, handler);
+  }, [onSelect]);
 }

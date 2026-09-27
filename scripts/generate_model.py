@@ -167,6 +167,10 @@ LABEL_TO_TASK: dict[str, str] = {
     "none": "custom",
 }
 
+# Strategies the trainer can compute itself (src/ml/shared/labels.py). Any other
+# generator id trains from a landed label set passed as --label-set-parquet.
+KERNEL_LABEL_STRATEGIES = ("triple_barrier", "next_close_direction", "range_bucket", "structural")
+
 
 def _humanize(name: str) -> str:
     """snake_case / kebab-case → Title Case, for generated HP labels + display names."""
@@ -594,6 +598,12 @@ def _render_labels_shim(context: dict) -> str:
             "def make_labels(*args, **kwargs):\n"
             "    raise RuntimeError('label_strategy=none — generated model "
             "should not call make_labels')\n"
+        )
+    elif strategy not in KERNEL_LABEL_STRATEGIES:
+        body = (
+            "def make_labels(*args, **kwargs):\n"
+            f"    raise RuntimeError('label_strategy={strategy!r} has no in-process kernel; "
+            "train this model from a landed label set (--label-set-parquet)')\n"
         )
     else:
         body = f"from src.ml.shared.labels import {strategy}_labels as make_labels  # noqa: F401\n"

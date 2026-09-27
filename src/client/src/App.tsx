@@ -132,6 +132,10 @@ const CycleFactory = () => import("@/cycle/CyclePage");
 const Cycle = lazyRetry(CycleFactory, "Cycle");
 registerComponentFactory("/cycle", CycleFactory);
 
+const LabelsFactory = () => import("@/labels/LabelsPage");
+const Labels = lazyRetry(LabelsFactory, "Labels");
+registerComponentFactory("/labels", LabelsFactory);
+
 const NotFound = lazyRetry(() => import("@/shared/layout/not-found"), "NotFound");
 
 function Router() {
@@ -181,6 +185,7 @@ function Router() {
               <Route path="/lens"><ErrorBoundary><Suspense fallback={<PageLoader />}><Lens /></Suspense></ErrorBoundary></Route>
               <Route path="/marimo"><ErrorBoundary><Suspense fallback={<PageLoader />}><Marimo /></Suspense></ErrorBoundary></Route>
               <Route path="/cycle"><ErrorBoundary><Suspense fallback={<PageLoader />}><Cycle /></Suspense></ErrorBoundary></Route>
+              <Route path="/labels"><ErrorBoundary><Suspense fallback={<PageLoader />}><Labels /></Suspense></ErrorBoundary></Route>
               <Route path="/settings"><ErrorBoundary><Suspense fallback={<PageLoader />}><Settings /></Suspense></ErrorBoundary></Route>
               <Route path="/training"><ErrorBoundary><Suspense fallback={<PageLoader />}><Training /></Suspense></ErrorBoundary></Route>
 

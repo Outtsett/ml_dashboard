@@ -286,5 +286,14 @@ export function boundByWindow(sql: string, window: { startMs?: number | null; en
     filters.push(`timestamp <= '${new Date(window.endMs).toISOString()}'`);
   }
   if (filters.length === 0) return sql;
-  return sql.replace(/(WHERE\s+(?:\w+\.)?symbol\s*=\s*'[^']*')/gi, `$1 AND ${filters.join(' AND ')}`);
+  // The timestamp is qualified with the same alias as the symbol: meta_label
+  // joins two relations that both expose `timestamp`, and an unqualified
+  // filter there is ambiguous.
+  return sql.replace(
+    /(WHERE\s+(?:(\w+)\.)?symbol\s*=\s*'[^']*')/gi,
+    (match: string, _clause: string, alias: string | undefined) => {
+      const prefix = alias ? `${alias}.` : '';
+      return `${match} AND ${filters.map((f) => `${prefix}${f}`).join(' AND ')}`;
+    },
+  );
 }

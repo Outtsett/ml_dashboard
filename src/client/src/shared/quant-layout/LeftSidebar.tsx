@@ -14,6 +14,7 @@ import {
   NotebookPen,
   ScatterChart,
   PlayCircle,
+  Tags,
 } from "lucide-react";
 
 // This list is the app's actual rendered sidebar. shared/hooks/navigation.ts's
@@ -41,6 +42,7 @@ const NAV_ITEMS = [
   { label: "ML Studio", href: "/ml-studio", icon: BrainCircuit },
   { label: "Catalog", href: "/model-catalog", icon: Library },
   { label: "Data", href: "/databases", icon: Database },
+  { label: "Labels", href: "/labels", icon: Tags },
   { label: "Lens", href: "/lens", icon: Microscope },
   { label: "Notebooks", href: "/marimo", icon: NotebookPen },
   { label: "Glossary", href: "/glossary", icon: BookMarked },

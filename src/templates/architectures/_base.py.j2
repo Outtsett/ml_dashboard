@@ -225,10 +225,21 @@ def load_features(args: argparse.Namespace) -> tuple[np.ndarray, list[str], np.n
 # --------------------------------------------------------------------------- #
 
 {% block label_generation %}
+{% set kernel_label_strategies = ["triple_barrier", "next_close_direction", "range_bucket", "structural"] %}
 {% if label_strategy == "none" %}
 def generate_labels(raw, args):
     raise RuntimeError("label_strategy=none — this generated model needs an "
                        "override of generate_labels() before it can train.")
+{% elif label_strategy not in kernel_label_strategies %}
+_LABEL_PARAMS: dict = {{ label_params | python_repr }}
+
+
+def generate_labels(raw, args):
+    raise RuntimeError(
+        "label_strategy={{ label_strategy | python_repr }} has no in-process kernel: "
+        "train this model from a landed label set (--label-set-parquet), which the "
+        "dashboard passes when a label set is selected for the run."
+    )
 {% else %}
 from src.ml.shared.labels import {{ label_strategy }}_labels as _label_fn  # noqa: E402
 
@@ -357,18 +368,18 @@ def run_training(args: argparse.Namespace) -> dict:
         emit_log(f"[{{ template_id }}] Loading persisted label set {args.label_set_parquet}")
         labels, valid, set_diag = load_label_set(
             args.label_set_parquet, timestamps,
-            binary={{ "True" if label_strategy in ("next_close_direction", "triple_barrier") else "False" }},
+            binary={{ "True" if label_strategy in ("next_close_direction", "triple_barrier", "direction", "volatility_adaptive", "trend_scanning", "npmm", "signal", "pseudo_confidence", "consistency_perturbation") or label_strategy.startswith("talib_") else "False" }},
         )
         label_purge_bars = max(int(set_diag.get("purge_bars", 0)), int(getattr(args, "label_purge_bars", None) or 0))
         emit_log(f"[{{ template_id }}] Label set aligned: " + str({k: v for k, v in set_diag.items() if not hasattr(v, "shape")}))
     else:
         emit_log(f"[{{ template_id }}] Generating {{ label_strategy }} labels")
         labels, valid = generate_labels(raw, args)
-        {% if label_strategy == "none" %}
-        label_purge_bars = 0
-        {% else %}
+        {% if label_strategy in ["triple_barrier", "next_close_direction", "range_bucket", "structural"] %}
         from src.ml.shared.labels import label_horizon_bars as _label_horizon_bars
         label_purge_bars = _label_horizon_bars({{ label_strategy | python_repr }}, _LABEL_PARAMS)
+        {% else %}
+        label_purge_bars = 0
         {% endif %}
     # The purge a split may use is never below the label horizon: a training
     # label that resolves inside the test window is a look at the test set.

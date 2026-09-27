@@ -155,6 +155,17 @@ router.get("/labels/lifecycle", async (req: Request, res: Response) => {
   }
 });
 
+/** Re-read the manifests and redefine the derived-dataset views (after a landing from another process). */
+router.post("/labels/catalog/refresh", async (_req: Request, res: Response) => {
+  try {
+    const { refreshDerivedViews } = await import('../infrastructure/database/questdb');
+    const views = await refreshDerivedViews();
+    res.json({ views: views.length, labels: views.includes('derived_labels') });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 /** The canonical suite: its entries and the state of the last run. */
 router.get("/labels/suite", async (_req: Request, res: Response) => {
   try {

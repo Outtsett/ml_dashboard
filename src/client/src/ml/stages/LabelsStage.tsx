@@ -1,65 +1,59 @@
 /**
  * LabelsStage — Stage 3 of the ML Studio pipeline.
  *
- * P4: live preview against `POST /api/labels/preview`. Returns full-range
- * class distribution + balance ratio (for stratification health) plus a
- * sample window of rows for visual sanity-check. Result feeds
- * MLStudioContext.labelPreview which gates the Train stage.
+ * Pick a label generator (any of the dashboard's generators, declared in
+ * `@shared/mlTaxonomy`), preview it live against `POST /api/labels/preview`
+ * (full-range class distribution, balance ratio, a sample window of rows), and
+ * save it as a label set: the rows are generated, validated and landed in the
+ * lake under the label contract, and Stage 4 trains on exactly those rows. The
+ * lifecycle strip beside the saved set says how far it has got — a set that
+ * failed validation never lands, and the failing gate is shown here.
  *
- * The 4 strategies (next_close_direction / triple_barrier / range_bucket /
- * structural) map 1:1 to LABEL_SQL_GENERATORS keys on the server. Param
- * shapes match the server-side *Params interfaces directly — no translation
- * layer.
+ * The four kernel strategies (`next_close_direction`, `triple_barrier`,
+ * `range_bucket`, `structural`) can also be generated inside the trainer; every
+ * other generator trains from its landed set, so for those the save is required.
  */
 
-import { useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Tag, RefreshCw, AlertTriangle, Info } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { useMLStudio, type LabelStrategy } from "../MLStudioContext";
+import { LABEL_GENERATORS } from "@shared/mlTaxonomy";
+import type { LabelSetLifecycle } from "@shared/labels/contract";
+import { useMLStudio, KERNEL_LABEL_STRATEGIES, type LabelStrategy } from "../MLStudioContext";
 import { slug } from "../glossary/derived";
+import { LabelLifecycleStrip } from "@/labels/LabelLifecycleStrip";
 
 interface StrategyDef {
   id: LabelStrategy;
   label: string;
   description: string;
+  category: string;
+  kernel: boolean;
   defaults: Record<string, number | string | boolean>;
 }
 
-const STRATEGIES: StrategyDef[] = [
-  {
-    id: "next_close_direction",
-    label: "Next-close direction",
-    description: "Binary up/down on the next bar close. Cheapest target — high autocorrelation, watch for leakage.",
-    defaults: { horizon: 1 },
-  },
-  {
-    id: "triple_barrier",
-    label: "Triple barrier",
-    description: "López de Prado triple-barrier method — first hit of profit / stop / time barriers.",
-    defaults: {
-      takeProfitPct: 1.0,
-      stopLossPct: 0.5,
-      maxHoldingPeriod: 20,
-      minReturn: 0.1,
-      volatilityAdjust: false,
-      volatilityWindow: 20,
-    },
-  },
-  {
-    id: "range_bucket",
-    label: "Range bucket (K-class)",
-    description: "Quantize next-N-bar range into K buckets. Headline metric: within-K-pt accuracy.",
-    defaults: { horizon: 16, nBuckets: 21, bucketWidthPts: 2 },
-  },
-  {
-    id: "structural",
-    label: "Structural (HH/HL/LH/LL)",
-    description: "Bar-level swing classification from rolling high/low. Useful for swing models.",
-    defaults: { pivotLookback: 5 },
-  },
-];
+/**
+ * Every generator with a per-bar label, in the order the taxonomy declares
+ * them: the kernel strategies first (they train without a landed set), then the
+ * rest. Contrastive generators produce pairs, not labels, and the per-pattern
+ * TA-Lib ids are the chart's own; both stay out of this picker.
+ */
+const STRATEGIES: StrategyDef[] = Object.entries(LABEL_GENERATORS)
+  .filter(([id, g]) => !id.startsWith("talib_") && g.category !== "contrastive")
+  .map(([id, g]) => ({
+    id,
+    label: g.name,
+    description: g.description,
+    category: g.category,
+    kernel: KERNEL_LABEL_STRATEGIES.includes(id),
+    defaults: Object.fromEntries(
+      (g.params as ReadonlyArray<{ id: string; default?: unknown }>)
+        .filter((p) => p.default !== undefined && (typeof p.default === "number" || typeof p.default === "string" || typeof p.default === "boolean"))
+        .map((p) => [p.id, p.default as number | string | boolean]),
+    ),
+  }))
+  .sort((a, b) => Number(b.kernel) - Number(a.kernel));
 
 interface LabelPreviewResponse {
   success: boolean;
@@ -72,6 +66,16 @@ interface LabelPreviewResponse {
   generatorType?: string;
 }
 
+interface LabelSetRow {
+  id: number;
+  stage: string;
+  status: string;
+  sampleCount: number;
+  parquetPath: string | null;
+  errorMessage: string | null;
+  recipe: string | null;
+}
+
 const TF_TO_MINUTES: Record<string, number> = {
   "1m": 1,
   "5m": 5,
@@ -82,6 +86,8 @@ const TF_TO_MINUTES: Record<string, number> = {
   "1d": 1440,
   "1w": 10080,
 };
+
+const TERMINAL_STAGES = new Set(["landed", "cataloged", "consumed"]);
 
 export function LabelsStage() {
   const { state, dispatch } = useMLStudio();
@@ -138,9 +144,9 @@ export function LabelsStage() {
 
   const data = previewQuery.data;
 
-  // Persist the previewed strategy as a label set: the rows land in the lake
-  // and Stage 4 trains on exactly them. Without this, what was previewed and
-  // what was trained were two computations that only happened to agree.
+  // Save = generate, validate, land. The request answers at once with the
+  // ledger row; the set is polled until it lands (or fails a gate).
+  const [pendingSetId, setPendingSetId] = useState<number | null>(null);
   const saveMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/labels/generate", {
@@ -160,23 +166,64 @@ export function LabelsStage() {
       if (!res.ok || body?.success === false) {
         throw new Error(body?.error ?? `Save failed: ${res.status}`);
       }
-      return body as { labelSetId: number; parquetPath: string; sampleCount: number };
+      return body as { labelSetId: number; recipe?: string; stage?: string; existing?: boolean; parquetPath?: string; sampleCount?: number };
     },
     onSuccess: (saved) => {
+      setPendingSetId(saved.labelSetId);
+      if (saved.existing) toast.success(`Label set #${saved.labelSetId} already exists for this recipe`);
+      else toast.message(`Label set #${saved.labelSetId} queued: generating, validating, landing…`);
+    },
+    onError: (err: Error) => toast.error(`Save failed: ${err.message}`),
+  });
+
+  const setQuery = useQuery<LabelSetRow>({
+    queryKey: ["/api/labels", pendingSetId],
+    enabled: pendingSetId !== null,
+    queryFn: async () => {
+      const res = await fetch(`/api/labels/${pendingSetId}`);
+      if (!res.ok) throw new Error(`Label set ${pendingSetId}: ${res.status}`);
+      return res.json();
+    },
+    refetchInterval: (query) => {
+      const row = query.state.data;
+      if (!row) return 2_000;
+      return TERMINAL_STAGES.has(row.stage) || row.status === "failed" || (row.status === "completed" && row.stage !== "specified") ? false : 2_000;
+    },
+  });
+
+  const lifecycleQuery = useQuery<{ lifecycle: Record<number, LabelSetLifecycle> }>({
+    queryKey: ["/api/labels/lifecycle", "studio", pendingSetId ?? state.labelSet?.id ?? 0, setQuery.data?.stage ?? ""],
+    enabled: (pendingSetId ?? state.labelSet?.id) !== undefined && (pendingSetId ?? state.labelSet?.id) !== null,
+    queryFn: async () => {
+      const res = await fetch("/api/labels/lifecycle?probe=0");
+      if (!res.ok) throw new Error(`lifecycle ${res.status}`);
+      return res.json();
+    },
+    staleTime: 5_000,
+  });
+
+  // When the pending set lands, it becomes the pipeline's saved set.
+  useEffect(() => {
+    const row = setQuery.data;
+    if (!row || pendingSetId === null) return;
+    if (TERMINAL_STAGES.has(row.stage) && row.parquetPath) {
       dispatch({
         type: "setLabelSet",
         labelSet: {
-          id: saved.labelSetId,
-          parquetPath: saved.parquetPath,
-          sampleCount: saved.sampleCount,
+          id: row.id,
+          parquetPath: row.parquetPath,
+          sampleCount: row.sampleCount,
           strategy: state.labelStrategy,
           timeframe: state.timeframe,
         },
       });
-      toast.success(`Label set #${saved.labelSetId} saved — ${saved.sampleCount.toLocaleString()} rows in the lake`);
-    },
-    onError: (err: Error) => toast.error(`Save failed: ${err.message}`),
-  });
+      toast.success(`Label set #${row.id} landed — ${row.sampleCount.toLocaleString()} rows in the lake`);
+      setPendingSetId(null);
+    } else if (row.status === "failed" || (row.status === "completed" && row.stage === "generated")) {
+      toast.error(`Label set #${row.id}: ${row.errorMessage ?? "did not land"}`);
+      setPendingSetId(null);
+    }
+  }, [setQuery.data, pendingSetId, dispatch, state.labelStrategy, state.timeframe]);
 
   // Sync server preview into MLStudioContext so the Train-stage gate opens
   useEffect(() => {
@@ -222,6 +269,12 @@ export function LabelsStage() {
     );
   }, [previewRows]);
 
+  const savedLifecycle = state.labelSet ? lifecycleQuery.data?.lifecycle[state.labelSet.id] ?? null : null;
+  const pendingLifecycle = pendingSetId !== null ? lifecycleQuery.data?.lifecycle[pendingSetId] ?? null : null;
+  const kernelStrategy = strategyDef.kernel;
+  const [showAll, setShowAll] = useState(false);
+  const visibleStrategies = showAll ? STRATEGIES : STRATEGIES.filter((s) => s.kernel || s.id === state.labelStrategy);
+
   return (
     <div className="p-4 space-y-3">
       <header className="flex items-start justify-between gap-4">
@@ -232,7 +285,8 @@ export function LabelsStage() {
           <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
             Pick the labeling strategy. Each strategy reshapes downstream training — wrong target,
             wrong model. The preview below shows the full-range class distribution so you can
-            catch class collapse before burning a training run.
+            catch class collapse before burning a training run. Saving lands the rows in the lake
+            once they pass validation; a landed set is what Stage 4 trains on.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -249,24 +303,33 @@ export function LabelsStage() {
           <button
             type="button"
             onClick={() => saveMutation.mutate()}
-            disabled={!ready || !data?.success || saveMutation.isPending}
+            disabled={!ready || !data?.success || saveMutation.isPending || pendingSetId !== null}
             className="h-9 px-3 rounded-lg border border-primary/40 bg-primary/15 hover:bg-primary/25 text-xs flex items-center gap-2 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Write these labels to the lake as a label set; Stage 4 trains on them"
+            title="Generate, validate and land these labels in the lake; Stage 4 trains on them"
             data-testid="button-save-label-set"
           >
             <Tag className="h-3.5 w-3.5" />
-            {saveMutation.isPending ? "Saving…" : "Save label set"}
+            {pendingSetId !== null ? "Landing…" : saveMutation.isPending ? "Saving…" : "Save label set"}
           </button>
         </div>
       </header>
 
+      {pendingSetId !== null && (
+        <div className="rounded-xl border border-primary/25 bg-primary/5 px-4 py-2.5 text-xs flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="uppercase tracking-widest text-muted-foreground">Landing set</span>
+          <span className="font-mono text-foreground">#{pendingSetId}</span>
+          {pendingLifecycle ? <LabelLifecycleStrip lifecycle={pendingLifecycle} /> : <span className="font-mono text-muted-foreground">{setQuery.data?.stage ?? "specified"}</span>}
+        </div>
+      )}
+
       {state.labelSet && (
-        <div className="rounded-xl border border-primary/25 bg-primary/5 px-4 py-2.5 text-xs flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <div className="rounded-xl border border-primary/25 bg-primary/5 px-4 py-2.5 text-xs flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="uppercase tracking-widest text-muted-foreground">Saved set</span>
           <span className="font-mono text-foreground">#{state.labelSet.id}</span>
           <span className="font-mono">{state.labelSet.strategy} · {state.labelSet.timeframe} · {state.labelSet.sampleCount.toLocaleString()} rows</span>
+          {savedLifecycle && <LabelLifecycleStrip lifecycle={savedLifecycle} />}
           <span className="font-mono text-muted-foreground/70 truncate max-w-full">{state.labelSet.parquetPath}</span>
-          <span className="text-muted-foreground">Stage 4 trains on these rows.</span>
+          <span className="text-muted-foreground">Stage 4 trains on these rows with purge ≥ {savedLifecycle?.purgeBars ?? "the label horizon"} bars.</span>
         </div>
       )}
 
@@ -276,8 +339,15 @@ export function LabelsStage() {
         </div>
       )}
 
+      {!kernelStrategy && (
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-xs text-muted-foreground flex items-center gap-2">
+          <Info className="h-3.5 w-3.5 shrink-0" />
+          <span><code className="font-mono">{strategyDef.id}</code> has no in-trainer kernel: save the label set and Stage 4 trains from the landed rows.</span>
+        </div>
+      )}
+
       <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {STRATEGIES.map((s) => {
+        {visibleStrategies.map((s) => {
           const active = state.labelStrategy === s.id;
           return (
             <button
@@ -296,6 +366,7 @@ export function LabelsStage() {
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium text-foreground">{s.label}</span>
                 <span className="flex items-center gap-1">
+                  {!s.kernel && <span className="text-[9px] uppercase tracking-wider text-muted-foreground/70 border border-white/10 rounded px-1">landed set</span>}
                   <code className="text-[10px] font-mono text-muted-foreground/70">{s.id}</code>
                   <span
                     role="button"
@@ -322,6 +393,13 @@ export function LabelsStage() {
           );
         })}
       </section>
+      <button
+        type="button"
+        onClick={() => setShowAll((v) => !v)}
+        className="text-[11px] text-muted-foreground hover:text-primary underline-offset-2 hover:underline"
+      >
+        {showAll ? "Show the four in-trainer strategies only" : `Show every generator (${STRATEGIES.length})`}
+      </button>
 
       {ready && previewQuery.isError && (
         <div className="rounded-xl border border-[hsl(var(--data-neg)/0.3)] bg-[hsl(var(--data-neg)/0.05)] px-4 py-3 text-sm text-[hsl(var(--data-neg))] flex items-center gap-2">
@@ -362,7 +440,7 @@ export function LabelsStage() {
             </div>
           </div>
           <div className="space-y-1.5">
-            {distEntries.map((e) => {
+            {distEntries.slice(0, 24).map((e) => {
               const pct = data.totalLabeledSamples
                 ? (e.count / data.totalLabeledSamples) * 100
                 : 0;
@@ -383,6 +461,9 @@ export function LabelsStage() {
                 </div>
               );
             })}
+            {distEntries.length > 24 && (
+              <div className="text-[10px] text-muted-foreground">{distEntries.length - 24} more values (a continuous label); the landed set carries its histogram.</div>
+            )}
           </div>
         </section>
       )}

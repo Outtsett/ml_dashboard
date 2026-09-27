@@ -29,6 +29,13 @@ tables from there. A fetch that writes anywhere else has to be done again.
 | `pretrained-forecast.py` | Python | Run pretrained model forecasts |
 | `test_primitives.py` | Python | Primitives discovery model test |
 
+### Labels
+| Script | Language | Description |
+|---|---|---|
+| `run_label_suite.ts` | TypeScript | Runs the canonical label suite (`labelSuite.ts`) in its own process — generate, validate, land, catalog — and asks the dashboard to refresh its derived views. `npx tsx --env-file=.env scripts/run_label_suite.ts [--symbol MNQ] [--timeframe 5] [--generator triple_barrier] [--force]` |
+| `dump_label_sql.ts` | TypeScript | Renders every label generator's SQL for `tests/test_label_contract.py` (parity, smoke, truncation gate) |
+| `land_label_audit.py` | Python (datalake venv) | Lands the 2026-09-26 label audit record at `s3://derived/label_audit/recipe=audit_2026_09_26/` |
+
 ### Database Maintenance
 
 The lake needs none of the maintenance a server did: no process to start, no

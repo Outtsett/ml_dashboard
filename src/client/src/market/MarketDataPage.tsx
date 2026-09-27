@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useIndicatorData } from "@/market/lib/useIndicatorData";
-import { useLabelOverlay } from "@/market/lib/useLabelOverlay";
+import { useLabelOverlay, useLabelOverlaySelectionEvents } from "@/market/lib/useLabelOverlay";
 import { useActiveIndicators } from "@/market/lib/useActiveIndicators";
 import { useLakeSeries } from "@/market/lib/useLakeSeries";
 import { useBreadcrumbs } from "@/shared/hooks/useBreadcrumbs";
@@ -205,6 +205,7 @@ export default function MarketData() {
     isLoading: labelsLoading,
     error: labelsError,
   } = useLabelOverlay(symbol, timeframe, selectedLabelGenerator, chartData, visibleRange);
+  useLabelOverlaySelectionEvents(setSelectedLabelGenerator);
 
   // â”€â”€ Market Replay â”€â”€
   const replay = useLocalReplay(chartData);

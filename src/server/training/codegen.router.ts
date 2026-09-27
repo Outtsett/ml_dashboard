@@ -37,13 +37,14 @@ const TimeframeSchema = z.enum([
   '1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w',
 ]);
 
-const LabelStrategySchema = z.enum([
-  'triple_barrier',
-  'next_close_direction',
-  'range_bucket',
-  'structural',
-  'none',
-]);
+/**
+ * Any label generator id, or `none`. The four kernel strategies
+ * (`triple_barrier`, `next_close_direction`, `range_bucket`, `structural`) can
+ * be generated inside the trainer; every other generator trains from a landed
+ * label set (`labelSetId` on the training request), which the trainer refuses
+ * to run without.
+ */
+const LabelStrategySchema = z.string().regex(/^[a-z0-9_]+$/, 'labelStrategy must be a generator id');
 
 const HyperparametersSchema = z.record(
   z.union([z.number(), z.string(), z.boolean()]),

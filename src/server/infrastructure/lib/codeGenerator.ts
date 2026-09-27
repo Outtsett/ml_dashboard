@@ -42,12 +42,18 @@ export interface WalkForwardConfig {
   purgeBars: number;
 }
 
-export type LabelStrategy =
-  | 'triple_barrier'
-  | 'next_close_direction'
-  | 'range_bucket'
-  | 'structural'
-  | 'none';
+/**
+ * A label generator id, or `none`. The four kernel strategies below can be
+ * generated inside the trainer; any other id trains from a landed label set.
+ */
+export type LabelStrategy = string;
+
+export const KERNEL_LABEL_STRATEGIES: readonly string[] = [
+  'triple_barrier',
+  'next_close_direction',
+  'range_bucket',
+  'structural',
+];
 
 /**
  * Common payload shape for both preview + save.  The frontend Zod schemas

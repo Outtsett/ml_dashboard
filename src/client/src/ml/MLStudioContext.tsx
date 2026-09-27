@@ -80,11 +80,10 @@ export interface SavedLabelSet {
   timeframe: Timeframe;
 }
 
-export type LabelStrategy =
-  | "triple_barrier"
-  | "next_close_direction"
-  | "range_bucket"
-  | "structural";
+/** A label generator id. The four kernel strategies can be generated inside the trainer; the rest train from a landed set. */
+export type LabelStrategy = string;
+
+export const KERNEL_LABEL_STRATEGIES: readonly string[] = ["triple_barrier", "next_close_direction", "range_bucket", "structural"];
 
 export type Timeframe =
   | "1m"

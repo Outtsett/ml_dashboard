@@ -211,10 +211,16 @@ export async function landLabelSet(args: LandLabelSetArgs): Promise<LandLabelSet
     let truncatedSource: string | null = null;
     let truncationEnd: number | null = null;
     if (args.sql && !args.skipTruncationGate && staged.rowCount >= TRUNCATION_MINIMUM_ROWS && staged.cutoffMs !== null) {
-      const truncatedSql = boundByWindow(args.sql, { endMs: staged.cutoffMs });
+      // Cut at the end of a whole UTC day. A futures root is stitched by each
+      // day's total volume, so a window ending mid-day can pick a different
+      // contract for that last, partial day than the full run did — a
+      // difference in the SOURCE at the boundary, not a look past the horizon.
+      const dayMs = 86_400_000;
+      const cutoff = Math.floor(staged.cutoffMs / dayMs) * dayMs - 1;
+      const truncatedSql = boundByWindow(args.sql, { endMs: cutoff });
       await queryQuestDB(`COPY (${truncatedSql}) TO ${sqlString(truncatedFile)} (FORMAT PARQUET)`, 600_000);
       truncatedSource = localSource(truncatedFile);
-      truncationEnd = staged.cutoffMs;
+      truncationEnd = cutoff;
     }
 
     const enrichmentSql = buildEnrichmentSql({
