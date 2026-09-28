@@ -1,9 +1,15 @@
 """Optuna tuning for the Model Cycle.
 
-Runs INSIDE EVERY FOLD, on that fold's own training window (train + validation
-span), which precedes the fold's test span, so tuning never sees a bar the
-test walk will be scored on, and a regime change between folds is met with a
-search on that fold's own bars rather than fold 0's choice reused everywhere.
+Runs INSIDE EVERY FOLD, on that fold's own TRAIN span (the training window up
+to its last train row; the outer validation rows are left out), which precedes
+the fold's test span, so tuning never sees a bar the test walk will be scored
+on, and a regime change between folds is met with a search on that fold's own
+bars rather than fold 0's choice reused everywhere. The outer validation rows
+stay out of every trial because they then choose the fold model's best epoch
+(and fit a stacked combiner or a from-price curve): a trial scored on them
+would make that choice, and the validation numbers the record carries, in-sample.
+``split_window`` already purges the label horizon between the train and
+validation rows, so no inner label resolves inside the validation span.
 
 Budget: ``tuning_budget_trials`` trials per fold, and/or
 ``tuning_budget_seconds`` of wall clock per fold (whichever comes first; a
@@ -11,8 +17,8 @@ trial already running finishes). ``pinned`` names are held out of the search
 at the run's own value. A model with no searchable parameter is not tuned
 (the engine says so and uses the reviewed defaults).
 
-Inside that window: an expanding inner walk-forward with ``tuning_folds``
-validation blocks. The window's rows are cut into ``tuning_folds + 1`` equal
+Inside that span: an expanding inner walk-forward with ``tuning_folds``
+validation blocks. The span's rows are cut into ``tuning_folds + 1`` equal
 chunks; block b (1..B) trains on chunks 0..b-1 and is scored on chunk b, with
 ``label_horizon_bars`` rows purged between them. The model's own early-stopping
 split is carved (and purged) from the end of the inner training rows, so the
@@ -105,7 +111,7 @@ def _block_objective(engine: CycleEngine, objective: str, adapter, scored_rows: 
 
 def run_tuning(engine: CycleEngine, spec: FoldSpec, *, trial_budget: int, seconds_budget: float = 0.0,
                pinned=()) -> tuple[dict, dict]:
-    """Tune on ``spec``'s training window. Returns ``(parameters, summary)``:
+    """Tune on ``spec``'s train span. Returns ``(parameters, summary)``:
     the model parameters the fold's models are fitted with (the best trial's
     suggestions over the run's base values; the base values when no trial
     completed) and the summary recorded for the fold."""
@@ -130,17 +136,20 @@ def run_tuning(engine: CycleEngine, spec: FoldSpec, *, trial_budget: int, second
     trial_count = int(trial_budget) if trial_budget > 0 else TRIALS_WHEN_ONLY_SECONDS
     deadline = engine.clock() + float(seconds_budget) if seconds_budget and seconds_budget > 0 else None
     block_count = max(1, int(s.tuning_folds))
-    blocks = inner_blocks(spec.window_start, spec.window_end, block_count, engine.horizon)
+    # the train span only: the outer validation rows choose the fold model's best epoch (see the docstring)
+    tuning_end = int(spec.train_index[-1]) + 1 if spec.train_index.size else spec.window_end
+    blocks = inner_blocks(spec.window_start, tuning_end, block_count, engine.horizon)
     ts = engine.data.timestamps
     budget_words = f"{trial_count} trials" if deadline is None else (
         f"up to {trial_count} trials or {float(seconds_budget):g} s" if trial_budget > 0 else f"{float(seconds_budget):g} s")
     engine.log(
         f"{fold_prefix}[tune] {budget_words}, objective {objective} ({DIRECTIONS[objective]}, median of {block_count} inner blocks) "
-        f"on this fold's training window {engine_time(ts[spec.window_start])}..{engine_time(ts[spec.window_end - 1])}"
+        f"on this fold's train span {engine_time(ts[spec.window_start])}..{engine_time(ts[tuning_end - 1])}"
+        f" (its validation rows are left for choosing the fitted model's best epoch)"
         + (f"; pinned: {', '.join(pinned)}" if pinned else "")
     )
     engine.set_phase("tuning", fold_index=k, trial=0, trial_count=trial_count,
-                     span_start=int(ts[spec.window_start]), span_end=int(ts[spec.window_end - 1]))
+                     span_start=int(ts[spec.window_start]), span_end=int(ts[tuning_end - 1]))
     merged_by_trial: dict[int, dict] = {}
     trials_run = 0
     stopped_by_clock = False

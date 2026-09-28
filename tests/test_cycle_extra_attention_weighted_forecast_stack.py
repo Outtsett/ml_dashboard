@@ -146,13 +146,17 @@ def test_it_learns_and_reports_one_epoch_per_combiner_epoch(stack, task):
         clean = np.abs(truth) < 10
         assert np.mean(np.sign(prediction[clean]) == np.sign(truth[clean])) > 0.75
     summary = adapter.fit_summary
-    assert summary["combiner_fitted_on"] == "validation_rows"
+    # the combiner is fitted on the earlier validation rows and scored on the held-out later ones
+    assert summary["combiner_fitted_on"] == "validation_rows_first_part"
+    assert summary["validation_metrics_on"] == "held_out_validation_rows"
+    assert summary["combiner_fit_row_count"] + summary["combiner_held_out_row_count"] <= DATA.validation_index.size
+    assert summary["combiner_held_out_row_count"] >= 10
     weights = summary["mean_attention_weight"]
     assert set(weights) == {"linear_model", "nearest_neighbors", "gradient_boosting", "multilayer_perceptron"}
     assert math.isclose(sum(weights.values()), 1.0, abs_tol=1e-9)
     assert all(0.0 <= value <= 1.0 for value in weights.values())
     assert any("leans on" in message for _, message in reporter.logs)
-    assert sum("alone on the validation rows" in message for _, message in reporter.logs) == 4
+    assert sum("alone on the held-out validation rows" in message for _, message in reporter.logs) == 4
 
 
 def test_attention_weights_sum_to_one_per_row(stack):
@@ -189,6 +193,46 @@ def test_the_scaler_and_the_base_models_saw_the_training_rows_only(stack):
     expected = np.asarray(DATA.features[DATA.train_index], dtype=np.float64).mean(axis=0)
     assert np.allclose(adapter.scaler.mean_, expected)
     assert adapter.base_models["nearest_neighbors"].n_samples_fit_ == DATA.train_index.size
+
+
+def test_the_combiner_is_fitted_and_scored_on_separate_purged_rows():
+    """The split: the first two thirds fit, then a purge as long as the train-to-validation gap, then the
+    held-out rows; a label of a fitted row never resolves inside the held-out rows."""
+    from cycle.adapters_extra.attention_weighted_forecast_stack import split_combiner_rows
+
+    train = np.arange(0, 1000, dtype=np.int64)
+    validation = np.arange(1006, 1306, dtype=np.int64)             # the engine purged 6 rows
+    fit, held_out, purge = split_combiner_rows(train, validation)
+    assert purge == 6 and fit.size == 200
+    assert validation[held_out[0]] - validation[fit[-1]] == purge + 1
+    assert set(fit.tolist()).isdisjoint(held_out.tolist()) and held_out[-1] == validation.size - 1
+    # too few rows to hold any out: every row is both, and the caller says so
+    fit, held_out, _ = split_combiner_rows(train, validation[:12])
+    assert np.array_equal(fit, held_out) and fit.size == 12
+
+
+def test_the_combiner_weights_depend_on_its_fit_rows_only():
+    """With one combiner epoch the kept weights are that step's: scrambling the held-out rows' labels
+    leaves them identical, scrambling the fit rows' labels changes them."""
+    from cycle.adapters_extra.attention_weighted_forecast_stack import split_combiner_rows
+
+    fit, held_out, _ = split_combiner_rows(DATA.train_index, DATA.validation_index)
+
+    def weights(labels):
+        adapter = build("classification")
+        adapter.parameters["combiner_epochs"] = 1
+        adapter.fit(DATA.features, labels, DATA.train_index, DATA.validation_index, DATA.timestamps, FakeReporter())
+        return adapter.combiner_weight
+
+    def scrambled(positions):
+        labels = DATA.labels.copy()
+        rows = DATA.validation_index[positions]
+        labels[rows] = 1.0 - labels[rows]
+        return labels
+
+    reference = weights(DATA.labels)
+    assert np.array_equal(weights(scrambled(held_out)), reference)
+    assert not np.array_equal(weights(scrambled(fit)), reference)
 
 
 def test_the_combiner_needs_validation_rows():

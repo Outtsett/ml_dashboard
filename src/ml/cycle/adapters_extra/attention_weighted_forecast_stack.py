@@ -35,26 +35,36 @@ matrix, so the implementation is:
   average of the base forecasts, it is fitted by gradient descent in torch
   (Adam, ``combiner_learning_rate``, ``combiner_epochs`` full-batch epochs, a
   small fixed weight decay), on the CPU, with one ``EpochReport`` per epoch.
-* **The combiner is fitted on the VALIDATION rows.** The base models have
-  seen the training rows, so their training-row outputs are optimistic (a
-  nearest-neighbors model is its own nearest neighbour there, a boosted
-  ensemble fits its training rows closely); a combiner fitted on them would
-  learn to trust whichever base model memorises best. The validation rows are
-  the only rows inside the fold where every base forecast is honest, so the
-  attention map is learned there, exactly as the spec's stage 2 uses
-  out-of-fold predictions. This is the documented exception to "nothing is
-  fitted on validation rows": the base models never see them. The epoch with
-  the lowest validation loss (log loss, or Huber loss for the price model) is
-  kept; because the combiner descends on those very rows this is the
-  combiner's own training curve, not an unseen-data early stop.
+* **The combiner is fitted on the EARLIER part of the validation rows and
+  scored on the later part.** The base models have seen the training rows, so
+  their training-row outputs are optimistic (a nearest-neighbors model is its
+  own nearest neighbour there, a boosted ensemble fits its training rows
+  closely); a combiner fitted on them would learn to trust whichever base
+  model memorises best. The validation rows are the only rows inside the fold
+  where every base forecast is honest, so the attention map is learned there,
+  exactly as the spec's stage 2 uses out-of-fold predictions. The validation
+  rows are cut in two (``split_combiner_rows``): the first
+  ``COMBINER_FIT_SHARE`` (two thirds) fit the combiner by gradient descent;
+  the rest, after a purge as long as the one the engine left between the
+  training and validation rows (the label horizon), are held out, so no label
+  of a fitted row resolves inside them. The epoch with the lowest HELD-OUT loss
+  (log loss, or Huber loss for the price model) is kept, and the validation
+  numbers every epoch reports are the held-out part's, an out-of-sample figure
+  comparable with every other model's. This is the documented exception to
+  "nothing is fitted on validation rows": the base models never see them, and
+  the combiner never sees the rows it is scored on. With too few validation
+  rows to cut (fewer than ``_MINIMUM_COMBINER_ROWS`` on either side) the
+  combiner is fitted and scored on all of them, the fit log says so as a
+  warning and ``fit_summary["validation_metrics_on"]`` reads
+  ``"combiner_fit_rows"``.
 
 Reported per epoch: ``train_loss`` = the stack's loss on the training rows
 (log loss / mean absolute error; optimistic for the reason above),
 ``validation_loss`` / ``validation_accuracy`` / ``validation_f1_score`` = the
-stack scored on the validation rows. Each base model's own validation loss is
-logged once, and ``fit_summary["mean_attention_weight"]`` carries the mean
-attention weight per base model over the validation rows, so a reader can see
-which forecaster the stack leans on.
+stack scored on the held-out validation rows. Each base model's own loss on
+those rows is logged once, and ``fit_summary["mean_attention_weight"]`` carries
+the mean attention weight per base model over every validation row, so a reader
+can see which forecaster the stack leans on.
 
 The price model's training target is clipped at its TRAINING 1st / 99th
 percentiles for the base regressors (``models.clip_training_target``); the
@@ -122,6 +132,29 @@ _WARNINGS_LOGGED = 3
 _MLP_MAX_ITERATIONS = 200
 _BOOSTING_LEARNING_RATE = 0.05
 _BOOSTING_MAX_LEAF_NODES = 15
+# the share of the validation rows the combiner is fitted on; the rest (after the purge) score it
+COMBINER_FIT_SHARE = 2.0 / 3.0
+_MINIMUM_COMBINER_ROWS = 10
+
+
+def split_combiner_rows(train_index: np.ndarray, validation_index: np.ndarray) -> tuple[np.ndarray, np.ndarray, int]:
+    """Positions into ``validation_index``: (rows the combiner is fitted on, rows it is
+    scored and selected on, the purge between them). The fit rows are the first
+    ``COMBINER_FIT_SHARE``; the held-out rows start more than ``purge`` rows after the
+    last fit row, where ``purge`` is the gap the engine left between the last training
+    row and the first validation row (its label-horizon purge), so no label of a fit
+    row resolves inside the held-out rows. Too few rows on either side: every
+    validation row is both (the caller says so)."""
+    everything = np.arange(validation_index.size, dtype=np.int64)
+    purge = max(0, int(validation_index[0]) - int(train_index[-1]) - 1) if train_index.size else 0
+    cut = int(round(validation_index.size * COMBINER_FIT_SHARE))
+    if cut < _MINIMUM_COMBINER_ROWS:
+        return everything, everything, purge
+    fit = everything[:cut]
+    held_out = everything[validation_index > int(validation_index[cut - 1]) + purge]
+    if held_out.size < _MINIMUM_COMBINER_ROWS:
+        return everything, everything, purge
+    return fit, held_out, purge
 
 
 def _as_index(index) -> np.ndarray:
@@ -221,8 +254,9 @@ class AttentionWeightedForecastStackAdapter:
         validation_matrix = self._transform(validation_rows)
         train_target = self._target(labels, train_index)
         validation_target = np.asarray(labels[validation_index], dtype=np.float64)
-        train_span = (int(train_index[0]), int(train_index[-1]))
-        validation_span = (int(validation_index[0]), int(validation_index[-1]))
+        fit_positions, held_out_positions, purge = split_combiner_rows(train_index, validation_index)
+        held_out_separately = fit_positions.size < validation_index.size
+        combiner_fit_span = (int(validation_index[fit_positions[0]]), int(validation_index[fit_positions[-1]]))
 
         neighbor_count = int(self.parameters["neighbor_count"])
         if neighbor_count > train_index.size:
@@ -236,9 +270,15 @@ class AttentionWeightedForecastStackAdapter:
         reporter.log(
             f"{self.label} ({self.role} model): fitting {BASE_MODEL_COUNT} base forecasters "
             f"({', '.join(name.replace('_', ' ') for name in BASE_MODEL_NAMES)}) on {train_index.size:,} training rows; "
-            f"then the attention combiner on the {validation_index.size:,} validation rows for {epochs} epochs "
+            f"then the attention combiner on the first {fit_positions.size:,} of the {validation_index.size:,} validation rows "
+            f"for {epochs} epochs, scored on the last {held_out_positions.size:,} (after a {purge}-row purge) "
             f"(learning rate {float(self.parameters['combiner_learning_rate']):g}, temperature {self.temperature:g})"
         )
+        if not held_out_separately:
+            reporter.log(
+                f"{self.label}: only {validation_index.size} validation rows, too few to hold any out; the combiner "
+                f"is fitted and scored on all of them, so its validation numbers are in-sample", "warn",
+            )
 
         # stage 1: the base forecasters, one library call each on a daemon thread (Pause / Stop every 0.2 s)
         adapter = self
@@ -256,18 +296,22 @@ class AttentionWeightedForecastStackAdapter:
             self.base_models, train_base, validation_base = run_single_fit(stage_one, reporter, name=self.key)
         self._log_warnings(caught, reporter)
         base_seconds = watch.seconds()
+        held_out_base = validation_base[held_out_positions]
+        held_out_target = validation_target[held_out_positions]
         for column, name in enumerate(BASE_MODEL_NAMES):
-            scores = self._scores(self._final_output(validation_base[:, column]), validation_target)
+            scores = self._scores(self._final_output(held_out_base[:, column]), held_out_target)
             reporter.log(
-                f"{self.label}: {name.replace('_', ' ')} alone on the validation rows: "
+                f"{self.label}: {name.replace('_', ' ')} alone on the held-out validation rows: "
                 f"{self._loss_name} {_format(scores['loss'])}, accuracy {_format(scores['accuracy'])}"
             )
         reporter.log(f"{self.label}: base forecasters fitted in {base_seconds:.1f} s")
 
-        # stage 2: the attention combiner on the validation rows
+        # stage 2: the attention combiner, fitted on the earlier validation rows, selected on the held-out ones
         best_loss = self._fit_combiner(
-            train_matrix, train_base, train_target, validation_matrix, validation_base, validation_target,
-            train_span, validation_span, reporter,
+            train_matrix, train_base, train_target,
+            validation_matrix[fit_positions], validation_base[fit_positions], validation_target[fit_positions],
+            validation_matrix[held_out_positions], held_out_base, held_out_target,
+            combiner_fit_span, reporter,
         )
         alpha = softmax_attention(validation_matrix, self.combiner_weight, self.combiner_bias, self.temperature)
         mean_attention = {name: float(alpha[:, column].mean()) for column, name in enumerate(BASE_MODEL_NAMES)}
@@ -288,7 +332,11 @@ class AttentionWeightedForecastStackAdapter:
             **(dict(self._clip_summary) if regression else {}),
             "base_model_names": list(BASE_MODEL_NAMES),
             "neighbor_count_used": neighbor_count,
-            "combiner_fitted_on": "validation_rows",
+            "combiner_fitted_on": "validation_rows_first_part" if held_out_separately else "validation_rows",
+            "combiner_fit_row_count": int(fit_positions.size),
+            "combiner_held_out_row_count": int(held_out_positions.size),
+            "combiner_purge_rows": int(purge),
+            "validation_metrics_on": "held_out_validation_rows" if held_out_separately else "combiner_fit_rows",
             "combiner_epochs_trained": epochs,
             "best_epoch": self.best_iteration,
             "best_validation_loss": best_loss,
@@ -460,13 +508,14 @@ class AttentionWeightedForecastStackAdapter:
         return {"loss": _finite_or_none(scores["log_loss"]), "accuracy": scores["accuracy"],
                 "f1_score": scores["f1_score"]}
 
-    def _fit_combiner(self, train_matrix, train_base, train_target, validation_matrix, validation_base,
-                      validation_target, train_span, validation_span, reporter) -> float | None:
-        """Gradient descent (Adam) on the validation rows; every epoch is one
-        full-batch step, reported through the reporter. Keeps the weights of
-        the epoch with the lowest validation loss (log loss, or Huber loss for
-        the price model). Returns that loss as reported (log loss / mean
-        absolute error)."""
+    def _fit_combiner(self, train_matrix, train_base, train_target, fit_matrix, fit_base, fit_target,
+                      held_out_matrix, held_out_base, held_out_target, fit_span, reporter) -> float | None:
+        """Gradient descent (Adam) on the combiner's fit rows (the earlier
+        validation rows); every epoch is one full-batch step, reported through the
+        reporter. Keeps the weights of the epoch with the lowest loss on the
+        held-out validation rows (log loss, or Huber loss for the price model),
+        which is also the validation loss every epoch reports. Returns that loss
+        as reported (log loss / mean absolute error)."""
         import torch
 
         torch.manual_seed(self.seed)
@@ -477,20 +526,20 @@ class AttentionWeightedForecastStackAdapter:
         weight = torch.zeros((feature_count, BASE_MODEL_COUNT), dtype=torch.float64, requires_grad=True)
         bias = torch.zeros(BASE_MODEL_COUNT, dtype=torch.float64, requires_grad=True)
         optimizer = torch.optim.Adam([weight, bias], lr=learning_rate, weight_decay=_COMBINER_WEIGHT_DECAY)
-        inputs = torch.from_numpy(np.ascontiguousarray(validation_matrix, dtype=np.float64))
-        forecasts = torch.from_numpy(np.ascontiguousarray(validation_base, dtype=np.float64))
-        target = torch.from_numpy(np.asarray(validation_target, dtype=np.float64))
+        inputs = torch.from_numpy(np.ascontiguousarray(fit_matrix, dtype=np.float64))
+        forecasts = torch.from_numpy(np.ascontiguousarray(fit_base, dtype=np.float64))
+        target = torch.from_numpy(np.asarray(fit_target, dtype=np.float64))
         if regression:
             loss_function = torch.nn.HuberLoss(delta=_HUBER_DELTA)
         else:
             loss_function = torch.nn.BCEWithLogitsLoss()
         train_target_float = np.asarray(train_target, dtype=np.float64)
-        validation_target_float = np.asarray(validation_target, dtype=np.float64)
+        held_out_target_float = np.asarray(held_out_target, dtype=np.float64)
         best_loss = math.inf
         best_reported: float | None = None
         best_epoch = 0
         best_state: tuple[np.ndarray, np.ndarray] | None = None
-        row_count = int(validation_matrix.shape[0])
+        row_count = int(fit_matrix.shape[0])
         for epoch in range(1, epochs + 1):
             reporter.checkpoint()
             reporter.epoch_started(epoch, epochs)
@@ -509,15 +558,15 @@ class AttentionWeightedForecastStackAdapter:
             train_scores = self._scores(self._final_output(self._combine(train_matrix, train_base)), train_target_float)
             reporter.batch(BatchReport(
                 epoch=epoch, epoch_count=epochs, batch=1, batch_count=1,
-                span_start_index=validation_span[0], span_end_index=validation_span[1],
+                span_start_index=fit_span[0], span_end_index=fit_span[1],
                 train_loss=train_scores["loss"], learning_rate=learning_rate,
                 gradient_norm=norm if math.isfinite(norm) else None,
                 samples_per_second=row_count / watch.seconds(),
             ))
             reporter.validating(epoch, epochs)
-            stack = self._combine(validation_matrix, validation_base)
-            scores_now = self._scores(self._final_output(stack), validation_target_float)
-            selection = (huber_loss(stack, validation_target_float, _HUBER_DELTA) if regression
+            stack = self._combine(held_out_matrix, held_out_base)
+            scores_now = self._scores(self._final_output(stack), held_out_target_float)
+            selection = (huber_loss(stack, held_out_target_float, _HUBER_DELTA) if regression
                          else scores_now["loss"])
             improved = selection is not None and math.isfinite(selection) and selection < best_loss
             if improved:
@@ -531,14 +580,14 @@ class AttentionWeightedForecastStackAdapter:
             ))
         if best_state is None:
             best_epoch = epochs
-            reporter.log(f"{self.label}: no combiner epoch had a finite validation loss; kept the last epoch", "warn")
+            reporter.log(f"{self.label}: no combiner epoch had a finite held-out loss; kept the last epoch", "warn")
         else:
             self.combiner_weight, self.combiner_bias = best_state
         self.best_iteration = int(best_epoch)
         selection_name = "Huber loss" if regression else "log loss"
         reporter.log(
             f"{self.label}: kept the attention weights of epoch {best_epoch} of {epochs} "
-            f"(lowest validation {selection_name}, fitted on the validation rows)"
+            f"(lowest {selection_name} on the held-out validation rows; fitted on the earlier validation rows)"
         )
         return best_reported
 

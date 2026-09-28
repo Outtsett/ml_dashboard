@@ -1538,17 +1538,22 @@ def test_tuning_sees_only_bars_before_its_own_fold_test_span(tuned_run, market):
     assert plan["tuning"]["perFold"] is True and plan["tuning"]["mode"] == "tuned"
     assert plan["tuning"]["trialCount"] == 3 and plan["tuning"]["innerFoldCount"] == 2
     test_row = {fold["foldIndex"]: rows[fold["testStart"]] for fold in plan["folds"]}
+    # the fold's outer validation rows choose the fitted model's best epoch, so no trial fits or scores on them
+    validation_row = {fold["foldIndex"]: rows[fold["validationStart"]] for fold in plan["folds"]}
     tuning_fits = [fit for fit in tuned_run.recorder.fits if fit["phase"] == "tuning"]
     assert {fold_of_last_bar(plan, fit["last_bar"]) for fit in tuning_fits} == {0, 1}
     for fit in tuning_fits:
         fold = fold_of_last_bar(plan, fit["last_bar"])
         assert fit["train"].max() + HORIZON < fit["validation"].min()
         assert fit["validation"].max() + HORIZON < test_row[fold]
+        assert fit["validation"].max() + HORIZON < validation_row[fold]
         assert fit["last_bar"] == market.data.timestamps[test_row[fold] - 1]
     tuning_predictions = [(index, last_bar) for index, last_bar, phase in tuned_run.recorder.predictions if phase == "tuning"]
     assert tuning_predictions
     for index, last_bar in tuning_predictions:
-        assert int(index.max()) < test_row[fold_of_last_bar(plan, last_bar)]
+        fold = fold_of_last_bar(plan, last_bar)
+        assert int(index.max()) < test_row[fold]
+        assert int(index.max()) + HORIZON < validation_row[fold]
     events = tuned_run.capture.events
     for fold in (0, 1):
         first_processed = next(i for i, e in enumerate(events)

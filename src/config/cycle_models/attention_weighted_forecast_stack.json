@@ -8,7 +8,7 @@
       "subcategory": "Multi-modal temporal",
       "kind": "Attention ensemble",
       "summary": "Four different forecasters each make a call on every bar, and an attention map decides, bar by bar, how much to trust each one.",
-      "implementationNote": "Base forecasters: logistic regression (ridge for the price model), k-nearest neighbors, histogram gradient boosting and a one-hidden-layer perceptron, all scikit-learn, fitted on the training rows. The attention combiner (one linear score per base model from the standardised features, softmax with a temperature, dot with the base forecasts) is fitted on the VALIDATION rows by gradient descent in torch, because the base models have seen the training rows and their training-row forecasts are optimistic. Versus the catalog spec: tabular scikit-learn base models over the Cycle's causal features instead of LSTM / temporal CNN / transformer / ARIMA over multi-modal inputs; one linear attention score per base model instead of multi-head self-attention; no joint end-to-end training; a point forecast, not a distribution.",
+      "implementationNote": "Base forecasters: logistic regression (ridge for the price model), k-nearest neighbors, histogram gradient boosting and a one-hidden-layer perceptron, all scikit-learn, fitted on the training rows. The attention combiner (one linear score per base model from the standardised features, softmax with a temperature, dot with the base forecasts) is fitted by gradient descent in torch on the first two thirds of the VALIDATION rows, because the base models have seen the training rows and their training-row forecasts are optimistic; its epoch is chosen, and its validation numbers reported, on the last third, held out after a label-horizon purge. Versus the catalog spec: tabular scikit-learn base models over the Cycle's causal features instead of LSTM / temporal CNN / transformer / ARIMA over multi-modal inputs; one linear attention score per base model instead of multi-head self-attention; no joint end-to-end training; a point forecast, not a distribution.",
       "runnable": true,
       "unavailableReason": null,
       "implementation": "sklearn",
@@ -85,7 +85,7 @@
           "max": 1000,
           "label": "Combiner epochs",
           "group": "Model",
-          "description": "Full-batch gradient steps the attention combiner takes on the validation rows; the epoch with the lowest validation loss is kept."
+          "description": "Full-batch gradient steps the attention combiner takes on the earlier validation rows; the epoch with the lowest loss on the held-out validation rows is kept."
         },
         "attention_temperature": {
           "type": "float",

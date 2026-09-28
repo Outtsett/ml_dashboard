@@ -19,7 +19,15 @@ run (status `complete`, `stopped` or `failed`; `engine.run()` writes it even whe
 Each write replaces the previous parquet (the record is idempotent by run); the manifest line for a table is
 appended once per run to `meta/ingest_manifests/model_cycle_runs.jsonl`, which is what defines the dashboard's
 `derived_model_cycle_runs_<table>` views (refreshed when a run ends and on boot). The recipe spells the runner
-key's `+` as `_`.
+key's `+` as `_`. An object store has no append and the dashboard's environment has no `s3fs`, so
+`store._append_manifest_line` reads the manifest object, adds the line and writes the whole object back through
+the same pyarrow filesystem the tables use; a line another writer overwrote is appended again (three attempts,
+then an error), and a line already present is not written twice. A table whose manifest line did not land is
+logged as a warning, not a debug line: without its line the table has no view.
+
+`started_at_timestamp` is the wall clock when the engine was built (`engine.started_wall_clock`). Runs landed
+before 2026-09-27 carry it as NULL; the archive reads their start from the UTC stamp in the run id
+(`…_20260927T094307`) so the run picker still orders them newest first.
 
 | table | one row per | what is in it |
 |---|---|---|
@@ -44,7 +52,11 @@ and folds: they reopen without a plan (no fold bands) and without the terminal.
 ## Hyperparameters by modeling
 
 `tuning_mode` defaults to `tuned`: inside EVERY fold, Optuna (TPE seeded by `seed + fold`, `MedianPruner`)
-searches the model's `search` spaces on that fold's own training window — an expanding inner walk-forward of
+searches the model's `search` spaces on that fold's own TRAIN span — the outer validation rows are left out,
+because they then choose the fitted model's best epoch (and fit a stacked combiner or a from-price curve), and a
+trial scored on them would make that choice and the record's validation numbers in-sample (the adversarial
+review of 2026-09-27 measured fold 0's last inner block covering all 287 validation rows before this) — an
+expanding inner walk-forward of
 `tuning_folds` blocks, purged by the label horizon, scored by `tuning_objective` (default `sharpe_ratio`, run
 through the real simulator with the run's costs; the trial value is the median over blocks) — and the fold's
 models are fitted with the best trial's values over the run's base values. The budget is `tuning_budget_trials`
@@ -90,8 +102,8 @@ flattening.
 
 ## Models from the catalog
 
-The registry claims 34 catalog specs with 33 entries (32 runnable; ordinal regression needs three classes). The
-eight specs the audit found implementable were built as their own modules, one per spec, registered through
+The registry has 41 entries claiming 49 catalog specs; 40 are runnable (ordinal regression needs three classes).
+The eight specs the audit found implementable were built as their own modules, one per spec, registered through
 `cycle.networks.NETWORK_EXTENSION_MODULES` (`src/ml/cycle/networks_extra/<kind>.py`: mixture of experts,
 recurrent-convolution hybrid, hypernetwork, neural Turing machine, dual-pathway network) and
 `cycle.models.ADAPTER_CLASSES` (`src/ml/cycle/adapters_extra/<key>.py`: tree-boosted neural embedding,
@@ -100,7 +112,18 @@ attention-weighted forecast stack, Bayesian neural hybrid), each with a registry
 the entry's `implementationNote`. The stacked-ensemble spec is an alias of `stacked_generalization`. Every other
 written spec (generative, self-supervised, semi-supervised, unsupervised, graph, image, agent and planner
 architectures) carries its reason in `_cycle.json`. A model with no Inside view yet has `explainKind: "opaque"`
-and the panel says so.
+and the panel says so (the three adapters above); the five network kinds are `neural` and pass the explainer's
+G1/G2/G4 gates like the built-in kinds.
+
+A network kind's `attention` block is over the bars of the window: the Inside view labels every weight with a
+bar. The neural Turing machine's read weights run over memory slots, so it carries no attention block; each read
+head's per-bar addressing is its own `[time, slots]` layer. The dual pathway's two views are shorter than the
+window (the last `fast_window_bars` bars; one bar in every `slow_stride`), and the Inside view draws a layer whose
+time axis is not the window's length without bar labels.
+
+The model picker (`GET /api/training/cycle-models`) orders categories that hold registry models by how many
+runnable models they hold, so the order does not depend on which registry file a model lives in (one file per
+new model sorts before `boosting.json`).
 
 ## Verification
 
