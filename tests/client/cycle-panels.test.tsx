@@ -448,7 +448,7 @@ describe("CycleFolds", () => {
       "cycle_scoreboard",
       scoreboard({ scope: "running", barsEvaluated: 160, barsScored: 150, metrics: { accuracy: 0.53, net_profit_usd: 25 } }),
     );
-    apply("cycle_scoreboard", scoreboard({ scope: "final", metrics: { net_profit_usd: 165, accuracy: 0.57 } }));
+    apply("cycle_scoreboard", scoreboard({ scope: "final", metrics: { net_profit_usd: 165, accuracy: 0.57, maximum_drawdown_usd: 1537.76 } }));
   });
 
   it("joins the plan with each fold's finished scoreboard, and shows the in-progress fold live", () => {
@@ -472,6 +472,8 @@ describe("CycleFolds", () => {
   it("shows the final scoreboard in the totals row", () => {
     render(<CycleFolds />);
     expect(screen.getByTestId("fold-totals-net_profit_usd").textContent).toContain("+$165.00");
+    // a drawdown is a size: unsigned, never a "+$" that reads like a gain
+    expect(screen.getByTestId("fold-totals-maximum_drawdown_usd").textContent).toBe("$1,537.76");
   });
 });
 

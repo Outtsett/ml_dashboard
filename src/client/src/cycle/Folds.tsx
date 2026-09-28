@@ -6,7 +6,7 @@
 import { useMemo, type ReactNode } from "react";
 
 import { useCycleStore } from "@/cycle/store";
-import { formatCount, formatDate, formatPercent, formatRatio, formatUsd } from "@/cycle/format";
+import { formatCount, formatDate, formatPercent, formatRatio, formatUsd, formatUsdMagnitude } from "@/cycle/format";
 import type { CycleFoldPlan, CycleParameters, CyclePhase, CycleScoreboard } from "@shared/cycle/schema";
 import { cn } from "@/shared/utils/utils";
 
@@ -72,7 +72,8 @@ function metricCells(board: CycleScoreboard | null, live: boolean, testIdPrefix:
     roc_auc: formatRatio(m.roc_auc ?? null),
     net_profit_usd: formatUsd(m.net_profit_usd ?? null),
     sharpe_ratio: formatRatio(m.sharpe_ratio ?? null),
-    maximum_drawdown_usd: formatUsd(m.maximum_drawdown_usd ?? null),
+    // a drawdown is a size, shown unsigned (as the scoreboard does), never as a "+$" gain
+    maximum_drawdown_usd: formatUsdMagnitude(m.maximum_drawdown_usd ?? null),
     trade_count: formatCount(m.trade_count ?? null),
     win_rate: formatPercent(m.win_rate ?? null),
   };
