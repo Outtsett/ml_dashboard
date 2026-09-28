@@ -177,6 +177,7 @@ export class ClaudeSession {
   costUsd = 0;
   lastModified = Date.now();
   context: DashboardContext | undefined;
+  readonly incarnation = randomUUID();
 
   private events: ClaudePanelEvent[] = [];
   private seq = 0;

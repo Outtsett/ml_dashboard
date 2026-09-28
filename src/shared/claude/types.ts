@@ -87,6 +87,9 @@ export interface ClaudeSessionSummary {
   permissionMode?: ClaudePermissionMode;
   model?: string;
   costUsd?: number;
+  /** This host process's instance of the session: a new id after a restart or
+   *  an eviction, so a reconnecting panel knows its view no longer matches. */
+  incarnation?: string;
 }
 
 export interface ClaudePermissionDecision {

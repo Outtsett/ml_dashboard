@@ -96,6 +96,9 @@ class Lander:
         # dates; a date landed before they finish would be landed short and
         # then closed by the ledger. No bar date lands in the first minutes.
         self.bar_warmup = float(config.get("barLandWarmupSeconds", 900))
+        # ...and not before every registered backfill reports done, up to this
+        # ceiling (a source failing all day must not stop landing for good).
+        self.bar_backfill_ceiling = float(config.get("barLandBackfillCeilingSeconds", 3600))
         self.started = time.time()
         self.counters = {"rawLanded": 0, "rawBytes": 0, "daysLanded": 0, "barDaysLanded": 0,
                          "lastRawLand": None, "lastSpoolFlush": None, "lastError": None}
@@ -265,7 +268,9 @@ class Lander:
 
         contract = _live_bars_contract()
         now = time.time()
-        if now - self.started < self.bar_warmup:
+        uptime = now - self.started
+        pending_backfills = [name for name, done in getattr(self.hub, "backfills", {}).items() if not done]
+        if uptime < self.bar_warmup or (pending_backfills and uptime < self.bar_backfill_ceiling):
             return
         with self.lock:
             # Rows for a date landed while they were in flight: never landed, drop them.

@@ -248,7 +248,7 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
     // the last bar) and a left page (an end with no start: the chart asking
     // for what lies before its first bar) want the bars NEAREST the end; a
     // right page (a start with no end) wants the bars nearest the start.
-    const newestFirst = anchorMs !== null || (endMs !== null && endMs !== undefined && !startMs);
+    const newestFirst = anchorMs !== null || (endMs != null && startMs == null);
 
     const cacheKey = OHLCVCache.key('chart', symbol, tfMinutes, {
       startTime: effectiveStart, endTime: effectiveEnd, limit: rowLimit,

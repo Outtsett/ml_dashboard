@@ -189,8 +189,10 @@ def test_no_bar_date_lands_while_the_startup_backfills_run(tmp_path, monkeypatch
 
 
 def test_a_device_fault_spends_no_attempts():
+    from live.scoring import PROBE_TEXT
+
     scorer = Scorer(_HubStub(), {})
-    scorer.model = _Model({"a", "b", "c"})                     # nothing scores
+    scorer.model = _Model({"a", "b", "c", PROBE_TEXT})         # nothing scores, not even the probe
     batch = [{"articleId": x, "text": x} for x in ("a", "b", "c")]
     assert scorer._score(batch) == []
     assert scorer.dropped == 0 and scorer.device_faults == 1
@@ -218,3 +220,34 @@ def test_an_unconfigured_source_does_not_stop_the_hub():
         still.cancel()
 
     asyncio.run(run())
+
+
+def test_a_lone_headline_during_a_device_fault_is_kept():
+    from live.scoring import PROBE_TEXT
+
+    scorer = Scorer(_HubStub(), {})
+    scorer.model = _Model({"solo", PROBE_TEXT})
+    for _ in range(5):
+        scorer._score([{"articleId": "solo", "text": "solo"}])
+    assert scorer.dropped == 0 and scorer.device_faults == 5
+
+
+def test_poison_headlines_together_are_still_dropped():
+    scorer = Scorer(_HubStub(), {})
+    scorer.model = _Model({"x", "y"})                          # the probe scores: the text is the fault
+    batch = [{"articleId": k, "text": k} for k in ("x", "y")]
+    for _ in range(3):
+        scorer._score(batch)
+        batch = [item for _, item in scorer.retry]
+        scorer.retry = []
+    assert scorer.dropped == 2
+
+
+def test_past_dates_wait_for_the_backfills(tmp_path, monkeypatch):
+    monkeypatch.setattr("lake.writer.write", lambda *a, **k: pytest.fail("landed before the backfill finished"))
+    hub = _HubStub()
+    hub.backfills = {"oanda": False}
+    waiting = Lander(hub, {"barLandWarmupSeconds": 0}, tmp_path)
+    waiting.bar(_record(datetime(2026, 9, 1, 14, 30, tzinfo=timezone.utc), "oanda", 1.0))
+    waiting.land_bars()
+    assert len(waiting.bar_rows) == 1

@@ -125,6 +125,9 @@ class Hub:
         self.news_by_id: dict[str, dict] = {}
         self.lander = None                                   # set by the app
         self.scorer = None
+        # Startup backfills still running, by source: past bar dates are not
+        # landed until every one has finished (live/landing.py).
+        self.backfills: dict[str, bool] = {}
 
     # ── plumbing ──────────────────────────────────────────────────────────
 

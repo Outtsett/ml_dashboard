@@ -273,7 +273,8 @@ export async function restartSidecar(slug: string): Promise<SidecarRuntime> {
     ),
   );
   const answers = owner.pid ? await probe(sidecar) : null;
-  const isOurs = owner.pid !== null && (ours.has(owner.pid) || ours.has(parentPid(owner.pid) ?? -1));
+  // parentPid shells out (~0.6 s): only asked when nothing else settles it.
+  const isOurs = owner.pid !== null && (Boolean(answers) || ours.has(owner.pid) || ours.has(parentPid(owner.pid) ?? -1));
   if (owner.pid && !answers && !isOurs) {
     const s = state(slug);
     s.status = "error";

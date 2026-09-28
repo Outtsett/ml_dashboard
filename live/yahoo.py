@@ -97,5 +97,7 @@ class Yahoo:
                               delay_seconds=round(delay, 1))
         self.last_open[symbol] = int(newest_open)
         self.primed.add(symbol)
+        if self.primed >= set(self.symbols):
+            self.hub.backfills["yahoo"] = True
         self.health.ok()
         return delay

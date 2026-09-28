@@ -11,9 +11,10 @@ A batch that fails (a CUDA out-of-memory on a burst, one headline the tokenizer
 rejects) is scored again one headline at a time, so one bad item cannot take
 127 good ones with it. A headline that fails while others in the same pass
 scored is retried after 30 s x attempt, up to ``MAX_ATTEMPTS``; after that it is
-counted and named in ``status()`` as dropped. When EVERY headline in a pass
-fails, the fault is the device, not the text: all of them are requeued with a
-backoff that grows to 10 minutes, and no attempt is spent. Their article rows
+counted and named in ``status()`` as dropped. When nothing in a pass scores
+(one headline or many), a known-good probe headline is scored: if it fails
+too, the fault is the device, not the text, and every headline is requeued
+with a backoff that grows to 10 minutes, spending no attempt. Their article rows
 are already in the spool, and nothing else would ever submit them again (the
 pipeline deduplicates at submit time).
 """
@@ -32,6 +33,7 @@ log = logging.getLogger("live.scoring")
 MAX_ATTEMPTS = 3
 RETRY_SECONDS = 30.0
 DEVICE_BACKOFF_MAX_SECONDS = 600.0
+PROBE_TEXT = "Stocks rose after the report."
 
 
 class Scorer(threading.Thread):
@@ -85,7 +87,7 @@ class Scorer(threading.Thread):
                 scored.extend(one)
             else:
                 failed.append(item)
-        if not scored and len(batch) > 1:
+        if not scored and self._try([{"text": PROBE_TEXT}]) is None:
             self.device_faults += 1
             wait = min(DEVICE_BACKOFF_MAX_SECONDS, RETRY_SECONDS * 2 ** (self.device_faults - 1))
             due = time.monotonic() + wait

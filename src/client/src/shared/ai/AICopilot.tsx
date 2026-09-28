@@ -6,6 +6,7 @@ import { Input } from "@/shared/ui/input";
 import { Bot, X, MessageSquare, Send } from "lucide-react";
 import { ScrollArea } from "@/shared/ui/scroll-area";
 import ReactMarkdown from 'react-markdown';
+import { markdownComponents } from '../../claude/markdown';
 import { cn } from "@/shared/utils/utils";
 
 export function AICopilot() {
@@ -101,9 +102,9 @@ export function AICopilot() {
                     </div>
                     <div className="prose prose-invert prose-sm max-w-none">
                       {typeof content === 'string' && content ? (
-                        <ReactMarkdown>{content}</ReactMarkdown>
+                        <ReactMarkdown components={markdownComponents}>{content}</ReactMarkdown>
                       ) : (
-                        <ReactMarkdown>{JSON.stringify(content ?? "")}</ReactMarkdown>
+                        <ReactMarkdown components={markdownComponents}>{JSON.stringify(content ?? "")}</ReactMarkdown>
                       )}
                     </div>
                   </div>

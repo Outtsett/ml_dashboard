@@ -166,6 +166,7 @@ function summary(session: ClaudeSession): ClaudeSessionSummary {
     permissionMode: session.permissionMode,
     model: session.model,
     costUsd: session.costUsd,
+    incarnation: session.incarnation,
   };
 }
 

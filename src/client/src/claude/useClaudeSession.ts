@@ -59,6 +59,8 @@ export interface SessionView {
   mcpServers: { name: string; status: string }[];
   lastSeq: number;
   navigations: Extract<ClaudePanelEvent, { type: "navigate" }>[];
+  /** The host-side instance these events were numbered by. */
+  incarnation?: string;
 }
 
 export const EMPTY_VIEW: SessionView = {
@@ -230,7 +232,8 @@ export function useClaudeSession(key: string | null) {
         if (cancelled) return;
         const shown = viewRef.current.lastSeq;
         const hostNewest = body.events.reduce((max, event) => Math.max(max, event.seq), 0);
-        if (shown > 0 && hostNewest >= shown) {
+        const sameInstance = body.session.incarnation !== undefined && body.session.incarnation === viewRef.current.incarnation;
+        if (shown > 0 && sameInstance && hostNewest >= shown) {
           setError(null);
           open();
           return;
@@ -242,7 +245,12 @@ export function useClaudeSession(key: string | null) {
         for (const event of body.transcript) restored = reduce(restored, event);
         restored = { ...restored, lastSeq: 0 };
         for (const event of body.events) restored = reduce(restored, event);
-        const next = { ...restored, status: body.session.status, sessionId: body.session.sessionId ?? restored.sessionId };
+        const next = {
+          ...restored,
+          status: body.session.status,
+          sessionId: body.session.sessionId ?? restored.sessionId,
+          incarnation: body.session.incarnation,
+        };
         viewRef.current = next;
         setView(next);
         setError(null);

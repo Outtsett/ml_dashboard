@@ -68,6 +68,7 @@ class Oanda:
             # History fills in beside the stream: waiting for 14 days x 18
             # pairs of candles before the first live tick left forex dark for
             # minutes after every restart.
+            self.hub.backfills["oanda"] = False
             backfill = asyncio.create_task(self.backfill(session), name="oanda-backfill")
             backoff = 1.0
             while True:
@@ -126,41 +127,55 @@ class Oanda:
         days = int(self.hub.config.get("barHistoryDays", 14))
         start = datetime.now(timezone.utc) - timedelta(days=days)
         for pair in self.pairs:
-            cursor = start
-            try:
-                while cursor < datetime.now(timezone.utc) - timedelta(minutes=1):
-                    url = f"{self.rest}/v3/instruments/{instrument(pair)}/candles"
-                    params = {"granularity": "M1", "price": "M", "from": cursor.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                              "count": 5000}
-                    async with session.get(url, params=params) as response:
-                        text = await response.text()
-                        if response.status != 200:
-                            raise RuntimeError(f"HTTP {response.status}: {text[:200]}")
-                    if self.hub.lander is not None:
-                        self.hub.lander.raw("oanda", "candles-m1-mid", json.dumps(
-                            {"pair": pair, "from": params["from"], "body": json.loads(text)}))
-                    candles = json.loads(text).get("candles", [])
-                    if not candles:
-                        break
-                    for candle in candles:
-                        if not candle.get("complete"):
-                            continue
-                        mid = candle["mid"]
-                        t = parse_time(candle["time"])
-                        self.hub.on_bar(pair, {
-                            "t": int(t // 60) * 60_000, "open": float(mid["o"]), "high": float(mid["h"]),
-                            "low": float(mid["l"]), "close": float(mid["c"]), "volume": float(candle["volume"]),
-                            "closed": True, "source": "oanda", "delaySeconds": 0.0, "backfill": True,
-                        })
-                    last = parse_time(candles[-1]["time"])
-                    nxt = datetime.fromtimestamp(last + 60, tz=timezone.utc)
-                    if nxt <= cursor:
-                        break
-                    cursor = nxt
-                    await asyncio.sleep(0.05)
-            except asyncio.CancelledError:
-                raise
-            except Exception as error:  # noqa: BLE001 - one pair's history must not stop the stream
-                self.health.fail(error)
-                log.warning("oanda backfill %s: %s", pair, error)
-        self.health.extra["backfilledDays"] = days
+            # A pair that fails is retried (a 429 or a dropped socket is
+            # transient); its history is otherwise missing until the next start.
+            for attempt in range(3):
+                if await self._backfill_pair(session, pair, start):
+                    break
+                await asyncio.sleep(10.0 * (attempt + 1))
+        self._backfill_done()
+
+    async def _backfill_pair(self, session: aiohttp.ClientSession, pair: str, start: datetime) -> bool:
+        cursor = start
+        try:
+            while cursor < datetime.now(timezone.utc) - timedelta(minutes=1):
+                url = f"{self.rest}/v3/instruments/{instrument(pair)}/candles"
+                params = {"granularity": "M1", "price": "M", "from": cursor.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                          "count": 5000}
+                async with session.get(url, params=params) as response:
+                    text = await response.text()
+                    if response.status != 200:
+                        raise RuntimeError(f"HTTP {response.status}: {text[:200]}")
+                if self.hub.lander is not None:
+                    self.hub.lander.raw("oanda", "candles-m1-mid", json.dumps(
+                        {"pair": pair, "from": params["from"], "body": json.loads(text)}))
+                candles = json.loads(text).get("candles", [])
+                if not candles:
+                    break
+                for candle in candles:
+                    if not candle.get("complete"):
+                        continue
+                    mid = candle["mid"]
+                    t = parse_time(candle["time"])
+                    self.hub.on_bar(pair, {
+                        "t": int(t // 60) * 60_000, "open": float(mid["o"]), "high": float(mid["h"]),
+                        "low": float(mid["l"]), "close": float(mid["c"]), "volume": float(candle["volume"]),
+                        "closed": True, "source": "oanda", "delaySeconds": 0.0, "backfill": True,
+                    })
+                last = parse_time(candles[-1]["time"])
+                nxt = datetime.fromtimestamp(last + 60, tz=timezone.utc)
+                if nxt <= cursor:
+                    break
+                cursor = nxt
+                await asyncio.sleep(0.05)
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:  # noqa: BLE001 - one pair's history must not stop the stream
+            self.health.fail(error)
+            log.warning("oanda backfill %s: %s", pair, error)
+            return False
+        return True
+
+    def _backfill_done(self) -> None:
+        self.health.extra["backfilledDays"] = int(self.hub.config.get("barHistoryDays", 14))
+        self.hub.backfills["oanda"] = True

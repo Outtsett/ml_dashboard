@@ -193,6 +193,7 @@ const ADVISOR_DENIED = [
   'Read(//c/Users/*/.claude.json)',
   'Read(//c/Users/*/.ssh/**)',
   'Read(//c/Users/*/AppData/Roaming/gh/**)',
+  'Read(//c/Users/*/AppData/Roaming/GitHub CLI/**)',
   'Read(//c/Users/*/.aws/**)',
   'Read(//c/Users/*/.git-credentials)',
 ];
