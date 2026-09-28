@@ -84,7 +84,15 @@ Served by `GET /api/training/cycle/:modelId/metrics` (`src/server/training/cycle
 and trading metrics with the run and every fold across, then — for a picked scope — calls and calibration,
 accuracy by confidence, trades by side / exit reason / entry confidence, distributions with their shape, the
 deepest drawdowns and every session day; hover any number for its definition, formula, sample and why it is
-undefined. A live run's tables appear fold by fold. The notebook `notebooks/model_cycle_runs.py` draws them
+undefined. A live run's tables appear fold by fold. An adversarial review (2026-09-28: formulas recomputed
+independently, the back-fill and lake checked, the API / tab / notebook checked) confirmed four findings, all
+fixed: the back-fill took "cycle" as the symbol of runs named `cycle_*` (the symbol now comes only from the runs
+table, a futures-root run id or the run's local config; `daily_results.session_day_rule` says how each day was
+dated); P(up) = 0.45 and 0.55 fell in different confidence buckets (the distance to 0.5 is rounded before
+bucketing); "Longest drawdown (days)" was the longest-in-bars episode's length (now the longest in days, equal
+to the drawdowns table's longest `underwater_days` in all 66 scopes); and the back-fill checked the run's final
+scoreboard only where the lake had a runs table (now also against the run's local `scoreboard.json`: 30 of 30
+checked, 0 differences). The notebook `notebooks/model_cycle_runs.py` draws them
 (the matrices, a chart of any metric across the scopes, the reliability diagram, the confusion heat-map, session
 days, drawdown depths, the distributions' shapes, and every run compared). The manifest keeps one line per
 (recipe, table): a re-landing replaces its line.
