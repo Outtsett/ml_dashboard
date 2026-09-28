@@ -225,6 +225,23 @@
         "sequence",
         "attention"
       ]
+    },
+    "ta_indicator_battery": {
+      "name": "TA Indicator Battery (logistic + LightGBM)",
+      "family": "technical_analysis",
+      "category": "Supervised",
+      "subcategory": "Technical Analysis",
+      "supports": [
+        "classification"
+      ],
+      "gpuRequired": false,
+      "description": "The TA-Lib battery (about 180 momentum, overlap, volatility, volume, regression and candlestick features, every price-level indicator expressed in ATRs so it survives roll back-adjustment) fed to a logistic regression and to LightGBM, fitted per walk-forward fold. src/ml/ta_strategy.",
+      "tags": [
+        "technical-analysis",
+        "ta-lib",
+        "walk-forward",
+        "interpretable"
+      ]
     }
   }
 }

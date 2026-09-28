@@ -828,6 +828,47 @@
         "targetMult": "--target-mult",
         "logInterval": "--log-interval"
       }
+    },
+    "ta_indicator_battery+ticks_per_day_goal": {
+      "displayName": "TA Strategy: 600 ticks/day study (one round)",
+      "runner": "python",
+      "script": "src/ml/ta_strategy/main.py",
+      "outputDir": "data/models",
+      "outputs": [
+        "diagnostics.json",
+        "configurations.parquet",
+        "daily.parquet",
+        "trades.parquet",
+        "folds.parquet"
+      ],
+      "featurePipeline": "ta-battery",
+      "chartOverlay": "prediction_heatband",
+      "estimatedTrainingTime": "15-40 min",
+      "tags": [
+        "technical-analysis",
+        "walk-forward",
+        "study",
+        "ticks-per-day"
+      ],
+      "supportedObjectives": [
+        "net_ticks_per_session_day"
+      ],
+      "featureCategories": [],
+      "includeIndicators": false,
+      "allFeatures": false,
+      "defaultHyperparameters": {
+        "round": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 99,
+          "label": "Study round (src/config/ta_strategy_rounds.json)",
+          "group": "Study"
+        }
+      },
+      "cliFlags": {
+        "round": "--round"
+      }
     }
   }
 }

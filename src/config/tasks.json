@@ -81,6 +81,20 @@
       ],
       "chartOverlay": "prediction_markers",
       "description": "Load bars, optionally tune, then per walk-forward fold: train, validate, and walk the test bars one at a time predicting P(up), trading them with the MNQ cost model and updating running metrics. Streams every step live and lands predictions, trades, folds and epochs in data/models/<model_id>/."
+    },
+    "ticks_per_day_goal": {
+      "name": "Net ticks per session day vs a daily goal",
+      "head": "binary",
+      "headKind": "classification",
+      "nClasses": 2,
+      "labelStrategies": [
+        "next_open_direction"
+      ],
+      "supportedObjectives": [
+        "net_ticks_per_session_day"
+      ],
+      "chartOverlay": "prediction_heatband",
+      "description": "Predict whether the open H bars after the fill exceeds the fill (the next open), trade the signal through the Model Cycle simulator with costs and roll charges, and score every configuration of a round in net ticks per CME session day against a goal (600 MNQ ticks). Rounds are defined in src/config/ta_strategy_rounds.json; every table lands in derived_ta_strategy_600_ticks_*."
     }
   }
 }
