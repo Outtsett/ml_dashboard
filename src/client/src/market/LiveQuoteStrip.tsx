@@ -21,6 +21,8 @@ import { useLiveBars } from "./lib/useLiveBars";
 import { useReplayControl } from "./lib/useReplayControl";
 import { DeltaValue } from "@/ml/telemetry/DeltaValue";
 import { Button } from "@/shared/ui/button";
+import { useLiveQuotes } from "@/live/hooks";
+import { HubQuoteStrip } from "@/live/QuoteStrip";
 
 /**
  * Log return from open to current close, in percent.
@@ -40,11 +42,20 @@ interface LiveQuoteStripProps {
    *  the SSE stream once running, never from these. */
   symbol?: string;
   timeframeApiKey?: string;
+  /** The chart's live tail: bars appended, bars held back (the chart is not
+   *  at its newest bar), and how to jump there. */
+  tail?: { shown: number; waiting: number; onShow: () => void };
 }
 
-export function LiveQuoteStrip({ className = "", symbol, timeframeApiKey }: LiveQuoteStripProps) {
+export function LiveQuoteStrip({ className = "", symbol, timeframeApiKey, tail }: LiveQuoteStripProps) {
+  // The live data hub first: OANDA forex, Yahoo futures (delayed, and says so),
+  // Quantower prints. The replay stream below is the fallback for a symbol the
+  // hub does not carry.
+  const hub = useLiveQuotes();
   const { current, origin, connected } = useLiveBars();
   const { starting, error, start } = useReplayControl();
+  const hubQuote = symbol ? hub.quotes.find((q) => q.symbol === symbol) : undefined;
+  if (hubQuote) return <HubQuoteStrip quote={hubQuote} className={className} tail={tail} />;
 
   // Nothing to show before the first frame. The stream (questdbLiveSource /
   // questdbReplaySource behind POST /api/market/replay/start) exists but

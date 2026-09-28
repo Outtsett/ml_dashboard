@@ -86,9 +86,13 @@ async function transcript(sessionId: string): Promise<ClaudePanelEvent[]> {
   for (const message of messages as { type: string; uuid: string; message?: { id?: string; content?: WireBlock[] | string } }[]) {
     const content = message.message?.content;
     if (message.type === "user") {
-      if (typeof content === "string") out.push({ seq: ++seq, at, type: "user", text: content });
+      if (typeof content === "string") out.push({ seq: ++seq, at, type: "user", text: stripContext(content) });
       else if (Array.isArray(content)) {
-        const textParts = content.filter((b) => b.type === "text").map((b) => b.text ?? "");
+        // The panel sends its page context as its own text block; show the
+        // words Tyler typed, not the JSON the model read.
+        const textParts = content
+          .filter((b) => b.type === "text" && !(b.text ?? "").startsWith("<dashboard_context>"))
+          .map((b) => stripContext(b.text ?? ""));
         if (textParts.length) out.push({ seq: ++seq, at, type: "user", text: textParts.join("\n") });
         for (const block of content.filter((b) => b.type === "tool_result")) {
           out.push({
@@ -122,6 +126,10 @@ async function transcript(sessionId: string): Promise<ClaudePanelEvent[]> {
     }
   }
   return out;
+}
+
+function stripContext(text: string): string {
+  return text.replace(/<dashboard_context>[\s\S]*?<\/dashboard_context>\s*/g, "").trim();
 }
 
 function summary(session: ClaudeSession): ClaudeSessionSummary {
@@ -181,8 +189,12 @@ app.get("/sessions/:key/history", async (req, res) => {
   const session = await sessionFor(req.params.key);
   if (!session) return void res.status(404).json({ error: "unknown session" });
   const live = session.since(0);
-  const disk = session.sessionId && live.every((e) => e.type !== "assistant") ? await transcript(session.sessionId) : [];
-  res.json({ session: summary(session), events: disk.length ? [...disk, ...live.map((e, i) => ({ ...e, seq: disk.length + i + 1 }))] : live });
+  // A session this host has been answering already carries its turns as live
+  // events; one it has not (a terminal session, or one from before a restart)
+  // is read from the transcript the SDK keeps on disk.
+  const disk =
+    session.sessionId && !session.active && live.every((e) => e.type !== "user") ? await transcript(session.sessionId) : [];
+  res.json({ session: summary(session), transcript: disk, events: live });
 });
 
 app.get("/sessions/:key/stream", async (req, res) => {

@@ -2,7 +2,8 @@ import { useLocation } from "wouter";
 import * as Toolbar from "@radix-ui/react-toolbar";
 
 import { useWebSocketMetrics } from "@/hooks/useWebSocketMetrics";
-import { Activity, Cpu, PanelRight, Server, PlayCircle } from "lucide-react";
+import { Activity, Bot, Cpu, PanelRight, Server, PlayCircle } from "lucide-react";
+import { useClaudePanel } from "@/claude/panelStore";
 import * as Progress from "@radix-ui/react-progress";
 import { trendTone, trendToneClass, trendGlyph, trendLabel } from "@/shared/theme/dataColors";
 import { useSymbolContext } from "@/shared/contexts/SymbolContext";
@@ -20,6 +21,8 @@ export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
   // the symbol fell back to a literal "MNQ", so the bar kept announcing a pair
   // no page was on.
   const { symbol, timeframeMinutes } = useSymbolContext();
+  const claudeOpen = useClaudePanel((state) => state.open);
+  const toggleClaude = useClaudePanel((state) => state.toggle);
 
   return (
     <Toolbar.Root className="flex items-center w-full h-12 bg-neutral-950 border-b border-neutral-800 px-4 shrink-0 text-sm">
@@ -109,6 +112,21 @@ export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
         >
           <PlayCircle className="h-4 w-4" />
           <span className="font-bold">Model cycle</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleClaude}
+          aria-expanded={claudeOpen}
+          title="Claude Code in the dashboard (Ctrl+Shift+K)"
+          className={`flex items-center gap-1.5 rounded border px-2 py-1 transition-colors ${
+            claudeOpen
+              ? "border-[#56B4E9] bg-[#56B4E9]/15 text-[#56B4E9]"
+              : "border-[#56B4E9]/40 text-[#56B4E9] hover:border-[#56B4E9] hover:bg-[#56B4E9]/10"
+          }`}
+        >
+          <Bot className="h-4 w-4" />
+          <span className="font-bold">Claude</span>
         </button>
 
         {/* Live metrics and the leaderboard used to hold 320px of the window

@@ -6,6 +6,7 @@ import { Toaster } from "@/shared/ui/toaster";
 import { Toaster as SonnerToaster } from "sonner";
 import { toast } from "sonner";
 import { AICopilot } from "@/shared/ai/AICopilot";
+import { ClaudePanel } from "@/claude/ClaudePanel";
 import { TooltipProvider } from "@/shared/ui/tooltip";
 import Layout from "@/shared/layout/Layout";
 import { ResizableSidePanel } from "@/shared/layout/ResizableSidePanel";
@@ -132,6 +133,10 @@ const CycleFactory = () => import("@/cycle/CyclePage");
 const Cycle = lazyRetry(CycleFactory, "Cycle");
 registerComponentFactory("/cycle", CycleFactory);
 
+const LiveFactory = () => import("@/live/LivePage");
+const Live = lazyRetry(LiveFactory, "Live");
+registerComponentFactory("/live", LiveFactory);
+
 const LabelsFactory = () => import("@/labels/LabelsPage");
 const Labels = lazyRetry(LabelsFactory, "Labels");
 registerComponentFactory("/labels", LabelsFactory);
@@ -186,6 +191,7 @@ function Router() {
               <Route path="/marimo"><ErrorBoundary><Suspense fallback={<PageLoader />}><Marimo /></Suspense></ErrorBoundary></Route>
               <Route path="/cycle"><ErrorBoundary><Suspense fallback={<PageLoader />}><Cycle /></Suspense></ErrorBoundary></Route>
               <Route path="/labels"><ErrorBoundary><Suspense fallback={<PageLoader />}><Labels /></Suspense></ErrorBoundary></Route>
+              <Route path="/live"><ErrorBoundary><Suspense fallback={<PageLoader />}><Live /></Suspense></ErrorBoundary></Route>
               <Route path="/settings"><ErrorBoundary><Suspense fallback={<PageLoader />}><Settings /></Suspense></ErrorBoundary></Route>
               <Route path="/training"><ErrorBoundary><Suspense fallback={<PageLoader />}><Training /></Suspense></ErrorBoundary></Route>
 
@@ -262,6 +268,7 @@ function App() {
               <CommandPalette />
               <Router />
               <AICopilot />
+              <ClaudePanel />
             </BreadcrumbProvider>
           </TrainingProvider>
         </UnifiedDashboardProvider>

@@ -259,7 +259,7 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
 
     const queryFn = isFR
       ? () => getStitchedOHLCV(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit, adjustment)
-      : () => getOHLCVSampleBy(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit);
+      : () => getOHLCVSampleBy(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit, anchorMs !== null);
 
     const raw = await cachedQuery(cacheKey, queryFn);
     const data = (raw as RawOhlcvRow[]).map((r) => ({

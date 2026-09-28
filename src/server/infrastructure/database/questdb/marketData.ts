@@ -119,7 +119,11 @@ export async function getOHLCVSampleBy(
   timeframe: string,
   startTime?: number,
   endTime?: number,
-  limit?: number
+  limit?: number,
+  /** Take the NEWEST `limit` bars of the window instead of the oldest — what
+   *  the chart route wants when it anchored the window itself on the latest
+   *  bar. Forward pagination (an explicit start) keeps oldest-first. */
+  newest = false,
 ): Promise<Array<LakeBarRow | StitchedOHLCVBar>> {
   // Futures root symbols: always use volume-based stitching at ALL timeframes.
   // This ensures the chart always shows the highest-volume (front-month) contract
@@ -149,7 +153,7 @@ export async function getOHLCVSampleBy(
   // timestamp order, so the old LIMIT took the oldest N of the window. DuckDB
   // makes no such promise, and a bare LIMIT over a parquet scan would return
   // an arbitrary slice that changes between runs.
-  const sql = `
+  const select = `
     SELECT
       symbol,
       timestamp,
@@ -159,10 +163,19 @@ export async function getOHLCVSampleBy(
       close,
       volume,${ANATOMY_COLUMNS}
     FROM ${view}
-    ${whereClause}
+    ${whereClause}`;
+  // The chart's default window is anchor − limit × timeframe × 3, which holds
+  // far more than `limit` bars for a 24-hour market: oldest-first gave forex
+  // charts a window ending months before the newest bar (EURUSD 5m, limit
+  // 25,000: 2025-07-08..2025-11-06 when the data runs to 2026-03-22).
+  const sql =
+    newest && limitClause
+      ? `SELECT * FROM (${select}
+    ORDER BY timestamp DESC
+    ${limitClause}) ORDER BY timestamp`
+      : `${select}
     ORDER BY timestamp
-    ${limitClause}
-  `;
+    ${limitClause}`;
 
   return await queryQuestDBFast<LakeBarRow>(sql);
 }

@@ -26,6 +26,7 @@ import { minutesToLabel, minutesToApiKey } from "@/market/lib/timeframes";
 import { Toolbar } from "./Toolbar";
 import { AnalyticsStrip } from "./AnalyticsStrip";
 import { LiveQuoteStrip } from "./LiveQuoteStrip";
+import { useLiveTail } from "@/live/useLiveTail";
 import { TrainingStatusStrip } from "@/training/market-data/TrainingStatusStrip";
 import IndicatorChartLayout from "@/market/components/IndicatorChartLayout";
 import { ReplayControls } from "@/market/components/ReplayControls";
@@ -213,7 +214,15 @@ export default function MarketData() {
   // â”€â”€ Training Sync (live stabilization â€” no auto-replay) â”€â”€
   const trainingSync = useTrainingSync(training, symbol);
 
-  const displayData = replay.active ? replay.snapshot.visibleBars : chartData;
+  // Live tail from the data hub (OANDA forex real time, Yahoo futures delayed,
+  // Quantower when recording), appended only while the chart shows its newest
+  // lake bar — a live bar after a scrolled-back window would sit in the middle
+  // of history.
+  const lastChartTimestamp = chartData.length > 0 ? chartData[chartData.length - 1]!.timestamp : null;
+  const liveTail = useLiveTail(symbol, timeframe, lastChartTimestamp);
+  const chartWithLive = liveTail.bars.length > 0 ? [...chartData, ...liveTail.bars] : chartData;
+
+  const displayData = replay.active ? replay.snapshot.visibleBars : chartWithLive;
 
   // First and last bar the live overlay is predicting over. Used as the
   // training window whenever the run declares none (the `started` event ships
@@ -468,7 +477,12 @@ export default function MarketData() {
       {/* Forming-bar quote. Self-hides until a frame arrives, and badges
           itself as Replay whenever the stream is stored bars rather than a
           live feed — which, since 2026-07-27, it always is. */}
-      <LiveQuoteStrip className="mb-2" symbol={symbol} timeframeApiKey={minutesToApiKey(timeframe)} />
+      <LiveQuoteStrip
+        className="mb-2"
+        symbol={symbol}
+        timeframeApiKey={minutesToApiKey(timeframe)}
+        tail={{ shown: liveTail.bars.length, waiting: liveTail.atNewest ? 0 : liveTail.minuteBars, onShow: () => void handleReloadBars() }}
+      />
       <AnalyticsStrip
         symbol={symbol}
         displayDataLength={displayData.length}

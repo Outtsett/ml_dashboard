@@ -120,6 +120,7 @@ class Hub:
         self.bars: dict[str, dict[int, dict]] = {}          # symbol -> open ms -> bar
         self.bar_order: dict[str, deque[int]] = {}
         self.best_source: dict[str, tuple[int, float]] = {}
+        self._last_frame: dict[str, float] = {}
         self.news: deque[dict] = deque(maxlen=5000)
         self.news_by_id: dict[str, dict] = {}
         self.lander = None                                   # set by the app
@@ -183,6 +184,13 @@ class Hub:
             while len(order) > self._bar_capacity:
                 by_time.pop(order.popleft(), None)
         by_time[record["t"]] = record
+        # A forming bar changes on every tick (OANDA: ~4 a second per pair);
+        # the chart needs at most two frames a second of it.
+        if not record.get("closed") and not record.get("backfill"):
+            now = time.monotonic()
+            if now - self._last_frame.get(symbol, 0.0) < 0.5:
+                return
+            self._last_frame[symbol] = now
         if not record.get("backfill"):
             # A startup backfill is history the page fetches with /bars; pushing
             # hundreds of thousands of bars down every open stream would stall it.

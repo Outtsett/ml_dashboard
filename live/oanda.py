@@ -65,7 +65,10 @@ class Oanda:
             self.health.note = "OANDA_API_KEY / OANDA_ACCOUNT_ID are not set"
             return
         async with aiohttp.ClientSession(headers=self._headers()) as session:
-            await self.backfill(session)
+            # History fills in beside the stream: waiting for 14 days x 18
+            # pairs of candles before the first live tick left forex dark for
+            # minutes after every restart.
+            backfill = asyncio.create_task(self.backfill(session), name="oanda-backfill")
             backoff = 1.0
             while True:
                 try:
@@ -78,6 +81,8 @@ class Oanda:
                     log.warning("oanda stream: %s", error)
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 60.0)
+                if backfill.done() and backfill.exception() is not None:
+                    self.health.fail(backfill.exception())
 
     async def _stream(self, session: aiohttp.ClientSession) -> None:
         url = f"{self.stream_host}/v3/accounts/{self.account}/pricing/stream"

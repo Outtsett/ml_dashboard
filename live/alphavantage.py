@@ -79,6 +79,12 @@ class AlphaVantage:
                         hour=0, minute=1, second=0, microsecond=0)
                     await asyncio.sleep(max(60.0, (tomorrow - datetime.now(timezone.utc)).total_seconds()))
                     continue
+                # The spacing is measured from the last call recorded in the
+                # ledger, so a restart does not spend a call on the spot.
+                wait = float(self.ledger.get("lastCallAt") or 0) + spacing - time.time()
+                if wait > 0:
+                    await asyncio.sleep(min(wait, 600.0))
+                    continue
                 try:
                     await self._call(session)
                 except asyncio.CancelledError:
@@ -86,7 +92,6 @@ class AlphaVantage:
                 except Exception as error:  # noqa: BLE001
                     self.health.fail(error)
                     log.warning("alphavantage: %s", error)
-                await asyncio.sleep(spacing)
 
     async def _call(self, session: aiohttp.ClientSession) -> None:
         spec = self.rotation[self.ledger["rotationIndex"] % len(self.rotation)]
@@ -99,6 +104,7 @@ class AlphaVantage:
         day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         self.ledger["days"][day] = self._used_today() + 1
         self.ledger["rotationIndex"] = (self.ledger["rotationIndex"] + 1) % len(self.rotation)
+        self.ledger["lastCallAt"] = time.time()
         self._save()
         async with session.get(URL, params=params) as response:
             text = await response.text()

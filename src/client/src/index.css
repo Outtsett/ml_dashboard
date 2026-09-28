@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Markdown in the Claude panel (prose classes). */
+@plugin "@tailwindcss/typography";
 
 /* Electron window drag regions */
 .drag-region {

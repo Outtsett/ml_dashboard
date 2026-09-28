@@ -58,10 +58,13 @@ interface State {
    *  not respawn every 15 s forever. */
   failures: number;
   nextAttemptAt: number;
+  missedProbes: number;
 }
 
 const STATE = new Map<string, State>();
-const HEALTH_TIMEOUT_MS = 2_000;
+// A busy sidecar (the hub landing a day, a backfill page) can take a moment to
+// answer; 2 s mistook that for death.
+const HEALTH_TIMEOUT_MS = 5_000;
 const POLL_MS = 300;
 const WATCHDOG_MS = 15_000;
 let watchdog: NodeJS.Timeout | null = null;
@@ -75,7 +78,7 @@ export function logPath(slug: string): string {
 function state(slug: string): State {
   let s = STATE.get(slug);
   if (!s) {
-    s = { status: "stopped", adopted: false, restarts: 0, stoppedByUser: false, failures: 0, nextAttemptAt: 0 };
+    s = { status: "stopped", adopted: false, restarts: 0, stoppedByUser: false, failures: 0, nextAttemptAt: 0, missedProbes: 0 };
     STATE.set(slug, s);
   }
   return s;
@@ -306,9 +309,15 @@ export function startSidecars(): void {
           if (health) {
             s.health = health;
             s.failures = 0;
+            s.missedProbes = 0;
             return;
           }
+          // Two missed probes in a row, not one, before a restart: a restart
+          // throws away the hub's in-memory tail and the Claude host's sessions.
+          s.missedProbes += 1;
+          if (s.status === "ready" && s.missedProbes < 2) return;
           if (s.status === "ready" || s.status === "error") {
+            s.missedProbes = 0;
             logger.warn(`${sidecar.slug}: not answering — restarting (attempt ${s.failures + 1})`);
             s.restarts += 1;
             s.status = "stopped";
