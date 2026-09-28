@@ -8,6 +8,8 @@ connection over the lake (``shared.data._serving``) with it.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from lake import sentiment as _impl
 from lake.sentiment import (  # noqa: F401 - re-exported for the dashboard's trainers and tests
     DISPLAY_NAMES,
@@ -28,6 +30,12 @@ from lake.sentiment import (  # noqa: F401 - re-exported for the dashboard's tra
     timeframe_minutes,
     to_epoch_seconds,
 )
+
+# Today's news lives in the live hub's spool until the day is written to the
+# lake (live/landing.py); models trained today must see it.
+_SPOOL = Path(__file__).resolve().parents[3] / "data" / "live" / "spool" / "curated"
+if _SPOOL not in _impl.SPOOL_DIRS:
+    _impl.SPOOL_DIRS.append(_SPOOL)
 
 
 def _share_connection() -> None:
