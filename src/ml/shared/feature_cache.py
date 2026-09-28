@@ -60,6 +60,12 @@ def _features_json_mtime_ns() -> int:
         return 0
 
 
+def _news_data_version() -> str:
+    from .sentiment import data_version
+
+    return data_version()
+
+
 def _build_key(
     symbol: str,
     timeframe: str,
@@ -72,6 +78,10 @@ def _build_key(
         "date_range": date_range or {},
         "categories": sorted(categories or []),
         "features_json_mtime_ns": _features_json_mtime_ns(),
+        # Every matrix carries the mandatory FinBERT family, which changes when
+        # news lands or is rescored — without this a cached matrix would keep
+        # yesterday's sentiment forever.
+        "news_data_version": _news_data_version(),
     }
     blob = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()

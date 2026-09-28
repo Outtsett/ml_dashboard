@@ -81,7 +81,7 @@ def _preload_feature_cache(model_type: str, training_args: dict[str, Any]) -> No
     try:
         from .data import load_ohlcv_arrays
         from .feature_cache import cached_features, has_cache
-        from .features import compute_features
+        from .features import compute_features, feature_context
 
         symbol = str(training_args.get("symbol") or "").upper()
         timeframe = str(training_args.get("timeframe") or "1h")
@@ -119,7 +119,7 @@ def _preload_feature_cache(model_type: str, training_args: dict[str, Any]) -> No
                 "close": raw["close"],
                 "volume": raw["volume"],
             }
-            matrix, names, _ts = compute_features(ohlcv, categories=categories, n_jobs=1)
+            matrix, names, _ts = compute_features({**ohlcv, **feature_context(raw)}, categories=categories, n_jobs=1)
             ts_arr = [
                 t.timestamp() if hasattr(t, "timestamp") else float(t) for t in raw["timestamp"]
             ]

@@ -280,8 +280,9 @@ def adjust_for_rolls(symbol: str, timeframe: str, data):
 def run(args: argparse.Namespace, unknown: list[str]) -> int:
     from cycle.control import ControlState, start_reader
     from cycle.engine import CycleEngine, CycleSettings, clean_market_data
-    from cycle.features import build_features
+    from cycle.features import MarketContext, build_features, require_finbert
     from cycle.simulate import load_cost_model
+    from shared.sentiment import infer_clock
 
     started = time.monotonic()
     family = args.model_family
@@ -333,7 +334,15 @@ def run(args: argparse.Namespace, unknown: list[str]) -> int:
     data, rolls = adjust_for_rolls(args.symbol, args.timeframe, data)
 
     feature_started = time.monotonic()
-    feature_set = build_features(data.as_dict())
+    context = MarketContext(symbol=args.symbol, timeframe=args.timeframe, timestamps=data.timestamps,
+                            clock=raw.get("clock") or infer_clock(args.symbol))
+    feature_set = build_features(data.as_dict(), context=context)
+    require_finbert(feature_set)
+    protocol.emit_log(
+        f"[features] FinBERT news sentiment: {sum(1 for n in feature_set.names if n.startswith('finbert_'))} columns "
+        f"(bars stamped {context.clock}; coverage on "
+        f"{float(feature_set.raw[:, feature_set.names.index('finbert_news_coverage_flag')].mean()) * 100:.1f}% of bars)"
+    )
     protocol.emit_log(
         f"[features] {len(feature_set.names)} causal features, rolling z-score window {feature_set.lookback} "
         f"clipped to {feature_set.clip[0]:g}..{feature_set.clip[1]:g} ({time.monotonic() - feature_started:.1f} s)"

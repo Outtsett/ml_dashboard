@@ -1,6 +1,10 @@
 {
   "version": 2,
   "categories": {
+    "sentiment": {
+      "name": "News Sentiment (FinBERT, mandatory)",
+      "description": "ProsusAI/finbert scores of routed headlines, aggregated causally onto the bar grid. Appended to EVERY model whatever categories a runner selects; computed by src/ml/shared/sentiment.py, not the OHLCV dispatch table."
+    },
     "returns": {
       "name": "Returns",
       "description": "Log returns at various horizons"
@@ -357,6 +361,132 @@
       "params": { "window": 100 },
       "requires": ["close", "high", "low", "volume"],
       "description": "% distance from rolling VWAP"
+    },
+    {
+      "name": "finbert_sentiment_decayed_short",
+      "displayName": "FinBERT sentiment, short decay (signed log)",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "Signed log of the relevance x direction x FinBERT score of routed headlines, decayed with half-life max(20 min, 4 bars)"
+    },
+    {
+      "name": "finbert_sentiment_decayed_long",
+      "displayName": "FinBERT sentiment, long decay (signed log)",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "The same sum with half-life max(1440 min, 32 bars)"
+    },
+    {
+      "name": "finbert_news_intensity_decayed",
+      "displayName": "News intensity, short decay (log)",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "Log of the decayed count of routed headlines (short half-life) - how much news, not its sign"
+    },
+    {
+      "name": "finbert_news_burst_ratio",
+      "displayName": "News burst ratio (short rate / long rate, log)",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "Log of the short-decay news rate over the long-decay news rate - news volume against its own recent norm"
+    },
+    {
+      "name": "finbert_sentiment_mean_window",
+      "displayName": "FinBERT mean sentiment over the window",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "Mean signed FinBERT score over the last max(60 min, 8 bars); 0 when no headline fell in it"
+    },
+    {
+      "name": "finbert_article_count_window_log",
+      "displayName": "Articles in the window (log count)",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "Log of the number of headlines in the last max(60 min, 8 bars)"
+    },
+    {
+      "name": "finbert_minutes_since_article_log",
+      "displayName": "Minutes since the last article (log)",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "Log of minutes since the last routed headline, capped at 7 days"
+    },
+    {
+      "name": "finbert_macro_sentiment_decayed_short",
+      "displayName": "FinBERT macro-news sentiment, short decay (signed log)",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "The short decayed sum over macro-tier headlines (Fed, CPI, payrolls, ...) only"
+    },
+    {
+      "name": "finbert_news_coverage_flag",
+      "displayName": "News coverage (1 = a source was collecting)",
+      "category": "sentiment",
+      "type": "finbert",
+      "params": {},
+      "requires": [
+        "symbol",
+        "timestamp",
+        "news"
+      ],
+      "mandatory": true,
+      "description": "1 when the bar opens inside a span a news source was collecting; 0 means the news is unknown, not neutral"
     }
   ],
   "normalization": {

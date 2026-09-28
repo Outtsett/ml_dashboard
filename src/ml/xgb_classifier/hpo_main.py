@@ -44,7 +44,7 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 
 from src.ml.shared.data import load_ohlcv_arrays
 from src.ml.shared.feature_cache import cached_features, has_cache
-from src.ml.shared.features import compute_features
+from src.ml.shared.features import compute_features, feature_context
 from src.ml.shared.protocol import emit, emit_error, emit_log
 from src.ml.xgb_classifier.main import train_with_config
 
@@ -221,7 +221,7 @@ def _prewarm_fold_cache(
             "close": raw["close"],
             "volume": raw["volume"],
         }
-        matrix, names, _ts = compute_features(ohlcv, categories=categories, n_jobs=1)
+        matrix, names, _ts = compute_features({**ohlcv, **feature_context(raw)}, categories=categories, n_jobs=1)
         ts_arr = np.asarray(
             [t.timestamp() if hasattr(t, "timestamp") else float(t) for t in raw["timestamp"]],
             dtype=np.int64,

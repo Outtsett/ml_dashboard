@@ -191,7 +191,53 @@ def _safe_compute(feat_def, ohlcv):
         return feat_def["name"], None
 
 
+FINBERT_REQUIRED = (
+    "FinBERT news-sentiment features are mandatory in every model: call compute_features "
+    "with data['symbol'] and data['timestamp'] (the bar opens as loaded), plus data['timeframe'] "
+    "and data['clock'] from load_ohlcv_arrays. See src/ml/shared/sentiment.py."
+)
+
+
 def compute_features(data, categories=None, n_jobs=1):
+    """The OHLCV feature registry (filtered by ``categories``) PLUS the FinBERT
+    sentiment family, which no category filter removes.
+
+    ``data`` must carry ``symbol`` and ``timestamp`` (bar opens) so the
+    sentiment can be aligned; ``timeframe`` and ``clock`` (from
+    ``load_ohlcv_arrays``) should come with them — without ``clock`` it is
+    inferred from the symbol's asset class in the lake.
+    """
+    from . import sentiment
+
+    matrix, names, timestamps = compute_base_features(data, categories=categories, n_jobs=n_jobs)
+    symbol = data.get("symbol") if isinstance(data, dict) else None
+    bar_times = data.get("timestamp") if isinstance(data, dict) else timestamps
+    if not symbol or bar_times is None or len(bar_times) != matrix.shape[0]:
+        raise ValueError(FINBERT_REQUIRED)
+    clock = data.get("clock") or sentiment.infer_clock(symbol)
+    finbert, finbert_names = sentiment.finbert_features(
+        symbol, bar_times, timeframe=data.get("timeframe"), clock=clock
+    )
+    matrix = np.column_stack([matrix, finbert.astype(matrix.dtype, copy=False)])
+    return matrix, list(names) + finbert_names, timestamps
+
+
+def feature_context(raw: dict) -> dict:
+    """The keys ``compute_features`` needs besides OHLCV, from a
+    ``load_ohlcv_arrays`` result: symbol, timeframe, bar-open timestamps, clock."""
+    return {
+        "symbol": raw["symbol"],
+        "timeframe": raw.get("timeframe"),
+        "timestamp": raw["timestamp"],
+        "clock": raw.get("clock"),
+    }
+
+
+def compute_base_features(data, categories=None, n_jobs=1):
+    """The OHLCV-only registry features. Every trainer calls ``compute_features``
+    (this plus FinBERT); the Model Cycle calls this directly because it
+    z-scores these columns and appends the FinBERT family after (see
+    cycle/features.py)."""
     config = _load_feature_config()
     ohlcv, timestamps = _extract_arrays(data)
     feature_defs = [f for f in config["features"] if not categories or f["category"] in categories]
@@ -282,6 +328,7 @@ def load_features_with_cache(
             "low": raw["low"],
             "close": raw["close"],
             "volume": raw["volume"],
+            **feature_context(raw),
         }
         matrix, names, _ts = compute_features(ohlcv, categories=categories, n_jobs=1)
         # Use the OHLCV timestamps; the feature engine returns None for dict input.

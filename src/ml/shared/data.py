@@ -141,7 +141,9 @@ def load_ohlcv_arrays(
 
     Returns dict::
         {"open": np.ndarray, "high": np.ndarray, "low": np.ndarray,
-         "close": np.ndarray, "volume": np.ndarray, "timestamp": list[datetime]}
+         "close": np.ndarray, "volume": np.ndarray, "timestamp": list[datetime],
+         "symbol": str, "timeframe": str, "asset_class": str,
+         "clock": "UTC" | "America/Los_Angeles"}
     """
     _validate_sql_input(symbol, "symbol")
     _validate_sql_input(timeframe, "timeframe", r"^[0-9]+[mhdw]$")
@@ -169,7 +171,17 @@ def load_ohlcv_arrays(
 
     emit_log(f"[data] Loaded {len(rows):,} rows from the lake")
     emit_progress(len(rows), len(rows), "loading_data")
-    return _rows_to_arrays(rows)
+    arrays = _rows_to_arrays(rows)
+    # Which clock the timestamps are stamped in travels with them: the snapshot
+    # stamps futures in Pacific wall-clock digits (see shared/sentiment.py), and
+    # the mandatory FinBERT features must convert before aligning news.
+    from .sentiment import asset_class_of, clock_for
+
+    arrays["symbol"] = symbol
+    arrays["timeframe"] = timeframe
+    arrays["asset_class"] = asset_class_of(symbol)
+    arrays["clock"] = clock_for(arrays["asset_class"])
+    return arrays
 
 
 def _rows_to_arrays(rows: list[tuple]) -> dict:

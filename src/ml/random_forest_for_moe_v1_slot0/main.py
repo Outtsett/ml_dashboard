@@ -41,7 +41,7 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 from sklearn.ensemble import RandomForestClassifier
 from src.ml.shared.data import load_ohlcv_arrays
 from src.ml.shared.feature_cache import cached_features
-from src.ml.shared.features import compute_features
+from src.ml.shared.features import compute_features, feature_context
 from src.ml.shared.protocol import (
     emit_done,
     emit_error,
@@ -166,7 +166,7 @@ def load_features(args: argparse.Namespace) -> tuple[np.ndarray, list[str], np.n
             "close": raw["close"],
             "volume": raw["volume"],
         }
-        matrix, names, _ts = compute_features(ohlcv, categories=categories, n_jobs=1)
+        matrix, names, _ts = compute_features({**ohlcv, **feature_context(raw)}, categories=categories, n_jobs=1)
         ts_arr = np.asarray(
             [t.timestamp() if hasattr(t, "timestamp") else float(t) for t in raw["timestamp"]],
             dtype=np.int64,

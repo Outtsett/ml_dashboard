@@ -15,6 +15,13 @@ Pipeline, all trailing-window:
    (250), ``min_periods == window`` (warmup rows NaN, never 0), population
    standard deviation, clipped to ``normalization.clip`` (±5). A window with
    zero spread gives 0 (the value equals the window mean).
+5. The FinBERT news-sentiment family (``shared/sentiment.py``) is appended
+   AFTER the z-score and exempt from it and from the constant-column drop: it is
+   bounded, sparse (a 250-bar z-score of a mostly-quiet series is mostly 0), and
+   mandatory — before news coverage begins it is legitimately constant, and a
+   model still has to carry it. It needs the bars' symbol, timeframe, open
+   timestamps and clock (``MarketContext``); every training run passes them and
+   ``require_finbert`` refuses a feature set without the family.
 
 ``FeatureSet.raw`` keeps the kept columns as they were before step 4 (the
 same warmup NaNs), so "Inside the model" can show a bar's inputs in their own
@@ -81,7 +88,7 @@ def _warmups(config: dict) -> dict[str, int]:
 
 
 def _raw_features(ohlcv: dict, warmups: dict[str, int]) -> tuple[np.ndarray, list[str]]:
-    from shared.features import compute_features
+    from shared.features import compute_base_features
 
     engine_input = {
         "open_": np.asarray(ohlcv["open"], dtype=np.float64),
@@ -90,7 +97,7 @@ def _raw_features(ohlcv: dict, warmups: dict[str, int]) -> tuple[np.ndarray, lis
         "close": np.asarray(ohlcv["close"], dtype=np.float64),
         "volume": np.asarray(ohlcv["volume"], dtype=np.float64),
     }
-    matrix, names, _ = compute_features(engine_input, categories=None, n_jobs=1)
+    matrix, names, _ = compute_base_features(engine_input, categories=None, n_jobs=1)
     matrix = np.array(matrix, dtype=np.float64, copy=True)
     matrix[~np.isfinite(matrix)] = np.nan
     for column, name in enumerate(names):
@@ -144,15 +151,36 @@ def rolling_zscore(matrix: np.ndarray, window: int, clip: tuple[float, float]) -
     return np.clip(z, clip[0], clip[1])
 
 
-def build_features(ohlcv: dict, *, check_causality: bool = True) -> FeatureSet:
-    """``ohlcv``: dict with open/high/low/close/volume float arrays in time order."""
+@dataclass
+class MarketContext:
+    """What the FinBERT family needs to align news with the bars: the symbol,
+    its timeframe, the bar OPEN timestamps (int epoch seconds as loaded) and the
+    clock they are stamped in (``shared.sentiment.clock_for``)."""
+
+    symbol: str
+    timeframe: str
+    timestamps: np.ndarray
+    clock: str
+
+
+def build_features(ohlcv: dict, *, check_causality: bool = True,
+                   context: MarketContext | None = None) -> FeatureSet:
+    """``ohlcv``: dict with open/high/low/close/volume float arrays in time order.
+
+    ``context`` appends the mandatory FinBERT family (step 5). Every training
+    run passes it; synthetic unit tests of the OHLCV mechanics may omit it, and
+    ``require_finbert`` is what a run checks before it trains.
+    """
     config = load_feature_config()
     lookback, clip = normalization_settings(config)
     warmups = _warmups(config)
     raw, names = _raw_features(ohlcv, warmups)
     dropped: dict[str, str] = {}
 
-    registry_names = [definition["name"] for definition in config["features"]]
+    registry_names = [
+        definition["name"] for definition in config["features"]
+        if not definition["name"].startswith("finbert_")
+    ]
     for name in registry_names:
         if name not in names:
             dropped[name] = "the shared feature engine could not compute it from OHLCV alone"
@@ -176,12 +204,41 @@ def build_features(ohlcv: dict, *, check_causality: bool = True) -> FeatureSet:
         keep.append(column)
 
     kept_names = [names[column] for column in keep]
-    if not keep:
-        empty = np.empty((raw.shape[0], 0), dtype=np.float32)
-        return FeatureSet(empty, [], dropped, lookback, clip, raw=empty.copy())
-    normalized = rolling_zscore(raw[:, keep], lookback, clip)
+    if keep:
+        normalized = rolling_zscore(raw[:, keep], lookback, clip)
+        kept_raw = raw[:, keep]
+    else:
+        normalized = np.empty((raw.shape[0], 0))
+        kept_raw = np.empty((raw.shape[0], 0))
+
+    if context is not None:
+        from shared.sentiment import finbert_features
+
+        finbert, finbert_names = finbert_features(
+            context.symbol, context.timestamps, timeframe=context.timeframe, clock=context.clock
+        )
+        normalized = np.column_stack([normalized, finbert])
+        kept_raw = np.column_stack([kept_raw, finbert])
+        kept_names = kept_names + finbert_names
+
     return FeatureSet(normalized.astype(np.float32), kept_names, dropped, lookback, clip,
-                      raw=raw[:, keep].astype(np.float32))
+                      raw=kept_raw.astype(np.float32))
+
+
+FINBERT_MISSING = (
+    "this run's features carry no FinBERT columns — FinBERT news sentiment is mandatory in every model "
+    "(build_features(..., context=MarketContext(...)), see src/ml/shared/sentiment.py)"
+)
+
+
+def require_finbert(feature_set: FeatureSet) -> None:
+    """Raise unless the whole FinBERT family is present. Called by every run
+    before training starts."""
+    from shared.sentiment import FEATURE_NAMES
+
+    missing = [name for name in FEATURE_NAMES if name not in feature_set.names]
+    if missing:
+        raise ValueError(f"{FINBERT_MISSING}; missing {missing}")
 
 
 def history_valid(features: np.ndarray, minimum_history: int) -> np.ndarray:

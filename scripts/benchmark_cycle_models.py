@@ -87,7 +87,7 @@ def tabular_keys() -> list[str]:
 def load_market(symbol: str, timeframe: str, start: str, end: str):
     """Bars and features exactly as main.py builds them."""
     from cycle.engine import MarketData, clean_market_data
-    from cycle.features import build_features
+    from cycle.features import MarketContext, build_features
     from cycle.rolls import back_adjust, contract_rows_from_lake, find_rolls
     from shared.data import _serving, load_ohlcv_arrays
 
@@ -99,7 +99,8 @@ def load_market(symbol: str, timeframe: str, start: str, end: str):
         open_prices, high, low, close, _ = back_adjust(data.open, data.high, data.low, data.close, rolls)
         data = MarketData(timestamps=data.timestamps, open=open_prices, high=high, low=low, close=close,
                           volume=data.volume)
-    return data, build_features(data.as_dict()), len(rolls)
+    context = MarketContext(symbol=symbol, timeframe=timeframe, timestamps=data.timestamps, clock=raw["clock"])
+    return data, build_features(data.as_dict(), context=context), len(rolls)
 
 
 def planned_engine(data, features, symbol: str, train_days: int, validation_fraction: float):
