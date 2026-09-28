@@ -275,6 +275,18 @@ def test_session_days_follow_the_cme_session_for_futures():
         ("2025-12-01", 1.0, 1.0), ("2025-12-02", 1.0, 2.0)]
 
 
+def test_an_unknown_symbol_dates_session_days_by_the_stored_date_and_says_so():
+    predictions, trades = record([1.0, 2.0], timestamps=np.array([MNQ_OPEN - 300, MNQ_OPEN]))
+    _, tables = build(predictions, trades, symbol="")
+    daily = tables["daily_results"].to_pylist()
+    assert [row["session_day"] for row in daily] == ["2025-12-01"]
+    assert daily[0]["session_day_rule"] == "the stored calendar date (the run recorded no symbol)"
+    assert "recorded no symbol" in value(tables, "session_day_count")["note"]
+    _, tables = build(predictions, trades, symbol="MNQ")
+    assert tables["daily_results"].to_pylist()[0]["session_day_rule"].startswith("CME Globex session")
+    assert value(tables, "session_day_count")["note"] is None
+
+
 def test_distributions_carry_the_eight_numbers():
     predictions, trades = record(np.random.default_rng(2).normal(0, 3, 200),
                                  trades=[{"net": n} for n in (5.0, -3.0, 2.0, -1.0, 8.0)])

@@ -84,6 +84,28 @@ def mismatches(tables, folds, run_row) -> list[str]:
     return out
 
 
+def resolve_symbol(recipe: str, model_id: str, run_row) -> tuple[str, str]:
+    """(symbol, where it came from), from recorded sources only: the run table; the run id
+    when it starts with a futures root the Cycle prices (``MNQ_5m_...``); the run's local
+    ``config.json``. A run recorded under another name (``cycle_smoke_*``) with none of
+    these has no known symbol: its session days are dated by the stored calendar date and
+    its tables say so, rather than a symbol guessed from its price level."""
+    if run_row and run_row.get("symbol"):
+        return str(run_row["symbol"]), "the run table"
+    prefix = recipe.split("_", 1)[0]
+    if prefix.upper() in report.futures_roots():
+        return prefix.upper(), "the run id"
+    config = REPOSITORY / "data" / "models" / model_id / "config.json"
+    if config.exists():
+        try:
+            symbol = (json.loads(config.read_text(encoding="utf-8")).get("settings") or {}).get("symbol")
+        except ValueError:
+            symbol = None
+        if symbol:
+            return str(symbol), "the run's local config.json"
+    return "", "not recorded"
+
+
 def build(connection, recipe: str):
     predictions = read(connection, "predictions", recipe)
     trades = read(connection, "trades", recipe)
@@ -93,7 +115,7 @@ def build(connection, recipe: str):
         return None, ["no predictions"], None
     run_row = runs.to_pylist()[0] if runs is not None else None
     model_id = run_row["model_id"] if run_row else recipe.replace("_walk_forward_cycle_", "+walk_forward_cycle_")
-    symbol = run_row["symbol"] if run_row else recipe.split("_", 1)[0]
+    symbol, _source = resolve_symbol(recipe, model_id, run_row)
     if trades is None:   # a run that closed no trade
         trades = pa.table({"net_profit_usd": pa.array([], type=pa.float64())})
     inputs = report.inputs_from_tables(model_id, symbol, predictions, trades, folds,
@@ -147,7 +169,7 @@ def main() -> int:
         blocking = problems
         counts = ", ".join(f"{name} {table.num_rows}" for name, table in tables.items())
         status = "checked" if not blocking else f"{len(blocking)} scoreboard differences"
-        print(f"  {recipe}: {status}; {counts}")
+        print(f"  {recipe}: {status}; symbol {inputs.symbol or 'not recorded'}; {counts}")
         for line in problems[:6]:
             print(f"      {line}")
         if blocking:

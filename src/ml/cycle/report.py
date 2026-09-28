@@ -34,7 +34,9 @@ engine's own fold and final scoreboards.
 Session day (``daily_results``, per-day metrics): futures timestamps in the lake are
 Pacific wall clock stored as UTC, and a CME Globex session opens at 15:00 Pacific and
 belongs to the next calendar day, so the session day of a futures bar is the date of
-its stored time plus nine hours. Any other symbol uses the stored date.
+its stored time plus nine hours. Any other symbol, and a run whose symbol was not
+recorded, uses the stored date; ``daily_results.session_day_rule`` says which rule
+dated each row, and the session-day metrics carry a note when the symbol is unknown.
 """
 
 from __future__ import annotations
@@ -78,7 +80,8 @@ def _finite(value) -> float | None:
     return value if math.isfinite(value) else None
 
 
-def _futures_roots() -> frozenset[str]:
+def futures_roots() -> frozenset[str]:
+    """The futures roots the Cycle prices (``src/config/cost_model.json``)."""
     try:
         return frozenset(key for key in json.loads(_COST_MODEL.read_text(encoding="utf-8")) if not key.startswith("_"))
     except (OSError, ValueError):
@@ -406,7 +409,7 @@ DAILY_COLUMNS = (
     ("exposed_bar_count", pa.int64()), ("net_profit_usd", pa.float64()), ("cumulative_net_profit_usd", pa.float64()),
     ("intraday_maximum_drawdown_usd", pa.float64()), ("trade_count", pa.int64()), ("winning_trade_count", pa.int64()),
     ("trade_net_profit_usd", pa.float64()), ("total_cost_usd", pa.float64()), ("scored_bar_count", pa.int64()),
-    ("correct_bar_count", pa.int64()), ("accuracy", pa.float64()),
+    ("correct_bar_count", pa.int64()), ("accuracy", pa.float64()), ("session_day_rule", pa.string()),
 )
 REPORT_COLUMNS = {
     "model_metrics": METRIC_ROW_COLUMNS, "trading_metrics": METRIC_ROW_COLUMNS, "calibration_bins": CALIBRATION_COLUMNS,
@@ -566,6 +569,8 @@ def inputs_from_tables(model_id: str, symbol: str, predictions: pa.Table, trades
     baselines = fold_baselines_from_table(folds)
     bars_per_year_value, source = bars_per_year_from_record(run_bars_per_year, prediction_columns, baselines)
     notes["bars_per_year"] = source
+    if not symbol:
+        notes["session_day"] = "the run recorded no symbol, so session days are its stored calendar dates"
     fold_indices = sorted({int(k) for k in prediction_columns["fold_index"].tolist() if int(k) >= 0} | set(baselines))
     return ReportInputs(model_id=model_id, symbol=symbol, bars_per_year=bars_per_year_value,
                         predictions=prediction_columns, trades=trade_arrays(trades), fold_indices=fold_indices,
@@ -575,9 +580,18 @@ def inputs_from_tables(model_id: str, symbol: str, predictions: pa.Table, trades
 # ─── helpers ────────────────────────────────────────────────────────────────
 
 
+def session_day_rule(symbol: str) -> str:
+    """How ``session_days`` dates a bar of this symbol, in words."""
+    if symbol.upper() in futures_roots():
+        return "CME Globex session: the stored Pacific time plus 9 hours"
+    if not symbol:
+        return "the stored calendar date (the run recorded no symbol)"
+    return "the stored calendar date"
+
+
 def session_days(timestamps: np.ndarray, symbol: str) -> np.ndarray:
     """``YYYY-MM-DD`` session day per timestamp (see the module docstring)."""
-    offset = FUTURES_SESSION_OFFSET_SECONDS if symbol.upper() in _futures_roots() else 0
+    offset = FUTURES_SESSION_OFFSET_SECONDS if symbol.upper() in futures_roots() else 0
     return np.array([datetime.fromtimestamp(int(t) + offset, timezone.utc).strftime("%Y-%m-%d") for t in timestamps],
                     dtype=object)
 
@@ -964,10 +978,11 @@ def _trading_scope(out: _Rows, inputs: ReportInputs, scope: str, fold_index: int
     add("net_profit_before_costs_usd", (net + cost) if net is not None and cost is not None else None, bars)
     annualized = float(np.mean(r)) * inputs.bars_per_year if bars else None
     add("annualized_net_profit_usd", annualized, bars, bars_note if annualized is not None else "no bars")
-    add("net_profit_per_session_day_usd", net / day_count if day_count else None, day_count, None if day_count else "no session days")
+    day_note = inputs.notes.get("session_day")
+    add("net_profit_per_session_day_usd", net / day_count if day_count else None, day_count, day_note if day_count else "no session days")
     add("average_bar_net_profit_usd", float(np.mean(r)) if bars else None, bars, None if bars else "no bars")
     add("bar_count", bars, bars)
-    add("session_day_count", day_count, day_count)
+    add("session_day_count", day_count, day_count, day_note)
 
     for name, reason in (("sharpe_ratio", "fewer than two bars, or per-bar profit never varied"),
                          ("sortino_ratio", "no losing bar"), ("calmar_ratio", "no drawdown")):
@@ -977,7 +992,8 @@ def _trading_scope(out: _Rows, inputs: ReportInputs, scope: str, fold_index: int
     add("probabilistic_sharpe_ratio", probabilistic, bars, why)
     day_net = np.array([float(r[days == day].sum()) for day in unique_days]) if day_count else np.empty(0)
     day_sharpe = sharpe_ratio(day_net, SESSION_DAYS_PER_YEAR) if day_count >= 2 else None
-    add("session_day_sharpe_ratio", day_sharpe, day_count, _undefined(day_sharpe, "fewer than two session days, or every day netted the same"))
+    add("session_day_sharpe_ratio", day_sharpe, day_count,
+        _undefined(day_sharpe, "fewer than two session days, or every day netted the same") or day_note)
     tail = None
     if bars:
         low = float(np.percentile(r, 5))
@@ -1137,6 +1153,7 @@ def _daily(inputs: ReportInputs, rows: np.ndarray, trade_rows: np.ndarray, days:
             "trade_net_profit_usd": float(trade_nets[closed].sum()), "total_cost_usd": float(trade_costs[closed].sum()),
             "scored_bar_count": scored_count, "correct_bar_count": int(correct[mask].sum()),
             "accuracy": int(correct[mask].sum()) / scored_count if scored_count else None,
+            "session_day_rule": session_day_rule(inputs.symbol),
         })
 
 

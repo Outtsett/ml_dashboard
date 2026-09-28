@@ -113,6 +113,8 @@ export const reportDailyRowSchema = z.object({
   scoredBarCount: z.number().int(),
   correctBarCount: z.number().int(),
   accuracy: nullableNumber,
+  /** How the session day was dated: the CME session for futures, else the stored date (older rows lack it). */
+  sessionDayRule: z.string().nullable().optional(),
 });
 export type ReportDailyRow = z.infer<typeof reportDailyRowSchema>;
 

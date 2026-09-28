@@ -336,8 +336,10 @@ export function DrawdownTable({ rows, scope }: { rows: ReportDrawdownRow[]; scop
 export function DailyTable({ rows }: { rows: ReportDailyRow[] }) {
   if (!rows.length) return <p className="px-2 py-2 text-[11px] text-muted-foreground">No session days yet.</p>;
   const largest = Math.max(...rows.map((row) => Math.abs(row.netProfitUsd)), 1e-9);
+  const rule = rows[0]?.sessionDayRule;
   return (
     <div className="overflow-x-auto" data-testid="report-daily">
+      {rule && <p className="px-2 pb-1 text-[10px] text-muted-foreground" data-testid="report-daily-rule">Days dated by {rule}.</p>}
       <table className="w-full border-collapse">
         <thead>
           <tr>
