@@ -204,7 +204,9 @@ def distribution(values: np.ndarray) -> dict:
     out["mean"] = _finite(v.mean())
     out["median"] = _finite(np.median(v))
     out["standardDeviation"] = _finite(np.std(v, ddof=1)) if count >= 2 else None
-    if count >= 4:
+    # a series that never varies has no shape: skewness and kurtosis are undefined, not whatever
+    # the moment arithmetic returns from rounding noise
+    if count >= 4 and float(np.ptp(v)) > 0.0:
         from scipy.stats import kurtosis, skew
 
         out["skewness"] = _finite(skew(v, bias=False))

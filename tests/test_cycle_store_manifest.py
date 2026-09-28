@@ -59,6 +59,28 @@ def test_a_manifest_without_a_final_newline_is_not_joined_to_the_new_line(manife
     assert [json.loads(line)["table"] for line in lines_of(manifest_key)] == ["runs", "bars"]
 
 
+def test_a_relanding_replaces_the_line_of_its_recipe_and_table(manifest_key):
+    """One line per (recipe, table): the second landing's line (new time, new size) takes the
+    first one's place; other tables and recipes keep theirs."""
+    first = json.dumps({"table": "runs", "recipe": "first", "bytes": 10, "written_at": "t1"})
+    other = json.dumps({"table": "bars", "recipe": "first", "bytes": 20, "written_at": "t1"})
+    elsewhere = json.dumps({"table": "runs", "recipe": "second", "bytes": 30, "written_at": "t1"})
+    for line in (first, other, elsewhere):
+        store._append_manifest_line("model_cycle_runs", line)
+    again = json.dumps({"table": "runs", "recipe": "first", "bytes": 11, "written_at": "t2"})
+    store._append_manifest_line("model_cycle_runs", again)
+    assert lines_of(manifest_key) == [again, other, elsewhere]
+
+
+def test_duplicate_lines_of_a_pair_collapse_to_one(manifest_key):
+    duplicate = json.dumps({"table": "runs", "recipe": "first", "written_at": "t1"})
+    with open(manifest_key, "w", encoding="utf-8", newline="") as handle:
+        handle.write("\n".join([duplicate, json.dumps({"table": "runs", "recipe": "first", "written_at": "t2"}), ""]))
+    newest = json.dumps({"table": "runs", "recipe": "first", "written_at": "t3"})
+    store._append_manifest_line("model_cycle_runs", newest)
+    assert lines_of(manifest_key) == [newest]
+
+
 def test_a_line_that_keeps_being_overwritten_raises(manifest_key, monkeypatch):
     """Another writer that always wins is reported, never swallowed."""
     monkeypatch.setattr(store, "_read_manifest", lambda _filesystem, _key: "")

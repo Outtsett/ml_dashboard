@@ -49,6 +49,46 @@ The same tables sit locally under `data/models/<run>/` beside `config.json`, `fo
 bars, trades, folds, curves, trials and parameters. Runs landed before 2026-09-27 have only predictions, trades
 and folds: they reopen without a plan (no fold bands) and without the terminal.
 
+## In-depth metric tables (`src/ml/cycle/report.py`)
+
+Seven more tables land beside the record under the same recipe, built by one pure module from the record
+itself (`store.write_run` at every fold end; `scripts/land_model_cycle_metrics.py` back-fills older runs,
+checks each fold's thirty scoreboard metrics against what it recorded and refuses to land a run that does not
+reproduce them; all 30 runs in the lake were back-filled on 2026-09-27):
+
+| table | one row per | what is in it |
+|---|---|---|
+| `model_metrics` | scope, fold, segment, metric | coverage (scored bars, gap bars, base rate), classification (the scoreboard's nine plus precision / recall / F1 of down, Matthews correlation, Cohen's kappa, average precision, the confusion counts), probability (Brier skill, mean P(up), sharpness), calibration (expected / maximum calibration error over ten equal-width bins, Murphy's reliability / resolution / uncertainty), baselines (majority class, always up, lift), price forecast (the scoreboard's five plus median error, bias, forecast-actual correlation); segments: `confidence` (how far P(up) sat from 0.5) |
+| `trading_metrics` | scope, fold, segment, metric | returns (net, before costs, annualized, per session day), risk-adjusted (Sharpe, Sortino, Calmar, Sharpe standard error and the probabilistic Sharpe ratio of Bailey and Lopez de Prado, session-day Sharpe, tail ratio, common sense ratio, recovery factor), drawdown (maximum, longest in bars and days, recovery bars, average, ulcer index, count), trades (payoff ratio, streaks, average bars held for winners and losers, system quality number, ...), exposure (long / short / flat), costs (per trade, per contract per side, share of the pre-cost profit, break-even cost), buy and hold; segments: `side`, `exit_reason`, `entry_confidence` |
+| `calibration_bins` | scope, fold, bin | ten equal-width P(up) bins (scikit-learn's edge rule): bars, mean P(up), share that went up, gap |
+| `confusion_matrix` | scope, fold, actual, called | bar count and share |
+| `distributions` | scope, fold, quantity, segment | the eight numbers (plus count) of trade net, bars held, bar net, session-day net, drawdown depth, P(up), forecast error |
+| `drawdowns` | scope, fold, episode | peak, trough, recovery times, depth, bars to trough and to recovery, depth rank |
+| `daily_results` | session day | bars, exposure, net, cumulative, intraday drawdown, trades closed, cost, accuracy |
+
+Every metric row carries `metric_label`, `unit`, `better`, `definition`, `formula`, `sample_count` and `note`
+(the reason a value is null, or its provenance), so the table reads without the code. The thirty names the
+scoreboard already reports come from the same functions over the same rows; `tests/test_cycle_engine.py`
+holds them equal to the engine's final and per-fold scoreboards on full, tuned and stopped runs, and
+`tests/test_cycle_report.py` holds every other number to scikit-learn or a closed form. Session day: a CME
+Globex session opens at 15:00 Pacific and belongs to the next calendar day; futures times are stored as Pacific
+wall clock, so the session day is the date of the stored time plus nine hours.
+
+A run recorded before 2026-09-27 has no per-bar net profit (it is the change in the recorded equity, which runs
+continuously across folds) and no per-bar exposure: the exposure metrics are null with the reason (the older
+`position` column cannot rebuild the engine's exposure; measured one bar in 783 off). Its bars per year are
+recovered exactly from a fold's landed Sharpe ratio. Folds now also record `majority_class_up`.
+
+Served by `GET /api/training/cycle/:modelId/metrics` (`src/server/training/cycleReport.ts`; contract
+`src/shared/cycle/report.ts`) to the `/cycle` page's **Metrics** tab (`src/client/src/cycle/report/`): the model
+and trading metrics with the run and every fold across, then — for a picked scope — calls and calibration,
+accuracy by confidence, trades by side / exit reason / entry confidence, distributions with their shape, the
+deepest drawdowns and every session day; hover any number for its definition, formula, sample and why it is
+undefined. A live run's tables appear fold by fold. The notebook `notebooks/model_cycle_runs.py` draws them
+(the matrices, a chart of any metric across the scopes, the reliability diagram, the confusion heat-map, session
+days, drawdown depths, the distributions' shapes, and every run compared). The manifest keeps one line per
+(recipe, table): a re-landing replaces its line.
+
 ## Hyperparameters by modeling
 
 `tuning_mode` defaults to `tuned`: inside EVERY fold, Optuna (TPE seeded by `seed + fold`, `MedianPruner`)

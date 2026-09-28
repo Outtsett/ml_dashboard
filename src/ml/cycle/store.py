@@ -28,12 +28,17 @@ Local files (full-word column names):
     trials.parquet       one row per tuning trial, with its fold
     metrics.parquet      one row per emitted metric, with its fold and trial
     folds.json           fold plans, timings, metrics, model paths, parameters used, tuning
-    folds_table.parquet  the same, one row per fold
+    folds_table.parquet  the same, one row per fold (with the training majority class)
     scoreboard.json      the final scoreboard
     diagnostics.json     final metrics, folds, device, elapsed seconds, status
+    model_metrics.parquet, trading_metrics.parquet, calibration_bins.parquet,
+    confusion_matrix.parquet, distributions.parquet, drawdowns.parquet,
+    daily_results.parquet
+                         the in-depth metric tables ``cycle/report.py`` builds from the
+                         record above, rebuilt at every write
 
 Lake (the layout of ``scripts/land_regression_tab_performance.py``):
-    s3://derived/model_cycle_runs/recipe=<model_id>/table=<runs|bars|predictions|trades|folds|epochs|trials|metrics>/part-0.parquet
+    s3://derived/model_cycle_runs/recipe=<model_id>/table=<a record table or a report table>/part-0.parquet
 plus one manifest line per table per run in ``meta/ingest_manifests/model_cycle_runs.jsonl``,
 which is what defines the dashboard's ``derived_model_cycle_runs_<table>`` views.
 The landing runs in-process through ``lake.layout`` (pyarrow, zstd); when that
@@ -55,6 +60,7 @@ import pyarrow.parquet as pq
 
 from cycle.metrics import METRIC_NAMES as CYCLE_METRIC_NAMES
 from cycle.metrics import PRICE_FORECAST_METRIC_NAMES
+from cycle.report import REPORT_TABLES
 from shared.protocol import dumps_safe
 
 if TYPE_CHECKING:
@@ -63,7 +69,9 @@ if TYPE_CHECKING:
 DATASET = "model_cycle_runs"
 EXPLAIN_DIRECTORY = "explain"
 EXPLAIN_MANIFEST_VERSION = 1
-LAKE_TABLES = ("runs", "bars", "predictions", "trades", "folds", "epochs", "trials", "metrics")
+RECORD_TABLES = ("runs", "bars", "predictions", "trades", "folds", "epochs", "trials", "metrics")
+# the record, then the in-depth metric tables built from it (cycle/report.py)
+LAKE_TABLES = RECORD_TABLES + REPORT_TABLES
 DEFAULT_LAKE_PYTHON = "E:/source/repos/datalake/.venv/Scripts/python.exe"
 
 PREDICTION_COLUMNS = (
@@ -112,6 +120,8 @@ FOLD_COLUMNS = (
     ("status", pa.string()), ("error", pa.string()), ("parameters", pa.string()),
     ("tuning_objective", pa.string()), ("tuning_trial_count", pa.int64()),
     ("tuning_best_trial", pa.int64()), ("tuning_best_value", pa.float64()),
+    # 1 when the fold's training labels were mostly up, else 0: the majority-class baseline's call
+    ("majority_class_up", pa.int64()),
 )
 BAR_COLUMNS = (
     ("timestamp", pa.int64()), ("fold_index", pa.int64()), ("role", pa.string()),
@@ -182,6 +192,7 @@ def fold_rows(engine: CycleEngine) -> list[dict]:
             "price_train_bar_count": record.get("priceTrainBarCount"),
             "price_validation_bar_count": record.get("priceValidationBarCount"),
             "price_training_seconds": record.get("priceTrainingSeconds"), "price_model_path": record.get("priceModelPath"),
+            "majority_class_up": record.get("majorityClassUp"),
         })
     return rows
 
@@ -365,6 +376,20 @@ def _now_epoch() -> float:
     return time.time()
 
 
+def report_tables(engine: CycleEngine, predictions: pa.Table, trades: pa.Table, folds: pa.Table) -> dict[str, pa.Table]:
+    """The in-depth metric tables (``cycle/report.py``) built from the record just
+    written. A failure here is a warning: the record itself still lands."""
+    from cycle import report
+
+    s = engine.settings
+    try:
+        inputs = report.inputs_from_tables(s.model_id, s.symbol, predictions, trades, folds, engine.periods_per_year)
+        return report.build_report(inputs)
+    except Exception as error:  # noqa: BLE001 - the report never costs the run its record
+        engine.log(f"[save] the in-depth metric tables could not be built: {type(error).__name__}: {error}", "warn")
+        return {}
+
+
 def write_run(engine: CycleEngine, final: bool = True) -> dict:
     """Write every artifact and land every table; returns the done-diagnostics.
     ``final=False`` is the fold-boundary write (status ``running``)."""
@@ -392,6 +417,9 @@ def write_run(engine: CycleEngine, final: bool = True) -> dict:
     }
     for name, table in (("runs", runs), ("bars", bars), ("predictions", predictions), ("trades", trades),
                         ("epochs", epochs), ("trials", trials), ("metrics", metrics), ("folds", folds)):
+        pq.write_table(table, paths[name], compression="zstd")
+    for name, table in report_tables(engine, predictions, trades, folds).items():
+        paths[name] = os.path.join(directory, f"{name}.parquet")
         pq.write_table(table, paths[name], compression="zstd")
 
     final_metrics = (engine.final_scoreboard or {}).get("metrics") or {}
@@ -455,7 +483,7 @@ def write_run(engine: CycleEngine, final: bool = True) -> dict:
         "lake": None,
     }
     if s.land_in_lake:
-        diagnostics["lake"] = land_tables(engine, {name: paths[name] for name in LAKE_TABLES})
+        diagnostics["lake"] = land_tables(engine, {name: paths[name] for name in LAKE_TABLES if name in paths})
     _write_json(os.path.join(directory, "diagnostics.json"), diagnostics)
     engine.log(f"[save] {'artifacts' if final else 'the record so far'} written to {directory}", "info" if final else "debug")
     return diagnostics
@@ -474,25 +502,61 @@ def _read_manifest(filesystem, key: str) -> str:
         return source.read().decode("utf-8")
 
 
+def _pair(line: str) -> tuple[str, str] | None:
+    """(recipe, table) of a manifest line, or None for a line that is not JSON."""
+    import json as _json
+
+    try:
+        entry = _json.loads(line)
+    except ValueError:
+        return None
+    return (str(entry.get("recipe")), str(entry.get("table"))) if isinstance(entry, dict) else None
+
+
+def _with_line(existing: str, line: str) -> str:
+    """The manifest text with ``line`` as the one line of its (recipe, table): it
+    replaces the first line of that pair where it stood, and any later line of the
+    same pair is dropped; a new pair is appended."""
+    pair = _pair(line)
+    out: list[str] = []
+    placed = False
+    for current in existing.splitlines():
+        if not current.strip():
+            continue
+        if pair is not None and _pair(current) == pair:
+            if not placed:
+                out.append(line)
+                placed = True
+            continue
+        out.append(current)
+    if not placed:
+        out.append(line)
+    return "\n".join(out) + "\n"
+
+
 def _append_manifest_line(dataset: str, line: str) -> None:
-    """Append one line to ``meta/ingest_manifests/<dataset>.jsonl``.
+    """Record one line in ``meta/ingest_manifests/<dataset>.jsonl``: one line per
+    (recipe, table), so a re-landing of a table replaces its line rather than adding
+    a second (``_with_line``).
 
     An object store has no append, and the dashboard's environment has no
     ``s3fs`` (so ``UPath.open("a")`` raises there): the object is read, the line
-    added and the whole object written back through the same pyarrow filesystem
+    placed and the whole object written back through the same pyarrow filesystem
     the tables use. Two runs landing at the same moment can overwrite each
-    other, so the line is read back and appended again when it is missing."""
+    other, so the line is read back and written again when it is missing."""
     from lake.layout import INGEST_MANIFESTS, arrow_fs, arrow_key
 
     key = arrow_key(INGEST_MANIFESTS / f"{dataset}.jsonl")
     filesystem = arrow_fs()
     for _attempt in range(MANIFEST_APPEND_ATTEMPTS):
         existing = _read_manifest(filesystem, key)
-        if line in existing.splitlines():
+        wanted = _with_line(existing, line)
+        if existing == wanted:
             return
-        body = existing if existing == "" or existing.endswith("\n") else existing + "\n"
         with filesystem.open_output_stream(key) as sink:
-            sink.write((body + line + "\n").encode("utf-8"))
+            sink.write(wanted.encode("utf-8"))
+        if line in _read_manifest(filesystem, key).splitlines():
+            return
     if line not in _read_manifest(filesystem, key).splitlines():
         raise RuntimeError(f"the manifest line was overwritten {MANIFEST_APPEND_ATTEMPTS} times: {key}")
 

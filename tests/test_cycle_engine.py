@@ -1441,6 +1441,33 @@ def run_zod(events: list[dict], directory: Path) -> dict:
     return json.loads(completed.stdout.strip().splitlines()[-1])
 
 
+@pytest.mark.parametrize("which", ["full", "tuned", "stopped"])
+def test_the_report_reproduces_every_scoreboard(which, full_run, tuned_run, stopped_run):
+    """The in-depth tables (cycle/report.py), rebuilt from the landed record, carry the thirty
+    scoreboard metrics exactly as the engine scored them: the final scoreboard and every fold's."""
+    from cycle import report
+
+    run = {"full": full_run, "tuned": tuned_run, "stopped": stopped_run}[which]
+    tables = {name: pq.read_table(run.directory / f"{name}.parquet") for name in report.REPORT_TABLES}
+    engine = run.engine
+
+    def check(scope, fold_index, expected):
+        ours = report.scoreboard_values(tables, scope, fold_index)
+        assert set(ours) == set(METRIC_NAMES)
+        for name in METRIC_NAMES:
+            if expected.get(name) is None:
+                assert ours[name] is None, (scope, fold_index, name)
+            else:
+                assert ours[name] == pytest.approx(expected[name], rel=1e-9, abs=1e-9), (scope, fold_index, name)
+
+    check("run", None, engine.final_scoreboard["metrics"])
+    for record in engine.fold_records:
+        if record.get("metrics"):
+            check("fold", record["foldIndex"], record["metrics"])
+    folds = pq.read_table(run.directory / "folds_table.parquet").to_pydict()
+    assert folds["majority_class_up"] == [record["majorityClassUp"] for record in engine.fold_records]
+
+
 def test_every_cycle_event_passes_the_zod_schemas(full_run, tuned_run, stopped_run, tmp_path):
     events = full_run.capture.events + tuned_run.capture.events + stopped_run.capture.events
     result = run_zod(events, tmp_path)

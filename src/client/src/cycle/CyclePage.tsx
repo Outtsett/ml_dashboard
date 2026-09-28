@@ -40,6 +40,7 @@ import { CycleTrades } from "@/cycle/Trades";
 import { CycleFolds } from "@/cycle/Folds";
 import { CycleCurves } from "@/cycle/Curves";
 import { InsidePanel } from "@/cycle/inside/InsidePanel";
+import { CycleReportPanel } from "@/cycle/report/ReportPanel";
 
 const STATUS_META: Record<CycleClientStatus, { label: string; icon: typeof Circle; className: string }> = {
   idle: { label: "Idle", icon: Circle, className: "border-white/15 text-neutral-400" },
@@ -139,6 +140,7 @@ export default function CyclePage() {
           <TabsTrigger value="folds">Folds</TabsTrigger>
           <TabsTrigger value="curves">Curves</TabsTrigger>
           <TabsTrigger value="inside">Inside the model</TabsTrigger>
+          <TabsTrigger value="metrics">Metrics</TabsTrigger>
         </TabsList>
         {/* A definite height, not flex-1: the side panel scrolls, so flex-1
             resolves to "as tall as the content" and the virtual lists inside
@@ -158,6 +160,10 @@ export default function CyclePage() {
         </TabsContent>
         <TabsContent value="inside" className="flex-1">
           <InsidePanel />
+        </TabsContent>
+        {/* scrolls inside a definite height, like the terminal: every table of the run's report */}
+        <TabsContent value="metrics" className="h-[min(78vh,760px)] min-h-0">
+          <CycleReportPanel />
         </TabsContent>
       </Tabs>
 

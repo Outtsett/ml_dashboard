@@ -13,9 +13,12 @@ def _():
         # Model Cycle runs — every run, every bar, every prediction, from the lake
 
         Reads the same serving views the dashboard uses: `derived_model_cycle_runs_<table>` (one recipe per run:
-        `runs`, `bars`, `predictions`, `trades`, `folds`, `epochs`, `trials`, `metrics`) and
+        `runs`, `bars`, `predictions`, `trades`, `folds`, `epochs`, `trials`, `metrics`), the in-depth metric
+        tables built from that record (`model_metrics`, `trading_metrics`, `calibration_bins`, `confusion_matrix`,
+        `distributions`, `drawdowns`, `daily_results`, by `src/ml/cycle/report.py`) and
         `derived_model_cycle_audit_<table>` (the 2026-09-26 audit). Pick a run; every table is drawn beside its
-        eight-number summary. A run recorded before 2026-09-27 has only predictions, trades and folds.
+        eight-number summary. A run recorded before 2026-09-27 has only predictions, trades and folds, and its
+        metric tables leave exposure (and the forecast, when it had no price model) null with the reason.
         """
     )
     return (mo,)
@@ -298,6 +301,194 @@ def _(bars_summary, mo):
         _out = mo.vstack([mo.md("## Bars the model read"), mo.ui.table(bars_summary.to_pandas(), selection=None)])
     else:
         _out = mo.md("## Bars the model read — not landed for this run (recorded since 2026-09-27)")
+    _out
+    return
+
+
+@app.cell
+def _(frame, recipe):
+    def _report_table(name: str, order: str):
+        if not recipe:
+            return None
+        return frame(f"SELECT * EXCLUDE (recipe, model_id) FROM derived_model_cycle_runs_{name} WHERE recipe = ? ORDER BY {order}", [recipe])
+
+    model_report = _report_table("model_metrics", "scope DESC, fold_index NULLS FIRST, segment_kind, segment_value, metric_order")
+    trading_report = _report_table("trading_metrics", "scope DESC, fold_index NULLS FIRST, segment_kind, segment_value, metric_order")
+    calibration_report = _report_table("calibration_bins", "scope DESC, fold_index NULLS FIRST, bin_number")
+    confusion_report = _report_table("confusion_matrix", "scope DESC, fold_index NULLS FIRST")
+    distribution_report = _report_table("distributions", "scope DESC, fold_index NULLS FIRST, quantity_name, segment_value")
+    drawdown_report = _report_table("drawdowns", "scope DESC, fold_index NULLS FIRST, drawdown_number")
+    daily_report = _report_table("daily_results", "session_day")
+
+    def scope_label(table):
+        """'run' or 'fold k' (folds counted from 1), as a column."""
+        import polars as _pl
+
+        return table.with_columns(
+            _pl.when(_pl.col("scope") == "run").then(_pl.lit("run"))
+            .otherwise(_pl.lit("fold ") + (_pl.col("fold_index") + 1).cast(_pl.String)).alias("scope_label"))
+
+    def usable(table) -> bool:
+        return table is not None and table.height > 0 and "error" not in table.columns
+    return (calibration_report, confusion_report, daily_report, distribution_report, drawdown_report, model_report,
+            scope_label, trading_report, usable)
+
+
+@app.cell
+def _(mo, model_report, pl, scope_label, trading_report, usable):
+    def _matrix(table):
+        overall = scope_label(table.filter(pl.col("segment_kind") == "all"))
+        wide = overall.pivot(values="metric_value", index=["metric_order", "metric_family", "metric_label", "metric_name", "unit", "better"],
+                             on="scope_label", aggregate_function="first").sort("metric_order").drop("metric_order")
+        return wide
+
+    if usable(model_report) and usable(trading_report):
+        model_matrix = _matrix(model_report)
+        trading_matrix = _matrix(trading_report)
+        metric_choice = mo.ui.dropdown(
+            options={f"{row['metric_label']} ({row['metric_family']})": row["metric_name"]
+                     for row in pl.concat([model_matrix, trading_matrix], how="diagonal").iter_rows(named=True)},
+            value=None, label="Chart one metric across the run and its folds")
+        _out = mo.vstack([
+            mo.md("## In-depth metrics — every model and trading metric, the whole run and each fold"),
+            mo.md("Built from the run's own record by `cycle/report.py`; the thirty scoreboard metrics equal the engine's. "
+                  "Definitions, formulas, sample sizes and the reason for every null are columns of "
+                  "`derived_model_cycle_runs_model_metrics` / `_trading_metrics`."),
+            mo.md("### Model metrics"), mo.ui.table(model_matrix.to_pandas(), selection=None, page_size=60),
+            mo.md("### Trading metrics"), mo.ui.table(trading_matrix.to_pandas(), selection=None, page_size=80),
+            metric_choice,
+        ])
+    else:
+        model_matrix = trading_matrix = None
+        metric_choice = mo.ui.dropdown(options={}, label="Chart one metric")
+        _out = mo.md("## In-depth metrics — not landed for this run yet (`scripts/land_model_cycle_metrics.py` back-fills them)")
+    _out
+    return (metric_choice,)
+
+
+@app.cell
+def _(OKABE, alt, metric_choice, mo, model_report, pl, scope_label, trading_report, usable):
+    if metric_choice.value and usable(model_report) and usable(trading_report):
+        _rows = scope_label(pl.concat([model_report, trading_report], how="diagonal")
+                            .filter((pl.col("metric_name") == metric_choice.value) & (pl.col("segment_kind") == "all")))
+        _first = _rows.row(0, named=True)
+        _chart = alt.Chart(_rows.to_pandas()).mark_bar().encode(
+            x=alt.X("scope_label:N", title="Scope", sort=None),
+            y=alt.Y("metric_value:Q", title=f"{_first['metric_label']} ({_first['unit']})"),
+            color=alt.condition("datum.metric_value >= 0", alt.value(OKABE["orange"]), alt.value(OKABE["blue"])),
+            tooltip=["scope_label", "metric_value", "sample_count", "note"],
+        ).properties(height=220, title=f"{_first['metric_label']}: {_first['definition']}")
+        _out = mo.vstack([mo.ui.altair_chart(_chart), mo.md(f"`{_first['formula']}` · better: {_first['better']} · orange at or above zero, blue below")])
+    else:
+        _out = mo.md("_Pick a metric above to chart it across the run and its folds._")
+    _out
+    return
+
+
+@app.cell
+def _(OKABE, alt, calibration_report, confusion_report, mo, pl, scope_label, usable):
+    if usable(calibration_report):
+        _bins = scope_label(calibration_report.filter(pl.col("scored_bar_count") > 0))
+        _diagonal = alt.Chart(pl.DataFrame({"x": [0.0, 1.0], "y": [0.0, 1.0]}).to_pandas()).mark_line(color="#999999", strokeDash=[4, 4]).encode(x="x:Q", y="y:Q")
+        _points = alt.Chart(_bins.to_pandas()).mark_point(filled=True).encode(
+            x=alt.X("mean_probability_up:Q", title="Mean P(up) in the bin", scale=alt.Scale(domain=[0, 1])),
+            y=alt.Y("observed_up_fraction:Q", title="Share that went up", scale=alt.Scale(domain=[0, 1])),
+            size=alt.Size("scored_bar_count:Q", title="Scored bars"),
+            color=alt.Color("scope_label:N", title="Scope", scale=alt.Scale(range=[OKABE["orange"], OKABE["blue"], OKABE["sky"], OKABE["green"], OKABE["purple"], OKABE["yellow"]])),
+            shape=alt.Shape("scope_label:N", title="Scope"),
+            tooltip=["scope_label", "bin_number", "probability_lower", "probability_upper", "scored_bar_count", "mean_probability_up", "observed_up_fraction", "calibration_gap"],
+        )
+        _reliability = (_diagonal + _points).properties(height=300, width=320, title="Reliability: on the dashed line, P(up) means what it says").interactive()
+        _cells = scope_label(confusion_report) if usable(confusion_report) else None
+        _parts = [mo.md("## Calibration and calls"), mo.ui.altair_chart(_reliability)]
+        if _cells is not None:
+            _heat = alt.Chart(_cells.to_pandas()).mark_rect().encode(
+                x=alt.X("predicted_direction:N", title="Called"), y=alt.Y("actual_direction:N", title="Went"),
+                color=alt.Color("share_of_scored_bars:Q", scale=alt.Scale(scheme="cividis"), title="Share"),
+                column=alt.Column("scope_label:N", title="Scope"), tooltip=["scope_label", "actual_direction", "predicted_direction", "bar_count", "share_of_scored_bars"],
+            ).properties(width=120, height=120, title="Confusion matrix")
+            _parts += [mo.ui.altair_chart(_heat), mo.ui.table(_cells.to_pandas(), selection=None, page_size=12)]
+        _out = mo.vstack(_parts)
+    else:
+        _out = mo.md("")
+    _out
+    return
+
+
+@app.cell
+def _(OKABE, alt, daily_report, drawdown_report, mo, pl, scope_label, usable):
+    _parts = []
+    if usable(daily_report):
+        _days = daily_report.to_pandas()
+        _bars = alt.Chart(_days).mark_bar().encode(
+            x=alt.X("session_day:N", title="Session day (CME: 15:00 Pacific opens the next day)", sort=None),
+            y=alt.Y("net_profit_usd:Q", title="Net profit, USD"),
+            color=alt.condition("datum.net_profit_usd >= 0", alt.value(OKABE["orange"]), alt.value(OKABE["blue"])),
+            tooltip=list(_days.columns),
+        )
+        _line = alt.Chart(_days).mark_line(point=True, color=OKABE["black"]).encode(x=alt.X("session_day:N", sort=None), y="cumulative_net_profit_usd:Q")
+        _parts += [mo.md(f"## Session days — {len(_days)}"), mo.ui.altair_chart((_bars + _line).properties(height=240, title="Each session day's net profit (bars) and the running total (line)")),
+                   mo.ui.table(_days, selection=None, page_size=15)]
+    if usable(drawdown_report):
+        _drawdowns = scope_label(drawdown_report)
+        _chart = alt.Chart(_drawdowns.to_pandas()).mark_bar(color=OKABE["blue"]).encode(
+            x=alt.X("drawdown_number:O", title="Drawdown, in order"), y=alt.Y("depth_usd:Q", title="Depth, USD"),
+            column=alt.Column("scope_label:N", title="Scope"), opacity=alt.condition("datum.recovered", alt.value(1.0), alt.value(0.45)),
+            tooltip=["scope_label", "drawdown_number", "depth_usd", "bars_to_trough", "bars_to_recovery", "underwater_days", "recovered"],
+        ).properties(height=180, width=240, title="Drawdown depths (faded: never recovered)")
+        _parts += [mo.md(f"## Drawdowns — {_drawdowns.height} episodes across the scopes"), mo.ui.altair_chart(_chart),
+                   mo.ui.table(_drawdowns.sort(["scope_label", "depth_rank"]).to_pandas(), selection=None, page_size=12)]
+    mo.vstack(_parts) if _parts else mo.md("")
+    return
+
+
+@app.cell
+def _(OKABE, alt, distribution_report, mo, pl, scope_label, usable):
+    if usable(distribution_report):
+        _rows = scope_label(distribution_report).with_columns((pl.col("quantity_label") + " · " + pl.col("segment_value")).alias("quantity"))
+        _plot = _rows.filter(pl.col("unit") == "usd").to_pandas()
+        _base = alt.Chart(_plot).encode(y=alt.Y("quantity:N", title=None, sort=None))
+        # layer first, then split by scope (a faceted chart cannot be layered)
+        _chart = (
+            _base.mark_rule(color="#999999").encode(x=alt.X("minimum:Q", title="USD"), x2="maximum:Q")
+            + _base.mark_bar(color=OKABE["sky"], opacity=0.6, height=10).encode(x="percentile_25:Q", x2="percentile_75:Q")
+            + _base.mark_tick(color=OKABE["yellow"], thickness=3, size=14).encode(x="median:Q",
+                  tooltip=["quantity", "count", "mean", "median", "standard_deviation", "skewness", "kurtosis", "percentile_25", "percentile_75", "minimum", "maximum"])
+        ).properties(width=520).facet(row=alt.Row("scope_label:N", title="Scope")).properties(
+            title="USD quantities: whisker minimum to maximum, box 25th to 75th percentile, yellow tick median")
+        _out = mo.vstack([mo.md("## Distributions — the eight numbers of every quantity"), mo.ui.altair_chart(_chart),
+                          mo.ui.table(_rows.drop("quantity").to_pandas(), selection=None, page_size=25)])
+    else:
+        _out = mo.md("")
+    _out
+    return
+
+
+@app.cell
+def _(OKABE, alt, frame, mo, pl, view_exists):
+    if view_exists("derived_model_cycle_runs_trading_metrics") and view_exists("derived_model_cycle_runs_model_metrics"):
+        _names = ["net_profit_usd", "sharpe_ratio", "probabilistic_sharpe_ratio", "sharpe_ratio_standard_error", "maximum_drawdown_usd",
+                  "profit_factor", "win_rate", "trade_count", "expectancy_usd", "total_cost_usd", "net_profit_minus_buy_and_hold_usd",
+                  "accuracy", "balanced_accuracy", "roc_auc", "log_loss", "brier_skill_score", "expected_calibration_error",
+                  "matthews_correlation_coefficient", "price_forecast_skill"]
+        _long = frame(
+            f"""
+            SELECT recipe, metric_name, metric_value FROM derived_model_cycle_runs_trading_metrics
+            WHERE scope = 'run' AND segment_kind = 'all' AND metric_name IN ({", ".join("?" for _ in _names)})
+            UNION ALL
+            SELECT recipe, metric_name, metric_value FROM derived_model_cycle_runs_model_metrics
+            WHERE scope = 'run' AND segment_kind = 'all' AND metric_name IN ({", ".join("?" for _ in _names)})
+            """, _names + _names)
+        _wide = _long.pivot(values="metric_value", index="recipe", on="metric_name", aggregate_function="first")
+        _wide = _wide.select(["recipe", *[name for name in _names if name in _wide.columns]]).sort("sharpe_ratio", descending=True, nulls_last=True)
+        _scatter = alt.Chart(_wide.to_pandas()).mark_point(filled=True, size=90, color=OKABE["orange"]).encode(
+            x=alt.X("sharpe_ratio:Q", title="Sharpe ratio"), y=alt.Y("probabilistic_sharpe_ratio:Q", title="P(true Sharpe > 0)", scale=alt.Scale(domain=[0, 1])),
+            tooltip=list(_wide.columns),
+        ).properties(height=280, title="Every run: Sharpe against the probability its true Sharpe is above zero").interactive()
+        _out = mo.vstack([mo.md(f"## Every run compared — {_wide.height} runs, whole-run metrics from the metric tables"),
+                          mo.ui.altair_chart(_scatter), mo.ui.table(_wide.to_pandas(), selection=None, page_size=15)])
+    else:
+        _out = mo.md("## Every run compared — the metric tables are not in the lake yet")
     _out
     return
 

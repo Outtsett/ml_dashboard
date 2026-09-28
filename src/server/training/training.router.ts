@@ -36,6 +36,7 @@ import { TrainingService } from "./training.service";
 import { RegistryService } from "./registry.service";
 import { ensureCycleAccumulator, getCycleSnapshot, listCycleRuns } from "./cycle";
 import { listArchivedCycleRuns, loadArchivedCycleSnapshot } from "./cycleArchive";
+import { loadCycleReport } from "./cycleReport";
 import { cycleControlSchema } from "@shared/cycle/schema";
 import type { TrainingRequest, TrainingEvent } from "@shared/trainingTypes";
 import { questdbHttpQuery } from "../infrastructure/database/questdb/httpQuery";
@@ -656,6 +657,20 @@ router.get("/training/cycle/:modelId", async (req: Request, res: Response) => {
     console.warn(`[cycle] could not rebuild ${modelId} from the lake: ${String(error)}`);
   }
   return res.status(404).json({ error: `No Model Cycle run tracked or archived for ${modelId}` });
+});
+
+// The run's in-depth metric tables (cycle/report.py), read from the lake; a live run's
+// tables appear fold by fold as each fold's record lands.
+router.get("/training/cycle/:modelId/metrics", async (req: Request, res: Response) => {
+  const modelId = String(req.params.modelId);
+  try {
+    const report = await loadCycleReport(modelId);
+    if (report) return res.json(report);
+  } catch (error) {
+    console.warn(`[cycle] could not read the metric tables of ${modelId}: ${String(error)}`);
+    return res.status(500).json({ error: `The metric tables of ${modelId} could not be read: ${String(error)}` });
+  }
+  return res.status(404).json({ error: `No metric tables in the lake for ${modelId} yet` });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
