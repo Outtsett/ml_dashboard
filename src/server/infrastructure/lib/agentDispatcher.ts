@@ -174,6 +174,23 @@ function ensureBootRecovery(): void {
 
 // ─── SDK loader (lazy, optional) ────────────────────────────────────────────
 
+/** The advisors' tools: read and search, nothing that writes or sends. */
+const ADVISOR_TOOLS = ['Read', 'Glob', 'Grep', 'WebSearch'];
+/** Denied even to Read/Grep/Glob: the credential stores on this machine. */
+const ADVISOR_DENIED = [
+  'WebFetch',
+  'Bash',
+  'Write',
+  'Edit',
+  'NotebookEdit',
+  'Read(//e/source/repos/dotfiles/**)',
+  'Read(**/secrets/**)',
+  'Read(**/.env)',
+  'Read(**/*.env)',
+  'Read(**/.credentials.json)',
+  'Read(//c/Users/*/.claude/**)',
+];
+
 interface SDKQueryFn {
   (params: {
     prompt: string;
@@ -620,29 +637,41 @@ async function callSdk(
   let rateLimited = false;
   let retryAfter: number | undefined;
 
-  // Read-only advisors. Without options the SDK loaded every user setting and
-  // hook, ran in whatever directory the server happened to start in, and had no
-  // way to approve a tool — so an advisor that tried to read a file stalled.
-  // Same child environment as the Claude panel (src/server/claude/session.ts):
-  // the dashboard may have been started from a Claude Code session, whose
-  // variables would make this a nested sub-session.
+  // Read-only advisors, run unattended (dontAsk: anything not allowed here is
+  // refused, never asked). Their only tools are reading and searching: no
+  // WebFetch, because an injected instruction in a page could otherwise read a
+  // file and send it to any URL with nobody watching; and secret stores are
+  // denied by path. No setting sources: the project's hooks (the Stop quality
+  // gate) would spend minutes of every run in verify.mjs and replace the
+  // advisor's report with its reply to the gate. Same child environment as the
+  // Claude panel (src/server/claude/session.ts): the dashboard may have been
+  // started from a Claude Code session, whose variables would make this a
+  // nested sub-session.
+  const abort = new AbortController();
   const iter = sdkFn({
     prompt,
     options: {
       cwd: process.cwd(),
-      allowedTools: ['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch'],
+      tools: ADVISOR_TOOLS,
+      allowedTools: ADVISOR_TOOLS,
+      disallowedTools: ADVISOR_DENIED,
       permissionMode: 'dontAsk',
-      settingSources: ['project'],
+      settingSources: [],
       maxTurns: 30,
       env: childEnvironment(),
+      abortController: abort,
     },
   });
 
-  // Race the iterator against a timeout.
+  // Race the iterator against a timeout; a timed-out run stops its child
+  // instead of spending tokens and emitting events for a run already failed.
+  let timer: NodeJS.Timeout | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => {
+    timer = setTimeout(() => {
+      abort.abort();
       reject(new AgentDispatchError(`SDK call timed out (>${SDK_TIMEOUT_MS / 1000}s)`, 'timeout'));
-    }, SDK_TIMEOUT_MS).unref();
+    }, SDK_TIMEOUT_MS);
+    timer.unref();
   });
 
   try {
@@ -705,6 +734,12 @@ async function callSdk(
       throw new AgentDispatchError(msg, 'rate_limit', retryAfter);
     }
     throw new AgentDispatchError(msg, 'sdk_error');
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (!abort.signal.aborted) abort.abort();
+    // Not awaited: after a timeout a next() may still be pending, and return()
+    // queues behind it; the abort above is what ends the child.
+    void iter.return?.(undefined).catch(() => undefined);
   }
 
   if (rateLimited) {

@@ -208,7 +208,7 @@ def _prewarm_fold_cache(
     max_bars: int,
 ) -> None:
     date_range = {"start": train_start, "end": test_end}
-    if has_cache(symbol, timeframe, date_range, categories):
+    if has_cache(symbol, timeframe, date_range, categories, max_bars):
         emit_log(f"[hpo-nest] Cache warm for {symbol}@{timeframe} {train_start}->{test_end}")
         return
     raw = load_ohlcv_arrays(symbol, timeframe, max_bars=max_bars, date_range=date_range)
@@ -228,7 +228,8 @@ def _prewarm_fold_cache(
         )
         return matrix.astype(np.float32), list(names), ts_arr
 
-    cached_features(symbol, timeframe, date_range, categories, _compute)
+    cached_features(symbol, timeframe, date_range, categories, _compute,
+                    max_bars=max_bars, bar_timestamps=raw["timestamp"])
     emit_log(f"[hpo-nest] Prewarmed feature cache for fold {train_start}->{test_end}")
 
 

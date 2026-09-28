@@ -1,8 +1,14 @@
 /**
  * One Claude Code conversation in the panel: its history, the live event
- * stream (replayed from the last seen `seq` after a reconnect), and the actions
- * Tyler can take — send, answer a permission request, interrupt, change mode
- * or model. Events are reduced into a transcript the panel renders.
+ * stream, and the actions Tyler can take — send, answer a permission request,
+ * interrupt, change mode or model. Events are reduced into a transcript the
+ * panel renders.
+ *
+ * Every (re)connect loads the history first and only then opens the stream
+ * after the last event it held. A reconnect cannot just resume from the last
+ * `seq` it saw: when the host restarts, the session is rebuilt with its
+ * counter back at 0, and every new event (a permission request included)
+ * would sit below that stale mark and be dropped.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -12,6 +18,7 @@ import type {
   ClaudePanelEvent,
   ClaudePermissionDecision,
   ClaudePermissionMode,
+  ClaudePermissionSuggestion,
   ClaudeSessionStatus,
   ClaudeSessionSummary,
   DashboardContext,
@@ -32,6 +39,7 @@ export type TranscriptItem =
       description?: string;
       decisionReason?: string;
       canAlways: boolean;
+      suggestions?: ClaudePermissionSuggestion[];
       resolved?: "allow" | "deny" | "always";
     }
   | { kind: "result"; key: string; costUsd: number; durationMs: number; numTurns: number; isError: boolean; subtype: string }
@@ -110,6 +118,7 @@ export function reduce(view: SessionView, event: ClaudePanelEvent): SessionView 
             description: event.description,
             decisionReason: event.decisionReason,
             canAlways: event.canAlways,
+            suggestions: event.suggestions,
           },
         ],
       };
@@ -191,7 +200,7 @@ export function useClaudeSession(key: string | null) {
       source.onerror = () => {
         setConnected(false);
         source?.close();
-        retry = setTimeout(open, 2000);
+        retry = setTimeout(load, 2000);
       };
       const handler = (message: MessageEvent) => {
         try {
@@ -208,9 +217,9 @@ export function useClaudeSession(key: string | null) {
       ]) source.addEventListener(type, handler as EventListener);
     };
 
-    fetch(`/api/claude/sessions/${encodeURIComponent(key)}/history`)
+    const load = () => fetch(`/api/claude/sessions/${encodeURIComponent(key)}/history`)
       .then(async (response) => {
-        if (!response.ok) throw new Error(`history: HTTP ${response.status}`);
+        if (!response.ok) throw Object.assign(new Error(`history: HTTP ${response.status}`), { status: response.status });
         const body = (await response.json()) as {
           transcript: ClaudePanelEvent[];
           events: ClaudePanelEvent[];
@@ -227,11 +236,17 @@ export function useClaudeSession(key: string | null) {
         const next = { ...restored, status: body.session.status, sessionId: body.session.sessionId ?? restored.sessionId };
         viewRef.current = next;
         setView(next);
+        setError(null);
         open();
       })
-      .catch((historyError: Error) => {
-        if (!cancelled) setError(historyError.message);
+      .catch((historyError: Error & { status?: number }) => {
+        if (cancelled) return;
+        setError(historyError.message);
+        // The host may be restarting: keep trying, unless it says the
+        // conversation does not exist.
+        if (historyError.status !== 404) retry = setTimeout(load, 5000);
       });
+    void load();
 
     return () => {
       cancelled = true;

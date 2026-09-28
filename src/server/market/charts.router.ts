@@ -246,7 +246,9 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
 
     const cacheKey = OHLCVCache.key('chart', symbol, tfMinutes, {
       startTime: effectiveStart, endTime: effectiveEnd, limit: rowLimit,
-      extra: isFuturesRoot(symbol) ? adjustment : undefined,
+      // A default (anchored) window is the newest N bars, an explicit one the
+      // oldest N: the same range and limit are two different answers.
+      extra: isFuturesRoot(symbol) ? adjustment : anchorMs !== null ? "newest" : undefined,
     });
 
     // Bail out if client already disconnected (e.g. user switched symbols)

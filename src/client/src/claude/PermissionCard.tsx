@@ -8,7 +8,8 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ClaudePermissionDecision } from "@shared/claude/types";
+import type { ClaudePermissionDecision, ClaudePermissionSuggestion } from "@shared/claude/types";
+import { markdownComponents } from "./markdown";
 import type { TranscriptItem } from "./useClaudeSession";
 
 type PermissionItem = Extract<TranscriptItem, { kind: "permission" }>;
@@ -28,6 +29,14 @@ function preview(input: unknown): string {
   }
   const text = JSON.stringify(input, null, 1);
   return text.length > 1500 ? `${text.slice(0, 1500)}…` : text;
+}
+
+/** What one suggestion would add, in Claude Code's own rule syntax. */
+export function describeSuggestion(s: ClaudePermissionSuggestion): string {
+  if (s.type === "setMode") return `switch this session to ${s.mode} mode`;
+  if (s.directories?.length) return `${s.type === "removeDirectories" ? "remove" : "add"} ${s.directories.join(", ")}`;
+  const rules = (s.rules ?? []).map((r) => (r.ruleContent ? `${r.toolName}(${r.ruleContent})` : r.toolName)).join(", ");
+  return `${s.behavior ?? "allow"} ${rules}`.trim();
 }
 
 export function PermissionCard({ item, onAnswer }: { item: PermissionItem; onAnswer: (decision: ClaudePermissionDecision) => void }) {
@@ -103,9 +112,15 @@ export function PermissionCard({ item, onAnswer }: { item: PermissionItem; onAns
       </div>
       {item.title && <div className="text-neutral-300">{item.title}</div>}
       {item.decisionReason && <div className="text-neutral-500">{item.decisionReason}</div>}
+      {!done && item.canAlways && (item.suggestions?.length ?? 0) > 0 && (
+        <div className="text-[11px] text-neutral-500" data-testid="permission-suggestions">
+          Always allow adds, for this session only:{" "}
+          <span className="font-mono text-neutral-300">{(item.suggestions ?? []).map(describeSuggestion).join("; ")}</span>
+        </div>
+      )}
       {plan !== null ? (
         <div className="prose prose-invert prose-xs max-w-none max-h-72 overflow-y-auto">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{plan}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{plan}</ReactMarkdown>
         </div>
       ) : (
         <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-neutral-950 p-2 font-mono text-[11px] text-neutral-300">{preview(item.input)}</pre>
@@ -118,7 +133,12 @@ export function PermissionCard({ item, onAnswer }: { item: PermissionItem; onAns
             Allow
           </button>
           {item.canAlways && (
-            <button type="button" onClick={() => onAnswer({ decision: "always" })} className="rounded border border-neutral-600 px-2.5 py-1 text-neutral-300 hover:bg-neutral-800" title="Allow and add Claude Code's suggested permission rule">
+            <button
+              type="button"
+              onClick={() => onAnswer({ decision: "always" })}
+              className="rounded border border-neutral-600 px-2.5 py-1 text-neutral-300 hover:bg-neutral-800"
+              title={`Allow, and for the rest of this session: ${(item.suggestions ?? []).map(describeSuggestion).join("; ")}`}
+            >
               Always allow
             </button>
           )}

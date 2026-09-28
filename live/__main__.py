@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
 import sys
+from pathlib import Path
 
 from aiohttp import web
 
@@ -17,7 +19,7 @@ from .feeds import Feeds
 from .gdelt import GdeltWorker
 from .hub import Hub
 from .landing import Lander
-from .news import NewsPipeline
+from .news import NewsPipeline, known_at
 from .oanda import Oanda
 from .scoring import Scorer
 from .tape import TapeTailer
@@ -40,7 +42,7 @@ def restore_today(hub: Hub, pipeline: NewsPipeline, lander: Lander) -> int:
                                                              "relevance": row["relevance"], "tier": row["tier"]})
             if row["relevance"] > route["relevance"]:
                 route.update(direction=row.get("direction") or 1, relevance=row["relevance"], tier=row["tier"])
-        pipeline.remember(row["article_id"], seen, {row["query_tag"]})
+        pipeline.remember(row["article_id"], row["vendor"], seen, {row["query_tag"]})
     restored = []
     for article_id, entry in articles.items():
         score = scores.get(article_id)
@@ -51,7 +53,7 @@ def restore_today(hub: Hub, pipeline: NewsPipeline, lander: Lander) -> int:
         restored.append({
             "articleId": article_id, "title": row["title"], "url": row["url"], "domain": row["domain"],
             "vendor": row["vendor"], "source": row["query_tag"], "seenTs": int(seen * 1000),
-            "knownTs": int((seen + (900 if row["vendor"] == "gdelt" else 0)) * 1000),
+            "knownTs": int(known_at(row["vendor"], seen) * 1000),
             "publishedTs": int(row["published_ts"].timestamp() * 1000) if row.get("published_ts") else None,
             "routes": sorted(entry["routes"].values(), key=lambda e: -e["relevance"]),
             "tags": sorted(entry["tags"]), "score": score["score"], "label": score["label"],
@@ -63,21 +65,56 @@ def restore_today(hub: Hub, pipeline: NewsPipeline, lander: Lander) -> int:
     return len(restored)
 
 
+def lock_spool(spool: Path):
+    """Hold ``<spool>/hub.lock`` for the life of the process, or return None when
+    another hub already holds it. Two hubs on one spool would each spend the
+    Alpha Vantage budget, walk the GDELT cursor and rewrite the same day files."""
+    handle = (spool / "hub.lock").open("a+b")
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        handle.close()
+        return None
+    return handle
+
+
+async def _step(lander: Lander, name: str, fn) -> None:
+    """One landing step; an error is recorded and retried at the next tick —
+    it must never end the loop, or nothing lands for the rest of the process."""
+    try:
+        await asyncio.to_thread(fn)
+    except Exception as error:  # noqa: BLE001
+        lander.counters["lastError"] = f"{name}: {type(error).__name__}: {error}"
+        log.exception("landing step %s failed; retried at the next tick", name)
+
+
 async def periodic(hub: Hub, lander: Lander, config: dict) -> None:
     spool_every = float(config.get("spoolFlushSeconds", 300))
     last_spool = 0.0
     loop = asyncio.get_running_loop()
     while True:
         await asyncio.sleep(30)
-        await asyncio.to_thread(lander.flush_raw)
+        await _step(lander, "flush_raw", lander.flush_raw)
         if loop.time() - last_spool >= spool_every:
             last_spool = loop.time()
-            await asyncio.to_thread(lander.flush_spool)
+            await _step(lander, "flush_spool", lander.flush_spool)
 
 
 async def main(port: int) -> None:
     config = settings.load()
     spool = settings.spool_dir(config)
+    spool_lock = lock_spool(spool)
+    if spool_lock is None:
+        log.error("another live hub holds %s; not starting a second one on it", spool / "hub.lock")
+        raise SystemExit(3)
     hub = Hub(config)
     hub.loop = asyncio.get_running_loop()
     lander = Lander(hub, config, spool)
@@ -111,11 +148,21 @@ async def main(port: int) -> None:
     if config.get("gdelt", {}).get("enabled", True):
         GdeltWorker(hub, pipeline, config["gdelt"], spool).start()
 
-    done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
+    # Every task catches its own errors and runs forever; one that ends has
+    # hit something it cannot recover from. Save what is buffered and exit, so
+    # the dashboard's supervisor restarts the whole hub rather than leaving it
+    # half alive (still streaming, no longer landing).
+    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
     for task in done:
-        if task.exception() is not None:
-            log.error("task %s died: %r", task.get_name(), task.exception())
-    await asyncio.gather(*tasks, return_exceptions=True)
+        log.error("task %s ended: %r", task.get_name(),
+                  task.exception() if not task.cancelled() else "cancelled")
+    for task in pending:
+        task.cancel()
+    await asyncio.gather(*pending, return_exceptions=True)
+    await _step(lander, "flush_raw", lambda: lander.flush_raw(force=True))
+    await _step(lander, "flush_spool", lander.flush_spool)
+    spool_lock.close()
+    raise SystemExit(1)
 
 
 def cli() -> None:

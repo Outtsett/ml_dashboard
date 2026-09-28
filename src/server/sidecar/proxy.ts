@@ -8,6 +8,10 @@
  * A request that arrives while the sidecar is down starts it first (bounded by
  * the sidecar's ready timeout) rather than failing — the Claude panel opens a
  * session on first use, and the live hub may be mid-restart after a crash.
+ *
+ * Only a request addressed to this machine by a loopback name is forwarded: a
+ * DNS-rebinding page reaches :5000 under its own host name, and `changeOrigin`
+ * would otherwise erase that before the sidecar could see it.
  */
 
 import type { Express, NextFunction, Request, Response } from "express";
@@ -22,9 +26,20 @@ export function isSidecarPath(pathname: string): boolean {
   return loadSidecarsConfig().sidecars.some((s) => pathname === s.proxyPrefix || pathname.startsWith(`${s.proxyPrefix}/`));
 }
 
+const LOOPBACK_HOST = /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i;
+
+export function isLoopbackHost(host: string | undefined): boolean {
+  return LOOPBACK_HOST.test(String(host ?? ""));
+}
+
 export function registerSidecarProxies(app: Express): void {
   for (const sidecar of loadSidecarsConfig().sidecars) {
     const prefix = sidecar.proxyPrefix;
+
+    app.use(prefix, (req: Request, res: Response, next: NextFunction) => {
+      if (isLoopbackHost(req.headers.host)) return next();
+      res.status(403).json({ error: `${sidecar.label} answers this machine's own pages only` });
+    });
 
     app.use(prefix, async (req: Request, res: Response, next: NextFunction) => {
       if (sidecarStatus(sidecar.slug) === "ready") return next();

@@ -123,7 +123,11 @@ export function useChartOHLCV(symbol: string, timeframeMinutes: number) {
   useEffect(() => {
     if (chartQueryData) {
       setVisibleData(chartQueryData);
-      setHasMoreLeft(false);
+      // The default window is the NEWEST bars (the server anchors it on the
+      // last bar), so older history lies to the left of it; a left page that
+      // comes back empty turns this off. Forcing it false here once disabled
+      // scrolling back for good.
+      setHasMoreLeft(chartQueryData.length > 0);
       setHasMoreRight(chartQueryData.length >= FETCH_LIMIT);
     }
   }, [chartQueryData, FETCH_LIMIT]);

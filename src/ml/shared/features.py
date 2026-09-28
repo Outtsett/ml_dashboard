@@ -344,5 +344,7 @@ def load_features_with_cache(
         date_range=date_range,
         categories=categories,
         compute_fn=_compute,
+        max_bars=max_bars,
+        bar_timestamps=raw["timestamp"],
     )
     return matrix, names, timestamps, raw

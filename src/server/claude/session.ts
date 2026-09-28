@@ -15,12 +15,14 @@
 
 import { randomUUID } from "crypto";
 import type { CanUseTool, PermissionResult, Query, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import { CLAUDE_PERMISSION_MODES } from "../../shared/claude/types";
 import type {
   ClaudeAssistantBlock,
   ClaudePanelEvent,
   ClaudePanelEventInput,
   ClaudePermissionDecision,
   ClaudePermissionMode,
+  ClaudePermissionSuggestion,
   ClaudeSessionStatus,
   DashboardContext,
 } from "../../shared/claude/types";
@@ -59,7 +61,7 @@ export const PANEL_PROMPT = [
   "Tools from the `dashboard` MCP server: open_dashboard_page navigates his dashboard (use it to show him what you",
   "built or found), dashboard_api_get reads any GET endpoint of the dashboard's /api, live_quotes and news_sentiment",
   "read the live data hub (OANDA forex, Yahoo delayed futures, FinBERT-scored headlines).",
-  "Every tool call you make is shown to him in the panel and approved or denied there.",
+  "Every tool call you make is shown to him in the panel; the ones Claude Code would ask about are approved or denied there.",
 ].join(" ");
 
 /** A content block as SDK messages and transcripts carry it — read field by field. */
@@ -136,6 +138,33 @@ export interface SessionDeps {
   cwd: string;
   loadSdk: () => Promise<typeof import("@anthropic-ai/claude-agent-sdk")>;
   mcpServers: (session: ClaudeSession) => Record<string, unknown>;
+  /** True while a browser tab is streaming this session. */
+  hasViewers?: (session: ClaudeSession) => boolean;
+}
+
+/** A permission update as the SDK hands it, read field by field. */
+interface WireSuggestion {
+  type?: string;
+  behavior?: string;
+  mode?: string;
+  destination?: string;
+  rules?: { toolName?: string; ruleContent?: string }[];
+  directories?: string[];
+}
+
+function suggestionsFrom(value: unknown): WireSuggestion[] {
+  return Array.isArray(value) ? (value.filter((s) => s && typeof s === "object") as WireSuggestion[]) : [];
+}
+
+/** The card's view of a suggestion (no destination: the panel applies it for this session only). */
+function describeSuggestion(s: WireSuggestion): ClaudePermissionSuggestion {
+  return {
+    type: String(s.type ?? ""),
+    behavior: s.behavior,
+    mode: s.mode,
+    rules: s.rules?.map((r) => ({ toolName: String(r.toolName ?? ""), ruleContent: r.ruleContent })),
+    directories: s.directories,
+  };
 }
 
 export class ClaudeSession {
@@ -350,6 +379,7 @@ export class ClaudeSession {
         if (this.pending.delete(requestId)) resolve({ behavior: "deny", message: "Cancelled." });
       });
       this.setStatus("waiting", toolName);
+      const suggestions = suggestionsFrom(options.suggestions);
       this.emit({
         type: "permission_request",
         requestId,
@@ -358,7 +388,8 @@ export class ClaudeSession {
         title: options.title,
         description: options.description,
         decisionReason: typeof options.decisionReason === "string" ? options.decisionReason : undefined,
-        canAlways: Array.isArray(options.suggestions) && options.suggestions.length > 0,
+        canAlways: suggestions.length > 0,
+        suggestions: suggestions.map(describeSuggestion),
       });
     });
   }
@@ -371,11 +402,13 @@ export class ClaudeSession {
       pending.resolve({ behavior: "deny", message: decision.message || "Denied from the dashboard panel." });
     } else {
       const updatedInput = decision.answers ? { ...pending.input, answers: decision.answers } : pending.input;
-      pending.resolve(
-        decision.decision === "always" && pending.suggestions
-          ? { behavior: "allow", updatedInput, updatedPermissions: pending.suggestions as never }
-          : { behavior: "allow", updatedInput },
-      );
+      // "Always" applies exactly what the card showed, for THIS session only:
+      // a suggestion aimed at a settings file would otherwise outlive the panel
+      // and loosen every later session, terminal ones included.
+      const updates = decision.decision === "always" ? suggestionsFrom(pending.suggestions).map((s) => ({ ...s, destination: "session" })) : [];
+      const mode = updates.find((s) => s.type === "setMode")?.mode;
+      if (mode && (CLAUDE_PERMISSION_MODES as readonly string[]).includes(mode)) this.permissionMode = mode as ClaudePermissionMode;
+      pending.resolve(updates.length ? { behavior: "allow", updatedInput, updatedPermissions: updates as never } : { behavior: "allow", updatedInput });
     }
     this.emit({ type: "permission_resolved", requestId, decision: decision.decision });
     if (this.pending.size === 0) this.setStatus("running");
@@ -409,10 +442,24 @@ export class ClaudeSession {
     this.query?.close();
   }
 
+  /** The idle clock, re-armed until it can act: an idle session closes; a
+   *  session nobody is watching (tab closed mid-approval) has its pending
+   *  approvals denied and closes; one being watched keeps running. */
   private touch(): void {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(() => {
-      if (this.status === "idle" && this.pending.size === 0) this.close();
+      this.idleTimer = null;
+      if (!this.query) return;
+      const watched = this.deps.hasViewers?.(this) ?? false;
+      if (this.status === "idle" && this.pending.size === 0) return this.close();
+      if (!watched) {
+        for (const [requestId, pending] of this.pending) {
+          pending.resolve({ behavior: "deny", message: "Nobody answered in the dashboard panel." });
+          this.pending.delete(requestId);
+        }
+        return this.close();
+      }
+      this.touch();
     }, IDLE_CLOSE_MS);
     this.idleTimer.unref();
   }

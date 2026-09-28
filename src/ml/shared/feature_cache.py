@@ -7,9 +7,15 @@ on a 10-minute cron and evicts oldest-first when the 2 GB cap is breached, so we
 only have to write atomically.
 
 Cache key inputs:
-  - symbol, timeframe, date_range (start/end)
+  - symbol, timeframe, date_range (start/end), max_bars (the newest-N cap)
   - sorted feature category list
   - mtime of src/config/features.json (auto-invalidates on registry edits)
+  - the news data version (the mandatory FinBERT family changes when news lands)
+
+A hit is also checked against the bars the caller just loaded
+(``bar_timestamps``): a cached matrix whose ``ts`` column is not exactly those
+bars is recomputed, never paired with them — rows of one bar set indexed by
+labels of another train silently on garbage.
 
 Layout of a cached parquet:
   Columns: ``ts`` (Int64 epoch-sec), ``f_<name>`` (Float32) for each feature.
@@ -71,11 +77,15 @@ def _build_key(
     timeframe: str,
     date_range: dict | None,
     categories: list[str] | None,
+    max_bars: int | None = None,
 ) -> str:
     payload = {
         "symbol": symbol,
         "timeframe": timeframe,
         "date_range": date_range or {},
+        # load_ohlcv_arrays keeps the NEWEST max_bars bars (0 = all): two runs
+        # that differ only here load different bars.
+        "max_bars": int(max_bars or 0),
         "categories": sorted(categories or []),
         "features_json_mtime_ns": _features_json_mtime_ns(),
         # Every matrix carries the mandatory FinBERT family, which changes when
@@ -96,6 +106,9 @@ def cached_features(
     date_range: dict | None,
     categories: list[str] | None,
     compute_fn: Callable[[], tuple[np.ndarray, list[str], np.ndarray]],
+    *,
+    max_bars: int | None = None,
+    bar_timestamps=None,
 ) -> tuple[np.ndarray, list[str], np.ndarray]:
     """Return (feature_matrix, feature_names, timestamps), reading from disk on hit.
 
@@ -108,6 +121,11 @@ def cached_features(
         Cache-key inputs. ``date_range`` should be ``None`` or a dict with keys
         ``start`` and ``end`` (ISO date strings). ``categories`` should be the
         feature categories actually used.
+    max_bars
+        The newest-N cap the bars were loaded with (0 or None = all).
+    bar_timestamps
+        The timestamps of the bars the caller loaded. On a hit the cached ``ts``
+        column must equal them exactly, or the matrix is recomputed.
     compute_fn
         Zero-arg callable that returns ``(matrix, names, timestamps)`` where
         - ``matrix``      shape ``(n_rows, n_features)`` (any float dtype OK)
@@ -119,13 +137,21 @@ def cached_features(
     Same triple, with matrix downcast to float32 and timestamps as int64.
     """
     _ensure_cache_dir()
-    key = _build_key(symbol, timeframe, date_range, categories)
+    key = _build_key(symbol, timeframe, date_range, categories, max_bars)
     parquet_path = _CACHE_DIR / f"{key}.parquet"
     sidecar_path = _CACHE_DIR / f"{key}.json"
 
     if parquet_path.exists() and sidecar_path.exists():
         try:
-            return _load_cached(parquet_path, sidecar_path)
+            cached = _load_cached(parquet_path, sidecar_path)
+            expected = None if bar_timestamps is None else _normalize_timestamps(bar_timestamps)
+            if expected is None or np.array_equal(cached[2], expected):
+                return cached
+            emit_log(
+                f"[feature_cache] {key[:12]} holds {cached[2].shape[0]:,} bars, not the "
+                f"{expected.shape[0]:,} just loaded; recomputing",
+                level="warning",
+            )
         except Exception as exc:
             emit_log(
                 f"[feature_cache] Load failed for {key[:12]}, recomputing: {exc}",
@@ -169,10 +195,11 @@ def cache_path_for(
     timeframe: str,
     date_range: dict | None,
     categories: list[str] | None,
+    max_bars: int | None = None,
 ) -> Path:
     """Return the canonical parquet path for a given key — used by HPO preloader."""
     _ensure_cache_dir()
-    return _CACHE_DIR / f"{_build_key(symbol, timeframe, date_range, categories)}.parquet"
+    return _CACHE_DIR / f"{_build_key(symbol, timeframe, date_range, categories, max_bars)}.parquet"
 
 
 def has_cache(
@@ -180,10 +207,11 @@ def has_cache(
     timeframe: str,
     date_range: dict | None,
     categories: list[str] | None,
+    max_bars: int | None = None,
 ) -> bool:
     """True if both parquet and sidecar exist for this key."""
     _ensure_cache_dir()
-    key = _build_key(symbol, timeframe, date_range, categories)
+    key = _build_key(symbol, timeframe, date_range, categories, max_bars)
     return (_CACHE_DIR / f"{key}.parquet").exists() and (_CACHE_DIR / f"{key}.json").exists()
 
 

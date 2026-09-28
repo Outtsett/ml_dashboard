@@ -56,7 +56,12 @@ class GdeltWorker(threading.Thread):
         self.buffer_units: list[tuple[str, datetime, datetime, int]] = []
         self.next_sweep = 0.0
         self.cooloff_until = 0.0
+        # A refusal doubles the wait until the next attempt, up to the ceiling;
+        # an answered request resets it. GDELT's throttle outlasts a fixed ten
+        # minutes, and every probe during it (five retries each) extends it.
         self.cooloff_seconds = float(config.get("cooloffSeconds", 600))
+        self.cooloff_ceiling = float(config.get("cooloffMaxSeconds", 4 * 3600))
+        self.refusals = 0
 
     def _load(self) -> dict:
         try:
@@ -113,6 +118,7 @@ class GdeltWorker(threading.Thread):
                 self._cool_off(self.live, f"{query.tag}: GDELT refused {len(result.failed)} window(s)")
                 self.next_sweep = self.cooloff_until
                 return
+            self._answered()
             new = self._ingest(gdelt, query, result.articles, live=True, sink=None)
             new_total += new
             if self.hub.lander is not None:
@@ -126,10 +132,16 @@ class GdeltWorker(threading.Thread):
         self.live.extra.update(lastSweepAt=time.time(), lastSweepNew=new_total, rules=len(self.queries))
 
     def _cool_off(self, health, reason: str) -> None:
-        self.cooloff_until = time.time() + self.cooloff_seconds
+        self.refusals += 1
+        seconds = min(self.cooloff_ceiling, self.cooloff_seconds * 2 ** (self.refusals - 1))
+        self.cooloff_until = time.time() + seconds
         health.fail(reason)
-        health.note = f"GDELT is refusing requests; next attempt in {self.cooloff_seconds / 60:.0f} min"
-        log.warning("gdelt cool-off %ds: %s", self.cooloff_seconds, reason)
+        health.note = (f"GDELT is refusing requests ({self.refusals} in a row); "
+                       f"next attempt in {seconds / 60:.0f} min")
+        log.warning("gdelt cool-off %ds (refusal %d): %s", seconds, self.refusals, reason)
+
+    def _answered(self) -> None:
+        self.refusals = 0
 
     def _ingest(self, gdelt, query, articles: list[dict], *, live: bool, sink) -> int:
         new = 0
@@ -156,6 +168,7 @@ class GdeltWorker(threading.Thread):
             # coverage nor done.
             self._cool_off(self.backfill, f"{query.tag} {start:%Y-%m-%d}: GDELT refused")
             return
+        self._answered()
         if self.hub.lander is not None:
             self.hub.lander.raw("gdelt", "doc-artlist-backfill", json.dumps({
                 "query": query.tag, "start": start.isoformat(), "end": end.isoformat(),

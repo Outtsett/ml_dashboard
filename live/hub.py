@@ -178,6 +178,13 @@ class Hub:
         record = {"symbol": symbol, "assetClass": klass, "timeframe": "1m",
                   "tChart": chart_ms(int(bar["t"]), klass), **bar}
         by_time = self.bars.setdefault(symbol, {})
+        # Precedence lapses after PRECEDENCE_SECONDS, but a minute a better
+        # source already built stays its: Yahoo runs ~9 minutes behind, so once
+        # Quantower goes quiet Yahoo's next poll re-delivers minutes Quantower
+        # recorded in real time.
+        held = by_time.get(record["t"])
+        if held is not None and self.RANK.get(held["source"], 0) > self.RANK.get(record["source"], 0):
+            return
         order = self.bar_order.setdefault(symbol, deque())
         if record["t"] not in by_time:
             order.append(record["t"])

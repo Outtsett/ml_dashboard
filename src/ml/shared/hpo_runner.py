@@ -103,12 +103,12 @@ def _preload_feature_cache(model_type: str, training_args: dict[str, Any]) -> No
         else:
             categories = None
 
-        if has_cache(symbol, timeframe, date_range, categories):
+        max_bars = int(training_args.get("max_bars") or 0)
+        if has_cache(symbol, timeframe, date_range, categories, max_bars):
             emit_log(f"[hpo] Feature cache already warm for {symbol}@{timeframe}")
             return
 
         emit_log(f"[hpo] Pre-warming feature cache for {symbol}@{timeframe}…")
-        max_bars = int(training_args.get("max_bars") or 0)
         raw = load_ohlcv_arrays(symbol, timeframe, max_bars=max_bars, date_range=date_range)
 
         def _compute():
@@ -127,7 +127,8 @@ def _preload_feature_cache(model_type: str, training_args: dict[str, Any]) -> No
 
             return matrix.astype(_np.float32), list(names), _np.asarray(ts_arr, dtype=_np.int64)
 
-        cached_features(symbol, timeframe, date_range, categories, _compute)
+        cached_features(symbol, timeframe, date_range, categories, _compute,
+                        max_bars=max_bars, bar_timestamps=raw["timestamp"])
         emit_log("[hpo] Feature cache warm.")
     except Exception as exc:  # noqa: BLE001
         logger.warning("Feature cache pre-warm skipped: %s", exc)

@@ -183,6 +183,8 @@ def load_features(args: argparse.Namespace) -> tuple[np.ndarray, list[str], np.n
         date_range=date_range,
         categories=categories,
         compute_fn=_compute,
+        max_bars=int(args.max_bars or 0),
+        bar_timestamps=raw["timestamp"],
     )
     return matrix, names, timestamps, raw
 

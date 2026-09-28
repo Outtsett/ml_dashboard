@@ -19,16 +19,24 @@
  *
  * Authentication is the logged-in Claude Code CLI (~/.claude/.credentials.json);
  * no API key is involved.
+ *
+ * Reachable only from this machine's own pages: every request must carry a
+ * loopback Host (a DNS-rebinding page has its own name there) and, when a
+ * browser sends one, a loopback Origin. The dashboard's proxy rewrites Host to
+ * 127.0.0.1:<port> and checks the caller's own Host before forwarding
+ * (src/server/sidecar/proxy.ts).
  */
 
 import http from "http";
 import path from "path";
 import express, { type Request, type Response } from "express";
-import type {
-  ClaudeAssistantBlock,
-  ClaudePanelEvent,
-  ClaudePermissionDecision,
-  ClaudeSessionSummary,
+import {
+  CLAUDE_PERMISSION_MODES,
+  type ClaudeAssistantBlock,
+  type ClaudePanelEvent,
+  type ClaudePermissionDecision,
+  type ClaudePermissionMode,
+  type ClaudeSessionSummary,
 } from "../../shared/claude/types";
 import { ClaudeSession, stringifyToolContent, type WireBlock } from "./session";
 import { dashboardServer } from "./tools";
@@ -39,21 +47,36 @@ const PORT = Number(portArg >= 0 ? process.argv[portArg + 1] : process.env.CLAUD
 const STARTED_AT = new Date().toISOString();
 
 const sessions = new Map<string, ClaudeSession>();
+const viewers = new Map<ClaudeSession, number>();
 const loadSdk = () => import("@anthropic-ai/claude-agent-sdk");
+const MAX_SESSIONS = 40;
+
+/** Drop a session nobody is running or watching; its transcript stays on disk. */
+function evict(session: ClaudeSession): void {
+  if (session.active || (viewers.get(session) ?? 0) > 0) return;
+  for (const [key, held] of sessions) if (held === session) sessions.delete(key);
+  dashboardServerCache.delete(session);
+  viewers.delete(session);
+}
 
 function newSession(opts: { sessionId?: string | null; title?: string }): ClaudeSession {
+  const distinct = new Set(sessions.values());
+  if (distinct.size >= MAX_SESSIONS) for (const held of distinct) evict(held);
   const session = new ClaudeSession(
     {
       cwd: REPO,
       loadSdk,
       mcpServers: (owner) => ({ dashboard: dashboardServerCache.get(owner) }),
+      hasViewers: (owner) => (viewers.get(owner) ?? 0) > 0,
     },
     opts,
   );
   sessions.set(session.key, session);
-  // Once the SDK assigns the session id, address the same object by it too.
+  // Once the SDK assigns the session id, address the same object by it too;
+  // when its child exits and no tab is watching, let it go.
   session.subscribe((event) => {
     if (event.type === "init" && !sessions.has(event.sessionId)) sessions.set(event.sessionId, session);
+    if (event.type === "status" && event.detail === "session closed") setImmediate(() => evict(session));
   });
   return session;
 }
@@ -147,6 +170,17 @@ function summary(session: ClaudeSession): ClaudeSessionSummary {
 }
 
 const app = express();
+const LOOPBACK_HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`, `[::1]:${PORT}`]);
+const LOOPBACK_ORIGIN = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i;
+app.use((req, res, next) => {
+  const host = String(req.headers.host ?? "").toLowerCase();
+  const origin = req.headers.origin;
+  if (!LOOPBACK_HOSTS.has(host) || (origin !== undefined && !LOOPBACK_ORIGIN.test(origin))) {
+    return void res.status(403).json({ error: "the Claude host answers this machine's own pages only" });
+  }
+  if (req.headers["sec-fetch-site"] === "cross-site") return void res.status(403).json({ error: "cross-site request refused" });
+  next();
+});
 app.use(express.json({ limit: "2mb" }));
 
 app.get("/health", (_req, res) => {
@@ -211,10 +245,13 @@ app.get("/sessions/:key/stream", async (req, res) => {
   const write = (event: ClaudePanelEvent) => res.write(`id: ${event.seq}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
   for (const event of session.since(after)) write(event);
   const unsubscribe = session.subscribe(write);
+  viewers.set(session, (viewers.get(session) ?? 0) + 1);
   const keepalive = setInterval(() => res.write(": keepalive\n\n"), 15_000);
   req.on("close", () => {
     clearInterval(keepalive);
     unsubscribe();
+    viewers.set(session, Math.max(0, (viewers.get(session) ?? 1) - 1));
+    if (!session.active) evict(session);
   });
 });
 
@@ -251,7 +288,15 @@ app.post("/sessions/:key/interrupt", async (req, res) => {
 app.post("/sessions/:key/settings", async (req, res) => {
   const session = await sessionFor(req.params.key);
   if (!session) return void res.status(404).json({ error: "unknown session" });
-  await session.settings({ permissionMode: req.body?.permissionMode, model: req.body?.model });
+  const permissionMode = req.body?.permissionMode;
+  const model = req.body?.model;
+  if (permissionMode !== undefined && !(CLAUDE_PERMISSION_MODES as readonly unknown[]).includes(permissionMode)) {
+    return void res.status(400).json({ error: `permissionMode must be one of ${CLAUDE_PERMISSION_MODES.join(", ")}` });
+  }
+  if (model !== undefined && (typeof model !== "string" || !/^[A-Za-z0-9._\-[\]]{0,80}$/.test(model))) {
+    return void res.status(400).json({ error: "model must be a model id" });
+  }
+  await session.settings({ permissionMode: permissionMode as ClaudePermissionMode | undefined, model });
   res.json(summary(session));
 });
 

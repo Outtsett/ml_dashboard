@@ -8,6 +8,19 @@ export type ClaudeSessionStatus = "idle" | "starting" | "running" | "waiting" | 
 
 export type ClaudePermissionMode = "default" | "acceptEdits" | "plan" | "auto" | "bypassPermissions" | "dontAsk";
 
+export const CLAUDE_PERMISSION_MODES: readonly ClaudePermissionMode[] = [
+  "default", "acceptEdits", "plan", "auto", "bypassPermissions", "dontAsk",
+];
+
+/** One permission update Claude Code suggests with a tool request, as the card shows it. */
+export interface ClaudePermissionSuggestion {
+  type: string;
+  behavior?: string;
+  mode?: string;
+  rules?: { toolName: string; ruleContent?: string }[];
+  directories?: string[];
+}
+
 export type ClaudeAssistantBlock =
   | { type: "text"; text: string }
   | { type: "thinking"; text: string }
@@ -47,6 +60,8 @@ export type ClaudePanelEvent = Base &
         description?: string;
         decisionReason?: string;
         canAlways: boolean;
+        /** What "Always allow" would add, shown on the card. Applied for this session only. */
+        suggestions?: ClaudePermissionSuggestion[];
       }
     | { type: "permission_resolved"; requestId: string; decision: "allow" | "deny" | "always" }
     | { type: "result"; subtype: string; isError: boolean; costUsd: number; durationMs: number; numTurns: number; text: string }

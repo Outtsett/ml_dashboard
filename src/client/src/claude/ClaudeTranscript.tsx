@@ -9,6 +9,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ChevronRight, Wrench } from "lucide-react";
 import type { ClaudePermissionDecision } from "@shared/claude/types";
+import { markdownComponents } from "./markdown";
 import { PermissionCard } from "./PermissionCard";
 import type { SessionView, TranscriptItem } from "./useClaudeSession";
 
@@ -25,7 +26,7 @@ function toolSummary(name: string, input: unknown): string {
 function Markdown({ text }: { text: string }) {
   return (
     <div className="prose prose-invert prose-sm max-w-none text-[13px] leading-relaxed prose-pre:bg-neutral-950 prose-pre:text-[11px] prose-code:text-[#56B4E9] prose-a:text-[#56B4E9]">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{text}</ReactMarkdown>
     </div>
   );
 }

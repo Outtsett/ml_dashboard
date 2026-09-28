@@ -257,8 +257,23 @@ export async function stopSidecar(slug: string): Promise<SidecarRuntime> {
 export async function restartSidecar(slug: string): Promise<SidecarRuntime> {
   const sidecar = findSidecar(slug);
   if (!sidecar) throw new Error(`unknown sidecar "${slug}"`);
-  // An adopted process is not in our PID bookkeeping — kill by port owner.
+  // An adopted process is not in our PID bookkeeping — kill by port owner, but
+  // only when that owner IS this sidecar: it answers /health as this slug, or
+  // it is the process we recorded (a wedged sidecar answers nothing, and is
+  // exactly the one a restart is for). Anything else holding the port is
+  // refused, as startInternal refuses it, never tree-killed.
   const owner = resolvePortOwner(sidecar.port);
+  const known = state(slug).pid;
+  const answers = owner.pid ? await probe(sidecar) : null;
+  if (owner.pid && !answers && owner.pid !== known) {
+    const s = state(slug);
+    s.status = "error";
+    s.error =
+      `Port ${sidecar.port} for sidecar "${sidecar.slug}" is held by something that does not answer as this sidecar — ` +
+      `${owner.description}. Not killed; free it or change src/config/sidecars.json.`;
+    logger.error(s.error);
+    return runtime(sidecar);
+  }
   await stopSidecar(slug);
   if (owner.pid) killTree(owner.pid);
   for (let i = 0; i < 20 && (await isPortOpen(sidecar.port)); i++) await new Promise((r) => setTimeout(r, 250));
