@@ -3,7 +3,7 @@
     {
       "slug": "live",
       "label": "Live data hub",
-      "description": "OANDA live forex + CFD proxies, Yahoo delayed futures, RSS / Alpha Vantage / GDELT news scored by FinBERT, landed write-once in the lake",
+      "description": "OANDA live forex (18 pairs), Yahoo delayed futures, RSS / Alpha Vantage / GDELT news scored by FinBERT, landed write-once in the lake",
       "port": 17192,
       "command": ".venv/Scripts/python.exe",
       "args": ["-m", "live", "--port", "17192"],
