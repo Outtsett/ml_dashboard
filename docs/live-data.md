@@ -40,7 +40,9 @@ GDELT hit, the roots of the rule that found it), one row per (article, root) wit
 FinBERT (`ProsusAI/finbert`, fp16 on the RTX 5060 Ti, batches of up to 128 within
 a second; `live/scoring.py`). A batch that fails is re-scored one headline at a
 time; a headline failing alone is retried after 30 s × attempt, three times,
-then counted in `/status` → `scoring.dropped` / `droppedIds`.
+then counted in `/status` → `scoring.dropped` / `droppedIds`. When nothing in a pass scores, a known-good probe
+headline is tried: if it fails too the GPU is at fault and every headline waits (backoff to
+10 min) without spending an attempt.
 
 **Known time.** `seen_ts` is first sight, never the outlet's `pubDate`
 (`published_ts`, diagnosis only). A GDELT row is known at its bucket + 15 min. The
@@ -62,7 +64,8 @@ GDELT's raw bucket stamp, which would read as known 15 minutes early.
 - **bars** — one row per (symbol, minute); a better-ranked source
   (`Hub.RANK`: quantower 3 > oanda 2 > yahoo 1) replaces a worse one, never the
   reverse, in memory and in the lake. A bar **date** lands once, 30 minutes after
-  it ends (`barLandGraceMinutes`), into `derived/live_bars/recipe=live_<vendor>_<yyyymmdd>`
+  it ends (`barLandGraceMinutes`), and never before the hub has run 15 minutes and every
+  startup backfill (OANDA 14 days, Yahoo 7 days) has reported done (ceiling 1 h), into `derived/live_bars/recipe=live_<vendor>_<yyyymmdd>`
   (view `derived_live_bars`), file name fixed by (vendor, date); dates landed are
   recorded in `data/live/spool/live_bars_landed.json`. This is what keeps the
   14-day OANDA backfill, re-delivered on every start, from landing twice — the
