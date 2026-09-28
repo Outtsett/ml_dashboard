@@ -286,7 +286,8 @@ DEFINITIONS: dict[str, Definition] = {
          "The longest stretch the equity spent below a previous peak, from the peak until it was regained or the scope ended.",
          "max over drawdown episodes of bars from peak to recovery"),
         ("maximum_drawdown_duration_days", "Longest drawdown (days)", "days", "lower",
-         "The same stretch in calendar days.", "time from peak to recovery / 86,400 s"),
+         "The longest time the equity spent below a previous peak, in calendar days; it can be a different episode from the longest in bars (a few bars across a weekend).",
+         "max over drawdown episodes of (time of recovery, or of the last bar, - time of the peak) / 86,400 s"),
         ("maximum_drawdown_recovery_bars", "Recovery from the maximum drawdown (bars)", "bars", "lower",
          "Bars from the deepest trough back to the peak before it; null when the scope ended before the equity recovered.",
          "bars from trough to recovery of the deepest episode"),
@@ -693,8 +694,10 @@ def calibration(actual_up: np.ndarray, probability: np.ndarray) -> list[dict]:
 
 
 def _confidence_bucket(probability: np.ndarray) -> np.ndarray:
-    """The confidence label of each probability: how far it sat from 0.5."""
-    distance = np.abs(np.asarray(probability, dtype=np.float64) - 0.5)
+    """The confidence label of each probability: how far it sat from 0.5. The distance is
+    rounded to 12 decimals first, so P(up) = 0.45 and 0.55 (0.0499.. and 0.0500.. in
+    floating point) share a bucket and a value on an edge falls in the higher one."""
+    distance = np.round(np.abs(np.asarray(probability, dtype=np.float64) - 0.5), 12)
     bucket = np.full(distance.shape, "", dtype=object)
     for (low, high), label in zip(zip(CONFIDENCE_EDGES[:-1], CONFIDENCE_EDGES[1:]), confidence_labels()):
         bucket[(distance >= low) & (distance < high)] = label
@@ -1012,7 +1015,9 @@ def _trading_scope(out: _Rows, inputs: ReportInputs, scope: str, fold_index: int
     longest = max(episodes, key=lambda e: ((e.recovery_index or bars) - e.peak_index), default=None)
     deepest = max(episodes, key=lambda e: e.depth, default=None)
     longest_bars = ((longest.recovery_index or bars) - longest.peak_index) if longest else None
-    longest_days = ((stamp(longest.recovery_index or bars) - stamp(longest.peak_index)) / 86400.0) if longest else None
+    # longest in calendar days over every episode (a few bars across a weekend can outlast the longest in bars)
+    longest_days = max(((stamp(e.recovery_index if e.recovery_index is not None else bars) - stamp(e.peak_index)) / 86400.0
+                        for e in episodes), default=None)
     recovery_bars = (deepest.recovery_index - deepest.trough_index) if deepest and deepest.recovery_index is not None else None
     add("maximum_drawdown_duration_bars", longest_bars, bars, None if longest else "no drawdown")
     add("maximum_drawdown_duration_days", longest_days, bars, None if longest else "no drawdown")

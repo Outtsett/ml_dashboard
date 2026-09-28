@@ -62,8 +62,25 @@ def read(connection, table: str, recipe: str):
     return arrow if arrow.num_rows else None
 
 
-def mismatches(tables, folds, run_row) -> list[str]:
-    """Scoreboard metrics that differ from what the run recorded."""
+def recorded_final(model_id: str, run_row) -> tuple[dict | None, str]:
+    """The run's own final scoreboard: the run table's when it reached the lake, else the
+    run's local ``data/models/<run>/scoreboard.json`` (the engine's, written at the end)."""
+    if run_row is not None and run_row.get("final_metrics"):
+        return json.loads(run_row["final_metrics"]), "the run table"
+    path = REPOSITORY / "data" / "models" / model_id / "scoreboard.json"
+    if path.exists():
+        try:
+            board = json.loads(path.read_text(encoding="utf-8")) or {}
+        except ValueError:
+            board = {}
+        if board.get("metrics"):
+            return board["metrics"], "the run's local scoreboard.json"
+    return None, "none recorded"
+
+
+def mismatches(tables, folds, final) -> list[str]:
+    """Scoreboard metrics that differ from what the run recorded (each fold, and the run's
+    final scoreboard when one is recorded)."""
     out: list[str] = []
 
     def compare(label: str, ours: dict, recorded: dict) -> None:
@@ -79,8 +96,8 @@ def mismatches(tables, folds, run_row) -> list[str]:
         metrics = json.loads(row["metrics"]) if isinstance(row.get("metrics"), str) and row["metrics"] else {}
         if metrics:
             compare(f"fold {row['fold_index'] + 1}", report.scoreboard_values(tables, "fold", row["fold_index"]), metrics)
-    if run_row is not None and run_row.get("final_metrics"):
-        compare("run", report.scoreboard_values(tables, "run", None), json.loads(run_row["final_metrics"]))
+    if final:
+        compare("run", report.scoreboard_values(tables, "run", None), final)
     return out
 
 
@@ -121,7 +138,9 @@ def build(connection, recipe: str):
     inputs = report.inputs_from_tables(model_id, symbol, predictions, trades, folds,
                                        run_row.get("bars_per_year") if run_row else None)
     tables = report.build_report(inputs)
-    problems = mismatches(tables, folds, run_row)
+    final, final_source = recorded_final(model_id, run_row)
+    inputs.notes["final_check"] = f"run scope checked against {final_source}" if final else "no final scoreboard recorded: run scope not checked"
+    problems = mismatches(tables, folds, final)
     if inputs.predictions["exposed"] is None:
         # the run recorded no per-bar exposure: its tables carry it as unknown, not as a difference
         problems = [line for line in problems if "exposure_fraction: report None" not in line]
@@ -169,7 +188,7 @@ def main() -> int:
         blocking = problems
         counts = ", ".join(f"{name} {table.num_rows}" for name, table in tables.items())
         status = "checked" if not blocking else f"{len(blocking)} scoreboard differences"
-        print(f"  {recipe}: {status}; symbol {inputs.symbol or 'not recorded'}; {counts}")
+        print(f"  {recipe}: {status}; symbol {inputs.symbol or 'not recorded'}; {inputs.notes['final_check']}; {counts}")
         for line in problems[:6]:
             print(f"      {line}")
         if blocking:

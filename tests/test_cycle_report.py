@@ -287,6 +287,24 @@ def test_an_unknown_symbol_dates_session_days_by_the_stored_date_and_says_so():
     assert value(tables, "session_day_count")["note"] is None
 
 
+def test_symmetric_probabilities_share_a_confidence_bucket():
+    buckets = report._confidence_bucket(np.array([0.3, 0.7, 0.45, 0.55, 0.4, 0.6, 0.5, 1.0, 0.0]))
+    labels = report.confidence_labels()
+    assert buckets.tolist() == [labels[3], labels[3], labels[1], labels[1], labels[2], labels[2], labels[0], labels[3], labels[3]]
+
+
+def test_the_longest_drawdown_in_days_is_the_longest_episode_in_days():
+    # episode one: 4 bars 5 minutes apart; episode two: 2 bars across a weekend (2 days)
+    stamps = MNQ_OPEN + np.array([0, 300, 600, 900, 1200, 1500, 1800, 1800 + 2 * 86400, 1800 + 2 * 86400 + 300])
+    bar_net = [1.0, -1.0, -1.0, -1.0, 4.0, 1.0, -0.5, -0.5, 2.0]
+    predictions, trades = record(bar_net, timestamps=stamps)
+    _, tables = build(predictions, trades)
+    assert value(tables, "maximum_drawdown_duration_bars")["metric_value"] == 4
+    days = value(tables, "maximum_drawdown_duration_days")["metric_value"]
+    episodes = [row for row in tables["drawdowns"].to_pylist() if row["scope"] == "run"]
+    assert days == pytest.approx(max(row["underwater_days"] for row in episodes)) and days > 2.0
+
+
 def test_distributions_carry_the_eight_numbers():
     predictions, trades = record(np.random.default_rng(2).normal(0, 3, 200),
                                  trades=[{"net": n} for n in (5.0, -3.0, 2.0, -1.0, 8.0)])
