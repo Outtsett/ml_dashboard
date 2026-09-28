@@ -47,7 +47,8 @@ def _():
         try:
             return pl.from_arrow((lambda cursor: (cursor.to_arrow_table() if hasattr(cursor, "to_arrow_table") else cursor.fetch_arrow_table()))(con.execute(sql, parameters or [])))
         except Exception as error:  # noqa: BLE001 - a missing view reads as an empty frame, with the reason kept
-            return pl.DataFrame({"error": [str(error)[:300]]})
+            # "frame_error", not "error": the folds and runs tables have a real column named error
+            return pl.DataFrame({"frame_error": [str(error)[:300]]})
 
     def eight_numbers(values: pl.Series) -> dict:
         clean = values.drop_nulls().cast(pl.Float64)
@@ -168,7 +169,7 @@ def _(eight_numbers, mo, pl, predictions, recipe):
                 rows.append({"column": name, **eight_numbers(table[name])})
         return pl.DataFrame(rows) if rows else pl.DataFrame()
 
-    if predictions is not None and predictions.height and "error" not in predictions.columns:
+    if predictions is not None and predictions.height and "frame_error" not in predictions.columns:
         on_grid = None
         if "predicted_close" in predictions.columns and "tick_size" not in predictions.columns:
             forecasts = predictions.filter(pl.col("predicted_close").is_not_null())
@@ -188,7 +189,7 @@ def _(eight_numbers, mo, pl, predictions, recipe):
 @app.cell
 def _(OKABE, alt, bins, mo, pl, predictions):
     charts = []
-    if predictions is not None and predictions.height and "error" not in predictions.columns:
+    if predictions is not None and predictions.height and "frame_error" not in predictions.columns:
         frame_pd = predictions.with_columns(pl.from_epoch("timestamp", time_unit="s").alias("time")).to_pandas()
         charts.append(
             alt.Chart(frame_pd).mark_line(color=OKABE["orange"]).encode(
@@ -223,7 +224,7 @@ def _(OKABE, alt, bins, mo, pl, predictions):
 
 @app.cell
 def _(OKABE, alt, bins, mo, numeric_summary, pl, trades):
-    if trades is not None and trades.height and "error" not in trades.columns:
+    if trades is not None and trades.height and "frame_error" not in trades.columns:
         trades_pd = trades.to_pandas()
         histogram = alt.Chart(trades_pd).mark_bar().encode(
             x=alt.X("net_profit_usd:Q", bin=alt.Bin(maxbins=bins.value), title="Net profit per trade, USD"),
@@ -244,7 +245,7 @@ def _(OKABE, alt, bins, mo, numeric_summary, pl, trades):
 
 @app.cell
 def _(json, mo, pl, folds):
-    if folds is not None and folds.height and "error" not in folds.columns:
+    if folds is not None and folds.height and "frame_error" not in folds.columns:
         shown = folds
         if "parameters" in folds.columns:
             shown = folds.with_columns(pl.col("parameters").map_elements(lambda s: ", ".join(f"{k}={v}" for k, v in (json.loads(s) or {}).items()) if s else "", return_dtype=pl.String).alias("parameters_used"))
@@ -260,7 +261,7 @@ def _(json, mo, pl, folds):
 
 @app.cell
 def _(OKABE, alt, mo, trials):
-    if trials is not None and trials.height and "error" not in trials.columns:
+    if trials is not None and trials.height and "frame_error" not in trials.columns:
         trials_pd = trials.to_pandas()
         chart = alt.Chart(trials_pd).mark_point(size=70, filled=True).encode(
             x=alt.X("trial:Q", title="Trial"), y=alt.Y("objective_value:Q", title="Search score (inner validation blocks)"),
@@ -278,7 +279,7 @@ def _(OKABE, alt, mo, trials):
 @app.cell
 def _(OKABE, alt, mo, epochs, metrics):
     parts = []
-    if epochs is not None and epochs.height and "error" not in epochs.columns:
+    if epochs is not None and epochs.height and "frame_error" not in epochs.columns:
         epochs_pd = epochs.to_pandas()
         parts.append(mo.md(f"## Training steps — {epochs.height} epoch summaries"))
         parts.append(mo.ui.altair_chart(
@@ -288,7 +289,7 @@ def _(OKABE, alt, mo, epochs, metrics):
                 strokeDash=alt.StrokeDash("fold_index:N", title="Fold"), tooltip=list(epochs_pd.columns),
             ).properties(height=220, title="Validation loss per fold and model role").interactive()
         ))
-    if metrics is not None and metrics.height and "error" not in metrics.columns:
+    if metrics is not None and metrics.height and "frame_error" not in metrics.columns:
         parts.append(mo.md(f"## Metric stream — {metrics.height} emitted values"))
         parts.append(mo.ui.table(metrics.to_pandas(), selection=None, page_size=10))
     mo.vstack(parts) if parts else mo.md("")
@@ -297,7 +298,7 @@ def _(OKABE, alt, mo, epochs, metrics):
 
 @app.cell
 def _(bars_summary, mo):
-    if bars_summary is not None and bars_summary.height and "error" not in bars_summary.columns:
+    if bars_summary is not None and bars_summary.height and "frame_error" not in bars_summary.columns:
         _out = mo.vstack([mo.md("## Bars the model read"), mo.ui.table(bars_summary.to_pandas(), selection=None)])
     else:
         _out = mo.md("## Bars the model read — not landed for this run (recorded since 2026-09-27)")
@@ -329,7 +330,7 @@ def _(frame, recipe):
             .otherwise(_pl.lit("fold ") + (_pl.col("fold_index") + 1).cast(_pl.String)).alias("scope_label"))
 
     def usable(table) -> bool:
-        return table is not None and table.height > 0 and "error" not in table.columns
+        return table is not None and table.height > 0 and "frame_error" not in table.columns
     return (calibration_report, confusion_report, daily_report, distribution_report, drawdown_report, model_report,
             scope_label, trading_report, usable)
 
