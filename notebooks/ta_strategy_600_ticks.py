@@ -176,9 +176,12 @@ def _(PREFIX, frame, mo, pl, view_exists):
 
 @app.cell
 def _(GOAL, OKABE, alt, mo, pl, rounds):
-    _progress = rounds.select("round", "recipe", "title", "best_configuration_id", "best_net_ticks_per_session_day",
-                              "best_interval_95_low", "best_interval_95_high", "best_deflated_sharpe_probability",
-                              "configurations_positive", "configurations_beating_buy_and_hold", "configuration_count")
+    _wanted = ["round", "recipe", "title", "best_configuration_id", "best_net_ticks_per_session_day",
+               "best_interval_95_low", "best_interval_95_high", "primary_configuration_id", "primary_alpha_ticks_per_session_day",
+               "primary_alpha_newey_west_t", "primary_passes_pre_registered_criteria", "best_alpha_configuration_id",
+               "best_alpha_newey_west_t", "reality_check_p_value_best_alpha", "effective_trial_count",
+               "configurations_positive", "configurations_beating_buy_and_hold", "configuration_count"]
+    _progress = rounds.select([c for c in _wanted if c in rounds.columns])
     _base = alt.Chart(_progress.to_pandas())
     _bars = _base.mark_bar(color=OKABE["blue"]).encode(
         x=alt.X("recipe:N", title="round (recipe)", sort=None), y=alt.Y("best_net_ticks_per_session_day:Q", title="best net ticks per session day"),
@@ -192,9 +195,10 @@ def _(GOAL, OKABE, alt, mo, pl, rounds):
 
 @app.cell
 def _(mo, round_picker):
-    sort_by = mo.ui.dropdown(["net_ticks_per_session_day_mean", "excess_over_buy_and_hold_ticks_per_session_day",
-                              "deflated_sharpe_probability", "trades_per_session_day", "test_area_under_roc_curve_median"],
-                             value="net_ticks_per_session_day_mean", label="Sort configurations by")
+    sort_by = mo.ui.dropdown(["net_ticks_per_session_day_mean", "alpha_ticks_per_session_day", "alpha_newey_west_t",
+                              "excess_over_buy_and_hold_ticks_per_session_day", "trades_per_session_day",
+                              "test_area_under_roc_curve_median"],
+                             value="net_ticks_per_session_day_mean", label="Sort configurations by (alpha: rounds 2+)")
     timeframe_filter = mo.ui.multiselect(["15m", "1h", "4h", "5m", "30m", "1m"], value=["15m", "1h", "4h", "5m", "30m"], label="Timeframes")
     mo.hstack([round_picker, sort_by, timeframe_filter])
     return sort_by, timeframe_filter
@@ -203,7 +207,10 @@ def _(mo, round_picker):
 @app.cell
 def _(GOAL, OKABE, PREFIX, alt, frame, mo, pl, round_picker, sort_by, timeframe_filter):
     configurations = frame(f"SELECT * FROM {PREFIX}configurations WHERE recipe = ?", [round_picker.value])
-    configurations = configurations.filter(pl.col("timeframe").is_in(timeframe_filter.value)).sort(sort_by.value, descending=True, nulls_last=True)
+    configurations = configurations.filter(pl.col("timeframe").is_in(timeframe_filter.value))
+    if sort_by.value in configurations.columns:
+        configurations = configurations.sort(sort_by.value, descending=True, nulls_last=True)
+    _has_alpha = "alpha_ticks_per_session_day" in configurations.columns
     _p = configurations.to_pandas()
     _base = alt.Chart(_p)
     _bars = _base.mark_bar().encode(
@@ -212,7 +219,10 @@ def _(GOAL, OKABE, PREFIX, alt, frame, mo, pl, round_picker, sort_by, timeframe_
         color=alt.Color("model:N", scale=alt.Scale(range=[OKABE["blue"], OKABE["orange"]])),
         tooltip=["configuration_id", alt.Tooltip("net_ticks_per_session_day_mean:Q", format="+.1f"),
                  alt.Tooltip("buy_and_hold_ticks_per_session_day:Q", format="+.1f"), alt.Tooltip("trades_per_session_day:Q", format=".2f"),
-                 alt.Tooltip("win_rate:Q", format=".3f"), alt.Tooltip("deflated_sharpe_probability:Q", format=".3f")])
+                 alt.Tooltip("win_rate:Q", format=".3f")]
+        + ([alt.Tooltip("alpha_ticks_per_session_day:Q", format="+.1f"), alt.Tooltip("alpha_newey_west_t:Q", format="+.2f")] if _has_alpha else []))
+    _alpha = (_base.mark_point(shape="triangle-right", size=70, filled=True, color=OKABE["vermillion"]).encode(
+        y=alt.Y("configuration_id:N", sort=None), x="alpha_ticks_per_session_day:Q") if _has_alpha else None)
     _ci = _base.mark_errorbar(color=OKABE["black"]).encode(
         y=alt.Y("configuration_id:N", sort=None), x="net_ticks_per_session_day_mean_interval_95_low:Q",
         x2="net_ticks_per_session_day_mean_interval_95_high:Q")
@@ -220,9 +230,11 @@ def _(GOAL, OKABE, PREFIX, alt, frame, mo, pl, round_picker, sort_by, timeframe_
         y=alt.Y("configuration_id:N", sort=None), x="buy_and_hold_ticks_per_session_day:Q")
     _goal = alt.Chart(pl.DataFrame({"x": [GOAL]}).to_pandas()).mark_rule(color=OKABE["orange"], strokeWidth=2).encode(x="x:Q")
     mo.vstack([
-        mo.md("## 3 · Every configuration of the round\nBars: mean net ticks per session day (blue logistic, orange LightGBM); "
-              "whiskers: 95% block-bootstrap interval; purple tick: buy-and-hold over the same days; orange rule: the 600 goal."),
-        (_bars + _ci + _hold + _goal).properties(width=820, height=max(200, 16 * configurations.height)),
+        mo.md("## 3 · Every configuration of the round\nBars: mean net ticks per session day, coloured by model; "
+              "whiskers: 95% block-bootstrap interval; purple tick: buy-and-hold over the same days; vermillion triangle "
+              "(rounds 2+): alpha, what is left after removing buy-and-hold beta; orange rule: the 600 goal."),
+        ((_bars + _ci + _hold + _goal + _alpha) if _alpha is not None else (_bars + _ci + _hold + _goal)).properties(
+            width=820, height=max(200, 16 * configurations.height)),
         mo.ui.table(configurations, selection=None, page_size=15),
     ])
     return (configurations,)

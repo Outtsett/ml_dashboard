@@ -33,6 +33,10 @@ ROUNDS_PATH = ROOT / "src" / "config" / "ta_strategy_rounds.json"
 
 def rule_slug(rule) -> str:
     parts = [f"gate{round(rule.gate_fraction * 100):d}"]
+    if rule.gate_centre == "fit_mean":
+        parts.append("centred")
+    if rule.extra_slippage_ticks_per_side:
+        parts.append(f"slippage{rule.extra_slippage_ticks_per_side:g}")
     if rule.session_filter != "all":
         parts.append("rth")
     if rule.stop_loss_ticks or rule.take_profit_ticks:
@@ -70,8 +74,8 @@ def run(args: argparse.Namespace) -> dict:
     recipe = f"round_{args.round_number}_{stamp}"
     cost = load_cost_model(symbol)
     rules = [evaluate.TradingRule(**r) for r in round_config["rules"]]
-    models = list(round_config["models"])
-    fits = [(g["timeframe"], h, mdl) for g in round_config["grid"] for h in g["horizons"] for mdl in models]
+    models = evaluate.model_specs(round_config["models"])
+    fits = [(g["timeframe"], h, spec) for g in round_config["grid"] for h in g["horizons"] for spec in models]
     trial_count = len(fits) * len(rules)
     protocol.emit_config({
         "study": {"round": args.round_number, "title": round_config["title"], "hypothesis": round_config["hypothesis"],
@@ -98,17 +102,20 @@ def run(args: argparse.Namespace) -> dict:
         tf = g["timeframe"]
         bars = load_bars(connection, symbol, tf, round_config["data_start"], round_config["data_end"])
         bars_by_timeframe[tf] = bars
-        features_by_timeframe[tf] = features.compute(bars.frame)
+        computed = features.compute(bars.frame)
+        excluded = tuple(round_config.get("excluded_feature_prefixes", []))
+        features_by_timeframe[tf] = computed[[c for c in computed.columns if not c.startswith(excluded)]] if excluded else computed
         roll_frames.append(roll_table(bars))
         log(f"[data] {symbol} {tf}: {len(bars.frame):,} bars, {len(bars.rolls)} contract switches back-adjusted, "
             f"{features_by_timeframe[tf].shape[1]} features")
 
     predictions = []
-    for n, (tf, horizon, mdl) in enumerate(fits):
+    for n, (tf, horizon, (label, kind, own_parameters)) in enumerate(fits):
         protocol.emit_progress(n, len(fits), "fitting")
         predictions.append(evaluate.predict_horizon(
-            bars_by_timeframe[tf], features_by_timeframe[tf], horizon, mdl, windows,
-            float(round_config["validation_fraction"]), 7, round_config.get("model_parameters", {}), log))
+            bars_by_timeframe[tf], features_by_timeframe[tf], horizon, label, windows,
+            float(round_config["validation_fraction"]), 7, {**round_config.get("model_parameters", {}), **own_parameters},
+            log, model_kind=kind))
     protocol.emit_progress(len(fits), len(fits), "fitting")
 
     simulated = []
@@ -116,24 +123,40 @@ def run(args: argparse.Namespace) -> dict:
         for rule in rules:
             result = evaluate.simulate(bars_by_timeframe[prediction.timeframe], prediction, rule, cost, windows)
             simulated.append((prediction, rule, result))
-    per_day_sharpes = []
-    for _, rule, result in simulated:
+    # Grid-wide numbers on the ALPHA series (daily ticks minus buy-and-hold beta), on the days all
+    # configurations share: how many independent tests the grid is, the spread of their Sharpe ratios
+    # (the deflated-Sharpe benchmark), and White's Reality Check for the best one.
+    from ta_strategy import metrics as grid_metrics
+
+    def config_id_of(prediction, rule) -> str:
+        return f"{prediction.timeframe}_h{prediction.horizon_bars}_{prediction.model}_{rule_slug(rule)}"
+
+    alpha_columns = {}
+    for prediction, rule, result in simulated:
         daily = result["daily"]
-        if len(daily) > 1:
-            x = daily["net_usd"].to_numpy() / (cost.tick_value * rule.contracts)
-            if x.std(ddof=1) > 0:
-                per_day_sharpes.append(x.mean() / x.std(ddof=1))
-    sharpe_variance = float(np.var(per_day_sharpes, ddof=1)) if len(per_day_sharpes) > 1 else math.nan
+        if len(daily) < 20:
+            continue
+        ab = grid_metrics.alpha_beta(daily["net_usd"].to_numpy() / (cost.tick_value * rule.contracts),
+                                     daily["buy_and_hold_usd"].to_numpy() / cost.tick_value)
+        alpha_columns[config_id_of(prediction, rule)] = pd.Series(ab["alpha_series"], index=daily["session_date"].to_numpy())
+    alpha_matrix = pd.DataFrame(alpha_columns).dropna()
+    effective_trials = grid_metrics.effective_trial_count(alpha_matrix.to_numpy())
+    alpha_sharpes = (alpha_matrix.mean() / alpha_matrix.std(ddof=1)).to_numpy()
+    sharpe_variance = float(np.var(alpha_sharpes, ddof=1)) if alpha_sharpes.size > 1 else math.nan
+    reality_check = grid_metrics.reality_check_p_value(alpha_matrix.to_numpy())
+    log(f"[grid] {alpha_matrix.shape[1]} configurations on {alpha_matrix.shape[0]:,} shared session days behave like "
+        f"{effective_trials:.1f} independent tests; Reality Check p-value for the best alpha {reality_check:.3f}")
 
     config_rows, fold_frames, daily_frames, trade_frames = [], [], [], []
     for index, (prediction, rule, result) in enumerate(simulated):
-        config_id = f"{prediction.timeframe}_h{prediction.horizon_bars}_{prediction.model}_{rule_slug(rule)}"
+        config_id = config_id_of(prediction, rule)
         identity = {"round": args.round_number, "configuration_id": config_id, "timeframe": prediction.timeframe,
                     "horizon_bars": prediction.horizon_bars, "model": prediction.model,
                     "gate_fraction": rule.gate_fraction, "session_filter": rule.session_filter,
                     "stop_loss_ticks": rule.stop_loss_ticks, "take_profit_ticks": rule.take_profit_ticks,
-                    "long_only": rule.long_only, "contracts": rule.contracts, "trading_rule": rule.label()}
-        summary = evaluate.summarise(result, cost, rule, trial_count, sharpe_variance)
+                    "long_only": rule.long_only, "contracts": rule.contracts, "gate_centre": rule.gate_centre,
+                    "extra_slippage_ticks_per_side": rule.extra_slippage_ticks_per_side, "trading_rule": rule.label()}
+        summary = evaluate.summarise(result, cost, rule, effective_trials, sharpe_variance)
         config_rows.append({**identity, **summary})
         for name, frames in (("folds", fold_frames), ("daily", daily_frames), ("trades", trade_frames)):
             frame = result[name]
@@ -142,7 +165,8 @@ def run(args: argparse.Namespace) -> dict:
         protocol.emit_metric("net_ticks_per_session_day", summary.get("net_ticks_per_session_day_mean", math.nan),
                              index, len(simulated))
         log(f"[score] {config_id}: {summary.get('net_ticks_per_session_day_mean', math.nan):+.1f} net ticks/day "
-            f"(buy-and-hold {summary.get('buy_and_hold_ticks_per_session_day', math.nan):+.1f}), "
+            f"(buy-and-hold {summary.get('buy_and_hold_ticks_per_session_day', math.nan):+.1f}, alpha "
+            f"{summary.get('alpha_ticks_per_session_day', math.nan):+.1f}, t {summary.get('alpha_newey_west_t', math.nan):+.2f}), "
             f"{summary.get('trades_per_session_day', 0):.2f} trades/day, AUC {summary.get('test_area_under_roc_curve_median', math.nan):.4f}")
 
     configs = pd.DataFrame(config_rows).sort_values("net_ticks_per_session_day_mean", ascending=False)
@@ -177,7 +201,30 @@ def run(args: argparse.Namespace) -> dict:
         f"{oracle_table.loc[oracle_table.complete_session, 'session_oracle_40_tick_swing_net_ticks'].median():,.0f} net ticks")
 
     elapsed = time.monotonic() - started
+    primary_id = round_config.get("primary_configuration_id")
+    primary = configs[configs["configuration_id"] == primary_id].iloc[0] if primary_id in set(configs["configuration_id"]) else None
+    criteria = round_config.get("pass_criteria", {})
+    primary_passes = None
+    if primary is not None and criteria:
+        primary_passes = bool(
+            primary.get("alpha_newey_west_t", math.nan) >= criteria.get("alpha_newey_west_t_minimum", 2.0)
+            and reality_check <= criteria.get("reality_check_p_value_maximum", 0.05)
+            and primary.get("folds_with_positive_alpha", 0) >= criteria.get("folds_with_positive_alpha_minimum", 7)
+        )
+        log(f"[verdict] pre-registered primary {primary_id}: alpha {primary['alpha_ticks_per_session_day']:+.1f} ticks/day "
+            f"(t {primary['alpha_newey_west_t']:+.2f}), {int(primary['folds_with_positive_alpha'])} of "
+            f"{int(primary['fold_count'])} folds positive, grid Reality Check p {reality_check:.3f} -> "
+            f"{'PASSES' if primary_passes else 'does not pass'}")
     round_row = pd.DataFrame([{
+        "primary_configuration_id": primary_id,
+        "primary_net_ticks_per_session_day": float(primary["net_ticks_per_session_day_mean"]) if primary is not None else math.nan,
+        "primary_alpha_ticks_per_session_day": float(primary["alpha_ticks_per_session_day"]) if primary is not None else math.nan,
+        "primary_alpha_newey_west_t": float(primary["alpha_newey_west_t"]) if primary is not None else math.nan,
+        "primary_passes_pre_registered_criteria": primary_passes,
+        "effective_trial_count": effective_trials,
+        "reality_check_p_value_best_alpha": reality_check,
+        "best_alpha_configuration_id": configs.sort_values("alpha_newey_west_t", ascending=False).iloc[0]["configuration_id"],
+        "best_alpha_newey_west_t": float(configs["alpha_newey_west_t"].max()),
         "round": args.round_number, "recipe": recipe, "model_id": model_id, "title": round_config["title"],
         "hypothesis": round_config["hypothesis"], "round_configuration_json": json.dumps(round_config),
         "goal_ticks_per_session_day": float(config["goal_ticks_per_session_day"]),
@@ -186,7 +233,7 @@ def run(args: argparse.Namespace) -> dict:
         "best_net_ticks_per_session_day": float(best["net_ticks_per_session_day_mean"]),
         "best_interval_95_low": float(best["net_ticks_per_session_day_mean_interval_95_low"]),
         "best_interval_95_high": float(best["net_ticks_per_session_day_mean_interval_95_high"]),
-        "best_deflated_sharpe_probability": float(best["deflated_sharpe_probability"]),
+        "best_deflated_sharpe_probability_on_alpha": float(best["deflated_sharpe_probability_on_alpha"]),
         "configurations_positive": int((configs["net_ticks_per_session_day_mean"] > 0).sum()),
         "configurations_beating_buy_and_hold": int((configs["excess_over_buy_and_hold_ticks_per_session_day"] > 0).sum()),
         "elapsed_seconds": elapsed, "finished_at": datetime.now(timezone.utc).isoformat(),

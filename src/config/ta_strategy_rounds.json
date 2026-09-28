@@ -30,6 +30,41 @@
         "threads": 20
       },
       "oracle_timeframe": "1m"
+    },
+    "2": {
+      "title": "Round-1 review applied: centred gate, alpha scoring, logistic only",
+      "hypothesis": "Round 1's best results were buy-and-hold beta: the gate measured |P - 0.5| while the models centre on the market's upward drift (P ~ 0.55), so 'high conviction' meant 'long'. Centring the gate on each fold's fit-row mean P and scoring alpha after beta will show whether any TA-direction edge exists at all. Pre-registered primary: 1h, 12-bar hold, logistic C=0.05, centred gate 10% (round 1's best cell with the gate fixed). It passes only if its alpha has a Newey-West t >= 2, the grid-wide Reality Check p <= 0.05 and alpha is positive in at least 7 of 9 folds. Expected: it does not pass, and no configuration nears 600.",
+      "review_source": "round 1 review (reviews table, recipe round_1_20260928T230747): recommendations 1, 2, 3, 7 and 9 survived verification",
+      "data_start": "2019-06-01",
+      "data_end": "2026-01-01",
+      "first_test": "2021-07-01",
+      "test_months": 6,
+      "validation_fraction": 0.2,
+      "excluded_feature_prefixes": ["candle_"],
+      "grid": [
+        {"timeframe": "15m", "horizons": [16]},
+        {"timeframe": "1h", "horizons": [6, 12, 24]},
+        {"timeframe": "4h", "horizons": [3, 6]}
+      ],
+      "models": [
+        {"label": "logistic_c005", "kind": "logistic", "logistic_inverse_regularization": 0.05},
+        {"label": "logistic_c001", "kind": "logistic", "logistic_inverse_regularization": 0.01}
+      ],
+      "rules": [
+        {"gate_fraction": 0.05, "gate_centre": "fit_mean"},
+        {"gate_fraction": 0.1, "gate_centre": "fit_mean"},
+        {"gate_fraction": 0.2, "gate_centre": "fit_mean"},
+        {"gate_fraction": 0.3, "gate_centre": "fit_mean"},
+        {"gate_fraction": 0.1, "gate_centre": "fit_mean", "extra_slippage_ticks_per_side": 1}
+      ],
+      "primary_configuration_id": "1h_h12_logistic_c005_gate10_centred",
+      "pass_criteria": {
+        "alpha_newey_west_t_minimum": 2.0,
+        "reality_check_p_value_maximum": 0.05,
+        "folds_with_positive_alpha_minimum": 7
+      },
+      "model_parameters": {"threads": 20},
+      "oracle_timeframe": "1m"
     }
   }
 }

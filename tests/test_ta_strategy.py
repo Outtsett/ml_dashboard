@@ -158,6 +158,75 @@ def test_session_day_rule():
     assert [str(pd.Timestamp(d).date()) for d in days] == ["2025-03-14", "2025-03-14", "2025-03-14", "2025-03-17", "2025-03-17"]
 
 
+def test_alpha_beta_recovers_a_planted_split():
+    from ta_strategy import metrics
+
+    rng = np.random.default_rng(3)
+    market = rng.normal(10, 300, 3000)
+    net = 5 + 0.5 * market + rng.normal(0, 50, 3000)
+    ab = metrics.alpha_beta(net, market)
+    assert ab["beta"] == pytest.approx(0.5, abs=0.02)
+    assert ab["alpha"] == pytest.approx(5, abs=2.5)
+    assert ab["alpha_newey_west_t"] > 2
+
+
+def test_reality_check_separates_noise_from_a_real_edge():
+    from ta_strategy import metrics
+
+    rng = np.random.default_rng(5)
+    noise = rng.normal(0, 100, (800, 20))
+    assert metrics.reality_check_p_value(noise, repetitions=500) > 0.05
+    edged = noise.copy()
+    edged[:, 0] += 25
+    assert metrics.reality_check_p_value(edged, repetitions=500) < 0.05
+    assert metrics.effective_trial_count(noise) > 15
+
+
+def test_centred_gate_does_not_read_the_drift_prior_as_conviction():
+    frame = random_bars(120)
+    window = evaluate.FoldWindow(0, pd.Timestamp(frame.timestamp[20], unit="s"), pd.Timestamp(frame.timestamp[119], unit="s") + pd.Timedelta(hours=1))
+    rows = np.arange(20, 120)
+    probability = np.full(rows.size, 0.55)          # a model that learned only the up-drift
+    prediction = evaluate.HorizonPredictions("1h", 3, "logistic")
+    prediction.by_fold[0] = {"test_rows": rows, "probability": probability, "validation_probability": np.full(200, 0.55),
+                             "fit_mean_probability": 0.55, "fit_up_rate": 0.54, "test_label": np.ones(rows.size),
+                             "auc": np.nan, "validation_auc": np.nan, "accuracy": np.nan,
+                             "majority_baseline_accuracy": np.nan, "fit_row_count": 0, "feature_count": 0}
+    cost = load_cost_model("MNQ")
+    half = evaluate.simulate(_bars_with(frame), prediction, evaluate.TradingRule(gate_fraction=1.0), cost, [window])
+    centred = evaluate.simulate(_bars_with(frame), prediction, evaluate.TradingRule(gate_fraction=1.0, gate_centre="fit_mean"), cost, [window])
+    assert (half["trades"]["side"] == "long").all() and len(half["trades"]) >= 1
+    assert len(centred["trades"]) == 0
+
+
+def test_folds_are_cut_at_session_opens():
+    windows = evaluate.fold_windows("2022-01-01", 6, "2023-01-01")
+    assert windows[0].test_start == pd.Timestamp("2021-12-31 15:00")
+    assert windows[1].test_start == pd.Timestamp("2022-06-30 15:00")
+    assert windows[-1].test_end == pd.Timestamp("2022-12-31 15:00")
+
+
+def test_a_session_is_never_split_between_folds():
+    """A 4h bar stamped Sunday 12:00 holds Monday's session open; it must land in Monday's fold."""
+    from ta_strategy.data import session_dates
+
+    stamps = pd.date_range("2024-06-27 00:00", "2024-07-03 20:00", freq="4h")
+    stamps = stamps[~((stamps.dayofweek == 5) | ((stamps.dayofweek == 6) & (stamps.hour < 12)))]
+    frame = random_bars(len(stamps))
+    frame["timestamp"] = (stamps.asi8 // 10**9).astype(np.int64)
+    windows = evaluate.fold_windows("2024-06-01", 1, "2024-08-01")
+    days = session_dates(frame["timestamp"].to_numpy())
+    label, _ = evaluate.labels_for(frame, 1)
+    fold_of_day: dict = {}
+    for window in windows:
+        first = (window.test_start + evaluate.SESSION_OPEN_OFFSET).normalize().to_datetime64()
+        last = (window.test_end + evaluate.SESSION_OPEN_OFFSET).normalize().to_datetime64()
+        for d in np.unique(days[(days >= first) & (days < last)]):
+            fold_of_day.setdefault(d, set()).add(window.index)
+    assert all(len(f) == 1 for f in fold_of_day.values())
+    assert np.datetime64("2024-07-01") in fold_of_day
+
+
 def test_zigzag_oracle_legs():
     price = np.array([0, 5, 10, 4, 1, 6, 12, 3.0])
     legs = oracle.zigzag_legs(price, 5.0)

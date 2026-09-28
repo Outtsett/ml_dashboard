@@ -61,14 +61,19 @@ class HorizonPredictions:
     importance: pd.DataFrame | None = None
 
 
+SESSION_OPEN_OFFSET = pd.Timedelta(hours=9)   # session D opens at 15:00 Pacific on D-1 = D minus 9 hours
+
+
 def fold_windows(first_test: str, test_months: int, end: str) -> list[FoldWindow]:
+    """Calendar windows cut at CME session opens, so no session is split between
+    two folds (cutting at midnight split three sessions in round 1)."""
     out: list[FoldWindow] = []
     start = pd.Timestamp(first_test)
     stop = pd.Timestamp(end)
     index = 0
     while start < stop:
         finish = min(start + pd.DateOffset(months=test_months), stop)
-        out.append(FoldWindow(index, start, finish))
+        out.append(FoldWindow(index, start - SESSION_OPEN_OFFSET, finish - SESSION_OPEN_OFFSET))
         start, index = finish, index + 1
     return out
 
@@ -131,15 +136,34 @@ def _fit(model: str, x_fit: np.ndarray, y_fit: np.ndarray, x_validation: np.ndar
     raise ValueError(f"unknown model {model!r}; use logistic or lightgbm")
 
 
+def model_specs(models: list) -> list[tuple[str, str, dict]]:
+    """``(label, kind, parameters)`` per model entry of a round: a plain string
+    (``"logistic"``) or ``{"label": ..., "kind": ..., <parameters>}``."""
+    out = []
+    for entry in models:
+        if isinstance(entry, str):
+            out.append((entry, entry, {}))
+        else:
+            parameters = {k: v for k, v in entry.items() if k not in ("label", "kind")}
+            out.append((entry["label"], entry["kind"], parameters))
+    return out
+
+
 def predict_horizon(bars: Bars, feature_frame: pd.DataFrame, horizon: int, model: str, windows: list[FoldWindow],
-                    validation_fraction: float, seed: int, model_parameters: dict, log) -> HorizonPredictions:
+                    validation_fraction: float, seed: int, model_parameters: dict, log,
+                    model_kind: str | None = None) -> HorizonPredictions:
     frame = bars.frame
     label, exit_index = labels_for(frame, horizon)
-    stamps = pd.to_datetime(frame["timestamp"].to_numpy(np.int64), unit="s")
+    # Test rows are chosen by SESSION DAY, not timestamp: a coarse bar stamped before a session's
+    # 15:00 open can belong to it (a 4h bar stamped Sunday 12:00 is Monday's), and a timestamp cut
+    # put that bar in one fold and the rest of its session in the next.
+    days = session_dates(frame["timestamp"].to_numpy(np.int64))
     out = HorizonPredictions(bars.timeframe, horizon, model)
     importance_rows: list[pd.Series] = []
     for window in windows:
-        test_rows = np.where((stamps >= window.test_start) & (stamps < window.test_end))[0]
+        first_day = (window.test_start + SESSION_OPEN_OFFSET).normalize().to_datetime64()
+        last_day = (window.test_end + SESSION_OPEN_OFFSET).normalize().to_datetime64()
+        test_rows = np.where((days >= first_day) & (days < last_day))[0]
         if test_rows.size == 0:
             continue
         first_test = int(test_rows[0])
@@ -154,9 +178,10 @@ def predict_horizon(bars: Bars, feature_frame: pd.DataFrame, horizon: int, model
         split = int(train_rows.size * (1.0 - validation_fraction))
         validation_rows = train_rows[split:]
         fit_rows = train_rows[: max(0, split - (horizon + 1))]        # purge: no fitting label ends inside validation
-        estimator, gain = _fit(model, x_all[fit_rows], label[fit_rows], x_all[validation_rows], label[validation_rows],
-                               seed + window.index, model_parameters)
+        estimator, gain = _fit(model_kind or model, x_all[fit_rows], label[fit_rows], x_all[validation_rows],
+                               label[validation_rows], seed + window.index, model_parameters)
         validation_probability = estimator.predict_proba(x_all[validation_rows])[:, 1]
+        fit_mean_probability = float(estimator.predict_proba(x_all[fit_rows])[:, 1].mean())
         probability = np.full(test_rows.size, np.nan)
         test_finite = finite[test_rows]
         if test_finite.any():
@@ -169,6 +194,8 @@ def predict_horizon(bars: Bars, feature_frame: pd.DataFrame, horizon: int, model
             "test_rows": test_rows,
             "probability": probability,
             "validation_probability": validation_probability,
+            "fit_mean_probability": fit_mean_probability,
+            "fit_up_rate": float(label[fit_rows].mean()),
             "test_label": test_label,
             "auc": _auc(test_label, probability),
             "validation_auc": _auc(label[validation_rows], validation_probability),
@@ -197,9 +224,16 @@ class TradingRule:
     take_profit_ticks: float = 0.0
     long_only: bool = False
     contracts: int = 1
+    # "half": conviction = |p - 0.5| (round 1). "fit_mean": conviction and side are measured from the mean
+    # P(up) the fold's model gives its own fitting rows, so a model centred on the market's upward drift
+    # (P ~ 0.55 everywhere) is not read as confidently long on every bar.
+    gate_centre: str = "half"
+    extra_slippage_ticks_per_side: float = 0.0     # on top of cost_model.json's 1 tick per side
 
     def label(self) -> str:
-        parts = [f"gate {self.gate_fraction:.0%}"]
+        parts = [f"gate {self.gate_fraction:.0%}" + (" centred" if self.gate_centre == "fit_mean" else "")]
+        if self.extra_slippage_ticks_per_side:
+            parts.append(f"+{self.extra_slippage_ticks_per_side:g} tick slippage per side")
         if self.session_filter != "all":
             parts.append("RTH entries")
         if self.stop_loss_ticks or self.take_profit_ticks:
@@ -212,6 +246,12 @@ class TradingRule:
 def simulate(bars: Bars, predictions: HorizonPredictions, rule: TradingRule, cost: CostModel,
              windows: list[FoldWindow]) -> dict:
     """Trade one configuration through every fold. Returns per-bar, per-day, per-fold and trade records."""
+    if rule.extra_slippage_ticks_per_side:
+        from dataclasses import replace
+
+        cost = replace(cost, cost_per_side=cost.cost_per_side + rule.extra_slippage_ticks_per_side * cost.tick_value)
+    if rule.gate_centre not in ("half", "fit_mean"):
+        raise ValueError(f"gate_centre must be half or fit_mean, got {rule.gate_centre!r}")
     frame = bars.frame
     o, h, l, c = (frame[k].to_numpy(float) for k in ("open", "high", "low", "close"))
     stamps = frame["timestamp"].to_numpy(np.int64)
@@ -229,7 +269,8 @@ def simulate(bars: Bars, predictions: HorizonPredictions, rule: TradingRule, cos
             continue
         rows = fold["test_rows"]
         probability = fold["probability"]
-        validation_conviction = np.abs(fold["validation_probability"] - 0.5)
+        centre = fold["fit_mean_probability"] if rule.gate_centre == "fit_mean" else 0.5
+        validation_conviction = np.abs(fold["validation_probability"] - centre)
         threshold = 0.0 if rule.gate_fraction >= 1.0 else float(np.quantile(validation_conviction, 1.0 - rule.gate_fraction))
         simulator = Simulator(cost, contracts=rule.contracts, holding_bars=predictions.horizon_bars,
                               stop_loss_ticks=rule.stop_loss_ticks, take_profit_ticks=rule.take_profit_ticks,
@@ -241,10 +282,10 @@ def simulate(bars: Bars, predictions: HorizonPredictions, rule: TradingRule, cos
             p = probability[k]
             if not np.isfinite(p):
                 signal = None
-            elif p == 0.5 or abs(p - 0.5) < threshold or (rule.session_filter == "regular_trading_hours" and not in_rth[i]):
+            elif p == centre or abs(p - centre) < threshold or (rule.session_filter == "regular_trading_hours" and not in_rth[i]):
                 signal = 0
             else:
-                signal = 1 if p > 0.5 else -1
+                signal = 1 if p > centre else -1
             result = simulator.step(int(i), int(stamps[i]), o[i], h[i], l[i], c[i], signal,
                                     None if not np.isfinite(p) else float(p), decide=k < rows.size - 1)
             net[k] = result.net_usd
@@ -289,6 +330,13 @@ def simulate(bars: Bars, predictions: HorizonPredictions, rule: TradingRule, cos
             "session_day_count": int(len(per_day)),
             "trade_count": len(fold_trades),
             "gate_threshold_conviction": threshold,
+            "gate_centre_probability": centre,
+            "fit_mean_probability": fold.get("fit_mean_probability", math.nan),
+            "fit_up_rate": fold.get("fit_up_rate", math.nan),
+            "long_trade_count": int(sum(t["side"] == "long" for t in fold_trades)),
+            "short_trade_count": int(sum(t["side"] == "short" for t in fold_trades)),
+            "long_net_ticks": float(sum(t["net_ticks"] for t in fold_trades if t["side"] == "long")),
+            "short_net_ticks": float(sum(t["net_ticks"] for t in fold_trades if t["side"] == "short")),
             "net_ticks": float(fold_net_ticks),
             "net_ticks_per_session_day": float(fold_net_ticks / max(len(per_day), 1)),
             "buy_and_hold_ticks_per_session_day": float(per_day["buy_and_hold_usd"].sum() / tick_value / max(len(per_day), 1)),
@@ -342,9 +390,27 @@ def summarise(result: dict, cost: CostModel, rule: TradingRule, trial_count: int
         out["profit_factor"] = float(wins / losses) if losses > 0 else math.nan
     out["exposure_share_of_bars"] = float(daily["exposed_bars"].sum() / max(daily["bars"].sum(), 1))
     out["annualised_sharpe_ratio"] = m.annualised_sharpe(daily_ticks)
-    benchmark = m.expected_maximum_sharpe(sharpe_variance, trial_count)
+    # alpha after buy-and-hold beta: the part of the daily ticks that is not "being long a rising market"
+    ab = m.alpha_beta(daily_ticks, hold_ticks)
+    alpha_series = ab["alpha_series"]
+    out["beta_to_buy_and_hold"] = ab["beta"]
+    out["beta_contribution_ticks_per_session_day"] = ab.get("beta_contribution", math.nan)
+    out["alpha_ticks_per_session_day"] = ab["alpha"]
+    out["alpha_newey_west_t"] = ab.get("alpha_newey_west_t", math.nan)
+    out["excess_over_buy_and_hold_newey_west_t"] = ab.get("excess_newey_west_t", math.nan)
+    low, high = m.block_bootstrap_mean_interval(alpha_series)
+    out["alpha_interval_95_low"], out["alpha_interval_95_high"] = low, high
+    if len(alpha_series) == len(daily):
+        by_fold = pd.Series(alpha_series).groupby(daily["fold_index"].to_numpy()).sum()
+        total = by_fold.sum()
+        out["folds_with_positive_alpha"] = int((by_fold > 0).sum())
+        out["best_fold_share_of_alpha"] = float(by_fold.max() / total) if total > 0 else math.nan
+        without_best = np.delete(alpha_series, np.flatnonzero(daily["fold_index"].to_numpy() == by_fold.idxmax()))
+        out["alpha_without_best_fold_ticks_per_session_day"] = float(without_best.mean()) if without_best.size else math.nan
+    out["net_ticks_per_session_day_without_top_10_days"] = float(np.sort(daily_ticks)[:-10].mean()) if day_count > 10 else math.nan
+    benchmark = m.expected_maximum_sharpe(sharpe_variance, int(round(trial_count)))
     out["deflation_trial_count"] = trial_count
-    out["deflated_sharpe_probability"] = m.deflated_sharpe_probability(daily_ticks, benchmark)
+    out["deflated_sharpe_probability_on_alpha"] = m.deflated_sharpe_probability(alpha_series, benchmark)
     out["maximum_drawdown_ticks"] = m.maximum_drawdown(np.cumsum(daily_ticks))
     out["folds_positive"] = int((folds["net_ticks"] > 0).sum())
     out["fold_count"] = int(len(folds))

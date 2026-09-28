@@ -83,6 +83,74 @@ def deflated_sharpe_probability(daily: np.ndarray, benchmark_sharpe_per_day: flo
     return float(stats.norm.cdf((sharpe - benchmark_sharpe_per_day) * math.sqrt(n - 1) / math.sqrt(denominator)))
 
 
+def newey_west_mean_t(values: np.ndarray, lags: int = 10) -> float:
+    """t-statistic of the mean with a Newey-West (heteroskedasticity- and
+    autocorrelation-consistent, Bartlett-weighted) standard error."""
+    x = np.asarray(values, dtype=float)
+    x = x[np.isfinite(x)]
+    n = x.size
+    if n < lags + 2:
+        return math.nan
+    e = x - x.mean()
+    variance = e @ e / n
+    for lag in range(1, lags + 1):
+        variance += 2 * (1 - lag / (lags + 1)) * (e[lag:] @ e[:-lag]) / n
+    return float(x.mean() / math.sqrt(variance / n)) if variance > 0 else math.nan
+
+
+def alpha_beta(net: np.ndarray, market: np.ndarray, lags: int = 10) -> dict:
+    """OLS of daily net ticks on daily buy-and-hold ticks: ``net = alpha + beta * market``.
+
+    ``beta * mean(market)`` is what the configuration earned by being long a rising
+    market; ``alpha`` is what is left. The alpha series (alpha + residual) is what
+    the significance numbers are computed on; its HAC t is the headline test."""
+    y = np.asarray(net, dtype=float)
+    x = np.asarray(market, dtype=float)
+    keep = np.isfinite(y) & np.isfinite(x)
+    y, x = y[keep], x[keep]
+    if y.size < 20 or x.std() == 0:
+        return {"beta": math.nan, "alpha": math.nan, "alpha_series": np.full(keep.sum(), np.nan)}
+    beta = float(np.cov(y, x, ddof=1)[0, 1] / x.var(ddof=1))
+    alpha_series = y - beta * x
+    return {"beta": beta, "alpha": float(alpha_series.mean()), "alpha_series": alpha_series,
+            "beta_contribution": beta * float(x.mean()), "alpha_newey_west_t": newey_west_mean_t(alpha_series, lags),
+            "excess_newey_west_t": newey_west_mean_t(y - x, lags)}
+
+
+def effective_trial_count(matrix: np.ndarray) -> float:
+    """Participation ratio of the eigenvalues of the configurations' correlation
+    matrix: how many independent tests a grid of correlated configurations is."""
+    m = np.asarray(matrix, dtype=float)
+    m = m[:, np.nanstd(m, axis=0) > 0]
+    if m.shape[1] < 2:
+        return float(m.shape[1])
+    eigenvalues = np.clip(np.linalg.eigvalsh(np.corrcoef(m, rowvar=False)), 0, None)
+    return float(eigenvalues.sum() ** 2 / (eigenvalues**2).sum())
+
+
+def reality_check_p_value(matrix: np.ndarray, block_days: int = 10, repetitions: int = 2000, seed: int = 11) -> float:
+    """White's (2000) Reality Check with studentized means: the chance that the
+    best configuration's t looks this good when every configuration's true mean
+    is zero, from a joint moving-block bootstrap over the shared session days."""
+    m = np.asarray(matrix, dtype=float)
+    n, k = m.shape
+    if n < 2 * block_days or k == 0:
+        return math.nan
+    means = m.mean(axis=0)
+    scale = m.std(axis=0, ddof=1) / math.sqrt(n)
+    scale[scale == 0] = np.inf
+    observed = float(np.max(means / scale))
+    rng = np.random.default_rng(seed)
+    blocks = int(math.ceil(n / block_days))
+    offsets = np.arange(block_days)
+    exceed = 0
+    for _ in range(repetitions):
+        rows = (rng.integers(0, n - block_days + 1, size=blocks)[:, None] + offsets).reshape(-1)[:n]
+        simulated = (m[rows].mean(axis=0) - means) / scale
+        exceed += simulated.max() >= observed
+    return float(exceed / repetitions)
+
+
 def maximum_drawdown(cumulative: np.ndarray) -> float:
     x = np.asarray(cumulative, dtype=float)
     if x.size == 0:
