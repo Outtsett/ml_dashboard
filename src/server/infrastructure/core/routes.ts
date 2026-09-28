@@ -57,6 +57,9 @@ import copilotRouter from "../../ai/copilot.router";
 // Marimo Domain
 import marimoRouter from "../../marimo/marimo.router";
 
+// Sidecar Domain (live data hub, Claude Code host)
+import sidecarRouter from "../../sidecar/sidecar.router";
+
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
 
   // Attach PTY WebSocket (independent of Express — survives route errors)
@@ -107,6 +110,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", agentsRouter);
   app.use("/api/ai", copilotRouter);
   app.use("/api", marimoRouter);
+  app.use("/api", sidecarRouter);
 
   // Deployments SSE — mounted BEFORE the generic eventsRouter
   app.use("/api", eventsDeploymentsRouter);

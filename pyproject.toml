@@ -28,9 +28,16 @@ dependencies = [
     # ── Validation / config ─────────────────────────────────────────
     "pydantic>=2.10,<3",
     "jinja2>=3.1",
+    # ── Sentiment (FinBERT, mandatory in every model) ───────────────
+    "transformers==5.16.1",     # lake.finbert.FinBert — ProsusAI/finbert on the GPU
     # ── Data sources / DB ───────────────────────────────────────────
     "databento>=0.70",
     "psycopg2-binary>=2.9.11",
+    "aiohttp>=3.13",            # live/ hub: vendor sockets + its own HTTP/SSE server
+    "feedparser>=6.0.11",       # live/ hub: RSS/Atom news feeds, timezone-aware pubDate
+    # ── MCP server (mcp_server/, stdio for Claude Code) ─────────────
+    "fastmcp==3.1.1",
+    "python-dotenv>=1.1",
     # ── System / GPU instrumentation ───────────────────────────────
     "psutil>=6",
     "nvidia-ml-py>=12",         # provides `pynvml` import; replaces deprecated pynvml package
