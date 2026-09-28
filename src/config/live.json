@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "spoolDir": "data/live/spool",
+  "rawFlushSeconds": 900,
+  "spoolFlushSeconds": 300,
+  "barHistoryDays": 14,
+  "oanda": {
+    "enabled": true,
+    "pairs": [
+      "AUDJPY", "AUDUSD", "CADJPY", "CHFJPY", "EURAUD", "EURCHF", "EURGBP", "EURJPY", "EURUSD",
+      "GBPAUD", "GBPCHF", "GBPJPY", "GBPUSD", "NZDJPY", "NZDUSD", "USDCAD", "USDCHF", "USDJPY"
+    ],
+    "stallSeconds": 20
+  },
+  "yahoo": {
+    "enabled": true,
+    "pollSeconds": 60,
+    "symbols": {
+      "ES": "ES=F", "NQ": "NQ=F", "YM": "YM=F", "RTY": "RTY=F",
+      "MES": "MES=F", "MNQ": "MNQ=F", "MYM": "MYM=F", "M2K": "M2K=F",
+      "GC": "GC=F", "SI": "SI=F", "HG": "HG=F",
+      "ZT": "ZT=F", "ZF": "ZF=F", "ZN": "ZN=F", "ZB": "ZB=F",
+      "DXY": "DX-Y.NYB"
+    }
+  },
+  "tape": {
+    "enabled": true,
+    "roots": ["E:\\qtcapture"],
+    "scanSeconds": 5
+  },
+  "feeds": [
+    { "name": "investinglive", "label": "InvestingLive (ForexLive)", "url": "https://investinglive.com/feed/news", "pollSeconds": 60 },
+    { "name": "fxstreet", "label": "FXStreet", "url": "https://www.fxstreet.com/rss/news", "pollSeconds": 120 },
+    { "name": "investing", "label": "Investing.com", "url": "https://www.investing.com/rss/news_25.rss", "pollSeconds": 300 },
+    { "name": "yahoo_finance", "label": "Yahoo Finance", "url": "https://finance.yahoo.com/news/rssindex", "pollSeconds": 300 },
+    { "name": "federal_reserve", "label": "Federal Reserve", "url": "https://www.federalreserve.gov/feeds/press_all.xml", "pollSeconds": 600 },
+    { "name": "ecb", "label": "European Central Bank", "url": "https://www.ecb.europa.eu/rss/press.html", "pollSeconds": 600 },
+    { "name": "bls", "label": "US Bureau of Labor Statistics", "url": "https://www.bls.gov/feed/bls_latest.rss", "pollSeconds": 900 }
+  ],
+  "alphavantage": {
+    "enabled": true,
+    "keyEnv": "ALPHA_VANTAGE_API_KEY",
+    "dailyBudget": 25,
+    "limitPerCall": 1000,
+    "rotation": [
+      { "topics": "economy_monetary" },
+      { "topics": "economy_macro" },
+      { "topics": "financial_markets" },
+      { "topics": "economy_fiscal" },
+      { "tickers": "FOREX:USD" },
+      { "tickers": "FOREX:EUR" },
+      { "tickers": "FOREX:JPY" },
+      { "tickers": "FOREX:GBP" }
+    ]
+  },
+  "gdelt": {
+    "enabled": true,
+    "intervalSeconds": 6,
+    "sweepMinutes": 15,
+    "sweepLookbackMinutes": 60,
+    "backfillFrom": "2024-01-01",
+    "backfillWindowDays": 7,
+    "backfillWriteDays": 30,
+    "sourcePolicy": "quality"
+  },
+  "finbert": {
+    "model": "ProsusAI/finbert",
+    "batchSize": 128
+  }
+}

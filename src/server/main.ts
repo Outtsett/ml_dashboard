@@ -30,6 +30,8 @@ declare module 'express-serve-static-core' {
 import { attachMetricsWebSocket } from './infrastructure/core/ws';
 import { registerMarimoProxies } from './marimo/proxy';
 import { stopAllGroups as stopAllMarimoGroups } from './marimo/servers';
+import { isSidecarPath, registerSidecarProxies } from './sidecar/proxy';
+import { startSidecars, stopAllSidecars } from './sidecar/supervisor';
 import { stopCycleExplainer } from './training/cycleExplainer';
 
 // Re-export for backward compat
@@ -171,6 +173,7 @@ async function bootstrap() {
     filter: (req: Request) => {
       if (req.path.includes('/stream/') || req.path.includes('/events/')) return false;
       if (req.path.startsWith('/marimo/')) return false; // proxied marimo pages/assets — let them through unbuffered
+      if (isSidecarPath(req.path)) return false; // live hub + Claude host stream server-sent events
       if (process.env.NODE_ENV === 'production' && req.path.startsWith('/assets/')) return false;
       return true;
     },
@@ -188,7 +191,10 @@ async function bootstrap() {
   expressApp.use((req: Request, res: Response, next: NextFunction) => {
     // SSE streams, training endpoints and proxied marimo notebooks get longer timeout
     const isLongRunning =
-      req.path.includes('/stream/') || req.path.includes('/training/start') || req.path.startsWith('/marimo/');
+      req.path.includes('/stream/') ||
+      req.path.includes('/training/start') ||
+      req.path.startsWith('/marimo/') ||
+      isSidecarPath(req.path);
     const timeout = isLongRunning ? 0 : 30_000;
     if (timeout > 0) {
       req.setTimeout(timeout, () => {
@@ -221,6 +227,10 @@ async function bootstrap() {
   // the same defect wearing a different hat. It still sits after the request-id
   // and timeout middleware, which exempts `/marimo/` from the 30s cap on purpose.
   registerMarimoProxies(expressApp, httpServer);
+  // Sidecars (src/config/sidecars.json): the live data hub and the Claude Code
+  // host. Same reason as marimo for sitting before the body parsers — a proxied
+  // POST must reach the sidecar with its body unconsumed.
+  registerSidecarProxies(expressApp);
 
   expressApp.use(
     express.json({
@@ -417,6 +427,10 @@ async function bootstrap() {
     serverReady = true;
     log(`serving on port ${port}`, 'express');
 
+    // Sidecars start (or are adopted after a tsx --watch restart) in the
+    // background; the watchdog restarts an autostart sidecar that dies.
+    startSidecars();
+
     // Fire-and-forget cache warming — don't block startup
     warmSymbolsCatalog().catch(err => {
       console.warn('[startup] Cache warming failed:', err.message);
@@ -433,6 +447,7 @@ async function bootstrap() {
     shutdownHardwareNode();
     shutdownAllPtySessions();
     await stopAllMarimoGroups();
+    await stopAllSidecars();
     // The Model Cycle's warm explainer is a Python child: stop it so it is not orphaned.
     await stopCycleExplainer();
 
