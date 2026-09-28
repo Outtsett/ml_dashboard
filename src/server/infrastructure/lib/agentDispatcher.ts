@@ -57,6 +57,7 @@ import {
   type AgentTokenUsage,
 } from '@shared/schema';
 import { getEventBus } from '../events/event-bus';
+import { childEnvironment } from '../../claude/session';
 import type { DomainEvent } from '@shared/event-types';
 
 const logger = new Logger('AgentDispatcher');
@@ -619,7 +620,23 @@ async function callSdk(
   let rateLimited = false;
   let retryAfter: number | undefined;
 
-  const iter = sdkFn({ prompt });
+  // Read-only advisors. Without options the SDK loaded every user setting and
+  // hook, ran in whatever directory the server happened to start in, and had no
+  // way to approve a tool — so an advisor that tried to read a file stalled.
+  // Same child environment as the Claude panel (src/server/claude/session.ts):
+  // the dashboard may have been started from a Claude Code session, whose
+  // variables would make this a nested sub-session.
+  const iter = sdkFn({
+    prompt,
+    options: {
+      cwd: process.cwd(),
+      allowedTools: ['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch'],
+      permissionMode: 'dontAsk',
+      settingSources: ['project'],
+      maxTurns: 30,
+      env: childEnvironment(),
+    },
+  });
 
   // Race the iterator against a timeout.
   const timeoutPromise = new Promise<never>((_, reject) => {
