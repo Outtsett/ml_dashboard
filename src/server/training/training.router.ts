@@ -83,10 +83,13 @@ const trainingRequestSchema = z.object({
     start: z.string().regex(isoDatePattern, "dateRange.start must be YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS"),
     end: z.string().regex(isoDatePattern, "dateRange.end must be YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS"),
   }).optional(),
-  // Allow string values for backward compat, but restrict to safe characters
+  // Allow string values for backward compat, but restrict to safe characters.
+  // Empty and comma-separated values are allowed: the Model Cycle sends
+  // `tuning_pinned_parameters` as "" or "max_depth,learning_rate", and the
+  // runner spawns with an argument array, never a shell.
   hyperparameters: z.record(z.union([
     z.number(),
-    z.string().max(100).regex(/^[a-zA-Z0-9_.\-]+$/, "Unsafe hyperparameter value"),
+    z.string().max(100).regex(/^[a-zA-Z0-9_.,\-]*$/, "Unsafe hyperparameter value"),
     z.boolean(),
   ])).optional(),
   maxBars: z.number().int().min(0).max(10000000).optional(),
