@@ -1,0 +1,162 @@
+{
+  "models": {
+    "bayesian_neural_hybrid": {
+      "catalogSpecId": "hybrid-composite-architectures-generative-discriminative-hybrids-bayesian-neural-hybrid-model",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Bayesian neural hybrid",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Generative-discriminative",
+      "kind": "Probabilistic network",
+      "summary": "A perceptron that keeps dropout switched on when it predicts, so many stochastic passes give both the prediction (their mean) and how unsure the model is (their spread).",
+      "implementationNote": "Monte Carlo dropout (Gal and Ghahramani, 2016), an approximation to a Bayesian neural network rather than variational inference: an ordinary multilayer perceptron trained with dropout, whose dropout stays on at prediction; sample_count sampled networks score every bar, their mean is P(up) (or the price target) and their standard deviation is the epistemic uncertainty, kept on the adapter (last_uncertainty) and averaged over the validation rows in the fit summary. The Gaussian prior on the weights is expressed as weight decay.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "bayesian_neural_hybrid",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-40 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "Units in every hidden layer of the perceptron.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 8,
+          "label": "Layer count",
+          "group": "Model",
+          "description": "How many hidden layers (each followed by the activation and Monte Carlo dropout) sit between the features and the head.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.05,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "Share of hidden units switched off at random on every pass, in training and at prediction alike; it defines the approximate posterior the sampled networks are drawn from.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.5
+          }
+        },
+        "sample_count": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Sample count",
+          "group": "Model",
+          "description": "Stochastic forward passes per prediction: their mean is the prediction and their standard deviation the epistemic uncertainty.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              10,
+              20,
+              50
+            ]
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "Peak step size of the one-cycle schedule.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.001,
+          "min": 0,
+          "max": 1,
+          "logScale": true,
+          "label": "Weight decay (Gaussian prior)",
+          "group": "Model",
+          "description": "The Gaussian prior on the weights, applied as decoupled weight decay: larger pulls the weights harder toward zero.",
+          "search": {
+            "kind": "float",
+            "low": 1e-05,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "Training rows per optimisation step; batches are contiguous blocks of time."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "Passes over the training rows, at most; early stopping may end the fit sooner."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "Epochs without a better validation loss before the fit stops and the best weights are restored."
+        }
+      }
+    }
+  }
+}

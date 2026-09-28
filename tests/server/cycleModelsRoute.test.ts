@@ -153,8 +153,14 @@ describe('GET /api/training/cycle-models', () => {
         expect(rank).toEqual([...rank].sort((a, b) => a - b));
       }
     }
-    // Categories holding registry models come first.
-    expect(response.categories[0]!.id).toBe('supervised');
+    // Categories holding registry models come first, the most runnable models first,
+    // whatever registry file a model lives in.
+    const holdsRegistry = response.categories.map((category) =>
+      category.subcategories.some((subcategory) => subcategory.models.some((card) => card.key !== null)));
+    expect(holdsRegistry).toEqual([...holdsRegistry].sort((a, b) => Number(b) - Number(a)));
+    const counts = response.categories.filter((_, index) => holdsRegistry[index]).map((category) => category.runnableCount);
+    expect(counts).toEqual([...counts].sort((a, b) => b - a));
+    expect(counts[0]).toBeGreaterThan(0);
   });
 
   it('with no catalog: catalogAvailable false and the registry fallback grouping only', async () => {

@@ -168,10 +168,16 @@ class Grouping {
     if (subcategory) subcategory.label = label;
   }
 
+  /**
+   * Categories holding registry models first, the one with the most runnable
+   * models first (then registry order, then label), so the order does not
+   * depend on which registry file a model happens to live in; subcategories in
+   * registry order, then label.
+   */
   build(): CycleModelsResponse["categories"] {
     const byRegistryThenLabel = <T extends { firstRegistryIndex: number; label: string }>(a: T, b: T): number =>
       a.firstRegistryIndex !== b.firstRegistryIndex ? (a.firstRegistryIndex < b.firstRegistryIndex ? -1 : 1) : a.label.localeCompare(b.label);
-    return [...this.categories.values()].sort(byRegistryThenLabel).map((category) => {
+    const built = [...this.categories.values()].map((category) => {
       const subcategories = [...category.items.values()].sort(byRegistryThenLabel).map((subcategory) => {
         const registry = [...subcategory.items.registry]
           .sort((a, b) => Number(b.card.runnable) - Number(a.card.runnable) || a.index - b.index)
@@ -181,8 +187,14 @@ class Grouping {
       });
       // Models, not cards: a model shown under two catalog specs counts once.
       const runnableCount = runnableModelCount(subcategories.flatMap((subcategory) => subcategory.models));
-      return { id: category.id, label: category.label, runnableCount, subcategories };
+      return { bucket: category, response: { id: category.id, label: category.label, runnableCount, subcategories } };
     });
+    const holdsRegistry = (entry: (typeof built)[number]) => Number.isFinite(entry.bucket.firstRegistryIndex);
+    built.sort((a, b) =>
+      Number(holdsRegistry(b)) - Number(holdsRegistry(a))
+      || b.response.runnableCount - a.response.runnableCount
+      || byRegistryThenLabel(a.bucket, b.bucket));
+    return built.map((entry) => entry.response);
   }
 }
 

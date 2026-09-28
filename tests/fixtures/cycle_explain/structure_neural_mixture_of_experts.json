@@ -1,0 +1,58 @@
+{
+  "modelId": "cycle_explain_neural_mixture_of_experts",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "neural",
+  "link": "logistic",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": {
+    "network": "mixture_of_experts",
+    "layers": [
+      {
+        "name": "Gate probabilities over the experts",
+        "kind": "gate",
+        "outputShape": [
+          3
+        ]
+      },
+      {
+        "name": "Expert 1 hidden output (Gaussian error linear unit)",
+        "kind": "dense",
+        "outputShape": [
+          12
+        ]
+      },
+      {
+        "name": "Expert 2 hidden output (Gaussian error linear unit)",
+        "kind": "dense",
+        "outputShape": [
+          12
+        ]
+      },
+      {
+        "name": "Expert 3 hidden output (Gaussian error linear unit)",
+        "kind": "dense",
+        "outputShape": [
+          12
+        ]
+      },
+      {
+        "name": "Gate-weighted mixture of the experts",
+        "kind": "mixture",
+        "outputShape": [
+          12
+        ]
+      }
+    ],
+    "sequenceLength": 1,
+    "hasAttention": false
+  }
+}

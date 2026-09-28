@@ -1,0 +1,181 @@
+{
+  "models": {
+    "mixture_of_experts": {
+      "catalogSpecId": "neural-network-architectures-memory-routing-architectures-mixture-of-experts",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Mixture of experts",
+      "category": "Neural network architectures",
+      "subcategory": "Memory and routing",
+      "kind": "Routed network",
+      "summary": "Several small networks each learn a different kind of market, and a gate decides how much to trust each one for this bar.",
+      "implementationNote": "Dense soft routing: every expert scores every bar and the gate's softmax weights mix their hidden outputs before one shared linear head, so there is no top-k sparsity and no load-balancing loss; the gate probabilities per bar are shown in Inside the model.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "neural",
+      "sequence": false,
+      "network": "mixture_of_experts",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "expert_count": {
+          "type": "int",
+          "default": 4,
+          "min": 2,
+          "max": 32,
+          "label": "Expert count",
+          "group": "Model",
+          "description": "How many expert networks the gate chooses between.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              4,
+              8
+            ]
+          }
+        },
+        "expert_hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Expert hidden size",
+          "group": "Model",
+          "description": "How many units each hidden layer of an expert has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "expert_layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Expert layer count",
+          "group": "Model",
+          "description": "How many hidden layers each expert stacks.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3,
+            "log": false
+          }
+        },
+        "gate_hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Gate hidden size",
+          "group": "Model",
+          "description": "How many units the gating network's hidden layer has before it scores the experts.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of expert units switched off at random during training, so no expert can lean on any one of them.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the experts and the gate simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    }
+  }
+}

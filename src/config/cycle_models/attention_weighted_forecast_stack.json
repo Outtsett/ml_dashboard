@@ -1,0 +1,121 @@
+{
+  "models": {
+    "attention_weighted_forecast_stack": {
+      "catalogSpecId": "hybrid-composite-architectures-multi-modal-temporal-fusion-attention-weighted-forecast-stack",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Attention-weighted forecast stack",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Multi-modal temporal",
+      "kind": "Attention ensemble",
+      "summary": "Four different forecasters each make a call on every bar, and an attention map decides, bar by bar, how much to trust each one.",
+      "implementationNote": "Base forecasters: logistic regression (ridge for the price model), k-nearest neighbors, histogram gradient boosting and a one-hidden-layer perceptron, all scikit-learn, fitted on the training rows. The attention combiner (one linear score per base model from the standardised features, softmax with a temperature, dot with the base forecasts) is fitted on the VALIDATION rows by gradient descent in torch, because the base models have seen the training rows and their training-row forecasts are optimistic. Versus the catalog spec: tabular scikit-learn base models over the Cycle's causal features instead of LSTM / temporal CNN / transformer / ARIMA over multi-modal inputs; one linear attention score per base model instead of multi-head self-attention; no joint end-to-end training; a point forecast, not a distribution.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "sklearn",
+      "adapter": "attention_weighted_forecast_stack",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "predict_proba"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": ["standard_scaler"],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "3-30 min (paced replay)",
+      "gpu": false,
+      "parameters": {
+        "neighbor_count": {
+          "type": "int",
+          "default": 50,
+          "min": 1,
+          "max": 2000,
+          "label": "Neighbor count (k)",
+          "group": "Model",
+          "description": "How many look-alike training bars vote in the nearest-neighbors base forecaster.",
+          "search": {
+            "kind": "int",
+            "low": 5,
+            "high": 200,
+            "log": true
+          }
+        },
+        "boosting_rounds": {
+          "type": "int",
+          "default": 100,
+          "min": 10,
+          "max": 5000,
+          "label": "Boosting rounds",
+          "group": "Model",
+          "description": "How many trees the gradient-boosting base forecaster adds one after another.",
+          "search": {
+            "kind": "categorical",
+            "choices": [50, 100, 200]
+          }
+        },
+        "combiner_learning_rate": {
+          "type": "float",
+          "default": 0.01,
+          "min": 0.0001,
+          "max": 1,
+          "logScale": true,
+          "label": "Combiner learning rate",
+          "group": "Model",
+          "description": "How far each gradient step moves the attention map that weights the base forecasters.",
+          "search": {
+            "kind": "float",
+            "low": 0.001,
+            "high": 0.1,
+            "log": true
+          }
+        },
+        "combiner_epochs": {
+          "type": "int",
+          "default": 50,
+          "min": 1,
+          "max": 1000,
+          "label": "Combiner epochs",
+          "group": "Model",
+          "description": "Full-batch gradient steps the attention combiner takes on the validation rows; the epoch with the lowest validation loss is kept."
+        },
+        "attention_temperature": {
+          "type": "float",
+          "default": 1.0,
+          "min": 0.1,
+          "max": 10,
+          "step": 0.1,
+          "label": "Attention temperature",
+          "group": "Model",
+          "description": "Divides the attention scores before the softmax: low makes the stack pick one forecaster per bar, high spreads the weight evenly.",
+          "search": {
+            "kind": "float",
+            "low": 0.5,
+            "high": 2.0
+          }
+        },
+        "perceptron_hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 512,
+          "label": "Perceptron hidden size",
+          "group": "Model",
+          "description": "Units in the one hidden layer of the multilayer-perceptron base forecaster.",
+          "search": {
+            "kind": "categorical",
+            "choices": [32, 64]
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,199 @@
+{
+  "models": {
+    "tree_boosted_neural_embedding": {
+      "catalogSpecId": "hybrid-composite-architectures-composite-controllers-planners-tree-boosted-neural-embedding",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Tree-boosted neural embedding",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Composite controllers",
+      "kind": "Trees + network",
+      "summary": "Boosted trees sort each bar into leaves, every leaf gets a learned vector, and a small network reads those vectors beside the scaled features.",
+      "implementationNote": "Stage 1 is a LightGBM ensemble (tree_count trees, max_depth, tree_learning_rate, at least 20 bars per leaf) fitted on the training rows and frozen; stage 2 embeds each tree's leaf index (one table per tree, summed), adds a projection of the features standardised with the training rows' mean and deviation, and trains a one-hidden-layer head with early stopping on the validation rows. The price model clips its tree target at the training 1st/99th percentiles and fits the head with Huber loss. No sequence branch, no attention pooling, no joint refit.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "tree_boosted_neural_embedding",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [
+        "standard_scaler"
+      ],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "opaque",
+      "sequence": false,
+      "network": null,
+      "speed": "medium",
+      "estimatedTrainingTime": "5-40 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "tree_count": {
+          "type": "int",
+          "default": 100,
+          "min": 10,
+          "max": 1000,
+          "label": "Tree count",
+          "group": "Model",
+          "description": "How many boosted trees partition the feature space; each adds one embedding table.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              50,
+              100,
+              200
+            ]
+          }
+        },
+        "max_depth": {
+          "type": "int",
+          "default": 4,
+          "min": 2,
+          "max": 10,
+          "label": "Max depth",
+          "group": "Model",
+          "description": "How many questions each tree may ask in a row; a tree has up to 2^depth leaves, each an embedding row.",
+          "search": {
+            "kind": "int",
+            "low": 3,
+            "high": 8,
+            "log": false
+          }
+        },
+        "tree_learning_rate": {
+          "type": "float",
+          "default": 0.05,
+          "min": 0.001,
+          "max": 0.5,
+          "logScale": true,
+          "label": "Tree learning rate",
+          "group": "Model",
+          "description": "How much each new tree is allowed to change the ensemble's answer (boosting shrinkage).",
+          "search": {
+            "kind": "float",
+            "low": 0.02,
+            "high": 0.3,
+            "log": true
+          }
+        },
+        "embedding_size": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 128,
+          "label": "Embedding size",
+          "group": "Model",
+          "description": "How many numbers describe each leaf; the tree vectors are summed into one vector of this size.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              8,
+              16,
+              32
+            ]
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units the head's hidden layer has.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of hidden units switched off at random during each training step.",
+          "search": {
+            "kind": "float",
+            "low": 0.1,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The peak step size of the head's one-cycle schedule.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "Shrinks the head's weights toward zero each step; the embedding tables are never decayed.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.001,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many consecutive training bars each optimisation step reads."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training rows the head may take."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch's weights are kept."
+        }
+      }
+    }
+  }
+}

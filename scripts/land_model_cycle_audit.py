@@ -118,12 +118,19 @@ def land(name: str, frame: pl.DataFrame, *, source: str) -> dict:
     with arrow_fs().open_output_stream(key) as sink:
         pq.write_table(table, sink, compression=COMPRESSION, compression_level=COMPRESSION_LEVEL)
     size = arrow_fs().get_file_info(key).size
-    entry = {"written_at": datetime.now(timezone.utc).isoformat(), "dataset": DATASET, "table": name, "zone": "derived",
-             "recipe": RECIPE, "source": source, "rows": table.num_rows, "duplicates_removed": 0, "file_count": 1,
-             "bytes": size, "ts_min": None, "ts_max": None}
-    with (INGEST_MANIFESTS / f"{DATASET}.jsonl").open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(entry) + "\n")
-    return {"table": name, "rows": table.num_rows, "bytes": size, "uri": "s3://" + key}
+    manifest = INGEST_MANIFESTS / f"{DATASET}.jsonl"
+    listed = manifest.exists() and any(
+        (line_entry.get("recipe"), line_entry.get("table")) == (RECIPE, name)
+        for line_entry in (json.loads(line) for line in manifest.read_text(encoding="utf-8").splitlines() if line.strip())
+    )
+    if not listed:   # a re-land replaces the object; the table is listed once
+        entry = {"written_at": datetime.now(timezone.utc).isoformat(), "dataset": DATASET, "table": name,
+                 "zone": "derived", "recipe": RECIPE, "source": source, "rows": table.num_rows,
+                 "duplicates_removed": 0, "file_count": 1, "bytes": size, "ts_min": None, "ts_max": None}
+        with manifest.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry) + "\n")
+    return {"table": name, "rows": table.num_rows, "bytes": size, "uri": "s3://" + key,
+            "manifest": "already listed" if listed else "written"}
 
 
 def main() -> int:
@@ -143,7 +150,7 @@ def main() -> int:
     source = "Model Cycle audit 2026-09-26 (scripts/land_model_cycle_audit.py)"
     for name, frame in (("findings", findings), ("coverage", coverage), ("record", record)):
         result = land(name, frame, source=source)
-        print(f"landed {result['table']}: {result['rows']} rows, {result['bytes']} bytes -> {result['uri']}")
+        print(f"landed {result['table']}: {result['rows']} rows, {result['bytes']} bytes -> {result['uri']} (manifest {result['manifest']})")
     return 0
 
 

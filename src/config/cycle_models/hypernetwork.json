@@ -1,0 +1,174 @@
+{
+  "models": {
+    "hypernetwork": {
+      "catalogSpecId": "neural-network-architectures-memory-routing-architectures-hypernetwork",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Hypernetwork",
+      "category": "Neural network architectures",
+      "subcategory": "Memory and routing",
+      "kind": "Sequence network",
+      "summary": "A small network reads the regime of the recent bars and writes the weights of a second network that then reads the current bar.",
+      "implementationNote": "The context is the window's per-feature mean and standard deviation; the hypernetwork generates every weight and bias of a one-hidden-layer target perceptron applied to the last bar, so the target network changes with the regime.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "neural",
+      "sequence": true,
+      "network": "hypernetwork",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the context (the regime) is measured over for one prediction."
+        },
+        "hypernetwork_hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Hypernetwork hidden size",
+          "group": "Model",
+          "description": "How many units the weight-writing network has in its hidden layer.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "target_hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 2,
+          "max": 512,
+          "label": "Target hidden size",
+          "group": "Model",
+          "description": "How many hidden units the generated target network has; every one of its weights is written by the hypernetwork.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "context_embedding_size": {
+          "type": "int",
+          "default": 16,
+          "min": 2,
+          "max": 256,
+          "label": "Context embedding size",
+          "group": "Model",
+          "description": "The size the window's mean and standard deviation are compressed to before the weights are written.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              8,
+              16,
+              32
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training, in the hypernetwork's hidden layer and the target hidden layer.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    }
+  }
+}

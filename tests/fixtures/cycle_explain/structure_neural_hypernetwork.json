@@ -1,0 +1,65 @@
+{
+  "modelId": "cycle_explain_neural_hypernetwork",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "neural",
+  "link": "logistic",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": {
+    "network": "hypernetwork",
+    "layers": [
+      {
+        "name": "Context vector (window mean and standard deviation per feature)",
+        "kind": "context",
+        "outputShape": [
+          8
+        ]
+      },
+      {
+        "name": "Context embedding (Gaussian error linear unit)",
+        "kind": "dense",
+        "outputShape": [
+          8
+        ]
+      },
+      {
+        "name": "Hypernetwork hidden layer (Gaussian error linear unit)",
+        "kind": "dense",
+        "outputShape": [
+          16
+        ]
+      },
+      {
+        "name": "Generated first-layer weight norm per target unit",
+        "kind": "generated_weights",
+        "outputShape": [
+          8
+        ]
+      },
+      {
+        "name": "Target hidden layer (Gaussian error linear unit)",
+        "kind": "dense",
+        "outputShape": [
+          8
+        ]
+      },
+      {
+        "name": "Target output contributions (generated weight times activation, then the generated bias)",
+        "kind": "contributions",
+        "outputShape": [
+          9
+        ]
+      }
+    ],
+    "sequenceLength": 12,
+    "hasAttention": false
+  }
+}

@@ -1,0 +1,202 @@
+{
+  "models": {
+    "recurrent_convolution_hybrid": {
+      "catalogSpecId": "hybrid-composite-architectures-classical-hybrids-rnn-cnn-hybrid",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Recurrent-convolution hybrid",
+      "category": "Hybrid and composite architectures",
+      "subcategory": "Classical hybrids",
+      "kind": "Sequence network",
+      "summary": "Causal convolutions first pick out short shapes across a few neighbouring bars, then a gated recurrent unit reads those shapes in order and predicts from its memory at the last bar.",
+      "implementationNote": "The spec's sequential configuration on bars: 1-D causal convolutions along the bar axis (features as channels, left-padded so bar k reads bars <= k, no pooling) feed a gated recurrent unit whose last hidden state goes straight to the head; no fusion layer, no pretrained backbone, trained by the Cycle's one loop.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "neural",
+      "sequence": true,
+      "network": "recurrent_convolution_hybrid",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 256,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the network reads for one prediction."
+        },
+        "channel_count": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Channel count",
+          "group": "Model",
+          "description": "How many shapes each convolution layer looks for (its output channels).",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              16,
+              32,
+              64
+            ]
+          }
+        },
+        "kernel_size": {
+          "type": "int",
+          "default": 3,
+          "min": 2,
+          "max": 15,
+          "label": "Kernel size (bars)",
+          "group": "Model",
+          "description": "How many neighbouring bars one convolution mixes: the bar itself and the kernel_size - 1 before it.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              3,
+              5
+            ]
+          }
+        },
+        "convolution_layer_count": {
+          "type": "int",
+          "default": 2,
+          "min": 1,
+          "max": 6,
+          "label": "Convolution layer count",
+          "group": "Model",
+          "description": "How many causal convolution layers run before the recurrent unit.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 3
+          }
+        },
+        "hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Hidden size",
+          "group": "Model",
+          "description": "How many units the gated recurrent unit keeps in its memory.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "recurrent_layer_count": {
+          "type": "int",
+          "default": 1,
+          "min": 1,
+          "max": 4,
+          "label": "Recurrent layer count",
+          "group": "Model",
+          "description": "How many gated recurrent unit layers are stacked over the convolution maps.",
+          "search": {
+            "kind": "int",
+            "low": 1,
+            "high": 2
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.8,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random while training, after every convolution and before the head.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "The peak step size of the one-cycle schedule.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "How strongly the weights are pulled toward zero each step.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 8,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many consecutive training bars one optimisation step reads."
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training rows at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Early stopping patience",
+          "group": "Model",
+          "description": "How many epochs without a better validation loss before training stops."
+        }
+      }
+    }
+  }
+}

@@ -352,6 +352,9 @@ class CycleEngine:
         self.control = control or ControlState(settings.bars_per_second, settings.start_paused)
         self.clock = clock
         self.started = clock()
+        # when the run began on the wall clock (epoch seconds): the record's started_at_timestamp.
+        # `clock` is injectable and monotonic, so it cannot say when.
+        self.started_wall_clock = time.time()
         self.horizon = settings.label_horizon_bars
         # a bar whose horizon spans a session gap (break, weekend, outage) gets no label, target or forecast
         self.crosses_gap = horizon_crosses_gap(data.timestamps, self.horizon, float(settings.label_gap_multiple))

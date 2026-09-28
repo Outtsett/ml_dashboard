@@ -1,0 +1,198 @@
+{
+  "models": {
+    "dual_pathway": {
+      "catalogSpecId": "neural-network-architectures-specialized-modular-networks-dual-pathway-network",
+      "alsoCatalogSpecIds": [],
+      "displayName": "Dual-pathway network",
+      "category": "Neural network architectures",
+      "subcategory": "Specialized and modular networks",
+      "kind": "Sequence network",
+      "summary": "Two branches read the same window through two lenses - a fast one over the last few bars at full resolution and a slow one over the whole window sampled every few bars - and a gated fusion layer decides how much each one drives the call.",
+      "implementationNote": "Each pathway is a forward-only gated recurrent unit; the fast view is the last fast_window_bars bars, the slow view every slow_stride-th bar counted back from the last bar, so both views end on the bar being predicted. Their final states are concatenated, gated by a learned logistic gate and read by a fusion perceptron. Fusion is once, at the head (no lateral connections); both pathways share one width.",
+      "runnable": true,
+      "unavailableReason": null,
+      "implementation": "torch",
+      "adapter": "neural",
+      "legacyFamily": null,
+      "direction": {
+        "mode": "classifier",
+        "estimator": null,
+        "fixed": {},
+        "probability": "network"
+      },
+      "price": {
+        "estimator": null,
+        "fixed": {}
+      },
+      "preprocess": [],
+      "progress": "per_epoch",
+      "stepUnit": "epoch",
+      "explainKind": "neural",
+      "sequence": true,
+      "network": "dual_pathway",
+      "speed": "slow",
+      "estimatedTrainingTime": "10-90 min (paced replay)",
+      "gpu": true,
+      "parameters": {
+        "sequence_length": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 512,
+          "label": "Sequence length (bars)",
+          "group": "Model",
+          "description": "How many past bars the window holds for one prediction; the slow pathway reads it sampled every slow_stride bars, the fast pathway its last fast_window_bars bars."
+        },
+        "fast_window_bars": {
+          "type": "int",
+          "default": 16,
+          "min": 1,
+          "max": 512,
+          "label": "Fast pathway window (bars)",
+          "group": "Model",
+          "description": "How many of the most recent bars the fast pathway reads at full resolution. A value above the sequence length is clamped to the sequence length.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              8,
+              16,
+              32
+            ]
+          }
+        },
+        "slow_stride": {
+          "type": "int",
+          "default": 4,
+          "min": 1,
+          "max": 64,
+          "label": "Slow pathway stride (bars)",
+          "group": "Model",
+          "description": "The slow pathway reads every this-many-th bar of the whole window, counted back from the last bar, so its view is coarser but spans the full window.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              2,
+              4,
+              8
+            ]
+          }
+        },
+        "pathway_hidden_size": {
+          "type": "int",
+          "default": 64,
+          "min": 4,
+          "max": 1024,
+          "label": "Pathway hidden size",
+          "group": "Model",
+          "description": "How many units each pathway's gated recurrent unit keeps as its state.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64,
+              128
+            ]
+          }
+        },
+        "fusion_hidden_size": {
+          "type": "int",
+          "default": 32,
+          "min": 4,
+          "max": 512,
+          "label": "Fusion hidden size",
+          "group": "Model",
+          "description": "How many units the fusion layer has after the two pathways' gated states are joined; the head reads this vector.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              32,
+              64
+            ]
+          }
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0,
+          "max": 0.9,
+          "step": 0.05,
+          "label": "Dropout",
+          "group": "Model",
+          "description": "The share of units switched off at random during training, on each pathway's final state before fusion and on the fused vector.",
+          "search": {
+            "kind": "float",
+            "low": 0.0,
+            "high": 0.5,
+            "log": false
+          }
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.001,
+          "min": 1e-05,
+          "max": 0.1,
+          "logScale": true,
+          "label": "Learning rate",
+          "group": "Model",
+          "description": "How big a step each weight update takes.",
+          "search": {
+            "kind": "float",
+            "low": 0.0001,
+            "high": 0.003,
+            "log": true
+          }
+        },
+        "weight_decay": {
+          "type": "float",
+          "default": 0.0001,
+          "min": 0,
+          "max": 0.1,
+          "label": "Weight decay",
+          "group": "Model",
+          "description": "A pull of every weight toward zero, which keeps the network simple.",
+          "search": {
+            "kind": "float",
+            "low": 1e-06,
+            "high": 0.01,
+            "log": true
+          }
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 256,
+          "min": 16,
+          "max": 4096,
+          "label": "Batch size",
+          "group": "Model",
+          "description": "How many bars one weight update averages over.",
+          "search": {
+            "kind": "categorical",
+            "choices": [
+              128,
+              256,
+              512
+            ]
+          }
+        },
+        "epochs": {
+          "type": "int",
+          "default": 20,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs",
+          "group": "Model",
+          "description": "How many passes over the training bars at most."
+        },
+        "patience": {
+          "type": "int",
+          "default": 5,
+          "min": 1,
+          "max": 100,
+          "label": "Patience (epochs)",
+          "group": "Model",
+          "description": "Stop after this many epochs without a better validation loss; the best epoch is kept."
+        }
+      }
+    }
+  }
+}

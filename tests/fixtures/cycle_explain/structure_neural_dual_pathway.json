@@ -1,0 +1,53 @@
+{
+  "modelId": "cycle_explain_neural_dual_pathway",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "neural",
+  "link": "logistic",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": {
+    "network": "dual_pathway",
+    "layers": [
+      {
+        "name": "Fast pathway gated recurrent unit (last 4 bars at full resolution)",
+        "kind": "gated_recurrent_unit",
+        "outputShape": [
+          4,
+          12
+        ]
+      },
+      {
+        "name": "Slow pathway gated recurrent unit (one bar in every 3 of the 12-bar window)",
+        "kind": "gated_recurrent_unit",
+        "outputShape": [
+          4,
+          12
+        ]
+      },
+      {
+        "name": "Fusion gate (logistic sigmoid)",
+        "kind": "gate",
+        "outputShape": [
+          24
+        ]
+      },
+      {
+        "name": "Fused vector (Gaussian error linear unit)",
+        "kind": "dense",
+        "outputShape": [
+          8
+        ]
+      }
+    ],
+    "sequenceLength": 12,
+    "hasAttention": false
+  }
+}

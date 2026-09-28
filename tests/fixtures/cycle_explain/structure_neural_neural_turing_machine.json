@@ -1,0 +1,70 @@
+{
+  "modelId": "cycle_explain_neural_neural_turing_machine",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "neural",
+  "link": "logistic",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": {
+    "network": "neural_turing_machine",
+    "layers": [
+      {
+        "name": "Controller state",
+        "kind": "controller_gated_recurrent_unit",
+        "outputShape": [
+          12,
+          16
+        ]
+      },
+      {
+        "name": "Memory write weights",
+        "kind": "memory_write_addressing",
+        "outputShape": [
+          12,
+          8
+        ]
+      },
+      {
+        "name": "Memory read weights (head 1)",
+        "kind": "memory_read_addressing",
+        "outputShape": [
+          12,
+          8
+        ]
+      },
+      {
+        "name": "Memory read weights (head 2)",
+        "kind": "memory_read_addressing",
+        "outputShape": [
+          12,
+          8
+        ]
+      },
+      {
+        "name": "Memory read vectors",
+        "kind": "memory_read",
+        "outputShape": [
+          12,
+          16
+        ]
+      },
+      {
+        "name": "Controller state with memory reads",
+        "kind": "readout",
+        "outputShape": [
+          32
+        ]
+      }
+    ],
+    "sequenceLength": 12,
+    "hasAttention": false
+  }
+}

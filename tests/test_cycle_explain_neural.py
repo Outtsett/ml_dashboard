@@ -73,8 +73,22 @@ PARAMETERS = {
     "transformer_encoder": {"sequence_length": 12, "model_dimension": 16, "head_count": 2, "layer_count": 2},
     "multilayer_perceptron_scikit_learn": {"hidden_size": 16, "layer_count": 2, "activation_function": "relu",
                                            "epochs": 6},
+    # the kinds in their own modules (cycle/networks_extra/)
+    "mixture_of_experts": {"expert_count": 3, "expert_hidden_size": 12, "expert_layer_count": 1, "gate_hidden_size": 8},
+    "recurrent_convolution_hybrid": {"sequence_length": 12, "channel_count": 8, "kernel_size": 3,
+                                     "convolution_layer_count": 2, "hidden_size": 12, "recurrent_layer_count": 1},
+    "hypernetwork": {"sequence_length": 12, "hypernetwork_hidden_size": 16, "target_hidden_size": 8,
+                     "context_embedding_size": 8},
+    "neural_turing_machine": {"sequence_length": 12, "controller_hidden_size": 16, "memory_slots": 8, "memory_width": 8,
+                              "read_head_count": 2},
+    "dual_pathway": {"sequence_length": 12, "fast_window_bars": 4, "slow_stride": 3, "pathway_hidden_size": 12,
+                     "fusion_hidden_size": 8},
 }
 SEQUENCE_KEYS = {key for key, values in PARAMETERS.items() if "sequence_length" in values}
+# kinds whose sequence layers cover part of the window (the dual pathway's fast and slow views)
+PARTIAL_WINDOW_KEYS = {"dual_pathway"}
+# kinds whose dense layers sit beside their sequence layers (a context vector, a readout)
+MIXED_LAYER_KEYS = {"hypernetwork", "neural_turing_machine", "dual_pathway"}
 ATTENTION_KEYS = {"transformer_encoder", "attention_recurrent_network"}
 # The layer names each network records (hidden and sequence layers, head excluded), in order.
 EXPECTED_LAYER_NAMES = {
@@ -88,6 +102,27 @@ EXPECTED_LAYER_NAMES = {
     "transformer_encoder": ["Input projection with positions", "Encoder layer 1", "Encoder layer 2",
                             "Final layer normalisation"],
     "multilayer_perceptron_scikit_learn": ["Hidden layer 1 (rectified linear unit)", "Hidden layer 2 (rectified linear unit)"],
+    "mixture_of_experts": ["Gate probabilities over the experts",
+                           "Expert 1 hidden output (Gaussian error linear unit)",
+                           "Expert 2 hidden output (Gaussian error linear unit)",
+                           "Expert 3 hidden output (Gaussian error linear unit)",
+                           "Gate-weighted mixture of the experts"],
+    "recurrent_convolution_hybrid": ["Causal convolution layer 1 (rectified linear unit)",
+                                     "Causal convolution layer 2 (rectified linear unit)",
+                                     "Gated recurrent unit layer 1"],
+    "hypernetwork": ["Context vector (window mean and standard deviation per feature)",
+                     "Context embedding (Gaussian error linear unit)",
+                     "Hypernetwork hidden layer (Gaussian error linear unit)",
+                     "Generated first-layer weight norm per target unit",
+                     "Target hidden layer (Gaussian error linear unit)",
+                     "Target output contributions (generated weight times activation, then the generated bias)"],
+    "neural_turing_machine": ["Controller state", "Memory write weights", "Memory read weights (head 1)",
+                              "Memory read weights (head 2)", "Memory read vectors",
+                              "Controller state with memory reads"],
+    "dual_pathway": ["Fast pathway gated recurrent unit (last 4 bars at full resolution)",
+                     "Slow pathway gated recurrent unit (one bar in every 3 of the 12-bar window)",
+                     "Fusion gate (logistic sigmoid)",
+                     "Fused vector (Gaussian error linear unit)"],
 }
 
 
@@ -237,8 +272,13 @@ def test_the_structure_lists_every_layer_in_full_words(runs, key, role):
     assert network["sequenceLength"] == length
     for layer in network["layers"]:
         assert layer["kind"] and all(size > 0 for size in layer["outputShape"])
-        if key in SEQUENCE_KEYS and layer["kind"] != "attention_pooling":
-            assert layer["outputShape"][0] == length, "a sequence layer is [time, units]"
+        if key in SEQUENCE_KEYS and len(layer["outputShape"]) == 2:
+            if key in PARTIAL_WINDOW_KEYS:
+                assert layer["outputShape"][0] <= length, "a view of the window is at most the window"
+            else:
+                assert layer["outputShape"][0] == length, "a sequence layer is [time, units]"
+        elif key in SEQUENCE_KEYS and key not in MIXED_LAYER_KEYS:
+            assert layer["kind"] == "attention_pooling", "a sequence layer is [time, units]"
         for abbreviation in ("gelu", "relu", "tanh", "lstm", "gru"):
             assert f"({abbreviation})" not in layer["name"]
     for block in ("trees", "linear", "neighbors", "naiveBayes", "supportVectors", "calibration", "stacking"):
@@ -324,10 +364,10 @@ def test_the_window_the_network_read_is_the_one_the_inputs_show(runs, market, ke
     assert len(window["timestamps"]) == length and window["timestamps"][-1] == bar["timestamp"]
     assert window["timestamps"] == [int(t) for t in made.engine.data.timestamps[row - length + 1:row + 1]]
     np.testing.assert_array_equal(np.array(window["values"]), features.matrix[row - length + 1:row + 1].astype(np.float64))
-    # every sequence layer runs over the same bars, oldest first
+    # every sequence layer runs over the same bars, oldest first (a view of the window over at most them)
     for layer in bar["neural"]["layers"]:
         if len(layer["shape"]) == 2:
-            assert layer["shape"][0] == length
+            assert layer["shape"][0] <= length if key in PARTIAL_WINDOW_KEYS else layer["shape"][0] == length
     # a bar the window does not read cannot move the output: change the bar before the window starts
     shifted = features.matrix.copy()
     shifted[row - length] += 5.0

@@ -319,7 +319,7 @@ def run_row(engine: CycleEngine, status: str) -> dict:
         "catalog_spec_id": entry.get("catalogSpecId"), "implementation": entry.get("implementation"),
         "direction_mode": engine.direction_mode, "has_price_model": bool(engine.has_price_model),
         "device": s.device, "device_name": s.device_name,
-        "started_at_timestamp": int(getattr(engine, "started_wall_clock", 0) or 0) or None,
+        "started_at_timestamp": int(engine.started_wall_clock),
         "finished_at_timestamp": int(_now_epoch()) if status != "running" else None,
         "elapsed_seconds": float(engine.elapsed()),
         "data_start_timestamp": int(engine.data.timestamps[0]), "data_end_timestamp": int(engine.data.timestamps[-1]),
@@ -461,6 +461,42 @@ def write_run(engine: CycleEngine, final: bool = True) -> dict:
     return diagnostics
 
 
+MANIFEST_APPEND_ATTEMPTS = 3
+
+
+def _read_manifest(filesystem, key: str) -> str:
+    """The manifest object's text, or "" when there is no object yet."""
+    from pyarrow import fs
+
+    if filesystem.get_file_info(key).type == fs.FileType.NotFound:
+        return ""
+    with filesystem.open_input_stream(key) as source:
+        return source.read().decode("utf-8")
+
+
+def _append_manifest_line(dataset: str, line: str) -> None:
+    """Append one line to ``meta/ingest_manifests/<dataset>.jsonl``.
+
+    An object store has no append, and the dashboard's environment has no
+    ``s3fs`` (so ``UPath.open("a")`` raises there): the object is read, the line
+    added and the whole object written back through the same pyarrow filesystem
+    the tables use. Two runs landing at the same moment can overwrite each
+    other, so the line is read back and appended again when it is missing."""
+    from lake.layout import INGEST_MANIFESTS, arrow_fs, arrow_key
+
+    key = arrow_key(INGEST_MANIFESTS / f"{dataset}.jsonl")
+    filesystem = arrow_fs()
+    for _attempt in range(MANIFEST_APPEND_ATTEMPTS):
+        existing = _read_manifest(filesystem, key)
+        if line in existing.splitlines():
+            return
+        body = existing if existing == "" or existing.endswith("\n") else existing + "\n"
+        with filesystem.open_output_stream(key) as sink:
+            sink.write((body + line + "\n").encode("utf-8"))
+    if line not in _read_manifest(filesystem, key).splitlines():
+        raise RuntimeError(f"the manifest line was overwritten {MANIFEST_APPEND_ATTEMPTS} times: {key}")
+
+
 def _land_job(job: dict) -> dict:
     """Write each table to the lake and append a manifest line for the tables
     named in ``job["manifest_for"]``. Needs ``lake.layout`` (the datalake package
@@ -468,7 +504,7 @@ def _land_job(job: dict) -> dict:
     datalake interpreter when the dashboard's does not have it."""
     from datetime import datetime, timezone
 
-    from lake.layout import INGEST_MANIFESTS, arrow_fs, arrow_key, derived_root
+    from lake.layout import arrow_fs, arrow_key, derived_root
     from lake.writer import COMPRESSION, COMPRESSION_LEVEL
 
     out: dict = {}
@@ -485,8 +521,7 @@ def _land_job(job: dict) -> dict:
                      "zone": "derived", "recipe": job["recipe"], "source": job["source"], "rows": table.num_rows,
                      "duplicates_removed": 0, "file_count": 1, "bytes": size, "ts_min": None, "ts_max": None}
             try:
-                with (INGEST_MANIFESTS / f"{job['dataset']}.jsonl").open("a", encoding="utf-8") as handle:
-                    handle.write(json.dumps(entry) + "\n")
+                _append_manifest_line(job["dataset"], json.dumps(entry))
                 manifest = "written"
             except Exception as error:  # noqa: BLE001
                 manifest = f"not written: {error}"
@@ -533,7 +568,9 @@ def land_tables(engine: CycleEngine, tables: dict[str, str]) -> dict | None:
         for name, info in result.items():
             if info["manifest"] == "written":
                 engine.landed_tables.add(name)
-            engine.log(f"[save] landed {name}: {info['rows']:,} rows -> {info['uri']} (manifest {info['manifest']})", "debug")
+            unlisted = info["manifest"].startswith("not written")
+            engine.log(f"[save] landed {name}: {info['rows']:,} rows -> {info['uri']} (manifest {info['manifest']})",
+                       "warn" if unlisted else "debug")
         return result
     except Exception as error:  # noqa: BLE001 - landing never fails the run
         engine.log(f"[save] could not land the run in the lake: {type(error).__name__}: {error}", "warn")

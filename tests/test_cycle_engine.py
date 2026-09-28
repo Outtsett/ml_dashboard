@@ -57,9 +57,9 @@ from cycle.features import (
     rolling_zscore,
 )
 from cycle.labels import (
-    horizon_crosses_gap,
     actual_direction,
     forward_move,
+    horizon_crosses_gap,
     label_known_index,
     make_labels,
     move_scale,
@@ -1367,6 +1367,9 @@ def test_artifacts_are_written_with_full_word_columns(full_run, market):
         assert total == pytest.approx(equity, abs=1e-6)
     runs_table = pq.read_table(directory / "runs_table.parquet").to_pydict()
     assert runs_table["status"] == ["complete"] and runs_table["folds_completed"] == [3] and runs_table["tuning_enabled"] == [False]
+    # when the run began and ended on the wall clock, in that order, in epoch seconds
+    (started,), (finished,) = runs_table["started_at_timestamp"], runs_table["finished_at_timestamp"]
+    assert started is not None and 1_700_000_000 < started <= finished
     bars_table = pq.read_table(directory / "bars.parquet")
     assert bars_table.num_rows == len(full_run.engine.emitted_timestamps)
     assert bars_table.to_pydict()["timestamp"] == full_run.engine.emitted_timestamps

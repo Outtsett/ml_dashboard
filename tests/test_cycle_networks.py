@@ -31,7 +31,9 @@ from cycle import catalog, networks  # noqa: E402
 from cycle.adapter import BatchReport, EpochReport  # noqa: E402
 from cycle.models import build_adapter, load_adapter, resolve_parameters  # noqa: E402
 from cycle.networks import (  # noqa: E402
+    BUILTIN_NETWORK_KINDS,
     LEGACY_NETWORKS,
+    NETWORK_EXTENSIONS,
     NETWORK_KINDS,
     SEQUENCE_NETWORKS,
     NeuralAdapter,
@@ -61,13 +63,39 @@ FAST_PARAMETERS = {
     "temporal_convolution_network": {**FAST, "sequence_length": SEQUENCE_LENGTH, "channel_count": 8},
     "transformer_encoder": {**FAST, "sequence_length": SEQUENCE_LENGTH, "model_dimension": 16,
                             "head_count": 4, "layer_count": 2},
+    # the kinds in their own modules (cycle/networks_extra/)
+    "mixture_of_experts": {**FAST, "expert_count": 4, "expert_hidden_size": 16, "expert_layer_count": 1,
+                           "gate_hidden_size": 8},
+    "recurrent_convolution_hybrid": {**FAST, "sequence_length": SEQUENCE_LENGTH, "channel_count": 8,
+                                     "kernel_size": 3, "convolution_layer_count": 2, "hidden_size": 16,
+                                     "recurrent_layer_count": 1},
+    "hypernetwork": {**FAST, "sequence_length": SEQUENCE_LENGTH, "hypernetwork_hidden_size": 16,
+                     "target_hidden_size": 8, "context_embedding_size": 8},
+    "neural_turing_machine": {**FAST, "sequence_length": SEQUENCE_LENGTH, "controller_hidden_size": 16,
+                              "memory_slots": 8, "memory_width": 8, "read_head_count": 1},
+    "dual_pathway": {**FAST, "sequence_length": SEQUENCE_LENGTH, "fast_window_bars": 4, "slow_stride": 2,
+                     "pathway_hidden_size": 16, "fusion_hidden_size": 16},
 }
 
 
 def test_every_new_neural_key_is_covered_here():
     assert set(NEW_KEYS) == {"feedforward_network", "recurrent_network", "gated_recurrent_unit",
-                             "attention_recurrent_network"}
+                             "attention_recurrent_network", *NETWORK_EXTENSIONS}
     assert set(KIND_KEYS) == set(NETWORK_KINDS)
+    assert set(NETWORK_EXTENSIONS) == {"mixture_of_experts", "recurrent_convolution_hybrid", "hypernetwork",
+                                       "neural_turing_machine", "dual_pathway"}
+
+
+def _returns_every_position(kind: str) -> bool:
+    """Whether the kind's network exposes `sequence_output` (one output per bar of
+    the window). The kinds that do not are held to causality at the prediction
+    level (`test_bars_after_t_never_move_the_prediction_at_t`)."""
+    parameters = resolve_parameters(KIND_KEYS[kind], FAST_PARAMETERS[KIND_KEYS[kind]])
+    with torch.random.fork_rng(devices=[]):   # building draws initial weights
+        return hasattr(build_network(kind, parameters, FEATURE_COUNT), "sequence_output")
+
+
+PER_POSITION_KINDS = sorted(kind for kind in SEQUENCE_NETWORKS if _returns_every_position(kind))
 
 
 # ─── synthetic causal data ─────────────────────────────────────────────────
@@ -283,7 +311,7 @@ def test_legacy_lstm_predictions_are_unchanged(dataset):
 
 # ─── causality, single row, round trip ──────────────────────────────────────
 
-@pytest.mark.parametrize("kind", sorted(SEQUENCE_NETWORKS))
+@pytest.mark.parametrize("kind", PER_POSITION_KINDS)
 def test_sequence_output_is_causal_inside_the_window(kind):
     parameters = resolve_parameters(KIND_KEYS[kind], FAST_PARAMETERS[KIND_KEYS[kind]])
     torch.manual_seed(0)
@@ -402,8 +430,12 @@ def test_trace_reproduces_the_logit_from_the_last_activation(kind, task, dataset
         assert abs(adapter.apply_head(head_input(trace)) - trace["logit"]) <= 1e-5
         # the same numbers through the head's own weights, by hand
         head = adapter.network.head
-        by_hand = float(head.weight.detach().double().cpu().numpy()[0] @ head_input(trace)
-                        + head.bias.detach().double().cpu().numpy()[0])
+        if isinstance(head, nn.Linear):
+            by_hand = float(head.weight.detach().double().cpu().numpy()[0] @ head_input(trace)
+                            + head.bias.detach().double().cpu().numpy()[0])
+        else:   # the hypernetwork's generated output layer: parameter-free, the sum of its contributions
+            assert not list(head.parameters())
+            by_hand = float(head_input(trace).sum())
         assert abs(by_hand - trace["logit"]) <= 1e-5
         output = predict(adapter, dataset.features, [row])[0]
         if task == "classification":
@@ -421,15 +453,23 @@ def test_trace_layers_have_their_shapes_and_describe_matches(kind, dataset):
         assert set(layer) == {"name", "kind", "shape", "values"}
         assert len(layer["values"]) == int(np.prod(layer["shape"]))
         assert all(math.isfinite(value) for value in layer["values"])
-        if kind in SEQUENCE_NETWORKS and layer["kind"] != "attention_pooling":
+        if kind not in BUILTIN_NETWORK_KINDS:
+            assert 1 <= len(layer["shape"]) <= 2
+        elif kind in SEQUENCE_NETWORKS and layer["kind"] != "attention_pooling":
             assert len(layer["shape"]) == 2 and layer["shape"][0] == SEQUENCE_LENGTH
         else:
             assert len(layer["shape"]) == 1
     described = adapter.describe()
     assert described["network"] == kind and described["sequenceLength"] == adapter.sequence_length
-    assert described["hasAttention"] == (kind in {"transformer_encoder", "attention_recurrent"})
+    # the declared flag is what a trace actually carries
+    assert described["hasAttention"] == bool(trace["attention"])
+    for entry in trace["attention"]:
+        weights = np.asarray(entry["weights"])
+        assert np.all(weights >= 0) and weights.sum() == pytest.approx(1.0, abs=1e-5)
     assert described["layers"] == [{"name": layer["name"], "kind": layer["kind"], "outputShape": layer["shape"]}
                                    for layer in trace["layers"]]
+    if kind not in BUILTIN_NETWORK_KINDS:
+        return   # the layer count of an extension kind is its own module's test
     parameters = adapter.parameters
     expected_count = {
         "multilayer_perceptron": parameters.get("layer_count"),

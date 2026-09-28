@@ -1,0 +1,47 @@
+{
+  "modelId": "cycle_explain_neural_recurrent_convolution_hybrid",
+  "foldIndex": 0,
+  "role": "direction",
+  "explainKind": "neural",
+  "link": "logistic",
+  "baseValue": null,
+  "logisticCurve": null,
+  "trees": null,
+  "linear": null,
+  "neighbors": null,
+  "naiveBayes": null,
+  "supportVectors": null,
+  "calibration": null,
+  "stacking": null,
+  "neural": {
+    "network": "recurrent_convolution_hybrid",
+    "layers": [
+      {
+        "name": "Causal convolution layer 1 (rectified linear unit)",
+        "kind": "convolution",
+        "outputShape": [
+          12,
+          8
+        ]
+      },
+      {
+        "name": "Causal convolution layer 2 (rectified linear unit)",
+        "kind": "convolution",
+        "outputShape": [
+          12,
+          8
+        ]
+      },
+      {
+        "name": "Gated recurrent unit layer 1",
+        "kind": "gated_recurrent_unit",
+        "outputShape": [
+          12,
+          12
+        ]
+      }
+    ],
+    "sequenceLength": 12,
+    "hasAttention": false
+  }
+}

@@ -44,6 +44,22 @@ function modelIdOfRecipe(recipe: string): string {
   return recipe.replace(/_walk_forward_cycle_/, `${CYCLE_RUNNER_SUFFIX}_`);
 }
 
+const MODEL_ID_PATTERN = /^([A-Z0-9]+)_([0-9]+[a-z]+)_(.+?)(\+walk_forward_cycle|_walk_forward_cycle)_(\d{8}T\d{6})$/;
+
+/** The UTC start stamped into a run id (`…_20260927T094307`), epoch milliseconds, or null. */
+export function startedAtOfModelId(modelId: string): number | null {
+  const stamp = MODEL_ID_PATTERN.exec(modelId)?.[5];
+  if (!stamp) return null;
+  return Date.UTC(+stamp.slice(0, 4), +stamp.slice(4, 6) - 1, +stamp.slice(6, 8),
+    +stamp.slice(9, 11), +stamp.slice(11, 13), +stamp.slice(13, 15));
+}
+
+/** A run's start: the record's own when it has one (runs landed before 2026-09-27 carry NULL), else its id's stamp. */
+function startedAtOf(startedAtSeconds: unknown, modelId: string): number {
+  const recorded = numberOrNull(startedAtSeconds);
+  return recorded !== null ? recorded * 1000 : startedAtOfModelId(modelId) ?? 0;
+}
+
 function literal(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
@@ -134,7 +150,7 @@ export async function listArchivedCycleRuns(limit = 200): Promise<CycleRunSummar
         timeframe: run.timeframe,
         modelFamily: run.model_key as CycleRunSummary["modelFamily"],
         status: statusOf(run.status),
-        startedAt: (numberOrNull(run.started_at_timestamp) ?? 0) * 1000,
+        startedAt: startedAtOf(run.started_at_timestamp, run.model_id),
         finishedAt: numberOrNull(run.finished_at_timestamp) === null ? null : numberOrNull(run.finished_at_timestamp)! * 1000,
         barCount: intOrNull(run.bars_processed) ?? 0,
         tradeCount: intOrNull(run.closed_trade_count) ?? 0,
@@ -151,11 +167,7 @@ export async function listArchivedCycleRuns(limit = 200): Promise<CycleRunSummar
     for (const run of older) {
       if (seen.has(run.recipe)) continue;
       const modelId = run.model_id || modelIdOfRecipe(run.recipe);
-      const parts = /^([A-Z0-9]+)_([0-9]+[a-z]+)_(.+?)(\+walk_forward_cycle|_walk_forward_cycle)_(\d{8}T\d{6})$/.exec(modelId);
-      const stamp = parts?.[5];
-      const startedAt = stamp
-        ? Date.UTC(+stamp.slice(0, 4), +stamp.slice(4, 6) - 1, +stamp.slice(6, 8), +stamp.slice(9, 11), +stamp.slice(11, 13), +stamp.slice(13, 15))
-        : (numberOrNull(run.test_end) ?? 0) * 1000;
+      const parts = MODEL_ID_PATTERN.exec(modelId);
       out.push({
         modelId,
         modelType: parts ? `${parts[3]}${CYCLE_RUNNER_SUFFIX}` : CYCLE_RUNNER_SUFFIX.slice(1),
@@ -163,8 +175,9 @@ export async function listArchivedCycleRuns(limit = 200): Promise<CycleRunSummar
         timeframe: parts?.[2] ?? null,
         modelFamily: (parts?.[3] ?? null) as CycleRunSummary["modelFamily"],
         status: "complete",
-        startedAt,
-        finishedAt: numberOrNull(run.test_end) === null ? null : numberOrNull(run.test_end)! * 1000,
+        startedAt: startedAtOfModelId(modelId) ?? (numberOrNull(run.test_end) ?? 0) * 1000,
+        // these runs never recorded when they finished (test_end is the last bar tested, not a wall-clock time)
+        finishedAt: null,
         barCount: intOrNull(run.bars) ?? 0,
         tradeCount: intOrNull(run.trade_count) ?? 0,
       });
@@ -347,7 +360,7 @@ export async function loadArchivedCycleSnapshot(modelId: string): Promise<CycleS
       } as CycleParameters);
     }
   }
-  const startedAt = (numberOrNull(run?.started_at_timestamp) ?? 0) * 1000;
+  const startedAt = startedAtOf(run?.started_at_timestamp, modelId);
   const finishedAt = numberOrNull(run?.finished_at_timestamp);
   const status = run ? statusOf(run.status) : "complete";
   const barsEvaluated = predictions.length;
