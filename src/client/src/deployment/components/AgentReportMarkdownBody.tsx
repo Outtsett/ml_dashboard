@@ -10,6 +10,7 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { markdownComponents } from "../../claude/markdown";
 
 interface MarkdownBodyProps {
   content: string;
@@ -21,6 +22,9 @@ export default function AgentReportMarkdownBody({ content }: MarkdownBodyProps) 
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
+          // An advisor reads web search results; an image in its report would be
+          // fetched on render, carrying whatever it was steered to put in the URL.
+          img: markdownComponents.img,
           h1: ({ children }) => (
             <h1 className="mt-3 mb-1 text-sm font-semibold text-foreground first:mt-0">
               {children}

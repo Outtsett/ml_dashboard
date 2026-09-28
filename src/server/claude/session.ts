@@ -290,6 +290,7 @@ export class ClaudeSession {
   }
 
   private handle(message: SDKMessage): void {
+    this.touch();
     const m = message as unknown as WireMessage;
     if (m.session_id && !this.sessionId) this.sessionId = m.session_id;
     const content = m.message?.content;
@@ -442,17 +443,19 @@ export class ClaudeSession {
     this.query?.close();
   }
 
-  /** The idle clock, re-armed until it can act: an idle session closes; a
-   *  session nobody is watching (tab closed mid-approval) has its pending
-   *  approvals denied and closes; one being watched keeps running. */
+  /** The idle clock. Every message from the model re-arms it, so a turn that
+   *  is still working is never cut off. When it fires (IDLE_CLOSE_MS without
+   *  a message): an idle session closes; one stuck on an approval nobody is
+   *  watching (tab closed) has the approval denied and closes; anything else
+   *  is re-armed. */
   private touch(): void {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(() => {
       this.idleTimer = null;
       if (!this.query) return;
-      const watched = this.deps.hasViewers?.(this) ?? false;
       if (this.status === "idle" && this.pending.size === 0) return this.close();
-      if (!watched) {
+      const watched = this.deps.hasViewers?.(this) ?? false;
+      if (this.pending.size > 0 && !watched) {
         for (const [requestId, pending] of this.pending) {
           pending.resolve({ behavior: "deny", message: "Nobody answered in the dashboard panel." });
           this.pending.delete(requestId);

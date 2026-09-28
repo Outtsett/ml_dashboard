@@ -92,6 +92,11 @@ class Lander:
         self.bars_ledger = spool / "live_bars_landed.json"
         self.bars_landed: set[str] = self._load_bars_landed()
         self.bar_grace = float(config.get("barLandGraceMinutes", 30)) * 60
+        # The OANDA 14-day and Yahoo 7-day startup backfills re-deliver past
+        # dates; a date landed before they finish would be landed short and
+        # then closed by the ledger. No bar date lands in the first minutes.
+        self.bar_warmup = float(config.get("barLandWarmupSeconds", 900))
+        self.started = time.time()
         self.counters = {"rawLanded": 0, "rawBytes": 0, "daysLanded": 0, "barDaysLanded": 0,
                          "lastRawLand": None, "lastSpoolFlush": None, "lastError": None}
         self.raw_dir.mkdir(parents=True, exist_ok=True)
@@ -221,15 +226,24 @@ class Lander:
             if today != day:
                 self.day = today
                 self.buffers = {name: [] for name in DATASETS}
+        # Each step on its own: one that fails (a malformed row, a locked file)
+        # is recorded and retried next flush, and never starves the others.
         for dataset, rows in snapshot.items():
             if rows:
-                self._write_local(dataset, day, rows, contracts[dataset])
-        self._write_file(self.bars_file, bars, _live_bars_contract())
+                self._guard(f"spool {dataset}", self._write_local, dataset, day, rows, contracts[dataset])
+        self._guard("spool bars", self._write_file, self.bars_file, bars, _live_bars_contract())
         for leftover in self._spool_days():
             if leftover < self.day:
-                self.land_day(leftover)
-        self.land_bars()
+                self._guard(f"land {leftover}", self.land_day, leftover)
+        self._guard("land bars", self.land_bars)
         self.counters["lastSpoolFlush"] = time.time()
+
+    def _guard(self, name: str, fn, *args) -> None:
+        try:
+            fn(*args)
+        except Exception as error:  # noqa: BLE001 - retried at the next flush
+            self.counters["lastError"] = f"{name}: {type(error).__name__}: {error}"
+            log.exception("%s failed; retried at the next flush", name)
 
     def _spool_days(self) -> list[str]:
         return sorted({p.stem.removeprefix("day=") for dataset in DATASETS
@@ -251,7 +265,12 @@ class Lander:
 
         contract = _live_bars_contract()
         now = time.time()
+        if now - self.started < self.bar_warmup:
+            return
         with self.lock:
+            # Rows for a date landed while they were in flight: never landed, drop them.
+            for key in [k for k, r in self.bar_rows.items() if r["ts"].strftime("%Y-%m-%d") in self.bars_landed]:
+                del self.bar_rows[key]
             by_date: dict[str, list[tuple[tuple[str, int], dict]]] = {}
             for key, row in self.bar_rows.items():
                 by_date.setdefault(row["ts"].strftime("%Y-%m-%d"), []).append((key, row))

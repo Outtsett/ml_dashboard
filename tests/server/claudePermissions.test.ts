@@ -7,7 +7,7 @@
  *   panel and terminal session);
  * - a suggested mode change keeps the session's own mode in step.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ClaudeSession } from "../../src/server/claude/session";
 import type { ClaudePanelEvent } from "../../src/shared/claude/types";
 
@@ -59,5 +59,43 @@ describe("Claude panel approvals", () => {
     const { s, card, result } = await request([RULE]);
     s.answer(card.requestId, { decision: "allow" });
     expect((await result).updatedPermissions).toBeUndefined();
+  });
+});
+
+describe("Claude panel idle clock", () => {
+  type Internals = { query: unknown; status: string; touch: () => void; close: () => void };
+
+  function running(watched: boolean) {
+    const s = new ClaudeSession(
+      { cwd: process.cwd(), loadSdk: async () => ({}) as never, mcpServers: () => ({}), hasViewers: () => watched },
+      {},
+    );
+    const internals = s as unknown as Internals;
+    let closed = 0;
+    internals.query = { close: () => undefined };
+    internals.status = "running";
+    internals.close = () => { closed += 1; };
+    return { s, internals, closed: () => closed };
+  }
+
+  it("never closes a turn that is still working, watched or not", () => {
+    vi.useFakeTimers();
+    const { internals, closed } = running(false);
+    internals.touch();
+    vi.advanceTimersByTime(31 * 60_000);
+    expect(closed()).toBe(0);
+    vi.useRealTimers();
+  });
+
+  it("denies an approval nobody is watching and closes", async () => {
+    vi.useFakeTimers();
+    const { s, internals, closed } = running(false);
+    const ask = (s as unknown as { askPermission: Ask }).askPermission.bind(s);
+    const result = ask("Bash", { command: "x" }, { signal: new AbortController().signal, toolUseID: "t" });
+    internals.touch();
+    vi.advanceTimersByTime(31 * 60_000);
+    expect((await result).behavior).toBe("deny");
+    expect(closed()).toBe(1);
+    vi.useRealTimers();
   });
 });

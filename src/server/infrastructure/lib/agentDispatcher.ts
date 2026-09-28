@@ -188,7 +188,13 @@ const ADVISOR_DENIED = [
   'Read(**/.env)',
   'Read(**/*.env)',
   'Read(**/.credentials.json)',
+  'Read(**/.env.*)',
   'Read(//c/Users/*/.claude/**)',
+  'Read(//c/Users/*/.claude.json)',
+  'Read(//c/Users/*/.ssh/**)',
+  'Read(//c/Users/*/AppData/Roaming/gh/**)',
+  'Read(//c/Users/*/.aws/**)',
+  'Read(//c/Users/*/.git-credentials)',
 ];
 
 interface SDKQueryFn {

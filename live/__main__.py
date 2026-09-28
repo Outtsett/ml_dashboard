@@ -108,6 +108,22 @@ async def periodic(hub: Hub, lander: Lander, config: dict) -> None:
             await _step(lander, "flush_spool", lander.flush_spool)
 
 
+async def until_fatal(tasks: list[asyncio.Task]) -> set[asyncio.Task]:
+    """Wait until a task raises or the landing loop ("periodic") ends; a task
+    that returns normally is a source running degraded and is let go. Returns
+    the tasks still running."""
+    pending = set(tasks)
+    while pending:
+        done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+        for task in done:
+            error = None if task.cancelled() else task.exception()
+            if error is not None or task.get_name() == "periodic":
+                log.error("task %s ended: %r", task.get_name(), error)
+                return pending
+            log.info("source %s stopped without error (disabled or unconfigured)", task.get_name())
+    return pending
+
+
 async def main(port: int) -> None:
     config = settings.load()
     spool = settings.spool_dir(config)
@@ -148,14 +164,12 @@ async def main(port: int) -> None:
     if config.get("gdelt", {}).get("enabled", True):
         GdeltWorker(hub, pipeline, config["gdelt"], spool).start()
 
-    # Every task catches its own errors and runs forever; one that ends has
-    # hit something it cannot recover from. Save what is buffered and exit, so
-    # the dashboard's supervisor restarts the whole hub rather than leaving it
-    # half alive (still streaming, no longer landing).
-    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-    for task in done:
-        log.error("task %s ended: %r", task.get_name(),
-                  task.exception() if not task.cancelled() else "cancelled")
+    # A source task that RETURNS is a supported degraded mode (no credential:
+    # it set a health note and stopped). One that RAISES, or the landing loop
+    # ending, is not: save what is buffered and exit, so the dashboard's
+    # supervisor restarts the whole hub rather than leaving it half alive
+    # (still streaming, no longer landing).
+    pending = await until_fatal(tasks)
     for task in pending:
         task.cancel()
     await asyncio.gather(*pending, return_exceptions=True)

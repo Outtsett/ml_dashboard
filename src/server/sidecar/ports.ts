@@ -47,6 +47,21 @@ export function resolvePortOwner(port: number): { pid: number | null; descriptio
 
 /** Tree-kill: a Python sidecar may have worker children, `node --import tsx`
  *  always does. */
+/** The parent process id of `pid`, or null when it cannot be read. */
+export function parentPid(pid: number): number | null {
+  try {
+    const out = execFileSync(
+      "powershell",
+      ["-NoProfile", "-Command", `(Get-CimInstance Win32_Process -Filter "ProcessId=${Number(pid)}").ParentProcessId`],
+      { encoding: "utf8", windowsHide: true, timeout: 10_000 },
+    );
+    const parent = Number(out.trim());
+    return Number.isFinite(parent) && parent > 0 ? parent : null;
+  } catch {
+    return null;
+  }
+}
+
 export function killTree(pid: number): void {
   try {
     execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });

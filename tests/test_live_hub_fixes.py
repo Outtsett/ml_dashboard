@@ -89,7 +89,7 @@ def test_a_delayed_source_never_replaces_a_minute_a_better_source_built(monkeypa
 
 @pytest.fixture
 def lander(tmp_path):
-    return Lander(_HubStub(), {"barLandGraceMinutes": 30}, tmp_path)
+    return Lander(_HubStub(), {"barLandGraceMinutes": 30, "barLandWarmupSeconds": 0}, tmp_path)
 
 
 def _record(t: datetime, source: str, close: float) -> dict:
@@ -178,3 +178,43 @@ def test_a_second_hub_cannot_take_the_spool(tmp_path):
     assert subprocess.run([sys.executable, "-c", code], cwd=landing_module.__file__.rsplit("live", 1)[0]).returncode == 0
     first.close()
     time.sleep(0.05)
+
+
+def test_no_bar_date_lands_while_the_startup_backfills_run(tmp_path, monkeypatch):
+    monkeypatch.setattr("lake.writer.write", lambda *a, **k: pytest.fail("landed during warm-up"))
+    warming = Lander(_HubStub(), {}, tmp_path)                 # default warm-up: 15 minutes
+    warming.bar(_record(datetime(2026, 9, 1, 14, 30, tzinfo=timezone.utc), "oanda", 1.0))
+    warming.land_bars()
+    assert len(warming.bar_rows) == 1
+
+
+def test_a_device_fault_spends_no_attempts():
+    scorer = Scorer(_HubStub(), {})
+    scorer.model = _Model({"a", "b", "c"})                     # nothing scores
+    batch = [{"articleId": x, "text": x} for x in ("a", "b", "c")]
+    assert scorer._score(batch) == []
+    assert scorer.dropped == 0 and scorer.device_faults == 1
+    assert [item.get("attempts", 0) for _, item in scorer.retry] == [0, 0, 0]
+
+
+def test_an_unconfigured_source_does_not_stop_the_hub():
+    import asyncio
+
+    from live.__main__ import until_fatal
+
+    async def quiet():                  # a source with no credential returns at once
+        return None
+
+    async def landing():
+        await asyncio.sleep(0.2)
+        raise RuntimeError("landing broke")
+
+    async def run():
+        source = asyncio.create_task(quiet(), name="alphavantage")
+        loop_task = asyncio.create_task(landing(), name="periodic")
+        still = asyncio.create_task(asyncio.sleep(5), name="oanda")
+        pending = await until_fatal([source, loop_task, still])
+        assert source.done() and loop_task.done() and pending == {still}
+        still.cancel()
+
+    asyncio.run(run())

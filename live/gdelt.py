@@ -57,7 +57,7 @@ class GdeltWorker(threading.Thread):
         self.next_sweep = 0.0
         self.cooloff_until = 0.0
         # A refusal doubles the wait until the next attempt, up to the ceiling;
-        # an answered request resets it. GDELT's throttle outlasts a fixed ten
+        # each answered request steps it back down one refusal. GDELT's throttle outlasts a fixed ten
         # minutes, and every probe during it (five retries each) extends it.
         self.cooloff_seconds = float(config.get("cooloffSeconds", 600))
         self.cooloff_ceiling = float(config.get("cooloffMaxSeconds", 4 * 3600))
@@ -141,7 +141,8 @@ class GdeltWorker(threading.Thread):
         log.warning("gdelt cool-off %ds (refusal %d): %s", seconds, self.refusals, reason)
 
     def _answered(self) -> None:
-        self.refusals = 0
+        # One answer inside a refused stretch must not undo the escalation.
+        self.refusals = max(0, self.refusals - 1)
 
     def _ingest(self, gdelt, query, articles: list[dict], *, live: bool, sink) -> int:
         new = 0

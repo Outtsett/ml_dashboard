@@ -4,11 +4,13 @@
  * interrupt, change mode or model. Events are reduced into a transcript the
  * panel renders.
  *
- * Every (re)connect loads the history first and only then opens the stream
- * after the last event it held. A reconnect cannot just resume from the last
- * `seq` it saw: when the host restarts, the session is rebuilt with its
- * counter back at 0, and every new event (a permission request included)
- * would sit below that stale mark and be dropped.
+ * Every (re)connect loads the history first. When the host still holds this
+ * session (its newest event is at or past the last one shown), the view is
+ * kept and the stream resumes after it — the history is only the host's last
+ * 4,000 events, and rebuilding from it would drop the start of a long
+ * conversation. When the host lost it (restarted: its counter is back below
+ * the view's), the view is rebuilt from the history, or every new event, a
+ * permission request included, would sit below the stale mark and be dropped.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -226,6 +228,13 @@ export function useClaudeSession(key: string | null) {
           session: ClaudeSessionSummary;
         };
         if (cancelled) return;
+        const shown = viewRef.current.lastSeq;
+        const hostNewest = body.events.reduce((max, event) => Math.max(max, event.seq), 0);
+        if (shown > 0 && hostNewest >= shown) {
+          setError(null);
+          open();
+          return;
+        }
         // The on-disk transcript has its own numbering; fold it first, then
         // the host's live events by their real `seq`, and resume the stream
         // after the last of those so nothing renders twice.

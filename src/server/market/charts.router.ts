@@ -244,11 +244,17 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
       effectiveStart = Math.max(0, anchorMs - estimatedMinutesNeeded * 60_000);
     }
 
+    // Which end of the range the limit keeps. The default window (anchored on
+    // the last bar) and a left page (an end with no start: the chart asking
+    // for what lies before its first bar) want the bars NEAREST the end; a
+    // right page (a start with no end) wants the bars nearest the start.
+    const newestFirst = anchorMs !== null || (endMs !== null && endMs !== undefined && !startMs);
+
     const cacheKey = OHLCVCache.key('chart', symbol, tfMinutes, {
       startTime: effectiveStart, endTime: effectiveEnd, limit: rowLimit,
-      // A default (anchored) window is the newest N bars, an explicit one the
-      // oldest N: the same range and limit are two different answers.
-      extra: isFuturesRoot(symbol) ? adjustment : anchorMs !== null ? "newest" : undefined,
+      // The newest N bars (a default window, or a left page) and the oldest N
+      // are two different answers for the same range and limit.
+      extra: isFuturesRoot(symbol) ? adjustment : newestFirst ? "newest" : undefined,
     });
 
     // Bail out if client already disconnected (e.g. user switched symbols)
@@ -261,7 +267,7 @@ router.get('/ohlcv', async (req: Request, res: Response) => {
 
     const queryFn = isFR
       ? () => getStitchedOHLCV(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit, adjustment)
-      : () => getOHLCVSampleBy(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit, anchorMs !== null);
+      : () => getOHLCVSampleBy(symbol, sampleLabel, effectiveStart, effectiveEnd, rowLimit, newestFirst);
 
     const raw = await cachedQuery(cacheKey, queryFn);
     const data = (raw as RawOhlcvRow[]).map((r) => ({

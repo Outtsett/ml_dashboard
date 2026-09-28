@@ -41,10 +41,14 @@ def test_each_refusal_in_a_row_doubles_the_wait_up_to_the_ceiling(tmp_path):
     assert "5 in a row" in worker.live.note
 
 
-def test_an_answered_request_resets_the_wait(tmp_path):
+def test_answers_step_the_wait_back_down(tmp_path):
     worker = _worker(tmp_path)
     for _ in range(3):
         worker._cool_off(worker.backfill, "refused")
-    worker._answered()
+    worker._answered()                      # one answer inside a refused stretch
+    worker._cool_off(worker.backfill, "refused")
+    assert round(_wait(worker) / 60) == 40  # the escalation is not erased
+    for _ in range(3):
+        worker._answered()
     worker._cool_off(worker.backfill, "refused")
     assert round(_wait(worker) / 60) == 10

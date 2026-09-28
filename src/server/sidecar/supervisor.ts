@@ -20,7 +20,7 @@ import fs from "fs";
 import path from "path";
 import { Logger } from "@nestjs/common";
 import { findSidecar, loadSidecarsConfig, resolveCommand, resolveCwd, type Sidecar } from "./config";
-import { isPortOpen, killTree, resolvePortOwner } from "./ports";
+import { isPortOpen, killTree, parentPid, resolvePortOwner } from "./ports";
 
 const logger = new Logger("Sidecars");
 
@@ -263,9 +263,18 @@ export async function restartSidecar(slug: string): Promise<SidecarRuntime> {
   // exactly the one a restart is for). Anything else holding the port is
   // refused, as startInternal refuses it, never tree-killed.
   const owner = resolvePortOwner(sidecar.port);
-  const known = state(slug).pid;
+  const s0 = state(slug);
+  // A venv's python.exe is a launcher: the recorded pid is its parent, the
+  // listener its child. Either, or the pid the sidecar last reported in its
+  // own /health, is ours.
+  const ours = new Set(
+    [s0.pid, s0.child?.pid, typeof s0.health?.pid === "number" ? (s0.health.pid as number) : undefined].filter(
+      (pid): pid is number => typeof pid === "number",
+    ),
+  );
   const answers = owner.pid ? await probe(sidecar) : null;
-  if (owner.pid && !answers && owner.pid !== known) {
+  const isOurs = owner.pid !== null && (ours.has(owner.pid) || ours.has(parentPid(owner.pid) ?? -1));
+  if (owner.pid && !answers && !isOurs) {
     const s = state(slug);
     s.status = "error";
     s.error =
