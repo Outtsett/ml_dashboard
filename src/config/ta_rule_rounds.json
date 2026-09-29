@@ -88,6 +88,32 @@
       "nulls": {"matched_seeds": 20, "random_side_replicates": 20},
       "targets": {"target_hit_rate_minimum": 0.40, "profit_factor_minimum": 1.333, "session_end_exit_rate_maximum": 0.25,
                   "minimum_trades": 100, "minimum_positive_years": 5, "ticks_per_session_day_goal": 600}
+    },
+    "3": {
+      "title": "Pre-registered confirmation: three frozen round-2 strategies on untouched NQ 2010-06..2019-06",
+      "hypothesis": "Frozen before this run, from rule round 2 and its review (recipe round_2_20260929T021709): (1) 15m Donchian 20 breakout, open30 + NATR percentile < 50, 2 x ATR stop, 2:1; (2) 15m five-trigger breakout union, open30 + NATR percentile < 70, 2 x ATR stop, 2:1; (3) 15m Donchian 55 breakout, open30 + NATR percentile < 50, 1.5 x ATR stop, 2:1. They are tested once on NQ 2010-06..2019-06, which no round has touched: NQ has MNQ's 0.25 tick, so moves in ticks are comparable, and costs are MNQ's 5.56 ticks plus 1 tick of stop slippage. Each is CONFIRMED only if (a) its target-hit lift over the matched random null is significant one-sided at 5% after a Holm correction across the three, and (b) the 95% Wilson lower bound of its target-hit rate is at or above the rate a 2:1 bracket needs for profit factor 1.333 at its median stop. If none is confirmed, the rule-based 40%-at-2:1 line is closed. Round 2's shrinkage fit (out-of-sample lift = 0.031 + 0.352 x in-sample lift) predicts target-hit rates near 0.33-0.36, so the expected answer is that none is confirmed.",
+      "review_source": "rule round 2 review (reviews table, recipe round_2_20260929T021709): recommendation 5 (freeze and confirm on NQ 2010-2019) and 1-2 (null and boundary fixes) survived",
+      "pre_registered": true,
+      "symbol": "NQ",
+      "cost_symbol": "MNQ",
+      "data_start": "2010-06-01",
+      "data_end": "2019-06-01",
+      "in_sample_end": "2015-01-01",
+      "stop_slippage_ticks": 1,
+      "no_entry_minutes_before_session_end": 60,
+      "blocks": [
+        {"name": "frozen_donchian20", "timeframe": "15m", "rules": {"donchian_breakout": [{"period": 20}]},
+         "gates": ["open30+natr_pct_below_50"], "stops": [2.0], "reward_multiples": [2.0]},
+        {"name": "frozen_breakout_union", "timeframe": "15m",
+         "union_of": {"donchian_breakout": [{"period": 20}, {"period": 55}], "bollinger_breakout": [{"period": 20, "width": 2.0}],
+                      "keltner_breakout": [{"period": 20, "multiple": 2.0}], "rsi_momentum": [{"period": 14, "level": 60}]},
+         "gates": ["open30+natr_pct_below_70"], "stops": [2.0], "reward_multiples": [2.0]},
+        {"name": "frozen_donchian55", "timeframe": "15m", "rules": {"donchian_breakout": [{"period": 55}]},
+         "gates": ["open30+natr_pct_below_50"], "stops": [1.5], "reward_multiples": [2.0]}
+      ],
+      "nulls": {"matched_seeds": 100, "random_side_replicates": 100},
+      "targets": {"target_hit_rate_minimum": 0.40, "profit_factor_minimum": 1.333, "session_end_exit_rate_maximum": 0.25,
+                  "minimum_trades": 100, "minimum_positive_years": 5, "ticks_per_session_day_goal": 600}
     }
   }
 }

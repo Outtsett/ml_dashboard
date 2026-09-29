@@ -108,10 +108,12 @@ def run(args: argparse.Namespace) -> dict:
     started = time.monotonic()
     config = json.loads(Path(args.rounds_file).read_text(encoding="utf-8"))
     rc = config["rounds"][str(args.round_number)]
-    symbol = config["symbol"]
+    symbol = rc.get("symbol", config["symbol"])
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
     recipe = f"round_{args.round_number}_{stamp}"
-    cost = load_cost_model(symbol)
+    # a confirmation round may trade another root's prices at MNQ's cost in ticks (NQ has MNQ's
+    # 0.25 tick, so its moves in ticks are MNQ's moves; only the dollar size per tick differs)
+    cost = load_cost_model(rc.get("cost_symbol", symbol))
     tick = cost.tick_size
     cost_ticks = cost.round_trip / cost.tick_value
     slippage = float(rc.get("stop_slippage_ticks", 0.0))
@@ -155,7 +157,8 @@ def run(args: argparse.Namespace) -> dict:
         start_minute = (moments.hour * 60 + moments.minute).to_numpy()
         end_minute = start_minute + width
         late = np.int64(rc.get("no_entry_minutes_before_session_end", 0))
-        blocked = (end_minute > 14 * 60 - late) & (end_minute <= 14 * 60)
+        # ">=": a 1h bar ending at 13:00 is inside the last 60 minutes (round 2 let 1,044 1h entries through at 13:00)
+        blocked = (end_minute >= 14 * 60 - late) & (end_minute <= 14 * 60) if late else np.zeros(stamps.size, dtype=bool)
         # the last COMPLETED 1h bar's EMA50 vs EMA200, for the higher-timeframe side gate
         hour_frame, _ = aggregate(mf, 60)
         hour_ends = hour_frame["timestamp"].to_numpy(np.int64) + 3600
@@ -297,6 +300,7 @@ def run(args: argparse.Namespace) -> dict:
             positive_years += int(ym.sum() >= 10 and yr["net_per_trade_lift_over_matched_null"] > 0)
             yearly_rows.append(yr)
         row["years_with_positive_lift"] = positive_years
+        row["median_stop_ticks"] = float(np.median(real["stop"])) if real["stop"].size else math.nan
         row["trade_fingerprint"] = hashlib.sha1(np.r_[real["entry"], real["side"], real["stop"]].tobytes()).hexdigest()[:16]
         row["_stop_list"], row["_stop_position"] = s["stop_list"], s["stop_position"]
         rows.append(row)
@@ -352,6 +356,31 @@ def run(args: argparse.Namespace) -> dict:
                                & (table["years_with_positive_lift"] >= targets["minimum_positive_years"])
                                & table["neighbouring_stops_also_beat_null"])
     table["passes_round"] = table["meets_strict_2_to_1_in_both_periods"] & table["edge_confirmed"]
+    if rc.get("pre_registered"):
+        # One pre-registered test per frozen strategy (docs/ta-strategy-600-ticks.md, rule round 3):
+        #   1. target-hit lift over the matched null, one-sided, Holm-corrected across the frozen set;
+        #   2. the 95% Wilson lower bound of the target-hit rate at or above the rate at which a 2:1 bracket
+        #      reaches profit factor 1.333 after costs and slippage, at the strategy's median stop S:
+        #      p* = 1.333 (S + slippage + c) / ((R S - c) + 1.333 (S + slippage + c)).
+        pf = targets["profit_factor_minimum"]
+        n_trades = table["all_years_trade_count"].astype(float)
+        hit = table["all_years_target_hit_rate"].astype(float)
+        z95 = 1.959963984540054
+        centre = (hit + z95**2 / (2 * n_trades)) / (1 + z95**2 / n_trades)
+        half = z95 * np.sqrt(hit * (1 - hit) / n_trades + z95**2 / (4 * n_trades**2)) / (1 + z95**2 / n_trades)
+        table["target_hit_rate_wilson_lower_95"] = centre - half
+        stop = table["median_stop_ticks"]
+        loss = stop + slippage + cost_ticks
+        table["target_hit_rate_needed_for_profit_factor"] = pf * loss / ((table["reward_multiple"] * stop - cost_ticks) + pf * loss)
+        p_values = pd.Series(1 - stats.norm.cdf(table["z_over_matched_null"].fillna(-np.inf)), index=table.index).sort_values()
+        holm = pd.Series(False, index=table.index)
+        for rank, (index, value) in enumerate(p_values.items()):
+            if value <= 0.05 / (len(p_values) - rank):
+                holm[index] = True
+            else:
+                break
+        table["holm_significant_lift_over_matched_null"] = holm
+        table["confirmed_out_of_sample"] = holm & (table["target_hit_rate_wilson_lower_95"] >= table["target_hit_rate_needed_for_profit_factor"])
     per_day = table["all_years_net_ticks_per_session_day"]
     table["contracts_for_600_ticks_per_day"] = np.where(per_day > 0, np.ceil(targets["ticks_per_session_day_goal"] / per_day), np.nan)
     table["maximum_drawdown_usd_at_that_size"] = table["all_years_maximum_drawdown_ticks"] * cost.tick_value * table["contracts_for_600_ticks_per_day"]
@@ -368,6 +397,8 @@ def run(args: argparse.Namespace) -> dict:
         "highest_target_hit_rate_all_years": float(table.loc[table["all_years_trade_count"] >= targets["minimum_trades"], "all_years_target_hit_rate"].max()),
         "best_net_ticks_per_session_day_all_years": float(per_day.max()),
         "best_strategy_by_net_ticks_per_session_day": table.loc[per_day.idxmax(), "strategy_id"],
+        "confirmed_out_of_sample": int(table["confirmed_out_of_sample"].sum()) if "confirmed_out_of_sample" in table else None,
+        "symbol": symbol, "cost_symbol": rc.get("cost_symbol", symbol),
         "cost_ticks_per_round_trip": cost_ticks, "stop_slippage_ticks": slippage,
         "elapsed_seconds": time.monotonic() - started, "finished_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -376,7 +407,8 @@ def run(args: argparse.Namespace) -> dict:
         f"{summary['meeting_strict_2_to_1_in_both_periods']} in both periods; edge confirmed {summary['edge_confirmed']}; "
         f"beat the best-of-grid bar z > {best_of_grid_bar:.2f}: {summary['beating_best_of_grid_null']}; highest target-hit "
         f"{summary['highest_target_hit_rate_all_years']:.3f}; best net {summary['best_net_ticks_per_session_day_all_years']:+.1f} ticks/day "
-        f"({summary['best_strategy_by_net_ticks_per_session_day']})")
+        f"({summary['best_strategy_by_net_ticks_per_session_day']})"
+        + (f"; pre-registered confirmation: {summary['confirmed_out_of_sample']} of {len(table)} confirmed" if rc.get("pre_registered") else ""))
     tables = {"rounds": pd.DataFrame([summary]), "strategies": table, "yearly": pd.DataFrame(yearly_rows),
               "trades": pd.concat(trade_frames, ignore_index=True), "daily": pd.concat(daily_frames, ignore_index=True)}
     directory = os.path.join(args.output_dir, f"MNQ_ta_rules_{recipe}")
