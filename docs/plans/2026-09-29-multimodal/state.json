@@ -3,7 +3,7 @@
   "started": "2026-09-29",
   "phase": "P5",
   "step": "recursive loop (trial 4 next)",
-  "last_checkpoint": "CP-005",
+  "last_checkpoint": "CP-006",
   "holdout": {
     "start": "2025-07-01T00:00:00",
     "end": "2025-12-31T00:00:00",
@@ -18,7 +18,7 @@
     "instrument": "MNQ intraday, flat by the session close",
     "news_history": "GDELT GKG filtered landing with upstream md5 manifest (Tyler, 2026-09-29)"
   },
-  "trials_evaluated": 4,
+  "trials_evaluated": 6,
   "next": "calendar + news blocks; fusion network; context features; recursive loop",
   "forward": {
     "start": "2026-01-01T00:00:00",
@@ -27,12 +27,12 @@
     "look_budget": 1,
     "landed": "Yahoo 5m from 2026-07-21, 1m from 2026-08-31 (MNQ, NQ, ES, RTY, YM, ZN, GC, DX-Y.NYB), raw/vendor=yahoo/dataset=chart-history/received=2026-09-29"
   },
-  "best_development_profit_factor": 0.9515,
-  "trials_without_improvement": 3,
+  "best_development_profit_factor": 0.953,
+  "trials_without_improvement": 0,
   "search_budget": {
     "max_trials": 24,
     "stop_after_no_improvement": 6
   },
-  "best_trial": "MNQ_5m_multimodal_fusion+bracket_meta_label_20260929T181434",
-  "improvement_rule": "a trial counts as an improvement only if its canonical-window PF beats the best by >= 0.01"
+  "best_trial": "MNQ_5m_multimodal_fusion+bracket_meta_label_20260929T184649",
+  "improvement_rule": "canonical-window PF must beat the best trial ON THE CURRENT FEATURE CODE (trial 5 onward) by >= 0.01"
 }

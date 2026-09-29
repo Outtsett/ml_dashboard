@@ -1,0 +1,1960 @@
+{
+ "rows": [
+  {
+   "family": "employment_situation",
+   "date": "2021-01-08",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_01082021.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2021-01-12",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_01122021.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2021-01-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_01132021.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-01-15",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2021-01-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_01152021.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2021-01-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2012.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2021-01-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2020/nov20prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Nov 2020 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2021-01-28",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/gross-domestic-product-4th-quarter-and-year-2020-advance-estimate",
+   "vintage": "advance"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-01-29",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2021-01-29",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/personal-income-and-outlays-december-2020",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2021-02-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_02052021.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2021-02-09",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_02092021.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2021-02-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_02102021.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-02-12",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2021-02-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_02172021.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2021-02-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2101.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2021-02-25",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2020/dec20prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Dec 2020 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2021-02-25",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/gross-domestic-product-fourth-quarter-and-year-2020-second-estimate",
+   "vintage": "second"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-02-26",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2021-02-26",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/personal-income-and-outlays-january-2021",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2021-03-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_03052021.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2021-03-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_03102021.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2021-03-11",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_03112021.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-03-12",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2021-03-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_03122021.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2021-03-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2102.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2021-03-24",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2021/jan21prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Jan 2021 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2021-03-25",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/gross-domestic-product-third-estimate-gdp-industry-and-corporate-profits-4th-quarter-and",
+   "vintage": "third"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-03-26",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2021-03-26",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/personal-income-and-outlays-february-2021",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2021-04-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_04022021.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2021-04-06",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_04062021.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2021-04-09",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_04092021.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2021-04-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_04132021.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2021-04-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2103.pdf",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-04-16",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "durable_goods",
+   "date": "2021-04-26",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2021/feb21prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Feb 2021 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2021-04-29",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/gross-domestic-product-first-quarter-2021-advance-estimate",
+   "vintage": "advance"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-04-30",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2021-04-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/personal-income-and-outlays-march-2021",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2021-05-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_05072021.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2021-05-11",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_05112021.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2021-05-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_05122021.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2021-05-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_05132021.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-05-14",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2021-05-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2104.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2021-05-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2021/mar21prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Mar 2021 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2021-05-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/gross-domestic-product-1st-quarter-2021-second-estimate-corporate-profits-1st-quarter",
+   "vintage": "second"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-05-28",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2021-05-28",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/personal-income-and-outlays-april-2021",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2021-06-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_06042021.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2021-06-08",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_06082021.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2021-06-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_06102021.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-06-11",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2021-06-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_06152021.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2021-06-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2105.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2021-06-24",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2021/apr21prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Apr 2021 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2021-06-24",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/gross-domestic-product-third-estimate-gdp-industry-and-corporate-profits-revised-1st",
+   "vintage": "third"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-06-25",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2021-06-25",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/personal-income-and-outlays-may-2021",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2021-07-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_07022021.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2021-07-07",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_07072021.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2021-07-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_07132021.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2021-07-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_07142021.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-07-16",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2021-07-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2106.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2021-07-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2021/may21prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for May 2021 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2021-07-29",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/gross-domestic-product-second-quarter-2021-advance-estimate-and-annual-update",
+   "vintage": "advance"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-07-30",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2021-07-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/personal-income-and-outlays-june-2021-and-annual-update",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2021-08-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_08062021.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2021-08-09",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_08092021.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2021-08-11",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_08112021.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2021-08-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_08122021.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-08-13",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2021-08-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2107.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2021-08-25",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2021/jun21prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Jun 2021 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2021-08-26",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/gross-domestic-product-2nd-quarter-2021-second-estimate-corporate-profits-2nd-quarter",
+   "vintage": "second"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-08-27",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2021-08-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/personal-income-and-outlays-july-2021",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2021-09-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_09032021.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2021-09-08",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_09082021.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2021-09-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_09102021.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2021-09-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_09142021.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2021-09-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2108.pdf",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-09-17",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "durable_goods",
+   "date": "2021-09-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2021/jul21prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Jul 2021 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2021-09-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/gross-domestic-product-third-estimate-gdp-industry-and-corporate-profits-revised-2nd",
+   "vintage": "third"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-10-01",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2021-10-01",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/personal-income-and-outlays-august-2021",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2021-10-08",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_10082021.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2021-10-12",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_10122021.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2021-10-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_10132021.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2021-10-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_10142021.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-10-15",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2021-10-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2109.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2021-10-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2021/aug21prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Aug 2021 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2021-10-28",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/gross-domestic-product-3rd-quarter-2021-advance-estimate",
+   "vintage": "advance"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-10-29",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2021-10-29",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/personal-income-and-outlays-september-2021",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2021-11-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_11052021.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2021-11-09",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_11092021.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2021-11-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_11102021.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2021-11-12",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_11122021.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-11-12",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2021-11-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2110.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2021-11-24",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2021/sep21prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Sep 2021 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2021-11-24",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/gross-domestic-product-3rd-quarter-2021-second-estimate-corporate-profits-3rd-quarter",
+   "vintage": "second"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-11-24",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2021-11-24",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/personal-income-and-outlays-october-2021",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2021-12-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_12032021.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2021-12-08",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_12082021.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2021-12-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_12102021.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-12-10",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2021-12-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_12142021.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2021-12-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2111.pdf",
+   "vintage": null
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2021-12-22",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/gross-domestic-product-third-estimate-gdp-industry-and-corporate-profits-revised-3rd",
+   "vintage": "third"
+  },
+  {
+   "family": "durable_goods",
+   "date": "2021-12-23",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2021/oct21prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Oct 2021 data"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2021-12-23",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2021-12-23",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2021/personal-income-and-outlays-november-2021",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2022-01-04",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_01042022.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2022-01-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_01072022.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2022-01-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_01122022.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2022-01-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_01132022.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-01-14",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2022-01-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2112.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2022-01-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2021/nov21prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Nov 2021 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2022-01-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/gross-domestic-product-fourth-quarter-and-year-2021-advance-estimate",
+   "vintage": "advance"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-01-28",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2022-01-28",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/personal-income-and-outlays-december-2021",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2022-02-01",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_02012022.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2022-02-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_02042022.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2022-02-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_02102022.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-02-11",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2022-02-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_02152022.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2022-02-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2201.pdf",
+   "vintage": null
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2022-02-24",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/gross-domestic-product-fourth-quarter-and-year-2021-second-estimate",
+   "vintage": "second"
+  },
+  {
+   "family": "durable_goods",
+   "date": "2022-02-25",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2021/dec21prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Dec 2021 data"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-02-25",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2022-02-25",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/personal-income-and-outlays-january-2022",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2022-03-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_03042022.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2022-03-09",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_03092022.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2022-03-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_03102022.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-03-11",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2022-03-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_03152022.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2022-03-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2202.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2022-03-24",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2022/jan22prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Jan 2022 data"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-03-25",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2022-03-29",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_03292022.htm",
+   "vintage": null
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2022-03-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/gross-domestic-product-third-estimate-corporate-profits-and-gdp-industry-fourth-quarter",
+   "vintage": "third"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2022-03-31",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/personal-income-and-outlays-february-2022",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2022-04-01",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_04012022.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2022-04-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_04122022.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2022-04-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_04132022.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-04-14",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2022-04-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2203.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2022-04-26",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2022/feb22prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Feb 2022 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2022-04-28",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/gross-domestic-product-first-quarter-2022-advance-estimate",
+   "vintage": "advance"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-04-29",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2022-04-29",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/personal-income-and-outlays-march-2022",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2022-05-03",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_05032022.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2022-05-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_05062022.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2022-05-11",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_05112022.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2022-05-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_05122022.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-05-13",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2022-05-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2204.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2022-05-25",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2022/mar22prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Mar 2022 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2022-05-26",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/gross-domestic-product-second-estimate-and-corporate-profits-preliminary-first-quarter",
+   "vintage": "second"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-05-27",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2022-05-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/personal-income-and-outlays-april-2022",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2022-06-01",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_06012022.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2022-06-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_06032022.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2022-06-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_06102022.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-06-10",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2022-06-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_06142022.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2022-06-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2205.pdf",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-06-24",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "durable_goods",
+   "date": "2022-06-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2022/apr22prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Apr 2022 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2022-06-29",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/gross-domestic-product-third-estimate-gdp-industry-and-corporate-profits-revised-first",
+   "vintage": "third"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2022-06-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/personal-income-and-outlays-may-2022",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2022-07-06",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_07062022.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2022-07-08",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_07082022.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2022-07-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_07132022.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2022-07-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_07142022.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-07-15",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2022-07-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2206.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2022-07-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2022/may22prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for May 2022 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2022-07-28",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/gross-domestic-product-second-quarter-2022-advance-estimate",
+   "vintage": "advance"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-07-29",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2022-07-29",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/personal-income-and-outlays-june-2022",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2022-08-02",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_08022022.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2022-08-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_08052022.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2022-08-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_08102022.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2022-08-11",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_08112022.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-08-12",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2022-08-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2207.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2022-08-24",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2022/jun22prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Jun 2022 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2022-08-25",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/gross-domestic-product-second-estimate-and-corporate-profits-preliminary-second-quarter",
+   "vintage": "second"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-08-26",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2022-08-26",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/personal-income-and-outlays-july-2022",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2022-08-30",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_08302022.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2022-09-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_09022022.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2022-09-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_09132022.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2022-09-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_09142022.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2022-09-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2208.pdf",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-09-16",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "durable_goods",
+   "date": "2022-09-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2022/jul22prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Jul 2022 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2022-09-29",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/gross-domestic-product-third-estimate-gdp-industry-and-corporate-profits-revised-2nd",
+   "vintage": "third"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-09-30",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2022-09-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/personal-income-and-outlays-august-2022-and-annual-update",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2022-10-04",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_10042022.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2022-10-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_10072022.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2022-10-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_10122022.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2022-10-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_10132022.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-10-14",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2022-10-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2209.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2022-10-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2022/aug22prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Aug 2022 data"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2022-10-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/gross-domestic-product-third-quarter-2022-advance-estimate",
+   "vintage": "advance"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-10-28",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2022-10-28",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/personal-income-and-outlays-september-2022",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2022-11-01",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_11012022.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2022-11-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_11042022.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2022-11-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_11102022.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-11-11",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2022-11-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_11152022.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2022-11-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2210.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2022-11-23",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2022/sep22prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Sep 2022 data"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-11-23",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2022-11-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/gross-domestic-product-second-estimate-and-corporate-profits-preliminary-third-quarter",
+   "vintage": "second"
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2022-11-30",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_11302022.htm",
+   "vintage": null
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2022-12-01",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/personal-income-and-outlays-october-2022",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2022-12-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_12022022.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-12-09",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2022-12-09",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_12092022.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2022-12-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_12132022.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2022-12-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2211.pdf",
+   "vintage": null
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2022-12-22",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/gross-domestic-product-third-estimate-gdp-industry-and-corporate-profits-revised-third",
+   "vintage": "third"
+  },
+  {
+   "family": "durable_goods",
+   "date": "2022-12-23",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2022/oct22prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Oct 2022 data"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2022-12-23",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2022-12-23",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2022/personal-income-and-outlays-november-2022",
+   "vintage": null
+  }
+ ],
+ "gaps": [],
+ "counts": {
+  "employment_situation": 24,
+  "job_openings_and_labor_turnover": 24,
+  "consumer_price_index": 24,
+  "michigan_consumer_sentiment": 48,
+  "producer_price_index": 24,
+  "retail_sales": 24,
+  "durable_goods": 24,
+  "gross_domestic_product": 24,
+  "personal_income_and_outlays": 24
+ }
+}

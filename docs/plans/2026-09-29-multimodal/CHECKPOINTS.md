@@ -116,3 +116,25 @@ Resume rule after any break or compaction: read `PLAN.md`, then the last three e
   build equals the development tables on January 2024 (all 95 feature columns and the labels).
 - Trials without a 0.01 PF improvement: 3 (trials 2, 3, 4). Next: trial 5 = trial 4's configuration on the fixed
   features; then calendar and news.
+
+## CP-006 · 2026-09-29 · trials 5-6; calendar complete; notebook on the dashboard
+
+- **Trial 5 — GBDT, NQ+MNQ, time/price/flow/cross/context on the level-free features**: canonical PF 0.847
+  (win 26.3%, net -$9,218, bootstrap P(profit) 0.012); all 53 quarters PF 0.854. Trial 4's 0.95 was partly noise
+  carried on the superseded level-dependent features.
+- **Rule interpretation (recorded before trial 7's result)**: trials 1-4 ran on superseded features and cannot be
+  reproduced by the current code, so "best development PF" is taken over trials on the current feature code only
+  (from trial 5). The 24-trial budget still counts every trial.
+- **Calendar complete 2019-05 → 2025**: 2021-2022 releases sourced by the agent (240 rows, no gaps,
+  `evidence/calendar_2021_2022.json`); every family now has its normal count in every year; calendar features use
+  only those families. NQ-era (2010-2019) calendar is empty by design.
+- **Trial 6 — trial 5 + calendar**: canonical PF 0.953 (win 27.6%, payoff 2.50, net -$3,137, P(profit) 0.25,
+  47% of quarters positive); all 53 quarters PF 0.905. The calendar is the first modality with a clear lift
+  (+0.106 canonical PF over trial 5). Best on current code: 0.953 (trial 6); trials without improvement: 0.
+- **Notebook**: `notebooks/multimodal_model.py` (ml-dashboard group, /marimo) — every trial against the gate lines,
+  equity and quarterly P&L, decile calibration, modality contributions, base rates by hour, the audit table, the
+  gate record; exports clean.
+- **FinBERT headline scorer**: `scripts/multimodal/score_gdelt_finbert.py` — core market / rates / central-bank /
+  megacap headlines, deduplicated per day, batched fp16 at ~1,470 headlines/s (the datalake class ran 200/s); runs
+  once the backfill reaches the development years.
+- Next: trial 7 = fusion on all six modalities; then news (tone + FinBERT) when the backfill lands.
