@@ -350,5 +350,122 @@ def _(PREFIX, frame, mo, pl, view_exists):
     return
 
 
+@app.cell
+def _(frame, mo, pl, view_exists):
+    RULE = "derived_ta_rule_strategies_600_ticks_"
+    rule_rounds = frame(f"SELECT * FROM {RULE}rounds ORDER BY round") if view_exists(f"{RULE}rounds") else pl.DataFrame()
+    if rule_rounds.height == 0 or "frame_error" in rule_rounds.columns:
+        mo.stop(True, mo.md("## 9 · Conditional TA-Lib rules\nNo rule-search round has landed yet."))
+    rule_round_picker = mo.ui.dropdown({f"rule round {r['round']} · {r['recipe']}": r["recipe"] for r in rule_rounds.iter_rows(named=True)},
+                                       value=f"rule round {rule_rounds[-1, 'round']} · {rule_rounds[-1, 'recipe']}", label="Rule round")
+    rule_period = mo.ui.radio(["in_sample", "out_of_sample"], value="out_of_sample", label="Period")
+    rule_timeframes = mo.ui.multiselect(["1m", "5m", "15m", "1h"], value=["1m", "5m", "15m", "1h"], label="Timeframes")
+    minimum_trades = mo.ui.slider(0, 1000, step=25, value=100, label="Minimum trades", show_value=True)
+    mo.vstack([
+        mo.md(r"""
+## 9 · Conditional TA-Lib rules with 2:1 brackets (no model)
+
+Each strategy is a TA-Lib condition (a crossing or a state change at a bar's close) plus a filter, entering at the
+next open into a bracket: stop $S$ ticks, target $2S$. The target is a **40% win rate** at 2:1, which is a profit
+factor of $\frac{0.40 \times 2}{0.60 \times 1} = 1.33$ before costs. Net per trade at that win rate is
+$0.4 \cdot 2S - 0.6 \cdot S - c = 0.2S - 5.56$ ticks, so 600 a day needs $N \ge 600 / (0.2S - 5.56)$ trades.
+Each dot is one strategy; hollow diamonds are **random entries into the same bracket**. A rule only adds something
+where it sits above its bracket's random win rate.
+"""),
+        mo.hstack([rule_round_picker, rule_period, rule_timeframes, minimum_trades]),
+        mo.ui.table(rule_rounds, selection=None),
+    ])
+    return RULE, minimum_trades, rule_period, rule_round_picker, rule_timeframes
+
+
+@app.cell
+def _(OKABE, RULE, alt, frame, minimum_trades, mo, pl, rule_period, rule_round_picker, rule_timeframes):
+    _p = rule_period.value
+    strategies = frame(f"SELECT * FROM {RULE}strategies WHERE recipe = ?", [rule_round_picker.value]).filter(
+        pl.col("timeframe").is_in(rule_timeframes.value) & (pl.col(f"{_p}_trade_count") >= minimum_trades.value))
+    baselines = frame(f"SELECT timeframe, stop, avg({_p}_win_rate) AS random_win_rate, avg({_p}_profit_factor) AS random_profit_factor "
+                      f"FROM {RULE}random_entry_baselines WHERE recipe = ? GROUP BY 1, 2", [rule_round_picker.value])
+    strategies = strategies.join(baselines, on=["timeframe", "stop"], how="left").with_columns(
+        (pl.col(f"{_p}_win_rate") - pl.col("random_win_rate")).alias("win_rate_lift_over_random"))
+    _tf_colors = alt.Scale(domain=["1m", "5m", "15m", "1h"], range=[OKABE["sky"], OKABE["blue"], OKABE["orange"], OKABE["purple"]])
+    # only the columns the charts draw travel to the browser (all ~70 made a 26 MB spec)
+    _plot = strategies.select("strategy_id", "timeframe", "filter", "random_win_rate", f"{_p}_win_rate", f"{_p}_profit_factor",
+                              f"{_p}_net_ticks_per_session_day", f"{_p}_trades_per_session_day", f"{_p}_payoff_ratio").to_pandas()
+    _pts = alt.Chart(_plot).mark_circle(size=28, opacity=0.6).encode(
+        x=alt.X(f"{_p}_win_rate:Q", title="win rate (net of costs)", scale=alt.Scale(domain=[0.1, 0.65])),
+        y=alt.Y(f"{_p}_profit_factor:Q", title="profit factor (net)", scale=alt.Scale(domain=[0.4, 2.0], clamp=True)),
+        color=alt.Color("timeframe:N", scale=_tf_colors), shape=alt.Shape("filter:N"),
+        tooltip=["strategy_id", alt.Tooltip(f"{_p}_win_rate:Q", format=".3f"), alt.Tooltip("random_win_rate:Q", format=".3f"),
+                 alt.Tooltip(f"{_p}_profit_factor:Q", format=".3f"), alt.Tooltip(f"{_p}_net_ticks_per_session_day:Q", format="+.1f"),
+                 alt.Tooltip(f"{_p}_trades_per_session_day:Q", format=".2f"), alt.Tooltip(f"{_p}_payoff_ratio:Q", format=".2f")])
+    _rand = alt.Chart(baselines.to_pandas()).mark_point(shape="diamond", size=90, filled=False, color=OKABE["black"]).encode(
+        x="random_win_rate:Q", y=alt.Y("random_profit_factor:Q", scale=alt.Scale(domain=[0.4, 2.0], clamp=True)),
+        tooltip=["timeframe", "stop", alt.Tooltip("random_win_rate:Q", format=".3f")])
+    _x40 = alt.Chart(pl.DataFrame({"x": [0.40]}).to_pandas()).mark_rule(color=OKABE["vermillion"], strokeDash=[4, 3]).encode(x="x:Q")
+    _y133 = alt.Chart(pl.DataFrame({"y": [1.333]}).to_pandas()).mark_rule(color=OKABE["vermillion"], strokeDash=[4, 3]).encode(y="y:Q")
+    _ticks = alt.Chart(_plot).mark_circle(size=28, opacity=0.6).encode(
+        x=alt.X(f"{_p}_trades_per_session_day:Q", title="trades per session day", scale=alt.Scale(type="log")),
+        y=alt.Y(f"{_p}_net_ticks_per_session_day:Q", title="net ticks per session day"),
+        color=alt.Color("timeframe:N", scale=_tf_colors), tooltip=["strategy_id"])
+    mo.vstack([
+        mo.md(f"**{strategies.height:,} strategies shown.** Left: win rate vs profit factor; the vermillion lines are the 40% "
+              "and 1.33 targets, so the target zone is the top-right corner. Right: trades per day vs net ticks per day "
+              "(the 600 goal is far above this axis)."),
+        mo.hstack([(_pts + _rand + _x40 + _y133).properties(width=520, height=380), _ticks.properties(width=460, height=380)]),
+        mo.ui.table(strategies.sort(f"{_p}_net_ticks_per_session_day", descending=True, nulls_last=True).head(300),
+                    selection=None, page_size=15),
+        mo.md("The table shows the 300 best by net ticks per day for the period; the lake table has all of them."),
+    ])
+    return (strategies,)
+
+
+@app.cell
+def _(OKABE, RULE, alt, frame, mo, pl, rule_round_picker):
+    _in = frame(f"SELECT strategy_id, timeframe, in_sample_net_ticks_per_session_day AS in_sample, "
+                f"out_of_sample_net_ticks_per_session_day AS out_of_sample FROM {RULE}strategies "
+                f"WHERE recipe = ? AND in_sample_trade_count >= 100", [rule_round_picker.value])
+    _chart = alt.Chart(_in.to_pandas()).mark_circle(size=22, opacity=0.5, color=OKABE["blue"]).encode(
+        x=alt.X("in_sample:Q", title="in-sample net ticks/day (2019-06..2023)"),
+        y=alt.Y("out_of_sample:Q", title="out-of-sample net ticks/day (2024-2025)"), tooltip=["strategy_id", "in_sample", "out_of_sample"])
+    _zero = alt.Chart(pl.DataFrame({"v": [0.0]}).to_pandas())
+    mo.vstack([mo.md("### Does choosing in-sample pick winners out of sample? (each dot a strategy)"),
+               (_chart + _zero.mark_rule(color=OKABE["black"]).encode(x="v:Q") + _zero.mark_rule(color=OKABE["black"]).encode(y="v:Q")).properties(width=560, height=380)])
+    return
+
+
+@app.cell
+def _(RULE, frame, mo, rule_round_picker):
+    _kept = frame(f"SELECT DISTINCT strategy_id FROM {RULE}daily WHERE recipe = ? ORDER BY 1", [rule_round_picker.value])
+    kept_picker = mo.ui.dropdown(_kept["strategy_id"].to_list(), value=_kept[0, "strategy_id"], label="Strategy (trades stored)")
+    kept_picker
+    return (kept_picker,)
+
+
+@app.cell
+def _(OKABE, RULE, alt, bins, eight_numbers, frame, kept_picker, log_count, mo, pl, rule_round_picker, small_multiples):
+    _daily = frame(f"SELECT * FROM {RULE}daily WHERE recipe = ? AND strategy_id = ? ORDER BY session_date",
+                   [rule_round_picker.value, kept_picker.value]).with_columns(pl.col("net_ticks").cum_sum().alias("cumulative_net_ticks"))
+    _trades = frame(f"SELECT * FROM {RULE}trades WHERE recipe = ? AND strategy_id = ?", [rule_round_picker.value, kept_picker.value])
+    _curve = alt.Chart(_daily.to_pandas()).mark_line(color=OKABE["blue"]).encode(
+        x=alt.X("session_date:T", title="session day"), y=alt.Y("cumulative_net_ticks:Q", title="cumulative net ticks"),
+        strokeDash=alt.StrokeDash("period:N"))
+    _exits = _trades.group_by("exit_reason").agg(pl.len().alias("trades"), pl.col("net_ticks").mean().alias("mean_net_ticks"))
+    _stats = eight_numbers(_daily["net_ticks"].to_numpy())
+    mo.vstack([
+        mo.md(f"### {kept_picker.value}: equity (dashed = out of sample), exits, and every column"),
+        _curve.properties(width=880, height=240),
+        mo.hstack([mo.ui.table(_exits, selection=None), mo.ui.table(pl.DataFrame([{k: (round(v, 3) if isinstance(v, float) else v) for k, v in _stats.items()}]), selection=None)]),
+        small_multiples(_trades, [c for c in _trades.columns if c not in ("round",)], bins.value, log_count.value) or mo.md("no trades"),
+    ])
+    return
+
+
+@app.cell
+def _(bins, log_count, mo, small_multiples, strategies):
+    mo.vstack([mo.md("### Strategies table: every column"),
+               small_multiples(strategies, [c for c in strategies.columns if c not in ("round",)], bins.value, log_count.value) or mo.md("empty")])
+    return
+
+
 if __name__ == "__main__":
     app.run()
