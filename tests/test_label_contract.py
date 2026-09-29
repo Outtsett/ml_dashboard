@@ -125,13 +125,16 @@ def _lake_daily_bars(n: int = 500):
     except ImportError:
         return None
     endpoint = os.environ.get("LAKE_S3_ENDPOINT", "http://127.0.0.1:9100")
+    user, password = os.environ.get("MINIO_USER"), os.environ.get("MINIO_PASSWORD")
+    if not user or not password:   # no lake credentials in this environment (CI): the lake-backed check is skipped
+        return None
     try:
         con = duckdb.connect()
         con.execute("SET TimeZone='UTC'")
         con.execute("INSTALL httpfs; LOAD httpfs;")
         con.execute(
             "CREATE OR REPLACE SECRET lake_s3 (TYPE s3, KEY_ID ?, SECRET ?, ENDPOINT ?, URL_STYLE 'path', USE_SSL false, REGION ?)",
-            [os.environ.get("MINIO_USER", "lakeadmin"), os.environ.get("MINIO_PASSWORD", "lakeadmin-dev"),
+            [user, password,
              endpoint.replace("http://", ""), os.environ.get("LAKE_REGION", "us-east-1")],
         )
         snapshot = os.environ.get("LAKE_SERVING_SNAPSHOT", "derived/recipe=questdb_full_2026-09-09")

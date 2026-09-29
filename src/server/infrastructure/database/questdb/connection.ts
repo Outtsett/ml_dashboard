@@ -39,6 +39,7 @@ import crypto from "node:crypto";
 import type pg from "pg";
 import { z } from "zod";
 import { logInfo } from "../../lib/log";
+import { lakeCredentials } from "../../lake/credentials";
 import { defineDerivedViews, derivedViews, servedRecipes } from "./derivedDatasets";
 
 export { derivedViews, servedRecipes };
@@ -50,8 +51,6 @@ const LAKE_S3_ENDPOINT = process.env.LAKE_S3_ENDPOINT || "http://127.0.0.1:9100"
 const LAKE_CATALOG_URI = process.env.LAKE_CATALOG_URI || `${LAKE_S3_ENDPOINT}/_iceberg`;
 const LAKE_WAREHOUSE = process.env.LAKE_WAREHOUSE || "lakehouse";
 const LAKE_NAMESPACE = process.env.LAKE_NAMESPACE || "market";
-const LAKE_ACCESS_KEY = process.env.MINIO_USER || "lakeadmin";
-const LAKE_SECRET_KEY = process.env.MINIO_PASSWORD || "lakeadmin-dev";
 const LAKE_REGION = process.env.LAKE_REGION || "us-east-1";
 /** AIStor signs catalog requests with SigV4 under this signing name. */
 const LAKE_SIGNING_NAME = "s3tables";
@@ -137,7 +136,7 @@ function signedCatalogHeaders(method: string, urlString: string): Record<string,
     sha256Hex(canonicalRequest),
   ].join("\n");
   const signingKey = hmac(
-    hmac(hmac(hmac(`AWS4${LAKE_SECRET_KEY}`, date), LAKE_REGION), LAKE_SIGNING_NAME),
+    hmac(hmac(hmac(`AWS4${lakeCredentials().secretKey}`, date), LAKE_REGION), LAKE_SIGNING_NAME),
     "aws4_request",
   );
   const signature = crypto.createHmac("sha256", signingKey).update(stringToSign).digest("hex");
@@ -145,7 +144,7 @@ function signedCatalogHeaders(method: string, urlString: string): Record<string,
     "x-amz-date": amzDate,
     "x-amz-content-sha256": payloadHash,
     Authorization:
-      `AWS4-HMAC-SHA256 Credential=${LAKE_ACCESS_KEY}/${scope}, ` +
+      `AWS4-HMAC-SHA256 Credential=${lakeCredentials().accessKey}/${scope}, ` +
       `SignedHeaders=${signedHeaders}, Signature=${signature}`,
   };
 }
@@ -266,9 +265,10 @@ async function buildInstance(): Promise<DuckDBInstance> {
       await con.run(`LOAD ${extension}`);
     }
     const host = LAKE_S3_ENDPOINT.replace(/^https?:\/\//, "");
+    const { accessKey, secretKey } = lakeCredentials();
     await con.run(
       `CREATE OR REPLACE SECRET aistor_s3 (
-         TYPE s3, KEY_ID '${LAKE_ACCESS_KEY}', SECRET '${LAKE_SECRET_KEY}',
+         TYPE s3, KEY_ID '${accessKey}', SECRET '${secretKey}',
          ENDPOINT '${host}', URL_STYLE 'path',
          USE_SSL ${LAKE_S3_ENDPOINT.startsWith("https") ? "true" : "false"},
          REGION '${LAKE_REGION}'

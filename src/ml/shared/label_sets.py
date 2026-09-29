@@ -152,12 +152,15 @@ def _duckdb_with_lake():
     con.execute("INSTALL httpfs; LOAD httpfs;")
     endpoint = os.environ.get("LAKE_S3_ENDPOINT", "http://127.0.0.1:9100")
     host = endpoint.replace("http://", "").replace("https://", "")
+    user, password = os.environ.get("MINIO_USER"), os.environ.get("MINIO_PASSWORD")
+    if not user or not password:
+        raise RuntimeError("MINIO_USER and MINIO_PASSWORD must be set: the lake credentials never come from code")
     con.execute(
         "CREATE OR REPLACE SECRET lake_s3 (TYPE s3, KEY_ID ?, SECRET ?, ENDPOINT ?, "
         "URL_STYLE 'path', USE_SSL ?, REGION ?)",
         [
-            os.environ.get("MINIO_USER", "lakeadmin"),
-            os.environ.get("MINIO_PASSWORD", "lakeadmin-dev"),
+            user,
+            password,
             host,
             endpoint.startswith("https"),
             os.environ.get("LAKE_REGION", "us-east-1"),

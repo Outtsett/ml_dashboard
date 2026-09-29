@@ -11,10 +11,9 @@
  * by DuckDB (`COPY ... TO 's3://...'`) and read the same way.
  */
 import crypto from 'node:crypto';
+import { lakeCredentials } from './credentials';
 
 const S3_ENDPOINT = process.env.LAKE_S3_ENDPOINT || 'http://127.0.0.1:9100';
-const ACCESS_KEY = process.env.MINIO_USER || 'lakeadmin';
-const SECRET_KEY = process.env.MINIO_PASSWORD || 'lakeadmin-dev';
 const REGION = process.env.LAKE_REGION || 'us-east-1';
 
 const sha256Hex = (data: string | Buffer) => crypto.createHash('sha256').update(data).digest('hex');
@@ -54,13 +53,14 @@ function signedHeaders(method: string, url: URL, payload: string | Buffer, conte
   ].join('\n');
   const scope = `${date}/${REGION}/s3/aws4_request`;
   const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256Hex(canonicalRequest)].join('\n');
-  const signingKey = hmac(hmac(hmac(hmac(`AWS4${SECRET_KEY}`, date), REGION), 's3'), 'aws4_request');
+  const { accessKey, secretKey } = lakeCredentials();
+  const signingKey = hmac(hmac(hmac(hmac(`AWS4${secretKey}`, date), REGION), 's3'), 'aws4_request');
   const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex');
   const out: Record<string, string> = {
     'x-amz-content-sha256': payloadHash,
     'x-amz-date': amzDate,
     Authorization:
-      `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY}/${scope}, ` +
+      `AWS4-HMAC-SHA256 Credential=${accessKey}/${scope}, ` +
       `SignedHeaders=${signedNames.join(';')}, Signature=${signature}`,
   };
   if (contentType) out['Content-Type'] = contentType;
