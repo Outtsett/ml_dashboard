@@ -182,6 +182,19 @@ def test_conditions_cross_within_then_broke_and_retest():
     assert np.flatnonzero(then).tolist() == [4]
 
 
+def test_contract_years_come_from_when_the_contract_first_traded():
+    from ta_strategy.data import contract_sort_key
+
+    assert contract_sort_key("NQZ8", "NQ", 2018) == (2018, 12)
+    assert contract_sort_key("NQH9", "NQ", 2018) == (2019, 3)       # listed in 2018, expires March 2019
+    assert contract_sort_key("NQM0", "NQ", 2019) == (2020, 6)
+    assert contract_sort_key("NQM0", "NQ", 2010) == (2010, 6)
+    assert contract_sort_key("MNQZ9", "MNQ", 2019) == (2019, 12)
+    assert contract_sort_key("MNQH5", "MNQ", 2024) == (2025, 3)
+    assert contract_sort_key("NQZ18", "NQ", 2017) == (2018, 12)
+    assert contract_sort_key("NQZ8", "NQ", 2018) < contract_sort_key("NQH9", "NQ", 2018)
+
+
 def test_matched_null_stays_inside_the_evaluated_span():
     n = 400
     ctx = fake_context(np.linspace(100, 120, n), start_minute=np.tile(np.arange(6 * 60 + 30, 12 * 60 + 30, 15), 20)[:n])

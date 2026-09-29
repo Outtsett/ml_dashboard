@@ -83,13 +83,21 @@ def load_bars(connection, root: str, timeframe: str, start: str, end: str) -> Ba
 _MONTHS = "FGHJKMNQUVXZ"
 
 
-def contract_sort_key(symbol: str, root: str) -> tuple[int, int]:
-    """(year, month) of a contract code: MNQZ9 -> (2019, 12). A single year digit is
-    read as the decade that puts it at or after 2019 (the start of MNQ)."""
+def contract_sort_key(symbol: str, root: str, first_seen_year: int | None = None) -> tuple[int, int]:
+    """(year, month) of a contract code: MNQZ9 -> (2019, 12). A single year digit is read
+    as the earliest year ending in that digit that is not before the year the contract
+    first traded (a contract trades for at most about a year and a half before expiry).
+    The first version assumed every contract was 2019 or later (MNQ's start), which sorted
+    NQ's 2010-2018 contracts into the 2020s and stopped an NQ 2010-2019 rebuild at 2018-12-21."""
     code = symbol[len(root):]
     month = _MONTHS.index(code[0]) + 1
     digits = code[1:]
-    year = 2000 + int(digits) if len(digits) == 2 else (2010 + int(digits) if 2010 + int(digits) >= 2019 else 2020 + int(digits))
+    if len(digits) == 2:
+        return 2000 + int(digits), month
+    anchor = first_seen_year if first_seen_year is not None else 2019
+    year = anchor - anchor % 10 + int(digits)
+    if year < anchor:
+        year += 10
     return year, month
 
 
@@ -116,7 +124,8 @@ def load_minutes_rebuilt(connection, root: str, start: str, end: str, confirm_se
     rows = rows[rows["symbol"].str.fullmatch(rf"{root}[{_MONTHS}]\d{{1,2}}")].copy()
     rows["session_date"] = session_dates(rows["timestamp"].to_numpy(np.int64))
     rows["volume"] = rows["volume"].fillna(0.0)
-    order = {s: contract_sort_key(s, root) for s in rows["symbol"].unique()}
+    first_seen = rows.groupby("symbol")["timestamp"].min()
+    order = {s: contract_sort_key(s, root, int(pd.Timestamp(first_seen[s], unit="s").year)) for s in rows["symbol"].unique()}
     volume = rows.groupby(["session_date", "symbol"])["volume"].sum().reset_index()
     leaders = volume.sort_values(["session_date", "volume"], ascending=[True, False]).drop_duplicates("session_date")
     sessions = leaders["session_date"].to_numpy()
