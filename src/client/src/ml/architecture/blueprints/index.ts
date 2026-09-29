@@ -14,6 +14,14 @@ import { SUPERVISED_BLUEPRINTS } from './supervised';
 import { UNSUPERVISED_BLUEPRINTS } from './unsupervised';
 import { SEMI_SUPERVISED_BLUEPRINTS } from './semiSupervised';
 import { SELF_SUPERVISED_BLUEPRINTS } from './selfSupervised';
+import { RL_HIERARCHICAL_META_BLUEPRINTS } from './rlHierarchicalMeta';
+import { RL_MODEL_BASED_BLUEPRINTS } from './rlModelBased';
+import { RL_POLICY_VALUE_BLUEPRINTS } from './rlPolicyValue';
+import { STATISTICAL_BLUEPRINTS } from './statistical';
+import { OPTIMIZATION_BLUEPRINTS } from './optimization';
+import { PROBABILISTIC_SYMBOLIC_BLUEPRINTS } from './probabilisticSymbolic';
+import { SIMULATION_DECISION_BLUEPRINTS } from './simulationDecision';
+import { SUPERVISED_CLASSICAL_BLUEPRINTS } from './supervisedClassical';
 
 const GROUPS: Record<string, ArchGraph>[] = [
   RECURRENT_BLUEPRINTS,
@@ -24,6 +32,14 @@ const GROUPS: Record<string, ArchGraph>[] = [
   UNSUPERVISED_BLUEPRINTS,
   SEMI_SUPERVISED_BLUEPRINTS,
   SELF_SUPERVISED_BLUEPRINTS,
+  RL_HIERARCHICAL_META_BLUEPRINTS,
+  RL_MODEL_BASED_BLUEPRINTS,
+  RL_POLICY_VALUE_BLUEPRINTS,
+  STATISTICAL_BLUEPRINTS,
+  OPTIMIZATION_BLUEPRINTS,
+  PROBABILISTIC_SYMBOLIC_BLUEPRINTS,
+  SIMULATION_DECISION_BLUEPRINTS,
+  SUPERVISED_CLASSICAL_BLUEPRINTS,
 ];
 
 export const BLUEPRINTS: Record<string, ArchGraph> = Object.assign({}, ...GROUPS);
