@@ -2,8 +2,8 @@
   "project": "multimodal trading model",
   "started": "2026-09-29",
   "phase": "P5",
-  "step": "recursive loop (trial 10 running)",
-  "last_checkpoint": "CP-009",
+  "step": "recursive loop (waiting for the news block: GDELT backfill + FinBERT scoring to 2019-05)",
+  "last_checkpoint": "CP-010",
   "holdout": {
     "start": "2025-07-01T00:00:00",
     "end": "2025-12-31T00:00:00",
@@ -18,8 +18,8 @@
     "instrument": "MNQ intraday, flat by the session close",
     "news_history": "GDELT GKG filtered landing with upstream md5 manifest (Tyler, 2026-09-29)"
   },
-  "trials_evaluated": 8,
-  "next": "trial 10 (ensemble); news block once the GDELT backfill reaches 2019-05; stop rule; overfitting report; provenance refresh of the frozen candidate; one holdout look; forward confirmation",
+  "trials_evaluated": 9,
+  "next": "news block (build_features --blocks news) once GDELT + FinBERT cover 2019-05..2025-06; trials gbdt/fusion/ensemble with news; stop rule; overfitting report; provenance refresh of the frozen candidate; one holdout look; forward confirmation",
   "forward": {
     "start": "2026-01-01T00:00:00",
     "clock": "Pacific wall clock stored as UTC",
@@ -28,7 +28,7 @@
     "landed": "Yahoo 5m from 2026-07-21, 1m from 2026-08-31 (MNQ, NQ, ES, RTY, YM, ZN, GC, DX-Y.NYB), raw/vendor=yahoo/dataset=chart-history/received=2026-09-29"
   },
   "best_development_profit_factor": 1.0018,
-  "trials_without_improvement": 0,
+  "trials_without_improvement": 1,
   "search_budget": {
     "max_trials": 24,
     "stop_after_no_improvement": 6

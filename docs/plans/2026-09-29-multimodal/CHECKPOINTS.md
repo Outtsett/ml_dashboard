@@ -197,3 +197,16 @@ Resume rule after any break or compaction: read `PLAN.md`, then the last three e
   are unchanged (`tests/test_multimodal_ablation.py`). The code hash moved, so trials 8 and 9 need a
   provenance refresh before either could be gated. CI green (45 tests).
 - Trial 10 next: the ensemble of the two families, same blocks, history and window.
+
+## CP-010 · 2026-09-29 · trial 10 (ensemble): no improvement; trials wait for the news block
+
+- **Trial 10** (9 of 24 counted): ensemble (mean of the gbdt and fusion calibrated probabilities) · blocks
+  time,price,flow,cross,context,calendar · history mnq · test quarters from 2020Q3 · seed 7 ·
+  `MNQ_5m_multimodal_fusion+bracket_meta_label_20260929T202613` · code sha256 14c1ef9d (with the gbdt ablation).
+- Canonical 2021Q2..2025Q2: 1,066 sessions, 2,718 trades (2.55 a session, 5.7% forced), win rate 0.2627, payoff
+  2.788, **profit factor 0.9932**, net -$983.04 (stressed -$3,701.04), bootstrap P(profit) 0.47 (95% lower bound
+  -7,010 points), quarters positive 0.529, maximum drawdown $8,013.78. Gate: G2 only.
+- Ablation (mean of the two members' AUC drops): price +0.0019, flow +0.0023, cross -0.0003, calendar -0.0012.
+- Best on v3 stays **trial 9 (1.0018)**; trials without improvement: 1.
+- Order from here, fixed now: the next trials use the news block (gbdt, fusion, ensemble with news), so no trial
+  is spent until the GDELT backfill and FinBERT scoring cover 2019-05 onward (about 6-7 hours at 5 days a minute).
