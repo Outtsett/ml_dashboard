@@ -1,7 +1,7 @@
 /** The notebook tab's view of GET /api/marimo/notebooks and its sibling routes
  *  (src/server/marimo/marimo.router.ts). */
 
-export type DatasetKind = "lake view" | "lake dataset" | "Iceberg table" | "serving table";
+export type DatasetKind = "lake view" | "lake dataset" | "Iceberg table" | "serving table" | "lake loader" | "DuckDB file";
 
 export interface DatasetReference {
   name: string;
@@ -17,6 +17,7 @@ export interface HealthRecord {
   checkedAtIso: string;
   sourceModifiedAtIso: string;
   durationSeconds: number | null;
+  ranAlongside?: number;
   error?: string;
   outputSizeBytes?: number;
 }

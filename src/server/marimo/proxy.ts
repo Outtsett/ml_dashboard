@@ -61,6 +61,19 @@ export function registerMarimoProxies(app: Express, httpServer: Server): void {
       // prefix match, so the `quant` proxy (mounted first) also took every
       // `/marimo/quantlab/…` request and sent it to the quant group's port.
       pathFilter: (pathname) => isGroupPath(pathname, slug),
+      // A group that is not running refuses the connection: say so at once
+      // rather than let the request look like a hang.
+      on: {
+        error: (err, _req, res) => {
+          const response = res as import("http").ServerResponse;
+          if (typeof response.writeHead !== "function" || response.headersSent) {
+            (res as Socket).destroy?.();
+            return;
+          }
+          response.writeHead(502, { "Content-Type": "application/json" });
+          response.end(JSON.stringify({ error: `notebook group "${slug}" is not answering on port ${port}: ${(err as Error).message}` }));
+        },
+      },
     }) as MarimoProxyHandler;
     proxiesBySlug.set(slug, proxy);
     // Every request to a group is use of it: the idle sweep reads this clock.

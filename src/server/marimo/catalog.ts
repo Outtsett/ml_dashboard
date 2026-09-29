@@ -107,8 +107,34 @@ function isNotebookSource(source: string): boolean {
  *  tape". An f-string header is the normal way to write one — it is how a
  *  notebook puts its own numbers in its title. */
 function extractFirstMarimoMdBlock(source: string): string | null {
-  const match = /mo\.md\(\s*[rRfFbBuU]{0,2}("""|''')([\s\S]*?)\1\s*\)/.exec(source);
-  return match?.[2] ?? null;
+  // The FIRST mo.md call in the file, whatever its quotes: a one-line
+  // `mo.md("# Title")` header is as common as a triple-quoted one, and skipping
+  // it gave four chart_cnn notebooks their file stem, or a later cell, as title.
+  const opener = /mo\.md\(\s*([rRfFbBuU]{0,2})("""|\'\'\'|"|')/g;
+  const match = opener.exec(source);
+  if (!match) return null;
+  const raw = /r/i.test(match[1]!);
+  const quote = match[2]!;
+  const bodyStart = match.index + match[0].length;
+  let index = bodyStart;
+  while (index < source.length) {
+    if (source[index] === "\\" && !raw) {
+      index += 2;
+      continue;
+    }
+    if (source.startsWith(quote, index)) break;
+    if (quote.length === 1 && source[index] === "\n") return null;
+    index++;
+  }
+  const body = source.slice(bodyStart, index);
+  return raw ? body : unescapePython(body);
+}
+
+/** Python's common string escapes, for a non-raw literal: `\\` shown as one
+ *  backslash, `\n` as a line break, escaped quotes as quotes. */
+export function unescapePython(text: string): string {
+  return text.replace(/\\(\\|n|t|"|')/g, (_whole, character: string) =>
+    character === "n" ? "\n" : character === "t" ? "\t" : character);
 }
 
 /** The module docstring, when there is no mo.md header cell to read instead. */
@@ -128,7 +154,7 @@ function cleanInterpolation(text: string): string {
  *  block opens with prose instead of a heading). Description = the next
  *  non-empty line after it. Falls back to the file stem when neither a
  *  mo.md block nor a docstring is found. */
-function extractTitleAndDescription(source: string, fallbackStem: string): { title: string; description: string } {
+export function extractTitleAndDescription(source: string, fallbackStem: string): { title: string; description: string } {
   const block = extractFirstMarimoMdBlock(source) ?? extractModuleDocstring(source);
   if (block) {
     const lines = block

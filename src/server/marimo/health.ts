@@ -116,6 +116,9 @@ function startCheck(check: QueuedCheck): void {
     // keep the catalog's time
   }
   const startedAt = Date.now();
+  // Checks that were already running when this one started: its duration is
+  // wall time, which two exports at once stretch (measured up to +67%).
+  const ranAlongside = running.size;
   recordHealth(notebook.path, {
     status: "running",
     checkedAtIso: new Date(startedAt).toISOString(),
@@ -170,6 +173,7 @@ function startCheck(check: QueuedCheck): void {
       checkedAtIso: new Date().toISOString(),
       sourceModifiedAtIso: check.sourceModifiedAtIso,
       durationSeconds,
+      ranAlongside,
       outputSizeBytes,
       error: passed
         ? undefined
@@ -211,8 +215,9 @@ export function queueHealthChecks(paths: string[]): number {
   return queued;
 }
 
-/** Drops every queued check and stops the running ones. The last finished
- *  result is not kept for a cancelled notebook: it shows as not checked. */
+/** Drops every queued check and stops the running ones. A cancelled notebook
+ *  shows its last finished result again (store.ts healthOf), or "not checked"
+ *  if it never had one. */
 export function cancelHealthChecks(): number {
   const cancelled = queue.length + running.size;
   for (const check of queue.splice(0)) {

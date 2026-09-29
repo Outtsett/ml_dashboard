@@ -9,7 +9,8 @@ import path from "path";
 import { countCells, extractDatasets, searchSource } from "../../src/server/marimo/lineage";
 import { gitStateOf, parsePorcelain } from "../../src/server/marimo/git";
 import { summarizeFailure } from "../../src/server/marimo/health";
-import { parseProcessTable, treeWorkingSetBytes } from "../../src/server/marimo/servers";
+import { parseProcessTable, topmostPython, treeWorkingSetBytes } from "../../src/server/marimo/servers";
+import { extractTitleAndDescription } from "../../src/server/marimo/catalog";
 import { renderNotebookTemplate, validateFileName } from "../../src/server/marimo/template";
 import { isGroupPath } from "../../src/server/marimo/proxy";
 import { mkdirSync, mkdtempSync } from "fs";
@@ -40,8 +41,8 @@ def _(con):
 describe("extractDatasets", () => {
   it("names every lake source the code reads, and nothing it built itself", () => {
     const names = extractDatasets(NOTEBOOK).map((d) => `${d.kind}: ${d.name}`);
+    // The family `derived_model_cycle_runs_*` is dropped: the concrete name it stands for is listed.
     expect(names).toEqual([
-      "lake view: derived_model_cycle_runs_*",
       "lake view: derived_model_cycle_runs_runs",
       "lake dataset: derived/regression_tab_performance",
       "Iceberg table: market.bars",
@@ -177,8 +178,9 @@ describe("review fixes (2026-09-28)", () => {
     expect(names).toContain("mnq_ohlcv_1m");
     expect(names).not.toContain("bars");
     expect(names).not.toContain("ohlcv_1d");
-    // A derived view named in prose still names a real object.
-    expect(names).toContain("derived_labels");
+    // Prose is not a read, whatever it names (audit 2026-09-29: "market.quotes" in a
+    // plan sentence was listed as a source).
+    expect(names).not.toContain("derived_labels");
   });
 
   it("refuses Windows device names and a name that would shadow a sibling package", () => {
@@ -195,5 +197,52 @@ describe("review fixes (2026-09-28)", () => {
     expect(isGroupPath("/marimo/quant", "quant")).toBe(true);
     expect(isGroupPath("/marimo/quantlab/", "quant")).toBe(false);
     expect(isGroupPath("/marimo/quantlab/assets/x.js", "quantlab")).toBe(true);
+  });
+});
+
+describe("audit fixes (2026-09-29)", () => {
+  it("lists recipe paths, f-string paths, lake loaders and DuckDB files; drops prose, docstrings and covered families", () => {
+    const source = [
+      '"""Reads derived_model_cycle_runs_<table> (module docstring)."""',
+      "import marimo",
+      "BASE = \"s3://derived/recipe=quant_oos_v1\"",
+      "SNAP = \"s3://derived/recipe=questdb_full_2026-09-09/table=ohlcv/\"",
+      "path = f\"s3://derived/{DATASET[timeframe]}/recipe=talib_v1\"",
+      "bars = load_ohlcv_tf('MNQ', '5m')",
+      "con = duckdb.connect(r\"E:\\lake\\_meta\\tails.duckdb\")",
+      "# market.bars, every slice",
+      "runs = con.sql('SELECT * FROM derived_model_cycle_runs_runs')",
+      "family = f'derived_model_cycle_runs_{table}'",
+    ].join("\n");
+    const names = extractDatasets(source).map((d) => `${d.kind}: ${d.name}`);
+    expect(names).toEqual([
+      "lake view: derived_model_cycle_runs_runs",
+      "lake dataset: derived/*",
+      "lake dataset: derived/recipe=quant_oos_v1",
+      "lake loader: load_ohlcv_tf",
+      "DuckDB file: E:/lake/_meta/tails.duckdb",
+    ]);
+  });
+
+  it("reads a one-line mo.md header and unescapes a non-raw string", () => {
+    const oneLine = 'import marimo\n\n@app.cell\ndef _(mo):\n    mo.md("# TA-Lib patterns on MNQ 5-minute bars")\n    return\n\n@app.cell\ndef _(mo):\n    mo.md("""# How to read this""")\n';
+    expect(extractTitleAndDescription(oneLine, "gallery").title).toBe("TA-Lib patterns on MNQ 5-minute bars");
+    const escaped = 'mo.md("""# Machine health\n\nRead from `E:\\\\lake-workspace\\\\machine.duckdb`""")';
+    expect(extractTitleAndDescription(escaped, "x").description).toBe("Read from `E:\\lake-workspace\\machine.duckdb`");
+    const raw = 'mo.md(r"""# Raw\n\nKeeps \\\\ as written""")';
+    expect(extractTitleAndDescription(raw, "x").description).toBe("Keeps \\\\ as written");
+  });
+
+  it("counts the venv launcher for an adopted group, whose PID is the interpreter below it", () => {
+    const csv = [
+      '"ProcessId","ParentProcessId","WorkingSetSize","Name"',
+      '"900","1","50000000","node.exe"',
+      '"4100","900","13000000","python.exe"',
+      '"4200","4100","400000000","python.exe"',
+    ].join("\r\n");
+    const processes = parseProcessTable(csv);
+    expect(topmostPython(4200, processes)).toBe(4100);
+    expect(topmostPython(4100, processes)).toBe(4100);
+    expect(treeWorkingSetBytes(topmostPython(4200, processes), processes)).toBe(413000000);
   });
 });

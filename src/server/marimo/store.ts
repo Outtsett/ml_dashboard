@@ -31,6 +31,9 @@ export interface HealthRecord {
   /** The notebook's modified time when it was checked: a newer file means the result is stale. */
   sourceModifiedAtIso: string;
   durationSeconds: number | null;
+  /** Other checks running when this one started; a duration measured beside
+   *  another export is longer than the notebook takes alone. */
+  ranAlongside?: number;
   /** What marimo said when cells failed — the exception lines, then the stderr tail. */
   error?: string;
   /** Size of the exported page, a second signal: a notebook that dies early exports far smaller. */
@@ -148,6 +151,27 @@ export function recordHealth(notebookPath: string, record: HealthRecord): void {
   if (!isFinished(record)) return;
   lastFinished[key] = record;
   writeJson(HEALTH_PATH, { byPath: lastFinished });
+}
+
+/** Forgets results for notebooks that are no longer in the catalog (renamed or
+ *  deleted), so the file does not keep verdicts about files that are gone. */
+export function pruneHealth(existingPaths: string[]): void {
+  const all = loadHealth();
+  const keep = new Set(existingPaths.map(healthKey));
+  let changed = false;
+  for (const key of Object.keys(all)) {
+    if (!keep.has(key)) {
+      delete all[key];
+      changed = true;
+    }
+  }
+  for (const key of Object.keys(lastFinished)) {
+    if (!keep.has(key)) {
+      delete lastFinished[key];
+      changed = true;
+    }
+  }
+  if (changed) writeJson(HEALTH_PATH, { byPath: lastFinished });
 }
 
 /** Test seam: forget what was loaded so the next read goes back to disk. */

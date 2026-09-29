@@ -25,7 +25,8 @@ export function healthTooltip(health: HealthRecord | null, modifiedAtIso: string
   if (view === "queued") return "Waiting for a free slot (two checks run at a time).";
   if (view === "checking") return `Running every cell since ${whenLabel(health.checkedAtIso)}.`;
   const verdict = health.status === "passed" ? "Every cell ran" : "Some cells failed";
-  const when = `${verdict} on ${whenLabel(health.checkedAtIso)}${health.durationSeconds !== null ? ` in ${durationLabel(health.durationSeconds)}` : ""}.`;
+  const alongside = health.ranAlongside ? ` (beside ${health.ranAlongside} other check${health.ranAlongside === 1 ? "" : "s"}, so slower than alone)` : "";
+  const when = `${verdict} on ${whenLabel(health.checkedAtIso)}${health.durationSeconds !== null ? ` in ${durationLabel(health.durationSeconds)}${alongside}` : ""}.`;
   const stale = view === "changed" ? " The file has been edited since, so this result is about an older version." : "";
   return `${when}${stale}${health.error ? `\n\n${health.error}` : ""}`;
 }
@@ -75,6 +76,8 @@ const KIND_SHORT: Record<DatasetReference["kind"], string> = {
   "lake dataset": "dataset",
   "Iceberg table": "Iceberg",
   "serving table": "table",
+  "lake loader": "loader",
+  "DuckDB file": "file",
 };
 
 export function DatasetChips({

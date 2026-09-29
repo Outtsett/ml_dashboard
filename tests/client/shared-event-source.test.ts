@@ -226,4 +226,15 @@ describe("openEventStream", () => {
     openEventStream("/api/events/pipeline");
     expect(FakeEventSource.instances.at(-1)!.url).toBe("/api/events/pipeline");
   });
+
+  it("does not fall back when owners close their streams inside a first-connect error", async () => {
+    const first = openEventStream("/api/events/pipeline");
+    const second = openEventStream("/api/events/system");
+    first.onerror = () => first.close();
+    second.onerror = () => second.close();
+    mux().fail(false); // refused while connecting; the browser is still retrying
+    openEventStream("/api/live/stream");
+    // Still one shared connection, no native streams.
+    expect(FakeEventSource.instances.every((s) => s.url === "/api/stream/mux")).toBe(true);
+  });
 });

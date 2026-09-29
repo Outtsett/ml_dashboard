@@ -197,14 +197,19 @@ class MuxManager {
     });
     source.onerror = () => {
       if (source !== this.source) return;
+      // Read BEFORE telling the streams: an owner that closes its stream in
+      // onerror can empty the list, and the last close shuts this source,
+      // which would then look like a permanent failure and wrongly fall back.
+      const failedForGood = source.readyState === 2;
       this.connection = null;
-      for (const stream of this.streams.values()) {
+      for (const stream of [...this.streams.values()]) {
         if (stream.readyState === 2) continue;
         stream.clearRetry();
         stream.readyState = 0;
         stream.emit(new Event("error"));
       }
-      if (source.readyState !== 2) return; // the browser is reconnecting it
+      if (source !== this.source) return; // the last stream closed; shut down deliberately
+      if (!failedForGood) return; // the browser is reconnecting it
       // Failed for good (a non-200 answer). Before it has ever answered, this
       // server has no mux: fall back. Afterwards it is a restart or a limit:
       // open a new one with backoff.

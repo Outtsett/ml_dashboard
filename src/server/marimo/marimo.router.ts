@@ -46,7 +46,7 @@ import {
 } from "./servers";
 import { activityOf } from "./activity";
 import { cancelHealthChecks, healthQueueSize, queueHealthChecks } from "./health";
-import { healthOf, isPinned, samePath, setPinned } from "./store";
+import { healthOf, isPinned, pruneHealth, samePath, setPinned } from "./store";
 import { searchSource, type DatasetKind } from "./lineage";
 import { cachedGitState, refreshGitStatus } from "./git";
 import { validateFileName, writeNotebookFromTemplate } from "./template";
@@ -93,6 +93,7 @@ router.get("/marimo/notebooks", async (req: Request, res: Response) => {
   const config = loadNotebooksConfig();
   await refreshGitStatus(config.groups.flatMap((g) => g.roots.map((r) => r.path)), refresh);
   const catalog = getCatalog(refresh);
+  pruneHealth(catalog.notebooks.map((n) => n.path));
   const memory = await groupMemoryBytes();
   const nowMs = Date.now();
 

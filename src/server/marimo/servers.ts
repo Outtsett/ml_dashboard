@@ -487,6 +487,8 @@ const MEMORY_CACHE_MS = 10_000;
 interface ProcessRow {
   parentPid: number;
   workingSetBytes: number;
+  /** Image name, e.g. "python.exe" (empty when the query did not return it). */
+  name: string;
 }
 
 let memoryCache: { atMs: number; processes: Map<number, ProcessRow> } | null = null;
@@ -494,8 +496,8 @@ let memoryRefresh: Promise<void> | null = null;
 /** When the process query last failed: a failing query is not re-awaited on every poll. */
 let memoryFailedAtMs = 0;
 
-/** Parses `Win32_Process | Select ProcessId,ParentProcessId,WorkingSetSize |
- *  ConvertTo-Csv` into PID -> (parent, working set). Exported for the unit test. */
+/** Parses `Win32_Process | Select ProcessId,ParentProcessId,WorkingSetSize,Name |
+ *  ConvertTo-Csv` into PID -> (parent, working set, name). Exported for the unit test. */
 export function parseProcessTable(output: string): Map<number, ProcessRow> {
   const processes = new Map<number, ProcessRow>();
   for (const line of output.split(/\r?\n/)) {
@@ -505,7 +507,7 @@ export function parseProcessTable(output: string): Map<number, ProcessRow> {
     const parentPid = Number.parseInt(fields[1]!, 10);
     const workingSetBytes = Number.parseInt(fields[2]!, 10);
     if (Number.isFinite(pid) && Number.isFinite(parentPid) && Number.isFinite(workingSetBytes)) {
-      processes.set(pid, { parentPid, workingSetBytes });
+      processes.set(pid, { parentPid, workingSetBytes, name: (fields[3] ?? "").toLowerCase() });
     }
   }
   return processes;
@@ -536,7 +538,26 @@ export function treeWorkingSetBytes(rootPid: number, processes: Map<number, Proc
   return total;
 }
 
-const PROCESS_QUERY = "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,WorkingSetSize | ConvertTo-Csv -NoTypeInformation";
+const PROCESS_QUERY = "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,WorkingSetSize,Name | ConvertTo-Csv -NoTypeInformation";
+
+const PYTHON_IMAGES = new Set(["python.exe", "pythonw.exe"]);
+
+/** The topmost python process above `pid`. An ADOPTED group's PID is the port
+ *  owner — the real interpreter — while a spawned group's is the venv launcher
+ *  above it; starting from the topmost python counts the launcher in both cases,
+ *  so the same group reports the same memory however it was started. */
+export function topmostPython(pid: number, processes: Map<number, ProcessRow>): number {
+  let current = pid;
+  const seen = new Set<number>([current]);
+  for (;;) {
+    const parent = processes.get(current)?.parentPid;
+    if (parent === undefined || seen.has(parent)) return current;
+    const row = processes.get(parent);
+    if (!row || !PYTHON_IMAGES.has(row.name)) return current;
+    seen.add(parent);
+    current = parent;
+  }
+}
 
 function refreshMemory(): Promise<void> {
   memoryRefresh ??= new Promise<void>((resolve) => {
@@ -568,7 +589,7 @@ export async function groupMemoryBytes(): Promise<Map<string, number>> {
   const bySlug = new Map<string, number>();
   for (const [slug, state] of STATE) {
     if (state.status !== "ready" || !state.pid || !memoryCache) continue;
-    const bytes = treeWorkingSetBytes(state.pid, memoryCache.processes);
+    const bytes = treeWorkingSetBytes(topmostPython(state.pid, memoryCache.processes), memoryCache.processes);
     if (bytes !== null) bySlug.set(slug, bytes);
   }
   return bySlug;

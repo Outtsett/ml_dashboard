@@ -27,6 +27,7 @@ import { randomUUID } from "crypto";
 import type { Response } from "express";
 import { Logger } from "@nestjs/common";
 import { INTERNAL_REQUEST_HEADER, internalRequestToken } from "../infrastructure/lib/internalRequest";
+import { isSidecarPath } from "../sidecar/proxy";
 
 const logger = new Logger("StreamMux");
 
@@ -124,7 +125,8 @@ export function normalizeStreamUrl(url: string): string | null {
   if (url.includes("\\") || /[\r\n\0]/.test(url) || /%2e|%2f|%5c/i.test(url)) return null;
   let parsed: URL;
   try {
-    parsed = new URL(url, "http://127.0.0.1");
+    // Repeated slashes collapsed first, so `/api//stream/mux` is the mux too.
+    parsed = new URL(url.replace(/\/{2,}/g, "/"), "http://127.0.0.1");
   } catch {
     return null;
   }
@@ -182,14 +184,21 @@ export function subscribe(
   else if (connection.subscriptions.size >= MAX_SUBSCRIPTIONS_PER_CONNECTION) return "too_many";
 
   const abort = new AbortController();
-  const subscription: Subscription = { url, abort };
+  const subscription: Subscription = { url: target, abort };
   connection.subscriptions.set(subscriptionId, subscription);
 
   void (async () => {
     let status: number | undefined;
     try {
       const response = await fetch(`http://127.0.0.1:${port}${target}`, {
-        headers: { accept: "text/event-stream", "cache-control": "no-cache", ...headers, [INTERNAL_REQUEST_HEADER]: internalRequestToken },
+        // The secret stays in this process: a sidecar path is proxied on to
+        // another program, and sidecar paths are not rate limited anyway.
+        headers: {
+          accept: "text/event-stream",
+          "cache-control": "no-cache",
+          ...headers,
+          ...(isSidecarPath(target.split("?")[0]!) ? {} : { [INTERNAL_REQUEST_HEADER]: internalRequestToken }),
+        },
         signal: abort.signal,
       });
       status = response.status;

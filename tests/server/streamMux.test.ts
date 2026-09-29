@@ -45,5 +45,9 @@ describe("isAllowedStreamUrl", () => {
     expect(isAllowedStreamUrl("/api/Stream/MUX")).toBe(false);
     expect(isAllowedStreamUrl("/api/%2e%2e/stream/mux")).toBe(false);
     expect(normalizeStreamUrl("/api/events/system?x=1")).toBe("/api/events/system?x=1");
+    // Repeated slashes are collapsed before the check (audit 2026-09-29).
+    expect(isAllowedStreamUrl("/api//stream/mux")).toBe(false);
+    expect(isAllowedStreamUrl("/api/stream//mux")).toBe(false);
+    expect(normalizeStreamUrl("/api//events//system")).toBe("/api/events/system");
   });
 });
