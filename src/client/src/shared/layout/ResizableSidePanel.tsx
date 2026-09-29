@@ -23,9 +23,13 @@
  *   double-click / Enter  jump between the default and the wide width
  *   ← →                   24 pixels per press, 96 with Shift
  *   Home / End            narrowest / widest
+ *
+ * Content inside the panel can ask for the same jumps with
+ * `requestSidePanelWidth("wide" | "default" | "toggle")` (a window event the
+ * open panel listens for), e.g. the Model Cycle's "Inside the model" Widen button.
  */
 
-import { useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/shared/utils/utils";
 
@@ -36,6 +40,14 @@ export const DEFAULT_FRACTION = 0.45;
 export const WIDE_FRACTION = 0.72;
 const KEYBOARD_STEP_PIXELS = 24;
 const KEYBOARD_LARGE_STEP_PIXELS = 96;
+
+export const SIDE_PANEL_WIDTH_EVENT = "side-panel-width-request";
+export type SidePanelWidthRequest = "wide" | "default" | "toggle";
+
+/** Ask the open side panel to go wide, return to the default width, or switch between the two (what double-clicking its edge does). */
+export function requestSidePanelWidth(request: SidePanelWidthRequest): void {
+  window.dispatchEvent(new CustomEvent<SidePanelWidthRequest>(SIDE_PANEL_WIDTH_EVENT, { detail: request }));
+}
 
 /**
  * Narrowest the panel may be. Normally SIDE_PANEL_MINIMUM_PIXELS; when the row
@@ -147,6 +159,20 @@ export function ResizableSidePanel({ children, className }: { children: ReactNod
     const midpoint = ((DEFAULT_FRACTION + WIDE_FRACTION) / 2) * available;
     commit((width < midpoint ? WIDE_FRACTION : DEFAULT_FRACTION) * available);
   };
+
+  // Requests from the panel's content; the ref always holds this render's handler.
+  const requestRef = useRef<(request: SidePanelWidthRequest) => void>(() => {});
+  useLayoutEffect(() => {
+    requestRef.current = (request) => {
+      if (request === "toggle") toggleWide();
+      else if (available > 0) commit((request === "wide" ? WIDE_FRACTION : DEFAULT_FRACTION) * available);
+    };
+  });
+  useEffect(() => {
+    const listener = (event: Event) => requestRef.current((event as CustomEvent<SidePanelWidthRequest>).detail);
+    window.addEventListener(SIDE_PANEL_WIDTH_EVENT, listener);
+    return () => window.removeEventListener(SIDE_PANEL_WIDTH_EVENT, listener);
+  }, []);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (width === null) return;
