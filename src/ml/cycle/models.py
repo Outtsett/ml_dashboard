@@ -289,6 +289,33 @@ ADAPTER_CLASSES: dict[str, str] = {
     "tree_boosted_neural_embedding": "cycle.adapters_extra.tree_boosted_neural_embedding:TreeBoostedNeuralEmbeddingAdapter",
     "attention_weighted_forecast_stack": "cycle.adapters_extra.attention_weighted_forecast_stack:AttentionWeightedForecastStackAdapter",
     "bayesian_neural_hybrid": "cycle.adapters_extra.bayesian_neural_hybrid:BayesianNeuralHybridAdapter",
+    # the bridge families, one package each (cycle/adapters_extra/<family>/adapter.py), built on
+    # cycle/bridges/ and bound to the run's cycle.market.MarketView (2026-09-29)
+    "discrete_state_agent": "cycle.adapters_extra.discrete_state_agent.adapter:DiscreteStateAgentAdapter",
+    "deep_value_agent": "cycle.adapters_extra.deep_value_agent.adapter:DeepValueAgentAdapter",
+    "policy_agent": "cycle.adapters_extra.policy_agent.adapter:PolicyAgentAdapter",
+    "hierarchical_agent": "cycle.adapters_extra.hierarchical_agent.adapter:HierarchicalAgentAdapter",
+    "meta_agent": "cycle.adapters_extra.meta_agent.adapter:MetaAgentAdapter",
+    "world_model_agent": "cycle.adapters_extra.world_model_agent.adapter:WorldModelAgentAdapter",
+    "planning_agent": "cycle.adapters_extra.planning_agent.adapter:PlanningAgentAdapter",
+    "signal_program": "cycle.adapters_extra.signal_program.adapter:SignalProgramAdapter",
+    "policy_search": "cycle.adapters_extra.policy_search.adapter:PolicySearchAdapter",
+    "path_simulator": "cycle.adapters_extra.path_simulator.adapter:PathSimulatorAdapter",
+    "series_forecast": "cycle.adapters_extra.series_forecast.adapter:SeriesForecastAdapter",
+    "barrier_survival": "cycle.adapters_extra.barrier_survival.adapter:BarrierSurvivalAdapter",
+    "glm_bridge": "cycle.adapters_extra.glm_bridge.adapter:GlmBridgeAdapter",
+    "bayesian_predictive": "cycle.adapters_extra.bayesian_predictive.adapter:BayesianPredictiveAdapter",
+    "decision_graph": "cycle.adapters_extra.decision_graph.adapter:DecisionGraphAdapter",
+    "symbolic_reasoner": "cycle.adapters_extra.symbolic_reasoner.adapter:SymbolicReasonerAdapter",
+    "self_supervised_probe": "cycle.adapters_extra.self_supervised_probe.adapter:SelfSupervisedProbeAdapter",
+    "density_classifier": "cycle.adapters_extra.density_classifier.adapter:DensityClassifierAdapter",
+    "implicit_generator_classifier": "cycle.adapters_extra.implicit_generator_classifier.adapter:ImplicitGeneratorClassifierAdapter",
+    "latent_state_readout": "cycle.adapters_extra.latent_state_readout.adapter:LatentStateReadoutAdapter",
+    "latent_projection_head": "cycle.adapters_extra.latent_projection_head.adapter:LatentProjectionHeadAdapter",
+    "graph_label_inference": "cycle.adapters_extra.graph_label_inference.adapter:GraphLabelInferenceAdapter",
+    "pseudo_label_ensemble": "cycle.adapters_extra.pseudo_label_ensemble.adapter:PseudoLabelEnsembleAdapter",
+    "semi_supervised_network": "cycle.adapters_extra.semi_supervised_network.adapter:SemiSupervisedNetworkAdapter",
+    "meta_symbolic_router": "cycle.adapters_extra.meta_symbolic_router.adapter:MetaSymbolicRouterAdapter",
 }
 
 _REGISTRY_CONSTRUCTOR = "(key, entry, parameters, device, seed, task)"
@@ -314,7 +341,9 @@ def adapter_class(adapter: str, key: str | None = None):
     try:
         module = importlib.import_module(module_name)
     except ModuleNotFoundError as error:
-        if error.name != module_name:
+        # the module itself, or its package (a bridge family's `<family>/adapter.py`), is not written
+        # yet; a library missing INSIDE an existing module is a different failure and propagates
+        if error.name != module_name and not module_name.startswith(f"{error.name}."):
             raise
         raise NotImplementedError(f"{who} is built by {target}, which does not exist yet") from None
     cls = getattr(module, attribute, None)

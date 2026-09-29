@@ -121,14 +121,22 @@ BUILTIN_NETWORK_KINDS = (
 #     build(parameters, feature_count) -> torch.nn.Module
 #     trace(network, window) -> dict       the shape ``trace_network`` returns (layers, attention, logit)
 #     describe(network) -> list[dict]      optional: the layers without values
+#     extra_channels(view) -> float32 (n, c)  optional: causal channels appended to the
+#                                          features (row t from bars <= t), see NeuralAdapter
 # A module that is not importable is left out of NETWORK_KINDS (with a warning), so a
-# half-built kind never takes the seven built-in ones down with it.
+# half-built kind never takes the seven built-in ones down with it; a module that is not
+# written yet (a bridge kind whose unit has not landed) is left out silently.
 NETWORK_EXTENSION_MODULES: dict[str, str] = {
     "mixture_of_experts": "cycle.networks_extra.mixture_of_experts",
     "recurrent_convolution_hybrid": "cycle.networks_extra.recurrent_convolution_hybrid",
     "hypernetwork": "cycle.networks_extra.hypernetwork",
     "neural_turing_machine": "cycle.networks_extra.neural_turing_machine",
     "dual_pathway": "cycle.networks_extra.dual_pathway",
+    # the bridge network kinds (2026-09-29): 1-D image backbones over the window of bars,
+    # feature-column graphs, and rule-aware networks
+    "window_backbone": "cycle.networks_extra.window_backbone",
+    "feature_graph": "cycle.networks_extra.feature_graph",
+    "neuro_symbolic": "cycle.networks_extra.neuro_symbolic",
 }
 
 
@@ -140,6 +148,11 @@ def _load_extensions() -> dict[str, object]:
     for kind, module_name in NETWORK_EXTENSION_MODULES.items():
         try:
             module = importlib.import_module(module_name)
+        except ModuleNotFoundError as error:
+            if error.name == module_name:   # not written yet: nothing is broken, the kind is just absent
+                continue
+            warnings.warn(f"network kind {kind!r} is not available: {error}", stacklevel=2)
+            continue
         except ImportError as error:
             warnings.warn(f"network kind {kind!r} is not available: {error}", stacklevel=2)
             continue
@@ -628,7 +641,32 @@ class NeuralAdapter:
 
     Attributes the explainer reads: `.network` (the fitted torch module),
     `.network_kind`, `.key`, `.sequence_length`, `.feature_count`, `.task`,
-    `.best_iteration` (the epoch whose weights were kept), and `trace()`."""
+    `.best_iteration` (the epoch whose weights were kept), and `trace()`.
+
+    Optional network hooks (the bridge kinds, 2026-09-29). Each is used only
+    when the network module (or, for ``extra_channels``, its extension module)
+    defines it; a network that defines none trains and predicts exactly as
+    before, bit for bit:
+
+        extra_channels(view) -> float32 (n, c)   module-level in the extension
+            module: causal channels (row t from bars <= t only, e.g. the time
+            since the previous bar) appended to the features in fit, predict
+            and trace; ``feature_count`` counts them. Needs ``bind_market``.
+        network.prepare(features, train_index, view)   once per fit, after the
+            network is built and before it moves to the device: fill buffers
+            from TRAINING rows only (a feature-graph adjacency from train-row
+            correlations). A buffer must be ``register_buffer``'d at build with
+            a fixed shape, because ``load`` restores it from the state dict and
+            never calls ``prepare``.
+        network.loss_override(outputs, targets) -> loss   replaces the BCE /
+            Huber loss (a capsule margin loss).
+        network.auxiliary_loss() -> tensor | None        added to every batch's
+            loss (logic constraints, leaf entropy).
+        network.on_epoch(epoch, epoch_count)             at the start of every
+            epoch (temperature annealing).
+
+    ``bind_market(view)`` stores the run's ``cycle.market.MarketView``
+    (``.market``), which ``extra_channels`` and ``prepare`` read."""
 
     step_unit = "epoch"
 
@@ -687,9 +725,62 @@ class NeuralAdapter:
         self.feature_count: int | None = None
         self.fit_summary: dict = {}
         self._offsets = np.arange(-self.sequence_length + 1, 1, dtype=np.int64)
+        self.market = None                    # cycle.market.MarketView, from bind_market
+        self.extra_channel_count = 0
+        self._extra_cache: tuple | None = None       # (view, channels)
+        self._inputs_cache: tuple | None = None      # (features, channels, augmented)
 
     def minimum_history(self) -> int:
         return self.sequence_length
+
+    # ── the market view and the optional network hooks ──
+
+    def bind_market(self, view) -> None:
+        """Keep the run's ``cycle.market.MarketView`` for the network hooks."""
+        self.market = view
+        self._extra_cache = None
+        self._inputs_cache = None
+
+    def _extra_channel_function(self):
+        extension = NETWORK_EXTENSIONS.get(self.network_kind)
+        function = getattr(extension, "extra_channels", None) if extension is not None else None
+        return function if callable(function) else None
+
+    def _extra_channels(self) -> np.ndarray | None:
+        """The extension's extra input channels for the bound view (cached per view), or None."""
+        function = self._extra_channel_function()
+        if function is None:
+            return None
+        if self.market is None:
+            raise RuntimeError(
+                f"{self.family}: the {self.network_kind!r} network reads extra channels from the market view; "
+                "bind_market(view) before fit or predict"
+            )
+        if self._extra_cache is None or self._extra_cache[0] is not self.market:
+            channels = np.asarray(function(self.market), dtype=np.float32)
+            if channels.ndim == 1:
+                channels = channels[:, None]
+            self._extra_cache = (self.market, channels)
+        return self._extra_cache[1]
+
+    def _inputs(self, features: np.ndarray) -> np.ndarray:
+        """The network's input matrix: ``features`` itself, or ``features`` with
+        the extension's extra channels appended (row-aligned; cached per array)."""
+        channels = self._extra_channels()
+        if channels is None:
+            return features
+        cache = self._inputs_cache
+        if cache is not None and cache[0] is features and cache[1] is channels:
+            return cache[2]
+        rows = int(features.shape[0])
+        if channels.shape[0] < rows:
+            raise ValueError(
+                f"{self.family}: the market view has {channels.shape[0]} rows of extra channels but the "
+                f"features have {rows}; bind the view of the same bars"
+            )
+        augmented = np.concatenate([np.asarray(features, dtype=np.float32), channels[:rows]], axis=1)
+        self._inputs_cache = (features, channels, augmented)
+        return augmented
 
     # ── helpers ──
 
@@ -747,10 +838,19 @@ class NeuralAdapter:
 
         _seed_everything(self.seed)
         p = self.parameters
-        self.feature_count = int(features.shape[1])
+        inputs = self._inputs(features)
+        self.extra_channel_count = int(inputs.shape[1]) - int(features.shape[1])
+        self.feature_count = int(inputs.shape[1])
         device = torch.device(self.device)
-        network = build_network(self.network_kind, p, self.feature_count).to(device)
+        network = build_network(self.network_kind, p, self.feature_count)
+        prepare = getattr(network, "prepare", None)
+        if callable(prepare):   # training rows only; its buffers travel in the state dict
+            prepare(features, train_index, self.market)
+        network = network.to(device)
         self.network = network
+        loss_override = getattr(network, "loss_override", None)
+        auxiliary_loss = getattr(network, "auxiliary_loss", None)
+        on_epoch = getattr(network, "on_epoch", None)
 
         use_amp = self.device == "cuda"
         self._amp_dtype = (
@@ -760,7 +860,7 @@ class NeuralAdapter:
             torch.amp.GradScaler("cuda") if use_amp and self._amp_dtype == torch.float16 else None
         )
 
-        matrix = torch.from_numpy(np.ascontiguousarray(features, dtype=np.float32)).to(device)
+        matrix = torch.from_numpy(np.ascontiguousarray(inputs, dtype=np.float32)).to(device)
         label_tensor = torch.from_numpy(
             np.nan_to_num(np.asarray(labels, dtype=np.float32), nan=0.0 if regression else -1.0)
         ).to(device)
@@ -824,6 +924,8 @@ class NeuralAdapter:
             last_epoch = epoch
             reporter.checkpoint()
             reporter.epoch_started(epoch, epoch_count)
+            if callable(on_epoch):
+                on_epoch(epoch, epoch_count)
             network.train()
             loss_sum = 0.0
             norm_sum = 0.0
@@ -839,7 +941,14 @@ class NeuralAdapter:
                 optimizer.zero_grad(set_to_none=True)
                 with self._autocast():
                     logits = network(window)
-                loss = loss_function(logits.float(), targets)
+                if callable(loss_override):
+                    loss = loss_override(logits.float(), targets)
+                else:
+                    loss = loss_function(logits.float(), targets)
+                if callable(auxiliary_loss):
+                    extra_loss = auxiliary_loss()
+                    if extra_loss is not None:
+                        loss = loss + extra_loss
                 if scaler is not None:
                     scaler.scale(loss).backward()
                     scaler.unscale_(optimizer)
@@ -979,6 +1088,7 @@ class NeuralAdapter:
                 f"{self.family}: row {int(index.min())} has fewer than {self.sequence_length} "
                 "rows of history"
             )
+        features = self._inputs(features)
         network = self.network
         network.eval()
         device = torch.device(self.device)
@@ -1053,7 +1163,7 @@ class NeuralAdapter:
                 f"{self.family}: row {row} is outside the rows a prediction can be made for "
                 f"({self.sequence_length - 1} to {len(features) - 1})"
             )
-        return trace_network(self._cpu_network(), self.network_kind, self._window(features, row))
+        return trace_network(self._cpu_network(), self.network_kind, self._window(self._inputs(features), row))
 
     def apply_head(self, activation) -> float:
         """The head applied to one head-input vector (see `head_input`), on the CPU."""
@@ -1098,6 +1208,7 @@ class NeuralAdapter:
             "feature_count": self.feature_count,
             "sequence_length": self.sequence_length,
             "best_iteration": self.best_iteration,
+            "extra_channel_count": int(self.extra_channel_count),
         }
         torch.save(state, temporary)
         os.replace(temporary, path)
@@ -1133,6 +1244,8 @@ class NeuralAdapter:
             )
         adapter.feature_count = int(state["feature_count"])
         adapter.best_iteration = state.get("best_iteration")
+        adapter.extra_channel_count = int(state.get("extra_channel_count", 0))
+        # `prepare` is never re-run here: whatever it filled is a buffer, restored by the state dict
         network = build_network(adapter.network_kind, adapter.parameters, adapter.feature_count)
         network.load_state_dict(state["state_dict"])
         adapter.network = network.to(torch.device(adapter.device)).eval()

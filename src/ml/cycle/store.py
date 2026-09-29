@@ -232,6 +232,14 @@ def explain_manifest(engine: CycleEngine, sequence_length: int) -> dict:
         "sequenceLength": max(1, int(sequence_length)),
         "labelHorizonBars": int(engine.horizon),
         "volatilityWindowBars": int(engine.volatility_window),
+        # what cycle.market.MarketView.from_explain needs to rebuild the run's market view for a reloaded model
+        "labelGapMultiple": float(s.label_gap_multiple),
+        "costModel": {
+            "tickSize": float(engine.cost.tick_size),
+            "pointValueUsd": float(engine.cost.point_value),
+            "roundTripCostPoints": float(engine.cost.round_trip) / float(engine.cost.point_value)
+            if engine.cost.point_value else 0.0,
+        },
         "symbol": s.symbol,
         "timeframe": s.timeframe,
         "barCount": len(engine.data),

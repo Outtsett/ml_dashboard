@@ -282,6 +282,34 @@ def _known_scaler(adapter) -> Callable[[np.ndarray], np.ndarray] | None:
     return None
 
 
+def explain_plan(run: artifacts.RunArrays) -> dict:
+    """What ``MarketView.from_explain`` reads: the explain manifest, overlaid by
+    the run's ``config.json`` plan once the run has ended (horizon, gap
+    multiple, feature names, cost model)."""
+    import json
+
+    plan: dict = dict(run.manifest or {})
+    path = Path(run.run_directory) / "config.json"
+    if path.is_file():
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+            plan.update({key: value for key, value in (document.get("plan") or {}).items() if value is not None})
+        except (OSError, ValueError):
+            pass
+    return plan
+
+
+def _bind_explain_market(adapter, run: artifacts.RunArrays) -> None:
+    """Hand a reloaded model that defines ``bind_market`` the run's market as
+    the engine had it, minus open, high and low (never saved; fit-only by the
+    MarketView read rules). Models without the method are untouched."""
+    if not callable(getattr(adapter, "bind_market", None)):
+        return
+    from cycle.market import MarketView
+
+    adapter.bind_market(MarketView.from_explain(run, explain_plan(run)))
+
+
 def build_context(run: artifacts.RunArrays, fold: int, role: str, *, adapter_loader=None) -> ExplainContext:
     """Reload one fold model (``cycle.models.load_adapter(dir, device="cpu")``
     unless the tests hand an ``adapter_loader(directory) -> adapter``)."""
@@ -291,6 +319,7 @@ def build_context(run: artifacts.RunArrays, fold: int, role: str, *, adapter_loa
     index = artifacts.load_fold_index(run.run_directory, fold)
     loader = adapter_loader or (lambda folder: _load_adapter(folder, device="cpu"))
     adapter = loader(str(directory))
+    _bind_explain_market(adapter, run)
     return ExplainContext(run=run, fold=fold, role=role, model_directory=directory, metadata=metadata,
                           adapter=adapter, index=index, signature=signature)
 

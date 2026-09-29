@@ -41,10 +41,22 @@ SHARED_FILE = "_cycle.json"
 
 KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_]{1,39}$")
 PARAMETER_TYPES = ("int", "float", "bool", "categorical", "string")
-IMPLEMENTATIONS = ("sklearn", "xgboost", "lightgbm", "catboost", "statsmodels", "torch")
+# "custom": the model's own numpy / scipy / library code that is neither a scikit-learn
+# estimator, statsmodels nor torch (a torch import at fit or predict makes it "torch")
+IMPLEMENTATIONS = ("sklearn", "xgboost", "lightgbm", "catboost", "statsmodels", "torch", "custom")
+# The bridge families (one package each under cycle/adapters_extra/<family>/, sharing cycle/bridges/)
+BRIDGE_ADAPTERS = (
+    "discrete_state_agent", "deep_value_agent", "policy_agent", "hierarchical_agent", "meta_agent",
+    "world_model_agent", "planning_agent", "signal_program", "policy_search", "path_simulator",
+    "series_forecast", "barrier_survival", "glm_bridge", "bayesian_predictive", "decision_graph",
+    "symbolic_reasoner", "self_supervised_probe", "density_classifier", "implicit_generator_classifier",
+    "latent_state_readout", "latent_projection_head", "graph_label_inference", "pseudo_label_ensemble",
+    "semi_supervised_network", "meta_symbolic_router",
+)
 ADAPTERS = ("legacy", "scikit_learn", "catboost", "statsmodels", "neural",
             # adapters in their own modules (models.ADAPTER_CLASSES), one per catalog spec
-            "tree_boosted_neural_embedding", "attention_weighted_forecast_stack", "bayesian_neural_hybrid")
+            "tree_boosted_neural_embedding", "attention_weighted_forecast_stack", "bayesian_neural_hybrid",
+            *BRIDGE_ADAPTERS)
 DIRECTION_MODES = ("classifier", "from_price")
 PROBABILITY_SOURCES = ("legacy", "predict_proba", "logistic_curve_on_validation", "network", "probit")
 PROGRESS_KINDS = ("legacy", "warm_start_trees", "warm_start_rounds", "per_round", "per_epoch", "single_fit")
@@ -54,7 +66,9 @@ EXPLAIN_KINDS = ("trees", "oblivious_trees", "linear", "neighbors", "naive_bayes
 NETWORKS = ("multilayer_perceptron", "lstm", "temporal_convolution_network", "transformer_encoder",
             "recurrent", "gated_recurrent_unit", "attention_recurrent",
             # kinds in their own modules (networks.NETWORK_EXTENSION_MODULES)
-            "mixture_of_experts", "recurrent_convolution_hybrid", "hypernetwork", "neural_turing_machine", "dual_pathway")
+            "mixture_of_experts", "recurrent_convolution_hybrid", "hypernetwork", "neural_turing_machine", "dual_pathway",
+            # the bridge network kinds (networks_extra/window_backbone.py, feature_graph.py, neuro_symbolic.py)
+            "window_backbone", "feature_graph", "neuro_symbolic")
 SPEEDS = ("fast", "medium", "slow")
 PREPROCESS_STEPS = ("standard_scaler",)
 ROLES = ("direction", "price")

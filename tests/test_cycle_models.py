@@ -830,7 +830,10 @@ def test_legacy_defaults_validation_and_search_are_unchanged(family):
 
 
 def test_the_dispatch_table_names_one_class_per_non_legacy_adapter():
-    assert ADAPTER_CLASSES == {
+    import re
+
+    # the adapters that predate the bridge families keep their classes exactly
+    original = {
         "scikit_learn": "cycle.sklearn_adapter:SklearnEstimatorAdapter",
         "catboost": "cycle.catboost_adapter:CatBoostAdapter",
         "statsmodels": "cycle.statsmodels_adapter:ProbitAdapter",
@@ -840,8 +843,28 @@ def test_the_dispatch_table_names_one_class_per_non_legacy_adapter():
         "attention_weighted_forecast_stack": "cycle.adapters_extra.attention_weighted_forecast_stack:AttentionWeightedForecastStackAdapter",
         "bayesian_neural_hybrid": "cycle.adapters_extra.bayesian_neural_hybrid:BayesianNeuralHybridAdapter",
     }
+    assert {name: ADAPTER_CLASSES[name] for name in original} == original
+    # every adapter the registry may name (catalog.ADAPTERS) has a class, and nothing else does
+    assert set(ADAPTER_CLASSES) == set(catalog.ADAPTERS) - {"legacy"}
+    for name, target in ADAPTER_CLASSES.items():
+        assert re.fullmatch(r"cycle\.[a-z_.]+:[A-Z]\w+", target), (name, target)
+    # the bridge families: one package each, class <Family>Adapter in <family>/adapter.py
+    for family in catalog.BRIDGE_ADAPTERS:
+        camel = "".join(part.capitalize() for part in family.split("_"))
+        assert ADAPTER_CLASSES[family] == f"cycle.adapters_extra.{family}.adapter:{camel}Adapter", family
     adapters = {catalog.entry(key)["adapter"] for key in REGISTRY_KEYS}
     assert adapters - {"legacy"} <= set(ADAPTER_CLASSES)
+
+
+def test_a_bridge_family_that_has_not_landed_is_not_implemented_yet():
+    from cycle.models import adapter_class
+
+    for family in catalog.BRIDGE_ADAPTERS:
+        package = Path(catalog.__file__).parent / "adapters_extra" / family
+        if (package / "adapter.py").is_file():
+            continue
+        with pytest.raises(NotImplementedError, match="does not exist yet"):
+            adapter_class(family)
 
 
 def test_building_a_legacy_family_imports_no_new_adapter_module():

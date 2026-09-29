@@ -172,6 +172,14 @@ class DerivedDirectionAdapter:
     def minimum_history(self) -> int:
         return int(self.price_adapter.minimum_history())
 
+    def bind_market(self, view) -> None:
+        """Forward the run's ``cycle.market.MarketView`` to the inner price
+        model when it takes one (the explainer binds the reloaded wrapper;
+        the engine binds the inner model when it builds it)."""
+        bind = getattr(self.price_adapter, "bind_market", None)
+        if callable(bind):
+            bind(view)
+
     def fit(self, features, labels, train_index, validation_index, timestamps, reporter, *,
             price_target: np.ndarray | None = None, price_train_index: np.ndarray | None = None,
             price_validation_index: np.ndarray | None = None) -> None:

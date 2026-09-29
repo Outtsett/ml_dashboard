@@ -68,6 +68,7 @@ from cycle.adapter import MODEL_LABELS, BatchReport, EpochReport, ModelAdapter, 
 from cycle.control import ControlState
 from cycle.features import FeatureSet, history_valid
 from cycle.labels import actual_direction, horizon_crosses_gap, make_labels, price_target
+from cycle.market import MarketView, bind_market
 from cycle.metrics import ScoreInputs, bars_per_year, buy_and_hold_usd, scoreboard
 from cycle.simulate import CostModel, Simulator, Trade, round_to_tick
 from shared import protocol
@@ -363,6 +364,9 @@ class CycleEngine:
         self.volatility_window = int(features.lookback)
         self.price_targets, self.move_scale, self.forward_moves = price_target(
             data.close, self.horizon, self.volatility_window, cost.tick_size, self.crosses_gap)
+        # the run's market as a bridge model may read it (cycle.market): bars, raw features, targets,
+        # scale, gap flags and costs. Handed to every adapter build_adapter makes that defines bind_market.
+        self.market_view = MarketView.from_engine(self)
         self.periods_per_year = bars_per_year(data.timestamps)
         self.parameters = dict(settings.model_parameters)      # the run's base values (the plan's `parameters`)
         self.active_parameters = dict(self.parameters)          # what the fold being run fits with
@@ -421,13 +425,21 @@ class CycleEngine:
         ``DerivedDirectionAdapter`` around a fresh price model, reading this
         run's price target."""
         if task == "regression":
-            return self.model_factory(parameters, task="regression")
+            return self._bound(self.model_factory(parameters, task="regression"))
         if self.direction_mode == "from_price":
             from cycle.derived import DerivedDirectionAdapter
 
-            return DerivedDirectionAdapter(self.model_factory(parameters, task="regression"),
+            return DerivedDirectionAdapter(self._bound(self.model_factory(parameters, task="regression")),
                                            price_target=self.price_targets, key=self.settings.model_family)
-        return self.model_factory(parameters)
+        return self._bound(self.model_factory(parameters))
+
+    def _bound(self, adapter: ModelAdapter) -> ModelAdapter:
+        """The adapter, handed this run's ``MarketView`` when it defines
+        ``bind_market`` (the bridge families). Every construction path goes
+        through here: the probe, each fold's models, the price model, a
+        from_price model's inner price model, tuning trials and the
+        minimum-history recheck. Adapters without the method are untouched."""
+        return bind_market(adapter, self.market_view)
 
     # ── logging / cursor ───────────────────────────────────────────────────
     def log(self, message: str, level: str = "info") -> None:

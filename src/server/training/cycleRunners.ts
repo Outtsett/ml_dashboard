@@ -99,6 +99,7 @@ function familyOf(entry: CycleModelEntry): AlgorithmEntry["family"] {
     case "catboost":
       return entry.implementation;
     case "statsmodels":
+    case "custom":
       return "custom";
     default:
       return "sklearn";

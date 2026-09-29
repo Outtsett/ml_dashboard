@@ -19,6 +19,13 @@ import sys
 
 _exit_status: int | None = None
 
+# Test helper modules that live in this folder (``cycle_bridge_harness``) import by
+# plain name. APPENDED, never prepended: a ``tests`` package installed in
+# site-packages shadows ``import tests.<module>``, and nothing here may shadow ``src``.
+_TESTS_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+if _TESTS_DIRECTORY not in sys.path:
+    sys.path.append(_TESTS_DIRECTORY)
+
 
 def pytest_sessionfinish(session, exitstatus) -> None:  # noqa: ANN001 - pytest hook signature
     global _exit_status

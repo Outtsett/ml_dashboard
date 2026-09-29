@@ -52,7 +52,22 @@ NEW_KEYS = tuple(key for key, entry in REGISTRY.items() if entry["adapter"] == "
 KIND_KEYS = {REGISTRY[key]["network"]: key for key in (*NEW_KEYS, *LEGACY_NETWORKS)}
 
 FAST = {"epochs": 8, "batch_size": 64, "patience": 3, "learning_rate": 0.003}
-FAST_PARAMETERS = {
+
+
+class _FastParameters(dict):
+    """The hand-tuned fast parameters below; a neural key not listed (a bridge
+    network kind's key, added by its own unit) falls back to its registry
+    defaults with 2 epochs and a window of at most 16 bars."""
+
+    def __missing__(self, key):
+        defaults = catalog.defaults(key)
+        values = {**defaults, "epochs": 2}
+        if "sequence_length" in defaults:
+            values["sequence_length"] = min(int(defaults["sequence_length"]), 16)
+        return values
+
+
+FAST_PARAMETERS = _FastParameters({
     "feedforward_network": {**FAST, "hidden_size": 16, "layer_count": 2, "activation_function": "relu"},
     "recurrent_network": {**FAST, "sequence_length": SEQUENCE_LENGTH, "hidden_size": 16, "layer_count": 2},
     "gated_recurrent_unit": {**FAST, "sequence_length": SEQUENCE_LENGTH, "hidden_size": 16},
@@ -75,14 +90,16 @@ FAST_PARAMETERS = {
                               "memory_slots": 8, "memory_width": 8, "read_head_count": 1},
     "dual_pathway": {**FAST, "sequence_length": SEQUENCE_LENGTH, "fast_window_bars": 4, "slow_stride": 2,
                      "pathway_hidden_size": 16, "fusion_hidden_size": 16},
-}
+})
 
 
 def test_every_new_neural_key_is_covered_here():
-    assert set(NEW_KEYS) == {"feedforward_network", "recurrent_network", "gated_recurrent_unit",
-                             "attention_recurrent_network", *NETWORK_EXTENSIONS}
+    # the bridge network kinds (window_backbone, feature_graph, neuro_symbolic) add keys as their units land
+    assert set(NEW_KEYS) >= {"feedforward_network", "recurrent_network", "gated_recurrent_unit",
+                             "attention_recurrent_network", "mixture_of_experts", "recurrent_convolution_hybrid",
+                             "hypernetwork", "neural_turing_machine", "dual_pathway"}
     assert set(KIND_KEYS) == set(NETWORK_KINDS)
-    assert set(NETWORK_EXTENSIONS) == {"mixture_of_experts", "recurrent_convolution_hybrid", "hypernetwork",
+    assert set(NETWORK_EXTENSIONS) >= {"mixture_of_experts", "recurrent_convolution_hybrid", "hypernetwork",
                                        "neural_turing_machine", "dual_pathway"}
 
 

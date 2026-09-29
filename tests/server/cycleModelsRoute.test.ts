@@ -26,7 +26,11 @@ import {
 const XGBOOST_SPEC = 'machine-learning-supervised-learning-boosting-methods-xgboost';
 const LOGISTIC_SPEC = 'machine-learning-supervised-learning-linear-models-logistic-regression';
 const LOGISTIC_STATISTICAL_SPEC = 'statistical-models-generalized-linear-models-logistic-regression';
-const VISION_TRANSFORMER_SPEC = 'neural-network-architectures-attention-based-architectures-vision-transformer-vit';
+// Fixture specs no registry entry claims (a real greyed spec such as the Vision Transformer becomes runnable
+// when its bridge unit lands, so the placement rules are pinned on ids that stay unclaimed).
+const FIXTURE_BY_SPEC = 'neural-network-attention-based-architectures-fixture-spec-with-its-own-reason';
+const FIXTURE_FALLBACK = 'neural-network-attention-based-architectures-fixture-spec-without-a-reason';
+const FIXTURE_REASON = 'Fixture: this spec carries its own reason in unavailableBySpec.';
 
 const CATALOG: CatalogSnapshot = {
   specs: [
@@ -34,7 +38,8 @@ const CATALOG: CatalogSnapshot = {
     { id: 'machine-learning-supervised-learning-boosting-methods-adaboost', name: 'AdaBoost', category: 'supervised', subcategory: 'boosting-methods' },
     { id: LOGISTIC_SPEC, name: 'Logistic Regression', category: 'supervised', subcategory: 'linear-models' },
     { id: LOGISTIC_STATISTICAL_SPEC, name: 'Logistic Regression', category: 'statistical', subcategory: 'generalized-linear-models' },
-    { id: VISION_TRANSFORMER_SPEC, name: 'Vision Transformer (ViT)', category: 'neural-network', subcategory: 'attention-based-architectures' },
+    { id: FIXTURE_BY_SPEC, name: 'Fixture attention model', category: 'neural-network', subcategory: 'attention-based-architectures' },
+    { id: FIXTURE_FALLBACK, name: 'Another fixture attention model', category: 'neural-network', subcategory: 'attention-based-architectures' },
     { id: 'neural-network-graph-neural-networks-gcn', name: 'Graph Convolutional Network', category: 'neural-network', subcategory: 'graph-neural-networks' },
     { id: 'unsupervised-clustering-k-means', name: 'K-Means', category: 'unsupervised', subcategory: 'clustering' },
     { id: 'made-up-category-thing', name: 'Thing', category: 'made-up-category', subcategory: 'general' },
@@ -114,10 +119,24 @@ describe('GET /api/training/cycle-models', () => {
 
   it('greys every other catalog spec with the most specific reason', async () => {
     catalog = CATALOG;
-    const { shared } = registry;
-    const byId = new Map(cards((await get()).body as CycleModelsResponse).map((card) => [card.catalogSpecId, card]));
+    // the real registry plus one fixture unavailableBySpec reason
+    const shared = { ...registry.shared, unavailableBySpec: { ...registry.shared.unavailableBySpec, [FIXTURE_BY_SPEC]: FIXTURE_REASON } };
+    registryLoad = () => ({ registry: { ...registry, shared }, problems: [] });
+    let response: CycleModelsResponse;
+    try {
+      response = (await get()).body as CycleModelsResponse;
+    } finally {
+      registryLoad = () => ({ registry, problems: [] });
+    }
+    const byId = new Map(cards(response).map((card) => [card.catalogSpecId, card]));
     const greyed = (id: string) => byId.get(id)!;
-    expect(greyed(VISION_TRANSFORMER_SPEC)).toMatchObject({ key: null, runnerKey: null, runnable: false, unavailableReason: shared.unavailableBySpec[VISION_TRANSFORMER_SPEC] });
+    expect(Object.values(registry.models).some((entry) => [entry.catalogSpecId, ...entry.alsoCatalogSpecIds].includes(FIXTURE_BY_SPEC))).toBe(false);
+    expect(greyed(FIXTURE_BY_SPEC)).toMatchObject({ key: null, runnerKey: null, runnable: false, unavailableReason: FIXTURE_REASON });
+    // no reason of its own: the subcategory's, else the category's, else the default
+    expect(greyed(FIXTURE_FALLBACK)).toMatchObject({ key: null, runnable: false });
+    expect(greyed(FIXTURE_FALLBACK).unavailableReason).toBe(
+      shared.unavailableBySubcategory['neural-network/attention-based-architectures'] ?? shared.unavailableByCategory['neural-network'] ?? 'Not built for the Cycle yet.',
+    );
     expect(greyed('neural-network-graph-neural-networks-gcn').unavailableReason).toBe(shared.unavailableBySubcategory['neural-network/graph-neural-networks']);
     expect(greyed('unsupervised-clustering-k-means').unavailableReason).toBe(shared.unavailableByCategory.unsupervised);
     expect(greyed('machine-learning-supervised-learning-boosting-methods-adaboost').unavailableReason).toBe(shared.unavailableByCategory.supervised);

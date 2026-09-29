@@ -279,7 +279,7 @@
           "type": "float",
           "default": 1.0,
           "min": 0,
-          "max": 100,
+          "max": 1000,
           "logScale": true,
           "label": "Penalty strength",
           "group": "Model",

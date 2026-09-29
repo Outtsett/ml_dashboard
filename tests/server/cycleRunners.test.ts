@@ -23,7 +23,7 @@ import {
   loadCycleRegistry,
   validateCycleRegistryFiles,
 } from '../../src/server/training/cycleModels';
-import { composeCycleRunners, cycleFlag, cycleRunnerKey } from '../../src/server/training/cycleRunners';
+import { composeCycleRunners, cycleAlgorithm, cycleFlag, cycleRunnerKey } from '../../src/server/training/cycleRunners';
 import { composeEntry, getClientConfig, getModelConfig, listModels, listRunners, reloadConfigs } from '../../src/server/training/registry';
 import { hyperparameterArgs } from '../../src/server/training/runners/pythonRunner';
 
@@ -259,10 +259,22 @@ describe('cycleRunners.ts — registry to runners', () => {
       expect(model.catalogId).toBe(entry.catalogSpecId ?? undefined);
       expect(model.available).toBe(entry.runnable);
       expect(model.family).toBe(
-        entry.implementation === 'torch' ? 'pytorch' : entry.implementation === 'statsmodels' ? 'custom' : entry.implementation === 'sklearn' ? 'sklearn' : entry.implementation,
+        entry.implementation === 'torch'
+          ? 'pytorch'
+          : entry.implementation === 'statsmodels' || entry.implementation === 'custom'
+            ? 'custom'
+            : entry.implementation === 'sklearn'
+              ? 'sklearn'
+              : entry.implementation,
       );
       expect(getModelConfig(cycleRunnerKey(key))).toEqual(model);
     }
+  });
+
+  it('a bridge model whose own code is neither scikit-learn, statsmodels nor torch runs in the custom family', () => {
+    const [key, entry] = Object.entries(registry.models).find(([, candidate]) => candidate.adapter !== 'legacy')!;
+    expect(cycleAlgorithm(key, { ...entry, implementation: 'custom' }, {}).family).toBe('custom');
+    expect(cycleAlgorithm(key, { ...entry, implementation: 'torch' }, {}).family).toBe('pytorch');
   });
 });
 

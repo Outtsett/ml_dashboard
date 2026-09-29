@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "description": "The Model Cycle's rule and predicate library for the symbolic bridge families (src/ml/cycle/bridges/rules.py). An atom is a test on one named raw feature column (source 'feature', resolved against the run's feature names; a name the run does not carry disables the atom with a logged line) or on one causal indicator computed from closes (source 'indicator'). A threshold is either a fixed number in the source's own units or a quantile of the TRAINING rows ('trainQuantile'), fitted per fold. 'suggests' is the direction the atom argues for, or 'none' for a filter. A rule is a conjunction of atoms with a conclusion and a certainty.",
+  "indicators": {
+    "relative_strength_index": {"period": 14, "description": "Wilder's relative strength index of the closes, 0..100, exponential smoothing 1/period"},
+    "moving_average_convergence_divergence_histogram": {"fast_period": 12, "slow_period": 26, "signal_period": 9, "description": "MACD line minus its signal line, divided by the causal move scale"},
+    "bollinger_band_position": {"period": 20, "width": 2.0, "description": "Where the close sits between the lower (0) and upper (1) band of a trailing 20-bar mean plus or minus two standard deviations"},
+    "trend_slope": {"period": 20, "description": "Least-squares slope of the last 20 closes per bar, divided by the causal move scale"},
+    "volatility_ratio": {"short_period": 10, "long_period": 50, "description": "Standard deviation of one-bar log returns over 10 bars divided by the same over 50 bars"}
+  },
+  "atoms": [
+    {"name": "relative_strength_oversold", "source": "indicator", "input": "relative_strength_index", "operator": "<", "threshold": 30.0, "suggests": "up", "description": "Relative strength index below 30"},
+    {"name": "relative_strength_overbought", "source": "indicator", "input": "relative_strength_index", "operator": ">", "threshold": 70.0, "suggests": "down", "description": "Relative strength index above 70"},
+    {"name": "macd_histogram_positive", "source": "indicator", "input": "moving_average_convergence_divergence_histogram", "operator": ">", "threshold": 0.0, "suggests": "up", "description": "MACD line above its signal line"},
+    {"name": "macd_histogram_negative", "source": "indicator", "input": "moving_average_convergence_divergence_histogram", "operator": "<", "threshold": 0.0, "suggests": "down", "description": "MACD line below its signal line"},
+    {"name": "close_above_upper_band", "source": "indicator", "input": "bollinger_band_position", "operator": ">", "threshold": 1.0, "suggests": "down", "description": "Close above the upper Bollinger band"},
+    {"name": "close_below_lower_band", "source": "indicator", "input": "bollinger_band_position", "operator": "<", "threshold": 0.0, "suggests": "up", "description": "Close below the lower Bollinger band"},
+    {"name": "trend_slope_up", "source": "indicator", "input": "trend_slope", "operator": ">", "threshold": 0.0, "suggests": "up", "description": "Twenty-bar least-squares slope rising"},
+    {"name": "trend_slope_down", "source": "indicator", "input": "trend_slope", "operator": "<", "threshold": 0.0, "suggests": "down", "description": "Twenty-bar least-squares slope falling"},
+    {"name": "volatility_expanding", "source": "indicator", "input": "volatility_ratio", "operator": ">", "trainQuantile": 0.8, "suggests": "none", "description": "Short-term volatility in the top fifth of the training span relative to long-term"},
+    {"name": "volatility_quiet", "source": "indicator", "input": "volatility_ratio", "operator": "<", "trainQuantile": 0.2, "suggests": "none", "description": "Short-term volatility in the bottom fifth of the training span relative to long-term"},
+    {"name": "momentum_positive", "source": "feature", "input": "roc_10", "operator": ">", "threshold": 0.0, "suggests": "up", "description": "Ten-bar rate of change positive"},
+    {"name": "momentum_negative", "source": "feature", "input": "roc_10", "operator": "<", "threshold": 0.0, "suggests": "down", "description": "Ten-bar rate of change negative"},
+    {"name": "above_fifty_bar_average", "source": "feature", "input": "ma_dist_50", "operator": ">", "threshold": 0.0, "suggests": "up", "description": "Close above its fifty-bar moving average"},
+    {"name": "below_fifty_bar_average", "source": "feature", "input": "ma_dist_50", "operator": "<", "threshold": 0.0, "suggests": "down", "description": "Close below its fifty-bar moving average"},
+    {"name": "stretched_above_volume_weighted_price", "source": "feature", "input": "vwap_stretch_100", "operator": ">", "trainQuantile": 0.9, "suggests": "down", "description": "Close stretched far above the 100-bar volume-weighted average price (top tenth of the training span)"},
+    {"name": "stretched_below_volume_weighted_price", "source": "feature", "input": "vwap_stretch_100", "operator": "<", "trainQuantile": 0.1, "suggests": "up", "description": "Close stretched far below the 100-bar volume-weighted average price (bottom tenth of the training span)"},
+    {"name": "high_realised_volatility", "source": "feature", "input": "volatility_20", "operator": ">", "trainQuantile": 0.8, "suggests": "none", "description": "Twenty-bar volatility in the top fifth of the training span"},
+    {"name": "news_sentiment_positive", "source": "feature", "input": "finbert_sentiment_decayed_short", "operator": ">", "threshold": 0.1, "suggests": "up", "description": "Recent news sentiment positive (FinBERT)"},
+    {"name": "news_sentiment_negative", "source": "feature", "input": "finbert_sentiment_decayed_short", "operator": "<", "threshold": -0.1, "suggests": "down", "description": "Recent news sentiment negative (FinBERT)"}
+  ],
+  "rules": [
+    {"name": "trend_following_long", "when": ["trend_slope_up", "macd_histogram_positive"], "conclusion": "up", "certainty": 0.6},
+    {"name": "trend_following_short", "when": ["trend_slope_down", "macd_histogram_negative"], "conclusion": "down", "certainty": 0.6},
+    {"name": "mean_reversion_long", "when": ["close_below_lower_band", "relative_strength_oversold"], "conclusion": "up", "certainty": 0.55},
+    {"name": "mean_reversion_short", "when": ["close_above_upper_band", "relative_strength_overbought"], "conclusion": "down", "certainty": 0.55},
+    {"name": "momentum_with_trend_long", "when": ["momentum_positive", "above_fifty_bar_average"], "conclusion": "up", "certainty": 0.55},
+    {"name": "momentum_with_trend_short", "when": ["momentum_negative", "below_fifty_bar_average"], "conclusion": "down", "certainty": 0.55},
+    {"name": "stretch_reversion_long", "when": ["stretched_below_volume_weighted_price"], "conclusion": "up", "certainty": 0.52},
+    {"name": "stretch_reversion_short", "when": ["stretched_above_volume_weighted_price"], "conclusion": "down", "certainty": 0.52},
+    {"name": "news_long", "when": ["news_sentiment_positive", "trend_slope_up"], "conclusion": "up", "certainty": 0.55},
+    {"name": "news_short", "when": ["news_sentiment_negative", "trend_slope_down"], "conclusion": "down", "certainty": 0.55}
+  ]
+}

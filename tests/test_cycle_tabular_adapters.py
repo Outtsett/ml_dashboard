@@ -167,16 +167,19 @@ def predict(adapter, features, index) -> np.ndarray:
 # ─── the registry ──────────────────────────────────────────────────────────
 
 
-def test_every_tabular_model_is_runnable_and_ordinal_regression_stays_greyed():
+def test_every_tabular_model_is_runnable_and_covered_here():
     for key in KEYS:
         entry = ENTRIES[key]
         assert entry["runnable"] is True and entry["unavailableReason"] is None, key
         assert entry["adapter"] in ("scikit_learn", "catboost", "statsmodels"), key
-    ordinal = catalog.entry("ordinal_regression")
-    assert ordinal["runnable"] is False and ordinal["unavailableReason"]
-    registry_tabular = {key for key, entry in catalog.registry()["models"].items()
+    registry_tabular = {key: entry for key, entry in catalog.registry()["models"].items()
                         if entry["adapter"] in ("scikit_learn", "catboost", "statsmodels")}
-    assert registry_tabular == {*KEYS, "ordinal_regression"}
+    assert set(KEYS) <= set(registry_tabular)
+    # a tabular key this file does not cover is one still greyed (ordinal_regression until it moves to glm_bridge);
+    # the scikit-learn keys a bridge unit adds are covered by that unit's own tests
+    for key, entry in registry_tabular.items():
+        if key not in KEYS and entry["runnable"]:
+            assert entry["implementationNote"], f"{key}: a runnable tabular key outside this file carries its unit's note"
 
 
 def test_the_adapter_classes_and_the_no_price_slot():

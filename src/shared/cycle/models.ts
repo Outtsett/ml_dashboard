@@ -91,10 +91,18 @@ export const cycleModelEntrySchema = z
     implementationNote: z.string().nullable(),
     runnable: z.boolean(),
     unavailableReason: z.string().nullable(),
-    implementation: z.enum(["sklearn", "xgboost", "lightgbm", "catboost", "statsmodels", "torch"]),
+    /** "custom": the model's own numpy / scipy / library code (neither a scikit-learn estimator, statsmodels nor torch). */
+    implementation: z.enum(["sklearn", "xgboost", "lightgbm", "catboost", "statsmodels", "torch", "custom"]),
     adapter: z.enum([
       "legacy", "scikit_learn", "catboost", "statsmodels", "neural",
       "tree_boosted_neural_embedding", "attention_weighted_forecast_stack", "bayesian_neural_hybrid",
+      // the bridge families (src/ml/cycle/adapters_extra/<family>/, sharing src/ml/cycle/bridges/)
+      "discrete_state_agent", "deep_value_agent", "policy_agent", "hierarchical_agent", "meta_agent",
+      "world_model_agent", "planning_agent", "signal_program", "policy_search", "path_simulator",
+      "series_forecast", "barrier_survival", "glm_bridge", "bayesian_predictive", "decision_graph",
+      "symbolic_reasoner", "self_supervised_probe", "density_classifier", "implicit_generator_classifier",
+      "latent_state_readout", "latent_projection_head", "graph_label_inference", "pseudo_label_ensemble",
+      "semi_supervised_network", "meta_symbolic_router",
     ]),
     legacyFamily: cycleModelFamilySchema.nullable(),
     direction: estimatorBlockSchema.extend({
@@ -112,6 +120,7 @@ export const cycleModelEntrySchema = z
       .enum([
         "multilayer_perceptron", "lstm", "temporal_convolution_network", "transformer_encoder", "recurrent", "gated_recurrent_unit", "attention_recurrent",
         "mixture_of_experts", "recurrent_convolution_hybrid", "hypernetwork", "neural_turing_machine", "dual_pathway",
+        "window_backbone", "feature_graph", "neuro_symbolic",
       ])
       .nullable(),
     speed: z.enum(["fast", "medium", "slow"]),

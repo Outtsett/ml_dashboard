@@ -25,6 +25,36 @@ dependencies = [
     "joblib>=1.4",
     "catboost>=1.2.10",         # Model Cycle: cycle/catboost_adapter.py
     "statsmodels>=0.15.0",      # Model Cycle: cycle/statsmodels_adapter.py (Probit)
+    # ── Model Cycle bridge families (cycle/bridges/, cycle/adapters_extra/<family>/) ──
+    # Pinned to the versions measured in .venv on 2026-09-29 (importlib.metadata). The
+    # first 21 were installed but undeclared, so `uv sync` (exact) would have removed them.
+    "stable-baselines3==2.9.0",   # policy / hierarchical / world-model agents: PPO, A2C, SAC, DDPG, TD3
+    "sb3-contrib==2.9.0",         # TRPO, RecurrentPPO
+    "torchdiffeq==0.2.5",         # neural ODE backbones and dynamics
+    "gplearn==0.4.3",             # symbolic regression
+    "kanren==0.3.0",              # SLD resolution (symbolic_reasoner)
+    "python-constraint==1.4.0",   # soft constraint satisfaction
+    "scikit-fuzzy==0.5.0",        # Mamdani / Takagi-Sugeno reference
+    "pymc==6.3.2",                # Bayesian predictive (NUTS through nutpie)
+    "prophet==1.4.0",             # series_forecast prophet variant
+    "cmdstanpy==1.3.0",           # prophet's Stan backend
+    "arviz==1.3.0",               # R-hat and posterior summaries
+    "networkx==3.6.1",            # option graphs, subgoal discovery
+    "bayesian-optimization==1.4.0",
+    "simpy==4.1.2",               # event simulation
+    "pgmpy==1.1.2",               # Bayesian and decision networks
+    "lifelines==0.30.3",          # barrier survival models
+    "arch==8.0.0",                # GARCH
+    "cma==4.4.4",                 # CMA-ES
+    "pyswarms==1.3.0",            # particle swarm
+    "deap==1.4.4",                # genetic algorithms and genetic programming
+    "mord==0.7",                  # ordinal regression reference
+    # installed 2026-09-29 for the bridge families
+    "minisom==2.3.6",             # self-organising maps (latent_state_readout)
+    "umap-learn==0.5.12",         # UMAP (latent_projection_head); brings pynndescent
+    "openTSNE==1.0.4",            # out-of-sample t-SNE (latent_projection_head)
+    "cvxpy==1.9.3",               # signal_program; brings clarabel, osqp, scs
+    "nutpie==0.16.11",            # compiled NUTS for PyMC (bayesian_predictive)
     # ── Validation / config ─────────────────────────────────────────
     "pydantic>=2.10,<3",
     "jinja2>=3.1",
