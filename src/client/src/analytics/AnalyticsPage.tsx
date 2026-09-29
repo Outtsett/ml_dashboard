@@ -1,10 +1,10 @@
 /**
- * Analytics — four questions about the symbol on the Market chart:
+ * Analytics — four tabs, each opening with its question and its method:
  *
- *   Descriptive   what is happening?     summarise and visualise the data
- *   Diagnostic    why is it happening?   root causes of the large moves
- *   Predictive    what will happen?      outcomes and their probabilities
- *   Prescriptive  what should we do?     the best action for the outcome you want
+ *   Descriptive analytics   What is happening?     Summarize and visualize the data.
+ *   Diagnostic analytics    Why is it happening?   Find root causes of events.
+ *   Predictive analytics    What will happen?      Identify possible outcomes and the probability that they will happen.
+ *   Prescriptive analytics  What should we do?     Determine the best course of action given the outcome you want to achieve.
  *
  * Follows the Market chart's symbol and timeframe (SymbolContext); one request
  * (`/api/analytics`) carries every layer, computed from the lake's bars, the
@@ -28,11 +28,22 @@ const BAR_WINDOWS = [5_000, 20_000, 50_000] as const;
 const HORIZONS = [3, 6, 12, 24, 48, 96] as const;
 const SUPPORTED = new Set(["1m", "5m", "15m", "30m", "1h", "4h", "1d"]);
 
+// Each tab opens with its question and what the tab does to answer it.
 const LAYERS = [
-  { value: "descriptive", label: "Descriptive", question: "What is happening?" },
-  { value: "diagnostic", label: "Diagnostic", question: "Why is it happening?" },
-  { value: "predictive", label: "Predictive", question: "What will happen?" },
-  { value: "prescriptive", label: "Prescriptive", question: "What should we do?" },
+  { value: "descriptive", label: "Descriptive analytics", question: "What is happening?", method: "Summarize and visualize the data." },
+  { value: "diagnostic", label: "Diagnostic analytics", question: "Why is it happening?", method: "Find root causes of events." },
+  {
+    value: "predictive",
+    label: "Predictive analytics",
+    question: "What will happen?",
+    method: "Identify possible outcomes and the probability that they will happen.",
+  },
+  {
+    value: "prescriptive",
+    label: "Prescriptive analytics",
+    question: "What should we do?",
+    method: "Determine the best course of action given the outcome you want to achieve.",
+  },
 ] as const;
 
 const TAB_KEY = "analytics-tab-v1";
@@ -106,7 +117,16 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        <p className="text-sm font-medium text-neutral-200">{LAYERS.find((layer) => layer.value === tab)?.question}</p>
+        {(() => {
+          const layer = LAYERS.find((entry) => entry.value === tab) ?? LAYERS[0];
+          return (
+            <header className="rounded-lg border border-neutral-800 bg-neutral-900/40 px-4 py-3" data-testid="analytics-question">
+              <div className="text-[10px] uppercase tracking-widest text-neutral-500">{layer.label}</div>
+              <h2 className="text-xl font-semibold text-neutral-100">{layer.question}</h2>
+              <p className="text-sm text-neutral-400">{layer.method}</p>
+            </header>
+          );
+        })()}
 
         {query.isLoading && <Empty>Reading {bars.toLocaleString()} bars, news and model runs for {symbol}…</Empty>}
         {query.isError && <Empty>{(query.error as Error).message}</Empty>}
