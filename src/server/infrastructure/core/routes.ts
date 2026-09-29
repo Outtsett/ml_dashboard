@@ -56,6 +56,7 @@ import copilotRouter from "../../ai/copilot.router";
 
 // Marimo Domain
 import marimoRouter from "../../marimo/marimo.router";
+import streamMuxRouter from "../../stream/mux.router";
 
 // Sidecar Domain (live data hub, Claude Code host)
 import sidecarRouter from "../../sidecar/sidecar.router";
@@ -110,6 +111,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", agentsRouter);
   app.use("/api/ai", copilotRouter);
   app.use("/api", marimoRouter);
+  app.use("/api", streamMuxRouter);   // one event stream per tab carrying every stream it reads (stream/mux.ts)
   app.use("/api", sidecarRouter);
 
   // Deployments SSE — mounted BEFORE the generic eventsRouter

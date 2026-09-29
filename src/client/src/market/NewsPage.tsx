@@ -1,3 +1,4 @@
+import { openEventStream } from "@/infrastructure/lib/sharedEventSource";
 import { Card, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -66,7 +67,7 @@ export default function News() {
     setConnectionError(null);
     setIsLoading(true);
     
-    const eventSource = new EventSource(`/api/news/stream/${symbol}`);
+    const eventSource = openEventStream(`/api/news/stream/${symbol}`);
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {

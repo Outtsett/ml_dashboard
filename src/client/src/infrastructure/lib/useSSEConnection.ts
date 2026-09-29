@@ -1,3 +1,4 @@
+import { openEventStream } from "@/infrastructure/lib/sharedEventSource";
 import { useState, useRef, useEffect, useCallback, startTransition } from 'react';
 import { logError, logWarn } from "@/infrastructure/lib/error_logger";
 
@@ -37,7 +38,7 @@ export function useSSEConnection(options: SSEConnectionOptions): SSEConnectionSt
 
   const connect = useCallback(() => {
     esRef.current?.close();
-    const es = new EventSource(url);
+    const es = openEventStream(url);
     esRef.current = es;
 
     es.onopen = () => {

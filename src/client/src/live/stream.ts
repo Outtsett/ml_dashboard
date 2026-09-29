@@ -10,6 +10,7 @@
  * closes with the last.
  */
 
+import { openEventStream } from "@/infrastructure/lib/sharedEventSource";
 import { useEffect, useRef, useState } from "react";
 
 type Kind = "quote" | "bar" | "news";
@@ -29,7 +30,7 @@ function setConnected(value: boolean): void {
 
 function open(): void {
   if (source || listeners.size === 0) return;
-  source = new EventSource(`/api/live/stream?kinds=${KINDS.join(",")}`);
+  source = openEventStream(`/api/live/stream?kinds=${KINDS.join(",")}`);
   source.onopen = () => setConnected(true);
   source.onerror = () => {
     setConnected(false);

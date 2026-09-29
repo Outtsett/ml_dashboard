@@ -16,6 +16,12 @@ import { useCycleStore } from "../../src/client/src/cycle/store";
 import { CYCLE_STREAM_EVENT_TYPES, flushPendingEvents } from "../../src/client/src/cycle/connection";
 import { emptyBarColumns } from "../../src/shared/cycle/schema";
 
+// connection.ts opens its stream through the tab's shared connection
+// (sharedEventSource.ts, tested on its own); here the stream is the fake below.
+vi.mock("../../src/client/src/infrastructure/lib/sharedEventSource", () => ({
+  openEventStream: (url: string) => new EventSource(url),
+}));
+
 // ─── Fake EventSource ────────────────────────────────────────────────────────
 
 type Handler = (event: MessageEvent) => void;

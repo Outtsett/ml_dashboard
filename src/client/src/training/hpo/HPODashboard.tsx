@@ -1,3 +1,4 @@
+import { openEventStream } from "@/infrastructure/lib/sharedEventSource";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/shared/ui/card";
@@ -113,7 +114,7 @@ function HPODashboard({ sessionId, onClose, onApplyParams }: HPODashboardProps) 
   useEffect(() => {
     if (!sessionId || status === "completed" || status === "failed" || status === "stopped") return;
 
-    const eventSource = new EventSource(
+    const eventSource = openEventStream(
       `/api/hpo/stream/${sessionId}?from=${trials.length}`,
     );
 

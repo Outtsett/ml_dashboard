@@ -13,6 +13,7 @@
  * permission request included, would sit below the stale mark and be dropped.
  */
 
+import { openEventStream } from "@/infrastructure/lib/sharedEventSource";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
@@ -199,7 +200,7 @@ export function useClaudeSession(key: string | null) {
 
     const open = () => {
       if (cancelled) return;
-      source = new EventSource(`/api/claude/sessions/${encodeURIComponent(key)}/stream?after=${viewRef.current.lastSeq}`);
+      source = openEventStream(`/api/claude/sessions/${encodeURIComponent(key)}/stream?after=${viewRef.current.lastSeq}`);
       source.onopen = () => setConnected(true);
       source.onerror = () => {
         setConnected(false);

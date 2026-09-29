@@ -17,6 +17,7 @@
  * SSE event is a `MessageEvent` carrying `data`; a connection failure is a
  * bare `Event` with none.
  */
+import { openEventStream } from "@/infrastructure/lib/sharedEventSource";
 import { apiRequest } from "@/infrastructure/api/query_client";
 import { toast } from "sonner";
 
@@ -129,7 +130,7 @@ function queueEvent(type: string, data: unknown): void {
 /** Open (or reopen) the SSE stream for a model id and wire every named event to the store. */
 function openSource(modelId: string, generation: number): void {
   closeActiveSource();
-  const source = new EventSource(`/api/training/stream/${encodeURIComponent(modelId)}`);
+  const source = openEventStream(`/api/training/stream/${encodeURIComponent(modelId)}`);
   activeSource = source;
 
   for (const type of CYCLE_STREAM_EVENT_TYPES) {

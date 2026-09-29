@@ -15,6 +15,7 @@
 // AgentFindingSeverity) is the single source of truth in @shared/schema — we
 // re-export it so consumers import the contract alongside the hook.
 // ─────────────────────────────────────────────────────────────────────────────
+import { openEventStream } from "@/infrastructure/lib/sharedEventSource";
 import { useCallback, useEffect, useRef, useState, startTransition } from "react";
 import { logError, logWarn } from "@/infrastructure/lib/error_logger";
 import type {
@@ -132,7 +133,7 @@ export function useAgentDispatch(): AgentDispatchHandle {
         logWarn("useAgentDispatch", "EventSource unavailable; cannot stream run", { runId: id });
         return;
       }
-      const es = new EventSource(`/api/events/agents/${encodeURIComponent(id)}`);
+      const es = openEventStream(`/api/events/agents/${encodeURIComponent(id)}`);
       esRef.current = es;
 
       const onToken = (raw: MessageEvent) => {

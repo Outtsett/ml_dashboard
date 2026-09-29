@@ -30,6 +30,7 @@ declare module 'express-serve-static-core' {
 import { attachMetricsWebSocket } from './infrastructure/core/ws';
 import { registerMarimoProxies } from './marimo/proxy';
 import { startMarimoBackground, stopAllGroups as stopAllMarimoGroups } from './marimo/servers';
+import { closeAllConnections as closeStreamMux } from './stream/mux';
 import { isSidecarPath, registerSidecarProxies } from './sidecar/proxy';
 import { startSidecars, stopAllSidecars } from './sidecar/supervisor';
 import { stopCycleExplainer } from './training/cycleExplainer';
@@ -450,6 +451,7 @@ async function bootstrap() {
 
     shutdownHardwareNode();
     shutdownAllPtySessions();
+    closeStreamMux();
     await stopAllMarimoGroups();
     await stopAllSidecars();
     // The Model Cycle's warm explainer is a Python child: stop it so it is not orphaned.

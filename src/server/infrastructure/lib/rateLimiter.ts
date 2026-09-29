@@ -1,3 +1,4 @@
+import { isInternalRequest } from "./internalRequest";
 import { Request, Response, NextFunction } from 'express';
 
 interface RateLimitEntry {
@@ -36,6 +37,12 @@ export function createRateLimiter(config: RateLimitConfig) {
   } = config;
 
   return (req: Request, res: Response, next: NextFunction): void => {
+    // The server's own loopback requests (internalRequest.ts) were counted
+    // already as the browser request that caused them.
+    if (isInternalRequest(req)) {
+      next();
+      return;
+    }
     const key = keyGenerator(req);
     const now = Date.now();
     

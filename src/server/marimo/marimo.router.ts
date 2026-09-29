@@ -54,7 +54,9 @@ import { validateFileName, writeNotebookFromTemplate } from "./template";
 const router = Router();
 const logger = new Logger("MarimoRoutes");
 
-router.use(queryRateLimiter);
+// Scoped to the notebook paths: an unscoped router.use on a router mounted at
+// /api limited EVERY /api request that passed through this router, not just these.
+router.use("/marimo", queryRateLimiter);
 
 function slugParamSchema() {
   const config = loadNotebooksConfig();
