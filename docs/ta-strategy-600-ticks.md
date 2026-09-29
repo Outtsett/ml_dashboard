@@ -221,8 +221,8 @@ Every level is an event with the moment it became knowable (`known_from`) and th
 | Conditions | `cross_above/below`, `above/below`, `rising/falling`, `within k bars`, `then`, `broke_above/below` (the level as it stood on the previous bar), `retest_above/below`, `near`, `session_window`, `pct_rank_below`, and `all/any/not`. |
 | `engine.py` | The exit engine on the 1-minute path. It is a superset of the bracket simulator, with identical output held by a parity test. Exits: stop (ATR, ticks, or beyond a level), target (R, next level with a room filter, or none), breakeven, chandelier trail, signal exits at the next open, a time stop, and the session-end flatten. |
 | `optimize.py` | Per template and per test year (2022-2025), Optuna TPE tunes up to 5 parameters on the **prior years only**. The objective is the per-day Sharpe of the excess over matched random entries: same session window, same count per hour, same long share, same exits. The top distinct trials are re-scored with fresh null seeds before the test year is touched. |
-| Templates | `src/config/ta_conditional_templates.json` (add strategies there). Rounds: `src/config/ta_conditional_rounds.json`. |
-| Lake | `derived_ta_conditional_strategies_600_ticks_{rounds,templates,folds,trials,daily,trades,level_quality,level_events,zones_15m,level_tests,reviews}` |
+| Templates | `src/config/ta_conditional_templates.json` (add strategies there). Rounds: `src/config/ta_conditional_rounds.json`. Pre-registered confirmation: `confirm.py --round 3`. |
+| Lake | `derived_ta_conditional_strategies_600_ticks_{rounds,templates,folds,trials,daily,trades,level_quality,level_events,zones_15m,level_tests,reviews,confirmation_rounds,confirmation_strategies,confirmation_daily,confirmation_trades,level_quality_fractal_window_fixed}` |
 
 **Conditional round 1** (`round_1_20260929T043148`), stitched out-of-sample 2022-2025, tuned only on prior years:
 
@@ -244,6 +244,49 @@ Every level is an event with the moment it became knowable (`known_from`) and th
 - **Tuning helps only weakly:** the in-sample to out-of-sample rank correlation is +0.17 on the two positive templates and about 0 overall.
 
 **Conditional round 2** applies those fixes. It adds a level-free momentum control and no-target runner exits, which are reported as not 2:1.
+
+**Conditional round 2 results** (stitched 2022-2025): the best template, `opening_range_breakout_runner`, nets +22.8 ticks/day (excess +22.6, t 2.77, PF 1.44). That is 3.8% of 600.
+- 11 templates have now been scored on 2022-2025. White Reality Check p over them is 0.037, or 0.15 without 2022.
+- Without 2022, the ORB runner nets +12.7 (t 1.54).
+- The top 10 days carry 67-76% of every template's excess.
+- Across 1,754 trials, train Sharpe against test excess has a rank correlation of 0.023.
+- On 31,528 real 15m breaks, continuation is 0.519 against 0.520 for distance-matched random levels.
+
+**Level quality with the fractal window fixed** (fractals are tested until an age cap, not until retirement). Every family breaks more often than chance, net of mechanics:
+- fractal 4h −0.054, fractal 1h −0.047, fractal 15m −0.033;
+- prior RTH −0.030, prior week −0.028, opening range −0.028;
+- overnight −0.027, prior session −0.026, round numbers −0.001.
+
+### Conditional round 3: pre-registered confirmation (`round_3_20260929T072558`)
+
+**Design.** Three frozen specs (`momentum_expansion_two_to_one`, `level_breakout_momentum`, `opening_range_breakout_runner`) were committed before any NQ 2010-2019 result was seen. They run once on NQ 2010-06-07 → 2019-05-31 (2,306 sessions, 36 rolls, MNQ costs).
+- The endpoint is the pooled daily excess over matched random entries: Newey-West t, a trimmed mean, and four sub-periods.
+- Level-stop templates use geometry-matched null stops.
+
+**Disclosure.** One smoke run on NQ 2014-06..2015-06 was seen before the pre-registration commit. Nothing was changed after it.
+
+**Result: CONFIRMED.**
+- Pooled excess +3.81 ticks/day (t 4.52); trimmed +2.80 (t 4.36).
+- Sub-periods +0.9, +3.6, +4.4, +6.4.
+
+| Template | Net ticks/day | Excess (t) | Win rate | PF | Trades/day |
+|---|---|---|---|---|---|
+| Momentum expansion 2:1 | +1.8 | +6.0 (4.71) | 43.5% | 1.10 | 0.55 |
+| Level breakout + momentum | +0.6 | +3.6 (3.65) | 36.4% | 1.07 | 0.42 |
+| Opening-range breakout runner | −0.5 | +1.8 (1.73) | 18.6% | 0.96 | 0.54 |
+
+**Adversarial review.** The two skeptics did not refute the result.
+- Under the strictest null the excess is still +2.16 (t 2.57, trimmed t 2.01).
+- Against random sides, the choice of direction is worth +2.85 (t 3.55).
+- Skeptic B found that `contract_sort_key` mapped single-digit contract years to 2019 or later. The first run silently stopped at 2018-12-21. The year now comes from the contract's first traded date, and this recipe is the re-run.
+
+**Reading.** The directional edge is real but small. Net of costs, the three books sum to about +1.9 ticks/day on one contract, against a goal of 600. No template reached 40% win at 2:1 (PF ≥ 1.33) out of sample. Levels add nothing over momentum.
+
+**Next:**
+- add order-flow and book information;
+- size and stack uncorrelated books;
+- keep specs frozen;
+- forward-test the momentum spec on 2026 data (the `reviews` table for round 3).
 
 **Earlier next step (model rounds): a pre-registered test of a different family:**
 - range-forecast-gated trading on predicted big-move sessions, or the 09:30 ET opening-range breakout;
