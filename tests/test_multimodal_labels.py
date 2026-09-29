@@ -104,3 +104,21 @@ def test_decisions_only_between_0635_and_1200_and_atr_is_causal():
     n = len(early) - 1   # the last bar of the truncated series may be partial
     assert np.allclose(early["atr_points"].to_numpy()[:n], full["atr_points"].to_numpy()[:n], equal_nan=True)
     assert np.isnan(full["atr_points"].to_numpy()[:19]).all()
+
+
+def test_a_target_that_is_only_touched_does_not_fill():
+    stop, target = labels.bracket_distances(np.array([2.0]), 2.0)
+    s, t = float(stop[0]), float(target[0])
+    entry = 100.0
+    # minute 2 touches the target exactly (no trade-through), then the stop is hit
+    path = flat_then([(entry, entry + 0.5, entry - 0.5, entry), (entry, entry + t, entry, entry + t - 1),
+                      (entry, entry, entry - s - 0.25, entry - s)] + [(entry,) * 4] * 300)
+    row = first_decision(labels.label(decision_bars(minutes_for(path))), 2.0, 1)
+    assert row["exit_reason"] == labels.EXIT_STOP
+
+
+def test_an_incomplete_session_is_left_out():
+    # the test session's data stops at 09:30, before the 10:00 minimum: no candidate from it survives
+    path = flat_then([(100.0, 100.5, 99.5, 100.0)] * 175)
+    out = labels.label(decision_bars(minutes_for(path)))
+    assert (out["session"] == out["session"].max()).sum() == 0 or out["decision_timestamp"].max() < MONDAY + DAY

@@ -900,7 +900,8 @@
           "default": "gbdt",
           "options": [
             "gbdt",
-            "fusion"
+            "fusion",
+            "ensemble"
           ],
           "label": "Model family",
           "group": "Architecture"

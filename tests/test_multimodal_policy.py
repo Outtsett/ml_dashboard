@@ -89,3 +89,16 @@ def test_gate_metrics_match_hand_computation():
     assert s["gate"]["G1"] and s["gate"]["G2"] and s["gate"]["G3"] and s["gate"]["G4"]
     missing_day = metrics.summary(trades[trades["session"] != 4], np.array([1, 2, 3, 4]))
     assert not missing_day["gate"]["G2"]
+
+
+def test_no_entry_in_the_minute_the_previous_trade_exits():
+    data = toy_dataset(n_sessions=1, bars_per_session=6)
+    # make the first trade exit at exactly the next candidate's entry minute
+    for head in data.heads.values():
+        head.exit_timestamp[0] = head.entry_timestamp[1]
+    rows = np.arange(len(data.keys))
+    probabilities = {"long_r2": np.full(rows.size, 0.9), "short_r2": np.full(rows.size, 0.1)}
+    params = policy.PolicyParameters(threshold_points=0.5, max_trades=5, forced_minute=12 * 60, heads=("long_r2", "short_r2"))
+    trades = policy.simulate(data, rows, probabilities, params)
+    assert 1 not in trades["row"].tolist()                     # blocked: its entry minute is the first trade's exit minute
+    assert (trades["entry_timestamp"].to_numpy()[1:] > trades["exit_timestamp"].to_numpy()[:-1]).all()

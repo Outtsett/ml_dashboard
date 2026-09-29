@@ -1,0 +1,228 @@
+[
+ {
+  "strand": "leakage",
+  "findings": [
+   {
+    "title": "The policy re-enters in the minute the open trade is still exiting in, so it knows that trade will close in the next minute",
+    "location": "src/ml/multimodal/policy.py:76 (`if head.entry_timestamp[row] < free_at: continue`) with free_at = head.exit_timestamp (line 91), which is the START of the exit minute (labels.py:137 `stamps[exit_index]`)",
+    "severity": "high",
+    "evidence": "A new trade enters at the open of minute X, and the decision is made at the close of bar k, which is that same instant. If the previous trade's exit minute is X, it is still open at that moment: its stop or target is only touched inside minute X, after the decision. So eligibility reads the open trade's future, and for part of a minute two positions are held, which breaks the one-position rule. I measured this on the landed trades (derived/multimodal_runs/*/table=trades joined to the labels): 827 of the 18,906 trades across trials 1-6 enter in the same minute the previous trade exits. In all 827 the previous exit is filled at its own stop or target level (608 stops, 219 targets), which means an intra-minute touch, not a gap at the open. These re-entries average -6.05 net points with a 20.8% win rate, against -1.38 points and 27.0% for all other trades. Their net points in the canonical window, per trial: 175339 -897.6, 180417 -873.5, 181434 -1107.8, 184649 -927.3 (-39.5 and -1.1 for the other two), which is up to about $2,200 per trial. Every trial and the gate are scored on trade sets that include these.",
+    "fix": "Require the previous trade to be closed before the decision instant: `if head.entry_timestamp[row] <= free_at: continue`. An exit in minute X-1 is finished by X's open. Rerun choose_policies, and add a policy test that plants an exit in minute X and asserts no entry at X."
+   },
+   {
+    "title": "Calendar features for the NQ 2010-2019 history are zero instead of unknown (trial 6)",
+    "location": "src/ml/multimodal/features.py:274-278 (events_today `.fillna(0)`, calendar_fomc_day from `np.isin`); sources.calendar_events coverage is market_calendar_v1 from 2021 plus backfills for 2019-2022 only; dataset.load(history='nq_mnq')",
+    "severity": "medium",
+    "evidence": "In derived/multimodal_features/recipe=features_v1_nq/table=calendar, the share of event days is 0.000 in every year from 2010 to 2018 and the FOMC day count is 0. MNQ years show 0.45-0.52 event-day share and 8-10 FOMC days a year. So nine years of training rows say 'no release, no FOMC' on days that had them. The minutes-to/since columns are correctly NaN; only events_today and fomc_day become fabricated zeros. Trial 6 (blocks ...,calendar, history nq_mnq, PF 0.953 against trial 5's 0.847) trained on this. The improvement credited to the calendar modality partly measures the NQ-to-MNQ switch in these two columns, not event content.",
+    "fix": "Emit NaN for every calendar column in sessions outside the calendar's coverage (a per-year or per-session coverage table from calendar_events), or refuse the calendar block with history=nq_mnq until 2010-2018 is backfilled. Then rerun trial 6."
+   },
+   {
+    "title": "News counts will read as 0 ('no news') on every day the GDELT backfill has not covered",
+    "location": "src/ml/multimodal/sources.py:139-142 (a missing day file is skipped silently) and :165-170; features.py:233-244 and :219-224 (counts are integer differences, never NaN)",
+    "severity": "medium",
+    "evidence": "Measured on raw/vendor=gdelt_gkg/.../filter=finance_v1 for 2019-05-05..2025-06-30: 170 of 2,249 days are present and 2,079 are missing. 7 present days have failed upstream files. FinBERT scores exist for 102 days. If the news block is built now (it is the next step in state.json and CHECKPOINTS), 92% of sessions would carry news_*_count = 0 and news_finbert_*_count = 0 as values. Tone and mean features are NaN only because count = 0. This repeats the calendar defect and would change trial 7+.",
+    "fix": "Pass a coverage set (days with part.parquet and every source file ok) into news_block, and set every news column to NaN for decision bars whose trailing window reaches an uncovered or partial day. build_features should refuse to land the news block while coverage over the window is incomplete."
+   },
+   {
+    "title": "Two surprise Fed announcements are treated as scheduled events, which leaks their timing",
+    "location": "src/ml/multimodal/sources.py:122-125 (the backfill `fomc` rows are read without their `scheduled` field)",
+    "severity": "low",
+    "evidence": "evidence/calendar_2019_2020.json marks 5 FOMC rows `scheduled: false`. Two of them fall inside RTH: 2019-10-11 11:00 ET (08:00 PT) and 2020-03-03 10:00 ET (07:00 PT, the emergency 50 bp cut). In features_v1/table=calendar, from 06:30 on those days calendar_fomc_day = 1 and calendar_tier_one_minutes_to_next_today counts down to the unannounced release: 2019-10-11 85\u21920 over 18 bars, 2020-03-03 25\u21920 over 6 bars. The market did not know either event until it was published. The impact is about 24 decision rows in total, in training and in the 2019Q4 and 2020Q1 test quarters of the nq_mnq trials.",
+    "fix": "For `scheduled: false` rows, drop them from the next-event, events_today and fomc_day features, keeping them only in minutes_since (known from their stamp on). Or give them a known time equal to their release time and exclude them from any forward-looking column."
+   },
+   {
+    "title": "The forced trade's 'last row of the session' rule also fires on data holes and truncated holiday data, not only on exchange early closes",
+    "location": "src/ml/multimodal/policy.py:80 (`k == end - 1`)",
+    "severity": "low",
+    "evidence": "Labels joined to price decisions: MNQ has 55 sessions whose last decision closes before 11:00. 53 are holidays or early closes (last close 09:55 or 10:10). The other two are data holes: 2020-02-28 has 17 rows ending 07:55, and 2020-06-30 has 8 rows ending 07:10. In the NQ history, 2010-2013 holidays end at 08:25 (23 rows) although the scheduled close is 10:00 PT. On those days the policy forces a trade at a bar it could only know is last by seeing that later data is missing. The labels on those sessions also exit as `session_end` at the truncated minute. The impact is pre-canonical: 2020Q1/Q2 and the NQ quarters of the nq_mnq trials.",
+    "fix": "Fire the last-bar forced trade only on sessions listed as exchange early closes (market_calendar_v1 family `cme_holiday_close`, which sources.py:105 currently filters out). Drop or flag sessions whose RTH minutes end before their scheduled close, both in labels and in the policy."
+   }
+  ],
+  "sound": [
+   "cross_block intraday as-of join: searchsorted(side='right')-1 on decision bar start + 240 s (the start of the last minute, closing at the decision close); stale rule <= 300 s; level-free returns divided by raw_close",
+   "cross_block daily: lake bars 1d for ZN/ZB/ZT/GC/HG/DXY are vendor yfinance, all stamped 00:00 UTC of the trade date; searchsorted(days, session, 'left')-1 picks the bar dated before session D, i.e. the previous trade day's close, known before D's RTH",
+   "context_block overnight window: minute < 06:30 or >= 15:00 with session = date(stamp + 9 h), so session D's ETH is D-1 15:00 to D 06:29; 13:00-14:59 belongs to D and is excluded; 15:00+ goes to D+1; complete before the first decision at 06:35",
+   "context_block opening range known mask: (bar start + 5) >= 06:30 + length, so the 06:40 bar (close 06:45) is the first to see the 15-minute range",
+   "_rolling_same_time: shift(1) inside each time-of-day group, RangeIndex aligned, excludes today",
+   "price_block previous-session aggregates use per_session.shift(1); trend, RSI and Bollinger windows end at the decision bar",
+   "news_block and _windowed: known_stamp strictly < decision close; GDELT known_ts = file stamp + 15 min; FinBERT dedup keeps the earliest known_ts (sorted before groupby.first)",
+   "flow_block: windows end at the decision bar's last minute and stay in-session; orderflow minutes 3,465,202 rows = 3,465,202 distinct (symbol, minute), so the left merge cannot shift; activity zero-share 0 in every year for MNQ and NQ",
+   "labels.py: entry at the next RTH minute of the same session within decision close + 60 s; a minute touching both levels is a stop; a gap at the open fills at the open; session end at the last RTH minute",
+   "load_minutes_rebuilt: the contract is chosen from the two previous sessions' volume leaders; the roll gap is measured at or before the roll",
+   "walkforward.folds: expanding train, 60 validation sessions directly before the test quarter, 1-session purge on each side, test = whole quarter, no overlap",
+   "main.choose_policies: history is added after the pick, so quarter k uses only quarters < k; the first two quarters use the default policy and are excluded from the canonical window",
+   "fusion: standardisation on fold.train rows only; sequence stats from training decision bars only; sequence window [index-47, index] ends at the decision bar (symmetric conv padding only pads past the window's end, which is the decision bar); early stopping and Platt calibration on validation rows only; the modality ablation is written to importances only",
+   "gbdt: early stopping and Platt calibration on validation rows only; lgb validation Dataset binned from train",
+   "tests/test_multimodal_features.py, labels, policy and fusion: 12 passed with .venv python"
+  ],
+  "verdicts": [
+   {
+    "title": "The policy re-enters in the minute the open trade is still exiting in, so it knows that trade will close in the next minute",
+    "holds": "yes",
+    "reason": "The mechanism is confirmed from the code. I did not re-run the 827-trade count or the per-trial net points. `labels.py:137` stamps `exit_timestamp` as `stamps[exit_index]`, the start of the exit minute. `labels.py:70-79` fills a non-gap exit at the stop or target level, so the touch happens somewhere inside that minute. A new entry is at the open of minute X (`labels.py:135`), and the decision is made at the close of the bar just before. At that instant a trade whose exit minute is X is still open. `policy.py:76` tests `entry_timestamp < free_at`, which is false when the two are equal. The policy therefore takes a second position while the first is still open, breaking the one-position rule. Its skip logic reads the open trade's exit minute, which a live system would not know at the decision instant, so this is a lookahead-flavoured leak. `tests/test_multimodal_policy.py:66` asserts `entry >= previous exit`, so it encodes the same off-by-one and would not catch this. The only wrinkle is that with `<=` a gap exit filled at the open of X is also blocked. That is still correct, because the position was open at decision time, and it is a small conservative effect.\", \"corrected_fix\": \"In `src/ml/multimodal/policy.py:76` change to `if head.entry_timestamp[row] <= free_at: continue`. In `tests/test_multimodal_policy.py:66` tighten the assertion to `entry_timestamp[1:] > exit_timestamp[:-1]`, and add a case that plants a previous exit in minute X and asserts no entry at X. Then re-run `choose_policies`. Every trial and the gate need re-scoring, because the trade sets change.\"}\n\n"
+   }
+  ]
+ },
+ {
+  "strand": "evaluation",
+  "findings": [
+   {
+    "title": "The gate silently drops the sequence encoder for fusion and ensemble candidates, so it scores a different model on the holdout than the one developed",
+    "location": "src/ml/multimodal/gate.py:141 (dataset_module.load(blocks, history=history) without with_sequences), gate.py:55-100 (build_period and concatenate never set sequence_bars or sequence_index); src/ml/multimodal/models/fusion.py:148",
+    "severity": "high",
+    "evidence": "main.py loads with with_sequences=family in ('fusion','ensemble'). gate.py loads development without it, and build_period and concatenate return a Dataset whose sequence_bars is None. fusion.fit_predict then sets use_sequence = data.sequence_bars is not None and ... to False and builds FusionNetwork(..., sequence_channels=0). Nothing raises, so the holdout model has no temporal-convolution token, although every development fold of trial 2 (fusion) had one. tests/test_multimodal_gate_consistency.py compares only the tabular feature columns and long_r2 labels, so it cannot catch this. The current best candidate (trial 6) is gbdt and is not affected. Any fusion or ensemble candidate would be.",
+    "fix": "In gate.main, load development with with_sequences=configuration['family'] in ('fusion','ensemble'). Have build_period also return every 5-minute RTH bar's SEQUENCE_COLUMNS with a sequence_index, and have concatenate join the two sequence arrays, offsetting the second index. Record use_sequence and sequence_channels in summary.json, and assert in the gate that the holdout fit matches them."
+   },
+   {
+    "title": "The gate's G5 checks the two holdout quarters instead of the development quarters the plan names",
+    "location": "src/ml/multimodal/gate.py:163-167 (quarter_of_session over fold.test sessions, then metrics.summary); metrics.py:66-67",
+    "severity": "medium",
+    "evidence": "PLAN.md G5 says 'net positive in at least 75% of development walk-forward quarters'. The gate passes holdout quarters (2025Q3 and 2025Q4) into metrics.summary. With 2 quarters the >= 0.75 test means both must be positive, which is a different criterion. The development requirement is never checked at gate time. The best candidate, trial 6, has canonical quarters_positive_share 0.4706 (8 of 17 quarters, which I recomputed from derived_multimodal_runs_trades). That fails the plan's G5, yet the gate could still pass G5 if both holdout quarters come out positive.",
+    "fix": "In gate.main, set G5 = holdout bootstrap_total_points_lower_95 > 0 AND holdout stressed_net_profit_usd > 0 AND record['canonical']['quarters_positive_share'] >= 0.75, read from the candidate's summary.json. Report the holdout per-quarter numbers but do not gate on them."
+   },
+   {
+    "title": "G6 is true for almost any configuration: 'time' and 'context' count as modalities and no ablation is required",
+    "location": "src/ml/multimodal/gate.py:170-171",
+    "severity": "medium",
+    "evidence": "The modalities are the set of column prefixes. With blocks 'time,price' that set is {'time','price'}, so G6 is True for a price-only model. context_ is also derived from the same MNQ minutes. PLAN.md G6 requires more than one modality AND reported ablations for each modality. The gate never checks for ablations. Trial 6 (gbdt: time, price, flow, cross, context, calendar) has no ablation, because only fusion computes one, and would still get G6 = True.",
+    "fix": "Map time_ and context_ to the price modality before counting. Require at least two of price, flow, cross, calendar and news. Make G6 also require a landed ablation record for the candidate: fusion token-drop ablations, or gbdt drop-one-block retrains on the development walk-forward."
+   },
+   {
+    "title": "The policy lets a trade enter in the minute the previous trade exits, which uses future information and briefly holds two positions",
+    "location": "src/ml/multimodal/policy.py (simulate: `if head.entry_timestamp[row] < free_at: continue`); tests/test_multimodal_policy.py:66 asserts >=",
+    "severity": "medium",
+    "evidence": "free_at is the start of the exit minute. A candidate whose entry_timestamp equals it is decided at the decision-bar close, which is the start of that minute, while the previous trade is still open. The policy is therefore using the knowledge that the previous trade exits within the next minute. In trial 6's canonical window, 50 of 1,363 trades are such same-minute entries, with a net of -927.25 points (-$1,854.50 of the -$3,137.14 total). The overlap test uses >= so it passes.",
+    "fix": "Skip the candidate when head.entry_timestamp[row] < free_at + 60, meaning the previous exit minute must be complete by the decision close. Tighten the test to entry >= previous exit + 60, then re-score the trials."
+   },
+   {
+    "title": "Target limit orders fill on an exact touch with no trade-through, which overstates the win rate",
+    "location": "src/ml/multimodal/labels.py (_walk: `if high[j] >= target` / `if low[j] <= target`)",
+    "severity": "medium",
+    "evidence": "I measured the stored labels for 2024-01 to 2024-06 against the minutes, correcting for the roll offset (-941.25). Of 8,178 target exits, 6.35% hit the target price exactly without trading through it and without a gap fill. That is 5.98% of R=2 wins and 4.67% of R=3 wins. A resting limit that is only touched may not fill because of queue position, and the one-tick-per-side cost does not model a missed fill, which could instead run to the stop. Win rate is overstated by up to about 1.9 points at R=2 (0.3165 x 0.0598), against the 40% G3 threshold.",
+    "fix": "Require a trade-through (high > target for longs, low < target for shorts), or treat an exact touch as unfilled and keep walking. At minimum, report touch-only fill share and a trade-through-only scenario in metrics.summary."
+   },
+   {
+    "title": "Feature tables are overwritten in place and runs do not record which build or commit they used, so the gate cannot verify a candidate's inputs",
+    "location": "scripts/multimodal/build_features.py (write_table replaces recipe=features_v1/table=<block>); src/ml/multimodal/runs.py:record_trial; main.py summary.json",
+    "severity": "medium",
+    "evidence": "The manifests show features_v1/price rewritten at 18:30:07 UTC and cross at 18:31:04 UTC. Trial 4 (T181434) ran at 18:14 UTC on the earlier definitions. Neither trials.jsonl nor summary.json records a feature or label manifest timestamp, content hash or git commit. The gate re-trains any candidate on whatever tables exist when it runs. The working tree also has uncommitted edits in features.py (+31/-5), gate.py, main.py and sources.py, so the plan's 'frozen (code commit + configuration)' cannot be satisfied today.",
+    "fix": "Record in summary.json and trials.jsonl the git commit plus a dirty flag, and each used table's manifest written_at and bytes. The gate should refuse the look when the current manifests or commit differ from the candidate's record, or when the tree is dirty."
+   },
+   {
+    "title": "News features read a day that has not been landed yet as 'zero news', and development and holdout coverage are very different",
+    "location": "src/ml/multimodal/sources.py gdelt_news / finbert_headlines (skip days with no file); src/ml/multimodal/features.py news_block (count = 0 when no rows); tests/test_multimodal_gate_consistency.py BLOCKS excludes news and calendar",
+    "severity": "low",
+    "evidence": "I listed the landed partitions without reading their contents. GDELT finance_v1 has 0 days for 2019-2023, 1 day for 2024 and 333 for 2025, with 2025-06-15 to 06-30 missing, while all of 2025-07 to 2025-12 is landed. FinBERT titles cover only 2025-03 to 2025-07-16 (116 days). A news block built now would give count 0 for about 97% of development rows but non-zero counts across the whole holdout, a distribution shift the gate would score without warning. I ran the calendar block's gate-versus-stored check myself on 2024-01 and it matches (1,427 bars, 15 columns, 0 mismatches); news is untested.",
+    "fix": "Have the loaders return the set of landed days, and have news_block write NaN counts and tones for bars whose window touches an unlanded day. Refuse to build the news block while the backfill has gaps in the requested range. Add news and calendar to BLOCKS in the gate consistency test."
+   },
+   {
+    "title": "Some paths read locked-period data without holdout.guard: the FinBERT scorer, daily_closes and calendar_events",
+    "location": "scripts/multimodal/score_gdelt_finbert.py:73-80; src/ml/multimodal/sources.py daily_closes, calendar_events",
+    "severity": "low",
+    "evidence": "The scorer iterates over every landed GDELT day with no guard. It has already scored holdout-period titles (2025-07-02 to 07-16 exist under multimodal_news_scores) and will score the landed forward days (2026-07 to 2026-09). daily_closes returns every daily bar, holdout and 2026 included, to development code. cross_block only uses days before the session, so no values leak today. PLAN.md nonetheless says every loader refuses locked timestamps.",
+    "fix": "In the scorer, skip days where holdout.in_holdout or in_forward is true unless run under look(). In daily_closes, filter rows to day < development_end before returning, or pass the result through guard with an explicit allow flag for the gate's build."
+   }
+  ],
+  "sound": [
+   "The CI script (scripts/multimodal/ci.py) passes: ruff clean, 38 tests passed in 41.9 s (the gate-consistency test included), and 0 of 1 holdout looks taken.",
+   "metrics.summary matches a hand recomputation from derived_multimodal_runs_trades for trial 6 (T184649) in the canonical window: 1,363 trades, net -$3,137.14, win rate 0.27586, payoff 2.50196, profit factor 0.95313, 1,095 sessions with traded share 1.0, stressed net -$4,500.14 (= net - 0.5 point x 1,363 x $2), quarters positive 8 of 17 = 0.4706.",
+   "The costs are consistent. ROUND_TRIP_COST_POINTS 1.39 equals cost_model.json MNQ total_round_trip_points (fees of $0.89 per side plus 1 tick per side = $2.78 = 1.39 points). The stress of 2*TICK = 0.5 points is exactly one extra tick per side. Stops and session-end exits pay one more tick; targets do not.",
+   "The target formula T = R*S + (R+1)*c + R*slip, rounded up to the tick, gives T - c >= R*(S + c + slip) per bracket. Gap fills and session-end exits can still pull the average payoff below R; that is expected, not a bug.",
+   "In main.py, the first two folds (default policy) are excluded from the policy-tuned scope via folds[2:], and the canonical scope is the tuned folds from 2021Q2 on. trials.jsonl records the canonical summary. The default policy (0.0, 3, 540, all four heads) is in the grid.",
+   "gate.fixed_policy uses the same policy.simulate and the same rule (argmax of summed net points, first index on ties) as choose_policies. Because simulate resets per session, simulating the whole period at once equals summing it quarter by quarter.",
+   "Replaying the configuration through parse_args works: every key in summary.json's configuration (blocks, family, history, first_test_quarter, seed, the gbdt and fusion parameters) maps to an existing flag, and none is a boolean.",
+   "The gate's calendar block, built with build_period on 2024-01, equals the stored features_v1/calendar table (1,427 bars, 0 mismatched columns). I ran this myself; the CI test does not cover calendar.",
+   "holdout.look records the look and writes state.json before it yields, so before any holdout data is read, and it refuses once the budget is spent. The locked-period guards on load_minutes, flow_minutes, gdelt_news, finbert_headlines and the training and sequence tables are in place.",
+   "The lake stamps daily bars at 00:00 UTC of the trade date, and cross_block uses only days before the session, so the daily closes are causal.",
+   "The unguarded day between the holdout end (2025-12-31 00:00) and the forward start (2026-01-01) holds 0 MNQ minutes in the lake.",
+   "Trial 3 left three sessions untraded (2021-05-31, 2021-11-25, 2023-11-24, all early closes). It ran before the early-close forced-trade fix in bffe995; trials 4-6 trade 100% of sessions.",
+   "Labels were built before the last labels.py or data.py change that could matter (data.py only added raw_close), and the stored long_r2 labels match what the gate rebuilds."
+  ],
+  "verdicts": [
+   {
+    "title": "The gate silently drops the sequence encoder for fusion and ensemble candidates, so it scores a different model on the holdout than the one developed",
+    "holds": "yes",
+    "reason": "Reproduced by reading the code. main.py:152 loads with with_sequences=family in (\"fusion\",\"ensemble\"). gate.py:141 calls dataset_module.load(blocks, history=history) with no with_sequences, so the development Dataset has sequence_bars=None. build_period (gate.py:55-79) and concatenate (gate.py:82-90) never set sequence_bars, sequence_index or sequence_columns, so the combined Dataset has none either. fusion.py:148 then evaluates use_sequence = data.sequence_bars is not None and p.sequence_bars > 1 as False. Line 159 builds FusionNetwork with sequence_channels=0, and line 166 sets seq=None. Nothing raises, so the holdout model has no temporal-convolution token. Trial 2 is family fusion with sequence_bars=48 (summary.json:745,755), so its development folds did use the sequence. The current best candidate (trial 6, gbdt) is unaffected, so this is latent, not live. I found no sequence handling in the other model modules, and I did not run the gate. The severity claim holds for any fusion or ensemble candidate. The proposed fix is sound.\", \"corrected_fix\": \"Load development with with_sequences=configuration['family'] in ('fusion','ensemble'). When that is true, build_period must also return the 5-minute RTH bars' SEQUENCE_COLUMNS from the lead-in start (the 48-bar window needs the lead-in bars) with a sequence_index, and concatenate must join the two arrays, offsetting the second index by the first array's row count. This mirrors dataset.py:154-164. Also copy sequence_columns, and fail the gate if family is fusion or ensemble and the combined Dataset has sequence_bars None. Record use_sequence in summary.json.\"}\n\n"
+   }
+  ]
+ },
+ {
+  "strand": "data",
+  "findings": [
+   {
+    "title": "News readers stamp every GDELT and FinBERT row in January 1970 (microseconds divided as if nanoseconds), and the holdout guard never fires on news",
+    "location": "src/ml/multimodal/sources.py:149 (gdelt_news) and src/ml/multimodal/sources.py:177 (finbert_headlines); consumed by scripts/multimodal/build_features.py:73 and src/ml/multimodal/gate.py:76",
+    "severity": "critical",
+    "evidence": "The landed parquet's known_ts is datetime64[us, UTC] under pandas 2.3.3. `.astype(\"int64\")` returns MICROseconds, and the code then divides by 1e9 as if they were nanoseconds. Measured: sources.gdelt_news('2025-06-10','2025-06-11') returned 86,762 rows with known_stamp 1,720,714..1,720,800 s, i.e. 1970-01-20 21:58..22:00. finbert_headlines on the same day returned 12,434 rows with the same 1970 stamps. As a result, news_block would give every 2019-2025 decision bar news counts of 0 and a tone of NaN. holdout.guard(known_stamp*1000) compares about 1.7e9 ms against HOLDOUT_START_MS of about 1.75e12, so news from the holdout or forward period passes the guard unrefused, both in build_features and in gate.py. The news block has not been built yet (features_v1 holds only time/price/flow/cross/context/calendar), so no trial has used it. The first news trial would silently score an empty modality.",
+    "fix": "Convert through the unit, for example `utc = news['known_ts'].dt.tz_convert('UTC').dt.as_unit('s').astype('int64').to_numpy()`, and do the same in finbert_headlines. Add a test that feeds a datetime64[us, UTC] frame and asserts known_stamp falls inside [start, end) on the bars' clock. Add a second test asserting that gdelt_news raises HoldoutLocked for a synthetic 2025-08 row."
+   },
+   {
+    "title": "The calendar block is empty for the NQ era, so in the nq_mnq table the calendar columns flag the era and the 'event-day' effect is mostly era difference",
+    "location": "src/ml/multimodal/features.py:275 (events_today fillna(0)) and :268-274 (NaN minutes). sources.calendar_events starts 2019-05. dataset.py HISTORY_SOURCES['nq_mnq']",
+    "severity": "high",
+    "evidence": "Measured on dataset.load(time,price,flow,cross,context,calendar, history='nq_mnq') with 252,131 rows, 148,752 of them NQ-era. calendar_any_events_today is 0 on 99.9% of NQ rows and 53.0% of MNQ rows. calendar_any_minutes_since_last_today is NaN on 99.9% of NQ rows and 55.9% of MNQ rows. Univariate era AUC is 0.734. calendar_events() has zero rows before 2019. On short_r2, the pooled no-event win rate is 0.273 against 0.307 on MNQ event days, a +0.034 apparent calendar effect. Within MNQ alone the no-event rate is 0.299 against 0.307 (+0.008). On long_r2, MNQ event days are actually worse than MNQ non-event days (0.321 against 0.327), while the pooled no-event rate is 0.306. So the calendar split mainly separates the 2010-2019 rows (lower base win rate) from MNQ rows. Trial 6's '+0.106 canonical PF calendar lift' (CHECKPOINTS CP-006) is confounded with this.",
+    "fix": "Treat uncovered sessions as unknown, not as 'no events': set every calendar_ column to NaN for sessions before the calendar's coverage start, including events_today and fomc_day. Better, source the 2010-2019 releases (BLS, BEA, ISM, UMich and Fed statement archives), which exist for the whole NQ era. Re-score trial 6's calendar contribution with history=mnq or with the masked columns before counting it as a lift."
+   },
+   {
+    "title": "NQ-era bracket labels are a different, cost-dominated trade: the 4-point stop floor binds on 28-81% of 2010-2017 decisions",
+    "location": "src/ml/multimodal/labels.py:36 (MIN_STOP_TICKS=16) with ROUND_TRIP_COST_POINTS=1.39 applied to NQ via scripts/multimodal/build_labels.py --root NQ; stacked by dataset.py HISTORY_SOURCES['nq_mnq']",
+    "severity": "high",
+    "evidence": "Measured long 2:1 labels by year. In NQ 2010-2017, 28-81% of stops sit at the 4.00 floor, the median stop is 4.00-5.50 points and the median target is 12.75 points. Cost/stop is 0.25-0.35 and session-end exits are 6-24%. In MNQ 2020-2025, 0-0.6% hit the floor, the median stop is 19.5-36.75, cost/stop is 0.04-0.07 and session-end exits are 2-4%. The comment on labels.py:36 says 'below this the round trip is over a third of the risk', and 2010-2014 sits at exactly 0.348. These rows are 59% of the nq_mnq training table (148,752 of 252,131). price_atr_points alone separates the eras with AUC 0.955. The premise 'same index, same price, costed as MNQ' holds for price: NQM9 and MNQM9 closes agree over 2019-05-06..06-13 with median difference 0 and RTH standard deviation 0.36 points. It does not hold for the trade: most of the stacked history labels a floor-stop, cost-eaten bracket that the MNQ-era policy never trades.",
+    "fix": "Express the NQ-era label in the same risk units as the MNQ era: scale the floor and the round-trip cost by the price level ratio or by ATR, or label with cost as a fixed fraction of the stop. Alternatively, restrict stacked NQ history to years where the floor rarely binds (2018+), or down-weight it. Report the history=mnq result beside every nq_mnq trial."
+   },
+   {
+    "title": "The news block will read missing GDELT coverage as 'zero news' rather than unknown",
+    "location": "src/ml/multimodal/sources.py:141 (missing day partition silently skipped) and :169; src/ml/multimodal/features.py:224, 240-244 (count columns written unconditionally)",
+    "severity": "medium",
+    "evidence": "The landed finance_v1 partitions currently span 2024-06-03 to 2026-09-29, with 447 days landed and 402 missing (runs 2024-06-04..2024-12-24, 2025-06-15..2025-07-01 and 2026-01-01..2026-06-30). FinBERT scores cover 188 days. GKG 2.1 does not exist before 2015-02, so NQ 2010-2015 can never have news. gdelt_news skips a missing partition without any signal, and news_block writes count = 0 for every window with no rows. Tone is NaN but counts are 0, so an uncovered day is indistinguishable from a quiet one. This is the same era or coverage proxy as the calendar finding, and it would apply to most of 2019-05..2024-05 unless the backfill completes.",
+    "fix": "Return a per-day coverage set from gdelt_news and finbert_headlines, built from days whose sources.json shows all files ok. Make every news_ column NaN for decisions whose trailing window touches an uncovered day. Refuse to build the block when coverage of the requested range is below a stated threshold."
+   },
+   {
+    "title": "Backfill lands a day with failed files, and resume then skips it permanently",
+    "location": "scripts/multimodal/backfill_gdelt_gkg.py:150 (skip when part.parquet exists) and :162-169 (failed files recorded, the day still lands)",
+    "severity": "low",
+    "evidence": "From the backfill log (data/gdelt/backfill_finance_v1.jsonl), 5 of 418 landed days have 95 of 96 files: 2025-01-25, 01-27, 01-30, 02-05 and 02-07. The sources.json for each gives the reason as 'parse failed: Unable to allocate output buffer.', which is transient memory pressure under parallel workers, not bad upstream data. Because raw is write-once and part.parquet exists, a rerun never repairs these days. Each loses about 1% of that day's rows (for example, 2025-02-07 lost the 22:45 UTC file).",
+    "fix": "Retry parse failures in-process before recording them, and do not land a day while any file is fetch-failed or parse-failed (md5 mismatches aside). Add a --repair mode that re-derives days whose sources.json lists non-ok files under a new filter version, since the old one is write-once."
+   },
+   {
+    "title": "Organisation matching is a raw substring match, so is_megacap and the keep filter catch unrelated names",
+    "location": "scripts/multimodal/backfill_gdelt_gkg.py:114 and :140 (substring over the whole lowercased V1ORGANIZATIONS string); flags read in sources.py:153-155",
+    "severity": "low",
+    "evidence": "Measured on 2025-03-12, among rows kept only by organisation (3.5% of that day). Rows tagged 'apple' include 'Temporary water outage planned for Boligee residents Wednesday' and 'Man injured after bullet goes through Appleton home'. Rows tagged 'intel' (matching 'intelligence') include 'Tulsi Gabbard To Visit India During Her Indo-Pacific Trip'. Rows tagged 'amazon' include mattress reviews. Because is_megacap is derived from the stored names, the megacap news subset is diluted.",
+    "fix": "Split V1ORGANIZATIONS on ';' and match whole names, or use word-boundary regexes and an alias table (for example 'apple inc', 'intel corp'). Land the result as a new filter version."
+   }
+  ],
+  "sound": [
+   "GKG 2.1 column positions (record 0, date 1, source 3, URL 4, V1 themes 7, V1 organisations 13, tone 15, extras 26) are correct. On day=2025-09-15, 8 sampled URLs match their page titles and the 7 tone fields have plausible ranges (tone mean -0.88, word count median about 500). known_ts equals gdelt_date plus 15 minutes for all 73,768 rows, and 96/96 files passed the md5 check.",
+   "The known-time rule (file stamp plus 15 minutes) is conservative and applied uniformly. The write-once landing uses land_raw with a .sha256 sidecar.",
+   "utc_to_stamp_seconds matches holdout.to_pacific_stamp on all 1,991 sampled instants from 2019 to 2026 and handles the spring and fall DST switches correctly. The lake's futures clock is Pacific with DST: the CPI 08:30 ET spike lands at the 05:30 stamp in January and July (2016, 2019, 2021, 2023), and the empty hour is 14:00 in both seasons.",
+   "Calendar: all 12 CALENDAR_FAMILIES have normal counts every year 2019-2025, with no same-family, same-session duplicates across market_calendar_v1, fomc_decisions_v1 and the two evidence backfills. Release stamps sit at 05:30, 07:00 and 11:00 Pacific as expected, and the unscheduled FOMC actions of 2019-10-11, 2020-03-03, 2020-03-15 and 2020-03-23 are present.",
+   "Order flow: the (timestamp, contract) join to the rebuilt minutes covers 100% of RTH minutes, and flow volume equals the 1-minute bar volume exactly for MNQ 2019-07, MNQ 2023-03 and NQ 2015-03. Shifting by one minute drops the match to 0.1-0.5%, so the minute bucketing and clock are right. regexp_full_match keeps NQ from matching MNQ symbols or spreads. The unsigned volume share inside RTH is 0.",
+   "load_minutes_rebuilt: raw_close equals the lake's traded close of the chosen contract on 100% of minutes (MNQ 2023-02..04). The back-adjustment is constant within a session and 0 on the latest contract.",
+   "NQ and MNQ are the same price: NQM9 against MNQM9 over 2019-05-06..06-13 (37,928 minutes) gives a median difference of 0, an RTH standard deviation of 0.36 points and an RTH maximum of 2.75.",
+   "Daily cross-asset closes (yfinance ZN, ZB, ZT, GC, HG, DXY) are dated by trading day at 00:00 UTC, Monday to Friday. The searchsorted(... 'left') - 1 step uses only the previous day's bar, so there is no lookahead.",
+   "The NQM0 symbol spans both the 2010 and the 2020 contract in the lake (2010-06 to 2019-04). This is harmless: the 2020 rows are thin (never the volume leader), and contract_sort_key anchors the year on first-seen.",
+   "tests/test_multimodal_features.py passes (3 tests). They are synthetic and do not exercise the sources readers, which is why the 1970 stamping went unnoticed.",
+   "Scratch scripts are in C:\\Users\\tyler\\AppData\\Local\\Temp\\claude\\E--source-repos-ml-dashboard\\10d731be-cdcd-4d72-97d1-7fe7eebfb612\\scratchpad\\review_data\\ (gkg.py, clock.py, era.py, cal.py, flow.py)."
+  ],
+  "verdicts": [
+   {
+    "title": "News readers stamp every GDELT and FinBERT row in January 1970 (microseconds divided as if nanoseconds), and the holdout guard never fires on news",
+    "holds": "yes",
+    "reason": "Reproduced. sources.gdelt_news('2025-06-10','2025-06-11') with the project interpreter (pandas 2.3.3) returned 86,762 rows with known_stamp 1,720,714..1,720,800 s, which is January 1970. Line 149 does `.astype(\"int64\") // 1_000_000_000` and assumes nanoseconds. The landed parquet holds datetime64[us, UTC], so the divisor is wrong by 1000x. A datetime64[ns] column would convert correctly (pandas 2.3.3 gives 1.7495568e18 for 2025-06-10 12:00). I did not run finbert_headlines. Line 177 uses the same `astype(\"int64\") // 1e9` pattern, and pd.to_datetime(..., utc=True) does not force ns, so it fails the same way if that parquet is also us-typed. holdout.guard (holdout.py:79-85) compares known_stamp*1000, about 1.7e9 ms, against HOLDOUT_START_MS = 2025-07-01 (about 1.75e12 ms), so no holdout or forward news row can trip it. The guard is silently disabled for news, and any news_block would show zero counts and NaN tone.",
+    "corrected_fix": "Convert through the unit. In gdelt_news: `ts = pd.to_datetime(news[\"known_ts\"], utc=True); utc = ts.dt.as_unit(\"s\").astype(\"int64\").to_numpy()`. Apply the same change in finbert_headlines. Add two tests. First, feed a datetime64[us, UTC] frame and assert known_stamp falls in [start, end) on the bars' clock. Second, assert HoldoutLocked is raised for a synthetic 2025-08 row."
+   },
+   {
+    "title": "The calendar block is empty for the NQ era, so in the nq_mnq table the calendar columns flag the era and the 'event-day' effect is mostly era difference",
+    "holds": "yes",
+    "reason": "Reproduced. I loaded dataset.load(time, price, flow, cross, context, calendar, history='nq_mnq') read-only and got 252,131 rows, 148,752 of them NQ-era. The NQ-era calendar block is empty: calendar_any_events_today is 0 on 99.9% of NQ rows against 53.0% of MNQ rows, and calendar_any_minutes_since_last_today is NaN on 99.9% of NQ rows against 55.9% of MNQ rows. Base rates match the report. short_r2: pooled no-event win rate 0.2729, MNQ-only no-event 0.2990, MNQ event-day 0.3071. long_r2: pooled no-event 0.3056, MNQ no-event 0.3272, MNQ event-day 0.3206. The mechanism is in the code. features.py:275 does `.map(day_counts).fillna(0)`, so a session with no coverage becomes 'zero events', and the `calendar_fomc_day` line at :278 is 0 by the same route. Lines 268-273 return NaN for the minutes columns. The calendar's start is documented at CP-006 ('NQ-era (2010-2019) calendar is empty by design'), and HISTORY_SOURCES['nq_mnq'] stacks NQ before MNQ. The calendar columns therefore mark the era on the 0/NaN pattern. Within MNQ alone the event effect is +0.008 on short_r2 and negative on long_r2, so most of the pooled +0.034 comes from mixing eras. CP-006 says trial 6 ran on nq_mnq with the calendar block and reports a +0.106 canonical-PF lift over trial 5, so the lift is confounded. Caveat: I did not re-run trial 6, so the size of the true calendar lift is unmeasured. Era is also identifiable from other features, so the lift is not necessarily all era leakage. But a 0 that means 'not covered' is indistinguishable from 'no releases today' in this table, and the reported calendar lift cannot be attributed to calendar information.\", \"corrected_fix\": \"In calendar_block (features.py), take the first covered session from the event stamps (coverage_start_session = (stamps.min() + 9*3600)//86400) and set every calendar_ column, including calendar_*_events_today and calendar_fomc_day, to NaN for sessions before it. Do not use fillna(0) or astype(float) on those rows. Then re-run trial 6 with the masked columns, and again with history='mnq', before counting any calendar lift. Better, source the 2010-2019 BLS, BEA, ISM, UMich and Fed statement releases so the block covers the whole NQ era.\"}\n\n"
+   },
+   {
+    "title": "NQ-era bracket labels are a different, cost-dominated trade: the 4-point stop floor binds on 28-81% of 2010-2017 decisions",
+    "holds": "partly",
+    "reason": "The measurements reproduce. The claim that this is a defect does not, and the pipeline's own numbers point the other way.\n\nI queried the two label tables (long side, reward multiple 2), grouped by year.\n- NQ, 2010-2017: the 4.00-point stop floor binds on 28-81% of decisions (2010 81%, 2011 62%, 2012 73%, 2013 77%, 2014 53%, 2015 28%, 2016 34%, 2017 46%). Median stop is 4.00-5.50 points, median target 12.75-15.75, cost/stop 0.25-0.33, and session-end exits run 6-24%.\n- MNQ, 2020-2025: the floor binds on 0-0.6%. Median stop is 19.5-36.75 points, cost/stop 0.04-0.08, and session-end exits 2-4%.\n\nFour things undercut the claim:\n1. **The win rate is the same in both eras.** The head's binary target is `win = net_points > 0`. Its rate is 27-33% for NQ years and 30-35% for MNQ years, so the target is not systematically different. The floor and the cost-adjusted target formula were designed for exactly this case: they keep the 2:1 net payoff after the 1.39-point cost.\n2. **The model can see the era.** `price_atr_points` (`features.py:61`) is a feature, so a tree model can split on stop size instead of blending the two regimes. That is the same signal that separates the eras with AUC 0.955.\n3. **Only MNQ years are scored.** The canonical evaluation window is 2021Q2 to 2025Q2, so NQ rows only ever act as extra training data.\n4. **Stacking helped like-for-like.** CHECKPOINTS shows trial 3 (`mnq` history, GBDT plus context) at PF 0.886, and trial 4 (`nq_mnq`, same configuration) at PF 0.9515. The features were the same superseded ones in both. One caveat: trial 3 also had a policy tweak, so the two are not strictly identical. Trial 4 was logged as \"not an improvement\" only because it was compared with trial 1 (0.9511). That comparison is conservative bookkeeping, not evidence of harm.\n\nThe premise \"same index, same price\" holds for price. The trade differs in point space, but that is a real property of a fixed-tick, fixed-cost MNQ bracket in a low-price era. It is not a labeling bug. Any fix that rescales the floor or cost changes the instrument being modelled, and MNQ is fixed at 2 dollars per point.\n\nWhat survives is the request to report `history=mnq` beside every `nq_mnq` trial. That is cheap and reasonable as a control, but it is a reporting item, not a demonstrated defect.\n\nNo files were edited and no training or holdout call was made.",
+    "corrected_fix": "Not a labeling defect, so no change to `labels.py`. Keep the 4-point floor and the 1.39-point cost. As a control, run each nq_mnq trial with `--history mnq` on the same features and policy and log both PFs. Optionally add an era indicator or down-weight pre-2018 rows as an ablation, counted as its own trial."
+   }
+  ]
+ }
+]

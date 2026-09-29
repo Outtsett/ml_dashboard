@@ -11,7 +11,8 @@ streams the stdout protocol live and lands its record in the lake:
 4. score every gate criterion on all out-of-sample trades, land the run
    (`derived/multimodal_runs/recipe=<model id>`), count it in the trials ledger.
 
-Families: `gbdt` (LightGBM per head, the baseline) and `fusion` (the multimodal network).
+Families: `gbdt` (LightGBM per head, the baseline), `fusion` (the multimodal network) and
+`ensemble` (the average of the two families' calibrated probabilities).
 """
 
 from __future__ import annotations
@@ -53,7 +54,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--timeframe", default="5m")
     parser.add_argument("--model-id", required=True)
     parser.add_argument("--json", action="store_true")
-    parser.add_argument("--family", default="gbdt", choices=("gbdt", "fusion"))
+    parser.add_argument("--family", default="gbdt", choices=("gbdt", "fusion", "ensemble"))
     parser.add_argument("--blocks", default="time,price,flow,cross")
     parser.add_argument("--first-test-quarter", default="2020Q3")
     parser.add_argument("--history", default="mnq", choices=("mnq", "nq_mnq"))
@@ -83,6 +84,18 @@ def auc(y: np.ndarray, p: np.ndarray) -> float:
 
 
 def fit_family(args, data, fold, heads, probabilities, importances):
+    if args.family == "ensemble":
+        # the average of the two families' calibrated probabilities, head by head
+        separate = {}
+        extra = {}
+        for family in ("gbdt", "fusion"):
+            member = {name: np.full(len(data.keys), np.nan) for name in heads}
+            member_args = argparse.Namespace(**{**vars(args), "family": family})
+            extra.update({f"{family}_{k}": v for k, v in (fit_family(member_args, data, fold, heads, member, importances) or {}).items()})
+            separate[family] = member
+        for name in heads:
+            probabilities[name][fold.test] = (separate["gbdt"][name][fold.test] + separate["fusion"][name][fold.test]) / 2.0
+        return extra
     if args.family == "gbdt":
         from multimodal.models.gbdt import GbdtParameters, HeadModel
 
@@ -136,7 +149,10 @@ def main(argv=None) -> int:
     emit_config({"model": {"family": args.family, "heads": list(HEADS)}, "data": {"symbol": args.symbol, "blocks": blocks},
                  "run": configuration}, scope="run", label=args.model_id)
     try:
-        data = dataset_module.load(blocks, history=args.history, with_sequences=args.family == "fusion")
+        from multimodal.provenance import current as current_provenance
+
+        provenance = current_provenance(blocks, args.history)
+        data = dataset_module.load(blocks, history=args.history, with_sequences=args.family in ("fusion", "ensemble"))
         sessions = data.keys["session"].to_numpy()
         folds = walkforward.folds(sessions, first_test_quarter=args.first_test_quarter)
         emit_log(f"{len(data.keys):,} decision bars, {data.features.shape[1]} features "
@@ -195,10 +211,18 @@ def main(argv=None) -> int:
                                      {"scope": "canonical_2021q2_2025q2", "summary_json": json.dumps(canonical, default=float)}]),
             "importance": importance if not importance.empty else None,
         }, source="src/ml/multimodal/main.py")
-        runs.record_trial(args.model_id, configuration, canonical)
+        runs.record_trial(args.model_id, {**configuration, "provenance": provenance}, canonical)
         out_dir = MODELS_DIR / args.model_id
         out_dir.mkdir(parents=True, exist_ok=True)
+        ablation = {}
+        if not importance.empty and "auc_drop" in importance.columns:
+            token_modality = {"price__token": "price", "time__token": "price", "context__token": "price", "sequence__token": "price",
+                              "flow__token": "flow", "cross__token": "cross", "calendar__token": "calendar", "news__token": "news"}
+            for token, group in importance.dropna(subset=["auc_drop"]).groupby("feature"):
+                ablation.setdefault(token_modality.get(token, token), []).append(float(group["auc_drop"].mean()))
+            ablation = {k: float(np.mean(v)) for k, v in ablation.items()}
         (out_dir / "summary.json").write_text(json.dumps({"all_quarters": summary, "policy_tuned_quarters": summary_tuned, "canonical": canonical,
+                                                            "provenance": provenance, "ablation": ablation or None,
                                                             "folds": fold_rows, "policies": choices, "configuration": configuration,
                                                             "landed": {k: v.get("rows") for k, v in landed.items()}},
                                                            indent=2, default=float), encoding="utf-8")

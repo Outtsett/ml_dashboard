@@ -52,12 +52,20 @@ def synthetic(sessions: int = 30, seed: int = 11):
         "is_stockmarket": rng.random(400) < 0.3, "is_central_bank": rng.random(400) < 0.1, "is_megacap": rng.random(400) < 0.2,
     })
     events = pd.DataFrame({"stamp": ts[::1500] + 17, "family": np.where(np.arange(ts[::1500].size) % 2 == 0, "consumer_price_index", "fomc_statement")})
+    headlines = pd.DataFrame({
+        "known_stamp": np.sort(rng.choice(ts, 300)) + rng.integers(0, 59, 300), "finbert_score": rng.uniform(-1, 1, 300),
+        "copies": rng.integers(1, 5, 300), "is_stockmarket": rng.random(300) < 0.4, "is_central_bank": rng.random(300) < 0.1,
+        "is_megacap": rng.random(300) < 0.3,
+    })
+    news.attrs["headlines"] = headlines
     return minutes, flow, {"ES": es}, daily, news, events
 
 
-def build(minutes, flow, others, daily, news, events):
+def build(minutes, flow, others, daily, news, events, headlines=None):
     bars = decision_bars(minutes)
-    return features.build(bars, flow_minutes=flow, others=others, daily=daily, news=news, events=events, minutes_all=minutes)
+    headlines = news.attrs.get("headlines") if headlines is None else headlines
+    return features.build(bars, flow_minutes=flow, others=others, daily=daily, news=news, events=events, minutes_all=minutes,
+                          headlines=headlines)
 
 
 def truncate(minutes: Minutes, cut_stamp: int) -> Minutes:
@@ -78,6 +86,7 @@ def test_every_feature_block_is_causal():
         daily,   # daily closes are read only from sessions before a bar's session
         news[news["known_stamp"] < cut],
         events,  # scheduled times are known in advance
+        headlines=news.attrs["headlines"][news.attrs["headlines"]["known_stamp"] < cut],
     )
     rows = short.shape[0] - 1    # the prefix's last bar may be partial
     left = full.iloc[:rows].reset_index(drop=True)
@@ -107,3 +116,42 @@ def test_features_do_not_depend_on_the_back_adjusted_level():
     moved = build(shifted, flow, shifted_others, daily, news, events)
     bad = [c for c in base.columns if not np.allclose(pd.to_numeric(base[c], errors="coerce"), pd.to_numeric(moved[c], errors="coerce"), equal_nan=True)]
     assert not bad, f"features that move with the adjusted level: {bad}"
+
+
+def test_unscheduled_events_are_never_forecast_and_the_calendar_is_unknown_before_its_coverage():
+    minutes, *_ = synthetic(sessions=4)
+    bars = decision_bars(minutes)
+    session = bars.frame["session"].to_numpy()
+    day2 = int(np.unique(session)[2])
+    at_noon = day2 * 86400 - 9 * 3600 + 11 * 3600          # session day2's 11:00 on the bars' clock
+    events = pd.DataFrame({"stamp": [at_noon], "family": ["fomc_statement"], "scheduled": [False]})
+    frame = features.calendar_block(bars, events, coverage_start_session=int(np.unique(session)[1]))
+    rows = session == day2
+    assert frame.loc[rows, "calendar_tier_one_minutes_to_next_today"].isna().all()   # a surprise is never counted down to
+    assert (frame.loc[rows, "calendar_fomc_day"] == 0).all()
+    after = rows & (bars.frame["timestamp"].to_numpy() + 300 > at_noon)
+    assert frame.loc[after, "calendar_tier_one_minutes_since_last_today"].notna().all()  # once published, it is known
+    assert frame.loc[session < np.unique(session)[1]].isna().all().all()                  # before coverage: unknown
+
+
+def test_news_outside_its_coverage_is_unknown_not_zero():
+    minutes, flow, others, daily, news, events = synthetic(sessions=3)
+    bars = decision_bars(minutes)
+    close_utc = bars.frame["timestamp"].to_numpy() + 300 + 7 * 3600
+    days = sorted(set(pd.to_datetime(close_utc, unit="s").strftime("%Y-%m-%d")))
+    covered = set(days[1:])                                    # the first day's news did not land
+    frame = features.news_block(bars, news, news.attrs["headlines"], covered_days=covered, decision_close_utc=close_utc)
+    day_of = pd.to_datetime(close_utc, unit="s").strftime("%Y-%m-%d")
+    previous_day = pd.to_datetime(close_utc - 86400, unit="s").strftime("%Y-%m-%d")
+    both_covered = np.array([a in covered and b in covered for a, b in zip(day_of, previous_day)])
+    assert frame.loc[~both_covered].isna().all().all()          # the trailing 24 hours reach an uncovered day
+    assert both_covered.any() and frame.loc[both_covered, "news_all_count_60_minutes"].notna().all()
+
+
+def test_news_timestamps_convert_whatever_their_unit():
+    from multimodal import sources
+
+    stamp = pd.Timestamp("2025-06-10 14:30:00", tz="UTC")
+    for unit in ("ns", "us", "ms"):
+        series = pd.Series([stamp]).astype(f"datetime64[{unit}, UTC]")
+        assert sources.utc_seconds(series)[0] == int(stamp.timestamp())

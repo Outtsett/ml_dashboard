@@ -9,14 +9,15 @@ an expected net result in points,
 (T, S the bracket's target and stop distances, c the round-trip cost, slip the
 stop's extra tick), and walks the session's decision bars in time order:
 
-- one position at a time: a candidate is eligible only if it enters at or after
-  the previous trade's exit;
+- one position at a time: a candidate is eligible only if it enters AFTER the
+  minute in which the previous trade exited (an exit stamped at minute X happens
+  somewhere inside X, which the decision at X's open cannot know);
 - at a decision bar, the best-EV eligible head is taken when its EV exceeds
   ``threshold_points`` and fewer than ``max_trades`` trades were taken today;
 - **every session trades**: if nothing was taken by ``forced_minute`` (Pacific,
-  the decision bar's close) — or by the session's last decision bar, on an
-  early-close holiday — the best-EV head at the first eligible decision bar from
-  then on is taken whatever its EV.
+  the decision bar's close, 07:00 or 09:00 — before even an early-close
+  holiday's last decision at 10:10), the best-EV head at the first eligible
+  decision bar from then on is taken whatever its EV.
 
 All of it is causal: a decision uses only that bar's probabilities and the
 outcome of trades already closed.
@@ -73,11 +74,9 @@ def simulate(dataset: Dataset, rows: np.ndarray, probabilities: dict[str, np.nda
                 continue
             head = dataset.heads[heads[j]]
             row = rows[k]
-            if head.entry_timestamp[row] < free_at:
+            if head.entry_timestamp[row] <= free_at:
                 continue
-            # the forced trade also fires on the session's last decision bar: on an early-close
-            # holiday (a scheduled, exchange-published close) that bar comes before forced_minute
-            forced = taken == 0 and (minute[k] >= parameters.forced_minute or k == end - 1)
+            forced = taken == 0 and minute[k] >= parameters.forced_minute
             if (best > parameters.threshold_points and taken < parameters.max_trades) or forced:
                 trades.append({
                     "row": int(row), "session": int(sessions[k]), "decision_timestamp": int(stamps[k]), "head": heads[j],
@@ -98,7 +97,7 @@ def grid() -> list[PolicyParameters]:
     out = []
     for threshold in (-1.0, 0.0, 1.0, 2.0, 4.0):
         for max_trades in (1, 2, 3, 5):
-            for forced in (7 * 60, 9 * 60, 11 * 60):
+            for forced in (7 * 60, 9 * 60):
                 for heads in (("long_r2", "short_r2"), ("long_r3", "short_r3"), ("long_r2", "short_r2", "long_r3", "short_r3")):
                     out.append(PolicyParameters(threshold, max_trades, forced, heads))
     return out

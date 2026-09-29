@@ -162,13 +162,24 @@ def process_day(day: str, files: list[tuple[int, str, str]]) -> dict:
             sources.append({"url": url, "md5": md5, "bytes": size, "status": f"md5 mismatch ({digest})"})
             continue
         known = stamp_of(url) + timedelta(minutes=15)
-        try:
-            read, kept = parse_file(body, known)
-        except Exception as error:  # noqa: BLE001
-            sources.append({"url": url, "md5": md5, "bytes": size, "status": f"parse failed: {error}"})
+        parsed = None
+        for attempt in range(3):   # a parse failure under memory pressure is transient: retry before giving up
+            try:
+                parsed = parse_file(body, known)
+                break
+            except Exception as error:  # noqa: BLE001
+                failure = error
+                time.sleep(5.0 * (attempt + 1))
+        if parsed is None:
+            sources.append({"url": url, "md5": md5, "bytes": size, "status": f"parse failed: {failure}"})
             continue
+        read, kept = parsed
         rows.extend(kept)
         sources.append({"url": url, "md5": md5, "bytes": size, "status": "ok", "rows_read": read, "rows_kept": len(kept)})
+    if any(source["status"] != "ok" for source in sources):
+        # raw is write-once: a day with a missing file is NOT landed, so a later run retries it whole
+        failed = [source["url"] for source in sources if source["status"] != "ok"]
+        return {"day": day, "status": "incomplete", "files": len(files), "failed_files": len(failed), "first_failure": failed[0]}
     frame = pl.DataFrame(rows, schema={
         "record_id": pl.Utf8, "known_ts": pl.Datetime("us", "UTC"), "gdelt_date": pl.Utf8, "source_name": pl.Utf8,
         "url": pl.Utf8, "page_title": pl.Utf8, "tone": pl.Float64, "tone_positive": pl.Float64,

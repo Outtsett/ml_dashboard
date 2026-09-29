@@ -190,13 +190,51 @@ def cross_block(bars: DecisionBars, others: dict[str, pd.DataFrame], daily: dict
     return out
 
 
-def news_block(bars: DecisionBars, news: pd.DataFrame) -> pd.DataFrame:
-    """`news`: rows with known_stamp (epoch s on the bars' clock), tone, and boolean subset columns
-    (is_stockmarket, is_central_bank, is_megacap)."""
+def _windowed(known: np.ndarray, values: dict[str, np.ndarray], decision_close: np.ndarray, window_seconds: int):
+    """Count and per-value sums of the rows known in [close - window, close) for every decision bar."""
+    end = np.searchsorted(known, decision_close, side="left")
+    start = np.searchsorted(known, decision_close - window_seconds, side="left")
+    count = end - start
+    sums = {}
+    for name, v in values.items():
+        cumulative = np.r_[0.0, np.cumsum(v)]
+        sums[name] = cumulative[end] - cumulative[start]
+    return count, sums
+
+
+def news_block(bars: DecisionBars, news: pd.DataFrame, headlines: pd.DataFrame | None = None,
+               covered_days: set[str] | None = None, decision_close_utc: np.ndarray | None = None) -> pd.DataFrame:
+    """`news`: GDELT rows with known_stamp (epoch s on the bars' clock), tone, and boolean subset columns
+    (is_stockmarket, is_central_bank, is_megacap). `headlines`: FinBERT-scored core headlines
+    (known_stamp, finbert_score, copies, the same subset columns), deduplicated per day.
+
+    `covered_days` (UTC dates whose news landed complete and was scored) with `decision_close_utc`:
+    a bar whose trailing 24 hours reach a day outside the coverage gets NaN in EVERY news column —
+    missing news is unknown, never "no news"."""
     f = bars.frame
     decision_close = f["timestamp"].to_numpy() + 60 * DECISION_MINUTES
     out = pd.DataFrame(index=f.index)
+    covered_rows = None
+    if covered_days is not None and decision_close_utc is not None:
+        today = pd.to_datetime(decision_close_utc, unit="s").strftime("%Y-%m-%d").to_numpy()
+        yesterday = pd.to_datetime(decision_close_utc - 86400, unit="s").strftime("%Y-%m-%d").to_numpy()
+        covered_rows = np.array([a in covered_days and b in covered_days for a, b in zip(today, yesterday)])
+    if headlines is not None and not headlines.empty:
+        h = headlines.sort_values("known_stamp")
+        known_h = h["known_stamp"].to_numpy()
+        score = h["finbert_score"].to_numpy(float)
+        for name, mask in (("all", np.ones(len(h), bool)), ("stockmarket", h["is_stockmarket"].to_numpy(bool)),
+                           ("central_bank", h["is_central_bank"].to_numpy(bool)), ("megacap", h["is_megacap"].to_numpy(bool))):
+            for w in (60, 240, 1440):
+                count, sums = _windowed(known_h[mask], {"score": score[mask], "negative": (score[mask] < -0.5).astype(float),
+                                                        "positive": (score[mask] > 0.5).astype(float)}, decision_close, 60 * w)
+                safe = np.where(count > 0, count, 1)
+                out[f"news_finbert_{name}_mean_{w}_minutes"] = np.where(count > 0, sums["score"] / safe, np.nan)
+                out[f"news_finbert_{name}_net_share_{w}_minutes"] = np.where(count > 0, (sums["positive"] - sums["negative"]) / safe, np.nan)
+                out[f"news_finbert_{name}_count_{w}_minutes"] = count
     if news.empty:
+        if covered_rows is not None:
+            out.loc[~covered_rows, :] = np.nan
         return out
     news = news.sort_values("known_stamp")
     known = news["known_stamp"].to_numpy()
@@ -217,11 +255,18 @@ def news_block(bars: DecisionBars, news: pd.DataFrame) -> pd.DataFrame:
         start = np.searchsorted(k, decision_close - 60 * 60 * 24, side="left")
         out[f"news_{name}_count_24_hours"] = count_cum[end] - count_cum[start]
     out["news_all_burst_60_over_24h"] = out["news_all_count_60_minutes"] / (out["news_all_count_24_hours"] / 24.0).replace(0, np.nan)
+    if covered_rows is not None:
+        out.loc[~covered_rows, :] = np.nan
     return out
 
 
-def calendar_block(bars: DecisionBars, events: pd.DataFrame) -> pd.DataFrame:
-    """`events`: scheduled release times (stamp = epoch s on the bars' clock, family)."""
+def calendar_block(bars: DecisionBars, events: pd.DataFrame, coverage_start_session: int | None = None) -> pd.DataFrame:
+    """`events`: release times (stamp = epoch s on the bars' clock, family, scheduled).
+
+    Forward-looking columns (minutes to the next event, events today, FOMC day) use SCHEDULED
+    events only: an unscheduled statement was unknown until published. Minutes since the last
+    event use every event (a published one is known). Sessions before `coverage_start_session`
+    are outside the sourced calendar: every column is NaN there, never "no event"."""
     f = bars.frame
     decision_close = f["timestamp"].to_numpy() + 60 * DECISION_MINUTES
     session = f["session"].to_numpy()
@@ -230,26 +275,36 @@ def calendar_block(bars: DecisionBars, events: pd.DataFrame) -> pd.DataFrame:
         return out
     # only families recorded in every year of the history, so a count means the same thing throughout
     events = events[events["family"].isin(CALENDAR_FAMILIES)].sort_values("stamp")
+    scheduled = events["scheduled"].to_numpy(bool) if "scheduled" in events else np.ones(len(events), bool)
     stamps = events["stamp"].to_numpy()
     families = events["family"].to_numpy()
     event_session = (stamps + 9 * 3600) // 86400
     tier_one = np.isin(families, CALENDAR_TIER_ONE)
-    for name, mask in (("any", np.ones(len(events), bool)), ("tier_one", tier_one)):
-        s = stamps[mask]
-        es = event_session[mask]
-        nxt = np.searchsorted(s, decision_close, side="left")
-        prv = nxt - 1
-        next_stamp = np.where(nxt < s.size, s[np.minimum(nxt, s.size - 1)], np.nan)
-        prev_stamp = np.where(prv >= 0, s[np.maximum(prv, 0)], np.nan)
-        next_same_session = np.where(nxt < s.size, es[np.minimum(nxt, s.size - 1)] == session, False)
-        prev_same_session = np.where(prv >= 0, es[np.maximum(prv, 0)] == session, False)
-        out[f"calendar_{name}_minutes_to_next_today"] = np.where(next_same_session, (next_stamp - decision_close) / 60.0, np.nan)
-        out[f"calendar_{name}_minutes_since_last_today"] = np.where(prev_same_session, (decision_close - prev_stamp) / 60.0, np.nan)
+    for name, family_mask in (("any", np.ones(len(events), bool)), ("tier_one", tier_one)):
+        known_ahead = family_mask & scheduled
+        s, es = stamps[known_ahead], event_session[known_ahead]
+        if s.size:
+            nxt = np.searchsorted(s, decision_close, side="left")
+            next_stamp = np.where(nxt < s.size, s[np.minimum(nxt, s.size - 1)], np.nan)
+            next_same_session = np.where(nxt < s.size, es[np.minimum(nxt, s.size - 1)] == session, False)
+            out[f"calendar_{name}_minutes_to_next_today"] = np.where(next_same_session, (next_stamp - decision_close) / 60.0, np.nan)
+        else:
+            out[f"calendar_{name}_minutes_to_next_today"] = np.nan
         day_counts = pd.Series(es).value_counts()
         out[f"calendar_{name}_events_today"] = pd.Series(session).map(day_counts).fillna(0).to_numpy()
-    fomc = stamps[families == "fomc_statement"]
+        s_all, es_all = stamps[family_mask], event_session[family_mask]
+        if s_all.size:
+            prv = np.searchsorted(s_all, decision_close, side="left") - 1
+            prev_stamp = np.where(prv >= 0, s_all[np.maximum(prv, 0)], np.nan)
+            prev_same_session = np.where(prv >= 0, es_all[np.maximum(prv, 0)] == session, False)
+            out[f"calendar_{name}_minutes_since_last_today"] = np.where(prev_same_session, (decision_close - prev_stamp) / 60.0, np.nan)
+        else:
+            out[f"calendar_{name}_minutes_since_last_today"] = np.nan
+    fomc = stamps[(families == "fomc_statement") & scheduled]
     fomc_sessions = set(((fomc + 9 * 3600) // 86400).tolist())
     out["calendar_fomc_day"] = np.isin(session, list(fomc_sessions)).astype(float)
+    if coverage_start_session is not None:
+        out.loc[session < coverage_start_session, :] = np.nan
     return out
 
 
@@ -327,7 +382,7 @@ def time_block(bars: DecisionBars) -> pd.DataFrame:
 
 def build(bars: DecisionBars, *, flow_minutes: pd.DataFrame | None = None, others: dict | None = None,
           daily: dict | None = None, news: pd.DataFrame | None = None, events: pd.DataFrame | None = None,
-          minutes_all: Minutes | None = None) -> pd.DataFrame:
+          minutes_all: Minutes | None = None, headlines: pd.DataFrame | None = None) -> pd.DataFrame:
     """All blocks side by side, one row per 5-minute RTH bar (decision rows marked by `is_decision`)."""
     parts = [bars.frame[["timestamp", "session", "is_decision"]].rename(columns={"timestamp": "decision_timestamp"}),
              time_block(bars), price_block(bars)]
@@ -338,7 +393,7 @@ def build(bars: DecisionBars, *, flow_minutes: pd.DataFrame | None = None, other
     if others or daily:
         parts.append(cross_block(bars, others or {}, daily or {}))
     if news is not None:
-        parts.append(news_block(bars, news))
+        parts.append(news_block(bars, news, headlines))
     if events is not None:
         parts.append(calendar_block(bars, events))
     return pd.concat(parts, axis=1)

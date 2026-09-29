@@ -138,3 +138,30 @@ Resume rule after any break or compaction: read `PLAN.md`, then the last three e
   megacap headlines, deduplicated per day, batched fp16 at ~1,470 headlines/s (the datalake class ran 200/s); runs
   once the backfill reaches the development years.
 - Next: trial 7 = fusion on all six modalities; then news (tone + FinBERT) when the backfill lands.
+
+## CP-007 · 2026-09-29 · adversarial review before any holdout look; framework v3
+
+- Review (3 opus reviewers + sonnet verifiers, read-only; full record `evidence/review_2026_09_29.json`). Confirmed
+  and fixed:
+  - **policy re-entry** in the minute the previous trade was still exiting (future information, two positions):
+    827 of 18,906 trades in trials 1-6, avg -6.05 points; now an entry must come after the exit minute.
+  - **news clock**: microseconds read as nanoseconds put every news row in January 1970 (no trial used news yet);
+    `sources.utc_seconds` converts any unit; tested for ns/us/ms.
+  - **coverage**: calendar columns are NaN before the sourced calendar (2019-05-01) instead of "no event"; news
+    columns are NaN on any bar whose trailing 24 h reach a day not landed complete and scored.
+  - **unscheduled FOMC statements** (2019-10-11, 2020-03-03 ...) no longer feed forward-looking calendar columns.
+  - **incomplete sessions** (data ends before 10:00 PT: 43 per instrument) are left out of the labels; the forced
+    trade no longer fires on "the last row" (grid forced times 07:00 / 09:00, before any early close).
+  - **target fills** need one tick of trade-through (measured effect: target rate 0.2953 → 0.2934).
+  - **gate**: fusion/ensemble candidates keep their sequence input; G5 uses the DEVELOPMENT quarters (plan wording);
+    G6 counts data modalities (time/context belong to price) and requires a recorded ablation per modality;
+    runs record provenance (commit, code hash, table versions) and the gate refuses a candidate whose inputs changed.
+  - one assembly path (`multimodal.assemble`) for development tables and the gate's holdout build; daily closes are
+    cut at the development end unless the gate has unlocked the holdout; backfill retries parse failures and never
+    lands a partial day.
+  - Not a defect (verifier): NQ-era labels are a cost-dominated trade (4-point stop floor on 28-81% of 2010-2017
+    decisions) — real, reported; canonical trials now use `history=mnq`, nq_mnq only as a control.
+- Rebuilt: labels MNQ 406,700 rows / 1,545 sessions, NQ 588,992 / 2,238; all feature tables (MNQ, NQ). CI green
+  (44 tests incl. the gate consistency test on the shared assembly). Base rates unchanged in substance (PF 0.88-0.95).
+- Trials 1-6 ran under the flawed policy and features: all superseded (still counted: 6 of 24 used). Trial 7 was
+  killed with its server session before recording (not counted). Best on framework v3: none yet.

@@ -33,17 +33,16 @@ SRC_ML = Path(__file__).resolve().parents[1]
 if str(SRC_ML) not in sys.path:
     sys.path.insert(0, str(SRC_ML))
 
-from multimodal import dataset as dataset_module  # noqa: E402
 from multimodal import (  # noqa: E402
-    features,
+    assemble,
     holdout,
     labels,
     metrics,
     policy,
     runs,
-    sources,
     walkforward,
 )
+from multimodal import dataset as dataset_module  # noqa: E402
 from multimodal.data import decision_bars, load_minutes  # noqa: E402
 from multimodal.dataset import Dataset, Head, head_name  # noqa: E402
 
@@ -52,38 +51,27 @@ HOLDOUT_START, HOLDOUT_END = "2025-07-01", "2025-12-31"
 LEAD_IN_START = "2025-05-01"     # warm-up bars before the holdout (ATR, 20-session statistics); never scored
 
 
-def build_period(start: str, end: str, lead_in_start: str, blocks: list[str]) -> Dataset:
-    """Features and labels for [start, end) built in memory the way the development tables were built.
-    The lead-in [lead_in_start, start) warms the trailing statistics and is dropped."""
+def build_period(start: str, end: str, lead_in_start: str, blocks: list[str], with_sequences: bool = False) -> Dataset:
+    """Features and labels for [start, end) built in memory by the same assembly as the development
+    tables (multimodal.assemble). The lead-in [lead_in_start, start) warms the trailing statistics,
+    feeds the sequence windows, and is never scored."""
     minutes = load_minutes(lead_in_start, end)
     bars = decision_bars(minutes)
-    parts = [bars.frame[["timestamp", "session", "is_decision"]].rename(columns={"timestamp": "decision_timestamp"})]
-    for block in blocks:
-        if block == "time":
-            parts.append(features.time_block(bars))
-        elif block == "price":
-            parts.append(features.price_block(bars))
-        elif block == "flow":
-            parts.append(features.flow_block(bars, sources.flow_minutes(lead_in_start, end)))
-        elif block == "cross":
-            others = {root: sources.other_minutes(root, lead_in_start, end) for root in ("ES", "RTY", "YM")}
-            parts.append(features.cross_block(bars, others, sources.daily_closes(["ZN", "ZB", "ZT", "GC", "HG", "DXY"])))
-        elif block == "context":
-            parts.append(features.context_block(bars, minutes))
-        elif block == "calendar":
-            parts.append(features.calendar_block(bars, sources.calendar_events()))
-        elif block == "news":
-            parts.append(features.news_block(bars, sources.gdelt_news(lead_in_start, end)))
-        else:
-            raise ValueError(f"unknown block {block!r}")
-    frame = pd.concat(parts, axis=1)
+    frames = {block: assemble.block_frame(block, bars, minutes, lead_in_start, end) for block in blocks}
+    frame = pd.concat([bars.frame[["timestamp", "session", "is_decision"]].rename(columns={"timestamp": "decision_timestamp"}),
+                       *frames.values()], axis=1)
+    all_bar_stamps = frame["decision_timestamp"].to_numpy()
     start_stamp = int(pd.Timestamp(start).timestamp())
-    frame = frame[frame["is_decision"] & (frame["decision_timestamp"] >= start_stamp)].reset_index(drop=True)
     outcomes = labels.label(bars)
     outcomes = outcomes[outcomes["decision_timestamp"] >= start_stamp]
-    frame = frame[frame["decision_timestamp"].isin(outcomes["decision_timestamp"].unique())].reset_index(drop=True)
-    keys = frame[["decision_timestamp", "session"]].copy()
-    data = Dataset(keys=keys, features=frame.drop(columns=["decision_timestamp", "session", "is_decision"]).astype("float32"))
+    decisions = frame[frame["is_decision"] & (frame["decision_timestamp"] >= start_stamp)
+                      & frame["decision_timestamp"].isin(outcomes["decision_timestamp"].unique())].reset_index(drop=True)
+    keys = decisions[["decision_timestamp", "session"]].copy()
+    data = Dataset(keys=keys, features=decisions.drop(columns=["decision_timestamp", "session", "is_decision"]).astype("float32"))
+    if with_sequences:
+        data.sequence_bars, data.sequence_columns = assemble.sequence_frame(bars, frames, dataset_module.SEQUENCE_COLUMNS)
+        position = pd.Series(np.arange(all_bar_stamps.size), index=all_bar_stamps)
+        data.sequence_index = position.reindex(keys["decision_timestamp"].to_numpy()).to_numpy(np.int64)
     index = pd.Index(keys["decision_timestamp"].to_numpy())
     for reward in (2.0, 3.0):
         for side in (1, -1):
@@ -103,7 +91,18 @@ def concatenate(first: Dataset, second: Dataset) -> Dataset:
         other = second.heads[name]
         out.heads[name] = Head(head.side, head.reward_multiple, *(np.concatenate([getattr(head, f), getattr(other, f)]) for f in
                                ("win", "net_points", "stop_points", "target_points", "entry_timestamp", "exit_timestamp", "available")))
+    if first.sequence_bars is not None and second.sequence_bars is not None:
+        if tuple(first.sequence_columns) != tuple(second.sequence_columns):
+            raise ValueError(f"sequence channels differ: {first.sequence_columns} vs {second.sequence_columns}")
+        out.sequence_columns = first.sequence_columns
+        out.sequence_bars = np.concatenate([first.sequence_bars, second.sequence_bars])
+        out.sequence_index = np.concatenate([first.sequence_index, second.sequence_index + first.sequence_bars.shape[0]])
     return out
+
+
+# Data modalities: time and context are derived from the MNQ bars themselves, so they belong to price.
+MODALITY_OF_BLOCK = {"time": "price", "price": "price", "context": "price", "flow": "flow", "cross": "cross",
+                     "calendar": "calendar", "news": "news"}
 
 
 def fixed_policy(trial: str, development: Dataset) -> tuple[policy.PolicyParameters, float]:
@@ -142,13 +141,20 @@ def main(argv=None) -> int:
     configuration = record["configuration"]
     blocks = [b for b in configuration["blocks"].split(",") if b]
     history = configuration.get("history", "mnq")
-    development = dataset_module.load(blocks, history=history)
+    with_sequences = configuration["family"] in ("fusion", "ensemble")
+    # the candidate must be re-run on exactly the inputs and code it was developed on
+    from multimodal.provenance import current as current_provenance
+
+    recorded, now = record.get("provenance"), current_provenance(blocks, history)
+    if recorded is None or recorded != now:
+        raise SystemExit(f"refusing the look: the candidate's provenance differs from the current code/tables\n recorded {recorded}\n current  {now}")
+    development = dataset_module.load(blocks, history=history, with_sequences=with_sequences)
     chosen, development_net = fixed_policy(args.trial, development)
     print(f"candidate {args.trial}: family {configuration['family']}, blocks {blocks}, history {history}")
     print(f"policy fixed from its development record: {chosen} (development net {development_net:,.1f} points)")
 
     with holdout.look(f"acceptance gate for {args.trial}: {args.reason}"):
-        period = build_period(HOLDOUT_START, HOLDOUT_END, LEAD_IN_START, blocks)
+        period = build_period(HOLDOUT_START, HOLDOUT_END, LEAD_IN_START, blocks, with_sequences=with_sequences)
         combined = concatenate(development, period)
         n_dev = len(development.keys)
         sessions = combined.keys["session"].to_numpy()
@@ -167,8 +173,16 @@ def main(argv=None) -> int:
         trades = policy.simulate(combined, fold.test, probabilities, chosen)
         quarter_of_session = {int(s): q for s, q in zip(sessions[fold.test], walkforward.quarter_of(sessions[fold.test]))}
         summary = metrics.summary(trades, sessions[fold.test], quarter_of_session)
-    modalities = sorted({c.split("_", 1)[0] for c in combined.features.columns})
-    summary["gate"]["G6"] = len(modalities) > 1
+    # G5 as the plan defines it: the holdout's bootstrap and stress, and >= 75% of DEVELOPMENT quarters positive
+    development_quarters = float(record["canonical"].get("quarters_positive_share") or 0.0)
+    summary["development_quarters_positive_share"] = development_quarters
+    summary["gate"]["G5"] = bool(summary.get("bootstrap_total_points_lower_95", -1) > 0 and summary.get("stressed_net_profit_usd", -1) > 0
+                                 and development_quarters >= metrics.QUARTERS_POSITIVE_MINIMUM)
+    # G6: two or more DATA modalities, and each one's contribution measured on the development record
+    modalities = sorted({MODALITY_OF_BLOCK[b] for b in blocks})
+    ablation = record.get("ablation") or {}
+    summary["data_modalities"] = modalities
+    summary["gate"]["G6"] = bool(len(modalities) >= 2 and all(m in ablation for m in modalities))
     verdict = all(summary["gate"].values())
     print(json.dumps({k: v for k, v in summary.items() if k != "quarter_net_points"}, indent=1, default=float))
     print(f"VERDICT: {'PASS' if verdict else 'FAIL'} — {summary['gate']}")

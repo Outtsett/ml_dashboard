@@ -89,6 +89,11 @@ def guard(timestamps_ms: np.ndarray, clock: str = "pacific_stamp", what: str = "
         )
 
 
+def is_unlocked(period: str) -> bool:
+    """Whether the gate currently holds `period` open (inside `look`)."""
+    return period in _unlocked
+
+
 def development_end_ms() -> int:
     """The first instant the development period may not reach."""
     return HOLDOUT_START_MS
