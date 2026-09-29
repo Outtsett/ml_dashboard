@@ -342,6 +342,90 @@
       },
       "goal_ticks_per_session_day": 600,
       "profile": "seasonality.build: 5-minute buckets of the 15:00-14:00 Pacific session; shape = half last-120-session mean, half last-40-same-weekday mean, of each bucket's mean |1-minute return| over its session's mean, from sessions strictly before; level = EWMA (half-life 60 minutes) of |r| / shape; expected range = sqrt(8/pi) x sqrt(pi/2) x level x sqrt(sum of shape^2 over the horizon) x price."
+    },
+    "6": {
+      "mode": "confirmation",
+      "symbol": "NQ",
+      "cost_symbol": "MNQ",
+      "data_start": "2010-06-01",
+      "data_end": "2019-06-01",
+      "timeframe": "5m",
+      "primary_endpoint": {
+        "statistic": "equal-weight pooled daily excess over matched random entries",
+        "trim_each_tail": 0.01,
+        "sub_periods": 4
+      },
+      "pass_criteria": {
+        "pooled_excess_newey_west_t_minimum": 2.0,
+        "trimmed_pooled_excess_newey_west_t_minimum": 2.0,
+        "sub_periods_positive_minimum": 3
+      },
+      "nulls": {
+        "matched_seeds": 40,
+        "random_side_replicates": 40
+      },
+      "costs": {
+        "stop_slippage_ticks": 1
+      },
+      "goal_ticks_per_session_day": 600,
+      "review_source": "round 5 (recipe round_5_20260929T195018): the only template with positive stitched out-of-sample excess and t >= 2",
+      "calendar_note": "NQ 2010-01..2019-04 release days come from docs/plans/2026-09-29-multimodal/evidence/calendar_2010_2019.json (CPI, NFP and FOMC only); neither frozen spec reads a release flag, so this affects nothing here.",
+      "title": "Pre-registered confirmation: the time-of-day seasonal breakout (RTH) frozen, on untouched NQ 2010-06..2019-06",
+      "hypothesis": "seasonal_breakout_rth, frozen at the parameters its 2025 walk-forward fold chose on MNQ 2019-2024, earns positive excess over matched random entries on NQ 2010-06..2019-06 (never used to tune anything) by the pre-registered rule: Newey-West t >= 2, trimmed t >= 2, and at least 3 of 4 sub-periods positive. Written before the run.",
+      "frozen": [
+        {
+          "name": "seasonal_breakout_rth",
+          "template": "seasonal_breakout_rth",
+          "params": {
+            "n_break": 6,
+            "rise_ratio": 1.0,
+            "stop_mult": 0.9,
+            "target_r": 2.0,
+            "fall_ratio": 0.9
+          }
+        }
+      ]
+    },
+    "7": {
+      "mode": "confirmation",
+      "symbol": "NQ",
+      "cost_symbol": "MNQ",
+      "data_start": "2010-06-01",
+      "data_end": "2019-06-01",
+      "timeframe": "5m",
+      "primary_endpoint": {
+        "statistic": "equal-weight pooled daily excess over matched random entries",
+        "trim_each_tail": 0.01,
+        "sub_periods": 4
+      },
+      "pass_criteria": {
+        "pooled_excess_newey_west_t_minimum": 2.0,
+        "trimmed_pooled_excess_newey_west_t_minimum": 2.0,
+        "sub_periods_positive_minimum": 3
+      },
+      "nulls": {
+        "matched_seeds": 40,
+        "random_side_replicates": 40
+      },
+      "costs": {
+        "stop_slippage_ticks": 1
+      },
+      "goal_ticks_per_session_day": 600,
+      "review_source": "round 5 (recipe round_5_20260929T195018): the only template with positive stitched out-of-sample excess and t >= 2",
+      "calendar_note": "NQ 2010-01..2019-04 release days come from docs/plans/2026-09-29-multimodal/evidence/calendar_2010_2019.json (CPI, NFP and FOMC only); neither frozen spec reads a release flag, so this affects nothing here.",
+      "title": "Comparator for round 6: the same breakout with a trailing-ATR stop and no time-of-day conditions, frozen, NQ 2010-06..2019-06",
+      "hypothesis": "atr_breakout_control_rth frozen at its 2025-fold parameters. Reported beside round 6: the pre-registered secondary comparison is the paired daily net difference (round 6 minus round 7) with its Newey-West t; the seasonal accounting is credited only if that t >= 2. Written before either run.",
+      "frozen": [
+        {
+          "name": "atr_breakout_control_rth",
+          "template": "atr_breakout_control_rth",
+          "params": {
+            "n_break": 5,
+            "stop_atr": 2.0,
+            "target_r": 1.5
+          }
+        }
+      ]
     }
   }
 }
