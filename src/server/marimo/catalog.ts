@@ -13,10 +13,15 @@
  * before 2026-09-15 it was simply absent from the dashboard with nothing said.
  */
 
+import { createHash } from "crypto";
 import { readdirSync, readFileSync, statSync } from "fs";
 import path from "path";
 import { Logger } from "@nestjs/common";
 import { configChangedOnDisk, loadNotebooksConfig, type NotebookGroup, type NotebookRoot } from "./config";
+import { countCells, extractDatasets, type DatasetReference } from "./lineage";
+import { cachedGitState, type GitState } from "./git";
+import { getServingViewNames } from "../infrastructure/database/questdb/connection";
+import { derivedViews } from "../infrastructure/database/questdb/derivedDatasets";
 
 const logger = new Logger("MarimoCatalog");
 
@@ -24,6 +29,9 @@ const DETECT_WINDOW_BYTES = 64 * 1024;
 const MARIMO_MARKER = "marimo.App(";
 
 export interface NotebookEntry {
+  /** Stable short id (first 12 hex characters of the SHA-1 of the lower-cased
+   *  absolute path) — what a link `/marimo?notebook=<id>` carries. */
+  id: string;
   /** Absolute filesystem path. */
   path: string;
   groupSlug: string;
@@ -42,11 +50,36 @@ export interface NotebookEntry {
   createdAtIso: string;
   /** The URL to open this notebook through the proxy (gallery mode, ?file=). */
   url: string;
+  /** Lake sources the code names (lineage.ts), read from source, never by running it. */
+  datasets: DatasetReference[];
+  cellCount: number;
+  /** Whether git has recorded the file as it is on disk — as of the last git
+   *  refresh; the list route refreshes it before it answers (git.ts). */
+  gitState: GitState;
 }
 
 export interface CatalogResult {
   notebooks: NotebookEntry[];
   scannedAtIso: string;
+}
+
+/** Source text of every catalogued notebook, kept from the scan so a search
+ *  inside cells reads memory rather than 50 files per keystroke. */
+const sourcesByPath = new Map<string, string>();
+
+export function notebookId(absolutePath: string): string {
+  const normalized = path.resolve(absolutePath).toLowerCase();
+  return createHash("sha1").update(normalized).digest("hex").slice(0, 12);
+}
+
+/** Every table name the serving layer has defined so far — empty until the
+ *  dashboard's DuckDB has been used, which lineage.ts covers with its own list. */
+function knownServingTables(): Set<string> {
+  try {
+    return new Set([...getServingViewNames(), ...derivedViews().map((view) => view.viewName)]);
+  } catch {
+    return new Set();
+  }
 }
 
 /** True on Windows, where the filesystem is case-insensitive so path
@@ -125,7 +158,11 @@ const SKIP_DIRECTORIES = new Set([
  *  not a whole repository, so this is generous rather than unbounded. */
 const MAX_SCAN_DEPTH = 3;
 
-function scanRoot(group: NotebookGroup, root: NotebookRoot, directory = root.path, depth = 0): NotebookEntry[] {
+interface ScanContext {
+  servingTables: Set<string>;
+}
+
+function scanRoot(group: NotebookGroup, root: NotebookRoot, context: ScanContext, directory = root.path, depth = 0): NotebookEntry[] {
   let names: string[];
   try {
     names = readdirSync(directory);
@@ -150,7 +187,7 @@ function scanRoot(group: NotebookGroup, root: NotebookRoot, directory = root.pat
     // not in the list, which is the hardest kind of missing to notice.
     if (stats.isDirectory()) {
       if (depth >= MAX_SCAN_DEPTH || SKIP_DIRECTORIES.has(name) || name.startsWith(".")) continue;
-      entries.push(...scanRoot(group, root, filePath, depth + 1));
+      entries.push(...scanRoot(group, root, context, filePath, depth + 1));
       continue;
     }
     if (!stats.isFile() || !name.endsWith(".py")) continue;
@@ -168,7 +205,9 @@ function scanRoot(group: NotebookGroup, root: NotebookRoot, directory = root.pat
     const { title, description } = extractTitleAndDescription(source, stem);
     const relative = path.relative(root.path, filePath).split(path.sep).join("/");
 
+    sourcesByPath.set(absolutePath, source);
     entries.push({
+      id: notebookId(absolutePath),
       path: absolutePath,
       groupSlug: group.slug,
       category: root.category,
@@ -180,6 +219,9 @@ function scanRoot(group: NotebookGroup, root: NotebookRoot, directory = root.pat
       modifiedAtIso: stats.mtime.toISOString(),
       createdAtIso: (stats.birthtimeMs > 0 ? stats.birthtime : stats.mtime).toISOString(),
       url: `/marimo/${group.slug}/?file=${encodeURIComponent(absolutePath)}`,
+      datasets: extractDatasets(source, context.servingTables),
+      cellCount: countCells(source),
+      gitState: cachedGitState(absolutePath),
     });
   }
   return entries;
@@ -188,9 +230,11 @@ function scanRoot(group: NotebookGroup, root: NotebookRoot, directory = root.pat
 export function scanCatalog(): CatalogResult {
   const config = loadNotebooksConfig();
   const notebooks: NotebookEntry[] = [];
+  const servingTables = knownServingTables();
+  sourcesByPath.clear();
   for (const group of config.groups) {
     for (const root of group.roots) {
-      notebooks.push(...scanRoot(group, root));
+      notebooks.push(...scanRoot(group, root, { servingTables }));
     }
   }
   // Newest work first: the notebook you just wrote is the one you want to open,
@@ -233,4 +277,9 @@ export function getGroupNotebookPaths(slug: string): string[] {
 export function findNotebookByPath(absolutePath: string): NotebookEntry | undefined {
   const needle = normalizeForCompare(absolutePath);
   return getCatalog().notebooks.find((n) => normalizeForCompare(n.path) === needle);
+}
+
+/** The source read by the last scan, for a search inside cells. */
+export function notebookSource(absolutePath: string): string | undefined {
+  return sourcesByPath.get(path.resolve(absolutePath));
 }

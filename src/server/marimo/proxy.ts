@@ -19,6 +19,7 @@ import type { Socket } from "net";
 import { createProxyMiddleware, type RequestHandler } from "http-proxy-middleware";
 import { Logger } from "@nestjs/common";
 import { loadNotebooksConfig } from "./config";
+import { noteRequest, noteSocket } from "./activity";
 
 const logger = new Logger("MarimoProxy");
 
@@ -29,6 +30,11 @@ const proxiesBySlug = new Map<string, MarimoProxyHandler>();
 /** Pure — extracts the group slug from a request URL, or null when the URL
  *  is not one of ours. Exported so the dispatch logic is unit-testable
  *  without a real HTTP server or socket. */
+export function isGroupPath(pathname: string, slug: string): boolean {
+  const base = `/marimo/${slug}`;
+  return pathname === base || pathname.startsWith(`${base}/`) || pathname.startsWith(`${base}?`);
+}
+
 export function matchMarimoSlug(url: string | undefined | null): string | null {
   if (!url) return null;
   const match = /^\/marimo\/([a-z0-9][a-z0-9-]*)(?:\/|\?|$)/.exec(url);
@@ -47,12 +53,21 @@ export function registerMarimoProxies(app: Express, httpServer: Server): void {
   ];
 
   for (const { slug, port } of targets) {
+    const base = `/marimo/${slug}`;
     const proxy = createProxyMiddleware({
       target: `http://127.0.0.1:${port}`,
       changeOrigin: true,
-      pathFilter: `/marimo/${slug}`,
+      // A function, not the string `/marimo/<slug>`: the string form is a plain
+      // prefix match, so the `quant` proxy (mounted first) also took every
+      // `/marimo/quantlab/…` request and sent it to the quant group's port.
+      pathFilter: (pathname) => isGroupPath(pathname, slug),
     }) as MarimoProxyHandler;
     proxiesBySlug.set(slug, proxy);
+    // Every request to a group is use of it: the idle sweep reads this clock.
+    app.use(base, (_req, _res, next) => {
+      noteRequest(slug);
+      next();
+    });
     app.use(proxy);
   }
 
@@ -66,6 +81,7 @@ export function registerMarimoProxies(app: Express, httpServer: Server): void {
       socket.destroy();
       return;
     }
+    noteSocket(slug, socket as Socket);
     proxy.upgrade(req, socket as Socket, head);
   });
 

@@ -2,353 +2,342 @@
  * Notebooks — every marimo notebook on this machine, served in place.
  *
  * Each notebook belongs to a group (one Python environment and working
- * directory, one pinned port, one `marimo run` process). Selecting a notebook
- * starts its group if it is not already up, then shows the notebook itself in
- * an iframe on this origin — the dashboard proxies /marimo/<group>/ so the
- * page, its websocket and its assets are all same-origin.
+ * directory, one pinned port, one `marimo run` process). Opening a notebook
+ * starts its group if it is not already up and shows the notebook in a tab; up
+ * to six tabs stay open, each frame kept alive. The dashboard proxies
+ * /marimo/<group>/ so the page, its websocket and its assets are same-origin.
+ *
+ * The library beside it searches titles or the code inside every cell, filters
+ * by category, health, uncommitted work and the lake data a notebook reads, and
+ * keeps pinned notebooks at the top (their environments start with the
+ * dashboard). The open notebook is in the URL (`?notebook=<id or path>`), so a
+ * reload or a link from another page lands on it.
  */
 
-import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { NotebookPen, Pencil, RefreshCw, Square } from "lucide-react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useSearch } from "wouter";
+import { FilePlus2, NotebookPen, RefreshCw, Stethoscope, XCircle } from "lucide-react";
 import { PageShell } from "@/backtest/components";
-import { Button } from "@/shared/ui/button";
-import { Input } from "@/shared/ui/input";
-import { useToast } from "@/shared/hooks/use-toast";
-import { cn } from "@/shared/utils/utils";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/shared/ui/resizable";
+import {
+  useCancelHealthChecks,
+  useCreateNotebook,
+  useHealthCheck,
+  useNotebookCatalog,
+  useNotebookSearch,
+  useOpenEditor,
+  usePendingStarts,
+  useRescan,
+  useStartGroup,
+  useStopGroup,
+  useTogglePin,
+} from "./api";
+import { healthView, LIVE_FRAMES, openTab, resolveNotebookReference, selectNotebooks, touchRecent, type HealthView, type SortOrder } from "./format";
+import { NotebookList, type SearchMode } from "./NotebookList";
+import { EnvironmentPanel } from "./EnvironmentPanel";
+import { NotebookTabs } from "./NotebookTabs";
+import { NewNotebookDialog } from "./NewNotebookDialog";
+import type { GroupEntry, NotebookEntry, OpenTab } from "./types";
 
-interface NotebookEntry {
-  path: string;
-  groupSlug: string;
-  category: string;
-  repoLabel: string;
-  relativePath: string;
-  title: string;
-  description: string;
-  sizeBytes: number;
-  modifiedAtIso: string;
-  createdAtIso: string;
-  url: string;
+const TABS_STORAGE_KEY = "notebook-tabs-v1";
+const VIEW_STORAGE_KEY = "notebook-view-v1";
+
+function readStored<T>(key: string, fallback: T): T {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? { ...fallback, ...(JSON.parse(raw) as T) } : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
-interface GroupEntry {
-  slug: string;
-  label: string;
-  python: string;
-  cwd: string;
-  port: number;
-  status: "stopped" | "starting" | "ready" | "error";
-  error?: string;
-}
-
-interface CatalogResponse {
-  groups: GroupEntry[];
-  notebooks: NotebookEntry[];
-}
-
-/** Local date and time, to the minute: "15 Sep 2026, 21:54". The catalog sends
- *  UTC ISO strings; a research library is read in the clock you worked in. */
-function whenLabel(iso: string): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return "unknown";
-  return at.toLocaleString(undefined, {
-    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
-  });
-}
-
-/** The local calendar day a timestamp falls on, as YYYY-MM-DD. Bucketing on the
- *  UTC date instead put 2026-09-16 06:01 UTC and 2026-09-15 23:31 UTC in
- *  different groups that both rendered as "Today", because the label is local
- *  and the key was not. */
-function localDayKey(iso: string): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return "unknown";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
-}
-
-/** Today / Yesterday / the date — the heading a notebook is filed under. */
-function dayBucket(iso: string): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return "Undated";
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const days = Math.round((startOfDay(new Date()) - startOfDay(at)) / 86_400_000);
-  if (days === 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 7) return `${days} days ago`;
-  return at.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
-}
-
-const STATUS_WORDS: Record<GroupEntry["status"], string> = {
-  stopped: "not running",
-  starting: "starting…",
-  ready: "running",
-  error: "failed",
-};
-
-async function postJson<T>(url: string, body?: unknown): Promise<T> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: body ? { "Content-Type": "application/json" } : {},
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const parsed = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof parsed?.error === "string" ? parsed.error : `${response.status} ${response.statusText}`);
-  return parsed as T;
+function writeStored(key: string, value: unknown): void {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Private window or blocked storage: the tab still works, it just forgets.
+  }
 }
 
 export default function MarimoPage() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [selected, setSelected] = useState<NotebookEntry | null>(null);
-  const [frameUrl, setFrameUrl] = useState<string | null>(null);
-  const [frameNonce, setFrameNonce] = useState(0);
-  const [filter, setFilter] = useState("");
+  const catalog = useNotebookCatalog();
+  const search = useSearch();
+  const [, navigate] = useLocation();
 
-  const catalog = useQuery({
-    queryKey: ["marimo", "notebooks"],
-    queryFn: ({ signal }) =>
-      fetch("/api/marimo/notebooks", { signal }).then((r) => {
-        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-        return r.json() as Promise<CatalogResponse>;
-      }),
-    refetchInterval: (query) =>
-      query.state.data?.groups.some((g) => g.status === "starting") ? 1500 : false,
+  const storedView = readStored(VIEW_STORAGE_KEY, { sort: "edited" as SortOrder, mode: "titles" as SearchMode });
+  const [sort, setSort] = useState<SortOrder>(storedView.sort);
+  const [mode, setMode] = useState<SearchMode>(storedView.mode);
+  const [text, setText] = useState("");
+  const [categories, setCategories] = useState<Set<string>>(() => new Set());
+  const [dataset, setDataset] = useState<string | null>(null);
+  const [health, setHealth] = useState<HealthView | null>(null);
+  const [uncommittedOnly, setUncommittedOnly] = useState(false);
+
+  const storedTabs = readStored(TABS_STORAGE_KEY, { tabs: [] as OpenTab[], activeKey: null as string | null });
+  // The editor is one process that a reload does not reconnect to, so only run tabs are restored.
+  const [tabs, setTabs] = useState<OpenTab[]>(() => storedTabs.tabs.filter((t) => t.mode === "run"));
+  // The stored active tab is used only if it is one of the restored run tabs;
+  // otherwise the last restored tab is shown, never an empty frame.
+  const [activeKey, setActiveKey] = useState<string | null>(() => {
+    const restored = storedTabs.tabs.filter((t) => t.mode === "run");
+    return restored.some((t) => t.key === storedTabs.activeKey) ? storedTabs.activeKey : (restored.at(-1)?.key ?? null);
   });
+  const [nonces, setNonces] = useState<Record<string, number>>({});
+  // Most recently viewed first; only the first LIVE_FRAMES keep a frame mounted.
+  const [recentKeys, setRecentKeys] = useState<string[]>([]);
+  const [editorReadyPath, setEditorReadyPath] = useState<string | null>(null);
+  const [newOpen, setNewOpen] = useState(false);
 
-  const start = useMutation({
-    mutationFn: (notebook: NotebookEntry) =>
-      postJson<{ status: string; url: string }>(`/api/marimo/groups/${notebook.groupSlug}/start`).then(() => notebook),
-    onSuccess: (notebook) => {
-      setFrameUrl(notebook.url);
-      queryClient.invalidateQueries({ queryKey: ["marimo"] });
-    },
-    onError: (error: Error) => toast({ title: "Could not start the notebook group", description: error.message, variant: "destructive" }),
-  });
-
-  const stop = useMutation({
-    mutationFn: (slug: string) => postJson<{ status: string }>(`/api/marimo/groups/${slug}/stop`),
-    onSuccess: () => {
-      setFrameUrl(null);
-      queryClient.invalidateQueries({ queryKey: ["marimo"] });
-    },
-    onError: (error: Error) => toast({ title: "Could not stop the group", description: error.message, variant: "destructive" }),
-  });
-
-  const edit = useMutation({
-    mutationFn: (notebook: NotebookEntry) => postJson<{ url: string }>("/api/marimo/editor", { path: notebook.path }),
-    onSuccess: (result) => setFrameUrl(result.url),
-    onError: (error: Error) => toast({ title: "Could not open the editor", description: error.message, variant: "destructive" }),
-  });
-
-  const groups = catalog.data?.groups ?? [];
   const notebooks = catalog.data?.notebooks ?? [];
+  const groups = catalog.data?.groups ?? [];
+  const notebooksById = useMemo(() => new Map(notebooks.map((n) => [n.id, n])), [notebooks]);
+  const groupsBySlug = useMemo(() => new Map<string, GroupEntry>(groups.map((g) => [g.slug, g])), [groups]);
 
-  const visible = useMemo(() => {
-    const needle = filter.trim().toLowerCase();
-    if (!needle) return notebooks;
-    return notebooks.filter((n) =>
-      [n.title, n.description, n.relativePath, n.category].some((field) => field.toLowerCase().includes(needle)),
-    );
-  }, [notebooks, filter]);
+  const startGroup = useStartGroup();
+  const pendingStarts = usePendingStarts();
+  const rescan = useRescan();
+  const stopGroup = useStopGroup();
+  const editor = useOpenEditor((notebook) => setEditorReadyPath(notebook.path));
+  const togglePin = useTogglePin();
+  const check = useHealthCheck();
+  const cancelChecks = useCancelHealthChecks();
 
-  // Filed by the day the work was last touched, newest first, because that is
-  // how research is looked for — "the thing I was doing on Tuesday" — and the
-  // server already sorts the notebooks by modified time descending.
-  const byDay = useMemo(() => {
-    const map = new Map<string, { label: string; entries: NotebookEntry[] }>();
-    for (const notebook of visible) {
-      const key = localDayKey(notebook.modifiedAtIso);
-      const bucket = map.get(key);
-      if (bucket) bucket.entries.push(notebook);
-      else map.set(key, { label: dayBucket(notebook.modifiedAtIso), entries: [notebook] });
-    }
-    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [visible]);
+  const deferredText = useDeferredValue(text);
+  const cellSearch = useNotebookSearch(mode === "cells" ? deferredText : "");
 
-  // Reopening the same notebook after a restart needs a fresh iframe.
-  useEffect(() => setFrameNonce((n) => n + 1), [frameUrl]);
+  useEffect(() => writeStored(VIEW_STORAGE_KEY, { sort, mode }), [sort, mode]);
+  useEffect(() => writeStored(TABS_STORAGE_KEY, { tabs, activeKey }), [tabs, activeKey]);
+  useEffect(() => {
+    setRecentKeys((current) => {
+      const next = touchRecent(current, activeKey, tabs.map((t) => t.key));
+      return next.length === current.length && next.every((k, i) => k === current[i]) ? current : next;
+    });
+  }, [activeKey, tabs]);
+  const liveKeys = recentKeys.slice(0, LIVE_FRAMES);
 
-  const selectedGroup = selected ? groups.find((g) => g.slug === selected.groupSlug) : undefined;
-  const pending = start.isPending || edit.isPending;
+  const ensureGroup = (notebook: NotebookEntry) => {
+    const group = groupsBySlug.get(notebook.groupSlug);
+    if (group?.status === "ready" || group?.status === "starting" || pendingStarts.includes(notebook.groupSlug)) return;
+    startGroup.mutate(notebook.groupSlug);
+  };
 
-  const open = (notebook: NotebookEntry) => {
-    setSelected(notebook);
-    const group = groups.find((g) => g.slug === notebook.groupSlug);
-    if (group?.status === "ready") setFrameUrl(notebook.url);
-    else {
-      setFrameUrl(null);
-      start.mutate(notebook);
+  const openNotebook = (notebook: NotebookEntry) => {
+    const key = `run:${notebook.id}`;
+    setTabs((current) => openTab(current, { key, notebookId: notebook.id, mode: "run" }));
+    setActiveKey(key);
+    ensureGroup(notebook);
+  };
+
+  const editNotebook = (notebook: NotebookEntry) => {
+    const key = `edit:${notebook.id}`;
+    setTabs((current) => openTab(current, { key, notebookId: notebook.id, mode: "edit" }));
+    setActiveKey(key);
+    if (editorReadyPath !== notebook.path) {
+      setEditorReadyPath(null);
+      editor.mutate(notebook);
     }
   };
+
+  const closeTab = (key: string) => {
+    setTabs((current) => {
+      const index = current.findIndex((t) => t.key === key);
+      const next = current.filter((t) => t.key !== key);
+      if (key === activeKey) setActiveKey(next[Math.min(index, next.length - 1)]?.key ?? null);
+      return next;
+    });
+    if (key.startsWith("edit:")) setEditorReadyPath(null);
+  };
+
+  // Tabs whose notebook left the catalog (renamed, deleted) are closed once the catalog has loaded.
+  useEffect(() => {
+    if (!catalog.data) return;
+    const kept = tabs.filter((t) => notebooksById.has(t.notebookId));
+    if (kept.length !== tabs.length) setTabs(kept);
+    if (!kept.some((t) => t.key === activeKey)) {
+      const fallback = kept.at(-1)?.key ?? null;
+      if (fallback !== activeKey) setActiveKey(fallback);
+    }
+  }, [catalog.data, notebooksById, tabs, activeKey]);
+
+  // A restored run tab needs its environment: start the group once the catalog says it is down.
+  const restoredStart = useRef(false);
+  useEffect(() => {
+    if (restoredStart.current || !catalog.data) return;
+    restoredStart.current = true;
+    const active = tabs.find((t) => t.key === activeKey);
+    const notebook = active ? notebooksById.get(active.notebookId) : undefined;
+    if (notebook) ensureGroup(notebook);
+  });
+
+  // ?notebook=<id | relative path | path tail> opens that notebook: the link other
+  // pages use. The URL then follows the active tab (replace, not push, so Back
+  // leaves the page). `pendingLinkId` holds the URL still while a linked tab is
+  // being opened, and `lastWrittenId` stops the page re-opening a URL it wrote.
+  const requested = new URLSearchParams(search).get("notebook");
+  const activeTab = tabs.find((t) => t.key === activeKey);
+  const pendingLinkId = useRef<string | null>(null);
+  const lastWrittenId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!catalog.data || !requested) return;
+    if (requested === activeTab?.notebookId || requested === lastWrittenId.current) return;
+    lastWrittenId.current = requested;
+    const notebook = resolveNotebookReference(notebooks, requested);
+    if (notebook) {
+      pendingLinkId.current = notebook.id;
+      openNotebook(notebook);
+    }
+  }, [requested, catalog.data]);
+
+  useEffect(() => {
+    if (!catalog.data) return;
+    const id = activeTab?.notebookId ?? null;
+    if (pendingLinkId.current) {
+      if (id !== pendingLinkId.current) return;
+      pendingLinkId.current = null;
+    }
+    if ((requested ?? null) === id) return;
+    lastWrittenId.current = id;
+    navigate(id ? `/marimo?notebook=${id}` : "/marimo", { replace: true });
+  }, [activeTab?.notebookId, catalog.data, requested]);
+
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const n of notebooks) counts.set(n.category, (counts.get(n.category) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([name, count]) => ({ name, count }));
+  }, [notebooks]);
+
+  const { pinned, rest } = selectNotebooks(notebooks, { text: mode === "titles" ? text : "", categories, dataset, health, uncommittedOnly }, sort);
+
+  const queue = catalog.data?.healthQueue ?? { queued: 0, running: 0 };
+  const needsCheck = notebooks.filter((n) => {
+    const view = healthView(n.health, n.modifiedAtIso);
+    return view === "unchecked" || view === "changed";
+  });
+  const failing = notebooks.filter((n) => healthView(n.health, n.modifiedAtIso) === "fails").length;
+
+  const create = useCreateNotebook((result) => {
+    setNewOpen(false);
+    // The catalog refetch lands the new entry; edit it as soon as it is there.
+    pendingEdit.current = result.id;
+  });
+  const pendingEdit = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pendingEdit.current) return;
+    const notebook = notebooksById.get(pendingEdit.current);
+    if (!notebook) return;
+    pendingEdit.current = null;
+    editNotebook(notebook);
+  });
+
+  const actions = [
+    { label: "New notebook", icon: FilePlus2, onClick: () => setNewOpen(true), variant: "outline" as const },
+    queue.queued + queue.running > 0
+      ? { label: `Cancel checks (${queue.running} running, ${queue.queued} queued)`, icon: XCircle, onClick: () => cancelChecks.mutate(), variant: "ghost" as const }
+      : {
+          label: needsCheck.length > 0 ? `Check ${needsCheck.length} unchecked or changed` : "Check all again",
+          icon: Stethoscope,
+          onClick: () => check.mutate(needsCheck.length > 0 ? needsCheck.map((n) => n.path) : []),
+          variant: "ghost" as const,
+        },
+    { label: rescan.isPending ? "Rescanning…" : "Rescan", icon: RefreshCw, onClick: () => rescan.mutate(), variant: "ghost" as const },
+  ];
+
+  const toggleCategory = (name: string) =>
+    setCategories((current) => {
+      const next = new Set(current);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
 
   return (
     <PageShell
       title="Notebooks"
-      subtitle="Every marimo notebook on this machine, run in its own project environment and shown here"
+      subtitle={
+        catalog.data
+          ? `${notebooks.length} marimo notebooks, each run in its own project environment${failing > 0 ? ` · ✕ ${failing} failing` : ""}`
+          : "Every marimo notebook on this machine, run in its own project environment and shown here"
+      }
       icon={NotebookPen}
       fillHeight
-      actions={[
-        { label: "Rescan", icon: RefreshCw, onClick: () => catalog.refetch(), variant: "ghost" },
-      ]}
+      actions={actions}
     >
-      <ResizablePanelGroup
-        direction="horizontal"
-        autoSaveId="notebooks-split"
-        className="h-full min-h-0"
-        data-testid="notebooks-page"
-      >
-        {/* ── Catalog ─────────────────────────────────────────────── */}
-        <ResizablePanel defaultSize={26} minSize={14} maxSize={60} className="flex min-w-0 flex-col gap-2 overflow-hidden">
-          <Input
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-            placeholder={`Search ${notebooks.length} notebooks…`}
-            className="h-8 text-xs"
-            data-testid="notebook-filter"
+      <ResizablePanelGroup direction="horizontal" autoSaveId="notebooks-split" className="h-full min-h-0" data-testid="notebooks-page">
+        {/* ── Library ─────────────────────────────────────────── */}
+        <ResizablePanel defaultSize={28} minSize={16} maxSize={60} className="flex min-w-0 flex-col gap-2 overflow-hidden">
+          {catalog.isLoading && <p className="px-2 text-xs text-muted-foreground">Scanning notebook roots…</p>}
+          {catalog.error && <p className="px-2 text-xs text-[#D55E00]">Catalog failed: {(catalog.error as Error).message}</p>}
+          <NotebookList
+            total={notebooks.length}
+            categories={categoryCounts}
+            pinned={pinned}
+            rest={rest}
+            sort={sort}
+            onSortChange={setSort}
+            text={text}
+            onTextChange={setText}
+            mode={mode}
+            onModeChange={setMode}
+            selectedCategories={categories}
+            onToggleCategory={toggleCategory}
+            onClearCategories={() => setCategories(new Set())}
+            dataset={dataset}
+            onDatasetChange={setDataset}
+            health={health}
+            onHealthChange={setHealth}
+            uncommittedOnly={uncommittedOnly}
+            onUncommittedChange={setUncommittedOnly}
+            activeId={activeTab?.notebookId ?? null}
+            onOpen={openNotebook}
+            onTogglePin={(notebook) => togglePin.mutate({ path: notebook.path, pinned: !notebook.pinned })}
+            search={{ data: cellSearch.data, isFetching: cellSearch.isFetching, error: cellSearch.error as Error | null }}
+            notebooksById={notebooksById}
           />
-
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-            {catalog.isLoading && <p className="px-2 text-xs text-muted-foreground">Scanning notebook roots…</p>}
-            {catalog.error && <p className="px-2 text-xs text-destructive">Catalog failed: {(catalog.error as Error).message}</p>}
-            {byDay.map(([day, { label, entries }]) => (
-              <section key={day} className="mb-3">
-                <h3 className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {label} <span className="tnum">({entries.length})</span>
-                </h3>
-                <ul>
-                  {entries.map((notebook) => {
-                    const isSelected = selected?.path === notebook.path;
-                    return (
-                      <li key={notebook.path}>
-                        <button
-                          type="button"
-                          onClick={() => open(notebook)}
-                          className={cn(
-                            "w-full rounded-md border px-2 py-1.5 text-left transition-colors",
-                            isSelected
-                              ? "border-primary/60 bg-muted"
-                              : "border-transparent hover:border-border hover:bg-muted/50",
-                          )}
-                          title={notebook.relativePath}
-                        >
-                          <span className="flex items-baseline gap-1.5">
-                            <span aria-hidden="true" className="text-[10px] text-muted-foreground">
-                              {isSelected ? "▸" : "·"}
-                            </span>
-                            <span className="truncate text-xs font-medium text-foreground">{notebook.title}</span>
-                          </span>
-                          <span className="ml-3 block truncate font-mono text-[10px] text-muted-foreground">
-                            {notebook.relativePath}
-                          </span>
-                          <span
-                            className="ml-3 block truncate text-[10px] text-muted-foreground tnum"
-                            title={`created ${whenLabel(notebook.createdAtIso)}
-last run or edited ${whenLabel(notebook.modifiedAtIso)}`}
-                          >
-                            {whenLabel(notebook.modifiedAtIso)}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ))}
-            {!catalog.isLoading && visible.length === 0 && (
-              <p className="px-2 text-xs text-muted-foreground">No notebook matches “{filter}”.</p>
-            )}
-          </div>
-
-          {/* ── Group runtimes ───────────────────────────────────── */}
-          <div className="shrink-0 rounded-md border border-border p-2">
-            <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Environments</h3>
-            <ul className="space-y-1">
-              {groups.map((group) => (
-                <li key={group.slug} className="flex items-center justify-between gap-2 text-[11px]">
-                  <span className="truncate" title={`${group.python}\n${group.cwd}`}>
-                    <span className="font-mono text-foreground">{group.label}</span>
-                    <span className="ml-1 text-muted-foreground tnum">:{group.port}</span>
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className={cn("text-muted-foreground", group.status === "error" && "text-destructive")}>
-                      {STATUS_WORDS[group.status]}
-                    </span>
-                    {group.status === "ready" && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-5 w-5"
-                        title={`Stop ${group.label}`}
-                        onClick={() => stop.mutate(group.slug)}
-                      >
-                        <Square className="h-3 w-3" />
-                      </Button>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {groups.some((g) => g.error) && (
-              <p className="mt-1 text-[10px] text-destructive">
-                {groups.find((g) => g.error)?.error}
-              </p>
-            )}
-          </div>
+          <EnvironmentPanel
+            groups={groups}
+            idleStopMinutes={catalog.data?.idleStopMinutes ?? 30}
+            onStart={(slug) => startGroup.mutate(slug)}
+            onStop={(slug) => stopGroup.mutate(slug)}
+          />
         </ResizablePanel>
 
         <ResizableHandle withHandle className="mx-1.5 bg-transparent" />
 
-        {/* ── Notebook ────────────────────────────────────────────── */}
-        <ResizablePanel defaultSize={74} minSize={30} className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
-          <header className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
-            <div className="min-w-0">
-              <h2 className="truncate text-sm font-semibold text-foreground">{selected ? selected.title : "No notebook open"}</h2>
-              <p className="truncate font-mono text-[11px] text-muted-foreground">
-                {selected ? `${selected.relativePath} · ${selectedGroup?.python ?? ""}` : "Choose one from the list"}
-              </p>
-            </div>
-            {selected && (
-              <div className="flex shrink-0 items-center gap-2">
-                <Button size="sm" variant="ghost" onClick={() => edit.mutate(selected)} disabled={edit.isPending}>
-                  <Pencil className="mr-1 h-3.5 w-3.5" />
-                  {edit.isPending ? "Opening…" : "Open in editor"}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setFrameNonce((n) => n + 1)} disabled={!frameUrl}>
-                  <RefreshCw className="mr-1 h-3.5 w-3.5" />
-                  Reload
-                </Button>
-              </div>
-            )}
-          </header>
-
-          <div className="min-h-0 flex-1">
-            {frameUrl ? (
-              <iframe
-                key={frameNonce}
-                src={frameUrl}
-                className="h-full w-full border-none"
-                title={selected?.title ?? "marimo notebook"}
-              />
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-                {pending ? (
-                  <>
-                    <RefreshCw className="h-5 w-5 animate-spin" />
-                    <p>Starting {selectedGroup?.label ?? "the notebook environment"} on port {selectedGroup?.port}…</p>
-                  </>
-                ) : (
-                  <>
-                    <NotebookPen className="h-8 w-8 opacity-20" />
-                    <p>Select a notebook to run it here.</p>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
+        {/* ── Open notebooks ──────────────────────────────────── */}
+        <ResizablePanel defaultSize={72} minSize={30} className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+          <NotebookTabs
+            tabs={tabs}
+            activeKey={activeKey}
+            notebooksById={notebooksById}
+            groupsBySlug={groupsBySlug}
+            editorReadyPath={editorReadyPath}
+            editorPending={editor.isPending}
+            pendingStartSlugs={pendingStarts}
+            editorError={editor.isError ? { path: editor.variables?.path ?? null, message: (editor.error as Error).message } : null}
+            nonces={nonces}
+            liveKeys={liveKeys}
+            dataset={dataset}
+            onActivate={setActiveKey}
+            onClose={closeTab}
+            onReload={(key) => setNonces((current) => ({ ...current, [key]: (current[key] ?? 0) + 1 }))}
+            onEdit={editNotebook}
+            onRun={openNotebook}
+            onStartGroup={(slug) => startGroup.mutate(slug)}
+            onCheck={(notebook) => check.mutate([notebook.path])}
+            onTogglePin={(notebook) => togglePin.mutate({ path: notebook.path, pinned: !notebook.pinned })}
+            onDatasetChange={setDataset}
+          />
         </ResizablePanel>
       </ResizablePanelGroup>
+
+      <NewNotebookDialog
+        open={newOpen}
+        onOpenChange={setNewOpen}
+        roots={catalog.data?.roots ?? []}
+        pending={create.isPending}
+        onCreate={(request) => create.mutate(request)}
+      />
     </PageShell>
   );
 }

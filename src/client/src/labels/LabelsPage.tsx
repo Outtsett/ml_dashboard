@@ -9,6 +9,7 @@
  * trades. A landed set can be drawn on the Market chart with one click.
  */
 import { useMemo, useState } from "react";
+import { ReadByNotebooks } from "@/marimo/ReadByNotebooks";
 import { Tags, Play, RefreshCw, Eye, Archive, RotateCw, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { PageShell } from "@/backtest/components";
 import { LABEL_LIFECYCLE_STAGES, type LabelLifecycleStage, type LabelSetLifecycle, type LabelValidationReport, type EightNumberSummary } from "@shared/labels/contract";
@@ -165,6 +166,7 @@ export default function LabelsPage() {
               {suiteState?.running && ` Running ${suiteState.completed}/${suiteState.total}: ${suiteState.current ?? ""}`}
               {!suiteState?.running && suiteState?.finishedAt && ` Last run finished ${new Date(suiteState.finishedAt).toLocaleString()} (${suiteState.completed} sets).`}
             </div>
+            <ReadByNotebooks tables={["derived_labels"]} prefix="Every landed set, in" />
           </div>
           <button
             type="button"

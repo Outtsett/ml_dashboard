@@ -104,5 +104,6 @@
   "editor": {
     "slug": "editor",
     "port": 17190
-  }
+  },
+  "idleStopMinutes": 30
 }

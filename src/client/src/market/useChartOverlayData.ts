@@ -37,7 +37,7 @@ interface RegimeSource {
   /** Whether training is currently active */
   isTraining: boolean;
   /** All regime models for matching */
-  models: Array<{ id: string; symbol: string; timeframe: string; quality_score?: number }>;
+  models: Array<{ id: string; symbol?: string | null; timeframe?: string | null; quality_score?: number }>;
   /** Training sync data for regime legend during training */
   trainingSync: { isActive: boolean; regimeLegend: Array<{ id: number; barCount: number }> };
 }
@@ -153,8 +153,10 @@ export function useChartOverlayData(
     // Find models matching current symbol + timeframe, pick highest quality
     const sym = symbol.toUpperCase();
     const tf = tfLabel.toUpperCase();
+    // A model folder need not declare a symbol or timeframe (the TA-strategy
+    // rounds do not); such a model matches no chart rather than crashing it.
     const candidates = regime.models.filter(
-      m => m.symbol.toUpperCase() === sym && m.timeframe.toUpperCase() === tf,
+      m => m.symbol?.toUpperCase() === sym && m.timeframe?.toUpperCase() === tf,
     );
     if (candidates.length === 0) return null;
     // Pick highest quality_score, or first if no scores

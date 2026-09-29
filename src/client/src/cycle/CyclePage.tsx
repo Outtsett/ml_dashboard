@@ -9,6 +9,7 @@
  * imported here as-is, each reading the store directly with zero props.
  */
 import { useEffect, useState } from "react";
+import { ReadByNotebooks } from "@/marimo/ReadByNotebooks";
 import {
   AlertTriangle,
   ChevronDown,
@@ -91,6 +92,7 @@ export default function CyclePage() {
           <p className="text-xs text-neutral-500">
             {familyLabel} · <span className="font-mono">{symbolTimeframe}</span>
           </p>
+          <ReadByNotebooks tables={["derived_model_cycle_runs_runs"]} prefix="Every run, in" />
         </div>
         <div className="flex items-center gap-3">
           <RunPicker disabled={running} />

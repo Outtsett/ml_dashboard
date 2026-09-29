@@ -36,6 +36,10 @@ const EditorConfigSchema = z.object({
 const NotebooksConfigSchema = z.object({
   groups: z.array(NotebookGroupSchema).min(1),
   editor: EditorConfigSchema,
+  /** A running group with no notebook open in any browser is stopped after this
+   *  many minutes. 0 keeps every group running until it is stopped by hand.
+   *  A group holding a pinned notebook is never stopped for being idle. */
+  idleStopMinutes: z.number().int().min(0).default(30),
 });
 
 export type NotebookRoot = z.infer<typeof NotebookRootSchema>;
@@ -50,6 +54,9 @@ const CONFIG_PATH = path.join(process.cwd(), "src", "config", "notebooks.json");
 let cached: NotebooksConfig | null = null;
 /** Modified time of the file the cache was built from, so an edit is noticed. */
 let cachedMtimeMs = 0;
+/** Modified time of the last file READ, accepted or not. A malformed save is
+ *  read once and warned about once, rather than on every call until it is fixed. */
+let lastSeenMtimeMs = 0;
 
 /** Validates cross-field invariants the zod shape alone cannot express:
  *  slugs and ports are each unique across groups + the editor pseudo-group. */
@@ -98,8 +105,9 @@ export function loadNotebooksConfig(options: { refresh?: boolean } = {}): Notebo
     // Unreadable: keep whatever was last parsed rather than throwing here.
     if (cached) return cached;
   }
-  if (cached && !options.refresh && mtimeMs === cachedMtimeMs) return cached;
+  if (cached && !options.refresh && (mtimeMs === cachedMtimeMs || mtimeMs === lastSeenMtimeMs)) return cached;
 
+  lastSeenMtimeMs = mtimeMs;
   try {
     const raw = JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
     cached = parseNotebooksConfig(raw);
@@ -115,7 +123,7 @@ export function loadNotebooksConfig(options: { refresh?: boolean } = {}): Notebo
  *  the catalog uses this to know its own scan is stale. */
 export function configChangedOnDisk(): boolean {
   try {
-    return statSync(CONFIG_PATH).mtimeMs !== cachedMtimeMs;
+    return statSync(CONFIG_PATH).mtimeMs !== lastSeenMtimeMs;
   } catch {
     return false;
   }

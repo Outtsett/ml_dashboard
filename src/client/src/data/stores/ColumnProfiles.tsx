@@ -12,6 +12,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { ReadByNotebooks } from "@/marimo/ReadByNotebooks";
 import { useQuery } from "@tanstack/react-query";
 import { LensFrame } from "@/lens/Frame";
 import { Input } from "@/shared/ui/input";
@@ -305,6 +306,7 @@ export function ColumnProfiles({ objectName, symbol, onSymbolChange }: ColumnPro
       fillBody
     >
       <div className="flex min-h-0 flex-1 flex-col gap-2">
+        <ReadByNotebooks tables={[objectName]} />
         <div className="flex flex-wrap items-center gap-2">
           <Input
             value={filter}

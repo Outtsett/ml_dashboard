@@ -29,7 +29,7 @@ declare module 'express-serve-static-core' {
 }
 import { attachMetricsWebSocket } from './infrastructure/core/ws';
 import { registerMarimoProxies } from './marimo/proxy';
-import { stopAllGroups as stopAllMarimoGroups } from './marimo/servers';
+import { startMarimoBackground, stopAllGroups as stopAllMarimoGroups } from './marimo/servers';
 import { isSidecarPath, registerSidecarProxies } from './sidecar/proxy';
 import { startSidecars, stopAllSidecars } from './sidecar/supervisor';
 import { stopCycleExplainer } from './training/cycleExplainer';
@@ -430,6 +430,10 @@ async function bootstrap() {
     // Sidecars start (or are adopted after a tsx --watch restart) in the
     // background; the watchdog restarts an autostart sidecar that dies.
     startSidecars();
+
+    // Notebook groups holding a pinned notebook start (or are adopted) now, and
+    // an idle sweep stops a group nobody has had open for idleStopMinutes.
+    startMarimoBackground();
 
     // Fire-and-forget cache warming — don't block startup
     warmSymbolsCatalog().catch(err => {
