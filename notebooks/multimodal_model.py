@@ -193,21 +193,33 @@ def _(OKABE, alt, frame, mo, pl, trial_picker):
 def _(OKABE, alt, frame, mo, pl, trial_picker):
     _recipe = trial_picker.value or ""
     _imp = frame(f"SELECT * FROM derived_multimodal_runs_importance WHERE recipe = '{_recipe}'")
-    if "auc_drop" in _imp.columns and _imp["auc_drop"].drop_nulls().len():
-        _g = _imp.group_by("feature", "head").agg(pl.col("auc_drop").mean()).to_pandas()
-        _chart = alt.Chart(_g).mark_bar().encode(x=alt.X("auc_drop:Q", title="AUC drop when the modality is switched off"),
-                                                 y=alt.Y("feature:N", title="modality"), color=alt.Color("head:N"),
-                                                 row="head:N").properties(width=420, height=120)
-        _title = "## Modality ablation (fusion): what each modality adds"
-    elif "gain_share" in _imp.columns:
-        _g = _imp.with_columns(pl.col("feature").str.split("_").list.first().alias("modality")).group_by("modality", "head").agg(
-            pl.col("gain_share").sum() / pl.col("fold").n_unique()).to_pandas()
-        _chart = alt.Chart(_g).mark_bar(color=OKABE["sky"]).encode(x=alt.X("gain_share:Q", title="share of split gain"),
-                                                                  y=alt.Y("modality:N"), row="head:N").properties(width=420, height=120)
-        _title = "## Modality share of the gradient-boosted trees' split gain"
-    else:
-        _chart, _title = mo.md("No importance recorded."), "## Modalities"
-    mo.vstack([mo.md(_title), _chart])
+    _parts = []
+    if "auc_drop" in _imp.columns:
+        _drops = _imp.filter(pl.col("auc_drop").is_not_null() & pl.col("auc_drop").is_not_nan())
+        if _drops.height:
+            _g = (_drops.with_columns(pl.col("feature").str.replace("__token", "").alias("block"))
+                  .group_by("block", "head").agg(pl.col("auc_drop").mean()).to_pandas())
+            _heads = sorted(_g["head"].unique())
+            _palette = [OKABE[k] for k in ("blue", "orange", "sky", "vermillion")][: len(_heads)]
+            _parts += [mo.md("## Modality ablation: test-quarter AUC lost when one block is switched off "
+                             "(fusion: its token zeroed; gradient-boosted trees: its columns shuffled; 0 = the block adds nothing)"),
+                       alt.Chart(_g).mark_bar().encode(
+                           x=alt.X("auc_drop:Q", title="AUC drop"), y=alt.Y("block:N", title="block"),
+                           color=alt.Color("head:N", scale=alt.Scale(domain=_heads, range=_palette), title="head"),
+                           row=alt.Row("head:N", title=None),
+                           tooltip=["block", "head", alt.Tooltip("auc_drop:Q", format=".4f")]).properties(width=420, height=120)]
+    if "gain_share" in _imp.columns:
+        _gain = _imp.filter(~pl.col("feature").str.ends_with("__token") & pl.col("gain_share").is_not_null()
+                            & pl.col("gain_share").is_not_nan())
+        if _gain.height:
+            _g2 = (_gain.with_columns(pl.col("feature").str.split("_").list.first().alias("block"))
+                   .group_by("block", "head").agg(pl.col("gain_share").sum() / pl.col("fold").n_unique()).to_pandas())
+            _parts += [mo.md("## Share of the gradient-boosted trees' split gain, per block"),
+                       alt.Chart(_g2).mark_bar(color=OKABE["sky"]).encode(
+                           x=alt.X("gain_share:Q", title="share of split gain"), y=alt.Y("block:N", title="block"),
+                           row=alt.Row("head:N", title=None),
+                           tooltip=["block", "head", alt.Tooltip("gain_share:Q", format=".3f")]).properties(width=420, height=120)]
+    mo.vstack(_parts or [mo.md("## Modalities"), mo.md("No importance recorded.")])
     return
 
 
