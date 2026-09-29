@@ -179,6 +179,42 @@ def aggregate(minutes: pd.DataFrame, timeframe_minutes: int) -> tuple[pd.DataFra
     return frame, group
 
 
+SESSION_OPEN_SECONDS = 15 * 3600      # CME equity futures open at 15:00 Pacific (the stamps are Pacific wall clock)
+
+
+def aggregate_session_anchored(minutes: pd.DataFrame, timeframe: str) -> tuple[pd.DataFrame, np.ndarray]:
+    """Bars anchored at the 15:00 session open, for timeframes whose epoch buckets would
+    straddle it: ``4h`` (15:00-19:00, 19:00-23:00, ... so no bar spans the 13:00 RTH close,
+    the 14:00 break and the 15:00 open at once), ``session`` (one bar per CME session, the
+    session day from ``session_dates``) and ``week`` (Monday-Friday sessions).
+    Returns (bars stamped at their first minute, with ``end_timestamp`` = the last minute + 60 s,
+    and the bar index of every minute)."""
+    stamps = minutes["timestamp"].to_numpy(np.int64)
+    if timeframe == "4h":
+        key = (stamps - SESSION_OPEN_SECONDS) // (4 * 3600)
+    elif timeframe == "session":
+        key = session_dates(stamps).astype("datetime64[D]").astype(np.int64)
+    elif timeframe == "week":
+        days = pd.DatetimeIndex(session_dates(stamps))
+        key = (days - pd.to_timedelta(days.dayofweek, unit="D")).values.astype("datetime64[D]").astype(np.int64)
+    else:
+        raise ValueError(f"anchored timeframe must be 4h, session or week, got {timeframe!r}")
+    starts = np.flatnonzero(np.r_[True, key[1:] != key[:-1]])
+    ends = np.r_[starts[1:], stamps.size]
+    group = np.repeat(np.arange(starts.size), ends - starts)
+    frame = pd.DataFrame({
+        "timestamp": stamps[starts],
+        "end_timestamp": stamps[ends - 1] + 60,
+        "open": minutes["open"].to_numpy(float)[starts],
+        "high": np.maximum.reduceat(minutes["high"].to_numpy(float), starts),
+        "low": np.minimum.reduceat(minutes["low"].to_numpy(float), starts),
+        "close": minutes["close"].to_numpy(float)[ends - 1],
+        "volume": np.add.reduceat(minutes["volume"].to_numpy(float), starts),
+        "last_minute_index": ends - 1,
+    })
+    return frame, group
+
+
 def effective_roll_timestamps(rolls: list[Roll]) -> np.ndarray:
     """Timestamps where a position would really have to roll: the first bar a
     contract never seen before becomes the source. In 2019-2020 the thin

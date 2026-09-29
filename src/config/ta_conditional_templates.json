@@ -1,0 +1,161 @@
+{
+  "notes": "Conditional strategy templates (no model predicts anything). Each template is a spec compiled by src/ml/ta_strategy/strategy.py: entry conditions are ANDed, each side fires on the bar its conditions turn true, and exits combine a stop, a target, trailing, signal exits, a time stop and the session-end flatten. {\"param\": name} values are tuned by Optuna inside the training span of each walk-forward fold (src/ml/ta_strategy/optimize.py); 'params' gives each search space (quantized so a neighbouring value exists). 'gate' is the session window the matched random-entry null is drawn from. Reference: docs/ta-strategy-600-ticks.md.",
+  "timeframe": "15m",
+  "templates": {
+    "rsi_signal_macd_vwap": {
+      "description": "RSI crosses above its own signal line (an SMA of RSI) and the MACD histogram crosses above zero within the same few bars, with price above the session VWAP, in regular hours. Short is the mirror. Exits: ATR stop, 2R target, RSI crossing back through its signal line, a time stop, the session end.",
+      "params": {
+        "rsi_period": {"type": "int", "low": 7, "high": 21, "step": 2},
+        "signal_period": {"type": "int", "low": 3, "high": 12, "step": 1},
+        "window_bars": {"type": "int", "low": 1, "high": 4, "step": 1},
+        "stop_atr": {"type": "float", "low": 1.0, "high": 3.0, "step": 0.25},
+        "time_stop_bars": {"type": "int", "low": 4, "high": 24, "step": 4}
+      },
+      "defaults": {"rsi_period": 14, "signal_period": 9, "window_bars": 2, "stop_atr": 1.5, "time_stop_bars": 12},
+      "series": {
+        "rsi": {"ind": "RSI", "args": {"timeperiod": {"param": "rsi_period"}}},
+        "rsi_signal": {"op": "sma", "of": {"ind": "RSI", "args": {"timeperiod": {"param": "rsi_period"}}}, "n": {"param": "signal_period"}},
+        "macd_histogram": {"ind": "MACD", "args": {"fastperiod": 12, "slowperiod": 26, "signalperiod": 9}, "out": 2}
+      },
+      "gate": {"op": "session_window", "start": "06:30", "end": "12:30"},
+      "entry": {
+        "long": {"op": "all", "of": [
+          {"op": "within", "k": {"param": "window_bars"}, "cond": {"op": "cross_above", "a": "$rsi", "b": "$rsi_signal"}},
+          {"op": "within", "k": {"param": "window_bars"}, "cond": {"op": "cross_above", "a": "$macd_histogram", "b": {"const": 0}}},
+          {"op": "above", "a": "close", "b": {"vwap": "session_vwap"}},
+          {"op": "session_window", "start": "06:30", "end": "12:30"}]},
+        "short": {"op": "all", "of": [
+          {"op": "within", "k": {"param": "window_bars"}, "cond": {"op": "cross_below", "a": "$rsi", "b": "$rsi_signal"}},
+          {"op": "within", "k": {"param": "window_bars"}, "cond": {"op": "cross_below", "a": "$macd_histogram", "b": {"const": 0}}},
+          {"op": "below", "a": "close", "b": {"vwap": "session_vwap"}},
+          {"op": "session_window", "start": "06:30", "end": "12:30"}]}
+      },
+      "exit": {
+        "stop": {"kind": "atr", "mult": {"param": "stop_atr"}},
+        "target": {"kind": "r", "value": 2.0},
+        "signal": {"long": {"op": "cross_below", "a": "$rsi", "b": "$rsi_signal"},
+                   "short": {"op": "cross_above", "a": "$rsi", "b": "$rsi_signal"}},
+        "time_stop_bars": {"param": "time_stop_bars"}
+      }
+    },
+    "level_breakout_momentum": {
+      "description": "Close breaks through a multi-timeframe resistance zone (as it stood on the previous bar) whose confluence is at least N source families, with RSI above a momentum threshold, in regular hours. Short: breaks below support, RSI below 100 minus the threshold. Exits: stop beyond the broken zone plus an ATR buffer, 2R target, breakeven after a tuned R, the session end.",
+      "params": {
+        "rsi_threshold": {"type": "int", "low": 50, "high": 70, "step": 2},
+        "min_strength": {"type": "int", "low": 1, "high": 3, "step": 1},
+        "stop_buffer_atr": {"type": "float", "low": 0.0, "high": 1.0, "step": 0.25},
+        "breakeven_r": {"type": "float", "low": 0.5, "high": 1.5, "step": 0.25}
+      },
+      "defaults": {"rsi_threshold": 55, "min_strength": 2, "stop_buffer_atr": 0.25, "breakeven_r": 1.0},
+      "series": {"rsi": {"ind": "RSI", "args": {"timeperiod": 14}}},
+      "gate": {"op": "session_window", "start": "06:30", "end": "12:30"},
+      "entry": {
+        "long": {"op": "all", "of": [
+          {"op": "broke_above", "level": {"level": "resistance_high"}},
+          {"op": "at_least", "a": {"op": "lag", "of": {"level": "resistance_strength"}, "n": 1}, "b": {"param": "min_strength"}},
+          {"op": "above", "a": "$rsi", "b": {"param": "rsi_threshold"}},
+          {"op": "session_window", "start": "06:30", "end": "12:30"}]},
+        "short": {"op": "all", "of": [
+          {"op": "broke_below", "level": {"level": "support_low"}},
+          {"op": "at_least", "a": {"op": "lag", "of": {"level": "support_strength"}, "n": 1}, "b": {"param": "min_strength"}},
+          {"op": "below", "a": "$rsi", "b": {"op": "sub", "a": {"const": 100}, "b": {"param": "rsi_threshold"}}},
+          {"op": "session_window", "start": "06:30", "end": "12:30"}]}
+      },
+      "exit": {
+        "stop": {"kind": "level", "buffer_atr": {"param": "stop_buffer_atr"}, "fallback_atr": 1.5},
+        "target": {"kind": "r", "value": 2.0},
+        "trail": {"breakeven_after_r": {"param": "breakeven_r"}, "breakeven_offset_ticks": 1}
+      }
+    },
+    "breakout_retest": {
+      "description": "A close through resistance, then within k bars a bar comes back within a tolerance of the broken level (as it was at the break) and closes beyond it again, with the MACD histogram above zero, in regular hours. Short is the mirror at support. Exits: stop beyond the retested zone plus a buffer, 2R target, a time stop, the session end.",
+      "params": {
+        "retest_bars": {"type": "int", "low": 2, "high": 10, "step": 1},
+        "tolerance_atr": {"type": "float", "low": 0.1, "high": 0.6, "step": 0.1},
+        "stop_buffer_atr": {"type": "float", "low": 0.0, "high": 1.0, "step": 0.25},
+        "time_stop_bars": {"type": "int", "low": 8, "high": 32, "step": 8}
+      },
+      "defaults": {"retest_bars": 6, "tolerance_atr": 0.3, "stop_buffer_atr": 0.25, "time_stop_bars": 16},
+      "series": {"macd_histogram": {"ind": "MACD", "args": {"fastperiod": 12, "slowperiod": 26, "signalperiod": 9}, "out": 2}},
+      "gate": {"op": "session_window", "start": "06:30", "end": "12:30"},
+      "entry": {
+        "long": {"op": "all", "of": [
+          {"op": "retest_above", "level": {"level": "resistance_high"}, "k": {"param": "retest_bars"}, "tol_atr": {"param": "tolerance_atr"}},
+          {"op": "above", "a": "$macd_histogram", "b": {"const": 0}},
+          {"op": "session_window", "start": "06:30", "end": "12:30"}]},
+        "short": {"op": "all", "of": [
+          {"op": "retest_below", "level": {"level": "support_low"}, "k": {"param": "retest_bars"}, "tol_atr": {"param": "tolerance_atr"}},
+          {"op": "below", "a": "$macd_histogram", "b": {"const": 0}},
+          {"op": "session_window", "start": "06:30", "end": "12:30"}]}
+      },
+      "exit": {
+        "stop": {"kind": "level", "buffer_atr": {"param": "stop_buffer_atr"}, "fallback_atr": 1.5},
+        "target": {"kind": "r", "value": 2.0},
+        "time_stop_bars": {"param": "time_stop_bars"}
+      }
+    },
+    "higher_timeframe_trend_pullback": {
+      "description": "The 1h trend is up (1h EMA fast above 1h EMA 200, from the last completed hour), 15m RSI(14) crosses back up through a pullback level, and the MACD histogram is rising, in regular hours. Short is the mirror. Exits: ATR stop, 2R target, a chandelier trailing stop, the session end.",
+      "params": {
+        "htf_fast": {"type": "int", "low": 20, "high": 100, "step": 10},
+        "pullback_level": {"type": "int", "low": 30, "high": 50, "step": 5},
+        "stop_atr": {"type": "float", "low": 1.0, "high": 3.0, "step": 0.25},
+        "chandelier_atr": {"type": "float", "low": 1.5, "high": 4.0, "step": 0.5}
+      },
+      "defaults": {"htf_fast": 50, "pullback_level": 40, "stop_atr": 1.5, "chandelier_atr": 3.0},
+      "series": {
+        "rsi": {"ind": "RSI", "args": {"timeperiod": 14}},
+        "macd_histogram": {"ind": "MACD", "args": {"fastperiod": 12, "slowperiod": 26, "signalperiod": 9}, "out": 2},
+        "htf_fast_ema": {"ind": "EMA", "args": {"timeperiod": {"param": "htf_fast"}}, "tf": "1h"},
+        "htf_slow_ema": {"ind": "EMA", "args": {"timeperiod": 200}, "tf": "1h"}
+      },
+      "gate": {"op": "session_window", "start": "06:30", "end": "12:30"},
+      "entry": {
+        "long": {"op": "all", "of": [
+          {"op": "above", "a": "$htf_fast_ema", "b": "$htf_slow_ema"},
+          {"op": "cross_above", "a": "$rsi", "b": {"param": "pullback_level"}},
+          {"op": "rising", "a": "$macd_histogram", "n": 1},
+          {"op": "session_window", "start": "06:30", "end": "12:30"}]},
+        "short": {"op": "all", "of": [
+          {"op": "below", "a": "$htf_fast_ema", "b": "$htf_slow_ema"},
+          {"op": "cross_below", "a": "$rsi", "b": {"op": "sub", "a": {"const": 100}, "b": {"param": "pullback_level"}}},
+          {"op": "falling", "a": "$macd_histogram", "n": 1},
+          {"op": "session_window", "start": "06:30", "end": "12:30"}]}
+      },
+      "exit": {
+        "stop": {"kind": "atr", "mult": {"param": "stop_atr"}},
+        "target": {"kind": "r", "value": 2.0},
+        "trail": {"chandelier_atr": {"param": "chandelier_atr"}}
+      }
+    },
+    "opening_range_breakout_with_room": {
+      "description": "After 07:00 Pacific, close breaks the 06:30-07:00 opening-range high, RSI is above a threshold and price is above the session VWAP, and the next resistance zone is at least a tuned multiple of the risk away (room for the 2R target). Short is the mirror at the opening-range low. Exits: ATR stop, 2R target, a time stop, the session end.",
+      "params": {
+        "rsi_threshold": {"type": "int", "low": 50, "high": 66, "step": 2},
+        "stop_atr": {"type": "float", "low": 1.0, "high": 3.0, "step": 0.25},
+        "room_r": {"type": "float", "low": 0.0, "high": 3.0, "step": 0.5},
+        "time_stop_bars": {"type": "int", "low": 8, "high": 32, "step": 8}
+      },
+      "defaults": {"rsi_threshold": 55, "stop_atr": 1.5, "room_r": 2.0, "time_stop_bars": 16},
+      "series": {"rsi": {"ind": "RSI", "args": {"timeperiod": 14}}},
+      "gate": {"op": "session_window", "start": "07:00", "end": "11:00"},
+      "entry": {
+        "long": {"op": "all", "of": [
+          {"op": "broke_above", "level": {"event": "opening_range_30_high"}},
+          {"op": "above", "a": "$rsi", "b": {"param": "rsi_threshold"}},
+          {"op": "above", "a": "close", "b": {"vwap": "session_vwap"}},
+          {"op": "session_window", "start": "07:00", "end": "11:00"}]},
+        "short": {"op": "all", "of": [
+          {"op": "broke_below", "level": {"event": "opening_range_30_low"}},
+          {"op": "below", "a": "$rsi", "b": {"op": "sub", "a": {"const": 100}, "b": {"param": "rsi_threshold"}}},
+          {"op": "below", "a": "close", "b": {"vwap": "session_vwap"}},
+          {"op": "session_window", "start": "07:00", "end": "11:00"}]}
+      },
+      "exit": {
+        "stop": {"kind": "atr", "mult": {"param": "stop_atr"}},
+        "target": {"kind": "r", "value": 2.0, "room_min_r": {"param": "room_r"}},
+        "time_stop_bars": {"param": "time_stop_bars"}
+      }
+    }
+  }
+}
