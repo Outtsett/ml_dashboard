@@ -658,5 +658,32 @@ def _(CONDITIONAL, OKABE, alt, bins, conditional_picker, frame, log_count, mo, p
     return
 
 
+@app.cell
+def _(CONDITIONAL, OKABE, alt, frame, mo, pl, view_exists):
+    if not view_exists(f"{CONDITIONAL}confirmation_rounds"):
+        mo.stop(True, mo.md("### Pre-registered confirmation\nNot landed yet."))
+    _r = frame(f"SELECT * FROM {CONDITIONAL}confirmation_rounds ORDER BY finished_at")
+    _recipe = _r[-1, "recipe"]
+    _s = frame(f"SELECT * FROM {CONDITIONAL}confirmation_strategies WHERE recipe = ?", [_recipe])
+    _d = frame(f"SELECT * FROM {CONDITIONAL}confirmation_daily WHERE recipe = ? ORDER BY session_date", [_recipe])
+    _pooled = _d.group_by("session_date").agg(pl.col("excess_ticks").mean().alias("pooled_excess_ticks")).sort("session_date").with_columns(
+        pl.col("pooled_excess_ticks").cum_sum().alias("cumulative_pooled_excess_ticks"))
+    _each = _d.sort("session_date").with_columns(pl.col("excess_ticks").cum_sum().over("name").alias("cumulative_excess_ticks"))
+    _lines = alt.Chart(_each.select("session_date", "name", "cumulative_excess_ticks").to_pandas()).mark_line(opacity=0.7).encode(
+        x="session_date:T", y=alt.Y("cumulative_excess_ticks:Q", title="cumulative excess over matched random (ticks, 1 contract)"),
+        color=alt.Color("name:N", scale=alt.Scale(range=[OKABE["blue"], OKABE["orange"], OKABE["purple"]])), strokeDash="name:N")
+    _pool = alt.Chart(_pooled.to_pandas()).mark_line(color=OKABE["black"], strokeWidth=2.5).encode(
+        x="session_date:T", y="cumulative_pooled_excess_ticks:Q")
+    _target = _s.select("name", "win_rate", "profit_factor", "net_ticks_per_session_day", "excess_ticks_per_session_day",
+                        "excess_newey_west_t", "meets_40_percent_win_rate_and_profit_factor_1_33", "trades_per_session_day")
+    mo.vstack([mo.md(f"### Pre-registered confirmation on {_r[-1, 'symbol']} {_r[-1, 'span_start']} to {_r[-1, 'span_end']} "
+                     f"(frozen before the run): **{'CONFIRMED' if _r[-1, 'confirmed'] else 'NOT CONFIRMED'}**; pooled excess "
+                     f"{_r[-1, 'pooled_excess_ticks_per_session_day']:+.2f} ticks/day, t {_r[-1, 'pooled_excess_newey_west_t']:+.2f} "
+                     f"(black line: pooled; the rule needs t >= 2, trimmed t >= 2 and 3 of 4 sub-periods positive)"),
+               (_lines + _pool).properties(width=880, height=300), mo.ui.table(_target, selection=None),
+               mo.ui.table(_r, selection=None), mo.ui.table(_s, selection=None)])
+    return
+
+
 if __name__ == "__main__":
     app.run()
