@@ -23,6 +23,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 import talib
+from numba import njit
 
 
 def cross_up(a: np.ndarray, b: np.ndarray | float) -> np.ndarray:
@@ -195,6 +196,113 @@ def apply_filter(signal: np.ndarray, name: str, bars: dict, minute_of_day: np.nd
         out[~((minute_of_day >= 6 * 60 + 30) & (minute_of_day < 12 * 60 + 30))] = 0
         return out
     raise ValueError(f"unknown filter {name!r}")
+
+
+def union(signals: list[np.ndarray]) -> np.ndarray:
+    """One position at a time across several rules: a bar where rules disagree on
+    the side takes no signal; otherwise the side any of them gives."""
+    stack = np.vstack(signals).astype(np.int16)
+    longs, shorts = (stack > 0).any(axis=0), (stack < 0).any(axis=0)
+    return _signal(longs & ~shorts, shorts & ~longs)
+
+
+def prior_percentile(values: np.ndarray, window: int = 1000) -> np.ndarray:
+    """Share of the previous ``window`` values below the current one (the current
+    bar is excluded from its own reference set, so the rank never reads ahead).
+    NaN until a full window of finite history exists."""
+    return _prior_percentile(np.asarray(values, dtype=np.float64), window)
+
+
+@njit(cache=True)
+def _prior_percentile(x, window):
+    out = np.full(x.shape[0], np.nan)
+    for t in range(window, x.shape[0]):
+        v = x[t]
+        if not np.isfinite(v):
+            continue
+        below, ok = 0, True
+        for k in range(t - window, t):
+            if not np.isfinite(x[k]):
+                ok = False
+                break
+            if x[k] < v:
+                below += 1
+        if ok:
+            out[t] = below / window
+    return out
+
+
+@dataclass
+class GateContext:
+    """What a gate reads, per bar of the signal timeframe."""
+    bars: dict
+    start_minute: np.ndarray          # Pacific minute of day the bar STARTS
+    timeframe_minutes: int
+    higher_timeframe_side: np.ndarray | None = None   # +1 / -1 / 0 from the last COMPLETED 1h bar's EMA50 vs EMA200
+    _cache: dict | None = None
+
+    def cached(self, key, make):
+        if self._cache is None:
+            self._cache = {}
+        if key not in self._cache:
+            self._cache[key] = make()
+        return self._cache[key]
+
+
+def gate_mask(spec: str, ctx: GateContext) -> np.ndarray:
+    """Bars a gate lets a signal through on. ``a+b`` = both, ``a|b`` = either.
+    Atoms: ``none``; ``rth`` (06:30-12:30 Pacific starts); ``open30`` (starts 06:30-06:59);
+    ``first_hour`` (06:30-07:29); ``natr_pct_below_<N>`` (NATR(14) prior-1000-bar
+    percentile below N/100); ``bbwidth_squeeze_20_last6`` (BBANDS(20,2) width
+    prior-1000 percentile below 0.20 on any of the last 6 bars); ``htf_ema50_200_side``
+    (long only when the last completed 1h bar has EMA50 above EMA200, short only below)."""
+    if "|" in spec:
+        out = np.zeros(ctx.start_minute.shape, dtype=bool)
+        for part in spec.split("|"):
+            out |= gate_mask(part.strip(), ctx)
+        return out
+    out = np.ones(ctx.start_minute.shape, dtype=bool)
+    m = ctx.start_minute
+    for atom in spec.split("+"):
+        atom = atom.strip()
+        if atom == "none":
+            continue
+        elif atom == "rth":
+            out &= (m >= 6 * 60 + 30) & (m < 12 * 60 + 30)
+        elif atom == "open30":
+            out &= (m >= 6 * 60 + 30) & (m < 7 * 60)
+        elif atom == "first_hour":
+            out &= (m >= 6 * 60 + 30) & (m < 7 * 60 + 30)
+        elif atom.startswith("natr_pct_below_"):
+            level = float(atom.rsplit("_", 1)[1]) / 100.0
+            pct = ctx.cached("natr_pct", lambda: prior_percentile(
+                talib.NATR(ctx.bars["high"], ctx.bars["low"], ctx.bars["close"], 14)))
+            out &= pct < level
+        elif atom == "bbwidth_squeeze_20_last6":
+            def squeeze():
+                upper, _, lower = talib.BBANDS(ctx.bars["close"], 20, 2.0, 2.0)
+                low_pct = prior_percentile(upper - lower) < 0.20
+                recent = np.zeros(low_pct.shape, dtype=bool)
+                for lag in range(6):
+                    recent[lag:] |= low_pct[: low_pct.size - lag]
+                return recent
+            out &= ctx.cached("bbwidth_squeeze", squeeze)
+        elif atom == "htf_ema50_200_side":
+            continue              # side-dependent: applied in apply_gate
+        else:
+            raise ValueError(f"unknown gate atom {atom!r} in {spec!r}")
+    return out
+
+
+def apply_gate(signal: np.ndarray, spec: str, ctx: GateContext) -> np.ndarray:
+    out = np.where(gate_mask(spec, ctx), signal, 0).astype(np.int8)
+    if "htf_ema50_200_side" in spec:
+        side = ctx.higher_timeframe_side
+        if side is None:
+            raise ValueError("htf_ema50_200_side needs higher_timeframe_side")
+        out[(out > 0) & (side <= 0)] = 0
+        out[(out < 0) & (side >= 0)] = 0
+    return out
 
 
 def bars_dict(frame: pd.DataFrame) -> dict:

@@ -122,6 +122,65 @@ def test_rules_do_not_change_under_a_roll_shift(rule):
     assert (a != b).mean() < 0.001, f"{(a != b).sum()} signals change under a shift"
 
 
+def test_stop_slippage_on_market_exits_only():
+    o = [100, 100, 100, 100]
+    h = [100, 100.5, 102.5, 100]
+    l = [100, 99.5, 100.0, 100]
+    c = [100, 100, 102, 100]
+    n = 4
+    common = (np.asarray(o, float), np.asarray(h, float), np.asarray(l, float), np.asarray(c, float))
+    last = np.zeros(n, np.bool_)
+    last[-1] = True
+    # long: target 102 is a limit -> no slippage
+    *_, x_p, _, why, _ = bracket.simulate(*common, np.array([1, 0, 0, 0], np.int8), np.full(n, 4.0), last, np.zeros(n, np.bool_), TICK, 2.0, 1.0)
+    assert why[0] == bracket.EXIT_TARGET and x_p[0] == 102.0
+    # short into the same rally: stop at 101 is a market order -> one tick worse, 101.25
+    *_, x_p, _, why, _ = bracket.simulate(*common, np.array([-1, 0, 0, 0], np.int8), np.full(n, 4.0), last, np.zeros(n, np.bool_), TICK, 2.0, 1.0)
+    assert why[0] == bracket.EXIT_STOP and x_p[0] == 101.25
+
+
+def test_prior_percentile_never_reads_the_current_or_later_bars():
+    x = np.random.default_rng(0).normal(size=3000)
+    full = rules.prior_percentile(x, 1000)
+    changed = x.copy()
+    changed[2000:] += 100.0                         # the future moves
+    assert np.array_equal(full[:2000], rules.prior_percentile(changed, 1000)[:2000], equal_nan=True)
+    assert np.isnan(full[:1000]).all()
+    by_hand = (x[1500 - 1000:1500] < x[1500]).mean()
+    assert full[1500] == pytest.approx(by_hand)
+
+
+@pytest.mark.parametrize("gate", ["rth", "open30+natr_pct_below_50", "rth+bbwidth_squeeze_20_last6",
+                                  "open30+natr_pct_below_50|rth+natr_pct_below_50"])
+def test_gates_are_causal(gate):
+    frame = random_frame(4000)
+    moments = pd.to_datetime(frame["timestamp"], unit="s")
+    minute = (moments.dt.hour * 60 + moments.dt.minute).to_numpy()
+
+    def mask(f, mnt):
+        return rules.gate_mask(gate, rules.GateContext(rules.bars_dict(f), mnt, 60))
+
+    assert np.array_equal(mask(frame, minute)[:3000], mask(frame.iloc[:3000], minute[:3000]))
+
+
+def test_union_takes_no_side_when_rules_disagree():
+    a = np.array([1, 0, -1, 1, 0], np.int8)
+    b = np.array([1, -1, 0, -1, 0], np.int8)
+    assert rules.union([a, b]).tolist() == [1, -1, -1, 0, 0]
+
+
+def test_aggregate_minutes():
+    from ta_strategy.data import aggregate
+
+    stamps = 1_700_000_100 // 900 * 900 + 60 * np.arange(30)          # 30 minutes from a 15m boundary
+    minutes = pd.DataFrame({"timestamp": stamps, "open": np.arange(30.0), "high": np.arange(30.0) + 1,
+                            "low": np.arange(30.0) - 1, "close": np.arange(30.0) + 0.5, "volume": np.ones(30)})
+    frame, group = aggregate(minutes, 15)
+    assert len(frame) == 2 and frame["open"].tolist() == [0.0, 15.0] and frame["close"].tolist() == [14.5, 29.5]
+    assert frame["high"].tolist() == [15.0, 30.0] and frame["low"].tolist() == [-1.0, 14.0]
+    assert frame["last_minute_index"].tolist() == [14, 29] and group[14] == 0 and group[15] == 1
+
+
 def test_filters():
     frame = random_frame()
     b = rules.bars_dict(frame)

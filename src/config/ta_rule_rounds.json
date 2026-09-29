@@ -4,6 +4,7 @@
   "rounds": {
     "1": {
       "title": "TA-Lib rule families x filters x stops x timeframes, 2:1 brackets",
+      "harness": "ran on commit 8e1e93d (stitched bars, coarse-bar stop-first, filter-blind random baseline); recipe round_1_20260929T014217. The current rule_search.py reads rounds defined with 'blocks' (round 2 onward).",
       "hypothesis": "Some TA-Lib conditions, as entries into a 2:1 bracket, win at least 40% of trades net of costs (profit factor >= 1.33) out of sample. A random entry into the same bracket wins about 33% before costs, so a qualifying rule must add roughly 7 percentage points of win rate. 600 ticks/day additionally needs trades/day x (0.2 x stop - 5.56) >= 600.",
       "data_start": "2019-06-01",
       "data_end": "2026-01-01",
@@ -37,6 +38,56 @@
       },
       "random_entry": {"probability_per_bar": 0.02, "seeds": 5},
       "targets": {"win_rate_minimum": 0.40, "profit_factor_minimum": 1.333, "ticks_per_session_day_goal": 600, "minimum_trades": 100}
+    },
+    "2": {
+      "title": "15m TA-Lib breakouts x session and volatility gates, 2:1 brackets resolved on the minute path",
+      "hypothesis": "A TA-Lib breakout at the regular-hours open after a quiet overnight (NATR percentile gate) hits a true 2:1 target at least 40% of the time with profit factor >= 1.333 and session-end exits <= 25%, and beats random entries matched to its gate, hours and side in at least 5 of 7 years. After the 5.56-tick round trip, a true 2:1 bracket needs a target-hit rate of 0.449 at a 40-tick stop, 0.425 at 80 and 0.412 at 160, so the lift over a matched random entry (about 0.31) must be roughly 9-12 points. Round 1's review measured the best cell at 0.375/0.393 (+4-5 ticks/day), so the expected answer is: no strategy passes, and none nears 600.",
+      "review_source": "rule round 1 review (reviews table, recipe round_1_20260929T014217): recommendations 1-8 survived verification; 9 (hold-to-close) was refuted as outside the 2:1 brief",
+      "data_start": "2019-06-01",
+      "data_end": "2026-01-01",
+      "in_sample_end": "2024-01-01",
+      "stop_slippage_ticks": 1,
+      "no_entry_minutes_before_session_end": 60,
+      "blocks": [
+        {
+          "name": "main", "timeframe": "15m",
+          "rules": {"donchian_breakout": [{"period": 20}, {"period": 55}], "bollinger_breakout": [{"period": 20, "width": 2.0}],
+                    "keltner_breakout": [{"period": 20, "multiple": 2.0}], "rsi_momentum": [{"period": 14, "level": 60}]},
+          "gates": ["rth", "open30", "open30+natr_pct_below_50", "open30+natr_pct_below_70", "first_hour+natr_pct_below_50",
+                    "rth+natr_pct_below_50", "rth+bbwidth_squeeze_20_last6"],
+          "stops": [1.0, 1.5, 2.0], "reward_multiples": [2.0]
+        },
+        {
+          "name": "reward_arms_outside_the_2_to_1_count", "timeframe": "15m",
+          "rules": {"donchian_breakout": [{"period": 20}, {"period": 55}], "bollinger_breakout": [{"period": 20, "width": 2.0}],
+                    "keltner_breakout": [{"period": 20, "multiple": 2.0}], "rsi_momentum": [{"period": 14, "level": 60}]},
+          "gates": ["open30+natr_pct_below_50", "rth+natr_pct_below_50"],
+          "stops": [1.0, 1.5, 2.0], "reward_multiples": [3.0, 1.5]
+        },
+        {
+          "name": "breakout_union", "timeframe": "15m",
+          "union_of": {"donchian_breakout": [{"period": 20}, {"period": 55}], "bollinger_breakout": [{"period": 20, "width": 2.0}],
+                       "keltner_breakout": [{"period": 20, "multiple": 2.0}], "rsi_momentum": [{"period": 14, "level": 60}]},
+          "gates": ["open30+natr_pct_below_50", "open30+natr_pct_below_70", "first_hour+natr_pct_below_50", "rth+natr_pct_below_50",
+                    "rth+bbwidth_squeeze_20_last6", "open30+natr_pct_below_50|rth+natr_pct_below_50|rth+bbwidth_squeeze_20_last6"],
+          "stops": [1.0, 1.5, 2.0], "reward_multiples": [2.0]
+        },
+        {
+          "name": "satellite_30m", "timeframe": "30m",
+          "rules": {"donchian_breakout": [{"period": 20}, {"period": 55}], "bollinger_breakout": [{"period": 20, "width": 2.0}],
+                    "keltner_breakout": [{"period": 20, "multiple": 2.0}], "rsi_momentum": [{"period": 14, "level": 60}]},
+          "gates": ["rth", "rth+htf_ema50_200_side"], "stops": [1.0, 1.5, 2.0], "reward_multiples": [2.0]
+        },
+        {
+          "name": "satellite_1h", "timeframe": "1h",
+          "rules": {"ema_cross": [{"fast": 20, "slow": 50}, {"fast": 50, "slow": 200}], "bollinger_reversion": [{"period": 20, "width": 2.0}],
+                    "keltner_breakout": [{"period": 20, "multiple": 2.0}], "donchian_breakout": [{"period": 20}]},
+          "gates": ["none", "rth"], "stops": [1.0], "reward_multiples": [2.0]
+        }
+      ],
+      "nulls": {"matched_seeds": 20, "random_side_replicates": 20},
+      "targets": {"target_hit_rate_minimum": 0.40, "profit_factor_minimum": 1.333, "session_end_exit_rate_maximum": 0.25,
+                  "minimum_trades": 100, "minimum_positive_years": 5, "ticks_per_session_day_goal": 600}
     }
   }
 }

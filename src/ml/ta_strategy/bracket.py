@@ -13,6 +13,11 @@ Rules (the same conventions as ``cycle/simulate.py``, where they overlap):
 - Costs: ``cost_ticks`` per round trip, charged on every trade; a trade held
   across a real contract roll pays one more round trip.
 - While a position is open, new signals are ignored.
+- ``stop_slippage_ticks``: a stop, session-end or data-end exit is a market order
+  and fills that many ticks worse; a target is a resting limit and fills at its level.
+- Run on 1-minute bars with signals placed on the last minute of each coarser bar
+  (``rule_search``), a coarse bar that touched both levels is resolved by the
+  minutes inside it; stop-first applies only to a single minute touching both.
 """
 
 from __future__ import annotations
@@ -25,7 +30,8 @@ EXIT_NAMES = {EXIT_STOP: "stop", EXIT_TARGET: "target", EXIT_SESSION_END: "sessi
 
 
 @njit(cache=True)
-def simulate(open_, high, low, close, signal, stop_ticks, session_last, roll_after, tick, reward_multiple):
+def simulate(open_, high, low, close, signal, stop_ticks, session_last, roll_after, tick, reward_multiple,
+             stop_slippage_ticks=0.0):
     """Returns (entry_index, exit_index, side, entry_price, exit_price, stop_distance_ticks, exit_reason, rolls_crossed),
     each trimmed to the number of trades. ``stop_ticks[t]`` is the stop distance decided at bar t's close;
     ``roll_after[j]`` is True when a real contract roll happens between bar j-1 and bar j."""
@@ -80,6 +86,8 @@ def simulate(open_, high, low, close, signal, stop_ticks, session_last, roll_aft
             if reason < 0 and j == n - 1:
                 exit_price, reason = close[j], EXIT_DATA_END
             if reason >= 0:
+                if reason != EXIT_TARGET:        # a stop or a flatten is a market order: it pays slippage
+                    exit_price -= s * stop_slippage_ticks * tick
                 break
             j += 1
         e_i[count], x_i[count], sd[count] = t + 1, j, s

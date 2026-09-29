@@ -358,8 +358,8 @@ def _(frame, mo, pl, view_exists):
         mo.stop(True, mo.md("## 9 · Conditional TA-Lib rules\nNo rule-search round has landed yet."))
     rule_round_picker = mo.ui.dropdown({f"rule round {r['round']} · {r['recipe']}": r["recipe"] for r in rule_rounds.iter_rows(named=True)},
                                        value=f"rule round {rule_rounds[-1, 'round']} · {rule_rounds[-1, 'recipe']}", label="Rule round")
-    rule_period = mo.ui.radio(["in_sample", "out_of_sample"], value="out_of_sample", label="Period")
-    rule_timeframes = mo.ui.multiselect(["1m", "5m", "15m", "1h"], value=["1m", "5m", "15m", "1h"], label="Timeframes")
+    rule_period = mo.ui.radio(["all_years", "in_sample", "out_of_sample"], value="all_years", label="Period (all_years: rounds 2+)")
+    rule_timeframes = mo.ui.multiselect(["1m", "5m", "15m", "30m", "1h"], value=["1m", "5m", "15m", "30m", "1h"], label="Timeframes")
     minimum_trades = mo.ui.slider(0, 1000, step=25, value=100, label="Minimum trades", show_value=True)
     mo.vstack([
         mo.md(r"""
@@ -380,27 +380,42 @@ where it sits above its bracket's random win rate.
 
 @app.cell
 def _(OKABE, RULE, alt, frame, minimum_trades, mo, pl, rule_period, rule_round_picker, rule_timeframes):
-    _p = rule_period.value
-    strategies = frame(f"SELECT * FROM {RULE}strategies WHERE recipe = ?", [rule_round_picker.value]).filter(
-        pl.col("timeframe").is_in(rule_timeframes.value) & (pl.col(f"{_p}_trade_count") >= minimum_trades.value))
-    baselines = frame(f"SELECT timeframe, stop, avg({_p}_win_rate) AS random_win_rate, avg({_p}_profit_factor) AS random_profit_factor "
-                      f"FROM {RULE}random_entry_baselines WHERE recipe = ? GROUP BY 1, 2", [rule_round_picker.value])
-    strategies = strategies.join(baselines, on=["timeframe", "stop"], how="left").with_columns(
-        (pl.col(f"{_p}_win_rate") - pl.col("random_win_rate")).alias("win_rate_lift_over_random"))
-    _tf_colors = alt.Scale(domain=["1m", "5m", "15m", "1h"], range=[OKABE["sky"], OKABE["blue"], OKABE["orange"], OKABE["purple"]])
+    strategies = frame(f"SELECT * FROM {RULE}strategies WHERE recipe = ?", [rule_round_picker.value])
+    # Round 1 scored "win rate" (net > 0, including trades closed positive at the session end) against a
+    # bracket-level random baseline. From round 2 the test is the TARGET-HIT rate against a null matched to
+    # each strategy's gate, hours and side, and an "all_years" period exists.
+    _strict = "all_years_target_hit_rate" in strategies.columns
+    _p = rule_period.value if (_strict or rule_period.value != "all_years") else "out_of_sample"
+    strategies = strategies.filter(pl.col("timeframe").is_in(rule_timeframes.value) & (pl.col(f"{_p}_trade_count") >= minimum_trades.value))
+    if _strict:
+        _rate, _rate_title, _null = f"{_p}_target_hit_rate", "target-hit rate (trades that reached the 2:1 target)", f"{_p}_matched_null_target_hit_rate"
+        strategies = strategies.with_columns(pl.col(_null).alias("random_rate"), pl.col("gate").alias("filter"))
+    else:
+        _rate, _rate_title = f"{_p}_win_rate", "win rate incl. session-end exits (round 1's test)"
+        baselines = frame(f"SELECT timeframe, stop, avg({_p}_win_rate) AS random_rate, avg({_p}_profit_factor) AS random_profit_factor "
+                          f"FROM {RULE}random_entry_baselines WHERE recipe = ? GROUP BY 1, 2", [rule_round_picker.value])
+        strategies = strategies.join(baselines, on=["timeframe", "stop"], how="left")
+    strategies = strategies.with_columns((pl.col(_rate) - pl.col("random_rate")).alias("lift_over_random"))
+    _tf_colors = alt.Scale(domain=["1m", "5m", "15m", "30m", "1h"],
+                           range=[OKABE["sky"], OKABE["blue"], OKABE["orange"], OKABE["green"], OKABE["purple"]])
     # only the columns the charts draw travel to the browser (all ~70 made a 26 MB spec)
-    _plot = strategies.select("strategy_id", "timeframe", "filter", "random_win_rate", f"{_p}_win_rate", f"{_p}_profit_factor",
+    _plot = strategies.select("strategy_id", "timeframe", "filter", "random_rate", "lift_over_random", _rate, f"{_p}_profit_factor",
                               f"{_p}_net_ticks_per_session_day", f"{_p}_trades_per_session_day", f"{_p}_payoff_ratio").to_pandas()
-    _pts = alt.Chart(_plot).mark_circle(size=28, opacity=0.6).encode(
-        x=alt.X(f"{_p}_win_rate:Q", title="win rate (net of costs)", scale=alt.Scale(domain=[0.1, 0.65])),
+    _pts = alt.Chart(_plot).mark_circle(size=30, opacity=0.65).encode(
+        x=alt.X(f"{_rate}:Q", title=_rate_title, scale=alt.Scale(domain=[0.0, 0.65])),
         y=alt.Y(f"{_p}_profit_factor:Q", title="profit factor (net)", scale=alt.Scale(domain=[0.4, 2.0], clamp=True)),
-        color=alt.Color("timeframe:N", scale=_tf_colors), shape=alt.Shape("filter:N"),
-        tooltip=["strategy_id", alt.Tooltip(f"{_p}_win_rate:Q", format=".3f"), alt.Tooltip("random_win_rate:Q", format=".3f"),
+        color=alt.Color("timeframe:N", scale=_tf_colors), shape=alt.Shape("filter:N", legend=None),
+        tooltip=["strategy_id", alt.Tooltip(f"{_rate}:Q", format=".3f"), alt.Tooltip("random_rate:Q", format=".3f", title="matched random"),
                  alt.Tooltip(f"{_p}_profit_factor:Q", format=".3f"), alt.Tooltip(f"{_p}_net_ticks_per_session_day:Q", format="+.1f"),
                  alt.Tooltip(f"{_p}_trades_per_session_day:Q", format=".2f"), alt.Tooltip(f"{_p}_payoff_ratio:Q", format=".2f")])
-    _rand = alt.Chart(baselines.to_pandas()).mark_point(shape="diamond", size=90, filled=False, color=OKABE["black"]).encode(
-        x="random_win_rate:Q", y=alt.Y("random_profit_factor:Q", scale=alt.Scale(domain=[0.4, 2.0], clamp=True)),
-        tooltip=["timeframe", "stop", alt.Tooltip("random_win_rate:Q", format=".3f")])
+    if _strict:
+        _rand = alt.Chart(_plot).mark_point(shape="diamond", size=40, filled=False, color=OKABE["black"], opacity=0.5).encode(
+            x="random_rate:Q", y=alt.Y(f"{_p}_profit_factor:Q", scale=alt.Scale(domain=[0.4, 2.0], clamp=True)),
+            tooltip=["strategy_id", alt.Tooltip("random_rate:Q", format=".3f")])
+    else:
+        _rand = alt.Chart(baselines.to_pandas()).mark_point(shape="diamond", size=90, filled=False, color=OKABE["black"]).encode(
+            x="random_rate:Q", y=alt.Y("random_profit_factor:Q", scale=alt.Scale(domain=[0.4, 2.0], clamp=True)),
+            tooltip=["timeframe", "stop", alt.Tooltip("random_rate:Q", format=".3f")])
     _x40 = alt.Chart(pl.DataFrame({"x": [0.40]}).to_pandas()).mark_rule(color=OKABE["vermillion"], strokeDash=[4, 3]).encode(x="x:Q")
     _y133 = alt.Chart(pl.DataFrame({"y": [1.333]}).to_pandas()).mark_rule(color=OKABE["vermillion"], strokeDash=[4, 3]).encode(y="y:Q")
     _ticks = alt.Chart(_plot).mark_circle(size=28, opacity=0.6).encode(
@@ -408,9 +423,9 @@ def _(OKABE, RULE, alt, frame, minimum_trades, mo, pl, rule_period, rule_round_p
         y=alt.Y(f"{_p}_net_ticks_per_session_day:Q", title="net ticks per session day"),
         color=alt.Color("timeframe:N", scale=_tf_colors), tooltip=["strategy_id"])
     mo.vstack([
-        mo.md(f"**{strategies.height:,} strategies shown.** Left: win rate vs profit factor; the vermillion lines are the 40% "
-              "and 1.33 targets, so the target zone is the top-right corner. Right: trades per day vs net ticks per day "
-              "(the 600 goal is far above this axis)."),
+        mo.md(f"**{strategies.height:,} strategies shown ({'round 2+ strict test: target-hit rate; each hollow diamond is that strategy' + chr(39) + 's matched random entry' if _strict else 'round 1 test: win rate; diamonds are random entries per bracket'}).** "
+              "Left: rate vs profit factor; the vermillion lines are 40% and 1.33, so the target zone is the top-right corner. "
+              "Right: trades per day vs net ticks per day (the 600 goal is far above this axis)."),
         mo.hstack([(_pts + _rand + _x40 + _y133).properties(width=520, height=380), _ticks.properties(width=460, height=380)]),
         mo.ui.table(strategies.sort(f"{_p}_net_ticks_per_session_day", descending=True, nulls_last=True).head(300),
                     selection=None, page_size=15),
@@ -457,6 +472,27 @@ def _(OKABE, RULE, alt, bins, eight_numbers, frame, kept_picker, log_count, mo, 
         mo.hstack([mo.ui.table(_exits, selection=None), mo.ui.table(pl.DataFrame([{k: (round(v, 3) if isinstance(v, float) else v) for k, v in _stats.items()}]), selection=None)]),
         small_multiples(_trades, [c for c in _trades.columns if c not in ("round",)], bins.value, log_count.value) or mo.md("no trades"),
     ])
+    return
+
+
+@app.cell
+def _(OKABE, RULE, alt, frame, kept_picker, mo, pl, rule_round_picker, view_exists):
+    _yearly = (frame(f"SELECT * FROM {RULE}yearly WHERE recipe = ? AND strategy_id = ? ORDER BY year",
+                     [rule_round_picker.value, kept_picker.value]) if view_exists(f"{RULE}yearly") else pl.DataFrame())
+    if _yearly.height and "frame_error" not in _yearly.columns:
+        _bars = alt.Chart(_yearly.to_pandas()).mark_bar().encode(
+            x=alt.X("year:O"), y=alt.Y("net_per_trade_lift_over_matched_null:Q", title="net ticks per trade above matched random"),
+            color=alt.condition("datum.net_per_trade_lift_over_matched_null > 0", alt.value(OKABE["orange"]), alt.value(OKABE["blue"])),
+            tooltip=["year", "trade_count", alt.Tooltip("target_hit_rate:Q", format=".3f"), alt.Tooltip("matched_null_target_hit_rate:Q", format=".3f"),
+                     alt.Tooltip("net_ticks_per_trade:Q", format="+.1f"), alt.Tooltip("net_ticks_per_session_day:Q", format="+.1f")])
+        _view = mo.vstack([mo.md(f"### {kept_picker.value}: lift over matched random entries, year by year "
+                                 "(orange above, blue below; a pass needs 5 of 7 years above)"), _bars.properties(width=560, height=220),
+                           mo.ui.table(_yearly, selection=None)])
+    else:
+        _view = mo.md("Year-by-year lift is recorded from rule round 2 on.")
+    _reviews = frame(f"SELECT * FROM {RULE}reviews ORDER BY round, rank") if view_exists(f"{RULE}reviews") else pl.DataFrame()
+    mo.vstack([_view, mo.md("### Reviews of the rule rounds: what to do better, and whether each recommendation survived the skeptic"),
+               mo.ui.table(_reviews, selection=None, page_size=12) if _reviews.height else mo.md("No rule review has landed yet.")])
     return
 
 

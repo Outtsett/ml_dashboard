@@ -52,13 +52,16 @@ def main() -> int:
     parser.add_argument("--round", dest="round_number", type=int, required=True)
     parser.add_argument("--review", required=True)
     parser.add_argument("--output-dir", default=str(ROOT / "data" / "models"))
+    parser.add_argument("--dataset", default="ta_strategy_600_ticks",
+                        help="ta_strategy_600_ticks (model rounds) or ta_rule_strategies_600_ticks (rule rounds)")
     args = parser.parse_args()
     from ta_strategy import store
 
     review = json.loads(Path(args.review).read_text(encoding="utf-8"))
     table = review_rows(review, args.round_number, args.recipe)
     paths = store.write_local({"reviews": table}, os.path.join(args.output_dir, f"ta_strategy_review_{args.recipe}"))
-    result = store.land(paths, args.recipe, f"review of TA strategy round {args.round_number} ({args.recipe})")
+    result = store.land(paths, args.recipe, f"review of TA strategy round {args.round_number} ({args.recipe})",
+                        dataset=args.dataset)
     print(json.dumps(result))
     return 0
 
