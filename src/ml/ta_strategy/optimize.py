@@ -54,6 +54,17 @@ def suggest(trial, name: str, space: dict):
     return trial.suggest_float(name, float(space["low"]), float(space["high"]), step=space.get("step"))
 
 
+def _two_to_one(template: dict, fold_params: list[dict]) -> bool:
+    """A 2R target in every fold; a tuned target ({"param": ...}) counts only when every fold chose 2."""
+    target = template["exit"].get("target", {"kind": "r", "value": 2.0})
+    if target.get("kind") != "r":
+        return False
+    value = target.get("value", 2.0)
+    if isinstance(value, dict):
+        return bool(fold_params) and all(float(p.get(value["param"], math.nan)) == 2.0 for p in fold_params)
+    return float(value) == 2.0
+
+
 def run(args: argparse.Namespace) -> dict:
     import optuna
 
@@ -282,8 +293,7 @@ def run(args: argparse.Namespace) -> dict:
         top10 = np.argsort(real_daily)[-10:]
         without_top = np.delete(real_daily, top10)
         row = {"round": args.round_number, "template": name, "description": templates[name]["description"],
-               "is_two_to_one_bracket": templates[name]["exit"].get("target", {"kind": "r", "value": 2.0}).get("kind") == "r"
-               and float(templates[name]["exit"].get("target", {}).get("value", 2.0)) == 2.0,
+               "is_two_to_one_bracket": _two_to_one(templates[name], s["params"]),
                "test_session_day_count": int(days.size), "trades": int(len(trades)),
                "trades_per_session_day": len(trades) / days.size,
                "net_ticks_per_session_day": float(real_daily.mean()),

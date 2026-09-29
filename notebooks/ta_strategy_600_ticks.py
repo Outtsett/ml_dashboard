@@ -840,5 +840,245 @@ def _(bins, eight_numbers, frequency_symbol, frequency_variants, log_count, mo, 
     return
 
 
+@app.cell
+def _(CONDITIONAL, frame, mo, view_exists):
+    if not view_exists(f"{CONDITIONAL}season_buckets"):
+        mo.stop(True, mo.md("## 12 · Time of day, ETH vs RTH, time events\nThe timing study has not landed yet."))
+    season_buckets = frame(f"SELECT * FROM {CONDITIONAL}season_buckets WHERE recipe IN (SELECT max(recipe) FROM {CONDITIONAL}season_buckets GROUP BY symbol)")
+    season_sessions = frame(f"SELECT * FROM {CONDITIONAL}season_sessions WHERE recipe IN (SELECT max(recipe) FROM {CONDITIONAL}season_sessions GROUP BY symbol)")
+    season_parts = frame(f"SELECT * FROM {CONDITIONAL}season_parts WHERE recipe IN (SELECT max(recipe) FROM {CONDITIONAL}season_parts GROUP BY symbol)")
+    season_events = frame(f"SELECT * FROM {CONDITIONAL}season_events WHERE recipe IN (SELECT max(recipe) FROM {CONDITIONAL}season_events GROUP BY symbol)")
+    season_calendar = frame(f"SELECT * FROM {CONDITIONAL}season_calendar WHERE recipe IN (SELECT max(recipe) FROM {CONDITIONAL}season_calendar GROUP BY symbol)")
+    season_stability = frame(f"SELECT * FROM {CONDITIONAL}season_stability WHERE recipe IN (SELECT max(recipe) FROM {CONDITIONAL}season_stability GROUP BY symbol)")
+    _symbols = sorted(season_buckets["symbol"].unique().to_list())
+    season_symbol = mo.ui.dropdown(_symbols, value="MNQ" if "MNQ" in _symbols else _symbols[0], label="Market")
+    _years = ["all"] + sorted([y for y in season_buckets["year"].unique().to_list() if y != "all"])
+    season_year = mo.ui.dropdown(_years, value="all", label="Year")
+    season_weekday = mo.ui.dropdown(["all", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], value="all", label="Weekday")
+    season_metric = mo.ui.dropdown({
+        "relative volatility (x the session's average minute)": "relative_volatility_to_session_average",
+        "5-minute range, ticks": "average_five_minute_range_ticks",
+        "30-minute efficiency ratio / random walk (above 1 trends, below 1 ranges)": "efficiency_relative_to_random_walk",
+        "variance ratio VR(5) (above 1 trends, below 1 mean-reverts)": "variance_ratio_five_minutes",
+        "autocorrelation, lags 2-4 minutes": "autocorrelation_lags_two_to_four_minutes",
+        "breakout follow-through probability": "breakout_follow_through_probability",
+        "volume, contracts": "mean_volume_contracts"}, value="relative volatility (x the session's average minute)", label="Measure")
+    mo.vstack([mo.md(
+        "## 12 · Time of day, ETH vs RTH, time events\n\n"
+        "How volatility and ranging change through the CME session (15:00 to 14:00 Pacific), overnight (ETH) against regular "
+        "hours (RTH, 06:30-13:00), by weekday, around time events and on calendar days (`src/ml/ta_strategy/timing.py`, "
+        "tables `derived_ta_conditional_strategies_600_ticks_season_*`). The strategies read the same shape CAUSALLY: each "
+        "session's profile comes only from sessions before it (`seasonality.py`)."),
+        mo.hstack([season_symbol, season_year, season_weekday]), season_metric])
+    return (season_buckets, season_calendar, season_events, season_metric, season_parts, season_sessions, season_stability,
+            season_symbol, season_weekday, season_year)
+
+
+@app.cell
+def _(OKABE, alt, mo, pl, season_buckets, season_metric, season_symbol, season_weekday, season_year):
+    _b = season_buckets.filter((pl.col("symbol") == season_symbol.value) & (pl.col("year") == season_year.value)
+                               & (pl.col("weekday") == season_weekday.value)).sort("session_offset_minutes")
+    _order = _b["bucket_start_pacific"].to_list()
+    _rth = alt.Chart(pl.DataFrame({"start": ["06:30"], "end": ["12:55"]}).to_pandas()).mark_rect(opacity=0.08, color=OKABE["blue"]).encode(
+        x=alt.X("start:N", sort=_order), x2="end:N")
+    _line = alt.Chart(_b.to_pandas()).mark_line(point=alt.OverlayMarkDef(size=18)).encode(
+        x=alt.X("bucket_start_pacific:N", sort=_order, title="5-minute bucket (Pacific); shaded = regular hours",
+                axis=alt.Axis(values=_order[::12], labelAngle=-45)),
+        y=alt.Y(f"{season_metric.value}:Q", title=season_metric.selected_key),
+        color=alt.Color("session_part:N", scale=alt.Scale(domain=["overnight", "regular_hours"], range=[OKABE["orange"], OKABE["blue"]])),
+        shape=alt.Shape("session_part:N", scale=alt.Scale(domain=["overnight", "regular_hours"], range=["triangle-up", "circle"])),
+        tooltip=["bucket_start_pacific", "session_part", "session_count",
+                 alt.Tooltip("relative_volatility_to_session_average:Q", format=".2f"),
+                 alt.Tooltip("average_five_minute_range_ticks:Q", format=".1f"),
+                 alt.Tooltip("efficiency_relative_to_random_walk:Q", format=".2f"),
+                 alt.Tooltip("variance_ratio_five_minutes:Q", format=".2f"),
+                 alt.Tooltip("breakout_follow_through_probability:Q", format=".3f")])
+    _heat_data = season_buckets.filter((pl.col("symbol") == season_symbol.value) & (pl.col("year") == "all") & (pl.col("weekday") != "all"))
+    _heat = alt.Chart(_heat_data.to_pandas()).mark_rect().encode(
+        x=alt.X("bucket_start_pacific:N", sort=_order, title=None, axis=alt.Axis(values=_order[::12], labelAngle=-45)),
+        y=alt.Y("weekday:N", sort=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], title=None),
+        color=alt.Color(f"{season_metric.value}:Q", scale=alt.Scale(scheme="cividis"), title=None),
+        tooltip=["weekday", "bucket_start_pacific", alt.Tooltip(f"{season_metric.value}:Q", format=".3f")])
+    mo.vstack([mo.md(f"### {season_metric.selected_key} through the session ({season_symbol.value}, {season_year.value}, "
+                     f"{season_weekday.value}; orange triangles = overnight, blue circles = regular hours)"),
+               (_rth + _line).properties(width=1000, height=300),
+               mo.md("### The same measure by weekday (all years)"), _heat.properties(width=1000, height=150)])
+    return
+
+
+@app.cell
+def _(OKABE, alt, bins, eight_numbers, mo, np, pl, season_parts, season_sessions, season_symbol):
+    _s = season_sessions.filter(pl.col("symbol") == season_symbol.value)
+    _long = pl.concat([
+        _s.select(pl.lit(part).alias("session_part"), pl.col(f"{part}_{m}").alias("value"), pl.lit(m).alias("measure"))
+        for part in ("overnight", "regular_hours")
+        for m in ("realized_volatility_basis_points", "range_ticks", "efficiency_ratio", "volume_contracts")])
+    _hist = []
+    for (_m, _p), _g in _long.group_by(["measure", "session_part"]):
+        _v = _g["value"].drop_nulls().to_numpy()
+        _v = _v[np.isfinite(_v)]
+        if _v.size == 0:
+            continue
+        _lo, _hi = np.percentile(_v, [0.5, 99.5])
+        _c, _e = np.histogram(np.clip(_v, _lo, _hi), bins=bins.value, range=(_lo, _hi))
+        _hist.append(pl.DataFrame({"measure": _m, "session_part": _p, "left": _e[:-1], "right": _e[1:], "sessions": _c}))
+    _h = pl.concat(_hist)
+    _chart = alt.Chart(_h.to_pandas()).mark_bar(opacity=0.55).encode(
+        x=alt.X("left:Q", title=None), x2="right:Q", y=alt.Y("sessions:Q", stack=None),
+        color=alt.Color("session_part:N", scale=alt.Scale(domain=["overnight", "regular_hours"], range=[OKABE["orange"], OKABE["blue"]])),
+        opacity=alt.value(0.55)).properties(width=300, height=160).facet(facet=alt.Facet("measure:N", title=None), columns=2).resolve_scale(x="independent", y="independent")
+    _eight = season_parts.filter((pl.col("symbol") == season_symbol.value) & (pl.col("year") == "all")).select(
+        "measure", "session_part", *[c for c in season_parts.columns if c.startswith("value_")])
+    _ratio = eight_numbers(_s["overnight_to_regular_hours_volatility_ratio"].to_numpy())
+    _share = eight_numbers(_s["overnight_share_of_session_variance"].to_numpy())
+    mo.vstack([mo.md(f"### Overnight vs regular hours, one value per session ({season_symbol.value}; orange = overnight, blue = regular hours)\n\n"
+                     f"Overnight volatility is **{_ratio['median']:.2f}x** regular hours in the median session "
+                     f"(25th-75th {_ratio['percentile_25']:.2f}-{_ratio['percentile_75']:.2f}); overnight carries "
+                     f"**{100 * _share['median']:.0f}%** of the session's variance in the median session over ~72% of its minutes."),
+               _chart, mo.ui.table(_eight, selection=None)])
+    return
+
+
+@app.cell
+def _(OKABE, alt, mo, pl, season_events, season_symbol):
+    _names = sorted(season_events.filter(pl.col("symbol") == season_symbol.value)["event"].unique().to_list())
+    season_event_pick = mo.ui.multiselect(_names, value=[n for n in ("london_open", "us_data_0830_with_release", "us_data_0830_without_release", "rth_open") if n in _names], label="Events")
+    season_event_scale = mo.ui.radio({"relative to the hour before (-60..-31)": "relative_to_pre_event_hour",
+                                      "basis points per minute": "mean_absolute_one_minute_return_basis_points"},
+                                     value="relative to the hour before (-60..-31)", label="Scale", inline=True)
+    mo.vstack([season_event_pick, season_event_scale])
+    return season_event_pick, season_event_scale
+
+
+@app.cell
+def _(OKABE, alt, mo, pl, season_event_pick, season_event_scale, season_events, season_symbol):
+    _e = season_events.filter((pl.col("symbol") == season_symbol.value) & (pl.col("year") == "all") & pl.col("event").is_in(season_event_pick.value))
+    _palette = [OKABE[k] for k in ("blue", "orange", "sky", "vermillion", "green", "purple", "black", "yellow")]
+    _chart = alt.Chart(_e.to_pandas()).mark_line().encode(
+        x=alt.X("minutes_from_event:Q", title="minutes from the event"), y=alt.Y(f"{season_event_scale.value}:Q", title=season_event_scale.selected_key),
+        color=alt.Color("event:N", scale=alt.Scale(range=_palette)), strokeDash="event:N",
+        tooltip=["event", "minutes_from_event", "session_count", alt.Tooltip(f"{season_event_scale.value}:Q", format=".2f")])
+    _zero = alt.Chart(pl.DataFrame({"x": [0]}).to_pandas()).mark_rule(color=OKABE["black"], strokeDash=[3, 3]).encode(x="x:Q")
+    mo.vstack([mo.md("### Volatility around each time event (all years): how much and for how long it rises"), (_chart + _zero).properties(width=900, height=300)])
+    return
+
+
+@app.cell
+def _(OKABE, alt, mo, pl, season_calendar, season_stability, season_symbol):
+    _c = season_calendar.filter(pl.col("symbol") == season_symbol.value).with_columns(
+        (pl.col("log_ratio_difference") / pl.col("log_ratio_newey_west_t")).abs().alias("standard_error")).with_columns(
+        (pl.col("log_ratio_difference") - 2 * pl.col("standard_error")).alias("low"), (pl.col("log_ratio_difference") + 2 * pl.col("standard_error")).alias("high"))
+    _base = alt.Chart(_c.to_pandas()).encode(y=alt.Y("calendar_condition:N", title=None, sort="-x"))
+    _rule = _base.mark_rule().encode(x=alt.X("low:Q", title="log volatility vs trailing 20-session median, minus other sessions (+/- 2 SE)"), x2="high:Q",
+                                     color=alt.Color("session_part:N", scale=alt.Scale(domain=["overnight", "regular_hours"], range=[OKABE["orange"], OKABE["blue"]])))
+    _dot = _base.mark_point(filled=True, size=60).encode(x="log_ratio_difference:Q", color="session_part:N",
+                                                          shape=alt.Shape("session_part:N", scale=alt.Scale(range=["triangle-up", "circle"])),
+                                                          tooltip=["calendar_condition", "session_part", "session_count",
+                                                                   alt.Tooltip("volatility_ratio_to_trailing_median:Q", format=".2f"),
+                                                                   alt.Tooltip("log_ratio_newey_west_t:Q", format="+.2f")])
+    _zero = alt.Chart(pl.DataFrame({"x": [0.0]}).to_pandas()).mark_rule(color=OKABE["black"]).encode(x="x:Q")
+    _s = season_stability.filter(pl.col("symbol") == season_symbol.value)
+    _stab = alt.Chart(_s.to_pandas()).mark_line(point=True).encode(
+        x="year:O", y=alt.Y("out_of_sample_r_squared_of_log_volatility:Q", title="share of bucket-to-bucket volatility the causal profile explains"),
+        color=alt.Color("session_part:N", scale=alt.Scale(domain=["overnight", "regular_hours", "whole_session"], range=[OKABE["orange"], OKABE["blue"], OKABE["black"]])),
+        tooltip=["year", "session_part", alt.Tooltip("correlation_with_previous_year_profile:Q", format=".3f"),
+                 alt.Tooltip("out_of_sample_r_squared_of_log_volatility:Q", format=".3f")])
+    mo.vstack([mo.md("### Calendar days: which sessions run hotter or colder than usual (causal baseline)"),
+               (_rule + _dot + _zero).properties(width=620, height=420),
+               mo.md("### Is the time-of-day shape predictable? Out-of-sample fit of the causal profile, by year"), _stab.properties(width=620, height=260)])
+    return
+
+
+@app.cell
+def _(mo):
+    expected_move_start = mo.ui.slider(0, 1375, value=930 - 30, step=5, label="Start (minutes after 15:00 Pacific)", show_value=True)
+    expected_move_horizon = mo.ui.slider(5, 240, value=60, step=5, label="Horizon h (minutes)", show_value=True)
+    expected_move_level = mo.ui.slider(0.5, 3.0, value=1.0, step=0.1, label="Level L (x a typical day)", show_value=True)
+    mo.hstack([expected_move_start, expected_move_horizon, expected_move_level])
+    return expected_move_horizon, expected_move_level, expected_move_start
+
+
+@app.cell
+def _(OKABE, alt, expected_move_horizon, expected_move_level, expected_move_start, mo, np, pl, season_buckets, season_symbol):
+    _b = season_buckets.filter((pl.col("symbol") == season_symbol.value) & (pl.col("weekday") == "all")
+                               & (pl.col("year") != "all")).sort("session_offset_minutes")
+    _last = _b["year"].max()
+    _b = _b.filter(pl.col("year") == _last)
+    _shape = np.repeat(_b["relative_volatility_to_session_average"].to_numpy(), 5)
+    _abs_bp = float(np.nanmean(_b["mean_absolute_one_minute_return_basis_points"].to_numpy()))
+    _price = 23000.0
+    _o, _h, _L = expected_move_start.value, expected_move_horizon.value, expected_move_level.value
+    _window = _shape[_o + 1: min(_o + 1 + _h, _shape.size)]
+    _sum_sq = float(np.nansum(_window ** 2))
+    _level = _L * _abs_bp / 1e4
+    _move = np.sqrt(8 / np.pi) * np.sqrt(np.pi / 2) * _level * np.sqrt(_sum_sq) * _price
+    _flat = np.sqrt(8 / np.pi) * np.sqrt(np.pi / 2) * _level * np.sqrt(_window.size) * _price
+    _clock = f"{(_o + 900) % 1440 // 60:02d}:{(_o + 900) % 1440 % 60:02d}"
+    _curve = pl.DataFrame({"minute": np.arange(_shape.size), "shape_squared": _shape ** 2,
+                           "in_window": (np.arange(_shape.size) > _o) & (np.arange(_shape.size) <= _o + _h)})
+    _bars = alt.Chart(_curve.to_pandas()).mark_area(interpolate="step").encode(
+        x=alt.X("minute:Q", title="minutes after 15:00 Pacific"), y=alt.Y("shape_squared:Q", title="s_u squared (expected variance per minute, x average)"),
+        color=alt.condition("datum.in_window", alt.value(OKABE["orange"]), alt.value(OKABE["sky"])))
+    _formula = (r"$$\text{expected range}_{t,h} \;=\; \sqrt{\tfrac{8}{\pi}}\cdot\sqrt{\tfrac{\pi}{2}}\; L_t \sqrt{\sum_{u=t+1}^{t+h} s_u^{2}}\;\cdot P_t$$")
+    _legend = (
+        "| symbol | name | holds | now |\n|---|---|---|---|\n"
+        r"| $\sum_{u=t+1}^{t+h}$ | sum over | each minute *u* from the next one to *h* minutes ahead (stops at the 14:00 session end) | " f"{_window.size} minutes from {_clock} |\n"
+        f"| $s_u$ | seasonal shape of minute *u* | expected abs 1-minute return of its 5-minute bucket / the session's average minute ({season_symbol.value} {_last}) | peak {np.nanmax(_window) if _window.size else float('nan'):.2f} in window |\n"
+        f"| $L_t$ | volatility level | de-seasonalised average-minute abs return right now (EWMA, half-life 60 minutes) | {_L:.1f} x typical = {_level * 1e4:.2f} bp |\n"
+        r"| $\sqrt{\pi/2}$ | abs-to-sigma | turns a mean absolute return into a standard deviation (normal returns) | 1.253 |" "\n"
+        r"| $\sqrt{8/\pi}$ | range factor | expected high-low range of a random walk / its standard deviation | 1.596 |" "\n"
+        f"| $P_t$ | price | index points | {_price:,.0f} |\n")
+    mo.vstack([mo.md("### The expected move the strategies size stops and targets with\n\n" + _formula + "\n\n" + _legend +
+                     f"\n**Expected {_h}-minute range from {_clock}: {_move:.1f} points = {_move / 0.25:.0f} ticks** "
+                     f"(a flat day with no time-of-day shape would say {_flat:.1f} points). Slide the start across 06:30: the "
+                     "orange window picks up the open's spike and the range jumps, which is why a trailing ATR measured "
+                     "overnight is too tight at the open and too wide at lunch."),
+               _bars.properties(width=1000, height=220)])
+    return
+
+
+@app.cell
+def _(CONDITIONAL, GOAL, OKABE, alt, frame, mo, pl, view_exists):
+    if not view_exists(f"{CONDITIONAL}rounds"):
+        mo.stop(True)
+    _r = frame(f"SELECT * FROM {CONDITIONAL}rounds WHERE round = 5 ORDER BY finished_at")
+    if _r.height == 0 or "frame_error" in _r.columns:
+        mo.stop(True, mo.md("### Round 5 (time-conditioned strategies)\nNot landed yet."))
+    _recipe = _r[-1, "recipe"]
+    _t = frame(f"SELECT * FROM {CONDITIONAL}templates WHERE recipe = ?", [_recipe])
+    _t = _t.with_columns(pl.when(pl.col("template").str.contains("_eth")).then(pl.lit("overnight")).otherwise(pl.lit("regular_hours")).alias("session_part"),
+                         pl.when(pl.col("template").str.starts_with("atr_breakout_control")).then(pl.lit("ATR control"))
+                         .when(pl.col("template").str.starts_with("seasonal")).then(pl.lit("seasonal"))
+                         .otherwise(pl.lit("time event")).alias("kind"))
+    _bar = alt.Chart(_t.to_pandas()).mark_bar().encode(
+        y=alt.Y("template:N", sort="-x", title=None), x=alt.X("net_ticks_per_session_day:Q", title="stitched out-of-sample net ticks per session day (2022-2025)"),
+        color=alt.condition("datum.net_ticks_per_session_day > 0", alt.value(OKABE["orange"]), alt.value(OKABE["blue"])),
+        tooltip=["template", "kind", "session_part", alt.Tooltip("trades_per_session_day:Q", format=".2f"),
+                 alt.Tooltip("excess_ticks_per_session_day:Q", format="+.1f"), alt.Tooltip("excess_newey_west_t:Q", format="+.2f"),
+                 alt.Tooltip("win_rate:Q", format=".3f"), alt.Tooltip("profit_factor:Q", format=".2f")])
+    _excess = alt.Chart(_t.to_pandas()).mark_point(shape="diamond", size=90, filled=True, color=OKABE["black"]).encode(
+        y=alt.Y("template:N", sort="-x"), x="excess_ticks_per_session_day:Q")
+    _d = frame(f"SELECT template, session_date, excess_ticks FROM {CONDITIONAL}daily WHERE recipe = ? ORDER BY session_date", [_recipe]).with_columns(
+        pl.col("excess_ticks").cum_sum().over("template").alias("cumulative_excess_ticks"))
+    _lines = alt.Chart(_d.to_pandas()).mark_line().encode(
+        x="session_date:T", y=alt.Y("cumulative_excess_ticks:Q", title="cumulative excess over matched random entries (ticks)"),
+        color=alt.Color("template:N", scale=alt.Scale(range=[OKABE[k] for k in ("blue", "orange", "sky", "vermillion", "green", "purple", "black", "yellow", "blue")])),
+        strokeDash="template:N")
+    mo.vstack([mo.md(f"### Round 5: time-conditioned strategies, tuned on prior years, tested 2022-2025 (bar = net, black diamond = excess over matched random; goal {GOAL:.0f})"),
+               (_bar + _excess).properties(width=820, height=320), _lines.properties(width=1000, height=300),
+               mo.ui.table(_t, selection=None), mo.ui.table(_r, selection=None)])
+    return
+
+
+@app.cell
+def _(bins, eight_numbers, log_count, mo, pl, season_sessions, season_symbol, small_multiples):
+    _s = season_sessions.filter(pl.col("symbol") == season_symbol.value)
+    _numeric = [c for c in _s.columns if _s[c].dtype.is_numeric() and c != "year"]
+    _eight = pl.DataFrame([{"column": c, **eight_numbers(_s[c].to_numpy())} for c in _numeric])
+    mo.vstack([mo.md(f"### Session table ({season_symbol.value}): every column, and its eight numbers"),
+               small_multiples(_s, _numeric, bins.value, log_count.value), mo.ui.table(_eight, selection=None)])
+    return
+
+
 if __name__ == "__main__":
     app.run()

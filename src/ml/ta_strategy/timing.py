@@ -223,7 +223,7 @@ def event_table(mx: dict, session_days: np.ndarray, events, symbol: str) -> pd.D
             if sel.sum() < 5:
                 continue
             mean = np.nanmean(window[sel], axis=0)
-            relative = np.nanmean(window[sel] / base[sel, None], axis=0)
+            relative = mean / np.nanmean(base[sel])          # ratio of means: a silent pre-window in one session cannot divide by zero
             for j, minute in enumerate(rel):
                 rows.append({"symbol": symbol, "event": label, "year": str(year), "minutes_from_event": int(minute),
                              "session_count": int(sel.sum()), "mean_absolute_one_minute_return_basis_points": float(mean[j]),
@@ -271,7 +271,8 @@ def stability_table(mx: dict, session_days: np.ndarray, seasonal, symbol: str) -
         for part in ("overnight", "regular_hours", "whole_session"):
             cols = np.ones(se.BUCKETS, bool) if part == "whole_session" else parts == part
             prev = shape_by_year.get(y - 1)
-            corr = float(np.corrcoef(shape_by_year[y][cols], prev[cols])[0, 1]) if prev is not None else math.nan
+            both = np.isfinite(shape_by_year[y]) & (np.isfinite(prev) if prev is not None else False) & cols
+            corr = float(np.corrcoef(shape_by_year[y][both], prev[both])[0, 1]) if prev is not None and both.sum() > 10 else math.nan
             a, p = log_actual[years == y][:, cols], log_profile[years == y][:, cols]
             ok = np.isfinite(a) & np.isfinite(p)
             residual = np.nansum(np.where(ok, (a - p) ** 2, 0.0))
