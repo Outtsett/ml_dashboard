@@ -86,3 +86,39 @@ The pre-registered primary is `1h_h12_logistic_c005_gate10_centred`. It passes o
 - its alpha t is at least 2;
 - the grid Reality Check p is at most 0.05;
 - its alpha is positive in at least 7 of 9 folds.
+
+**Result (recipe `round_2_20260928T235330`):**
+- **Beta is gone.** Beta is -0.23 to 0.00 across all 60 configurations, and the long share is 0.35-0.45.
+- **The primary does not pass.** Its alpha is +17.0 ticks/day, t 1.15, positive in 6 of 9 folds.
+- **Best by alpha:** `1h_h12_logistic_c005_gate5_centred` at +28.8 ticks/day (t 2.72, interval [8, 51], 7 of 9 folds). Its net is +27.1 at 0.29 trades/day.
+- **Grid:** the Reality Check p is 0.064, and 2 of 60 configurations have t > 2. The null expects 1.5.
+
+**Review verdict:**
+
+| Finding | Evidence |
+|---|---|
+| The best is what a best-of-60 search produces | The null 95th-percentile maximum t is 2.78-2.94, and the observed t is 2.72. |
+| Its alpha lives on big-move days | The 58 largest-move days carry 63% of it. It wins 21 of 28 big days, but only 51.0% of ordinary days. |
+| Adding a convexity term leaves little alpha | The Treynor-Mazuy alpha is 9.4 (t 0.72). |
+| The accounting is sound | The audit found nothing larger than 0.2 ticks/day. |
+| 600 is out of reach | The best's alpha upper bound is 51. |
+
+**Surviving recommendations** (the `reviews` table has all 11, with the skeptic's verdict on each):
+1. **Fix the gate centre.** The fit-row centre builds in a short bias: 4h H6 is 0% long in 5 of 9 folds. Replace it with a two-sided rank gate fitted on validation rows.
+2. **Fix the pass line.** Use a joint-bootstrap maximum-t critical value (about 2.8 for 60 configurations), count trials across rounds, and add robustness gates (Treynor-Mazuy, and alpha without the largest-move days).
+3. **Separate the hold from the label horizon.** Renewed holds carry 61% of the primary's net, but its label never scored them.
+4. **Buy power.** Prune the grid to 1-3 pre-registered configurations and add NQ from 2010. At 1,164 days the smallest detectable alpha is about 29-39 ticks/day.
+
+**Refuted:**
+- The 800-tick take-profit: it was selected after the fact, and it moved net by +0.9.
+- A range-conditioned big-day strategy as a sure path: the big-day win rate was found after the fact on a selected configuration, and the upper bound is about 18 ticks/day. It is still the only hypothesis worth a pre-registered test.
+- Sizing as a finding: 23 contracts reach $300/day at the point estimate, but the maximum drawdown is -$53.7k. It adds no evidence about the edge.
+
+**Conclusion after two rounds:**
+- TA-indicator direction is worth at most about 10-30 ticks/day per contract, and that has not been shown to be above noise.
+- 600 ticks/day on one contract is not reachable with this family. The market's hindsight ceiling is 16-20 times 600, so the limit is signal, not opportunity.
+
+**The next step toward the goal is a pre-registered test of a different family:**
+- range-forecast-gated trading on predicted big-move sessions, or the 09:30 ET opening-range breakout;
+- run on NQ from 2010 for power;
+- with contract sizing only after an edge clears the joint-bootstrap line.
