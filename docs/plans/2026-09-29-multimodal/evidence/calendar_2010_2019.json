@@ -1,0 +1,2635 @@
+{
+ "rows": [
+  {
+   "family": "employment_situation",
+   "date": "2010-01-08",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_01082010.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2010-01-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_01152010.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2010-02-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_02052010.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2010-02-19",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_02192010.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2010-03-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_03052010.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2010-03-18",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_03182010.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2010-04-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_04022010.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2010-04-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_04142010.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2010-05-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_05072010.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2010-05-19",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_05192010.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2010-06-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_06042010.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2010-06-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_06172010.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2010-07-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_07022010.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2010-07-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_07162010.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2010-08-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_08062010.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2010-08-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_08132010.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2010-09-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_09032010.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2010-09-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_09172010.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2010-10-08",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_10082010.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2010-10-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_10152010.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2010-11-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_11052010.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2010-11-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_11172010.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2010-12-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_12032010.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2010-12-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_12152010.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2011-01-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_01072011.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2011-01-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_01142011.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2011-02-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_02042011.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2011-02-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_02172011.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2011-03-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_03042011.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2011-03-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_03172011.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2011-04-01",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_04012011.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2011-04-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_04152011.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2011-05-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_05062011.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2011-05-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_05132011.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2011-06-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_06032011.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2011-06-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_06152011.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2011-07-08",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_07082011.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2011-07-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_07152011.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2011-08-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_08052011.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2011-08-18",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_08182011.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2011-09-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_09022011.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2011-09-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_09152011.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2011-10-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_10072011.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2011-10-19",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_10192011.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2011-11-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_11042011.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2011-11-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_11162011.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2011-12-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_12022011.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2011-12-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_12162011.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2012-01-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_01062012.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2012-01-19",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_01192012.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2012-02-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_02032012.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2012-02-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_02172012.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2012-03-09",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_03092012.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2012-03-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_03162012.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2012-04-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_04062012.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2012-04-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_04132012.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2012-05-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_05042012.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2012-05-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_05152012.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2012-06-01",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_06012012.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2012-06-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_06142012.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2012-07-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_07062012.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2012-07-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_07172012.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2012-08-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_08032012.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2012-08-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_08152012.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2012-09-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_09072012.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2012-09-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_09142012.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2012-10-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_10052012.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2012-10-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_10162012.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2012-11-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_11022012.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2012-11-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_11152012.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2012-12-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_12072012.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2012-12-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_12142012.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2013-01-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_01042013.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2013-01-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_01162013.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2013-02-01",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_02012013.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2013-02-21",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_02212013.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2013-03-08",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_03082013.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2013-03-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_03152013.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2013-04-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_04052013.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2013-04-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_04162013.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2013-05-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_05032013.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2013-05-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_05162013.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2013-06-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_06072013.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2013-06-18",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_06182013.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2013-07-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_07052013.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2013-07-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_07162013.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2013-08-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_08022013.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2013-08-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_08152013.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2013-09-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_09062013.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2013-09-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_09172013.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2013-10-22",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_10222013.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2013-10-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_10302013.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2013-11-08",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_11082013.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2013-11-20",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_11202013.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2013-12-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_12062013.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2013-12-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_12172013.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2014-01-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_01102014.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2014-01-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_01162014.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2014-02-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_02072014.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2014-02-20",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_02202014.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2014-03-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_03072014.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2014-03-18",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_03182014.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2014-04-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_04042014.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2014-04-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_04152014.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2014-05-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_05022014.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2014-05-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_05152014.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2014-06-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_06062014.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2014-06-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_06172014.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2014-07-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_07032014.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2014-07-22",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_07222014.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2014-08-01",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_08012014.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2014-08-19",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_08192014.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2014-09-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_09052014.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2014-09-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_09172014.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2014-10-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_10032014.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2014-10-22",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_10222014.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2014-11-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_11072014.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2014-11-20",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_11202014.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2014-12-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_12052014.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2014-12-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_12172014.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2015-01-09",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_01092015.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2015-01-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_01162015.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2015-02-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_02062015.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2015-02-26",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_02262015.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2015-03-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_03062015.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2015-03-24",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_03242015.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2015-04-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_04032015.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2015-04-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_04172015.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2015-05-08",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_05082015.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2015-05-22",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_05222015.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2015-06-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_06052015.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2015-06-18",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_06182015.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2015-07-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_07022015.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2015-07-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_07172015.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2015-08-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_08072015.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2015-08-19",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_08192015.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2015-09-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_09042015.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2015-09-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_09162015.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2015-10-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_10022015.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2015-10-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_10152015.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2015-11-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_11062015.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2015-11-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_11172015.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2015-12-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_12042015.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2015-12-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_12152015.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2016-01-08",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_01082016.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2016-01-20",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_01202016.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2016-02-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_02052016.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2016-02-19",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_02192016.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2016-03-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_03042016.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2016-03-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_03162016.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2016-04-01",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_04012016.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2016-04-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_04142016.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2016-05-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_05062016.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2016-05-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_05172016.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2016-06-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_06032016.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2016-06-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_06162016.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2016-07-08",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_07082016.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2016-07-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_07152016.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2016-08-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_08052016.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2016-08-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_08162016.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2016-09-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_09022016.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2016-09-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_09162016.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2016-10-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_10072016.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2016-10-18",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_10182016.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2016-11-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_11042016.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2016-11-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_11172016.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2016-12-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_12022016.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2016-12-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_12152016.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2017-01-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_01062017.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2017-01-18",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_01182017.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2017-02-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_02032017.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2017-02-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_02152017.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2017-03-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_03102017.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2017-03-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_03152017.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2017-04-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_04072017.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2017-04-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_04142017.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2017-05-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_05052017.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2017-05-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_05122017.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2017-06-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_06022017.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2017-06-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_06142017.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2017-07-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_07072017.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2017-07-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_07142017.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2017-08-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_08042017.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2017-08-11",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_08112017.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2017-09-01",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_09012017.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2017-09-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_09142017.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2017-10-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_10062017.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2017-10-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_10132017.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2017-11-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_11032017.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2017-11-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_11152017.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2017-12-08",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_12082017.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2017-12-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_12132017.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2018-01-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_01052018.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2018-01-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_01122018.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2018-02-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_02022018.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2018-02-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_02142018.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2018-03-09",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_03092018.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2018-03-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_03132018.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2018-04-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_04062018.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2018-04-11",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_04112018.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2018-05-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_05042018.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2018-05-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_05102018.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2018-06-01",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_06012018.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2018-06-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_06122018.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2018-07-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_07062018.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2018-07-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_07122018.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2018-08-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_08032018.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2018-08-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_08102018.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2018-09-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_09072018.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2018-09-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_09132018.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2018-10-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_10052018.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2018-10-11",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_10112018.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2018-11-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_11022018.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2018-11-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_11142018.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2018-12-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_12072018.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2018-12-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_12122018.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2019-01-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_01042019.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2019-01-11",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_01112019.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2019-02-01",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_02012019.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2019-02-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_02132019.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2019-03-08",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_03082019.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2019-03-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_03122019.htm",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2019-04-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_04052019.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2019-04-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_04102019.htm",
+   "vintage": null
+  }
+ ],
+ "fomc": [
+  {
+   "statement_date": "2010-01-27",
+   "local_time": "14:15",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20100127a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; 2:15 p.m. ET for meetings without a press conference per the Fed's https://www.federalreserve.gov/newsevents/pressreleases/monetary20110324a.htm ('one hour and forty-five minutes' after the 12:30 p.m. statements, i.e. 2:15 p.m. for other meetings) and NY Fed https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/ (2:15 p.m. before 2011 and for 2011-2012 statements without a press conference)"
+  },
+  {
+   "statement_date": "2010-03-16",
+   "local_time": "14:15",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20100316a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; 2:15 p.m. ET for meetings without a press conference per the Fed's https://www.federalreserve.gov/newsevents/pressreleases/monetary20110324a.htm ('one hour and forty-five minutes' after the 12:30 p.m. statements, i.e. 2:15 p.m. for other meetings) and NY Fed https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/ (2:15 p.m. before 2011 and for 2011-2012 statements without a press conference)"
+  },
+  {
+   "statement_date": "2010-04-28",
+   "local_time": "14:15",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20100428a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; 2:15 p.m. ET for meetings without a press conference per the Fed's https://www.federalreserve.gov/newsevents/pressreleases/monetary20110324a.htm ('one hour and forty-five minutes' after the 12:30 p.m. statements, i.e. 2:15 p.m. for other meetings) and NY Fed https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/ (2:15 p.m. before 2011 and for 2011-2012 statements without a press conference)"
+  },
+  {
+   "statement_date": "2010-06-23",
+   "local_time": "14:15",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20100623a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; 2:15 p.m. ET for meetings without a press conference per the Fed's https://www.federalreserve.gov/newsevents/pressreleases/monetary20110324a.htm ('one hour and forty-five minutes' after the 12:30 p.m. statements, i.e. 2:15 p.m. for other meetings) and NY Fed https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/ (2:15 p.m. before 2011 and for 2011-2012 statements without a press conference)"
+  },
+  {
+   "statement_date": "2010-08-10",
+   "local_time": "14:15",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20100810a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; 2:15 p.m. ET for meetings without a press conference per the Fed's https://www.federalreserve.gov/newsevents/pressreleases/monetary20110324a.htm ('one hour and forty-five minutes' after the 12:30 p.m. statements, i.e. 2:15 p.m. for other meetings) and NY Fed https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/ (2:15 p.m. before 2011 and for 2011-2012 statements without a press conference)"
+  },
+  {
+   "statement_date": "2010-09-21",
+   "local_time": "14:15",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20100921a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; 2:15 p.m. ET for meetings without a press conference per the Fed's https://www.federalreserve.gov/newsevents/pressreleases/monetary20110324a.htm ('one hour and forty-five minutes' after the 12:30 p.m. statements, i.e. 2:15 p.m. for other meetings) and NY Fed https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/ (2:15 p.m. before 2011 and for 2011-2012 statements without a press conference)"
+  },
+  {
+   "statement_date": "2010-11-03",
+   "local_time": "14:15",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20101103a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; 2:15 p.m. ET for meetings without a press conference per the Fed's https://www.federalreserve.gov/newsevents/pressreleases/monetary20110324a.htm ('one hour and forty-five minutes' after the 12:30 p.m. statements, i.e. 2:15 p.m. for other meetings) and NY Fed https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/ (2:15 p.m. before 2011 and for 2011-2012 statements without a press conference)"
+  },
+  {
+   "statement_date": "2010-12-14",
+   "local_time": "14:15",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20101214a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; 2:15 p.m. ET for meetings without a press conference per the Fed's https://www.federalreserve.gov/newsevents/pressreleases/monetary20110324a.htm ('one hour and forty-five minutes' after the 12:30 p.m. statements, i.e. 2:15 p.m. for other meetings) and NY Fed https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/ (2:15 p.m. before 2011 and for 2011-2012 statements without a press conference)"
+  },
+  {
+   "statement_date": "2011-01-26",
+   "local_time": "14:15",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20110126a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; 2:15 p.m. ET for meetings without a press conference per the Fed's https://www.federalreserve.gov/newsevents/pressreleases/monetary20110324a.htm ('one hour and forty-five minutes' after the 12:30 p.m. statements, i.e. 2:15 p.m. for other meetings) and NY Fed https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/ (2:15 p.m. before 2011 and for 2011-2012 statements without a press conference)"
+  },
+  {
+   "statement_date": "2011-03-15",
+   "local_time": "14:15",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20110315a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; 2:15 p.m. ET for meetings without a press conference per the Fed's https://www.federalreserve.gov/newsevents/pressreleases/monetary20110324a.htm ('one hour and forty-five minutes' after the 12:30 p.m. statements, i.e. 2:15 p.m. for other meetings) and NY Fed https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/ (2:15 p.m. before 2011 and for 2011-2012 statements without a press conference)"
+  },
+  {
+   "statement_date": "2011-04-27",
+   "local_time": "12:30",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20110427a.htm",
+   "note": "target range 0 to 1/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20110427.htm ('FOMC Meeting Statement (Released ... at 12:30 p.m.)')"
+  },
+  {
+   "statement_date": "2011-06-22",
+   "local_time": "12:30",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20110622a.htm",
+   "note": "target range 0 to 1/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20110622.htm ('FOMC Meeting Statement (Released ... at 12:30 p.m.)')"
+  },
+  {
+   "statement_date": "2011-08-09",
+   "local_time": "14:15",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20110809a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; 2:15 p.m. ET for meetings without a press conference per the Fed's https://www.federalreserve.gov/newsevents/pressreleases/monetary20110324a.htm ('one hour and forty-five minutes' after the 12:30 p.m. statements, i.e. 2:15 p.m. for other meetings) and NY Fed https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/ (2:15 p.m. before 2011 and for 2011-2012 statements without a press conference)"
+  },
+  {
+   "statement_date": "2011-09-21",
+   "local_time": "14:15",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20110921a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; 2:15 p.m. ET for meetings without a press conference per the Fed's https://www.federalreserve.gov/newsevents/pressreleases/monetary20110324a.htm ('one hour and forty-five minutes' after the 12:30 p.m. statements, i.e. 2:15 p.m. for other meetings) and NY Fed https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/ (2:15 p.m. before 2011 and for 2011-2012 statements without a press conference)"
+  },
+  {
+   "statement_date": "2011-11-02",
+   "local_time": "12:30",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20111102a.htm",
+   "note": "target range 0 to 1/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20111102.htm ('FOMC Meeting Statement (Released ... at 12:30 p.m.)')"
+  },
+  {
+   "statement_date": "2011-12-13",
+   "local_time": "14:15",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20111213a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; 2:15 p.m. ET for meetings without a press conference per the Fed's https://www.federalreserve.gov/newsevents/pressreleases/monetary20110324a.htm ('one hour and forty-five minutes' after the 12:30 p.m. statements, i.e. 2:15 p.m. for other meetings) and NY Fed https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/ (2:15 p.m. before 2011 and for 2011-2012 statements without a press conference)"
+  },
+  {
+   "statement_date": "2012-01-25",
+   "local_time": "12:20",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20120125a.htm",
+   "note": "target range 0 to 1/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20120125.htm ('FOMC Meeting Statement (Released ... at 12:20 p.m.)')"
+  },
+  {
+   "statement_date": "2012-03-13",
+   "local_time": "14:15",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20120313a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; 2:15 p.m. ET for meetings without a press conference per the Fed's https://www.federalreserve.gov/newsevents/pressreleases/monetary20110324a.htm ('one hour and forty-five minutes' after the 12:30 p.m. statements, i.e. 2:15 p.m. for other meetings) and NY Fed https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/ (2:15 p.m. before 2011 and for 2011-2012 statements without a press conference)"
+  },
+  {
+   "statement_date": "2012-04-25",
+   "local_time": "12:35",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20120425a.htm",
+   "note": "target range 0 to 1/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20120425.htm ('FOMC Meeting Statement (Released ... at 12:35 p.m.)')"
+  },
+  {
+   "statement_date": "2012-06-20",
+   "local_time": "12:35",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20120620a.htm",
+   "note": "target range 0 to 1/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20120620.htm ('FOMC Meeting Statement (Released ... at 12:35 p.m.)')"
+  },
+  {
+   "statement_date": "2012-08-01",
+   "local_time": "14:15",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20120801a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; 2:15 p.m. ET for meetings without a press conference per the Fed's https://www.federalreserve.gov/newsevents/pressreleases/monetary20110324a.htm ('one hour and forty-five minutes' after the 12:30 p.m. statements, i.e. 2:15 p.m. for other meetings) and NY Fed https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/ (2:15 p.m. before 2011 and for 2011-2012 statements without a press conference)"
+  },
+  {
+   "statement_date": "2012-09-13",
+   "local_time": "12:35",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20120913a.htm",
+   "note": "target range 0 to 1/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20120913.htm ('FOMC Meeting Statement (Released ... at 12:35 p.m.)')"
+  },
+  {
+   "statement_date": "2012-10-24",
+   "local_time": "12:30",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20121024a.htm",
+   "note": "target range 0 to 1/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20121024.htm ('FOMC Meeting Statement (Released ... at 12:30 p.m.)')"
+  },
+  {
+   "statement_date": "2012-12-12",
+   "local_time": "12:30",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20121212a.htm",
+   "note": "target range 0 to 1/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20121212.htm ('FOMC Meeting Statement (Released ... at 12:30 p.m.)')"
+  },
+  {
+   "statement_date": "2013-01-30",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20130130a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; 2:00 p.m. ET per NY Fed https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/ ('Starting in 2013, FOMC statements are always released at 2:00 p.m.'); Fed's own 2:00 p.m. announcement https://www.federalreserve.gov/newsevents/pressreleases/monetary20130313a.htm is dated later, so this one is the lowest-confidence time"
+  },
+  {
+   "statement_date": "2013-03-20",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20130320a.htm",
+   "note": "target range 0 to 1/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20130320.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2013-05-01",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20130501a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; time 2:00 p.m. ET from the Fed's release https://www.federalreserve.gov/newsevents/pressreleases/monetary20130313a.htm (all regularly scheduled statements at 2 p.m. from 2013-03-13)"
+  },
+  {
+   "statement_date": "2013-06-19",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20130619a.htm",
+   "note": "target range 0 to 1/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20130619.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2013-07-31",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20130731a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; time 2:00 p.m. ET from the Fed's release https://www.federalreserve.gov/newsevents/pressreleases/monetary20130313a.htm (all regularly scheduled statements at 2 p.m. from 2013-03-13)"
+  },
+  {
+   "statement_date": "2013-09-18",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20130918a.htm",
+   "note": "target range 0 to 1/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20130918.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2013-10-30",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20131030a.htm",
+   "note": "target range 0 to 1/4 percent; the press release prints only 'For immediate release'; time 2:00 p.m. ET from the Fed's release https://www.federalreserve.gov/newsevents/pressreleases/monetary20130313a.htm (all regularly scheduled statements at 2 p.m. from 2013-03-13)"
+  },
+  {
+   "statement_date": "2013-12-18",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20131218a.htm",
+   "note": "release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20131218.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2014-01-29",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20140129a.htm",
+   "note": "the press release prints only 'For immediate release'; time 2:00 p.m. ET from the Fed's release https://www.federalreserve.gov/newsevents/pressreleases/monetary20130313a.htm (all regularly scheduled statements at 2 p.m. from 2013-03-13)"
+  },
+  {
+   "statement_date": "2014-03-19",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20140319a.htm",
+   "note": "release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20140319.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2014-04-30",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20140430a.htm",
+   "note": "the press release prints only 'For immediate release'; time 2:00 p.m. ET from the Fed's release https://www.federalreserve.gov/newsevents/pressreleases/monetary20130313a.htm (all regularly scheduled statements at 2 p.m. from 2013-03-13)"
+  },
+  {
+   "statement_date": "2014-06-18",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20140618a.htm",
+   "note": "release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20140618.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2014-07-30",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20140730a.htm",
+   "note": "the press release prints only 'For immediate release'; time 2:00 p.m. ET from the Fed's release https://www.federalreserve.gov/newsevents/pressreleases/monetary20130313a.htm (all regularly scheduled statements at 2 p.m. from 2013-03-13)"
+  },
+  {
+   "statement_date": "2014-09-17",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20140917a.htm",
+   "note": "release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20140917.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2014-10-29",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20141029a.htm",
+   "note": "target range least until the one-to-two-year ahead inflation outlook has returned to 2 percent; the press release prints only 'For immediate release'; time 2:00 p.m. ET from the Fed's release https://www.federalreserve.gov/newsevents/pressreleases/monetary20130313a.htm (all regularly scheduled statements at 2 p.m. from 2013-03-13)"
+  },
+  {
+   "statement_date": "2014-12-17",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20141217a.htm",
+   "note": "release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20141217.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2015-01-28",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20150128a.htm",
+   "note": "the press release prints only 'For immediate release'; time 2:00 p.m. ET from the Fed's release https://www.federalreserve.gov/newsevents/pressreleases/monetary20130313a.htm (all regularly scheduled statements at 2 p.m. from 2013-03-13)"
+  },
+  {
+   "statement_date": "2015-03-18",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20150318a.htm",
+   "note": "release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20150318.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2015-04-29",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20150429a.htm",
+   "note": "the press release prints only 'For immediate release'; time 2:00 p.m. ET from the Fed's release https://www.federalreserve.gov/newsevents/pressreleases/monetary20130313a.htm (all regularly scheduled statements at 2 p.m. from 2013-03-13)"
+  },
+  {
+   "statement_date": "2015-06-17",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20150617a.htm",
+   "note": "release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20150617.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2015-07-29",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20150729a.htm",
+   "note": "the press release prints only 'For immediate release'; time 2:00 p.m. ET from the Fed's release https://www.federalreserve.gov/newsevents/pressreleases/monetary20130313a.htm (all regularly scheduled statements at 2 p.m. from 2013-03-13)"
+  },
+  {
+   "statement_date": "2015-09-17",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20150917a.htm",
+   "note": "release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20150917.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2015-10-28",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20151028a.htm",
+   "note": "the press release prints only 'For immediate release'; time 2:00 p.m. ET from the Fed's release https://www.federalreserve.gov/newsevents/pressreleases/monetary20130313a.htm (all regularly scheduled statements at 2 p.m. from 2013-03-13)"
+  },
+  {
+   "statement_date": "2015-12-16",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 25,
+   "decision": "hike",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20151216a.htm",
+   "note": "target range 1/4 to 1/2 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20151216.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2016-01-27",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20160127a.htm",
+   "note": "target range 1/4 to 1/2 percent; release line: 'For release at 2:00 p.m.'"
+  },
+  {
+   "statement_date": "2016-03-16",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20160316a.htm",
+   "note": "target range 1/4 to 1/2 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20160316.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2016-04-27",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20160427a.htm",
+   "note": "target range 1/4 to 1/2 percent; release line: 'For release at 2:00 p.m.'"
+  },
+  {
+   "statement_date": "2016-06-15",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20160615a.htm",
+   "note": "target range 1/4 to 1/2 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20160615.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2016-07-27",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20160727a.htm",
+   "note": "target range 1/4 to 1/2 percent; release line: 'For release at 2:00 p.m.'"
+  },
+  {
+   "statement_date": "2016-09-21",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20160921a.htm",
+   "note": "target range 1/4 to 1/2 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20160921.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2016-11-02",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20161102a.htm",
+   "note": "target range 1/4 to 1/2 percent; release line: 'For release at 2:00 p.m.'"
+  },
+  {
+   "statement_date": "2016-12-14",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 25,
+   "decision": "hike",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20161214a.htm",
+   "note": "target range 1/2 to 3/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20161214.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2017-02-01",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20170201a.htm",
+   "note": "target range 1/2 to 3/4 percent; release line: 'For release at 2:00 p.m.'"
+  },
+  {
+   "statement_date": "2017-03-15",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 25,
+   "decision": "hike",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20170315a.htm",
+   "note": "target range 3/4 to 1 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20170315.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2017-05-03",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20170503a.htm",
+   "note": "target range 3/4 to 1 percent; release line: 'For release at 2:00 p.m.'"
+  },
+  {
+   "statement_date": "2017-06-14",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 25,
+   "decision": "hike",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20170614a.htm",
+   "note": "target range 1 to 1-1/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20170614.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2017-07-26",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20170726a.htm",
+   "note": "target range 1 to 1-1/4 percent; release line: 'For release at 2:00 p.m.'"
+  },
+  {
+   "statement_date": "2017-09-20",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20170920a.htm",
+   "note": "target range 1 to 1-1/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20170920.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2017-11-01",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20171101a.htm",
+   "note": "target range 1 to 1-1/4 percent; release line: 'For release at 2:00 p.m.'"
+  },
+  {
+   "statement_date": "2017-12-13",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 25,
+   "decision": "hike",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20171213a.htm",
+   "note": "target range 1-1/4 to 1-1/2 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20171213.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2018-01-31",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20180131a.htm",
+   "note": "target range 1-1/4 to 1-1/2 percent; release line: 'For release at 2:00 p.m.'"
+  },
+  {
+   "statement_date": "2018-03-21",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 25,
+   "decision": "hike",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20180321a.htm",
+   "note": "target range 1-1/2 to 1-3/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20180321.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2018-05-02",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20180502a.htm",
+   "note": "target range 1-1/2 to 1-3/4 percent; release line: 'For release at 2:00 p.m.'"
+  },
+  {
+   "statement_date": "2018-06-13",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 25,
+   "decision": "hike",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20180613a.htm",
+   "note": "target range 1-3/4 to 2 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20180613.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2018-08-01",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20180801a.htm",
+   "note": "target range 1-3/4 to 2 percent; release line: 'For release at 2:00 p.m.'"
+  },
+  {
+   "statement_date": "2018-09-26",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 25,
+   "decision": "hike",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20180926a.htm",
+   "note": "target range 2 to 2-1/4 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20180926.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2018-11-08",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20181108a.htm",
+   "note": "target range 2 to 2-1/4 percent; release line: 'For release at 2:00 p.m.'"
+  },
+  {
+   "statement_date": "2018-12-19",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 25,
+   "decision": "hike",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20181219a.htm",
+   "note": "target range 2-1/4 to 2-1/2 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20181219.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2019-01-30",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20190130a.htm",
+   "note": "target range 2-1/4 to 2-1/2 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20190130.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  },
+  {
+   "statement_date": "2019-03-20",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20190320a.htm",
+   "note": "target range 2-1/4 to 2-1/2 percent; release time from the Fed's own meeting page https://www.federalreserve.gov/monetarypolicy/fomcpresconf20190320.htm ('FOMC Meeting Statement (Released ... at 2:00 p.m.)')"
+  }
+ ],
+ "gaps": [
+  "FOMC release times: the Fed's press-release page prints a time only from 2016-01-27 on. For 2010-01-27 through 2011-03-15 (10 statements), 2012-03-13 and 2012-08-01, the 14:15 ET time is not printed on the statement page; it is the standing schedule stated in the Fed's own 2011-03-24 announcement (https://www.federalreserve.gov/newsevents/pressreleases/monetary20110324a.htm) and the NY Fed post (https://libertystreeteconomics.newyorkfed.org/2018/11/the-pre-fomc-announcement-drift-more-recent-evidence/). Each row's note says which basis applies.",
+  "2010-11-03: printed release time absent on the Fed press release; 14:15 ET taken from a secondary Fed/NY Fed statement of the standing schedule",
+  "2010-12-14: printed release time absent on the Fed press release; 14:15 ET taken from a secondary Fed/NY Fed statement of the standing schedule",
+  "2013-01-30: time 14:00 rests on the NY Fed post, not a Fed-printed time",
+  "2010-05-09 (Sunday) unscheduled FOMC statement on dollar liquidity swap lines (https://www.federalreserve.gov/newsevents/press/monetary/20100509a.htm) is not a rate decision and falls on a weekend; excluded. No other unscheduled FOMC statements exist in 2010-01..2019-04 (fomchistorical pages list conference calls 2010-10-15, 2011-08-01, 2011-11-28, 2013-10-16, 2014-03-04 without policy statements).",
+  "BLS archive pages (bls.gov returns 403 to scripts) were not fetched individually; each source_url is the release-archive file name taken from BLS's own index, read through the Wayback Machine copy https://web.archive.org/web/2020/https://www.bls.gov/bls/news-release/cpi.htm and .../empsit.htm (copies of the BLS pages of 2020-11-25 and 2020-12-31). Per-URL HTTP 200 checks were not completed."
+ ],
+ "counts": {
+  "employment_situation": 112,
+  "consumer_price_index": 112,
+  "fomc_statement": 74
+ },
+ "coverage": {
+  "start": "2010-01-01",
+  "end": "2019-04-30",
+  "families": [
+   "consumer_price_index",
+   "employment_situation",
+   "fomc_statement"
+  ],
+  "note": "BLS CPI and Employment Situation 08:30 ET (release dates from the BLS release archives; the 2013 shutdown shifted Sep-Nov 2013 releases, actual dates used). FOMC: every policy statement 2010-01-27 through 2019-03-20 from the Fed press releases; window ends 2019-04-30 so nothing overlaps calendar_2019_2020.json (starts 2019-05-01)."
+ }
+}
