@@ -182,6 +182,17 @@ def test_conditions_cross_within_then_broke_and_retest():
     assert np.flatnonzero(then).tolist() == [4]
 
 
+def test_session_window_wraps_midnight_for_the_overnight_session():
+    minutes = [0, 6 * 60 + 15, 6 * 60 + 30, 12 * 60 + 45, 13 * 60, 15 * 60, 23 * 60 + 45]
+    ctx = fake_context(np.ones(len(minutes)), start_minute=minutes)
+    overnight = strategy.condition(ctx, {"op": "session_window", "start": "13:00", "end": "06:30"})
+    assert overnight.tolist() == [True, True, False, False, True, True, True]
+    regular = strategy.condition(ctx, {"op": "session_window", "start": "06:30", "end": "13:00"})
+    assert (regular == ~overnight).all()
+    whole = strategy.condition(ctx, {"op": "session_window", "start": "00:00", "end": "24:00"})
+    assert whole.all()
+
+
 def test_contract_years_come_from_when_the_contract_first_traded():
     from ta_strategy.data import contract_sort_key
 

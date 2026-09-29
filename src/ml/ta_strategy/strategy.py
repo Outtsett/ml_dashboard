@@ -53,7 +53,7 @@ from . import engine, levels
 from .data import aggregate, aggregate_session_anchored, effective_roll_timestamps, session_dates
 from .rules import prior_percentile
 
-TIMEFRAME_MINUTES = {"5m": 5, "15m": 15, "30m": 30, "1h": 60}
+TIMEFRAME_MINUTES = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60}
 
 
 def resolve(node, params: dict):
@@ -314,6 +314,8 @@ def _condition(ctx: Context, node) -> np.ndarray:
     if op == "session_window":
         start = _minutes_of(node["start"])
         end = _minutes_of(node["end"])
+        if end <= start:  # wraps midnight: the overnight (ETH) session 13:00 -> 06:30 Pacific
+            return (ctx.start_minute >= start) | (ctx.start_minute < end)
         return (ctx.start_minute >= start) & (ctx.start_minute < end)
     if op == "pct_rank_below":
         return prior_percentile(series(ctx, node["a"]), int(node.get("window", 1000))) < float(node["q"])

@@ -164,6 +164,135 @@
         "null_b_shuffles": 3
       },
       "goal_ticks_per_session_day": 600
+    },
+    "4": {
+      "mode": "frequency",
+      "title": "Frequency and session: the frozen specs traded through ETH and RTH, both directions, with more entries per session",
+      "question": "600 ticks a day counts every trade in the session day, long and short, overnight (ETH) and regular hours (RTH). Rounds 1-3 capped every template at 2 entries per session inside an RTH window. Does opening the window and lifting the cap add ticks per day?",
+      "hypothesis": "Opening the frozen specs to the overnight session, lifting the entry cap, loosening the entry thresholds (a ladder fixed here) and shortening the bar to 5m and 1m raises trades per day, but net ticks per trade falls toward minus the round-trip cost, because the cost (5.56 ticks + 1 tick stop slippage) is paid per trade while the move captured per trade shrinks with the bar and the threshold. Net ticks per session day therefore peaks at a low frequency; overnight trades net less per trade than regular-hours trades; no variant, and no sum of the three books at one setting, reaches 5% of 600 net ticks per session day on one contract. Written before any full-span round-4 result was computed (one two-month MNQ smoke run, Oct-Nov 2025, checked the code only).",
+      "frozen": [
+        {
+          "name": "opening_range_breakout_runner",
+          "template": "opening_range_breakout_runner",
+          "params": {
+            "rsi_threshold": 66,
+            "stop_atr": 1.25
+          }
+        },
+        {
+          "name": "momentum_expansion_two_to_one",
+          "template": "momentum_expansion_control",
+          "params": {
+            "move_atr": 0.75,
+            "rsi_threshold": 72,
+            "stop_atr": 2.0,
+            "breakeven_r": 1.0
+          },
+          "exit_override": {
+            "trail": null,
+            "target": {
+              "kind": "r",
+              "value": 2.0
+            }
+          }
+        },
+        {
+          "name": "level_breakout_momentum",
+          "template": "level_breakout_momentum",
+          "params": {
+            "rsi_threshold": 76,
+            "min_strength": 1,
+            "stop_buffer_atr": 0.25,
+            "breakeven_r": 1.25
+          }
+        }
+      ],
+      "variants": {
+        "sessions": {
+          "frozen": null,
+          "overnight": {
+            "start": "13:00",
+            "end": "06:30"
+          },
+          "whole_day": {
+            "start": "00:00",
+            "end": "24:00"
+          }
+        },
+        "maximum_entries_per_session": [
+          2,
+          0
+        ],
+        "timeframes": [
+          "15m",
+          "5m",
+          "1m"
+        ],
+        "session_bound_templates": [
+          "opening_range_breakout_runner"
+        ],
+        "strictness": {
+          "momentum_expansion_two_to_one": {
+            "frozen": {},
+            "looser": {
+              "move_atr": 0.5,
+              "rsi_threshold": 64
+            },
+            "loosest": {
+              "move_atr": 0.3,
+              "rsi_threshold": 56
+            }
+          },
+          "level_breakout_momentum": {
+            "frozen": {},
+            "looser": {
+              "rsi_threshold": 64
+            },
+            "loosest": {
+              "rsi_threshold": 54
+            }
+          },
+          "opening_range_breakout_runner": {
+            "frozen": {},
+            "looser": {
+              "rsi_threshold": 58
+            },
+            "loosest": {
+              "rsi_threshold": 50
+            }
+          }
+        }
+      },
+      "regular_hours_pacific": {
+        "start": "06:30",
+        "end": "13:00"
+      },
+      "spans": [
+        {
+          "symbol": "NQ",
+          "cost_symbol": "MNQ",
+          "data_start": "2010-06-01",
+          "data_end": "2019-06-01",
+          "role": "primary: never used to tune any parameter"
+        },
+        {
+          "symbol": "MNQ",
+          "cost_symbol": "MNQ",
+          "data_start": "2019-06-01",
+          "data_end": "2026-01-01",
+          "role": "secondary: the frozen parameters were tuned on 2019-2025 MNQ, so only the session and entry-cap changes are out of sample here"
+        }
+      ],
+      "nulls": {
+        "matched_seeds": 12,
+        "random_side_replicates": 6
+      },
+      "costs": {
+        "stop_slippage_ticks": 1
+      },
+      "goal_ticks_per_session_day": 600,
+      "smoke_disclosure": "Before the full run, code smoke runs on MNQ 2025-10-01..2025-12-01 (two months, 2 null seeds) were seen. They showed the three books summed at whole_day, unlimited entries, 15m, loosest reaching about +640 net ticks/day with excess t 3.3, and 1m loosest at about -800. Nothing in the variant grid was changed after the smoke except adding the 1m timeframe to the table of bar widths (it was already in the grid) and the per-year tables. The hypothesis above was written before the smoke and is kept as written.",
+      "price_scale_note": "Ticks are a fixed 0.25 points, so the same percentage move is about ten times more ticks at MNQ 25,000 (2025) than at NQ 2,000 (2010). The 600 ticks/day question is judged per year on MNQ, and the latest full year (2025) is the price scale a live account trades at."
     }
   }
 }
