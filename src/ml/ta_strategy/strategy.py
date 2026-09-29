@@ -356,9 +356,11 @@ def plans(ctx: Context, spec: dict, bars_index: np.ndarray, sides: np.ndarray) -
     elif stop["kind"] == "ticks":
         plan[:, engine.P_STOP_TICKS] = float(stop["value"])
     elif stop["kind"] == "level":
-        # long: below the zone under the close (after a breakout, the broken zone); short: above the zone over it
-        low_edge = ctx.zones["support_low"].to_numpy(float)[bars_index]
-        high_edge = ctx.zones["resistance_high"].to_numpy(float)[bars_index]
+        # "long_level" / "short_level" name the exact level the entry broke (e.g. the previous bar's
+        # resistance_high for a breakout); without them: the zone under the close (long) / over it (short).
+        # Round 1 used the nearest zone, which after a breakout was the broken one in only 38-55% of signals.
+        low_edge = (series(ctx, stop["long_level"]) if "long_level" in stop else ctx.zones["support_low"].to_numpy(float))[bars_index]
+        high_edge = (series(ctx, stop["short_level"]) if "short_level" in stop else ctx.zones["resistance_high"].to_numpy(float))[bars_index]
         buffer = float(stop.get("buffer_atr", 0.25)) * atr
         price = np.where(sides > 0, np.floor((low_edge - buffer) / tick) * tick, np.ceil((high_edge + buffer) / tick) * tick)
         plan[:, engine.P_STOP_PRICE] = price
@@ -449,12 +451,17 @@ def signal_entries(ctx: Context, spec: dict) -> tuple[np.ndarray, np.ndarray]:
     return index, signal[index]
 
 
-def matched_null_entries(ctx: Context, spec: dict, index: np.ndarray, sides: np.ndarray, seed: int) -> tuple[np.ndarray, np.ndarray]:
+def matched_null_entries(ctx: Context, spec: dict, index: np.ndarray, sides: np.ndarray, seed: int,
+                         span_mask_bars: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Random entries on the bars the spec's GATE allows (its session window, not its indicator
-    conditions), with the same count per hour of day and the same long share."""
+    conditions), inside the SAME span as the real entries (``span_mask_bars``), with the same
+    count per hour of day and the same long share. Without the span mask the pool covered
+    2019-2025 and only 14-21% of null trades landed in the evaluated year (round-1 review)."""
     rng = np.random.default_rng(seed)
     gate = condition(ctx, spec["gate"]) if spec.get("gate") else np.ones(ctx.bar_end.size, dtype=bool)
     allowed = gate & np.isfinite(ctx.atr)
+    if span_mask_bars is not None:
+        allowed &= span_mask_bars
     hours = ctx.start_minute // 60
     long_share = float((sides > 0).mean()) if sides.size else 0.5
     picked, picked_side = [], []

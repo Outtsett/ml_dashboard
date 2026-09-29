@@ -182,6 +182,19 @@ def test_conditions_cross_within_then_broke_and_retest():
     assert np.flatnonzero(then).tolist() == [4]
 
 
+def test_matched_null_stays_inside_the_evaluated_span():
+    n = 400
+    ctx = fake_context(np.linspace(100, 120, n), start_minute=np.tile(np.arange(6 * 60 + 30, 12 * 60 + 30, 15), 20)[:n])
+    span = np.zeros(n, dtype=bool)
+    span[300:] = True                           # the "test year"
+    index = np.arange(300, 400, 7)
+    sides = np.ones(index.size, dtype=np.int8)
+    spec = {"gate": {"op": "session_window", "start": "06:30", "end": "12:30"}}
+    for seed in range(5):
+        picked, _ = strategy.matched_null_entries(ctx, spec, index, sides, seed, span)
+        assert picked.size > 0 and span[picked].all()
+
+
 def test_templates_materialize_and_every_param_is_used():
     config = json.loads((ROOT / "src" / "config" / "ta_conditional_templates.json").read_text(encoding="utf-8"))
     for name, template in config["templates"].items():

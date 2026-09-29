@@ -115,8 +115,6 @@ def run(args: argparse.Namespace) -> dict:
     all_days = np.unique(ctx.minutes.days)
     base_cache_keys = set(ctx.cache)
     in_loop, rescore_seeds = int(rc["nulls"]["seeds_in_loop"]), int(rc["nulls"]["seeds_rescore_and_test"])
-    minimum_rate = float(rc["constraints"]["minimum_trades_per_session_day"])
-    maximum_session_end = float(rc["constraints"]["maximum_session_end_exit_share"])
 
     def evaluate(spec, day_mask_bars, days, seeds, seed_base, exits=None):
         index, sides = strategy.signal_entries(ctx, spec)
@@ -127,7 +125,7 @@ def run(args: argparse.Namespace) -> dict:
         real_daily = strategy.daily(real, days)
         nulls = []
         for k in range(seeds):
-            ni, ns = strategy.matched_null_entries(ctx, spec, index, sides, seed_base + k)
+            ni, ns = strategy.matched_null_entries(ctx, spec, index, sides, seed_base + k, day_mask_bars)
             nulls.append(strategy.daily(strategy.run(ctx, spec, ni, ns, slippage, cost_ticks, exits), days))
         null_daily = np.mean(nulls, axis=0) if nulls else np.zeros(days.size)
         excess = real_daily - null_daily
@@ -151,18 +149,33 @@ def run(args: argparse.Namespace) -> dict:
             train_bars = bar_day < train_end
             test_bars = (bar_day >= train_end) & (bar_day < test_end)
 
+            constraints = {**rc["constraints"], **template.get("constraints", {})}
+            rate_floor = float(constraints["minimum_trades_per_session_day"])
+            session_end_cap = float(constraints["maximum_session_end_exit_share"])
+            seen: dict[str, tuple] = {}
+
             def objective(trial):
                 params = {p: suggest(trial, p, space) for p, space in template["params"].items()}
+                key = json.dumps(params, sort_keys=True)
+                if key in seen:                  # TPE re-proposes grid points: reuse, never re-count as a new configuration
+                    value, attrs = seen[key]
+                    for name_, v in attrs.items():
+                        trial.set_user_attr(name_, v)
+                    trial.set_user_attr("duplicate", True)
+                    return value
                 spec = strategy.materialize(template, params)
                 result = evaluate(spec, train_bars, train_days, in_loop, 7_000)
-                trial.set_user_attr("trades_per_day", result["trades_per_day"])
-                trial.set_user_attr("session_end_share", result["session_end_share"])
-                trial.set_user_attr("trades", result["trades"])
+                attrs = {"trades_per_day": result["trades_per_day"], "session_end_share": result["session_end_share"],
+                         "trades": result["trades"], "raw_excess_sharpe": result["sharpe"], "duplicate": False}
+                for name_, v in attrs.items():
+                    trial.set_user_attr(name_, v)
                 if len(ctx.cache) > 600:        # parameter-dependent series: drop them, keep the base ones
-                    for key in [k for k in ctx.cache if k not in base_cache_keys]:
-                        del ctx.cache[key]
-                penalty = max(0.0, minimum_rate - result["trades_per_day"]) * 10 + max(0.0, result["session_end_share"] - maximum_session_end) * 10
-                return result["sharpe"] - penalty
+                    for k in [k for k in ctx.cache if k not in base_cache_keys]:
+                        del ctx.cache[k]
+                penalty = max(0.0, rate_floor - result["trades_per_day"]) * 10 + max(0.0, result["session_end_share"] - session_end_cap) * 10
+                value = result["sharpe"] - penalty
+                seen[key] = (value, {k: v for k, v in attrs.items() if k != "duplicate"})
+                return value
 
             sampler = optuna.samplers.TPESampler(multivariate=True, group=True, constant_liar=True,
                                                  n_startup_trials=int(rc["optuna"]["startup_trials"]),
@@ -171,20 +184,31 @@ def run(args: argparse.Namespace) -> dict:
             study.enqueue_trial(template["defaults"])
             study.optimize(objective, n_trials=int(rc["optuna"]["trials_per_fold"]))
             done = [t for t in study.trials if t.value is not None]
+            study_sharpes = []
             for t in done:
+                feasible = (t.user_attrs.get("trades_per_day", 0) >= rate_floor
+                            and t.user_attrs.get("session_end_share", 1) <= session_end_cap)
                 trial_rows.append({"round": args.round_number, "template": name, "fold": fold, "test_year": year,
                                    "trial": t.number, "objective_excess_sharpe_per_day": t.value,
+                                   "raw_excess_sharpe_per_day": t.user_attrs.get("raw_excess_sharpe"),
+                                   "feasible": feasible, "duplicate_of_earlier_trial": bool(t.user_attrs.get("duplicate")),
                                    "trades_per_session_day": t.user_attrs.get("trades_per_day"),
                                    "session_end_exit_share": t.user_attrs.get("session_end_share"),
                                    "parameters_json": json.dumps(t.params)})
-                trial_sharpes.append(t.value)
-            # re-score the best trials against fresh null seeds, then choose
-            top = sorted(done, key=lambda t: -t.value)[: int(rc["optuna"]["rescore_top"])]
+                if feasible and not t.user_attrs.get("duplicate"):
+                    study_sharpes.append(t.user_attrs["raw_excess_sharpe"])
+            # deflation input: feasible, DISTINCT configurations' raw Sharpes, demeaned within the study
+            # (round 1 used the penalised objective, variance 0.63 against 0.0019)
+            if study_sharpes:
+                trial_sharpes.extend(np.asarray(study_sharpes) - np.mean(study_sharpes))
+            # re-score the best DISTINCT trials against fresh null seeds, then choose
+            distinct = {json.dumps(t.params, sort_keys=True): t for t in sorted(done, key=lambda t: t.value)}
+            top = sorted(distinct.values(), key=lambda t: -t.value)[: int(rc["optuna"]["rescore_top"])]
             rescored = []
             for t in top:
                 spec = strategy.materialize(template, t.params)
                 r = evaluate(spec, train_bars, train_days, rescore_seeds, 50_000)
-                feasible = r["trades_per_day"] >= minimum_rate and r["session_end_share"] <= maximum_session_end
+                feasible = r["trades_per_day"] >= rate_floor and r["session_end_share"] <= session_end_cap
                 rescored.append((r["sharpe"] if feasible else -np.inf, t, r))
             best_score, best_trial, best_train = max(rescored, key=lambda x: x[0])
             spec = strategy.materialize(template, best_trial.params)
@@ -250,7 +274,16 @@ def run(args: argparse.Namespace) -> dict:
         real_total = trades["net"].sum()
         wins, losses = trades["net"][trades["net"] > 0].sum(), -trades["net"][trades["net"] <= 0].sum()
         benchmark = m.expected_maximum_sharpe(trial_variance, total_trials)
+        # the stitched series was chosen in-sample; out of sample the only choice is which template to report,
+        # so the honest out-of-sample deflation is over the templates of the round with noise variance 1/(T-1)
+        template_benchmark = m.expected_maximum_sharpe(1.0 / max(days.size - 1, 1), len(stitched))
+        year_of_day = pd.DatetimeIndex(days).year.to_numpy()
+        without_2022 = year_of_day != 2022
+        top10 = np.argsort(real_daily)[-10:]
+        without_top = np.delete(real_daily, top10)
         row = {"round": args.round_number, "template": name, "description": templates[name]["description"],
+               "is_two_to_one_bracket": templates[name]["exit"].get("target", {"kind": "r", "value": 2.0}).get("kind") == "r"
+               and float(templates[name]["exit"].get("target", {}).get("value", 2.0)) == 2.0,
                "test_session_day_count": int(days.size), "trades": int(len(trades)),
                "trades_per_session_day": len(trades) / days.size,
                "net_ticks_per_session_day": float(real_daily.mean()),
@@ -261,8 +294,14 @@ def run(args: argparse.Namespace) -> dict:
                "fold_count": len(s["real_daily"]),
                "random_side_null_net_ticks_per_session_day": float(side_totals.mean() / days.size) if side_totals.size else math.nan,
                "share_of_random_side_replicates_beaten": float((real_total > side_totals).mean()) if side_totals.size else math.nan,
-               "deflated_sharpe_probability_of_excess": m.deflated_sharpe_probability(excess, benchmark),
-               "deflation_trial_count": total_trials,
+               "deflated_sharpe_probability_over_distinct_trials": m.deflated_sharpe_probability(excess, benchmark),
+               "deflation_distinct_trial_count": total_trials,
+               "deflated_sharpe_probability_over_templates": m.deflated_sharpe_probability(excess, template_benchmark),
+               "net_ticks_per_session_day_without_2022": float(real_daily[without_2022].mean()) if without_2022.any() else math.nan,
+               "excess_ticks_per_session_day_without_2022": float(excess[without_2022].mean()) if without_2022.any() else math.nan,
+               "excess_newey_west_t_without_2022": m.newey_west_mean_t(excess[without_2022], 5) if without_2022.sum() > 20 else math.nan,
+               "net_ticks_per_session_day_without_top_10_days": float(without_top.mean()) if without_top.size else math.nan,
+               "top_10_days_share_of_net": float(real_daily[top10].sum() / real_daily.sum()) if real_daily.sum() > 0 else math.nan,
                "target_hit_rate": float((trades["reason"] == engine.EXIT_TARGET).mean()) if len(trades) else math.nan,
                "win_rate": float((trades["net"] > 0).mean()) if len(trades) else math.nan,
                "profit_factor": float(wins / losses) if losses > 0 else math.nan,
@@ -289,11 +328,18 @@ def run(args: argparse.Namespace) -> dict:
                           f"{row['deflated_sharpe_probability_of_excess']:.3f}")
 
     summary = pd.DataFrame(summary_rows)
+    # White's Reality Check across the round's templates: could the best template's excess t arise from noise?
+    daily_all = pd.concat(daily_frames, ignore_index=True)
+    excess_matrix = daily_all.pivot_table(index="session_date", columns="template", values="excess_ticks").dropna()
+    reality_check = m.reality_check_p_value(excess_matrix.to_numpy(), block_days=10, repetitions=5000)
+    summary["reality_check_p_value_across_templates"] = reality_check
+    protocol.emit_log(f"[out-of-sample] White Reality Check across {excess_matrix.shape[1]} templates: p {reality_check:.3f}")
     best = summary.sort_values("excess_ticks_per_session_day", ascending=False).iloc[0]
     round_row = pd.DataFrame([{
         "round": args.round_number, "recipe": recipe, "title": rc["title"], "hypothesis": rc["hypothesis"],
         "round_configuration_json": json.dumps(rc), "templates_json": json.dumps({n: templates[n] for n in names}),
-        "total_optuna_trials": total_trials, "best_template_by_excess": best["template"],
+        "distinct_feasible_trials": total_trials, "reality_check_p_value_across_templates": reality_check,
+        "best_template_by_excess": best["template"],
         "best_excess_ticks_per_session_day": float(best["excess_ticks_per_session_day"]),
         "best_excess_newey_west_t": float(best["excess_newey_west_t"]),
         "best_net_ticks_per_session_day": float(summary["net_ticks_per_session_day"].max()),

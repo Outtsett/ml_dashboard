@@ -8,14 +8,88 @@
       "data_start": "2019-06-01",
       "data_end": "2026-01-01",
       "timeframe": "15m",
-      "test_years": [2022, 2023, 2024, 2025],
-      "templates": ["rsi_signal_macd_vwap", "level_breakout_momentum", "breakout_retest", "higher_timeframe_trend_pullback", "opening_range_breakout_with_room"],
-      "optuna": {"trials_per_fold": 150, "startup_trials": 30, "seed": 11, "rescore_top": 8},
-      "nulls": {"seeds_in_loop": 8, "seeds_rescore_and_test": 40, "random_side_replicates": 40},
-      "constraints": {"minimum_trades_per_session_day": 0.2, "maximum_session_end_exit_share": 0.25},
-      "costs": {"stop_slippage_ticks": 1},
-      "level_study": {"null_a_permutations": 10, "null_b_shuffles": 3},
-      "goal_ticks_per_session_day": 600
+      "test_years": [
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "templates": [
+        "rsi_signal_macd_vwap",
+        "level_breakout_momentum",
+        "breakout_retest",
+        "higher_timeframe_trend_pullback",
+        "opening_range_breakout_with_room"
+      ],
+      "optuna": {
+        "trials_per_fold": 150,
+        "startup_trials": 30,
+        "seed": 11,
+        "rescore_top": 8
+      },
+      "nulls": {
+        "seeds_in_loop": 8,
+        "seeds_rescore_and_test": 40,
+        "random_side_replicates": 40
+      },
+      "constraints": {
+        "minimum_trades_per_session_day": 0.2,
+        "maximum_session_end_exit_share": 0.25
+      },
+      "costs": {
+        "stop_slippage_ticks": 1
+      },
+      "level_study": {
+        "null_a_permutations": 10,
+        "null_b_shuffles": 3
+      },
+      "goal_ticks_per_session_day": 600,
+      "harness": "ran on commit 837fa9f with the round-1 templates (recorded in its rounds table, templates_json); its matched null drew from all years and its deflated Sharpe used penalised trial values (both fixed for round 2, see the round-1 review)."
+    },
+    "2": {
+      "title": "Round-1 review applied: span-restricted null, broken-level stops, level-free control, runner exits, honest deflation",
+      "hypothesis": "With the matched null restricted to the evaluated year, stops beyond the exact broken level (risk capped at 500 ticks), duplicate Optuna configurations collapsed, and a level-free momentum control beside the level templates: (1) the level-breakout template earns no more than the momentum control (the review measured 2R target hit 29.1% for level breaks and 29.1% for momentum-matched random bars); (2) its 2022-2025 excess over matched random is driven by 2022 and is not significant without it; (3) the runner exits (no target, breakeven, hold to the close) raise net but are not 2:1 brackets; (4) nothing approaches 600 ticks/day.",
+      "data_start": "2019-06-01",
+      "data_end": "2026-01-01",
+      "timeframe": "15m",
+      "test_years": [
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "templates": [
+        "level_breakout_momentum",
+        "level_breakout_momentum_runner",
+        "opening_range_breakout",
+        "opening_range_breakout_runner",
+        "momentum_expansion_control",
+        "rsi_signal_macd_vwap"
+      ],
+      "optuna": {
+        "trials_per_fold": 150,
+        "startup_trials": 30,
+        "seed": 11,
+        "rescore_top": 8
+      },
+      "nulls": {
+        "seeds_in_loop": 8,
+        "seeds_rescore_and_test": 40,
+        "random_side_replicates": 40
+      },
+      "constraints": {
+        "minimum_trades_per_session_day": 0.2,
+        "maximum_session_end_exit_share": 0.25
+      },
+      "costs": {
+        "stop_slippage_ticks": 1
+      },
+      "level_study": {
+        "null_a_permutations": 10,
+        "null_b_shuffles": 3
+      },
+      "goal_ticks_per_session_day": 600,
+      "review_source": "conditional round 1 review (reviews table, recipe round_1_20260929T043148): recommendations 1, 2, 3, 6, 7, 9 applied; 4 (freeze instead of tuning) and 8 (replacement templates) refuted"
     }
   }
 }
