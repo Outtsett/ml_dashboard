@@ -1,6 +1,5 @@
 # ML Studio End-to-End: TFT + Verbose Logging + Loss-Surface Framework
 
-> **SUPERSEDED 2026-05-28 — W&B removed.** Phase 3 (W&B) and every W&B/`WANDB_FORWARD` reference below (B5, lines in Phases 3/5, gates "run appears in W&B") were **fully reverted on 2026-05-28**. Weights & Biases is no longer used anywhere; all telemetry flows through the dashboard SSE protocol → SQLite. The TFT, verbose-logging, and loss-surface work (Phases 1, 2, 4) stand; only the W&B integration was removed. See `CLAUDE.md` Recent Changes 2026-05-28.
 
 Date: 2026-05-19 · Status: IN PROGRESS
 
@@ -48,7 +47,6 @@ Catalog dropdown (state.modelType)
 - **Codegen-first**: TFT ships as a `generate` family — catalog extra + `temporal_fusion_transformer.py.j2` + `pickTemplate()` routing — so the Generate→Save→Train flow is exercised. Phase 0 makes Save real. Algorithm `tft` + task `direction_classifier` (reuse) gives a clean runner key `tft+direction_classifier` on save.
 - **Verbose logging is model-agnostic**: a shared `emit_training_diagnostics()` helper (protocol.py) + a `TrainingDiagnostics` mixin used in `_base.py.j2`'s pytorch train loops. Emits grad_norm (global L2), lr, throughput (samples/s), VRAM (MB), weight/grad histograms (`distribution` renderer), per-layer grad norm (`heatmap`). Group `diagnostics`. Any pytorch family inherits it; TFT uses it.
 - **Loss surface**: wire `compute_loss_surface` + `TrajectoryRecorder` via a shared helper into the pytorch train loop. Record trajectory per epoch; post-train compute filter-normalized 2D surface at bounded resolution (default 25×25, configurable, GPU-batched) over the final model; emit `surface_3d` declaration + payload; existing `Surface3DRenderer` (R3F/WebGL + SVG fallback) renders it. Delete synthetic `LossSurface3D.tsx`. Polish colormap + trajectory overlay.
-- **W&B**: WANDB_FORWARD-gated dual-emit in protocol.py `emit_metric`/`emit_fold_complete`; `wandb.init` in `_base.py.j2` gated by `--wandb-project`/`WANDB_PROJECT`.
 - **Data**: real bars from QuestDB (verify symbol availability first; MNQ@1m or @1d).
 - **Test**: dashboard-driven (`POST /api/training/start` = the Run button; optional Playwright click). Never raw-CLI training (per project rule).
 
@@ -84,8 +82,6 @@ emit_step_diagnostics present; TFT proven streaming at runtime.
 - **Gate**: a short pytorch run streams grad_norm/lr/throughput/VRAM + a weight histogram to the live UI.
 
 ### Phase 3 — W&B ✅ DONE 2026-05-19
-protocol.py WANDB_FORWARD-gated _wandb_log in emit_metric + emit_fold_complete;
-_base.py.j2 _maybe_init_wandb + wandb.finish in main() (covers ALL generated
 models). Verified present in rendered TFT main.py.
 
 NOTE Phase 2 (verbose logging) + Phase 4 (loss surface): the shared
@@ -95,7 +91,6 @@ records per-epoch + compute_and_emit post-train). REMAINING: propagate the same
 3-line wiring into the other pytorch family templates (transformer_seq, pytorch_mlp/
 cnn/autoencoder/vae) for true model-agnostic coverage; delete synthetic
 LossSurface3D.tsx + confirm Surface3DRenderer mounts the surface_3d metric.
-- `protocol.py`: WANDB_FORWARD-gated `wandb.log`; `_base.py.j2`: `wandb.init(project,…,group)` gated by flag/env; finish on done/error.
 - **Gate**: run appears in W&B within 60s; metrics mirror SSE.
 
 ### Phase 4 — Loss-surface framework ✅ DONE 2026-05-20
@@ -112,7 +107,6 @@ on real MNQ@1d (2074 bars) → completed clean (done, no error). 3 epochs, all v
 diagnostics + 7x7 loss surface + TFT interpretability + full classification metrics +
 diagnostics.json. Fixes: algorithms.json key tft→temporal_fusion_transformer (registry
 join); TFT eval_helpers compute_fold_metrics tail-alignment for windowed preds;
-generate_model.py --register collision-safe. WANDB_FORWARD unset for the smoke (wiring
 present). REMAINING (follow-ups): propagate torch_logging into the other 5 pytorch family
 templates; optional Playwright UI visual confirmation.
 

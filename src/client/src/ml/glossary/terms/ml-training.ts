@@ -361,7 +361,6 @@ export const TERMS: Term[] = [
   {
     id: "experiment-tracking",
     term: "experiment tracking",
-    aliases: ["wandb", "mlflow", "tensorboard"],
     definition:
       "Recording every run's config, metrics and artifacts so results can be compared and reproduced later.",
     domain: "ml-training",
