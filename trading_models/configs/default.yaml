@@ -1,0 +1,25 @@
+data:
+  lookback_bars: 15
+  sequence_length: 64
+  source_path: E:/source/repos/ml_dashboard/Trading/quant/chart_cnn/mnq_1m.parquet
+  target_name: RET_LOG_75M
+  timeframe: 5min
+friction:
+  commission_rt: 1.78
+  slippage_ticks: 2 # Total round trip
+  dollars_per_point: 2.00
+
+execution:
+  contracts: 5
+  slippage_ticks: 2
+hardware:
+  max_compute_pct: 50
+  max_vram_pct: 60
+  n_jobs: 24
+project: Futures Trading Model
+training:
+  batch_size: 1024
+  epochs: 50
+  learning_rate: 0.00031383
+  mixed_precision: true
+version: v1.0.0
