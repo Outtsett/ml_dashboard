@@ -282,6 +282,63 @@ Every level is an event with the moment it became knowable (`known_from`) and th
 
 **Reading.** The directional edge is real but small. Net of costs, the three books sum to about +1.9 ticks/day on one contract, against a goal of 600. No template reached 40% win at 2:1 (PF ≥ 1.33) out of sample. Levels add nothing over momentum.
 
+
+### Conditional round 4: frequency and session (`round_4_20260929T0900`, `frequency.py`)
+
+**The question.** 600 ticks is the day's total: every trade, long or short, overnight (ETH, 13:00-06:30 PT) or regular hours
+(RTH, 06:30-13:00). Rounds 1-3 capped each template at 2 entries per session inside an RTH window, so they traded about 0.5
+times a day.
+
+**What round 4 varies.** It keeps the three frozen specs and changes only:
+- the session window: frozen / overnight / whole day (`session_window` now wraps midnight when end <= start);
+- the entry cap: 2 / unlimited;
+- the bar: 15m / 5m / 1m;
+- a pre-declared threshold ladder: frozen / looser / loosest.
+
+That makes 126 variants per market, each against matched random entries and random sides. Every variant is split long vs
+short and RTH vs ETH, per year and per entry hour. The opening-range book is RTH-bound and stays on its frozen window in
+every setting. A portfolio sums the three books at one contract each, so up to 3 contracts can be open at once.
+
+**Disclosure.**
+- Two-month smoke runs (MNQ Oct-Nov 2025) were seen before the full run. The loosest whole-day 15m setting showed about
+  +640/day there; over 2019-2025 it is -50.3/day.
+- The pre-registered hypothesis (no setting reaches 5% of 600) failed on MNQ (9.9%) and held on NQ.
+
+| Market | Best setting | Trades/day | Net ticks/day | Share of 600 | Excess (t) |
+|---|---|---|---|---|---|
+| MNQ 2019-06..2025-12 (parameters tuned here: in-sample ceiling) | frozen RTH, 15m, frozen thresholds (cap makes no difference: +59.6 vs +59.5) | 1.61 | +59.6 | 9.9% | +62.2 (4.93) |
+| NQ 2010-06..2019-06 (never used for tuning) | same | 1.55 | +2.0 | 0.3% | +11.9 (4.60) |
+
+**Per year, MNQ best setting.**
+
+| Year | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 |
+|---|---|---|---|---|---|---|---|
+| Net ticks/day | +7.8 | +22.1 | +62.3 | +146.3 | +14.8 | +90.0 | +52.4 |
+
+**Findings.**
+- **More trades, fewer ticks.** Across the 54 settings per market, trades/day and net/day correlate -0.993 (MNQ) and
+  -0.999 (NQ).
+- **1m loses heavily.** 1m loosest whole-day MNQ makes 148 trades/day and -944 ticks/day. At 1m the gross per trade
+  (median 0.6-1.8 ticks) is about the 5.56-tick cost.
+- **The ladder is not monotone at 15m.** Looser gives +32.7 and loosest +43.0.
+- **Overnight never pays.** 0 of 72 MNQ and 0 of 73 NQ variants net positive per overnight trade, and every overnight
+  entry hour is negative when pooled. Profitable entries cluster at 06:00-09:00 PT.
+- **Direction.** The median long and median short are both negative across the grid. In the best RTH setting both are
+  positive.
+- **40% win at PF 1.33.** One spec (momentum 2:1, frozen, at two cap settings) meets it on MNQ, in-sample. On NQ, 0 of 126
+  do (43.8% / PF 1.10).
+- **Single months are not the average.** Individual months exceed 600 (+903/day in Apr 2025, whole day uncapped 5m
+  loosest), but that setting averages -210/day. No 63-session window of any setting reaches 600 (max +423).
+- **Break-even.** At N trades a day, each trade must gross at least 600/N + 5.56 ticks, plus 1 per stopped trade.
+
+**Review** (the `reviews` table, recipe `round_4_20260929T0900`). Three skeptics found no code bias against the overnight,
+uncapped, looser or shorter-bar variants. Two caveats:
+- Thresholds and ATR multiples were not re-tuned per timeframe.
+- On NQ 2010-2019 a 1m ATR stop is often 4-6 ticks, so the cost is about 1R per trade by design.
+
+**Lake:** `derived_ta_conditional_strategies_600_ticks_frequency_{rounds,variants,portfolio,years,hours,daily}`.
+**Notebook:** section 11 has a trades-per-day slider against the gross each trade must capture.
+
 **Next:**
 - add order-flow and book information;
 - size and stack uncorrelated books;

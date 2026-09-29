@@ -685,5 +685,160 @@ def _(CONDITIONAL, OKABE, alt, frame, mo, pl, view_exists):
     return
 
 
+@app.cell
+def _(CONDITIONAL, frame, mo, view_exists):
+    if not view_exists(f"{CONDITIONAL}frequency_variants"):
+        mo.stop(True, mo.md("## 11 · Frequency: ETH and RTH, long and short, many trades a day\nRound 4 has not landed yet."))
+    _latest = "WHERE recipe = (SELECT max(recipe) FROM {v})"
+    frequency_variants = frame(f"SELECT * FROM {CONDITIONAL}frequency_variants " + _latest.format(v=f"{CONDITIONAL}frequency_variants"))
+    frequency_portfolio = frame(f"SELECT * FROM {CONDITIONAL}frequency_portfolio " + _latest.format(v=f"{CONDITIONAL}frequency_portfolio"))
+    frequency_years = frame(f"SELECT * FROM {CONDITIONAL}frequency_years " + _latest.format(v=f"{CONDITIONAL}frequency_years"))
+    frequency_hours = frame(f"SELECT * FROM {CONDITIONAL}frequency_hours " + _latest.format(v=f"{CONDITIONAL}frequency_hours"))
+    _symbols = sorted(frequency_variants["symbol"].unique().to_list())
+    frequency_symbol = mo.ui.dropdown(_symbols, value="MNQ" if "MNQ" in _symbols else _symbols[0], label="Market")
+    frequency_session = mo.ui.radio(["frozen", "overnight", "whole_day"], value="whole_day", label="Session window", inline=True)
+    frequency_cap = mo.ui.radio({"2 per session": 2, "unlimited": 0}, value="unlimited", label="Entries per session", inline=True)
+    frequency_timeframe = mo.ui.radio(["15m", "5m", "1m"], value="15m", label="Bar", inline=True)
+    frequency_strictness = mo.ui.radio(["frozen", "looser", "loosest"], value="frozen", label="Entry thresholds", inline=True)
+    frequency_trades_per_day = mo.ui.slider(1, 200, value=10, step=1, label="Trades per day", show_value=True)
+    mo.vstack([mo.md(
+        "## 11 · Frequency: ETH and RTH, long and short, many trades a day\n\n"
+        "600 ticks is the **day's total**: every trade, long or short, overnight (ETH, 13:00 to 06:30 Pacific) or regular hours "
+        "(RTH, 06:30 to 13:00). Round 4 takes the three frozen strategies and changes only the session window, the entry cap, "
+        "the bar and a pre-declared ladder of looser entry thresholds (`src/config/ta_conditional_rounds.json`, round 4)."),
+        mo.hstack([frequency_symbol, frequency_session, frequency_cap]), mo.hstack([frequency_timeframe, frequency_strictness])])
+    return (frequency_cap, frequency_hours, frequency_portfolio, frequency_session, frequency_strictness, frequency_symbol,
+            frequency_timeframe, frequency_variants, frequency_years, frequency_trades_per_day)
+
+
+@app.cell
+def _(COST_TICKS, GOAL, OKABE, alt, frequency_symbol, frequency_trades_per_day, frequency_variants, mo, np, pl):
+    _n = frequency_trades_per_day.value
+    _need_net = GOAL / _n
+    _need_gross = _need_net + COST_TICKS
+    _v = frequency_variants.filter(pl.col("symbol") == frequency_symbol.value).drop_nulls("gross_ticks_per_trade")
+    _xs = np.geomspace(0.2, 200, 200)
+    _curve = pl.DataFrame({"trades_per_session_day": _xs, "required_gross_ticks_per_trade": GOAL / _xs + COST_TICKS})
+    _line = alt.Chart(_curve.to_pandas()).mark_line(color=OKABE["vermillion"], strokeWidth=2).encode(
+        x=alt.X("trades_per_session_day:Q", scale=alt.Scale(type="log"), title="trades per session day (log)"),
+        y=alt.Y("required_gross_ticks_per_trade:Q", scale=alt.Scale(type="symlog"), title="gross ticks captured per trade (symlog)"))
+    _cost = alt.Chart(pl.DataFrame({"y": [COST_TICKS]}).to_pandas()).mark_rule(color=OKABE["black"], strokeDash=[4, 3]).encode(y="y:Q")
+    _here = alt.Chart(pl.DataFrame({"trades_per_session_day": [_n], "required_gross_ticks_per_trade": [_need_gross]}).to_pandas()).mark_point(
+        shape="cross", size=260, color=OKABE["vermillion"], filled=True).encode(x="trades_per_session_day:Q", y="required_gross_ticks_per_trade:Q")
+    _dots = alt.Chart(_v.select("variant", "trades_per_session_day", "gross_ticks_per_trade", "timeframe", "session_window",
+                                "net_ticks_per_session_day").to_pandas()).mark_point(filled=True, opacity=0.8, size=60).encode(
+        x="trades_per_session_day:Q", y="gross_ticks_per_trade:Q",
+        color=alt.Color("timeframe:N", scale=alt.Scale(domain=["15m", "5m", "1m"], range=[OKABE["blue"], OKABE["orange"], OKABE["purple"]])),
+        shape=alt.Shape("session_window:N", scale=alt.Scale(domain=["frozen", "overnight", "whole_day"], range=["circle", "triangle-up", "square"])),
+        tooltip=["variant", alt.Tooltip("trades_per_session_day:Q", format=".2f"), alt.Tooltip("gross_ticks_per_trade:Q", format=".2f"),
+                 alt.Tooltip("net_ticks_per_session_day:Q", format="+.1f")])
+    _above = _v.filter(pl.col("gross_ticks_per_trade") >= GOAL / pl.col("trades_per_session_day") + COST_TICKS).height
+    _formula = (r"$$\text{net per day} \;=\; \sum_{i=1}^{N} \left(g_i - c\right) \;\ge\; 600"
+                r" \quad\Longleftrightarrow\quad \bar g \;\ge\; \frac{600}{N} + c$$")
+    _legend = (
+        "| symbol | name | holds | now |\n|---|---|---|---|\n"
+        r"| $\sum_{i=1}^{N}$ | sum over | every trade *i* of the session day, 1 to *N* | — |" "\n"
+        f"| $N$ | trades per day | round trips in the day, long and short, ETH and RTH | **{_n}** |\n"
+        "| $g_i$ | gross ticks of trade *i* | exit minus entry in ticks, signed by the side | — |\n"
+        rf"| $\bar g$ | average gross ticks per trade | what the strategy must capture on average | needs **{_need_gross:.2f}** |" "\n"
+        f"| $c$ | round-trip cost | 1.39 USD x 2 sides / 0.50 USD a tick (stops also pay 1 tick of slippage, not in this line) | **{COST_TICKS:.2f} ticks** |\n"
+        f"| $600/N$ | net each trade must keep | the goal split evenly over the day's trades | **{_need_net:.2f}** |\n")
+    mo.vstack([mo.md("### What each trade has to capture for the day to total 600\n\n" + _formula + "\n\n" + _legend +
+                     f"\nDrag *N*: the red cross slides along the red curve. Every dot is one round-4 variant measured on "
+                     f"{frequency_symbol.value} (colour: bar size; shape: session window). **A dot above the curve totals 600 a day; "
+                     f"{_above} of {_v.height} are above it.** The dashed black line is the cost alone: below it a strategy loses on "
+                     "every trade before slippage."), frequency_trades_per_day, (_line + _cost + _dots + _here).properties(width=880, height=380)])
+    return
+
+
+@app.cell
+def _(GOAL, OKABE, alt, frequency_symbol, frequency_variants, mo, pl):
+    _v = frequency_variants.filter((pl.col("symbol") == frequency_symbol.value) & (pl.col("maximum_entries_per_session") == 0))
+    _base = alt.Chart(_v.to_pandas()).encode(
+        x=alt.X("trades_per_session_day:Q", scale=alt.Scale(type="log"), title="trades per session day (log)"),
+        y=alt.Y("net_ticks_per_session_day:Q", title="net ticks per session day, 1 contract"),
+        color=alt.Color("timeframe:N", scale=alt.Scale(domain=["15m", "5m", "1m"], range=[OKABE["blue"], OKABE["orange"], OKABE["purple"]])),
+        shape=alt.Shape("entry_strictness:N", scale=alt.Scale(domain=["frozen", "looser", "loosest"], range=["circle", "diamond", "triangle-down"])),
+        tooltip=["variant", alt.Tooltip("net_ticks_per_trade:Q", format="+.2f"), alt.Tooltip("excess_ticks_per_session_day:Q", format="+.1f"),
+                 alt.Tooltip("excess_newey_west_t:Q", format="+.2f"), alt.Tooltip("win_rate:Q", format=".3f")])
+    _goal = alt.Chart(pl.DataFrame({"y": [GOAL]}).to_pandas()).mark_rule(color=OKABE["vermillion"], strokeDash=[6, 3]).encode(y="y:Q")
+    _zero = alt.Chart(pl.DataFrame({"y": [0.0]}).to_pandas()).mark_rule(color=OKABE["black"]).encode(y="y:Q")
+    _facet = alt.layer(_base.mark_point(filled=True, size=70), _goal, _zero, data=_v.to_pandas()).properties(width=280, height=240).facet(
+        column=alt.Column("name:N", title=None), row=alt.Row("session_window:N", title=None))
+    mo.vstack([mo.md("### More trades, fewer ticks each: net per day against trades per day (unlimited entries; red dashed = 600)"), _facet])
+    return
+
+
+@app.cell
+def _(GOAL, OKABE, alt, frequency_cap, frequency_portfolio, frequency_session, frequency_strictness, frequency_symbol,
+      frequency_timeframe, frequency_years, mo, pl):
+    _keys = ((pl.col("symbol") == frequency_symbol.value) & (pl.col("session_window") == frequency_session.value)
+             & (pl.col("maximum_entries_per_session") == frequency_cap.value) & (pl.col("timeframe") == frequency_timeframe.value)
+             & (pl.col("entry_strictness") == frequency_strictness.value))
+    _p = frequency_portfolio.filter(_keys)
+    _y = frequency_years.filter(_keys & (pl.col("row_kind") == "all_books")).sort("year")
+    _price = frequency_years.filter((pl.col("symbol") == frequency_symbol.value) & (pl.col("row_kind") == "variant")).group_by("year").agg(
+        pl.col("average_close_price").mean()).sort("year")
+    _bars = alt.Chart(_y.to_pandas()).mark_bar().encode(
+        x=alt.X("year:O"), y=alt.Y("net_ticks_per_session_day:Q", title="three books summed (1 contract each, up to 3 at once): net ticks per day"),
+        color=alt.condition("datum.net_ticks_per_session_day > 0", alt.value(OKABE["orange"]), alt.value(OKABE["blue"])),
+        tooltip=["year", alt.Tooltip("net_ticks_per_session_day:Q", format="+.1f"), alt.Tooltip("excess_ticks_per_session_day:Q", format="+.1f"),
+                 alt.Tooltip("share_of_days_at_or_above_600:Q", format=".1%")])
+    _goal = alt.Chart(pl.DataFrame({"y": [GOAL]}).to_pandas()).mark_rule(color=OKABE["vermillion"], strokeDash=[6, 3]).encode(y="y:Q")
+    _px = alt.Chart(_price.to_pandas()).mark_line(point=True, color=OKABE["black"]).encode(
+        x="year:O", y=alt.Y("average_close_price:Q", title="average price (index points)"))
+    _head = ("no setting selected" if _p.height == 0 else
+             f"{_p[0, 'net_ticks_per_session_day']:+.1f} net ticks/day over the span ({100 * _p[0, 'share_of_goal_600']:.1f}% of 600) from "
+             f"{_p[0, 'trades_per_session_day']:.2f} trades/day; excess over matched random {_p[0, 'excess_ticks_per_session_day']:+.1f} "
+             f"(t {_p[0, 'excess_newey_west_t']:+.2f}); worst drawdown {_p[0, 'maximum_drawdown_ticks']:,.0f} ticks")
+    mo.vstack([mo.md(f"### All three books together, one contract each (up to 3 open at once), year by year ({frequency_symbol.value}, {frequency_session.value}, "
+                     f"{'unlimited' if frequency_cap.value == 0 else frequency_cap.value} entries, {frequency_timeframe.value}, "
+                     f"{frequency_strictness.value} thresholds)\n\n{_head}. The same percentage move is more ticks at a higher price, "
+                     "so read the bars beside the price line."),
+               mo.hstack([(_bars + _goal).properties(width=560, height=300), _px.properties(width=300, height=300)]),
+               mo.ui.table(_y, selection=None)])
+    return
+
+
+@app.cell
+def _(OKABE, alt, frequency_cap, frequency_hours, frequency_session, frequency_strictness, frequency_symbol, frequency_timeframe,
+      frequency_variants, mo, pl):
+    _keys = ((pl.col("symbol") == frequency_symbol.value) & (pl.col("maximum_entries_per_session") == frequency_cap.value)
+             & (pl.col("timeframe") == frequency_timeframe.value) & (pl.col("entry_strictness") == frequency_strictness.value)
+             & ((pl.col("session_window") == frequency_session.value) | (pl.col("name") == "opening_range_breakout_runner")))
+    _h = frequency_hours.filter(_keys)
+    _heat = alt.Chart(_h.to_pandas()).mark_rect().encode(
+        x=alt.X("entry_hour_pacific:O", title="entry hour (Pacific; RTH is 6:30-13:00)"), y=alt.Y("name:N", title=None),
+        color=alt.Color("net_ticks_per_trade:Q", scale=alt.Scale(scheme="cividis"), title="net ticks per trade"),
+        tooltip=["name", "entry_hour_pacific", "trades", alt.Tooltip("net_ticks_per_trade:Q", format="+.2f"),
+                 alt.Tooltip("long_net_ticks_per_trade:Q", format="+.2f"), alt.Tooltip("short_net_ticks_per_trade:Q", format="+.2f"),
+                 alt.Tooltip("win_rate:Q", format=".3f")])
+    _sign = alt.Chart(_h.to_pandas()).mark_text(fontSize=12, fontWeight="bold").encode(
+        x="entry_hour_pacific:O", y="name:N", text=alt.condition("datum.net_ticks_per_trade > 0", alt.value("+"), alt.value("-")),
+        color=alt.condition("datum.net_ticks_per_trade > 0", alt.value(OKABE["black"]), alt.value("#ffffff")))
+    _v = frequency_variants.filter(_keys)
+    _split = _v.select("name", "long_net_ticks_per_session_day", "short_net_ticks_per_session_day",
+                       "regular_hours_net_ticks_per_session_day", "overnight_net_ticks_per_session_day").unpivot(
+        index="name", variable_name="part", value_name="net_ticks_per_session_day")
+    _bars = alt.Chart(_split.to_pandas()).mark_bar().encode(
+        y=alt.Y("part:N", title=None), x=alt.X("net_ticks_per_session_day:Q", title="net ticks per session day"),
+        color=alt.condition("datum.net_ticks_per_session_day > 0", alt.value(OKABE["orange"]), alt.value(OKABE["blue"])),
+        row=alt.Row("name:N", title=None))
+    mo.vstack([mo.md("### Where the day's ticks come from: hour of entry (+ / - marks the sign) and the long / short / RTH / ETH split"),
+               (_heat + _sign).properties(width=820, height=120), _bars.properties(width=520, height=110)])
+    return
+
+
+@app.cell
+def _(bins, eight_numbers, frequency_symbol, frequency_variants, log_count, mo, pl, small_multiples):
+    _v = frequency_variants.filter(pl.col("symbol") == frequency_symbol.value)
+    _numeric = [c for c in _v.columns if _v[c].dtype.is_numeric()]
+    _eight = pl.DataFrame([{"column": c, **eight_numbers(_v[c].to_numpy())} for c in _numeric])
+    mo.vstack([mo.md(f"### Round-4 variants on {frequency_symbol.value}: every column, and its eight numbers"),
+               small_multiples(_v, _numeric, bins.value, log_count.value), mo.ui.table(_eight, selection=None),
+               mo.ui.table(_v, selection=None)])
+    return
+
+
 if __name__ == "__main__":
     app.run()
