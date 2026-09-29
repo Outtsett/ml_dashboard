@@ -481,7 +481,7 @@ export default function MarketData() {
         className="mb-2"
         symbol={symbol}
         timeframeApiKey={minutesToApiKey(timeframe)}
-        tail={{ shown: liveTail.bars.length, waiting: liveTail.atNewest ? 0 : liveTail.minuteBars, onShow: () => void handleReloadBars() }}
+        tail={{ shown: liveTail.bars.length, waiting: liveTail.atNewest ? 0 : liveTail.minuteBars, onShow: () => void handleReloadBars(), gap: liveTail.gap }}
       />
       <AnalyticsStrip
         symbol={symbol}

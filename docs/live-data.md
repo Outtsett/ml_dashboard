@@ -95,6 +95,20 @@ is the pid it recorded. The proxy is mounted before the body parsers, exempt fro
 compression and the 30 s timeout, and forwards only requests addressed to a
 loopback host name.
 
+## The chart's live tail
+
+`src/client/src/live/useLiveTail.ts` appends the hub's bars after the chart's last
+bar only when they continue it: the first live bar within `MAX_JOIN_GAP_MS` (4
+days, a futures weekend plus a holiday) of the chart's last. The lake's history
+ends 2025-12-30 (futures) and 2026-03-26 (forex), months before the hub's first
+bar, so today the tail is held back and the quote strip says so ("Live bars start
+… · history ends … · not joined"). Joined across that hole, a December price and
+a September price were drawn as neighbouring bars. Test: `tests/client/live-tail.test.ts`.
+
+Alpha Vantage's last answered call is kept in `spool/alphavantage.json`
+(`lastAnswered`), so a restarted hub shows it connected instead of waiting up to an
+hour for its next call; `/status` carries `nextCallAt`, shown on `/live`.
+
 ## Where to see it
 
 `/live` (quote board with source and delay badges, news tape with FinBERT

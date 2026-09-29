@@ -8,6 +8,11 @@
  * lake's ES history instead of 7-8 hours away from it. The source and its
  * measured delay travel with the tail: OANDA forex is real time, Yahoo futures
  * run about ten minutes behind, Quantower prints are real time while it records.
+ *
+ * The tail is joined only when it CONTINUES the chart: its first bar within
+ * MAX_JOIN_GAP_MS of the chart's last. The lake's history stops months before
+ * the hub's first bar (futures 2025-12-30, forex 2026-03-26); gluing across that
+ * hole drew a months-old price and today's side by side as neighbouring bars.
  */
 
 import { useState } from "react";
@@ -27,9 +32,34 @@ export interface LiveTail {
   /** The chart holds the newest bar the chart API serves for this symbol, so
    *  the tail continues it; false while a scrolled-back or cached window shows. */
   atNewest: boolean;
+  /** The chart's last bar and the tail's first (epoch ms, chart stamping) when
+   *  a hole between them is too wide to join; null when the tail continues. */
+  gap: { lastChartBar: number; firstLiveBar: number } | null;
 }
 
 const DAY = 86_400_000;
+
+/** The widest silence inside one continuous series: a futures weekend (Friday
+ *  14:00 to Sunday 15:00 Pacific) plus a holiday either side. */
+export const MAX_JOIN_GAP_MS = 4 * DAY;
+
+/** The rolled-up bars that extend the chart, or the hole that stops them. */
+export function tailBars(
+  after: LiveBar[],
+  lastChartTimestamp: number | null,
+  timeframeMinutes: number,
+): { bars: OhlcvData[]; gap: LiveTail["gap"] } {
+  if (after.length === 0) return { bars: [], gap: null };
+  const firstLiveBar = after.reduce((min, bar) => Math.min(min, bar.tChart), Infinity);
+  if (lastChartTimestamp !== null && firstLiveBar - lastChartTimestamp > MAX_JOIN_GAP_MS) {
+    return { bars: [], gap: { lastChartBar: lastChartTimestamp, firstLiveBar } };
+  }
+  // The first rolled-up bucket may share its open with the chart's last bar
+  // (a partial bucket the lake already closed); only strictly later buckets
+  // extend the chart.
+  const bars = rollUp(after, timeframeMinutes).filter((b) => lastChartTimestamp === null || b.timestamp > lastChartTimestamp);
+  return { bars, gap: null };
+}
 
 export function rollUp(minutes: LiveBar[], timeframeMinutes: number): OhlcvData[] {
   const width = timeframeMinutes * 60_000;
@@ -89,12 +119,9 @@ export function useLiveTail(symbol: string, timeframeMinutes: number, lastChartT
   const after = [...merged.values()].filter((bar) => lastChartTimestamp === null || bar.tChart > lastChartTimestamp);
   const newest = after.reduce<LiveBar | null>((best, bar) => (best === null || bar.t > best.t ? bar : best), null);
 
-  // The first rolled-up bucket may share its open with the chart's last bar
-  // (a partial bucket the lake already closed); only strictly later buckets
-  // extend the chart.
-  // ...and only when the chart shows its newest bar: after a scrolled-back or
-  // cached window a live bar would land in the middle of history.
-  const bars = atNewest ? rollUp(after, timeframeMinutes).filter((b) => lastChartTimestamp === null || b.timestamp > lastChartTimestamp) : [];
+  // Only when the chart shows its newest bar: after a scrolled-back or cached
+  // window a live bar would land in the middle of history.
+  const { bars, gap } = atNewest ? tailBars(after, lastChartTimestamp, timeframeMinutes) : { bars: [], gap: null };
 
   return {
     bars,
@@ -103,5 +130,6 @@ export function useLiveTail(symbol: string, timeframeMinutes: number, lastChartT
     connected,
     minuteBars: after.length,
     atNewest,
+    gap,
   };
 }

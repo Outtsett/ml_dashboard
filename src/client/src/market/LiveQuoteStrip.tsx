@@ -44,7 +44,7 @@ interface LiveQuoteStripProps {
   timeframeApiKey?: string;
   /** The chart's live tail: bars appended, bars held back (the chart is not
    *  at its newest bar), and how to jump there. */
-  tail?: { shown: number; waiting: number; onShow: () => void };
+  tail?: { shown: number; waiting: number; onShow: () => void; gap?: { lastChartBar: number; firstLiveBar: number } | null };
 }
 
 export function LiveQuoteStrip({ className = "", symbol, timeframeApiKey, tail }: LiveQuoteStripProps) {

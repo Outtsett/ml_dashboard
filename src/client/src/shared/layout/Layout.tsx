@@ -6,6 +6,16 @@ import { PageLoader } from "@/shared/layout/LoadingSkeletons";
 import { ErrorBoundary } from "@/shared/layout/ErrorBoundary";
 
 const SIDE_PANEL_STORAGE_KEY = "side-panel-open-v1";
+const NAV_COLLAPSED_STORAGE_KEY = "left-nav-collapsed-v1";
+
+/** Whether the navigation rail was last left popped in (icons only). */
+function loadNavCollapsed(): boolean {
+  try {
+    return localStorage.getItem(NAV_COLLAPSED_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
 
 /** Closed unless it was left open: the chart gets the whole window by default. */
 function loadSidePanelOpen(): boolean {
@@ -17,7 +27,20 @@ function loadSidePanelOpen(): boolean {
 }
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(loadNavCollapsed);
+
+  // A plain function: the React Compiler memoizes it.
+  const toggleNav = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem(NAV_COLLAPSED_STORAGE_KEY, String(next));
+      } catch {
+        // A full quota must not stop the rail from moving.
+      }
+      return next;
+    });
+  };
   const [sidePanelOpen, setSidePanelOpen] = useState(loadSidePanelOpen);
 
   const toggleSidePanel = useCallback(() => {
@@ -38,7 +61,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       if (!(e.ctrlKey || e.metaKey)) return;
       if (e.key === "b") {
         e.preventDefault();
-        setCollapsed((c) => !c);
+        toggleNav();
       } else if (e.key === "j") {
         e.preventDefault();
         toggleSidePanel();
@@ -46,7 +69,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [toggleSidePanel]);
+  }, [toggleSidePanel, toggleNav]);
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-black text-white flex flex-col font-sans selection:bg-primary/30">
@@ -56,7 +79,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       <div className="flex-1 flex overflow-hidden">
         {/* 2. Left Sidebar Navigation */}
-        <LeftSidebar collapsed={collapsed} />
+        <LeftSidebar collapsed={collapsed} onToggle={toggleNav} />
 
         {/* 3. Main Canvas — the side panel opens OVER this, so the chart keeps
                its width and never has to re-measure and redraw. */}

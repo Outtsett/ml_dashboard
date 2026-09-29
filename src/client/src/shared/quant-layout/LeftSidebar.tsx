@@ -1,7 +1,7 @@
 import * as NavigationMenu from "@radix-ui/react-navigation-menu";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/shared/utils/utils";
-import { BrainCircuit, Library, Database, BookOpen, BookMarked, Newspaper, ActivitySquare, BarChart3, Microscope, NotebookPen, ScatterChart, PlayCircle, Tags, Radio } from "lucide-react";
+import { BrainCircuit, Library, Database, BookOpen, BookMarked, Newspaper, ActivitySquare, BarChart3, Microscope, NotebookPen, ScatterChart, PlayCircle, Tags, Radio, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 // This list is the app's actual rendered sidebar. shared/hooks/navigation.ts's
 // NAVIGATION_CONFIG is a separate, richer nav model (groups, descriptions,
@@ -38,15 +38,17 @@ const NAV_ITEMS = [
   { label: "System", href: "/settings", icon: ActivitySquare },
 ];
 
-export function LeftSidebar({ collapsed = false }: { collapsed?: boolean }) {
+/** The navigation rail. It pops in to icons only (hover names the page) and
+ *  back out to labels, from its own button or Ctrl+B; Layout remembers which. */
+export function LeftSidebar({ collapsed = false, onToggle }: { collapsed?: boolean; onToggle?: () => void }) {
   const [location] = useLocation();
 
   return (
     <div className={cn(
-      "h-full bg-neutral-950 border-r border-neutral-800 flex flex-col pt-4 transition-all duration-300",
+      "h-full shrink-0 bg-neutral-950 border-r border-neutral-800 flex flex-col pt-4 transition-all duration-300 overflow-hidden",
       collapsed ? "w-16" : "w-64"
     )}>
-      <NavigationMenu.Root className="w-full h-full flex flex-col" orientation="vertical">
+      <NavigationMenu.Root className="w-full flex-1 min-h-0 flex flex-col overflow-y-auto" orientation="vertical">
         <NavigationMenu.List className="flex flex-col gap-2 px-2 w-full m-0 list-none">
           {NAV_ITEMS.map((item) => {
             const isActive = item.href === "/" ? location === item.href : location.startsWith(item.href);
@@ -64,6 +66,7 @@ export function LeftSidebar({ collapsed = false }: { collapsed?: boolean }) {
                   href={item.href}
                   data-testid={`nav-${item.href === "/" ? "market" : item.href.slice(1)}`}
                   aria-label={item.label}
+                  title={collapsed ? item.label : undefined}
                   className="w-full block outline-none"
                 >
                   <div className={cn(
@@ -84,6 +87,22 @@ export function LeftSidebar({ collapsed = false }: { collapsed?: boolean }) {
           })}
         </NavigationMenu.List>
       </NavigationMenu.Root>
+      {onToggle && (
+        <button
+          type="button"
+          onClick={onToggle}
+          data-testid="nav-toggle"
+          aria-label={collapsed ? "Pop the navigation out" : "Pop the navigation in"}
+          title={collapsed ? "Pop out (Ctrl+B)" : "Pop in (Ctrl+B)"}
+          className={cn(
+            "mx-2 mb-3 flex items-center gap-3 px-3 py-2 rounded-lg text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800/50 transition-colors",
+            collapsed && "justify-center px-0",
+          )}
+        >
+          {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+          {!collapsed && <span className="text-xs tracking-wide">Pop in</span>}
+        </button>
+      )}
     </div>
   );
 }

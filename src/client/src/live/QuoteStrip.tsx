@@ -34,7 +34,7 @@ export function HubQuoteStrip({
 }: {
   quote: LiveQuote;
   className?: string;
-  tail?: { shown: number; waiting: number; onShow: () => void };
+  tail?: { shown: number; waiting: number; onShow: () => void; gap?: { lastChartBar: number; firstLiveBar: number } | null };
 }) {
   const places = digits(quote);
   const price = quote.mid ?? quote.last;
@@ -63,7 +63,15 @@ export function HubQuoteStrip({
           +{tail.shown} live bars on the chart
         </span>
       )}
-      {tail && tail.shown === 0 && tail.waiting > 0 && (
+      {tail?.gap && (
+        <span
+          className="text-[10px] text-[#E69F00] shrink-0"
+          title="The lake's history stops before the live hub's first bar. The tail is not joined across the hole, so no months-old bar sits next to today's."
+        >
+          Live bars start {new Date(tail.gap.firstLiveBar).toISOString().slice(0, 10)} · history ends {new Date(tail.gap.lastChartBar).toISOString().slice(0, 10)} · not joined
+        </span>
+      )}
+      {tail && !tail.gap && tail.shown === 0 && tail.waiting > 0 && (
         <button
           type="button"
           onClick={tail.onShow}

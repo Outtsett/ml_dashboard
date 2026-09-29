@@ -58,6 +58,7 @@ export function SourceHealth({ status }: { status: LiveStatus | undefined }) {
         {budget && typeof budget.usedToday === "number" && (
           <span>
             Alpha Vantage {String(budget.usedToday)}/{String(budget.budget)} calls today
+            {typeof budget.nextCallAt === "number" && ` · next call ${new Date(budget.nextCallAt * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
           </span>
         )}
         {status.landing && (

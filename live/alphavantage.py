@@ -45,6 +45,14 @@ class AlphaVantage:
         self.ledger_path = spool / "alphavantage.json"
         self.ledger = self._load()
         self.health = hub.source("alphavantage", "news", "Alpha Vantage NEWS_SENTIMENT (free tier)")
+        # A call lands about once an hour, so a restarted hub would read as
+        # disconnected for up to an hour: the last answered call is restored
+        # from the ledger instead.
+        last = self.ledger.get("lastAnswered")
+        if last and not self.ledger.get("pausedUntil"):
+            self.health.connected = True
+            self.health.last_message_at = float(last["at"])
+            self.health.extra.update(lastCall=last["call"], lastItems=last["items"], lastNew=last["new"])
 
     def _load(self) -> dict:
         try:
@@ -59,8 +67,11 @@ class AlphaVantage:
         return int(self.ledger["days"].get(datetime.now(timezone.utc).strftime("%Y-%m-%d"), 0))
 
     def status(self) -> dict:
+        spacing = 86_400 / max(self.budget, 1)
+        next_call = float(self.ledger.get("lastCallAt") or 0) + spacing
         return {"budget": self.budget, "usedToday": self._used_today(),
-                "rotationIndex": self.ledger["rotationIndex"], "pausedUntil": self.ledger.get("pausedUntil")}
+                "rotationIndex": self.ledger["rotationIndex"], "pausedUntil": self.ledger.get("pausedUntil"),
+                "nextCallAt": self.ledger.get("pausedUntil") or next_call}
 
     async def run(self) -> None:
         if not self.key:
@@ -136,6 +147,7 @@ class AlphaVantage:
             self.hub.lander.coverage("alphavantage", key, start, datetime.fromtimestamp(received, tz=timezone.utc),
                                      "live", len(feed))
         self.ledger["lastSeen"][key] = newest.isoformat()
+        self.ledger["lastAnswered"] = {"at": received, "call": key, "items": len(feed), "new": new}
         self._save()
         self.health.ok(new)
         self.health.extra.update(self.status(), lastCall=key, lastItems=len(feed), lastNew=new)

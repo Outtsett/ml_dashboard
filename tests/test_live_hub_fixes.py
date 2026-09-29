@@ -251,3 +251,21 @@ def test_past_dates_wait_for_the_backfills(tmp_path, monkeypatch):
     waiting.bar(_record(datetime(2026, 9, 1, 14, 30, tzinfo=timezone.utc), "oanda", 1.0))
     waiting.land_bars()
     assert len(waiting.bar_rows) == 1
+
+
+def test_alpha_vantage_restores_its_last_answer_after_a_restart(tmp_path):
+    """A call lands about once an hour; a restarted hub must not read as
+    disconnected until the next one."""
+    import json as _json
+
+    from live.alphavantage import AlphaVantage
+    from live.hub import Hub
+
+    (tmp_path / "alphavantage.json").write_text(_json.dumps({
+        "days": {}, "rotationIndex": 0, "lastSeen": {}, "pausedUntil": None, "lastCallAt": 1000.0,
+        "lastAnswered": {"at": 1000.0, "call": "topics=financial_markets", "items": 50, "new": 12},
+    }), encoding="utf-8")
+    source = AlphaVantage(Hub({}), None, {"rotation": [{"topics": "financial_markets"}]}, tmp_path)
+    assert source.health.connected and source.health.last_message_at == 1000.0
+    assert source.health.extra["lastItems"] == 50
+    assert source.status()["nextCallAt"] == 1000.0 + 86_400 / 25
