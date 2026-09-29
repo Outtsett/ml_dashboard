@@ -503,5 +503,160 @@ def _(bins, log_count, mo, small_multiples, strategies):
     return
 
 
+@app.cell
+def _(frame, mo, pl, view_exists):
+    CONDITIONAL = "derived_ta_conditional_strategies_600_ticks_"
+    conditional_rounds = frame(f"SELECT * FROM {CONDITIONAL}rounds ORDER BY round") if view_exists(f"{CONDITIONAL}rounds") else pl.DataFrame()
+    if conditional_rounds.height == 0 or "frame_error" in conditional_rounds.columns:
+        mo.stop(True, mo.md("## 10 · Multi-timeframe support/resistance and conditional strategies\nNo round has landed yet."))
+    conditional_picker = mo.ui.dropdown({f"round {r['round']} · {r['recipe']}": r["recipe"] for r in conditional_rounds.iter_rows(named=True)},
+                                        value=f"round {conditional_rounds[-1, 'round']} · {conditional_rounds[-1, 'recipe']}", label="Conditional round")
+    mo.vstack([mo.md(r"""
+## 10 · Multi-timeframe support/resistance and conditional strategies
+
+**Levels** (`src/ml/ta_strategy/levels.py`). Every level is an event with the moment it became knowable:
+- prior-session, prior-RTH and prior-week high/low/close;
+- the overnight high/low, and the 15- and 30-minute opening ranges;
+- round 100s and 50s in traded prices;
+- Williams fractals on 15m, 1h and 4h (15:00-anchored), known only at their confirmation bar;
+- the session VWAP ±1/±2σ.
+
+At each 15m bar the active levels within 6 ATR merge into **zones**. The nearest zone below the close is support and the nearest above is resistance. A zone's *strength* is how many distinct source families it holds.
+
+**Level quality.** For each family, $\text{held rate}$ is the share of first tests where price moved $1\times$ATR away on the tested side before $1\times$ATR through the level.
+- **Null A** puts the same level at the same ATR distance in a random other session.
+- **Null B** reruns everything on sessions whose minutes were shuffled, which is the bounce a level definition produces mechanically.
+
+$$\text{edge} = (\text{held} - \text{held}_{A}) - (\text{held}^{\text{shuffled}} - \text{held}^{\text{shuffled}}_{A})$$
+
+**Conditional strategies** (`src/config/ta_conditional_templates.json`) are ANDed TA-Lib conditions with several exits. Optuna tunes their parameters on the years **before** each test year. The objective is the excess over random entries matched on session window, hour and side, using the same exits.
+"""), conditional_picker, mo.ui.table(conditional_rounds, selection=None)])
+    return CONDITIONAL, conditional_picker
+
+
+@app.cell
+def _(CONDITIONAL, OKABE, alt, conditional_picker, frame, mo, pl):
+    _q = frame(f"SELECT * FROM {CONDITIONAL}level_quality WHERE recipe = ?", [conditional_picker.value])
+    _all = _q.filter(pl.col("year") == "all").sort("lift_net_of_mechanics")
+    _long = _all.select("family", "held_rate_lift_over_null", "shuffled_lift_over_null", "lift_net_of_mechanics").unpivot(
+        index="family", variable_name="measure", value_name="lift").to_pandas()
+    _bars = alt.Chart(_long).mark_bar().encode(
+        y=alt.Y("family:N", sort=_all["family"].to_list(), title=None), x=alt.X("lift:Q", title="held-rate lift (share of first tests)"),
+        color=alt.Color("measure:N", scale=alt.Scale(domain=["held_rate_lift_over_null", "shuffled_lift_over_null", "lift_net_of_mechanics"],
+                                                     range=[OKABE["sky"], OKABE["black"], OKABE["vermillion"]])),
+        yOffset="measure:N", tooltip=["family", "measure", alt.Tooltip("lift:Q", format="+.3f")])
+    _years = _q.filter(pl.col("year") != "all").to_pandas()
+    _yearly = alt.Chart(_years).mark_line(point=True).encode(
+        x=alt.X("year:O"), y=alt.Y("lift_net_of_mechanics:Q", title="edge net of mechanics"),
+        color=alt.Color("family:N", scale=alt.Scale(scheme="viridis")), tooltip=["family", "year", "resolved_tests",
+                                                                              alt.Tooltip("lift_net_of_mechanics:Q", format="+.3f")])
+    _zero = alt.Chart(pl.DataFrame({"x": [0.0]}).to_pandas()).mark_rule(color=OKABE["black"]).encode(x="x:Q")
+    mo.vstack([mo.md("### Do the levels hold price? (sky: vs distance-matched random levels; black: the same in a shuffled world; "
+                     "vermillion: what is left, the real edge. Negative means price breaks through more often than chance)"),
+               mo.hstack([(_bars + _zero).properties(width=520, height=420), _yearly.properties(width=460, height=320)]),
+               mo.ui.table(_all, selection=None)])
+    return
+
+
+@app.cell
+def _(CONDITIONAL, conditional_picker, frame, mo):
+    session_days = frame(f"SELECT DISTINCT CAST(bar_timestamp + INTERVAL 9 HOUR AS DATE) AS d FROM {CONDITIONAL}zones_15m "
+                  "WHERE recipe = ? ORDER BY d", [conditional_picker.value])["d"].to_list()
+    level_day = mo.ui.slider(0, len(session_days) - 1, value=len(session_days) - 20, label="Session", show_value=False)
+    level_sources = mo.ui.multiselect(["prior_session", "prior_rth", "overnight", "opening_range", "prior_week", "round_number",
+                                       "fractal_15m", "fractal_1h", "fractal_4h"],
+                                      value=["prior_session", "overnight", "opening_range", "fractal_1h", "fractal_4h"], label="Level families")
+    mo.hstack([level_day, level_sources])
+    return level_day, level_sources, session_days
+
+
+@app.cell
+def _(CONDITIONAL, OKABE, alt, conditional_picker, frame, level_day, level_sources, mo, pl, session_days):
+    _day = session_days[level_day.value]
+    _z = frame(f"SELECT * FROM {CONDITIONAL}zones_15m WHERE recipe = ? AND CAST(bar_timestamp + INTERVAL 9 HOUR AS DATE) = ? "
+               "ORDER BY bar_timestamp", [conditional_picker.value, _day])
+    _t0, _t1 = _z["bar_timestamp"].min(), _z["bar_timestamp"].max()
+    _ev = frame(f"SELECT family, source, price, known_from_timestamp, valid_until_timestamp FROM {CONDITIONAL}level_events "
+                "WHERE recipe = ? AND known_from_timestamp <= ? AND valid_until_timestamp > ? AND family IN (SELECT UNNEST(?))",
+                [conditional_picker.value, _t1, _t0, level_sources.value])
+    _lo, _hi = float(_z["close"].min()), float(_z["close"].max())
+    _pad = (_hi - _lo) * 0.3 + 10
+    _ev = _ev.filter((pl.col("price") > _lo - _pad) & (pl.col("price") < _hi + _pad)).with_columns(
+        pl.max_horizontal(pl.col("known_from_timestamp"), pl.lit(_t0)).alias("from"),
+        pl.min_horizontal(pl.col("valid_until_timestamp"), pl.lit(_t1)).alias("to"))
+    _scale = alt.Scale(domain=[_lo - _pad, _hi + _pad])
+    _price = alt.Chart(_z.to_pandas()).mark_line(color=OKABE["black"]).encode(
+        x=alt.X("bar_timestamp:T", title="15m bar (Pacific wall clock)"), y=alt.Y("close:Q", scale=_scale, title="back-adjusted price"))
+    _sup = alt.Chart(_z.to_pandas()).mark_area(opacity=0.25, color=OKABE["blue"]).encode(
+        x="bar_timestamp:T", y=alt.Y("support_low:Q", scale=_scale), y2="support_high:Q")
+    _res = alt.Chart(_z.to_pandas()).mark_area(opacity=0.25, color=OKABE["orange"]).encode(
+        x="bar_timestamp:T", y=alt.Y("resistance_low:Q", scale=_scale), y2="resistance_high:Q")
+    _lv = alt.Chart(_ev.to_pandas()).mark_rule(strokeWidth=2, opacity=0.8).encode(
+        x="from:T", x2="to:T", y=alt.Y("price:Q", scale=_scale),
+        color=alt.Color("family:N", scale=alt.Scale(scheme="viridis")), strokeDash=alt.StrokeDash("family:N"),
+        tooltip=["source", alt.Tooltip("price:Q", format=",.2f"), "known_from_timestamp:T", "valid_until_timestamp:T"])
+    mo.vstack([mo.md(f"### Session {_day}: price, the nearest support zone (blue band) and resistance zone (orange band) at every 15m bar, "
+                     "and each active level from the chosen families (drawn only while it was known and valid)"),
+               (_sup + _res + _lv + _price).properties(width=900, height=420)])
+    return
+
+
+@app.cell
+def _(CONDITIONAL, GOAL, OKABE, alt, bins, conditional_picker, frame, log_count, mo, pl, small_multiples):
+    _t = frame(f"SELECT * FROM {CONDITIONAL}templates WHERE recipe = ? ORDER BY excess_ticks_per_session_day DESC", [conditional_picker.value])
+    _f = frame(f"SELECT * FROM {CONDITIONAL}folds WHERE recipe = ? ORDER BY template, test_year", [conditional_picker.value])
+    _base = alt.Chart(_t.select("template", "net_ticks_per_session_day", "matched_null_net_ticks_per_session_day",
+                                "excess_ticks_per_session_day", "excess_newey_west_t").to_pandas())
+    _bars = _base.mark_bar(color=OKABE["blue"]).encode(y=alt.Y("template:N", sort=None, title=None),
+                                                      x=alt.X("net_ticks_per_session_day:Q", title="out-of-sample 2022-2025 net ticks per session day"),
+                                                      tooltip=["template", alt.Tooltip("excess_ticks_per_session_day:Q", format="+.1f"),
+                                                               alt.Tooltip("excess_newey_west_t:Q", format="+.2f")])
+    _null = _base.mark_tick(color=OKABE["purple"], thickness=3, size=16).encode(y=alt.Y("template:N", sort=None),
+                                                                                x="matched_null_net_ticks_per_session_day:Q")
+    _goal = alt.Chart(pl.DataFrame({"x": [GOAL]}).to_pandas()).mark_rule(color=OKABE["orange"], strokeWidth=2).encode(x="x:Q")
+    _fold = alt.Chart(_f.select("template", "test_year", "test_excess_ticks_per_session_day").to_pandas()).mark_bar().encode(
+        x=alt.X("test_year:O"), y=alt.Y("test_excess_ticks_per_session_day:Q", title="excess over matched random, ticks/day"),
+        color=alt.condition("datum.test_excess_ticks_per_session_day > 0", alt.value(OKABE["orange"]), alt.value(OKABE["blue"])),
+        column=alt.Column("template:N", title=None)).properties(width=150, height=160)
+    mo.vstack([mo.md("### Conditional templates, tuned on prior years and tested on the next one (blue bar: net; purple tick: "
+                     "matched random entries with the same exits; orange rule: 600)"),
+               (_bars + _null + _goal).properties(width=820, height=220), _fold, mo.ui.table(_t, selection=None),
+               mo.md("Parameters Optuna chose for each test year (tuned only on the years before it):"), mo.ui.table(_f, selection=None),
+               small_multiples(_t, [c for c in _t.columns if c not in ("round",)], bins.value, log_count.value) or mo.md("")])
+    return
+
+
+@app.cell
+def _(CONDITIONAL, OKABE, alt, bins, conditional_picker, frame, log_count, mo, pl, small_multiples):
+    _names = frame(f"SELECT DISTINCT template FROM {CONDITIONAL}templates WHERE recipe = ?", [conditional_picker.value])["template"].to_list()
+    template_picker = mo.ui.dropdown(_names, value=_names[0], label="Template")
+    template_picker
+    return (template_picker,)
+
+
+@app.cell
+def _(CONDITIONAL, OKABE, alt, bins, conditional_picker, frame, log_count, mo, pl, small_multiples, template_picker):
+    _d = frame(f"SELECT * FROM {CONDITIONAL}daily WHERE recipe = ? AND template = ? ORDER BY session_date",
+               [conditional_picker.value, template_picker.value]).with_columns(
+        pl.col("net_ticks").cum_sum().alias("cumulative_net_ticks"), pl.col("matched_null_net_ticks").cum_sum().alias("cumulative_matched_null_ticks"))
+    _tr = frame(f"SELECT * FROM {CONDITIONAL}trials WHERE recipe = ? AND template = ?", [conditional_picker.value, template_picker.value])
+    _x = frame(f"SELECT * FROM {CONDITIONAL}trades WHERE recipe = ? AND template = ?", [conditional_picker.value, template_picker.value])
+    _eq = alt.Chart(_d.select("session_date", "cumulative_net_ticks", "cumulative_matched_null_ticks").to_pandas()).transform_fold(
+        ["cumulative_net_ticks", "cumulative_matched_null_ticks"]).mark_line().encode(
+        x="session_date:T", y=alt.Y("value:Q", title="cumulative ticks, 1 contract"),
+        color=alt.Color("key:N", scale=alt.Scale(range=[OKABE["purple"], OKABE["blue"]]), title=None), strokeDash="key:N")
+    _trials = alt.Chart(_tr.select("fold", "test_year", "objective_excess_sharpe_per_day", "trades_per_session_day").to_pandas()).mark_circle(
+        size=24, opacity=0.6).encode(x=alt.X("trades_per_session_day:Q", title="training trades per day"),
+                                     y=alt.Y("objective_excess_sharpe_per_day:Q", title="objective (excess Sharpe per day, penalised)"),
+                                     color=alt.Color("test_year:O", scale=alt.Scale(scheme="cividis")))
+    _exits = _x.group_by("exit_reason").agg(pl.len().alias("trades"), pl.col("net_ticks").mean().alias("mean_net_ticks"),
+                                           pl.col("net_r_multiple").mean().alias("mean_net_r")).sort("trades", descending=True)
+    mo.vstack([mo.md(f"### {template_picker.value}: out-of-sample equity vs matched random, every Optuna trial, exits, every column"),
+               mo.hstack([_eq.properties(width=520, height=260), _trials.properties(width=420, height=260)]),
+               mo.ui.table(_exits, selection=None),
+               small_multiples(_x, [c for c in _x.columns if c not in ("round", "test_year")], bins.value, log_count.value) or mo.md("no trades")])
+    return
+
+
 if __name__ == "__main__":
     app.run()
