@@ -28,8 +28,8 @@ const router = Router();
 
 /** Where the quant workspace's training runs land. */
 const RUNS_ROOT = process.env.TRAINING_RUNS_ROOT
-  ?? "E:/source/repos/Trading/quant/model/data/training_runs";
-const QUANT_ROOT = process.env.QUANT_ROOT ?? "E:/source/repos/Trading/quant";
+  ?? "E:/source/repos/ml_dashboard/Trading/quant/model/data/training_runs";
+const QUANT_ROOT = process.env.QUANT_ROOT ?? "E:/source/repos/ml_dashboard/Trading/quant";
 const QUANT_PYTHON = path.join(QUANT_ROOT, ".venv", "Scripts", "python.exe");
 const TRAINER = path.join("scripts", "train_multimodal_direction.py");
 

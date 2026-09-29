@@ -25,7 +25,7 @@ import re
 import sys
 from collections import defaultdict
 
-ROOT = pathlib.Path(r"E:/source/repos/Trading/_architecture/educational/algo_models")
+ROOT = pathlib.Path(r"E:/source/repos/ml_dashboard/Trading/_architecture/educational/algo_models")
 OUT_DIR = pathlib.Path("src/client/src/system/architecture-explorer/mechanism/registry")
 SCRATCH = pathlib.Path(
     r"C:/Users/tyler/AppData/Local/Temp/claude/E--source-repos-ml-dashboard"

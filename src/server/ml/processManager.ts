@@ -35,7 +35,7 @@ export class ProcessManager extends EventEmitter {
     const sweepScript = config.model === 'DQNAgent' ? 'sweep_dqn.py' : 'sweep_ppo.py';
     const configFile = config.model === 'DQNAgent' ? 'configs/rl_dqn_default.yaml' : 'configs/rl_ppo_default.yaml';
     const pythonScript = config.isSweep ? sweepScript : baseScript;
-    const workspaceRoot = 'E:\\source\\repos\\trading_models';
+    const workspaceRoot = 'E:\\source\\repos\\ml_dashboard\\trading_models';
     const pythonExe = 'C:\\Users\\tyler\\anaconda3\\python.exe';
     const prepareArgs = [
       'scripts/prepare_dataset.py',

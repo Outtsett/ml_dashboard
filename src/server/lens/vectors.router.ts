@@ -55,7 +55,7 @@ import { logInfo } from "../infrastructure/lib/log";
 const router = Router();
 
 const RUNS_ROOT = process.env.TRAINING_RUNS_ROOT
-  ?? "E:/source/repos/Trading/quant/model/data/training_runs";
+  ?? "E:/source/repos/ml_dashboard/Trading/quant/model/data/training_runs";
 const RUN_NAME = /^[A-Za-z0-9_\-]+$/;
 
 /** The slot each block occupies in the packed vector. */

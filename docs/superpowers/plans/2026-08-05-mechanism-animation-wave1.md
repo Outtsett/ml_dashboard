@@ -1228,14 +1228,14 @@ git commit -m "feat(mechanism): k-means kernel with known-answer tests"
 - Consumes: `MechanismSpec` (Task 1).
 - Produces: `CLUSTER_LOOP: MechanismSpec[]`.
 
-**This is the research task.** For each model below, open its markdown spec under `ALGO_MODELS_ROOT` (default `E:/source/repos/Trading/_architecture/educational/algo_models`) and read the Architecture section before writing the entry. Do not write an entry from memory — `specPath` is a citation, and a beat that isn't in the cited file is a bug.
+**This is the research task.** For each model below, open its markdown spec under `ALGO_MODELS_ROOT` (default `E:/source/repos/ml_dashboard/Trading/_architecture/educational/algo_models`) and read the Architecture section before writing the entry. Do not write an entry from memory — `specPath` is a citation, and a beat that isn't in the cited file is a bug.
 
 Find each spec with:
 
 ```bash
-ls "E:/source/repos/Trading/_architecture/educational/algo_models/Statistical Models" \
-   "E:/source/repos/Trading/_architecture/educational/algo_models/Machine Learning"
-grep -ril "k-means" "E:/source/repos/Trading/_architecture/educational/algo_models"
+ls "E:/source/repos/ml_dashboard/Trading/_architecture/educational/algo_models/Statistical Models" \
+   "E:/source/repos/ml_dashboard/Trading/_architecture/educational/algo_models/Machine Learning"
+grep -ril "k-means" "E:/source/repos/ml_dashboard/Trading/_architecture/educational/algo_models"
 ```
 
 Confirm each catalog key against the fixture from Task 1:
