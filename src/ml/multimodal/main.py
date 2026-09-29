@@ -101,6 +101,9 @@ def fit_family(args, data, fold, heads, probabilities, importances):
 
         names = list(data.features.columns)
         x = data.features.to_numpy(np.float32)
+        block_columns = {block: [names.index(c) for c in columns] for block, columns in data.modalities().items()}
+        # its own generator: the ablation never moves the global state the fusion member shuffles with
+        generator = np.random.default_rng([args.seed, fold.index])
         for name in heads:
             head = data.heads[name]
             train = fold.train[head.available[fold.train]]
@@ -111,6 +114,19 @@ def fit_family(args, data, fold, heads, probabilities, importances):
             probabilities[name][fold.test] = model.predict(x[fold.test])
             for feature, gain in model.importance(names).items():
                 importances.append({"fold": fold.name, "head": name, "feature": feature, "gain_share": gain})
+            # block ablation on the test quarter, the gbdt counterpart of the fusion's token ablation: AUC with
+            # one block's columns shuffled together across the quarter's rows (3 shuffles, averaged)
+            test = fold.test[head.available[fold.test]]
+            full = auc(head.win[test], probabilities[name][test])
+            for block, columns in block_columns.items():
+                without = []
+                for _repeat in range(3):
+                    shuffled = x[test].copy()
+                    shuffled[:, columns] = shuffled[generator.permutation(test.size)][:, columns]
+                    without.append(auc(head.win[test], model.predict(shuffled)))
+                auc_without = float(np.mean(without))
+                importances.append({"fold": fold.name, "head": name, "feature": f"{block}__token", "gain_share": np.nan,
+                                    "auc_full": full, "auc_without": auc_without, "auc_drop": full - auc_without})
         return {}
     from multimodal.models.fusion import FusionParameters, fit_predict
 
@@ -214,6 +230,8 @@ def main(argv=None) -> int:
         runs.record_trial(args.model_id, {**configuration, "provenance": provenance}, canonical)
         out_dir = MODELS_DIR / args.model_id
         out_dir.mkdir(parents=True, exist_ok=True)
+        # per data modality, the mean test-quarter AUC drop: the fusion zeroes a token, gbdt shuffles a block,
+        # an ensemble averages its two members' measurements (gate G6 reads this)
         ablation = {}
         if not importance.empty and "auc_drop" in importance.columns:
             token_modality = {"price__token": "price", "time__token": "price", "context__token": "price", "sequence__token": "price",

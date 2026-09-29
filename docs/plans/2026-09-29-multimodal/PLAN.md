@@ -97,3 +97,11 @@ pushed. A red CI stops the step.
 - **2026-09-29 — the prior is stated.** P1's synthesis puts the probability of clearing the gate as
   first written (average win >= 2x loss only) at about 3%; "Both" (profit factor >= 2 too) lowers it
   further. The job continues to the gate as Tyler set it; the thresholds do not move.
+- **2026-09-29, after trial 8 — every family measures G6, and a provenance refresh.** The gbdt family now
+  records a block ablation (each block's columns shuffled together across every test quarter, three
+  shuffles averaged), the counterpart of the fusion's token ablation; an ensemble averages its members'.
+  It is a measurement only: predictions, trades and canonical numbers are unchanged
+  (`tests/test_multimodal_ablation.py`). Because the gate refuses a candidate whose code hash differs from
+  the current code, a candidate developed before a code change is re-run unchanged on the current code
+  before its look. That **provenance refresh** is not a new trial and is not counted; the refreshed record
+  is the one gated, and any difference from the original canonical numbers is reported.

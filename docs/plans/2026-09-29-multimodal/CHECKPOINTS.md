@@ -179,3 +179,21 @@ Resume rule after any break or compaction: read `PLAN.md`, then the last three e
 - **Trial 9** started: fusion, same blocks, history and window (`..._20260929T201826`).
 - GDELT backfill: every day from 2024-06-03 to 2026-09-29 landed (0 incomplete); the 2019-05-01..2025-12-31
   pass is at 450 of 2,420 days, newest first.
+
+## CP-009 · 2026-09-29 · trial 9 (fusion) is the best on v3; gbdt measures G6 too
+
+- **Trial 9** (8 of 24 counted): fusion · blocks time,price,flow,cross,context,calendar · history mnq · test
+  quarters from 2020Q3 · seed 7 · `MNQ_5m_multimodal_fusion+bracket_meta_label_20260929T201826` (code sha256
+  5334feb3, before the change below).
+- Canonical 2021Q2..2025Q2: 1,066 sessions, 1,737 trades (1.63 a session, 14.3% forced), win rate 0.3149, payoff
+  2.179, **profit factor 1.0018**, net +$140.14 (stressed -$1,596.86), bootstrap P(profit) 0.513 (95% lower
+  bound -4,470 points), quarters positive 0.412, maximum drawdown $6,453.26. Gate: G1, G2.
+- Diagnosis: mean test AUC per head 0.503 / 0.511 / 0.508 / 0.513 (long 2:1, short 2:1, long 3:1, short 3:1);
+  token ablation (AUC drop) price +0.0014, flow +0.0029, cross -0.0013, calendar -0.0021. The network does
+  not discriminate; the profit factor near 1.00 is the policy riding a coin flip, not an edge.
+- Best on v3: **trial 9, 1.0018** (+0.045 over trial 8). Trials without improvement: 0.
+- **Code change (plan change of the same date):** gbdt records a block ablation (each block's columns shuffled
+  together across every test quarter, 3 shuffles), so G6 is measured whichever family is frozen; predictions
+  are unchanged (`tests/test_multimodal_ablation.py`). The code hash moved, so trials 8 and 9 need a
+  provenance refresh before either could be gated. CI green (45 tests).
+- Trial 10 next: the ensemble of the two families, same blocks, history and window.
