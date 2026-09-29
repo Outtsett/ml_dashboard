@@ -1,5 +1,7 @@
 # ML Studio End-to-End: TFT + Verbose Logging + Loss-Surface Framework
 
+> Phase 3 (Weights & Biases) was removed from the project on 2026-05-28; the TFT, verbose-logging and
+> loss-surface work stands, and all telemetry flows through the dashboard's stdout protocol and SSE.
 
 Date: 2026-05-19 · Status: IN PROGRESS
 
@@ -37,7 +39,7 @@ Catalog dropdown (state.modelType)
 | B2 | Save path emits `{writtenTo,…}` not `{savedPaths,runnerKey,…}` | generate_model.py:1006-1011 vs codeGenerator.ts:401 (`extractResultJson(stdout,'savedPaths')`) | `saveAndRegister` throws "no parseable JSON result line" |
 | B3 | `--files-override-json` not a parsed arg | absent from `_parse_args` (generate_model.py:234-329); TS sends it (codeGenerator.ts:206) | argparse rejects unknown arg → save fails when user edits in Monaco |
 | B4 | Atomic mode never writes `__init__.py` | generate_model.py:1002-1004 writes only the 4 files | `import src.ml.<id>.main` fails → orchestrator can't spawn |
-| B5 | W&B wired nowhere | grep zero in protocol.py / templates / scripts | Violates mandatory-W&B rule |
+| B5 | W&B wired nowhere | grep zero in protocol.py / templates / scripts | Violated the mandatory-W&B rule (rule retired with W&B on 2026-05-28) |
 | B6 | Loss-surface infra orphaned | `loss_surface.py` + `trajectory.py` imported by nothing; `Surface3DRenderer` registered but no emitter | No loss surface renders |
 | B7 | Verbose training internals not emitted | `_base.py.j2` emits only losses; no grad_norm/lr/throughput/VRAM/histograms | Shallow insight |
 
@@ -81,8 +83,9 @@ emit_step_diagnostics present; TFT proven streaming at runtime.
 - Client: confirm `distribution`/`heatmap`/`time_series` renderers + LiveTrainingView render the new group; add a "Deep Insights" affordance if needed.
 - **Gate**: a short pytorch run streams grad_norm/lr/throughput/VRAM + a weight histogram to the live UI.
 
-### Phase 3 — W&B ✅ DONE 2026-05-19
-models). Verified present in rendered TFT main.py.
+### Phase 3 — W&B (done 2026-05-19, removed 2026-05-28)
+Wired into protocol.py and every generated model on 2026-05-19, then removed from the project on
+2026-05-28.
 
 NOTE Phase 2 (verbose logging) + Phase 4 (loss surface): the shared
 src/ml/shared/torch_logging.py helper is WIRED into the TFT template
@@ -91,7 +94,7 @@ records per-epoch + compute_and_emit post-train). REMAINING: propagate the same
 3-line wiring into the other pytorch family templates (transformer_seq, pytorch_mlp/
 cnn/autoencoder/vae) for true model-agnostic coverage; delete synthetic
 LossSurface3D.tsx + confirm Surface3DRenderer mounts the surface_3d metric.
-- **Gate**: run appears in W&B within 60s; metrics mirror SSE.
+- **Gate** (retired with W&B): the run appeared in W&B within 60 s and its metrics mirrored SSE.
 
 ### Phase 4 — Loss-surface framework ✅ DONE 2026-05-20
 Wired into TFT via torch_logging.LossSurfaceProbe (emits surface_3d → Surface3DRenderer).
@@ -107,11 +110,11 @@ on real MNQ@1d (2074 bars) → completed clean (done, no error). 3 epochs, all v
 diagnostics + 7x7 loss surface + TFT interpretability + full classification metrics +
 diagnostics.json. Fixes: algorithms.json key tft→temporal_fusion_transformer (registry
 join); TFT eval_helpers compute_fold_metrics tail-alignment for windowed preds;
-present). REMAINING (follow-ups): propagate torch_logging into the other 5 pytorch family
+generate_model.py --register collision-safe. REMAINING (follow-ups): propagate torch_logging into the other 5 pytorch family
 templates; optional Playwright UI visual confirmation.
 
 - Verify QuestDB data; launch dashboard; via the Run path (and/or Playwright) create TFT from dropdown → Generate → Save → Train on real bars → watch verbose logging + loss surface → Evaluate → (Promote).
-- **Gate**: full ML Studio loop completes on a real model with all telemetry; no console errors; W&B run present.
+- **Gate**: full ML Studio loop completes on a real model with all telemetry; no console errors.
 
 ## Verification spine (every phase)
 `npm run check` (tsc) · `npx eslint --max-warnings 0` (new files) · `python -c "import ast; ast.parse(...)"` on rendered templates · dashboard SSE shows live metrics before declaring done · zero synthetic data.
