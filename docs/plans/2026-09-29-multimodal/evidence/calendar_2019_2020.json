@@ -1,0 +1,2213 @@
+{
+ "rows": [
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2019-05-01",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-52-8-april-manufacturing-ism-report-on-business-300841270.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; ISM's 2019 release-calendar page is not archived"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2019-05-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_05032019.htm",
+   "vintage": null
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2019-05-03",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/nmi-at-55-5-april-non-manufacturing-ism-report-on-business-300843124.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; ISM's 2019 release-calendar page is not archived"
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2019-05-07",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_05072019.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2019-05-09",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_05092019.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2019-05-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_05102019.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2019-05-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv1904.pdf",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2019-05-17",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "durable_goods",
+   "date": "2019-05-24",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2019/mar19prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Mar 2019 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2019-05-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2019/gross-domestic-product-1st-quarter-2019-second-estimate-corporate-profits-1st-quarter",
+   "vintage": "second"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2019-05-31",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2019-05-31",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2019/personal-income-and-outlays-april-2019",
+   "vintage": null
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2019-06-03",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-52-1-may-manufacturing-ism-report-on-business-300859919.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; ISM's 2019 release-calendar page is not archived"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2019-06-05",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/nmi-at-56-9-may-non-manufacturing-ism-report-on-business-300862040.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; ISM's 2019 release-calendar page is not archived"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2019-06-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_06072019.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2019-06-10",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_06102019.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2019-06-11",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_06112019.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2019-06-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_06122019.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2019-06-14",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2019-06-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv1905.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2019-06-26",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2019/apr19prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Apr 2019 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2019-06-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2019/gross-domestic-product-first-quarter-2019-third-estimate-corporate-profits-first-quarter",
+   "vintage": "third"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2019-06-28",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2019-06-28",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2019/personal-income-and-outlays-may-2019",
+   "vintage": null
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2019-07-01",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-51-7-june-manufacturing-ism-report-on-business-300877550.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; ISM's 2019 release-calendar page is not archived"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2019-07-03",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/nmi-at-55-1-june-non-manufacturing-ism-report-on-business-300879589.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; ISM's 2019 release-calendar page is not archived"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2019-07-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_07052019.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2019-07-09",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_07092019.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2019-07-11",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_07112019.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2019-07-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_07122019.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2019-07-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv1906.pdf",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2019-07-19",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "durable_goods",
+   "date": "2019-07-25",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2019/may19prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for May 2019 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2019-07-26",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2019/gross-domestic-product-2nd-quarter-2019-advance-estimate-and-annual-update",
+   "vintage": "advance"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2019-07-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2019/personal-income-and-outlays-june-2019",
+   "vintage": null
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2019-08-01",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-51-2-july-manufacturing-ism-report-on-business-300892730.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; ISM's 2019 release-calendar page is not archived"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2019-08-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_08022019.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2019-08-02",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2019-08-05",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/nmi-at-53-7-july-non-manufacturing-ism-report-on-business-300895867.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; ISM's 2019 release-calendar page is not archived"
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2019-08-06",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_08062019.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2019-08-09",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_08092019.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2019-08-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_08132019.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2019-08-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv1907.pdf",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2019-08-16",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "durable_goods",
+   "date": "2019-08-26",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2019/jun19prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Jun 2019 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2019-08-29",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2019/gross-domestic-product-2nd-quarter-2019-second-estimate-corporate-profits-2nd-quarter",
+   "vintage": "second"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2019-08-30",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2019-08-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2019/personal-income-and-outlays-july-2019",
+   "vintage": null
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2019-09-03",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-49-1-august-manufacturing-ism-report-on-business-300909470.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; ISM's 2019 release-calendar page is not archived"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2019-09-05",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/nmi-at-56-4-august-non-manufacturing-ism-report-on-business-300912007.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; ISM's 2019 release-calendar page is not archived"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2019-09-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_09062019.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2019-09-10",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_09102019.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2019-09-11",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_09112019.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2019-09-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_09122019.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2019-09-13",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2019-09-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv1908.pdf",
+   "vintage": null
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2019-09-26",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2019/gross-domestic-product-2nd-quarter-2019-third-estimate-corporate-profits-2nd-quarter-2019",
+   "vintage": "third"
+  },
+  {
+   "family": "durable_goods",
+   "date": "2019-09-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2019/jul19prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Jul 2019 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2019-09-27",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2019-09-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2019/personal-income-and-outlays-august-2019",
+   "vintage": null
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2019-10-01",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-47-8-september-manufacturing-ism-report-on-business-300927916.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; ISM's 2019 release-calendar page is not archived"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2019-10-03",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/nmi-at-52-6-september-non-manufacturing-ism-report-on-business-300929995.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; ISM's 2019 release-calendar page is not archived"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2019-10-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_10042019.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2019-10-08",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_10082019.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2019-10-09",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_10092019.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2019-10-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_10102019.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2019-10-11",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2019-10-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv1909.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2019-10-24",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2019/aug19prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Aug 2019 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2019-10-25",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2019-10-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2019/gross-domestic-product-3rd-quarter-2019-advance-estimate",
+   "vintage": "advance"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2019-10-31",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2019/personal-income-and-outlays-september-2019",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2019-11-01",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_11012019.htm",
+   "vintage": null
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2019-11-01",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-48-3-gdp-growing-at-1-6-october-manufacturing-ism-report-on-business-300949478.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; ISM's 2019 release-calendar page is not archived"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2019-11-05",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/nmi-at-54-7-gdp-growing-at-2-1-october-non-manufacturing-ism-report-on-business-300950884.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; ISM's 2019 release-calendar page is not archived"
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2019-11-05",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_11052019.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2019-11-08",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2019-11-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_11132019.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2019-11-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_11142019.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2019-11-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv1910.pdf",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2019-11-22",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "durable_goods",
+   "date": "2019-11-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2019/sep19prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Sep 2019 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2019-11-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2019/gross-domestic-product-third-quarter-2019-second-estimate-corporate-profits-third-quarter",
+   "vintage": "second"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2019-11-27",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2019/personal-income-and-outlays-october-2019",
+   "vintage": null,
+   "note": "BEA embargo time 10:00 (not the usual 08:30); also footnoted in the BEA news release schedule"
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2019-12-02",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-48-1-gdp-growing-at-1-5-november-manufacturing-ism-report-on-business-300964884.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; ISM's 2019 release-calendar page is not archived"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2019-12-04",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/nmi-at-53-9-gdp-growing-at-1-9-november-non-manufacturing-ism-report-on-business-300968564.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; ISM's 2019 release-calendar page is not archived"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2019-12-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_12062019.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2019-12-06",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2019-12-11",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_12112019.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2019-12-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_12122019.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2019-12-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv1911.pdf",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2019-12-17",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_12172019.htm",
+   "vintage": null
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2019-12-20",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2019/gross-domestic-product-third-quarter-2019-third-estimate-corporate-profits-third-quarter",
+   "vintage": "third"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2019-12-20",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2019-12-20",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2019/personal-income-and-outlays-november-2019",
+   "vintage": null,
+   "note": "BEA embargo time 10:00 (not the usual 08:30); also footnoted in the BEA news release schedule"
+  },
+  {
+   "family": "durable_goods",
+   "date": "2019-12-24",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2019/oct19prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Oct 2019 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2020-01-03",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-47-2-gdp-growing-at-1-3-december-manufacturing-ism-report-on-business-300979292.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2020-01-07",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/nmi-at-55-gdp-growing-at-2-2-december-non-manufacturing-ism-report-on-business-300982669.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2020-01-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_01102020.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2020-01-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_01142020.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2020-01-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_01152020.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2020-01-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv1912.pdf",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2020-01-17",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_01172020.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-01-17",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "durable_goods",
+   "date": "2020-01-28",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2019/nov19prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Nov 2019 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2020-01-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/gross-domestic-product-fourth-quarter-and-year-2019-advance-estimate",
+   "vintage": "advance"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-01-31",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2020-01-31",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/personal-income-and-outlays-december-2019",
+   "vintage": null
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2020-02-03",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-50-9-gdp-growing-at-2-4-january-2020-manufacturing-ism-report-on-business-300997110.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2020-02-05",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/nmi-at-55-5-gdp-growing-at-2-4-january-2020-non-manufacturing-ism-report-on-business-300999018.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2020-02-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_02072020.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2020-02-11",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_02112020.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2020-02-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_02132020.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-02-14",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2020-02-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2001.pdf",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2020-02-19",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_02192020.htm",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2020-02-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2019/dec19prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Dec 2019 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2020-02-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/gross-domestic-product-fourth-quarter-and-year-2019-second-estimate",
+   "vintage": "second"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-02-28",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2020-02-28",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/personal-income-and-outlays-january-2020",
+   "vintage": null
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2020-03-02",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-50-1-gdp-growing-at-2-1-february-2020-manufacturing-ism-report-on-business-301013570.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2020-03-04",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/nmi-at-57-3-gdp-growing-at-3-february-2020-non-manufacturing-ism-report-on-business-301015851.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2020-03-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_03062020.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2020-03-11",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_03112020.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2020-03-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_03122020.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-03-13",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2020-03-17",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_03172020.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2020-03-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2002.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2020-03-25",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2020/jan20prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Jan 2020 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2020-03-26",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/gross-domestic-product-fourth-quarter-and-year-2019-third-estimate-corporate-profits",
+   "vintage": "third"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-03-27",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2020-03-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/personal-income-and-outlays-february-2020",
+   "vintage": null
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2020-04-01",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-49-1-march-2020-manufacturing-ism-report-on-business-301033054.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2020-04-03",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_04032020.htm",
+   "vintage": null
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2020-04-03",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/nmi-at-52-5-march-2020-non-manufacturing-ism-report-on-business-301034905.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2020-04-07",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_04072020.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-04-09",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2020-04-09",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_04092020.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2020-04-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_04102020.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2020-04-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2003.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2020-04-24",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2020/feb20prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Feb 2020 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-04-24",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2020-04-29",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/gross-domestic-product-1st-quarter-2020-advance-estimate",
+   "vintage": "advance"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2020-04-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/personal-income-and-outlays-march-2020",
+   "vintage": null
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2020-05-01",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-41-5-april-2020-manufacturing-ism-report-on-business-301050619.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2020-05-05",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/nmi-at-41-8-april-2020-non-manufacturing-ism-report-on-business-301052413.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2020-05-08",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_05082020.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2020-05-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_05122020.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2020-05-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_05132020.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2020-05-15",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_05152020.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-05-15",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2020-05-15",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2004.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2020-05-28",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2020/mar20prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Mar 2020 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2020-05-28",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/gross-domestic-product-1st-quarter-2020-second-estimate-corporate-profits-1st-quarter",
+   "vintage": "second"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-05-29",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2020-05-29",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/personal-income-and-outlays-april-2020",
+   "vintage": null
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2020-06-01",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-43-1-may-2020-manufacturing-ism-report-on-business-301068035.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2020-06-03",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/nmi-at-45-4-may-2020-non-manufacturing-ism-report-on-business-301069704.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2020-06-05",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_06052020.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2020-06-09",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_06092020.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2020-06-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_06102020.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2020-06-11",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_06112020.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-06-12",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2020-06-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2005.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2020-06-25",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2020/apr20prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Apr 2020 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2020-06-25",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/gross-domestic-product-1st-quarter-2020-third-estimate-corporate-profits-1st-quarter-2020",
+   "vintage": "third"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-06-26",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2020-06-26",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/personal-income-and-outlays-may-2020",
+   "vintage": null
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2020-07-01",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-52-6-june-2020-manufacturing-ism-report-on-business-301086436.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2020-07-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_07022020.htm",
+   "vintage": null
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2020-07-06",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/nmi-at-57-1-june-2020-non-manufacturing-ism-report-on-business-301088217.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2020-07-07",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_07072020.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2020-07-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_07102020.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2020-07-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_07142020.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2020-07-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2006.pdf",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-07-17",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "durable_goods",
+   "date": "2020-07-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2020/may20prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for May 2020 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2020-07-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/gross-domestic-product-2nd-quarter-2020-advance-estimate-and-annual-update",
+   "vintage": "advance"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-07-31",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2020-07-31",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/personal-income-and-outlays-june-2020",
+   "vintage": null
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2020-08-03",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-54-2-july-2020-manufacturing-ism-report-on-business-301104442.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2020-08-05",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/services-pmi-formerly-non-manufacturing-nmi-at-58-1-301106674.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2020-08-07",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_08072020.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2020-08-10",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_08102020.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2020-08-11",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_08112020.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2020-08-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_08122020.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-08-14",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2020-08-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2007.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2020-08-26",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2020/jun20prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Jun 2020 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2020-08-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/gross-domestic-product-2nd-quarter-2020-second-estimate-corporate-profits-2nd-quarter",
+   "vintage": "second"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-08-28",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2020-08-28",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/personal-income-and-outlays-july-2020",
+   "vintage": null
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2020-09-01",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-56-0-august-2020-manufacturing-ism-report-on-business-301121423.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2020-09-03",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/services-pmi-at-56-9-august-2020-services-ism-report-on-business-301123494.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2020-09-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_09042020.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2020-09-09",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_09092020.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2020-09-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_09102020.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2020-09-11",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_09112020.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2020-09-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2008.pdf",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-09-18",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "durable_goods",
+   "date": "2020-09-25",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2020/jul20prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Jul 2020 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2020-09-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/gross-domestic-product-third-estimate-corporate-profits-revised-and-gdp-industry-annual",
+   "vintage": "third"
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2020-10-01",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/pmi-at-55-4-september-2020-manufacturing-ism-report-on-business-301142396.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2020-10-01",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/personal-income-and-outlays-august-2020",
+   "vintage": null
+  },
+  {
+   "family": "employment_situation",
+   "date": "2020-10-02",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_10022020.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-10-02",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2020-10-05",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/services-pmi-at-57-8-september-2020-services-ism-report-on-business-301145141.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2020-10-06",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_10062020.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2020-10-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_10132020.htm",
+   "vintage": null
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2020-10-14",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_10142020.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-10-16",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "retail_sales",
+   "date": "2020-10-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2009.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2020-10-27",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2020/aug20prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Aug 2020 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2020-10-29",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/gross-domestic-product-third-quarter-2020-advance-estimate",
+   "vintage": "advance"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-10-30",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2020-10-30",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/personal-income-and-outlays-september-2020",
+   "vintage": null
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2020-11-02",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/manufacturing-pmi-at-59-3-october-2020-manufacturing-ism-report-on-business-301164898.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2020-11-04",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/services-pmi-at-56-6-october-2020-services-ism-report-on-business-301166026.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2020-11-06",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_11062020.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2020-11-10",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_11102020.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2020-11-12",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_11122020.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-11-13",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2020-11-13",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_11132020.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2020-11-17",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2010.pdf",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2020-11-25",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2020/sep20prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Sep 2020 data; the Census economic-indicator calendar lists the same date"
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2020-11-25",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/gross-domestic-product-3rd-quarter-2020-second-estimate-corporate-profits-3rd-quarter",
+   "vintage": "second"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-11-25",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2020-11-25",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/personal-income-and-outlays-october-2020",
+   "vintage": null,
+   "note": "BEA embargo time 10:00 (not the usual 08:30); also footnoted in the BEA news release schedule"
+  },
+  {
+   "family": "ism_manufacturing_pmi",
+   "date": "2020-12-01",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/manufacturing-pmi-at-57-5-november-2020-manufacturing-ism-report-on-business-301181920.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "ism_services_pmi",
+   "date": "2020-12-03",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.prnewswire.com/news-releases/services-pmi-at-55-9-november-2020-services-ism-report-on-business-301185173.html",
+   "vintage": null,
+   "note": "date and 10:00 ET timestamp of ISM's own press release on PR Newswire; agrees with ISM's 2020 release calendar (https://web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/)"
+  },
+  {
+   "family": "employment_situation",
+   "date": "2020-12-04",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/empsit_12042020.htm",
+   "vintage": null
+  },
+  {
+   "family": "job_openings_and_labor_turnover",
+   "date": "2020-12-09",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/jolts_12092020.htm",
+   "vintage": null
+  },
+  {
+   "family": "consumer_price_index",
+   "date": "2020-12-10",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/cpi_12102020.htm",
+   "vintage": null
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-12-11",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "preliminary"
+  },
+  {
+   "family": "producer_price_index",
+   "date": "2020-12-11",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bls.gov/news.release/archives/ppi_12112020.htm",
+   "vintage": null
+  },
+  {
+   "family": "retail_sales",
+   "date": "2020-12-16",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www2.census.gov/retail/releases/historical/marts/adv2011.pdf",
+   "vintage": null
+  },
+  {
+   "family": "gross_domestic_product",
+   "date": "2020-12-22",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/gross-domestic-product-third-estimate-corporate-profits-revised-and-gdp-industry-third",
+   "vintage": "third"
+  },
+  {
+   "family": "michigan_consumer_sentiment",
+   "date": "2020-12-23",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "source_url": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=75443",
+   "vintage": "final"
+  },
+  {
+   "family": "personal_income_and_outlays",
+   "date": "2020-12-23",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.bea.gov/news/2020/personal-income-and-outlays-november-2020",
+   "vintage": null
+  },
+  {
+   "family": "durable_goods",
+   "date": "2020-12-24",
+   "local_time": "08:30",
+   "timezone": "America/New_York",
+   "source_url": "https://www.census.gov/manufacturing/m3/historical_data/pressreleases/prel/2020/oct20prel.pdf",
+   "vintage": null,
+   "note": "scheduled date printed in the Census M3 full report for Oct 2020 data; the Census economic-indicator calendar lists the same date"
+  }
+ ],
+ "fomc": [
+  {
+   "statement_date": "2019-05-01",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20190501a.htm",
+   "note": "target range 2.25-2.50 percent unchanged; release line: 'For release at 2:00 p.m. EDT'"
+  },
+  {
+   "statement_date": "2019-06-19",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20190619a.htm",
+   "note": "target range 2.25-2.50 percent unchanged; release line: 'For release at 2:00 p.m. EDT'"
+  },
+  {
+   "statement_date": "2019-07-31",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": -25,
+   "decision": "cut",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20190731a.htm",
+   "note": "cut to 2.00-2.25 percent; release line: 'For release at 2:00 p.m. EDT'"
+  },
+  {
+   "statement_date": "2019-09-18",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": -25,
+   "decision": "cut",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20190918a.htm",
+   "note": "cut to 1.75-2.00 percent; release line: 'For release at 2:00 p.m. EDT'"
+  },
+  {
+   "statement_date": "2019-10-11",
+   "local_time": "11:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": false,
+   "kind": "policy_implementation_statement",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20191011a.htm",
+   "note": "Statement Regarding Monetary Policy Implementation (Treasury bill purchases, repo operations), issued after the 2019-10-04 FOMC conference call; target range unchanged at 1.75-2.00 percent; not a rate decision; release line: 'For release at 11:00 a.m. EDT'"
+  },
+  {
+   "statement_date": "2019-10-30",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": -25,
+   "decision": "cut",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20191030a.htm",
+   "note": "cut to 1.50-1.75 percent; release line: 'For release at 2:00 p.m. EDT'"
+  },
+  {
+   "statement_date": "2019-12-11",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20191211a.htm",
+   "note": "target range 1.50-1.75 percent unchanged; release line: 'For release at 2:00 p.m. EST'"
+  },
+  {
+   "statement_date": "2020-01-29",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20200129a.htm",
+   "note": "target range 1.50-1.75 percent unchanged; release line: 'For release at 2:00 p.m. EST'"
+  },
+  {
+   "statement_date": "2020-03-03",
+   "local_time": "10:00",
+   "timezone": "America/New_York",
+   "change_basis_points": -50,
+   "decision": "cut",
+   "scheduled": false,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20200303a.htm",
+   "note": "unscheduled (FOMC conference call of 2020-03-02, listed by the Fed as unscheduled); cut to 1.00-1.25 percent; release line: 'For release at 10:00 a.m. EST'"
+  },
+  {
+   "statement_date": "2020-03-15",
+   "local_time": "17:00",
+   "timezone": "America/New_York",
+   "change_basis_points": -100,
+   "decision": "cut",
+   "scheduled": false,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20200315a.htm",
+   "note": "unscheduled Sunday meeting; cut to 0-0.25 percent plus asset purchases; the meeting scheduled for 2020-03-17/18 was cancelled, so no statement exists on 2020-03-18; release line: 'For release at 5:00 p.m. EDT'"
+  },
+  {
+   "statement_date": "2020-03-23",
+   "local_time": "08:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": false,
+   "kind": "policy_implementation_statement",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20200323a.htm",
+   "note": "FOMC statement by notation vote (open-ended Treasury and agency MBS purchases); target range unchanged at 0-0.25 percent; not a rate decision; release line: 'For release at 8:00 a.m. EDT'"
+  },
+  {
+   "statement_date": "2020-04-29",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20200429a.htm",
+   "note": "target range 0-0.25 percent unchanged; release line: 'For release at 2:00 p.m. EDT'"
+  },
+  {
+   "statement_date": "2020-06-10",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20200610a.htm",
+   "note": "target range 0-0.25 percent unchanged; release line: 'For release at 2:00 p.m. EDT'"
+  },
+  {
+   "statement_date": "2020-07-29",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20200729a.htm",
+   "note": "target range 0-0.25 percent unchanged; release line: 'For release at 2:00 p.m. EDT'"
+  },
+  {
+   "statement_date": "2020-08-27",
+   "local_time": "09:10",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": false,
+   "kind": "framework_statement",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20200827a.htm",
+   "note": "revised Statement on Longer-Run Goals and Monetary Policy Strategy approved by notation vote; no policy-rate decision; release line: 'For release at 9:10 a.m. EDT'"
+  },
+  {
+   "statement_date": "2020-09-16",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20200916a.htm",
+   "note": "target range 0-0.25 percent unchanged; release line: 'For release at 2:00 p.m. EDT'"
+  },
+  {
+   "statement_date": "2020-11-05",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20201105a.htm",
+   "note": "target range 0-0.25 percent unchanged; release line: 'For release at 2:00 p.m. EST'"
+  },
+  {
+   "statement_date": "2020-12-16",
+   "local_time": "14:00",
+   "timezone": "America/New_York",
+   "change_basis_points": 0,
+   "decision": "hold",
+   "scheduled": true,
+   "kind": "rate_decision",
+   "source_url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20201216a.htm",
+   "note": "target range 0-0.25 percent unchanged; release line: 'For release at 2:00 p.m. EST'"
+  }
+ ],
+ "gaps": [],
+ "counts": {
+  "ism_manufacturing_pmi": 20,
+  "employment_situation": 20,
+  "ism_services_pmi": 20,
+  "job_openings_and_labor_turnover": 20,
+  "producer_price_index": 20,
+  "consumer_price_index": 20,
+  "retail_sales": 20,
+  "michigan_consumer_sentiment": 40,
+  "durable_goods": 20,
+  "gross_domestic_product": 20,
+  "personal_income_and_outlays": 20,
+  "fomc_statement": 18
+ },
+ "coverage": {
+  "window": "2019-05-01 to 2020-12-31 inclusive, by release date",
+  "schema": "rows match calendar_tables.json rows (family, date, local_time, timezone, source_url, vintage) plus an optional note; every row is America/New_York",
+  "bls_families": "consumer_price_index, producer_price_index, employment_situation, job_openings_and_labor_turnover: 20 each. Dates read from the BLS yearly schedules https://www.bls.gov/schedule/2019/home.htm and https://www.bls.gov/schedule/2020/home.htm (raw pages fetched in a browser because bls.gov returns 403 to scripts) and from the BLS release archives https://www.bls.gov/bls/news-release/cpi.htm, /ppi.htm, /empsit.htm, /jolts.htm (file names carry the release date); all 80 agree. source_url is the archived release document (HTTP 200 checked). 08:30 ET for CPI, PPI, Employment Situation; 10:00 ET for JOLTS, as printed on the schedules.",
+  "bea_families": "gross_domestic_product, personal_income_and_outlays: 20 each. Dates from the BEA news release schedules https://apps.bea.gov/scb/issues/2018/12-december/1218-news-releases-2019.htm and https://apps.bea.gov/scb/issues/2019/12-december/1219-news-releases-2020.htm and from the BEA release archive https://www.bea.gov/news/archive; all agree. Date and time regenerated from the 'EMBARGOED UNTIL RELEASE AT' line of each release page (source_url): 08:30 ET except three Personal Income and Outlays releases at 10:00 ET (2019-11-27, 2019-12-20, 2020-11-25). GDP vintage is advance, second or third; 2019-05-30 is the Q1 2019 second estimate (the Q1 advance of 2019-04-26 is before the window).",
+  "retail_sales": "20. Date and time regenerated from the first page of each Census Advance Monthly Retail Trade report (https://www2.census.gov/retail/releases/historical/marts/adv<YYMM>.pdf, 'FOR RELEASE AT 8:30 AM'), cross-checked against the Census economic-indicator calendar (archived 2019-08-12 for 2019; https://www.census.gov/economic-indicators/calendar-listview-2020.html for 2020).",
+  "durable_goods": "20. Advance Report on Durable Goods dates as printed in the Census M3 full report of the previous data month ('The Advance Report on durable goods for <month> is scheduled for release on <date> at 8:30 a.m.'), i.e. the publisher's scheduled date; identical to the Census economic-indicator calendar (web.archive.org/web/20190812025609/https://www.census.gov/economic-indicators/calendar-listview.html for 2019, https://www.census.gov/economic-indicators/calendar-listview-2020.html for 2020). No archived copy of the advance reports themselves was found, so these are published schedule dates, not observed release timestamps.",
+  "michigan_consumer_sentiment": "40 (20 survey months x preliminary and final). Dates regenerated from the University of Michigan 'Release Dates 1991 through 2027' table (the document the existing calendar cites). The table prints no clock time; 10:00 ET follows the existing calendar and is corroborated by FXStreet previews for 2019-09-13 (https://www.fxstreet.com/analysis/us-michigan-consumer-sentiment-preview-whos-got-trouble-201909122341) and 2020-03-13 (https://www.fxstreet.com/analysis/us-michigan-consumer-sentiment-march-preview-where-will-consumers-lead-202003121746); no first-party statement of the 2019-2020 clock time was found.",
+  "ism_families": "ism_manufacturing_pmi, ism_services_pmi: 20 each. ismworld.org calendar pages sit behind a login wall for scripts and its 2019 calendar is not archived, so each row cites ISM's own press release on PR Newswire (https://www.prnewswire.com/news/institute-for-supply-management/), whose page header carries the release timestamp (all 40 read 10:00 ET on the row's date). The 2020 dates also agree with ISM's release-calendar table archived at web.archive.org/web/20200809022121/https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/. The rule 'first business day / third business day' held for 38 of the 40 releases; it fails for 2020-01-03 (rule gives 2020-01-02) and 2020-01-07 (rule gives 2020-01-06), so quant.calendar_events.rule_events emits two wrong rule rows in January 2020 that a fetched row does not override (different dates).",
+  "fomc": "Times read from each statement page ('For release at'); decisions and range changes checked against the statement text (change_basis_points = change in the upper bound of the target range). scheduled=true: the 13 regular meetings. scheduled=false: the emergency rate actions 2020-03-03 10:00 EST (-50 bp) and 2020-03-15 17:00 EDT (Sunday, -100 bp), plus three off-cycle FOMC statements that changed no rate (2019-10-11 11:00 EDT implementation statement, 2020-03-23 08:00 EDT notation-vote statement, 2020-08-27 09:10 EDT strategy statement); drop those three if only rate decisions are wanted (kind is not rate_decision). The regular meeting of 2020-03-17/18 was cancelled: no statement exists on 2020-03-18. Fed press releases of 2020-03-19 and 2020-03-31 (swap lines, FIMA repo) are not FOMC statements and are not included."
+ }
+}

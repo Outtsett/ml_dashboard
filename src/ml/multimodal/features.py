@@ -1,5 +1,11 @@
 """Features at every decision bar, one block per modality.
 
+Level-free: a percentage change is measured against the price AS TRADED
+(`raw_close`), never against the back-adjusted level, whose value depends on
+the roll gaps that come later; every other price quantity is a difference in
+points divided by the ATR. Shifting the adjusted prices by a constant changes
+no feature (tests/test_multimodal_features.py).
+
 Every value at decision bar t is computed from data known at t's CLOSE: bars up
 to and including t, order flow up to t's last minute, cross-asset bars that
 closed by then, daily series from sessions before t's session, news known
@@ -25,6 +31,10 @@ import pandas as pd
 from multimodal.data import DECISION_MINUTES, RTH_OPEN_MINUTE, DecisionBars, Minutes, minute_of_day
 
 HORIZONS_BARS = (1, 3, 6, 12, 24, 48)
+CALENDAR_TIER_ONE = ("consumer_price_index", "employment_situation", "fomc_statement", "producer_price_index",
+                     "gross_domestic_product", "retail_sales", "personal_income_and_outlays")
+CALENDAR_FAMILIES = CALENDAR_TIER_ONE + ("job_openings_and_labor_turnover", "durable_goods", "ism_manufacturing_pmi",
+                                         "ism_services_pmi", "michigan_consumer_sentiment")
 FLOW_WINDOWS_MINUTES = (5, 15, 30, 60)
 NEWS_WINDOWS_MINUTES = (15, 60, 240)
 
@@ -43,7 +53,8 @@ def price_block(bars: DecisionBars) -> pd.DataFrame:
     for k in HORIZONS_BARS:
         past = pd.Series(close).shift(k).to_numpy()
         out[f"price_return_{k}_bars_atr"] = (close - past) / atr
-    returns = pd.Series(np.log(close)).diff()
+    raw_close = f["raw_close"].to_numpy(float)
+    returns = pd.Series(np.r_[np.nan, np.diff(close) / raw_close[:-1]])     # percentage change as traded
     for k in (6, 12, 48):
         out[f"price_volatility_{k}_bars"] = returns.rolling(k, min_periods=k).std().to_numpy()
     out["price_volatility_ratio_6_48"] = out["price_volatility_6_bars"] / out["price_volatility_48_bars"]
@@ -143,21 +154,26 @@ def cross_block(bars: DecisionBars, others: dict[str, pd.DataFrame], daily: dict
     f = bars.frame
     decision_close_minute = f["timestamp"].to_numpy() + 60 * (DECISION_MINUTES - 1)   # the decision bar's last minute
     mnq_close = f["close"].to_numpy(float)
+    mnq_raw = f["raw_close"].to_numpy(float)
     out = pd.DataFrame(index=f.index)
     mnq_returns = {}
     for k in (1, 3, 12):
-        mnq_returns[k] = np.log(mnq_close / pd.Series(mnq_close).shift(k).to_numpy())
+        # (adjusted change) / (traded price then): the move as a percentage of what was traded
+        mnq_returns[k] = (mnq_close - pd.Series(mnq_close).shift(k).to_numpy()) / pd.Series(mnq_raw).shift(k).to_numpy()
     for root, minutes in others.items():
-        series = minutes.set_index("timestamp")["close"].sort_index()
+        series = minutes.sort_values("timestamp")
+        stamps_other = series["timestamp"].to_numpy()
         # the last close at or before the decision bar's last minute (as-of)
-        position = np.searchsorted(series.index.to_numpy(), decision_close_minute, side="right") - 1
-        close = np.where(position >= 0, series.to_numpy()[np.maximum(position, 0)], np.nan)
-        stale = decision_close_minute - np.where(position >= 0, series.index.to_numpy()[np.maximum(position, 0)], 0)
+        position = np.searchsorted(stamps_other, decision_close_minute, side="right") - 1
+        valid = position >= 0
+        close = np.where(valid, series["close"].to_numpy()[np.maximum(position, 0)], np.nan)
+        raw = np.where(valid, series["raw_close"].to_numpy()[np.maximum(position, 0)], np.nan) if "raw_close" in series else close
+        stale = decision_close_minute - np.where(valid, stamps_other[np.maximum(position, 0)], 0)
         close = np.where(stale <= 300, close, np.nan)
         name = root.lower()
         for k in (1, 3, 12):
             past = pd.Series(close).shift(k).to_numpy()
-            other_return = np.log(close / past)
+            other_return = (close - past) / pd.Series(raw).shift(k).to_numpy()
             out[f"cross_{name}_return_{k}_bars"] = other_return
             out[f"cross_mnq_minus_{name}_return_{k}_bars"] = mnq_returns[k] - other_return
     session = f["session"].to_numpy()
@@ -212,12 +228,12 @@ def calendar_block(bars: DecisionBars, events: pd.DataFrame) -> pd.DataFrame:
     out = pd.DataFrame(index=f.index)
     if events.empty:
         return out
-    events = events.sort_values("stamp")
+    # only families recorded in every year of the history, so a count means the same thing throughout
+    events = events[events["family"].isin(CALENDAR_FAMILIES)].sort_values("stamp")
     stamps = events["stamp"].to_numpy()
     families = events["family"].to_numpy()
     event_session = (stamps + 9 * 3600) // 86400
-    tier_one = np.isin(families, ["consumer_price_index", "employment_situation", "fomc_statement", "producer_price_index",
-                                   "gross_domestic_product", "retail_sales", "personal_income_and_outlays"])
+    tier_one = np.isin(families, CALENDAR_TIER_ONE)
     for name, mask in (("any", np.ones(len(events), bool)), ("tier_one", tier_one)):
         s = stamps[mask]
         es = event_session[mask]

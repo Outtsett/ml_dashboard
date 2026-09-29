@@ -42,6 +42,7 @@ class Minutes:
     volume: np.ndarray
     session: np.ndarray     # CME session day (int days since epoch)
     contract: np.ndarray
+    raw_close: np.ndarray   # the price as traded; `close` is back-adjusted, so its LEVEL depends on later rolls
 
 
 def minute_of_day(timestamps: np.ndarray) -> np.ndarray:
@@ -74,6 +75,7 @@ def load_minutes(start: str, end: str, root: str = "MNQ", connection=None) -> Mi
         volume=frame["volume"].to_numpy(float),
         session=session_days(stamps),
         contract=frame["contract"].to_numpy(str),
+        raw_close=frame["raw_close"].to_numpy(float),
     )
 
 
@@ -110,6 +112,7 @@ def decision_bars(minutes: Minutes) -> DecisionBars:
         "high": np.maximum.reduceat(m.high, starts),
         "low": np.minimum.reduceat(m.low, starts),
         "close": m.close[ends - 1],
+        "raw_close": m.raw_close[ends - 1],
         "volume": np.add.reduceat(m.volume, starts),
         "session": m.session[starts],
         "first_minute": starts,

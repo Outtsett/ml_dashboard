@@ -44,6 +44,7 @@ from shared.protocol import (  # noqa: E402
 
 MODELS_DIR = SRC_ML.parents[1] / "data" / "models"
 HEADS = ("long_r2", "short_r2", "long_r3", "short_r3")
+CANONICAL_FIRST_QUARTER = "2021Q2"
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -55,6 +56,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--family", default="gbdt", choices=("gbdt", "fusion"))
     parser.add_argument("--blocks", default="time,price,flow,cross")
     parser.add_argument("--first-test-quarter", default="2020Q3")
+    parser.add_argument("--history", default="mnq", choices=("mnq", "nq_mnq"))
     parser.add_argument("--seed", type=int, default=7)
     # gbdt
     parser.add_argument("--learning-rate", type=float, default=0.03)
@@ -134,7 +136,7 @@ def main(argv=None) -> int:
     emit_config({"model": {"family": args.family, "heads": list(HEADS)}, "data": {"symbol": args.symbol, "blocks": blocks},
                  "run": configuration}, scope="run", label=args.model_id)
     try:
-        data = dataset_module.load(blocks, with_sequences=args.family == "fusion")
+        data = dataset_module.load(blocks, history=args.history, with_sequences=args.family == "fusion")
         sessions = data.keys["session"].to_numpy()
         folds = walkforward.folds(sessions, first_test_quarter=args.first_test_quarter)
         emit_log(f"{len(data.keys):,} decision bars, {data.features.shape[1]} features "
@@ -168,9 +170,13 @@ def main(argv=None) -> int:
         tuned_rows = np.concatenate([f.test for f in tuned_folds]) if tuned_folds else test_rows
         tuned = trades[trades["quarter"].isin([f.name for f in tuned_folds])]
         summary_tuned = metrics.summary(tuned, sessions[tuned_rows], quarter_of_session)
+        # the canonical development window every trial is compared on (trials 1-3 scored 2021Q2..2025Q2)
+        canonical_folds = [f for f in tuned_folds if f.name >= CANONICAL_FIRST_QUARTER]
+        canonical_rows = np.concatenate([f.test for f in canonical_folds]) if canonical_folds else tuned_rows
+        canonical = metrics.summary(trades[trades["quarter"].isin([f.name for f in canonical_folds])], sessions[canonical_rows], quarter_of_session)
         for key in ("net_profit_usd", "win_rate", "payoff_ratio", "profit_factor", "sessions_traded_share", "trades_per_session",
                     "bootstrap_total_points_lower_95", "quarters_positive_share"):
-            value = summary_tuned.get(key)
+            value = canonical.get(key)
             if value is not None and np.isfinite(value):
                 emit_metric(f"out_of_sample_{key}", value, len(folds), len(folds))
         predictions = data.keys.iloc[test_rows].copy()
@@ -185,22 +191,25 @@ def main(argv=None) -> int:
             "predictions": predictions, "trades": trades, "folds": pd.DataFrame(fold_rows),
             "policies": pd.DataFrame(choices),
             "summary": pd.DataFrame([{"scope": "all_quarters", "summary_json": json.dumps(summary, default=float)},
-                                     {"scope": "policy_tuned_quarters", "summary_json": json.dumps(summary_tuned, default=float)}]),
+                                     {"scope": "policy_tuned_quarters", "summary_json": json.dumps(summary_tuned, default=float)},
+                                     {"scope": "canonical_2021q2_2025q2", "summary_json": json.dumps(canonical, default=float)}]),
             "importance": importance if not importance.empty else None,
         }, source="src/ml/multimodal/main.py")
-        runs.record_trial(args.model_id, configuration, summary_tuned)
+        runs.record_trial(args.model_id, configuration, canonical)
         out_dir = MODELS_DIR / args.model_id
         out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / "summary.json").write_text(json.dumps({"all_quarters": summary, "policy_tuned_quarters": summary_tuned,
+        (out_dir / "summary.json").write_text(json.dumps({"all_quarters": summary, "policy_tuned_quarters": summary_tuned, "canonical": canonical,
                                                             "folds": fold_rows, "policies": choices, "configuration": configuration,
                                                             "landed": {k: v.get("rows") for k, v in landed.items()}},
                                                            indent=2, default=float), encoding="utf-8")
-        gate = summary_tuned["gate"]
-        emit_log("out-of-sample (policy-tuned quarters " + (f"{tuned_folds[0].name}..{tuned_folds[-1].name}" if tuned_folds else "none") + "): "
-                 f"net ${summary_tuned.get('net_profit_usd', 0):,.2f}, win {summary_tuned.get('win_rate', float('nan')):.3f}, "
-                 f"payoff {summary_tuned.get('payoff_ratio', float('nan')):.2f}, PF {summary_tuned.get('profit_factor', float('nan')):.2f}, "
-                 f"sessions traded {summary_tuned.get('sessions_traded_share', 0):.3f}; gate {gate}")
-        emit_done(str(out_dir), {"gate": gate, "summary": {k: v for k, v in summary_tuned.items() if not isinstance(v, dict)}})
+        gate = canonical["gate"]
+        emit_log(f"out-of-sample, canonical window {CANONICAL_FIRST_QUARTER}..{folds[-1].name}: "
+                 f"net ${canonical.get('net_profit_usd', 0):,.2f}, win {canonical.get('win_rate', float('nan')):.3f}, "
+                 f"payoff {canonical.get('payoff_ratio', float('nan')):.2f}, PF {canonical.get('profit_factor', float('nan')):.2f}, "
+                 f"sessions traded {canonical.get('sessions_traded_share', 0):.3f}; gate {gate}; "
+                 f"all policy-tuned quarters ({len(tuned_folds)}): PF {summary_tuned.get('profit_factor', float('nan')):.2f}, "
+                 f"net ${summary_tuned.get('net_profit_usd', 0):,.2f}")
+        emit_done(str(out_dir), {"gate": gate, "summary": {k: v for k, v in canonical.items() if not isinstance(v, dict)}})
         return 0
     except Exception as error:  # noqa: BLE001 - reported on the protocol, then re-raised for the exit code
         import traceback

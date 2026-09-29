@@ -1,4 +1,4 @@
-"""Order-flow proxies for MNQ from the 1-second bars (the lake has no real order flow before 2026-03).
+"""Order-flow proxies for MNQ (and NQ / ES history) from the 1-second bars (the lake has no real order flow before 2026-03).
 
 The lake's `vol_at_bid` / `vol_at_ask` columns are empty outside one 2026
 session, but its 1-second MNQ bars (2019-05 → 2025-12) carry enough to classify
@@ -35,14 +35,14 @@ sys.path.insert(0, str(ROOT / "src" / "ml"))
 from multimodal.lake_io import write_table  # noqa: E402
 
 DATASET = "multimodal_orderflow"
-RECIPE = "tick_rule_1s_v1"
+RECIPE = "tick_rule_1s_v1"   # MNQ; other roots land under tick_rule_1s_v1_<root lower>
 
 MONTH_SQL = """
 WITH seconds AS (
     SELECT symbol, timestamp, volume,
            close - lag(close) OVER (PARTITION BY symbol ORDER BY timestamp) AS change
     FROM ohlcv
-    WHERE regexp_full_match(symbol, 'MNQ[FGHJKMNQUVXZ][0-9]{1,2}')
+    WHERE regexp_full_match(symbol, '{root}[FGHJKMNQUVXZ][0-9]{{1,2}}')
       AND timestamp >= CAST(? AS TIMESTAMP) AND timestamp < CAST(? AS TIMESTAMP)
       AND volume > 0
 ),
@@ -81,7 +81,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--start", required=True)
     parser.add_argument("--end", required=True)
+    parser.add_argument("--root", default="MNQ", choices=("MNQ", "NQ", "ES"))
     args = parser.parse_args()
+    recipe = RECIPE if args.root == "MNQ" else f"{RECIPE}_{args.root.lower()}"
+    month_sql = MONTH_SQL.replace("{root}", args.root).replace("{{1,2}}", "{1,2}")
     from lake.serving import connect
 
     connection = connect(with_bars=False, with_derived=False)
@@ -89,11 +92,11 @@ def main() -> int:
     tables = []
     began = time.time()
     for first, following in months(date.fromisoformat(args.start), date.fromisoformat(args.end)):
-        table = connection.execute(MONTH_SQL, [first.isoformat(), following.isoformat()]).to_arrow_table()
+        table = connection.execute(month_sql, [first.isoformat(), following.isoformat()]).to_arrow_table()
         tables.append(table)
         print(f"{first:%Y-%m}: {table.num_rows:,} contract-minutes ({time.time() - began:.0f} s)", flush=True)
     combined = pa.concat_tables(tables)
-    entry = write_table(DATASET, RECIPE, "minutes", combined, source="ohlcv 1-second bars, tick rule")
+    entry = write_table(DATASET, recipe, "minutes", combined, source=f"ohlcv 1-second {args.root} bars, tick rule")
     print(f"landed minutes: {entry['rows']:,} rows, {entry['bytes']:,} bytes in {time.time() - began:.0f} s")
     return 0
 

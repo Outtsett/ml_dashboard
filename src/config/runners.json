@@ -997,6 +997,16 @@
           "max": 8192,
           "label": "Batch size (fusion)",
           "group": "Optimization"
+        },
+        "history": {
+          "type": "select",
+          "default": "mnq",
+          "options": [
+            "mnq",
+            "nq_mnq"
+          ],
+          "label": "History (MNQ only, or NQ 2010-2019 first)",
+          "group": "Data"
         }
       },
       "cliFlags": {
@@ -1012,7 +1022,8 @@
         "dropout": "--dropout",
         "sequence_bars": "--sequence-bars",
         "modality_dropout": "--modality-dropout",
-        "batch_size": "--batch-size"
+        "batch_size": "--batch-size",
+        "history": "--history"
       }
     }
   }

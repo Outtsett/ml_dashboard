@@ -32,7 +32,7 @@ from multimodal.data import decision_bars, load_minutes  # noqa: E402
 from multimodal.lake_io import write_table  # noqa: E402
 
 DATASET = "multimodal_features"
-RECIPE = "features_v1"
+RECIPE = "features_v1"                   # MNQ; other roots: <RECIPE>_<root lower>
 START, END = "2019-05-05", "2025-07-01"
 BLOCKS = ("time", "price", "flow", "cross", "context", "calendar", "news")
 
@@ -40,13 +40,18 @@ BLOCKS = ("time", "price", "flow", "cross", "context", "calendar", "news")
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--blocks", default="time,price,flow,cross")
+    parser.add_argument("--root", default="MNQ", choices=("MNQ", "NQ"))
+    parser.add_argument("--start", default=START)
+    parser.add_argument("--end", default=END)
     args = parser.parse_args()
+    recipe = RECIPE if args.root == "MNQ" else f"{RECIPE}_{args.root.lower()}"
+    start, end = args.start, args.end
     wanted = [b.strip() for b in args.blocks.split(",") if b.strip()]
     unknown = set(wanted) - set(BLOCKS)
     if unknown:
         raise SystemExit(f"unknown blocks: {sorted(unknown)}")
     began = time.time()
-    minutes = load_minutes(START, END)
+    minutes = load_minutes(start, end, root=args.root)
     bars = decision_bars(minutes)
     key = bars.frame[["timestamp", "session", "is_decision"]].rename(columns={"timestamp": "decision_timestamp"})
     print(f"{len(key):,} five-minute RTH bars, {int(key['is_decision'].sum()):,} decisions ({time.time() - began:.0f} s)", flush=True)
@@ -56,19 +61,19 @@ def main() -> int:
         elif block == "price":
             frame = features.price_block(bars)
         elif block == "flow":
-            frame = features.flow_block(bars, sources.flow_minutes(START, END))
+            frame = features.flow_block(bars, sources.flow_minutes(start, end, root=args.root))
         elif block == "cross":
-            others = {root: sources.other_minutes(root, START, END) for root in ("ES", "RTY", "YM")}
+            others = {root: sources.other_minutes(root, start, end) for root in ("ES", "RTY", "YM")}
             frame = features.cross_block(bars, others, sources.daily_closes(["ZN", "ZB", "ZT", "GC", "HG", "DXY"]))
         elif block == "context":
             frame = features.context_block(bars, minutes)
         elif block == "calendar":
             frame = features.calendar_block(bars, sources.calendar_events())
         else:
-            frame = features.news_block(bars, sources.gdelt_news(START, END))
+            frame = features.news_block(bars, sources.gdelt_news(start, end))
         table = pd.concat([key.reset_index(drop=True), frame.reset_index(drop=True)], axis=1)
         coverage = frame.loc[key["is_decision"].to_numpy()].notna().mean()
-        entry = write_table(DATASET, RECIPE, block, pa.Table.from_pandas(table, preserve_index=False), source="scripts/multimodal/build_features.py")
+        entry = write_table(DATASET, recipe, block, pa.Table.from_pandas(table, preserve_index=False), source=f"scripts/multimodal/build_features.py --root {args.root}")
         print(f"{block}: {frame.shape[1]} columns, {entry['rows']:,} rows, {entry['bytes']:,} bytes; "
               f"non-null on decisions min {coverage.min():.3f} median {coverage.median():.3f} ({time.time() - began:.0f} s)", flush=True)
     return 0

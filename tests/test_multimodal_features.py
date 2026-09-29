@@ -34,7 +34,7 @@ def synthetic(sessions: int = 30, seed: int = 11):
     high = np.maximum(open_, close) + rng.uniform(0, 1.5, close.size)
     low = np.minimum(open_, close) - rng.uniform(0, 1.5, close.size)
     volume = rng.integers(50, 500, close.size).astype(float)
-    minutes = Minutes(ts, open_, high, low, close, volume, session_days(ts), np.array(["MNQM4"] * ts.size))
+    minutes = Minutes(ts, open_, high, low, close, volume, session_days(ts), np.array(["MNQM4"] * ts.size), close.copy())
     flow = pd.DataFrame({
         "timestamp": ts, "contract": "MNQM4", "volume": volume,
         "buy_volume": volume * 0.5, "sell_volume": volume * 0.5,
@@ -42,7 +42,8 @@ def synthetic(sessions: int = 30, seed: int = 11):
         "largest_second_volume": volume / 5, "up_seconds": rng.integers(0, 30, ts.size).astype(float),
         "down_seconds": rng.integers(0, 30, ts.size).astype(float),
     })
-    es = pd.DataFrame({"timestamp": ts, "close": 5000 + np.cumsum(rng.normal(0, 0.5, ts.size))})
+    es_close = 5000 + np.cumsum(rng.normal(0, 0.5, ts.size))
+    es = pd.DataFrame({"timestamp": ts, "close": es_close, "raw_close": es_close.copy()})
     days = np.unique(session_days(ts))
     daily = {"ZN": pd.DataFrame({"day": np.r_[days[0] - 3, days - 1], "close": 110 + np.cumsum(rng.normal(0, 0.2, days.size + 1))})}
     news = pd.DataFrame({
@@ -93,3 +94,16 @@ def test_warmup_is_nan_not_zero():
     frame = features.build(decision_bars(minutes))
     assert frame["price_return_48_bars_atr"].iloc[:48].isna().all()
     assert frame["price_rsi_14"].iloc[:14].isna().all()
+
+
+def test_features_do_not_depend_on_the_back_adjusted_level():
+    """A later roll shifts every earlier adjusted price by a constant; no feature may move with it."""
+    minutes, flow, others, daily, news, events = synthetic()
+    base = build(minutes, flow, others, daily, news, events)
+    shift = 2500.0
+    shifted = Minutes(minutes.timestamp, minutes.open + shift, minutes.high + shift, minutes.low + shift, minutes.close + shift,
+                      minutes.volume, minutes.session, minutes.contract, minutes.raw_close)
+    shifted_others = {k: v.assign(close=v["close"] + 100.0) for k, v in others.items()}
+    moved = build(shifted, flow, shifted_others, daily, news, events)
+    bad = [c for c in base.columns if not np.allclose(pd.to_numeric(base[c], errors="coerce"), pd.to_numeric(moved[c], errors="coerce"), equal_nan=True)]
+    assert not bad, f"features that move with the adjusted level: {bad}"

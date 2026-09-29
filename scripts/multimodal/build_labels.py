@@ -28,7 +28,7 @@ from multimodal.data import decision_bars, load_minutes  # noqa: E402
 from multimodal.lake_io import write_table  # noqa: E402
 
 DATASET = "multimodal_labels"
-RECIPE = "bracket_atr1_r2_r3_v1"
+RECIPE = "bracket_atr1_r2_r3_v1"            # MNQ; other roots: <RECIPE>_<root lower>
 START, END = "2019-05-05", "2025-07-01"   # END is the holdout's first instant
 
 
@@ -58,8 +58,16 @@ def summarize(frame: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
 
 
 def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--root", default="MNQ", choices=("MNQ", "NQ"))
+    parser.add_argument("--start", default=START)
+    parser.add_argument("--end", default=END)
+    args = parser.parse_args()
+    recipe = RECIPE if args.root == "MNQ" else f"{RECIPE}_{args.root.lower()}"
     began = time.time()
-    minutes = load_minutes(START, END)
+    minutes = load_minutes(args.start, args.end, root=args.root)
     print(f"minutes: {minutes.timestamp.size:,} ({time.time() - began:.0f} s)", flush=True)
     bars = decision_bars(minutes)
     out = labels.label(bars)
@@ -76,7 +84,7 @@ def main() -> int:
     stored = out.drop(columns=["decision_hour"]).copy()
     stored["exit_reason"] = stored["exit_reason"].map(labels.EXIT_NAMES)
     for name, frame in (("labels", stored), ("base_rates", rates)):
-        entry = write_table(DATASET, RECIPE, name, pa.Table.from_pandas(frame, preserve_index=False), source="scripts/multimodal/build_labels.py")
+        entry = write_table(DATASET, recipe, name, pa.Table.from_pandas(frame, preserve_index=False), source=f"scripts/multimodal/build_labels.py --root {args.root}")
         print(f"landed {name}: {entry['rows']:,} rows, {entry['bytes']:,} bytes")
     print(f"done in {time.time() - began:.0f} s")
     return 0

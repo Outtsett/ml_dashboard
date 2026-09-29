@@ -93,3 +93,26 @@ Resume rule after any break or compaction: read `PLAN.md`, then the last three e
 - Search budget fixed in `PLAN.md` before trial 4: at most 24 trials; stop after 6 without a better development PF.
 - Best development PF so far: 0.951 (trial 1). Next: calendar and news modalities (backfills running), then
   all-modality GBDT and fusion.
+
+## CP-005 · 2026-09-29 · NQ history, level-free features, calendar, gate built and proven consistent
+
+- **NQ history** (same index, same price, costed as MNQ): order flow 3,428,392 contract-minutes, labels 595,008
+  rows over 2,281 sessions and features (148,822 decisions) for 2010-06 → 2019-05; `dataset.load(history="nq_mnq")`
+  stacks it before MNQ: 252,131 decisions, 55 walk-forward quarters from 2011Q4.
+- **Trial 4 — GBDT, NQ+MNQ, + context**: canonical window 2021Q2..2025Q2 PF 0.9515 (win 26.7%, net -$4,823);
+  over all 53 policy-tuned quarters 2012Q2..2025Q2 (3,398 sessions) PF 0.933, win 27.6%, 28% of quarters positive.
+  Improvement vs trial 1 (0.9511) is below 0.01 PF: counted as NOT an improvement (conservative reading of the
+  stopping rule, recorded here before the next trial).
+- **Found and fixed — level-dependent features.** Additive back-adjustment puts a 2019 bar's adjusted level 30%
+  above what traded (1.30x in 2019 → 1.01x in 2025): log-return features were ~23% too small early on and carried
+  later roll gaps. Every percentage change is now measured against the traded price (`raw_close`);
+  `test_features_do_not_depend_on_the_back_adjusted_level` proves a constant shift moves no feature. Price and
+  cross tables rebuilt (MNQ and NQ). Trials 1-4 used the old features; they stay counted.
+- **Calendar**: 2019-05 → 2020-12 sourced from the publishers (240 releases + 18 FOMC statements incl. the 2020
+  emergency cuts, every row with its URL; `evidence/calendar_2019_2020.json`); the lake calendar lacks the major
+  releases for 2021-2022 → agent sourcing them now; calendar features restricted to families present every year.
+- **Gate** (`src/ml/multimodal/gate.py`): policy fixed from the candidate's own development record, one budgeted
+  holdout look, features/labels built in memory; `tests/test_multimodal_gate_consistency.py` proves the gate's
+  build equals the development tables on January 2024 (all 95 feature columns and the labels).
+- Trials without a 0.01 PF improvement: 3 (trials 2, 3, 4). Next: trial 5 = trial 4's configuration on the fixed
+  features; then calendar and news.

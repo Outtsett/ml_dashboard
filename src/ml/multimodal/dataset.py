@@ -72,7 +72,7 @@ def _connection():
     return connection
 
 
-def load(blocks: list[str], features_recipe: str = FEATURES_RECIPE, labels_recipe: str = LABELS_RECIPE,
+def _load_one(blocks: list[str], features_recipe: str = FEATURES_RECIPE, labels_recipe: str = LABELS_RECIPE,
          reward_multiples: tuple[float, ...] = (2.0, 3.0), connection=None, with_sequences: bool = False) -> Dataset:
     connection = connection or _connection()
     merged: pd.DataFrame | None = None
@@ -125,3 +125,44 @@ def load(blocks: list[str], features_recipe: str = FEATURES_RECIPE, labels_recip
                 available=available,
             )
     return dataset
+
+
+# (features recipe, labels recipe) per history source, oldest first
+HISTORY_SOURCES = {
+    "mnq": [(FEATURES_RECIPE, LABELS_RECIPE)],
+    "nq_mnq": [(f"{FEATURES_RECIPE}_nq", f"{LABELS_RECIPE}_nq"), (FEATURES_RECIPE, LABELS_RECIPE)],
+}
+
+
+def load(blocks: list[str], history: str = "mnq", reward_multiples: tuple[float, ...] = (2.0, 3.0),
+         connection=None, with_sequences: bool = False) -> Dataset:
+    """The training table over the chosen history: `mnq` (2019-05 → 2025-06) or `nq_mnq`
+    (NQ 2010-06 → 2019-05 then MNQ; the same index, so the same price, costed as MNQ)."""
+    connection = connection or _connection()
+    parts = [_load_one(blocks, f, lbl, reward_multiples, connection, with_sequences) for f, lbl in HISTORY_SOURCES[history]]
+    if len(parts) == 1:
+        return parts[0]
+    columns = list(dict.fromkeys(c for part in parts for c in part.features.columns))
+    keys = pd.concat([part.keys for part in parts], ignore_index=True)
+    features = pd.concat([part.features.reindex(columns=columns) for part in parts], ignore_index=True).astype("float32")
+    out = Dataset(keys=keys, features=features)
+    for name in parts[0].heads:
+        fields = {f: np.concatenate([getattr(part.heads[name], f) for part in parts]) for f in
+                  ("win", "net_points", "stop_points", "target_points", "entry_timestamp", "exit_timestamp", "available")}
+        first = parts[0].heads[name]
+        out.heads[name] = Head(side=first.side, reward_multiple=first.reward_multiple, **fields)
+    if with_sequences and all(part.sequence_bars is not None for part in parts):
+        out.sequence_columns = parts[0].sequence_columns
+        offset = 0
+        bars, index = [], []
+        for part in parts:
+            aligned = pd.DataFrame(part.sequence_bars, columns=part.sequence_columns).reindex(columns=out.sequence_columns)
+            bars.append(aligned.to_numpy(np.float32))
+            index.append(part.sequence_index + offset)
+            offset += part.sequence_bars.shape[0]
+        out.sequence_bars = np.concatenate(bars)
+        out.sequence_index = np.concatenate(index)
+    order = np.argsort(out.keys["decision_timestamp"].to_numpy(), kind="stable")
+    if not np.array_equal(order, np.arange(order.size)):
+        raise ValueError("history sources overlap or are out of order")
+    return out

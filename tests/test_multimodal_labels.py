@@ -31,7 +31,7 @@ def minutes_for(path: list[tuple[float, float, float, float]], start_minute: int
         rows.append(bar)
     arr = np.array(rows, dtype=float)
     ts = np.array(stamps, dtype=np.int64)
-    return Minutes(ts, arr[:, 0], arr[:, 1], arr[:, 2], arr[:, 3], np.ones(ts.size), session_days(ts), np.array(["MNQM4"] * ts.size))
+    return Minutes(ts, arr[:, 0], arr[:, 1], arr[:, 2], arr[:, 3], np.ones(ts.size), session_days(ts), np.array(["MNQM4"] * ts.size), arr[:, 3].copy())
 
 
 def first_decision(frame, reward, side):

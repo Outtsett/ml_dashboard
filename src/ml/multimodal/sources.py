@@ -25,8 +25,10 @@ import pandas as pd
 from multimodal import holdout
 
 PACIFIC = ZoneInfo("America/Los_Angeles")
-ORDERFLOW = "s3://derived/multimodal_orderflow/recipe=tick_rule_1s_v1/table=minutes/*.parquet"
-CALENDAR_BACKFILL = Path(__file__).resolve().parents[3] / "docs" / "plans" / "2026-09-29-multimodal" / "evidence" / "calendar_2019_2020.json"
+ORDERFLOW = "s3://derived/multimodal_orderflow/recipe={recipe}/table=minutes/*.parquet"
+EVIDENCE = Path(__file__).resolve().parents[3] / "docs" / "plans" / "2026-09-29-multimodal" / "evidence"
+# publisher-sourced release dates for the years market_calendar_v1 lacks (every row cites its source)
+CALENDAR_BACKFILLS = (EVIDENCE / "calendar_2019_2020.json", EVIDENCE / "calendar_2021_2022.json")
 STOCKMARKET_THEMES = ("ECON_STOCKMARKET",)
 CENTRAL_BANK_ORGANISATIONS = ("federal reserve", "european central bank", "bank of japan", "bank of england")
 MEGACAP_ORGANISATIONS = ("apple", "microsoft", "nvidia", "amazon", "alphabet", "google", "meta platforms", "facebook",
@@ -50,11 +52,12 @@ def utc_to_stamp_seconds(utc_seconds: np.ndarray) -> np.ndarray:
     return (index.asi8 // 1_000_000_000).astype(np.int64)
 
 
-def flow_minutes(start: str, end: str) -> pd.DataFrame:
+def flow_minutes(start: str, end: str, root: str = "MNQ") -> pd.DataFrame:
     connection = _connection()
+    recipe = "tick_rule_1s_v1" if root == "MNQ" else f"tick_rule_1s_v1_{root.lower()}"
     frame = connection.execute(
         f"SELECT symbol AS contract, CAST(epoch(minute) AS BIGINT) AS timestamp, volume, buy_volume, sell_volume, "
-        f"signed_volume, active_seconds, largest_second_volume, up_seconds, down_seconds FROM read_parquet('{ORDERFLOW}') "
+        f"signed_volume, active_seconds, largest_second_volume, up_seconds, down_seconds FROM read_parquet('{ORDERFLOW.format(recipe=recipe)}') "
         "WHERE minute >= CAST(? AS TIMESTAMP) AND minute < CAST(? AS TIMESTAMP)",
         [start, end],
     ).df()
@@ -63,10 +66,14 @@ def flow_minutes(start: str, end: str) -> pd.DataFrame:
 
 
 def other_minutes(root: str, start: str, end: str) -> pd.DataFrame:
+    """A cross-asset root's back-adjusted minutes; empty when it has no history in the window (RTY before 2017)."""
     from multimodal.data import load_minutes
 
-    minutes = load_minutes(start, end, root=root)
-    return pd.DataFrame({"timestamp": minutes.timestamp, "close": minutes.close})
+    try:
+        minutes = load_minutes(start, end, root=root)
+    except (ValueError, IndexError, KeyError):
+        return pd.DataFrame({"timestamp": np.array([], dtype=np.int64), "close": np.array([], dtype=float), "raw_close": np.array([], dtype=float)})
+    return pd.DataFrame({"timestamp": minutes.timestamp, "close": minutes.close, "raw_close": minutes.raw_close})
 
 
 def daily_closes(symbols: list[str]) -> dict[str, pd.DataFrame]:
@@ -104,8 +111,10 @@ def calendar_events() -> pd.DataFrame:
         "hive_partitioning = true, union_by_name = true) WHERE statement_timestamp IS NOT NULL"
     ).df()
     rows += [{"family": "fomc_statement", "utc": int(u)} for u in fomc["utc"]]
-    if CALENDAR_BACKFILL.exists():
-        backfill = json.loads(CALENDAR_BACKFILL.read_text(encoding="utf-8"))
+    for path in CALENDAR_BACKFILLS:
+        if not path.exists():
+            continue
+        backfill = json.loads(path.read_text(encoding="utf-8"))
         for row in backfill.get("rows", []):
             local = datetime.fromisoformat(row["date"]).replace(
                 hour=int(row["local_time"][:2]), minute=int(row["local_time"][3:5]), tzinfo=ZoneInfo(row.get("timezone", "America/New_York")))
