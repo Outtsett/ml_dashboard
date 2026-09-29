@@ -1,0 +1,24 @@
+{
+  "project": "multimodal trading model",
+  "started": "2026-09-29",
+  "phase": "P2",
+  "step": "data engineering",
+  "last_checkpoint": "CP-002",
+  "holdout": {
+    "start": "2025-07-01T00:00:00",
+    "end": "2025-12-31T00:00:00",
+    "clock": "Pacific wall clock stored as UTC (the lake's futures stamping)",
+    "looks": 0,
+    "look_budget": 1
+  },
+  "decisions_pending": [
+    "GDELT GKG filtered landing (raw ~173-273 GB/yr cannot land whole)"
+  ],
+  "decisions": {
+    "training_runs": "started by Claude through the dashboard /api/training/start",
+    "profit_ratio": "both: avg net win >= 2x avg net loss AND profit factor >= 2",
+    "instrument": "MNQ intraday, flat by the session close"
+  },
+  "trials_evaluated": 0,
+  "next": "P2: bracket label + base rates, order-flow proxies from 1s bars, cross-asset intraday, calendar, news backfill plan; clean forward period landing"
+}
