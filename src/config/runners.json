@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "metadata": {
     "last_audit": "2026-05-09",
-    "notes": "Runner registry \u2014 the actual wiring. Keys are `${algorithm}+${task}` composite IDs. Each entry carries the script path, hyperparameter defaults, CLI flag map, and HPO search space. If a (algorithm, task) pair is not in this file, that combo is not yet wired and the Train UI will show it as such. `legacyId` lets the orchestrator accept the pre-2026-05-09 modelType keys (xgb_classifier, etc.) and alias them to the composite key without breaking saved UI state."
+    "notes": "Runner registry — the actual wiring. Keys are `${algorithm}+${task}` composite IDs. Each entry carries the script path, hyperparameter defaults, CLI flag map, and HPO search space. If a (algorithm, task) pair is not in this file, that combo is not yet wired and the Train UI will show it as such. `legacyId` lets the orchestrator accept the pre-2026-05-09 modelType keys (xgb_classifier, etc.) and alias them to the composite key without breaking saved UI state."
   },
   "runners": {
     "xgboost+direction_classifier": {
@@ -868,6 +868,151 @@
       },
       "cliFlags": {
         "round": "--round"
+      }
+    },
+    "multimodal_fusion+bracket_meta_label": {
+      "displayName": "Multimodal bracket model (walk-forward, gated)",
+      "runner": "python",
+      "script": "src/ml/multimodal/main.py",
+      "outputDir": "data/models",
+      "outputs": [
+        "summary.json"
+      ],
+      "featurePipeline": "multimodal-features-v1",
+      "chartOverlay": "prediction_markers",
+      "estimatedTrainingTime": "5-60 min",
+      "tags": [
+        "multimodal",
+        "bracket",
+        "walk-forward",
+        "gate"
+      ],
+      "supportedObjectives": [
+        "gate"
+      ],
+      "featureCategories": null,
+      "includeIndicators": false,
+      "allFeatures": false,
+      "maxDurationSeconds": 21600,
+      "defaultHyperparameters": {
+        "family": {
+          "type": "select",
+          "default": "gbdt",
+          "options": [
+            "gbdt",
+            "fusion"
+          ],
+          "label": "Model family",
+          "group": "Architecture"
+        },
+        "blocks": {
+          "type": "string",
+          "default": "time,price,flow,cross",
+          "label": "Modalities (feature blocks)",
+          "group": "Data"
+        },
+        "first_test_quarter": {
+          "type": "string",
+          "default": "2020Q3",
+          "label": "First test quarter",
+          "group": "Validation"
+        },
+        "seed": {
+          "type": "int",
+          "default": 7,
+          "min": 0,
+          "max": 100000,
+          "label": "Seed",
+          "group": "Optimization"
+        },
+        "learning_rate": {
+          "type": "float",
+          "default": 0.03,
+          "min": 0.001,
+          "max": 0.3,
+          "label": "Learning rate (gbdt)",
+          "group": "Optimization",
+          "logScale": true
+        },
+        "num_leaves": {
+          "type": "int",
+          "default": 31,
+          "min": 4,
+          "max": 255,
+          "label": "Leaves (gbdt)",
+          "group": "Architecture"
+        },
+        "min_child_samples": {
+          "type": "int",
+          "default": 200,
+          "min": 10,
+          "max": 5000,
+          "label": "Min rows per leaf (gbdt)",
+          "group": "Regularization"
+        },
+        "epochs": {
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 500,
+          "label": "Epochs (fusion)",
+          "group": "Optimization"
+        },
+        "hidden": {
+          "type": "int",
+          "default": 64,
+          "min": 8,
+          "max": 1024,
+          "label": "Hidden width (fusion)",
+          "group": "Architecture"
+        },
+        "dropout": {
+          "type": "float",
+          "default": 0.2,
+          "min": 0.0,
+          "max": 0.8,
+          "label": "Dropout (fusion)",
+          "group": "Regularization"
+        },
+        "sequence_bars": {
+          "type": "int",
+          "default": 48,
+          "min": 4,
+          "max": 390,
+          "label": "Sequence length in 5m bars (fusion)",
+          "group": "Data"
+        },
+        "modality_dropout": {
+          "type": "float",
+          "default": 0.15,
+          "min": 0.0,
+          "max": 0.9,
+          "label": "Modality dropout (fusion)",
+          "group": "Regularization"
+        },
+        "batch_size": {
+          "type": "int",
+          "default": 512,
+          "min": 32,
+          "max": 8192,
+          "label": "Batch size (fusion)",
+          "group": "Optimization"
+        }
+      },
+      "cliFlags": {
+        "family": "--family",
+        "blocks": "--blocks",
+        "first_test_quarter": "--first-test-quarter",
+        "seed": "--seed",
+        "learning_rate": "--learning-rate",
+        "num_leaves": "--num-leaves",
+        "min_child_samples": "--min-child-samples",
+        "epochs": "--epochs",
+        "hidden": "--hidden",
+        "dropout": "--dropout",
+        "sequence_bars": "--sequence-bars",
+        "modality_dropout": "--modality-dropout",
+        "batch_size": "--batch-size"
       }
     }
   }

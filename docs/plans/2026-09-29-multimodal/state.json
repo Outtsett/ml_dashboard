@@ -11,14 +11,20 @@
     "looks": 0,
     "look_budget": 1
   },
-  "decisions_pending": [
-    "GDELT GKG filtered landing (raw ~173-273 GB/yr cannot land whole)"
-  ],
+  "decisions_pending": [],
   "decisions": {
     "training_runs": "started by Claude through the dashboard /api/training/start",
     "profit_ratio": "both: avg net win >= 2x avg net loss AND profit factor >= 2",
-    "instrument": "MNQ intraday, flat by the session close"
+    "instrument": "MNQ intraday, flat by the session close",
+    "news_history": "GDELT GKG filtered landing with upstream md5 manifest (Tyler, 2026-09-29)"
   },
   "trials_evaluated": 0,
-  "next": "P2: bracket label + base rates, order-flow proxies from 1s bars, cross-asset intraday, calendar, news backfill plan; clean forward period landing"
+  "next": "P2: bracket label + base rates, order-flow proxies from 1s bars, cross-asset intraday, calendar, news backfill plan; clean forward period landing",
+  "forward": {
+    "start": "2026-01-01T00:00:00",
+    "clock": "Pacific wall clock stored as UTC",
+    "looks": 0,
+    "look_budget": 1,
+    "landed": "Yahoo 5m from 2026-07-21, 1m from 2026-08-31 (MNQ, NQ, ES, RTY, YM, ZN, GC, DX-Y.NYB), raw/vendor=yahoo/dataset=chart-history/received=2026-09-29"
+  }
 }

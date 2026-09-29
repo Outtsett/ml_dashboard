@@ -3,7 +3,7 @@
   "metadata": {
     "organization": "Institutional Quant",
     "last_audit": "2026-05-09",
-    "notes": "Algorithm registry \u00e2\u20ac\u201d pure model architecture metadata. The (algorithm, task) pair is what trains; see runners.json for that join. Catalog specs at E:\\documents\\algo_models live behind the catalogSpec slug."
+    "notes": "Algorithm registry â€” pure model architecture metadata. The (algorithm, task) pair is what trains; see runners.json for that join. Catalog specs at E:\\documents\\algo_models live behind the catalogSpec slug."
   },
   "algorithms": {
     "xgboost": {
@@ -87,7 +87,7 @@
       ],
       "gpuRequired": true,
       "catalogSpec": "temporal-fusion-transformer",
-      "description": "Interpretable TFT (Lim et al. 2019) adapted for single-shot classification over rolling feature windows: per-timestep variable selection, GRN gating, LSTM local encoder, interpretable multi-head attention. Ships verbose diagnostics + filter-normalized loss surface. GENERATE family \u00e2\u20ac\u201d Jinja2 template temporal_fusion_transformer.py.j2.",
+      "description": "Interpretable TFT (Lim et al. 2019) adapted for single-shot classification over rolling feature windows: per-timestep variable selection, GRN gating, LSTM local encoder, interpretable multi-head attention. Ships verbose diagnostics + filter-normalized loss surface. GENERATE family â€” Jinja2 template temporal_fusion_transformer.py.j2.",
       "tags": [
         "transformer",
         "temporal-fusion",
@@ -241,6 +241,25 @@
         "ta-lib",
         "walk-forward",
         "interpretable"
+      ]
+    },
+    "multimodal_fusion": {
+      "name": "Multimodal fusion (per-modality encoders, gated fusion) with a LightGBM baseline",
+      "family": "hybrid",
+      "category": "Supervised",
+      "subcategory": "Multimodal",
+      "supports": [
+        "classification",
+        "multi-head"
+      ],
+      "gpuRequired": false,
+      "description": "Price, order-flow, cross-asset, news and calendar modalities encoded separately and fused; one head per bracket (side x reward multiple) giving P(net win). Walk-forward by quarter, policy chosen from earlier quarters only, scored on the plan's acceptance gate.",
+      "tags": [
+        "multimodal",
+        "fusion",
+        "bracket",
+        "meta-label",
+        "walk-forward"
       ]
     }
   }

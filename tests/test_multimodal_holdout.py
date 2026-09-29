@@ -51,5 +51,19 @@ def test_a_look_is_recorded_and_the_budget_is_enforced(tmp_path):
             pass
 
 
+def test_the_forward_period_is_locked_too(tmp_path):
+    after_the_lake = np.array([ms(2026, 8, 3, 10, 0)])
+    with pytest.raises(holdout.HoldoutLocked, match="forward"):
+        holdout.guard(after_the_lake)
+    state = tmp_path / "state.json"
+    state.write_text(json.dumps({"holdout": {"looks": 0, "look_budget": 1}}), encoding="utf-8")
+    with holdout.look("forward confirmation", period="forward", state_path=state):
+        holdout.guard(after_the_lake)
+        with pytest.raises(holdout.HoldoutLocked, match="holdout"):
+            holdout.guard(np.array([ms(2025, 9, 1)]))  # opening one period does not open the other
+    assert json.loads(state.read_text(encoding="utf-8"))["forward"]["looks"] == 1
+
+
 def test_the_project_state_has_not_looked_yet():
-    assert holdout.looks_taken() == 0
+    assert holdout.looks_taken("holdout") == 0
+    assert holdout.looks_taken("forward") == 0
