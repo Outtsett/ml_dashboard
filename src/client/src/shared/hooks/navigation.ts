@@ -54,6 +54,7 @@ import {
   TerminalSquare,
   Workflow,
   type LucideIcon,
+  Compass,
 } from "lucide-react";
 
 export interface NavItem {
@@ -89,6 +90,13 @@ export const NAVIGATION_CONFIG: NavGroup[] = [
         href: "/regression",
         description:
           "Price against every variable, one scatter each: fitted line, confidence and prediction bands, outliers",
+      },
+      {
+        icon: Compass,
+        label: "Analytics",
+        href: "/analytics",
+        description:
+          "What is happening, why, what will happen and what to do: descriptive, diagnostic, predictive and prescriptive analytics for the chart's symbol",
       },
       {
         icon: Goal,

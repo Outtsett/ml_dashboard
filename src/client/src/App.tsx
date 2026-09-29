@@ -60,6 +60,9 @@ registerComponentFactory("/news", NewsFactory);
 const RegressionFactory = () => import("@/market/regression/RegressionPage");
 const Regression = lazyRetry(RegressionFactory, "Regression");
 registerComponentFactory("/regression", RegressionFactory);
+const AnalyticsFactory = () => import("@/analytics/AnalyticsPage");
+const Analytics = lazyRetry(AnalyticsFactory, "Analytics");
+registerComponentFactory("/analytics", AnalyticsFactory);
 
 
 // Portfolio Domain
@@ -177,6 +180,7 @@ function Router() {
               {/* Routes rendered in the side panel */}
               <Route path="/news"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><News /></Suspense></ErrorBoundary></Route>
               <Route path="/regression"><ErrorBoundary><Suspense fallback={<PageLoader />}><Regression /></Suspense></ErrorBoundary></Route>
+              <Route path="/analytics"><ErrorBoundary><Suspense fallback={<PageLoader />}><Analytics /></Suspense></ErrorBoundary></Route>
               <Route path="/databases"><ErrorBoundary><Suspense fallback={<DataGridSkeleton />}><Databases /></Suspense></ErrorBoundary></Route>
               <Route path="/ml-studio"><ErrorBoundary><Suspense fallback={<PageLoader />}><MLStudio /></Suspense></ErrorBoundary></Route>
               <Route path="/forecast"><ErrorBoundary><Suspense fallback={<PageLoader />}><Forecast /></Suspense></ErrorBoundary></Route>
