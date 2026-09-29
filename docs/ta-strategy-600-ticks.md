@@ -118,7 +118,59 @@ The pre-registered primary is `1h_h12_logistic_c005_gate10_centred`. It passes o
 - TA-indicator direction is worth at most about 10-30 ticks/day per contract, and that has not been shown to be above noise.
 - 600 ticks/day on one contract is not reachable with this family. The market's hindsight ceiling is 16-20 times 600, so the limit is signal, not opportunity.
 
-**The next step toward the goal is a pre-registered test of a different family:**
+## Conditional (rule-based) TA-Lib strategies: 40% win rate at 2:1
+
+The model rounds above answered the wrong question. The ask was conditional TA-Lib rules with a
+bracket, judged against a 40% win rate at 2:1 reward-to-risk. That is a profit factor of 1.33
+before costs, and it is 600 ticks a day at `N × (0.2 × stop − 5.56)`.
+
+| Piece | Where |
+|---|---|
+| Rules and gates | `src/ml/ta_strategy/rules.py`: 16 TA-Lib families, `union`, `gate_mask` (rth, open30, first_hour, `natr_pct_below_N`, `bbwidth_squeeze_20_last6`, `htf_ema50_200_side`) |
+| Bracket simulator | `src/ml/ta_strategy/bracket.py`: numba; next-open entry, whole-tick levels, stop-first inside one minute, gap fills, flat at the session's last bar, stop slippage |
+| Driver | `src/ml/ta_strategy/rule_search.py`. Rounds are in `src/config/ta_rule_rounds.json`. |
+| Data | `data.load_minutes_rebuilt`: one contract per session. `aggregate` builds 15m/30m/1h from those minutes. |
+| Lake | `derived_ta_rule_strategies_600_ticks_{rounds,strategies,yearly,trades,daily,random_entry_baselines,random_entry_win_rate_by_bracket,reviews}` |
+| Tests | `tests/test_ta_rules.py`, 46 tests |
+
+**Rule round 1** (`round_1_20260929T014217`, commit 8e1e93d)
+
+- **Setup:** 3,024 strategies: 21 rules × 4 filters × 9 stops × 1m/5m/15m/1h.
+- **Headline:** 9 met a 40% win and PF 1.33 in-sample, 14 out-of-sample, **0 in both**.
+- **Review:** counting only trades that hit the 2:1 target, 0 of 3,024 reach 40%. Every one that "met" the target did so by holding to the session close.
+- **Random baseline:** random entries win 33% on narrow brackets, but 46% on 1h 3×ATR brackets.
+- **Defects found:** round 1 also exposed 4,833 intra-session contract flips in the stitched 2019-2020 bars.
+
+**Rule round 2** (`round_2_20260929T021709`)
+
+- **Harness:** one contract per session (27 clean rolls), fills on the minute path, 1 tick of stop slippage, and two nulls: random entries matched to gate, hours and side, and the rule's own bars with random sides.
+- **Grid:** 223 strategies, mostly 15m breakouts × session and volatility gates.
+- **Strict 2:1 test:** 2 met it (target hit ≥ 40%, PF ≥ 1.333, session-end exits ≤ 25%) over all years, 1 in both periods. Its edge was not confirmed.
+- **Confirmed edges:** 6, each a lift over the matched null in 7 of 7 years at z above 3.07.
+- **Frontier:** +5 to +25 net ticks/day per contract, at 0.1-0.5 trades/day.
+- **Review verdict:** the edge is real but small, about +5 points of target-hit rate over random. PF 1.33 at 2:1 needs +9 to +12.
+
+**Rule round 3, pre-registered** (`round_3_*`, frozen in commit 6db0019 before the run)
+
+The three best round-2 strategies were tested once on NQ 2010-06..2019-06, which no round had touched. NQ has the same 0.25 tick, and the cost used is MNQ's 5.56 ticks plus 1 tick of slippage.
+
+| Strategy | Target hit | Matched null | Needed for PF 1.333 | PF | Net ticks/day |
+|---|---|---|---|---|---|
+| Donchian 20, open30 + quiet, 2×ATR | 0.346 | 0.294 | 0.47 | 0.93 | −0.2 |
+| 5-trigger union, open30 + NATR < 70, 2×ATR | 0.319 | 0.300 | 0.47 | 0.83 | −2.2 |
+| Donchian 55, open30 + quiet, 1.5×ATR | 0.384 | 0.340 | 0.49 | 0.89 | −0.2 |
+
+**0 of 3 were confirmed.**
+- **The small edge showed up again:** Donchian 20's lift is positive in 7 of 9 years, and z is 0.8-1.4.
+- **It is not significant, and it does not pay:** it falls below the break-even hit rate once the cost of a round trip is counted. In 2010-2019, NQ's ATR in ticks was smaller, so the cost weighs more.
+
+By the pre-registered rule, **the rule-based 40%-at-2:1 line is closed**. No conditional TA-Lib strategy tested here reaches 40% target hits at 2:1 with PF 1.33, and none approaches 600 ticks/day.
+
+**What remains, from the reviews:**
+- **Sizing and instruments:** 600 ticks/day on one contract is not a rule-search target. At a real +10 to +20 ticks/day it needs 30-60 contracts, and that edge is itself unconfirmed out of sample.
+- **Different information:** order flow and depth (Quantower DomFlow capture), news and event timing, or cross-instrument signals, rather than more TA-Lib combinations of the same OHLC.
+
+**Earlier next step (model rounds): a pre-registered test of a different family:**
 - range-forecast-gated trading on predicted big-move sessions, or the 09:30 ET opening-range breakout;
 - run on NQ from 2010 for power;
 - with contract sizing only after an edge clears the joint-bootstrap line.
