@@ -165,3 +165,17 @@ Resume rule after any break or compaction: read `PLAN.md`, then the last three e
   (44 tests incl. the gate consistency test on the shared assembly). Base rates unchanged in substance (PF 0.88-0.95).
 - Trials 1-6 ran under the flawed policy and features: all superseded (still counted: 6 of 24 used). Trial 7 was
   killed with its server session before recording (not counted). Best on framework v3: none yet.
+
+## CP-008 · 2026-09-29 · trial 8, the first on framework v3; trial 9 started
+
+- **Trial 8** (7 of 24 counted): gbdt · blocks time,price,flow,cross,context,calendar · history mnq · test quarters
+  from 2020Q3 · seed 7 · `MNQ_5m_multimodal_fusion+bracket_meta_label_20260929T200802` · commit 7957883 ·
+  code sha256 5334feb3.
+- Canonical window 2021Q2..2025Q2: 1,066 sessions, 2,633 trades (2.47 a session, 14.9% forced), win rate 0.3027,
+  payoff 2.204, **profit factor 0.9567**, net -$5,421.24 (stressed -$8,054.24), bootstrap P(profit) 0.2025
+  (95% lower bound -8,600 points), quarters positive 0.353, maximum drawdown $8,897.70. Gate: G2 only.
+- It sits just above the coin-flip base-rate band (profit factor 0.88-0.95, CP-007): no directional edge yet.
+- Best on v3: trial 8 (0.9567). Trials without improvement: 0.
+- **Trial 9** started: fusion, same blocks, history and window (`..._20260929T201826`).
+- GDELT backfill: every day from 2024-06-03 to 2026-09-29 landed (0 incomplete); the 2019-05-01..2025-12-31
+  pass is at 450 of 2,420 days, newest first.

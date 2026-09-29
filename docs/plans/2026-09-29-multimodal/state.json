@@ -2,8 +2,8 @@
   "project": "multimodal trading model",
   "started": "2026-09-29",
   "phase": "P5",
-  "step": "recursive loop (trial 4 next)",
-  "last_checkpoint": "CP-007",
+  "step": "recursive loop (trial 9 running)",
+  "last_checkpoint": "CP-008",
   "holdout": {
     "start": "2025-07-01T00:00:00",
     "end": "2025-12-31T00:00:00",
@@ -18,8 +18,8 @@
     "instrument": "MNQ intraday, flat by the session close",
     "news_history": "GDELT GKG filtered landing with upstream md5 manifest (Tyler, 2026-09-29)"
   },
-  "trials_evaluated": 6,
-  "next": "calendar + news blocks; fusion network; context features; recursive loop",
+  "trials_evaluated": 7,
+  "next": "trial 9 (fusion); news block once the GDELT backfill reaches 2019; ensemble; stop rule; overfitting report; freeze; one holdout look",
   "forward": {
     "start": "2026-01-01T00:00:00",
     "clock": "Pacific wall clock stored as UTC",
@@ -27,13 +27,18 @@
     "look_budget": 1,
     "landed": "Yahoo 5m from 2026-07-21, 1m from 2026-08-31 (MNQ, NQ, ES, RTY, YM, ZN, GC, DX-Y.NYB), raw/vendor=yahoo/dataset=chart-history/received=2026-09-29"
   },
-  "best_development_profit_factor": null,
+  "best_development_profit_factor": 0.9567,
   "trials_without_improvement": 0,
   "search_budget": {
     "max_trials": 24,
     "stop_after_no_improvement": 6
   },
-  "best_trial": null,
+  "best_trial": {
+    "trial": 8,
+    "model_id": "MNQ_5m_multimodal_fusion+bracket_meta_label_20260929T200802",
+    "canonical_profit_factor": 0.9567,
+    "framework_version": 3
+  },
   "improvement_rule": "canonical-window PF must beat the best trial ON FRAMEWORK v3 by >= 0.01",
   "framework_version": 3
 }
