@@ -255,3 +255,23 @@ wandb/
 
 # marimo session cache (regenerated on every notebook run)
 __marimo__/
+
+# ── Other repositories and scratch kept beside this one (never commit) ───────
+# Trading/ holds the quant, forexmodel and quantlab repositories (each with its
+# own remote) and the algo_models corpus the catalog reads at runtime: 18 GB.
+/Trading/
+# Scratch: spent codemods, verification output, optimizer logs, reference snippets.
+/fix_app.py
+/fix_switch.py
+/update_app.py
+/update_paths.py
+/'2025-01-01'
+/.tmp_verify/
+/scripts/.tmp/
+/outcmaes/
+/snips/
+
+# ── Raw market data: vendor-licensed, lands in E:\lake, never in git ─────────
+*.dbn
+*.dbn.zst
+*.tape
