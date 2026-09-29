@@ -14,8 +14,9 @@ stop's extra tick), and walks the session's decision bars in time order:
 - at a decision bar, the best-EV eligible head is taken when its EV exceeds
   ``threshold_points`` and fewer than ``max_trades`` trades were taken today;
 - **every session trades**: if nothing was taken by ``forced_minute`` (Pacific,
-  the decision bar's close), the best-EV head at the first eligible decision
-  bar from then on is taken whatever its EV.
+  the decision bar's close) — or by the session's last decision bar, on an
+  early-close holiday — the best-EV head at the first eligible decision bar from
+  then on is taken whatever its EV.
 
 All of it is causal: a decision uses only that bar's probabilities and the
 outcome of trades already closed.
@@ -74,7 +75,9 @@ def simulate(dataset: Dataset, rows: np.ndarray, probabilities: dict[str, np.nda
             row = rows[k]
             if head.entry_timestamp[row] < free_at:
                 continue
-            forced = taken == 0 and minute[k] >= parameters.forced_minute
+            # the forced trade also fires on the session's last decision bar: on an early-close
+            # holiday (a scheduled, exchange-published close) that bar comes before forced_minute
+            forced = taken == 0 and (minute[k] >= parameters.forced_minute or k == end - 1)
             if (best > parameters.threshold_points and taken < parameters.max_trades) or forced:
                 trades.append({
                     "row": int(row), "session": int(sessions[k]), "decision_timestamp": int(stamps[k]), "head": heads[j],

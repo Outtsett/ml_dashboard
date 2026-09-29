@@ -11,6 +11,7 @@ Blocks (column prefixes):
     price_     MNQ 5-minute RTH bars: multi-horizon returns, volatility, range position, VWAP, trend, volume
     flow_      tick-rule order flow from the 1-second bars (buy/sell imbalance, activity)
     cross_     ES / RTY / YM intraday returns and spreads against MNQ; daily rates, metals and dollar (prior session)
+    context_   the overnight session, the opening range and the previous sessions
     news_      GDELT GKG finance news (counts and tone over trailing windows)
     calendar_  scheduled macro releases and FOMC statements (time to / since, event-day flags)
     time_      time of day and day of week
@@ -236,6 +237,64 @@ def calendar_block(bars: DecisionBars, events: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def context_block(bars: DecisionBars, minutes_all: Minutes) -> pd.DataFrame:
+    """The session's context: the overnight (ETH) session before 06:30, the opening range,
+    and the previous sessions. `minutes_all` holds every minute (ETH and RTH), same clock."""
+    f = bars.frame
+    close = f["close"].to_numpy(float)
+    atr = f["atr_points"].to_numpy(float)
+    session = f["session"].to_numpy()
+    stamps = f["timestamp"].to_numpy()
+    out = pd.DataFrame(index=f.index)
+    # overnight: minutes of the session before the RTH open (15:00 the day before → 06:29)
+    minute = minute_of_day(minutes_all.timestamp)
+    eth = (minute < RTH_OPEN_MINUTE) | (minute >= 15 * 60)
+    frame = pd.DataFrame({"session": minutes_all.session, "high": minutes_all.high, "low": minutes_all.low,
+                          "close": minutes_all.close, "open": minutes_all.open, "volume": minutes_all.volume})[eth]
+    overnight = frame.groupby("session").agg(eth_open=("open", "first"), eth_close=("close", "last"), eth_high=("high", "max"),
+                                             eth_low=("low", "min"), eth_volume=("volume", "sum"))
+    # the overnight session is complete before the first decision (06:35), so it is known at every RTH bar
+    s = pd.Series(session)
+    eth_high = s.map(overnight["eth_high"]).to_numpy()
+    eth_low = s.map(overnight["eth_low"]).to_numpy()
+    eth_close = s.map(overnight["eth_close"]).to_numpy()
+    eth_open = s.map(overnight["eth_open"]).to_numpy()
+    eth_volume = s.map(overnight["eth_volume"]).to_numpy(float)
+    typical_eth_volume = s.map(overnight["eth_volume"].shift(1).rolling(20, min_periods=20).mean()).to_numpy(float)
+    out["context_overnight_return_atr"] = (eth_close - eth_open) / atr
+    out["context_overnight_range_atr"] = (eth_high - eth_low) / atr
+    out["context_overnight_volume_ratio"] = eth_volume / typical_eth_volume
+    out["context_close_vs_overnight_high_atr"] = (close - eth_high) / atr
+    out["context_close_vs_overnight_low_atr"] = (close - eth_low) / atr
+    # opening range: 06:30-06:44 and 06:30-06:59, known once those minutes have closed
+    minute_rth = minute_of_day(stamps)
+    g = pd.DataFrame({"session": session, "high": f["high"], "low": f["low"], "minute": minute_rth})
+    for length in (15, 30):
+        inside = g[g["minute"] < RTH_OPEN_MINUTE + length]
+        ranges = inside.groupby("session").agg(high=("high", "max"), low=("low", "min"))
+        known = (minute_rth + DECISION_MINUTES) >= RTH_OPEN_MINUTE + length
+        high = np.where(known, s.map(ranges["high"]).to_numpy(), np.nan)
+        low = np.where(known, s.map(ranges["low"]).to_numpy(), np.nan)
+        out[f"context_opening_range_{length}_atr"] = (high - low) / atr
+        out[f"context_close_vs_opening_high_{length}_atr"] = (close - high) / atr
+        out[f"context_close_vs_opening_low_{length}_atr"] = (close - low) / atr
+    # previous sessions (RTH)
+    per_session = pd.DataFrame({"session": session, "open": f["open"], "close": close, "high": f["high"], "low": f["low"]}) \
+        .groupby("session").agg(open=("open", "first"), close=("close", "last"), high=("high", "max"), low=("low", "min"))
+    previous = per_session.shift(1)
+    prev_return = s.map(previous["close"] - previous["open"]).to_numpy()
+    prev_range = s.map(previous["high"] - previous["low"]).to_numpy()
+    five_close = s.map(per_session["close"].shift(1) - per_session["close"].shift(6)).to_numpy()
+    five_high = s.map(per_session["high"].shift(1).rolling(5, min_periods=5).max()).to_numpy()
+    five_low = s.map(per_session["low"].shift(1).rolling(5, min_periods=5).min()).to_numpy()
+    out["context_previous_session_return_atr"] = prev_return / atr
+    out["context_previous_session_range_atr"] = prev_range / atr
+    out["context_five_session_return_atr"] = five_close / atr
+    out["context_close_vs_five_session_high_atr"] = (close - five_high) / atr
+    out["context_close_vs_five_session_low_atr"] = (close - five_low) / atr
+    return out
+
+
 def time_block(bars: DecisionBars) -> pd.DataFrame:
     f = bars.frame
     minute = minute_of_day(f["timestamp"].to_numpy()) + DECISION_MINUTES
@@ -251,10 +310,13 @@ def time_block(bars: DecisionBars) -> pd.DataFrame:
 
 
 def build(bars: DecisionBars, *, flow_minutes: pd.DataFrame | None = None, others: dict | None = None,
-          daily: dict | None = None, news: pd.DataFrame | None = None, events: pd.DataFrame | None = None) -> pd.DataFrame:
+          daily: dict | None = None, news: pd.DataFrame | None = None, events: pd.DataFrame | None = None,
+          minutes_all: Minutes | None = None) -> pd.DataFrame:
     """All blocks side by side, one row per 5-minute RTH bar (decision rows marked by `is_decision`)."""
     parts = [bars.frame[["timestamp", "session", "is_decision"]].rename(columns={"timestamp": "decision_timestamp"}),
              time_block(bars), price_block(bars)]
+    if minutes_all is not None:
+        parts.append(context_block(bars, minutes_all))
     if flow_minutes is not None:
         parts.append(flow_block(bars, flow_minutes))
     if others or daily:
@@ -270,4 +332,4 @@ def modality_of(column: str) -> str:
     return column.split("_", 1)[0]
 
 
-__all__ = ["build", "modality_of", "price_block", "flow_block", "cross_block", "news_block", "calendar_block", "time_block", "Minutes"]
+__all__ = ["build", "modality_of", "price_block", "flow_block", "cross_block", "news_block", "calendar_block", "context_block", "time_block", "Minutes"]

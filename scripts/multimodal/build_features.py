@@ -1,6 +1,6 @@
 """Build the decision-bar features for the development period, one lake table per modality.
 
-    s3://derived/multimodal_features/recipe=<RECIPE>/table=<block>/    block in: time, price, flow, cross, calendar, news
+    s3://derived/multimodal_features/recipe=<RECIPE>/table=<block>/    block in: time, price, flow, cross, context, calendar, news
 
 Each table has `decision_timestamp` (epoch seconds, the lake's Pacific-stamp
 clock, the 5-minute bar's start), `session` and `is_decision`, then its block's
@@ -34,7 +34,7 @@ from multimodal.lake_io import write_table  # noqa: E402
 DATASET = "multimodal_features"
 RECIPE = "features_v1"
 START, END = "2019-05-05", "2025-07-01"
-BLOCKS = ("time", "price", "flow", "cross", "calendar", "news")
+BLOCKS = ("time", "price", "flow", "cross", "context", "calendar", "news")
 
 
 def main() -> int:
@@ -60,6 +60,8 @@ def main() -> int:
         elif block == "cross":
             others = {root: sources.other_minutes(root, START, END) for root in ("ES", "RTY", "YM")}
             frame = features.cross_block(bars, others, sources.daily_closes(["ZN", "ZB", "ZT", "GC", "HG", "DXY"]))
+        elif block == "context":
+            frame = features.context_block(bars, minutes)
         elif block == "calendar":
             frame = features.calendar_block(bars, sources.calendar_events())
         else:

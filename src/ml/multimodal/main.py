@@ -134,7 +134,7 @@ def main(argv=None) -> int:
     emit_config({"model": {"family": args.family, "heads": list(HEADS)}, "data": {"symbol": args.symbol, "blocks": blocks},
                  "run": configuration}, scope="run", label=args.model_id)
     try:
-        data = dataset_module.load(blocks)
+        data = dataset_module.load(blocks, with_sequences=args.family == "fusion")
         sessions = data.keys["session"].to_numpy()
         folds = walkforward.folds(sessions, first_test_quarter=args.first_test_quarter)
         emit_log(f"{len(data.keys):,} decision bars, {data.features.shape[1]} features "

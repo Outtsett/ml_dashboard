@@ -60,6 +60,16 @@ threshold moved or a holdout re-used to make a number pass.
 | P6 Final test | one look at the locked holdout | gate verdict written, with every number |
 | P7 Delivery | marimo notebook + dashboard surface, docs, report | on Tyler's screen |
 
+## The search budget (fixed 2026-09-29, after trial 2, before any further trial)
+
+The recursive loop (P5) is bounded so it cannot become a search for a lucky backtest:
+- at most **24 development trials** in all (every run counts, whatever its outcome; `trials.jsonl`);
+- it stops early when a trial passes G1-G5 on the development walk-forward, or after **6 trials in a row**
+  that do not raise the best development profit factor;
+- the candidate for the one holdout look is the best development trial by profit factor among those that
+  trade every session; it is frozen (code commit + configuration) before the look;
+- the deflated Sharpe ratio of that candidate is reported against the number of trials actually run.
+
 ## Continuous integration
 
 Every step ends with `python scripts/multimodal/ci.py` (unit tests, leakage/causality tests, holdout

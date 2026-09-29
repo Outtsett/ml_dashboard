@@ -24,8 +24,8 @@ def synthetic(sessions: int = 30, seed: int = 11):
     price = 20000.0
     for d in range(sessions):
         day = MONDAY + (d + 2 * (d // 5)) * DAY          # weekdays only
-        for k in range(390):
-            stamps.append(day + (6 * 60 + 30 + k) * 60)
+        for k in range(540):                               # 05:00-13:59: pre-open, RTH and the hour after the close
+            stamps.append(day + (5 * 60 + k) * 60)
             price += rng.normal(0, 2.0)
             prices.append(price)
     ts = np.array(stamps, dtype=np.int64)
@@ -56,7 +56,7 @@ def synthetic(sessions: int = 30, seed: int = 11):
 
 def build(minutes, flow, others, daily, news, events):
     bars = decision_bars(minutes)
-    return features.build(bars, flow_minutes=flow, others=others, daily=daily, news=news, events=events)
+    return features.build(bars, flow_minutes=flow, others=others, daily=daily, news=news, events=events, minutes_all=minutes)
 
 
 def truncate(minutes: Minutes, cut_stamp: int) -> Minutes:
@@ -68,7 +68,7 @@ def test_every_feature_block_is_causal():
     minutes, flow, others, daily, news, events = synthetic()
     full = build(minutes, flow, others, daily, news, events)
     # cut in the middle of session 20, on a 5-minute boundary
-    cut = int(minutes.timestamp[390 * 20 + 157] // 300 * 300)
+    cut = int(minutes.timestamp[540 * 20 + 90 + 157] // 300 * 300)   # session 20, 157 minutes after the open
     short_minutes = truncate(minutes, cut)
     short = build(
         short_minutes,
@@ -85,7 +85,7 @@ def test_every_feature_block_is_causal():
     bad = [c for c in left.columns if not np.allclose(pd.to_numeric(left[c], errors="coerce"), pd.to_numeric(right[c], errors="coerce"), equal_nan=True)]
     assert not bad, f"features that read the future: {bad}"
     modalities = {features.modality_of(c) for c in full.columns if c not in ("decision_timestamp", "session", "is_decision")}
-    assert modalities == {"time", "price", "flow", "cross", "news", "calendar"}
+    assert modalities == {"time", "price", "flow", "cross", "news", "calendar", "context"}
 
 
 def test_warmup_is_nan_not_zero():

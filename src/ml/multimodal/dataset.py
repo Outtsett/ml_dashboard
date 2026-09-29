@@ -40,11 +40,22 @@ class Head:
     available: np.ndarray      # a label exists for this decision bar
 
 
+SEQUENCE_COLUMNS = (
+    "price_return_1_bars_atr", "price_bar_body_atr", "price_bar_range_atr", "price_bar_close_position",
+    "price_volume_ratio_same_time", "flow_imbalance_5_minutes", "flow_activity_5_minutes",
+    "cross_es_return_1_bars", "cross_mnq_minus_es_return_1_bars", "cross_rty_return_1_bars",
+)
+
+
 @dataclass
 class Dataset:
     keys: pd.DataFrame                 # decision_timestamp, session
     features: pd.DataFrame             # one column per feature, NaN where unknown
     heads: dict[str, Head] = field(default_factory=dict)
+    # every 5-minute RTH bar (not only decision bars), in time order, for sequence encoders:
+    sequence_bars: np.ndarray | None = None       # (bars, len(sequence_columns)) float32, NaN where unknown
+    sequence_columns: tuple[str, ...] = ()
+    sequence_index: np.ndarray | None = None      # for each row of `keys`, its bar's position in `sequence_bars`
 
     def modalities(self) -> dict[str, list[str]]:
         out: dict[str, list[str]] = {}
@@ -62,12 +73,18 @@ def _connection():
 
 
 def load(blocks: list[str], features_recipe: str = FEATURES_RECIPE, labels_recipe: str = LABELS_RECIPE,
-         reward_multiples: tuple[float, ...] = (2.0, 3.0), connection=None) -> Dataset:
+         reward_multiples: tuple[float, ...] = (2.0, 3.0), connection=None, with_sequences: bool = False) -> Dataset:
     connection = connection or _connection()
     merged: pd.DataFrame | None = None
+    all_bars: pd.DataFrame | None = None
     for block in blocks:
         path = f"s3://derived/multimodal_features/recipe={features_recipe}/table={block}/*.parquet"
         frame = connection.execute(f"SELECT * FROM read_parquet('{path}', hive_partitioning = false)").df()
+        if with_sequences:
+            wanted = [c for c in SEQUENCE_COLUMNS if c in frame.columns]
+            if wanted:
+                part = frame[["decision_timestamp", *wanted]]
+                all_bars = part if all_bars is None else all_bars.merge(part, on="decision_timestamp", how="outer")
         frame = frame[frame["is_decision"]].drop(columns=["is_decision"])
         if merged is None:
             merged = frame
@@ -85,6 +102,14 @@ def load(blocks: list[str], features_recipe: str = FEATURES_RECIPE, labels_recip
     keys = merged[["decision_timestamp", "session"]].copy()
     features = merged.drop(columns=["decision_timestamp", "session"]).astype("float32")
     dataset = Dataset(keys=keys, features=features)
+    if with_sequences and all_bars is not None:
+        all_bars = all_bars.sort_values("decision_timestamp").reset_index(drop=True)
+        holdout.guard(all_bars["decision_timestamp"].to_numpy(np.int64) * 1000, what="sequence bars")
+        columns = tuple(c for c in SEQUENCE_COLUMNS if c in all_bars.columns)
+        dataset.sequence_columns = columns
+        dataset.sequence_bars = all_bars[list(columns)].to_numpy(np.float32)
+        position = pd.Series(np.arange(len(all_bars)), index=all_bars["decision_timestamp"].to_numpy())
+        dataset.sequence_index = position.reindex(keys["decision_timestamp"].to_numpy()).to_numpy(np.int64)
     index = pd.Index(keys["decision_timestamp"].to_numpy())
     for reward in reward_multiples:
         for side in (1, -1):

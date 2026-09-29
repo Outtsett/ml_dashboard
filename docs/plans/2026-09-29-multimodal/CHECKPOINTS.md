@@ -46,3 +46,50 @@ Resume rule after any break or compaction: read `PLAN.md`, then the last three e
 - Next (P2): bracket label + measured base rates (landed), order-flow proxies from the 1s bars,
   intraday cross-asset (ES/NQ/RTY/YM), calendar scrape, the clean forward period (Yahoo 5m) landed, and
   the GDELT filtered-landing decision for Tyler.
+
+## CP-003 · 2026-09-29 · P2 data (part) + P3 baseline
+
+- Clean forward period landed write-once before any model exists: Yahoo 5m from 2026-07-21 and 1m from
+  2026-08-31 for MNQ, NQ, ES, RTY, YM, ZN, GC, DX-Y.NYB (`raw/vendor=yahoo/dataset=chart-history/received=2026-09-29`,
+  47 objects); locked in code like the holdout (`holdout.guard` refuses 2026-01-01+; `look(period="forward")`).
+- News backfill (Tyler approved the filtered landing): `scripts/multimodal/backfill_gdelt_gkg.py`, GDELT GKG 2.1
+  streamed, md5-checked against GDELT's master list, filtered to ECON_/EPU_ themes + market organisations,
+  one parquet per UTC day under `raw/vendor=gdelt_gkg/dataset=gkg-finance-filtered/filter=finance_v1/` with a
+  sources manifest; ~85k rows and 6.5 MB per day, page titles on 100%; running with 24 workers
+  (`logs/gdelt-gkg-backfill.log`), forward period first, then 2025-12 back to 2019-05.
+- Order-flow proxies: `scripts/multimodal/build_orderflow.py` — tick rule on the 1-second MNQ bars, 3,465,202
+  contract-minutes 2019-05 → 2025-12 (buy + sell = volume to 1e-5), `derived_multimodal_orderflow_minutes`.
+- Label: `src/ml/multimodal/labels.py` — 2:1 and 3:1 brackets on the 1-minute path, stop = 1x ATR20 (5m RTH),
+  target = R x stop + (R+1) x cost + R x slip so the net win is >= R x the net loss; 413,516 candidates over
+  1,588 development sessions (`derived_multimodal_labels_{labels,base_rates}`). Base rates (coin-flip entries
+  at the same times): 2:1 win 0.30-0.32, payoff ~2.0, PF 0.88-0.94; 3:1 win 0.25-0.27, payoff 2.5-2.8, PF 0.90-0.95.
+  G4 (PF >= 2) therefore needs ~44% wins at 3:1 or ~50% at 2:1.
+- Features: `src/ml/multimodal/features.py`, one lake table per modality (`derived_multimodal_features_*`):
+  time 8, price 28, flow 13, cross 30 columns; truncation test proves every block causal.
+- Runner: `multimodal_fusion+bracket_meta_label` registered (algorithms/tasks/runners.json); runs start through
+  `/api/training/start`, stream live, land `derived_multimodal_runs_*`, and append to `trials.jsonl`.
+- **Trial 1 — GBDT baseline** (time, price, flow, cross; LightGBM per head; policy chosen per quarter from
+  earlier quarters): out-of-sample 2021Q2..2025Q2, 2,188 trades on 1,095 sessions (every session traded),
+  win 24.9%, payoff 2.87, PF 0.95, net -$5,302, 29% of quarters positive → G1 no, G2 yes, G3 no, G4 no, G5 no.
+  Per-quarter AUC 0.40-0.59. Deciles: realised win rate flat across predicted probability for 3 of 4 heads;
+  only long 3:1's top decile lifts (0.317 vs ~0.27, EV +3.7 points) — consistent with MNQ's upward drift.
+- Next: calendar (backfill agent running) and news blocks; the fusion network (P4); primary-signal and
+  opening-range / overnight context features; each as a counted trial.
+
+## CP-004 · 2026-09-29 · P4 fusion network + trials 2-3; search budget fixed
+
+- Fusion network: `src/ml/multimodal/models/fusion.py` — per-modality MLP encoders, a dilated temporal
+  convolution over the last 48 five-minute bars, a 2-layer transformer across modality tokens, 4 bracket heads,
+  modality dropout, Platt calibration; the test (`tests/test_multimodal_fusion.py`) proves it learns a planted
+  signal (AUC > 0.7) and its ablation names the modality that carries it.
+- **Trial 2 — fusion** (time, price, flow, cross + sequence): 1,155 trades, win 27.7%, payoff 2.27, PF 0.870,
+  net -$6,756, 41% of quarters positive. Modality ablation (AUC drop when the token is zeroed): flow +0.002 to
+  +0.008, price +0.003 to +0.009, cross / time / sequence ~0.
+- **Trial 3 — GBDT + context** (overnight session, opening range, previous sessions; `context_` block, 16 columns,
+  causal incl. ETH minutes): 1,619 trades, win 25.2%, payoff 2.63, PF 0.886, net -$8,686; 3 early-close sessions
+  untraded → policy fixed: the forced trade also fires on the session's last decision bar.
+- Development base rates by hour: the best cell is long 3:1 at 06:00-08:00 with PF 0.98-0.99 (the index's drift);
+  no hour is near PF 2.
+- Search budget fixed in `PLAN.md` before trial 4: at most 24 trials; stop after 6 without a better development PF.
+- Best development PF so far: 0.951 (trial 1). Next: calendar and news modalities (backfills running), then
+  all-modality GBDT and fusion.
