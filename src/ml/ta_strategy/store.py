@@ -29,10 +29,10 @@ def write_local(tables: dict[str, pd.DataFrame], directory: str) -> dict[str, st
     return paths
 
 
-def land(paths: dict[str, str], recipe: str, source: str) -> dict:
+def land(paths: dict[str, str], recipe: str, source: str, dataset: str = DATASET) -> dict:
     from cycle.store import _LANDING_SCRIPT, DEFAULT_LAKE_PYTHON, _land_job
 
-    job = {"dataset": DATASET, "recipe": recipe, "tables": paths, "manifest_for": list(paths), "source": source}
+    job = {"dataset": dataset, "recipe": recipe, "tables": paths, "manifest_for": list(paths), "source": source}
     try:
         import lake.layout  # noqa: F401
         import lake.writer  # noqa: F401

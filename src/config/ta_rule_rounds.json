@@ -1,0 +1,42 @@
+{
+  "symbol": "MNQ",
+  "notes": "Conditional (rule-based) TA-Lib strategies with bracket exits, searched against a target of a 40% win rate at 2:1 reward-to-risk (profit factor >= 1.33 net of costs) and 600 net ticks per session day. Code src/ml/ta_strategy/{rules,bracket,rule_search}.py; lake derived_ta_rule_strategies_600_ticks_*; reference docs/ta-strategy-600-ticks.md. Rules are chosen on the in-sample span and judged on the out-of-sample span; a random-entry baseline with the same brackets shows what the bracket alone produces.",
+  "rounds": {
+    "1": {
+      "title": "TA-Lib rule families x filters x stops x timeframes, 2:1 brackets",
+      "hypothesis": "Some TA-Lib conditions, as entries into a 2:1 bracket, win at least 40% of trades net of costs (profit factor >= 1.33) out of sample. A random entry into the same bracket wins about 33% before costs, so a qualifying rule must add roughly 7 percentage points of win rate. 600 ticks/day additionally needs trades/day x (0.2 x stop - 5.56) >= 600.",
+      "data_start": "2019-06-01",
+      "data_end": "2026-01-01",
+      "in_sample_end": "2024-01-01",
+      "reward_multiple": 2.0,
+      "timeframes": ["1m", "5m", "15m", "1h"],
+      "filters": ["none", "trend", "adx", "rth"],
+      "stops": [
+        {"mode": "atr", "value": 0.5}, {"mode": "atr", "value": 1.0}, {"mode": "atr", "value": 1.5},
+        {"mode": "atr", "value": 2.0}, {"mode": "atr", "value": 3.0},
+        {"mode": "fixed", "value": 20}, {"mode": "fixed", "value": 40}, {"mode": "fixed", "value": 80},
+        {"mode": "fixed", "value": 160}
+      ],
+      "rules": {
+        "ema_cross": [{"fast": 9, "slow": 21}, {"fast": 20, "slow": 50}, {"fast": 50, "slow": 200}],
+        "macd_cross": [{"fast": 12, "slow": 26, "signal": 9}],
+        "rsi_reversal": [{"period": 14, "low": 30, "high": 70}, {"period": 2, "low": 10, "high": 90}],
+        "rsi_momentum": [{"period": 14, "level": 60}],
+        "bollinger_breakout": [{"period": 20, "width": 2.0}],
+        "bollinger_reversion": [{"period": 20, "width": 2.0}, {"period": 20, "width": 2.5}],
+        "donchian_breakout": [{"period": 20}, {"period": 55}],
+        "keltner_breakout": [{"period": 20, "multiple": 2.0}],
+        "stochastic_cross": [{"k": 14, "d": 3, "low": 20, "high": 80}],
+        "cci_cross": [{"period": 20, "level": 100}],
+        "williams_reversal": [{"period": 14, "low": -80, "high": -20}],
+        "directional_cross": [{"period": 14, "adx_minimum": 20}],
+        "parabolic_sar_flip": [{"acceleration": 0.02, "maximum": 0.2}],
+        "aroon_cross": [{"period": 25}],
+        "triple_ema_alignment": [{"fast": 8, "middle": 21, "slow": 55}],
+        "engulfing_at_band": [{"period": 20, "width": 2.0}]
+      },
+      "random_entry": {"probability_per_bar": 0.02, "seeds": 5},
+      "targets": {"win_rate_minimum": 0.40, "profit_factor_minimum": 1.333, "ticks_per_session_day_goal": 600, "minimum_trades": 100}
+    }
+  }
+}
