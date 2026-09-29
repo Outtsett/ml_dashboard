@@ -202,7 +202,11 @@ def fractal_events(minutes: pd.DataFrame, penetration_buffer_atr: float = 0.25) 
             "price": np.where(side == 1, h[i], l[i]),
             "source": np.where(side == 1, f"fractal_{tf}_high", f"fractal_{tf}_low"),
             "family": f"fractal_{tf}", "timeframe": tf,
-            "known_from": ends[i + k], "valid_until": ends[until]}))
+            "known_from": ends[i + k], "valid_until": ends[until],
+            # the quality test's window must not end at the retirement bar: retirement IS the outcome being
+            # measured (a close through the level), so a window ending there biased hold rates upward
+            # (fractal_15m lift +0.109 -> -0.030 once corrected; round-2 review)
+            "test_until": ends[np.minimum(i + k + cap, h.size - 1)]}))
     return pd.concat(frames, ignore_index=True)
 
 
@@ -366,7 +370,8 @@ def level_quality(minutes: pd.DataFrame, events: pd.DataFrame, ctx: MinuteContex
     stamps = ctx.stamps
     atr = atr_per_minute(minutes)
     start = np.searchsorted(stamps, events["known_from"].to_numpy(np.int64))
-    stop = np.searchsorted(stamps, events["valid_until"].to_numpy(np.int64))
+    window_end = events["test_until"].fillna(events["valid_until"]) if "test_until" in events else events["valid_until"]
+    stop = np.searchsorted(stamps, window_end.to_numpy(np.int64))
     start = np.minimum(start, stamps.size - 1)
     reference = ctx.close[np.maximum(start - 1, 0)]
     a = atr[start]

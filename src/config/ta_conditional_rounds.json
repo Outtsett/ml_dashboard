@@ -89,7 +89,81 @@
         "null_b_shuffles": 3
       },
       "goal_ticks_per_session_day": 600,
-      "review_source": "conditional round 1 review (reviews table, recipe round_1_20260929T043148): recommendations 1, 2, 3, 6, 7, 9 applied; 4 (freeze instead of tuning) and 8 (replacement templates) refuted"
+      "review_source": "conditional round 1 review (reviews table, recipe round_1_20260929T043148): recommendations 1, 2, 3, 6, 7, 9 applied; 4 (freeze instead of tuning) and 8 (replacement templates) refuted",
+      "harness": "ran on commit b2644da; the round-2 review found its matched and random-side nulls broken for the level-stop templates (level stops at random bars were rejected) and the fractal quality window ending at the outcome; fixed for round 3"
+    },
+    "3": {
+      "mode": "confirmation",
+      "title": "Pre-registered confirmation: three frozen conditional strategies on untouched NQ 2010-06..2019-06",
+      "hypothesis": "Frozen before this run from conditional round 2 and its review (recipe round_2_20260929T054534), each parameter at its modal value across the four walk-forward folds (ties to the later fold): (1) opening_range_breakout_runner: RSI 66, stop 1.25 ATR, no target, breakeven after 1R; (2) momentum_expansion_control with the review's exit redesign: move 0.75 ATR, RSI 72, stop 2.0 ATR, 2R target, NO breakeven (on 2022-2025 this exit gave a 44% win rate and PF 1.36, chosen after seeing those years); (3) level_breakout_momentum: RSI 76, min strength 1, stop buffer 0.25 ATR, breakeven after 1.25R. PRIMARY endpoint: the equal-weight pooled daily excess over matched random entries (a level-stop strategy's null uses its real risk geometry), traded once over NQ 2010-06..2019-06 with MNQ's costs in ticks (5.56 + 1 tick stop slippage). CONFIRMED only if the pooled excess has a Newey-West t >= 2, the same with 1% trimmed off each tail has t >= 2, and at least 3 of 4 equal sub-periods are positive. Secondary: each spec's win rate and PF against the 40% / 1.33 target. The round-2 review's statistics (tuning rank correlation ~0, top-10-day share 67-76%, Reality Check p 0.15 without 2022 over 11 templates) predict NOT CONFIRMED.",
+      "review_source": "conditional round 2 review (reviews table, recipe round_2_20260929T054534): recommendations 1-3 (null and fractal-window fixes), 6 (exit redesign), 7 (freeze), 9 (pre-registered fresh-market confirmation) applied",
+      "symbol": "NQ",
+      "cost_symbol": "MNQ",
+      "data_start": "2010-06-01",
+      "data_end": "2019-06-01",
+      "timeframe": "15m",
+      "frozen": [
+        {
+          "name": "opening_range_breakout_runner",
+          "template": "opening_range_breakout_runner",
+          "params": {
+            "rsi_threshold": 66,
+            "stop_atr": 1.25
+          }
+        },
+        {
+          "name": "momentum_expansion_two_to_one",
+          "template": "momentum_expansion_control",
+          "params": {
+            "move_atr": 0.75,
+            "rsi_threshold": 72,
+            "stop_atr": 2.0,
+            "breakeven_r": 1.0
+          },
+          "exit_override": {
+            "trail": null,
+            "target": {
+              "kind": "r",
+              "value": 2.0
+            }
+          }
+        },
+        {
+          "name": "level_breakout_momentum",
+          "template": "level_breakout_momentum",
+          "params": {
+            "rsi_threshold": 76,
+            "min_strength": 1,
+            "stop_buffer_atr": 0.25,
+            "breakeven_r": 1.25
+          }
+        }
+      ],
+      "primary_endpoint": {
+        "statistic": "equal-weight pooled daily excess over matched random entries",
+        "trim_each_tail": 0.01,
+        "sub_periods": 4
+      },
+      "pass_criteria": {
+        "pooled_excess_newey_west_t_minimum": 2.0,
+        "trimmed_pooled_excess_newey_west_t_minimum": 2.0,
+        "sub_periods_positive_minimum": 3
+      },
+      "nulls": {
+        "matched_seeds": 40,
+        "random_side_replicates": 40
+      },
+      "costs": {
+        "stop_slippage_ticks": 1
+      },
+      "level_study_symbol": "MNQ",
+      "level_study_start": "2019-06-01",
+      "level_study_end": "2026-01-01",
+      "level_study": {
+        "null_a_permutations": 10,
+        "null_b_shuffles": 3
+      },
+      "goal_ticks_per_session_day": 600
     }
   }
 }

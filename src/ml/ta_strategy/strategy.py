@@ -424,12 +424,16 @@ def exit_arrays(ctx: Context, spec: dict) -> tuple[np.ndarray, np.ndarray, np.nd
 
 
 def run(ctx: Context, spec: dict, bars_index: np.ndarray, sides: np.ndarray, slippage: float, cost_ticks: float,
-        exits=None) -> dict:
-    """Trade the given entries (strategy-bar index, side) with the spec's exits."""
+        exits=None, stop_ticks: np.ndarray | None = None) -> dict:
+    """Trade the given entries (strategy-bar index, side) with the spec's exits.
+    ``stop_ticks`` (one per entry) replaces the spec's stop: the geometry-matched nulls use it."""
     order = np.argsort(bars_index, kind="stable")
     bars_index, sides = bars_index[order], sides[order]
     risk = spec["exit"].get("risk", {})
     plan = plans(ctx, spec, bars_index, sides)
+    if stop_ticks is not None:
+        plan[:, engine.P_STOP_PRICE] = np.nan
+        plan[:, engine.P_STOP_TICKS] = np.asarray(stop_ticks, dtype=float)[order]
     exit_long, exit_short, bar_close = exits if exits is not None else exit_arrays(ctx, spec)
     m = ctx.minutes
     (e_i, x_i, side, e_p, x_p, risk_t, reason, rolls, mfe, mae, held, rejected) = engine.simulate(
@@ -474,6 +478,26 @@ def matched_null_entries(ctx: Context, spec: dict, index: np.ndarray, sides: np.
     if not picked:
         return np.empty(0, np.int64), np.empty(0, np.int8)
     return np.concatenate(picked).astype(np.int64), np.concatenate(picked_side).astype(np.int8)
+
+
+def uses_level_stop(spec: dict) -> bool:
+    return spec["exit"]["stop"]["kind"] == "level"
+
+
+def geometry_matched_stops(ctx: Context, real: dict, null_index: np.ndarray, seed: int) -> np.ndarray:
+    """Stops for null entries of a LEVEL-stop strategy: a real trade's risk in ATR units, resampled,
+    times the ATR at the null bar. A level stop applied at a random bar usually sits on the wrong
+    side of the fill, so the engine rejected most null trades and the survivors had half the risk
+    (round-2 review); matching the risk geometry makes the null comparable."""
+    signal_bar = np.searchsorted(ctx.last_minute, real["entry"] - 1)
+    signal_bar = np.clip(signal_bar, 0, ctx.atr.size - 1)
+    risk_atr = real["risk_ticks"] * ctx.tick / ctx.atr[signal_bar]
+    risk_atr = risk_atr[np.isfinite(risk_atr) & (risk_atr > 0)]
+    if risk_atr.size == 0:
+        risk_atr = np.array([1.5])
+    rng = np.random.default_rng(seed)
+    drawn = rng.choice(risk_atr, size=null_index.size, replace=True)
+    return np.maximum(np.round(drawn * ctx.atr[null_index] / ctx.tick), 4)
 
 
 def daily(trades: dict, days: np.ndarray) -> np.ndarray:
