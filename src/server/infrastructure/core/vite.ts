@@ -62,7 +62,7 @@ export async function setupVite(server: Server, app: Express) {
   // shape — every .ts/.tsx transform throws "The service was stopped" while CSS
   // and pre-bundled deps keep serving — so the app stops booting with nothing on
   // screen naming the cause. Falling through is the honest answer.
-  app.use("/{*path}", async (req, res, next) => {
+  app.use(async (req, res, next) => {
     if (!wantsDocument(req)) return next();
 
     const url = req.originalUrl;
