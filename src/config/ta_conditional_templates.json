@@ -1208,6 +1208,1491 @@
           "max_entries_per_session": 2
         }
       }
+    },
+    "seasonal_breakout_rth": {
+      "description": "Breakout of the last n bars in the regular hours (06:30-13:00 Pacific) session, taken only when the causal intraday profile says volatility is about to RISE (expected volatility of the next 30 minutes over the last 30 at least rise_ratio). The stop is stop_mult x the expected high-low range of the next 60 minutes (seasonal, not trailing ATR, so it is wide into the open and narrow into lunch); the target is target_r x the risk; the trade is closed at the next open once the profile says volatility is about to FALL (ratio below fall_ratio).",
+      "params": {
+        "n_break": {
+          "type": "int",
+          "low": 3,
+          "high": 12,
+          "step": 1
+        },
+        "rise_ratio": {
+          "type": "float",
+          "low": 0.9,
+          "high": 1.8,
+          "step": 0.1
+        },
+        "stop_mult": {
+          "type": "float",
+          "low": 0.3,
+          "high": 1.2,
+          "step": 0.1
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.5,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "fall_ratio": {
+          "type": "float",
+          "low": 0.5,
+          "high": 0.95,
+          "step": 0.05
+        }
+      },
+      "defaults": {
+        "n_break": 6,
+        "rise_ratio": 1.2,
+        "stop_mult": 0.6,
+        "target_r": 2.0,
+        "fall_ratio": 0.8
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "channel_high": {
+          "op": "highest",
+          "of": "high",
+          "n": {
+            "param": "n_break"
+          }
+        },
+        "channel_low": {
+          "op": "lowest",
+          "of": "low",
+          "n": {
+            "param": "n_break"
+          }
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "06:30",
+        "end": "13:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "close",
+              "b": "$channel_high"
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "const": 50
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "close",
+              "b": "$channel_low"
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "const": 50
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "series",
+          "of": "$expected_move",
+          "mult": {
+            "param": "stop_mult"
+          }
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": 1.0,
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "$ahead",
+            "b": {
+              "param": "fall_ratio"
+            }
+          },
+          "short": {
+            "op": "below",
+            "a": "$ahead",
+            "b": {
+              "param": "fall_ratio"
+            }
+          }
+        }
+      }
+    },
+    "seasonal_fade_rth": {
+      "description": "Mean reversion to the session VWAP in the regular hours (06:30-13:00 Pacific) session, taken only in time buckets the causal profile marks as RANGING (expected 30-minute efficiency ratio at most efficiency_max) and when volatility is NOT about to rise (ratio of the next 30 minutes to the last 30 at most calm_ratio): price stretched from VWAP by stretch x the expected 30-minute range and RSI turning back through rsi_low (long) or 100 - rsi_low (short). Target: target_fraction of the way back to VWAP; stop: stop_mult x the expected 30-minute range; closed at the next open when volatility is due to rise (ratio at least 1.5).",
+      "params": {
+        "stretch": {
+          "type": "float",
+          "low": 0.3,
+          "high": 1.5,
+          "step": 0.1
+        },
+        "efficiency_max": {
+          "type": "float",
+          "low": 0.15,
+          "high": 0.22,
+          "step": 0.01
+        },
+        "rsi_low": {
+          "type": "int",
+          "low": 24,
+          "high": 40,
+          "step": 2
+        },
+        "stop_mult": {
+          "type": "float",
+          "low": 0.3,
+          "high": 1.2,
+          "step": 0.1
+        },
+        "target_fraction": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.0,
+          "step": 0.1
+        }
+      },
+      "defaults": {
+        "stretch": 0.6,
+        "efficiency_max": 0.18,
+        "rsi_low": 30,
+        "stop_mult": 0.6,
+        "target_fraction": 0.8
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "vwap": {
+          "vwap": "session_vwap"
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 30
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "efficiency": {
+          "seasonal": "efficiency"
+        },
+        "below_vwap": {
+          "op": "sub",
+          "a": "$vwap",
+          "b": "close"
+        },
+        "above_vwap": {
+          "op": "sub",
+          "a": "close",
+          "b": "$vwap"
+        },
+        "stretch_needed": {
+          "op": "mul",
+          "a": "$expected_move",
+          "b": {
+            "param": "stretch"
+          }
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "06:30",
+        "end": "13:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$below_vwap",
+              "b": "$stretch_needed"
+            },
+            {
+              "op": "below",
+              "a": "$efficiency",
+              "b": {
+                "param": "efficiency_max"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$ahead",
+              "b": {
+                "const": 1.2
+              }
+            },
+            {
+              "op": "cross_above",
+              "a": "$rsi",
+              "b": {
+                "param": "rsi_low"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$above_vwap",
+              "b": "$stretch_needed"
+            },
+            {
+              "op": "below",
+              "a": "$efficiency",
+              "b": {
+                "param": "efficiency_max"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$ahead",
+              "b": {
+                "const": 1.2
+              }
+            },
+            {
+              "op": "cross_below",
+              "a": "$rsi",
+              "b": {
+                "op": "sub",
+                "a": {
+                  "const": 100
+                },
+                "b": {
+                  "param": "rsi_low"
+                }
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "series",
+          "of": "$expected_move",
+          "mult": {
+            "param": "stop_mult"
+          }
+        },
+        "target": {
+          "kind": "series",
+          "long_of": "$below_vwap",
+          "short_of": "$above_vwap",
+          "mult": {
+            "param": "target_fraction"
+          },
+          "fallback_r": 1.0
+        },
+        "signal": {
+          "long": {
+            "op": "at_least",
+            "a": "$ahead",
+            "b": {
+              "const": 1.5
+            }
+          },
+          "short": {
+            "op": "at_least",
+            "a": "$ahead",
+            "b": {
+              "const": 1.5
+            }
+          }
+        }
+      }
+    },
+    "atr_breakout_control_rth": {
+      "description": "CONTROL for seasonal_breakout_rth: the same n-bar breakout and RSI side filter in the same window, with a trailing-ATR stop and no seasonal condition or seasonal exit. The difference between the two is what accounting for the time-of-day volatility profile adds.",
+      "params": {
+        "n_break": {
+          "type": "int",
+          "low": 3,
+          "high": 12,
+          "step": 1
+        },
+        "stop_atr": {
+          "type": "float",
+          "low": 0.5,
+          "high": 3.0,
+          "step": 0.25
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.5,
+          "high": 3.0,
+          "step": 0.5
+        }
+      },
+      "defaults": {
+        "n_break": 6,
+        "stop_atr": 1.5,
+        "target_r": 2.0
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "channel_high": {
+          "op": "highest",
+          "of": "high",
+          "n": {
+            "param": "n_break"
+          }
+        },
+        "channel_low": {
+          "op": "lowest",
+          "of": "low",
+          "n": {
+            "param": "n_break"
+          }
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "06:30",
+        "end": "13:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "close",
+              "b": "$channel_high"
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "const": 50
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "close",
+              "b": "$channel_low"
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "const": 50
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "atr",
+          "mult": {
+            "param": "stop_atr"
+          }
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": 1.0,
+          "breakeven_offset_ticks": 1
+        }
+      }
+    },
+    "seasonal_breakout_eth": {
+      "description": "Breakout of the last n bars in the overnight (13:00-06:30 Pacific, wrapping midnight) session, taken only when the causal intraday profile says volatility is about to RISE (expected volatility of the next 30 minutes over the last 30 at least rise_ratio). The stop is stop_mult x the expected high-low range of the next 60 minutes (seasonal, not trailing ATR, so it is wide into the open and narrow into lunch); the target is target_r x the risk; the trade is closed at the next open once the profile says volatility is about to FALL (ratio below fall_ratio).",
+      "params": {
+        "n_break": {
+          "type": "int",
+          "low": 3,
+          "high": 12,
+          "step": 1
+        },
+        "rise_ratio": {
+          "type": "float",
+          "low": 0.9,
+          "high": 1.8,
+          "step": 0.1
+        },
+        "stop_mult": {
+          "type": "float",
+          "low": 0.3,
+          "high": 1.2,
+          "step": 0.1
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.5,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "fall_ratio": {
+          "type": "float",
+          "low": 0.5,
+          "high": 0.95,
+          "step": 0.05
+        }
+      },
+      "defaults": {
+        "n_break": 6,
+        "rise_ratio": 1.2,
+        "stop_mult": 0.6,
+        "target_r": 2.0,
+        "fall_ratio": 0.8
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "channel_high": {
+          "op": "highest",
+          "of": "high",
+          "n": {
+            "param": "n_break"
+          }
+        },
+        "channel_low": {
+          "op": "lowest",
+          "of": "low",
+          "n": {
+            "param": "n_break"
+          }
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "13:00",
+        "end": "06:30"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "close",
+              "b": "$channel_high"
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "const": 50
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "13:00",
+              "end": "06:30"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "close",
+              "b": "$channel_low"
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "const": 50
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "13:00",
+              "end": "06:30"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "series",
+          "of": "$expected_move",
+          "mult": {
+            "param": "stop_mult"
+          }
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": 1.0,
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "$ahead",
+            "b": {
+              "param": "fall_ratio"
+            }
+          },
+          "short": {
+            "op": "below",
+            "a": "$ahead",
+            "b": {
+              "param": "fall_ratio"
+            }
+          }
+        }
+      }
+    },
+    "seasonal_fade_eth": {
+      "description": "Mean reversion to the session VWAP in the overnight (13:00-06:30 Pacific, wrapping midnight) session, taken only in time buckets the causal profile marks as RANGING (expected 30-minute efficiency ratio at most efficiency_max) and when volatility is NOT about to rise (ratio of the next 30 minutes to the last 30 at most calm_ratio): price stretched from VWAP by stretch x the expected 30-minute range and RSI turning back through rsi_low (long) or 100 - rsi_low (short). Target: target_fraction of the way back to VWAP; stop: stop_mult x the expected 30-minute range; closed at the next open when volatility is due to rise (ratio at least 1.5).",
+      "params": {
+        "stretch": {
+          "type": "float",
+          "low": 0.3,
+          "high": 1.5,
+          "step": 0.1
+        },
+        "efficiency_max": {
+          "type": "float",
+          "low": 0.15,
+          "high": 0.22,
+          "step": 0.01
+        },
+        "rsi_low": {
+          "type": "int",
+          "low": 24,
+          "high": 40,
+          "step": 2
+        },
+        "stop_mult": {
+          "type": "float",
+          "low": 0.3,
+          "high": 1.2,
+          "step": 0.1
+        },
+        "target_fraction": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.0,
+          "step": 0.1
+        }
+      },
+      "defaults": {
+        "stretch": 0.6,
+        "efficiency_max": 0.18,
+        "rsi_low": 30,
+        "stop_mult": 0.6,
+        "target_fraction": 0.8
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "vwap": {
+          "vwap": "session_vwap"
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 30
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "efficiency": {
+          "seasonal": "efficiency"
+        },
+        "below_vwap": {
+          "op": "sub",
+          "a": "$vwap",
+          "b": "close"
+        },
+        "above_vwap": {
+          "op": "sub",
+          "a": "close",
+          "b": "$vwap"
+        },
+        "stretch_needed": {
+          "op": "mul",
+          "a": "$expected_move",
+          "b": {
+            "param": "stretch"
+          }
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "13:00",
+        "end": "06:30"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$below_vwap",
+              "b": "$stretch_needed"
+            },
+            {
+              "op": "below",
+              "a": "$efficiency",
+              "b": {
+                "param": "efficiency_max"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$ahead",
+              "b": {
+                "const": 1.2
+              }
+            },
+            {
+              "op": "cross_above",
+              "a": "$rsi",
+              "b": {
+                "param": "rsi_low"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "13:00",
+              "end": "06:30"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$above_vwap",
+              "b": "$stretch_needed"
+            },
+            {
+              "op": "below",
+              "a": "$efficiency",
+              "b": {
+                "param": "efficiency_max"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$ahead",
+              "b": {
+                "const": 1.2
+              }
+            },
+            {
+              "op": "cross_below",
+              "a": "$rsi",
+              "b": {
+                "op": "sub",
+                "a": {
+                  "const": 100
+                },
+                "b": {
+                  "param": "rsi_low"
+                }
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "13:00",
+              "end": "06:30"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "series",
+          "of": "$expected_move",
+          "mult": {
+            "param": "stop_mult"
+          }
+        },
+        "target": {
+          "kind": "series",
+          "long_of": "$below_vwap",
+          "short_of": "$above_vwap",
+          "mult": {
+            "param": "target_fraction"
+          },
+          "fallback_r": 1.0
+        },
+        "signal": {
+          "long": {
+            "op": "at_least",
+            "a": "$ahead",
+            "b": {
+              "const": 1.5
+            }
+          },
+          "short": {
+            "op": "at_least",
+            "a": "$ahead",
+            "b": {
+              "const": 1.5
+            }
+          }
+        }
+      }
+    },
+    "atr_breakout_control_eth": {
+      "description": "CONTROL for seasonal_breakout_eth: the same n-bar breakout and RSI side filter in the same window, with a trailing-ATR stop and no seasonal condition or seasonal exit. The difference between the two is what accounting for the time-of-day volatility profile adds.",
+      "params": {
+        "n_break": {
+          "type": "int",
+          "low": 3,
+          "high": 12,
+          "step": 1
+        },
+        "stop_atr": {
+          "type": "float",
+          "low": 0.5,
+          "high": 3.0,
+          "step": 0.25
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.5,
+          "high": 3.0,
+          "step": 0.5
+        }
+      },
+      "defaults": {
+        "n_break": 6,
+        "stop_atr": 1.5,
+        "target_r": 2.0
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "channel_high": {
+          "op": "highest",
+          "of": "high",
+          "n": {
+            "param": "n_break"
+          }
+        },
+        "channel_low": {
+          "op": "lowest",
+          "of": "low",
+          "n": {
+            "param": "n_break"
+          }
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "13:00",
+        "end": "06:30"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "close",
+              "b": "$channel_high"
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "const": 50
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "13:00",
+              "end": "06:30"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "close",
+              "b": "$channel_low"
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "const": 50
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "13:00",
+              "end": "06:30"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "atr",
+          "mult": {
+            "param": "stop_atr"
+          }
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": 1.0,
+          "breakeven_offset_ticks": 1
+        }
+      }
+    },
+    "event_breakout_rth_open": {
+      "description": "Time-event breakout: the high/low of the first range_minutes after the regular-hours open (06:30 Pacific); a close through it within window_minutes of the event enters (RSI side filter). Stop = stop_mult x the expected 60-minute range from the causal profile (which already knows the event minute is volatile); target = target_r x risk; time stop after hold_bars 5-minute bars.",
+      "params": {
+        "range_minutes": {
+          "type": "int",
+          "low": 5,
+          "high": 30,
+          "step": 5
+        },
+        "window_minutes": {
+          "type": "int",
+          "low": 20,
+          "high": 180,
+          "step": 20
+        },
+        "stop_mult": {
+          "type": "float",
+          "low": 0.3,
+          "high": 1.2,
+          "step": 0.1
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.5,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 6,
+          "high": 36,
+          "step": 6
+        }
+      },
+      "defaults": {
+        "range_minutes": 15,
+        "window_minutes": 60,
+        "stop_mult": 0.6,
+        "target_r": 2.0,
+        "hold_bars": 18
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "event_high": {
+          "time": "event_high",
+          "event": "rth_open",
+          "minutes": {
+            "param": "range_minutes"
+          }
+        },
+        "event_low": {
+          "time": "event_low",
+          "event": "rth_open",
+          "minutes": {
+            "param": "range_minutes"
+          }
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "06:30",
+        "end": "10:30"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "close",
+              "b": "$event_high"
+            },
+            {
+              "op": "below",
+              "a": {
+                "time": "minutes_since",
+                "event": "rth_open"
+              },
+              "b": {
+                "param": "window_minutes"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "const": 50
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "10:30"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "close",
+              "b": "$event_low"
+            },
+            {
+              "op": "below",
+              "a": {
+                "time": "minutes_since",
+                "event": "rth_open"
+              },
+              "b": {
+                "param": "window_minutes"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "const": 50
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "10:30"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "series",
+          "of": "$expected_move",
+          "mult": {
+            "param": "stop_mult"
+          }
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": 1.0,
+          "breakeven_offset_ticks": 1
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        }
+      }
+    },
+    "event_breakout_london_open": {
+      "description": "Time-event breakout: the high/low of the first range_minutes after the London open (08:00 London, 00:00 Pacific or 01:00 in the weeks the US and UK clocks differ); a close through it within window_minutes of the event enters (RSI side filter). Stop = stop_mult x the expected 60-minute range from the causal profile (which already knows the event minute is volatile); target = target_r x risk; time stop after hold_bars 5-minute bars.",
+      "params": {
+        "range_minutes": {
+          "type": "int",
+          "low": 5,
+          "high": 30,
+          "step": 5
+        },
+        "window_minutes": {
+          "type": "int",
+          "low": 20,
+          "high": 180,
+          "step": 20
+        },
+        "stop_mult": {
+          "type": "float",
+          "low": 0.3,
+          "high": 1.2,
+          "step": 0.1
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.5,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 6,
+          "high": 36,
+          "step": 6
+        }
+      },
+      "defaults": {
+        "range_minutes": 15,
+        "window_minutes": 60,
+        "stop_mult": 0.6,
+        "target_r": 2.0,
+        "hold_bars": 18
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "event_high": {
+          "time": "event_high",
+          "event": "london_open",
+          "minutes": {
+            "param": "range_minutes"
+          }
+        },
+        "event_low": {
+          "time": "event_low",
+          "event": "london_open",
+          "minutes": {
+            "param": "range_minutes"
+          }
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "23:30",
+        "end": "04:30"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "close",
+              "b": "$event_high"
+            },
+            {
+              "op": "below",
+              "a": {
+                "time": "minutes_since",
+                "event": "london_open"
+              },
+              "b": {
+                "param": "window_minutes"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "const": 50
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "23:30",
+              "end": "04:30"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "close",
+              "b": "$event_low"
+            },
+            {
+              "op": "below",
+              "a": {
+                "time": "minutes_since",
+                "event": "london_open"
+              },
+              "b": {
+                "param": "window_minutes"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "const": 50
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "23:30",
+              "end": "04:30"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "series",
+          "of": "$expected_move",
+          "mult": {
+            "param": "stop_mult"
+          }
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": 1.0,
+          "breakeven_offset_ticks": 1
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        }
+      }
+    },
+    "event_breakout_us_data_0830": {
+      "description": "Time-event breakout: the high/low of the first range_minutes after the 08:30 ET data window (05:30 Pacific), on sessions with a scheduled 08:30 ET release only; a close through it within window_minutes of the event enters (RSI side filter). Stop = stop_mult x the expected 60-minute range from the causal profile (which already knows the event minute is volatile); target = target_r x risk; time stop after hold_bars 5-minute bars.",
+      "params": {
+        "range_minutes": {
+          "type": "int",
+          "low": 5,
+          "high": 30,
+          "step": 5
+        },
+        "window_minutes": {
+          "type": "int",
+          "low": 20,
+          "high": 180,
+          "step": 20
+        },
+        "stop_mult": {
+          "type": "float",
+          "low": 0.3,
+          "high": 1.2,
+          "step": 0.1
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.5,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 6,
+          "high": 36,
+          "step": 6
+        }
+      },
+      "defaults": {
+        "range_minutes": 15,
+        "window_minutes": 60,
+        "stop_mult": 0.6,
+        "target_r": 2.0,
+        "hold_bars": 18
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "event_high": {
+          "time": "event_high",
+          "event": "us_data_0830",
+          "minutes": {
+            "param": "range_minutes"
+          }
+        },
+        "event_low": {
+          "time": "event_low",
+          "event": "us_data_0830",
+          "minutes": {
+            "param": "range_minutes"
+          }
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "05:30",
+        "end": "06:30"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "close",
+              "b": "$event_high"
+            },
+            {
+              "op": "below",
+              "a": {
+                "time": "minutes_since",
+                "event": "us_data_0830"
+              },
+              "b": {
+                "param": "window_minutes"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "const": 50
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "05:30",
+              "end": "06:30"
+            },
+            {
+              "op": "above",
+              "a": {
+                "time": "flag",
+                "name": "release_0830_day"
+              },
+              "b": {
+                "const": 0.5
+              }
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "close",
+              "b": "$event_low"
+            },
+            {
+              "op": "below",
+              "a": {
+                "time": "minutes_since",
+                "event": "us_data_0830"
+              },
+              "b": {
+                "param": "window_minutes"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "const": 50
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "05:30",
+              "end": "06:30"
+            },
+            {
+              "op": "above",
+              "a": {
+                "time": "flag",
+                "name": "release_0830_day"
+              },
+              "b": {
+                "const": 0.5
+              }
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "series",
+          "of": "$expected_move",
+          "mult": {
+            "param": "stop_mult"
+          }
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": 1.0,
+          "breakeven_offset_ticks": 1
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        }
+      }
     }
   }
 }

@@ -49,7 +49,7 @@ import pandas as pd
 import talib
 from talib import abstract
 
-from . import engine, levels
+from . import engine, levels, seasonality
 from .data import aggregate, aggregate_session_anchored, effective_roll_timestamps, session_dates
 from .rules import prior_percentile
 
@@ -115,6 +115,45 @@ class Context:
     tick: float
     cache: dict = field(default_factory=dict)
     higher: dict = field(default_factory=dict)
+    calendar: pd.DataFrame | None = None     # scheduled releases (seasonality.calendar_frame); loaded on first use
+    seasonal: object | None = None           # seasonality.Seasonal, built on first use
+    time: object | None = None               # seasonality.TimeEvents, built on first use
+
+
+def _seasonal(ctx: Context):
+    if ctx.seasonal is None:
+        ctx.seasonal = seasonality.build(ctx.minutes_frame, ctx.minutes.days)
+    return ctx.seasonal
+
+
+def _time(ctx: Context):
+    if ctx.time is None:
+        if ctx.calendar is None:
+            ctx.calendar = seasonality.calendar_frame()
+        ctx.time = seasonality.time_events(ctx.minutes.stamps, ctx.minutes.days, ctx.calendar)
+    return ctx.time
+
+
+def _event_extreme(ctx: Context, event: str, minutes: int, high: bool) -> np.ndarray:
+    """High (or low) of the ``minutes`` after a time event in each session, known from the
+    minute after the window closes until the session ends; NaN before and on sessions without it."""
+    t = _time(ctx)
+    m = ctx.minutes
+    at = t.anchors[event]
+    first = np.searchsorted(m.stamps, at)                      # NaN anchors sort to the end
+    last = np.searchsorted(m.stamps, at + minutes * 60)
+    extreme = np.full(at.size, np.nan)
+    source = m.high if high else m.low
+    session_first = np.searchsorted(m.session_id, np.arange(at.size))
+    session_stop = np.searchsorted(m.session_id, np.arange(at.size), side="right")
+    for k in np.flatnonzero(np.isfinite(at)):
+        a, b = max(first[k], session_first[k]), min(last[k], session_stop[k])
+        if b > a:
+            extreme[k] = source[a:b].max() if high else source[a:b].min()
+    index = ctx.last_minute
+    session = m.session_id[index]
+    known = np.isfinite(at[session]) & (ctx.bar_end >= at[session] + minutes * 60)
+    return np.where(known, extreme[session], np.nan)
 
 
 def build_context(minutes_bars, timeframe: str, tick: float, events: pd.DataFrame | None = None) -> Context:
@@ -204,6 +243,36 @@ def _series(ctx: Context, node) -> np.ndarray:
             values = _talib(node["ind"], h["bars"], node.get("args", {}), node.get("out", 0))
             return np.where(h["index"] >= 0, values[np.clip(h["index"], 0, None)], np.nan)
         return _talib(node["ind"], ctx.bars, node.get("args", {}), node.get("out", 0))
+    if "seasonal" in node:
+        # causal intraday seasonality at each strategy bar's close (seasonality.py)
+        season, index, kind = _seasonal(ctx), ctx.last_minute, node["seasonal"]
+        if kind == "shape":
+            return season.shape[index]
+        if kind == "efficiency":
+            return season.efficiency[index]
+        if kind == "heat":
+            return season.heat[index]
+        if kind == "ahead_ratio":
+            return season.ahead_ratio(index, int(node["minutes"]))
+        if kind == "expected_move":
+            return season.expected_move_points(index, int(node["minutes"]))
+        raise ValueError(f"unknown seasonal series {kind!r}")
+    if "time" in node:
+        index, kind = ctx.last_minute, node["time"]
+        if kind == "minute_of_day":
+            return ((ctx.minutes.stamps[index] % 86400) // 60).astype(float)
+        t = _time(ctx)
+        if kind == "weekday":
+            return t.weekday[t.session[index]].astype(float)
+        if kind == "minutes_since":
+            return t.minutes_since(index, node["event"])
+        if kind == "minutes_until":
+            return t.minutes_until(index, node["event"])
+        if kind == "flag":
+            return t.flag(index, node["name"])
+        if kind in ("event_high", "event_low"):
+            return _event_extreme(ctx, node["event"], int(node["minutes"]), kind == "event_high")
+        raise ValueError(f"unknown time series {kind!r}")
     if "level" in node:
         return ctx.zones[node["level"]].to_numpy(np.float64)
     if "event" in node:
@@ -311,6 +380,13 @@ def _condition(ctx: Context, node) -> np.ndarray:
         level = series(ctx, node["level"])
         with np.errstate(invalid="ignore"):
             return np.abs(ctx.bars["close"] - level) <= float(node["tol_atr"]) * ctx.atr
+    if op == "in_set":
+        values = series(ctx, node["a"])
+        return np.isin(values, np.asarray(node["values"], dtype=float))
+    if op == "between":
+        values = series(ctx, node["a"])
+        with np.errstate(invalid="ignore"):
+            return (values >= series(ctx, node["low"])) & (values < series(ctx, node["high"]))
     if op == "session_window":
         start = _minutes_of(node["start"])
         end = _minutes_of(node["end"])
@@ -357,6 +433,9 @@ def plans(ctx: Context, spec: dict, bars_index: np.ndarray, sides: np.ndarray) -
         plan[:, engine.P_STOP_TICKS] = np.maximum(np.round(float(stop["mult"]) * atr / tick), 4)
     elif stop["kind"] == "ticks":
         plan[:, engine.P_STOP_TICKS] = float(stop["value"])
+    elif stop["kind"] == "series":
+        # a distance in index points from a series at the signal bar (e.g. the expected move ahead) x mult
+        plan[:, engine.P_STOP_TICKS] = np.maximum(np.round(float(stop.get("mult", 1.0)) * _side_series(ctx, stop, bars_index, sides) / tick), 4)
     elif stop["kind"] == "level":
         # "long_level" / "short_level" name the exact level the entry broke (e.g. the previous bar's
         # resistance_high for a breakout); without them: the zone under the close (long) / over it (short).
@@ -392,6 +471,10 @@ def plans(ctx: Context, spec: dict, bars_index: np.ndarray, sides: np.ndarray) -
         plan[:, engine.P_TARGET_PRICE] = price
         plan[:, engine.P_MIN_ROOM_R] = float(target.get("min_r", 2.0))
         plan[:, engine.P_TARGET_R] = np.where(np.isfinite(price), np.nan, float(target.get("fallback_r", 2.0)))
+    elif target["kind"] == "series":
+        distance = float(target.get("mult", 1.0)) * _side_series(ctx, target, bars_index, sides)
+        plan[:, engine.P_TARGET_TICKS] = np.where(np.isfinite(distance) & (distance > 0), np.maximum(np.round(distance / tick), 1), np.nan)
+        plan[:, engine.P_TARGET_R] = np.where(np.isfinite(distance) & (distance > 0), np.nan, float(target.get("fallback_r", 2.0)))
     elif target["kind"] != "none":
         raise ValueError(f"unknown target kind {target['kind']!r}")
     mode = 0
@@ -408,6 +491,13 @@ def plans(ctx: Context, spec: dict, bars_index: np.ndarray, sides: np.ndarray) -
     plan[:, engine.P_TRAIL_MODE] = mode
     plan[:, engine.P_MAX_BARS] = int(exit_spec.get("time_stop_bars", 0))
     return plan
+
+
+def _side_series(ctx: Context, node: dict, bars_index: np.ndarray, sides: np.ndarray) -> np.ndarray:
+    """``of`` for both sides, or ``long_of`` / ``short_of``, read at the signal bars (points)."""
+    if "of" in node:
+        return series(ctx, node["of"])[bars_index]
+    return np.where(sides > 0, series(ctx, node["long_of"])[bars_index], series(ctx, node["short_of"])[bars_index])
 
 
 def exit_arrays(ctx: Context, spec: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

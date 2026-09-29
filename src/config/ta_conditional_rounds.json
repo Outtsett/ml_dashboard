@@ -293,6 +293,55 @@
       "goal_ticks_per_session_day": 600,
       "smoke_disclosure": "Before the full run, code smoke runs on MNQ 2025-10-01..2025-12-01 (two months, 2 null seeds) were seen. They showed the three books summed at whole_day, unlimited entries, 15m, loosest reaching about +640 net ticks/day with excess t 3.3, and 1m loosest at about -800. Nothing in the variant grid was changed after the smoke except adding the 1m timeframe to the table of bar widths (it was already in the grid) and the per-year tables. The hypothesis above was written before the smoke and is kept as written.",
       "price_scale_note": "Ticks are a fixed 0.25 points, so the same percentage move is about ten times more ticks at MNQ 25,000 (2025) than at NQ 2,000 (2010). The 600 ticks/day question is judged per year on MNQ, and the latest full year (2025) is the price scale a live account trades at."
+    },
+    "5": {
+      "title": "Time-conditioned strategies: the ETH/RTH volatility profile, time events and calendar days inside entries and exits",
+      "question": "Overnight (ETH) and regular hours (RTH) differ in volatility and in how much they range. Does conditioning entries and exits on WHEN volatility is due to rise or fall (a causal intraday profile), on time events (Tokyo, London, 08:30 ET data, the RTH open) and on calendar days add net ticks per day, separately for ETH and RTH?",
+      "hypothesis": "Tuned per walk-forward fold on prior years only and tested on 2022-2025: (1) seasonal_breakout_rth beats its ATR control (atr_breakout_control_rth) in stitched out-of-sample excess over matched random entries, because its stop is sized to the expected range rather than a lagging trailing ATR and it trades only into rising volatility; (2) no ETH template nets positive per trade out of sample (round 4 found 0 of 145 overnight variants positive); (3) seasonal_fade in ranging buckets does not beat zero excess after costs; (4) no template, and no sum of the templates, reaches 10% of 600 net ticks per session day. Written before any tuned result was computed; a default-parameter code smoke on MNQ 2023-06..2025-12 (overlapping the test years) was seen and nothing was changed after it.",
+      "data_start": "2019-06-01",
+      "data_end": "2026-01-01",
+      "timeframe": "5m",
+      "test_years": [
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "templates": [
+        "seasonal_breakout_rth",
+        "atr_breakout_control_rth",
+        "seasonal_breakout_eth",
+        "atr_breakout_control_eth",
+        "seasonal_fade_rth",
+        "seasonal_fade_eth",
+        "event_breakout_rth_open",
+        "event_breakout_london_open",
+        "event_breakout_us_data_0830"
+      ],
+      "optuna": {
+        "trials_per_fold": 100,
+        "startup_trials": 25,
+        "seed": 11,
+        "rescore_top": 6
+      },
+      "nulls": {
+        "seeds_in_loop": 6,
+        "seeds_rescore_and_test": 24,
+        "random_side_replicates": 20
+      },
+      "constraints": {
+        "minimum_trades_per_session_day": 0.1,
+        "maximum_session_end_exit_share": 0.25
+      },
+      "costs": {
+        "stop_slippage_ticks": 1
+      },
+      "level_study": {
+        "null_a_permutations": 2,
+        "null_b_shuffles": 1
+      },
+      "goal_ticks_per_session_day": 600,
+      "profile": "seasonality.build: 5-minute buckets of the 15:00-14:00 Pacific session; shape = half last-120-session mean, half last-40-same-weekday mean, of each bucket's mean |1-minute return| over its session's mean, from sessions strictly before; level = EWMA (half-life 60 minutes) of |r| / shape; expected range = sqrt(8/pi) x sqrt(pi/2) x level x sqrt(sum of shape^2 over the horizon) x price."
     }
   }
 }
