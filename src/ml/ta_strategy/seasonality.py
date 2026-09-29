@@ -233,15 +233,18 @@ def calendar_frame(evidence_dir=None) -> pd.DataFrame:
         for row in backfill.get("rows", []):
             local = datetime.fromisoformat(row["date"]).replace(hour=int(row["local_time"][:2]), minute=int(row["local_time"][3:5]),
                                                                 tzinfo=ZoneInfo(row.get("timezone", "America/New_York")))
-            rows.append({"family": row["family"], "utc": int(local.astimezone(timezone.utc).timestamp())})
+            rows.append({"family": row["family"], "utc": int(local.astimezone(timezone.utc).timestamp()), "scheduled": True})
         for row in backfill.get("fomc", []):
             local = datetime.fromisoformat(row["statement_date"]).replace(hour=int(row["local_time"][:2]), minute=int(row["local_time"][3:5]),
                                                                           tzinfo=ZoneInfo(row.get("timezone", "America/New_York")))
-            rows.append({"family": "fomc_statement", "utc": int(local.astimezone(timezone.utc).timestamp())})
+            rows.append({"family": "fomc_statement", "utc": int(local.astimezone(timezone.utc).timestamp()),
+                         "scheduled": bool(row.get("scheduled", True))})
         if rows:
             more = pd.DataFrame(rows)
             more["stamp"] = utc_to_stamp_seconds(more["utc"].to_numpy(np.int64))
-            frame = pd.concat([frame, more[["stamp", "family"]]], ignore_index=True)
+            frame = pd.concat([frame, more[["stamp", "family", "scheduled"]]], ignore_index=True)
+    if "scheduled" not in frame:
+        frame["scheduled"] = True
     return frame.drop_duplicates(["family", "stamp"]).sort_values("stamp").reset_index(drop=True)
 
 
@@ -257,7 +260,7 @@ class TimeEvents:
     anchors: dict                   # event -> per-session stamp (float seconds, NaN when absent)
     flags: dict                     # flag -> per-session bool
     weekday: np.ndarray             # per session, 0 = Monday
-    covered_from: float             # first stamp the release calendar covers
+    covered_from: dict              # release group -> first stamp from which EVERY family of the group is covered
 
     def minutes_since(self, index: np.ndarray, event: str) -> np.ndarray:
         at = self.anchors[event][self.session[index]]
@@ -295,14 +298,19 @@ def time_events(stamps: np.ndarray, session_days: np.ndarray, calendar: pd.DataF
             values.append(local.tz_convert(pacific).tz_localize(None).value // 10**9)
         anchors[name] = np.asarray(values, dtype=float)
 
-    covered_from = np.inf
+    covered_from = {}
     session_of_day = pd.Series(np.arange(days.size), index=days)
+    if calendar is not None and len(calendar) and "scheduled" in calendar:
+        calendar = calendar[calendar["scheduled"].ne(False)]         # an unscheduled statement was unknown until published
     for group, families in RELEASE_GROUPS.items():
         at = np.full(days.size, np.nan)
+        covered_from[group] = np.inf
         if calendar is not None and len(calendar):
             rows = calendar[calendar["family"].isin(families)]
             if len(rows):
-                covered_from = min(covered_from, float(rows["stamp"].min()))
+                starts = rows.groupby("family")["stamp"].min()
+                # a group is covered only from where every one of its families is (NQ before 2019-05 has CPI and NFP only)
+                covered_from[group] = float(starts.max()) if set(starts.index) == set(families) else np.inf
                 event_days = pd.DatetimeIndex(pd.to_datetime(rows["stamp"].to_numpy(np.int64) + 9 * 3600, unit="s").normalize())
                 for stamp, day in zip(rows["stamp"].to_numpy(np.int64), event_days):
                     k = session_of_day.get(day)
@@ -310,16 +318,27 @@ def time_events(stamps: np.ndarray, session_days: np.ndarray, calendar: pd.DataF
                         at[k] = float(stamp)
         anchors[group] = at
 
+    covered_session = {g: (day_seconds - 9 * 3600) >= (c - 86400) for g, c in covered_from.items()}
+    for group in ("release_0830", "release_1000"):
+        anchors[group] = np.where(covered_session[group], anchors[group], np.nan)
     weekday = days.dayofweek.to_numpy()
     third = {(y, mth): _third_friday(y, mth) for y in range(days.year.min(), days.year.max() + 1) for mth in (3, 6, 9, 12)}
     expiry_day = np.array([d.month in (3, 6, 9, 12) and d == third[(d.year, d.month)] for d in days])
     expiry_week = np.array([d.month in (3, 6, 9, 12) and 0 <= (third[(d.year, d.month)] - d).days <= 4 for d in days])
-    month = days.month.to_numpy()
-    month_start = np.r_[True, month[1:] != month[:-1]]
-    month_end = np.r_[month[1:] != month[:-1], False]
-    gap_before = np.r_[1, (days[1:] - days[:-1]).days]
-    after_holiday = (gap_before > 1) & ~((weekday == 0) & (gap_before == 3))
-    before_holiday = np.r_[after_holiday[1:], False]
+    # month and holiday flags from the NYSE trading calendar (a known schedule), never from the next row of data
+    import holidays as holiday_calendar
+
+    closed = holiday_calendar.financial_holidays("NYSE", years=range(days.year.min() - 1, days.year.max() + 2))
+    trading = pd.bdate_range(days.min() - pd.Timedelta(days=15), days.max() + pd.Timedelta(days=15))
+    trading = trading[~trading.isin(pd.DatetimeIndex(list(closed.keys())))]
+    position = trading.get_indexer(days)
+    known = position >= 0
+    previous_day = np.where(known, trading[np.clip(position - 1, 0, len(trading) - 1)], days)
+    next_day = np.where(known, trading[np.clip(position + 1, 0, len(trading) - 1)], days)
+    month_start = known & (pd.DatetimeIndex(previous_day).month != days.month)
+    month_end = known & (pd.DatetimeIndex(next_day).month != days.month)
+    after_holiday = known & ((days - pd.DatetimeIndex(previous_day)).days > np.where(weekday == 0, 3, 1))
+    before_holiday = known & ((pd.DatetimeIndex(next_day) - days).days > np.where(weekday == 4, 3, 1))
     flags = {"expiry_day": expiry_day, "expiry_week": expiry_week, "month_start": month_start, "month_end": month_end,
              "fomc_day": np.isfinite(anchors["fomc_statement"]), "release_0830_day": np.isfinite(anchors["release_0830"]),
              "release_1000_day": np.isfinite(anchors["release_1000"]),

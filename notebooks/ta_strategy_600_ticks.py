@@ -881,7 +881,7 @@ def _(OKABE, alt, mo, pl, season_buckets, season_metric, season_symbol, season_w
     _order = _b["bucket_start_pacific"].to_list()
     _rth = alt.Chart(pl.DataFrame({"start": ["06:30"], "end": ["12:55"]}).to_pandas()).mark_rect(opacity=0.08, color=OKABE["blue"]).encode(
         x=alt.X("start:N", sort=_order), x2="end:N")
-    _line = alt.Chart(_b.to_pandas()).mark_line(point=alt.OverlayMarkDef(size=18)).encode(
+    _line = alt.Chart(_b.select(list(dict.fromkeys(["bucket_start_pacific", "session_part", "session_count", "weekday", "relative_volatility_to_session_average", "average_five_minute_range_ticks", "efficiency_relative_to_random_walk", "variance_ratio_five_minutes", "breakout_follow_through_probability", season_metric.value]))).to_pandas()).mark_line(point=alt.OverlayMarkDef(size=18)).encode(
         x=alt.X("bucket_start_pacific:N", sort=_order, title="5-minute bucket (Pacific); shaded = regular hours",
                 axis=alt.Axis(values=_order[::12], labelAngle=-45)),
         y=alt.Y(f"{season_metric.value}:Q", title=season_metric.selected_key),
@@ -894,7 +894,7 @@ def _(OKABE, alt, mo, pl, season_buckets, season_metric, season_symbol, season_w
                  alt.Tooltip("variance_ratio_five_minutes:Q", format=".2f"),
                  alt.Tooltip("breakout_follow_through_probability:Q", format=".3f")])
     _heat_data = season_buckets.filter((pl.col("symbol") == season_symbol.value) & (pl.col("year") == "all") & (pl.col("weekday") != "all"))
-    _heat = alt.Chart(_heat_data.to_pandas()).mark_rect().encode(
+    _heat = alt.Chart(_heat_data.select("weekday", "bucket_start_pacific", season_metric.value).to_pandas()).mark_rect().encode(
         x=alt.X("bucket_start_pacific:N", sort=_order, title=None, axis=alt.Axis(values=_order[::12], labelAngle=-45)),
         y=alt.Y("weekday:N", sort=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], title=None),
         color=alt.Color(f"{season_metric.value}:Q", scale=alt.Scale(scheme="cividis"), title=None),
@@ -955,7 +955,7 @@ def _(OKABE, alt, mo, pl, season_event_pick, season_event_scale, season_events, 
     _e = season_events.filter((pl.col("symbol") == season_symbol.value) & (pl.col("year") == "all") & pl.col("event").is_in(season_event_pick.value))
     _palette = [OKABE[k] for k in ("blue", "orange", "sky", "vermillion", "green", "purple", "black", "yellow")]
     _chart = alt.Chart(_e.to_pandas()).mark_line().encode(
-        x=alt.X("minutes_from_event:Q", title="minutes from the event"), y=alt.Y(f"{season_event_scale.value}:Q", title=season_event_scale.selected_key),
+        x=alt.X("minutes_from_event:Q", title="minutes from the event"), y=alt.Y(f"{season_event_scale.value}:Q", title="relative to the hour before (-60..-31)" if season_event_scale.value == "relative_to_pre_event_hour" else "basis points per minute"),
         color=alt.Color("event:N", scale=alt.Scale(range=_palette)), strokeDash="event:N",
         tooltip=["event", "minutes_from_event", "session_count", alt.Tooltip(f"{season_event_scale.value}:Q", format=".2f")])
     _zero = alt.Chart(pl.DataFrame({"x": [0]}).to_pandas()).mark_rule(color=OKABE["black"], strokeDash=[3, 3]).encode(x="x:Q")

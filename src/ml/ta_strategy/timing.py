@@ -159,6 +159,8 @@ def session_table(mx: dict, session_days: np.ndarray, flags: dict, symbol: str, 
             frame[f"{name}_range_basis_points"] = (np.nanmax(high[:, cols], axis=1) - np.nanmin(low[:, cols], axis=1)) / first * 1e4
             frame[f"{name}_net_move_ticks"] = (last - first) / tick
             frame[f"{name}_efficiency_ratio"] = np.abs(last - first) / path
+            # a random walk's efficiency ratio falls as 1/sqrt(steps): this is comparable across parts of different length
+            frame[f"{name}_efficiency_ratio_times_square_root_minutes"] = frame[f"{name}_efficiency_ratio"] * np.sqrt(np.isfinite(c).sum(axis=1))
             frame[f"{name}_volume_contracts"] = np.nansum(volume[:, cols], axis=1)
             frame[f"{name}_minutes_traded"] = np.isfinite(c).sum(axis=1)
     out = pd.DataFrame(frame)
@@ -176,7 +178,8 @@ def parts_table(sessions: pd.DataFrame, symbol: str) -> pd.DataFrame:
     from ta_strategy import metrics as m
 
     rows = []
-    for measure in ("realized_volatility_basis_points", "range_ticks", "range_basis_points", "efficiency_ratio", "net_move_ticks", "volume_contracts"):
+    for measure in ("realized_volatility_basis_points", "range_ticks", "range_basis_points", "efficiency_ratio",
+                    "efficiency_ratio_times_square_root_minutes", "net_move_ticks", "volume_contracts"):
         for part in ("overnight", "regular_hours"):
             for year in ["all"] + sorted(sessions["year"].unique().tolist()):
                 x = sessions[f"{part}_{measure}"] if year == "all" else sessions.loc[sessions["year"] == year, f"{part}_{measure}"]
@@ -202,7 +205,8 @@ def event_table(mx: dict, session_days: np.ndarray, events, symbol: str) -> pd.D
         at = events.anchors[event]
         if condition == "no_release":
             flag = events.flags["release_0830_day" if event == "us_data_0830" else "release_1000_day"]
-            take = np.isfinite(at) & ~flag & (events.covered_from < np.inf) & (session_open >= events.covered_from - 86400)
+            group = "release_0830" if event == "us_data_0830" else "release_1000"
+            take = np.isfinite(at) & ~flag & (session_open >= events.covered_from[group] - 86400)
             label = f"{event}_without_release"
         elif condition:
             take = np.isfinite(at) & events.flags[condition]
@@ -316,7 +320,7 @@ def run(args: argparse.Namespace) -> dict:
     tables["season_stability"] = stability_table(mx, session_days, seasonal, args.symbol)
     tables = {k: v.assign(recipe=recipe) for k, v in tables.items()}
     p = tables["season_parts"]
-    for measure in ("realized_volatility_basis_points", "efficiency_ratio", "range_ticks"):
+    for measure in ("realized_volatility_basis_points", "efficiency_ratio_times_square_root_minutes", "range_ticks"):
         s = p[(p["measure"] == measure) & (p["year"] == "all")].set_index("session_part")
         protocol.emit_log(f"[{args.symbol} {measure}] overnight median {s.loc['overnight', 'value_median']:.3f} vs regular hours "
                           f"{s.loc['regular_hours', 'value_median']:.3f}")

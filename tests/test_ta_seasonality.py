@@ -89,19 +89,57 @@ def test_time_events_anchor_london_and_tokyo_on_the_pacific_clock():
 def test_expiry_week_and_calendar_release_days():
     days = pd.bdate_range("2024-03-11", "2024-03-22")
     stamps = np.array([int(d.value // 10**9) + 6 * 3600 for d in days], dtype=np.int64)
+    others = [f for f in seasonality.RELEASE_GROUPS["release_0830"] if f != "consumer_price_index"]
     calendar = pd.DataFrame({"stamp": [int(pd.Timestamp("2024-03-12 05:30").value // 10**9),
-                                       int(pd.Timestamp("2024-03-20 11:00").value // 10**9)],
-                             "family": ["consumer_price_index", "fomc_statement"]})
+                                       int(pd.Timestamp("2024-03-20 11:00").value // 10**9),
+                                       int(pd.Timestamp("2024-03-19 11:00").value // 10**9)]
+                             + [int(pd.Timestamp("2024-03-01 05:30").value // 10**9)] * len(others),
+                             "family": ["consumer_price_index", "fomc_statement", "fomc_statement"] + others,
+                             "scheduled": [True, True, False] + [True] * len(others)})
     t = seasonality.time_events(stamps, days.values, calendar)
     labels = [str(d.date()) for d in days]
     assert [labels[k] for k in np.flatnonzero(t.flags["expiry_day"])] == ["2024-03-15"]
     assert [labels[k] for k in np.flatnonzero(t.flags["expiry_week"])] == ["2024-03-11", "2024-03-12", "2024-03-13", "2024-03-14", "2024-03-15"]
-    assert [labels[k] for k in np.flatnonzero(t.flags["fomc_day"])] == ["2024-03-20"]
+    assert [labels[k] for k in np.flatnonzero(t.flags["fomc_day"])] == ["2024-03-20"]    # the unscheduled 03-19 statement is ignored
     assert [labels[k] for k in np.flatnonzero(t.flags["high_impact_day"])] == ["2024-03-12", "2024-03-20"]
     k = labels.index("2024-03-12")
     assert t.minutes_since(np.array([k]), "release_0830")[0] == pytest.approx(30.0)   # stamp 06:00, release 05:30
     assert np.isnan(t.minutes_until(np.array([k]), "release_0830")[0])               # already passed
     assert np.isnan(t.minutes_since(np.array([k + 1]), "release_0830")[0])           # no release that session
+
+
+def test_release_group_needs_every_family_and_flags_follow_the_exchange_calendar():
+    days = pd.bdate_range("2024-03-25", "2024-04-05")          # Good Friday 2024-03-29 is an NYSE holiday
+    days = days[days != pd.Timestamp("2024-03-29")]
+    stamps = np.array([int(d.value // 10**9) + 6 * 3600 for d in days], dtype=np.int64)
+    only_cpi = pd.DataFrame({"stamp": [int(pd.Timestamp("2024-04-02 05:30").value // 10**9)], "family": ["consumer_price_index"],
+                             "scheduled": [True]})
+    t = seasonality.time_events(stamps, days.values, only_cpi)
+    assert not t.flags["release_0830_day"].any()                 # the 08:30 group is not covered by CPI alone
+    assert t.flags["high_impact_day"].sum() == 1                 # CPI itself still marks a high-impact day
+    labels = [str(d.date()) for d in days]
+    assert [labels[k] for k in np.flatnonzero(t.flags["before_holiday"])] == ["2024-03-28"]
+    assert [labels[k] for k in np.flatnonzero(t.flags["after_holiday"])] == ["2024-04-01"]
+    assert [labels[k] for k in np.flatnonzero(t.flags["month_end"])] == ["2024-03-28"]
+    assert [labels[k] for k in np.flatnonzero(t.flags["month_start"])] == ["2024-04-01"]
+    # the flags come from the calendar, not from which session follows in the data
+    cut = seasonality.time_events(stamps[:4], days.values[:4], only_cpi)
+    assert cut.flags["month_end"].tolist() == t.flags["month_end"][:4].tolist()
+    assert cut.flags["before_holiday"].tolist() == t.flags["before_holiday"][:4].tolist()
+
+
+def test_every_seasonal_series_is_unchanged_by_later_data():
+    frame = synthetic_minutes(sessions=45, seed=3)
+    days = session_dates(frame["timestamp"].to_numpy(np.int64))
+    full = seasonality.build(frame, days, window=30, min_sessions=10)
+    cut_at = np.flatnonzero(days == np.unique(days)[40])[0] + 700
+    part = seasonality.build(frame.iloc[:cut_at], days[:cut_at], window=30, min_sessions=10)
+    index = np.arange(cut_at)
+    for name in ("shape", "level", "heat", "efficiency"):
+        np.testing.assert_allclose(getattr(part, name), getattr(full, name)[:cut_at], equal_nan=True, err_msg=name)
+    for minutes in (15, 60):
+        np.testing.assert_allclose(part.ahead_ratio(index, minutes), full.ahead_ratio(index, minutes), equal_nan=True)
+        np.testing.assert_allclose(part.expected_move_points(index, minutes), full.expected_move_points(index, minutes), equal_nan=True)
 
 
 def fake_ctx(n=8):

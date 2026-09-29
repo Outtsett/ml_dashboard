@@ -339,6 +339,111 @@ uncapped, looser or shorter-bar variants. Two caveats:
 **Lake:** `derived_ta_conditional_strategies_600_ticks_frequency_{rounds,variants,portfolio,years,hours,daily}`.
 **Notebook:** section 11 has a trades-per-day slider against the gross each trade must capture.
 
+
+## Time of day, ETH vs RTH, time events (round 5, confirmation rounds 6-7)
+
+### What was built
+
+**`seasonality.py`, the causal intraday profile.** It uses 5-minute buckets of the 15:00-14:00 PT session.
+- **Shape:** each bucket's mean |1-minute return| over its session's mean. Half is the last 120 sessions and half the last
+  40 same-weekday sessions, all strictly before the session it is used on.
+- **Level:** an EWMA (half-life 60 minutes) of |r| / shape.
+- **Heat:** the level over the median of the previous 60 sessions.
+- **Expected efficiency:** the expected 30-minute efficiency ratio per bucket.
+- **Derived values:**
+  - `ahead_ratio(h)`: expected volatility of the next h minutes over the last h.
+  - `expected_move_points(h)`: sqrt(8/pi) x sqrt(pi/2) x level x sqrt(sum of shape^2 over h) x price.
+
+**Time events.**
+- **Clock anchors (Pacific):**
+  - 15:00 Globex open;
+  - Tokyo 09:00 JST, which is 16:00 or 17:00 PT;
+  - London 08:00, which is 00:00 PT, or 01:00 PT in the weeks US and UK daylight saving differ;
+  - 05:30 and 07:00 US data, 06:30 RTH open, 13:00 cash close, 14:00 session end.
+- **Calendar releases:** scheduled only, through `multimodal.sources.calendar_events` plus
+  `docs/plans/2026-09-29-multimodal/evidence/calendar_2010_2019.json`. That file adds FOMC, CPI and NFP for 2010-01..2019-04,
+  every row sourced from the Fed or BLS.
+- **Release-group coverage:** a group counts only from where every one of its families is covered. NQ before 2019-05 has
+  CPI and NFP only, so there is no 08:30-group flag there.
+- **Calendar flags:** month start and end, and days before or after a holiday, come from the NYSE trading calendar
+  (`holidays`). Expiry week and expiry day follow the third-Friday rule.
+
+**Strategy compiler.**
+- Series nodes `{"seasonal": shape | efficiency | heat | ahead_ratio | expected_move}`.
+- Series nodes `{"time": minute_of_day | weekday | minutes_since | minutes_until | flag | event_high | event_low}`.
+- Conditions `in_set` and `between`.
+- Stop and target kind `series` (a distance in points from a series, times `mult`).
+
+**Templates.**
+- `seasonal_breakout_{rth,eth}`: enters only into rising expected volatility, stop = k x the expected 60-minute range, and
+  exits when volatility is about to fall.
+- `seasonal_fade_{rth,eth}`: ranging buckets, back to VWAP.
+- `event_breakout_{rth_open,london_open,us_data_0830}`.
+- `atr_breakout_control_{rth,eth}`: the same breakout with a trailing-ATR stop, as the control.
+
+### Timing study (`timing.py`, `derived_ta_conditional_strategies_600_ticks_season_*`)
+
+| | MNQ 2019-2025 | NQ 2010-2025 |
+|---|---|---|
+| Realised volatility, median session, overnight vs RTH | 51 vs 75 bp | 45 vs 65 bp |
+| Range, median session | 562 vs 835 ticks | 105 vs 165 ticks |
+| Efficiency x sqrt(minutes) (length-matched) | 0.91 vs 1.02 | 0.81 vs 0.90 |
+| FOMC day, RTH volatility vs trailing median | +36% (t 7.2) | +23% (t 6.6) |
+| Day before a holiday, RTH | -7% | -16% |
+| Year-on-year profile correlation, by part | 0.90-0.99 | 0.85-0.99 |
+| Causal profile, out-of-sample R^2 of log volatility | whole session 28-56%; within RTH 6-15% | 26-42%; within RTH up to 14% |
+
+**Reading the ETH row.** Overnight is calmer, and after length matching it is about 10% less trending. Both parts are near
+a random walk: overnight VR(5) is only 2-6% below 1.
+
+**Around events** (multiple of the -60..-31 minute baseline):
+- the 08:30 ET release minute is 10.9x (MNQ);
+- the FOMC statement is 10.8x, and still 3.7x an hour later;
+- the RTH open is 3.2x, London 2.0x, Tokyo 1.7x;
+- the 06:30 bucket is 3.5x the session's average minute.
+
+### Round 5 (`round_5_20260929T195018`, MNQ 5m, tuned on prior years, tested 2022-2025)
+
+| Template | Net ticks/day | Excess over matched random (t) | Trades/day |
+|---|---|---|---|
+| seasonal_breakout_rth | **+22.8** (net t 1.78) | +26.1 (2.11) | 1.55 |
+| atr_breakout_control_rth | -0.4 | +16.8 (1.16) | 4.6 |
+| event_breakout_rth_open | +3.9 | +3.4 (0.35) | |
+| seasonal_fade_rth | -1.4 | +1.3 (0.32) | |
+| event_breakout_london_open | -8.1 | -3.4 | |
+| event_breakout_us_data_0830 | -8.2 | -7.6 (-2.09) | |
+| seasonal_fade_eth | -12.0 | +0.7 | |
+| seasonal_breakout_eth | -39.9 | -23.4 | |
+| atr_breakout_control_eth | -51.7 | -19.0 | |
+
+**Robustness.**
+- The seasonal RTH breakout's excess by year is +6.0, +4.1, +53.6 and +40.7.
+- 70% of its exits are the falling-volatility signal and 4% the target.
+- Its top 10 days are 69% of its net.
+- Paired net against its control: +23.2 (t 1.32). White Reality Check over the 9 templates: p 0.196.
+
+### Pre-registered confirmation on NQ 2010-06..2019-06 (rounds 6-7, frozen at the 2025-fold parameters)
+
+- **Round 6, `seasonal_breakout_rth`: NOT CONFIRMED.**
+  - Excess +2.2 (t 1.21; trimmed t 1.65); all 4 sub-periods positive.
+  - -11.8 net ticks/day.
+- **Round 7, `atr_breakout_control_rth`:** excess -0.4, -27.6 net.
+- **The pre-registered paired net difference passes: +15.9 ticks/day, t 6.24, in all ten years.** On excess the difference
+  is only +2.6 (t 1.1). The time conditioning mainly saves costs, trading 2.3 instead of 5.2 times a day. It does not
+  improve direction.
+
+### Review (the `reviews` table of round 5)
+
+**No look-ahead.** A truncation test of 1,095 checks was identical before the cut for every new series, entry, plan and exit.
+
+**Four defects, all in the descriptive tables, all fixed. None of the four entered rounds 5-7.**
+- Unscheduled FOMC statements were counted as scheduled.
+- Release coverage was tracked globally rather than per group.
+- Month-end and holiday flags were read from the next data row.
+- The ETH/RTH efficiency ratio was not matched for session length.
+
+**Verdict.** 600 net ticks a day on one contract remains out of reach: the best out-of-sample template reaches 3.8% of it.
+
 **Next:**
 - add order-flow and book information;
 - size and stack uncorrelated books;
