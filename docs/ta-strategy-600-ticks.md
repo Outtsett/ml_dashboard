@@ -170,6 +170,81 @@ By the pre-registered rule, **the rule-based 40%-at-2:1 line is closed**. No con
 - **Sizing and instruments:** 600 ticks/day on one contract is not a rule-search target. At a real +10 to +20 ticks/day it needs 30-60 contracts, and that edge is itself unconfirmed out of sample.
 - **Different information:** order flow and depth (Quantower DomFlow capture), news and event timing, or cross-instrument signals, rather than more TA-Lib combinations of the same OHLC.
 
+## Multi-timeframe support/resistance and conditional strategies (Optuna-tuned, no model)
+
+### How the levels are calculated (`src/ml/ta_strategy/levels.py`)
+
+Every level is an event with the moment it became knowable (`known_from`) and the moment it stops applying (`valid_until`).
+
+| Family | Levels | Known from | Valid until |
+|---|---|---|---|
+| Prior session | High, low, close of the previous 15:00-14:00 CME session | The next session's first minute | The end of that session |
+| Prior RTH | High, low, close of 06:30-13:00 Pacific | 13:00 | The end of the next session |
+| Overnight | High and low before 06:30 | 06:30 | The session end |
+| Opening range | 06:30-06:45 and 06:30-07:00 high and low | 06:45 and 07:00 | The session end |
+| Prior week | High, low, close of Monday-Friday | The week's first session | The week's end |
+| Round numbers | 100s and 50s in **traded** prices, shifted by the session's roll adjustment | The session open | The session end |
+| Fractals | Williams fractals on 15m (k 3), 1h (k 3) and 4h (k 2, 15:00-anchored bars) | The close of bar i+k, the confirmation (never the extreme's own bar) | A close beyond it by 0.25 ATR, or an age cap |
+| VWAP | Session VWAP from the 15:00 open, ±1σ and ±2σ (volume-weighted) | Each minute | — |
+
+**Zones.** At every 15m bar the active levels within 6 ATR merge into zones by single linkage, with a gap of at most max(0.25 × ATR, 4 ticks). Support is the nearest zone below the close, resistance the nearest above. A zone's strength is the number of distinct families in it.
+
+**Anchoring.** The 4h, session and week bars are anchored at 15:00 (`data.aggregate_session_anchored`). Epoch-aligned 4h bars straddle the 13:00 RTH close, the 14:00 break and the 15:00 open.
+
+**Tests.** Truncation tests hold every level to causality: all 60,336 events known before a cut are identical when built from data up to the cut.
+
+**Evidence** (Osler 2000/2003, Kavajecz & Odders-White 2004, Garzarelli et al. 2014, Chung & Bellotti 2021): published levels raise bounce probability by about 4-6 points in FX. That edge fades within days.
+
+**Measured on MNQ, 2019-06..2025, first tests.** The hold rate is the share of first tests where price moves 1 ATR away before 1 ATR through. Two nulls:
+- **Null A:** the same level at the same ATR distance in a random other session.
+- **Null B:** the whole pipeline rebuilt on sessions whose minutes were shuffled. This measures the mechanical bounce, since a swing level sits where price just turned.
+
+| Family | Lift over null A | Same, on shuffled sessions | **Edge net of mechanics** |
+|---|---|---|---|
+| fractal_15m | +0.091 | +0.196 | **−0.105** |
+| fractal_1h | −0.026 | +0.032 | **−0.058** |
+| fractal_4h | −0.052 | +0.006 | **−0.057** |
+| prior RTH | −0.025 | +0.005 | −0.030 |
+| prior week | −0.058 | −0.029 | −0.028 |
+| opening range | −0.027 | +0.001 | −0.028 |
+| overnight | −0.027 | 0.000 | −0.027 |
+| prior session | −0.028 | −0.002 | −0.026 |
+| round numbers | −0.006 | −0.005 | −0.001 |
+
+**Every family breaks more often than chance.** On MNQ, levels act as breakout points, not walls. The 15m fractals' apparent +9-point "hold" is less than half of what the definition produces on random paths.
+
+### Conditional strategies
+
+| Piece | What it is |
+|---|---|
+| `strategy.py` | Compiles JSON specs. Series: any TA-Lib function via the abstract API, SMA/EMA/WMA of a series (e.g. RSI's signal line), arithmetic, lags, levels, level events, VWAP, and multi-timeframe series from the last *completed* higher-timeframe bar. |
+| Conditions | `cross_above/below`, `above/below`, `rising/falling`, `within k bars`, `then`, `broke_above/below` (the level as it stood on the previous bar), `retest_above/below`, `near`, `session_window`, `pct_rank_below`, and `all/any/not`. |
+| `engine.py` | The exit engine on the 1-minute path. It is a superset of the bracket simulator, with identical output held by a parity test. Exits: stop (ATR, ticks, or beyond a level), target (R, next level with a room filter, or none), breakeven, chandelier trail, signal exits at the next open, a time stop, and the session-end flatten. |
+| `optimize.py` | Per template and per test year (2022-2025), Optuna TPE tunes up to 5 parameters on the **prior years only**. The objective is the per-day Sharpe of the excess over matched random entries: same session window, same count per hour, same long share, same exits. The top distinct trials are re-scored with fresh null seeds before the test year is touched. |
+| Templates | `src/config/ta_conditional_templates.json` (add strategies there). Rounds: `src/config/ta_conditional_rounds.json`. |
+| Lake | `derived_ta_conditional_strategies_600_ticks_{rounds,templates,folds,trials,daily,trades,level_quality,level_events,zones_15m,level_tests,reviews}` |
+
+**Conditional round 1** (`round_1_20260929T043148`), stitched out-of-sample 2022-2025, tuned only on prior years:
+
+| Template | Net ticks/day | Excess over matched random | PF | Target hit |
+|---|---|---|---|---|
+| Level breakout + momentum | +13.7 | +15.2 (t 1.68) | 1.12 | 0.25 |
+| Opening-range breakout | +11.0 | +12.0 (t 1.58) | 1.12 | 0.30 |
+| RSI-signal-line + MACD-histogram + VWAP (the example asked for) | −8.1 | — | 0.92 | 0.10 |
+| Breakout retest | −10.4 | — | — | — |
+| 1h-trend pullback | −3.5 | — | — | — |
+
+**Review** (the `reviews` table):
+- **Two defects in the significance columns**, neither of which changes net ticks or the chosen parameters.
+  - The matched null drew from every year. With it fixed, level-breakout's excess is +21.9, t 2.45.
+  - The deflated Sharpe used penalised trial values.
+- **2022 is 96%** of level-breakout's net.
+- **Level breaks hit the 2R target no more often** than momentum bars matched at random (29.1% vs 29.1%).
+- **The level stop was the nearest zone**, not the broken one.
+- **Tuning helps only weakly:** the in-sample to out-of-sample rank correlation is +0.17 on the two positive templates and about 0 overall.
+
+**Conditional round 2** applies those fixes. It adds a level-free momentum control and no-target runner exits, which are reported as not 2:1.
+
 **Earlier next step (model rounds): a pre-registered test of a different family:**
 - range-forecast-gated trading on predicted big-move sessions, or the 09:30 ET opening-range breakout;
 - run on NQ from 2010 for power;

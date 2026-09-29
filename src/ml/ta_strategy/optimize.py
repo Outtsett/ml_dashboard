@@ -325,7 +325,8 @@ def run(args: argparse.Namespace) -> dict:
                           f"{row['matched_null_net_ticks_per_session_day']:+.1f}), excess {row['excess_ticks_per_session_day']:+.1f} "
                           f"(t {row['excess_newey_west_t']:+.2f}, {row['folds_with_positive_excess']}/{row['fold_count']} years), "
                           f"target hit {row['target_hit_rate']:.3f}, PF {row['profit_factor']:.2f}, deflated "
-                          f"{row['deflated_sharpe_probability_of_excess']:.3f}")
+                          f"{row['deflated_sharpe_probability_over_templates']:.3f} over the round's templates; without 2022 excess "
+                          f"{row['excess_ticks_per_session_day_without_2022']:+.1f} (t {row['excess_newey_west_t_without_2022']:+.2f})")
 
     summary = pd.DataFrame(summary_rows)
     # White's Reality Check across the round's templates: could the best template's excess t arise from noise?
