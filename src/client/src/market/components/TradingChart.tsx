@@ -1,5 +1,5 @@
 ﻿import { useNotebookDrawings } from "./notebookDrawings";
-import { subscribeChartView } from "@/market/lib/useNotebookOverlays";
+import { subscribeChartScroll } from "@/market/lib/useNotebookOverlays";
 import { logWarn } from "@/infrastructure/lib/error_logger";
 import { useRef, useState, useMemo, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import type { LogicalRange, MouseEventParams, Time, UTCTimestamp } from 'lightweight-charts';
@@ -201,8 +201,8 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
   const drawingTimes = useMemo(() => processedData.candles.map((c) => c.time as number), [processedData.candles]);
   useNotebookDrawings(candleSeriesRef, drawingTimes, notebookDrawings);
 
-  // A view request through the chart link (POST /api/chart/view): the newest bar, or a time range.
-  useEffect(() => subscribeChartView((view) => {
+  // The page asks the chart to move (a view request through the chart link, after any reload).
+  useEffect(() => subscribeChartScroll((view) => {
     const chart = chartRef.current;
     if (!chart) return;
     try {

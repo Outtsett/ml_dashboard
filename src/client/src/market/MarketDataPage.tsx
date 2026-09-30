@@ -1,6 +1,6 @@
 ﻿
 import { useChartContextPublisher } from "@/market/lib/useChartContextPublisher";
-import { useNotebookOverlays } from "@/market/lib/useNotebookOverlays";
+import { requestChartScroll, subscribeChartView, useNotebookOverlays } from "@/market/lib/useNotebookOverlays";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia, EmptyContent } from "@/shared/ui/empty";
 import { Button } from "@/shared/ui/button";
 import { TrendingUp, DollarSign, BarChart3, Clock, LineChart, RefreshCw } from "lucide-react";
@@ -127,6 +127,16 @@ export default function MarketData() {
       setIsReloadingBars(false);
     }
   }, [reloadChart]);
+
+  // A view request through the chart link (POST /api/chart/view). "latest" reloads the newest
+  // window first — the chart may be anchored on an older one — then scrolls to its last bar.
+  useEffect(() => subscribeChartView((view) => {
+    if ("target" in view) {
+      void handleReloadBars().then(() => setTimeout(() => requestChartScroll(view), 250));
+    } else {
+      requestChartScroll(view);
+    }
+  }), [handleReloadBars]);
 
   // Asset type switch: cancel in-flight queries, auto-select first symbol of new type
   const setAssetType = useCallback((t: "futures" | "forex") => {

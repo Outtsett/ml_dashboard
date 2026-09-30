@@ -121,13 +121,27 @@ let sharedSets: OverlaySet[] = [];
 const readers = new Set<() => void>();
 let sharedSource: EventSource | null = null;
 const viewHandlers = new Set<(view: ChartView) => void>();
+const scrollHandlers = new Set<(view: ChartView) => void>();
 
-/** A chart registers to receive view requests (POST /api/chart/view): the newest bar, or a range. */
+/** The page that owns the bars registers for view requests (POST /api/chart/view): "latest" means
+ *  load the newest window (the chart may be anchored on an older one), then scroll; a range scrolls. */
 export function subscribeChartView(handler: (view: ChartView) => void): () => void {
   viewHandlers.add(handler);
   return () => {
     viewHandlers.delete(handler);
   };
+}
+
+/** The chart registers to move its time scale when the page asks (after any reload). */
+export function subscribeChartScroll(handler: (view: ChartView) => void): () => void {
+  scrollHandlers.add(handler);
+  return () => {
+    scrollHandlers.delete(handler);
+  };
+}
+
+export function requestChartScroll(view: ChartView): void {
+  for (const handler of scrollHandlers) handler(view);
 }
 
 function subscribe(onChange: () => void): () => void {
