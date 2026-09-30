@@ -2,20 +2,15 @@ import { useLocation } from "wouter";
 import * as Toolbar from "@radix-ui/react-toolbar";
 
 import { useWebSocketMetrics } from "@/hooks/useWebSocketMetrics";
-import { Activity, Bot, Cpu, PanelRight, Server, PlayCircle } from "lucide-react";
+import { Activity, Bot, Cpu, Server, PlayCircle } from "lucide-react";
 import { useClaudePanel } from "@/claude/panelStore";
 import * as Progress from "@radix-ui/react-progress";
-import { trendTone, trendToneClass, trendGlyph, trendLabel } from "@/shared/theme/dataColors";
 import { useSymbolContext } from "@/shared/contexts/SymbolContext";
 import { minutesToLabel } from "@/market/lib/timeframes";
 import { WindowControls } from "@/system/components/WindowControls";
+import { MarketTicker } from "./MarketTicker";
 
-export interface TopBarProps {
-  sidePanelOpen: boolean;
-  onToggleSidePanel: () => void;
-}
-
-export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
+export function TopBar() {
   const [, navigate] = useLocation();
   const { metrics, isConnected } = useWebSocketMetrics();
   // The dashboard-wide selection. The timeframe here was the literal "1m" and
@@ -36,32 +31,10 @@ export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
         <span className="font-bold text-white tracking-wider">Quant AI Dashboard</span>
         <span className="text-yellow-500 font-mono" title="Symbol">{symbol}</span>
         <span className="text-neutral-200" title="Timeframe">{minutesToLabel(timeframeMinutes)}</span>
-        <span className="text-neutral-400" title="Date range">{metrics.span || "Last 756 Days"}</span>
       </div>
 
-      <div className="flex-1 min-w-0 overflow-hidden px-4 flex items-center h-full border-r border-neutral-700" title="Live training metrics">
-        <div className="flex gap-4 items-center h-full whitespace-nowrap">
-          <div className="flex items-center gap-2">
-            <span className="text-neutral-400">Reward</span>
-            <span className={trendToneClass(trendTone(metrics.reward))}>
-              <span aria-hidden="true">{trendGlyph(trendTone(metrics.reward))} </span>
-              {metrics.reward >= 0 ? "+" : ""}{metrics.reward.toFixed(4)}
-              <span className="sr-only"> {trendLabel(trendTone(metrics.reward))}</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-neutral-400">Loss</span>
-            <span className="text-neutral-200">{metrics.loss.toFixed(4)}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-neutral-400">KL</span>
-            <span className="text-neutral-200">{metrics.kl.toFixed(4)}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-neutral-400">Entropy</span>
-            <span className="text-neutral-200">{metrics.entropy.toFixed(4)}</span>
-          </div>
-        </div>
+      <div className="no-drag flex-1 min-w-0 h-full border-r border-neutral-700">
+        <MarketTicker />
       </div>
 
       <div className="flex items-center gap-3 px-3 whitespace-nowrap text-xs shrink-0">
@@ -125,24 +98,6 @@ export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
           <span className="font-bold">Claude</span>
         </button>
 
-        {/* Live metrics and the leaderboard used to hold 320px of the window
-            open permanently. They are a drawer now, and this opens it. */}
-        <button
-          type="button"
-          onClick={onToggleSidePanel}
-          aria-expanded={sidePanelOpen}
-          aria-controls="side-panel"
-          title="Live metrics and leaderboard (Ctrl+J)"
-          data-testid="toggle-side-panel"
-          className={`flex items-center gap-1.5 rounded border px-2 py-1 transition-colors ${
-            sidePanelOpen
-              ? "border-neutral-600 bg-neutral-800 text-neutral-100"
-              : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
-          }`}
-        >
-          <PanelRight className="h-4 w-4" />
-          <span className="sr-only">Metrics</span>
-        </button>
       </div>
 
       <WindowControls className="border-l border-neutral-800" />

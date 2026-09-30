@@ -16,7 +16,8 @@ const SOURCE_LABEL: Record<string, string> = {
   quantower: "Quantower",
 };
 
-function digits(quote: LiveQuote): number {
+/** Decimal places a quote is printed with, by asset class and price level. */
+export function quoteDigits(quote: LiveQuote): number {
   const price = quote.mid ?? quote.last ?? 0;
   if (quote.assetClass === "forex") return price > 20 ? 3 : 5;
   return price > 1000 ? 2 : price > 10 ? 3 : 4;
@@ -36,7 +37,7 @@ export function HubQuoteStrip({
   className?: string;
   tail?: { shown: number; waiting: number; onShow: () => void; gap?: { lastChartBar: number; firstLiveBar: number } | null };
 }) {
-  const places = digits(quote);
+  const places = quoteDigits(quote);
   const price = quote.mid ?? quote.last;
   const delayed = quote.delaySeconds > 30;
   const source = SOURCE_LABEL[quote.source] ?? quote.source;
