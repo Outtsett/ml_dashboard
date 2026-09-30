@@ -610,3 +610,112 @@ confirmation the user named, captures none of it after costs.
 - range-forecast-gated trading on predicted big-move sessions, or the 09:30 ET opening-range breakout;
 - run on NQ from 2010 for power;
 - with contract sizing only after an edge clears the joint-bootstrap line.
+
+## Trading AT the multi-timeframe zones (rounds 12-13)
+
+The user asked how the multi-timeframe support/resistance zones can be used for profit. Rounds 3-11 traded THROUGH
+levels (breakouts, cascades) and lost; this round trades AT them: a touch that closes back away from the zone, a stop
+beyond the zone, a target at an R multiple or at the next opposing zone, optionally the level-bounce exit at that zone.
+Code: `src/ml/ta_strategy/zones.py` (the touch study), `zone_study.py` (the landing), templates `zone_*` in
+`src/config/ta_conditional_templates.json`, rounds 12-13 with their falsifiers in `src/config/ta_conditional_rounds.json`;
+notebook section 14. Every number below is out of sample or measured against a matched null on real MNQ / NQ minutes.
+
+### The zone-touch study (`zone_touches`, `zone_summary`, `zone_leak_check`; recipes `zones_20260930b_{MNQ,NQ}`)
+
+A zone is what `levels.zones_for_bars` builds at each 5m bar close (every level family plus the 5m/15m/30m swing levels,
+single-linked, strength = distinct families); the zones of bar b are used on the minutes of bar b + 1. A TOUCH is the first
+minute whose low enters the support zone from above (mirror at resistance), one per 0.25 ATR of near edge per side and
+session (the first run keyed touches by the exact edge and a drifting VWAP band re-counted the same zone every bar: 115 a day
+became 40 after the review). **Bounce** = 1 ATR away from the edge before a close through the far edge; **next zone reached** =
+the opposing zone's near edge first. Each is compared with the same test on a pseudo level at the same signed ATR distance,
+same time of day, in a random other session (10 permutations; the pseudo race starts where the pseudo level is first tested;
+pseudo gap-throughs excluded; same window after the test). Paired lifts get a session-block bootstrap (1,000 draws, p with the
+(k+1)/(B+1) floor) and Benjamini-Hochberg at q = 0.10 over the 32 conditioned cells (the cells are nested subsets of one
+population, so a survival count is not a count of independent effects). A deliberately leaky arm applies the touch bar's own
+zone to its own minutes and must bounce more.
+
+| | MNQ 2019-06..2026-01 | NQ 2010-06..2019-06 |
+|---|---|---|
+| First touches | 68,604 (40.3 a session day), 95% resolved, 0.5% gapped through | 82,184 (35.6 a day), 96%, 1.3% |
+| Bounce vs matched random | 0.550 vs 0.549, lift **+0.000 [-0.003, +0.003]** | 0.542 vs 0.541, lift +0.001 [-0.002, +0.004] |
+| Next zone reached vs matched pair | 0.484 vs 0.482 (+0.005) | 0.419 vs 0.403 (+0.017; every one of the 32 reach cells survives BH: one uniform shift) |
+| Bounce lift by strength 1 / 2 / 3+ | +0.004 / -0.003 / -0.009 [-0.018, +0.000] | +0.004 / +0.003 / -0.008 [-0.015, -0.001] |
+| Strength trend (Spearman, exact p) | rho -1.00, p 0.33 | rho -1.00, p 0.33 |
+| Cells surviving BH (bounce / reach) | 5 / 14 of 32 | 4 / 32 of 32 |
+| Break-even hit rate of the exact-edge bracket (median) | 0.332 (S about 10 ticks, T = next zone) | 0.637 (favourable median 5 ticks: the 4- and 8-tick floors bind on a 6-tick ATR) |
+| Oracle zone-to-zone ceiling, all touches / one position | 1,061 / **826** ticks a day on 23 touches (RTH 490 / 387 on 7.7) | 169 / 129 on 11.7 |
+| Leaky arm | 0.601 vs 0.550 honest | 0.608 vs 0.542 |
+
+Reading: the zones carry **no location information at the honest touch** (F1 falsified on MNQ, where the interval is
+[-0.003, +0.003] around zero), stronger zones bounce LESS (F4: the gradient is negative on both markets, and with three
+buckets the smallest exact p is 1/3), and the +0.02 next-zone lift on NQ is one pooled shift that appears in every subset.
+On MNQ the paper bracket at the exact edge (0.484 reached against a 0.332 break-even) would pay; nothing that fills at the
+next open after a close-back, with a stop 0.25 ATR beyond the far edge, gets that geometry, which is what round 12 measures.
+The one-position oracle (take a touch only when the previous one has resolved, exit at the best price before the break,
+skip every loser, pay every cost) is 826 ticks a day on MNQ: the zones offer 600 only to hindsight.
+
+### Round 12 (`round_12_20260930T153253`, MNQ 5m, tuned per fold on prior years, tested 2022-2025) and round 13 (`round_13_20260930T153253`)
+
+| Template | Trades/day | Net/day | Net/trade | Excess over matched random (t) | Hit | PF |
+|---|---|---|---|---|---|---|
+| zone_bounce (touch + close back, R target) | 11.5 | -86.7 | -7.5 | -2.4 (-0.23) | 0.37 | 0.80 |
+| zone_touch_unconfirmed (E0: the touch alone) | 14.4 | -121.2 | -8.4 | -18.4 (-1.68) | 0.35 | 0.76 |
+| zone_bounce_rth | 5.1 | -37.1 | -7.4 | +2.6 (+0.29) | 0.37 | 0.86 |
+| zone_to_zone (limit at the next zone, room filter) | 2.1 | -17.5 | -8.5 | +3.3 (+1.49) | 0.14 | 0.55 |
+| zone_to_zone_bounce_exit (trail armed at the next zone) | 2.1 | -16.0 | -7.7 | +6.1 (+2.57, 4/4 years) | 0.16 | 0.60 |
+| zone_bounce_rsi | 3.7 | -27.0 | -7.2 | -1.5 (-0.39) | 0.19 | 0.68 |
+| zone_bounce_calm (time-of-day volatility not rising) | 2.5 | -15.3 | -6.2 | +2.8 (+0.84) | 0.37 | 0.77 |
+| zone_bounce_higher_timeframe (1h/4h/session level in the zone) | 17.3 | -140.0 | -8.1 | -9.4 (-0.74) | 0.35 | 0.80 |
+| zone_break_control (through the same zone; sign check) | 8.3 | -73.0 | -8.8 | -33.6 (-2.51, 0/4) | 0.21 | 0.85 |
+| zone_bounce_swings_only (round 13: 5m/15m/30m swings only) | 4.0 | -36.3 | -9.2 | -10.6 (-2.49) | 0.23 | 0.62 |
+
+White Reality Check across the nine templates p 0.043 (round 13: 0.998). Every template nets between -6 and -9 ticks a trade
+(F3 fired: the 95% interval of net per trade is [-9.9, -6.1] for zone_to_zone and [-9.4, -5.1] for the bounce exit). The two
+zone-to-zone books beat their matched random-entry control by +3 and +6 ticks a DAY (t 1.5 and 2.6), and the numbers review
+showed why: the null draws one bar per real signal and the room filter rejects fewer of its draws (2025: 4,334 of 5,046 real
+signals rejected vs 4,123 null), so the null trades a third more often (2.76 and 2.82 a day vs 2.07) and loses the same
+per trade (the harness's 24-seed null: -7.54 vs -8.45 on zone_to_zone, -7.81 vs -7.73 on the bounce exit; excess per trade
+-0.91 and +0.08; the reviewer's 8-seed reproduction gave -0.40 and +0.35 with |t| < 0.35). The tuner
+found that: it chose min_room_r 2.0 and min_strength 4 in 7 of 8 folds because the daily-excess Sharpe rewards rejecting
+real signals. The Reality Check p detects the count difference, not profit; the harness now lands the null's trades a day and
+the excess per trade beside the daily excess (`matched_null_trades_per_session_day`, `excess_ticks_per_trade`), and F2 is
+read on them: no zone template beats a random entry with the same geometry per trade. The unconfirmed touch trades
+more and loses more than the close-back entry; the breakout control loses more than the bounce (sign check passed; the
+control's loss is mostly the round trip on an 8-trade day). The higher-timeframe filter is not a filter (17 trades a day: the
+zone map almost always holds a session level or a 1h/4h fractal). Against the swings-only control the full map's zone_bounce
+loses more per day (-86.7 vs -36.3, at three times the trade rate) and less against its own control (-2.4 vs -10.6): the extra
+families add trades, not edge. Exit mix on `zone_to_zone_bounce_exit`: 283 level-bounce exits at +78.5, 981 stops at -35.6,
+758 trailing stops at -6.3, 3 limit fills; the next zone is reached on 14% of trades and the geometry needs about 32%.
+
+**Falsifiers, as pre-registered:** F1 (no location edge) fired on MNQ; F2 (geometry only) fired: per trade no template
+beats its matched control, and the net lower bound is below zero on every template; F3 fired; F4 fired (negative gradient);
+F6 not testable (no limit-fill arm was run; the study's exact-edge bracket is the ceiling); F7 fired for zone_to_zone (2025
+carries 51% of its daily excess; per trade its excess is positive only in 2025) and net per trade is below zero in every year
+for every template (best year -5.9); F8: 2.1 trades a day x any upper bound cannot reach 600; F9: the one-position oracle is
+826 a day, so the zones do hold 600 for a perfect exit and every causal rule captures none of it; F10: every net is below
+zero. F5 (NQ confirmation) was not run: nothing passed F2/F3 on MNQ, so there is no frozen configuration to confirm.
+
+**Review** (two lens finders and 34 skeptics on the code, then a numbers review; the `reviews` table of round 12). Confirmed
+and fixed before the rerun (then the numbers review found the per-day excess above to be the null's trade count, and the
+per-trade columns were added and the round rerun): the far-edge signal exit could never fire (a zone is chosen around its own bar's close, so "close
+through it" was unsatisfiable) and now reads the previous bar's zone; the breakout control's lagged signal exit fired on ~77%
+of bars and was removed; touches were re-keyed by drifting VWAP bands (115 -> 40 a day); the oracle summed overlapping windows
+(2,797 -> 1,061, and 826 with one position); the null kept pseudo gap-throughs and had a shorter window; bootstrap p could be
+exactly zero; the strength trend p came from a t-distribution on three points (0.00 -> 0.33). Refuted or noted: the break-even
+uses the exact-edge geometry the engine never trades (a lower bound on the tradable break-even; the verdict only strengthens);
+NQ's 4- and 8-tick floors bind on its 6-tick ATR, so NQ zones are coarser in ATR units and an NQ confirmation would not be the
+same strategy; the study's touch population is not the templates' entry population (only F2's matched control speaks to the
+templates). Also found: the per-family level study inside `optimize.py` reported swing levels "held 0.95" because their test
+window ended at the break that defines them; fixed for later rounds (`cascade.level_events` now tests to the age cap); the
+round-12 `levels` rows still carry the old value.
+
+**Verdict.** The multi-timeframe zones are places, not predictions: price bounces from a zone exactly as often as from a
+random level at the same distance, stronger zones bounce slightly less, every way of trading at them loses 6-9 ticks a trade
+after the 5.56-tick round trip, and per trade none of them beats a random entry with the same stop and target (the per-day
+"excess" was the null trading more often). 600 a day is available to a one-position perfect-exit oracle (826) and to nothing
+causal.
+
+**Next:** the unspent information is inside the bar: a limit order resting at the zone edge (the exact-edge bracket pays on
+paper, 0.484 reached against a 0.332 break-even) with a queue model on the lake's 1-second and tick data is the one test this
+line has not run.
+

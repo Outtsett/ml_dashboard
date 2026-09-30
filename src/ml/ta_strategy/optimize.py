@@ -145,17 +145,23 @@ def run(args: argparse.Namespace) -> dict:
         exits = exits or strategy.exit_arrays(ctx, spec)
         real = strategy.run(ctx, spec, index, sides, slippage, cost_ticks, exits)
         real_daily = strategy.daily(real, days)
-        nulls = []
+        nulls, null_counts = [], []
         for k in range(seeds):
             ni, ns = strategy.matched_null_entries(ctx, spec, index, sides, seed_base + k, day_mask_bars)
-            nulls.append(strategy.daily(strategy.run(ctx, spec, ni, ns, slippage, cost_ticks, exits), days))
+            null_run = strategy.run(ctx, spec, ni, ns, slippage, cost_ticks, exits)
+            nulls.append(strategy.daily(null_run, days))
+            null_counts.append(null_run["net"].size)
         null_daily = np.mean(nulls, axis=0) if nulls else np.zeros(days.size)
+        # the null draws one bar per real SIGNAL and its rejections (room filter, risk floor) differ from the
+        # real ones, so it can trade more or fewer times a day: per-trade excess is reported beside per-day
+        null_trades = float(np.mean(null_counts)) if null_counts else 0.0
         excess = real_daily - null_daily
         sharpe = float(excess.mean() / excess.std(ddof=1)) if excess.std(ddof=1) > 0 else 0.0
         n = real["net"].size
         session_end = float((real["reason"] == engine.EXIT_SESSION_END).mean()) if n else 1.0
         return {"real": real, "real_daily": real_daily, "null_daily": null_daily, "excess": excess, "sharpe": sharpe,
                 "trades": n, "trades_per_day": n / max(days.size, 1), "session_end_share": session_end,
+                "null_trades": null_trades,
                 "index": index, "sides": sides}
 
     trial_rows, fold_rows, stitched = [], [], {}
@@ -294,6 +300,9 @@ def run(args: argparse.Namespace) -> dict:
                 side_means.append((k, r["net"].sum()))
         side_totals = pd.DataFrame(side_means, columns=["replicate", "net"]).groupby("replicate")["net"].sum().to_numpy()
         real_total = trades["net"].sum()
+        null_trades = float(sum(test["null_trades"] for test in s["tests"]))
+        real_per_trade = float(real_total / len(trades)) if len(trades) else math.nan
+        null_per_trade = float(null_daily.sum() / null_trades) if null_trades > 0 else math.nan
         wins, losses = trades["net"][trades["net"] > 0].sum(), -trades["net"][trades["net"] <= 0].sum()
         benchmark = m.expected_maximum_sharpe(trial_variance, total_trials)
         # the stitched series was chosen in-sample; out of sample the only choice is which template to report,
@@ -311,6 +320,10 @@ def run(args: argparse.Namespace) -> dict:
                "matched_null_net_ticks_per_session_day": float(null_daily.mean()),
                "excess_ticks_per_session_day": float(excess.mean()),
                "excess_newey_west_t": m.newey_west_mean_t(excess, 5),
+               "matched_null_trades_per_session_day": null_trades / days.size,
+               "net_ticks_per_trade": real_per_trade,
+               "matched_null_net_ticks_per_trade": null_per_trade,
+               "excess_ticks_per_trade": real_per_trade - null_per_trade if null_trades > 0 and len(trades) else math.nan,
                "folds_with_positive_excess": int(sum(float((rd - nd).mean()) > 0 for rd, nd in zip(s["real_daily"], s["null_daily"]))),
                "fold_count": len(s["real_daily"]),
                "random_side_null_net_ticks_per_session_day": float(side_totals.mean() / days.size) if side_totals.size else math.nan,
@@ -348,6 +361,9 @@ def run(args: argparse.Namespace) -> dict:
                           f"target hit {row['target_hit_rate']:.3f}, PF {row['profit_factor']:.2f}, deflated "
                           f"{row['deflated_sharpe_probability_over_templates']:.3f} over the round's templates; without 2022 excess "
                           f"{row['excess_ticks_per_session_day_without_2022']:+.1f} (t {row['excess_newey_west_t_without_2022']:+.2f})")
+        protocol.emit_log(f"[out-of-sample per trade] {name}: {row['trades_per_session_day']:.2f} trades/day at {row['net_ticks_per_trade']:+.2f} ticks "
+                          f"vs the matched null's {row['matched_null_trades_per_session_day']:.2f} a day at {row['matched_null_net_ticks_per_trade']:+.2f}: "
+                          f"excess per trade {row['excess_ticks_per_trade']:+.2f}")
 
     summary = pd.DataFrame(summary_rows)
     # White's Reality Check across the round's templates: could the best template's excess t arise from noise?

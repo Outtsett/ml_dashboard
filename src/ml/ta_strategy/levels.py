@@ -246,9 +246,9 @@ ZONE_COLUMNS = ["support_price", "support_low", "support_high", "support_strengt
 
 def zones_for_bars(bar_end: np.ndarray, bar_close: np.ndarray, bar_atr: np.ndarray, bar_last_minute: np.ndarray,
                    events: pd.DataFrame, vwap: dict[str, np.ndarray] | None, tick: float,
-                   width_atr: float = 0.25) -> pd.DataFrame:
+                   width_atr: float = 0.25, reach_atr: float = 6.0) -> pd.DataFrame:
     """For each bar (evaluated at its close ``bar_end``): merge every active level within
-    6 x ATR of the close into zones (single linkage, gap <= max(width_atr x ATR, 4 ticks)),
+    ``reach_atr`` x ATR of the close into zones (single linkage, gap <= max(width_atr x ATR, 4 ticks)),
     then report the nearest zone below the close (support) and above (resistance).
     Strength = distinct source-family groups in the zone."""
     known = events["known_from"].to_numpy(np.int64)
@@ -274,7 +274,7 @@ def zones_for_bars(bar_end: np.ndarray, bar_close: np.ndarray, bar_atr: np.ndarr
             continue
         idx = np.fromiter(active, dtype=np.int64, count=len(active))
         prices = price[idx]
-        near = np.abs(prices - close) <= 6 * atr
+        near = np.abs(prices - close) <= reach_atr * atr
         prices, groups = prices[near], group[idx[near]]
         if vwap_keys:
             m = bar_last_minute[t]

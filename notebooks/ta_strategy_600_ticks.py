@@ -1482,5 +1482,233 @@ def _(CONDITIONAL, OKABE, alt, frame, mo, pl, view_exists, zone_day, zone_symbol
     return
 
 
+@app.cell
+def _(mo):
+    zone_how_day = mo.ui.text(value="2025-12-29", label="Session day (the CME session that ENDS on this date, 15:00 -> 14:00 Pacific)")
+    zone_how_symbol = mo.ui.dropdown(["MNQ", "NQ", "ES", "MES"], value="MNQ", label="Market")
+    zone_how_timeframe = mo.ui.radio(["5m", "15m", "30m"], value="5m", label="Bar", inline=True)
+    zone_how_width = mo.ui.slider(0.05, 0.6, value=0.25, step=0.05, label="Merge gap w (x ATR)", show_value=True)
+    zone_how_reach = mo.ui.slider(1.0, 8.0, value=6.0, step=0.5, label="Reach r (x ATR from the close)", show_value=True)
+    zone_how_families = mo.ui.multiselect(["session", "overnight", "opening_range", "week", "round", "fractal_15m", "fractal_1h", "fractal_4h",
+                                           "swing_5m", "swing_15m", "swing_30m", "vwap"],
+                                          value=["session", "overnight", "opening_range", "week", "round", "fractal_15m", "fractal_1h", "fractal_4h",
+                                                 "swing_5m", "swing_15m", "swing_30m", "vwap"], label="Level families in the map")
+    mo.vstack([mo.md(
+        "## 15 · How a zone is built, on the candles\n\n"
+        "Every level is an EVENT (price, family, the minute it became knowable, the minute it stops being valid): the previous "
+        "session's / RTH's / week's high, low and close, the overnight range, the 15- and 30-minute opening ranges, round numbers, "
+        "Williams fractals on 15m / 1h / 4h bars (known k bars after the extreme), the 5m / 15m / 30m swing levels, and the session "
+        "VWAP with its +/-1 and +/-2 sigma bands (recomputed every minute). **At the close of every bar** the levels that are known, "
+        "still valid and within r x ATR of the close are sorted by price and **single-linked into zones**: a gap larger than "
+        "max(w x ATR, 4 ticks) starts a new zone. A zone's **strength** is the number of distinct level families in it. The zone "
+        "whose centre is nearest below the close is **support**, the nearest above is **resistance**; they apply to the NEXT bar. "
+        "`levels.zones_for_bars` (`src/ml/ta_strategy/levels.py`) does exactly this; the cells below rebuild it for one session "
+        "from the lake's minutes and let you move every dial."),
+        mo.hstack([zone_how_symbol, zone_how_day, zone_how_timeframe]), mo.hstack([zone_how_width, zone_how_reach]), zone_how_families])
+    return zone_how_day, zone_how_families, zone_how_reach, zone_how_symbol, zone_how_timeframe, zone_how_width
+
+
+@app.cell
+def _(con, mo, np, pl, zone_how_day, zone_how_families, zone_how_reach, zone_how_symbol, zone_how_timeframe, zone_how_width):
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    _root = _Path(__file__).resolve().parents[1] if "__file__" in globals() else _Path.cwd()
+    for _p in (str(_root / "src" / "ml"), str(_root / "src")):
+        if _p not in _sys.path:
+            _sys.path.insert(0, _p)
+    import pandas as _pd
+    import talib as _talib
+
+    from ta_strategy import cascade as _cascade
+    from ta_strategy import levels as _levels
+    from ta_strategy.data import aggregate as _aggregate
+    from ta_strategy.data import load_minutes_rebuilt as _load
+    from ta_strategy.data import session_dates as _session_dates
+
+    _day = _pd.Timestamp(zone_how_day.value)
+    _tick = 0.25
+    con.execute("SET TimeZone='UTC'")
+    zone_how_minutes = _load(con, zone_how_symbol.value, (_day - _pd.Timedelta(days=16)).strftime("%Y-%m-%d"), (_day + _pd.Timedelta(days=1)).strftime("%Y-%m-%d"))
+    _frame = zone_how_minutes.frame
+    _ctx = _levels.minute_context(_frame)
+    _vwap = _levels.session_vwap(_ctx)
+    _events = _pd.concat([_levels.all_level_events(_frame, _ctx), _cascade.level_events(_frame)], ignore_index=True).sort_values("known_from", kind="stable").reset_index(drop=True)
+    _events = _events[_events["family_group"].isin(zone_how_families.value)]
+    _width = {"5m": 5, "15m": 15, "30m": 30}[zone_how_timeframe.value]
+    _bars, _ = _aggregate(_frame, _width)
+    _b = {k: _bars[k].to_numpy(np.float64) for k in ("open", "high", "low", "close", "volume")}
+    _bar_end = _bars["timestamp"].to_numpy(np.int64) + _width * 60
+    _atr = _talib.ATR(_b["high"], _b["low"], _b["close"], 14)
+    _zones = _levels.zones_for_bars(_bar_end, _b["close"], _atr, _bars["last_minute_index"].to_numpy(np.int64), _events,
+                                    _vwap if "vwap" in zone_how_families.value else None, _tick, zone_how_width.value, zone_how_reach.value)
+    _bar_days = _session_dates(_bars["timestamp"].to_numpy(np.int64))
+    _target = np.datetime64(_day.strftime("%Y-%m-%d"))
+    _in_day = _bar_days == _target
+    if not _in_day.any():
+        _have = sorted({str(d)[:10] for d in np.unique(_bar_days)})
+        mo.stop(True, mo.md(f"No session ends on {zone_how_day.value} in the lake. Sessions nearby: {', '.join(_have[-6:])}."))
+    _idx = np.flatnonzero(_in_day)
+    zone_how_bars = pl.DataFrame({"bar": np.arange(_idx.size), "timestamp": _pd.to_datetime(_bars["timestamp"].to_numpy(np.int64)[_idx], unit="s"),
+                                  "bar_end": _bar_end[_idx], "open": _b["open"][_idx], "high": _b["high"][_idx], "low": _b["low"][_idx],
+                                  "close": _b["close"][_idx], "volume": _b["volume"][_idx], "atr": _atr[_idx],
+                                  "last_minute_index": _bars["last_minute_index"].to_numpy(np.int64)[_idx]})
+    zone_how_zones = pl.from_pandas(_zones.iloc[_idx].reset_index(drop=True)).with_columns(pl.Series("bar", np.arange(_idx.size)))
+    zone_how_events = _events
+    zone_how_vwap = _vwap
+    zone_how_tick = _tick
+    zone_how_bar = mo.ui.slider(0, int(_idx.size - 1), value=min(int(_idx.size - 1), 90), step=1, label="Bar of the session (step it)", show_value=True)
+    mo.vstack([mo.md(f"{zone_how_symbol.value} session ending {zone_how_day.value}: {_idx.size} {zone_how_timeframe.value} bars, {len(_events):,} level events known in the loaded window "
+                     f"({len(zone_how_minutes.frame):,} minutes, {len(zone_how_minutes.rolls)} rolls back-adjusted)."), zone_how_bar])
+    return zone_how_bar, zone_how_bars, zone_how_events, zone_how_minutes, zone_how_tick, zone_how_vwap, zone_how_zones
+
+
+@app.cell
+def _(OKABE, alt, mo, np, pl, zone_how_bar, zone_how_bars, zone_how_events, zone_how_families, zone_how_reach, zone_how_tick, zone_how_timeframe, zone_how_vwap, zone_how_width, zone_how_zones):
+    import pandas as _pd
+
+    _i = zone_how_bar.value
+    _row = zone_how_bars.row(_i, named=True)
+    _close, _atr, _end = float(_row["close"]), float(_row["atr"]), int(_row["bar_end"])
+    _ev = zone_how_events
+    _active = _ev[(_ev["known_from"] <= _end) & (_ev["valid_until"] > _end)].copy()
+    _active["distance_atr"] = (_active["price"] - _close) / _atr if np.isfinite(_atr) and _atr > 0 else np.nan
+    _members = _active[np.abs(_active["distance_atr"]) <= zone_how_reach.value][["price", "source", "family", "family_group", "distance_atr"]].copy()
+    if "vwap" in zone_how_families.value:
+        _m = int(_row["last_minute_index"])
+        _vw = _pd.DataFrame({"price": [zone_how_vwap[k][_m] for k in zone_how_vwap], "source": list(zone_how_vwap), "family": "session_vwap", "family_group": "vwap"})
+        _vw["distance_atr"] = (_vw["price"] - _close) / _atr
+        _members = _pd.concat([_members, _vw[np.abs(_vw["distance_atr"]) <= zone_how_reach.value]], ignore_index=True)
+    _members = _members.sort_values("price").reset_index(drop=True)
+    _gap = max(zone_how_width.value * _atr, 4 * zone_how_tick) if np.isfinite(_atr) else np.nan
+    _members["gap_to_previous"] = _members["price"].diff()
+    _members["starts_new_zone"] = _members["gap_to_previous"].isna() | (_members["gap_to_previous"] > _gap)
+    _members["zone"] = _members["starts_new_zone"].cumsum()
+    _z = _members.groupby("zone").agg(low=("price", "min"), high=("price", "max"), centre=("price", "mean"), levels=("price", "size"),
+                                      families=("family_group", lambda g: "+".join(sorted(set(g)))), strength=("family_group", "nunique")).reset_index()
+    _z["side"] = np.where(_z["centre"] <= _close, "below the close", "above the close")
+    _below = _z[_z["centre"] <= _close]
+    _above = _z[_z["centre"] > _close]
+    _z["role"] = ""
+    if len(_below):
+        _z.loc[_below.index[-1], "role"] = "SUPPORT (nearest below)"
+    if len(_above):
+        _z.loc[_above.index[0], "role"] = "RESISTANCE (nearest above)"
+    _z["width_ticks"] = (_z["high"] - _z["low"]) / zone_how_tick
+    _z["distance_from_close_ticks"] = (_z["centre"] - _close) / zone_how_tick
+    _formula = (r"$$\text{gap}_{\text{max}} = \max(w \cdot \text{ATR},\ 4\ \text{ticks}) = \max(" + f"{zone_how_width.value:.2f} \\times {_atr:.2f},\\ 1.00) = {_gap:.2f}" + r"\ \text{points}$$"
+                r"$$\text{new zone at level } i \iff p_i - p_{i-1} > \text{gap}_{\text{max}} \qquad"
+                r"\text{strength}(Z) = \left|\{\text{family}(\ell) : \ell \in Z\}\right| \qquad"
+                r"S = \arg\max_{Z:\ \bar p_Z \le c} \bar p_Z,\quad R = \arg\min_{Z:\ \bar p_Z > c} \bar p_Z$$")
+    _legend = (f"**w** merge gap in ATR = {zone_how_width.value:.2f} · **ATR** ATR(14) of the {zone_how_timeframe.value} bars at this bar = {_atr:.2f} points · "
+               f"**r** reach = {zone_how_reach.value:.1f} ATR = {zone_how_reach.value * _atr:.1f} points either side of the close · "
+               f"**c** this bar's close = {_close:.2f} · **pᵢ** the i-th level price (sorted) · **p̄_Z** a zone's centre (mean of its levels) · "
+               f"**S / R** the support / resistance zone handed to the next bar. Levels in reach: {len(_members)}; zones: {len(_z)}.")
+    _zone_chart = alt.Chart(_z).mark_rect(opacity=0.6).encode(
+        y=alt.Y("low:Q", scale=alt.Scale(zero=False), title="price (back-adjusted points)"), y2="high:Q", x=alt.value(0), x2=alt.value(220),
+        color=alt.Color("role:N", scale=alt.Scale(domain=["SUPPORT (nearest below)", "RESISTANCE (nearest above)", ""], range=[OKABE["blue"], OKABE["orange"], "#999999"]), legend=None),
+        tooltip=["zone", "families", "strength", "levels", alt.Tooltip("low:Q", format=".2f"), alt.Tooltip("high:Q", format=".2f"), alt.Tooltip("width_ticks:Q", format=".0f"), "role"])
+    _level_marks = alt.Chart(_members).mark_tick(thickness=2, size=200, orient="horizontal").encode(
+        y="price:Q", color=alt.Color("family_group:N", scale=alt.Scale(scheme="viridis"), title="family"),
+        tooltip=["source", "family_group", alt.Tooltip("price:Q", format=".2f"), alt.Tooltip("distance_atr:Q", format="+.2f"), alt.Tooltip("gap_to_previous:Q", format=".2f"), "starts_new_zone", "zone"])
+    _close_rule = alt.Chart(_pd.DataFrame({"y": [_close]})).mark_rule(color=OKABE["black"], strokeWidth=2).encode(y="y:Q")
+    _reach = alt.Chart(_pd.DataFrame({"y": [_close - zone_how_reach.value * _atr], "y2": [_close + zone_how_reach.value * _atr]})).mark_rect(opacity=0.08, color=OKABE["black"]).encode(y="y:Q", y2="y2:Q")
+    mo.vstack([mo.md(f"### Bar {_i} of the session ({_row['timestamp']}, close {_close:.2f}): the levels in reach, sorted, and where the gaps cut them into zones\n\n" + _formula + "\n\n" + _legend),
+               mo.hstack([(_reach + _zone_chart + _level_marks + _close_rule).resolve_scale(color="independent").properties(width=240, height=420, title="price ladder at this bar: ticks = levels, bands = zones, black = close"),
+                          mo.vstack([mo.md("**Levels in reach (sorted by price; a gap above the threshold starts a new zone)**"),
+                                     mo.ui.table(pl.from_pandas(_members.round(3)), selection=None),
+                                     mo.md("**Zones**"), mo.ui.table(pl.from_pandas(_z.round(3)), selection=None)])])])
+    return
+
+
+@app.cell
+def _(OKABE, alt, mo, pl, zone_how_bar, zone_how_bars, zone_how_events, zone_how_families, zone_how_symbol, zone_how_timeframe, zone_how_zones):
+    import pandas as _pd
+
+    _bars = zone_how_bars.with_columns(pl.when(pl.col("close") >= pl.col("open")).then(pl.lit("up")).otherwise(pl.lit("down")).alias("direction"))
+    _z = zone_how_zones.join(zone_how_bars.select("bar", "timestamp"), on="bar")
+    _width_ms = {"5m": 5, "15m": 15, "30m": 30}[zone_how_timeframe.value] * 60 * 1000
+    _zp = _z.to_pandas()
+    _zp["t_next"] = _zp["timestamp"] + _pd.Timedelta(milliseconds=_width_ms)          # the zone of bar b applies to bar b + 1
+    _zp["t_next_end"] = _zp["t_next"] + _pd.Timedelta(milliseconds=_width_ms)
+    _bp = _bars.to_pandas()
+    _bp["t_end"] = _bp["timestamp"] + _pd.Timedelta(milliseconds=_width_ms)
+    _t0, _t1 = _bp["timestamp"].min(), _bp["t_end"].max()
+    _lo, _hi = float(_bp["low"].min()), float(_bp["high"].max())
+    _pad = (_hi - _lo) * 0.15
+    _scale = alt.Scale(domain=[_lo - _pad, _hi + _pad], zero=False)
+    _x = alt.X("timestamp:T", title="Pacific wall clock")
+    _sup = alt.Chart(_zp).mark_rect(opacity=0.45, color=OKABE["blue"]).encode(x="t_next:T", x2="t_next_end:T", y=alt.Y("support_low:Q", scale=_scale), y2="support_high:Q",
+                                                                            tooltip=[alt.Tooltip("t_next:T", title="applies to bar"), alt.Tooltip("support_low:Q", format=".2f"), alt.Tooltip("support_high:Q", format=".2f"), "support_strength", "support_families"])
+    _res = alt.Chart(_zp).mark_rect(opacity=0.45, color=OKABE["orange"]).encode(x="t_next:T", x2="t_next_end:T", y=alt.Y("resistance_low:Q", scale=_scale), y2="resistance_high:Q",
+                                                                              tooltip=[alt.Tooltip("t_next:T", title="applies to bar"), alt.Tooltip("resistance_low:Q", format=".2f"), alt.Tooltip("resistance_high:Q", format=".2f"), "resistance_strength", "resistance_families"])
+    _ev = zone_how_events
+    _t0s, _t1s = int(_t0.timestamp()), int(_t1.timestamp())
+    _ev = _ev[(_ev["known_from"] <= _t1s) & (_ev["valid_until"] > _t0s) & (_ev["price"] > _lo - _pad) & (_ev["price"] < _hi + _pad)].copy()
+    _ev["from"] = _pd.to_datetime(np.maximum(_ev["known_from"].to_numpy(np.int64), _t0s), unit="s")
+    _ev["to"] = _pd.to_datetime(np.minimum(_ev["valid_until"].to_numpy(np.int64), _t1s), unit="s")
+    _lv = alt.Chart(_ev).mark_rule(strokeWidth=1.5, opacity=0.85).encode(x="from:T", x2="to:T", y=alt.Y("price:Q", scale=_scale),
+                                                                       color=alt.Color("family_group:N", scale=alt.Scale(scheme="viridis"), title="level family"), strokeDash="family_group:N",
+                                                                       tooltip=["source", "family_group", alt.Tooltip("price:Q", format=",.2f"), "from:T", "to:T"])
+    _wick = alt.Chart(_bp).mark_rule(strokeWidth=1).encode(x=_x, y=alt.Y("low:Q", scale=_scale, title="price (back-adjusted points)"), y2="high:Q",
+                                                          color=alt.Color("direction:N", scale=alt.Scale(domain=["up", "down"], range=[OKABE["orange"], OKABE["blue"]]), legend=None))
+    _body = alt.Chart(_bp).mark_bar(size=max(2, int(900 / max(len(_bp), 1)) - 1)).encode(x=_x, y="open:Q", y2="close:Q",
+                                                                                          color=alt.Color("direction:N", scale=alt.Scale(domain=["up", "down"], range=[OKABE["orange"], OKABE["blue"]]), legend=None),
+                                                                                          tooltip=["bar", "timestamp:T", alt.Tooltip("open:Q", format=".2f"), alt.Tooltip("high:Q", format=".2f"), alt.Tooltip("low:Q", format=".2f"), alt.Tooltip("close:Q", format=".2f"), alt.Tooltip("atr:Q", format=".2f")])
+    _sel = _bp.iloc[[zone_how_bar.value]]
+    _cursor = alt.Chart(_sel).mark_rule(color=OKABE["black"], strokeWidth=2, strokeDash=[4, 3]).encode(x="timestamp:T")
+    _chart = alt.layer(_sup, _res, _lv, _wick, _body, _cursor).resolve_scale(color="independent").properties(width=1000, height=520).interactive(bind_y=False)
+    mo.vstack([mo.md(f"### {zone_how_symbol.value} {zone_how_timeframe.value} candles with the zones each bar HANDS TO THE NEXT bar (blue band = support, orange band = resistance; "
+                     "band opacity is constant, hover for strength and families), every level event while it was known and valid (lines by family), "
+                     "and the bar picked above (dashed). Drag to pan, wheel to zoom in time."), _chart])
+    return
+
+
+@app.cell
+def _(mo):
+    zone_how_push = mo.ui.run_button(label="Show these zones on the Market chart (127.0.0.1:5000)")
+    mo.hstack([zone_how_push, mo.md("Draws the session's support / resistance bands (as four step lines) and the level events on the dashboard's candlestick chart, on the chart's own price scale (the chart shows raw contract prices; the offset to the back-adjusted series is measured on the session's bars and removed). Put the Market chart on the same symbol, 5m, and this day first.")])
+    return (zone_how_push,)
+
+
+@app.cell
+def _(mo, np, pl, zone_how_bars, zone_how_day, zone_how_events, zone_how_push, zone_how_symbol, zone_how_timeframe, zone_how_zones):
+    mo.stop(not zone_how_push.value, mo.md("Press the button to draw the zones on the Market chart."))
+    import pandas as _pd
+    from lake import dashboard as _dash
+
+    _context = _dash.fetch_chart_context()
+    if not _context or _context.get("symbol") != zone_how_symbol.value:
+        mo.stop(True, mo.md(f"The Market chart shows {_context.get('symbol') if _context else 'nothing'}; select {zone_how_symbol.value} there first."))
+    _z = zone_how_zones.join(zone_how_bars.select("bar", "timestamp", "close"), on="bar").to_pandas()
+    _width_ms = {"5m": 5, "15m": 15, "30m": 30}[zone_how_timeframe.value] * 60 * 1000
+    _bar_ms = (_z["timestamp"] - _pd.Timestamp(0)) // _pd.Timedelta(milliseconds=1)      # unit-safe epoch milliseconds
+    _z["t_next_ms"] = _bar_ms + _width_ms
+    # the chart draws raw contract prices; the notebook's series is back-adjusted, so measure the offset on the same bars
+    _offset = 0.0
+    try:
+        _chart = _dash.chart_bars({**_context, "visibleStartMs": int(_z["t_next_ms"].min()) - 3 * _width_ms, "visibleEndMs": int(_z["t_next_ms"].max()) + _width_ms})
+        _mine = _pd.DataFrame({"timestamp_milliseconds": _bar_ms, "close_adjusted": _z["close"]})
+        _joined = _chart.merge(_mine, on="timestamp_milliseconds", how="inner")
+        if len(_joined):
+            _offset = float(np.median(_joined["close"] - _joined["close_adjusted"]))
+    except Exception as _error:  # noqa: BLE001 - the chart may be on another timeframe; draw unadjusted and say so
+        _offset_note = f"(could not measure the roll offset: {str(_error)[:120]}; drawn unadjusted)"
+    else:
+        _offset_note = f"(roll offset removed: {_offset:+.2f} points)"
+    _overlays = []
+    for _name, _colour in (("support", "#0072B2"), ("resistance", "#E69F00")):
+        for _edge in ("low", "high"):
+            _overlays.append(_dash.line(f"{_name}_{_edge}", _z["t_next_ms"], _z[f"{_name}_{_edge}"] + _offset, label=f"{_name} zone {_edge}", color=_colour))
+    _t0s, _t1s = int(_z["t_next_ms"].min() // 1000), int(_z["t_next_ms"].max() // 1000)
+    _ev = zone_how_events[(zone_how_events["known_from"] <= _t1s) & (zone_how_events["valid_until"] > _t0s)]
+    _ev = _ev[_ev["family"] != "session_vwap"].sort_values("known_from").head(30)
+    for _k, _e in enumerate(_ev.itertuples()):
+        _overlays.append(_dash.level(f"level_{_k}", float(_e.price) + _offset, label=str(_e.source), color="#56B4E9", style="dotted"))
+    _status = _dash.push_overlays("zones_how", _context, _overlays)
+    mo.md(f"**{_status.message}** {_offset_note}. Source `zones_how` on the Market chart; the day drawn is the session ending {zone_how_day.value}.")
+    return
+
+
 if __name__ == "__main__":
     app.run()
