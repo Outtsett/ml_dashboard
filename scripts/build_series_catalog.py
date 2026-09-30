@@ -644,11 +644,24 @@ def main() -> int:
     )
     parser.add_argument("--sample-rows", type=int, default=50000)
     parser.add_argument("--output", type=Path, default=OUTPUT_PATH)
+    parser.add_argument(
+        "--only",
+        default=None,
+        help="Measure this one object and merge it into the existing catalog (the other objects keep their entries).",
+    )
     arguments = parser.parse_args()
 
     connection = connect()
     objects = [row[0] for row in connection.execute("SHOW TABLES").fetchall()]
     print(f"{len(objects)} objects in the serving connection", flush=True)
+    existing: dict[str, Any] | None = None
+    if arguments.only:
+        if arguments.only not in objects:
+            print(f"{arguments.only} is not an object of the serving connection")
+            return 1
+        objects = [arguments.only]
+        if arguments.output.exists():
+            existing = json.loads(arguments.output.read_text(encoding="utf-8"))
 
     catalog_objects = []
     started = time.time()
@@ -670,6 +683,9 @@ def main() -> int:
             flush=True,
         )
 
+    if existing is not None:
+        kept = [entry for entry in existing.get("objects", []) if entry["object"] != arguments.only]
+        catalog_objects = sorted(kept + catalog_objects, key=lambda entry: entry["object"])
     column_count = sum(len(entry["columns"]) for entry in catalog_objects)
     chartable_count = sum(
         1
