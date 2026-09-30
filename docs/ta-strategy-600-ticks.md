@@ -522,14 +522,14 @@ that excess (each drawn session weighted by its draw count; horizons kept inside
 
 | Stage, direction | MNQ, all hours | MNQ, regular hours | NQ 2010-2019, regular hours |
 |---|---|---|---|
-| 4 up (0.8-2.4 a day) | +6.5, excess +5.0 [-0.8, +10.0] | +15.0, excess +13.0 [-0.8, +27.4] | +2.1, excess +1.5 [-0.7, +3.6] |
-| 4 down | +2.8 (with the cascade), excess +4.4 [-2.2, +10.9] | +7.8, excess +9.7 [-4.8, +22.8] | +2.1, excess +2.7 |
-| 2 down | -4.4 (against it), excess -2.9 [-5.9, +0.5] | -2.4 | -0.5 |
+| 4 up (0.8-2.4 a day) | +6.5, excess +5.0 [-0.8, +10.0] | +15.0, excess +13.0 [-0.8, +27.4] | +1.8, excess +1.2 [-1.2, +3.6] |
+| 4 down | +2.8 (with the cascade), excess +4.4 [-2.2, +10.9] | +7.8, excess +9.7 [-4.8, +22.8] | +2.1, excess +2.7 [-0.9, +6.4] |
+| 2 down | -4.4 (against it), excess -2.9 [-5.9, +0.5] | -2.4 | -0.1 |
 | 1 and 3 | within +/- 3 of drift | within +/- 5 | within +/- 2 |
 
 The cascade fires often (3-11 stage-1 events a day, 0.7-2.5 stage-4 events). A full 4-stage cascade leans its own way by about
 4-5 ticks at 60 minutes in both directions, but no cell is distinguishable from zero, the largest MNQ regular-hours cell is 0.8
-events a day with an interval from -1 to +27, and on NQ 2010-2019 the same cell is +1.5. The test can only see effects of about
+events a day with an interval from -1 to +27, and on NQ 2010-2019 the same cell is +1.2 [-1.2, +3.6]. The test can only see effects of about
 10 ticks or more (the mean absolute 60-minute move is ~110 ticks), so the data cannot rule out an edge as large as the 6.56-tick
 round trip; it shows none.
 
@@ -548,8 +548,8 @@ follow-through in the cascade's direction (|rho| <= 0.02).
 **The delayed-oracle ceiling** (enter at each confirmed swing, exit at the NEXT swing's exact price with hindsight, counting
 only exits that print after the entry, skip losers, pay the round trip): MNQ 2019-2025 5,472 net ticks/day on the 1m ladder (110 trades/day),
 2,796 (5m), 2,009 (15m), 1,446 (30m), so 600 needs 11-42% of a perfect-exit oracle for swing-anchored trading. NQ 2010-2019 at
-2,000-7,000 points: roughly 600 (1m) down to 260 (30m). The corrected figures are in the `cascade_oracle` table of recipe
-`cascade_20260929d`.
+2,000-7,000 points: 721 (1m) down to 278 (30m), so there 600 needs 83-216% of the ceiling. The figures are the `cascade_oracle`
+table of recipe `cascade_20260929d`.
 
 ### Round 10 (`round_10_20260930T050100`, MNQ 5m bars, tuned per fold on prior years, tested 2022-2025, one contract)
 
