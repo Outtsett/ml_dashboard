@@ -35,7 +35,7 @@ def run(args: argparse.Namespace) -> dict:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
     recipe = f"{args.recipe or 'cascade_' + stamp}_{args.symbol}"
     cost = load_cost_model("MNQ" if args.symbol in ("NQ", "MNQ") else args.symbol)
-    cost_ticks = cost.round_trip / cost.tick_value + 1.0
+    cost_ticks = cost.round_trip / cost.tick_value        # the oracle has no stop: the round trip only
     connection = _serving()
     connection.execute("SET TimeZone='UTC'")
     minutes = load_minutes_rebuilt(connection, args.symbol, args.start, args.end)
@@ -65,8 +65,8 @@ def run(args: argparse.Namespace) -> dict:
                                                             for r in levels_table.itertuples()))
     moves = cascade.stage_forward_moves(frame, days, c, cost.tick_size)
     for r in moves[(moves.session_part == "all") & (moves.horizon_minutes == 60)].itertuples():
-        protocol.emit_log(f"[{args.symbol} stage {r.stage} {r.direction}] {r.events_per_session_day:.2f}/day, next 60 min "
-                          f"{r.mean_signed_move_ticks:+.1f} ticks [{r.bootstrap_low:+.1f}, {r.bootstrap_high:+.1f}], unconditional {r.unconditional_mean_signed_move_ticks:+.1f}")
+        protocol.emit_log(f"[{args.symbol} stage {r.stage} {r.direction}] {r.events_per_session_day:.2f}/day, next 60 min with the cascade "
+                          f"{r.mean_signed_move_ticks:+.1f} ticks, over drift {r.excess_over_drift_ticks:+.1f} [{r.excess_bootstrap_low:+.1f}, {r.excess_bootstrap_high:+.1f}]")
     tests, deciles, volume_summary = cascade.volume_at_levels(frame, days, lv, shuffles=int(args.shuffles))
     for r in volume_summary.itertuples():
         protocol.emit_log(f"[{args.symbol} volume] {r.measure}: Spearman with break {r.spearman_with_break:+.3f}, given the approach range "
@@ -74,7 +74,7 @@ def run(args: argparse.Namespace) -> dict:
     seasonal = seasonality.build(frame, days)
     indicators = cascade.volatility_indicators(frame, days, c, seasonal, bootstrap=int(args.bootstrap))
     top = indicators[(indicators.session_part == "all")].sort_values("spearman", ascending=False)
-    for outcome in ("range_ahead_over_atr", "follow_through_over_atr"):
+    for outcome in ("range_ahead_ticks", "range_ahead_over_atr", "follow_through_over_atr"):
         best = top[top.outcome == outcome].head(3)
         protocol.emit_log(f"[{args.symbol} volatility -> {outcome}] " + "; ".join(f"{r.measure} {r.spearman:+.3f}" for r in best.itertuples()))
     oracle = cascade.delayed_oracle(frame, days, lv, cost.tick_size, cost_ticks)

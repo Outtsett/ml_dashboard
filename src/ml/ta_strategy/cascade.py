@@ -8,12 +8,14 @@ close above), and retires then, or at its age cap.
 
 Cascade (the user's rule): "the 1-minute passes a support, then the 5-minute support, then
 the 15-minute, then the 30-minute = trend direction", and the mirror for resistance.
-At minute m, for each timeframe t the LAST break (its side, minute and level price) is known.
-``stage_down[m]`` is the largest s such that the last break on each of the first s timeframes
-(1m, 5m, 15m, 30m in that order) is a support break AND their break minutes are in that order
-(1m no later than 5m, ...) AND the latest of them is within ``window`` minutes of m.
-``stage_up`` is the mirror. ``aligned_up`` / ``aligned_down`` count the timeframes whose last
-break is in that direction regardless of order. ``direction`` is +1 when stage_up beats
+At minute m, for each timeframe the LAST break (side, minute, level price) is known. The stage is
+read top-down along the chain: stage s is on when the stage-s timeframe's last break is in that
+direction within ``window`` index-minutes of m, and at the minute it broke the next-lower
+timeframe's last break was in that direction, at a level not beyond it, within the window, and so
+on down to the 1m level. ``stage_up[m]`` is the largest such s (stages are not nested: stage 4 can
+be on while the 1m has since broken the other way). The window counts traded minutes, so it spans
+the 14:00-15:00 halt and the weekend. ``aligned_up`` / ``aligned_down`` count the timeframes whose
+last break is in that direction within the window, regardless of order (the control). ``direction`` is +1 when stage_up beats
 stage_down, -1 when the reverse, 0 otherwise. Everything is causal: a minute's state uses
 closes up to and including that minute.
 
@@ -89,7 +91,7 @@ def swing_levels(minutes: pd.DataFrame, atr_minute: np.ndarray, buffer_atr: floa
         break_minute = _minute_breaks(close, atr_minute, np.where(side == 1, h[i], l[i]), side.astype(np.int8), known,
                                       cap_minutes, buffer_atr)
         frames.append(pd.DataFrame({"timeframe": tf, "price": np.where(side == 1, h[i], l[i]), "side": side.astype(np.int8),
-                                    "bar_index": i, "known_minute": known,
+                                    "bar_index": i, "extreme_minute": last[i], "known_minute": known,
                                     "retire_minute": np.minimum(known + cap_minutes, close.size - 1),
                                     "break_minute": break_minute}))
     return pd.concat(frames, ignore_index=True)
@@ -174,7 +176,8 @@ def build(minutes: pd.DataFrame, window_minutes: int = 120, buffer_atr: float = 
                 level = price_then
             best = np.where(valid, np.int8(s), best)
         stage[name] = best
-        aligned[name] = sum((sides[tf] == direction).astype(np.int8) for tf in TIMEFRAMES).astype(np.int8)
+        aligned[name] = sum(((sides[tf] == direction) & (minutes_of[tf] >= 0) & (m - minutes_of[tf] <= window_minutes)).astype(np.int8)
+                            for tf in TIMEFRAMES).astype(np.int8)
     direction = np.where(stage["up"] > stage["down"], 1, np.where(stage["down"] > stage["up"], -1, 0)).astype(np.int8)
     return Cascade(stage_up=stage["up"], stage_down=stage["down"], aligned_up=aligned["up"], aligned_down=aligned["down"],
                    direction=direction, last_side=sides, last_minute=minutes_of, last_price=prices, levels=levels)
@@ -249,13 +252,16 @@ def delayed_oracle(minutes: pd.DataFrame, session_days: np.ndarray, levels: pd.D
         side = lv["side"].to_numpy(np.int8)
         price = lv["price"].to_numpy(float)
         known = lv["known_minute"].to_numpy(np.int64)
+        extreme = lv["extreme_minute"].to_numpy(np.int64)
         alternate = np.r_[True, side[1:] != side[:-1]]        # keep the first of consecutive same-side swings
-        side, price, known = side[alternate], price[alternate], known[alternate]
+        side, price, known, extreme = side[alternate], price[alternate], known[alternate], extreme[alternate]
         entry = close[np.minimum(known[:-1], close.size - 1)]
         target = price[1:]
         direction = np.where(side[:-1] == 1, -1.0, 1.0)      # after a confirmed swing high the next swing is a low
+        # a next swing whose extreme printed at or before the entry cannot be an exit (it sat inside the confirmation window)
+        reachable = extreme[1:] > known[:-1]
         net = direction * (target - entry) / tick - cost_ticks
-        net = np.where(net > 0, net, 0.0)
+        net = np.where(reachable & (net > 0), net, 0.0)
         day = session_days[np.minimum(known[:-1], close.size - 1)]
         daily = pd.Series(net).groupby(day).sum()
         daily = daily.reindex(np.unique(session_days), fill_value=0.0)
@@ -286,25 +292,38 @@ def stage_forward_moves(minutes: pd.DataFrame, session_days: np.ndarray, cascade
             reached = (stage >= s) & ~np.r_[False, (stage >= s)[:-1]]          # first minute at or above stage s
             for h in horizons:
                 move = np.r_[close[h:], np.full(h, np.nan)] - close
-                signed = direction * move / tick
+                same_session = np.r_[session[h:] == session[:-h], np.zeros(h, bool)]   # the horizon stays inside the session
+                signed = np.where(same_session, direction * move / tick, np.nan)
                 for scope in ("all", "overnight", "regular_hours"):
-                    sel = reached & np.isfinite(signed) & (np.ones(n, bool) if scope == "all" else part == scope)
-                    base = np.isfinite(signed) & (np.ones(n, bool) if scope == "all" else part == scope)
+                    in_scope = np.ones(n, bool) if scope == "all" else part == scope
+                    sel = reached & np.isfinite(signed) & in_scope
+                    base = np.isfinite(signed) & in_scope
                     if sel.sum() < 30:
                         continue
-                    draws = []
+                    drift = float(np.mean(signed[base]))
+                    # session-block bootstrap with multiplicity: per-session sums and counts weighted by the draw count
+                    event_sum = np.bincount(session[sel], weights=signed[sel], minlength=n_sessions)
+                    event_count = np.bincount(session[sel], minlength=n_sessions).astype(float)
+                    base_sum = np.bincount(session[base], weights=signed[base], minlength=n_sessions)
+                    base_count = np.bincount(session[base], minlength=n_sessions).astype(float)
+                    draws, draws_excess = [], []
                     for _ in range(bootstrap):
-                        pick = rng.integers(0, n_sessions, n_sessions)
-                        keep = np.isin(session, pick) & sel
-                        if keep.sum() >= 10:
-                            draws.append(float(np.mean(signed[keep])))
+                        w = np.bincount(rng.integers(0, n_sessions, n_sessions), minlength=n_sessions).astype(float)
+                        c = float(w @ event_count)
+                        if c >= 10:
+                            mean = float(w @ event_sum) / c
+                            draws.append(mean)
+                            draws_excess.append(mean - float(w @ base_sum) / float(w @ base_count))
                     rows.append({"direction": "up" if direction == 1 else "down", "stage": s, "horizon_minutes": h, "session_part": scope,
                                  "events": int(sel.sum()), "events_per_session_day": float(sel.sum() / n_sessions),
                                  "mean_signed_move_ticks": float(np.mean(signed[sel])),
                                  "bootstrap_low": float(np.percentile(draws, 2.5)) if draws else np.nan,
                                  "bootstrap_high": float(np.percentile(draws, 97.5)) if draws else np.nan,
+                                 "excess_over_drift_ticks": float(np.mean(signed[sel]) - drift),
+                                 "excess_bootstrap_low": float(np.percentile(draws_excess, 2.5)) if draws_excess else np.nan,
+                                 "excess_bootstrap_high": float(np.percentile(draws_excess, 97.5)) if draws_excess else np.nan,
                                  "share_positive": float((signed[sel] > 0).mean()),
-                                 "unconditional_mean_signed_move_ticks": float(direction * np.mean(move[base] / tick)),
+                                 "unconditional_mean_signed_move_ticks": drift,
                                  "mean_absolute_move_ticks": float(np.mean(np.abs(signed[sel])))})
     return pd.DataFrame(rows)
 
@@ -332,7 +351,7 @@ def volume_at_levels(minutes: pd.DataFrame, session_days: np.ndarray, levels: pd
     stop = levels["retire_minute"].to_numpy(np.int64)
     a = atr[np.minimum(start, atr.size - 1)]
     ok = np.isfinite(a) & (a > 0) & (stop > start)
-    minute, side, outcome = _test_all(high, low, close, start[ok], stop[ok], levels["price"].to_numpy(float)[ok],
+    minute, side, outcome = _test_all(high, low, close, start[ok] + 1, stop[ok], levels["price"].to_numpy(float)[ok],
                                       tolerance_atr * a[ok], move_atr * a[ok])
     resolved = outcome != 0
     tests = levels[ok].reset_index(drop=True)[resolved].reset_index(drop=True)
@@ -458,10 +477,15 @@ def volatility_indicators(minutes: pd.DataFrame, session_days: np.ndarray, casca
     future_high = np.r_[future_high[1:], np.nan]
     future_low = np.r_[future_low[1:], np.nan]
     future_close = np.r_[c[ahead_bars:], np.full(ahead_bars, np.nan)]
+    tick = float(np.nanmedian(np.diff(np.unique(c[:5000])))) if c.size > 10 else 0.25
     with np.errstate(invalid="ignore", divide="ignore"):
         expansion = (future_high - future_low) / atr
-        direction = cascade.direction[last].astype(float)
+        range_ticks = (future_high - future_low) / tick
+        stage = np.maximum(cascade.stage_up[last], cascade.stage_down[last])
+        direction = np.where(stage >= 2, cascade.direction[last], 0).astype(float)
         follow_through = direction * (future_close - c) / atr
+    measures["seasonal_expected_move_60_minutes_points"] = seasonal.expected_move_points(last, ahead_minutes)
+    measures["average_true_range_14_points"] = atr
     part = seasonality.session_part(seasonality.session_offset(bars["timestamp"].to_numpy(np.int64)))
     session = np.cumsum(np.r_[True, session_days[last][1:] != session_days[last][:-1]]) - 1
     rng = np.random.default_rng(seed)
@@ -471,13 +495,14 @@ def volatility_indicators(minutes: pd.DataFrame, session_days: np.ndarray, casca
         for scope in ("all", "overnight", "regular_hours"):
             mask = np.ones(n, bool) if scope == "all" else part == scope
             for outcome_name, y, extra in (("range_ahead_over_atr", expansion, np.ones(n, bool)),
+                                           ("range_ahead_ticks", range_ticks, np.ones(n, bool)),
                                            ("follow_through_over_atr", follow_through, direction != 0)):
                 sel = mask & extra & np.isfinite(x) & np.isfinite(y)
                 rho = _spearman(x[sel], y[sel])
                 draws = []
                 for _ in range(bootstrap):
-                    pick = rng.integers(0, n_sessions, n_sessions)
-                    keep = np.isin(session, pick) & sel
+                    w = np.bincount(rng.integers(0, n_sessions, n_sessions), minlength=n_sessions)
+                    keep = np.repeat(np.flatnonzero(sel), w[session[sel]])        # each bar repeated by its session's draw count
                     draws.append(_spearman(x[keep], y[keep]))
                 draws = np.array([d for d in draws if np.isfinite(d)])
                 rows.append({"measure": name, "session_part": scope, "outcome": outcome_name, "bars": int(sel.sum()),
