@@ -7189,6 +7189,2204 @@
       "constraints": {
         "maximum_session_end_exit_share": 0.5
       }
+    },
+    "zone_bounce": {
+      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. Target target_r x risk. Whole session.",
+      "params": {
+        "min_strength": {
+          "type": "int",
+          "low": 1,
+          "high": 4,
+          "step": 1
+        },
+        "tolerance_atr": {
+          "type": "float",
+          "low": 0.0,
+          "high": 0.3,
+          "step": 0.1
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.6,
+          "step": 0.1
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 6,
+          "high": 48,
+          "step": 6
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        }
+      },
+      "defaults": {
+        "min_strength": 2,
+        "tolerance_atr": 0.1,
+        "stop_buffer_atr": 0.25,
+        "breakeven_r": 1.0,
+        "hold_bars": 24,
+        "target_r": 2.0
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "support_high": {
+          "level": "support_high"
+        },
+        "support_low": {
+          "level": "support_low"
+        },
+        "support_strength": {
+          "level": "support_strength"
+        },
+        "resistance_low": {
+          "level": "resistance_low"
+        },
+        "resistance_high": {
+          "level": "resistance_high"
+        },
+        "resistance_strength": {
+          "level": "resistance_strength"
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "low",
+              "b": {
+                "op": "add",
+                "a": "$support_high",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "above",
+              "a": "close",
+              "b": "$support_high"
+            },
+            {
+              "op": "at_least",
+              "a": "$support_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "high",
+              "b": {
+                "op": "sub",
+                "a": "$resistance_low",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "close",
+              "b": "$resistance_low"
+            },
+            {
+              "op": "at_least",
+              "a": "$resistance_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$support_low",
+          "short_level": "$resistance_high",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "close",
+            "b": "$support_low"
+          },
+          "short": {
+            "op": "above",
+            "a": "close",
+            "b": "$resistance_high"
+          }
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "zone_bounce_rth": {
+      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. Target target_r x risk. Regular hours only.",
+      "params": {
+        "min_strength": {
+          "type": "int",
+          "low": 1,
+          "high": 4,
+          "step": 1
+        },
+        "tolerance_atr": {
+          "type": "float",
+          "low": 0.0,
+          "high": 0.3,
+          "step": 0.1
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.6,
+          "step": 0.1
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 6,
+          "high": 48,
+          "step": 6
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        }
+      },
+      "defaults": {
+        "min_strength": 2,
+        "tolerance_atr": 0.1,
+        "stop_buffer_atr": 0.25,
+        "breakeven_r": 1.0,
+        "hold_bars": 24,
+        "target_r": 2.0
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "support_high": {
+          "level": "support_high"
+        },
+        "support_low": {
+          "level": "support_low"
+        },
+        "support_strength": {
+          "level": "support_strength"
+        },
+        "resistance_low": {
+          "level": "resistance_low"
+        },
+        "resistance_high": {
+          "level": "resistance_high"
+        },
+        "resistance_strength": {
+          "level": "resistance_strength"
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "06:30",
+        "end": "13:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "low",
+              "b": {
+                "op": "add",
+                "a": "$support_high",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "above",
+              "a": "close",
+              "b": "$support_high"
+            },
+            {
+              "op": "at_least",
+              "a": "$support_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "high",
+              "b": {
+                "op": "sub",
+                "a": "$resistance_low",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "close",
+              "b": "$resistance_low"
+            },
+            {
+              "op": "at_least",
+              "a": "$resistance_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$support_low",
+          "short_level": "$resistance_high",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "close",
+            "b": "$support_low"
+          },
+          "short": {
+            "op": "above",
+            "a": "close",
+            "b": "$resistance_high"
+          }
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "zone_to_zone": {
+      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. ZONE-TO-ZONE: the target is the near edge of the next opposing zone (a limit); a next zone closer than min_room_r x the risk is skipped. Whole session.",
+      "params": {
+        "min_strength": {
+          "type": "int",
+          "low": 1,
+          "high": 4,
+          "step": 1
+        },
+        "tolerance_atr": {
+          "type": "float",
+          "low": 0.0,
+          "high": 0.3,
+          "step": 0.1
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.6,
+          "step": 0.1
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 6,
+          "high": 48,
+          "step": 6
+        },
+        "min_room_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 2.0,
+          "step": 0.25
+        }
+      },
+      "defaults": {
+        "min_strength": 2,
+        "tolerance_atr": 0.1,
+        "stop_buffer_atr": 0.25,
+        "breakeven_r": 1.0,
+        "hold_bars": 24,
+        "min_room_r": 1.0
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "support_high": {
+          "level": "support_high"
+        },
+        "support_low": {
+          "level": "support_low"
+        },
+        "support_strength": {
+          "level": "support_strength"
+        },
+        "resistance_low": {
+          "level": "resistance_low"
+        },
+        "resistance_high": {
+          "level": "resistance_high"
+        },
+        "resistance_strength": {
+          "level": "resistance_strength"
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "low",
+              "b": {
+                "op": "add",
+                "a": "$support_high",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "above",
+              "a": "close",
+              "b": "$support_high"
+            },
+            {
+              "op": "at_least",
+              "a": "$support_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "high",
+              "b": {
+                "op": "sub",
+                "a": "$resistance_low",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "close",
+              "b": "$resistance_low"
+            },
+            {
+              "op": "at_least",
+              "a": "$resistance_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$support_low",
+          "short_level": "$resistance_high",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "level",
+          "min_r": {
+            "param": "min_room_r"
+          },
+          "buffer_ticks": 1,
+          "fallback_r": 2.0
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "close",
+            "b": "$support_low"
+          },
+          "short": {
+            "op": "above",
+            "a": "close",
+            "b": "$resistance_high"
+          }
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "zone_to_zone_bounce_exit": {
+      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. ZONE-TO-ZONE with the level-bounce exit: reaching the next opposing zone arms a trail of bounce_ticks from the running extreme. Whole session.",
+      "params": {
+        "min_strength": {
+          "type": "int",
+          "low": 1,
+          "high": 4,
+          "step": 1
+        },
+        "tolerance_atr": {
+          "type": "float",
+          "low": 0.0,
+          "high": 0.3,
+          "step": 0.1
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.6,
+          "step": 0.1
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 6,
+          "high": 48,
+          "step": 6
+        },
+        "min_room_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 2.0,
+          "step": 0.25
+        },
+        "bounce_ticks": {
+          "type": "int",
+          "low": 2,
+          "high": 16,
+          "step": 2
+        }
+      },
+      "defaults": {
+        "min_strength": 2,
+        "tolerance_atr": 0.1,
+        "stop_buffer_atr": 0.25,
+        "breakeven_r": 1.0,
+        "hold_bars": 24,
+        "min_room_r": 1.0,
+        "bounce_ticks": 6
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "support_high": {
+          "level": "support_high"
+        },
+        "support_low": {
+          "level": "support_low"
+        },
+        "support_strength": {
+          "level": "support_strength"
+        },
+        "resistance_low": {
+          "level": "resistance_low"
+        },
+        "resistance_high": {
+          "level": "resistance_high"
+        },
+        "resistance_strength": {
+          "level": "resistance_strength"
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "low",
+              "b": {
+                "op": "add",
+                "a": "$support_high",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "above",
+              "a": "close",
+              "b": "$support_high"
+            },
+            {
+              "op": "at_least",
+              "a": "$support_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "high",
+              "b": {
+                "op": "sub",
+                "a": "$resistance_low",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "close",
+              "b": "$resistance_low"
+            },
+            {
+              "op": "at_least",
+              "a": "$resistance_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$support_low",
+          "short_level": "$resistance_high",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "level_bounce",
+          "min_r": {
+            "param": "min_room_r"
+          },
+          "bounce_ticks": {
+            "param": "bounce_ticks"
+          },
+          "fallback_r": 2.0
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "close",
+            "b": "$support_low"
+          },
+          "short": {
+            "op": "above",
+            "a": "close",
+            "b": "$resistance_high"
+          }
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "zone_bounce_rsi": {
+      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. RSI CONFIRMATION: RSI(14) below rsi_extreme at a support touch (above 100 - rsi_extreme at resistance). Target target_r x risk. Whole session.",
+      "params": {
+        "min_strength": {
+          "type": "int",
+          "low": 1,
+          "high": 4,
+          "step": 1
+        },
+        "tolerance_atr": {
+          "type": "float",
+          "low": 0.0,
+          "high": 0.3,
+          "step": 0.1
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.6,
+          "step": 0.1
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 6,
+          "high": 48,
+          "step": 6
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "rsi_extreme": {
+          "type": "int",
+          "low": 25,
+          "high": 45,
+          "step": 5
+        }
+      },
+      "defaults": {
+        "min_strength": 2,
+        "tolerance_atr": 0.1,
+        "stop_buffer_atr": 0.25,
+        "breakeven_r": 1.0,
+        "hold_bars": 24,
+        "target_r": 2.0,
+        "rsi_extreme": 35
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "support_high": {
+          "level": "support_high"
+        },
+        "support_low": {
+          "level": "support_low"
+        },
+        "support_strength": {
+          "level": "support_strength"
+        },
+        "resistance_low": {
+          "level": "resistance_low"
+        },
+        "resistance_high": {
+          "level": "resistance_high"
+        },
+        "resistance_strength": {
+          "level": "resistance_strength"
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "low",
+              "b": {
+                "op": "add",
+                "a": "$support_high",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "above",
+              "a": "close",
+              "b": "$support_high"
+            },
+            {
+              "op": "at_least",
+              "a": "$support_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "param": "rsi_extreme"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "high",
+              "b": {
+                "op": "sub",
+                "a": "$resistance_low",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "close",
+              "b": "$resistance_low"
+            },
+            {
+              "op": "at_least",
+              "a": "$resistance_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "op": "sub",
+                "a": {
+                  "const": 100
+                },
+                "b": {
+                  "param": "rsi_extreme"
+                }
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$support_low",
+          "short_level": "$resistance_high",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "close",
+            "b": "$support_low"
+          },
+          "short": {
+            "op": "above",
+            "a": "close",
+            "b": "$resistance_high"
+          }
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "zone_bounce_calm": {
+      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. CALM CONFIRMATION: the time-of-day profile says volatility is NOT about to rise (expected next 30 minutes over the last 30 below calm_ratio), when ranging is likelier. Target target_r x risk. Whole session.",
+      "params": {
+        "min_strength": {
+          "type": "int",
+          "low": 1,
+          "high": 4,
+          "step": 1
+        },
+        "tolerance_atr": {
+          "type": "float",
+          "low": 0.0,
+          "high": 0.3,
+          "step": 0.1
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.6,
+          "step": 0.1
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 6,
+          "high": 48,
+          "step": 6
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "calm_ratio": {
+          "type": "float",
+          "low": 0.8,
+          "high": 1.3,
+          "step": 0.1
+        }
+      },
+      "defaults": {
+        "min_strength": 2,
+        "tolerance_atr": 0.1,
+        "stop_buffer_atr": 0.25,
+        "breakeven_r": 1.0,
+        "hold_bars": 24,
+        "target_r": 2.0,
+        "calm_ratio": 1.0
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "support_high": {
+          "level": "support_high"
+        },
+        "support_low": {
+          "level": "support_low"
+        },
+        "support_strength": {
+          "level": "support_strength"
+        },
+        "resistance_low": {
+          "level": "resistance_low"
+        },
+        "resistance_high": {
+          "level": "resistance_high"
+        },
+        "resistance_strength": {
+          "level": "resistance_strength"
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "low",
+              "b": {
+                "op": "add",
+                "a": "$support_high",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "above",
+              "a": "close",
+              "b": "$support_high"
+            },
+            {
+              "op": "at_least",
+              "a": "$support_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$ahead",
+              "b": {
+                "param": "calm_ratio"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "high",
+              "b": {
+                "op": "sub",
+                "a": "$resistance_low",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "close",
+              "b": "$resistance_low"
+            },
+            {
+              "op": "at_least",
+              "a": "$resistance_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$ahead",
+              "b": {
+                "param": "calm_ratio"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$support_low",
+          "short_level": "$resistance_high",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "close",
+            "b": "$support_low"
+          },
+          "short": {
+            "op": "above",
+            "a": "close",
+            "b": "$resistance_high"
+          }
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "zone_bounce_swings_only": {
+      "description": "CONTROL for zone_bounce: the same touch-and-close-back entry and exits, but the zones are built from the 5m/15m/30m swing levels only (no session levels, round numbers, higher-timeframe fractals or VWAP): the difference is what the multi-timeframe map adds over recent swings. Run in a round whose level_source is 'cascade'.",
+      "params": {
+        "min_strength": {
+          "type": "int",
+          "low": 1,
+          "high": 4,
+          "step": 1
+        },
+        "tolerance_atr": {
+          "type": "float",
+          "low": 0.0,
+          "high": 0.3,
+          "step": 0.1
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.6,
+          "step": 0.1
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 6,
+          "high": 48,
+          "step": 6
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        }
+      },
+      "defaults": {
+        "min_strength": 2,
+        "tolerance_atr": 0.1,
+        "stop_buffer_atr": 0.25,
+        "breakeven_r": 1.0,
+        "hold_bars": 24,
+        "target_r": 2.0
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "support_high": {
+          "level": "support_high"
+        },
+        "support_low": {
+          "level": "support_low"
+        },
+        "support_strength": {
+          "level": "support_strength"
+        },
+        "resistance_low": {
+          "level": "resistance_low"
+        },
+        "resistance_high": {
+          "level": "resistance_high"
+        },
+        "resistance_strength": {
+          "level": "resistance_strength"
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "low",
+              "b": {
+                "op": "add",
+                "a": "$support_high",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "above",
+              "a": "close",
+              "b": "$support_high"
+            },
+            {
+              "op": "at_least",
+              "a": "$support_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "high",
+              "b": {
+                "op": "sub",
+                "a": "$resistance_low",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "close",
+              "b": "$resistance_low"
+            },
+            {
+              "op": "at_least",
+              "a": "$resistance_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$support_low",
+          "short_level": "$resistance_high",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "close",
+            "b": "$support_low"
+          },
+          "short": {
+            "op": "above",
+            "a": "close",
+            "b": "$resistance_high"
+          }
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "zone_touch_unconfirmed": {
+      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) (UNCONFIRMED: no close-back condition; the touch alone), at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. Target target_r x risk. Whole session.",
+      "params": {
+        "min_strength": {
+          "type": "int",
+          "low": 1,
+          "high": 4,
+          "step": 1
+        },
+        "tolerance_atr": {
+          "type": "float",
+          "low": 0.0,
+          "high": 0.3,
+          "step": 0.1
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.6,
+          "step": 0.1
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 6,
+          "high": 48,
+          "step": 6
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        }
+      },
+      "defaults": {
+        "min_strength": 2,
+        "tolerance_atr": 0.1,
+        "stop_buffer_atr": 0.25,
+        "breakeven_r": 1.0,
+        "hold_bars": 24,
+        "target_r": 2.0
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "support_high": {
+          "level": "support_high"
+        },
+        "support_low": {
+          "level": "support_low"
+        },
+        "support_strength": {
+          "level": "support_strength"
+        },
+        "resistance_low": {
+          "level": "resistance_low"
+        },
+        "resistance_high": {
+          "level": "resistance_high"
+        },
+        "resistance_strength": {
+          "level": "resistance_strength"
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "low",
+              "b": {
+                "op": "add",
+                "a": "$support_high",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$support_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "high",
+              "b": {
+                "op": "sub",
+                "a": "$resistance_low",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$resistance_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$support_low",
+          "short_level": "$resistance_high",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "close",
+            "b": "$support_low"
+          },
+          "short": {
+            "op": "above",
+            "a": "close",
+            "b": "$resistance_high"
+          }
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "zone_break_control": {
+      "description": "CONTROL (sign convention): trade THROUGH the same multi-timeframe zones instead of at them: short when a 5m bar closes below the far edge of the support zone that was known at the previous bar's close (the zone of the bar before, since a zone is chosen around its own bar's close), at a zone of at least min_strength families; long is the mirror through resistance. Stop back beyond the zone's near edge (stop_buffer_atr); target target_r x risk; breakeven after breakeven_r; time stop hold_bars; flat at the session end; one position at a time. Whole session. Prior rounds found breakouts lose; this arm confirms the bounce arms are read with the right sign.",
+      "params": {
+        "min_strength": {
+          "type": "int",
+          "low": 1,
+          "high": 4,
+          "step": 1
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.6,
+          "step": 0.1
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 6,
+          "high": 48,
+          "step": 6
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        }
+      },
+      "defaults": {
+        "min_strength": 2,
+        "stop_buffer_atr": 0.25,
+        "breakeven_r": 1.0,
+        "hold_bars": 24,
+        "target_r": 2.0
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "support_high": {
+          "level": "support_high"
+        },
+        "support_low": {
+          "level": "support_low"
+        },
+        "support_strength": {
+          "level": "support_strength"
+        },
+        "resistance_low": {
+          "level": "resistance_low"
+        },
+        "resistance_high": {
+          "level": "resistance_high"
+        },
+        "resistance_strength": {
+          "level": "resistance_strength"
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        },
+        "support_low_previous": {
+          "op": "lag",
+          "of": "$support_low",
+          "n": 1
+        },
+        "support_high_previous": {
+          "op": "lag",
+          "of": "$support_high",
+          "n": 1
+        },
+        "support_strength_previous": {
+          "op": "lag",
+          "of": "$support_strength",
+          "n": 1
+        },
+        "resistance_low_previous": {
+          "op": "lag",
+          "of": "$resistance_low",
+          "n": 1
+        },
+        "resistance_high_previous": {
+          "op": "lag",
+          "of": "$resistance_high",
+          "n": 1
+        },
+        "resistance_strength_previous": {
+          "op": "lag",
+          "of": "$resistance_strength",
+          "n": 1
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "broke_above",
+              "level": "$resistance_high"
+            },
+            {
+              "op": "at_least",
+              "a": "$resistance_strength_previous",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "broke_below",
+              "level": "$support_low"
+            },
+            {
+              "op": "at_least",
+              "a": "$support_strength_previous",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$resistance_low_previous",
+          "short_level": "$support_high_previous",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "close",
+            "b": "$resistance_low_previous"
+          },
+          "short": {
+            "op": "above",
+            "a": "close",
+            "b": "$support_high_previous"
+          }
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "zone_bounce_higher_timeframe": {
+      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. Target target_r x risk. HIGHER-TIMEFRAME ZONES ONLY: the zone must hold a 1h/4h fractal or a session/week level. Whole session.",
+      "params": {
+        "min_strength": {
+          "type": "int",
+          "low": 1,
+          "high": 4,
+          "step": 1
+        },
+        "tolerance_atr": {
+          "type": "float",
+          "low": 0.0,
+          "high": 0.3,
+          "step": 0.1
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.6,
+          "step": 0.1
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 6,
+          "high": 48,
+          "step": 6
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        }
+      },
+      "defaults": {
+        "min_strength": 2,
+        "tolerance_atr": 0.1,
+        "stop_buffer_atr": 0.25,
+        "breakeven_r": 1.0,
+        "hold_bars": 24,
+        "target_r": 2.0
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "support_high": {
+          "level": "support_high"
+        },
+        "support_low": {
+          "level": "support_low"
+        },
+        "support_strength": {
+          "level": "support_strength"
+        },
+        "resistance_low": {
+          "level": "resistance_low"
+        },
+        "resistance_high": {
+          "level": "resistance_high"
+        },
+        "resistance_strength": {
+          "level": "resistance_strength"
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        },
+        "support_higher_timeframe": {
+          "level": "support_higher_timeframe"
+        },
+        "resistance_higher_timeframe": {
+          "level": "resistance_higher_timeframe"
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "low",
+              "b": {
+                "op": "add",
+                "a": "$support_high",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "above",
+              "a": "close",
+              "b": "$support_high"
+            },
+            {
+              "op": "at_least",
+              "a": "$support_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$support_higher_timeframe",
+              "b": 1
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "high",
+              "b": {
+                "op": "sub",
+                "a": "$resistance_low",
+                "b": {
+                  "op": "mul",
+                  "a": "atr",
+                  "b": {
+                    "param": "tolerance_atr"
+                  }
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "close",
+              "b": "$resistance_low"
+            },
+            {
+              "op": "at_least",
+              "a": "$resistance_strength",
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$resistance_higher_timeframe",
+              "b": 1
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$support_low",
+          "short_level": "$resistance_high",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "close",
+            "b": "$support_low"
+          },
+          "short": {
+            "op": "above",
+            "a": "close",
+            "b": "$resistance_high"
+          }
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
     }
   }
 }

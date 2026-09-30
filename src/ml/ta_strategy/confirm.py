@@ -88,6 +88,11 @@ def run(args: argparse.Namespace) -> dict:
         from ta_strategy import cascade as cascade_module
 
         zone_events = cascade_module.level_events(minutes.frame, tuple(rc.get("zone_timeframes", ("5m", "15m", "30m"))))
+    elif rc.get("level_source") == "all_plus_swings":
+        from ta_strategy import cascade as cascade_module
+
+        zone_events = pd.concat([levels.all_level_events(minutes.frame), cascade_module.level_events(minutes.frame, tuple(rc.get("zone_timeframes", ("5m", "15m", "30m"))))],
+                                ignore_index=True).sort_values("known_from", kind="stable").reset_index(drop=True)
     ctx = strategy.build_context(minutes, rc["timeframe"], cost.tick_size, events=zone_events)
     days = np.unique(ctx.minutes.days)
     seeds = int(rc["nulls"]["matched_seeds"])

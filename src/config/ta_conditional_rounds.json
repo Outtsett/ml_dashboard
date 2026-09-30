@@ -616,6 +616,114 @@
       },
       "goal_ticks_per_session_day": 600,
       "engine": "engine.py trail bit 4 (P_BOUNCE_TICKS): the zone edge is a level, not a limit; once the running extreme reaches it, a trailing stop bounce_ticks from the extreme is armed (market exit, 1 tick slippage), exit reason level_bounce"
+    },
+    "12": {
+      "title": "Trading AT the multi-timeframe support/resistance zones: bounces, zone-to-zone targets, the bounce exit, RSI and calm confirmations",
+      "question": "The user asks how the multi-timeframe support/resistance zones can be used for profit. Prior rounds traded THROUGH levels (breakouts, cascades) and lost. This round trades AT them: enter on a touch that closes back away from the zone, stop beyond the zone, target an R multiple or the next opposing zone, optionally exit on the bounce at that zone.",
+      "hypothesis": "Tuned per walk-forward fold on prior years only and tested on MNQ 2022-2025 (5m bars, zones from every level family plus the 5m/15m/30m swing levels). Written after a default-parameter code smoke on MNQ 2024 (disclosed: 117 first touches a session day, bounce rate 0.554 vs 0.547 at distance-matched random levels, next zone reached first in 50%, favourable excursion median 18 ticks; every zone template at defaults lost -8 to -9 ticks a trade at a 23-30% hit rate, stop exits 50%; the unconfirmed touch traded 44 a day at -8.9, the higher-timeframe-only arm 27 a day at -8.4, the breakout control 34 a day at -7.2; the leaky control bounced 0.600 vs 0.554 honest; with 3 permutations and 50 bootstrap draws 13 of 32 conditioned cells survived Benjamini-Hochberg on the bounce lift, all with lifts under +0.03, and the strength trend was NEGATIVE, rho -1) and before any tuned or full-span result. (1) Study: the pooled bounce lift over distance-matched random levels is within [-0.01, +0.02] with a session-bootstrap interval that includes zero (F1); no strength gradient (F4: Spearman trend p > 0.10); the zone-to-zone reach lift over a distance-matched random pair is within +/- 0.03; with 10 permutations and 200 draws between 5 and 15 of the 32 conditioned cells survive Benjamini-Hochberg at q = 0.10, every surviving lift is under +0.03 (a percentage point or two of bounce probability, worth under 1 tick a trade against a 5.56-tick cost), and no surviving cell reproduces on NQ 2010-2019 with the same sign and survival. (2) Tuned templates net between -40 and +20 ticks per session day out of sample, none at or above +60 (10% of 600), none with a Reality Check p below 0.10; the unconfirmed touch (E0) trades 3x more often and nets less per trade than the close-back entry; the breakout control (T8) is negative (sign check). (3) The zone-to-zone target beats fixed R on net per trade but not per day (the room filter removes trades); (4) the level-bounce exit changes net per day by less than +/- 5 against the limit; (5) the higher-timeframe-only arm trades a third as often and is not better per day; (6) the multi-timeframe zones beat the swings-only control (round 13) by less than 10 ticks/day (|t| < 2). (7) 600/day: the arithmetic ceiling touches/day x the upper 95% bound of net per trade is below 600, and the oracle zone-to-zone ceiling (perfect exit at the best price before the break, after cost) is reported beside it.",
+      "data_start": "2019-06-01",
+      "data_end": "2026-01-01",
+      "timeframe": "5m",
+      "level_source": "all_plus_swings",
+      "test_years": [
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "templates": [
+        "zone_bounce",
+        "zone_touch_unconfirmed",
+        "zone_bounce_rth",
+        "zone_to_zone",
+        "zone_to_zone_bounce_exit",
+        "zone_bounce_rsi",
+        "zone_bounce_calm",
+        "zone_bounce_higher_timeframe",
+        "zone_break_control"
+      ],
+      "optuna": {
+        "trials_per_fold": 100,
+        "startup_trials": 25,
+        "seed": 11,
+        "rescore_top": 6
+      },
+      "nulls": {
+        "seeds_in_loop": 6,
+        "seeds_rescore_and_test": 24,
+        "random_side_replicates": 20
+      },
+      "constraints": {
+        "minimum_trades_per_session_day": 0.1,
+        "maximum_session_end_exit_share": 0.5
+      },
+      "costs": {
+        "stop_slippage_ticks": 1
+      },
+      "level_study": {
+        "null_a_permutations": 2,
+        "null_b_shuffles": 1
+      },
+      "goal_ticks_per_session_day": 600,
+      "study": "zones.py / zone_study.py: first touches (gap-throughs logged and excluded), distance-matched random-level null for the bounce and a distance-matched random pair for zone-to-zone, session-block bootstrap on the paired lift, Benjamini-Hochberg q = 0.10 over every conditioned cell, break-even hit rate p* = (S + 6.56) / (S + T + 1), the oracle zone-to-zone ceiling, the leaky control arm; landed as zone_touches / zone_summary / zone_leak_check",
+      "falsifiers": {
+        "F1_no_location_edge": "pooled bounce lift over the distance-matched random level has a session-block 95% interval including 0",
+        "F2_geometry_only": "best template net/day minus the matched random-entry control (same stop and target geometry) has a lower 95% bound <= 0",
+        "F3_no_net_edge": "pooled walk-forward net per trade <= 0 after 5.56 + 1 ticks, or Reality Check p > 0.10",
+        "F4_no_strength_gradient": "Spearman rank trend of the lift over strength buckets 1, 2, 3+ has p > 0.10 or a negative sign",
+        "F5_not_confirmed": "the frozen configuration fails the NQ 2010-2019 confirmation (excess over the matched control, lower bound > 0, same sign as MNQ)",
+        "F6_fragile_to_the_fill": "the edge exists only under a limit fill at the zone edge and vanishes at next-open fills",
+        "F7_year_concentration": "more than 50% of the excess from one calendar year, or negative in 3 or more of 2022-2025",
+        "F8_arithmetic_ceiling": "observed trades/day x upper 95% bound of net per trade < 600",
+        "F9_oracle_ceiling": "the oracle zone-to-zone capture after cost sums to less than 600 ticks per session day",
+        "F10_realised_versus_goal": "pooled out-of-sample net per session day, lower 95% session-bootstrap bound, below 600",
+        "leaky_control": "touches computed with the touch bar's own zones (zones of bar b on bar b's minutes) must show a HIGHER bounce rate than the honest arm; the separation is printed"
+      }
+    },
+    "13": {
+      "title": "Control for round 12: the zone bounce with zones built from the 5m/15m/30m swing levels only",
+      "hypothesis": "See round 12 (5): the multi-timeframe map adds less than 10 ticks/day over recent swings. Same folds, same test years, same harness.",
+      "data_start": "2019-06-01",
+      "data_end": "2026-01-01",
+      "timeframe": "5m",
+      "level_source": "cascade",
+      "zone_timeframes": [
+        "5m",
+        "15m",
+        "30m"
+      ],
+      "test_years": [
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "templates": [
+        "zone_bounce_swings_only"
+      ],
+      "optuna": {
+        "trials_per_fold": 100,
+        "startup_trials": 25,
+        "seed": 11,
+        "rescore_top": 6
+      },
+      "nulls": {
+        "seeds_in_loop": 6,
+        "seeds_rescore_and_test": 24,
+        "random_side_replicates": 20
+      },
+      "constraints": {
+        "minimum_trades_per_session_day": 0.1,
+        "maximum_session_end_exit_share": 0.5
+      },
+      "costs": {
+        "stop_slippage_ticks": 1
+      },
+      "level_study": {
+        "null_a_permutations": 1,
+        "null_b_shuffles": 1
+      },
+      "goal_ticks_per_session_day": 600
     }
   }
 }

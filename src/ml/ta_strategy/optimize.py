@@ -104,6 +104,12 @@ def run(args: argparse.Namespace) -> dict:
         from ta_strategy import cascade as cascade_module
 
         events = cascade_module.level_events(minutes.frame, tuple(rc.get("zone_timeframes", ("5m", "15m", "30m"))))
+    elif rc.get("level_source") == "all_plus_swings":
+        # every level family plus the 5m/15m/30m swing levels: the multi-timeframe zone map
+        from ta_strategy import cascade as cascade_module
+
+        events = pd.concat([events, cascade_module.level_events(minutes.frame, tuple(rc.get("zone_timeframes", ("5m", "15m", "30m"))))],
+                           ignore_index=True).sort_values("known_from", kind="stable").reset_index(drop=True)
     tests, quality = levels.level_quality(minutes.frame, events, level_ctx, permutations=int(rc["level_study"]["null_a_permutations"]))
     shuffled_rows = []
     for s in range(int(rc["level_study"]["null_b_shuffles"])):

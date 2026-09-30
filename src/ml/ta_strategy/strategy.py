@@ -12,7 +12,8 @@ higher timeframe and each strategy bar sees the LAST COMPLETED higher-timeframe 
     {"op": "sma"|"ema"|"wma", "of": S, "n": 9}                            e.g. RSI's signal line
     {"op": "sub"|"add"|"mul"|"div", "a": S, "b": S}, {"op": "lag", "of": S, "n": 1}
     {"op": "highest"|"lowest", "of": S, "n": 20}                          previous n bars, current excluded
-    {"level": "support_low"|"resistance_high"|...}                        multi-timeframe zones (levels.zones_for_bars)
+    {"level": "support_low"|"resistance_high"|...}                        multi-timeframe zones (levels.zones_for_bars);
+                                                                          "support_higher_timeframe" = 1 when the zone holds a 1h/4h/session level
     {"event": "opening_range_30_high"|"prior_session_high"|...}           the active level of one source
     {"vwap": "session_vwap"|"session_vwap_upper_1"|...}
     {"const": 50}
@@ -373,6 +374,12 @@ def _series(ctx: Context, node) -> np.ndarray:
             return _event_extreme(ctx, node["event"], int(node["minutes"]), kind == "event_high")
         raise ValueError(f"unknown time series {kind!r}")
     if "level" in node:
+        if node["level"].endswith("_higher_timeframe"):
+            # 1.0 when the zone holds a 1h / 4h fractal or a session / week level, 0.0 otherwise, NaN with no zone
+            side_name = node["level"].split("_")[0]
+            families = ctx.zones[f"{side_name}_families"].astype(str)
+            flag = families.str.contains("fractal_1h|fractal_4h|session|overnight|week|opening_range").to_numpy(float)
+            return np.where(np.isfinite(ctx.zones[f"{side_name}_strength"].to_numpy(np.float64)), flag, np.nan)
         return ctx.zones[node["level"]].to_numpy(np.float64)
     if "event" in node:
         ev = ctx.events[ctx.events["source"] == node["event"]]
