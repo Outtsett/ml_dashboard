@@ -105,11 +105,16 @@ def level_events(minutes: pd.DataFrame, timeframes=("5m", "15m", "30m"), buffer_
     levels = swing_levels(minutes, atr_per_minute(minutes), buffer_atr) if levels is None else levels
     lv = levels[levels["timeframe"].isin(timeframes)]
     end = np.where(lv["break_minute"] >= 0, lv["break_minute"], lv["retire_minute"])
+    # the quality test's window must not end at the break: the break IS the outcome being measured, and a
+    # window ending there read "held 0.95" for every swing family (round-12 review); test for the age cap
+    known = lv["known_minute"].to_numpy(np.int64)
+    cap = np.array([SWING_SPEC[tf][1] * WIDTH[tf] for tf in lv["timeframe"]], np.int64) if len(lv) else np.zeros(0, np.int64)
+    test_end = np.minimum(known + cap, stamps.size - 1)
     events = pd.DataFrame({"price": lv["price"].to_numpy(float),
                            "source": np.where(lv["side"] == 1, "swing_" + lv["timeframe"] + "_high", "swing_" + lv["timeframe"] + "_low"),
                            "family": "swing_" + lv["timeframe"], "timeframe": lv["timeframe"].to_numpy(),
                            "known_from": stamps[lv["known_minute"].to_numpy(np.int64)],
-                           "valid_until": stamps[end] + 60, "test_until": stamps[end] + 60})
+                           "valid_until": stamps[end] + 60, "test_until": stamps[test_end] + 60})
     events["family_group"] = events["family"]
     events = events[events["valid_until"] > events["known_from"]]
     return events.sort_values("known_from", kind="stable").reset_index(drop=True)
