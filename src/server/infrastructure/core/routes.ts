@@ -8,6 +8,7 @@ import { attachPtyWebSocket, registerTerminalRoutes } from "../lib/ptyServer";
 import uploadRouter from "../../data/upload.router";
 import databasesRouter from "../../data";
 import analyticsRouter from "../../analytics/analytics.router";
+import studiesRouter from "../../studies/studies.router";
 import pipelinesRouter from "../../data/pipelines.router";
 import dataManagementRouter from "../../data/data-management.router";
 
@@ -95,6 +96,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.use("/api", hpoRouter);      // before mlRouter
   app.use("/api", experimentsRouter);
   app.use("/api", analyticsRouter); // four-layer analytics — before mlRouter
+  app.use("/api", studiesRouter);   // the analytic pages that replaced the marimo notebooks
   app.use("/api", mlRouter);
   app.use("/api", newsRouter);
   app.use("/api", databasesRouter);

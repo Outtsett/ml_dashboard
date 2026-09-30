@@ -144,6 +144,13 @@ const LabelsFactory = () => import("@/labels/LabelsPage");
 const Labels = lazyRetry(LabelsFactory, "Labels");
 registerComponentFactory("/labels", LabelsFactory);
 
+const StudiesFactory = () => import("@/studies/StudiesPage");
+const Studies = lazyRetry(StudiesFactory, "Studies");
+registerComponentFactory("/studies", StudiesFactory);
+
+const StudyFactory = () => import("@/studies/StudyPage");
+const Study = lazyRetry(StudyFactory, "Study");
+
 const NotFound = lazyRetry(() => import("@/shared/layout/not-found"), "NotFound");
 
 function Router() {
@@ -195,6 +202,8 @@ function Router() {
               <Route path="/marimo"><ErrorBoundary><Suspense fallback={<PageLoader />}><Marimo /></Suspense></ErrorBoundary></Route>
               <Route path="/cycle"><ErrorBoundary><Suspense fallback={<PageLoader />}><Cycle /></Suspense></ErrorBoundary></Route>
               <Route path="/labels"><ErrorBoundary><Suspense fallback={<PageLoader />}><Labels /></Suspense></ErrorBoundary></Route>
+              <Route path="/studies"><ErrorBoundary><Suspense fallback={<PageLoader />}><Studies /></Suspense></ErrorBoundary></Route>
+              <Route path="/studies/:slug"><ErrorBoundary><Suspense fallback={<PageLoader />}><Study /></Suspense></ErrorBoundary></Route>
               <Route path="/live"><ErrorBoundary><Suspense fallback={<PageLoader />}><Live /></Suspense></ErrorBoundary></Route>
               <Route path="/settings"><ErrorBoundary><Suspense fallback={<PageLoader />}><Settings /></Suspense></ErrorBoundary></Route>
               <Route path="/training"><ErrorBoundary><Suspense fallback={<PageLoader />}><Training /></Suspense></ErrorBoundary></Route>

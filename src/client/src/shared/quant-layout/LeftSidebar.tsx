@@ -1,7 +1,7 @@
 import * as NavigationMenu from "@radix-ui/react-navigation-menu";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/shared/utils/utils";
-import { BrainCircuit, Library, Database, BookOpen, BookMarked, Newspaper, ActivitySquare, BarChart3, Microscope, NotebookPen, ScatterChart, PlayCircle, Tags, Radio, PanelLeftClose, PanelLeftOpen, Compass } from "lucide-react";
+import { BrainCircuit, Library, Database, BookOpen, BookMarked, Newspaper, ActivitySquare, BarChart3, Microscope, NotebookPen, ScatterChart, PlayCircle, Tags, Radio, PanelLeftClose, PanelLeftOpen, Compass, FlaskConical } from "lucide-react";
 
 // This list is the app's actual rendered sidebar. shared/hooks/navigation.ts's
 // NAVIGATION_CONFIG is a separate, richer nav model (groups, descriptions,
@@ -32,6 +32,7 @@ const NAV_ITEMS = [
   { label: "Data", href: "/databases", icon: Database },
   { label: "Labels", href: "/labels", icon: Tags },
   { label: "Lens", href: "/lens", icon: Microscope },
+  { label: "Studies", href: "/studies", icon: FlaskConical },
   { label: "Notebooks", href: "/marimo", icon: NotebookPen },
   { label: "Glossary", href: "/glossary", icon: BookMarked },
   { label: "Paper", href: "/paper", icon: BookOpen },

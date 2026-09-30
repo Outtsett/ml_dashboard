@@ -56,6 +56,8 @@ export const ROUTES: RouteSpec[] = [
   { path: '/model-catalog', component: 'ModelCatalogPage', tier: 'backend', navLabel: 'Catalog' },
   { path: '/databases', component: 'DatabasesPage', tier: 'backend', navLabel: 'Data' },
   { path: '/lens', component: 'LensPage', tier: 'backend', navLabel: 'Lens' },
+  { path: '/studies', component: 'StudiesPage', tier: 'backend', navLabel: 'Studies' },
+  { path: '/studies/:slug', component: 'StudyPage', tier: 'lake' },
   { path: '/marimo', component: 'MarimoPage', tier: 'backend', navLabel: 'Notebooks' },
   { path: '/glossary', component: 'GlossaryPage', tier: 'static', navLabel: 'Glossary' },
   { path: '/paper', component: 'PaperPage', tier: 'stream', navLabel: 'Paper' },
