@@ -2693,6 +2693,1306 @@
           "param": "hold_bars"
         }
       }
+    },
+    "seasonal_momentum_rth": {
+      "description": "The confirmed momentum 2:1 entry (a bar moving at least move_atr x ATR with RSI beyond rsi_threshold and the MACD histogram on the same side) taken only when the causal intraday profile says volatility is about to RISE (next 30 minutes over last 30 at least rise_ratio), anywhere in regular hours. Stop = stop_mult x the expected 60-minute range; target 2R (a 2:1 bracket); breakeven after 1R; closed at the next open when volatility is about to FALL (ratio below fall_ratio).",
+      "params": {
+        "move_atr": {
+          "type": "float",
+          "low": 0.75,
+          "high": 2.0,
+          "step": 0.25
+        },
+        "rsi_threshold": {
+          "type": "int",
+          "low": 56,
+          "high": 76,
+          "step": 2
+        },
+        "rise_ratio": {
+          "type": "float",
+          "low": 0.9,
+          "high": 1.8,
+          "step": 0.1
+        },
+        "stop_mult": {
+          "type": "float",
+          "low": 0.3,
+          "high": 1.2,
+          "step": 0.1
+        },
+        "fall_ratio": {
+          "type": "float",
+          "low": 0.5,
+          "high": 0.95,
+          "step": 0.05
+        }
+      },
+      "defaults": {
+        "move_atr": 0.75,
+        "rsi_threshold": 72,
+        "rise_ratio": 1.0,
+        "stop_mult": 0.8,
+        "fall_ratio": 0.8
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "macd_histogram": {
+          "ind": "MACD",
+          "args": {
+            "fastperiod": 12,
+            "slowperiod": 26,
+            "signalperiod": 9
+          },
+          "out": 2
+        },
+        "bar_move": {
+          "op": "sub",
+          "a": "close",
+          "b": {
+            "op": "lag",
+            "of": "close",
+            "n": 1
+          }
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "06:30",
+        "end": "13:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$bar_move",
+              "b": {
+                "op": "mul",
+                "a": "atr",
+                "b": {
+                  "param": "move_atr"
+                }
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "param": "rsi_threshold"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$macd_histogram",
+              "b": {
+                "const": 0
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": {
+                "op": "mul",
+                "a": "$bar_move",
+                "b": {
+                  "const": -1
+                }
+              },
+              "b": {
+                "op": "mul",
+                "a": "atr",
+                "b": {
+                  "param": "move_atr"
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "op": "sub",
+                "a": {
+                  "const": 100
+                },
+                "b": {
+                  "param": "rsi_threshold"
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "$macd_histogram",
+              "b": {
+                "const": 0
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "series",
+          "of": "$expected_move",
+          "mult": {
+            "param": "stop_mult"
+          }
+        },
+        "target": {
+          "kind": "r",
+          "value": 2.0
+        },
+        "trail": {
+          "breakeven_after_r": 1.0,
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "$ahead",
+            "b": {
+              "param": "fall_ratio"
+            }
+          },
+          "short": {
+            "op": "below",
+            "a": "$ahead",
+            "b": {
+              "param": "fall_ratio"
+            }
+          }
+        }
+      }
+    },
+    "momentum_two_to_one_control": {
+      "description": "CONTROL for seasonal_momentum_rth: the confirmed momentum 2:1 spec as frozen in round 3 (ATR stop, 2R target, breakeven, its own 06:30-10:30 window), re-tuned in the same round on the same bars.",
+      "params": {
+        "move_atr": {
+          "type": "float",
+          "low": 0.75,
+          "high": 2.0,
+          "step": 0.25
+        },
+        "rsi_threshold": {
+          "type": "int",
+          "low": 56,
+          "high": 76,
+          "step": 2
+        },
+        "stop_atr": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.75,
+          "high": 1.5,
+          "step": 0.25
+        }
+      },
+      "defaults": {
+        "move_atr": 1.0,
+        "rsi_threshold": 60,
+        "stop_atr": 1.5,
+        "breakeven_r": 1.0
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "macd_histogram": {
+          "ind": "MACD",
+          "args": {
+            "fastperiod": 12,
+            "slowperiod": 26,
+            "signalperiod": 9
+          },
+          "out": 2
+        },
+        "bar_move": {
+          "op": "sub",
+          "a": "close",
+          "b": {
+            "op": "lag",
+            "of": "close",
+            "n": 1
+          }
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "06:30",
+        "end": "10:30"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$bar_move",
+              "b": {
+                "op": "mul",
+                "a": "atr",
+                "b": {
+                  "param": "move_atr"
+                }
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "param": "rsi_threshold"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$macd_histogram",
+              "b": {
+                "const": 0
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "10:30"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": {
+                "op": "mul",
+                "a": "$bar_move",
+                "b": {
+                  "const": -1
+                }
+              },
+              "b": {
+                "op": "mul",
+                "a": "atr",
+                "b": {
+                  "param": "move_atr"
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "op": "sub",
+                "a": {
+                  "const": 100
+                },
+                "b": {
+                  "param": "rsi_threshold"
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "$macd_histogram",
+              "b": {
+                "const": 0
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "10:30"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "atr",
+          "mult": {
+            "param": "stop_atr"
+          }
+        },
+        "target": {
+          "kind": "r",
+          "value": 2.0
+        },
+        "risk": {
+          "max_entries_per_session": 2
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        }
+      }
+    },
+    "seasonal_level_breakout_rth": {
+      "description": "The confirmed level breakout (a close through the nearest multi-timeframe resistance/support zone of at least min_strength families, RSI beyond rsi_threshold) taken only into RISING expected volatility, anywhere in regular hours; the stop stays just beyond the broken level (stop_buffer_atr), the target is 2R, breakeven after 1.25R, and the trade is closed at the next open when volatility is about to FALL.",
+      "params": {
+        "rsi_threshold": {
+          "type": "int",
+          "low": 50,
+          "high": 76,
+          "step": 2
+        },
+        "min_strength": {
+          "type": "int",
+          "low": 1,
+          "high": 3,
+          "step": 1
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.0,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "rise_ratio": {
+          "type": "float",
+          "low": 0.9,
+          "high": 1.8,
+          "step": 0.1
+        },
+        "fall_ratio": {
+          "type": "float",
+          "low": 0.5,
+          "high": 0.95,
+          "step": 0.05
+        }
+      },
+      "defaults": {
+        "rsi_threshold": 76,
+        "min_strength": 1,
+        "stop_buffer_atr": 0.25,
+        "rise_ratio": 1.0,
+        "fall_ratio": 0.8
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "06:30",
+        "end": "13:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "broke_above",
+              "level": {
+                "level": "resistance_high"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": {
+                "op": "lag",
+                "of": {
+                  "level": "resistance_strength"
+                },
+                "n": 1
+              },
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "param": "rsi_threshold"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "broke_below",
+              "level": {
+                "level": "support_low"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": {
+                "op": "lag",
+                "of": {
+                  "level": "support_strength"
+                },
+                "n": 1
+              },
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "op": "sub",
+                "a": {
+                  "const": 100
+                },
+                "b": {
+                  "param": "rsi_threshold"
+                }
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": {
+            "op": "lag",
+            "of": {
+              "level": "resistance_high"
+            },
+            "n": 1
+          },
+          "short_level": {
+            "op": "lag",
+            "of": {
+              "level": "support_low"
+            },
+            "n": 1
+          },
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": 2.0
+        },
+        "trail": {
+          "breakeven_after_r": 1.25,
+          "breakeven_offset_ticks": 1
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 500,
+          "max_entries_per_session": 2
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "$ahead",
+            "b": {
+              "param": "fall_ratio"
+            }
+          },
+          "short": {
+            "op": "below",
+            "a": "$ahead",
+            "b": {
+              "param": "fall_ratio"
+            }
+          }
+        }
+      }
+    },
+    "seasonal_momentum_flow_rth": {
+      "description": "The confirmed momentum 2:1 entry (a bar moving at least move_atr x ATR with RSI beyond rsi_threshold and the MACD histogram on the same side) taken only when the causal intraday profile says volatility is about to RISE (next 30 minutes over last 30 at least rise_ratio), anywhere in regular hours. Stop = stop_mult x the expected 60-minute range; target 2R (a 2:1 bracket); breakeven after 1R; closed at the next open when volatility is about to FALL (ratio below fall_ratio). ORDER-FLOW GATE: additionally requires the tick-rule order-flow imbalance of the last flow_minutes minutes, z-scored against its previous 500 bars, to be at least flow_min_z in the trade's direction (long) or at most -flow_min_z (short). Flow is read only before 2025-07-01.",
+      "params": {
+        "move_atr": {
+          "type": "float",
+          "low": 0.75,
+          "high": 2.0,
+          "step": 0.25
+        },
+        "rsi_threshold": {
+          "type": "int",
+          "low": 56,
+          "high": 76,
+          "step": 2
+        },
+        "rise_ratio": {
+          "type": "float",
+          "low": 0.9,
+          "high": 1.8,
+          "step": 0.1
+        },
+        "stop_mult": {
+          "type": "float",
+          "low": 0.3,
+          "high": 1.2,
+          "step": 0.1
+        },
+        "fall_ratio": {
+          "type": "float",
+          "low": 0.5,
+          "high": 0.95,
+          "step": 0.05
+        },
+        "flow_minutes": {
+          "type": "int",
+          "low": 5,
+          "high": 30,
+          "step": 5
+        },
+        "flow_min_z": {
+          "type": "float",
+          "low": 0.0,
+          "high": 2.0,
+          "step": 0.25
+        }
+      },
+      "defaults": {
+        "move_atr": 0.75,
+        "rsi_threshold": 72,
+        "rise_ratio": 1.0,
+        "stop_mult": 0.8,
+        "fall_ratio": 0.8,
+        "flow_minutes": 15,
+        "flow_min_z": 0.5
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "macd_histogram": {
+          "ind": "MACD",
+          "args": {
+            "fastperiod": 12,
+            "slowperiod": 26,
+            "signalperiod": 9
+          },
+          "out": 2
+        },
+        "bar_move": {
+          "op": "sub",
+          "a": "close",
+          "b": {
+            "op": "lag",
+            "of": "close",
+            "n": 1
+          }
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "flow_zscore": {
+          "flow": "imbalance_zscore",
+          "minutes": {
+            "param": "flow_minutes"
+          },
+          "window": 500
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "06:30",
+        "end": "13:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$bar_move",
+              "b": {
+                "op": "mul",
+                "a": "atr",
+                "b": {
+                  "param": "move_atr"
+                }
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "param": "rsi_threshold"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$macd_histogram",
+              "b": {
+                "const": 0
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            },
+            {
+              "op": "at_least",
+              "a": "$flow_zscore",
+              "b": {
+                "param": "flow_min_z"
+              }
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": {
+                "op": "mul",
+                "a": "$bar_move",
+                "b": {
+                  "const": -1
+                }
+              },
+              "b": {
+                "op": "mul",
+                "a": "atr",
+                "b": {
+                  "param": "move_atr"
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "op": "sub",
+                "a": {
+                  "const": 100
+                },
+                "b": {
+                  "param": "rsi_threshold"
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "$macd_histogram",
+              "b": {
+                "const": 0
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            },
+            {
+              "op": "at_least",
+              "a": {
+                "op": "mul",
+                "a": "$flow_zscore",
+                "b": {
+                  "const": -1
+                }
+              },
+              "b": {
+                "param": "flow_min_z"
+              }
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "series",
+          "of": "$expected_move",
+          "mult": {
+            "param": "stop_mult"
+          }
+        },
+        "target": {
+          "kind": "r",
+          "value": 2.0
+        },
+        "trail": {
+          "breakeven_after_r": 1.0,
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "$ahead",
+            "b": {
+              "param": "fall_ratio"
+            }
+          },
+          "short": {
+            "op": "below",
+            "a": "$ahead",
+            "b": {
+              "param": "fall_ratio"
+            }
+          }
+        }
+      }
+    },
+    "seasonal_level_breakout_flow_rth": {
+      "description": "The confirmed level breakout (a close through the nearest multi-timeframe resistance/support zone of at least min_strength families, RSI beyond rsi_threshold) taken only into RISING expected volatility, anywhere in regular hours; the stop stays just beyond the broken level (stop_buffer_atr), the target is 2R, breakeven after 1.25R, and the trade is closed at the next open when volatility is about to FALL. ORDER-FLOW GATE: additionally requires the tick-rule order-flow imbalance of the last flow_minutes minutes, z-scored against its previous 500 bars, to be at least flow_min_z in the trade's direction (long) or at most -flow_min_z (short). Flow is read only before 2025-07-01.",
+      "params": {
+        "rsi_threshold": {
+          "type": "int",
+          "low": 50,
+          "high": 76,
+          "step": 2
+        },
+        "min_strength": {
+          "type": "int",
+          "low": 1,
+          "high": 3,
+          "step": 1
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.0,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "rise_ratio": {
+          "type": "float",
+          "low": 0.9,
+          "high": 1.8,
+          "step": 0.1
+        },
+        "fall_ratio": {
+          "type": "float",
+          "low": 0.5,
+          "high": 0.95,
+          "step": 0.05
+        },
+        "flow_minutes": {
+          "type": "int",
+          "low": 5,
+          "high": 30,
+          "step": 5
+        },
+        "flow_min_z": {
+          "type": "float",
+          "low": 0.0,
+          "high": 2.0,
+          "step": 0.25
+        }
+      },
+      "defaults": {
+        "rsi_threshold": 76,
+        "min_strength": 1,
+        "stop_buffer_atr": 0.25,
+        "rise_ratio": 1.0,
+        "fall_ratio": 0.8,
+        "flow_minutes": 15,
+        "flow_min_z": 0.5
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "flow_zscore": {
+          "flow": "imbalance_zscore",
+          "minutes": {
+            "param": "flow_minutes"
+          },
+          "window": 500
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "06:30",
+        "end": "13:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "broke_above",
+              "level": {
+                "level": "resistance_high"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": {
+                "op": "lag",
+                "of": {
+                  "level": "resistance_strength"
+                },
+                "n": 1
+              },
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "param": "rsi_threshold"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            },
+            {
+              "op": "at_least",
+              "a": "$flow_zscore",
+              "b": {
+                "param": "flow_min_z"
+              }
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "broke_below",
+              "level": {
+                "level": "support_low"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": {
+                "op": "lag",
+                "of": {
+                  "level": "support_strength"
+                },
+                "n": 1
+              },
+              "b": {
+                "param": "min_strength"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "op": "sub",
+                "a": {
+                  "const": 100
+                },
+                "b": {
+                  "param": "rsi_threshold"
+                }
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            },
+            {
+              "op": "at_least",
+              "a": {
+                "op": "mul",
+                "a": "$flow_zscore",
+                "b": {
+                  "const": -1
+                }
+              },
+              "b": {
+                "param": "flow_min_z"
+              }
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": {
+            "op": "lag",
+            "of": {
+              "level": "resistance_high"
+            },
+            "n": 1
+          },
+          "short_level": {
+            "op": "lag",
+            "of": {
+              "level": "support_low"
+            },
+            "n": 1
+          },
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": 2.0
+        },
+        "trail": {
+          "breakeven_after_r": 1.25,
+          "breakeven_offset_ticks": 1
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 500,
+          "max_entries_per_session": 2
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "$ahead",
+            "b": {
+              "param": "fall_ratio"
+            }
+          },
+          "short": {
+            "op": "below",
+            "a": "$ahead",
+            "b": {
+              "param": "fall_ratio"
+            }
+          }
+        }
+      }
+    },
+    "seasonal_breakout_flow_rth": {
+      "description": "Breakout of the last n bars in the regular hours (06:30-13:00 Pacific) session, taken only when the causal intraday profile says volatility is about to RISE (expected volatility of the next 30 minutes over the last 30 at least rise_ratio). The stop is stop_mult x the expected high-low range of the next 60 minutes (seasonal, not trailing ATR, so it is wide into the open and narrow into lunch); the target is target_r x the risk; the trade is closed at the next open once the profile says volatility is about to FALL (ratio below fall_ratio). ORDER-FLOW GATE: additionally requires the tick-rule order-flow imbalance of the last flow_minutes minutes, z-scored against its previous 500 bars, to be at least flow_min_z in the trade's direction (long) or at most -flow_min_z (short). Flow is read only before 2025-07-01.",
+      "params": {
+        "n_break": {
+          "type": "int",
+          "low": 3,
+          "high": 12,
+          "step": 1
+        },
+        "rise_ratio": {
+          "type": "float",
+          "low": 0.9,
+          "high": 1.8,
+          "step": 0.1
+        },
+        "stop_mult": {
+          "type": "float",
+          "low": 0.3,
+          "high": 1.2,
+          "step": 0.1
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.5,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "fall_ratio": {
+          "type": "float",
+          "low": 0.5,
+          "high": 0.95,
+          "step": 0.05
+        },
+        "flow_minutes": {
+          "type": "int",
+          "low": 5,
+          "high": 30,
+          "step": 5
+        },
+        "flow_min_z": {
+          "type": "float",
+          "low": 0.0,
+          "high": 2.0,
+          "step": 0.25
+        }
+      },
+      "defaults": {
+        "n_break": 6,
+        "rise_ratio": 1.2,
+        "stop_mult": 0.6,
+        "target_r": 2.0,
+        "fall_ratio": 0.8,
+        "flow_minutes": 15,
+        "flow_min_z": 0.5
+      },
+      "series": {
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "channel_high": {
+          "op": "highest",
+          "of": "high",
+          "n": {
+            "param": "n_break"
+          }
+        },
+        "channel_low": {
+          "op": "lowest",
+          "of": "low",
+          "n": {
+            "param": "n_break"
+          }
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "flow_zscore": {
+          "flow": "imbalance_zscore",
+          "minutes": {
+            "param": "flow_minutes"
+          },
+          "window": 500
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "06:30",
+        "end": "13:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "above",
+              "a": "close",
+              "b": "$channel_high"
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "const": 50
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            },
+            {
+              "op": "at_least",
+              "a": "$flow_zscore",
+              "b": {
+                "param": "flow_min_z"
+              }
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "below",
+              "a": "close",
+              "b": "$channel_low"
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "const": 50
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            },
+            {
+              "op": "at_least",
+              "a": {
+                "op": "mul",
+                "a": "$flow_zscore",
+                "b": {
+                  "const": -1
+                }
+              },
+              "b": {
+                "param": "flow_min_z"
+              }
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "series",
+          "of": "$expected_move",
+          "mult": {
+            "param": "stop_mult"
+          }
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": 1.0,
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "below",
+            "a": "$ahead",
+            "b": {
+              "param": "fall_ratio"
+            }
+          },
+          "short": {
+            "op": "below",
+            "a": "$ahead",
+            "b": {
+              "param": "fall_ratio"
+            }
+          }
+        }
+      }
     }
   }
 }

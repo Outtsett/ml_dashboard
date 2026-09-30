@@ -118,6 +118,53 @@ class Context:
     calendar: pd.DataFrame | None = None     # scheduled releases (seasonality.calendar_frame); loaded on first use
     seasonal: object | None = None           # seasonality.Seasonal, built on first use
     time: object | None = None               # seasonality.TimeEvents, built on first use
+    flow: dict | None = None                 # per-minute tick-rule signed and total volume (see _flow)
+
+
+# Order flow is readable only before the multimodal project's locked holdout (src/ml/multimodal/holdout.py).
+FLOW_END = "2025-07-01"
+
+
+def _flow(ctx: Context) -> dict:
+    """Tick-rule signed volume per minute of the rebuilt one-contract series (derived/multimodal_orderflow,
+    built from 1-second bars: a second's volume is + when its close rose, - when it fell). Joined on
+    (minute, contract); a minute of the covered span with no flow row is 0; minutes after FLOW_END or
+    outside the recipe's span are NaN, so no condition on flow can pass there."""
+    if ctx.flow is None:
+        import re
+
+        from multimodal.sources import flow_minutes
+
+        frame = ctx.minutes_frame
+        contract = frame["contract"].astype(str).to_numpy()
+        root = re.match(r"^([A-Z0-9]+?)[FGHJKMNQUVXZ]\d{1,2}$", contract[0]).group(1)
+        stamps = ctx.minutes.stamps
+        start = str(pd.Timestamp(int(stamps[0]), unit="s").date())
+        end = min(str((pd.Timestamp(int(stamps[-1]), unit="s") + pd.Timedelta(days=1)).date()), FLOW_END)
+        flow = flow_minutes(start, end, root=root) if start < end else pd.DataFrame(columns=["timestamp", "contract", "signed_volume", "volume"])
+        joined = pd.DataFrame({"timestamp": stamps, "contract": contract}).merge(
+            flow[["timestamp", "contract", "signed_volume", "volume"]], on=["timestamp", "contract"], how="left")
+        covered = np.zeros(stamps.size, dtype=bool)
+        if len(flow):
+            covered = (stamps >= int(flow["timestamp"].min())) & (stamps <= int(flow["timestamp"].max()))
+        signed = np.where(covered, joined["signed_volume"].fillna(0.0).to_numpy(float), np.nan)
+        volume = np.where(covered, joined["volume"].fillna(0.0).to_numpy(float), np.nan)
+        ctx.flow = {"signed_cumulative": np.r_[0.0, np.cumsum(np.nan_to_num(signed))],
+                    "volume_cumulative": np.r_[0.0, np.cumsum(np.nan_to_num(volume))],
+                    "covered_cumulative": np.r_[0, np.cumsum(covered)]}
+    return ctx.flow
+
+
+def _flow_imbalance(ctx: Context, minutes: int) -> np.ndarray:
+    """(buy - sell) / volume over the ``minutes`` minutes ending with each strategy bar's last minute."""
+    f = _flow(ctx)
+    end = ctx.last_minute + 1
+    start = np.maximum(end - int(minutes), 0)
+    volume = f["volume_cumulative"][end] - f["volume_cumulative"][start]
+    fully_covered = (f["covered_cumulative"][end] - f["covered_cumulative"][start]) == (end - start)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        imbalance = (f["signed_cumulative"][end] - f["signed_cumulative"][start]) / volume
+    return np.where(fully_covered & (volume > 0), imbalance, np.nan)
 
 
 def _seasonal(ctx: Context):
@@ -257,6 +304,18 @@ def _series(ctx: Context, node) -> np.ndarray:
         if kind == "expected_move":
             return season.expected_move_points(index, int(node["minutes"]))
         raise ValueError(f"unknown seasonal series {kind!r}")
+    if "flow" in node:
+        kind = node["flow"]
+        imbalance = _flow_imbalance(ctx, int(node["minutes"]))
+        if kind == "imbalance":
+            return imbalance
+        if kind == "imbalance_zscore":
+            # against the previous `window` bars' values (strictly before this bar): removes the tick rule's drift
+            window = int(node.get("window", 500))
+            past = pd.Series(imbalance).shift(1).rolling(window, min_periods=window // 2)
+            with np.errstate(invalid="ignore", divide="ignore"):
+                return ((imbalance - past.mean().to_numpy()) / past.std().to_numpy())
+        raise ValueError(f"unknown flow series {kind!r}")
     if "time" in node:
         index, kind = ctx.last_minute, node["time"]
         if kind == "minute_of_day":

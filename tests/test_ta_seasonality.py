@@ -183,6 +183,22 @@ def test_event_range_is_known_only_after_its_window():
     assert high[known][0] == pytest.approx(minutes.high[window].max())
 
 
+def test_flow_imbalance_joins_by_contract_and_minute_and_is_unknown_outside_coverage(monkeypatch):
+    import multimodal.sources as sources
+
+    stamps = np.arange(1_700_000_040, 1_700_000_040 + 60 * 12, 60, dtype=np.int64)
+    frame = pd.DataFrame({"timestamp": stamps, "contract": ["MNQZ3"] * 12})
+    flow = pd.DataFrame({"timestamp": stamps[:8], "contract": ["MNQZ3"] * 8,
+                         "signed_volume": [10.0, -4.0, 6.0, 0.0, 8.0, -2.0, 4.0, 2.0], "volume": [20.0] * 8})
+    flow = flow.drop(index=3)                                  # a covered minute with no row counts as zero flow
+    monkeypatch.setattr(sources, "flow_minutes", lambda start, end, root="MNQ": flow)
+    ctx = SimpleNamespace(minutes_frame=frame, minutes=SimpleNamespace(stamps=stamps), last_minute=np.array([3, 7, 11]), flow=None)
+    imbalance = strategy._flow_imbalance(ctx, 4)
+    assert imbalance[0] == pytest.approx((10 - 4 + 6 + 0) / 60)          # minute 3 had no row: volume 0, signed 0
+    assert imbalance[1] == pytest.approx((8 - 2 + 4 + 2) / 80)
+    assert np.isnan(imbalance[2])                                        # minutes 8-11 are after the flow's last minute
+
+
 def test_new_templates_materialize():
     import json
 
