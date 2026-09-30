@@ -2907,7 +2907,7 @@
       }
     },
     "momentum_two_to_one_control": {
-      "description": "CONTROL for seasonal_momentum_rth: the confirmed momentum 2:1 spec as frozen in round 3 (ATR stop, 2R target, breakeven, its own 06:30-10:30 window), re-tuned in the same round on the same bars.",
+      "description": "CONTROL for seasonal_momentum_rth: the round-2 momentum template (momentum_expansion_control: ATR stop, 2R target, a TUNED breakeven after breakeven_r, its own 06:30-10:30 window) re-tuned in the same round on the same bars. Not the exact round-3 frozen spec, which had NO breakeven (exit_override trail null).",
       "params": {
         "move_atr": {
           "type": "float",

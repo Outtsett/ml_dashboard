@@ -444,6 +444,54 @@ a random walk: overnight VR(5) is only 2-6% below 1.
 
 **Verdict.** 600 net ticks a day on one contract remains out of reach: the best out-of-sample template reaches 3.8% of it.
 
+
+## Round 8 (seasonal and order-flow gates on the confirmed strategies) and round 9 (ES confirmation)
+
+**Order flow.** The source is tick-rule signed volume per contract per minute: `derived/multimodal_orderflow`, recipe
+`tick_rule_1s_v1`, built from 1-second bars.
+- **How it is read:** joined to the rebuilt minutes on (minute, contract), and readable only before 2025-07-01, the multimodal
+  project's locked holdout.
+- **New series:** `{"flow": "imbalance" | "imbalance_zscore", "minutes": k, "window": n}`.
+- **Checks:** a truncation test was identical on 14,453 bars, and the join matches 100% at shift 0.
+- **What it measures:** 15-minute imbalance correlates 0.58 with the same bar's return and 0.003 with the next. It largely
+  re-encodes the bar's own move.
+
+**Round 8** (`round_8_20260930T022558`, MNQ 15m, tuned per fold on prior years, tested 2022-2025H1, 903 session days):
+
+| Template | Net ticks/day | Excess (t) | Win | PF |
+|---|---|---|---|---|
+| momentum_two_to_one_control (round-2 momentum, tuned breakeven) | +24.1 | +24.3 (2.61) | 39.9% | 1.40 |
+| seasonal_breakout_rth | +22.0 | +22.2 (1.78) | 45.8% | 1.19 |
+| level_breakout_momentum | +16.0 | +10.9 (1.35) | 36.1% | 1.15 |
+| seasonal_momentum_rth | +15.7 | +13.3 (1.60) | 41.6% | 1.33 |
+| seasonal_breakout_flow_rth | +14.4 | +14.7 (1.83) | 46.8% | 1.22 |
+| seasonal_momentum_flow_rth | +10.6 | +12.1 (1.52) | 43.2% | 1.21 |
+| seasonal_level_breakout_flow_rth | +7.3 | +9.0 (1.15) | 43.1% | 1.08 |
+| seasonal_level_breakout_rth | +5.2 | +6.5 (0.78) | 42.3% | 1.05 |
+
+**How fragile the lead is.**
+- **The momentum control's lead is 2025-H1:** 43% of its net, and one day, 2025-04-09, is 17%.
+  - 2023 lost: -4.6/day, PF 0.83.
+  - Without its top 10 days: +8.3/day, win 37.6%, PF 1.14.
+  - Without 2025: +15.9/day (t 1.88).
+- **The White Reality Check is fragile:** p 0.048 over the 8 templates, 0.036-0.053 by seed and block, and 0.18 without the
+  momentum control.
+- **Deflated Sharpe:** 0.845 over the templates and 0.224 over 1,967 distinct trials.
+
+**Paired comparisons.**
+- The seasonal variants (gate, wider window, expected-move stop, volatility-fall exit) did not beat their originals: momentum
+  -8.4/day (t -0.88), level -10.7 (t -0.86).
+- The flow gate did not help: -5.1, -7.6, +2.1 (all |t| < 1).
+
+**Round 9** (`round_9_20260930T023710`, pre-registered): the momentum control, frozen at its 2025-fold parameters (move 1.75
+ATR, RSI 58, stop 2.5 ATR, breakeven 1.25R, 2R target), run once on **ES 2010-06..2025-06 at MES costs**.
+- **Result: NOT CONFIRMED.**
+  - Excess -0.04 ticks/day (t -0.09); win 34.1%, PF 0.74, -1.8 net/day.
+  - Sub-periods: +0.6, +0.3, -0.1, -1.0.
+- **Correction from the review:** that control is the round-2 momentum template with a tuned breakeven, not the round-3 frozen
+  spec, which had no breakeven. The description is fixed.
+- **Reading:** the MNQ momentum edge does not transfer to the S&P 500.
+
 **Next:**
 - add order-flow and book information;
 - size and stack uncorrelated books;

@@ -514,7 +514,8 @@
       "costs": {
         "stop_slippage_ticks": 1
       },
-      "goal_ticks_per_session_day": 600
+      "goal_ticks_per_session_day": 600,
+      "correction_after_run": "The round-8 review found that momentum_two_to_one_control is the round-2 momentum template with a tuned breakeven (frozen here at breakeven_r 1.25), not the round-3 frozen spec (no breakeven). Round 9 therefore tested the breakeven variant; the frozen parameters above are what ran. ES 2010-06..2025-06 is a market no round had used, but 2019-2025 overlaps the MNQ tuning and test years in calendar time; the sub-periods (+0.6, +0.3, -0.1, -1.0) show no edge in any of them."
     }
   }
 }
