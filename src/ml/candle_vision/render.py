@@ -5,7 +5,7 @@ A window is the last ``W`` bars ending at the bar being labelled (TA-Lib decides
 to its own lowest low .. highest high, so the image carries shape and never price level.
 
 Three channels, each ``height`` x ``W * candle_width`` pixels, row 0 at the top:
-  0  silhouette: the wick (one column at the candle's centre) and the body (four columns)
+  0  silhouette: the wick (column 2 of the candle's 6) and the body (columns 1-4); 0 and 5 are gaps
   1  rising body (close >= open, TA-Lib's "white" candle)
   2  falling body
 Rows are anti-aliased: a pixel holds the fraction of it the span covers, so a body edge that falls
