@@ -8,6 +8,7 @@ import * as Progress from "@radix-ui/react-progress";
 import { trendTone, trendToneClass, trendGlyph, trendLabel } from "@/shared/theme/dataColors";
 import { useSymbolContext } from "@/shared/contexts/SymbolContext";
 import { minutesToLabel } from "@/market/lib/timeframes";
+import { WindowControls } from "@/system/components/WindowControls";
 
 export interface TopBarProps {
   sidePanelOpen: boolean;
@@ -25,7 +26,10 @@ export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
   const toggleClaude = useClaudePanel((state) => state.toggle);
 
   return (
-    <Toolbar.Root className="flex items-center w-full h-12 bg-neutral-950 border-b border-neutral-800 px-4 shrink-0 text-sm">
+    // The desktop window is frameless (electron/main.cjs), so this bar is its
+    // title bar: dragging it moves the window, and WindowControls draws the
+    // minimize / maximize / close buttons (it renders nothing in a browser).
+    <Toolbar.Root className="drag-region flex items-center w-full h-12 bg-neutral-950 border-b border-neutral-800 pl-4 shrink-0 text-sm">
       <div className="flex items-center gap-4 text-neutral-300 whitespace-nowrap border-r border-neutral-700 pr-4">
         <span className="font-bold text-white tracking-wider">Quant AI Dashboard</span>
         <div className="flex items-center gap-2">
@@ -68,7 +72,7 @@ export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-6 pl-4 whitespace-nowrap text-xs">
+      <div className="flex items-center gap-6 px-4 whitespace-nowrap text-xs">
         <div className="flex items-center gap-2">
           <Server className="h-4 w-4 text-neutral-400" />
           <span className="text-neutral-300 w-8">GPU</span>
@@ -148,6 +152,8 @@ export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
           <span>Metrics</span>
         </button>
       </div>
+
+      <WindowControls className="border-l border-neutral-800" />
     </Toolbar.Root>
   );
 }

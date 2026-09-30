@@ -8,7 +8,12 @@
   -webkit-app-region: drag;
   app-region: drag;
 }
-.no-drag {
+.no-drag,
+.drag-region button,
+.drag-region a,
+.drag-region input,
+.drag-region select,
+.drag-region [role="button"] {
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
