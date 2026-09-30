@@ -140,6 +140,7 @@ export function useChartOverlayData(
   tfLabel: string,
   regime: RegimeSource,
   training: TrainingProgressSource,
+  visibleRange: { start: number; end: number } | null = null,
 ): ChartOverlayResult {
   // â”€â”€ Overlay toggles â”€â”€
   const [showSR, setShowSR] = useState(false);
@@ -251,10 +252,18 @@ export function useChartOverlayData(
     []
   );
 
+  // Support / resistance is computed on the bars ON SCREEN (settled visible range), so the ten
+  // strongest zones are the ones that matter where you are looking; over the whole 50,000-bar load
+  // they all sat in one week's congestion far from the current price.
   const srLevels = useMemo(() => {
     if (!showSR || chartData.length < 20) return [];
-    return computeSupportResistance(mapBars(chartData), 5, 10);
-  }, [showSR, chartData, mapBars]);
+    const mapped = mapBars(chartData);
+    // Before the chart has reported a visible range (first paint), the newest bars stand in for it.
+    const onScreen = visibleRange
+      ? mapped.filter((bar) => bar.time >= visibleRange.start && bar.time <= visibleRange.end)
+      : mapped.slice(-300);
+    return computeSupportResistance(onScreen.length >= 20 ? onScreen : mapped.slice(-300), 5, 10);
+  }, [showSR, chartData, mapBars, visibleRange]);
 
   const zigZagPts = useMemo(() => {
     if (!showZigZag || chartData.length < 10) return [];

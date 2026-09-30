@@ -290,7 +290,7 @@ export default function MarketData() {
     barContext: dashboard.trainingContext,
     livePercent: training.progress,
     predictedSpanMilliseconds: predictedSpanMilliseconds,
-  });
+  }, visibleRange);
 
   // â”€â”€ Quick stats â”€â”€
   // ── Model predictions on the price chart ──────────────────────────────
