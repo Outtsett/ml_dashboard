@@ -1214,5 +1214,67 @@ def _(CONDITIONAL, GOAL, OKABE, alt, frame, mo, pl, view_exists):
     return
 
 
+@app.cell
+def _(CONDITIONAL, cascade_symbol, frame, mo, view_exists):
+    if not view_exists(f"{CONDITIONAL}cascade_minute_state"):
+        mo.stop(True, mo.md("### Session view\nThe per-minute cascade state has not landed yet."))
+    _dates = frame(f"SELECT DISTINCT session_date FROM {CONDITIONAL}cascade_minute_state WHERE symbol = ? AND recipe = "
+                   f"(SELECT max(recipe) FROM {CONDITIONAL}cascade_minute_state WHERE symbol = ?) ORDER BY session_date", [cascade_symbol.value, cascade_symbol.value])
+    _labels = [str(d)[:10] for d in _dates["session_date"].to_list()]
+    cascade_day = mo.ui.dropdown(_labels, value=_labels[-60] if len(_labels) > 60 else _labels[-1], label="Session day")
+    cascade_tfs = mo.ui.multiselect(["1m", "5m", "15m", "30m"], value=["5m", "15m", "30m"], label="Levels drawn")
+    cascade_template_pick = mo.ui.dropdown(["cascade_trend", "cascade_trend_volume", "cascade_trend_momentum", "cascade_trend_momentum_cross",
+                                            "cascade_trend_full", "cascade_trend_full_rth", "cascade_trend_rth", "cascade_aligned_control"],
+                                           value="cascade_trend", label="Round-10 trades to mark")
+    mo.hstack([cascade_day, cascade_tfs, cascade_template_pick])
+    return cascade_day, cascade_template_pick, cascade_tfs
+
+
+@app.cell
+def _(CONDITIONAL, OKABE, alt, cascade_day, cascade_symbol, cascade_template_pick, cascade_tfs, frame, mo, pl):
+    _sym = cascade_symbol.value
+    _st = frame(f"SELECT timestamp, close, volume, stage_up, stage_down, direction FROM {CONDITIONAL}cascade_minute_state WHERE symbol = ? "
+                f"AND CAST(session_date AS DATE) = CAST(? AS DATE) AND recipe = (SELECT max(recipe) FROM {CONDITIONAL}cascade_minute_state WHERE symbol = ?) "
+                "ORDER BY timestamp", [_sym, cascade_day.value, _sym])
+    _t0, _t1 = _st["timestamp"].min(), _st["timestamp"].max()
+    _lv = frame(f"SELECT timeframe, price, side, known_timestamp, end_timestamp, broken FROM {CONDITIONAL}cascade_levels_detail WHERE symbol = ? "
+                f"AND known_timestamp <= ? AND end_timestamp >= ? AND recipe = (SELECT max(recipe) FROM {CONDITIONAL}cascade_levels_detail WHERE symbol = ?)",
+                [_sym, _t1, _t0, _sym])
+    _lv = _lv.filter(pl.col("timeframe").is_in(cascade_tfs.value)).with_columns(
+        pl.when(pl.col("known_timestamp") < _t0).then(pl.lit(_t0)).otherwise(pl.col("known_timestamp")).alias("start"),
+        pl.when(pl.col("end_timestamp") > _t1).then(pl.lit(_t1)).otherwise(pl.col("end_timestamp")).alias("end"),
+        pl.when(pl.col("side") == 1).then(pl.lit("resistance")).otherwise(pl.lit("support")).alias("kind"))
+    _tr = frame(f"SELECT entry_timestamp, exit_timestamp, side, entry_price, exit_price, net_ticks, exit_reason FROM {CONDITIONAL}trades "
+                f"WHERE template = ? AND CAST(session_date AS DATE) = CAST(? AS DATE) AND recipe = (SELECT max(recipe) FROM {CONDITIONAL}rounds WHERE round = 10)",
+                [cascade_template_pick.value, cascade_day.value])
+    _price = alt.Chart(_st.select("timestamp", "close").to_pandas()).mark_line(color=OKABE["black"], strokeWidth=1).encode(
+        x=alt.X("timestamp:T", title="Pacific wall clock"), y=alt.Y("close:Q", scale=alt.Scale(zero=False), title="close (back-adjusted points)"))
+    _levels = alt.Chart(_lv.to_pandas()).mark_rule(strokeWidth=2, opacity=0.7).encode(
+        x="start:T", x2="end:T", y="price:Q",
+        color=alt.Color("timeframe:N", scale=alt.Scale(domain=["1m", "5m", "15m", "30m"], range=[OKABE["sky"], OKABE["blue"], OKABE["orange"], OKABE["vermillion"]])),
+        strokeDash=alt.StrokeDash("kind:N", scale=alt.Scale(domain=["resistance", "support"], range=[[1, 0], [4, 3]])),
+        tooltip=["timeframe", "kind", alt.Tooltip("price:Q", format=".2f"), "known_timestamp:T", "end_timestamp:T", "broken"])
+    _chart = _price + _levels
+    if _tr.height and "frame_error" not in _tr.columns:
+        _tp = _tr.with_columns(pl.when(pl.col("side") == "long").then(pl.lit("triangle-up")).otherwise(pl.lit("triangle-down")).alias("shape"))
+        _entries = alt.Chart(_tp.to_pandas()).mark_point(size=120, filled=True).encode(
+            x="entry_timestamp:T", y="entry_price:Q", shape=alt.Shape("shape:N", scale=None),
+            color=alt.condition("datum.net_ticks > 0", alt.value(OKABE["orange"]), alt.value(OKABE["blue"])),
+            tooltip=["side", "entry_timestamp:T", "exit_timestamp:T", alt.Tooltip("net_ticks:Q", format="+.0f"), "exit_reason"])
+        _exits = alt.Chart(_tp.to_pandas()).mark_point(shape="cross", size=80, color=OKABE["black"]).encode(x="exit_timestamp:T", y="exit_price:Q")
+        _chart = _chart + _entries + _exits
+    _stages = _st.select("timestamp", "stage_up", "stage_down").with_columns((-pl.col("stage_down")).alias("stage_down_negative")).unpivot(
+        index="timestamp", on=["stage_up", "stage_down_negative"], variable_name="which", value_name="stages")
+    _step = alt.Chart(_stages.to_pandas()).mark_area(interpolate="step-after", opacity=0.7).encode(
+        x="timestamp:T", y=alt.Y("stages:Q", title="stages: up (+) / down (-)"),
+        color=alt.Color("which:N", scale=alt.Scale(domain=["stage_up", "stage_down_negative"], range=[OKABE["orange"], OKABE["blue"]]), legend=None))
+    _vol = alt.Chart(_st.select("timestamp", "volume").to_pandas()).mark_bar(color=OKABE["sky"]).encode(x="timestamp:T", y=alt.Y("volume:Q", title="volume"))
+    mo.vstack([mo.md(f"### Session {cascade_day.value} ({_sym}): the levels of each timeframe from the minute they are known to the minute they break "
+                     "(solid = resistance, dashed = support), the cascade stage counter, volume, and the round-10 trades (▲ long, ▼ short, × exit; "
+                     "orange = won, blue = lost). Hover any level or trade."),
+               alt.vconcat(_chart.properties(width=1000, height=380), _step.properties(width=1000, height=110), _vol.properties(width=1000, height=80)).resolve_scale(x="shared")])
+    return
+
+
 if __name__ == "__main__":
     app.run()

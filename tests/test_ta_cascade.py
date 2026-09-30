@@ -119,3 +119,33 @@ def test_cascade_templates_materialize_and_read_cascade_series():
         assert '"param"' not in text
         assert '"cascade"' in text
         assert set(config[name]["defaults"]) == set(config[name]["params"])
+
+
+def test_level_bounce_exit_arms_at_the_level_and_closes_on_the_bounce():
+    from ta_strategy import engine
+
+    # minutes: entry at 100 (open of minute 1), rises to the level 110 at minute 4, keeps rising to 114, bounces to 106
+    open_ = np.array([100.0, 100.0, 103.0, 106.0, 109.0, 112.0, 114.0, 110.0, 106.0, 105.0])
+    high = open_ + np.array([0.5, 1.0, 1.5, 1.5, 1.5, 2.5, 1.0, 0.5, 0.5, 0.5])
+    low = open_ - np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 4.5, 4.5, 1.5, 0.5])
+    close = (high + low) / 2
+    n = open_.size
+    plan = engine.empty_plan(1)
+    plan[0, engine.P_STOP_TICKS] = 40            # 10 points
+    plan[0, engine.P_TARGET_PRICE] = 110.0       # the level
+    plan[0, engine.P_MIN_ROOM_R] = 0.5
+    plan[0, engine.P_TRAIL_MODE] = 4
+    plan[0, engine.P_BOUNCE_TICKS] = 8           # 2 points off the running extreme
+    out = engine.simulate(open_, high, low, close, np.array([0]), np.array([1], np.int8), plan, np.zeros(n, bool), np.zeros(n, bool),
+                          np.ones(n, bool), np.zeros(n, np.int64), np.r_[np.zeros(n - 1, bool), True], np.zeros(n, bool),
+                          0.25, 1.0, 4, 1e9, 0, 5.56)
+    e_i, x_i, side, e_p, x_p, risk, reason = out[:7]
+    assert e_p[0] == 100.0 and reason[0] == engine.EXIT_BOUNCE
+    # the level 110 is reached at minute 4 (high 110.5) and NOT filled as a limit; the extreme climbs to 114.5 at minute 5;
+    # at minute 6 the low (109.5) crosses the trail 114.5 - 2 = 112.5: exit there minus 1 tick slippage
+    assert x_i[0] == 6 and x_p[0] == pytest.approx(112.5 - 0.25)
+    plan[0, engine.P_TRAIL_MODE] = 0             # the same level as a plain limit fills at 110
+    out = engine.simulate(open_, high, low, close, np.array([0]), np.array([1], np.int8), plan, np.zeros(n, bool), np.zeros(n, bool),
+                          np.ones(n, bool), np.zeros(n, np.int64), np.r_[np.zeros(n - 1, bool), True], np.zeros(n, bool),
+                          0.25, 1.0, 4, 1e9, 0, 5.56)
+    assert out[6][0] == engine.EXIT_TARGET and out[4][0] == 110.0 and out[1][0] == 4

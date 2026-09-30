@@ -99,6 +99,11 @@ def run(args: argparse.Namespace) -> dict:
     # ── 1. multi-timeframe levels and their quality ────────────────────────
     level_ctx = levels.minute_context(minutes.frame)
     events = levels.all_level_events(minutes.frame, level_ctx)
+    if rc.get("level_source") == "cascade":
+        # the zones (stops, targets, level bounces) are the cascade's own 5m/15m/30m swing levels
+        from ta_strategy import cascade as cascade_module
+
+        events = cascade_module.level_events(minutes.frame, tuple(rc.get("zone_timeframes", ("5m", "15m", "30m"))))
     tests, quality = levels.level_quality(minutes.frame, events, level_ctx, permutations=int(rc["level_study"]["null_a_permutations"]))
     shuffled_rows = []
     for s in range(int(rc["level_study"]["null_b_shuffles"])):

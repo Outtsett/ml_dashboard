@@ -95,6 +95,24 @@ def swing_levels(minutes: pd.DataFrame, atr_minute: np.ndarray, buffer_atr: floa
     return pd.concat(frames, ignore_index=True)
 
 
+def level_events(minutes: pd.DataFrame, timeframes=("5m", "15m", "30m"), buffer_atr: float = 0.1,
+                 levels: pd.DataFrame | None = None) -> pd.DataFrame:
+    """The swing levels of ``timeframes`` in the level-event contract that ``levels.zones_for_bars`` merges
+    into support/resistance zones (price, family, known_from, valid_until as stamps, family_group)."""
+    stamps = minutes["timestamp"].to_numpy(np.int64)
+    levels = swing_levels(minutes, atr_per_minute(minutes), buffer_atr) if levels is None else levels
+    lv = levels[levels["timeframe"].isin(timeframes)]
+    end = np.where(lv["break_minute"] >= 0, lv["break_minute"], lv["retire_minute"])
+    events = pd.DataFrame({"price": lv["price"].to_numpy(float),
+                           "source": np.where(lv["side"] == 1, "swing_" + lv["timeframe"] + "_high", "swing_" + lv["timeframe"] + "_low"),
+                           "family": "swing_" + lv["timeframe"], "timeframe": lv["timeframe"].to_numpy(),
+                           "known_from": stamps[lv["known_minute"].to_numpy(np.int64)],
+                           "valid_until": stamps[end] + 60, "test_until": stamps[end] + 60})
+    events["family_group"] = events["family"]
+    events = events[events["valid_until"] > events["known_from"]]
+    return events.sort_values("known_from", kind="stable").reset_index(drop=True)
+
+
 @dataclass
 class Cascade:
     stage_up: np.ndarray            # per minute, 0..4

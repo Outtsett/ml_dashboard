@@ -14,6 +14,9 @@ the signal bar's close:
     P_TRAIL_A, P_TRAIL_B
     P_MAX_BARS      time stop, in strategy bars after the entry (0 = none)
     P_MIN_ROOM_R    room filter: an absolute target closer than this many R is rejected
+    P_BOUNCE_TICKS  with trail bit 4: P_TARGET_PRICE is a LEVEL, not a limit. Once price reaches it the
+                    trade is armed and exits when price retreats P_BOUNCE_TICKS from its running extreme
+                    (a resting trailing stop, market exit): "reached the next level and bounced".
 
 Order of events inside each minute of an open trade:
 1. at the open: a gap through the stop or target fills at the open; else an exit decided at
@@ -33,11 +36,12 @@ from __future__ import annotations
 import numpy as np
 from numba import njit
 
-EXIT_STOP, EXIT_TARGET, EXIT_SESSION_END, EXIT_DATA_END, EXIT_SIGNAL, EXIT_TIME, EXIT_TRAIL = 0, 1, 2, 3, 4, 5, 6
-EXIT_NAMES = {0: "stop", 1: "target", 2: "session_end", 3: "data_end", 4: "signal_exit", 5: "time_stop", 6: "trailing_stop"}
+EXIT_STOP, EXIT_TARGET, EXIT_SESSION_END, EXIT_DATA_END, EXIT_SIGNAL, EXIT_TIME, EXIT_TRAIL, EXIT_BOUNCE = 0, 1, 2, 3, 4, 5, 6, 7
+EXIT_NAMES = {0: "stop", 1: "target", 2: "session_end", 3: "data_end", 4: "signal_exit", 5: "time_stop", 6: "trailing_stop",
+              7: "level_bounce"}
 (P_STOP_PRICE, P_STOP_TICKS, P_TARGET_PRICE, P_TARGET_R, P_TARGET_TICKS, P_TRAIL_MODE, P_TRAIL_A, P_TRAIL_B,
- P_MAX_BARS, P_MIN_ROOM_R) = range(10)
-PLAN_COLUMNS = 10
+ P_MAX_BARS, P_MIN_ROOM_R, P_BOUNCE_TICKS) = range(11)
+PLAN_COLUMNS = 11
 
 
 def empty_plan(count: int) -> np.ndarray:
@@ -106,8 +110,14 @@ def simulate(open_, high, low, close, sig_idx, sig_side, plan, exit_long, exit_s
             target = entry + s * plan[k, P_TARGET_R] * r_ticks * tick
         elif np.isfinite(plan[k, P_TARGET_TICKS]):
             target = entry + s * plan[k, P_TARGET_TICKS] * tick
-        has_target = np.isfinite(target)
         mode = int(plan[k, P_TRAIL_MODE])
+        bounce_level = np.nan
+        if (mode & 4) != 0 and np.isfinite(plan[k, P_TARGET_PRICE]):
+            bounce_level = target          # the level arms a trail; it never fills as a limit
+            target = np.nan
+        has_target = np.isfinite(target)
+        armed = False
+        bounce = plan[k, P_BOUNCE_TICKS]
         ta = plan[k, P_TRAIL_A]
         tb = plan[k, P_TRAIL_B]
         max_bars = int(plan[k, P_MAX_BARS])
@@ -124,7 +134,7 @@ def simulate(open_, high, low, close, sig_idx, sig_side, plan, exit_long, exit_s
         while True:
             if j > t + 1 and roll_after[j]:
                 rolls += 1
-            stop_reason = EXIT_TRAIL if stop_is_trailed else EXIT_STOP
+            stop_reason = EXIT_BOUNCE if armed else (EXIT_TRAIL if stop_is_trailed else EXIT_STOP)
             if j > t + 1:
                 o = open_[j]
                 if s > 0:
@@ -172,7 +182,13 @@ def simulate(open_, high, low, close, sig_idx, sig_side, plan, exit_long, exit_s
                 else:
                     if low[j] < extreme:
                         extreme = low[j]
+                if not armed and np.isfinite(bounce_level) and s * (extreme - bounce_level) >= 0:
+                    armed = True
                 candidate = stop
+                if armed:
+                    c4 = extreme - s * bounce * tick
+                    if s * (c4 - candidate) > 0:
+                        candidate = c4
                 if (mode & 1) != 0:
                     c1 = extreme - s * ta * tick
                     if s * (c1 - candidate) > 0:

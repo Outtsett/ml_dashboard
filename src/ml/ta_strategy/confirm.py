@@ -83,7 +83,12 @@ def run(args: argparse.Namespace) -> dict:
     minutes = load_minutes_rebuilt(connection, symbol, rc["data_start"], rc["data_end"])
     protocol.emit_log(f"[data] {symbol} 1m rebuilt one contract per session: {len(minutes.frame):,} minutes, {len(minutes.rolls)} rolls; "
                       f"costs {cost_ticks:.2f} ticks ({rc.get('cost_symbol', symbol)}) + {slippage:g} tick stop slippage")
-    ctx = strategy.build_context(minutes, rc["timeframe"], cost.tick_size)
+    zone_events = None
+    if rc.get("level_source") == "cascade":
+        from ta_strategy import cascade as cascade_module
+
+        zone_events = cascade_module.level_events(minutes.frame, tuple(rc.get("zone_timeframes", ("5m", "15m", "30m"))))
+    ctx = strategy.build_context(minutes, rc["timeframe"], cost.tick_size, events=zone_events)
     days = np.unique(ctx.minutes.days)
     seeds = int(rc["nulls"]["matched_seeds"])
     side_reps = int(rc["nulls"]["random_side_replicates"])

@@ -6068,6 +6068,1127 @@
       "constraints": {
         "maximum_session_end_exit_share": 0.5
       }
+    },
+    "cascade_bounce_1m": {
+      "description": "Cascade trend on 1-minute bars with the user's LEVEL-BOUNCE exit: enter when the up (down) cascade first reaches n_stages; the next resistance (support) zone above (below), built from the 5m/15m/30m swing levels, is the level; when price reaches it the trade is armed and closes with profit as soon as price bounces bounce_ticks off its running extreme (a trailing stop armed at the level). A level closer than min_room_r x the risk is skipped. Stop beyond the last broken 5m level; breakeven after breakeven_r; closed at the next open when the opposite cascade reaches 2 stages; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. Whole session (ETH + RTH).",
+      "params": {
+        "n_stages": {
+          "type": "int",
+          "low": 1,
+          "high": 4,
+          "step": 1
+        },
+        "window": {
+          "type": "int",
+          "low": 60,
+          "high": 240,
+          "step": 60
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.5,
+          "step": 0.1
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 15,
+          "high": 240,
+          "step": 15
+        },
+        "bounce_ticks": {
+          "type": "int",
+          "low": 2,
+          "high": 16,
+          "step": 2
+        },
+        "min_room_r": {
+          "type": "float",
+          "low": 0.25,
+          "high": 1.5,
+          "step": 0.25
+        }
+      },
+      "defaults": {
+        "n_stages": 2,
+        "window": 120,
+        "stop_buffer_atr": 0.25,
+        "breakeven_r": 1.0,
+        "hold_bars": 60,
+        "bounce_ticks": 6,
+        "min_room_r": 0.5
+      },
+      "series": {
+        "stage_up": {
+          "cascade": "stage_up",
+          "window": {
+            "param": "window"
+          }
+        },
+        "stage_down": {
+          "cascade": "stage_down",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_up_5m": {
+          "cascade": "broken_level_up",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_down_5m": {
+          "cascade": "broken_level_down",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        },
+        "volume_trend": {
+          "volume": "trend",
+          "minutes": 15
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "rsi_signal": {
+          "op": "sma",
+          "of": {
+            "ind": "RSI",
+            "args": {
+              "timeperiod": 14
+            }
+          },
+          "n": 5
+        },
+        "macd_histogram": {
+          "ind": "MACD",
+          "args": {
+            "fastperiod": 12,
+            "slowperiod": 26,
+            "signalperiod": 9
+          },
+          "out": 2
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_up",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_down",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$broken_up_5m",
+          "short_level": "$broken_down_5m",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "level_bounce",
+          "min_r": {
+            "param": "min_room_r"
+          },
+          "bounce_ticks": {
+            "param": "bounce_ticks"
+          },
+          "fallback_r": 2.0
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "at_least",
+            "a": "$stage_down",
+            "b": {
+              "const": 2
+            }
+          },
+          "short": {
+            "op": "at_least",
+            "a": "$stage_up",
+            "b": {
+              "const": 2
+            }
+          }
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "cascade_bounce_1m_rth": {
+      "description": "Cascade trend on 1-minute bars with the user's LEVEL-BOUNCE exit: enter when the up (down) cascade first reaches n_stages; the next resistance (support) zone above (below), built from the 5m/15m/30m swing levels, is the level; when price reaches it the trade is armed and closes with profit as soon as price bounces bounce_ticks off its running extreme (a trailing stop armed at the level). A level closer than min_room_r x the risk is skipped. Stop beyond the last broken 5m level; breakeven after breakeven_r; closed at the next open when the opposite cascade reaches 2 stages; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. Regular hours only.",
+      "params": {
+        "n_stages": {
+          "type": "int",
+          "low": 1,
+          "high": 4,
+          "step": 1
+        },
+        "window": {
+          "type": "int",
+          "low": 60,
+          "high": 240,
+          "step": 60
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.5,
+          "step": 0.1
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 15,
+          "high": 240,
+          "step": 15
+        },
+        "bounce_ticks": {
+          "type": "int",
+          "low": 2,
+          "high": 16,
+          "step": 2
+        },
+        "min_room_r": {
+          "type": "float",
+          "low": 0.25,
+          "high": 1.5,
+          "step": 0.25
+        }
+      },
+      "defaults": {
+        "n_stages": 2,
+        "window": 120,
+        "stop_buffer_atr": 0.25,
+        "breakeven_r": 1.0,
+        "hold_bars": 60,
+        "bounce_ticks": 6,
+        "min_room_r": 0.5
+      },
+      "series": {
+        "stage_up": {
+          "cascade": "stage_up",
+          "window": {
+            "param": "window"
+          }
+        },
+        "stage_down": {
+          "cascade": "stage_down",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_up_5m": {
+          "cascade": "broken_level_up",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_down_5m": {
+          "cascade": "broken_level_down",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        },
+        "volume_trend": {
+          "volume": "trend",
+          "minutes": 15
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "rsi_signal": {
+          "op": "sma",
+          "of": {
+            "ind": "RSI",
+            "args": {
+              "timeperiod": 14
+            }
+          },
+          "n": 5
+        },
+        "macd_histogram": {
+          "ind": "MACD",
+          "args": {
+            "fastperiod": 12,
+            "slowperiod": 26,
+            "signalperiod": 9
+          },
+          "out": 2
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "06:30",
+        "end": "13:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_up",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_down",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$broken_up_5m",
+          "short_level": "$broken_down_5m",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "level_bounce",
+          "min_r": {
+            "param": "min_room_r"
+          },
+          "bounce_ticks": {
+            "param": "bounce_ticks"
+          },
+          "fallback_r": 2.0
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "at_least",
+            "a": "$stage_down",
+            "b": {
+              "const": 2
+            }
+          },
+          "short": {
+            "op": "at_least",
+            "a": "$stage_up",
+            "b": {
+              "const": 2
+            }
+          }
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "cascade_bounce_1m_volume": {
+      "description": "Cascade trend on 1-minute bars with the user's LEVEL-BOUNCE exit: enter when the up (down) cascade first reaches n_stages; the next resistance (support) zone above (below), built from the 5m/15m/30m swing levels, is the level; when price reaches it the trade is armed and closes with profit as soon as price bounces bounce_ticks off its running extreme (a trailing stop armed at the level). A level closer than min_room_r x the risk is skipped. Stop beyond the last broken 5m level; breakeven after breakeven_r; closed at the next open when the opposite cascade reaches 2 stages; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. With relative volume of the last volume_minutes at least volume_min. Whole session.",
+      "params": {
+        "n_stages": {
+          "type": "int",
+          "low": 1,
+          "high": 4,
+          "step": 1
+        },
+        "window": {
+          "type": "int",
+          "low": 60,
+          "high": 240,
+          "step": 60
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.5,
+          "step": 0.1
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 15,
+          "high": 240,
+          "step": 15
+        },
+        "bounce_ticks": {
+          "type": "int",
+          "low": 2,
+          "high": 16,
+          "step": 2
+        },
+        "min_room_r": {
+          "type": "float",
+          "low": 0.25,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "volume_minutes": {
+          "type": "int",
+          "low": 5,
+          "high": 30,
+          "step": 5
+        },
+        "volume_min": {
+          "type": "float",
+          "low": 0.8,
+          "high": 2.0,
+          "step": 0.2
+        }
+      },
+      "defaults": {
+        "n_stages": 2,
+        "window": 120,
+        "stop_buffer_atr": 0.25,
+        "breakeven_r": 1.0,
+        "hold_bars": 60,
+        "bounce_ticks": 6,
+        "min_room_r": 0.5,
+        "volume_minutes": 15,
+        "volume_min": 1.2
+      },
+      "series": {
+        "stage_up": {
+          "cascade": "stage_up",
+          "window": {
+            "param": "window"
+          }
+        },
+        "stage_down": {
+          "cascade": "stage_down",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_up_5m": {
+          "cascade": "broken_level_up",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_down_5m": {
+          "cascade": "broken_level_down",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": {
+            "param": "volume_minutes"
+          }
+        },
+        "volume_trend": {
+          "volume": "trend",
+          "minutes": 15
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "rsi_signal": {
+          "op": "sma",
+          "of": {
+            "ind": "RSI",
+            "args": {
+              "timeperiod": 14
+            }
+          },
+          "n": 5
+        },
+        "macd_histogram": {
+          "ind": "MACD",
+          "args": {
+            "fastperiod": 12,
+            "slowperiod": 26,
+            "signalperiod": 9
+          },
+          "out": 2
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_up",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$relative_volume",
+              "b": {
+                "param": "volume_min"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_down",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$relative_volume",
+              "b": {
+                "param": "volume_min"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$broken_up_5m",
+          "short_level": "$broken_down_5m",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "level_bounce",
+          "min_r": {
+            "param": "min_room_r"
+          },
+          "bounce_ticks": {
+            "param": "bounce_ticks"
+          },
+          "fallback_r": 2.0
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "at_least",
+            "a": "$stage_down",
+            "b": {
+              "const": 2
+            }
+          },
+          "short": {
+            "op": "at_least",
+            "a": "$stage_up",
+            "b": {
+              "const": 2
+            }
+          }
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "cascade_limit_1m_control": {
+      "description": "CONTROL for cascade_bounce_1m: identical entries and stops, but the next zone is a LIMIT target (exit exactly at the level) instead of a level-armed bounce. The difference is what the bounce exit adds. Whole session.",
+      "params": {
+        "n_stages": {
+          "type": "int",
+          "low": 1,
+          "high": 4,
+          "step": 1
+        },
+        "window": {
+          "type": "int",
+          "low": 60,
+          "high": 240,
+          "step": 60
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.5,
+          "step": 0.1
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 15,
+          "high": 240,
+          "step": 15
+        },
+        "min_room_r": {
+          "type": "float",
+          "low": 0.25,
+          "high": 1.5,
+          "step": 0.25
+        }
+      },
+      "defaults": {
+        "n_stages": 2,
+        "window": 120,
+        "stop_buffer_atr": 0.25,
+        "breakeven_r": 1.0,
+        "hold_bars": 60,
+        "min_room_r": 0.5
+      },
+      "series": {
+        "stage_up": {
+          "cascade": "stage_up",
+          "window": {
+            "param": "window"
+          }
+        },
+        "stage_down": {
+          "cascade": "stage_down",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_up_5m": {
+          "cascade": "broken_level_up",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_down_5m": {
+          "cascade": "broken_level_down",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        },
+        "volume_trend": {
+          "volume": "trend",
+          "minutes": 15
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "rsi_signal": {
+          "op": "sma",
+          "of": {
+            "ind": "RSI",
+            "args": {
+              "timeperiod": 14
+            }
+          },
+          "n": 5
+        },
+        "macd_histogram": {
+          "ind": "MACD",
+          "args": {
+            "fastperiod": 12,
+            "slowperiod": 26,
+            "signalperiod": 9
+          },
+          "out": 2
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_up",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_down",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$broken_up_5m",
+          "short_level": "$broken_down_5m",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "level",
+          "min_r": {
+            "param": "min_room_r"
+          },
+          "buffer_ticks": 1,
+          "fallback_r": 2.0
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "at_least",
+            "a": "$stage_down",
+            "b": {
+              "const": 2
+            }
+          },
+          "short": {
+            "op": "at_least",
+            "a": "$stage_up",
+            "b": {
+              "const": 2
+            }
+          }
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "cascade_bounce_5m": {
+      "description": "Cascade trend on 5-minute bars with the user's LEVEL-BOUNCE exit: enter when the up (down) cascade first reaches n_stages; the next resistance (support) zone above (below), built from the 5m/15m/30m swing levels, is the level; when price reaches it the trade is armed and closes with profit as soon as price bounces bounce_ticks off its running extreme (a trailing stop armed at the level). A level closer than min_room_r x the risk is skipped. Stop beyond the last broken 5m level; breakeven after breakeven_r; closed at the next open when the opposite cascade reaches 2 stages; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. Whole session (ETH + RTH).",
+      "params": {
+        "n_stages": {
+          "type": "int",
+          "low": 1,
+          "high": 4,
+          "step": 1
+        },
+        "window": {
+          "type": "int",
+          "low": 60,
+          "high": 240,
+          "step": 60
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.5,
+          "step": 0.1
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 12,
+          "high": 72,
+          "step": 12
+        },
+        "bounce_ticks": {
+          "type": "int",
+          "low": 2,
+          "high": 16,
+          "step": 2
+        },
+        "min_room_r": {
+          "type": "float",
+          "low": 0.25,
+          "high": 1.5,
+          "step": 0.25
+        }
+      },
+      "defaults": {
+        "n_stages": 2,
+        "window": 120,
+        "stop_buffer_atr": 0.25,
+        "breakeven_r": 1.0,
+        "hold_bars": 36,
+        "bounce_ticks": 6,
+        "min_room_r": 0.5
+      },
+      "series": {
+        "stage_up": {
+          "cascade": "stage_up",
+          "window": {
+            "param": "window"
+          }
+        },
+        "stage_down": {
+          "cascade": "stage_down",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_up_5m": {
+          "cascade": "broken_level_up",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_down_5m": {
+          "cascade": "broken_level_down",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        },
+        "volume_trend": {
+          "volume": "trend",
+          "minutes": 15
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "rsi_signal": {
+          "op": "sma",
+          "of": {
+            "ind": "RSI",
+            "args": {
+              "timeperiod": 14
+            }
+          },
+          "n": 5
+        },
+        "macd_histogram": {
+          "ind": "MACD",
+          "args": {
+            "fastperiod": 12,
+            "slowperiod": 26,
+            "signalperiod": 9
+          },
+          "out": 2
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_up",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_down",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$broken_up_5m",
+          "short_level": "$broken_down_5m",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "level_bounce",
+          "min_r": {
+            "param": "min_room_r"
+          },
+          "bounce_ticks": {
+            "param": "bounce_ticks"
+          },
+          "fallback_r": 2.0
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "at_least",
+            "a": "$stage_down",
+            "b": {
+              "const": 2
+            }
+          },
+          "short": {
+            "op": "at_least",
+            "a": "$stage_up",
+            "b": {
+              "const": 2
+            }
+          }
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
     }
   }
 }

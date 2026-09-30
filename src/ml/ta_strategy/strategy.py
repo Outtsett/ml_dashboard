@@ -570,6 +570,15 @@ def plans(ctx: Context, spec: dict, bars_index: np.ndarray, sides: np.ndarray) -
         plan[:, engine.P_TARGET_PRICE] = price
         plan[:, engine.P_MIN_ROOM_R] = float(target.get("min_r", 2.0))
         plan[:, engine.P_TARGET_R] = np.where(np.isfinite(price), np.nan, float(target.get("fallback_r", 2.0)))
+    elif target["kind"] == "level_bounce":
+        # the next opposing zone edge is a LEVEL: reaching it arms a trail of bounce_ticks from the running extreme
+        res = ctx.zones["resistance_low"].to_numpy(float)[bars_index]
+        sup = ctx.zones["support_high"].to_numpy(float)[bars_index]
+        price = np.where(sides > 0, res, sup)
+        plan[:, engine.P_TARGET_PRICE] = price
+        plan[:, engine.P_MIN_ROOM_R] = float(target.get("min_r", 0.5))
+        plan[:, engine.P_BOUNCE_TICKS] = max(float(target.get("bounce_ticks", 4)), 1.0)
+        plan[:, engine.P_TARGET_R] = np.where(np.isfinite(price), np.nan, float(target.get("fallback_r", 2.0)))
     elif target["kind"] == "series":
         distance = float(target.get("mult", 1.0)) * _side_series(ctx, target, bars_index, sides)
         plan[:, engine.P_TARGET_TICKS] = np.where(np.isfinite(distance) & (distance > 0), np.maximum(np.round(distance / tick), 1), np.nan)
@@ -577,6 +586,8 @@ def plans(ctx: Context, spec: dict, bars_index: np.ndarray, sides: np.ndarray) -
     elif target["kind"] != "none":
         raise ValueError(f"unknown target kind {target['kind']!r}")
     mode = 0
+    if target.get("kind") == "level_bounce":
+        mode |= 4
     trail = exit_spec.get("trail", {})
     if trail.get("breakeven_after_r"):
         mode |= 2

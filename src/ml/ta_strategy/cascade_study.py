@@ -82,7 +82,13 @@ def run(args: argparse.Namespace) -> dict:
         protocol.emit_log(f"[{args.symbol} delayed oracle {r.timeframe}] {r.ceiling_net_ticks_per_session_day_mean:,.0f} net ticks/day mean "
                           f"(median {r.ceiling_net_ticks_per_session_day_median:,.0f}) from {r.trades_per_session_day:.1f} trades/day; "
                           f"600 needs {100 * r.required_capture_share_for_600:.1f}% of it")
-    tables = {"cascade_levels": levels_table, "cascade_occupancy": pd.DataFrame(occupancy), "cascade_stage_moves": moves,
+    detail = lv.assign(known_timestamp=pd.to_datetime(stamps[lv["known_minute"]], unit="s"),
+                       end_timestamp=pd.to_datetime(stamps[np.where(lv["break_minute"] >= 0, lv["break_minute"], lv["retire_minute"])], unit="s"),
+                       broken=lv["break_minute"] >= 0, session_date=days[lv["known_minute"]]).drop(columns=["bar_index"])
+    state = pd.DataFrame({"timestamp": pd.to_datetime(stamps, unit="s"), "session_date": days, "close": frame["close"].to_numpy(float),
+                          "volume": frame["volume"].to_numpy(float), "stage_up": c.stage_up, "stage_down": c.stage_down,
+                          "aligned_up": c.aligned_up, "aligned_down": c.aligned_down, "direction": c.direction})
+    tables = {"cascade_levels_detail": detail, "cascade_minute_state": state, "cascade_levels": levels_table, "cascade_occupancy": pd.DataFrame(occupancy), "cascade_stage_moves": moves,
               "cascade_volume_deciles": deciles, "cascade_volume_summary": volume_summary, "cascade_volatility_indicators": indicators,
               "cascade_oracle": oracle,
               "cascade_level_tests": tests[["timeframe", "price", "side", "known_minute", "test_minute", "tested_side", "broke", "session_part",
