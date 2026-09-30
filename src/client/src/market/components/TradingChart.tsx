@@ -202,12 +202,25 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
   useNotebookDrawings(candleSeriesRef, drawingTimes, notebookDrawings);
 
   // The page asks the chart to move (a view request through the chart link, after any reload).
+  // "latest" sets the logical range to end at the last bar rather than calling scrollToRealTime,
+  // whose animation needs requestAnimationFrame and never finishes in a background tab.
+  const candleCountRef = useRef(0);
+  candleCountRef.current = processedData.candles.length;
   useEffect(() => subscribeChartScroll((view) => {
     const chart = chartRef.current;
     if (!chart) return;
     try {
-      if ("target" in view) chart.timeScale().scrollToRealTime();
-      else chart.timeScale().setVisibleRange({ from: Math.floor(view.startMs / 1000) as UTCTimestamp, to: Math.floor(view.endMs / 1000) as UTCTimestamp });
+      const timeScale = chart.timeScale();
+      if ("target" in view) {
+        const count = candleCountRef.current;
+        if (count === 0) return;
+        const current = timeScale.getVisibleLogicalRange();
+        const width = current ? Math.max(20, current.to - current.from) : 200;
+        const rightOffset = Math.max(0, timeScale.options().rightOffset);
+        timeScale.setVisibleLogicalRange({ from: count - 1 - width + rightOffset, to: count - 1 + rightOffset });
+      } else {
+        timeScale.setVisibleRange({ from: Math.floor(view.startMs / 1000) as UTCTimestamp, to: Math.floor(view.endMs / 1000) as UTCTimestamp });
+      }
     } catch (err) {
       logWarn("TradingChart", "could not apply the chart view request", { error: String(err) });
     }
