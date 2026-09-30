@@ -522,14 +522,14 @@ that excess (each drawn session weighted by its draw count; horizons kept inside
 
 | Stage, direction | MNQ, all hours | MNQ, regular hours | NQ 2010-2019, regular hours |
 |---|---|---|---|
-| 4 up (0.8-2.5 a day) | +5.5, excess +3.9 [-1.7, +10.4] | +15.3, excess +13 [-1.8, +28] | +2.1, excess +1.5 [-0.7, +3.6] |
-| 4 down | +3.3 (with the cascade), excess +5.0 [-1.1, +12.2] | +7.5, excess +9.7 [-5.7, +26] | +2.1, excess +2.7 |
-| 2 down | -4.5 (against it), excess -2.9 [-6.2, +0.7] | -3.3 | -0.5 |
+| 4 up (0.8-2.4 a day) | +6.5, excess +5.0 [-0.8, +10.0] | +15.0, excess +13.0 [-0.8, +27.4] | +2.1, excess +1.5 [-0.7, +3.6] |
+| 4 down | +2.8 (with the cascade), excess +4.4 [-2.2, +10.9] | +7.8, excess +9.7 [-4.8, +22.8] | +2.1, excess +2.7 |
+| 2 down | -4.4 (against it), excess -2.9 [-5.9, +0.5] | -2.4 | -0.5 |
 | 1 and 3 | within +/- 3 of drift | within +/- 5 | within +/- 2 |
 
 The cascade fires often (3-11 stage-1 events a day, 0.7-2.5 stage-4 events). A full 4-stage cascade leans its own way by about
 4-5 ticks at 60 minutes in both directions, but no cell is distinguishable from zero, the largest MNQ regular-hours cell is 0.8
-events a day with an interval from -2 to +28, and on NQ 2010-2019 the same cell is +1.5. The test can only see effects of about
+events a day with an interval from -1 to +27, and on NQ 2010-2019 the same cell is +1.5. The test can only see effects of about
 10 ticks or more (the mean absolute 60-minute move is ~110 ticks), so the data cannot rule out an edge as large as the 6.56-tick
 round trip; it shows none.
 
@@ -540,14 +540,14 @@ intervals clear the shuffled-volume line in most deciles), a 7-point spread that
 tracks range (+0.40 / +0.35) and range tracks breaking (+0.04): volume is mostly a volatility proxy here.
 
 **Which volatility measure anticipates the next hour?** Against the next hour's range in ticks, every level measure does:
-ATR(14) 0.77, Parkinson 0.74, NATR 0.72, realised volatility 0.70, and the time-of-day expected move best at 0.84 (MNQ). Against
-the range RELATIVE to the current ATR (does volatility change from here?) only the time-of-day ratio is positive (0.50 MNQ, 0.48
-NQ; 0.56 overnight, 0.28 in RTH); bandwidth, squeeze, ADX, choppiness and volume are at |rho| <= 0.04. Nothing predicts
+ATR(14) 0.77, Parkinson 0.74, NATR 0.72, realised volatility 0.70, Bollinger bandwidth 0.44, and the time-of-day expected move
+best at 0.84 (MNQ). Against the range RELATIVE to the current ATR (does volatility change from here?) only the time-of-day ratio
+is positive (0.50 MNQ, 0.48 NQ; 0.56 overnight, 0.28 in RTH); bandwidth, squeeze, ADX, choppiness and volume are at |rho| <= 0.05. Nothing predicts
 follow-through in the cascade's direction (|rho| <= 0.02).
 
 **The delayed-oracle ceiling** (enter at each confirmed swing, exit at the NEXT swing's exact price with hindsight, counting
-only exits that print after the entry, skip losers, pay the round trip): MNQ 2019-2025 about 5,360 net ticks/day on the 1m ladder,
-2,770 (5m), 2,000 (15m), 1,440 (30m), so 600 needs 11-42% of a perfect-exit oracle for swing-anchored trading. NQ 2010-2019 at
+only exits that print after the entry, skip losers, pay the round trip): MNQ 2019-2025 5,472 net ticks/day on the 1m ladder (110 trades/day),
+2,796 (5m), 2,009 (15m), 1,446 (30m), so 600 needs 11-42% of a perfect-exit oracle for swing-anchored trading. NQ 2010-2019 at
 2,000-7,000 points: roughly 600 (1m) down to 260 (30m). The corrected figures are in the `cascade_oracle` table of recipe
 `cascade_20260929d`.
 
