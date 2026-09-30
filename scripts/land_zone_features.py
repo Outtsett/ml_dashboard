@@ -78,18 +78,18 @@ def overlays_for_window(features: pd.DataFrame, context: dict, symbol: str) -> l
     overlays = []
     touched = window[window["support_zone"] == 1]
     if len(touched):
-        overlays.append(dashboard.markers("support_zone", [{"time": int(t) * 1000, "position": "below", "shape": "arrowUp", "text": f"S x{int(k)}"}
+        overlays.append(dashboard.markers("support_zone", [{"time": int(t) * 1000, "position": "below", "shape": "arrowUp", "text": f"support x{int(k)}"}
                                                            for t, k in zip(touched["time"], touched["support_zone_strength"])][-1500:],
-                                          label="support_zone = 1 (low within the bandwidth of a support zone)", color=COLOURS["support"]))
+                                          label="Support touch (low within the bandwidth of a support zone)", color=COLOURS["support"]))
     touched = window[window["resistance_zone"] == 1]
     if len(touched):
-        overlays.append(dashboard.markers("resistance_zone", [{"time": int(t) * 1000, "position": "above", "shape": "arrowDown", "text": f"R x{int(k)}"}
+        overlays.append(dashboard.markers("resistance_zone", [{"time": int(t) * 1000, "position": "above", "shape": "arrowDown", "text": f"resistance x{int(k)}"}
                                                               for t, k in zip(touched["time"], touched["resistance_zone_strength"])][-1500:],
-                                          label="resistance_zone = 1 (high within the bandwidth of a resistance zone)", color=COLOURS["resistance"]))
+                                          label="Resistance touch (high within the bandwidth of a resistance zone)", color=COLOURS["resistance"]))
     last = window.iloc[-1]
-    overlays.append(dashboard.line("zone_price_support", window["time"] * 1000, window["zone_price_support"], label="nearest support zone price", color=COLOURS["support"]))
-    overlays.append(dashboard.line("zone_price_resistance", window["time"] * 1000, window["zone_price_resistance"], label="nearest resistance zone price", color=COLOURS["resistance"]))
-    overlays.append(dashboard.line("zone_strength", window["time"] * 1000, window["zone_strength"], label="zone_strength (touches of the zone being touched)", color=COLOURS["level"], pane="pane"))
+    overlays.append(dashboard.line("zone_price_support", window["time"] * 1000, window["zone_price_support"], label="Support zone (nearest)", color=COLOURS["support"]))
+    overlays.append(dashboard.line("zone_price_resistance", window["time"] * 1000, window["zone_price_resistance"], label="Resistance zone (nearest)", color=COLOURS["resistance"]))
+    overlays.append(dashboard.line("zone_strength", window["time"] * 1000, window["zone_strength"], label="Zone strength (touches of the support or resistance zone being touched)", color=COLOURS["level"], pane="pane"))
     protocol.emit_log(f"[overlays] window {datetime.fromtimestamp(start, tz=timezone.utc):%Y-%m-%d} .. {datetime.fromtimestamp(end, tz=timezone.utc):%Y-%m-%d}: "
                       f"{int(window['support_zone'].sum())} support touches, {int(window['resistance_zone'].sum())} resistance touches, "
                       f"bandwidth at the last bar {float(last['bandwidth_points']):.2f} points")

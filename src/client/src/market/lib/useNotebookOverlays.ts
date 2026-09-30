@@ -12,6 +12,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import type { Overlay, OverlaySet } from "@shared/chartLink";
 import { openEventStream } from "@/infrastructure/lib/sharedEventSource";
 import { logWarn } from "@/infrastructure/lib/error_logger";
+import { registerInstanceLabel, registerSeriesTitle } from "./indicator_panels";
 import type { IndicatorOverlay } from "./useIndicatorData";
 
 /** Okabe-Ito, in the order a notebook's uncoloured overlays take them. */
@@ -78,10 +79,16 @@ export function selectNotebookOverlays(sets: OverlaySet[], symbol: string, timef
       const label = overlay.label ?? overlay.id;
       if (overlay.kind === "line") {
         const pane = overlay.pane === "pane";
+        // A pane line gets its own pane (the part before "::" names it); a
+        // price line sits on the candles. The chart shows the overlay's LABEL
+        // (registered as the series title, and as the pane's label), never
+        // the column id.
+        const paneKey = `notebook_${set.source}_${overlay.id}`;
+        const column = pane ? `${paneKey}::${label}` : `notebook:${set.source}:${overlay.id}`;
+        registerSeriesTitle(column, label);
+        if (pane) registerInstanceLabel(paneKey, label);
         view.lines.push({
-          // A pane line gets its own pane (the part before "::" names it); a
-          // price line sits on the candles.
-          column: pane ? `notebook_${set.source}_${overlay.id}::${label}` : `notebook:${set.source}:${overlay.id}`,
+          column,
           data: overlay.points
             .map((point) => ({ time: Math.floor(point.time / 1000), value: point.value }))
             .sort((a, b) => a.time - b.time),
