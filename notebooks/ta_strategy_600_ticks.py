@@ -1598,7 +1598,7 @@ def _(OKABE, alt, mo, np, pl, zone_how_bar, zone_how_bars, zone_how_events, zone
     _z["distance_from_close_ticks"] = (_z["centre"] - _close) / zone_how_tick
     _formula = (r"$$\text{gap}_{\text{max}} = \max(w \cdot \text{ATR},\ 4\ \text{ticks}) = \max(" + f"{zone_how_width.value:.2f} \\times {_atr:.2f},\\ 1.00) = {_gap:.2f}" + r"\ \text{points}$$" + "\n\n" +
                 r"$$\text{new zone at level } i \iff p_i - p_{i-1} > \text{gap}_{\text{max}} \qquad"
-                r"\text{strength}(Z) = \left|\{\text{family}(\ell) : \ell \in Z\}\right| \qquad"
+                r"\text{strength}(Z) = \left|\{\text{family}(\ell) : \ell \in Z\}\right| \qquad "
                 r"S = \arg\max_{Z:\ \bar p_Z \le c} \bar p_Z,\quad R = \arg\min_{Z:\ \bar p_Z > c} \bar p_Z$$")
     _legend = (f"**w** merge gap in ATR = {zone_how_width.value:.2f} · **ATR** ATR(14) of the {zone_how_timeframe.value} bars at this bar = {_atr:.2f} points · "
                f"**r** reach = {zone_how_reach.value:.1f} ATR = {zone_how_reach.value * _atr:.1f} points either side of the close · "
