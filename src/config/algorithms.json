@@ -261,6 +261,24 @@
         "meta-label",
         "walk-forward"
       ]
+    },
+    "candle_vision": {
+      "name": "Candlestick chart vision model (residual CNN or vision transformer)",
+      "family": "deep_learning",
+      "category": "Supervised",
+      "subcategory": "Computer vision",
+      "supports": [
+        "classification"
+      ],
+      "gpuRequired": true,
+      "description": "Reads a 20-bar candlestick chart drawn as a 3 x 128 x 120 image (silhouette, rising bodies, falling bodies) and outputs one probability per TA-Lib pattern and direction.",
+      "tags": [
+        "vision",
+        "cnn",
+        "vit",
+        "candlestick",
+        "talib"
+      ]
     }
   }
 }
