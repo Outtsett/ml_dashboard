@@ -1,9 +1,9 @@
 import { useEffect } from "react";
-import { useTelemetryStore, TelemetryMetrics } from "../store/telemetryStore";
+import { useTelemetryStore, TelemetryMetrics, metricsSocketUrl } from "../store/telemetryStore";
 
 export type { TelemetryMetrics };
 
-export function useWebSocketMetrics(url: string = "ws://localhost:5000/metrics") {
+export function useWebSocketMetrics(url: string = metricsSocketUrl()) {
   const metrics = useTelemetryStore((state) => state.metrics);
   const history = useTelemetryStore((state) => state.history);
   const logs = useTelemetryStore((state) => state.logs);

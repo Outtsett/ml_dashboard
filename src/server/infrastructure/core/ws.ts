@@ -164,6 +164,21 @@ export function attachMetricsWebSocket(server: Server) {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(latestPayload));
     }
+    // A client measures its ping by timing this echo. Only `sentAt` is sent
+    // back, so a client cannot make the server relay anything else.
+    ws.on('message', (raw) => {
+      let message: unknown;
+      try {
+        message = JSON.parse(raw.toString());
+      } catch {
+        return;
+      }
+      const record = asRecord(message);
+      const sentAt = asNumber(record?.sentAt);
+      if (record?.type === 'ping' && sentAt !== undefined && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'pong', sentAt }));
+      }
+    });
   });
 
   // ZeroMQ Ultra-Fast Binary Telemetry Stream Listener
