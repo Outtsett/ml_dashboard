@@ -61,7 +61,7 @@ def run(args: argparse.Namespace) -> dict:
         direction = c.direction[mask]
         for v, label in ((1, "up"), (-1, "down"), (0, "none")):
             occupancy.append({"session_part": scope, "state": "direction", "stage": v, "share_of_minutes": float((direction == v).mean()), "label": label})
-    protocol.emit_log(f"[{args.symbol} cascade] " + ", ".join(f"{tf} {int(r.levels):,} levels ({r.broken_share:.0%} broken)"
+    protocol.emit_log(f"[{args.symbol} cascade] " + ", ".join(f"{r.timeframe} {int(r.levels):,} levels ({r.broken_share:.0%} broken)"
                                                             for r in levels_table.itertuples()))
     moves = cascade.stage_forward_moves(frame, days, c, cost.tick_size)
     for r in moves[(moves.session_part == "all") & (moves.horizon_minutes == 60)].itertuples():

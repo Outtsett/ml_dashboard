@@ -1080,5 +1080,139 @@ def _(bins, eight_numbers, log_count, mo, pl, season_sessions, season_symbol, sm
     return
 
 
+@app.cell
+def _(CONDITIONAL, frame, mo, view_exists):
+    if not view_exists(f"{CONDITIONAL}cascade_stage_moves"):
+        mo.stop(True, mo.md("## 13 · Multi-timeframe cascade, volume at levels, volatility indicators\nThe cascade study has not landed yet."))
+    _latest = "WHERE recipe IN (SELECT max(recipe) FROM {v} GROUP BY symbol)"
+    cascade_levels = frame(f"SELECT * FROM {CONDITIONAL}cascade_levels " + _latest.format(v=f"{CONDITIONAL}cascade_levels"))
+    cascade_occupancy = frame(f"SELECT * FROM {CONDITIONAL}cascade_occupancy " + _latest.format(v=f"{CONDITIONAL}cascade_occupancy"))
+    cascade_moves = frame(f"SELECT * FROM {CONDITIONAL}cascade_stage_moves " + _latest.format(v=f"{CONDITIONAL}cascade_stage_moves"))
+    cascade_volume = frame(f"SELECT * FROM {CONDITIONAL}cascade_volume_deciles " + _latest.format(v=f"{CONDITIONAL}cascade_volume_deciles"))
+    cascade_volume_summary = frame(f"SELECT * FROM {CONDITIONAL}cascade_volume_summary " + _latest.format(v=f"{CONDITIONAL}cascade_volume_summary"))
+    cascade_volatility = frame(f"SELECT * FROM {CONDITIONAL}cascade_volatility_indicators " + _latest.format(v=f"{CONDITIONAL}cascade_volatility_indicators"))
+    cascade_oracle = frame(f"SELECT * FROM {CONDITIONAL}cascade_oracle " + _latest.format(v=f"{CONDITIONAL}cascade_oracle"))
+    _symbols = sorted(cascade_moves["symbol"].unique().to_list())
+    cascade_symbol = mo.ui.dropdown(_symbols, value="MNQ" if "MNQ" in _symbols else _symbols[0], label="Market")
+    cascade_part = mo.ui.radio(["all", "overnight", "regular_hours"], value="all", label="Session part", inline=True)
+    cascade_horizon = mo.ui.slider(15, 120, value=60, step=15, label="Horizon after the cascade (minutes)", show_value=True)
+    mo.vstack([mo.md(
+        "## 13 · Multi-timeframe cascade, volume at levels, volatility indicators\n\n"
+        "Swing levels (Williams fractals) on 1m, 5m, 15m and 30m bars, known only k bars after the swing. A 1-minute close through the "
+        "1m resistance, then the 5m, then the 15m, then the 30m (each at or above the last, within a window) is an UP cascade of that many "
+        "stages; support breaks in that order are a DOWN cascade (`src/ml/ta_strategy/cascade.py`, tables "
+        "`derived_ta_conditional_strategies_600_ticks_cascade_*`). Every state is causal."),
+        mo.hstack([cascade_symbol, cascade_part, cascade_horizon])])
+    return (cascade_horizon, cascade_levels, cascade_moves, cascade_occupancy, cascade_oracle, cascade_part, cascade_symbol,
+            cascade_volatility, cascade_volume, cascade_volume_summary)
+
+
+@app.cell
+def _(OKABE, alt, cascade_horizon, cascade_levels, cascade_moves, cascade_occupancy, cascade_part, cascade_symbol, mo, pl):
+    _o = cascade_occupancy.filter((pl.col("symbol") == cascade_symbol.value) & (pl.col("session_part") == cascade_part.value)
+                                  & pl.col("state").is_in(["stage_up", "stage_down"]))
+    _occ = alt.Chart(_o.to_pandas()).mark_bar().encode(
+        x=alt.X("stage:O", title="stages reached"), y=alt.Y("share_of_minutes:Q", title="share of minutes", axis=alt.Axis(format="%")),
+        color=alt.Color("state:N", scale=alt.Scale(domain=["stage_up", "stage_down"], range=[OKABE["orange"], OKABE["blue"]])),
+        xOffset="state:N", tooltip=["state", "stage", alt.Tooltip("share_of_minutes:Q", format=".1%")]).properties(width=360, height=220)
+    _m = cascade_moves.filter((pl.col("symbol") == cascade_symbol.value) & (pl.col("session_part") == cascade_part.value)
+                              & (pl.col("horizon_minutes") == cascade_horizon.value))
+    _base = alt.Chart(_m.to_pandas()).encode(x=alt.X("stage:O", title="stage first reached"),
+                                             color=alt.Color("direction:N", scale=alt.Scale(domain=["up", "down"], range=[OKABE["orange"], OKABE["blue"]])),
+                                             xOffset="direction:N")
+    _bars = _base.mark_bar(opacity=0.7).encode(y=alt.Y("mean_signed_move_ticks:Q", title=f"signed move over the next {cascade_horizon.value} min (ticks, + = with the cascade)"),
+                                               tooltip=["direction", "stage", "events", alt.Tooltip("events_per_session_day:Q", format=".2f"),
+                                                        alt.Tooltip("mean_signed_move_ticks:Q", format="+.1f"), alt.Tooltip("bootstrap_low:Q", format="+.1f"),
+                                                        alt.Tooltip("bootstrap_high:Q", format="+.1f"), alt.Tooltip("share_positive:Q", format=".3f"),
+                                                        alt.Tooltip("unconditional_mean_signed_move_ticks:Q", format="+.1f")])
+    _err = _base.mark_rule(strokeWidth=2).encode(y="bootstrap_low:Q", y2="bootstrap_high:Q")
+    _unc = _base.mark_tick(color=OKABE["black"], thickness=2, size=22).encode(y="unconditional_mean_signed_move_ticks:Q")
+    _zero = alt.Chart(pl.DataFrame({"y": [0.0]}).to_pandas()).mark_rule(color=OKABE["black"]).encode(y="y:Q")
+    mo.vstack([mo.md(f"### Does the cascade point the way? ({cascade_symbol.value}, {cascade_part.value})\n\n"
+                     "Left: how often each number of stages is on. Right: at the minute a cascade FIRST reaches each stage, the signed move "
+                     "over the next horizon (bar), its session-block bootstrap 95% interval (line) and the unconditional drift at the "
+                     "same session part (black tick). Cost per trade is 5.56 ticks: a bar must clear that, and the black tick, to matter."),
+               mo.hstack([_occ, (_bars + _err + _unc + _zero).properties(width=520, height=260)]),
+               mo.ui.table(cascade_levels.filter(pl.col("symbol") == cascade_symbol.value), selection=None)])
+    return
+
+
+@app.cell
+def _(OKABE, alt, cascade_part, cascade_symbol, cascade_volume, cascade_volume_summary, mo, pl):
+    _v = cascade_volume.filter((pl.col("symbol") == cascade_symbol.value) & (pl.col("session_part") == cascade_part.value)
+                               & (pl.col("measure") == "relative_volume"))
+    _base = alt.Chart(_v.to_pandas()).encode(x=alt.X("decile:O", title="decile of the approach's relative volume (last 10 minutes / time-of-day profile)"))
+    _real = _base.mark_line(point=True, color=OKABE["orange"]).encode(y=alt.Y("break_rate:Q", title="share of level tests that BROKE"),
+                                                                      tooltip=["timeframe", "decile", "tests", alt.Tooltip("break_rate:Q", format=".3f"),
+                                                                               alt.Tooltip("shuffled_volume_break_rate:Q", format=".3f"),
+                                                                               alt.Tooltip("measure_low:Q", format=".2f"), alt.Tooltip("measure_high:Q", format=".2f")])
+    _band = _base.mark_area(opacity=0.2, color=OKABE["orange"]).encode(y="break_rate_wilson_low:Q", y2="break_rate_wilson_high:Q")
+    _null = _base.mark_line(strokeDash=[4, 3], color=OKABE["black"]).encode(y="shuffled_volume_break_rate:Q")
+    _facet = alt.layer(_band, _real, _null, data=_v.to_pandas()).properties(width=190, height=180).facet(column=alt.Column("timeframe:N", title=None))
+    _s = cascade_volume_summary.filter(pl.col("symbol") == cascade_symbol.value)
+    mo.vstack([mo.md("### Do levels break or hold with the volume of the approach? (orange: real, with Wilson band; dashed black: the same "
+                     "tests with volume shuffled within each session)\n\nThe shuffled line keeps the session's total volume and the level "
+                     "geometry and destroys only the minute-by-minute link between volume and price. What the orange line adds over the "
+                     "dashed one is the information in volume."), _facet,
+               mo.md("**Correlation of each measure with breaking, and with the approach's own range (volume tracks range mechanically): "
+                     "the 'given range' column is what survives once the range is taken out.**"),
+               mo.ui.table(_s, selection=None)])
+    return
+
+
+@app.cell
+def _(OKABE, alt, cascade_part, cascade_symbol, cascade_volatility, mo, pl):
+    _i = cascade_volatility.filter((pl.col("symbol") == cascade_symbol.value) & (pl.col("session_part") == cascade_part.value))
+    _base = alt.Chart(_i.to_pandas()).encode(y=alt.Y("measure:N", sort="-x", title=None))
+    _rule = _base.mark_rule().encode(x=alt.X("spearman_bootstrap_low:Q", title="Spearman with the outcome (session-block bootstrap 95%)"), x2="spearman_bootstrap_high:Q")
+    _dot = _base.mark_point(filled=True, size=70, color=OKABE["blue"]).encode(x="spearman:Q", tooltip=["measure", "outcome", "bars", alt.Tooltip("spearman:Q", format="+.3f")])
+    _zero = alt.Chart(pl.DataFrame({"x": [0.0]}).to_pandas()).mark_rule(color=OKABE["black"]).encode(x="x:Q")
+    _facet = alt.layer(_rule, _dot, _zero, data=_i.to_pandas()).properties(width=330, height=300).facet(column=alt.Column("outcome:N", title=None))
+    mo.vstack([mo.md("### Which volatility measure anticipates the next hour? Left: the range of the next 60 minutes / ATR. Right: the move in "
+                     "the cascade's direction / ATR (follow-through, on minutes where a cascade is on)."), _facet])
+    return
+
+
+@app.cell
+def _(GOAL, OKABE, alt, cascade_oracle, cascade_symbol, mo, pl):
+    _o = cascade_oracle.filter(pl.col("symbol") == cascade_symbol.value)
+    _bars = alt.Chart(_o.to_pandas()).mark_bar(color=OKABE["sky"]).encode(
+        x=alt.X("timeframe:N", sort=["1m", "5m", "15m", "30m"], title="swing ladder"), y=alt.Y("ceiling_net_ticks_per_session_day_mean:Q", title="net ticks per session day"),
+        tooltip=["timeframe", alt.Tooltip("trades_per_session_day:Q", format=".1f"), alt.Tooltip("ceiling_net_ticks_per_session_day_mean:Q", format=",.0f"),
+                 alt.Tooltip("ceiling_net_ticks_per_session_day_median:Q", format=",.0f"), alt.Tooltip("share_of_session_days_at_or_above_600:Q", format=".1%"),
+                 alt.Tooltip("required_capture_share_for_600:Q", format=".1%")])
+    _goal = alt.Chart(pl.DataFrame({"y": [GOAL]}).to_pandas()).mark_rule(color=OKABE["vermillion"], strokeDash=[6, 3]).encode(y="y:Q")
+    mo.vstack([mo.md("### The delayed-oracle ceiling: enter at each confirmed swing (causal), exit at the NEXT swing's exact price (hindsight), "
+                     "skip losers, pay every cost. The most cascade-style trading could earn; red dashed = 600."),
+               (_bars + _goal).properties(width=420, height=240), mo.ui.table(_o, selection=None)])
+    return
+
+
+@app.cell
+def _(CONDITIONAL, GOAL, OKABE, alt, frame, mo, pl, view_exists):
+    if not view_exists(f"{CONDITIONAL}rounds"):
+        mo.stop(True)
+    _r = frame(f"SELECT * FROM {CONDITIONAL}rounds WHERE round = 10 ORDER BY finished_at")
+    if _r.height == 0 or "frame_error" in _r.columns:
+        mo.stop(True, mo.md("### Round 10 (cascade strategies)\nNot landed yet."))
+    _recipe = _r[-1, "recipe"]
+    _t = frame(f"SELECT * FROM {CONDITIONAL}templates WHERE recipe = ?", [_recipe])
+    _bar = alt.Chart(_t.to_pandas()).mark_bar().encode(
+        y=alt.Y("template:N", sort="-x", title=None), x=alt.X("net_ticks_per_session_day:Q", title="stitched out-of-sample net ticks per session day (2022-2025)"),
+        color=alt.condition("datum.net_ticks_per_session_day > 0", alt.value(OKABE["orange"]), alt.value(OKABE["blue"])),
+        tooltip=["template", alt.Tooltip("trades_per_session_day:Q", format=".2f"), alt.Tooltip("excess_ticks_per_session_day:Q", format="+.1f"),
+                 alt.Tooltip("excess_newey_west_t:Q", format="+.2f"), alt.Tooltip("win_rate:Q", format=".3f"), alt.Tooltip("profit_factor:Q", format=".2f")])
+    _excess = alt.Chart(_t.to_pandas()).mark_point(shape="diamond", size=90, filled=True, color=OKABE["black"]).encode(y=alt.Y("template:N", sort="-x"), x="excess_ticks_per_session_day:Q")
+    _goal = alt.Chart(pl.DataFrame({"x": [GOAL]}).to_pandas()).mark_rule(color=OKABE["vermillion"], strokeDash=[6, 3]).encode(x="x:Q")
+    _d = frame(f"SELECT template, session_date, net_ticks FROM {CONDITIONAL}daily WHERE recipe = ? ORDER BY session_date", [_recipe]).with_columns(
+        pl.col("net_ticks").cum_sum().over("template").alias("cumulative_net_ticks"))
+    _lines = alt.Chart(_d.to_pandas()).mark_line().encode(x="session_date:T", y=alt.Y("cumulative_net_ticks:Q", title="cumulative net ticks, 1 contract"),
+                                                          color=alt.Color("template:N", scale=alt.Scale(range=[OKABE[k] for k in ("blue", "orange", "sky", "vermillion", "green", "purple", "black", "yellow")])),
+                                                          strokeDash="template:N")
+    mo.vstack([mo.md("### Round 10: the cascade strategies with volume, volatility and momentum confirmations, tuned on prior years, tested 2022-2025 (bar = net, diamond = excess over matched random; red dashed = 600)"),
+               (_bar + _excess + _goal).properties(width=820, height=300), _lines.properties(width=1000, height=300), mo.ui.table(_t, selection=None)])
+    return
+
+
 if __name__ == "__main__":
     app.run()
