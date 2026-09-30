@@ -30,25 +30,17 @@ export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
     // title bar: dragging it moves the window, and WindowControls draws the
     // minimize / maximize / close buttons (it renders nothing in a browser).
     <Toolbar.Root className="drag-region flex items-center w-full h-12 bg-neutral-950 border-b border-neutral-800 pl-4 shrink-0 text-sm">
-      <div className="flex items-center gap-4 text-neutral-300 whitespace-nowrap border-r border-neutral-700 pr-4">
+      {/* The window controls took the width the labels used to fill, so the
+          selection reads as values with the labels in the tooltip. */}
+      <div className="flex items-center gap-3 text-neutral-300 whitespace-nowrap border-r border-neutral-700 pr-4 shrink-0">
         <span className="font-bold text-white tracking-wider">Quant AI Dashboard</span>
-        <div className="flex items-center gap-2">
-          <span className="text-neutral-500">Symbol:</span>
-          <span className="text-yellow-500 font-mono">{symbol}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-neutral-500">TF:</span>
-          <span className="text-neutral-200">{minutesToLabel(timeframeMinutes)}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-neutral-500">Date Range:</span>
-          <span className="text-neutral-200">{metrics.span || "Last 756 Days"}</span>
-        </div>
+        <span className="text-yellow-500 font-mono" title="Symbol">{symbol}</span>
+        <span className="text-neutral-200" title="Timeframe">{minutesToLabel(timeframeMinutes)}</span>
+        <span className="text-neutral-400" title="Date range">{metrics.span || "Last 756 Days"}</span>
       </div>
 
-      <div className="flex-1 overflow-hidden px-4 flex items-center h-full border-r border-neutral-700">
-        <span className="text-neutral-500 mr-4 whitespace-nowrap">Live Metrics Ticker:</span>
-        <div className="flex gap-8 items-center h-full w-full">
+      <div className="flex-1 min-w-0 overflow-hidden px-4 flex items-center h-full border-r border-neutral-700" title="Live training metrics">
+        <div className="flex gap-4 items-center h-full whitespace-nowrap">
           <div className="flex items-center gap-2">
             <span className="text-neutral-400">Reward</span>
             <span className={trendToneClass(trendTone(metrics.reward))}>
@@ -72,11 +64,11 @@ export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-6 px-4 whitespace-nowrap text-xs">
+      <div className="flex items-center gap-3 px-3 whitespace-nowrap text-xs shrink-0">
         <div className="flex items-center gap-2">
           <Server className="h-4 w-4 text-neutral-400" />
-          <span className="text-neutral-300 w-8">GPU</span>
-          <Progress.Root className="relative overflow-hidden bg-neutral-800 rounded-full w-16 h-2" value={metrics.gpuLoad}>
+          <span className="text-neutral-300">GPU</span>
+          <Progress.Root className="relative overflow-hidden bg-neutral-800 rounded-full w-10 h-2" value={metrics.gpuLoad}>
             <Progress.Indicator
               className="bg-(--color-data-cat-2) w-full h-full transition-transform duration-500 ease-in-out"
               style={{ transform: `translateX(-${100 - (metrics.gpuLoad || 0)}%)` }}
@@ -87,8 +79,8 @@ export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
 
         <div className="flex items-center gap-2">
           <Cpu className="h-4 w-4 text-neutral-400" />
-          <span className="text-neutral-300 w-8">CPU</span>
-          <Progress.Root className="relative overflow-hidden bg-neutral-800 rounded-full w-16 h-2" value={metrics.cpuLoad}>
+          <span className="text-neutral-300">CPU</span>
+          <Progress.Root className="relative overflow-hidden bg-neutral-800 rounded-full w-10 h-2" value={metrics.cpuLoad}>
             <Progress.Indicator
               className="bg-(--color-data-cat-1) w-full h-full transition-transform duration-500 ease-in-out"
               style={{ transform: `translateX(-${100 - (metrics.cpuLoad || 0)}%)` }}
@@ -149,7 +141,7 @@ export function TopBar({ sidePanelOpen, onToggleSidePanel }: TopBarProps) {
           }`}
         >
           <PanelRight className="h-4 w-4" />
-          <span>Metrics</span>
+          <span className="sr-only">Metrics</span>
         </button>
       </div>
 
