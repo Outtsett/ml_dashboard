@@ -19,6 +19,7 @@ import {
   type IPrimitivePaneView,
   type ISeriesApi,
   type ISeriesPrimitive,
+  type Logical,
   type PrimitivePaneViewZOrder,
   type SeriesAttachedParameter,
   type SeriesType,
@@ -69,7 +70,9 @@ class DrawingsRenderer implements IPrimitivePaneRenderer {
     if (!chart || times.length === 0) return;
     const timeScale = chart.timeScale();
     const half = Math.max(1, timeScale.options().barSpacing / 2);
-    const x = (index: number) => timeScale.timeToCoordinate(times[index]! as Time);
+    // Logical coordinates give a position for a bar that is scrolled off screen too (a band or zone
+    // that started before the visible range still spans it); timeToCoordinate would return null.
+    const x = (index: number) => timeScale.logicalToCoordinate(index as Logical);
     target.useMediaCoordinateSpace((scope) => {
       const context = scope.context;
       const height = scope.mediaSize.height;

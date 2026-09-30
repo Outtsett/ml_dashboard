@@ -134,6 +134,27 @@ interface ChartOverlayResult {
  * @param regime     Regime data sources (live + saved)
  * @param training   Training window + progress, for the growing window highlight
  */
+const TOGGLE_STORAGE_KEY = "market-overlay-toggles-v1";
+
+function readToggle(name: string): boolean {
+  try {
+    const stored = localStorage.getItem(TOGGLE_STORAGE_KEY);
+    return stored ? Boolean((JSON.parse(stored) as Record<string, unknown>)[name]) : false;
+  } catch {
+    return false;
+  }
+}
+
+function writeToggle(name: string, value: boolean): void {
+  try {
+    const stored = localStorage.getItem(TOGGLE_STORAGE_KEY);
+    const toggles = stored ? (JSON.parse(stored) as Record<string, unknown>) : {};
+    localStorage.setItem(TOGGLE_STORAGE_KEY, JSON.stringify({ ...toggles, [name]: value }));
+  } catch {
+    // storage unavailable (private window, quota): the toggle just does not persist
+  }
+}
+
 export function useChartOverlayData(
   chartData: OhlcvData[],
   symbol: string,
@@ -143,9 +164,13 @@ export function useChartOverlayData(
   visibleRange: { start: number; end: number } | null = null,
 ): ChartOverlayResult {
   // â”€â”€ Overlay toggles â”€â”€
-  const [showSR, setShowSR] = useState(false);
-  const [showZigZag, setShowZigZag] = useState(false);
-  const [showStructure, setShowStructure] = useState(false);
+  // The overlay toggles survive a reload (per browser), so the chart comes back the way it was left.
+  const [showSR, setShowSR] = useState(() => readToggle("showSR"));
+  const [showZigZag, setShowZigZag] = useState(() => readToggle("showZigZag"));
+  const [showStructure, setShowStructure] = useState(() => readToggle("showStructure"));
+  useEffect(() => { writeToggle("showSR", showSR); }, [showSR]);
+  useEffect(() => { writeToggle("showZigZag", showZigZag); }, [showZigZag]);
+  useEffect(() => { writeToggle("showStructure", showStructure); }, [showStructure]);
 
   // â”€â”€ Regime filter â”€â”€
   const [selectedRegimes, setSelectedRegimes] = useState<Set<number> | null>(null);

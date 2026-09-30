@@ -13,7 +13,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OverlaySet } from "@shared/chartLink";
 import { selectNotebookOverlays } from "@/market/lib/useNotebookOverlays";
-import { barIndexAtOrBefore, zoneBarSpan } from "@/market/components/notebookDrawings";
+import { NotebookDrawingsPrimitive, barIndexAtOrBefore, zoneBarSpan } from "@/market/components/notebookDrawings";
 import { publishChartContext, resetChartContextBridgeForTests, type PublishedChartContext } from "@/market/lib/chartContextBridge";
 
 const SETS: OverlaySet[] = [
@@ -126,5 +126,36 @@ describe("publishChartContext", () => {
     const foreign = vi.fn();
     window.dispatchEvent(new MessageEvent("message", { data: { type: "dashboard:notebook-ready" }, origin: "http://evil.example", source: { postMessage: foreign } as unknown as Window }));
     expect(foreign).not.toHaveBeenCalled();
+  });
+});
+
+describe("NotebookDrawingsPrimitive bands", () => {
+  it("draws a support / resistance cloud from its first pivot to the last bar between its two prices, even when the first pivot is off screen", () => {
+    const primitive = new NotebookDrawingsPrimitive();
+    const times = Array.from({ length: 50 }, (_, i) => 1_000 + i * 60);
+    const fake = {
+      chart: { timeScale: () => ({ options: () => ({ barSpacing: 10 }), logicalToCoordinate: (index: number) => index * 10 - 200 }) },
+      series: { priceToCoordinate: (price: number) => 1_000 - price },
+      requestUpdate: () => {},
+    };
+    primitive.attached(fake as never);
+    primitive.set(times, [], [], [{ startMs: times[5]! * 1000, endMs: null, top: 620, bottom: 600, color: "#0072B2", label: "Support zone · 3 touches" }]);
+    const rects: number[][] = [];
+    const texts: string[] = [];
+    const context = {
+      save() {}, restore() {}, fillRect: (...args: number[]) => rects.push(args), strokeRect() {}, fillText: (t: string) => texts.push(t),
+      setLineDash() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {},
+      fillStyle: "", strokeStyle: "", lineWidth: 1, font: "",
+    };
+    const target = { useMediaCoordinateSpace: (fn: (scope: { context: unknown; mediaSize: { width: number; height: number } }) => void) => fn({ context, mediaSize: { width: 800, height: 400 } }) };
+    primitive.paneViews()[0]!.renderer()!.draw(target as never);
+    // bar 5 sits at x = 5 * 10 - 200 = -150 (off screen to the left): still drawn, from there to the right edge
+    expect(rects).toHaveLength(1);
+    const [x, y, w, h] = rects[0]!;
+    expect(x).toBe(-155);
+    expect(y).toBe(1_000 - 620);
+    expect(h).toBe(20);
+    expect(x + w).toBe(805);
+    expect(texts).toContain("Support zone · 3 touches");
   });
 });
