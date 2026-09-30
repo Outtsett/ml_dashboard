@@ -2,6 +2,7 @@
  *  mounted but hidden, so switching tabs keeps each notebook's state, sliders
  *  and scroll instead of reloading it. */
 
+import { ChartLinkChip } from "./ChartLinkChip";
 import { NotebookPen, Pencil, Play, RefreshCw, Star, Stethoscope, X } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { cn } from "@/shared/utils/utils";
@@ -190,6 +191,7 @@ ${healthTooltip(active.health, active.modifiedAtIso)}`}
             {active.relativePath} · {active.cellCount} cells · runs in {activeGroup?.label ?? active.groupSlug}
           </p>
           <DatasetChips datasets={active.datasets} active={props.dataset} onSelect={(name) => props.onDatasetChange(props.dataset === name ? null : name)} limit={6} />
+          <ChartLinkChip notebook={active} />
         </header>
       )}
       {active?.health?.status === "failed" && activeTab && (

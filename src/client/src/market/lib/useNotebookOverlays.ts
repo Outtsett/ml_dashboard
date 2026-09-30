@@ -8,7 +8,7 @@
  * lines are drawn by notebookDrawings.ts.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import type { Overlay, OverlaySet } from "@shared/chartLink";
 import { openEventStream } from "@/infrastructure/lib/sharedEventSource";
 import { logWarn } from "@/infrastructure/lib/error_logger";
@@ -108,24 +108,39 @@ export function selectNotebookOverlays(sets: OverlaySet[], symbol: string, timef
   return view;
 }
 
-export function useNotebookOverlaySets(): OverlaySet[] {
-  const [sets, setSets] = useState<OverlaySet[]>([]);
-  useEffect(() => {
-    const source = openEventStream("/api/chart/stream");
-    const onOverlays = (event: Event) => {
+// One subscription per page, shared by every reader (the chart and the notebook
+// tab's chip), opened with the first reader and closed with the last.
+let sharedSets: OverlaySet[] = [];
+const readers = new Set<() => void>();
+let sharedSource: EventSource | null = null;
+
+function subscribe(onChange: () => void): () => void {
+  readers.add(onChange);
+  // No EventSource (a test page, an embedded view): no drawings, never a crash.
+  if (!sharedSource && typeof EventSource !== "undefined") {
+    sharedSource = openEventStream("/api/chart/stream");
+    sharedSource.addEventListener("overlays", (event: Event) => {
       try {
-        setSets(JSON.parse((event as MessageEvent).data) as OverlaySet[]);
+        sharedSets = JSON.parse((event as MessageEvent).data) as OverlaySet[];
       } catch (err) {
         logWarn("useNotebookOverlays", "unreadable overlays event", { error: String(err) });
+        return;
       }
-    };
-    source.addEventListener("overlays", onOverlays);
-    return () => {
-      source.removeEventListener("overlays", onOverlays);
-      source.close();
-    };
-  }, []);
-  return sets;
+      for (const reader of readers) reader();
+    });
+  }
+  return () => {
+    readers.delete(onChange);
+    if (readers.size === 0 && sharedSource) {
+      sharedSource.close();
+      sharedSource = null;
+      sharedSets = [];
+    }
+  };
+}
+
+export function useNotebookOverlaySets(): OverlaySet[] {
+  return useSyncExternalStore(subscribe, () => sharedSets, () => sharedSets);
 }
 
 export function useNotebookOverlays(symbol: string, timeframe: string): NotebookOverlayView {
