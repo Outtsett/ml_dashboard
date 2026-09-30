@@ -24,7 +24,7 @@ vi.mock("lightweight-charts", () => {
 });
 
 import { EquityLens } from "../../../src/client/src/lens/charts/EquityLens";
-import { makeEquity, makeHeadline, makeManifest } from "./fixtures";
+import { FIXTURE_MODEL, makeEquity, makeHeadline, makeManifest } from "./fixtures";
 
 afterEach(() => cleanup());
 
@@ -34,7 +34,7 @@ describe("EquityLens", () => {
     expect(screen.getByTestId("equity-lens")).toBeInTheDocument();
     expect(screen.getByText(/Would simply holding the contract have done better/)).toBeInTheDocument();
     const frame = screen.getByTestId("equity-lens").textContent ?? "";
-    expect(frame).toContain("264 trades");
+    expect(frame).toContain(`${FIXTURE_MODEL.tradeCount.toLocaleString()} trades`);
     expect(frame).toContain("exposure");
     expect(frame).toContain("max drawdown");
     expect(screen.getByTestId("equity-lens-chart")).toBeInTheDocument();

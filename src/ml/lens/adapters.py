@@ -1,16 +1,29 @@
 """Artifact adapters — a model directory read into one canonical record.
 
-Two shapes exist on disk today (``LensSourceSchema`` in
+Four shapes exist on disk today (``LensSourceSchema`` in
 ``src/shared/lens/types.ts``):
 
 ``probability_parquet``
     ``oos_predictions.parquet`` with (ts, prob_up, label, realized_return_bp),
-    written by the hand-written ``src/ml/xgb_classifier``. It carries no prices.
-    The lake's current 1-minute series does NOT reproduce this run's realized
-    returns (measured 2026-09-15: only 2,029 of 2,565 out-of-sample timestamps
-    are present at all, and the closes that are present disagree by a median of
-    6.9 basis points — the same size as the returns themselves). So the prices
-    are recovered from the model's own record instead; see ``reconstruct_close``.
+    written by the hand-written ``src/ml/xgb_classifier``. It carries no prices,
+    and two generations of that trainer wrote it:
+
+    - older runs scored trades H ROWS ahead in this file. The lake's current
+      1-minute series does NOT reproduce those runs' realized returns (measured
+      2026-09-15: only 2,029 of 2,565 out-of-sample timestamps are present at
+      all, and the closes that are present disagree by a median of 6.9 basis
+      points), so the prices are recovered from the model's own record; see
+      ``reconstruct_close``.
+    - since 2026-09-22 the trainer scores trades H BARS ahead on the raw bar
+      grid (bars whose label was dropped carry no prediction and are flat), so
+      the row chain no longer holds. Those records are rebuilt on the lake's own
+      bar grid and accepted only when the lake reproduces every stored realized
+      return and one round-trip cost explains every recorded trade; see
+      ``_probability_parquet_on_lake_grid``.
+
+``cycle_run``
+    A Model Cycle run directory (``predictions.parquet`` + ``config.json``);
+    read by ``lens.runs``.
 
 ``ohlc_probability_npz``
     ``oos_predictions.npz`` with (timestamps, open, high, low, close, probs,
@@ -84,6 +97,13 @@ class Record:
     attribution_method: str | None = None
     #: Price jumps across a break in trading (contract roll or session gap).
     roll_gaps: list[dict] = field(default_factory=list)
+    #: The cost the model's own evaluator charged, when it is known and differs
+    #: from (or cannot be read from) the current src/config/cost_model.json.
+    #: None means the builder reads cost_model.json for the symbol.
+    cost: dict | None = None
+    #: Record row of each prediction row, when the record holds bars that carry
+    #: no prediction (the lake-grid reading). None means row i is prediction i.
+    prediction_rows: np.ndarray | None = None
 
     @property
     def row_count(self) -> int:
@@ -292,20 +312,59 @@ def _load_probability_parquet(model_dir: Path, model_id: str) -> Record:
 
     pnl_curve = diagnostics.get("pnl_curve", {})
     trade_net = [float(x) for x in pnl_curve.get("trade_pnl_dollars", [])]
-    if not trade_net:
-        raise Refusal(
-            "diagnostics.json carries no trade profit-and-loss series, so prices cannot be recovered"
-        )
-
-    close, price_checks = reconstruct_close(
-        realized, probability, horizon, threshold, trade_net, cost
-    )
 
     metrics = diagnostics.get("metrics", {})
 
     def metric(name: str):
         entry = metrics.get(name)
         return float(entry["value"]) if isinstance(entry, dict) and "value" in entry else None
+
+    reference = {
+        "tradeCount": int(pnl_curve.get("n_trades", len(trade_net))),
+        "cumulativeNetUsd": float(pnl_curve.get("cum_pnl_dollars", float(np.sum(trade_net)))),
+        "longCount": int(pnl_curve["n_long"]) if "n_long" in pnl_curve else None,
+        "shortCount": int(pnl_curve["n_short"]) if "n_short" in pnl_curve else None,
+        "hitRateAtHalf": metric("hit_rate_50"),
+        "areaUnderCurve": metric("auc"),
+    }
+    label_definition = (
+        f"triple-barrier direction over the next {horizon} bars with a "
+        f"{params.get('label_threshold_bp', 5.0)} basis-point barrier "
+        "(src/ml/xgb_classifier/labels.py); 1 = up barrier touched first"
+    )
+    source_files = [
+        file_record(p)
+        for p in (predictions_path, model_dir / "checkpoint.json", model_dir / "diagnostics.json")
+    ]
+
+    try:
+        if not trade_net:
+            raise Refusal(
+                "diagnostics.json carries no trade profit-and-loss series, so prices cannot be "
+                "recovered from the record alone"
+            )
+        close, price_checks = reconstruct_close(
+            realized, probability, horizon, threshold, trade_net, cost
+        )
+    except Refusal as row_chain_refusal:
+        record = _probability_parquet_on_lake_grid(
+            model_id=model_id,
+            symbol=symbol,
+            timeframe=timeframe,
+            horizon=horizon,
+            threshold=threshold,
+            timestamp_seconds=ts,
+            probability=probability,
+            label=label,
+            stored_realized=realized,
+            trade_net=trade_net,
+            reference=reference,
+            label_definition=label_definition,
+            source_files=source_files,
+            row_chain_reason=str(row_chain_refusal),
+        )
+        _attach_shap(record, model_dir, record_rows=record.prediction_rows)
+        return record
 
     record = Record(
         model_id=model_id,
@@ -314,11 +373,7 @@ def _load_probability_parquet(model_dir: Path, model_id: str) -> Record:
         timeframe=timeframe,
         horizon_bars=horizon,
         horizon_source="checkpoint.json params.label_horizon_bars",
-        label_definition=(
-            f"triple-barrier direction over the next {horizon} bars with a "
-            f"{params.get('label_threshold_bp', 5.0)} basis-point barrier "
-            "(src/ml/xgb_classifier/labels.py); 1 = up barrier touched first"
-        ),
+        label_definition=label_definition,
         default_threshold=threshold,
         timestamp_seconds=ts,
         open=close.copy(),
@@ -329,14 +384,7 @@ def _load_probability_parquet(model_dir: Path, model_id: str) -> Record:
         probability_up=probability,
         label=label,
         realized_return_basis_points=realized,
-        reference={
-            "tradeCount": int(pnl_curve.get("n_trades", len(trade_net))),
-            "cumulativeNetUsd": float(pnl_curve.get("cum_pnl_dollars", float(np.sum(trade_net)))),
-            "longCount": int(pnl_curve["n_long"]) if "n_long" in pnl_curve else None,
-            "shortCount": int(pnl_curve["n_short"]) if "n_short" in pnl_curve else None,
-            "hitRateAtHalf": metric("hit_rate_50"),
-            "areaUnderCurve": metric("auc"),
-        },
+        reference=reference,
         notes=[
             "Prices are recovered from this model's own out-of-sample record, not read from the lake: "
             "the lake's current 1-minute series holds only 2,029 of these 2,565 bars and the closes it "
@@ -345,20 +393,242 @@ def _load_probability_parquet(model_dir: Path, model_id: str) -> Record:
             "is flat. The shape of these bars is not data.",
         ],
         verification=price_checks,
-        source_files=[
-            file_record(p)
-            for p in (
-                predictions_path,
-                model_dir / "checkpoint.json",
-                model_dir / "diagnostics.json",
-            )
-        ],
+        source_files=source_files,
     )
     _attach_shap(record, model_dir)
     return record
 
 
-def _attach_shap(record: Record, model_dir: Path) -> None:
+def _probability_parquet_on_lake_grid(
+    *,
+    model_id: str,
+    symbol: str,
+    timeframe: str,
+    horizon: int,
+    threshold: float,
+    timestamp_seconds: np.ndarray,
+    probability: np.ndarray,
+    label: np.ndarray,
+    stored_realized: np.ndarray,
+    trade_net: list[float],
+    reference: dict,
+    label_definition: str,
+    source_files: list[dict],
+    row_chain_reason: str,
+) -> Record:
+    """The record laid on the lake's bar grid, the way the newer trainer scored it.
+
+    ``src/ml/xgb_classifier/main.py`` (since 2026-09-22) simulates trades over
+    the RAW validation bars with each probability placed at its own bar and NaN
+    on bars whose label was dropped, and it measures each realized return H
+    bars ahead on that grid. So the lens record is every lake bar from the
+    first prediction to H bars past the last one: a bar with no prediction
+    carries no probability, label or realized return and never trades.
+
+    Accepted only when the lake reproduces the model's own numbers: every
+    stored realized return, the recorded trade count, and every recorded trade
+    net of one round-trip cost. That cost is recovered from the trades
+    themselves (gross from the lake minus the recorded net), because
+    src/config/cost_model.json may have been re-priced since the model ran.
+    """
+    first = int(timestamp_seconds.min())
+    last = int(timestamp_seconds.max())
+    bar_seconds = TIMEFRAME_SECONDS.get(timeframe, 60)
+    # enough calendar room for H bars past the last prediction across weekends
+    # and holidays, and never less than two weeks
+    tail_seconds = max(14 * 86_400, 4 * (horizon + 1) * bar_seconds)
+    lake = _lake_series(symbol, timeframe, first - 86_400, last + tail_seconds)
+    lake_ts = lake["timestamp"]
+
+    position = np.searchsorted(lake_ts, timestamp_seconds)
+    inside = position < lake_ts.size
+    matched = np.zeros(timestamp_seconds.size, dtype=bool)
+    matched[inside] = lake_ts[position[inside]] == timestamp_seconds[inside]
+    matched_count = int(matched.sum())
+    total = int(timestamp_seconds.size)
+    if matched_count != total:
+        raise Refusal(
+            f"{row_chain_reason}; and on the lake's bar grid only {matched_count:,} of this model's "
+            f"{total:,} out-of-sample bars exist, so its prices cannot be recovered either way"
+        )
+
+    start = int(position[0])
+    stop = min(int(position[-1]) + horizon + 1, lake_ts.size)
+    grid = slice(start, stop)
+    n = stop - start
+    rows = (position - start).astype(np.int64)
+    close = lake["close"][grid]
+
+    probability_grid = np.full(n, np.nan)
+    probability_grid[rows] = probability
+    label_grid = np.full(n, np.nan)
+    label_grid[rows] = label
+    realized_grid = np.full(n, np.nan)
+    exit_rows = rows + horizon
+    has_exit = exit_rows < n
+    realized_grid[rows[has_exit]] = (
+        np.log(close[exit_rows[has_exit]] / close[rows[has_exit]]) * 10_000.0
+    )
+
+    finite = np.isfinite(stored_realized) & np.isfinite(realized_grid[rows])
+    realized_error = (
+        float(np.max(np.abs(stored_realized[finite] - realized_grid[rows][finite])))
+        if finite.any()
+        else float("nan")
+    )
+    if not (finite.sum() == np.isfinite(stored_realized).sum() and realized_error < 1e-3):
+        raise Refusal(
+            f"{row_chain_reason}; and the lake's closes do not reproduce this model's stored realized "
+            f"returns (largest difference {realized_error:.3e} basis points over {int(finite.sum())} rows)"
+        )
+
+    current = load_cost(symbol)
+    point_value = current["pointValueUsd"]
+    trades = entry_rows(probability_grid, threshold, horizon)
+    if len(trades) != len(trade_net):
+        raise Refusal(
+            f"{row_chain_reason}; and replaying the trade rule on the lake's bar grid gives "
+            f"{len(trades)} trades against the {len(trade_net)} the model's diagnostics record"
+        )
+    gross = np.array(
+        [(close[i + horizon] - close[i]) * direction * point_value for i, direction in trades],
+        dtype=np.float64,
+    )
+    charged = gross - np.asarray(trade_net, dtype=np.float64)
+    notes = [
+        f"Prices are read from the lake on the model's own bar grid. Its evaluator stepped {horizon} BARS "
+        f"ahead, not {horizon} rows: this record is the {n:,} lake bars from the first prediction to "
+        f"{horizon} bars past the last, {total:,} of which carry a prediction. A bar with no prediction "
+        "(its label was dropped in training) carries no probability, label or realized return and never "
+        "trades, exactly as in the model's own evaluation.",
+        f"The lake reproduces every stored realized return to {realized_error:.1e} basis points.",
+    ]
+    if trades:
+        cost_usd = float(np.median(charged))
+        spread = float(np.max(charged) - np.min(charged))
+        replay_error = float(np.max(np.abs(gross - cost_usd - np.asarray(trade_net))))
+        cost = {
+            "roundTripPoints": round(cost_usd / point_value, 10),
+            "pointValueUsd": point_value,
+            "tickSize": current["tickSize"],
+            "source": (
+                f"recovered from this model's {len(trades)} recorded trades (gross from the lake's closes "
+                f"minus each recorded net): {cost_usd:.2f} US dollars per round trip"
+            ),
+        }
+        if abs(cost["roundTripPoints"] - current["roundTripPoints"]) > 1e-9:
+            notes.append(
+                f"This record was scored at {cost['roundTripPoints']:.2f} points per round trip, recovered "
+                f"from its own trades; src/config/cost_model.json now prices {symbol.upper()} at "
+                f"{current['roundTripPoints']:.2f} points. The lens charges what the model's evaluator charged."
+            )
+        cost_checks = [
+            check(
+                "one_round_trip_cost_explains_every_recorded_trade",
+                spread < 1e-6 and replay_error < 1e-4,
+                f"{len(trades)} trades; the cost each implies spans {spread:.2e} US dollars and the "
+                f"replay differs from the record by at most {replay_error:.2e} US dollars",
+                "every trade implies the same round-trip cost, to a hundredth of a cent",
+            )
+        ]
+    else:
+        cost = None
+        cost_checks = []
+        notes.append(
+            "The model's evaluator took no trade at its threshold, so there is no trade to recover the "
+            "cost it charged from; the lens shows the current src/config/cost_model.json entry."
+        )
+
+    open_, high, low = lake["open"][grid], lake["high"][grid], lake["low"][grid]
+    well_formed = (
+        (high >= low) & (high >= open_) & (high >= close) & (low <= open_) & (low <= close)
+    )
+    verification = [
+        check(
+            "lake_bars_cover_every_out_of_sample_row",
+            True,
+            f"{matched_count:,} of {total:,} predictions sit on a lake bar at the same second",
+            "every prediction sits on a lake bar",
+        ),
+        check(
+            "stored_realized_returns_reproduced_by_lake_closes",
+            True,
+            f"largest difference {realized_error:.3e} basis points over {int(finite.sum())} rows",
+            f"< 1e-3 basis points, stepping {horizon} bars on the lake's grid",
+        ),
+        check(
+            "replayed_trade_count_matches_model_diagnostics",
+            True,
+            f"{len(trades)} trades replayed on the bar grid",
+            f"exactly {len(trade_net)} (diagnostics.json pnl_curve.trade_pnl_dollars)",
+        ),
+        *cost_checks,
+        check(
+            "price_bars_well_formed",
+            bool(np.all(well_formed)),
+            f"{int(np.sum(~well_formed))} bars violate high/low bounds",
+            "high >= max(open, close) and low <= min(open, close) on every bar",
+        ),
+    ]
+    notes.append(
+        f"The row-by-row price reconstruction does not apply to this record: {row_chain_reason}."
+    )
+
+    record = Record(
+        model_id=model_id,
+        source_schema="probability_parquet",
+        symbol=symbol,
+        timeframe=timeframe,
+        horizon_bars=horizon,
+        horizon_source="checkpoint.json params.label_horizon_bars (bars on the raw grid)",
+        label_definition=label_definition,
+        default_threshold=threshold,
+        timestamp_seconds=lake_ts[grid].astype(np.int64),
+        open=open_,
+        high=high,
+        low=low,
+        close=close,
+        volume=lake["volume"][grid],
+        probability_up=probability_grid,
+        label=label_grid,
+        realized_return_basis_points=realized_grid,
+        reference=reference,
+        notes=notes,
+        verification=verification,
+        source_files=source_files,
+        cost=cost,
+    )
+    record.prediction_rows = rows
+    record.roll_gaps = detect_price_discontinuities(record.timestamp_seconds, close)
+    return record
+
+
+def _lake_series(symbol: str, timeframe: str, first_second: int, last_second: int) -> dict:
+    """The lake's bars for a symbol and timeframe between two seconds, sorted, as arrays."""
+    import datetime
+    import sys
+
+    sys.path.insert(0, str(PROJECT_ROOT / "src" / "ml"))
+    from shared.data import load_ohlcv_arrays
+
+    date_range = {
+        "start": datetime.datetime.fromtimestamp(first_second, datetime.UTC).strftime("%Y-%m-%d"),
+        "end": datetime.datetime.fromtimestamp(last_second, datetime.UTC).strftime("%Y-%m-%d"),
+    }
+    raw = load_ohlcv_arrays(symbol, timeframe, 0, date_range)
+    timestamps = np.asarray(
+        [int(t.timestamp()) if hasattr(t, "timestamp") else int(t) for t in raw["timestamp"]],
+        dtype=np.int64,
+    )
+    order = np.argsort(timestamps, kind="stable")
+    out = {"timestamp": timestamps[order]}
+    for name in ("open", "high", "low", "close", "volume"):
+        out[name] = np.asarray(raw[name], dtype=np.float64)[order]
+    return out
+
+
+def _attach_shap(record: Record, model_dir: Path, record_rows: np.ndarray | None = None) -> None:
+    """``record_rows[i]`` is the record row of prediction row ``i`` (identity when None)."""
     shap_path = model_dir / "shap_summary.npz"
     if not shap_path.exists():
         record.attribution_reason = "no shap_summary.npz in this model directory"
@@ -372,11 +642,16 @@ def _attach_shap(record: Record, model_dir: Path) -> None:
 
     n = record.row_count
     aligned = np.full((n, contributions.shape[1]), np.nan, dtype=np.float32)
-    # contributions[i] belongs to record row sample_indices[i] — a seeded random
-    # permutation, never positional. Zipping them positionally would attribute
-    # every bar's reasoning to a different bar.
-    inside = (sample_indices >= 0) & (sample_indices < n)
-    aligned[sample_indices[inside]] = contributions[inside]
+    # contributions[i] belongs to prediction row sample_indices[i] — a seeded
+    # random permutation, never positional. Zipping them positionally would
+    # attribute every bar's reasoning to a different bar. On the lake grid a
+    # prediction row is a different record row again (record_rows maps it).
+    prediction_count = n if record_rows is None else int(record_rows.size)
+    inside = (sample_indices >= 0) & (sample_indices < prediction_count)
+    target_rows = (
+        sample_indices[inside] if record_rows is None else record_rows[sample_indices[inside]]
+    )
+    aligned[target_rows] = contributions[inside]
 
     covered = int(np.isfinite(aligned[:, 0]).sum())
     record.attribution = (names, aligned, None)
@@ -765,6 +1040,11 @@ def _load_ohlc_npz(model_dir: Path, model_id: str) -> Record:
 
 def detect_schema(model_dir: Path) -> str:
     """Which adapter reads this directory, or a Refusal explaining why none does."""
+    from lens.runs import is_cycle_run, refuse_unreadable_run
+
+    if is_cycle_run(model_dir):
+        refuse_unreadable_run(model_dir)
+        return "cycle_run"
     if (model_dir / "oos_predictions.parquet").exists():
         import polars as pl
 
@@ -787,11 +1067,20 @@ def detect_schema(model_dir: Path) -> str:
         if {"timestamps", "close", "probs"} <= keys:
             return "ohlc_probability_npz"
         raise Refusal(f"oos_predictions.npz has unrecognised arrays: {sorted(keys)}")
+    if (model_dir / "predictions.parquet").exists():
+        raise Refusal(
+            "predictions.parquet here is not a Model Cycle record (no config.json run plan beside it), "
+            "and no oos_predictions artifact exists"
+        )
     raise Refusal("no oos_predictions artifact in this model directory")
 
 
 def load_record(model_dir: Path) -> Record:
     schema = detect_schema(model_dir)
+    if schema == "cycle_run":
+        from lens.runs import load_cycle_run
+
+        return load_cycle_run(model_dir, model_dir.name)
     if schema == "probability_parquet":
         return _load_probability_parquet(model_dir, model_dir.name)
     if schema == "class_confidence_parquet":

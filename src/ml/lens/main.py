@@ -59,7 +59,7 @@ def _sha256(path: Path) -> str:
 
 
 def _prediction_artifact(model_dir: Path) -> Path | None:
-    for name in ("oos_predictions.parquet", "oos_predictions.npz"):
+    for name in ("oos_predictions.parquet", "oos_predictions.npz", "predictions.parquet"):
         candidate = model_dir / name
         if candidate.exists():
             return candidate
@@ -67,19 +67,23 @@ def _prediction_artifact(model_dir: Path) -> Path | None:
 
 
 def _duplicate_of(model_dir: Path, models_root: Path) -> str | None:
-    """Another model whose prediction artifact is byte-identical to this one."""
+    """The canonical model of this one's group of byte-identical prediction
+    artifacts, or None when this model is itself the canonical one (the first
+    by name) or has no twin. Every twin names the same canonical member, so one
+    of them always stays listed."""
     mine = _prediction_artifact(model_dir)
     if mine is None:
         return None
     digest = _sha256(mine)
-    matches = []
+    matches = [model_dir.name]
     for other in sorted(
         p for p in models_root.iterdir() if p.is_dir() and p.name != model_dir.name
     ):
         theirs = _prediction_artifact(other)
         if theirs is not None and theirs.name == mine.name and _sha256(theirs) == digest:
             matches.append(other.name)
-    return matches[0] if matches else None
+    canonical = min(matches)
+    return None if canonical == model_dir.name else canonical
 
 
 # ─── Build ───────────────────────────────────────────────────────────────────
@@ -132,7 +136,10 @@ def build(model_id: str, models_root: Path = MODELS_ROOT) -> dict:
         "horizonSource": record.horizon_source,
         "labelDefinition": record.label_definition,
         "defaultThreshold": record.default_threshold,
-        "cost": load_cost(record.symbol),
+        # The cost the model's own evaluator charged when the adapter knows it
+        # (a Model Cycle run's plan, or one recovered from the model's trades);
+        # otherwise the current cost_model.json entry for the symbol.
+        "cost": record.cost or load_cost(record.symbol),
         "barCount": record.row_count,
         "firstTimestampSeconds": int(record.timestamp_seconds[0]),
         "lastTimestampSeconds": int(record.timestamp_seconds[-1]),

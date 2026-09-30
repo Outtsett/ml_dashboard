@@ -17,6 +17,8 @@ vi.mock("lightweight-charts", () => {
       setData: vi.fn((data: unknown) => setDataCalls.push({ callIndex: index, data })),
       applyOptions: vi.fn(),
       createPriceLine: vi.fn(() => ({ applyOptions: vi.fn() })),
+      // The volume histogram sets its own scale margins (PriceLens.tsx).
+      priceScale: vi.fn(() => ({ applyOptions: vi.fn() })),
     };
   };
   const makePane = () => ({ setStretchFactor: vi.fn() });

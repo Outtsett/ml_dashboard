@@ -100,6 +100,14 @@ describe("PlaybackPanel", () => {
     expect(screen.getByTestId("playback-features").textContent).toContain("No attribution artifact for this model");
   });
 
+  it("says so on a bar the model made no prediction for, instead of printing a probability", () => {
+    const bars = [makeBar({ rowIndex: 0, probabilityUp: null, label: null, decision: "flat", position: 0 })];
+    render(<Harness bars={bars} />);
+    const prediction = screen.getByTestId("playback-prediction").textContent ?? "";
+    expect(prediction).toContain("P(up) none");
+    expect(prediction).toContain("no prediction on this bar");
+  });
+
   it("renders the market state UTC timestamp and OHLC for the cursor bar", () => {
     const bars = [makeBar({ rowIndex: 0, timestampSeconds: 1558465140, open: 7500, high: 7505, low: 7495, close: 7502 })];
     render(<Harness bars={bars} />);

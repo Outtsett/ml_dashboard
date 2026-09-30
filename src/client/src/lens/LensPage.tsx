@@ -39,6 +39,7 @@ import { AttributionPanel } from "./panels/AttributionPanel";
 import { RegimePanel } from "./panels/RegimePanel";
 import { DistributionPanel } from "./panels/DistributionPanel";
 import { VerificationList } from "./panels/VerificationList";
+import { LensAnalyticsSection } from "./panels/analytics/AnalyticsSection";
 import { LensTrainingEnvironment } from "./training/LensTrainingEnvironment";
 
 const WINDOW_LENGTHS = [300, 600, 1500, 3000] as const;
@@ -228,7 +229,11 @@ export default function LensPage() {
         {evaluable && manifest.data && params && (
           <>
             {evaluation.data ? (
-              <HeadlineStrip headline={evaluation.data.headline} manifest={manifest.data} />
+              <>
+                <HeadlineStrip headline={evaluation.data.headline} manifest={manifest.data} />
+                {/* Directly under the headline: what happened, why, what comes next, what to do. */}
+                <LensAnalyticsSection evaluation={evaluation.data} manifest={manifest.data} />
+              </>
             ) : (
               <LensFrame
                 title="Evaluating"

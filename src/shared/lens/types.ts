@@ -28,14 +28,20 @@
 /**
  * How the builder read the model's out-of-sample record.
  *  - probability_parquet : oos_predictions.parquet with (ts, prob_up, label, realized_return_bp)
- *                          — hand-written xgb_classifier writer.
+ *                          — hand-written xgb_classifier writer. Newer runs of it score H BARS
+ *                          ahead on the raw bar grid, so their record is laid on the lake's bars
+ *                          and a bar with no prediction carries a NaN probability (never trades).
  *  - ohlc_probability_npz: oos_predictions.npz with (timestamps, open, high, low, close, probs, labels)
  *                          — cnn_transformer writer.
  *  - class_confidence_parquet: oos_predictions.parquet with (timestamp, symbol, prediction,
  *                          confidence[, probability_up, label]) — what every generated template
  *                          writes. Prices for these come from the lake, joined on the bar second.
+ *  - cycle_run           : a Model Cycle run directory — predictions.parquet (every test bar with
+ *                          its prices, P(up), fold and resolved direction) + config.json (label
+ *                          horizon, cost model, trading rule). Read by src/ml/lens/runs.py; the
+ *                          direction scoreboard matches the run's, the trades follow the lens rule.
  */
-export type LensSourceSchema = "probability_parquet" | "ohlc_probability_npz" | "class_confidence_parquet";
+export type LensSourceSchema = "probability_parquet" | "ohlc_probability_npz" | "class_confidence_parquet" | "cycle_run";
 
 /** ready: lens built and current. stale: source artifacts changed since build. */
 export type LensModelStatus = "ready" | "stale" | "not_built" | "refused" | "failed";
@@ -585,7 +591,8 @@ export interface LensBar {
   low: number;
   close: number;
   volume: number | null;
-  probabilityUp: number;
+  /** null on a bar the model made no prediction for (it never trades there). */
+  probabilityUp: number | null;
   label: 0 | 1 | null;
   realizedReturnBasisPoints: number | null;
   /** LENS_QUANTILE_LEVELS order; null in warmup. */

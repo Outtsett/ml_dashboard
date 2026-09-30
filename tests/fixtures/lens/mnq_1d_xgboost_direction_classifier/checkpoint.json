@@ -1,0 +1,36 @@
+{
+  "model_id": "MNQ_1d_xgboost+direction_classifier_20260923T014724",
+  "best_iteration": 156,
+  "n_train": 1392,
+  "n_val": 350,
+  "feature_names": [
+    "volatility_10",
+    "volatility_20",
+    "volatility_50",
+    "volume_ratio_10",
+    "volume_ratio_20",
+    "roc_5",
+    "roc_10",
+    "roc_20"
+  ],
+  "params": {
+    "n_estimators": 500,
+    "max_depth": 6,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_weight": 1.0,
+    "reg_lambda": 1.0,
+    "reg_alpha": 0.0,
+    "early_stopping_rounds": 50,
+    "label_horizon_bars": 5,
+    "label_threshold_bp": 5.0,
+    "label_threshold_mode": "atr",
+    "label_atr_window": 20,
+    "label_atr_multiple": 1.0,
+    "device": "cuda",
+    "train_frac": 0.8,
+    "pnl_threshold": 0.55
+  },
+  "saved_at_ms": 1790128049796
+}

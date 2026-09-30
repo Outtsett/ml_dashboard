@@ -1,0 +1,318 @@
+{
+  "model_id": "MNQ_1d_xgboost+direction_classifier_20260923T014724",
+  "symbol": "MNQ",
+  "timeframe": "1d",
+  "n_train": 1392,
+  "n_val": 350,
+  "n_features": 8,
+  "best_iteration": 156,
+  "train_secs": 1.03,
+  "metrics": {
+    "auc": {
+      "value": 0.5289142407553108,
+      "renderer": "gauge",
+      "group": "discrimination",
+      "mission": "Rank positives above negatives"
+    },
+    "log_loss": {
+      "value": 0.7464638328411378,
+      "renderer": "number",
+      "group": "discrimination",
+      "mission": "Lower better; baseline ln(2)=0.693"
+    },
+    "brier_score": {
+      "value": 0.2714328264142259,
+      "renderer": "number",
+      "group": "calibration",
+      "mission": "Squared error of probabilities"
+    },
+    "ece": {
+      "value": 0.16271775260567664,
+      "renderer": "number",
+      "group": "calibration",
+      "mission": "Expected calibration error"
+    },
+    "hit_rate_55": {
+      "value": 0.5181518151815182,
+      "renderer": "percent",
+      "group": "operating_points",
+      "mission": "Direction accuracy at p>=0.55",
+      "context": {
+        "n_picks": 303
+      }
+    },
+    "hit_rate_60": {
+      "value": 0.5427350427350427,
+      "renderer": "percent",
+      "group": "operating_points",
+      "mission": "Direction accuracy at p>=0.60",
+      "context": {
+        "n_picks": 234
+      }
+    },
+    "hit_rate_50": {
+      "value": 0.49714285714285716,
+      "renderer": "percent",
+      "group": "operating_points",
+      "mission": "Direction accuracy on all picks",
+      "context": {
+        "n_picks": 350
+      }
+    },
+    "profit_factor": {
+      "value": 1.5546946897583982,
+      "renderer": "gauge",
+      "group": "pnl",
+      "mission": "Wins / |losses| after costs"
+    },
+    "sharpe_after_costs": {
+      "value": 1.5386931214024746,
+      "renderer": "number",
+      "group": "pnl",
+      "mission": "Trade-by-trade Sharpe after costs"
+    },
+    "cum_pnl_dollars": {
+      "value": 15972.600000000028,
+      "renderer": "number",
+      "group": "pnl",
+      "mission": "Total dollars after costs"
+    },
+    "max_drawdown_dollars": {
+      "value": -3276.9999999999927,
+      "renderer": "number",
+      "group": "pnl",
+      "mission": "Worst drawdown ($)"
+    },
+    "max_drawdown_pct": {
+      "value": -0.19740844934669016,
+      "renderer": "number",
+      "group": "pnl",
+      "mission": "Worst drawdown (%)"
+    },
+    "n_trades": {
+      "value": 78,
+      "renderer": "number",
+      "group": "pnl",
+      "mission": "Number of trades taken"
+    }
+  },
+  "calibration_curve": {
+    "bin_midpoints": [
+      0.05,
+      0.15000000000000002,
+      0.25,
+      0.35000000000000003,
+      0.45,
+      0.55,
+      0.6500000000000001,
+      0.75,
+      0.8500000000000001,
+      0.95
+    ],
+    "observed_frequency": [
+      null,
+      0.0,
+      0.6818181818181818,
+      0.46551724137931033,
+      0.6346153846153846,
+      0.4375,
+      0.5,
+      0.6730769230769231,
+      0.5416666666666666,
+      0.0
+    ],
+    "predicted_frequency": [
+      null,
+      0.14885887627800307,
+      0.24135192212733356,
+      0.35327183840603665,
+      0.4481786403518457,
+      0.55772874224931,
+      0.6441034402166094,
+      0.7420470760418818,
+      0.8308062156041464,
+      0.9275904595851898
+    ],
+    "counts": [
+      0,
+      6,
+      22,
+      58,
+      52,
+      64,
+      70,
+      52,
+      24,
+      2
+    ],
+    "ece": 0.16271775260567664,
+    "mce": 0.9275904595851898
+  },
+  "label_diagnostics": {
+    "n_bars": 2074,
+    "n_valid": 1775,
+    "threshold_mode": "atr",
+    "atr_window": 20,
+    "atr_multiple": 1.0,
+    "threshold_floor_bp": 5.0,
+    "dropped_horizon_overflow": 5,
+    "dropped_bad_close": 0,
+    "dropped_barrier_warmup": 20,
+    "dropped_no_barrier_touched": 258,
+    "dropped_both_barriers_same_bar": 16,
+    "barrier_bp_median": 158.72830090088704,
+    "barrier_bp_min": 75.72435859453695,
+    "barrier_bp_max": 744.4620824013276
+  },
+  "row_accounting": {
+    "bars_loaded": 2074,
+    "bars_all_features_finite": 2024,
+    "bars_labelled": 1775,
+    "usable_samples": 1747
+  },
+  "pnl_curve": {
+    "trade_pnl_dollars": [
+      -1576.8,
+      701.7,
+      -994.8,
+      417.2,
+      -1812.3,
+      825.7,
+      -121.3,
+      28.7,
+      -424.3,
+      -38.8,
+      -226.3,
+      -858.3,
+      1235.7,
+      2339.2,
+      -1591.3,
+      611.7,
+      69.7,
+      965.7,
+      551.2,
+      -353.3,
+      -973.3,
+      -1305.3,
+      338.7,
+      1136.2,
+      556.7,
+      1286.2,
+      -504.8,
+      -297.8,
+      -434.3,
+      1018.7,
+      -1166.3,
+      1690.7,
+      1505.7,
+      1584.7,
+      1270.7,
+      439.2,
+      -1099.8,
+      4046.7,
+      3792.2,
+      -1551.3,
+      2709.2,
+      1731.2,
+      -681.3,
+      -472.3,
+      764.2,
+      801.2,
+      341.2,
+      324.2,
+      -715.8,
+      -1047.8,
+      42.2,
+      492.2,
+      -270.3,
+      -495.8,
+      1105.2,
+      -1556.3,
+      364.2,
+      -1194.8,
+      931.7,
+      518.7,
+      1006.2,
+      -596.8,
+      1425.7,
+      -426.8,
+      824.2,
+      -310.3,
+      -873.8,
+      -756.3,
+      1006.7,
+      -403.8,
+      -1297.8,
+      658.2,
+      2115.2,
+      -124.8,
+      909.2,
+      -1206.8,
+      284.2,
+      -1033.3
+    ],
+    "n_long": 47,
+    "n_short": 31
+  },
+  "shap": {
+    "feature_names_ranked": [
+      "roc_10",
+      "volatility_50",
+      "volatility_20",
+      "volatility_10",
+      "roc_5",
+      "roc_20",
+      "volume_ratio_10",
+      "volume_ratio_20"
+    ],
+    "abs_mean_shap_ranked": [
+      0.3412633538246155,
+      0.3027155101299286,
+      0.30084478855133057,
+      0.2528161108493805,
+      0.19716757535934448,
+      0.15944905579090118,
+      0.13578484952449799,
+      0.11257722973823547
+    ],
+    "top10_names": [
+      "roc_10",
+      "volatility_50",
+      "volatility_20",
+      "volatility_10",
+      "roc_5",
+      "roc_20",
+      "volume_ratio_10",
+      "volume_ratio_20"
+    ],
+    "top10_abs_mean_shap": [
+      0.3412633538246155,
+      0.3027155101299286,
+      0.30084478855133057,
+      0.2528161108493805,
+      0.19716757535934448,
+      0.15944905579090118,
+      0.13578484952449799,
+      0.11257722973823547
+    ]
+  },
+  "params": {
+    "n_estimators": 500,
+    "max_depth": 6,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_weight": 1.0,
+    "reg_lambda": 1.0,
+    "reg_alpha": 0.0,
+    "early_stopping_rounds": 50,
+    "label_horizon_bars": 5,
+    "label_threshold_bp": 5.0,
+    "label_threshold_mode": "atr",
+    "label_atr_window": 20,
+    "label_atr_multiple": 1.0,
+    "device": "cuda",
+    "train_frac": 0.8,
+    "pnl_threshold": 0.55
+  }
+}

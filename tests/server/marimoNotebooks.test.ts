@@ -161,7 +161,9 @@ describe("new notebook", () => {
     expect(source).toContain('# Volume "at" the /open');
     expect(source).toContain("Where the volume sits.");
     expect(source).not.toContain('"""at"""');
-    expect(countCells(source)).toBe(9);
+    expect(countCells(source)).toBe(10);
+    expect(source).toContain("dashboard.follow_chart(mo)");
+    expect(source).toContain("dashboard.chart_bars(chart_context)");
     expect(source).toContain("SET TimeZone='UTC'");
     expect(source).toContain("#0072B2");
   });

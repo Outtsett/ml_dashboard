@@ -173,7 +173,7 @@ export function evaluateLens(
 
   const headline: LensHeadline = {
     barCount: range.barCount,
-    effectiveSampleSize: range.barCount / Math.max(1, series.horizonBars),
+    effectiveSampleSize: scored.labelled / Math.max(1, series.horizonBars),
     tradeCount,
     longCount: simulation.longCount,
     shortCount: simulation.shortCount,

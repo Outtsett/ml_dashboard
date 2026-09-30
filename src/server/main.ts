@@ -195,6 +195,7 @@ async function bootstrap() {
       req.path.includes('/stream/') ||
       req.path.includes('/training/start') ||
       req.path.startsWith('/marimo/') ||
+      (req.path.startsWith('/api/lens/models/') && req.path.endsWith('/build')) ||
       isSidecarPath(req.path);
     const timeout = isLongRunning ? 0 : 30_000;
     if (timeout > 0) {

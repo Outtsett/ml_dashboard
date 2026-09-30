@@ -102,7 +102,7 @@ export function buildBarWindow(
       low: series.low[row] as number,
       close,
       volume,
-      probabilityUp: series.probabilityUp[row] as number,
+      probabilityUp: readNullable(series.probabilityUp, row),
       label: readLabel(series, row),
       realizedReturnBasisPoints: readNullable(series.realizedReturnBasisPoints, row),
       predictedQuantilesBasisPoints: quantilesKnown ? quantiles : null,

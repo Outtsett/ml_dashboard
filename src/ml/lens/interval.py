@@ -96,7 +96,11 @@ def causal_conformal_quantiles(
         block_probability = probability[start:stop]
         block_bins = np.searchsorted(edges, block_probability, side="right")
         block_bins = np.clip(block_bins, 0, bin_count - 1)
-        out[start:stop] = per_bin[block_bins].astype(np.float32)
+        block = per_bin[block_bins].astype(np.float32)
+        # A bar with no prediction (NaN probability) has no interval: searchsorted
+        # would file NaN into the top bin and hand it that bin's quantiles.
+        block[~np.isfinite(block_probability)] = np.nan
+        out[start:stop] = block
 
     covered = int(np.isfinite(out[:, 0]).sum())
     meta = {

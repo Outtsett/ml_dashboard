@@ -20,7 +20,7 @@ import type {
   LensScatter,
   LensVerificationCheck,
 } from "@shared/lens/types";
-import { makeEstimate, makeHeadline, makeManifest, makeRegimes } from "./fixtures";
+import { FIXTURE_MODEL, makeEstimate, makeHeadline, makeManifest, makeRegimes } from "./fixtures";
 import { HeadlineStrip } from "@/lens/panels/HeadlineStrip";
 import { RollingPanel } from "@/lens/panels/RollingPanel";
 import { ScatterPanel } from "@/lens/panels/ScatterPanel";
@@ -115,8 +115,17 @@ function makeConfusion(overrides: Partial<LensConfusion> = {}): LensConfusion {
   };
   return {
     allRows: block,
-    gatedRows: { ...block, n: 264, counts: { truePositive: 34, falsePositive: 20, trueNegative: 210, falseNegative: 0 } },
-    winRate: makeEstimate(0.4129, { n: 264 }),
+    gatedRows: {
+      ...block,
+      n: FIXTURE_MODEL.tradeCount,
+      counts: {
+        truePositive: FIXTURE_MODEL.longCount,
+        falsePositive: 0,
+        trueNegative: FIXTURE_MODEL.shortCount,
+        falseNegative: 0,
+      },
+    },
+    winRate: makeEstimate(FIXTURE_MODEL.winRate, { n: FIXTURE_MODEL.tradeCount }),
     explanation: "Precision counts every gated call; win rate also nets out the cost of a round trip.",
     ...overrides,
   };
@@ -201,9 +210,14 @@ describe("HeadlineStrip", () => {
   it("renders the verdict and the headline numbers with their CIs", () => {
     render(<HeadlineStrip headline={makeHeadline()} manifest={makeManifest()} />);
     expect(screen.getByTestId("lens-headline-verdict").textContent).toMatch(/coin flip/);
-    expect(screen.getByTestId("lens-headline-hit-rate").textContent).toContain("54.2%");
-    expect(screen.getByTestId("lens-headline-profit-factor").textContent).toContain("0.610");
-    expect(screen.getByTestId("lens-headline-total-net").textContent).toContain("$549.70");
+    // The fixture model's own recorded numbers (tests/fixtures/lens/.../diagnostics.json).
+    const totalMagnitude = Math.abs(FIXTURE_MODEL.totalNetUsd).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    expect(screen.getByTestId("lens-headline-hit-rate").textContent).toContain(`${(FIXTURE_MODEL.hitRateAtHalf * 100).toFixed(1)}%`);
+    expect(screen.getByTestId("lens-headline-profit-factor").textContent).toContain(FIXTURE_MODEL.profitFactor.toFixed(3));
+    expect(screen.getByTestId("lens-headline-total-net").textContent).toContain(`$${totalMagnitude}`);
     expect(screen.getByTestId("lens-headline-total-net").textContent).toContain("buy & hold");
   });
 
@@ -245,7 +259,8 @@ describe("ScatterPanel", () => {
 describe("ConfusionPanel", () => {
   it("defaults to gated rows and shows the explanation", () => {
     render(<ConfusionPanel confusion={makeConfusion()} threshold={0.55} />);
-    expect(screen.getByText(/34/)).toBeTruthy();
+    // The gated true-positive cell: the fixture model's long trades.
+    expect(screen.getByText(String(FIXTURE_MODEL.longCount))).toBeTruthy();
     expect(screen.getByText(/nets out the cost/)).toBeTruthy();
   });
 

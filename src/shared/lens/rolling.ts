@@ -39,9 +39,6 @@ export function computeRolling(
   // all, rather than a point quietly computed on fewer rows than it claims.
   const window = Math.max(1, Math.floor(params.rollingWindowBars));
   const horizon = Math.max(1, series.horizonBars);
-  const effectiveSampleSizePerWindow = window / horizon;
-  const independentOutcomes = Math.max(1, Math.floor(window / horizon));
-  const half = NORMAL_95 * Math.sqrt(0.25 / independentOutcomes);
 
   // Prefix sums so every window is O(1).
   const labelledPrefix = new Float64Array(count + 1);
@@ -88,6 +85,15 @@ export function computeRolling(
       labelledCount: labelled,
     });
   }
+
+  // The coin-flip band is sized on the LABELLED rows a window holds, not its
+  // bar count: unlabelled bars (session gaps, the horizon's tail) score nothing,
+  // and a band drawn on the bar count is narrower than the noise it claims to show.
+  const labelledCounts = points.map((point) => point.labelledCount).sort((a, b) => a - b);
+  const typicalLabelled = labelledCounts.length > 0 ? (labelledCounts[Math.floor(labelledCounts.length / 2)] as number) : window;
+  const effectiveSampleSizePerWindow = typicalLabelled / horizon;
+  const independentOutcomes = Math.max(1, Math.floor(effectiveSampleSizePerWindow));
+  const half = NORMAL_95 * Math.sqrt(0.25 / independentOutcomes);
 
   const tradePoints = computeTradePoints(trades, params.rollingWindowTrades);
 

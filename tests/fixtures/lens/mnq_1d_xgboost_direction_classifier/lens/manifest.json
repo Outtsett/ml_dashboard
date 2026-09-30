@@ -1,0 +1,189 @@
+{
+  "modelId": "MNQ_1d_xgboost+direction_classifier_20260923T014724",
+  "builderVersion": 1,
+  "builtAtIso": "2026-09-30T02:42:54.636617+00:00",
+  "sourceSchema": "probability_parquet",
+  "sourceFiles": [
+    {
+      "path": "data/models/MNQ_1d_xgboost+direction_classifier_20260923T014724/oos_predictions.parquet",
+      "sha256": "566c969e99d37f757ec6920c402d069746a6a4df9ba6e385ce28d015a0785d1f",
+      "bytes": 5051,
+      "modifiedAtIso": "2026-09-23T01:47:29.794717+00:00"
+    },
+    {
+      "path": "data/models/MNQ_1d_xgboost+direction_classifier_20260923T014724/checkpoint.json",
+      "sha256": "0b281d879762af23e39d5ad8474de1b748515a2f61b5b93252c4a11b52695a0e",
+      "bytes": 847,
+      "modifiedAtIso": "2026-09-23T01:47:29.796222+00:00"
+    },
+    {
+      "path": "data/models/MNQ_1d_xgboost+direction_classifier_20260923T014724/diagnostics.json",
+      "sha256": "9ca9354508acce66c14ec356c9d9c08852e5d3af8a22008a6b53bcd73a5f98d1",
+      "bytes": 6954,
+      "modifiedAtIso": "2026-09-23T01:47:29.796222+00:00"
+    },
+    {
+      "path": "data/models/MNQ_1d_xgboost+direction_classifier_20260923T014724/shap_summary.npz",
+      "sha256": "5ca6afd4bee82288b227b518bbc5417448124d3cc0ee83ae3288de564ea49c0d",
+      "bytes": 11934,
+      "modifiedAtIso": "2026-09-23T01:47:29.790711+00:00"
+    }
+  ],
+  "symbol": "MNQ",
+  "timeframe": "1d",
+  "barSeconds": 86400,
+  "horizonBars": 5,
+  "horizonSource": "checkpoint.json params.label_horizon_bars (bars on the raw grid)",
+  "labelDefinition": "triple-barrier direction over the next 5 bars with a 5.0 basis-point barrier (src/ml/xgb_classifier/labels.py); 1 = up barrier touched first",
+  "defaultThreshold": 0.55,
+  "cost": {
+    "roundTripPoints": 1.4,
+    "pointValueUsd": 2.0,
+    "tickSize": 0.25,
+    "source": "recovered from this model's 78 recorded trades (gross from the lake's closes minus each recorded net): 2.80 US dollars per round trip"
+  },
+  "barCount": 427,
+  "firstTimestampSeconds": 1723507200,
+  "lastTimestampSeconds": 1766534400,
+  "interval": {
+    "method": "causal conformal: probability_up binned into trailing deciles, empirical quantiles of realized forward return per bin, refreshed on a fixed step using only rows whose horizon has already elapsed",
+    "binCount": 10,
+    "recalibrationStepBars": 25,
+    "historyBars": 20000,
+    "minimumBinObservations": 30,
+    "quantiles": [
+      0.05,
+      0.1,
+      0.25,
+      0.5,
+      0.75,
+      0.9,
+      0.95
+    ],
+    "coveredBarCount": 39,
+    "eligibleBarCount": 350
+  },
+  "attribution": {
+    "available": true,
+    "method": "TreeSHAP over the validation rows (xgboost pred_contribs), re-aligned to bar order through shap_summary.npz sample_indices",
+    "featureCount": 8,
+    "families": [
+      {
+        "family": "momentum",
+        "label": "Momentum",
+        "features": [
+          "roc_5",
+          "roc_10",
+          "roc_20"
+        ],
+        "sourceCategories": [
+          "returns",
+          "momentum",
+          "ma_distance"
+        ]
+      },
+      {
+        "family": "volatility",
+        "label": "Volatility",
+        "features": [
+          "volatility_10",
+          "volatility_20",
+          "volatility_50"
+        ],
+        "sourceCategories": [
+          "volatility",
+          "parkinson"
+        ]
+      },
+      {
+        "family": "volume",
+        "label": "Volume",
+        "features": [
+          "volume_ratio_10",
+          "volume_ratio_20"
+        ],
+        "sourceCategories": [
+          "volume"
+        ]
+      },
+      {
+        "family": "price_structure",
+        "label": "Price structure",
+        "features": [],
+        "sourceCategories": [
+          "price_structure",
+          "anatomy",
+          "microstructure",
+          "swing",
+          "mean_reversion"
+        ]
+      },
+      {
+        "family": "macro",
+        "label": "Macro",
+        "features": [],
+        "sourceCategories": []
+      }
+    ]
+  },
+  "priceDiscontinuities": [],
+  "reference": {
+    "tradeCount": 78,
+    "cumulativeNetUsd": 15972.600000000002,
+    "longCount": 47,
+    "shortCount": 31,
+    "hitRateAtHalf": 0.49714285714285716,
+    "areaUnderCurve": 0.5289142407553108
+  },
+  "verification": [
+    {
+      "name": "lake_bars_cover_every_out_of_sample_row",
+      "passed": true,
+      "measured": "350 of 350 predictions sit on a lake bar at the same second",
+      "expected": "every prediction sits on a lake bar"
+    },
+    {
+      "name": "stored_realized_returns_reproduced_by_lake_closes",
+      "passed": true,
+      "measured": "largest difference 4.636e-05 basis points over 350 rows",
+      "expected": "< 1e-3 basis points, stepping 5 bars on the lake's grid"
+    },
+    {
+      "name": "replayed_trade_count_matches_model_diagnostics",
+      "passed": true,
+      "measured": "78 trades replayed on the bar grid",
+      "expected": "exactly 78 (diagnostics.json pnl_curve.trade_pnl_dollars)"
+    },
+    {
+      "name": "one_round_trip_cost_explains_every_recorded_trade",
+      "passed": true,
+      "measured": "78 trades; the cost each implies spans 2.27e-13 US dollars and the replay differs from the record by at most 5.68e-14 US dollars",
+      "expected": "every trade implies the same round-trip cost, to a hundredth of a cent"
+    },
+    {
+      "name": "price_bars_well_formed",
+      "passed": true,
+      "measured": "0 bars violate high/low bounds",
+      "expected": "high >= max(open, close) and low <= min(open, close) on every bar"
+    },
+    {
+      "name": "shap_rows_realigned_to_bar_order",
+      "passed": true,
+      "measured": "350 of 427 bars carry attribution; stored order is a permutation (first indices [94, 295, 62])",
+      "expected": "attribution indexed by sample_indices, not by position"
+    },
+    {
+      "name": "interval_has_no_lookahead",
+      "passed": true,
+      "measured": "rewriting every return from row 213 onward first moved a quantile at row 375 (nothing at or before row 208 moved)",
+      "expected": "the first moved row is after 208 \u2014 a mapping calibrated on the whole record fails this"
+    }
+  ],
+  "notes": [
+    "Prices are read from the lake on the model's own bar grid. Its evaluator stepped 5 BARS ahead, not 5 rows: this record is the 427 lake bars from the first prediction to 5 bars past the last, 350 of which carry a prediction. A bar with no prediction (its label was dropped in training) carries no probability, label or realized return and never trades, exactly as in the model's own evaluation.",
+    "The lake reproduces every stored realized return to 4.6e-05 basis points.",
+    "This record was scored at 1.40 points per round trip, recovered from its own trades; src/config/cost_model.json now prices MNQ at 1.39 points. The lens charges what the model's evaluator charged.",
+    "The row-by-row price reconstruction does not apply to this record: replayed 68 trades but the model's diagnostics record 78 \u2014 the trade rule in this lens does not match the one that produced them.",
+    "Feature VALUES are not recoverable for this model (the artifact stores attributions only, and the lake no longer reproduces its inputs), so the playback shows each feature's contribution without the value it was computed from."
+  ]
+}

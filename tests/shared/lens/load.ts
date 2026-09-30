@@ -3,31 +3,38 @@
  * server (src/server/lens); this file exists so the shared-compute tests can
  * read the same artifacts without depending on it.
  *
- * Two loaders:
- *   loadLensSeries            reads data/models/<id>/lens/bars.parquet, the
- *                             on-disk contract written by the Python builder.
- *   reconstructFromPredictions reads the model's ORIGINAL artifacts
- *                             (oos_predictions.parquet + diagnostics.json) and
- *                             rebuilds the close series from them, so parity can
- *                             be checked even before the builder has run. See
- *                             the header on that function for why it is exact.
+ * Every loader takes a model DIRECTORY, so the parity tests run against the
+ * committed fixtures under tests/fixtures/lens/ (which cannot vanish) and, where
+ * a test says so, against a real run under data/models/ (gitignored, so those
+ * tests skip when the directory is absent).
+ *
+ *   loadLensManifest / loadLensSeries   <directory>/lens/{manifest.json, bars.parquet},
+ *                                       the on-disk contract the Python builder writes.
+ *   readOutOfSamplePredictions          <directory>/oos_predictions.parquet, the model's
+ *                                       ORIGINAL record, read independently of the builder.
+ *   readJson                            any JSON artifact (diagnostics, scoreboard, config),
+ *                                       tolerating the bare NaN tokens older writers emitted.
  */
 
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DuckDBInstance } from "@duckdb/node-api";
-import {
-  LENS_BUILDER_VERSION,
-  LENS_QUANTILE_COLUMNS,
-  LENS_QUANTILE_LEVELS,
-  type LensManifest,
-  type LensSeries,
-} from "@shared/lens/index";
+import { LENS_QUANTILE_COLUMNS, LENS_QUANTILE_LEVELS, type LensManifest, type LensSeries } from "@shared/lens/index";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPOSITORY_ROOT = path.resolve(HERE, "..", "..", "..");
 
+/** Committed fixtures (tests/fixtures/lens/<name>/). */
+export const FIXTURE_ROOT = path.join(REPOSITORY_ROOT, "tests", "fixtures", "lens");
+
+/** A daily XGBoost direction classifier (src/ml/xgb_classifier), lens built on the lake's bar grid. */
+export const DAILY_CLASSIFIER_FIXTURE = path.join(FIXTURE_ROOT, "mnq_1d_xgboost_direction_classifier");
+
+/** A Model Cycle run (src/ml/cycle), lens built from the run's own record. */
+export const CYCLE_RUN_FIXTURE = path.join(FIXTURE_ROOT, "mnq_5m_xgboost_cycle_run");
+
+/** A real model directory under data/models (gitignored). */
 export function modelDirectory(modelId: string): string {
   return path.join(REPOSITORY_ROOT, "data", "models", modelId);
 }
@@ -41,6 +48,10 @@ export function modelDirectory(modelId: string): string {
  */
 function parseJsonAllowingNonFinite<T>(text: string): T {
   return JSON.parse(text.replace(/([:[,]\s*)(NaN|-?Infinity)(?=\s*[,\]}])/g, "$1null")) as T;
+}
+
+export function readJson<T>(filePath: string): T {
+  return parseJsonAllowingNonFinite<T>(readFileSync(filePath, "utf-8"));
 }
 
 function toNumber(value: unknown): number {
@@ -59,12 +70,11 @@ export async function readParquetRows(parquetPath: string): Promise<Array<Record
   return reader.getRowObjects() as Array<Record<string, unknown>>;
 }
 
-/** data/models/<id>/lens/bars.parquet -> LensSeries, exactly as types.ts documents it. */
-export async function loadLensSeries(modelId: string, manifest: LensManifest): Promise<LensSeries> {
-  const barsPath = path.join(modelDirectory(modelId), "lens", "bars.parquet");
-  const rows = await readParquetRows(barsPath);
+/** <directory>/lens/bars.parquet -> LensSeries, exactly as types.ts documents it. */
+export async function loadLensSeries(directory: string, manifest: LensManifest): Promise<LensSeries> {
+  const rows = await readParquetRows(path.join(directory, "lens", "bars.parquet"));
   const length = rows.length;
-  const series = emptySeries(modelId, length, manifest);
+  const series = emptySeries(manifest.modelId, length, manifest);
   for (let index = 0; index < length; index += 1) {
     const row = rows[index] as Record<string, unknown>;
     series.timestampSeconds[index] = toNumber(row["timestamp_seconds"]);
@@ -85,23 +95,17 @@ export async function loadLensSeries(modelId: string, manifest: LensManifest): P
   return series;
 }
 
-export function loadLensManifest(modelId: string): LensManifest {
-  const manifestPath = path.join(modelDirectory(modelId), "lens", "manifest.json");
-  return parseJsonAllowingNonFinite<LensManifest>(readFileSync(manifestPath, "utf-8"));
+export function loadLensManifest(directory: string): LensManifest {
+  return readJson<LensManifest>(path.join(directory, "lens", "manifest.json"));
 }
 
-/**
- * Whether this checkout carries the model at all. `data/` is gitignored, so a
- * fresh clone (or CI) has no model directories — which is a different thing
- * from a model whose lens was never built.
- */
-export function modelDataExists(modelId: string): boolean {
-  return existsSync(modelDirectory(modelId));
+export function directoryExists(directory: string): boolean {
+  return existsSync(directory);
 }
 
-export function lensArtifactsExist(modelId: string): boolean {
-  const directory = path.join(modelDirectory(modelId), "lens");
-  return existsSync(path.join(directory, "bars.parquet")) && existsSync(path.join(directory, "manifest.json"));
+export function lensArtifactsExist(directory: string): boolean {
+  const lens = path.join(directory, "lens");
+  return existsSync(path.join(lens, "bars.parquet")) && existsSync(path.join(lens, "manifest.json"));
 }
 
 function emptySeries(modelId: string, length: number, manifest: LensManifest): LensSeries {
@@ -123,196 +127,45 @@ function emptySeries(modelId: string, length: number, manifest: LensManifest): L
   };
 }
 
-// ── Reconstruction from the model's original artifacts ──────────────────────
+// ── The model's original record, read without the builder ──────────────────
 
-export interface ReconstructedModel {
-  series: LensSeries;
-  manifest: LensManifest;
-  /**
-   * Largest disagreement, in index points, between the close price implied by
-   * each of the model's own trades and the reconstructed series. It is the
-   * residual of an over-determined system, so a small number is evidence the
-   * reconstruction is the real price series and not an artefact.
-   */
-  maximumSeedDisagreementPoints: number;
-  referenceTradeNetUsd: number[];
+export interface OutOfSamplePredictions {
+  timestampSeconds: number[];
+  probabilityUp: number[];
+  label: number[];
+  realizedReturnBasisPoints: number[];
 }
 
-/**
- * Rebuild the close series the model's evaluator actually saw, from artifacts
- * that already exist on disk.
- *
- * oos_predictions.parquet carries realized_return_bp[i] = ln(close[i+H]/close[i])
- * * 10_000, which pins every RATIO within a residue class of i modulo H but
- * leaves H unknown scale factors. diagnostics.json carries the net dollars of
- * each of the model's own trades, and net = (close[exit] - close[entry]) *
- * direction * pointValue - roundTripCost, so each trade pins the absolute price
- * level at its own entry row. With 264 trades and 5 unknowns the system is
- * heavily over-determined: `maximumSeedDisagreementPoints` reports how far the
- * worst of those 264 independent anchors lands from the reconstruction, and
- * prices are snapped to the instrument's tick at every chained step.
- */
-export async function reconstructFromPredictions(modelId: string): Promise<ReconstructedModel> {
-  const directory = modelDirectory(modelId);
+/** <directory>/oos_predictions.parquet (ts, prob_up, label, realized_return_bp) as the trainer wrote it. */
+export async function readOutOfSamplePredictions(directory: string): Promise<OutOfSamplePredictions> {
   const rows = await readParquetRows(path.join(directory, "oos_predictions.parquet"));
-  const checkpoint = parseJsonAllowingNonFinite<{
-    params: { label_horizon_bars: number; pnl_threshold: number };
-  }>(readFileSync(path.join(directory, "checkpoint.json"), "utf-8"));
-  const diagnostics = parseJsonAllowingNonFinite<{
-    symbol: string;
-    timeframe: string;
-    metrics: Record<string, { value: number }>;
-    pnl_curve: { trade_pnl_dollars: number[]; n_long: number; n_short: number };
-  }>(readFileSync(path.join(directory, "diagnostics.json"), "utf-8"));
-  const costModel = parseJsonAllowingNonFinite<
-    Record<string, { total_round_trip_points: number; point_value: number; tick_size: number }>
-  >(readFileSync(path.join(REPOSITORY_ROOT, "src", "config", "cost_model.json"), "utf-8"));
-  const symbol = diagnostics.symbol;
-  const cost = costModel[symbol] as { total_round_trip_points: number; point_value: number; tick_size: number };
-
-  const length = rows.length;
-  const horizon = checkpoint.params.label_horizon_bars;
-  const threshold = checkpoint.params.pnl_threshold;
-  const pointValue = cost.point_value;
-  const tick = cost.tick_size;
-  const roundTripUsd = cost.total_round_trip_points * pointValue;
-
-  const timestamps = new Float64Array(length);
-  const probability = new Float32Array(length);
-  const label = new Int8Array(length);
-  const realized = new Float32Array(length);
-  for (let index = 0; index < length; index += 1) {
-    const row = rows[index] as Record<string, unknown>;
-    timestamps[index] = toNumber(row["ts"]);
-    probability[index] = toNumber(row["prob_up"]);
-    const labelValue = row["label"];
-    label[index] = labelValue === null || labelValue === undefined ? -1 : toNumber(labelValue);
-    realized[index] = toNumber(row["realized_return_bp"]);
-  }
-
-  // Replay the evaluator's own entry rule to recover which rows it traded.
-  const entries: Array<{ row: number; direction: 1 | -1 }> = [];
-  let lastExit = -1;
-  for (let index = 0; index < length - horizon; index += 1) {
-    if (index < lastExit) continue;
-    const value = probability[index] as number;
-    let direction: 1 | -1;
-    if (value >= threshold) direction = 1;
-    else if (value <= 1 - threshold) direction = -1;
-    else continue;
-    entries.push({ row: index, direction });
-    lastExit = index + horizon;
-  }
-
-  const referenceTradeNetUsd = diagnostics.pnl_curve.trade_pnl_dollars;
-  if (entries.length !== referenceTradeNetUsd.length) {
-    throw new Error(
-      `reconstruct: replayed ${entries.length} entries but diagnostics.json carries ${referenceTradeNetUsd.length} trades`,
-    );
-  }
-
-  // Each trade anchors the absolute price level at its entry row.
-  const anchors = new Map<number, number>();
-  for (let index = 0; index < entries.length; index += 1) {
-    const entry = entries[index] as { row: number; direction: 1 | -1 };
-    const net = referenceTradeNetUsd[index] as number;
-    const signedMove = (net + roundTripUsd) / pointValue; // (exit - entry) * direction
-    const ratio = Math.expm1((realized[entry.row] as number) / 1e4);
-    if (ratio === 0 || !Number.isFinite(ratio)) continue;
-    anchors.set(entry.row, (signedMove * entry.direction) / ratio);
-  }
-
-  const close = new Float64Array(length).fill(Number.NaN);
-  const snap = (price: number) => Math.round(price / tick) * tick;
-  for (let residue = 0; residue < horizon; residue += 1) {
-    let anchorRow = -1;
-    for (const row of anchors.keys()) {
-      if (row % horizon === residue && (anchorRow === -1 || row < anchorRow)) anchorRow = row;
-    }
-    if (anchorRow === -1) throw new Error(`reconstruct: no anchor for rows ${residue} modulo ${horizon}`);
-    close[anchorRow] = snap(anchors.get(anchorRow) as number);
-    let row = anchorRow;
-    while (row + horizon < length && Number.isFinite(realized[row] as number)) {
-      const next = snap((close[row] as number) * Math.exp((realized[row] as number) / 1e4));
-      close[row + horizon] = next;
-      row += horizon;
-    }
-    row = anchorRow;
-    while (row - horizon >= 0) {
-      const previous = snap((close[row] as number) / Math.exp((realized[row - horizon] as number) / 1e4));
-      close[row - horizon] = previous;
-      row -= horizon;
-    }
-  }
-
-  let maximumSeedDisagreementPoints = 0;
-  for (const [row, implied] of anchors) {
-    const difference = Math.abs((close[row] as number) - implied);
-    if (difference > maximumSeedDisagreementPoints) maximumSeedDisagreementPoints = difference;
-  }
-
-  const manifest: LensManifest = {
-    modelId,
-    builderVersion: LENS_BUILDER_VERSION,
-    builtAtIso: new Date(0).toISOString(),
-    sourceSchema: "probability_parquet",
-    sourceFiles: [],
-    symbol,
-    timeframe: diagnostics.timeframe,
-    barSeconds: 60,
-    horizonBars: horizon,
-    horizonSource: "checkpoint.json params.label_horizon_bars",
-    labelDefinition: "1 when the forward log return over the horizon cleared the label threshold, else 0",
-    defaultThreshold: threshold,
-    cost: {
-      roundTripPoints: cost.total_round_trip_points,
-      pointValueUsd: pointValue,
-      tickSize: tick,
-      source: "src/config/cost_model.json MNQ",
-    },
-    barCount: length,
-    firstTimestampSeconds: timestamps[0] as number,
-    lastTimestampSeconds: timestamps[length - 1] as number,
-    interval: {
-      method: "not reconstructed in this test fixture",
-      binCount: 0,
-      recalibrationStepBars: 0,
-      historyBars: 0,
-      minimumBinObservations: 0,
-      quantiles: [...LENS_QUANTILE_LEVELS],
-      coveredBarCount: 0,
-    },
-    attribution: { available: false, reason: "attribution is not part of this reconstructed fixture" },
-    reference: {
-      tradeCount: diagnostics.metrics["n_trades"]?.value ?? null,
-      cumulativeNetUsd: diagnostics.metrics["cum_pnl_dollars"]?.value ?? null,
-      longCount: diagnostics.pnl_curve.n_long,
-      shortCount: diagnostics.pnl_curve.n_short,
-      hitRateAtHalf: diagnostics.metrics["hit_rate_50"]?.value ?? null,
-      areaUnderCurve: diagnostics.metrics["auc"]?.value ?? null,
-    },
-    verification: [],
-    notes: [
-      "Close prices reconstructed from realized_return_bp ratios anchored on the model's own trade profit and loss.",
-    ],
+  return {
+    timestampSeconds: rows.map((row) => toNumber(row["ts"])),
+    probabilityUp: rows.map((row) => toNumber(row["prob_up"])),
+    label: rows.map((row) => toNumber(row["label"])),
+    realizedReturnBasisPoints: rows.map((row) => toNumber(row["realized_return_bp"])),
   };
+}
 
-  const series: LensSeries = {
-    modelId,
-    length,
-    timestampSeconds: timestamps,
-    open: close.slice(),
-    high: close.slice(),
-    low: close.slice(),
-    close,
-    volume: new Float64Array(length).fill(Number.NaN),
-    probabilityUp: probability,
-    label,
-    realizedReturnBasisPoints: realized,
-    predictedQuantilesBasisPoints: LENS_QUANTILE_LEVELS.map(() => new Float32Array(length).fill(Number.NaN)),
-    horizonBars: horizon,
-    cost: manifest.cost,
-  };
+/** The numbers src/ml/xgb_classifier writes into diagnostics.json for its own evaluator run. */
+export interface ClassifierDiagnostics {
+  symbol: string;
+  timeframe: string;
+  metrics: Record<string, { value: number | null }>;
+  pnl_curve: { trade_pnl_dollars: number[]; n_long: number; n_short: number };
+}
 
-  return { series, manifest, maximumSeedDisagreementPoints, referenceTradeNetUsd };
+export function readClassifierDiagnostics(directory: string): ClassifierDiagnostics {
+  return readJson<ClassifierDiagnostics>(path.join(directory, "diagnostics.json"));
+}
+
+/** A Model Cycle run's scoreboard.json. */
+export interface CycleScoreboard {
+  metrics: Record<string, number | null>;
+  barsEvaluated: number;
+  barsScored: number;
+}
+
+export function readCycleScoreboard(directory: string): CycleScoreboard {
+  return readJson<CycleScoreboard>(path.join(directory, "scoreboard.json"));
 }

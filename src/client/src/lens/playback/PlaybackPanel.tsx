@@ -139,8 +139,15 @@ export function PlaybackPanel({ window: barWindow, manifest, cursorIndex, onCurs
       : null;
   const maxAbsShap = topFeatures && topFeatures.length > 0 ? Math.max(...topFeatures.map((f) => Math.abs(f.shap))) : 1;
 
+  const probabilityUp = bar.probabilityUp;
   const predictedDirection =
-    bar.probabilityUp >= barWindow.params.threshold ? "up (long)" : bar.probabilityUp <= 1 - barWindow.params.threshold ? "down (short)" : "no edge";
+    probabilityUp === null
+      ? "no prediction on this bar"
+      : probabilityUp >= barWindow.params.threshold
+        ? "up (long)"
+        : probabilityUp <= 1 - barWindow.params.threshold
+          ? "down (short)"
+          : "no edge";
   const intervalBp = intervalBasisPointsForCoverage(bar.predictedQuantilesBasisPoints, barWindow.params.intervalCoverage);
   const coveragePercent = Math.round(barWindow.params.intervalCoverage * 100);
 
@@ -266,16 +273,23 @@ export function PlaybackPanel({ window: barWindow, manifest, cursorIndex, onCurs
           {/* (3) Prediction */}
           <section className="flex flex-col gap-1.5 rounded-md border border-border p-2" data-testid="playback-prediction">
             <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Prediction</h4>
-            <div className="relative h-3 w-full rounded-full bg-muted/40" title={`P(up) = ${bar.probabilityUp.toFixed(3)}`}>
-              <div
-                className="absolute inset-y-0 left-0 rounded-full"
-                style={{ width: `${bar.probabilityUp * 100}%`, backgroundColor: bar.probabilityUp >= 0.5 ? DATA_COLORS.pos : DATA_COLORS.neg }}
-              />
+            <div
+              className="relative h-3 w-full rounded-full bg-muted/40"
+              title={probabilityUp === null ? "P(up): no prediction on this bar" : `P(up) = ${probabilityUp.toFixed(3)}`}
+            >
+              {probabilityUp !== null && (
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full"
+                  style={{ width: `${probabilityUp * 100}%`, backgroundColor: probabilityUp >= 0.5 ? DATA_COLORS.pos : DATA_COLORS.neg }}
+                />
+              )}
               <div className="absolute inset-y-0 w-px bg-border" style={{ left: "50%" }} aria-hidden />
               <div className="absolute inset-y-0 w-px bg-(--color-data-pos)" style={{ left: `${barWindow.params.threshold * 100}%` }} aria-hidden />
               <div className="absolute inset-y-0 w-px bg-(--color-data-neg)" style={{ left: `${(1 - barWindow.params.threshold) * 100}%` }} aria-hidden />
             </div>
-            <p className="font-mono text-xs tnum">P(up) {bar.probabilityUp.toFixed(3)} · direction {predictedDirection}</p>
+            <p className="font-mono text-xs tnum">
+              P(up) {probabilityUp === null ? "none" : probabilityUp.toFixed(3)} · direction {predictedDirection}
+            </p>
             {intervalBp && (
               <p className="text-[11px] text-muted-foreground">
                 {coveragePercent}% interval (row + {manifest.horizonBars}): {formatBasisPoints(intervalBp.lowBasisPoints)} to {formatBasisPoints(intervalBp.highBasisPoints)}

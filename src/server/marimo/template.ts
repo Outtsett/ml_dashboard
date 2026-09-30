@@ -5,8 +5,10 @@
  * being fixed later: a header cell the catalog reads its title and description
  * from, a DuckDB connection to the lake (`lake.serving.connect()`, with the UTC
  * setting the serving layer needs), the Okabe-Ito palette, the eight-number
- * distribution summary, and one interactive histogram so a slider is wired from
- * the first save. It exports clean in every notebook environment on this machine
+ * distribution summary, one interactive histogram so a slider is wired from the
+ * first save, and the Market chart follower (`lake.dashboard.follow_chart`): with
+ * a chart context the example reads exactly the bars the chart shows
+ * (`chart_bars`), without one it keeps its self-contained series. It exports clean in every notebook environment on this machine
  * (checked 2026-09-28 in the datalake, quant and forexmodel venvs).
  *
  * The name is checked before anything is written: lower-case snake case, and
@@ -152,13 +154,47 @@ def _():
 
 
 @app.cell
-def _(con):
-    # Replace this query with the lake read this notebook is about: the 1-minute
-    # MNQ bars, a derived_* view, or an s3://derived/ dataset.
-    example = con.sql(
-        "SELECT range AS bar_index, sin(range / 15.0) + range / 400.0 AS example_value FROM range(500)"
-    ).df()
-    return (example,)
+def _(mo):
+    # Follows the Market chart: every cell that reads chart_follower re-runs when
+    # the chart changes (lake.dashboard, docs in its module docstring). Without
+    # the lake package or anywidget the notebook keeps its self-contained example.
+    try:
+        from lake import dashboard
+
+        chart_follower = dashboard.follow_chart(mo)
+    except ImportError:
+        dashboard = None
+        chart_follower = mo.md("Chart following needs the lake package and anywidget in this environment.")
+    chart_follower
+    return chart_follower, dashboard
+
+
+@app.cell
+def _(chart_follower, con, dashboard):
+    # With a chart context the example is the close of exactly the bars the
+    # chart shows. Replace it with the lake read this notebook is about: the
+    # 1-minute MNQ bars, a derived_* view, or an s3://derived/ dataset.
+    chart_context = dashboard.chart_context(chart_follower) if dashboard is not None else None
+    example = None
+    example_source = "a synthetic series (the Market chart has not published a context)"
+    if chart_context is not None:
+        try:
+            _bars = dashboard.chart_bars(chart_context)
+            if len(_bars):
+                example = _bars.assign(bar_index=range(len(_bars)), example_value=_bars["close"])[
+                    ["bar_index", "timestamp", "example_value"]
+                ]
+                example_source = (
+                    f"the close of the {len(_bars):,} bars the chart shows "
+                    f"({chart_context['symbol']} {chart_context['timeframe']})"
+                )
+        except dashboard.ChartLinkError as _error:
+            example_source = f"a synthetic series (the chart's bars could not be read: {_error})"
+    if example is None:
+        example = con.sql(
+            "SELECT range AS bar_index, sin(range / 15.0) + range / 400.0 AS example_value FROM range(500)"
+        ).df()
+    return chart_context, example, example_source
 
 
 @app.cell
@@ -170,7 +206,7 @@ def _(mo):
 
 
 @app.cell
-def _(OKABE_ITO, bin_count, distribution_summary, example, log_scale, mo):
+def _(OKABE_ITO, bin_count, distribution_summary, example, example_source, log_scale, mo):
     import altair as alt
 
     _histogram = (
@@ -189,6 +225,7 @@ def _(OKABE_ITO, bin_count, distribution_summary, example, log_scale, mo):
         .properties(width=380, height=220, title="Example value over the bars")
     )
     mo.vstack([
+        mo.md(f"The example value is {example_source}."),
         mo.hstack([_histogram, _line], justify="start"),
         mo.ui.table(distribution_summary(example["example_value"]), selection=None),
     ])

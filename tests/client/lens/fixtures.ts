@@ -2,6 +2,12 @@
  * Minimal, type-complete Model Lens fixtures for client tests. Every field is
  * present so a fixture never masks a missing-field bug the real server would
  * expose.
+ *
+ * The identity and the headline numbers are the committed fixture model's own
+ * (tests/fixtures/lens/mnq_1d_xgboost_direction_classifier: its lens manifest
+ * and the diagnostics.json its trainer wrote), read here rather than typed, so
+ * the rendered strings the panel tests look for are that model's real numbers.
+ * The bars, equity and trades stay synthetic: those tests exercise rendering.
  */
 
 import type {
@@ -15,10 +21,38 @@ import type {
   LensRegimes,
   LensTrade,
 } from "@shared/lens/types";
+import fixtureManifestJson from "../../fixtures/lens/mnq_1d_xgboost_direction_classifier/lens/manifest.json";
+import fixtureDiagnosticsJson from "../../fixtures/lens/mnq_1d_xgboost_direction_classifier/diagnostics.json";
+
+const fixtureManifest = fixtureManifestJson as unknown as LensManifest;
+const fixtureDiagnostics = fixtureDiagnosticsJson as unknown as {
+  metrics: Record<string, { value: number }>;
+  pnl_curve: { trade_pnl_dollars: number[]; n_long: number; n_short: number };
+};
+
+const fixtureTradeNetUsd = fixtureDiagnostics.pnl_curve.trade_pnl_dollars;
+
+/** The fixture model's own recorded numbers (its trainer's diagnostics.json). */
+export const FIXTURE_MODEL = {
+  modelId: fixtureManifest.modelId,
+  barCount: fixtureManifest.barCount,
+  horizonBars: fixtureManifest.horizonBars,
+  tradeCount: fixtureTradeNetUsd.length,
+  longCount: fixtureDiagnostics.pnl_curve.n_long,
+  shortCount: fixtureDiagnostics.pnl_curve.n_short,
+  totalNetUsd: fixtureDiagnostics.metrics["cum_pnl_dollars"]?.value as number,
+  hitRateAtHalf: fixtureDiagnostics.metrics["hit_rate_50"]?.value as number,
+  winRate: fixtureTradeNetUsd.filter((net) => net > 0).length / fixtureTradeNetUsd.length,
+  profitFactor: fixtureDiagnostics.metrics["profit_factor"]?.value as number,
+  areaUnderCurve: fixtureDiagnostics.metrics["auc"]?.value as number,
+  brierScore: fixtureDiagnostics.metrics["brier_score"]?.value as number,
+  firstTimestampSeconds: fixtureManifest.firstTimestampSeconds,
+  lastTimestampSeconds: fixtureManifest.lastTimestampSeconds,
+} as const;
 
 export function makeParams(overrides: Partial<LensEvaluationParams> = {}): LensEvaluationParams {
   return {
-    threshold: 0.55,
+    threshold: fixtureManifest.defaultThreshold,
     costMultiplier: 1,
     rollingWindowBars: 100,
     rollingWindowTrades: 30,
@@ -31,22 +65,22 @@ export function makeParams(overrides: Partial<LensEvaluationParams> = {}): LensE
 
 export function makeManifest(overrides: Partial<LensManifest> = {}): LensManifest {
   return {
-    modelId: "xgb_baseline_post",
-    builderVersion: 1,
-    builtAtIso: "2026-09-15T00:00:00.000Z",
-    sourceSchema: "probability_parquet",
+    modelId: fixtureManifest.modelId,
+    builderVersion: fixtureManifest.builderVersion,
+    builtAtIso: fixtureManifest.builtAtIso,
+    sourceSchema: fixtureManifest.sourceSchema,
     sourceFiles: [],
-    symbol: "MNQ",
-    timeframe: "1m",
-    barSeconds: 60,
-    horizonBars: 5,
-    horizonSource: "checkpoint.json params.label_horizon_bars",
-    labelDefinition: "close[t+5] > close[t]",
-    defaultThreshold: 0.55,
-    cost: { roundTripPoints: 1.4, pointValueUsd: 2, tickSize: 0.25, source: "src/config/cost_model.json MNQ" },
-    barCount: 2565,
-    firstTimestampSeconds: 1558465140,
-    lastTimestampSeconds: 1558947540,
+    symbol: fixtureManifest.symbol,
+    timeframe: fixtureManifest.timeframe,
+    barSeconds: fixtureManifest.barSeconds,
+    horizonBars: fixtureManifest.horizonBars,
+    horizonSource: fixtureManifest.horizonSource,
+    labelDefinition: fixtureManifest.labelDefinition,
+    defaultThreshold: fixtureManifest.defaultThreshold,
+    cost: fixtureManifest.cost,
+    barCount: fixtureManifest.barCount,
+    firstTimestampSeconds: fixtureManifest.firstTimestampSeconds,
+    lastTimestampSeconds: fixtureManifest.lastTimestampSeconds,
     interval: {
       method: "causal conformal",
       binCount: 10,
@@ -57,7 +91,7 @@ export function makeManifest(overrides: Partial<LensManifest> = {}): LensManifes
       coveredBarCount: 2000,
     },
     attribution: { available: true, method: "SHAP", featureCount: 29, families: [] },
-    reference: { tradeCount: 264, cumulativeNetUsd: -549.7, longCount: 34, shortCount: 230, hitRateAtHalf: 0.5423, areaUnderCurve: 0.529 },
+    reference: fixtureManifest.reference,
     verification: [],
     notes: [],
     ...overrides,
@@ -106,7 +140,7 @@ export function makeBarSeries(count: number, startRowIndex = 0): LensBar[] {
 export function makeBarWindow(overrides: Partial<LensBarWindow> = {}, bars?: LensBar[]): LensBarWindow {
   const resolvedBars = bars ?? makeBarSeries(10);
   return {
-    modelId: "xgb_baseline_post",
+    modelId: FIXTURE_MODEL.modelId,
     params: makeParams(),
     rowWindow: { startRowIndex: resolvedBars[0]?.rowIndex ?? 0, endRowIndex: resolvedBars[resolvedBars.length - 1]?.rowIndex ?? 0 },
     bars: resolvedBars,
@@ -123,21 +157,21 @@ export function makeEstimate(value: number, overrides: Partial<LensEstimate> = {
 
 export function makeHeadline(overrides: Partial<LensHeadline> = {}): LensHeadline {
   return {
-    barCount: 2565,
-    effectiveSampleSize: 513,
-    tradeCount: 264,
-    longCount: 34,
-    shortCount: 230,
-    hitRate: makeEstimate(0.5423),
-    winRate: makeEstimate(0.4129),
-    profitFactor: makeEstimate(0.6097),
-    meanTradeNetUsd: makeEstimate(-2.08),
-    totalNetUsd: -549.7,
+    barCount: FIXTURE_MODEL.barCount,
+    effectiveSampleSize: FIXTURE_MODEL.barCount / FIXTURE_MODEL.horizonBars,
+    tradeCount: FIXTURE_MODEL.tradeCount,
+    longCount: FIXTURE_MODEL.longCount,
+    shortCount: FIXTURE_MODEL.shortCount,
+    hitRate: makeEstimate(FIXTURE_MODEL.hitRateAtHalf),
+    winRate: makeEstimate(FIXTURE_MODEL.winRate),
+    profitFactor: makeEstimate(FIXTURE_MODEL.profitFactor),
+    meanTradeNetUsd: makeEstimate(FIXTURE_MODEL.totalNetUsd / FIXTURE_MODEL.tradeCount),
+    totalNetUsd: FIXTURE_MODEL.totalNetUsd,
     buyHoldNetUsd: 120.5,
     maxDrawdownUsd: 812.3,
-    areaUnderCurve: 0.529,
-    brierScore: 0.248,
-    exposureShare: 0.31,
+    areaUnderCurve: FIXTURE_MODEL.areaUnderCurve,
+    brierScore: FIXTURE_MODEL.brierScore,
+    exposureShare: (FIXTURE_MODEL.tradeCount * FIXTURE_MODEL.horizonBars) / FIXTURE_MODEL.barCount,
     verdict: "The model's hit rate does not clear a coin flip at 95% confidence.",
     ...overrides,
   };

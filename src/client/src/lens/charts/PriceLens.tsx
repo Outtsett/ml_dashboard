@@ -293,7 +293,14 @@ export function PriceLens({ window: barWindow, trades, manifest, layers, cursorR
     intervalMedianRef.current?.setData(layers.interval ? interval.median : []);
 
     probabilitySeriesRef.current?.setData(
-      layers.probability ? bars.map((bar) => ({ time: bar.timestampSeconds as Time, value: bar.probabilityUp })) : [],
+      // A bar the model made no prediction for is a whitespace point: the line breaks there.
+      layers.probability
+        ? bars.map((bar) =>
+            bar.probabilityUp === null
+              ? { time: bar.timestampSeconds as Time }
+              : { time: bar.timestampSeconds as Time, value: bar.probabilityUp },
+          )
+        : [],
     );
     baselinePriceLineRef.current?.applyOptions({ lineVisible: layers.probability });
     longThresholdLineRef.current?.applyOptions({

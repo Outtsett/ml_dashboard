@@ -74,6 +74,7 @@ src/ml/data/
 .questdb/
 parquet/
 *.parquet
+!tests/fixtures/lens/**
 *.feather
 *.arrow
 

@@ -20,13 +20,10 @@
  * must be a direct child of data/models (path-traversal guard, mirrors
  * anatomy.router.ts).
  *
- * NOTE for whoever owns src/server/main.ts: the build endpoint can run for up
- * to 10 minutes (BUILD_TIMEOUT_MS in build.ts) but main.ts's request-timeout
- * middleware caps every non-exempt route at 30s. It currently exempts
- * `/stream/`, `/training/start` and `/marimo/` — `/api/lens/models/:id/build`
- * needs the same exemption (e.g. `req.path.endsWith('/build') &&
- * req.path.startsWith('/api/lens/')`) or every build 408s at 30s regardless
- * of BUILD_TIMEOUT_MS. Not applied here — lens-server does not own main.ts.
+ * The build endpoint can run for up to 10 minutes (BUILD_TIMEOUT_MS in
+ * build.ts); src/server/main.ts exempts `/api/lens/models/:id/build` from its
+ * 30 s request timeout (the isLongRunning check), so a build is bounded by
+ * BUILD_TIMEOUT_MS alone.
  */
 
 import { Router, type Request, type Response } from "express";
@@ -126,7 +123,7 @@ const LensManifestSchema = z
     modelId: z.string(),
     builderVersion: z.number(),
     builtAtIso: z.string(),
-    sourceSchema: z.enum(["probability_parquet", "ohlc_probability_npz"]),
+    sourceSchema: z.enum(["probability_parquet", "ohlc_probability_npz", "class_confidence_parquet", "cycle_run"]),
     sourceFiles: z.array(
       z.object({ path: z.string(), sha256: z.string(), bytes: z.number(), modifiedAtIso: z.string() }),
     ),

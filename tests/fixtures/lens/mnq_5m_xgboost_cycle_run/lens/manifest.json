@@ -1,0 +1,142 @@
+{
+  "modelId": "MNQ_5m_xgboost+walk_forward_cycle_20260925T111132",
+  "builderVersion": 1,
+  "builtAtIso": "2026-09-30T02:48:18.191587+00:00",
+  "sourceSchema": "cycle_run",
+  "sourceFiles": [
+    {
+      "path": "data/models/MNQ_5m_xgboost+walk_forward_cycle_20260925T111132/predictions.parquet",
+      "sha256": "90c3d8cac0c3ece1091a0d2d6d30b5bf6dc700f6fa7b935563f2bc72aabae09b",
+      "bytes": 14062,
+      "modifiedAtIso": "2026-09-25T11:11:50.334785+00:00"
+    },
+    {
+      "path": "data/models/MNQ_5m_xgboost+walk_forward_cycle_20260925T111132/config.json",
+      "sha256": "889a3e26004502e1554664d02d47a76528cfa4dd2ad9545e4fd0f36dfaa408a1",
+      "bytes": 4393,
+      "modifiedAtIso": "2026-09-25T11:11:50.338881+00:00"
+    },
+    {
+      "path": "data/models/MNQ_5m_xgboost+walk_forward_cycle_20260925T111132/scoreboard.json",
+      "sha256": "c36a99c3009e9fd2ec5adc0dc6dc4e87b23df1ff546d68cbb254e231949708f8",
+      "bytes": 1605,
+      "modifiedAtIso": "2026-09-25T11:11:50.338881+00:00"
+    },
+    {
+      "path": "data/models/MNQ_5m_xgboost+walk_forward_cycle_20260925T111132/trades.parquet",
+      "sha256": "4c2a28475d266a49c0ef7acd46f3e789b4a2176d27c8e893e644e7d96572d5c2",
+      "bytes": 5158,
+      "modifiedAtIso": "2026-09-25T11:11:50.335785+00:00"
+    }
+  ],
+  "symbol": "MNQ",
+  "timeframe": "5m",
+  "barSeconds": 300,
+  "horizonBars": 6,
+  "horizonSource": "config.json plan.labelHorizonBars",
+  "labelDefinition": "the run's actual direction over the next 6 bars (src/ml/cycle/labels.py actual_direction): 1 when close[t+6] - close[t] is above 0 ticks, 0 when below minus that; a bar inside the threshold, whose horizon crosses a session gap or the fold end, or where the model made no call is unlabelled",
+  "defaultThreshold": 0.55,
+  "cost": {
+    "roundTripPoints": 1.4,
+    "pointValueUsd": 2.0,
+    "tickSize": 0.25,
+    "source": "config.json plan.costModel, the run's own copy of src/config/cost_model.json:MNQ (2.80 US dollars per round trip per contract)"
+  },
+  "barCount": 493,
+  "firstTimestampSeconds": 1764514800,
+  "lastTimestampSeconds": 1764666000,
+  "interval": {
+    "method": "causal conformal: probability_up binned into trailing deciles, empirical quantiles of realized forward return per bin, refreshed on a fixed step using only rows whose horizon has already elapsed",
+    "binCount": 10,
+    "recalibrationStepBars": 25,
+    "historyBars": 20000,
+    "minimumBinObservations": 30,
+    "quantiles": [
+      0.05,
+      0.1,
+      0.25,
+      0.5,
+      0.75,
+      0.9,
+      0.95
+    ],
+    "coveredBarCount": 221,
+    "eligibleBarCount": 487
+  },
+  "attribution": {
+    "available": false,
+    "reason": "the Model Cycle record keeps the explainer's inputs (explain/), not per-bar attributions; the Inside view on the Model Cycle page computes them"
+  },
+  "priceDiscontinuities": [],
+  "reference": {
+    "tradeCount": null,
+    "cumulativeNetUsd": null,
+    "longCount": null,
+    "shortCount": null,
+    "hitRateAtHalf": 0.47520661157024796,
+    "areaUnderCurve": 0.4752540346682606
+  },
+  "verification": [
+    {
+      "name": "timestamps_strictly_increasing",
+      "passed": true,
+      "measured": "493 rows, 0 non-increasing steps",
+      "expected": "strictly increasing across every fold"
+    },
+    {
+      "name": "lens_labels_are_the_runs_scored_bars",
+      "passed": true,
+      "measured": "484 labelled bars",
+      "expected": "exactly 484 (scoreboard.json barsScored)"
+    },
+    {
+      "name": "lens_direction_call_matches_the_run_on_every_scored_bar",
+      "passed": true,
+      "measured": "0 of 484 scored bars disagree",
+      "expected": "0 \u2014 the lens reads P(up) >= 0.5 as an up call, as the run did"
+    },
+    {
+      "name": "brier_score_matches_the_run",
+      "passed": true,
+      "measured": "difference 0.00e+00 (lens 0.253788)",
+      "expected": "within 1e-6 of 0.253788 (scoreboard.json brier_score)"
+    },
+    {
+      "name": "run_trade_ledger_matches_its_scoreboard",
+      "passed": true,
+      "measured": "trades.parquet: 12 trades, -490.60 US dollars net",
+      "expected": "12 trades, -490.60 US dollars (scoreboard.json)"
+    },
+    {
+      "name": "prices_land_on_the_instrument_tick_grid",
+      "passed": true,
+      "measured": "furthest close from a 0.25 point tick: 0.00e+00 points",
+      "expected": "< 2.50e-03 points"
+    },
+    {
+      "name": "price_bars_well_formed",
+      "passed": true,
+      "measured": "0 bars violate high/low bounds",
+      "expected": "high >= max(open, close) and low <= min(open, close) on every bar"
+    },
+    {
+      "name": "forward_return_matches_the_stored_prices",
+      "passed": true,
+      "measured": "realized return recomputed from close over 6 rows differs by at most 0.000e+00 basis points",
+      "expected": "< 1e-3 basis points"
+    },
+    {
+      "name": "interval_has_no_lookahead",
+      "passed": true,
+      "measured": "rewriting every return from row 246 onward first moved a quantile at row 275 (nothing at or before row 240 moved)",
+      "expected": "the first moved row is after 240 \u2014 a mapping calibrated on the whole record fails this"
+    }
+  ],
+  "notes": [
+    "Read from the Model Cycle run's own record: 493 test bars across 1 walk-forward fold, laid end to end in the order the model walked them. Prices are the ones the run traded, as recorded (the plan names no roll adjustment).",
+    "A bar is labelled only where the run scored it: its 6-bar horizon resolved inside the same fold, did not cross a session gap, moved past the label threshold, and the model made a call. 484 of 493 bars qualify (the run's scoreboard counts 484).",
+    "Trades here follow the lens rule, not the run's: enter at the close of a bar whose P(up) clears the threshold (short when it is at or below one minus it), exit at the close 6 rows later, one trade at a time, charged 1.40 points per round trip. The run's own rule was: long when P(up) >= 0.55, short when P(up) <= 0.45, decided at a bar's close and filled at the next bar's open; a 6-bar holding period that renews while the call holds; an opposite call reverses at the next open. So the lens trade count and net profit are the lens rule's own; the direction scoreboard (hit rate, area under the curve, Brier score) is the run's and must match it.",
+    "Under its own rule the run closed 12 trades for -$490.60 net (scoreboard.json; every trade in trades.parquet and on the Model Cycle page).",
+    "The run was stopped before it finished; the record holds the bars it walked."
+  ]
+}
