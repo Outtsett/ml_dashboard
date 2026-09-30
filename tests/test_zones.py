@@ -65,6 +65,10 @@ def test_parity_with_the_charts_typescript():
     np.testing.assert_allclose(actual["strength"].to_numpy(float), expected["strength"].to_numpy(float), atol=1e-12)
     assert actual["first_time"].tolist() == expected["firstTime"].tolist()
     assert actual["last_time"].tolist() == expected["lastTime"].tolist()
+    # the wick zone of every cluster: resistance from the lowest body top to the highest high, support the mirror
+    np.testing.assert_allclose(actual["zone_top"].to_numpy(float), expected["zoneTop"].to_numpy(float), atol=1e-9)
+    np.testing.assert_allclose(actual["zone_bottom"].to_numpy(float), expected["zoneBottom"].to_numpy(float), atol=1e-9)
+    assert (actual["zone_top"] >= actual["zone_bottom"]).all()
 
 
 def test_zone_features_are_causal_and_follow_the_spec():

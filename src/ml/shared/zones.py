@@ -96,23 +96,35 @@ def _cluster_sorted(prices: np.ndarray, tolerance: float) -> np.ndarray:
     return ids
 
 
-def cluster_levels(prices: np.ndarray, times: np.ndarray, tolerance: float, minimum_touches: int = 2) -> pd.DataFrame:
+EMPTY_LEVELS = ["price", "touches", "strength", "first_time", "last_time", "zone_top", "zone_bottom"]
+
+
+def cluster_levels(prices: np.ndarray, times: np.ndarray, tolerance: float, minimum_touches: int = 2,
+                   body_edges: np.ndarray | None = None, kind: str = "resistance") -> pd.DataFrame:
     """The chart's ``clusterLevels``: one row per cluster with at least ``minimum_touches`` pivots —
-    price (mean of its pivots), touches, strength (touches / most touches), first and last pivot time.
-    Rows are in ascending price order, as the TypeScript returns them."""
+    price (mean of its pivots), touches, strength (touches / most touches), first and last pivot time,
+    and the zone the wicks make: for resistance from the lowest pivot body top (``zone_bottom``) to the
+    highest pivot high (``zone_top``); for support from the lowest pivot low to the highest pivot body
+    bottom. Rows are in ascending price order, as the TypeScript returns them."""
     if prices.size == 0:
-        return pd.DataFrame(columns=["price", "touches", "strength", "first_time", "last_time"])
+        return pd.DataFrame(columns=EMPTY_LEVELS)
     order = np.argsort(prices, kind="stable")
     sorted_prices = prices[order].astype(np.float64)
     sorted_times = times[order]
+    sorted_bodies = (body_edges[order] if body_edges is not None else sorted_prices).astype(np.float64)
     ids = _cluster_sorted(sorted_prices, float(tolerance))
-    frame = pd.DataFrame({"id": ids, "price": sorted_prices, "time": sorted_times})
-    grouped = frame.groupby("id", sort=True).agg(price=("price", "mean"), touches=("price", "size"), first_time=("time", "min"), last_time=("time", "max"))
+    frame = pd.DataFrame({"id": ids, "price": sorted_prices, "time": sorted_times, "body": sorted_bodies})
+    grouped = frame.groupby("id", sort=True).agg(price=("price", "mean"), touches=("price", "size"), first_time=("time", "min"), last_time=("time", "max"),
+                                                wick_low=("price", "min"), wick_high=("price", "max"), body_low=("body", "min"), body_high=("body", "max"))
     grouped = grouped[grouped["touches"] >= minimum_touches].reset_index(drop=True)
     if len(grouped) == 0:
-        return pd.DataFrame(columns=["price", "touches", "strength", "first_time", "last_time"])
+        return pd.DataFrame(columns=EMPTY_LEVELS)
     grouped["strength"] = grouped["touches"] / grouped["touches"].max()
-    return grouped[["price", "touches", "strength", "first_time", "last_time"]]
+    if kind == "resistance":
+        grouped["zone_top"], grouped["zone_bottom"] = grouped["wick_high"], grouped["body_low"]
+    else:
+        grouped["zone_top"], grouped["zone_bottom"] = grouped["body_high"], grouped["wick_low"]
+    return grouped[EMPTY_LEVELS]
 
 
 def compute_support_resistance(bars: pd.DataFrame, lookback: int = PIVOT_LOOKBACK, max_levels: int = MAX_LEVELS) -> pd.DataFrame:
@@ -121,18 +133,21 @@ def compute_support_resistance(bars: pd.DataFrame, lookback: int = PIVOT_LOOKBAC
     support at equal touches, each in ascending price). Not causal: it reads the whole frame, exactly
     as the chart reads its loaded bars."""
     high, low, close = (bars[c].to_numpy(np.float64) for c in ("high", "low", "close"))
+    opens = bars["open"].to_numpy(np.float64) if "open" in bars.columns else close
     times = bars["time"].to_numpy()
+    columns = ["price", "type", "touches", "strength", "first_time", "last_time", "zone_top", "zone_bottom"]
     if high.size < lookback * 2 + 1:
-        return pd.DataFrame(columns=["price", "type", "touches", "strength", "first_time", "last_time"])
+        return pd.DataFrame(columns=columns)
     high_idx, low_idx = structural_pivots(high, low, lookback)
     tolerance = float(true_range(high, low, close).mean()) * BANDWIDTH_TRUE_RANGE_MULTIPLE
-    resistance = cluster_levels(high[high_idx], times[high_idx], tolerance).assign(type="resistance")
-    support = cluster_levels(low[low_idx], times[low_idx], tolerance).assign(type="support")
+    body_top, body_bottom = np.maximum(opens, close), np.minimum(opens, close)
+    resistance = cluster_levels(high[high_idx], times[high_idx], tolerance, body_edges=body_top[high_idx], kind="resistance").assign(type="resistance")
+    support = cluster_levels(low[low_idx], times[low_idx], tolerance, body_edges=body_bottom[low_idx], kind="support").assign(type="support")
     levels = pd.concat([resistance, support], ignore_index=True)
     if len(levels) == 0:
-        return pd.DataFrame(columns=["price", "type", "touches", "strength", "first_time", "last_time"])
+        return pd.DataFrame(columns=columns)
     levels = levels.sort_values("touches", ascending=False, kind="stable").head(max_levels).reset_index(drop=True)
-    return levels[["price", "type", "touches", "strength", "first_time", "last_time"]]
+    return levels[columns]
 
 
 # ── the causal per-bar walk, in numba ────────────────────────────────────────

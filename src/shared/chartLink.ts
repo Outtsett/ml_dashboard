@@ -68,6 +68,19 @@ export const OverlaySchema = z.discriminatedUnion("kind", [
     zones: z.array(z.object({ start: time, end: time, text: z.string().max(40).optional() })).max(2_000),
   }),
   z.object({
+    kind: z.literal("band"),
+    id: z.string().min(1).max(80),
+    label,
+    color,
+    bands: z.array(z.object({
+      start: time,
+      end: time.nullable().default(null),
+      top: z.number().finite(),
+      bottom: z.number().finite(),
+      text: z.string().max(40).optional(),
+    })).max(2_000),
+  }),
+  z.object({
     kind: z.literal("vline"),
     id: z.string().min(1).max(80),
     label,

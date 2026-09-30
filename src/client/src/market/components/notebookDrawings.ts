@@ -1,6 +1,7 @@
 /**
- * Draws notebook levels, shaded time zones and vertical lines on the Market
- * chart (the data comes from useNotebookOverlays.ts).
+ * Draws levels, shaded time zones, vertical lines and price bands (support /
+ * resistance clouds) on the Market chart: the chart's own S/R zones and what a
+ * notebook or script sent through the chart link (useNotebookOverlays.ts).
  *
  * Levels are the series' own price lines. Zones and vertical lines are one
  * series primitive, read at draw time so they stay pinned through pan and zoom.
@@ -24,7 +25,7 @@ import {
   type Time,
 } from "lightweight-charts";
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
-import type { NotebookDrawings, NotebookVerticalLine, NotebookZone } from "@/market/lib/useNotebookOverlays";
+import type { NotebookBand, NotebookDrawings, NotebookVerticalLine, NotebookZone } from "@/market/lib/useNotebookOverlays";
 
 /** The index of the last bar at or before `seconds`, or -1. Exported for tests. */
 export function barIndexAtOrBefore(times: readonly number[], seconds: number): number {
@@ -75,6 +76,7 @@ class DrawingsRenderer implements IPrimitivePaneRenderer {
       context.save();
       if (this.layer === "behind") {
         for (const zone of this.source.zones) this.drawZone(context, zone, x, half, height);
+        for (const band of this.source.bands) this.drawBand(context, band, x, half, scope.mediaSize.width);
       } else {
         for (const line of this.source.verticalLines) this.drawVertical(context, line, x, height);
       }
@@ -93,6 +95,31 @@ class DrawingsRenderer implements IPrimitivePaneRenderer {
     context.fillStyle = zone.color;
     context.font = "10px ui-sans-serif, system-ui, sans-serif";
     context.fillText(zone.label, left - half + 3, 12);
+  }
+
+  /** A cloud: the bars the band spans (to the last bar when open-ended) between its two prices. */
+  private drawBand(context: CanvasRenderingContext2D, band: NotebookBand, x: (index: number) => number | null, half: number, width: number): void {
+    const series = this.source.series;
+    const times = this.source.times;
+    if (!series || times.length === 0) return;
+    const endMs = band.endMs ?? times[times.length - 1]! * 1000;
+    const span = zoneBarSpan(times, band.startMs, endMs);
+    if (!span) return;
+    const left = x(span.first);
+    const right = band.endMs === null ? width : x(span.last);
+    const top = series.priceToCoordinate(band.top);
+    const bottom = series.priceToCoordinate(band.bottom);
+    if (left === null || right === null || top === null || bottom === null) return;
+    const y = Math.min(top, bottom);
+    const h = Math.max(1, Math.abs(bottom - top));
+    context.fillStyle = translucent(band.color, 0.22);
+    context.fillRect(left - half, y, right - left + 2 * half, h);
+    context.strokeStyle = translucent(band.color, 0.7);
+    context.lineWidth = 1;
+    context.strokeRect(left - half + 0.5, y + 0.5, right - left + 2 * half - 1, h - 1);
+    context.fillStyle = band.color;
+    context.font = "10px ui-sans-serif, system-ui, sans-serif";
+    context.fillText(band.label, left - half + 3, y - 3 < 10 ? y + h + 11 : y - 3);
   }
 
   private drawVertical(context: CanvasRenderingContext2D, line: NotebookVerticalLine, x: (index: number) => number | null, height: number): void {
@@ -129,26 +156,31 @@ class DrawingsPaneView implements IPrimitivePaneView {
 
 export class NotebookDrawingsPrimitive implements ISeriesPrimitive<Time> {
   public chart: IChartApi | null = null;
+  public series: ISeriesApi<SeriesType> | null = null;
   public times: readonly number[] = [];
   public zones: NotebookZone[] = [];
   public verticalLines: NotebookVerticalLine[] = [];
+  public bands: NotebookBand[] = [];
   private requestUpdate: (() => void) | null = null;
   private readonly views: readonly IPrimitivePaneView[] = [new DrawingsPaneView(this, "behind"), new DrawingsPaneView(this, "front")];
 
   public attached(param: SeriesAttachedParameter<Time>): void {
     this.chart = param.chart;
+    this.series = param.series as ISeriesApi<SeriesType>;
     this.requestUpdate = param.requestUpdate;
   }
 
   public detached(): void {
     this.chart = null;
+    this.series = null;
     this.requestUpdate = null;
   }
 
-  public set(times: readonly number[], zones: NotebookZone[], verticalLines: NotebookVerticalLine[]): void {
+  public set(times: readonly number[], zones: NotebookZone[], verticalLines: NotebookVerticalLine[], bands: NotebookBand[] = []): void {
     this.times = times;
     this.zones = zones;
     this.verticalLines = verticalLines;
+    this.bands = bands;
     this.requestUpdate?.();
   }
 
@@ -163,11 +195,13 @@ export class NotebookDrawingsPrimitive implements ISeriesPrimitive<Time> {
 
 const LINE_STYLE = { solid: LineStyle.Solid, dashed: LineStyle.Dashed, dotted: LineStyle.Dotted } as const;
 
-/** Keeps the notebook drawings on the candle series, re-attaching when the chart is rebuilt. */
+/** Keeps the drawings on the candle series, re-attaching when the chart is rebuilt. `extraBands` are
+ *  the chart's own clouds (the S/R zones) drawn beside whatever the chart link sent. */
 export function useNotebookDrawings(
   candleSeriesRef: React.MutableRefObject<ISeriesApi<SeriesType> | null>,
   candleTimes: readonly number[],
   drawings: NotebookDrawings | undefined,
+  extraBands: NotebookBand[] = [],
 ): void {
   const primitiveRef = useRef<NotebookDrawingsPrimitive | null>(null);
   const attachedToRef = useRef<ISeriesApi<SeriesType> | null>(null);
@@ -182,7 +216,7 @@ export function useNotebookDrawings(
       attachedToRef.current = series;
       priceLinesRef.current = [];
     }
-    primitiveRef.current?.set(candleTimes, drawings?.zones ?? [], drawings?.verticalLines ?? []);
+    primitiveRef.current?.set(candleTimes, drawings?.zones ?? [], drawings?.verticalLines ?? [], [...(drawings?.bands ?? []), ...extraBands]);
 
     for (const line of priceLinesRef.current) {
       try {
@@ -201,7 +235,7 @@ export function useNotebookDrawings(
         title: level.label,
       }),
     );
-  }, [series, candleTimes, drawings]);
+  }, [series, candleTimes, drawings, extraBands]);
 
   useEffect(() => () => {
     const attached = attachedToRef.current;

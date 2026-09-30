@@ -1,5 +1,5 @@
 ﻿import { useNotebookDrawings } from "./notebookDrawings";
-import { subscribeChartScroll } from "@/market/lib/useNotebookOverlays";
+import { subscribeChartScroll, type NotebookBand } from "@/market/lib/useNotebookOverlays";
 import { logWarn } from "@/infrastructure/lib/error_logger";
 import { useRef, useState, useMemo, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import type { LogicalRange, MouseEventParams, Time, UTCTimestamp } from 'lightweight-charts';
@@ -197,9 +197,19 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     notebookMarkers,
   });
 
-  // Levels, shaded zones and vertical lines a notebook drew on this chart.
+  // Levels, shaded zones and vertical lines a notebook drew on this chart, and the chart's own
+  // support / resistance clouds: each zone shaded from its pivots' wick extreme to their body edge,
+  // from the first pivot to the last bar (blue = support, vermillion = resistance).
   const drawingTimes = useMemo(() => processedData.candles.map((c) => c.time as number), [processedData.candles]);
-  useNotebookDrawings(candleSeriesRef, drawingTimes, notebookDrawings);
+  const supportResistanceBands = useMemo<NotebookBand[]>(() => supportResistanceLevels.map((level) => ({
+    startMs: level.firstTime * 1000,
+    endMs: null,
+    top: level.zoneTop,
+    bottom: level.zoneBottom,
+    color: level.type === 'support' ? '#0072B2' : '#D55E00',
+    label: `${level.type === 'support' ? 'Support' : 'Resistance'} zone · ${level.touches} touches`,
+  })), [supportResistanceLevels]);
+  useNotebookDrawings(candleSeriesRef, drawingTimes, notebookDrawings, supportResistanceBands);
 
   // The page asks the chart to move (a view request through the chart link, after any reload).
   // "latest" sets the logical range to end at the last bar rather than calling scrollToRealTime,

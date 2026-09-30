@@ -47,10 +47,22 @@ export interface NotebookVerticalLine {
   label: string;
 }
 
+/** A shaded price x time box (a support / resistance cloud): from `startMs` to `endMs` (null = to the
+ *  last bar), between `bottom` and `top`. */
+export interface NotebookBand {
+  startMs: number;
+  endMs: number | null;
+  top: number;
+  bottom: number;
+  color: string;
+  label: string;
+}
+
 export interface NotebookDrawings {
   levels: NotebookLevel[];
   zones: NotebookZone[];
   verticalLines: NotebookVerticalLine[];
+  bands: NotebookBand[];
 }
 
 export interface NotebookOverlayView {
@@ -61,7 +73,7 @@ export interface NotebookOverlayView {
   sets: OverlaySet[];
 }
 
-const EMPTY: NotebookOverlayView = { lines: [], markers: [], drawings: { levels: [], zones: [], verticalLines: [] }, sets: [] };
+const EMPTY: NotebookOverlayView = { lines: [], markers: [], drawings: { levels: [], zones: [], verticalLines: [], bands: [] }, sets: [] };
 
 function colourOf(overlay: Overlay, index: number): string {
   return overlay.color ?? PALETTE[index % PALETTE.length]!;
@@ -69,7 +81,7 @@ function colourOf(overlay: Overlay, index: number): string {
 
 /** Pure: the sets for this symbol and timeframe, turned into what the chart draws. Exported for tests. */
 export function selectNotebookOverlays(sets: OverlaySet[], symbol: string, timeframe: string): NotebookOverlayView {
-  const view: NotebookOverlayView = { lines: [], markers: [], drawings: { levels: [], zones: [], verticalLines: [] }, sets };
+  const view: NotebookOverlayView = { lines: [], markers: [], drawings: { levels: [], zones: [], verticalLines: [], bands: [] }, sets };
   const wantedSymbol = symbol.toUpperCase();
   let colourIndex = 0;
   for (const set of sets) {
@@ -105,6 +117,13 @@ export function selectNotebookOverlays(sets: OverlaySet[], symbol: string, timef
       } else if (overlay.kind === "zone") {
         for (const zone of overlay.zones) {
           view.drawings.zones.push({ startMs: Math.min(zone.start, zone.end), endMs: Math.max(zone.start, zone.end), color: colour, label: zone.text ?? label });
+        }
+      } else if (overlay.kind === "band") {
+        for (const band of overlay.bands) {
+          view.drawings.bands.push({
+            startMs: band.start, endMs: band.end, top: Math.max(band.top, band.bottom), bottom: Math.min(band.top, band.bottom),
+            color: colour, label: band.text ?? label,
+          });
         }
       } else {
         for (const time of overlay.times) view.drawings.verticalLines.push({ timeMs: time, color: colour, label });

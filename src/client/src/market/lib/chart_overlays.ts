@@ -18,6 +18,10 @@ export interface SupportResistanceLevel {
   firstTime: number;
   /** Last timestamp (seconds) this level was tested */
   lastTime: number;
+  /** The zone's upper edge: for resistance the highest pivot wick, for support the highest pivot body edge */
+  zoneTop: number;
+  /** The zone's lower edge: for resistance the lowest pivot body edge, for support the lowest pivot wick */
+  zoneBottom: number;
 }
 
 export interface ZigZagPoint {
@@ -46,9 +50,17 @@ interface OhlcBar {
 /**
  * Detect microstructure highs and lows using a lookback window.
  */
-function findStructuralPivots(bars: OhlcBar[], lookback: number = 5): { highs: { time: number; price: number }[]; lows: { time: number; price: number }[] } {
-  const highs: { time: number; price: number }[] = [];
-  const lows: { time: number; price: number }[] = [];
+interface Pivot {
+  time: number;
+  /** The wick extreme: the pivot's high (resistance) or low (support) */
+  price: number;
+  /** The body edge on the same side: max(open, close) for a high, min(open, close) for a low */
+  bodyEdge: number;
+}
+
+function findStructuralPivots(bars: OhlcBar[], lookback: number = 5): { highs: Pivot[]; lows: Pivot[] } {
+  const highs: Pivot[] = [];
+  const lows: Pivot[] = [];
 
   for (let i = lookback; i < bars.length - lookback; i++) {
     let isHigh = true;
@@ -63,8 +75,8 @@ function findStructuralPivots(bars: OhlcBar[], lookback: number = 5): { highs: {
       }
     }
 
-    if (isHigh) highs.push({ time: bars[i]!.time, price: bars[i]!.high });
-    if (isLow) lows.push({ time: bars[i]!.time, price: bars[i]!.low });
+    if (isHigh) highs.push({ time: bars[i]!.time, price: bars[i]!.high, bodyEdge: Math.max(bars[i]!.open, bars[i]!.close) });
+    if (isLow) lows.push({ time: bars[i]!.time, price: bars[i]!.low, bodyEdge: Math.min(bars[i]!.open, bars[i]!.close) });
   }
 
   return { highs, lows };
@@ -75,7 +87,7 @@ function findStructuralPivots(bars: OhlcBar[], lookback: number = 5): { highs: {
  * Uses a tolerance band based on average range.
  */
 function clusterLevels(
-  points: { time: number; price: number }[],
+  points: Pivot[],
   type: 'support' | 'resistance',
   tolerance: number,
 ): SupportResistanceLevel[] {
@@ -83,18 +95,19 @@ function clusterLevels(
 
   // Sort by price
   const sorted = [...points].sort((a, b) => a.price - b.price);
-  const clusters: { prices: number[]; times: number[] }[] = [];
+  const clusters: { prices: number[]; times: number[]; bodies: number[] }[] = [];
 
-  let currentCluster = { prices: [sorted[0]!.price], times: [sorted[0]!.time] };
+  let currentCluster = { prices: [sorted[0]!.price], times: [sorted[0]!.time], bodies: [sorted[0]!.bodyEdge] };
 
   for (let i = 1; i < sorted.length; i++) {
     const avg = currentCluster.prices.reduce((a, b) => a + b, 0) / currentCluster.prices.length;
     if (Math.abs(sorted[i]!.price - avg) <= tolerance) {
       currentCluster.prices.push(sorted[i]!.price);
       currentCluster.times.push(sorted[i]!.time);
+      currentCluster.bodies.push(sorted[i]!.bodyEdge);
     } else {
       clusters.push(currentCluster);
-      currentCluster = { prices: [sorted[i]!.price], times: [sorted[i]!.time] };
+      currentCluster = { prices: [sorted[i]!.price], times: [sorted[i]!.time], bodies: [sorted[i]!.bodyEdge] };
     }
   }
   clusters.push(currentCluster);
@@ -105,6 +118,9 @@ function clusterLevels(
 
   const maxTouches = Math.max(...significant.map(c => c.prices.length));
 
+  // The zone is the wicks: from the pivots' wick extreme to their body edge, so a
+  // resistance cloud spans the highest high down to the lowest body top, a support
+  // cloud the lowest low up to the highest body bottom.
   return significant.map(c => ({
     price: c.prices.reduce((a, b) => a + b, 0) / c.prices.length,
     type,
@@ -112,6 +128,8 @@ function clusterLevels(
     strength: c.prices.length / maxTouches,
     firstTime: Math.min(...c.times),
     lastTime: Math.max(...c.times),
+    zoneTop: type === 'resistance' ? Math.max(...c.prices) : Math.max(...c.bodies),
+    zoneBottom: type === 'resistance' ? Math.min(...c.bodies) : Math.min(...c.prices),
   }));
 }
 
