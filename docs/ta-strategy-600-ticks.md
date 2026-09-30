@@ -620,6 +620,17 @@ Code: `src/ml/ta_strategy/zones.py` (the touch study), `zone_study.py` (the land
 `src/config/ta_conditional_templates.json`, rounds 12-13 with their falsifiers in `src/config/ta_conditional_rounds.json`;
 notebook section 14. Every number below is out of sample or measured against a matched null on real MNQ / NQ minutes.
 
+### How a zone is built, on the candles (notebook section 15)
+
+Section 15 of `notebooks/ta_strategy_600_ticks.py` rebuilds `levels.zones_for_bars` for one session from the lake's rebuilt
+minutes and shows every step: the level events of the chosen families while they are known and valid, the 5m / 15m / 30m
+candles with the support (blue) and resistance (orange) band each bar hands to the next, a bar slider with the price ladder at
+that bar (levels in reach sorted by price, the gap that cuts them into zones, strength = distinct families, the nearest zone below
+the close = support, above = resistance) with the merge rule rendered and every symbol's current value, dials for the merge gap
+w (default 0.25 ATR, floor 4 ticks) and the reach r (default 6 ATR; `zones_for_bars(reach_atr=...)`), and a button that draws the
+session's four zone edges and its level events on the dashboard's Market chart through the chart link (source `zones_how`; the
+roll offset between the back-adjusted series and the chart's raw prices is measured on the session's bars and removed).
+
 ### The zone-touch study (`zone_touches`, `zone_summary`, `zone_leak_check`; recipes `zones_20260930b_{MNQ,NQ}`)
 
 A zone is what `levels.zones_for_bars` builds at each 5m bar close (every level family plus the 5m/15m/30m swing levels,
