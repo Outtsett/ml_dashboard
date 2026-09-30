@@ -348,7 +348,7 @@ def classify_shape(
 
     price_named = bool(
         re.match(
-            r"^(open|high|low|close|vwap|ema_|sma_|entry_px|stop_px|target_px|exit_px|prior_low|prior_high|upper|lower)$|^(ema_|sma_)\d+$",
+            r"^(open|high|low|close|vwap|ema_|sma_|entry_px|stop_px|target_px|exit_px|prior_low|prior_high|upper|lower)$|^(ema_|sma_)\d+$|^zone_price_",
             column,
         )
     )
@@ -356,6 +356,10 @@ def classify_shape(
         ratio = abs(mean) / close_average
         if 0.1 <= ratio <= 10:
             return "price_level"
+    # a derived object carries no close of its own to compare with; a column named as a price
+    # level (zone_price_support, zone_price_resistance) is one
+    if column.startswith("zone_price_") and mean is not None:
+        return "price_level"
 
     if minimum is not None and maximum is not None:
         # A column is a 0-100 oscillator because it is BOUNDED at 0 and 100 by

@@ -1,7 +1,7 @@
 """Land the dashboard-definition support / resistance zone features (src/ml/shared/zones.py) for a
 symbol and timeframe, on EXACTLY the bars the Market chart serves (``/api/charts/ohlcv``, ratio-
 adjusted so the newest contract is unscaled), as a derived dataset the dashboard reads back
-(``derived_zone_features``), then draw the chart's window on the Market chart through the chart link.
+(``derived_zone_features_<timeframe>``), then draw the chart's window on the Market chart through the chart link.
 
     .venv/Scripts/python.exe scripts/land_zone_features.py --symbol MNQ --timeframe 5m --start 2019-06-01
 
@@ -26,7 +26,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from shared import protocol, zones  # noqa: E402
 
-DATASET = "zone_features"
+DATASET = "zone_features"   # one dataset per timeframe: zone_features_<timeframe>
 COLOURS = {"support": "#0072B2", "resistance": "#E69F00", "level": "#56B4E9"}
 
 
@@ -145,7 +145,8 @@ def main() -> int:
     paths = store.write_local({"zone_features": table}, directory)
     landing = None
     if not args.no_land:
-        landing = store.land(paths, recipe, f"dashboard-definition S/R zone features for {args.symbol} {args.timeframe} on the chart's bars", dataset=DATASET)
+        landing = store.land(paths, recipe, f"dashboard-definition S/R zone features for {args.symbol} {args.timeframe} on the chart's bars",
+                             dataset=f"{DATASET}_{args.timeframe}")
         for name, info in landing.items():
             protocol.emit_log(f"[save] {name}: {info['rows']:,} rows -> {info['uri']} (manifest {info['manifest']})")
     if not args.no_draw and context.get("symbol") == args.symbol:

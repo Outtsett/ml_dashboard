@@ -172,6 +172,13 @@ By the pre-registered rule, **the rule-based 40%-at-2:1 line is closed**. No con
 
 ## Multi-timeframe support/resistance and conditional strategies (Optuna-tuned, no model)
 
+> **Superseded definition (2026-09-30).** The zones in this document (`src/ml/ta_strategy/levels.py`: session / week levels, round numbers,
+> fractals, swing levels and VWAP bands merged within 0.25 ATR) were a second definition of support/resistance beside the Market
+> chart's own (`market/lib/chart_overlays.ts`). The dashboard's definition, in numpy/pandas with a parity test and a causal per-bar
+> version, is `src/ml/shared/zones.py`, landed as `derived_zone_features_<timeframe>`; rounds 3-13 stay as the record of what the
+> merged-level zones did (nothing), and any new work uses the chart's zones.
+
+
 ### How the levels are calculated (`src/ml/ta_strategy/levels.py`)
 
 Every level is an event with the moment it became knowable (`known_from`) and the moment it stops applying (`valid_until`).
