@@ -70,7 +70,8 @@ def run(args: argparse.Namespace) -> dict:
                           f"[{r.lift_bootstrap_low:+.3f}, {r.lift_bootstrap_high:+.3f}] p {r.lift_bootstrap_p:.2f}; next zone reached "
                           f"{r.next_zone_reach_rate:.3f} vs {r.null_next_zone_reach_rate:.3f} (lift {r.reach_lift_over_matched_random:+.3f}); "
                           f"break-even {r.break_even_hit_rate_zone_to_zone_median:.3f}; favourable median {r.favourable_ticks_median:.0f} ticks; "
-                          f"oracle {r.oracle_zone_to_zone_ticks_per_session_day:.0f} ticks/day")
+                          f"oracle {r.oracle_zone_to_zone_ticks_per_session_day:.0f} ticks/day (one position {r.oracle_one_position_ticks_per_session_day:.0f} on "
+                          f"{r.oracle_one_position_touches_per_session_day:.1f} touches/day)")
     trend = s[s["condition"] == "strength_trend"]
     if len(trend):
         protocol.emit_log(f"[{args.symbol} strength trend] Spearman rho {trend['lift_over_matched_random'].iloc[0]:+.2f}, p {trend['lift_bootstrap_p'].iloc[0]:.2f}")
@@ -99,7 +100,7 @@ def main() -> int:
     parser.add_argument("--timeframe", default="5m")
     parser.add_argument("--horizon", default=240)
     parser.add_argument("--permutations", default=10)
-    parser.add_argument("--bootstrap", default=200)
+    parser.add_argument("--bootstrap", default=1000)
     parser.add_argument("--recipe", default=None)
     parser.add_argument("--output-dir", default=str(ROOT / "data" / "models"))
     parser.add_argument("--no-land", action="store_true")

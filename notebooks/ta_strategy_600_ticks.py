@@ -1276,5 +1276,211 @@ def _(CONDITIONAL, OKABE, alt, cascade_day, cascade_symbol, cascade_template_pic
     return
 
 
+@app.cell
+def _(CONDITIONAL, frame, mo, view_exists):
+    if not view_exists(f"{CONDITIONAL}zone_summary"):
+        mo.stop(True, mo.md("## 14 · Trading AT the zones: what happens at the first touch\nThe zone-touch study has not landed yet."))
+    _latest = "WHERE recipe IN (SELECT max(recipe) FROM {v} GROUP BY symbol)"
+    zone_summary = frame(f"SELECT * FROM {CONDITIONAL}zone_summary " + _latest.format(v=f"{CONDITIONAL}zone_summary"))
+    zone_leak = frame(f"SELECT * FROM {CONDITIONAL}zone_leak_check " + _latest.format(v=f"{CONDITIONAL}zone_leak_check"))
+    _symbols = sorted(zone_summary["symbol"].unique().to_list())
+    zone_symbol = mo.ui.dropdown(_symbols, value="MNQ" if "MNQ" in _symbols else _symbols[0], label="Market")
+    _conditions = [c for c in zone_summary["condition"].unique().to_list() if c not in ("all", "strength_trend", "gapped_through")]
+    zone_condition = mo.ui.dropdown(sorted(_conditions), value="strength_bucket", label="Condition")
+    zone_metric = mo.ui.radio(["bounce", "next zone reached"], value="bounce", label="Outcome", inline=True)
+    mo.vstack([mo.md(
+        "## 14 · Trading AT the zones: what happens at the first touch\n\n"
+        "Every zone of the multi-timeframe map (prior session / RTH / week levels, opening ranges, round numbers, 15m / 1h / 4h fractals, "
+        "5m / 15m / 30m swing levels, VWAP bands, merged per 5m bar; strength = distinct families) is watched on the 1-minute path. "
+        "A TOUCH is the first minute whose low enters the support zone from above (mirror at resistance); the zone is the one known at "
+        "the previous bar's close. **Bounce** = price moved 1 ATR away from the zone before a close through its far edge. **Next zone "
+        "reached** = the opposing zone's near edge was reached before the touched zone broke. Each is compared with the same test on a "
+        "pseudo level at the same distance, same time of day, in a random other session (the matched null): the **lift** is what "
+        "knowing WHERE the zone is buys. `src/ml/ta_strategy/zones.py`, tables `…_zone_touches`, `…_zone_summary`, `…_zone_leak_check`."),
+        mo.hstack([zone_symbol, zone_condition, zone_metric])])
+    return zone_condition, zone_leak, zone_metric, zone_summary, zone_symbol
+
+
+@app.cell
+def _(OKABE, alt, mo, pl, zone_condition, zone_leak, zone_metric, zone_summary, zone_symbol):
+    _s = zone_summary.filter((pl.col("symbol") == zone_symbol.value) & (pl.col("condition") == zone_condition.value))
+    _bounce = zone_metric.value == "bounce"
+    _lift, _lo, _hi, _p, _bh = (("lift_over_matched_random", "lift_bootstrap_low", "lift_bootstrap_high", "lift_bootstrap_p", "survives_benjamini_hochberg_q10") if _bounce
+                                else ("reach_lift_over_matched_random", "reach_lift_bootstrap_low", "reach_lift_bootstrap_high", "reach_lift_bootstrap_p", "reach_survives_benjamini_hochberg_q10"))
+    _rate, _null = ("bounce_rate", "null_bounce_rate") if _bounce else ("next_zone_reach_rate", "null_next_zone_reach_rate")
+    _s = _s.with_columns(pl.when(pl.col(_bh)).then(pl.lit("survives BH q=0.10")).otherwise(pl.lit("does not survive")).alias("multiple_comparisons"))
+    _base = alt.Chart(_s.to_pandas()).encode(x=alt.X("value:N", title=zone_condition.value, sort=None))
+    _bar = _base.mark_bar(opacity=0.75).encode(
+        y=alt.Y(f"{_lift}:Q", title=f"{zone_metric.value}: lift over the matched null (probability)"),
+        color=alt.condition(f"datum.{_lift} > 0", alt.value(OKABE["orange"]), alt.value(OKABE["blue"])),
+        tooltip=["value", "touches", "sessions", alt.Tooltip(f"{_rate}:Q", format=".3f"), alt.Tooltip(f"{_null}:Q", format=".3f"),
+                 alt.Tooltip(f"{_lift}:Q", format="+.3f"), alt.Tooltip(f"{_lo}:Q", format="+.3f"), alt.Tooltip(f"{_hi}:Q", format="+.3f"),
+                 alt.Tooltip(f"{_p}:Q", format=".3f"), "multiple_comparisons", alt.Tooltip("break_even_hit_rate_zone_to_zone_median:Q", format=".3f")])
+    _err = _base.mark_rule(strokeWidth=2, color=OKABE["black"]).encode(y=f"{_lo}:Q", y2=f"{_hi}:Q")
+    _mark = _base.mark_point(size=110, filled=True, color=OKABE["black"]).encode(
+        y=f"{_hi}:Q", shape=alt.Shape("multiple_comparisons:N", scale=alt.Scale(domain=["survives BH q=0.10", "does not survive"], range=["diamond", "circle"])))
+    _zero = alt.Chart(pl.DataFrame({"y": [0.0]}).to_pandas()).mark_rule(color=OKABE["black"]).encode(y="y:Q")
+    _rates = _s.select("value", _rate, _null, "break_even_hit_rate_zone_to_zone_median").unpivot(index="value", variable_name="which", value_name="probability")
+    _rates_chart = alt.Chart(_rates.to_pandas()).mark_point(size=90, filled=True).encode(
+        x=alt.X("value:N", title=zone_condition.value, sort=None), y=alt.Y("probability:Q", title="probability", scale=alt.Scale(domain=[0, 1])),
+        color=alt.Color("which:N", scale=alt.Scale(domain=[_rate, _null, "break_even_hit_rate_zone_to_zone_median"],
+                                                   range=[OKABE["orange"], OKABE["black"], OKABE["vermillion"]])),
+        shape=alt.Shape("which:N", scale=alt.Scale(domain=[_rate, _null, "break_even_hit_rate_zone_to_zone_median"], range=["circle", "cross", "triangle-down"])),
+        tooltip=["value", "which", alt.Tooltip("probability:Q", format=".3f")])
+    _all = zone_summary.filter((pl.col("symbol") == zone_symbol.value) & (pl.col("condition") == "all"))
+    _trend = zone_summary.filter((pl.col("symbol") == zone_symbol.value) & (pl.col("condition") == "strength_trend"))
+    _gap = zone_summary.filter((pl.col("symbol") == zone_symbol.value) & (pl.col("condition") == "gapped_through"))
+    _lk = zone_leak.filter(pl.col("symbol") == zone_symbol.value)
+    _head = (f"Pooled ({zone_symbol.value}): {int(_all[0, 'touches']):,} first touches in {int(_all[0, 'sessions']):,} sessions "
+             f"({_all[0, 'touches_per_session_day']:.1f} a session day); bounce {_all[0, 'bounce_rate']:.3f} vs null {_all[0, 'null_bounce_rate']:.3f}, "
+             f"lift {_all[0, 'lift_over_matched_random']:+.3f} [{_all[0, 'lift_bootstrap_low']:+.3f}, {_all[0, 'lift_bootstrap_high']:+.3f}]; "
+             f"next zone reached {_all[0, 'next_zone_reach_rate']:.3f} vs null {_all[0, 'null_next_zone_reach_rate']:.3f}, lift "
+             f"{_all[0, 'reach_lift_over_matched_random']:+.3f} [{_all[0, 'reach_lift_bootstrap_low']:+.3f}, {_all[0, 'reach_lift_bootstrap_high']:+.3f}]. "
+             f"Cells tested {int(_all[0, 'cells_tested'])}; bounce lifts surviving Benjamini-Hochberg q = 0.10: "
+             f"{int(zone_summary.filter((pl.col('symbol') == zone_symbol.value))['survives_benjamini_hochberg_q10'].sum())}; reach lifts: "
+             f"{int(zone_summary.filter((pl.col('symbol') == zone_symbol.value))['reach_survives_benjamini_hochberg_q10'].sum())}.") if _all.height else ""
+    if _trend.height:
+        _head += f" Strength trend (Spearman over the strength buckets' lifts): rho {_trend[0, 'lift_over_matched_random']:+.2f}, p {_trend[0, 'lift_bootstrap_p']:.2f}."
+    if _gap.height:
+        _head += f" Gap-throughs (excluded): {int(_gap[0, 'touches']):,}."
+    if _lk.height == 2:
+        _head += (f" Leaky control (zones of the touch bar applied to its own minutes): bounce {_lk.filter(pl.col('arm') == 'leaky')[0, 'bounce_rate']:.3f} "
+                  f"vs honest {_lk.filter(pl.col('arm') == 'honest')[0, 'bounce_rate']:.3f}, so the honest arm is not leaking.")
+    mo.vstack([mo.md(f"### Lift over the matched null by {zone_condition.value} ({zone_symbol.value}; bar = lift, line = session-block bootstrap 95%, "
+                     "diamond = survives Benjamini-Hochberg at q = 0.10)\n\n" + _head),
+               mo.hstack([(_bar + _err + _mark + _zero).properties(width=460, height=280), _rates_chart.properties(width=460, height=280)]),
+               mo.md("Right: the observed rate (orange circle), the matched null (black cross) and the **break-even hit rate** of the zone-to-zone "
+                     "bracket, p* = (S + 6.56) / (S + T + 1) with S = zone width + buffer and T = the distance to the next zone, in ticks "
+                     "(red triangle). The bracket pays only where the orange circle sits above the red triangle."),
+               mo.ui.table(_s, selection=None)])
+    return
+
+
+@app.cell
+def _(CONDITIONAL, frame, mo, view_exists, zone_symbol):
+    if not view_exists(f"{CONDITIONAL}zone_touches"):
+        mo.stop(True)
+    zone_touches = frame(f"SELECT * FROM {CONDITIONAL}zone_touches WHERE symbol = ? AND recipe = (SELECT max(recipe) FROM {CONDITIONAL}zone_touches WHERE symbol = ?)",
+                         [zone_symbol.value, zone_symbol.value])
+    zone_net_per_trade = mo.ui.slider(1, 60, value=10, step=1, label="Net ticks a trade the entry would have to average", show_value=True)
+    return zone_net_per_trade, zone_touches
+
+
+@app.cell
+def _(COST_TICKS, GOAL, OKABE, alt, bins, eight_numbers, log_count, mo, np, pl, small_multiples, zone_net_per_trade, zone_summary, zone_symbol, zone_touches):
+    _t = zone_touches.filter(pl.col("resolved") & ~pl.col("gapped_through"))
+    _days = _t["session_date"].n_unique()
+    _per_day = _t.height / max(_days, 1)
+    _needed = GOAL / zone_net_per_trade.value
+    _formula = (r"$$\text{trades needed} = \frac{600}{\overline{\text{net}}} = \frac{600}{" + f"{zone_net_per_trade.value}" + r"} = " + f"{_needed:.0f}" +
+                r"\qquad \text{touches a day} = " + f"{_per_day:.1f}" + r"\qquad \text{ceiling} = \text{touches} \times \overline{\text{net}} = " + f"{_per_day * zone_net_per_trade.value:,.0f}$$")
+    _oracle = zone_summary.filter((pl.col("symbol") == zone_symbol.value) & (pl.col("condition").is_in(["all", "strength_bucket", "session_part"])))
+    _ob = alt.Chart(_oracle.to_pandas()).mark_bar(color=OKABE["sky"]).encode(
+        x=alt.X("value:N", title="all / strength bucket / session part", sort=None), y=alt.Y("oracle_zone_to_zone_ticks_per_session_day:Q", title="oracle ticks per session day"),
+        tooltip=["condition", "value", "touches", alt.Tooltip("oracle_zone_to_zone_ticks_per_session_day:Q", format=",.0f"), alt.Tooltip("favourable_ticks_median:Q", format=".0f")])
+    _goal = alt.Chart(pl.DataFrame({"y": [GOAL]}).to_pandas()).mark_rule(color=OKABE["vermillion"], strokeDash=[6, 3]).encode(y="y:Q")
+    _fav = _t["favourable_ticks"].to_numpy()
+    _share_paying = float(np.mean(_fav > COST_TICKS)) if _fav.size else float("nan")
+    _cols = ["favourable_ticks", "next_zone_distance_ticks", "zone_width_ticks", "stop_ticks_zone_to_zone", "break_even_hit_rate_zone_to_zone", "strength",
+             "approach_speed_ticks_per_minute", "approach_length_atr", "rsi_14_previous_bar", "relative_volume_15", "seasonal_ahead_ratio_30",
+             "seasonal_expected_move_60_ticks", "hour_pacific", "null_bounce_rate", "null_next_zone_reach_rate"]
+    _cols = [c for c in _cols if c in _t.columns]
+    _eight = pl.DataFrame([{"column": c, **eight_numbers(_t[c].to_numpy())} for c in _cols])
+    mo.vstack([mo.md(f"### The 600 arithmetic at the zones ({zone_symbol.value}): drag the net per trade\n\n" + _formula + "\n\n"
+                     f"Legend: **net** = average net ticks a trade after the 5.56-tick round trip; **touches a day** = resolved first touches per session day "
+                     f"({_t.height:,} over {_days:,} days); **ceiling** = what trading every touch at that average would total. The best excursion before the "
+                     f"zone broke exceeded the cost on {_share_paying:.1%} of touches (median {float(np.median(_fav)) if _fav.size else float('nan'):.0f} ticks), "
+                     f"so the ORACLE ceiling below (exit at that best price, skip the rest, pay every cost) is the most any zone strategy could earn."),
+               mo.hstack([zone_net_per_trade]),
+               mo.hstack([(_ob + _goal).properties(width=520, height=240)]),
+               mo.md(f"### Every column of the touch table ({zone_symbol.value}), and its eight numbers"),
+               small_multiples(_t, _cols, bins.value, log_count.value), mo.ui.table(_eight, selection=None)])
+    return
+
+
+@app.cell
+def _(CONDITIONAL, GOAL, OKABE, alt, frame, mo, pl, view_exists):
+    if not view_exists(f"{CONDITIONAL}rounds"):
+        mo.stop(True)
+    _r = frame(f"SELECT * FROM {CONDITIONAL}rounds WHERE round IN (12, 13) ORDER BY round, finished_at")
+    if _r.height == 0 or "frame_error" in _r.columns:
+        mo.stop(True, mo.md("### Rounds 12 and 13 (zone strategies and the swings-only control)\nNot landed yet."))
+    _recipes = _r.group_by("round").agg(pl.col("recipe").last())
+    _t = pl.concat([frame(f"SELECT * FROM {CONDITIONAL}templates WHERE recipe = ?", [rec]).with_columns(pl.lit(int(rnd)).alias("round"))
+                    for rnd, rec in _recipes.iter_rows()], how="diagonal_relaxed")
+    _bar = alt.Chart(_t.to_pandas()).mark_bar().encode(
+        y=alt.Y("template:N", sort="-x", title=None), x=alt.X("net_ticks_per_session_day:Q", title="stitched out-of-sample net ticks per session day (2022-2025)"),
+        color=alt.condition("datum.net_ticks_per_session_day > 0", alt.value(OKABE["orange"]), alt.value(OKABE["blue"])),
+        tooltip=["round", "template", alt.Tooltip("trades_per_session_day:Q", format=".2f"), alt.Tooltip("net_ticks_per_trade:Q", format="+.2f"),
+                 alt.Tooltip("excess_ticks_per_session_day:Q", format="+.1f"), alt.Tooltip("excess_newey_west_t:Q", format="+.2f"),
+                 alt.Tooltip("win_rate:Q", format=".3f"), alt.Tooltip("profit_factor:Q", format=".2f")])
+    _excess = alt.Chart(_t.to_pandas()).mark_point(shape="diamond", size=90, filled=True, color=OKABE["black"]).encode(y=alt.Y("template:N", sort="-x"), x="excess_ticks_per_session_day:Q")
+    _goal = alt.Chart(pl.DataFrame({"x": [GOAL]}).to_pandas()).mark_rule(color=OKABE["vermillion"], strokeDash=[6, 3]).encode(x="x:Q")
+    _d = pl.concat([frame(f"SELECT template, session_date, net_ticks FROM {CONDITIONAL}daily WHERE recipe = ? ORDER BY session_date", [rec])
+                    for _, rec in _recipes.iter_rows()], how="diagonal_relaxed").with_columns(pl.col("net_ticks").cum_sum().over("template").alias("cumulative_net_ticks"))
+    _lines = alt.Chart(_d.to_pandas()).mark_line().encode(x="session_date:T", y=alt.Y("cumulative_net_ticks:Q", title="cumulative net ticks, 1 contract"),
+                                                          color=alt.Color("template:N", scale=alt.Scale(range=[OKABE[k] for k in ("blue", "orange", "sky", "vermillion", "green", "purple", "black", "yellow", "blue", "orange")])),
+                                                          strokeDash="template:N", tooltip=["template", "session_date:T", alt.Tooltip("cumulative_net_ticks:Q", format=",.0f")])
+    mo.vstack([mo.md("### Rounds 12 and 13: the zone strategies (bounce, unconfirmed touch, zone-to-zone, bounce exit, RSI / calm / higher-timeframe confirmations, "
+                     "the breakout control) and the swings-only control, tuned on prior years, tested 2022-2025 (bar = net, diamond = excess over matched "
+                     "random entries with the same stop and target geometry; red dashed = 600)"),
+               (_bar + _excess + _goal).properties(width=820, height=340), _lines.properties(width=1000, height=300), mo.ui.table(_t, selection=None)])
+    return
+
+
+@app.cell
+def _(mo, pl, zone_touches):
+    _dates = sorted(zone_touches["session_date"].unique().to_list())
+    _labels = [str(d)[:10] for d in _dates]
+    zone_day = mo.ui.dropdown(_labels, value=_labels[-60] if len(_labels) > 60 else _labels[-1], label="Session day")
+    zone_template_pick = mo.ui.dropdown(["zone_bounce", "zone_touch_unconfirmed", "zone_bounce_rth", "zone_to_zone", "zone_to_zone_bounce_exit", "zone_bounce_rsi",
+                                         "zone_bounce_calm", "zone_bounce_higher_timeframe", "zone_break_control"], value="zone_bounce", label="Round-12 trades to mark")
+    mo.hstack([zone_day, zone_template_pick])
+    return zone_day, zone_template_pick
+
+
+@app.cell
+def _(CONDITIONAL, OKABE, alt, frame, mo, pl, view_exists, zone_day, zone_symbol, zone_template_pick, zone_touches):
+    _sym = zone_symbol.value
+    _tt = zone_touches.filter(pl.col("session_date").cast(pl.Utf8).str.slice(0, 10) == zone_day.value).with_columns(
+        pl.when(pl.col("gapped_through")).then(pl.lit("gapped through")).when(pl.col("bounced")).then(pl.lit("bounced"))
+        .when(pl.col("broke")).then(pl.lit("broke")).otherwise(pl.lit("timed out")).alias("outcome"),
+        pl.when(pl.col("side") == 1).then(pl.lit("triangle-up")).otherwise(pl.lit("triangle-down")).alias("shape"))
+    _t0, _t1 = _tt["timestamp"].min(), _tt["timestamp"].max()
+    _has_state = view_exists(f"{CONDITIONAL}cascade_minute_state")
+    _st = frame(f"SELECT timestamp, close FROM {CONDITIONAL}cascade_minute_state WHERE symbol = ? AND CAST(session_date AS DATE) = CAST(? AS DATE) "
+                f"AND recipe = (SELECT max(recipe) FROM {CONDITIONAL}cascade_minute_state WHERE symbol = ?) ORDER BY timestamp", [_sym, zone_day.value, _sym]) if _has_state else pl.DataFrame()
+    _layers = []
+    if _st.height and "frame_error" not in _st.columns:
+        _layers.append(alt.Chart(_st.to_pandas()).mark_line(color=OKABE["black"], strokeWidth=1).encode(
+            x=alt.X("timestamp:T", title="Pacific wall clock"), y=alt.Y("close:Q", scale=alt.Scale(zero=False), title="close (back-adjusted points)")))
+    _zones = alt.Chart(_tt.to_pandas()).mark_rule(strokeWidth=6, opacity=0.35).encode(
+        x="timestamp:T", y="near_edge:Q", y2="far_edge:Q",
+        color=alt.Color("side_name:N", scale=alt.Scale(domain=["support", "resistance"], range=[OKABE["blue"], OKABE["orange"]])))
+    _pts = alt.Chart(_tt.to_pandas()).mark_point(size=110, filled=True).encode(
+        x="timestamp:T", y=alt.Y("near_edge:Q", scale=alt.Scale(zero=False)), shape=alt.Shape("shape:N", scale=None),
+        color=alt.Color("outcome:N", scale=alt.Scale(domain=["bounced", "broke", "timed out", "gapped through"],
+                                                     range=[OKABE["orange"], OKABE["blue"], OKABE["black"], OKABE["purple"]])),
+        tooltip=["timestamp:T", "side_name", "outcome", alt.Tooltip("strength:Q", format=".0f"), "families", alt.Tooltip("near_edge:Q", format=".2f"),
+                 alt.Tooltip("favourable_ticks:Q", format=".0f"), alt.Tooltip("next_zone_distance_ticks:Q", format=".0f"),
+                 alt.Tooltip("break_even_hit_rate_zone_to_zone:Q", format=".2f"), "reached_next_zone"])
+    _layers += [_zones, _pts]
+    _tr = frame(f"SELECT entry_timestamp, exit_timestamp, side, entry_price, exit_price, net_ticks, exit_reason FROM {CONDITIONAL}trades "
+                f"WHERE template = ? AND CAST(session_date AS DATE) = CAST(? AS DATE) AND recipe = (SELECT max(recipe) FROM {CONDITIONAL}rounds WHERE round = 12)",
+                [zone_template_pick.value, zone_day.value]) if view_exists(f"{CONDITIONAL}trades") else pl.DataFrame()
+    if _tr.height and "frame_error" not in _tr.columns:
+        _tp = _tr.with_columns(pl.when(pl.col("side") == "long").then(pl.lit("triangle-up")).otherwise(pl.lit("triangle-down")).alias("shape"))
+        _layers.append(alt.Chart(_tp.to_pandas()).mark_point(size=160, filled=False, strokeWidth=2).encode(
+            x="entry_timestamp:T", y="entry_price:Q", shape=alt.Shape("shape:N", scale=None),
+            color=alt.condition("datum.net_ticks > 0", alt.value(OKABE["orange"]), alt.value(OKABE["blue"])),
+            tooltip=["side", "entry_timestamp:T", "exit_timestamp:T", alt.Tooltip("net_ticks:Q", format="+.0f"), "exit_reason"]))
+        _layers.append(alt.Chart(_tp.to_pandas()).mark_point(shape="cross", size=80, color=OKABE["black"]).encode(x="exit_timestamp:T", y="exit_price:Q"))
+    mo.vstack([mo.md(f"### Session {zone_day.value} ({_sym}): every first touch of a zone (▲ support, ▼ resistance; the thick bar is the zone; orange = bounced, "
+                     "blue = broke, black = timed out, purple = gapped through) on the close, and the round-12 trades of the chosen template "
+                     "(hollow ▲/▼ entry, × exit). Hover a touch for its families, strength, room to the next zone and break-even."),
+               alt.layer(*_layers).properties(width=1000, height=420)])
+    return
+
+
 if __name__ == "__main__":
     app.run()

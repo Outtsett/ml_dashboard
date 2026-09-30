@@ -7191,7 +7191,7 @@
       }
     },
     "zone_bounce": {
-      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. Target target_r x risk. Whole session.",
+      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge of the zone known at the previous bar's close; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. Target target_r x risk. Whole session.",
       "params": {
         "min_strength": {
           "type": "int",
@@ -7274,6 +7274,16 @@
         "relative_volume": {
           "volume": "relative",
           "minutes": 15
+        },
+        "support_low_previous": {
+          "op": "lag",
+          "of": "$support_low",
+          "n": 1
+        },
+        "resistance_high_previous": {
+          "op": "lag",
+          "of": "$resistance_high",
+          "n": 1
         }
       },
       "gate": {
@@ -7391,12 +7401,12 @@
           "long": {
             "op": "below",
             "a": "close",
-            "b": "$support_low"
+            "b": "$support_low_previous"
           },
           "short": {
             "op": "above",
             "a": "close",
-            "b": "$resistance_high"
+            "b": "$resistance_high_previous"
           }
         }
       },
@@ -7405,7 +7415,7 @@
       }
     },
     "zone_bounce_rth": {
-      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. Target target_r x risk. Regular hours only.",
+      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge of the zone known at the previous bar's close; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. Target target_r x risk. Regular hours only.",
       "params": {
         "min_strength": {
           "type": "int",
@@ -7488,6 +7498,16 @@
         "relative_volume": {
           "volume": "relative",
           "minutes": 15
+        },
+        "support_low_previous": {
+          "op": "lag",
+          "of": "$support_low",
+          "n": 1
+        },
+        "resistance_high_previous": {
+          "op": "lag",
+          "of": "$resistance_high",
+          "n": 1
         }
       },
       "gate": {
@@ -7605,12 +7625,12 @@
           "long": {
             "op": "below",
             "a": "close",
-            "b": "$support_low"
+            "b": "$support_low_previous"
           },
           "short": {
             "op": "above",
             "a": "close",
-            "b": "$resistance_high"
+            "b": "$resistance_high_previous"
           }
         }
       },
@@ -7619,7 +7639,7 @@
       }
     },
     "zone_to_zone": {
-      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. ZONE-TO-ZONE: the target is the near edge of the next opposing zone (a limit); a next zone closer than min_room_r x the risk is skipped. Whole session.",
+      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge of the zone known at the previous bar's close; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. ZONE-TO-ZONE: the target is the near edge of the next opposing zone (a limit); a next zone closer than min_room_r x the risk is skipped. Whole session.",
       "params": {
         "min_strength": {
           "type": "int",
@@ -7702,6 +7722,16 @@
         "relative_volume": {
           "volume": "relative",
           "minutes": 15
+        },
+        "support_low_previous": {
+          "op": "lag",
+          "of": "$support_low",
+          "n": 1
+        },
+        "resistance_high_previous": {
+          "op": "lag",
+          "of": "$resistance_high",
+          "n": 1
         }
       },
       "gate": {
@@ -7821,12 +7851,12 @@
           "long": {
             "op": "below",
             "a": "close",
-            "b": "$support_low"
+            "b": "$support_low_previous"
           },
           "short": {
             "op": "above",
             "a": "close",
-            "b": "$resistance_high"
+            "b": "$resistance_high_previous"
           }
         }
       },
@@ -7835,7 +7865,7 @@
       }
     },
     "zone_to_zone_bounce_exit": {
-      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. ZONE-TO-ZONE with the level-bounce exit: reaching the next opposing zone arms a trail of bounce_ticks from the running extreme. Whole session.",
+      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge of the zone known at the previous bar's close; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. ZONE-TO-ZONE with the level-bounce exit: reaching the next opposing zone arms a trail of bounce_ticks from the running extreme. Whole session.",
       "params": {
         "min_strength": {
           "type": "int",
@@ -7925,6 +7955,16 @@
         "relative_volume": {
           "volume": "relative",
           "minutes": 15
+        },
+        "support_low_previous": {
+          "op": "lag",
+          "of": "$support_low",
+          "n": 1
+        },
+        "resistance_high_previous": {
+          "op": "lag",
+          "of": "$resistance_high",
+          "n": 1
         }
       },
       "gate": {
@@ -8046,12 +8086,12 @@
           "long": {
             "op": "below",
             "a": "close",
-            "b": "$support_low"
+            "b": "$support_low_previous"
           },
           "short": {
             "op": "above",
             "a": "close",
-            "b": "$resistance_high"
+            "b": "$resistance_high_previous"
           }
         }
       },
@@ -8060,7 +8100,7 @@
       }
     },
     "zone_bounce_rsi": {
-      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. RSI CONFIRMATION: RSI(14) below rsi_extreme at a support touch (above 100 - rsi_extreme at resistance). Target target_r x risk. Whole session.",
+      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge of the zone known at the previous bar's close; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. RSI CONFIRMATION: RSI(14) below rsi_extreme at a support touch (above 100 - rsi_extreme at resistance). Target target_r x risk. Whole session.",
       "params": {
         "min_strength": {
           "type": "int",
@@ -8150,6 +8190,16 @@
         "relative_volume": {
           "volume": "relative",
           "minutes": 15
+        },
+        "support_low_previous": {
+          "op": "lag",
+          "of": "$support_low",
+          "n": 1
+        },
+        "resistance_high_previous": {
+          "op": "lag",
+          "of": "$resistance_high",
+          "n": 1
         }
       },
       "gate": {
@@ -8287,12 +8337,12 @@
           "long": {
             "op": "below",
             "a": "close",
-            "b": "$support_low"
+            "b": "$support_low_previous"
           },
           "short": {
             "op": "above",
             "a": "close",
-            "b": "$resistance_high"
+            "b": "$resistance_high_previous"
           }
         }
       },
@@ -8301,7 +8351,7 @@
       }
     },
     "zone_bounce_calm": {
-      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. CALM CONFIRMATION: the time-of-day profile says volatility is NOT about to rise (expected next 30 minutes over the last 30 below calm_ratio), when ranging is likelier. Target target_r x risk. Whole session.",
+      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge of the zone known at the previous bar's close; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. CALM CONFIRMATION: the time-of-day profile says volatility is NOT about to rise (expected next 30 minutes over the last 30 below calm_ratio), when ranging is likelier. Target target_r x risk. Whole session.",
       "params": {
         "min_strength": {
           "type": "int",
@@ -8391,6 +8441,16 @@
         "relative_volume": {
           "volume": "relative",
           "minutes": 15
+        },
+        "support_low_previous": {
+          "op": "lag",
+          "of": "$support_low",
+          "n": 1
+        },
+        "resistance_high_previous": {
+          "op": "lag",
+          "of": "$resistance_high",
+          "n": 1
         }
       },
       "gate": {
@@ -8522,12 +8582,12 @@
           "long": {
             "op": "below",
             "a": "close",
-            "b": "$support_low"
+            "b": "$support_low_previous"
           },
           "short": {
             "op": "above",
             "a": "close",
-            "b": "$resistance_high"
+            "b": "$resistance_high_previous"
           }
         }
       },
@@ -8619,6 +8679,16 @@
         "relative_volume": {
           "volume": "relative",
           "minutes": 15
+        },
+        "support_low_previous": {
+          "op": "lag",
+          "of": "$support_low",
+          "n": 1
+        },
+        "resistance_high_previous": {
+          "op": "lag",
+          "of": "$resistance_high",
+          "n": 1
         }
       },
       "gate": {
@@ -8736,12 +8806,12 @@
           "long": {
             "op": "below",
             "a": "close",
-            "b": "$support_low"
+            "b": "$support_low_previous"
           },
           "short": {
             "op": "above",
             "a": "close",
-            "b": "$resistance_high"
+            "b": "$resistance_high_previous"
           }
         }
       },
@@ -8750,7 +8820,7 @@
       }
     },
     "zone_touch_unconfirmed": {
-      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) (UNCONFIRMED: no close-back condition; the touch alone), at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. Target target_r x risk. Whole session.",
+      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) (UNCONFIRMED: no close-back condition; the touch alone), at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge of the zone known at the previous bar's close; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. Target target_r x risk. Whole session.",
       "params": {
         "min_strength": {
           "type": "int",
@@ -8833,6 +8903,16 @@
         "relative_volume": {
           "volume": "relative",
           "minutes": 15
+        },
+        "support_low_previous": {
+          "op": "lag",
+          "of": "$support_low",
+          "n": 1
+        },
+        "resistance_high_previous": {
+          "op": "lag",
+          "of": "$resistance_high",
+          "n": 1
         }
       },
       "gate": {
@@ -8940,12 +9020,12 @@
           "long": {
             "op": "below",
             "a": "close",
-            "b": "$support_low"
+            "b": "$support_low_previous"
           },
           "short": {
             "op": "above",
             "a": "close",
-            "b": "$resistance_high"
+            "b": "$resistance_high_previous"
           }
         }
       },
@@ -8954,7 +9034,7 @@
       }
     },
     "zone_break_control": {
-      "description": "CONTROL (sign convention): trade THROUGH the same multi-timeframe zones instead of at them: short when a 5m bar closes below the far edge of the support zone that was known at the previous bar's close (the zone of the bar before, since a zone is chosen around its own bar's close), at a zone of at least min_strength families; long is the mirror through resistance. Stop back beyond the zone's near edge (stop_buffer_atr); target target_r x risk; breakeven after breakeven_r; time stop hold_bars; flat at the session end; one position at a time. Whole session. Prior rounds found breakouts lose; this arm confirms the bounce arms are read with the right sign.",
+      "description": "CONTROL (sign convention): trade THROUGH the same multi-timeframe zones instead of at them: short when a 5m bar closes below the far edge of the support zone that was known at the previous bar's close (the zone of the bar before, since a zone is chosen around its own bar's close), at a zone of at least min_strength families; long is the mirror through resistance. Stop back beyond the zone's near edge (stop_buffer_atr), no signal exit; target target_r x risk; breakeven after breakeven_r; time stop hold_bars; flat at the session end; one position at a time. Whole session. Prior rounds found breakouts lose; this arm confirms the bounce arms are read with the right sign.",
       "params": {
         "min_strength": {
           "type": "int",
@@ -9140,18 +9220,6 @@
           "min_ticks": 8,
           "max_ticks": 600,
           "max_entries_per_session": 0
-        },
-        "signal": {
-          "long": {
-            "op": "below",
-            "a": "close",
-            "b": "$resistance_low_previous"
-          },
-          "short": {
-            "op": "above",
-            "a": "close",
-            "b": "$support_high_previous"
-          }
         }
       },
       "constraints": {
@@ -9159,7 +9227,7 @@
       }
     },
     "zone_bounce_higher_timeframe": {
-      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. Target target_r x risk. HIGHER-TIMEFRAME ZONES ONLY: the zone must hold a 1h/4h fractal or a session/week level. Whole session.",
+      "description": "Trade AT the multi-timeframe support/resistance zones (prior session/RTH/week levels, opening ranges, round numbers, 15m/1h/4h fractals, 5m/15m/30m swing levels, VWAP bands, merged per bar with strength = distinct families): long when a 5m bar's low touches the support zone (within tolerance_atr x ATR of its top) and the bar CLOSES back above it, at a zone of at least min_strength families; short is the mirror at resistance. Stop beyond the far edge of the zone (stop_buffer_atr); breakeven after breakeven_r; the trade is closed at the next open if a bar closes through the far edge of the zone known at the previous bar's close; time stop hold_bars bars; flat at the session end; unlimited entries, one position at a time. Target target_r x risk. HIGHER-TIMEFRAME ZONES ONLY: the zone must hold a 1h/4h fractal or a session/week level. Whole session.",
       "params": {
         "min_strength": {
           "type": "int",
@@ -9248,6 +9316,16 @@
         },
         "resistance_higher_timeframe": {
           "level": "resistance_higher_timeframe"
+        },
+        "support_low_previous": {
+          "op": "lag",
+          "of": "$support_low",
+          "n": 1
+        },
+        "resistance_high_previous": {
+          "op": "lag",
+          "of": "$resistance_high",
+          "n": 1
         }
       },
       "gate": {
@@ -9375,12 +9453,12 @@
           "long": {
             "op": "below",
             "a": "close",
-            "b": "$support_low"
+            "b": "$support_low_previous"
           },
           "short": {
             "op": "above",
             "a": "close",
-            "b": "$resistance_high"
+            "b": "$resistance_high_previous"
           }
         }
       },

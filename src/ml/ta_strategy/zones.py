@@ -36,35 +36,68 @@ from .levels import _test_all, atr_per_minute
 @njit(cache=True)
 def _race(high, low, close, start, stop, side, edge, buffer, target):
     """From ``start`` to ``stop``: +1 if the target is reached first, -1 if the zone breaks first (a close
-    beyond the far edge by ``buffer``), 0 if neither. ``side`` +1 = support touched (target above), -1 =
+    beyond the far edge by ``buffer``), 0 if neither; the best excursion from the entry close; and the minute
+    the race ended (the window end when neither). ``side`` +1 = support touched (target above), -1 =
     resistance touched (target below). ``edge`` is the FAR edge of the zone."""
     n = start.shape[0]
     out = np.zeros(n, np.int8)
     best = np.zeros(n, np.float64)
+    end = np.zeros(n, np.int64)
     for e in range(n):
         s = side[e]
         b = 0.0
+        end[e] = stop[e]
         for m in range(start[e], stop[e]):
             if s == 1:
                 if high[m] - close[start[e] - 1] > b:
                     b = high[m] - close[start[e] - 1]
                 if high[m] >= target[e]:
                     out[e] = 1
+                    end[e] = m
                     break
                 if close[m] < edge[e] - buffer[e]:
                     out[e] = -1
+                    end[e] = m
                     break
             else:
                 if close[start[e] - 1] - low[m] > b:
                     b = close[start[e] - 1] - low[m]
                 if low[m] <= target[e]:
                     out[e] = 1
+                    end[e] = m
                     break
                 if close[m] > edge[e] + buffer[e]:
                     out[e] = -1
+                    end[e] = m
                     break
         best[e] = b
-    return out, best
+    return out, best, end
+
+
+@njit(cache=True)
+def _first_touches(near, atr, session, dedup_atr):
+    """Keep a touch only when no kept touch of the same session (rows arrive in minute order, one side)
+    has a near edge within ``dedup_atr`` x its ATR."""
+    n = near.shape[0]
+    keep = np.zeros(n, np.bool_)
+    kept_edge = np.empty(n, np.float64)
+    kept_session = np.empty(n, np.int64)
+    count = 0
+    for i in range(n):
+        new = True
+        tolerance = dedup_atr * atr[i]
+        for j in range(count - 1, -1, -1):
+            if kept_session[j] != session[i]:
+                break
+            if abs(kept_edge[j] - near[i]) <= tolerance:
+                new = False
+                break
+        if new:
+            keep[i] = True
+            kept_edge[count] = near[i]
+            kept_session[count] = session[i]
+            count += 1
+    return keep
 
 
 def touches(
@@ -74,8 +107,11 @@ def touches(
     move_atr: float = 1.0,
     buffer_atr: float = 0.1,
     leak: bool = False,
+    dedup_atr: float = 0.25,
 ) -> pd.DataFrame:
-    """One row per first touch of a zone on the rebuilt minutes of ``ctx`` (a strategy Context).
+    """One row per first touch of a zone on the rebuilt minutes of ``ctx`` (a strategy Context). A touch is
+    FIRST when no earlier touch of the same side in the same session had a near edge within ``dedup_atr`` x
+    ATR of it (zones holding a VWAP band drift a little every bar; the drifting band is one zone).
 
     ``leak=True`` is the deliberately leaky control: the zones of bar b are applied to the minutes of bar b
     itself, so a zone built from the touch bar's extreme is "touched" by that extreme. Its bounce rate must
@@ -117,7 +153,7 @@ def touches(
         else:
             hit = (high >= near - tolerance) & (previous_close < near - tolerance)
         hit &= np.isfinite(near) & np.isfinite(atr) & (atr > 0) & valid_bar
-        idx = np.flatnonzero(hit)
+        idx = np.flatnonzero(hit)  # ascending minutes, so sessions arrive contiguously
         if idx.size == 0:
             continue
         frame = pd.DataFrame(
@@ -140,7 +176,8 @@ def touches(
         # a minute that OPENS beyond the far edge gapped through the zone: logged, never a bounce candidate
         frame["gapped_through"] = (opens[idx] < far[idx]) if s == 1 else (opens[idx] > far[idx])
         frame["zone_key"] = np.round(frame["near_edge"] / ctx.tick).astype(np.int64)
-        frame = frame.drop_duplicates(["zone_key", "side", "session_id"], keep="first")
+        frame = frame[_first_touches(frame["near_edge"].to_numpy(float), frame["atr"].to_numpy(float),
+                                     frame["session_id"].to_numpy(np.int64), dedup_atr)]
         rows.append(frame)
     t = pd.concat(rows, ignore_index=True).sort_values("minute").reset_index(drop=True)
     start = t["minute"].to_numpy(np.int64) + 1
@@ -170,7 +207,7 @@ def touches(
     t["timed_out"] = (outcome == 0) & ~gap
     opposing = t["opposing_edge"].to_numpy(float)
     has_target = np.isfinite(opposing)
-    race, best = _race(
+    race, best, race_end = _race(
         high,
         low,
         close,
@@ -181,6 +218,7 @@ def touches(
         buffer_atr * a,
         np.where(has_target, opposing, np.where(side == 1, np.inf, -np.inf)),
     )
+    t["race_end_minute"] = race_end
     t["reached_next_zone"] = (race == 1) & has_target
     t["broke_before_next_zone"] = race == -1
     t["favourable_ticks"] = best / ctx.tick
@@ -233,6 +271,7 @@ def matched_null(
     null bounce, resolved and next-zone-reach rates."""
     m = ctx.minutes
     atr = atr_per_minute(ctx.minutes_frame)
+    opens = ctx.minutes_frame["open"].to_numpy(float)
     minute = t["minute"].to_numpy(np.int64)
     a = t["atr"].to_numpy(float)
     distance = (t["near_edge"].to_numpy(float) - m.close[np.maximum(minute - 1, 0)]) / a
@@ -258,21 +297,30 @@ def matched_null(
         good = np.isfinite(pa) & (pa > 0)
         pa = np.where(good, pa, 1.0)
         plevel = m.close[pstart - 1] + distance * pa
-        pminute, pside, pout = _test_all(
+        pfar = m.close[pstart - 1] + far_distance * pa
+        # first pass finds the minute the pseudo level is first tested; the outcome window then runs the same
+        # horizon after that minute as the real touch's does after its touch minute
+        pminute, pside, _ = _test_all(
             m.high, m.low, m.close, pstart, pstop, plevel, tolerance_atr * pa, move_atr * pa
         )
-        res = good & (pside != 0) & (pout != 0)
+        tested = good & (pside != 0)
+        pminute = np.where(tested, pminute, pstart)
+        pstop2 = np.minimum(pminute + 1 + horizon_minutes, m.stamps.size)
+        _, pside2, pout = _test_all(
+            m.high, m.low, m.close, pminute, pstop2, plevel, tolerance_atr * pa, move_atr * pa
+        )
+        gap = np.where(side == 1, opens[pminute] < pfar, opens[pminute] > pfar)
+        tested &= (pside2 != 0) & ~gap
+        res = tested & (pout != 0)
         resolved[p] = res
         bounced[p] = np.where(res, pout == 1, np.nan)
         # zone-to-zone null: the race starts where the pseudo level is first TESTED (matched on the approach), on a
         # pseudo far edge and pseudo next zone at the same signed ATR distances
-        tested = good & (pside != 0)
         race_start = np.where(tested, pminute + 1, pstart)
-        pfar = m.close[pstart - 1] + far_distance * pa
         ptarget = np.where(
             has_target, m.close[pstart - 1] + target_distance * pa, np.where(side == 1, np.inf, -np.inf)
         )
-        race, _ = _race(m.high, m.low, m.close, race_start, pstop, side, pfar, buffer_atr * pa, ptarget)
+        race, _, _ = _race(m.high, m.low, m.close, race_start, pstop2, side, pfar, buffer_atr * pa, ptarget)
         reached[p] = np.where(tested & has_target, race == 1, np.nan)
     return pd.DataFrame(
         {
@@ -311,11 +359,40 @@ def _benjamini_hochberg(p: np.ndarray, q: float = 0.10) -> np.ndarray:
 
 
 def _bootstrap_p(draws: list[float]) -> float:
-    """Two-sided bootstrap p-value of a mean difference: twice the smaller tail share across zero."""
+    """Two-sided bootstrap p-value of a mean difference: twice the smaller tail share across zero, with the
+    (k + 1) / (B + 1) floor so no p is exactly zero (the resolution is set by the number of draws)."""
     if not draws:
         return np.nan
     d = np.asarray(draws)
-    return float(min(1.0, 2 * min((d <= 0).mean(), (d >= 0).mean())))
+    b = d.size
+    return float(min(1.0, 2 * min(((d <= 0).sum() + 1) / (b + 1), ((d >= 0).sum() + 1) / (b + 1))))
+
+
+def _exact_spearman(values: np.ndarray) -> tuple[float, float]:
+    """Spearman rank correlation of ``values`` with their order, and its EXACT two-sided permutation p
+    (all n! orderings; n is the handful of strength buckets, so with n = 3 the smallest p is 1/3)."""
+    from itertools import permutations
+
+    from scipy.stats import spearmanr
+
+    n = values.size
+    rho = spearmanr(np.arange(n), values)[0]
+    perms = list(permutations(range(n)))
+    at_least = sum(abs(spearmanr(np.arange(n), values[list(q)])[0]) >= abs(rho) - 1e-12 for q in perms)
+    return float(rho), float(at_least / len(perms))
+
+
+def _one_position_oracle(minute: np.ndarray, end: np.ndarray, credit: np.ndarray) -> np.ndarray:
+    """The oracle credit of each touch when one position is open at a time: touches are taken in time order,
+    a taken touch holds until its race ends, and every touch inside that hold is skipped (credit 0)."""
+    order = np.argsort(minute, kind="stable")
+    out = np.zeros(minute.size)
+    busy_until = -1
+    for i in order:
+        if minute[i] > busy_until:
+            out[i] = credit[i]
+            busy_until = max(end[i], minute[i])
+    return out
 
 
 def _session_bootstrap(
@@ -416,6 +493,7 @@ def summary(
             draws = _session_bootstrap(lift, sessions[mask], n_sessions, bootstrap, rng)
             reach_draws = _session_bootstrap(reach_lift, sessions[mask], n_sessions, bootstrap, rng)
             oracle = np.maximum(g["favourable_ticks"].to_numpy(float) - cost_ticks, 0.0)
+            one_position = _one_position_oracle(g["minute"].to_numpy(np.int64), g["race_end_minute"].to_numpy(np.int64), oracle)
             rows.append(
                 {
                     "condition": column,
@@ -458,6 +536,8 @@ def summary(
                     "favourable_ticks_mean": float(g["favourable_ticks"].mean()),
                     "favourable_ticks_median": float(g["favourable_ticks"].median()),
                     "oracle_zone_to_zone_ticks_per_session_day": float(oracle.sum() / n_days),
+                    "oracle_one_position_ticks_per_session_day": float(one_position.sum() / n_days),
+                    "oracle_one_position_touches_per_session_day": float((one_position > 0).sum() / n_days),
                     "zone_width_ticks_median": float(g["zone_width_ticks"].median()),
                 }
             )
@@ -476,9 +556,7 @@ def summary(
     # F4: does the lift rise with strength?  Spearman rank trend over the strength-bucket lifts
     sb = out[out["condition"] == "strength_bucket"].sort_values("value")
     if len(sb) >= 3:
-        from scipy.stats import spearmanr
-
-        rho, p = spearmanr(np.arange(len(sb)), sb["lift_over_matched_random"].to_numpy())
+        rho, p = _exact_spearman(sb["lift_over_matched_random"].to_numpy())
         out = pd.concat(
             [
                 out,

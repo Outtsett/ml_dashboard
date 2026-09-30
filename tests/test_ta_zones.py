@@ -26,9 +26,10 @@ def test_race_reports_which_comes_first():
     edge = np.array([99.5, 99.5])            # far edge of the support zone
     buffer = np.array([0.25, 0.25])
     target = np.array([104.0, 110.0])        # reached at minute 5 / never
-    out, best = zones._race(high, low, close, start, stop, side, edge, buffer, target)
+    out, best, end = zones._race(high, low, close, start, stop, side, edge, buffer, target)
     assert out.tolist() == [1, -1]           # target first; then the zone breaks at minute 8 (close 99 < 99.25)
     assert best[1] == pytest.approx(105.5 - 100.0)
+    assert end.tolist() == [5, 8]
 
 
 def test_touch_requires_entering_the_zone_from_above(monkeypatch):
@@ -105,5 +106,8 @@ def test_benjamini_hochberg_and_bootstrap_p():
 
     survive = z._benjamini_hochberg(np.array([0.001, 0.02, 0.5, np.nan, 0.03]), q=0.10)
     assert survive.tolist() == [True, True, False, False, True]
-    assert z._bootstrap_p([1.0, 2.0, 3.0]) == 0.0
+    assert z._bootstrap_p([1.0, 2.0, 3.0]) == pytest.approx(0.5)      # (0 + 1) / (3 + 1), two-sided
     assert z._bootstrap_p([-1.0, 1.0, 2.0, -2.0]) == 1.0
+    assert z._exact_spearman(np.array([3.0, 2.0, 1.0])) == (-1.0, pytest.approx(1 / 3))
+    credit = z._one_position_oracle(np.array([10, 12, 40]), np.array([30, 20, 50]), np.array([5.0, 7.0, 9.0]))
+    assert credit.tolist() == [5.0, 0.0, 9.0]
