@@ -1,6 +1,8 @@
 ﻿import { useNotebookDrawings } from "./notebookDrawings";
+import { subscribeChartView } from "@/market/lib/useNotebookOverlays";
+import { logWarn } from "@/infrastructure/lib/error_logger";
 import { useRef, useState, useMemo, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
-import type { LogicalRange, MouseEventParams, Time } from 'lightweight-charts';
+import type { LogicalRange, MouseEventParams, Time, UTCTimestamp } from 'lightweight-charts';
 
 import { futuresTickInfo, forexPrecision, getBaseSymbol } from '@/market/components/chartConfig';
 import { useChartSetup } from '@/market/components/useChartSetup';
@@ -198,6 +200,18 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
   // Levels, shaded zones and vertical lines a notebook drew on this chart.
   const drawingTimes = useMemo(() => processedData.candles.map((c) => c.time as number), [processedData.candles]);
   useNotebookDrawings(candleSeriesRef, drawingTimes, notebookDrawings);
+
+  // A view request through the chart link (POST /api/chart/view): the newest bar, or a time range.
+  useEffect(() => subscribeChartView((view) => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    try {
+      if ("target" in view) chart.timeScale().scrollToRealTime();
+      else chart.timeScale().setVisibleRange({ from: Math.floor(view.startMs / 1000) as UTCTimestamp, to: Math.floor(view.endMs / 1000) as UTCTimestamp });
+    } catch (err) {
+      logWarn("TradingChart", "could not apply the chart view request", { error: String(err) });
+    }
+  }), [chartRef]);
 
   // A click on a bar is the notebooks' focus bar (chartContextBridge.ts).
   const onBarClickRef = useRef(onBarClick);

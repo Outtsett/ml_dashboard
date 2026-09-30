@@ -6,7 +6,8 @@
  *   GET    /chart/overlays           -> { sets: OverlaySet[] }
  *   PUT    /chart/overlays           { source, symbol, timeframe, overlays[] } replaces that source's set
  *   DELETE /chart/overlays/:source   removes one source's set; DELETE /chart/overlays removes all
- *   GET    /chart/stream             server-sent events: `context` and `overlays`, current
+ *   POST   /chart/view               ask every open chart to show the newest bar or a time range
+ *   GET    /chart/stream             server-sent events: `context`, `overlays` and `view`, current
  *                                    state first, then every change; a heartbeat every 15 s
  *
  * The stream's path holds `/stream/`, exempting it from compression and the
@@ -17,6 +18,7 @@
 import { Router, type Request, type Response } from "express";
 import {
   ChartContextSchema,
+  ChartViewSchema,
   OverlaySetSchema,
   chartLinkEvents,
   clearAllOverlaySets,
@@ -24,8 +26,10 @@ import {
   getChartContext,
   listOverlaySets,
   putOverlaySet,
+  requestChartView,
   setChartContext,
   type ChartContext,
+  type ChartView,
   type OverlaySet,
 } from "./chartLink";
 
@@ -72,6 +76,16 @@ router.delete("/chart/overlays", (_req: Request, res: Response) => {
   res.json({ removed: clearAllOverlaySets() });
 });
 
+router.post("/chart/view", (req: Request, res: Response) => {
+  const parsed = ChartViewSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "invalid chart view", details: parsed.error.issues });
+    return;
+  }
+  requestChartView(parsed.data);
+  res.status(202).json({ ok: true, view: parsed.data });
+});
+
 router.get("/chart/stream", (req: Request, res: Response) => {
   res.status(200);
   res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
@@ -85,6 +99,7 @@ router.get("/chart/stream", (req: Request, res: Response) => {
   };
   const onContext = (context: ChartContext) => write("context", context);
   const onOverlays = (sets: OverlaySet[]) => write("overlays", sets);
+  const onView = (view: ChartView) => write("view", view);
 
   res.write("retry: 2000\n\n");
   const context = getChartContext();
@@ -92,6 +107,7 @@ router.get("/chart/stream", (req: Request, res: Response) => {
   write("overlays", listOverlaySets());
   chartLinkEvents.on("context", onContext);
   chartLinkEvents.on("overlays", onOverlays);
+  chartLinkEvents.on("view", onView);
   const heartbeat = setInterval(() => {
     if (!res.writableEnded) res.write(": heartbeat\n\n");
   }, HEARTBEAT_MS);
@@ -101,6 +117,7 @@ router.get("/chart/stream", (req: Request, res: Response) => {
     clearInterval(heartbeat);
     chartLinkEvents.off("context", onContext);
     chartLinkEvents.off("overlays", onOverlays);
+    chartLinkEvents.off("view", onView);
   });
 });
 

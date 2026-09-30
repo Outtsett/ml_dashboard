@@ -9,7 +9,7 @@
  */
 
 import { useMemo, useSyncExternalStore } from "react";
-import type { Overlay, OverlaySet } from "@shared/chartLink";
+import type { ChartView, Overlay, OverlaySet } from "@shared/chartLink";
 import { openEventStream } from "@/infrastructure/lib/sharedEventSource";
 import { logWarn } from "@/infrastructure/lib/error_logger";
 import { registerInstanceLabel, registerSeriesTitle } from "./indicator_panels";
@@ -120,6 +120,15 @@ export function selectNotebookOverlays(sets: OverlaySet[], symbol: string, timef
 let sharedSets: OverlaySet[] = [];
 const readers = new Set<() => void>();
 let sharedSource: EventSource | null = null;
+const viewHandlers = new Set<(view: ChartView) => void>();
+
+/** A chart registers to receive view requests (POST /api/chart/view): the newest bar, or a range. */
+export function subscribeChartView(handler: (view: ChartView) => void): () => void {
+  viewHandlers.add(handler);
+  return () => {
+    viewHandlers.delete(handler);
+  };
+}
 
 function subscribe(onChange: () => void): () => void {
   readers.add(onChange);
@@ -134,6 +143,14 @@ function subscribe(onChange: () => void): () => void {
         return;
       }
       for (const reader of readers) reader();
+    });
+    sharedSource.addEventListener("view", (event: Event) => {
+      try {
+        const view = JSON.parse((event as MessageEvent).data) as ChartView;
+        for (const handler of viewHandlers) handler(view);
+      } catch (err) {
+        logWarn("useNotebookOverlays", "unreadable view event", { error: String(err) });
+      }
     });
   }
   return () => {

@@ -87,5 +87,14 @@ export const OverlaySetSchema = z.object({
 export type OverlaySet = z.infer<typeof OverlaySetSchema> & { updatedAtIso: string };
 
 /** postMessage types between the dashboard page and a notebook iframe. */
+/** A request to move the Market chart's view: the newest bar, or a time range (epoch ms in the chart's stamps). */
+export const ChartViewSchema = z.union([
+  z.object({ target: z.literal("latest") }),
+  z.object({ startMs: z.number().int().nonnegative(), endMs: z.number().int().nonnegative() }).refine((v) => v.endMs > v.startMs, {
+    message: "endMs must be after startMs",
+  }),
+]);
+export type ChartView = z.infer<typeof ChartViewSchema>;
+
 export const CHART_CONTEXT_MESSAGE = "dashboard:chart-context";
 export const NOTEBOOK_READY_MESSAGE = "dashboard:notebook-ready";

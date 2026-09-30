@@ -26,13 +26,14 @@ import path from "path";
 import type { z } from "zod";
 import { Logger } from "@nestjs/common";
 import {
+  type ChartView,
   ChartContextSchema,
   OverlaySetSchema,
   type ChartContext,
   type OverlaySet,
 } from "@shared/chartLink";
 
-export { ChartContextSchema, OverlaySchema, OverlaySetSchema } from "@shared/chartLink";
+export { ChartContextSchema, ChartViewSchema, OverlaySchema, OverlaySetSchema, type ChartView } from "@shared/chartLink";
 export type { ChartContext, Overlay, OverlaySet } from "@shared/chartLink";
 
 const MAX_SOURCES = 40;
@@ -94,8 +95,13 @@ function readState(): void {
 
 readState();
 
-/** "context" (ChartContext) and "overlays" (OverlaySet[]) — what the stream forwards. */
+/** "context" (ChartContext), "overlays" (OverlaySet[]) and "view" (ChartView) — what the stream forwards. */
 export const chartLinkEvents = new EventEmitter();
+
+/** Asks every open Market chart to move its view (not stored: a request, not state). */
+export function requestChartView(view: ChartView): void {
+    chartLinkEvents.emit("view", view);
+}
 chartLinkEvents.setMaxListeners(200);
 
 /** Stores the chart context. Returns true when it changed (identical writes are

@@ -101,3 +101,25 @@ describe("overlays", () => {
     controller.abort();
   });
 });
+
+
+describe("chart view requests", () => {
+  it("forwards a valid view request on the stream and refuses an invalid one", async () => {
+    const stream = await fetch(`${base}/chart/stream`, { headers: { Accept: "text/event-stream" } });
+    const reader = stream.body!.getReader();
+    const decoder = new TextDecoder();
+    let received = "";
+    const read = async () => {
+      const { value } = await reader.read();
+      received += decoder.decode(value ?? new Uint8Array(), { stream: true });
+    };
+    await read();                                                    // retry + current state
+    const bad = await fetch(`${base}/chart/view`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ startMs: 5, endMs: 1 }) });
+    expect(bad.status).toBe(400);
+    const good = await fetch(`${base}/chart/view`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ target: "latest" }) });
+    expect(good.status).toBe(202);
+    for (let attempts = 0; attempts < 5 && !received.includes("event: view"); attempts += 1) await read();
+    expect(received).toContain('event: view\ndata: {"target":"latest"}');
+    await reader.cancel();
+  });
+});
