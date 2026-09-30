@@ -12,6 +12,7 @@ import {
 import { labelDomain, labelMarkerStyle } from './labelMarkerStyle';
 import type { LabelMarker } from "@/market/components/types";
 import { patternMarkerId } from '@/market/lib/patternHover';
+import type { NotebookMarker } from '@/market/lib/useNotebookOverlays';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,8 @@ interface ChartMarkersOptions {
   tradeMarkers: TradeMarker[];
   predictionMarkers: PredictionMarker[];
   trainTestSplitTime?: number;
+  /** Markers a notebook drew (useNotebookOverlays), epoch ms. */
+  notebookMarkers?: NotebookMarker[];
 }
 
 // ── Hook ───────────────────────────────────────────────────────────────────
@@ -44,6 +47,7 @@ export function useChartMarkers({
   tradeMarkers,
   predictionMarkers,
   trainTestSplitTime,
+  notebookMarkers,
 }: ChartMarkersOptions): void {
   const timeframeSec = timeframe * 60;
   const candleTimes = useMemo(() => buildCandleTimes(processedCandles), [processedCandles]);
@@ -174,6 +178,26 @@ export function useChartMarkers({
     }];
   }, [trainTestSplitTime, candleTimes, timeframeSec]);
 
+  // ── Notebook markers (snapped to the bar their time falls in) ──────────
+
+  const computedNotebookMarkers = useMemo((): ChartMarker[] => {
+    if (!notebookMarkers || notebookMarkers.length === 0) return [];
+    const position = { above: 'aboveBar', below: 'belowBar', on: 'inBar' } as const;
+    const out: ChartMarker[] = [];
+    for (const marker of notebookMarkers) {
+      const alignedTime = snapToCandle(marker.timeMs, candleTimes, timeframeSec);
+      if (alignedTime === null) continue;
+      out.push({
+        time: alignedTime as Time,
+        position: position[marker.position],
+        color: marker.color,
+        shape: marker.shape,
+        text: marker.text ?? '',
+      });
+    }
+    return out;
+  }, [notebookMarkers, candleTimes, timeframeSec]);
+
   // ── One merged, time-sorted set for the single markers plugin ──────────
   //
   // lightweight-charts requires markers in ascending time order; concatenating
@@ -186,8 +210,9 @@ export function useChartMarkers({
       ...computedPredictionMarkers,
       ...computedTradeMarkers,
       ...computedSplitMarkers,
+      ...computedNotebookMarkers,
     ].sort((a, b) => (a.time as number) - (b.time as number));
-  }, [computedLabelMarkers, computedPredictionMarkers, computedTradeMarkers, computedSplitMarkers]);
+  }, [computedLabelMarkers, computedPredictionMarkers, computedTradeMarkers, computedSplitMarkers, computedNotebookMarkers]);
 
   useSeriesMarkers(markersSeriesRef, candleSeriesRef, allMarkers);
 }

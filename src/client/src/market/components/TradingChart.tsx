@@ -1,4 +1,5 @@
-﻿import { useRef, useState, useMemo, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+﻿import { useNotebookDrawings } from "./notebookDrawings";
+import { useRef, useState, useMemo, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import type { LogicalRange, MouseEventParams, Time } from 'lightweight-charts';
 
 import { futuresTickInfo, forexPrecision, getBaseSymbol } from '@/market/components/chartConfig';
@@ -50,6 +51,9 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
   trainTestSplitTime,
   onReloadBars,
   isReloadingBars = false,
+  onBarClick,
+  notebookMarkers,
+  notebookDrawings,
 }, ref) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [priceInfo, setPriceInfo] = useState<PriceInfo | null>(null);
@@ -188,7 +192,28 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
     timeframe, symbol, isFutures,
     labelMarkers, tradeMarkers, predictionMarkers,
     trainTestSplitTime,
+    notebookMarkers,
   });
+
+  // Levels, shaded zones and vertical lines a notebook drew on this chart.
+  const drawingTimes = useMemo(() => processedData.candles.map((c) => c.time as number), [processedData.candles]);
+  useNotebookDrawings(candleSeriesRef, drawingTimes, notebookDrawings);
+
+  // A click on a bar is the notebooks' focus bar (chartContextBridge.ts).
+  const onBarClickRef = useRef(onBarClick);
+  onBarClickRef.current = onBarClick;
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const handler = (param: MouseEventParams<Time>) => {
+      if (param.time == null) return;
+      onBarClickRef.current?.((param.time as number) * 1000);
+    };
+    chart.subscribeClick(handler);
+    return () => {
+      try { chart.unsubscribeClick(handler); } catch { /* chart disposed */ }
+    };
+  }, [chartRef, decimals, minMove, isFutures, tickInfo]);
 
   // Hovering a candlestick-pattern arrow opens a card comparing the textbook
   // pattern with the candles it fired on, and shades those candles here.

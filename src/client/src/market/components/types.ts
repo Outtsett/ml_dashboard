@@ -1,3 +1,4 @@
+import type { NotebookDrawings, NotebookMarker } from "@/market/lib/useNotebookOverlays";
 import type { CandlestickData, LogicalRange, Time } from 'lightweight-charts';
 import type { IndicatorOverlay } from "@/market/lib/useIndicatorData";
 import type { SupportResistanceLevel, ZigZagPoint } from '@/market/lib/chart_overlays';
@@ -75,6 +76,12 @@ export interface TradingChartProps {
   isReplayActive?: boolean;
   regimeColorMap?: Map<number, number>;
   trainTestSplitTime?: number;
+  /** Fired with the clicked bar's timestamp (epoch ms): the notebooks' focus bar. */
+  onBarClick?: (timestampMs: number) => void;
+  /** Markers a notebook drew on this chart (useNotebookOverlays). */
+  notebookMarkers?: NotebookMarker[];
+  /** Levels, shaded zones and vertical lines a notebook drew (notebookDrawings.ts). */
+  notebookDrawings?: NotebookDrawings;
 }
 
 // ── Internal hook types ────────────────────────────────────────────────────

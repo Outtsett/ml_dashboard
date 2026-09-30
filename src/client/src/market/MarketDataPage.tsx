@@ -1,4 +1,6 @@
 ﻿
+import { useChartContextPublisher } from "@/market/lib/useChartContextPublisher";
+import { useNotebookOverlays } from "@/market/lib/useNotebookOverlays";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia, EmptyContent } from "@/shared/ui/empty";
 import { Button } from "@/shared/ui/button";
 import { TrendingUp, DollarSign, BarChart3, Clock, LineChart, RefreshCw } from "lucide-react";
@@ -178,9 +180,12 @@ export default function MarketData() {
   });
 
   // â”€â”€ Merge indicator overlays + pattern overlays + lake series â”€â”€
+  // Lines a notebook beside the chart drew (useNotebookOverlays: markers, levels
+  // and zones travel to the chart separately below).
+  const notebookOverlays = useNotebookOverlays(symbol, minutesToApiKey(timeframe));
   const allOverlays = useMemo(() => {
-    return [...indicatorOverlays, ...lakeSeries.overlays];
-  }, [indicatorOverlays, lakeSeries.overlays]);
+    return [...indicatorOverlays, ...lakeSeries.overlays, ...notebookOverlays.lines];
+  }, [indicatorOverlays, lakeSeries.overlays, notebookOverlays.lines]);
 
   const handleRemoveIndicators = useCallback((columns: string[]) => {
     // For indicator instance columns (instanceId::outputKey), remove the instance
@@ -223,6 +228,22 @@ export default function MarketData() {
   const chartWithLive = liveTail.bars.length > 0 ? [...chartData, ...liveTail.bars] : chartData;
 
   const displayData = replay.active ? replay.snapshot.visibleBars : chartWithLive;
+
+  // What the chart shows, published to the notebooks beside it
+  // (chartContextBridge.ts): symbol, timeframe, the visible range and the bar
+  // last clicked, which a following notebook takes as its focus.
+  const [selectedBarMs, setSelectedBarMs] = useState<number | null>(null);
+  useEffect(() => setSelectedBarMs(null), [symbol, timeframe]);
+  useChartContextPublisher({
+    symbol,
+    timeframe: minutesToApiKey(timeframe),
+    assetClass: assetType === 'forex' ? 'forex' : 'futures',
+    visibleRange,
+    selectedMs: selectedBarMs,
+    firstBarMs: displayData.length > 0 ? displayData[0]!.timestamp : null,
+    lastBarMs: displayData.length > 0 ? displayData[displayData.length - 1]!.timestamp : null,
+    barCount: displayData.length,
+  });
 
   // First and last bar the live overlay is predicting over. Used as the
   // training window whenever the run declares none (the `started` event ships
@@ -626,6 +647,9 @@ export default function MarketData() {
               predictionMarkers={dashboard.overlays.predictionMarkers}
               regimeColorMap={regimeColorMap}
               trainTestSplitTime={trainTestSplitTime}
+              onBarClick={setSelectedBarMs}
+              notebookMarkers={notebookOverlays.markers}
+              notebookDrawings={notebookOverlays.drawings}
             />
           </div>
         ) : (

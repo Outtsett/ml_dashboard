@@ -21,84 +21,16 @@
  */
 
 import { EventEmitter } from "events";
-import { z } from "zod";
+import type { z } from "zod";
+import {
+  ChartContextSchema,
+  OverlaySetSchema,
+  type ChartContext,
+  type OverlaySet,
+} from "@shared/chartLink";
 
-export const ChartContextSchema = z.object({
-  symbol: z.string().min(1).max(40),
-  /** The chart's timeframe key, as `/api/charts/ohlcv` takes it: 1m, 5m, 1h, 1d … */
-  timeframe: z.string().min(1).max(8),
-  assetClass: z.enum(["futures", "forex"]),
-  visibleStartMs: z.number().int().nullable(),
-  visibleEndMs: z.number().int().nullable(),
-  /** The bar under the crosshair, or null when the pointer is off the chart. */
-  cursorMs: z.number().int().nullable(),
-  /** The bar last clicked on the chart: a notebook can focus on it. */
-  selectedMs: z.number().int().nullable(),
-  firstBarMs: z.number().int().nullable(),
-  lastBarMs: z.number().int().nullable(),
-  barCount: z.number().int().min(0),
-});
-export type ChartContext = z.infer<typeof ChartContextSchema> & { updatedAtIso: string; sequence: number };
-
-const color = z.string().regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$|^rgba?\([\d\s.,]+\)$/).optional();
-const label = z.string().max(120).optional();
-const time = z.number().int();
-
-export const OverlaySchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("line"),
-    id: z.string().min(1).max(80),
-    label,
-    color,
-    /** "price" draws on the candles' price scale; "pane" in its own panel below. */
-    pane: z.enum(["price", "pane"]).default("price"),
-    points: z.array(z.object({ time, value: z.number().finite() })).max(20_000),
-  }),
-  z.object({
-    kind: z.literal("marker"),
-    id: z.string().min(1).max(80),
-    label,
-    color,
-    markers: z.array(z.object({
-      time,
-      position: z.enum(["above", "below", "on"]).default("above"),
-      shape: z.enum(["arrowUp", "arrowDown", "circle", "square"]).default("circle"),
-      text: z.string().max(40).optional(),
-    })).max(2_000),
-  }),
-  z.object({
-    kind: z.literal("level"),
-    id: z.string().min(1).max(80),
-    label,
-    color,
-    price: z.number().finite(),
-    style: z.enum(["solid", "dashed", "dotted"]).default("dashed"),
-  }),
-  z.object({
-    kind: z.literal("zone"),
-    id: z.string().min(1).max(80),
-    label,
-    color,
-    zones: z.array(z.object({ start: time, end: time, text: z.string().max(40).optional() })).max(2_000),
-  }),
-  z.object({
-    kind: z.literal("vline"),
-    id: z.string().min(1).max(80),
-    label,
-    color,
-    times: z.array(time).max(2_000),
-  }),
-]);
-export type Overlay = z.infer<typeof OverlaySchema>;
-
-export const OverlaySetSchema = z.object({
-  /** Who drew it — a notebook's file stem or title. One set per source. */
-  source: z.string().min(1).max(120),
-  symbol: z.string().min(1).max(40),
-  timeframe: z.string().min(1).max(8),
-  overlays: z.array(OverlaySchema).max(50),
-});
-export type OverlaySet = z.infer<typeof OverlaySetSchema> & { updatedAtIso: string };
+export { ChartContextSchema, OverlaySchema, OverlaySetSchema } from "@shared/chartLink";
+export type { ChartContext, Overlay, OverlaySet } from "@shared/chartLink";
 
 const MAX_SOURCES = 40;
 
