@@ -492,6 +492,91 @@ ATR, RSI 58, stop 2.5 ATR, breakeven 1.25R, 2R target), run once on **ES 2010-06
   spec, which had no breakeven. The description is fixed.
 - **Reading:** the MNQ momentum edge does not transfer to the S&P 500.
 
+
+## Multi-timeframe cascade, volume at levels, volatility indicators, level-bounce exits (rounds 10-11)
+
+**The user's rule.** Support and resistance per timeframe (1m, 5m, 15m, 30m). A 1-minute close passing the 1m support, then the
+5m, then the 15m, then the 30m is a downtrend; the mirror for resistance is an uptrend. Trade it long and short, many times a day,
+through ETH and RTH, with volume, volatility and momentum confirmations combined, and close with profit when the next support or
+resistance is reached and price bounces. One contract, one position at a time, no pyramiding.
+
+**What was built** (`src/ml/ta_strategy/cascade.py`, `cascade_study.py`, `engine.py` trail bit 4).
+- **Swing levels per timeframe:** Williams fractals (k = 3 on 1m and 5m, 2 on 15m and 30m), known only at the close of bar i + k,
+  broken on the first 1-minute close beyond them by 0.1 x ATR(15m), otherwise retired at an age cap. MNQ 2019-2025: 394,863 (1m),
+  83,507 (5m), 40,386 (15m), 20,456 (30m) levels; 81-84% are broken before their cap.
+- **The cascade stage:** read top-down along the chain. Stage s is on when the stage-s timeframe's last break is in that direction and
+  recent, at the minute it broke the next-lower timeframe's last break was in that direction at a level not beyond it, and so on down
+  to the 1m level. `stage_up`, `stage_down`, `direction`, and an unordered `aligned` count as the control.
+- **Volume:** a causal time-of-day volume profile (mean minute volume of the same 5-minute bucket over the previous 20 sessions);
+  relative volume of the last k minutes and its OLS trend.
+- **Level-bounce exit:** the next opposing zone (from the 5m/15m/30m swing levels) is a level, not a limit. Once price reaches it a
+  trailing stop `bounce_ticks` from the running extreme is armed, so the trade closes with profit when price bounces.
+- **Series available to any template:** `{"cascade": stage_up | stage_down | aligned_up | aligned_down | direction | broken_level_up |
+  broken_level_down | minutes_since_break}`, `{"volume": relative | trend}`.
+
+### The cascade study (`cascade_*` tables, MNQ 2019-06..2025-12 and NQ 2010-06..2019-06)
+
+**Does the cascade point the way?** At the minute a cascade FIRST reaches a stage, the signed move over the next 60 minutes
+(ticks, + = with the cascade; session-block bootstrap 95% interval), against the unconditional drift:
+
+| Stage, direction | MNQ, all hours | MNQ, regular hours | NQ 2010-2019, regular hours |
+|---|---|---|---|
+| 4 up (0.8-2.5 a day) | +5.5 [+0.3, +10.7] vs +1.6 | **+15.3 [+3.9, +25.8]** | +2.1 [-0.1, +4.2] vs +0.6 |
+| 4 down | +3.3 (wrong way) | +7.5 (wrong way) | +2.1 (wrong way) |
+| 2 down | -4.5 [-7.8, -1.6] vs -1.6 | -3.3 | -0.5 |
+| 1-3 up | within +/- 3 of drift | within +/- 5 | within +/- 2 |
+
+The cascade fires often (3-11 stage-1 events a day, 0.7-2.5 stage-4 events) and carries a few ticks of direction at most. The one
+number above cost, the MNQ regular-hours 4-stage up cascade, does not replicate on NQ 2010-2019.
+
+**Does volume decide whether a level holds or breaks?** No. Spearman of the approach's relative volume with breaking is +0.018
+(MNQ) and +0.015 (NQ); once the approach's own range is taken out it is -0.005 and -0.003. The volume trend is +0.021 / +0.022
+given range. The break-rate-by-decile curve sits inside the curve produced by volume shuffled within each session. Volume tracks
+range (+0.40 / +0.35) and range tracks breaking (+0.04): volume is a volatility proxy here, not a signal.
+
+**Which volatility measure anticipates the next hour?** Only the time-of-day expected-move ratio: Spearman with the next hour's
+range 0.496 (MNQ) and 0.475 (NQ). NATR, Parkinson, realised volatility, Bollinger bandwidth and squeeze, ADX, choppiness and
+volume are at |rho| <= 0.14 for range, and nothing predicts follow-through in the cascade's direction (|rho| <= 0.01).
+
+**The delayed-oracle ceiling** (enter at each confirmed swing, exit at the NEXT swing's exact price with hindsight, skip losers,
+pay every cost): MNQ 2019-2025 6,247 net ticks/day on the 1m ladder (149 trades/day), 3,269 (5m), 2,374 (15m), 1,737 (30m), so 600
+needs 10-35% of a perfect-exit oracle. NQ 2010-2019 at 2,000-7,000 points: 729 (1m) down to 314 (30m); 600 needs 82-191% of it.
+
+### Round 10 (`round_10_20260930T050100`, MNQ 5m bars, tuned per fold on prior years, tested 2022-2025, one contract)
+
+| Template | Trades/day | Net ticks/day | Win | PF | Median hold |
+|---|---|---|---|---|---|
+| cascade_trend (whole session) | 5.2 | -32.1 | 36% | 0.74 | 4 min |
+| cascade_aligned_control (unordered) | 10.1 | -65.2 | 32% | 0.73 | 6 min |
+| cascade_trend_rth | 2.5 | -19.6 | 22% | 0.84 | 6 min |
+| cascade_trend_volume | 17.8 | -120.9 | 27% | 0.76 | 6 min |
+| cascade_trend_momentum (RSI + signal + MACD side) | 8.8 | -77.9 | 36% | 0.79 | 9 min |
+| cascade_trend_momentum_cross (histogram and RSI crossings) | 6.8 | -53.6 | 33% | 0.74 | 6 min |
+| cascade_trend_full (every confirmation) | 0.5 | -6.8 | 39% | 0.74 | 15 min |
+| cascade_trend_full_rth | 0.2 | +0.4 | 27% | 1.02 | 11 min |
+
+Every template nets -6 to -9 ticks per trade, about the round trip: the 1-minute breaks that start a cascade resolve within minutes.
+The ordered cascade loses half as much as the unordered control by trading half as often. The Reality Check p (0.002) comes from
+`cascade_trend_volume`'s excess over a matched null that itself loses 157 ticks/day; on net every template loses.
+
+### Round 11 (`round_11_20260930T051645`, MNQ 1-minute bars, unlimited entries, level-bounce exit)
+
+| Template | Trades/day | Net ticks/day | PF | Level-bounce exits |
+|---|---|---|---|---|
+| cascade_bounce_1m | 3.5 | -24.6 | 0.73 | 23% |
+| cascade_limit_1m_control (limit at the level) | 2.9 | -21.6 | 0.72 | - |
+| cascade_bounce_1m_rth | 1.0 | -3.8 | 0.89 | 20% |
+| cascade_bounce_1m_volume | 12.2 | -94.4 | 0.67 | 19% |
+| cascade_bounce_5m | 2.2 | -17.2 | 0.71 | 20% |
+
+The bounce exit does what was asked: when it fires it closes at +49.6 net ticks on average and wins 89% of the time. It fires on
+23% of trades; the rest stop out within a median of 4 minutes at about -7 ticks, so the strategy nets -7 per trade. Bounce minus
+limit, paired by day: -3.0 ticks (t -1.1). Round 4's finding holds: more trades per day means fewer net ticks.
+
+**Verdict.** 600 net ticks per session day on one contract is a forecasting limit, not a market-capacity limit: the market offers
+2,000-6,000 ticks a day to a perfect-exit oracle, and every causal rule tested, including this multi-timeframe cascade with every
+confirmation the user named, captures none of it after costs.
+
 **Next:**
 - add order-flow and book information;
 - size and stack uncorrelated books;
