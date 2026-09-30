@@ -73,12 +73,12 @@ def test_zone_features_are_causal_and_follow_the_spec():
     assert len(features) == len(bars)
     # truncation test: the features of the first 500 bars do not change when later bars are appended
     head = zones.zone_features(bars.iloc[:500].reset_index(drop=True), lookback=5, max_levels=None)
-    for column in ("zone_price_support", "zone_price_resistance", "support_zone", "resistance_zone", "zone_strength", "bandwidth"):
+    for column in ("zone_price_support", "zone_price_resistance", "support_zone", "resistance_zone", "zone_strength", "bandwidth_points"):
         a, b = features[column].to_numpy()[:500], head[column].to_numpy()
         np.testing.assert_array_equal(np.nan_to_num(a, nan=-1), np.nan_to_num(b, nan=-1), err_msg=column)
     # the spec's flags: within the bandwidth of the nearest zone
     f = features[features["zone_price_support"].notna()]
-    within = (np.abs(f["zone_price_support"] - bars.loc[f.index, "low"]) < f["bandwidth"]).astype(np.int8)
+    within = (np.abs(f["zone_price_support"] - bars.loc[f.index, "low"]) < f["bandwidth_points"]).astype(np.int8)
     assert within.tolist() == f["support_zone"].tolist()
     touched = features[features["support_zone"] == 1]
     assert (touched["support_zone_strength"] >= 2).all()          # a zone is at least two pivots
@@ -89,19 +89,36 @@ def test_zone_features_are_causal_and_follow_the_spec():
     assert features["zone_price_support"].iloc[: first_confirmed].isna().all()
 
 
-def test_zone_features_at_the_last_bar_are_the_charts_levels_over_its_window():
-    bars = random_walk_bars(2000, seed=11)
-    window = 700
-    features = zones.zone_features(bars, lookback=5, window_bars=window, max_levels=10)
-    last = features.iloc[-1]
-    chart = zones.compute_support_resistance(bars.iloc[-window:].reset_index(drop=True), lookback=5, max_levels=10)
-    # the chart's pivots need 5 bars after them, so the last 5 bars' pivots are not yet known to either
-    supports = np.sort(chart.loc[chart["type"] == "support", "price"].to_numpy(float))
-    resistances = np.sort(chart.loc[chart["type"] == "resistance", "price"].to_numpy(float))
-    assert int(last["support_zone_count"]) == supports.size
-    assert int(last["resistance_zone_count"]) == resistances.size
-    if supports.size:
-        assert np.min(np.abs(supports - last["zone_price_support"])) < 1e-9
-    if resistances.size:
-        assert np.min(np.abs(resistances - last["zone_price_resistance"])) < 1e-9
-    assert last["bandwidth"] == pytest.approx(0.5 * zones.true_range(*(bars.iloc[-window:][c].to_numpy(float) for c in ("high", "low", "close"))).mean(), rel=1e-9)
+def test_zone_features_replay_the_chart_on_the_window_ending_at_every_sampled_bar():
+    """Event bars (a pivot confirmed) and non-event bars alike: the chart run on bars[i-window+1 : i+1]
+    gives the same zones, nearest prices, strengths and flags as the causal walk at bar i."""
+    bars = random_walk_bars(3000, seed=11)
+    window, lookback = 500, 5
+    features = zones.zone_features(bars, lookback=lookback, window_bars=window, max_levels=10)
+    events = np.flatnonzero((features["pivot_high"] | features["pivot_low"]).to_numpy())
+    rng = np.random.default_rng(0)
+    sample = np.unique(np.r_[rng.choice(events[events >= window], 40, replace=False), rng.choice(np.arange(window, 3000), 60, replace=False)])
+    checked = 0
+    for i in sample:
+        piece = bars.iloc[i - window + 1 : i + 1].reset_index(drop=True)
+        chart = zones.compute_support_resistance(piece, lookback=lookback, max_levels=10)
+        supports = chart[chart["type"] == "support"]
+        resistances = chart[chart["type"] == "resistance"]
+        row = features.iloc[i]
+        assert int(row["support_zone_count"]) == len(supports), (i, "support count")
+        assert int(row["resistance_zone_count"]) == len(resistances), (i, "resistance count")
+        bandwidth = 0.5 * zones.true_range(*(piece[c].to_numpy(float) for c in ("high", "low", "close"))).mean()
+        assert row["bandwidth_points"] == pytest.approx(bandwidth, rel=1e-9)
+        if len(supports):
+            nearest = supports.iloc[np.argmin(np.abs(supports["price"].to_numpy(float) - float(bars.loc[i, "low"])))]
+            assert row["zone_price_support"] == pytest.approx(float(nearest["price"]), abs=1e-9), (i, "support price")
+            assert int(row["support_zone_strength"]) == int(nearest["touches"]), (i, "support touches")
+            assert int(row["support_zone"]) == int(abs(float(bars.loc[i, "low"]) - float(nearest["price"])) < bandwidth), (i, "support flag")
+        if len(resistances):
+            nearest = resistances.iloc[np.argmin(np.abs(resistances["price"].to_numpy(float) - float(bars.loc[i, "high"])))]
+            assert row["zone_price_resistance"] == pytest.approx(float(nearest["price"]), abs=1e-9), (i, "resistance price")
+            assert int(row["resistance_zone_strength"]) == int(nearest["touches"]), (i, "resistance touches")
+        checked += 1
+    assert checked >= 90
+
+

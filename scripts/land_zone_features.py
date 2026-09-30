@@ -92,7 +92,7 @@ def overlays_for_window(features: pd.DataFrame, context: dict, symbol: str) -> l
     overlays.append(dashboard.line("zone_strength", window["time"] * 1000, window["zone_strength"], label="zone_strength (touches of the zone being touched)", color=COLOURS["level"], pane="pane"))
     protocol.emit_log(f"[overlays] window {datetime.fromtimestamp(start, tz=timezone.utc):%Y-%m-%d} .. {datetime.fromtimestamp(end, tz=timezone.utc):%Y-%m-%d}: "
                       f"{int(window['support_zone'].sum())} support touches, {int(window['resistance_zone'].sum())} resistance touches, "
-                      f"bandwidth at the last bar {float(last['bandwidth']):.2f} points")
+                      f"bandwidth at the last bar {float(last['bandwidth_points']):.2f} points")
     return overlays
 
 
@@ -104,7 +104,7 @@ def main() -> int:
     parser.add_argument("--end", default=None, help="Default: the chart's last loaded bar")
     parser.add_argument("--lookback", type=int, default=zones.PIVOT_LOOKBACK)
     parser.add_argument("--bandwidth-multiple", type=float, default=zones.BANDWIDTH_TRUE_RANGE_MULTIPLE)
-    parser.add_argument("--window-bars", type=int, default=zones.CHART_WINDOW_BARS, help="The chart's window: pivots and the bandwidth come from the last this-many bars (0 = all so far)")
+    parser.add_argument("--window-bars", type=int, default=None, help="The chart's window (default: what the chart loads for the timeframe; 0 = all bars so far)")
     parser.add_argument("--max-levels", type=int, default=zones.MAX_LEVELS, help="Most-touched zones kept, as the chart draws them; 0 = every zone")
     parser.add_argument("--recipe", default=None)
     parser.add_argument("--output-dir", default=str(ROOT / "data" / "models"))
@@ -118,6 +118,8 @@ def main() -> int:
     context = dashboard.fetch_chart_context() or {}
     if not args.timeframe:
         args.timeframe = str(context.get("timeframe") or "5m")
+    if args.window_bars is None:
+        args.window_bars = zones.chart_window_bars(args.timeframe)
     start_ms = int(pd.Timestamp(args.start).timestamp() * 1000)
     end_ms = int(pd.Timestamp(args.end).timestamp() * 1000) if args.end else int(context.get("lastBarMs") or pd.Timestamp.now(tz="UTC").timestamp() * 1000)
     bars = fetch_chart_bars(args.symbol, args.timeframe, start_ms, end_ms)
@@ -129,15 +131,15 @@ def main() -> int:
     protocol.emit_log(f"[zones] computed in {time.monotonic() - t0:.1f}s: {int(features['pivot_high'].sum()):,} pivot highs, {int(features['pivot_low'].sum()):,} pivot lows; "
                       f"support_zone on {features['support_zone'].mean():.1%} of bars, resistance_zone on {features['resistance_zone'].mean():.1%}; "
                       f"zone_strength when touched: median {float(features.loc[features['zone_strength'] > 0, 'zone_strength'].median()):.0f}, "
-                      f"max {int(features['zone_strength'].max())}; final bandwidth {float(features['bandwidth'].iloc[-1]):.2f} points")
-    table = features.copy()
+                      f"max {int(features['zone_strength'].max())}; final bandwidth {float(features['bandwidth_points'].iloc[-1]):.2f} points; window {args.window_bars:,} bars")
+    table = features.drop(columns=["time"])
+    table.insert(0, "timestamp", pd.to_datetime(features["time"], unit="s"))
+    table.insert(0, "timeframe", args.timeframe)
     table.insert(0, "symbol", args.symbol)
-    table.insert(1, "timeframe", args.timeframe)
-    table["timestamp"] = pd.to_datetime(table["time"], unit="s")
-    table["lookback"] = args.lookback
-    table["bandwidth_multiple"] = args.bandwidth_multiple
+    table["pivot_lookback_bars"] = args.lookback
+    table["bandwidth_true_range_multiple"] = args.bandwidth_multiple
     table["window_bars"] = args.window_bars
-    table["max_levels"] = args.max_levels
+    table["maximum_levels"] = args.max_levels
     recipe = args.recipe or f"{args.symbol}_{args.timeframe}_lookback{args.lookback}_band{str(args.bandwidth_multiple).replace('.', 'p')}_top{args.max_levels}_window{args.window_bars}"
     directory = os.path.join(args.output_dir, f"zone_features_{recipe}")
     from ta_strategy import store
