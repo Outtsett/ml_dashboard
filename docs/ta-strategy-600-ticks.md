@@ -580,9 +580,15 @@ round trip per trade.
 | cascade_bounce_1m_volume | 12.2 | -94.4 | 0.67 | 19% |
 | cascade_bounce_5m | 2.2 | -17.2 | 0.71 | 20% |
 
-The bounce exit does what was asked: when it fires it closes at +49.6 net ticks on average and wins 89% of the time. It fires on
-23% of trades; the rest stop out within a median of 4 minutes at about -7 ticks, so the strategy nets -7 per trade. Bounce minus
-limit, paired by day: -3.0 ticks (t -1.1). Round 4's finding holds: more trades per day means fewer net ticks.
+What the exit does, on all 3,583 entries of `cascade_bounce_1m`: 23% reach the next level and close on the bounce at +49.6 ticks
+on average (median +30); 47% hit the stop first, at -51.0 and a median of 3 minutes; 66% end in a losing exit. Reaching the level
+before the stop happens 33% of the time; break-even needs 51%. (The 89% win rate of the bounce exits themselves is conditional on
+having reached the level and is not the exit's edge.) Wider stops, 0.75-2.5 ATR, leave the reach share at 20-23% and the sign
+unchanged (-21.7 to -27.7); stage-4-only regular-hours long versions and 27 variants in all are negative (best -1.4/day). At equal
+parameters and identical entries the bounce and the limit exit differ by about -0.5 ticks/day (|t| < 1); the ordering is not
+identified at 1-minute resolution, because a bounce inside the arming minute fills at the next open (bounds -27.2 to -15.4
+against the limit's -21.6), and settling it needs the lake's 1-second bars. Round 4's finding holds: more trades per day means
+fewer net ticks (12 a day lost 94; 1 a day lost 4).
 
 **Review** (three skeptics; the `reviews` table of round 10). No look-ahead: 186 series x cut pairs identical on real MNQ minutes.
 Five measurement defects found and fixed before the final tables landed: the session bootstrap ignored duplicate draws (intervals
