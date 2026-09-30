@@ -21,7 +21,10 @@
  */
 
 import { EventEmitter } from "events";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
+import path from "path";
 import type { z } from "zod";
+import { Logger } from "@nestjs/common";
 import {
   ChartContextSchema,
   OverlaySetSchema,
@@ -33,10 +36,63 @@ export { ChartContextSchema, OverlaySchema, OverlaySetSchema } from "@shared/cha
 export type { ChartContext, Overlay, OverlaySet } from "@shared/chartLink";
 
 const MAX_SOURCES = 40;
+const logger = new Logger("ChartLink");
+
+/** Kept on disk as well as in memory: the dev server restarts on every save
+ *  (tsx --watch), and without this each restart wiped every notebook's drawings
+ *  and left notebooks without a context until the chart next moved. */
+const STATE_PATH = path.join(process.cwd(), "data", "chart_link.json");
+const WRITE_DELAY_MS = 500;
 
 let context: ChartContext | null = null;
 let sequence = 0;
 const overlaySets = new Map<string, OverlaySet>();
+let writeTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Tests run in this repository's working directory: never touch the real state file there. */
+const PERSIST = !process.env.VITEST;
+
+function writeState(): void {
+  if (!PERSIST || writeTimer) return;
+  writeTimer = setTimeout(() => {
+    writeTimer = null;
+    try {
+      mkdirSync(path.dirname(STATE_PATH), { recursive: true });
+      const temporary = `${STATE_PATH}.${process.pid}.tmp`;
+      writeFileSync(temporary, JSON.stringify({ context, sets: [...overlaySets.values()] }));
+      renameSync(temporary, STATE_PATH);
+    } catch (err) {
+      logger.warn(`could not save the chart link state: ${(err as Error).message}`);
+    }
+  }, WRITE_DELAY_MS);
+  writeTimer.unref?.();
+}
+
+/** Restores what was on screen before the last restart; anything unreadable or
+ *  no longer valid under the contract is dropped, never guessed at. */
+function readState(): void {
+  if (!PERSIST) return;
+  let stored: { context?: unknown; sets?: unknown[] };
+  try {
+    stored = JSON.parse(readFileSync(STATE_PATH, "utf8")) as { context?: unknown; sets?: unknown[] };
+  } catch {
+    return;
+  }
+  const storedContext = ChartContextSchema.safeParse(stored.context);
+  if (storedContext.success && stored.context && typeof stored.context === "object") {
+    const extra = stored.context as { updatedAtIso?: unknown; sequence?: unknown };
+    sequence = typeof extra.sequence === "number" ? extra.sequence : 0;
+    context = { ...storedContext.data, updatedAtIso: typeof extra.updatedAtIso === "string" ? extra.updatedAtIso : new Date().toISOString(), sequence };
+  }
+  for (const entry of stored.sets ?? []) {
+    const parsed = OverlaySetSchema.safeParse(entry);
+    if (!parsed.success) continue;
+    const updatedAtIso = typeof (entry as { updatedAtIso?: unknown }).updatedAtIso === "string" ? (entry as { updatedAtIso: string }).updatedAtIso : new Date().toISOString();
+    overlaySets.set(parsed.data.source, { ...parsed.data, updatedAtIso });
+  }
+}
+
+readState();
 
 /** "context" (ChartContext) and "overlays" (OverlaySet[]) — what the stream forwards. */
 export const chartLinkEvents = new EventEmitter();
@@ -52,6 +108,7 @@ export function setChartContext(next: z.infer<typeof ChartContextSchema>): boole
   sequence += 1;
   context = { ...next, updatedAtIso: new Date().toISOString(), sequence };
   chartLinkEvents.emit("context", context);
+  writeState();
   return true;
 }
 
@@ -73,19 +130,26 @@ export function putOverlaySet(set: z.infer<typeof OverlaySetSchema>): OverlaySet
     overlaySets.delete(oldest);
   }
   chartLinkEvents.emit("overlays", listOverlaySets());
+  writeState();
   return stored;
 }
 
 export function clearOverlaySet(source: string): boolean {
   const removed = overlaySets.delete(source);
-  if (removed) chartLinkEvents.emit("overlays", listOverlaySets());
+  if (removed) {
+    chartLinkEvents.emit("overlays", listOverlaySets());
+    writeState();
+  }
   return removed;
 }
 
 export function clearAllOverlaySets(): number {
   const count = overlaySets.size;
   overlaySets.clear();
-  if (count > 0) chartLinkEvents.emit("overlays", listOverlaySets());
+  if (count > 0) {
+    chartLinkEvents.emit("overlays", listOverlaySets());
+    writeState();
+  }
   return count;
 }
 
