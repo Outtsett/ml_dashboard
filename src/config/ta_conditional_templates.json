@@ -3993,6 +3993,2081 @@
           }
         }
       }
+    },
+    "cascade_trend": {
+      "description": "Multi-timeframe cascade trend: swing levels (Williams fractals) on 1m, 5m, 15m and 30m; a 1-minute close breaking the 1m resistance, then the 5m, then the 15m, then the 30m (each later level above the earlier, within window minutes) is an UP trend of that many stages; support breaks in the same order are a DOWN trend. Long at the bar the up cascade first reaches n_stages, short at n_stages down. Stop beyond the last broken 5m level (a buffer of stop_buffer_atr x ATR); target target_r x risk; breakeven after breakeven_r; closed at the next open when the OPPOSITE cascade reaches 2 stages; time stop after hold_bars 5-minute bars; flat at the session end; entries unlimited per session, one position at a time. Whole session (ETH + RTH).",
+      "params": {
+        "n_stages": {
+          "type": "int",
+          "low": 2,
+          "high": 4,
+          "step": 1
+        },
+        "window": {
+          "type": "int",
+          "low": 60,
+          "high": 240,
+          "step": 60
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.5,
+          "step": 0.1
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 12,
+          "high": 72,
+          "step": 12
+        }
+      },
+      "defaults": {
+        "n_stages": 3,
+        "window": 120,
+        "stop_buffer_atr": 0.25,
+        "target_r": 2.0,
+        "breakeven_r": 1.0,
+        "hold_bars": 36
+      },
+      "series": {
+        "stage_up": {
+          "cascade": "stage_up",
+          "window": {
+            "param": "window"
+          }
+        },
+        "stage_down": {
+          "cascade": "stage_down",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_up_5m": {
+          "cascade": "broken_level_up",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_down_5m": {
+          "cascade": "broken_level_down",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        },
+        "volume_trend": {
+          "volume": "trend",
+          "minutes": 15
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "rsi_signal": {
+          "op": "sma",
+          "of": {
+            "ind": "RSI",
+            "args": {
+              "timeperiod": 14
+            }
+          },
+          "n": 5
+        },
+        "macd_histogram": {
+          "ind": "MACD",
+          "args": {
+            "fastperiod": 12,
+            "slowperiod": 26,
+            "signalperiod": 9
+          },
+          "out": 2
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_up",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_down",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$broken_up_5m",
+          "short_level": "$broken_down_5m",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "at_least",
+            "a": "$stage_down",
+            "b": {
+              "const": 2
+            }
+          },
+          "short": {
+            "op": "at_least",
+            "a": "$stage_up",
+            "b": {
+              "const": 2
+            }
+          }
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "cascade_trend_rth": {
+      "description": "Multi-timeframe cascade trend: swing levels (Williams fractals) on 1m, 5m, 15m and 30m; a 1-minute close breaking the 1m resistance, then the 5m, then the 15m, then the 30m (each later level above the earlier, within window minutes) is an UP trend of that many stages; support breaks in the same order are a DOWN trend. Long at the bar the up cascade first reaches n_stages, short at n_stages down. Stop beyond the last broken 5m level (a buffer of stop_buffer_atr x ATR); target target_r x risk; breakeven after breakeven_r; closed at the next open when the OPPOSITE cascade reaches 2 stages; time stop after hold_bars 5-minute bars; flat at the session end; entries unlimited per session, one position at a time. Regular hours only.",
+      "params": {
+        "n_stages": {
+          "type": "int",
+          "low": 2,
+          "high": 4,
+          "step": 1
+        },
+        "window": {
+          "type": "int",
+          "low": 60,
+          "high": 240,
+          "step": 60
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.5,
+          "step": 0.1
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 12,
+          "high": 72,
+          "step": 12
+        }
+      },
+      "defaults": {
+        "n_stages": 3,
+        "window": 120,
+        "stop_buffer_atr": 0.25,
+        "target_r": 2.0,
+        "breakeven_r": 1.0,
+        "hold_bars": 36
+      },
+      "series": {
+        "stage_up": {
+          "cascade": "stage_up",
+          "window": {
+            "param": "window"
+          }
+        },
+        "stage_down": {
+          "cascade": "stage_down",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_up_5m": {
+          "cascade": "broken_level_up",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_down_5m": {
+          "cascade": "broken_level_down",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        },
+        "volume_trend": {
+          "volume": "trend",
+          "minutes": 15
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "rsi_signal": {
+          "op": "sma",
+          "of": {
+            "ind": "RSI",
+            "args": {
+              "timeperiod": 14
+            }
+          },
+          "n": 5
+        },
+        "macd_histogram": {
+          "ind": "MACD",
+          "args": {
+            "fastperiod": 12,
+            "slowperiod": 26,
+            "signalperiod": 9
+          },
+          "out": 2
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "06:30",
+        "end": "13:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_up",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_down",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$broken_up_5m",
+          "short_level": "$broken_down_5m",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "at_least",
+            "a": "$stage_down",
+            "b": {
+              "const": 2
+            }
+          },
+          "short": {
+            "op": "at_least",
+            "a": "$stage_up",
+            "b": {
+              "const": 2
+            }
+          }
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "cascade_trend_volume": {
+      "description": "Multi-timeframe cascade trend: swing levels (Williams fractals) on 1m, 5m, 15m and 30m; a 1-minute close breaking the 1m resistance, then the 5m, then the 15m, then the 30m (each later level above the earlier, within window minutes) is an UP trend of that many stages; support breaks in the same order are a DOWN trend. Long at the bar the up cascade first reaches n_stages, short at n_stages down. Stop beyond the last broken 5m level (a buffer of stop_buffer_atr x ATR); target target_r x risk; breakeven after breakeven_r; closed at the next open when the OPPOSITE cascade reaches 2 stages; time stop after hold_bars 5-minute bars; flat at the session end; entries unlimited per session, one position at a time. VOLUME CONFIRMATION: the relative volume of the last volume_minutes minutes (over the causal time-of-day volume profile) at least volume_min, and its trend over the last 15 minutes at least volume_trend_min (rising). Whole session.",
+      "params": {
+        "n_stages": {
+          "type": "int",
+          "low": 2,
+          "high": 4,
+          "step": 1
+        },
+        "window": {
+          "type": "int",
+          "low": 60,
+          "high": 240,
+          "step": 60
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.5,
+          "step": 0.1
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 12,
+          "high": 72,
+          "step": 12
+        },
+        "volume_minutes": {
+          "type": "int",
+          "low": 5,
+          "high": 30,
+          "step": 5
+        },
+        "volume_min": {
+          "type": "float",
+          "low": 0.8,
+          "high": 2.0,
+          "step": 0.2
+        },
+        "volume_trend_min": {
+          "type": "float",
+          "low": -0.05,
+          "high": 0.1,
+          "step": 0.025
+        }
+      },
+      "defaults": {
+        "n_stages": 3,
+        "window": 120,
+        "stop_buffer_atr": 0.25,
+        "target_r": 2.0,
+        "breakeven_r": 1.0,
+        "hold_bars": 36,
+        "volume_minutes": 15,
+        "volume_min": 1.2,
+        "volume_trend_min": 0.0
+      },
+      "series": {
+        "stage_up": {
+          "cascade": "stage_up",
+          "window": {
+            "param": "window"
+          }
+        },
+        "stage_down": {
+          "cascade": "stage_down",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_up_5m": {
+          "cascade": "broken_level_up",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_down_5m": {
+          "cascade": "broken_level_down",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": {
+            "param": "volume_minutes"
+          }
+        },
+        "volume_trend": {
+          "volume": "trend",
+          "minutes": 15
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "rsi_signal": {
+          "op": "sma",
+          "of": {
+            "ind": "RSI",
+            "args": {
+              "timeperiod": 14
+            }
+          },
+          "n": 5
+        },
+        "macd_histogram": {
+          "ind": "MACD",
+          "args": {
+            "fastperiod": 12,
+            "slowperiod": 26,
+            "signalperiod": 9
+          },
+          "out": 2
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_up",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$relative_volume",
+              "b": {
+                "param": "volume_min"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$volume_trend",
+              "b": {
+                "param": "volume_trend_min"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_down",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$relative_volume",
+              "b": {
+                "param": "volume_min"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$volume_trend",
+              "b": {
+                "param": "volume_trend_min"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$broken_up_5m",
+          "short_level": "$broken_down_5m",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "at_least",
+            "a": "$stage_down",
+            "b": {
+              "const": 2
+            }
+          },
+          "short": {
+            "op": "at_least",
+            "a": "$stage_up",
+            "b": {
+              "const": 2
+            }
+          }
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "cascade_trend_momentum": {
+      "description": "Multi-timeframe cascade trend: swing levels (Williams fractals) on 1m, 5m, 15m and 30m; a 1-minute close breaking the 1m resistance, then the 5m, then the 15m, then the 30m (each later level above the earlier, within window minutes) is an UP trend of that many stages; support breaks in the same order are a DOWN trend. Long at the bar the up cascade first reaches n_stages, short at n_stages down. Stop beyond the last broken 5m level (a buffer of stop_buffer_atr x ATR); target target_r x risk; breakeven after breakeven_r; closed at the next open when the OPPOSITE cascade reaches 2 stages; time stop after hold_bars 5-minute bars; flat at the session end; entries unlimited per session, one position at a time. MOMENTUM CONFIRMATION: RSI(14) beyond rsi_threshold (100 - rsi_threshold for shorts), RSI above (below) its 5-bar signal line, and the MACD(12,26,9) histogram on the trade's side of zero. Whole session.",
+      "params": {
+        "n_stages": {
+          "type": "int",
+          "low": 2,
+          "high": 4,
+          "step": 1
+        },
+        "window": {
+          "type": "int",
+          "low": 60,
+          "high": 240,
+          "step": 60
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.5,
+          "step": 0.1
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 12,
+          "high": 72,
+          "step": 12
+        },
+        "rsi_threshold": {
+          "type": "int",
+          "low": 50,
+          "high": 66,
+          "step": 2
+        }
+      },
+      "defaults": {
+        "n_stages": 3,
+        "window": 120,
+        "stop_buffer_atr": 0.25,
+        "target_r": 2.0,
+        "breakeven_r": 1.0,
+        "hold_bars": 36,
+        "rsi_threshold": 56
+      },
+      "series": {
+        "stage_up": {
+          "cascade": "stage_up",
+          "window": {
+            "param": "window"
+          }
+        },
+        "stage_down": {
+          "cascade": "stage_down",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_up_5m": {
+          "cascade": "broken_level_up",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_down_5m": {
+          "cascade": "broken_level_down",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        },
+        "volume_trend": {
+          "volume": "trend",
+          "minutes": 15
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "rsi_signal": {
+          "op": "sma",
+          "of": {
+            "ind": "RSI",
+            "args": {
+              "timeperiod": 14
+            }
+          },
+          "n": 5
+        },
+        "macd_histogram": {
+          "ind": "MACD",
+          "args": {
+            "fastperiod": 12,
+            "slowperiod": 26,
+            "signalperiod": 9
+          },
+          "out": 2
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_up",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "param": "rsi_threshold"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": "$rsi_signal"
+            },
+            {
+              "op": "above",
+              "a": "$macd_histogram",
+              "b": {
+                "const": 0
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_down",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "op": "sub",
+                "a": {
+                  "const": 100
+                },
+                "b": {
+                  "param": "rsi_threshold"
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": "$rsi_signal"
+            },
+            {
+              "op": "below",
+              "a": "$macd_histogram",
+              "b": {
+                "const": 0
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$broken_up_5m",
+          "short_level": "$broken_down_5m",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "at_least",
+            "a": "$stage_down",
+            "b": {
+              "const": 2
+            }
+          },
+          "short": {
+            "op": "at_least",
+            "a": "$stage_up",
+            "b": {
+              "const": 2
+            }
+          }
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "cascade_trend_momentum_cross": {
+      "description": "Multi-timeframe cascade trend: swing levels (Williams fractals) on 1m, 5m, 15m and 30m; a 1-minute close breaking the 1m resistance, then the 5m, then the 15m, then the 30m (each later level above the earlier, within window minutes) is an UP trend of that many stages; support breaks in the same order are a DOWN trend. Long at the bar the up cascade first reaches n_stages, short at n_stages down. Stop beyond the last broken 5m level (a buffer of stop_buffer_atr x ATR); target target_r x risk; breakeven after breakeven_r; closed at the next open when the OPPOSITE cascade reaches 2 stages; time stop after hold_bars 5-minute bars; flat at the session end; entries unlimited per session, one position at a time. MOMENTUM CROSSINGS: within the last cross_bars bars the MACD histogram crossed zero in the trade's direction AND RSI crossed its 5-bar signal line in the trade's direction. Whole session.",
+      "params": {
+        "n_stages": {
+          "type": "int",
+          "low": 2,
+          "high": 4,
+          "step": 1
+        },
+        "window": {
+          "type": "int",
+          "low": 60,
+          "high": 240,
+          "step": 60
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.5,
+          "step": 0.1
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 12,
+          "high": 72,
+          "step": 12
+        },
+        "cross_bars": {
+          "type": "int",
+          "low": 2,
+          "high": 12,
+          "step": 2
+        }
+      },
+      "defaults": {
+        "n_stages": 3,
+        "window": 120,
+        "stop_buffer_atr": 0.25,
+        "target_r": 2.0,
+        "breakeven_r": 1.0,
+        "hold_bars": 36,
+        "cross_bars": 6
+      },
+      "series": {
+        "stage_up": {
+          "cascade": "stage_up",
+          "window": {
+            "param": "window"
+          }
+        },
+        "stage_down": {
+          "cascade": "stage_down",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_up_5m": {
+          "cascade": "broken_level_up",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_down_5m": {
+          "cascade": "broken_level_down",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        },
+        "volume_trend": {
+          "volume": "trend",
+          "minutes": 15
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "rsi_signal": {
+          "op": "sma",
+          "of": {
+            "ind": "RSI",
+            "args": {
+              "timeperiod": 14
+            }
+          },
+          "n": 5
+        },
+        "macd_histogram": {
+          "ind": "MACD",
+          "args": {
+            "fastperiod": 12,
+            "slowperiod": 26,
+            "signalperiod": 9
+          },
+          "out": 2
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_up",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "within",
+              "k": {
+                "param": "cross_bars"
+              },
+              "cond": {
+                "op": "cross_above",
+                "a": "$macd_histogram",
+                "b": {
+                  "const": 0
+                }
+              }
+            },
+            {
+              "op": "within",
+              "k": {
+                "param": "cross_bars"
+              },
+              "cond": {
+                "op": "cross_above",
+                "a": "$rsi",
+                "b": "$rsi_signal"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_down",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "within",
+              "k": {
+                "param": "cross_bars"
+              },
+              "cond": {
+                "op": "cross_below",
+                "a": "$macd_histogram",
+                "b": {
+                  "const": 0
+                }
+              }
+            },
+            {
+              "op": "within",
+              "k": {
+                "param": "cross_bars"
+              },
+              "cond": {
+                "op": "cross_below",
+                "a": "$rsi",
+                "b": "$rsi_signal"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$broken_up_5m",
+          "short_level": "$broken_down_5m",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "at_least",
+            "a": "$stage_down",
+            "b": {
+              "const": 2
+            }
+          },
+          "short": {
+            "op": "at_least",
+            "a": "$stage_up",
+            "b": {
+              "const": 2
+            }
+          }
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "cascade_trend_full": {
+      "description": "Multi-timeframe cascade trend: swing levels (Williams fractals) on 1m, 5m, 15m and 30m; a 1-minute close breaking the 1m resistance, then the 5m, then the 15m, then the 30m (each later level above the earlier, within window minutes) is an UP trend of that many stages; support breaks in the same order are a DOWN trend. Long at the bar the up cascade first reaches n_stages, short at n_stages down. Stop beyond the last broken 5m level (a buffer of stop_buffer_atr x ATR); target target_r x risk; breakeven after breakeven_r; closed at the next open when the OPPOSITE cascade reaches 2 stages; time stop after hold_bars 5-minute bars; flat at the session end; entries unlimited per session, one position at a time. EVERY CONFIRMATION COMBINED: relative volume at least volume_min and rising (volume_trend_min), expected volatility of the next 30 minutes over the last 30 at least rise_ratio (the causal time-of-day profile), RSI beyond rsi_threshold and above (below) its signal, MACD histogram on the trade's side. Whole session.",
+      "params": {
+        "n_stages": {
+          "type": "int",
+          "low": 2,
+          "high": 4,
+          "step": 1
+        },
+        "window": {
+          "type": "int",
+          "low": 60,
+          "high": 240,
+          "step": 60
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.5,
+          "step": 0.1
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 12,
+          "high": 72,
+          "step": 12
+        },
+        "volume_minutes": {
+          "type": "int",
+          "low": 5,
+          "high": 30,
+          "step": 5
+        },
+        "volume_min": {
+          "type": "float",
+          "low": 0.8,
+          "high": 2.0,
+          "step": 0.2
+        },
+        "volume_trend_min": {
+          "type": "float",
+          "low": -0.05,
+          "high": 0.1,
+          "step": 0.025
+        },
+        "rise_ratio": {
+          "type": "float",
+          "low": 0.8,
+          "high": 1.6,
+          "step": 0.1
+        },
+        "rsi_threshold": {
+          "type": "int",
+          "low": 50,
+          "high": 66,
+          "step": 2
+        }
+      },
+      "defaults": {
+        "n_stages": 3,
+        "window": 120,
+        "stop_buffer_atr": 0.25,
+        "target_r": 2.0,
+        "breakeven_r": 1.0,
+        "hold_bars": 36,
+        "volume_minutes": 15,
+        "volume_min": 1.2,
+        "volume_trend_min": 0.0,
+        "rise_ratio": 1.0,
+        "rsi_threshold": 56
+      },
+      "series": {
+        "stage_up": {
+          "cascade": "stage_up",
+          "window": {
+            "param": "window"
+          }
+        },
+        "stage_down": {
+          "cascade": "stage_down",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_up_5m": {
+          "cascade": "broken_level_up",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_down_5m": {
+          "cascade": "broken_level_down",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": {
+            "param": "volume_minutes"
+          }
+        },
+        "volume_trend": {
+          "volume": "trend",
+          "minutes": 15
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "rsi_signal": {
+          "op": "sma",
+          "of": {
+            "ind": "RSI",
+            "args": {
+              "timeperiod": 14
+            }
+          },
+          "n": 5
+        },
+        "macd_histogram": {
+          "ind": "MACD",
+          "args": {
+            "fastperiod": 12,
+            "slowperiod": 26,
+            "signalperiod": 9
+          },
+          "out": 2
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_up",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$relative_volume",
+              "b": {
+                "param": "volume_min"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$volume_trend",
+              "b": {
+                "param": "volume_trend_min"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "param": "rsi_threshold"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": "$rsi_signal"
+            },
+            {
+              "op": "above",
+              "a": "$macd_histogram",
+              "b": {
+                "const": 0
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_down",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$relative_volume",
+              "b": {
+                "param": "volume_min"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$volume_trend",
+              "b": {
+                "param": "volume_trend_min"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "op": "sub",
+                "a": {
+                  "const": 100
+                },
+                "b": {
+                  "param": "rsi_threshold"
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": "$rsi_signal"
+            },
+            {
+              "op": "below",
+              "a": "$macd_histogram",
+              "b": {
+                "const": 0
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$broken_up_5m",
+          "short_level": "$broken_down_5m",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "at_least",
+            "a": "$stage_down",
+            "b": {
+              "const": 2
+            }
+          },
+          "short": {
+            "op": "at_least",
+            "a": "$stage_up",
+            "b": {
+              "const": 2
+            }
+          }
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "cascade_trend_full_rth": {
+      "description": "Multi-timeframe cascade trend: swing levels (Williams fractals) on 1m, 5m, 15m and 30m; a 1-minute close breaking the 1m resistance, then the 5m, then the 15m, then the 30m (each later level above the earlier, within window minutes) is an UP trend of that many stages; support breaks in the same order are a DOWN trend. Long at the bar the up cascade first reaches n_stages, short at n_stages down. Stop beyond the last broken 5m level (a buffer of stop_buffer_atr x ATR); target target_r x risk; breakeven after breakeven_r; closed at the next open when the OPPOSITE cascade reaches 2 stages; time stop after hold_bars 5-minute bars; flat at the session end; entries unlimited per session, one position at a time. EVERY CONFIRMATION COMBINED: relative volume at least volume_min and rising (volume_trend_min), expected volatility of the next 30 minutes over the last 30 at least rise_ratio (the causal time-of-day profile), RSI beyond rsi_threshold and above (below) its signal, MACD histogram on the trade's side. Regular hours only.",
+      "params": {
+        "n_stages": {
+          "type": "int",
+          "low": 2,
+          "high": 4,
+          "step": 1
+        },
+        "window": {
+          "type": "int",
+          "low": 60,
+          "high": 240,
+          "step": 60
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.5,
+          "step": 0.1
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 12,
+          "high": 72,
+          "step": 12
+        },
+        "volume_minutes": {
+          "type": "int",
+          "low": 5,
+          "high": 30,
+          "step": 5
+        },
+        "volume_min": {
+          "type": "float",
+          "low": 0.8,
+          "high": 2.0,
+          "step": 0.2
+        },
+        "volume_trend_min": {
+          "type": "float",
+          "low": -0.05,
+          "high": 0.1,
+          "step": 0.025
+        },
+        "rise_ratio": {
+          "type": "float",
+          "low": 0.8,
+          "high": 1.6,
+          "step": 0.1
+        },
+        "rsi_threshold": {
+          "type": "int",
+          "low": 50,
+          "high": 66,
+          "step": 2
+        }
+      },
+      "defaults": {
+        "n_stages": 3,
+        "window": 120,
+        "stop_buffer_atr": 0.25,
+        "target_r": 2.0,
+        "breakeven_r": 1.0,
+        "hold_bars": 36,
+        "volume_minutes": 15,
+        "volume_min": 1.2,
+        "volume_trend_min": 0.0,
+        "rise_ratio": 1.0,
+        "rsi_threshold": 56
+      },
+      "series": {
+        "stage_up": {
+          "cascade": "stage_up",
+          "window": {
+            "param": "window"
+          }
+        },
+        "stage_down": {
+          "cascade": "stage_down",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_up_5m": {
+          "cascade": "broken_level_up",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_down_5m": {
+          "cascade": "broken_level_down",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": {
+            "param": "volume_minutes"
+          }
+        },
+        "volume_trend": {
+          "volume": "trend",
+          "minutes": 15
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "rsi_signal": {
+          "op": "sma",
+          "of": {
+            "ind": "RSI",
+            "args": {
+              "timeperiod": 14
+            }
+          },
+          "n": 5
+        },
+        "macd_histogram": {
+          "ind": "MACD",
+          "args": {
+            "fastperiod": 12,
+            "slowperiod": 26,
+            "signalperiod": 9
+          },
+          "out": 2
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "06:30",
+        "end": "13:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_up",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$relative_volume",
+              "b": {
+                "param": "volume_min"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$volume_trend",
+              "b": {
+                "param": "volume_trend_min"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": {
+                "param": "rsi_threshold"
+              }
+            },
+            {
+              "op": "above",
+              "a": "$rsi",
+              "b": "$rsi_signal"
+            },
+            {
+              "op": "above",
+              "a": "$macd_histogram",
+              "b": {
+                "const": 0
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_down",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$relative_volume",
+              "b": {
+                "param": "volume_min"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$volume_trend",
+              "b": {
+                "param": "volume_trend_min"
+              }
+            },
+            {
+              "op": "at_least",
+              "a": "$ahead",
+              "b": {
+                "param": "rise_ratio"
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": {
+                "op": "sub",
+                "a": {
+                  "const": 100
+                },
+                "b": {
+                  "param": "rsi_threshold"
+                }
+              }
+            },
+            {
+              "op": "below",
+              "a": "$rsi",
+              "b": "$rsi_signal"
+            },
+            {
+              "op": "below",
+              "a": "$macd_histogram",
+              "b": {
+                "const": 0
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "06:30",
+              "end": "13:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$broken_up_5m",
+          "short_level": "$broken_down_5m",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "at_least",
+            "a": "$stage_down",
+            "b": {
+              "const": 2
+            }
+          },
+          "short": {
+            "op": "at_least",
+            "a": "$stage_up",
+            "b": {
+              "const": 2
+            }
+          }
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
+    },
+    "cascade_aligned_control": {
+      "description": "CONTROL for cascade_trend: the same rules, but the trend counts the timeframes whose LAST break points the same way regardless of order (aligned_up / aligned_down), so the difference is what the user's 1m-then-5m-then-15m-then-30m ORDER adds. Whole session.",
+      "params": {
+        "n_stages": {
+          "type": "int",
+          "low": 2,
+          "high": 4,
+          "step": 1
+        },
+        "window": {
+          "type": "int",
+          "low": 60,
+          "high": 240,
+          "step": 60
+        },
+        "stop_buffer_atr": {
+          "type": "float",
+          "low": 0.1,
+          "high": 0.5,
+          "step": 0.1
+        },
+        "target_r": {
+          "type": "float",
+          "low": 1.0,
+          "high": 3.0,
+          "step": 0.5
+        },
+        "breakeven_r": {
+          "type": "float",
+          "low": 0.5,
+          "high": 1.5,
+          "step": 0.25
+        },
+        "hold_bars": {
+          "type": "int",
+          "low": 12,
+          "high": 72,
+          "step": 12
+        }
+      },
+      "defaults": {
+        "n_stages": 3,
+        "window": 120,
+        "stop_buffer_atr": 0.25,
+        "target_r": 2.0,
+        "breakeven_r": 1.0,
+        "hold_bars": 36
+      },
+      "series": {
+        "stage_up": {
+          "cascade": "aligned_up",
+          "window": {
+            "param": "window"
+          }
+        },
+        "stage_down": {
+          "cascade": "aligned_down",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_up_5m": {
+          "cascade": "broken_level_up",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "broken_down_5m": {
+          "cascade": "broken_level_down",
+          "timeframe": "5m",
+          "window": {
+            "param": "window"
+          }
+        },
+        "relative_volume": {
+          "volume": "relative",
+          "minutes": 15
+        },
+        "volume_trend": {
+          "volume": "trend",
+          "minutes": 15
+        },
+        "ahead": {
+          "seasonal": "ahead_ratio",
+          "minutes": 30
+        },
+        "expected_move": {
+          "seasonal": "expected_move",
+          "minutes": 60
+        },
+        "rsi": {
+          "ind": "RSI",
+          "args": {
+            "timeperiod": 14
+          }
+        },
+        "rsi_signal": {
+          "op": "sma",
+          "of": {
+            "ind": "RSI",
+            "args": {
+              "timeperiod": 14
+            }
+          },
+          "n": 5
+        },
+        "macd_histogram": {
+          "ind": "MACD",
+          "args": {
+            "fastperiod": 12,
+            "slowperiod": 26,
+            "signalperiod": 9
+          },
+          "out": 2
+        }
+      },
+      "gate": {
+        "op": "session_window",
+        "start": "00:00",
+        "end": "24:00"
+      },
+      "entry": {
+        "long": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_up",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        },
+        "short": {
+          "op": "all",
+          "of": [
+            {
+              "op": "at_least",
+              "a": "$stage_down",
+              "b": {
+                "param": "n_stages"
+              }
+            },
+            {
+              "op": "session_window",
+              "start": "00:00",
+              "end": "24:00"
+            }
+          ]
+        }
+      },
+      "exit": {
+        "stop": {
+          "kind": "level",
+          "long_level": "$broken_up_5m",
+          "short_level": "$broken_down_5m",
+          "buffer_atr": {
+            "param": "stop_buffer_atr"
+          },
+          "fallback_atr": 1.5
+        },
+        "target": {
+          "kind": "r",
+          "value": {
+            "param": "target_r"
+          }
+        },
+        "trail": {
+          "breakeven_after_r": {
+            "param": "breakeven_r"
+          },
+          "breakeven_offset_ticks": 1
+        },
+        "signal": {
+          "long": {
+            "op": "at_least",
+            "a": "$stage_down",
+            "b": {
+              "const": 2
+            }
+          },
+          "short": {
+            "op": "at_least",
+            "a": "$stage_up",
+            "b": {
+              "const": 2
+            }
+          }
+        },
+        "time_stop_bars": {
+          "param": "hold_bars"
+        },
+        "risk": {
+          "min_ticks": 8,
+          "max_ticks": 600,
+          "max_entries_per_session": 0
+        }
+      },
+      "constraints": {
+        "maximum_session_end_exit_share": 0.5
+      }
     }
   }
 }

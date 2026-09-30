@@ -516,6 +516,55 @@
       },
       "goal_ticks_per_session_day": 600,
       "correction_after_run": "The round-8 review found that momentum_two_to_one_control is the round-2 momentum template with a tuned breakeven (frozen here at breakeven_r 1.25), not the round-3 frozen spec (no breakeven). Round 9 therefore tested the breakeven variant; the frozen parameters above are what ran. ES 2010-06..2025-06 is a market no round had used, but 2019-2025 overlaps the MNQ tuning and test years in calendar time; the sub-periods (+0.6, +0.3, -0.1, -1.0) show no edge in any of them."
+    },
+    "10": {
+      "title": "Multi-timeframe support/resistance cascade (1m -> 5m -> 15m -> 30m) as trend direction, with volume, volatility and momentum confirmations, long and short, ETH + RTH",
+      "question": "The user's rule: a 1-minute close passing the 1m support, then the 5m, then the 15m, then the 30m support is a downtrend (mirror for resistance = uptrend). Trade it long and short through the whole session with combined entry confirmations (relative volume rising, expected volatility rising, RSI beyond a threshold and above its signal, MACD histogram side or zero-crossings) and several exits (stop beyond the last broken 5m level, R target, breakeven, opposite-cascade exit, time stop, session end). Which conditions capture 600 net ticks per session day?",
+      "hypothesis": "Tuned per walk-forward fold on prior years only and tested on MNQ 2022-2025 (5m bars, cascade per minute): (1) the moment a cascade first reaches 2, 3 or 4 stages carries no directional edge: the signed move over the next 60 minutes is within +/- 3 ticks of the unconditional drift, with a session-block bootstrap interval spanning zero; (2) relative volume and its trend do not change whether a swing level holds or breaks beyond what the approach's own range explains (partial Spearman within +/- 0.03, decile curve inside the shuffled-volume null); (3) among causal volatility measures only the time-of-day expected-move ratio predicts the range of the next hour (Spearman > 0.3), none predicts follow-through (|Spearman| < 0.05); (4) no cascade template nets 60 ticks per session day out of sample (10% of 600); the combined-confirmation templates trade less than the stage-only template and net no more; the ORDERED cascade does not beat the unordered aligned control (paired daily net difference within +/- 10, |t| < 2); (5) the delayed-oracle ceiling (causal entry at each confirmed swing, perfect exit at the next swing) exceeds 600 on the 1m and 5m ladders, so the goal is a forecasting limit, not a market-capacity limit. Written before any tuned or full-span result; a default-parameter code smoke on MNQ 2024 (stage occupancy, next-60-minute moves by stage, one volume decile table, one indicator table) was seen; after it the stage definition was changed from 'last break on every timeframe in time order' (which could never hold once 1m levels are dense) to the top-down chain (the stage-s timeframe's last break, and at that minute the lower timeframe's last break, and so on), the price order was made non-strict, and the eight templates were run once at their DEFAULT parameters on MNQ 2024 to check they trade (0.6-13 trades/day; net -87 to +10/day). No threshold or search range was changed after that.",
+      "data_start": "2019-06-01",
+      "data_end": "2026-01-01",
+      "timeframe": "5m",
+      "test_years": [
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "templates": [
+        "cascade_trend",
+        "cascade_aligned_control",
+        "cascade_trend_rth",
+        "cascade_trend_volume",
+        "cascade_trend_momentum",
+        "cascade_trend_momentum_cross",
+        "cascade_trend_full",
+        "cascade_trend_full_rth"
+      ],
+      "optuna": {
+        "trials_per_fold": 100,
+        "startup_trials": 25,
+        "seed": 11,
+        "rescore_top": 6
+      },
+      "nulls": {
+        "seeds_in_loop": 6,
+        "seeds_rescore_and_test": 24,
+        "random_side_replicates": 20
+      },
+      "constraints": {
+        "minimum_trades_per_session_day": 0.1,
+        "maximum_session_end_exit_share": 0.5
+      },
+      "costs": {
+        "stop_slippage_ticks": 1
+      },
+      "level_study": {
+        "null_a_permutations": 2,
+        "null_b_shuffles": 1
+      },
+      "goal_ticks_per_session_day": 600,
+      "cascade": "cascade.py: Williams fractals k=3 (1m, 5m) and k=2 (15m, 30m), known at the close of bar i+k, broken on the first 1-minute close beyond the level by 0.1 x ATR(15m); a stage needs the later timeframe's break at or after the earlier one's, at a level beyond it, within window minutes of the latest; volume profile = mean minute volume of the same 5-minute bucket over the previous 20 sessions.",
+      "study": "cascade_study.py lands cascade_{levels,occupancy,stage_moves,volume_deciles,volume_summary,volatility_indicators,oracle} for MNQ 2019-2025 and NQ 2010-2019"
     }
   }
 }

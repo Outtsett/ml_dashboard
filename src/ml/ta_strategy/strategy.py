@@ -49,6 +49,7 @@ import pandas as pd
 import talib
 from talib import abstract
 
+from . import cascade as cascade_module
 from . import engine, levels, seasonality
 from .data import aggregate, aggregate_session_anchored, effective_roll_timestamps, session_dates
 from .rules import prior_percentile
@@ -119,6 +120,21 @@ class Context:
     seasonal: object | None = None           # seasonality.Seasonal, built on first use
     time: object | None = None               # seasonality.TimeEvents, built on first use
     flow: dict | None = None                 # per-minute tick-rule signed and total volume (see _flow)
+    cascades: dict = field(default_factory=dict)   # window minutes -> cascade.Cascade (built on first use)
+    volume_expected: np.ndarray | None = None      # per-minute causal time-of-day volume profile
+
+
+def _cascade(ctx: Context, window: int):
+    if window not in ctx.cascades:
+        shared = next(iter(ctx.cascades.values())).levels if ctx.cascades else None
+        ctx.cascades[window] = cascade_module.build(ctx.minutes_frame, window_minutes=int(window), levels=shared)
+    return ctx.cascades[window]
+
+
+def _volume_expected(ctx: Context) -> np.ndarray:
+    if ctx.volume_expected is None:
+        ctx.volume_expected = cascade_module.expected_volume(ctx.minutes_frame, ctx.minutes.days)
+    return ctx.volume_expected
 
 
 # Order flow is readable only before the multimodal project's locked holdout (src/ml/multimodal/holdout.py).
@@ -304,6 +320,30 @@ def _series(ctx: Context, node) -> np.ndarray:
         if kind == "expected_move":
             return season.expected_move_points(index, int(node["minutes"]))
         raise ValueError(f"unknown seasonal series {kind!r}")
+    if "cascade" in node:
+        # the multi-timeframe swing-level cascade at each strategy bar's last minute (cascade.py)
+        c, index, kind = _cascade(ctx, int(node.get("window", 120))), ctx.last_minute, node["cascade"]
+        if kind in ("stage_up", "stage_down", "aligned_up", "aligned_down", "direction"):
+            return getattr(c, kind)[index].astype(float)
+        if kind in ("broken_level_up", "broken_level_down"):
+            tf = node.get("timeframe", "5m")
+            side = 1 if kind == "broken_level_up" else -1
+            price = c.last_price[tf][index]
+            return np.where(c.last_side[tf][index] == side, price, np.nan)
+        if kind == "minutes_since_break":
+            tf = node.get("timeframe", "5m")
+            at = c.last_minute[tf][index]
+            return np.where(at >= 0, (index - at).astype(float), np.nan)
+        raise ValueError(f"unknown cascade series {kind!r}")
+    if "volume" in node:
+        kind, k = node["volume"], int(node.get("minutes", 15))
+        volume = ctx.minutes_frame["volume"].to_numpy(float)
+        expected = _volume_expected(ctx)
+        if kind == "relative":
+            return cascade_module.relative_volume(volume, expected, k)[ctx.last_minute]
+        if kind == "trend":
+            return cascade_module.volume_trend(volume, expected, k)[ctx.last_minute]
+        raise ValueError(f"unknown volume series {kind!r}")
     if "flow" in node:
         kind = node["flow"]
         imbalance = _flow_imbalance(ctx, int(node["minutes"]))
