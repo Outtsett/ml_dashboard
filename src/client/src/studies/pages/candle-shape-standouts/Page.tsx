@@ -105,8 +105,8 @@ export default function Page() {
   const [controls, set, reset] = useStudyControls({
     reason: "any",
     sort: "range_to_trailing_mean_range_ratio",
-    weekday: "",
-    month: "",
+    weekday: "all",
+    month: "all",
     limit: 60,
     direction: "rising",
   });
@@ -172,9 +172,9 @@ export default function Page() {
           <SelectControl label="Reason" value={controls.reason} onChange={(v) => set("reason", v)}
             options={[{ value: "any", label: "Any reason" }, ...STANDOUT_REASONS.map((r) => ({ value: r, label: REASON_LABELS[r] }))]} />
           <SelectControl label="Trading day" value={controls.weekday} onChange={(v) => set("weekday", v)}
-            options={[{ value: "", label: "Every day" }, ...tradingWeekdays.map((d) => ({ value: d, label: title(d) }))]} />
+            options={[{ value: "all", label: "Every day" }, ...tradingWeekdays.map((d) => ({ value: d, label: title(d) }))]} />
           <SelectControl label="Month" value={controls.month} onChange={(v) => set("month", v)}
-            options={[{ value: "", label: "Every month" }, ...MONTHS.map((m) => ({ value: m, label: title(m) }))]} />
+            options={[{ value: "all", label: "Every month" }, ...MONTHS.map((m) => ({ value: m, label: title(m) }))]} />
           <SelectControl label="Sort candles by" value={controls.sort} onChange={(v) => set("sort", v)}
             options={SORT_COLUMNS.map((c) => ({ value: c, label: SORT_LABELS[c] }))} />
           <SliderControl label="Candles listed" value={controls.limit} min={10} max={400} step={10} onChange={(v) => set("limit", v)} />

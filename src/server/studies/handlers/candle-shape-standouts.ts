@@ -18,8 +18,8 @@ import {
 const query = z.object({
   reason: z.enum(["any", ...STANDOUT_REASONS]).default("any"),
   sort: z.enum(SORT_COLUMNS).default("range_to_trailing_mean_range_ratio"),
-  weekday: z.string().regex(/^[a-z]{0,10}$/).default(""),
-  month: z.string().regex(/^[a-z]{0,10}$/).default(""),
+  weekday: z.string().regex(/^[a-z]{1,10}$/).default("all"),
+  month: z.string().regex(/^[a-z]{1,10}$/).default("all"),
   limit: z.coerce.number().int().min(10).max(2000).default(200),
 });
 
@@ -37,8 +37,8 @@ const handler: StudyHandler<typeof query, StandoutsBody> = {
     const view = ident(STANDOUT_VIEWS.standouts);
     const conditions = [q.reason === "any" ? "reason_count > 0" : `${ident(q.reason)}`];
     const calendarWhere = conditions.join(" AND ");
-    if (q.weekday) conditions.push(`trading_day_of_week = ${text(q.weekday)}`);
-    if (q.month) conditions.push(`month = ${text(q.month)}`);
+    if (q.weekday !== "all") conditions.push(`trading_day_of_week = ${text(q.weekday)}`);
+    if (q.month !== "all") conditions.push(`month = ${text(q.month)}`);
     const where = conditions.join(" AND ");
     const ascending = q.sort === "trailing_shape_share_percent";
     const [rules, catalog, weekdayByMonth, weekdayByHour, rows, sample, count] = await Promise.all([
