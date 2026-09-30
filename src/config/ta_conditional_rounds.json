@@ -474,6 +474,47 @@
         "null_b_shuffles": 1
       },
       "goal_ticks_per_session_day": 600
+    },
+    "9": {
+      "mode": "confirmation",
+      "title": "Pre-registered confirmation on a market no round has touched: momentum 2:1 frozen, ES 2010-06..2025-06 at MES costs",
+      "review_source": "round 8 (recipe round_8_20260930T022558): momentum_two_to_one_control +24.1 net ticks/day, win 39.9%, PF 1.40; White Reality Check over 8 templates p 0.048",
+      "hypothesis": "momentum_two_to_one_control, frozen at the parameters its 2025 walk-forward fold chose on MNQ 2019-2024 (move_atr 1.75, rsi_threshold 58, stop_atr 2.5, breakeven_r 1.25, 2R target, 06:30-10:30 PT), earns positive excess over matched random entries on ES 2010-06..2025-06 at MES costs by the pre-registered rule (Newey-West t >= 2, trimmed t >= 2, at least 3 of 4 sub-periods positive). ES has not been used by any round. Reported beside it: whether win rate >= 40% and profit factor >= 1.33 (the 2:1 target). Written before the run; a coverage check of ES minutes (counts and date ranges only, no strategy) was seen.",
+      "symbol": "ES",
+      "cost_symbol": "MES",
+      "data_start": "2010-06-01",
+      "data_end": "2025-07-01",
+      "timeframe": "15m",
+      "frozen": [
+        {
+          "name": "momentum_two_to_one",
+          "template": "momentum_two_to_one_control",
+          "params": {
+            "move_atr": 1.75,
+            "rsi_threshold": 58,
+            "stop_atr": 2.5,
+            "breakeven_r": 1.25
+          }
+        }
+      ],
+      "primary_endpoint": {
+        "statistic": "equal-weight pooled daily excess over matched random entries",
+        "trim_each_tail": 0.01,
+        "sub_periods": 4
+      },
+      "pass_criteria": {
+        "pooled_excess_newey_west_t_minimum": 2.0,
+        "trimmed_pooled_excess_newey_west_t_minimum": 2.0,
+        "sub_periods_positive_minimum": 3
+      },
+      "nulls": {
+        "matched_seeds": 40,
+        "random_side_replicates": 40
+      },
+      "costs": {
+        "stop_slippage_ticks": 1
+      },
+      "goal_ticks_per_session_day": 600
     }
   }
 }
