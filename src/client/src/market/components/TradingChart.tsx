@@ -1,5 +1,5 @@
-﻿import { useNotebookDrawings } from "./notebookDrawings";
-import { subscribeChartScroll, type NotebookBand } from "@/market/lib/useNotebookOverlays";
+import { useNotebookDrawings } from "./notebookDrawings";
+import { requestChartView, subscribeChartScroll, type NotebookBand } from "@/market/lib/useNotebookOverlays";
 import { logWarn } from "@/infrastructure/lib/error_logger";
 import { useRef, useState, useMemo, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import type { LogicalRange, MouseEventParams, Time, UTCTimestamp } from 'lightweight-charts';
@@ -8,13 +8,13 @@ import { futuresTickInfo, forexPrecision, getBaseSymbol } from '@/market/compone
 import { useChartSetup } from '@/market/components/useChartSetup';
 import { useChartSeries } from '@/market/components/useChartSeries';
 import { useChartMarkers } from '@/market/components/useChartMarkers';
-import { useChartPriceLines } from '@/market/components/useChartPriceLines';
+import { useChartZigZagOverlays } from '@/market/components/useChartPriceLines';
 import { useChartOverlays } from '@/market/components/useChartOverlays';
 import { snapToCandle } from '@/market/components/useSeriesMarkers';
 import { usePatternHover } from '@/market/components/usePatternHover';
 import { PatternHoverCard } from '@/market/components/PatternHoverCard';
 import { talibPatternDisplayName } from '@/market/lib/talibPatternCatalog';
-import { RefreshCw, Maximize2 } from 'lucide-react';
+import { RefreshCw, Maximize2, ChevronsRight } from 'lucide-react';
 import type { TradingChartHandle, TradingChartProps, PriceInfo } from "@/market/components/types";
 
 // Re-export public types for backward compatibility
@@ -323,9 +323,9 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
 
   useChartOverlays(chartRef, candleSeriesRef, indicatorOverlays, processedData.candles);
 
-  useChartPriceLines({
-    chartRef, candleSeriesRef,
-    supportResistanceLevels, zigZagPoints, swingZigZagPoints,
+  useChartZigZagOverlays({
+    chartRef,
+    zigZagPoints, swingZigZagPoints,
     decimals,
   });
 
@@ -431,6 +431,16 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
           <button
             type="button"
             role="menuitem"
+            onClick={() => { setMenuPoint(null); requestChartView({ target: "latest" }); }}
+            data-testid="menu-jump-latest"
+            className="flex w-full items-center rounded-sm px-2 py-1.5 text-xs text-foreground hover:bg-white/[0.06]"
+          >
+            <ChevronsRight className="h-3.5 w-3.5 mr-2" aria-hidden="true" />
+            Jump to most recent candle
+          </button>
+          <button
+            type="button"
+            role="menuitem"
             onClick={() => { setMenuPoint(null); chartRef.current?.timeScale().fitContent(); }}
             data-testid="menu-fit-content"
             className="flex w-full items-center rounded-sm px-2 py-1.5 text-xs text-foreground hover:bg-white/[0.06]"
@@ -440,6 +450,21 @@ const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(function 
           </button>
         </div>
       )}
+
+      {/* Jump to the most recent candle: loads the newest window (the chart may be anchored on an
+          older one), then puts its last bar at the right edge. */}
+      <button
+        type="button"
+        onClick={() => requestChartView({ target: "latest" })}
+        disabled={isReloadingBars}
+        data-testid="jump-latest"
+        title="Jump to the most recent candle"
+        aria-label="Jump to the most recent candle"
+        className="absolute bottom-8 right-[72px] z-20 flex items-center gap-1 rounded-md border border-white/15 bg-neutral-900/85 px-2 py-1 text-[11px] text-neutral-200 shadow-md backdrop-blur-sm hover:border-[#E69F00]/70 hover:text-[#E69F00] disabled:opacity-50"
+      >
+        <ChevronsRight className={`h-3.5 w-3.5 ${isReloadingBars ? 'animate-pulse' : ''}`} aria-hidden="true" />
+        Latest
+      </button>
 
       {/* Loading overlay */}
       {isLoadingMore && (

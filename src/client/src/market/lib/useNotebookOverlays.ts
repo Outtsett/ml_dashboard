@@ -159,6 +159,11 @@ export function subscribeChartScroll(handler: (view: ChartView) => void): () => 
   };
 }
 
+/** Ask this tab's Market page for a view, as POST /api/chart/view does for every open chart. */
+export function requestChartView(view: ChartView): void {
+  for (const handler of viewHandlers) handler(view);
+}
+
 export function requestChartScroll(view: ChartView): void {
   for (const handler of scrollHandlers) handler(view);
 }
