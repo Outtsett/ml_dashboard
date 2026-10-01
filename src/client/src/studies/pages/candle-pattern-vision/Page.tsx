@@ -6,7 +6,7 @@
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   AXIS, ColumnGrid, ControlBar, FormulaCard, GRID, OKABE, Section, SegmentControl, SelectControl, SliderControl, Stat,
-  StudyNotes, StudyState, TOOLTIP, Finding, fmt, fmtInt, fmtTime, useStudyControls, useStudyQuery,
+  StudyNotes, StudyState, TOOLTIP, Finding, fmt, fmtInt, fmtPercent, fmtTime, useStudyControls, useStudyQuery,
 } from "@/studies/kit";
 import type { ClassMetric, ConfusionCell, Exemplar, VisionBody } from "@shared/studies/candle-pattern-vision";
 
@@ -95,6 +95,12 @@ export default function Page() {
     return { class_name: name, train_real: count("train", "real"), train_synthetic: count("train", "synthetic"), test_real: count("test", "real"), test_synthetic: count("test", "synthetic") };
   });
   const exemplars = body?.exemplars ?? [];
+  const toPercent = (v: number | null) => (v === null ? null : v * 100);
+  const percentRows = testRows.map(({ precision, recall, f1, area_under_roc_curve, average_precision, ...rest }) => ({
+    ...rest,
+    precision_percent: toPercent(precision), recall_percent: toPercent(recall), f1_percent: toPercent(f1),
+    area_under_roc_curve_percent: toPercent(area_under_roc_curve), average_precision_percent: toPercent(average_precision),
+  }));
 
   return (
     <div className="space-y-3">
@@ -102,7 +108,7 @@ export default function Page() {
         <StudyNotes notes={query.data?.notes ?? []} />
         <ControlBar onReset={reset}>
           <SelectControl label="Run" value={controls.run || run?.recipe || ""} onChange={(v) => set("run", v)}
-            options={(body?.runs ?? []).map((r) => ({ value: r.recipe, label: `${r.architecture.toUpperCase()} · ${r.recipe.slice(-15)} · real F1 ${fmt(r.test_real_macro_f1, 3)}` }))} />
+            options={(body?.runs ?? []).map((r) => ({ value: r.recipe, label: `${r.architecture.toUpperCase()} · ${r.recipe.slice(-15)} · real F1 ${fmtPercent(r.test_real_macro_f1)}` }))} />
           <SelectControl label="Pattern" value={controls.className} onChange={(v) => set("className", v)}
             options={classNames.map((name) => ({ value: name, label: name }))} />
         </ControlBar>
@@ -110,9 +116,9 @@ export default function Page() {
         <div className="grid gap-2 grid-cols-2 xl:grid-cols-6">
           <Stat label="Model" value={run ? `${run.architecture.toUpperCase()} · ${fmtInt(run.parameters)} weights` : "—"} hint={run ? `best epoch ${run.best_epoch} of ${run.epochs}; ${fmt(run.duration_seconds / 60, 1)} min` : undefined} />
           <Stat label="Chart windows" value={run ? `${fmtInt(run.real_windows)} real` : "—"} hint={run ? `+ ${fmtInt(run.synthetic_windows)} synthetic, TA-Lib-confirmed` : undefined} />
-          <Stat label="Real test · macro F1" value={fmt(run?.test_real_macro_f1, 3)} tone={OKABE.orange} hint={`averaged over the ${run?.classes_measurable_on_real_test ?? "—"} classes with at least 10 real test firings`} />
-          <Stat label="Real test · macro AP" value={fmt(run?.test_real_macro_average_precision, 3)} hint="average precision: 1 = every firing ranked above every non-firing" />
-          <Stat label="Synthetic test · macro F1" value={fmt(run?.test_synthetic_macro_f1, 3)} hint="the only test for the rarest patterns" />
+          <Stat label="Real test · macro F1" value={fmtPercent(run?.test_real_macro_f1)} tone={OKABE.orange} hint={`averaged over the ${run?.classes_measurable_on_real_test ?? "—"} classes with at least 10 real test firings`} />
+          <Stat label="Real test · macro AP" value={fmtPercent(run?.test_real_macro_average_precision)} hint="average precision: 100% = every firing ranked above every non-firing" />
+          <Stat label="Synthetic test · macro F1" value={fmtPercent(run?.test_synthetic_macro_f1)} hint="the only test for the rarest patterns" />
           <Stat label="TA-Lib 0.8.1 vs lake 0.7.1" value={run ? `${fmtInt(run.talib_disagreeing_bar_patterns)} differences` : "—"} hint="labels recomputed and compared on every bar" />
         </div>
 
@@ -122,7 +128,7 @@ export default function Page() {
               {exemplars.filter((e) => e.kind === "real hit").slice(0, 2).map((e, k) => (
                 <figure key={k} className="text-[10px] text-neutral-400">
                   <img src={`data:image/png;base64,${e.model_input_png_base64}`} alt={`${e.class_name} chart the model reads`} className="rounded border border-neutral-800 bg-white" width={240} />
-                  <figcaption>{e.bar_timestamp ? fmtTime(e.bar_timestamp) + " UTC" : "synthetic"} · score {fmt(e.score, 3)}</figcaption>
+                  <figcaption>{e.bar_timestamp ? fmtTime(e.bar_timestamp) + " UTC" : "synthetic"} · model confidence {fmtPercent(e.score)}</figcaption>
                 </figure>
               ))}
             </div>
@@ -154,12 +160,12 @@ export default function Page() {
               <CartesianGrid {...GRID} />
               <XAxis dataKey="epoch" {...AXIS} />
               <YAxis yAxisId="loss" {...AXIS} scale="log" domain={["auto", "auto"]} tickFormatter={(v: number) => v.toExponential(0)} />
-              <YAxis yAxisId="ap" orientation="right" {...AXIS} domain={[0, 1]} />
-              <Tooltip {...TOOLTIP} formatter={(value) => fmt(Number(value), 5)} />
+              <YAxis yAxisId="ap" orientation="right" {...AXIS} domain={[0, 1]} tickFormatter={(v: number) => `${Math.round(v * 100)}%`} />
+              <Tooltip {...TOOLTIP} formatter={(value, name) => (String(name).includes("AP") ? fmtPercent(Number(value), 2) : fmt(Number(value), 5))} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Line yAxisId="loss" dataKey="train_loss" name="train loss" stroke={OKABE.orange} dot isAnimationActive={false} />
               <Line yAxisId="loss" dataKey="validation_loss" name="validation loss" stroke={OKABE.blue} strokeDasharray="5 3" dot isAnimationActive={false} />
-              <Line yAxisId="ap" dataKey="validation_macro_average_precision" name="validation macro AP" stroke={OKABE.green} dot={{ r: 3 }} isAnimationActive={false} />
+              <Line yAxisId="ap" dataKey="validation_macro_average_precision" name="validation macro AP (%)" stroke={OKABE.green} dot={{ r: 3 }} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </Section>
@@ -177,11 +183,11 @@ export default function Page() {
             <BarChart data={shown} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 4 }}
               onClick={(state) => { const name = (state?.activePayload?.[0]?.payload as { class_name?: string } | undefined)?.class_name; if (name) set("className", name); }}>
               <CartesianGrid {...GRID} horizontal={false} />
-              <XAxis type="number" domain={[0, 1]} {...AXIS} />
+              <XAxis type="number" domain={[0, 1]} {...AXIS} tickFormatter={(v: number) => `${Math.round(v * 100)}%`} />
               <YAxis type="category" dataKey="class_name" width={170} {...AXIS} interval={0} />
               <Tooltip {...TOOLTIP} formatter={(value, _n, item) => {
                 const row = item.payload as ClassMetric;
-                return [`${fmt(Number(value), 3)} · ${fmtInt(row.positives)} firings · TP ${fmtInt(row.true_positives)} FP ${fmtInt(row.false_positives)} FN ${fmtInt(row.false_negatives)}`, controls.metric];
+                return [`${fmtPercent(Number(value))} · ${fmtInt(row.positives)} firings · TP ${fmtInt(row.true_positives)} FP ${fmtInt(row.false_positives)} FN ${fmtInt(row.false_negatives)}`, controls.metric];
               }} />
               <Bar dataKey="value" fill={OKABE.sky} isAnimationActive={false} />
             </BarChart>
@@ -196,11 +202,11 @@ export default function Page() {
                 { tex: "TP", name: "real test bars where TA-Lib fired it and the model called it", value: fmtInt(selected?.true_positives) },
                 { tex: "FP", name: "bars the model called it and TA-Lib did not fire", value: fmtInt(selected?.false_positives) },
                 { tex: "FN", name: "bars TA-Lib fired it and the model missed", value: fmtInt(selected?.false_negatives) },
-                { tex: "F_1", name: "harmonic mean of precision and recall (1 = perfect)", value: fmt(selected?.f1, 3) },
-                { tex: String.raw`\tau`, name: "score threshold chosen on validation", value: fmt(selected?.threshold, 2) },
-                { tex: String.raw`F_1^{\text{syn}}`, name: "the same on synthetic test charts", value: `${fmt(selectedSynthetic?.f1, 3)} on ${fmtInt(selectedSynthetic?.positives)}` },
+                { tex: "F_1", name: "harmonic mean of precision and recall (100% = perfect)", value: fmtPercent(selected?.f1) },
+                { tex: String.raw`\tau`, name: "confidence threshold chosen on validation", value: fmtPercent(selected?.threshold, 0) },
+                { tex: String.raw`F_1^{\text{syn}}`, name: "the same on synthetic test charts", value: `${fmtPercent(selectedSynthetic?.f1)} on ${fmtInt(selectedSynthetic?.positives)}` },
               ]}
-              caption={`Real test firings: ${fmtInt(selected?.positives)} of ${fmtInt(selected?.windows)} bars · AUROC ${fmt(selected?.area_under_roc_curve, 4)} · AP ${fmt(selected?.average_precision, 4)}`}
+              caption={`Real test firings: ${fmtInt(selected?.positives)} of ${fmtInt(selected?.windows)} bars · precision ${fmtPercent(selected?.precision)} · recall ${fmtPercent(selected?.recall)} · AUROC ${fmtPercent(selected?.area_under_roc_curve, 2)} · AP ${fmtPercent(selected?.average_precision, 2)}`}
             />
             <div>
               <p className="mb-1 text-[11px] text-neutral-400">On real test bars where TA-Lib fired {pattern}: share the model called each pattern (orange) beside the share TA-Lib itself fired it too (blue) — a gap is confusion, equal bars are genuine co-firing.</p>
@@ -228,7 +234,7 @@ export default function Page() {
                     <figure key={k} className="w-[250px] text-[10px] text-neutral-400">
                       <img src={`data:image/png;base64,${e.model_input_png_base64}`} alt={`${kind}: ${e.class_name}`} className="rounded border border-neutral-800 bg-white" width={240} />
                       <figcaption className="space-y-0.5">
-                        <div className="font-mono text-neutral-200">{e.bar_timestamp ? `${fmtTime(e.bar_timestamp)} UTC` : "synthetic"} · score {fmt(e.score, 3)} (τ {fmt(e.threshold, 2)})</div>
+                        <div className="font-mono text-neutral-200">{e.bar_timestamp ? `${fmtTime(e.bar_timestamp)} UTC` : "synthetic"} · confidence {fmtPercent(e.score)} (τ {fmtPercent(e.threshold, 0)})</div>
                         <div>TA-Lib: {e.talib_classes || "nothing"}</div>
                         <div>Model: {e.model_classes || "nothing"}</div>
                       </figcaption>
@@ -261,7 +267,7 @@ export default function Page() {
           </ResponsiveContainer>
         </Section>
 
-        <ColumnGrid rows={testRows} exclude={["threshold"]} title="G. Every column of the per-class test scores" />
+        <ColumnGrid rows={percentRows} exclude={["threshold"]} title="G. Every column of the per-class test scores (scores in percent)" />
       </StudyState>
     </div>
   );
