@@ -130,7 +130,7 @@ def test_tolerant_labels_keep_every_exact_firing_and_widen_only_a_little():
     ends = np.arange(100, len(bars), 3)
     windows = np.stack([bars[t - WINDOW_BARS + 1:t + 1] for t in ends])
     exact = synth.verdicts(windows)
-    soft = tolerance.soft_labels(windows, 0.10, 4, seed=0, jobs=1, log=lambda m: None).astype(np.float32)
+    soft = tolerance.soft_labels(windows, 0.10, 4, seed=0, jobs=1, log=lambda m: None, cache=False).astype(np.float32)
     assert soft.shape == exact.shape and (soft >= 0).all() and (soft <= 1).all()
     assert (soft[exact == 1] >= 1 / 5 - 1e-3).all()            # the bars as they are are one of the 5 versions
     assert (tolerance.soft_labels(windows, 0.0, 4, log=lambda m: None) == exact).all()

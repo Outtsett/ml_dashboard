@@ -18,6 +18,9 @@ TA-Lib decides a bar from its last 15 bars), so the work splits across processes
 
 from __future__ import annotations
 
+import hashlib
+from pathlib import Path
+
 import numpy as np
 
 from .synth import verdicts
@@ -35,14 +38,31 @@ def _chunk(windows: np.ndarray, tolerance: float, draws: int, seed: int) -> np.n
     return (total / (draws + 1)).astype(np.float16)
 
 
+CACHE = Path(__file__).resolve().parents[3] / "data" / ".cache" / "candle_vision"
+
+
 def soft_labels(windows: np.ndarray, tolerance: float, draws: int, seed: int = 0, chunk: int = 50_000,
-                jobs: int = 12, log=print) -> np.ndarray:
-    """(N, K) float16 soft labels for (N, W, 4) price windows."""
+                jobs: int = 12, log=print, cache: bool = True) -> np.ndarray:
+    """(N, K) float16 soft labels for (N, W, 4) price windows.
+
+    Cached under ``data/.cache/candle_vision/`` keyed by a hash of the exact windows and settings, so a
+    run started without a console (pythonw, whose process-pool workers cannot start) reuses labels
+    computed beforehand by ``main.py --prepare-only``."""
     if tolerance <= 0 or draws <= 0:
         return verdicts(windows).astype(np.float16)
+    digest = hashlib.blake2b(np.ascontiguousarray(windows).tobytes(), digest_size=16)
+    digest.update(f"{tolerance}|{draws}|{seed}|{chunk}".encode())
+    path = CACHE / f"tolerance_{digest.hexdigest()}.npy"
+    if cache and path.exists():
+        log(f"tolerant labels: {len(windows):,} windows read from {path.name}")
+        return np.load(path)
     from joblib import Parallel, delayed
 
     starts = list(range(0, len(windows), chunk))
     log(f"tolerant labels: {len(windows):,} windows x {draws + 1} versions, nudge up to {tolerance:.0%} of the average bar range")
     parts = Parallel(n_jobs=jobs)(delayed(_chunk)(windows[s:s + chunk], tolerance, draws, seed + k) for k, s in enumerate(starts))
-    return np.concatenate(parts)
+    out = np.concatenate(parts)
+    if cache:
+        CACHE.mkdir(parents=True, exist_ok=True)
+        np.save(path, out)
+    return out

@@ -78,6 +78,8 @@ def parse_args(argv=None):
                    help="nudge every price by up to this percent of the window's average bar range (0 = exact TA-Lib only)")
     p.add_argument("--tolerance-draws", type=int, default=8, help="nudged versions of each window")
     p.add_argument("--no-land", action="store_true")
+    p.add_argument("--prepare-only", action="store_true",
+                   help="build the windows and their tolerant labels (cached), then stop: run this in a normal console first")
     p.add_argument("--log-file", default="", help="write the JSON-line protocol here instead of stdout (a run with no console)")
     p.add_argument("--resume-from", default="",
                    help="model id of an interrupted run with the SAME data settings: continue after its saved best epoch")
@@ -166,6 +168,9 @@ def main(argv=None) -> int:
         tolerant_labels = ((exact_labels == 1) | (soft >= 0.5)).astype(np.uint8)  # exact, or most nudges fire
         near_misses = int((tolerant_labels & (1 - exact_labels)).sum())
         log(f"within {args.tolerance_percent:g}% tolerance: {near_misses:,} near-miss (window, class) positives on top of {int(exact_labels.sum()):,} exact")
+        if args.prepare_only:
+            log("prepared: windows and tolerant labels are cached; start the run itself now")
+            return 0
 
         windows = torch.from_numpy(normalise(samples.windows)).to(device)
         labels = torch.from_numpy(target).to(device)
