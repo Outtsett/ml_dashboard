@@ -194,7 +194,7 @@ def main(argv=None) -> int:
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step(); scheduler.step()
-                total += float(loss)
+                total += float(loss.detach())
                 if step % 50 == 0:
                     emit_progress(epoch * steps_per_epoch + step, args.epochs * steps_per_epoch, phase="training")
             train_loss = total / steps_per_epoch
@@ -211,6 +211,9 @@ def main(argv=None) -> int:
             log(f"epoch {epoch + 1}/{args.epochs}: train loss {train_loss:.5f}, validation loss {val_loss:.5f}, validation macro AP {macro_ap:.4f}")
             if macro_ap > best[0]:
                 best = (macro_ap, {k: v.detach().clone() for k, v in model.state_dict().items()}, epoch + 1)
+                # kept on disk every time it improves, so a killed run still leaves its best model
+                torch.save({"state_dict": best[1], "architecture": args.architecture, "classes": names, "height": HEIGHT,
+                            "window_bars": WINDOW_BARS, "epoch": epoch + 1}, out_dir / "model.pt")
         model.load_state_dict(best[1])
         torch.save({"state_dict": best[1], "architecture": args.architecture, "classes": names, "height": HEIGHT,
                     "window_bars": WINDOW_BARS}, out_dir / "model.pt")
