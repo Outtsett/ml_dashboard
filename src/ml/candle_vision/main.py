@@ -16,6 +16,12 @@ Runner ``candle_vision+talib_pattern_recognition`` (launched by the dashboard, s
 
 from __future__ import annotations
 
+import os
+
+# numpy's Intel Fortran runtime aborts the whole process when its console window closes
+# ("forrtl: error (200): program aborting due to window-CLOSE event"); a long run must not die that way
+os.environ.setdefault("FOR_DISABLE_CONSOLE_CTRL_HANDLER", "1")
+
 import argparse
 import base64
 import io
@@ -72,6 +78,9 @@ def parse_args(argv=None):
                    help="nudge every price by up to this percent of the window's average bar range (0 = exact TA-Lib only)")
     p.add_argument("--tolerance-draws", type=int, default=8, help="nudged versions of each window")
     p.add_argument("--no-land", action="store_true")
+    p.add_argument("--log-file", default="", help="write the JSON-line protocol here instead of stdout (a run with no console)")
+    p.add_argument("--resume-from", default="",
+                   help="model id of an interrupted run with the SAME data settings: continue after its saved best epoch")
     args, _unknown = p.parse_known_args(argv)
     return args
 
@@ -112,6 +121,10 @@ def predict(model, windows: torch.Tensor, batch: int = 2048) -> np.ndarray:
 
 def main(argv=None) -> int:
     args = parse_args(argv)
+    if args.log_file:
+        # a run launched without a console (pythonw) has no stdout; the protocol goes to this file
+        stream = open(args.log_file, "a", encoding="utf-8", buffering=1)  # noqa: SIM115 — lives for the process
+        sys.stdout = sys.stderr = stream
     started = time.time()
     torch.manual_seed(args.seed); np.random.seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -181,7 +194,30 @@ def main(argv=None) -> int:
         validation_target = target[samples.split == 1].astype(np.float32)
         best = (-1.0, None, 0)
         epochs = []
-        for epoch in range(args.epochs):
+        start_epoch = 0
+        if args.resume_from:
+            # continue an interrupted run: its saved best weights, its earlier epochs (read back from its
+            # log), and the learning-rate schedule fast-forwarded to where it stopped
+            saved = torch.load(MODELS_DIR / args.resume_from / "model.pt", map_location=device, weights_only=True)
+            model.load_state_dict(saved["state_dict"])
+            start_epoch = int(saved["epoch"])
+            previous = Path(SRC_ML.parents[1] / "logs" / f"{args.resume_from}.jsonl")
+            for line in previous.read_text(encoding="utf-8").splitlines():
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    continue
+                if event.get("type") == "epoch_metric" and int(event["iteration"]) <= start_epoch:
+                    epochs.append({"epoch": int(event["iteration"]), "train_loss": event["train_loss"], "validation_loss": event["val_loss"],
+                                   "validation_macro_average_precision": event["validation_macro_average_precision"],
+                                   "learning_rate": float("nan"), "elapsed_seconds": float("nan")})
+            epochs = sorted({e["epoch"]: e for e in epochs}.values(), key=lambda e: e["epoch"])
+            best = (epochs[-1]["validation_macro_average_precision"] if epochs else -1.0,
+                    {k: v.detach().clone() for k, v in model.state_dict().items()}, start_epoch)
+            for _ in range(start_epoch * steps_per_epoch):
+                scheduler.step()
+            log(f"resumed from {args.resume_from} after epoch {start_epoch} (validation macro AP {best[0]:.4f}); {len(epochs)} earlier epochs carried over")
+        for epoch in range(start_epoch, args.epochs):
             model.train()
             draws = train_index[torch.multinomial(draw_weight, steps_per_epoch * args.batch_size, replacement=True)]
             total = 0.0
