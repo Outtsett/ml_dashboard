@@ -10,9 +10,10 @@ import {
 } from "@/studies/kit";
 import type { ClassMetric, ConfusionCell, Exemplar, VisionBody } from "@shared/studies/candle-pattern-vision";
 
-const KIND_ORDER: Exemplar["kind"][] = ["real hit", "real miss", "real false alarm", "synthetic hit"];
+const KIND_ORDER: Exemplar["kind"][] = ["real hit", "real near miss", "real miss", "real false alarm", "synthetic hit"];
 const KIND_NOTE: Record<Exemplar["kind"], string> = {
   "real hit": "TA-Lib fired, the model called it",
+  "real near miss": "TA-Lib's exact rule just missed, but the pattern holds within the tolerance — the model called it",
   "real miss": "TA-Lib fired, the model did not call it",
   "real false alarm": "the model called it, TA-Lib did not fire",
   "synthetic hit": "a TA-Lib-confirmed synthetic chart the model called",
@@ -70,18 +71,22 @@ export default function Page() {
     source: "real",
     minimumFirings: 10,
     metric: "f1",
+    labels: "tolerant",
   });
   const query = useStudyQuery<VisionBody>("candle-pattern-vision", { run: controls.run, className: controls.className });
   const body = query.data?.data;
   const run = body?.run ?? null;
   const metrics = body?.classMetrics ?? [];
-  const testRows = metrics.filter((row) => row.split === "test" && row.source === controls.source);
+  const hasTolerant = metrics.some((row) => row.labels === "tolerant");
+  const labelKind = hasTolerant ? controls.labels : "exact";
+  const ofKind = (row: ClassMetric) => (row.labels ?? "exact") === labelKind;
+  const testRows = metrics.filter((row) => row.split === "test" && row.source === controls.source && ofKind(row));
   const shown = testRows
     .filter((row) => row.positives >= (controls.source === "real" ? controls.minimumFirings : 1))
     .map((row) => ({ ...row, value: num(row[controls.metric as "f1" | "average_precision" | "recall" | "precision"]) ?? 0 }))
     .sort((a, b) => b.value - a.value);
-  const selected: ClassMetric | undefined = metrics.find((row) => row.class_name === controls.className && row.split === "test" && row.source === "real");
-  const selectedSynthetic = metrics.find((row) => row.class_name === controls.className && row.split === "test" && row.source === "synthetic");
+  const selected: ClassMetric | undefined = metrics.find((row) => row.class_name === controls.className && row.split === "test" && row.source === "real" && ofKind(row));
+  const selectedSynthetic = metrics.find((row) => row.class_name === controls.className && row.split === "test" && row.source === "synthetic" && ofKind(row));
   const classNames = [...new Set(metrics.map((row) => row.class_name))].sort();
   const pattern = controls.className.split(":")[0] ?? "";
   const confusionRow = (body?.confusion ?? [])
@@ -119,7 +124,9 @@ export default function Page() {
           <Stat label="Real test · macro F1" value={fmtPercent(run?.test_real_macro_f1)} tone={OKABE.orange} hint={`averaged over the ${run?.classes_measurable_on_real_test ?? "—"} classes with at least 10 real test firings`} />
           <Stat label="Real test · macro AP" value={fmtPercent(run?.test_real_macro_average_precision)} hint="average precision: 100% = every firing ranked above every non-firing" />
           <Stat label="Synthetic test · macro F1" value={fmtPercent(run?.test_synthetic_macro_f1)} hint="the only test for the rarest patterns" />
-          <Stat label="TA-Lib 0.8.1 vs lake 0.7.1" value={run ? `${fmtInt(run.talib_disagreeing_bar_patterns)} differences` : "—"} hint="labels recomputed and compared on every bar" />
+          <Stat label={run?.tolerance_percent ? `Tolerance · exact F1` : "TA-Lib 0.8.1 vs lake 0.7.1"}
+            value={run?.tolerance_percent ? `±${run.tolerance_percent}% · ${fmtPercent(run.test_real_exact_macro_f1)}` : run ? `${fmtInt(run.talib_disagreeing_bar_patterns)} differences` : "—"}
+            hint={run?.tolerance_percent ? `every price nudged by up to ${run.tolerance_percent}% of the window's average bar range, ${run.tolerance_draws} versions per chart; ${fmtInt(run.near_miss_positives)} near-miss positives added. Exact F1 = the same model scored against TA-Lib's exact rule.` : "labels recomputed and compared on every bar"} />
         </div>
 
         <Section title="A. From candles to a picture" question="The last 20 bars are scaled to their own low..high and drawn 128 pixels tall, 6 pixels per candle, in three layers: the whole candle, rising bodies, falling bodies.">
@@ -172,6 +179,11 @@ export default function Page() {
 
         <Section title="C. Every pattern, scored on the test charts" question="The test split is the last 10 % of trading days, read once. Thresholds were chosen on validation.">
           <ControlBar>
+            {hasTolerant && (
+              <SegmentControl label="Counts as the pattern" value={controls.labels} onChange={(v) => set("labels", v)}
+                options={[{ value: "tolerant", label: "Within tolerance" }, { value: "exact", label: "Exact TA-Lib" }]}
+                hint="Within tolerance: TA-Lib fires on the bars as they are, or on most versions with every price nudged a little" />
+            )}
             <SegmentControl label="Test charts" value={controls.source} onChange={(v) => set("source", v)}
               options={[{ value: "real", label: "Real bars" }, { value: "synthetic", label: "Synthetic" }, { value: "all", label: "Both" }]} />
             <SegmentControl label="Score" value={controls.metric} onChange={(v) => set("metric", v)}
@@ -236,6 +248,7 @@ export default function Page() {
                       <figcaption className="space-y-0.5">
                         <div className="font-mono text-neutral-200">{e.bar_timestamp ? `${fmtTime(e.bar_timestamp)} UTC` : "synthetic"} · confidence {fmtPercent(e.score)} (τ {fmtPercent(e.threshold, 0)})</div>
                         <div>TA-Lib: {e.talib_classes || "nothing"}</div>
+                        {e.tolerant_classes && e.tolerant_classes !== e.talib_classes && <div>Within tolerance: {e.tolerant_classes}</div>}
                         <div>Model: {e.model_classes || "nothing"}</div>
                       </figcaption>
                     </figure>

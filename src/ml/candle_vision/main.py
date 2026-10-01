@@ -34,7 +34,7 @@ SRC_ML = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SRC_ML))
 
 from candle_vision import bars as bar_source  # noqa: E402
-from candle_vision import data, evaluate, synth  # noqa: E402
+from candle_vision import data, evaluate, synth, tolerance  # noqa: E402
 from candle_vision.labels import class_list  # noqa: E402
 from candle_vision.model import build, count_parameters  # noqa: E402
 from candle_vision.render import HEIGHT, WINDOW_BARS, normalise, rasterize, to_png  # noqa: E402
@@ -68,6 +68,9 @@ def parse_args(argv=None):
     p.add_argument("--train-minimum", type=int, default=3000, help="real + synthetic windows per class in train")
     p.add_argument("--evaluation-minimum", type=int, default=300, help="... in validation and in test")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--tolerance-percent", type=float, default=10.0,
+                   help="nudge every price by up to this percent of the window's average bar range (0 = exact TA-Lib only)")
+    p.add_argument("--tolerance-draws", type=int, default=8, help="nudged versions of each window")
     p.add_argument("--no-land", action="store_true")
     args, _unknown = p.parse_known_args(argv)
     return args
@@ -142,14 +145,23 @@ def main(argv=None) -> int:
         samples = data.concatenate([real, synthetic])
         log(f"windows: {len(real.windows):,} real + {len(synthetic.windows):,} synthetic")
 
+        # tolerant labels: a near miss of TA-Lib's exact rule still counts (tolerance.py)
+        emit_progress(0, 1, phase="tolerant labels")
+        soft = tolerance.soft_labels(samples.windows, args.tolerance_percent / 100, args.tolerance_draws, seed=args.seed, log=log)
+        exact_labels = samples.labels
+        target = np.maximum(exact_labels.astype(np.float16), soft)              # 1 where TA-Lib fires exactly
+        tolerant_labels = ((exact_labels == 1) | (soft >= 0.5)).astype(np.uint8)  # exact, or most nudges fire
+        near_misses = int((tolerant_labels & (1 - exact_labels)).sum())
+        log(f"within {args.tolerance_percent:g}% tolerance: {near_misses:,} near-miss (window, class) positives on top of {int(exact_labels.sum()):,} exact")
+
         windows = torch.from_numpy(normalise(samples.windows)).to(device)
-        labels = torch.from_numpy(samples.labels).to(device)
+        labels = torch.from_numpy(target).to(device)
         split_t = torch.from_numpy(samples.split.astype(np.int64)).to(device)
         train_index = torch.nonzero(split_t == 0).squeeze(1)
         validation_index = torch.nonzero(split_t == 1).squeeze(1)
         test_index = torch.nonzero(split_t == 2).squeeze(1)
 
-        train_labels = labels[train_index].float()
+        train_labels = torch.from_numpy(tolerant_labels).to(device)[train_index].float()
         frequency = train_labels.sum(0).clamp_min(1)
         none_count = (train_labels.sum(1) == 0).sum().clamp_min(1)
         weight_per_class = frequency.pow(-0.5)
@@ -165,7 +177,8 @@ def main(argv=None) -> int:
         loss_fn = torch.nn.BCEWithLogitsLoss()
         emit_metric_declarations(declarations(sorted({n.split(':')[0] for n in names})))
 
-        validation_labels = samples.labels[samples.split == 1]
+        validation_labels = tolerant_labels[samples.split == 1]
+        validation_target = target[samples.split == 1].astype(np.float32)
         best = (-1.0, None, 0)
         epochs = []
         for epoch in range(args.epochs):
@@ -187,7 +200,7 @@ def main(argv=None) -> int:
             train_loss = total / steps_per_epoch
             scores = predict(model, windows[validation_index])
             clipped = np.clip(scores, 1e-6, 1 - 1e-6)
-            val_loss = float(-(validation_labels * np.log(clipped) + (1 - validation_labels) * np.log(1 - clipped)).mean())
+            val_loss = float(-(validation_target * np.log(clipped) + (1 - validation_target) * np.log(1 - clipped)).mean())
             macro_ap = evaluate.macro_average_precision(scores, validation_labels)
             emit({"type": "epoch_metric", "iteration": epoch + 1, "total": args.epochs, "train_loss": train_loss, "val_loss": val_loss,
                   "validation_macro_average_precision": macro_ap})
@@ -207,25 +220,34 @@ def main(argv=None) -> int:
         thresholds = evaluate.best_thresholds(validation_scores, validation_labels)
         test_scores = predict(model, windows[test_index])
         test_mask = samples.split == 2
-        test_labels = samples.labels[test_mask]
+        test_labels = tolerant_labels[test_mask]
+        test_exact = exact_labels[test_mask]
         test_synthetic = samples.synthetic[test_mask]
         tables = []
-        for source, rows in (("real", ~test_synthetic), ("synthetic", test_synthetic), ("all", np.ones_like(test_synthetic))):
-            tables.append(evaluate.class_table(test_scores[rows], test_labels[rows], thresholds, names, "test", source))
+        for label_kind, truth in (("tolerant", test_labels), ("exact", test_exact)):
+            for source, rows in (("real", ~test_synthetic), ("synthetic", test_synthetic), ("all", np.ones_like(test_synthetic))):
+                tables.append(evaluate.class_table(test_scores[rows], truth[rows], thresholds, names, "test", source).assign(labels=label_kind))
         validation_synthetic = samples.synthetic[samples.split == 1]
-        tables.append(evaluate.class_table(validation_scores[~validation_synthetic], validation_labels[~validation_synthetic], thresholds, names, "validation", "real"))
+        tables.append(evaluate.class_table(validation_scores[~validation_synthetic], validation_labels[~validation_synthetic], thresholds, names, "validation", "real").assign(labels="tolerant"))
         class_metrics = pd.concat(tables, ignore_index=True)
-        real_rows = class_metrics[(class_metrics["source"] == "real") & (class_metrics["split"] == "test")]
-        measurable = real_rows[real_rows["positives"] >= 10]
-        synthetic_rows = class_metrics[(class_metrics["source"] == "synthetic") & (class_metrics["positives"] > 0)]
+
+        def rows_of(label_kind: str, source: str) -> pd.DataFrame:
+            r = class_metrics[(class_metrics["split"] == "test") & (class_metrics["labels"] == label_kind) & (class_metrics["source"] == source)]
+            return r[r["positives"] >= (10 if source == "real" else 1)]
+
+        measurable = rows_of("tolerant", "real")
         headline = {
             "test_real_macro_f1": float(measurable["f1"].mean()),
             "test_real_macro_average_precision": float(measurable["average_precision"].mean()),
-            "test_synthetic_macro_f1": float(synthetic_rows["f1"].mean()),
+            "test_synthetic_macro_f1": float(rows_of("tolerant", "synthetic")["f1"].mean()),
+            "test_real_exact_macro_f1": float(rows_of("exact", "real")["f1"].mean()),
+            "test_real_exact_macro_average_precision": float(rows_of("exact", "real")["average_precision"].mean()),
             "classes_measurable_on_real_test": int(len(measurable)),
+            "classes_with_test_charts": int((rows_of("tolerant", "all")["positives"] > 0).sum()),
             "best_epoch": best[2],
         }
-        log(f"test: real macro F1 {headline['test_real_macro_f1']:.4f} over {len(measurable)} classes, "
+        log(f"test within tolerance: real macro F1 {headline['test_real_macro_f1']:.4f} over {len(measurable)} classes "
+            f"(exact TA-Lib {headline['test_real_exact_macro_f1']:.4f}), "
             f"real macro AP {headline['test_real_macro_average_precision']:.4f}, synthetic macro F1 {headline['test_synthetic_macro_f1']:.4f}")
         confusion = evaluate.pattern_confusion(test_scores[~test_synthetic], test_labels[~test_synthetic], thresholds, classes)
 
@@ -234,7 +256,7 @@ def main(argv=None) -> int:
         for s, split_name in enumerate(data.SPLITS):
             for source, flag in (("real", False), ("synthetic", True)):
                 mask = (samples.split == s) & (samples.synthetic == flag)
-                counts = samples.labels[mask].sum(0)
+                counts = tolerant_labels[mask].sum(0)
                 for k, name in enumerate(names):
                     sample_rows.append({"class_name": name, "split": split_name, "source": source, "windows": int(counts[k])})
         sample_table = pd.DataFrame(sample_rows)
@@ -248,7 +270,8 @@ def main(argv=None) -> int:
         for k, name in enumerate(names):
             y = test_labels[:, k].astype(bool)
             groups = {
-                "real hit": np.flatnonzero(y & predicted[:, k] & ~test_synthetic),
+                "real hit": np.flatnonzero(y & predicted[:, k] & ~test_synthetic & (test_exact[:, k] == 1)),
+                "real near miss": np.flatnonzero(y & predicted[:, k] & ~test_synthetic & (test_exact[:, k] == 0)),
                 "real miss": np.flatnonzero(y & ~predicted[:, k] & ~test_synthetic),
                 "real false alarm": np.flatnonzero(~y & predicted[:, k] & ~test_synthetic),
                 "synthetic hit": np.flatnonzero(y & predicted[:, k] & test_synthetic),
@@ -264,7 +287,8 @@ def main(argv=None) -> int:
                     exemplar_rows.append({
                         "class_name": name, "kind": kind, "score": float(test_scores[r, k]), "threshold": float(thresholds[k]),
                         "bar_timestamp": samples.end_timestamp[position] if not samples.synthetic[position] else pd.NaT,
-                        "talib_classes": ", ".join(names[j] for j in np.flatnonzero(test_labels[r])),
+                        "talib_classes": ", ".join(names[j] for j in np.flatnonzero(test_exact[r])),
+                        "tolerant_classes": ", ".join(names[j] for j in np.flatnonzero(test_labels[r])),
                         "model_classes": ", ".join(names[j] for j in np.flatnonzero(predicted[r])),
                         "window_unit_ohlc_json": json.dumps(np.round(windows[position].cpu().numpy(), 5).tolist()),
                         "model_input_png_base64": png_base64(image),
@@ -276,7 +300,9 @@ def main(argv=None) -> int:
             "epochs": args.epochs, "best_epoch": best[2], "batch_size": args.batch_size, "learning_rate": args.learning_rate,
             "samples_per_epoch": args.samples_per_epoch, "train_minimum": args.train_minimum, "evaluation_minimum": args.evaluation_minimum,
             "real_windows": len(real.windows), "synthetic_windows": len(synthetic.windows), "classes": len(names),
-            "talib_disagreeing_bar_patterns": disagreeing, "duration_seconds": time.time() - started, **headline,
+            "talib_disagreeing_bar_patterns": disagreeing, "duration_seconds": time.time() - started,
+            "tolerance_percent": args.tolerance_percent, "tolerance_draws": args.tolerance_draws, "near_miss_positives": near_misses,
+            **headline,
         }])
         splits = pd.DataFrame(spans)
         synth_table = pd.DataFrame(synth_report)
@@ -291,7 +317,7 @@ def main(argv=None) -> int:
         position_of = {p: i for i, p in enumerate(pattern_names)}
         for row in confusion.itertuples():
             matrix[position_of[row.true_pattern], position_of[row.called_pattern]] = round(row.model_share_percent, 2)
-        test_table = class_metrics[class_metrics["split"] == "test"].pivot_table(
+        test_table = class_metrics[(class_metrics["split"] == "test") & (class_metrics["labels"] == "tolerant")].pivot_table(
             index="class_name", columns="source", values=["positives", "f1", "average_precision"], aggfunc="first")
         test_table.columns = [f"{a}_{b}" for a, b in test_table.columns]
         diagnostics = {

@@ -1038,7 +1038,7 @@
         "gallery/"
       ],
       "chartOverlay": "none",
-      "estimatedTrainingTime": "15-60 min",
+      "estimatedTrainingTime": "60-90 min",
       "tags": [
         "vision",
         "candlestick"
@@ -1063,7 +1063,7 @@
         },
         "epochs": {
           "type": "int",
-          "default": 12,
+          "default": 30,
           "min": 1,
           "max": 100,
           "label": "Epochs",
@@ -1096,7 +1096,7 @@
         },
         "train_minimum": {
           "type": "int",
-          "default": 3000,
+          "default": 10000,
           "min": 0,
           "max": 50000,
           "label": "Minimum train windows per class (synthetic top-up)",
@@ -1104,7 +1104,7 @@
         },
         "evaluation_minimum": {
           "type": "int",
-          "default": 300,
+          "default": 500,
           "min": 0,
           "max": 5000,
           "label": "Minimum validation / test windows per class",
@@ -1117,6 +1117,22 @@
           "max": 1000000,
           "label": "Seed",
           "group": "Data"
+        },
+        "tolerance_percent": {
+          "type": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 30.0,
+          "label": "Tolerance: nudge each price by up to % of the average bar range (0 = exact TA-Lib)",
+          "group": "Data"
+        },
+        "tolerance_draws": {
+          "type": "int",
+          "default": 8,
+          "min": 0,
+          "max": 32,
+          "label": "Nudged versions per chart",
+          "group": "Data"
         }
       },
       "cliFlags": {
@@ -1127,7 +1143,9 @@
         "samples_per_epoch": "--samples-per-epoch",
         "train_minimum": "--train-minimum",
         "evaluation_minimum": "--evaluation-minimum",
-        "seed": "--seed"
+        "seed": "--seed",
+        "tolerance_percent": "--tolerance-percent",
+        "tolerance_draws": "--tolerance-draws"
       }
     }
   }

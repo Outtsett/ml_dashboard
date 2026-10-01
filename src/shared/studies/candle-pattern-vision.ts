@@ -33,6 +33,13 @@ export interface VisionRun {
   test_real_macro_average_precision: number;
   test_synthetic_macro_f1: number;
   classes_measurable_on_real_test: number;
+  /** runs from 2026-10-01 on: labels within a tolerance of TA-Lib's exact rule (tolerance.py) */
+  tolerance_percent?: number | null;
+  tolerance_draws?: number | null;
+  near_miss_positives?: number | null;
+  test_real_exact_macro_f1?: number | null;
+  test_real_exact_macro_average_precision?: number | null;
+  classes_with_test_charts?: number | null;
 }
 
 export interface ClassMetric {
@@ -41,6 +48,8 @@ export interface ClassMetric {
   direction: string;
   split: "validation" | "test";
   source: "real" | "synthetic" | "all";
+  /** "tolerant" = TA-Lib fires exactly or on most nudged versions; absent on the first runs (exact only) */
+  labels?: "exact" | "tolerant" | null;
   windows: number;
   positives: number;
   true_positives: number;
@@ -81,11 +90,12 @@ export interface ConfusionCell {
 
 export interface Exemplar {
   class_name: string;
-  kind: "real hit" | "real miss" | "real false alarm" | "synthetic hit";
+  kind: "real hit" | "real near miss" | "real miss" | "real false alarm" | "synthetic hit";
   score: number;
   threshold: number;
   bar_timestamp: number | null;
   talib_classes: string;
+  tolerant_classes?: string | null;
   model_classes: string;
   model_input_png_base64: string;
 }
