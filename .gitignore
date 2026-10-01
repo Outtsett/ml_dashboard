@@ -276,3 +276,28 @@ __marimo__/
 *.dbn
 *.dbn.zst
 *.tape
+
+# ---------------- Local tmp scripts & probes ----------------
+.*_tmp.ts
+.*_tmp.tsx
+*.tmp.ts
+*.tmp.tsx
+.*_validate.ts
+.*_probe.ts
+.*_probe.tsx
+
+# ---------------- Scratch visualization images ----------------
+/cnn_*.png
+/pg*.png
+/hwma_*.png
+/cpg_*.png
+
+# ---------------- Scratch database exports ----------------
+/tail_*.sql
+*_tmp.test.ts
+*_tmp.test.tsx
+*tmp*.ts
+*tmp*.tsx
+
+# ---------------- Local Database Roots ----------------
+/qdbroot/
