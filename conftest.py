@@ -26,3 +26,6 @@ if _SRC_ML not in sys.path:
 import importlib
 if "tensionflow" not in sys.modules:
     importlib.import_module("tensionflow")
+
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
